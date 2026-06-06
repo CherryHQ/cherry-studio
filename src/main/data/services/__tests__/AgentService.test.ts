@@ -112,8 +112,11 @@ describe('AgentService', () => {
     })
 
     it('places newly created agents first under default sort (createdAt desc)', async () => {
-      await insertAgent({ id: 'agent_existing_a' })
-      await insertAgent({ id: 'agent_existing_b' })
+      // Explicit, distinct, older timestamps so the newly created agent (createdAt =
+      // Date.now()) is unambiguously the newest — the assertion must not depend on
+      // sub-millisecond wall-clock spacing between these inserts.
+      await insertAgent({ id: 'agent_existing_a', createdAt: 1000 })
+      await insertAgent({ id: 'agent_existing_b', createdAt: 2000 })
 
       const created = await agentService.createAgent({
         type: 'claude-code',
@@ -123,6 +126,21 @@ describe('AgentService', () => {
 
       const { agents } = await agentService.listAgents()
       expect(agents[0]?.id).toBe(created.id)
+    })
+
+    it('orders rows with equal createdAt deterministically by id (tiebreaker)', async () => {
+      // createdAt is Date.now() (ms) and can collide across rapid inserts. Without a
+      // deterministic tiebreaker, equal-createdAt rows fall back to query-plan order,
+      // making the default `createdAt desc` listing unstable. Pin both rows to the
+      // same createdAt and assert the id-desc tiebreaker decides the order.
+      await insertAgent({ id: 'agent_aaa', createdAt: 5000 })
+      await insertAgent({ id: 'agent_zzz', createdAt: 5000 })
+
+      const { agents } = await agentService.listAgents()
+      const ids = agents.map((a) => a.id)
+
+      // desc(createdAt), desc(id) -> 'agent_zzz' must come before 'agent_aaa'.
+      expect(ids.indexOf('agent_zzz')).toBeLessThan(ids.indexOf('agent_aaa'))
     })
   })
 

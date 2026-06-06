@@ -1,21 +1,29 @@
 import { UndoOutlined } from '@ant-design/icons'
-import { Button, Input, Kbd, MenuItem, MenuList, PageHeader, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Input, Kbd, MenuItem, MenuList, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { isMac } from '@renderer/config/constant'
+import { isMac, platform } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { getAllShortcutDefaultPreferences, useAllShortcuts } from '@renderer/hooks/useShortcuts'
+import {
+  getAllShortcutDefaultPreferences,
+  type ShortcutSettingsGroup,
+  useAllShortcuts
+} from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { cn } from '@renderer/utils/style'
+import { type CommandId, findCommandDefinition, findKeybindingConflicts, type SupportedPlatform } from '@shared/command'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import {
   convertKeyToAccelerator,
   formatKeyDisplay,
   formatShortcutDisplay,
-  isValidShortcut
-} from '@shared/shortcuts/utils'
+  isValidShortcut,
+  normalizeShortcutToken,
+  type ShortcutBinding,
+  type ShortcutToken
+} from '@shared/shortcuts/tokens'
+import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import { Keyboard, MessageSquareText, Search, Sparkles, Tags, Undo2 } from 'lucide-react'
 import type { FC, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -27,20 +35,21 @@ import {
   settingsContentHeaderTitleClassName,
   settingsContentScrollClassName,
   settingsSubmenuItemClassName,
-  settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName
 } from '.'
 
 const logger = loggerService.withContext('ShortcutSettings')
 
-const isBindingEqual = (a: string[], b: string[]): boolean =>
+const isBindingEqual = (a: ShortcutBinding, b: ShortcutBinding): boolean =>
   a.length === b.length && a.every((key, index) => key === b[index])
 
-const keyCodeToAccelerator: Record<string, string> = {
+const keyCodeToAccelerator: Record<string, ShortcutToken> = {
   Backquote: '`',
   Period: '.',
   NumpadEnter: 'Enter',
+  NumpadAdd: 'numadd',
+  NumpadSubtract: 'numsub',
   Space: 'Space',
   Enter: 'Enter',
   Backspace: 'Backspace',
@@ -51,27 +60,18 @@ const keyCodeToAccelerator: Record<string, string> = {
 const passthrough =
   /^(Page(Up|Down)|Insert|Home|End|Arrow(Up|Down|Left|Right)|F([1-9]|1[0-9])|Slash|Semicolon|Bracket(Left|Right)|Backslash|Quote|Comma|Minus|Equal)$/
 
-const usableEndKeys = (code: string): string | null => {
-  if (/^Key[A-Z]$/.test(code) || /^(Digit|Numpad)\d$/.test(code)) return code.slice(-1)
+const usableEndKeys = (code: string): ShortcutToken | null => {
+  if (/^Key[A-Z]$/.test(code) || /^(Digit|Numpad)\d$/.test(code)) return normalizeShortcutToken(code) ?? null
   if (keyCodeToAccelerator[code]) return keyCodeToAccelerator[code]
-  if (passthrough.test(code)) return code
+  if (passthrough.test(code)) return convertKeyToAccelerator(code) ?? null
   return null
 }
 
-type ShortcutCategoryKey = 'general' | 'chat' | 'topic' | 'assistant'
-
-const categoryIconMap: Record<ShortcutCategoryKey, ReactNode> = {
+const groupIconMap: Record<ShortcutSettingsGroup, ReactNode> = {
   general: <Keyboard size={16} />,
   chat: <MessageSquareText size={16} />,
   topic: <Tags size={16} />,
   assistant: <Sparkles size={16} />
-}
-
-const definitionCategoryToCategoryKey = (category: string): ShortcutCategoryKey => {
-  if (category === 'general') return 'general'
-  if (category === 'chat') return 'chat'
-  if (category === 'topic') return 'topic'
-  return 'assistant'
 }
 
 const ShortcutSettings: FC = () => {
@@ -80,14 +80,14 @@ const ShortcutSettings: FC = () => {
   const { shortcuts, updatePreference } = useAllShortcuts()
   const inputRefs = useRef<Record<string, HTMLInputElement>>({})
   const [editingKey, setEditingKey] = useState<string | null>(null)
-  const [pendingKeys, setPendingKeys] = useState<string[]>([])
+  const [pendingKeys, setPendingKeys] = useState<ShortcutBinding>([])
   const [conflictLabel, setConflictLabel] = useState<string | null>(null)
   const [systemConflictKey, setSystemConflictKey] = useState<ShortcutPreferenceKey | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
-  const [activeCategory, setActiveCategory] = useState<ShortcutCategoryKey>('general')
+  const [activeGroup, setActiveGroup] = useState<ShortcutSettingsGroup>('general')
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
 
-  const categoryMeta = useMemo(
+  const groupMeta = useMemo(
     () => [
       { key: 'general' as const, label: t('settings.shortcuts.categories.general') },
       { key: 'chat' as const, label: t('settings.shortcuts.categories.chat') },
@@ -97,21 +97,21 @@ const ShortcutSettings: FC = () => {
     [t]
   )
 
-  const shortcutsByCategory = useMemo(() => {
-    return shortcuts.reduce<Record<ShortcutCategoryKey, typeof shortcuts>>(
+  const shortcutsByGroup = useMemo(() => {
+    return shortcuts.reduce<Record<ShortcutSettingsGroup, typeof shortcuts>>(
       (acc, shortcut) => {
-        acc[definitionCategoryToCategoryKey(shortcut.definition.category)].push(shortcut)
+        acc[shortcut.group].push(shortcut)
         return acc
       },
       { general: [], chat: [], topic: [], assistant: [] }
     )
   }, [shortcuts])
 
-  const currentCategoryShortcuts = shortcutsByCategory[activeCategory]
+  const currentGroupShortcuts = shortcutsByGroup[activeGroup]
 
   const visibleShortcuts = useMemo(() => {
     const query = searchQuery.toLowerCase().trim()
-    return currentCategoryShortcuts.filter((record) => {
+    return currentGroupShortcuts.filter((record) => {
       if (!query) return true
       const display =
         record.preference.binding.length > 0
@@ -119,21 +119,16 @@ const ShortcutSettings: FC = () => {
           : ''
       return record.label.toLowerCase().includes(query) || display.includes(query)
     })
-  }, [currentCategoryShortcuts, searchQuery])
+  }, [currentGroupShortcuts, searchQuery])
 
-  const duplicateBindingLabels = useMemo(() => {
-    const lookup = new Map<string, { key: ShortcutPreferenceKey; label: string }>()
-
-    for (const shortcut of shortcuts) {
-      if (!shortcut.preference.enabled || !shortcut.preference.binding.length) continue
-      lookup.set(shortcut.preference.binding.map((key) => key.toLowerCase()).join('+'), {
-        key: shortcut.key,
-        label: shortcut.label
-      })
-    }
-
-    return lookup
-  }, [shortcuts])
+  const shortcutPreferences = useMemo(
+    () =>
+      shortcuts.reduce<Partial<Record<CommandId, PreferenceShortcutType>>>((acc, shortcut) => {
+        acc[shortcut.command] = shortcut.preference
+        return acc
+      }, {}),
+    [shortcuts]
+  )
 
   const clearEditingState = () => {
     clearTimeoutTimer('conflict-clear')
@@ -167,13 +162,13 @@ const ShortcutSettings: FC = () => {
   }, [t])
 
   useEffect(() => {
-    if (currentCategoryShortcuts.length === 0) {
-      const firstAvailable = categoryMeta.find((category) => shortcutsByCategory[category.key].length > 0)
-      if (firstAvailable && firstAvailable.key !== activeCategory) {
-        setActiveCategory(firstAvailable.key)
+    if (currentGroupShortcuts.length === 0) {
+      const firstAvailable = groupMeta.find((group) => shortcutsByGroup[group.key].length > 0)
+      if (firstAvailable && firstAvailable.key !== activeGroup) {
+        setActiveGroup(firstAvailable.key)
       }
     }
-  }, [activeCategory, categoryMeta, currentCategoryShortcuts.length, shortcutsByCategory])
+  }, [activeGroup, currentGroupShortcuts.length, groupMeta, shortcutsByGroup])
 
   const handleAddShortcut = (key: ShortcutPreferenceKey) => {
     clearEditingState()
@@ -193,6 +188,15 @@ const ShortcutSettings: FC = () => {
   }
 
   const handleResetShortcut = async (record: (typeof shortcuts)[number]) => {
+    const conflict = findConflictLabel(record.command, {
+      binding: record.defaultPreference.binding,
+      enabled: record.defaultPreference.enabled
+    })
+    if (conflict) {
+      showConflictToast(conflict)
+      return
+    }
+
     try {
       clearSystemConflict(record.key)
       await updatePreference(record.key, {
@@ -205,9 +209,32 @@ const ShortcutSettings: FC = () => {
     }
   }
 
-  const findDuplicateLabel = (keys: string[], currentKey: ShortcutPreferenceKey): string | null => {
-    const duplicate = duplicateBindingLabels.get(keys.map((key) => key.toLowerCase()).join('+'))
-    return duplicate && duplicate.key !== currentKey ? duplicate.label : null
+  const getCommandLabel = (command: CommandId): string => {
+    const shortcut = shortcuts.find((item) => item.command === command)
+    if (shortcut) {
+      return shortcut.label
+    }
+
+    const definition = findCommandDefinition(command)
+    return definition ? t(definition.titleKey) : command
+  }
+
+  const findConflictLabel = (
+    command: CommandId,
+    preference: PreferenceShortcutType,
+    preferences = shortcutPreferences
+  ): string | null => {
+    const conflict = findKeybindingConflicts({
+      command,
+      preference,
+      preferences,
+      platform: platform as SupportedPlatform
+    })[0]
+    return conflict ? getCommandLabel(conflict.conflictingCommand) : null
+  }
+
+  const showConflictToast = (label: string) => {
+    window.toast.error(t('settings.shortcuts.conflict_with', { name: label }))
   }
 
   const handleKeyDown = async (event: ReactKeyboardEvent, record: (typeof shortcuts)[number]) => {
@@ -218,7 +245,7 @@ const ShortcutSettings: FC = () => {
       return
     }
 
-    const keys: string[] = []
+    const keys: ShortcutToken[] = []
 
     if (event.ctrlKey) keys.push(isMac ? 'Ctrl' : 'CommandOrControl')
     if (event.altKey) keys.push('Alt')
@@ -227,19 +254,20 @@ const ShortcutSettings: FC = () => {
 
     const endKey = usableEndKeys(event.code)
     if (endKey) {
-      keys.push(convertKeyToAccelerator(endKey))
+      keys.push(endKey)
     }
 
-    setPendingKeys(keys)
+    const binding: ShortcutBinding = keys
+    setPendingKeys(binding)
 
-    if (!isValidShortcut(keys)) {
+    if (!isValidShortcut(binding)) {
       setConflictLabel(null)
       return
     }
 
-    const duplicate = findDuplicateLabel(keys, record.key)
-    if (duplicate) {
-      setConflictLabel(duplicate)
+    const conflict = findConflictLabel(record.command, { binding, enabled: true })
+    if (conflict) {
+      setConflictLabel(conflict)
       clearTimeoutTimer('conflict-clear')
       setTimeoutTimer('conflict-clear', () => setConflictLabel(null), 2000)
       return
@@ -248,7 +276,7 @@ const ShortcutSettings: FC = () => {
     setConflictLabel(null)
     try {
       clearSystemConflict(record.key)
-      await updatePreference(record.key, { binding: keys, enabled: true })
+      await updatePreference(record.key, { binding, enabled: true })
       clearEditingState()
     } catch (error) {
       handleUpdateFailure(record, error)
@@ -274,9 +302,14 @@ const ShortcutSettings: FC = () => {
   }
 
   const handleToggleVisibleShortcuts = async (enabled: boolean) => {
+    const nextPreferencesByCommand: Partial<Record<CommandId, PreferenceShortcutType>> = { ...shortcutPreferences }
     const updates = visibleShortcuts.reduce(
       (acc, record) => {
         if (!record.preference.binding.length) return acc
+        nextPreferencesByCommand[record.command] = {
+          binding: record.preference.binding,
+          enabled
+        }
         acc[record.key] = {
           binding: record.preference.binding,
           enabled
@@ -288,11 +321,24 @@ const ShortcutSettings: FC = () => {
 
     if (Object.keys(updates).length === 0) return
 
+    if (enabled) {
+      for (const record of visibleShortcuts) {
+        const nextPreference = nextPreferencesByCommand[record.command]
+        if (!nextPreference?.enabled || !nextPreference.binding.length) continue
+
+        const conflict = findConflictLabel(record.command, nextPreference, nextPreferencesByCommand)
+        if (conflict) {
+          showConflictToast(conflict)
+          return
+        }
+      }
+    }
+
     try {
       clearSystemConflict()
       await preferenceService.setMultiple(updates)
     } catch (error) {
-      logger.error(`Failed to toggle shortcuts for category ${activeCategory}`, error as Error)
+      logger.error(`Failed to toggle shortcuts for group ${activeGroup}`, error as Error)
       window.toast.error(t('settings.shortcuts.save_failed'))
     }
   }
@@ -301,7 +347,7 @@ const ShortcutSettings: FC = () => {
     const isEditing = editingKey === record.key
     const displayKeys = record.preference.binding
     const displayShortcut = displayKeys.length > 0 ? formatShortcutDisplay(displayKeys, isMac) : ''
-    const isEditable = record.definition.editable !== false
+    const isEditable = record.keybinding.editable !== false
     const isBindingModified = !isBindingEqual(displayKeys, record.defaultPreference.binding)
     const hasSystemConflict = systemConflictKey === record.key
     const conflictMessage =
@@ -409,8 +455,20 @@ const ShortcutSettings: FC = () => {
         checked={record.preference.enabled}
         disabled={!record.preference.binding.length}
         onCheckedChange={() => {
+          const nextPreference = {
+            binding: record.preference.binding,
+            enabled: !record.preference.enabled
+          }
+          if (nextPreference.enabled) {
+            const conflict = findConflictLabel(record.command, nextPreference)
+            if (conflict) {
+              showConflictToast(conflict)
+              return
+            }
+          }
+
           clearSystemConflict(record.key)
-          updatePreference(record.key, { enabled: !record.preference.enabled }).catch((error) => {
+          updatePreference(record.key, { enabled: nextPreference.enabled }).catch((error) => {
             handleUpdateFailure(record, error)
           })
         }}
@@ -445,39 +503,38 @@ const ShortcutSettings: FC = () => {
   return (
     <div className="flex flex-1" data-theme-mode={theme}>
       <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
-        <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
-          <PageHeader title={t('settings.shortcuts.title')} />
-          <Scrollbar className="min-h-0 flex-1">
-            <MenuList className={settingsSubmenuListClassName}>
-              {categoryMeta.map((category) => {
-                const count = shortcutsByCategory[category.key].length
-                const isActive = activeCategory === category.key
+        <Scrollbar className={settingsSubmenuScrollClassName}>
+          <MenuList className={settingsSubmenuListClassName}>
+            <div className="px-2.5 pt-1 pb-2 font-medium text-foreground-muted text-xs">
+              {t('settings.shortcuts.title')}
+            </div>
+            {groupMeta.map((group) => {
+              const count = shortcutsByGroup[group.key].length
+              const isActive = activeGroup === group.key
 
-                return (
-                  <MenuItem
-                    key={category.key}
-                    className={settingsSubmenuItemClassName}
-                    labelClassName={settingsSubmenuItemLabelClassName}
-                    icon={categoryIconMap[category.key]}
-                    active={isActive}
-                    label={category.label}
-                    suffix={<span className="shrink-0 text-[11px] text-muted-foreground">{count}</span>}
-                    onClick={() => {
-                      setActiveCategory(category.key)
-                      setSearchQuery('')
-                    }}
-                  />
-                )
-              })}
-            </MenuList>
-          </Scrollbar>
-        </div>
+              return (
+                <MenuItem
+                  key={group.key}
+                  className={settingsSubmenuItemClassName}
+                  icon={groupIconMap[group.key]}
+                  active={isActive}
+                  label={group.label}
+                  suffix={<span className="shrink-0 text-[11px] text-muted-foreground">{count}</span>}
+                  onClick={() => {
+                    setActiveGroup(group.key)
+                    setSearchQuery('')
+                  }}
+                />
+              )
+            })}
+          </MenuList>
+        </Scrollbar>
 
         <Scrollbar className={settingsContentScrollClassName}>
           <SettingsContentBody>
             <div className={cn(settingsContentHeaderClassName, 'mb-3 flex items-center justify-between gap-2')}>
               <h1 className={settingsContentHeaderTitleClassName}>
-                {categoryMeta.find((item) => item.key === activeCategory)?.label}
+                {groupMeta.find((item) => item.key === activeGroup)?.label}
               </h1>
               <div className="flex items-center gap-1">
                 <Button

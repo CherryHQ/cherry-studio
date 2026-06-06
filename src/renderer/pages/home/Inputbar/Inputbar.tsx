@@ -3,10 +3,10 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isGenerateImageModel, isGenerateImageModels, isVisionModel, isVisionModels } from '@renderer/config/models'
 import { useCache } from '@renderer/data/hooks/useCache'
+import { useCommandHandler } from '@renderer/features/command'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useInputText } from '@renderer/hooks/useInputText'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
@@ -334,19 +334,10 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
     }
   }, [resizeTextArea, addNewTopic, clearTopic, onNewContext, setText, handleToggleExpanded, actionsRef])
 
-  useShortcut(
-    'topic.new',
-    () => {
-      void addNewTopic()
-      void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
-      focusTextarea()
-    },
-    { preventDefault: true, enableOnFormTags: true }
-  )
-
-  useShortcut('chat.clear', clearTopic, {
-    preventDefault: true,
-    enableOnFormTags: true
+  useCommandHandler('topic.create', () => {
+    void addNewTopic()
+    void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
+    focusTextarea()
   })
 
   useEffect(() => {

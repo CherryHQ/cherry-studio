@@ -22,6 +22,7 @@ const {
   selectionServiceMock,
   settingsWindowServiceMock,
   quickAssistantServiceMock,
+  commandServiceMock,
   globalShortcutMock
 } = vi.hoisted(() => ({
   windowServiceMock: {
@@ -43,6 +44,9 @@ const {
   quickAssistantServiceMock: {
     toggleQuickAssistant: vi.fn()
   },
+  commandServiceMock: {
+    execute: vi.fn()
+  },
   globalShortcutMock: {
     register: vi.fn(),
     unregister: vi.fn()
@@ -56,7 +60,8 @@ vi.mock('@application', async () => {
     WindowManager: windowManagerMock,
     SelectionService: selectionServiceMock,
     SettingsWindowService: settingsWindowServiceMock,
-    QuickAssistantService: quickAssistantServiceMock
+    QuickAssistantService: quickAssistantServiceMock,
+    CommandService: commandServiceMock
   } as any)
 })
 
@@ -79,22 +84,18 @@ vi.mock('@main/core/lifecycle', () => {
   }
 })
 
-vi.mock('@main/utils/zoom', () => ({
-  handleZoomFactor: vi.fn()
-}))
-
 vi.mock('electron', () => ({
   globalShortcut: globalShortcutMock
 }))
 
 import { WindowType } from '@main/core/window/types'
-import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 
 import { ShortcutService } from '../ShortcutService'
 
-const supportsSelectionShortcuts = ['darwin', 'win32'].includes(process.platform)
+// Mirrors the selection commands' supportedPlatforms (darwin/win32/linux) — SelectionService supports linux too.
+const supportsSelectionShortcuts = ['darwin', 'win32', 'linux'].includes(process.platform)
 const settingsShortcutHandledByNativeMenu = process.platform === 'darwin'
 
 class MockBrowserWindow {
@@ -185,7 +186,7 @@ describe('ShortcutService', () => {
   })
 
   it('registers global shortcuts immediately for an unfocused main window', async () => {
-    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.general.show_main_window', {
+    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
       binding: ['CommandOrControl', 'M'],
       enabled: true
     })
@@ -202,16 +203,17 @@ describe('ShortcutService', () => {
     const showMainHandler = showMainRegistration?.[1] as (() => void) | undefined
     showMainHandler?.()
 
-    expect(windowServiceMock.toggleMainWindow).toHaveBeenCalledTimes(1)
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.window.show', mainWindow)
   })
 
   it('opens the settings window through SettingsWindowService', async () => {
     await (service as any).onInit()
 
-    const handler = (service as any).handlers.get('shortcut.general.show_settings') as (() => void) | undefined
+    const handler = (service as any).handlers.get('app.settings.open') as (() => void) | undefined
     handler?.()
 
-    expect(settingsWindowServiceMock.open).toHaveBeenCalledWith('/settings/provider')
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.settings.open', undefined)
+    expect(settingsWindowServiceMock.open).not.toHaveBeenCalled()
     expect(windowServiceMock.showMainWindow).not.toHaveBeenCalled()
   })
 
@@ -220,7 +222,7 @@ describe('ShortcutService', () => {
     globalShortcutMock.register.mockClear()
     globalShortcutMock.unregister.mockClear()
 
-    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.general.zoom_in', {
+    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.zoom.in', {
       binding: ['Alt', '='],
       enabled: true
     })
@@ -231,7 +233,7 @@ describe('ShortcutService', () => {
   })
 
   it('reacts to quick assistant enablement changes for quick assistant shortcut', async () => {
-    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.feature.quick_assistant.toggle_window', {
+    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.quick_assistant.toggle', {
       binding: ['CommandOrControl', 'E'],
       enabled: true
     })
@@ -248,7 +250,7 @@ describe('ShortcutService', () => {
   })
 
   it('reacts to selection assistant enablement changes for selection shortcuts', async () => {
-    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.feature.selection.toggle_enabled', {
+    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.selection.toggle', {
       binding: ['CommandOrControl', 'Shift', 'S'],
       enabled: true
     })
@@ -287,7 +289,7 @@ describe('ShortcutService', () => {
     const zoomInHandler = zoomInRegistration?.[1] as (() => void) | undefined
     zoomInHandler?.()
 
-    expect(handleZoomFactor).toHaveBeenCalledWith([nextWindow], 0.1)
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.in', nextWindow)
   })
 
   it('resets boot registration state when the service stops and starts again', async () => {
@@ -311,7 +313,7 @@ describe('ShortcutService', () => {
       WindowType.Main,
       IpcChannel.Shortcut_RegistrationConflict,
       {
-        key: 'shortcut.general.zoom_reset',
+        key: 'shortcut.app.zoom.reset',
         accelerator: 'CommandOrControl+0',
         hasConflict: true
       }
@@ -330,7 +332,7 @@ describe('ShortcutService', () => {
       WindowType.Main,
       IpcChannel.Shortcut_RegistrationConflict,
       expect.objectContaining({
-        key: 'shortcut.general.zoom_reset',
+        key: 'shortcut.app.zoom.reset',
         hasConflict: true
       })
     )

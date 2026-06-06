@@ -5,7 +5,7 @@ import * as readline from 'readline/promises'
 import { type CallExpression, Node, Project, type SourceFile } from 'ts-morph'
 import { pathToFileURL } from 'url'
 
-import { SHORTCUT_DEFINITIONS } from '../src/shared/shortcuts/definitions'
+import { COMMAND_DEFINITIONS } from '../src/shared/command/definitions'
 import { sortedObjectByKeys } from './sort'
 
 const ROOT_DIR = path.resolve(__dirname, '..')
@@ -216,9 +216,10 @@ function collectExactSourceTextReferences(
 }
 
 function collectShortcutReferences(localeKeys: Set<string>, usedKeys: Set<string>): void {
-  for (const definition of SHORTCUT_DEFINITIONS) {
-    const key = `settings.shortcuts.${definition.labelKey}`
-    if (localeKeys.has(key)) usedKeys.add(key)
+  for (const definition of COMMAND_DEFINITIONS) {
+    for (const key of [definition.titleKey, definition.categoryKey]) {
+      if (localeKeys.has(key)) usedKeys.add(key)
+    }
   }
 }
 
