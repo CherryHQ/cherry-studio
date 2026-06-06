@@ -12,9 +12,10 @@ import { AnthropicMessagesLanguageModel } from '@ai-sdk/anthropic/internal'
 import { GoogleGenerativeAILanguageModel } from '@ai-sdk/google/internal'
 import { OpenAIChatLanguageModel, OpenAIResponsesLanguageModel, OpenAISpeechModel } from '@ai-sdk/openai/internal'
 import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } from '@ai-sdk/openai-compatible'
-import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
+import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 import type { Model } from '@shared/data/types/model'
 import { isOpenAIChatCompletionOnlyModel, isOpenAILLMModel } from '@shared/utils/model'
 
@@ -35,6 +36,7 @@ export interface AihubmixProvider extends ProviderV3 {
   languageModel(modelId: string): LanguageModelV3
   embeddingModel(modelId: string): EmbeddingModelV3
   imageModel(modelId: string): ImageModelV3
+  rerankingModel(modelId: string): RerankingModelV3
 }
 
 export function createAihubmix(options: AihubmixProviderSettings = {}): AihubmixProvider {
@@ -151,6 +153,14 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
   provider.speechModel = (modelId: string) =>
     new OpenAISpeechModel(modelId, {
       provider: `${AIHUBMIX_PROVIDER_NAME}.speech`,
+      url,
+      headers: authHeaders,
+      fetch: customFetch
+    })
+
+  provider.rerankingModel = (modelId: string) =>
+    new OpenAICompatibleRerankingModel(modelId, {
+      provider: `${AIHUBMIX_PROVIDER_NAME}.rerank`,
       url,
       headers: authHeaders,
       fetch: customFetch
