@@ -92,11 +92,17 @@ describe('getModelGroupLabel', () => {
   }
 
   it('returns translation for ungrouped key', () => {
-    expect(getModelGroupLabel(UNGROUPED_MODEL_GROUP_KEY, t as any)).toBe('Untagged')
+    expect(getModelGroupLabel(UNGROUPED_MODEL_GROUP_KEY, undefined, t as any)).toBe('Untagged')
   })
 
-  it('returns raw group name for non-ungrouped', () => {
-    expect(getModelGroupLabel('deepseek', t as any)).toBe('deepseek')
-    expect(getModelGroupLabel('gpt-5', t as any)).toBe('gpt-5')
+  it('returns display name via displayName fn for non-ungrouped', () => {
+    const displayName = (group: string) => `Display:${group}`
+    expect(getModelGroupLabel('deepseek', displayName)).toBe('Display:deepseek')
+    expect(getModelGroupLabel('gpt-5', displayName)).toBe('Display:gpt-5')
+  })
+
+  it('returns raw group name when no displayName fn is provided', () => {
+    expect(getModelGroupLabel('deepseek')).toBe('deepseek')
+    expect(getModelGroupLabel('gpt-5')).toBe('gpt-5')
   })
 })

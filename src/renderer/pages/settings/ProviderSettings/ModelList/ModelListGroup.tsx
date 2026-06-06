@@ -32,7 +32,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   const { t } = useTranslation()
   const [open, setOpen] = useState(defaultOpen)
   const scrollerRef = useRef<HTMLDivElement>(null)
-  const groupLabel = getModelGroupDisplayName(getModelGroupLabel(groupName, t))
+  const groupLabel = getModelGroupLabel(groupName, getModelGroupDisplayName, t)
   const shouldVirtualize = items.length > 80
   const previewItems = useMemo(() => items.slice(0, 80), [items])
   const virtualizer = useVirtualizer({

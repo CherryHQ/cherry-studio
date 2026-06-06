@@ -6,6 +6,12 @@ export const UNGROUPED_MODEL_GROUP_KEY = '__ungrouped__'
 /**
  * Known provider-style aliases that appear as model ID prefixes on multi-tenant
  * platforms (e.g. OpenRouter).  Lower-case keys for case-insensitive lookup.
+ *
+ * NOTE: These are intentionally separate from `providerKeyMap` in the i18n layer.
+ * `providerKeyMap` maps *app-registered* provider IDs (e.g. "openai", "anthropic")
+ * to i18n keys, while these aliases cover *sub-tenant prefixes* on external
+ * platforms that don't correspond to app provider IDs.  Keep this map colocated
+ * with the lookup logic here to avoid divergent label sources.
  */
 const MODEL_GROUP_DISPLAY_ALIASES: Record<string, string> = {
   'black-forest-labs': 'Black Forest Labs',
@@ -63,6 +69,9 @@ export function normalizeModelGroupName(group: string | null | undefined, fallba
   return UNGROUPED_MODEL_GROUP_KEY
 }
 
-export function getModelGroupLabel(groupName: string, t: TFunction): string {
-  return groupName === UNGROUPED_MODEL_GROUP_KEY ? t('assistants.tags.untagged') : groupName
+export function getModelGroupLabel(groupName: string, displayName?: (group: string) => string, t?: TFunction): string {
+  if (groupName === UNGROUPED_MODEL_GROUP_KEY) {
+    return t ? t('assistants.tags.untagged') : groupName
+  }
+  return displayName ? displayName(groupName) : groupName
 }
