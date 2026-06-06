@@ -6131,7 +6131,7 @@
         "all_models_passed": "所有模型检测通过",
         "button_caption": "健康检测",
         "disabled": "未启用",
-        "disclaimer": "健康检查需要发送请求，请谨慎使用。按次收费的模型可能产生更多费用，请自行承担。",
+        "disclaimer": "健康检测会向选中的模型和 API Key 发送真实请求。按次计费或并发检测可能产生高额费用，请确认后再开始。",
         "drawer_result_hint": "检测结果会保留在此面板中，关闭抽屉或点击「重新检测」前不会消失。",
         "enable_concurrent": "并发检测",
         "enabled": "已启用",

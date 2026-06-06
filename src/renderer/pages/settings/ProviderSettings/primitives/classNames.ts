@@ -184,6 +184,8 @@ export const drawerClasses = {
     'rounded-[length:var(--radius-md)] border border-border bg-background px-3 py-3 [&_[data-slot=switch]]:mt-0.5',
   endpointChipRow: 'flex min-w-0 flex-wrap items-center gap-2',
   footer: 'flex items-center justify-end gap-2',
+  healthCostWarning:
+    'shrink-0 rounded-[length:var(--radius-lg)] border-[color:var(--color-warning-base)] bg-[color:var(--color-warning-bg)] px-3 py-2.5 text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-[color:var(--color-warning-base)] shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-4 [&_[data-slot=alert-message]]:font-[weight:var(--font-weight-medium)]',
   /** Model health-check drawer: determinate progress (scoped neutral track + primary fill). */
   healthProgressTrack:
     'h-1.5 w-full overflow-hidden rounded-full bg-[color:color-mix(in_srgb,var(--muted-foreground)_12%,transparent)]',

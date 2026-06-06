@@ -6131,7 +6131,7 @@
         "all_models_passed": "All models check passed",
         "button_caption": "Health check",
         "disabled": "Not enabled",
-        "disclaimer": "Health check requires sending requests, please use it with caution. Models that charge per request may incur additional costs, please bear the responsibility.",
+        "disclaimer": "Health check sends real requests to the selected models and API keys. Per-request billing or concurrent checks may incur significant costs. Review before starting.",
         "drawer_result_hint": "Results remain here until you close the drawer or run the check again.",
         "enable_concurrent": "Concurrent",
         "enabled": "Enabled",

@@ -6131,7 +6131,7 @@
         "all_models_passed": "所有模型檢查皆成功",
         "button_caption": "健康檢查",
         "disabled": "未啟用",
-        "disclaimer": "健康檢查需要傳送請求，請謹慎使用。按次收費的模型可能產生更多費用，請自行承擔。",
+        "disclaimer": "健康檢查會向選中的模型和 API Key 傳送真實請求。按次計費或並行檢查可能產生高額費用，請確認後再開始。",
         "drawer_result_hint": "檢測結果會保留在此面板中，關閉抽屜或點擊「重新檢測」前不會消失。",
         "enable_concurrent": "並行檢查",
         "enabled": "已啟用",

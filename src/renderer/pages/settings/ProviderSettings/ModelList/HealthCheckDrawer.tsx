@@ -1,4 +1,5 @@
 import {
+  Alert,
   Avatar,
   AvatarFallback,
   Button,
@@ -155,7 +156,13 @@ export default function HealthCheckDrawer({
 
   return (
     <ProviderSettingsDrawer open={open} onClose={onClose} title={title} footer={footer}>
-      <p className={cn(drawerClasses.helpText, 'shrink-0')}>{t('settings.models.check.disclaimer')}</p>
+      <Alert
+        type="warning"
+        showIcon
+        role="alert"
+        message={t('settings.models.check.disclaimer')}
+        className={drawerClasses.healthCostWarning}
+      />
 
       {showPipeline && progressStats ? (
         <div className="flex min-h-0 flex-1 flex-col gap-0">
