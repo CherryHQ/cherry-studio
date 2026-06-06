@@ -104,25 +104,6 @@ export const createUrlItem = ({
   }
 })
 
-export const createSitemapItem = ({
-  id,
-  source = `https://example.com/${id}.xml`,
-  status = 'completed'
-}: {
-  id: string
-  source?: string
-  status?: KnowledgeItemOf<'sitemap'>['status']
-}): KnowledgeItemOf<'sitemap'> => ({
-  ...baseFields,
-  ...createContainerLifecycle(status),
-  id,
-  type: 'sitemap',
-  data: {
-    source,
-    url: source
-  }
-})
-
 export const createDirectoryItem = ({
   id,
   source = `/Users/eeee/${id}`,

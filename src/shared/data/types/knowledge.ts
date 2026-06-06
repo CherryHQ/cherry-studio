@@ -15,7 +15,7 @@ import { GroupIdSchema } from './group'
 // Constants and Field Schemas
 // ============================================================================
 
-export const KNOWLEDGE_ITEM_TYPES = ['file', 'url', 'note', 'sitemap', 'directory'] as const
+export const KNOWLEDGE_ITEM_TYPES = ['file', 'url', 'note', 'directory'] as const
 export const KnowledgeItemTypeSchema = z.enum(KNOWLEDGE_ITEM_TYPES)
 export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
 
@@ -31,7 +31,7 @@ export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
  *       +--------------------+-------------+-----------> failed
  *      \---------------------------------------------> deleting
  *
- * directory/sitemap:
+ * directory:
  *   idle -> preparing -> processing -> completed
  *      \        \             \          \
  *       +--------+-------------+-----------> failed
@@ -39,7 +39,7 @@ export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
  * ```
  *
  * - `idle`: item row exists but indexing has not started.
- * - `preparing`: container expansion is running; only `directory` / `sitemap` items may use it.
+ * - `preparing`: container expansion is running; only `directory` items may use it.
  * - `processing`: work has been queued or is running before a more specific phase is known.
  * - `reading`: leaf source documents are being read; only `file` / `url` / `note` items may use it.
  * - `embedding`: leaf chunks are being embedded and written to the vector store; only `file` / `url` / `note`.
@@ -202,13 +202,6 @@ export const NoteItemDataSchema = KnowledgeItemSharedSchema.extend({
 })
 
 /**
- * Sitemap item data.
- */
-export const SitemapItemDataSchema = KnowledgeItemSharedSchema.extend({
-  url: z.string().trim().min(1).describe('Sitemap URL to expand into child URL items.')
-})
-
-/**
  * Directory item data.
  */
 export const DirectoryItemDataSchema = KnowledgeItemSharedSchema.extend({
@@ -222,7 +215,6 @@ export const KnowledgeItemDataSchema = z.union([
   FileItemDataSchema,
   UrlItemDataSchema,
   NoteItemDataSchema,
-  SitemapItemDataSchema,
   DirectoryItemDataSchema
 ])
 export type KnowledgeItemData = z.infer<typeof KnowledgeItemDataSchema>
@@ -247,7 +239,7 @@ const IdleKnowledgeItemLifecycleSchema = {
 } as const
 
 const PreparingKnowledgeItemLifecycleSchema = {
-  status: z.literal('preparing').describe('Container expansion is running; only directory and sitemap items use it.'),
+  status: z.literal('preparing').describe('Container expansion is running; only directory items use it.'),
   error: z.null().describe('No error is stored for non-failed lifecycle states.')
 } as const
 
@@ -374,10 +366,6 @@ const NoteKnowledgeItemSchema = z.discriminatedUnion(
   'status',
   createLeafKnowledgeItemEntitySchemas('note', NoteItemDataSchema)
 )
-const SitemapKnowledgeItemSchema = z.discriminatedUnion(
-  'status',
-  createContainerKnowledgeItemEntitySchemas('sitemap', SitemapItemDataSchema)
-)
 const DirectoryKnowledgeItemSchema = z.discriminatedUnion(
   'status',
   createContainerKnowledgeItemEntitySchemas('directory', DirectoryItemDataSchema)
@@ -390,7 +378,6 @@ export const KnowledgeItemSchema = z.union([
   FileKnowledgeItemSchema,
   UrlKnowledgeItemSchema,
   NoteKnowledgeItemSchema,
-  SitemapKnowledgeItemSchema,
   DirectoryKnowledgeItemSchema
 ])
 export type KnowledgeItem = z.infer<typeof KnowledgeItemSchema>
@@ -505,10 +492,6 @@ export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
   CreateKnowledgeItemBaseSchema.extend({
     type: z.literal('note'),
     data: NoteItemDataSchema
-  }),
-  CreateKnowledgeItemBaseSchema.extend({
-    type: z.literal('sitemap'),
-    data: SitemapItemDataSchema
   }),
   CreateKnowledgeItemBaseSchema.extend({
     type: z.literal('directory'),

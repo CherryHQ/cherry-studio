@@ -10,11 +10,9 @@ import {
 import type { IndexableKnowledgeItem } from '../../types/items'
 import { isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../items'
 import { expandDirectoryOwnerToTree, type ExpandedDirectoryNode } from './directory'
-import { expandSitemapOwnerToCreateItems } from './sitemap'
 
 const logger = loggerService.withContext('KnowledgePrepare')
 const EMPTY_DIRECTORY_ERROR = 'Directory contains no indexable files'
-const EMPTY_SITEMAP_ERROR = 'Sitemap contains no indexable URLs'
 
 export interface PrepareKnowledgeItemOptions {
   baseId: string
@@ -37,11 +35,7 @@ export async function prepareKnowledgeItem({
     return [item]
   }
 
-  if (item.type === 'directory') {
-    return await prepareDirectoryForRuntime(baseId, item, onCreatedItem, runMutation, signal)
-  }
-
-  return await prepareSitemapForRuntime(baseId, item, onCreatedItem, runMutation, signal)
+  return await prepareDirectoryForRuntime(baseId, item, onCreatedItem, runMutation, signal)
 }
 
 async function prepareDirectoryForRuntime(
@@ -117,37 +111,6 @@ async function createDirectoryChildren(
     )
     await runMutation(() => knowledgeItemService.updateStatus(createdDirectory.id, 'processing'))
     leafItems.push(...childLeafItems)
-  }
-
-  return leafItems
-}
-
-async function prepareSitemapForRuntime(
-  baseId: string,
-  item: KnowledgeItemOf<'sitemap'>,
-  onCreatedItem: (item: KnowledgeItem) => void,
-  runMutation: <T>(task: () => Promise<T>) => Promise<T>,
-  signal: AbortSignal
-): Promise<IndexableKnowledgeItem[]> {
-  const expandedItems = await expandSitemapOwnerToCreateItems(item, signal)
-  signal.throwIfAborted()
-
-  if (expandedItems.length === 0) {
-    logger.warn('Sitemap expansion produced no indexable URLs', {
-      baseId,
-      itemId: item.id,
-      source: item.data.source
-    })
-    await runMutation(() => knowledgeItemService.updateStatus(item.id, 'failed', { error: EMPTY_SITEMAP_ERROR }))
-    return []
-  }
-
-  const leafItems: IndexableKnowledgeItem[] = []
-
-  for (const expandedItem of expandedItems) {
-    signal.throwIfAborted()
-    const createdItem = await createRuntimeItem(baseId, expandedItem, onCreatedItem, runMutation, signal)
-    leafItems.push(createdItem)
   }
 
   return leafItems

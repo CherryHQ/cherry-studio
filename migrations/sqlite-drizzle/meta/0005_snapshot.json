@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "42474ea0-ee52-400c-830d-844399281ff1",
-  "prevId": "7d3a1018-0a36-43dd-a9a0-3aea2909de02",
+  "id": "edb1da40-1466-4c04-9de0-1fcc2a9e82e4",
+  "prevId": "42474ea0-ee52-400c-830d-844399281ff1",
   "tables": {
     "agent": {
       "name": "agent",
@@ -816,6 +816,14 @@
           "notNull": true,
           "autoincrement": false
         },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'user'"
+        },
         "order_key": {
           "name": "order_key",
           "type": "text",
@@ -853,7 +861,12 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "agent_workspace_type_check": {
+          "name": "agent_workspace_type_check",
+          "value": "\"agent_workspace\".\"type\" IN ('user', 'system')"
+        }
+      }
     },
     "app_state": {
       "name": "app_state",
