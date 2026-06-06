@@ -297,6 +297,9 @@ describe('RecallTestPanel', () => {
     })
 
     expect(container.firstElementChild).toHaveClass('min-w-0', 'overflow-x-hidden')
+    expect(screen.getByRole('button', { name: '检索' }).parentElement).toHaveClass('w-full', 'max-w-3xl')
+    expect(screen.getByText('1 个结果').closest('.overflow-y-auto')).toHaveClass('[scrollbar-width:none]')
+    expect(screen.getByText('1 个结果').closest('.max-w-3xl')).toHaveClass('w-full', 'max-w-3xl')
     expect(screen.getByText(longContent)).toHaveClass('wrap-anywhere', 'whitespace-normal')
   })
 

@@ -41,14 +41,12 @@ const RecallResults = () => {
   } = useRecallTest()
 
   return (
-    <div className="min-h-0 min-w-0 overflow-y-auto overflow-x-hidden px-6 [&::-webkit-scrollbar]:hidden">
-      <div className="mx-auto min-w-0 max-w-3xl overflow-hidden rounded-lg border border-border-subtle bg-card">
-        <RecallResultSummary />
-        <div className="min-w-0 space-y-2 p-3">
-          {results.map((item, index) => (
-            <RecallResultCard key={item.id} item={item} index={index} />
-          ))}
-        </div>
+    <div className="mx-auto h-full w-full min-w-0 max-w-3xl overflow-y-auto overflow-x-hidden rounded-lg border border-border-subtle bg-card [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <RecallResultSummary />
+      <div className="min-w-0 space-y-2 p-3">
+        {results.map((item, index) => (
+          <RecallResultCard key={item.id} item={item} index={index} />
+        ))}
       </div>
     </div>
   )
