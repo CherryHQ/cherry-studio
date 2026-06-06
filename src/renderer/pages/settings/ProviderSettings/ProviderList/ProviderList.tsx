@@ -34,7 +34,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { models: allModels } = useModels()
-  const { applyReorderedList } = useReorder('/providers')
+  const { applyReorderedList } = useReorder('/providers', { revalidateOnSuccess: false })
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 
   const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'all')
@@ -63,6 +63,8 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
   const itemRefs = useRef(new Map<string, HTMLDivElement | null>())
   const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const lastProvidersRef = useRef(providers)
+  const lastSelectedProviderIdRef = useRef(selectedProviderId)
 
   useEffect(() => {
     if (!filterModeHint) {
@@ -157,6 +159,21 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       return
     }
 
+    // Skip the auto-scroll when the providers list reference itself changed
+    // since the last effect run — i.e. a reorder / create / delete / update
+    // landed — BUT the user's selection did not change. In that case, jumping
+    // them back would be an unexpected scroll snap. If the selected item itself
+    // changed (e.g. initial load, new provider created, or manual selection),
+    // we always perform the scroll.
+    const providersChanged = providers !== lastProvidersRef.current
+    const selectionChanged = selectedProviderId !== lastSelectedProviderIdRef.current
+    const wasEmpty = lastProvidersRef.current.length === 0
+    lastProvidersRef.current = providers
+    lastSelectedProviderIdRef.current = selectedProviderId
+    if (providersChanged && !selectionChanged && !wasEmpty) {
+      return
+    }
+
     const scrollSelectedItem = () => {
       const selectedItem = itemRefs.current.get(selectedProviderId)
       const scroller = scrollerRef.current
@@ -186,7 +203,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
     const frameId = window.requestAnimationFrame(scrollSelectedItem)
     return () => window.cancelAnimationFrame(frameId)
-  }, [filteredProviders, selectedProviderId])
+  }, [providers, selectedProviderId])
 
   const handleDragStateChange = useCallback((nextDragging: boolean) => {
     setDragging(nextDragging)
