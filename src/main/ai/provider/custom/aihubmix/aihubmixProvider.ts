@@ -15,7 +15,7 @@ import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } fro
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
-import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-core/provider'
+import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 import type { Model } from '@shared/data/types/model'
 import { isOpenAIChatCompletionOnlyModel, isOpenAILLMModel } from '@shared/utils/model'
 

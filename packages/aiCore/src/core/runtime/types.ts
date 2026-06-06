@@ -44,6 +44,7 @@ export type EmbedManyParams = Omit<Parameters<typeof embedMany>[0], 'model'> & {
 }
 export type EmbedManyResult = Awaited<ReturnType<typeof embedMany>>
 
+// Keep the model override so string ids can be resolved through RuntimeExecutor's provider registry.
 export type RerankParams<VALUE extends JSONObject | string = string> = Omit<
   Parameters<typeof rerank<VALUE>>[0],
   'model'

@@ -497,8 +497,8 @@ describe('AiService tool approval', () => {
       })
     ).resolves.toEqual({
       ranking: [
-        { originalIndex: 1, score: 0.9, document: 'beta' },
-        { originalIndex: 0, score: 0.2, document: 'alpha' }
+        { originalIndex: 1, score: 0.9 },
+        { originalIndex: 0, score: 0.2 }
       ]
     })
 
@@ -519,7 +519,7 @@ describe('AiService tool approval', () => {
 
   it('checks rerank models with rerank before embedding or text generation', async () => {
     const service = createService()
-    const rerankSpy = vi.spyOn(service, 'rerank').mockResolvedValue({ ranking: [] })
+    const rerankSpy = vi.spyOn(service, 'rerank').mockResolvedValue({ ranking: [{ originalIndex: 0, score: 1 }] })
     const embedSpy = vi.spyOn(service, 'embedMany')
     const generateSpy = vi.spyOn(service, 'generateText')
 
@@ -547,5 +547,27 @@ describe('AiService tool approval', () => {
     )
     expect(embedSpy).not.toHaveBeenCalled()
     expect(generateSpy).not.toHaveBeenCalled()
+  })
+
+  it('fails rerank health checks when the probe returns an empty ranking', async () => {
+    const service = createService()
+    vi.spyOn(service, 'rerank').mockResolvedValue({ ranking: [] })
+
+    mockModelGetByKey.mockResolvedValue({
+      id: 'test-provider::test-reranker',
+      providerId: 'test-provider',
+      apiModelId: 'test-reranker',
+      name: 'Test Reranker',
+      capabilities: [MODEL_CAPABILITY.RERANK],
+      supportsStreaming: false,
+      isEnabled: true,
+      isHidden: false
+    })
+
+    await expect(
+      service.checkModel({
+        uniqueModelId: 'test-provider::test-reranker'
+      })
+    ).rejects.toThrow('Rerank health check returned empty ranking')
   })
 })

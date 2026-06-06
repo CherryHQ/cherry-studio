@@ -2,7 +2,7 @@
  * 运行时执行器
  * 专注于插件化的AI调用处理
  */
-import type { ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
+import type { ImageModelV3, JSONObject, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { LanguageModel } from 'ai'
 import {
   createProviderRegistry,
@@ -190,7 +190,7 @@ export class RuntimeExecutor<
     })
   }
 
-  async rerank(params: RerankParams): Promise<RerankResult> {
+  async rerank<VALUE extends JSONObject | string = string>(params: RerankParams<VALUE>): Promise<RerankResult<VALUE>> {
     const { model: modelOrId, ...options } = params
 
     const rerankingModel =
@@ -198,7 +198,7 @@ export class RuntimeExecutor<
         ? this.registry.rerankingModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
         : modelOrId
 
-    return _rerank({
+    return _rerank<VALUE>({
       model: rerankingModel,
       ...options
     })
