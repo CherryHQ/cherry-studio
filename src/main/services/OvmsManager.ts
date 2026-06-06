@@ -403,6 +403,7 @@ export class OvmsManager extends BaseService {
 
       if (modelSource) {
         env.HF_ENDPOINT = modelSource
+        logger.info(`Set HF_ENDPOINT to ${modelSource}`)
       }
 
       logger.info(`Running command: ${command} from ${modelSource}`)

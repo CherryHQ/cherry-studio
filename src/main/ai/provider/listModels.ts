@@ -338,7 +338,7 @@ const copilotFetcher: ModelFetcher = {
 const ovmsFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.ovms,
   fetch: async (provider, signal) => {
-    const baseUrl = formatApiHost(withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v1$/, ''), true, 'v1')
+    const baseUrl = formatApiHost(withoutTrailingSlash(getBaseUrl(provider)).replace(/\/v(?:1|3)$/, ''), true, 'v1')
     const response = await getFromApi({
       url: `${baseUrl}/config`,
       headers: await defaultHeaders(provider),
