@@ -4,9 +4,9 @@ import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
 import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
+import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
 import { delay, runAsyncFunction } from '@renderer/utils'
-import { checkDataLimit } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect } from 'react'
@@ -57,6 +57,7 @@ export function useAppInit() {
 
   useAppUpdateHandler()
   useFullScreenNotice()
+  useStorageMonitorNotification()
 
   useEffect(() => {
     savedAvatar?.value && cacheService.set('app.user.avatar', savedAvatar.value)
@@ -132,8 +133,4 @@ export function useAppInit() {
   useEffect(() => {
     // TODO: init data collection
   }, [enableDataCollection])
-
-  useEffect(() => {
-    void checkDataLimit()
-  }, [])
 }
