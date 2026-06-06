@@ -1191,7 +1191,7 @@
       "auto_resize": "Auto resize height",
       "clear": {
         "content": "Do you want to clear all messages of the current topic?",
-        "label": "Clear {{Command}}",
+        "label": "Clear",
         "title": "Clear all messages?"
       },
       "collapse": "Collapse",
@@ -1209,7 +1209,7 @@
       "generate_image_not_supported": "The model does not support generating images.",
       "knowledge_base": "Knowledge Base",
       "new": {
-        "context": "Clear Context {{Command}}"
+        "context": "Clear Context"
       },
       "new_session": "New Session {{Command}}",
       "new_topic": "New Topic {{Command}}",

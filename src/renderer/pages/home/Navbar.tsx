@@ -2,7 +2,7 @@ import { RowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
+import { useCommandHandler } from '@renderer/features/command'
 import { t } from 'i18next'
 import { PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -23,7 +23,7 @@ const HeaderNavbar: FC<Props> = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
 
-  useShortcut('general.search', () => {
+  useCommandHandler('app.search', () => {
     void SearchPopup.show()
   })
 

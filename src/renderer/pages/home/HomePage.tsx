@@ -1,8 +1,8 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useCommandHandler } from '@renderer/features/command'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useActiveTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -87,7 +87,7 @@ const HomePage: FC = () => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const [topicPosition] = usePreference('topic.position')
 
-  useShortcut('general.toggle_sidebar', () => {
+  useCommandHandler('app.sidebar.toggle', () => {
     if (topicPosition === 'right') {
       void setShowSidebar(!showSidebar)
       return
@@ -104,7 +104,7 @@ const HomePage: FC = () => {
     void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
   })
 
-  useShortcut('topic.toggle_show_topics', () => {
+  useCommandHandler('topic.sidebar.toggle', () => {
     if (topicPosition === 'right') {
       void setShowSidebar(!showSidebar)
       return

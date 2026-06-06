@@ -69,7 +69,7 @@ const TopicContent = ({ assistantId, topicId }: TopicContentProps) => {
             value={currentSharedModel}
             onSelect={handleModelSelect}
             filter={modelFilter}
-            shortcut="chat.select_model"
+            shortcut="chat.model.select"
             trigger={
               <Button variant="ghost" size="sm" className="h-7 gap-1.5 rounded-full px-2 text-xs">
                 <ModelAvatar model={currentSharedModel} size={20} />

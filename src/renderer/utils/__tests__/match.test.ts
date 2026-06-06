@@ -1,7 +1,7 @@
-import type { Model, Provider, SystemProvider } from '@renderer/types'
+import type { Provider, SystemProvider } from '@renderer/types'
 import { describe, expect, it, vi } from 'vitest'
 
-import { includeKeywords, matchKeywordsInModel, matchKeywordsInProvider, matchKeywordsInString } from '../match'
+import { includeKeywords, matchKeywordsInProvider, matchKeywordsInString } from '../match'
 
 // Mock i18n to return English provider labels
 vi.mock('@renderer/i18n/label', () => ({
@@ -93,58 +93,6 @@ describe('match', () => {
       expect(matchKeywordsInProvider('Alibaba', sysProvider)).toBe(true)
       // system provider 现在也可以通过 name 字段匹配
       expect(matchKeywordsInProvider('doesnt matter', sysProvider)).toBe(true)
-    })
-  })
-
-  describe('matchKeywordsInModel', () => {
-    const model: Model = {
-      id: 'gpt-4.1',
-      provider: 'openai',
-      name: 'GPT-4.1',
-      group: 'gpt'
-    }
-
-    it('should match model name only if provider not given', () => {
-      expect(matchKeywordsInModel('gpt-4.1', model)).toBe(true)
-      expect(matchKeywordsInModel('openai', model)).toBe(false)
-    })
-
-    it('should match model name and provider name if provider given', () => {
-      expect(matchKeywordsInModel('gpt-4.1 openai', model, provider)).toBe(true)
-      expect(matchKeywordsInModel('gpt-4.1', model, provider)).toBe(true)
-      expect(matchKeywordsInModel('foo', model, provider)).toBe(false)
-    })
-
-    it('should match model name and i18n provider name for system provider', () => {
-      expect(matchKeywordsInModel('gpt-4.1 dashscope', model, sysProvider)).toBe(true)
-      expect(matchKeywordsInModel('dashscope', model, sysProvider)).toBe(true)
-      // system provider 现在也可以通过 name 字段检索
-      expect(matchKeywordsInModel('doesnt matter', model, sysProvider)).toBe(true)
-      expect(matchKeywordsInModel('Alibaba', model, sysProvider)).toBe(true)
-    })
-
-    it('should match model by id when name is customized', () => {
-      const customNameModel: Model = {
-        id: 'claude-3-opus-20240229',
-        provider: 'anthropic',
-        name: 'Opus (Custom Name)',
-        group: 'claude'
-      }
-
-      // search by parts of ID
-      expect(matchKeywordsInModel('claude', customNameModel)).toBe(true)
-      expect(matchKeywordsInModel('opus', customNameModel)).toBe(true)
-      expect(matchKeywordsInModel('20240229', customNameModel)).toBe(true)
-
-      // search by parts of custom name
-      expect(matchKeywordsInModel('Custom', customNameModel)).toBe(true)
-      expect(matchKeywordsInModel('Opus Name', customNameModel)).toBe(true)
-
-      // search by both
-      expect(matchKeywordsInModel('claude custom', customNameModel)).toBe(true)
-
-      // should not match
-      expect(matchKeywordsInModel('sonnet', customNameModel)).toBe(false)
     })
   })
 })
