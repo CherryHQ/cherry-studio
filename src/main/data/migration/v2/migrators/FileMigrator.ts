@@ -71,10 +71,11 @@ function stripExt(base: string): string {
  * Derive a SafeNameSchema-conformant display name from the v1 name source.
  *
  * Degradation chain: raw → sanitized (last segment, trimmed) → row id.
- * Never asks the caller to skip the row: a skipped internal row
- * strands its physical file, which the startup FS sweep then reclaims —
- * real data loss. `name` does not participate in physical paths
- * (`{id}.{ext}`), so degrading it is always safe.
+ * Never asks the caller to skip the row: a skipped internal row strands
+ * its physical file, which the user-triggered FS orphan sweep
+ * (`File_RunSweep`; no startup auto-run) then reclaims — real data loss.
+ * `name` does not participate in physical paths (`{id}.{ext}`), so
+ * degrading it is always safe.
  */
 function deriveSafeName(nameSource: string, rowId: string, onWarning: (message: string) => void): string {
   const raw = stripExt(nameSource)
@@ -360,9 +361,10 @@ export class FileMigrator extends BaseMigrator {
       // a real condition on v1 installs — users delete `~/.../Data/Files/*`
       // outside Cherry, leaving dangling metadata. Surfacing it as a fatal
       // validation error aborts the whole migration over data that the
-      // runtime FS orphan sweep already cleans up. Record as a non-fatal
-      // warning so the migration log carries the diagnostic trail but the
-      // engine still proceeds to downstream migrators.
+      // user-triggered FS orphan sweep (`File_RunSweep`) can clean up later.
+      // Record as a non-fatal warning so the migration log carries the
+      // diagnostic trail but the engine still proceeds to downstream
+      // migrators.
       const internalEntries = this.preparedEntries.slice(0, VALIDATE_SAMPLE_LIMIT)
 
       let missingPhysical = 0
