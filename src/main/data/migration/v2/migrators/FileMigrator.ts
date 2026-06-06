@@ -150,7 +150,8 @@ function toFileEntry(
   // prefix check even though the file sits right here (#15733). Trust the
   // filesystem over the stale path string before declaring a row orphaned.
   const internalPrefix = path.join(userData, 'Data', 'Files')
-  const isInternal = row.path.startsWith(internalPrefix) || fs.existsSync(path.join(internalPrefix, row.name))
+  const physicalPath = path.join(internalPrefix, row.name)
+  const isInternal = row.path.startsWith(internalPrefix) || fs.existsSync(physicalPath)
 
   if (!isInternal) {
     // Neither under the internal dir nor physically present: dead metadata
@@ -163,14 +164,27 @@ function toFileEntry(
     return null
   }
 
-  const validSize = typeof row.size === 'number' && row.size >= 0
-  if (!validSize) {
-    // size column has a DB CHECK but accepts 0 (legitimate empty files),
-    // so a garbage v1 size would land indistinguishably as a 0-byte file in
-    // the v2 UI. Treat as malformed row instead — the caller skips it with
-    // a warning. Physical orphans are reclaimed by the startup FS sweep.
-    onWarning(`Invalid size for file id=${row.id}; treating row as malformed. raw=${JSON.stringify(row.size)}`)
-    return null
+  // size column has a DB CHECK but accepts 0 (legitimate empty files), so a
+  // garbage v1 size cannot simply be coerced to 0 — it would land
+  // indistinguishably as an empty file in the v2 UI. Skipping outright is
+  // worse: every row reaching this point is internal, so a physically
+  // present file would be stranded and become eligible for the
+  // user-triggered FS orphan sweep (`File_RunSweep`) — real data loss for
+  // recoverable content. Recover the true size from disk instead; skip only
+  // when the disk holds nothing recoverable.
+  let size: number
+  if (typeof row.size === 'number' && row.size >= 0) {
+    size = row.size
+  } else {
+    try {
+      size = fs.statSync(physicalPath).size
+      onWarning(`Invalid size for file id=${row.id}; recovered size=${size} from disk. raw=${JSON.stringify(row.size)}`)
+    } catch {
+      onWarning(
+        `Invalid size for file id=${row.id} and physical file is unreadable; skipping row. raw=${JSON.stringify(row.size)}`
+      )
+      return null
+    }
   }
 
   const entry: PreparedFileEntry = {
@@ -178,7 +192,7 @@ function toFileEntry(
     origin: 'internal',
     name: deriveSafeName(row.origin_name || row.name, row.id, onWarning),
     ext,
-    size: row.size,
+    size,
     externalPath: null,
     deletedAt: null,
     createdAt,
