@@ -13,8 +13,6 @@ export const getItemStatus = (item: KnowledgeItem) => {
       return dataSourceTypeDisplayConfig.directory.getStatus(item.status)
     case 'url':
       return dataSourceTypeDisplayConfig.url.getStatus(item.status)
-    case 'sitemap':
-      return dataSourceTypeDisplayConfig.sitemap.getStatus(item.status)
   }
 }
 
@@ -28,8 +26,6 @@ export const getItemTitle = (item: KnowledgeItem, fileEntry?: FileEntry): string
       return dataSourceTypeDisplayConfig.directory.getTitle(item, { language: '' })
     case 'url':
       return dataSourceTypeDisplayConfig.url.getTitle(item, { language: '' })
-    case 'sitemap':
-      return dataSourceTypeDisplayConfig.sitemap.getTitle(item, { language: '' })
   }
 }
 
@@ -78,17 +74,6 @@ export const toKnowledgeItemRowViewModel = (
     }
     case 'url': {
       const config = dataSourceTypeDisplayConfig.url
-
-      return {
-        title: config.getTitle(item, { language }),
-        suffix: config.getSuffix(item, { language }),
-        metaParts: config.getMetaParts(item, { language }),
-        icon: config.icon,
-        status: config.getStatus(item.status)
-      }
-    }
-    case 'sitemap': {
-      const config = dataSourceTypeDisplayConfig.sitemap
 
       return {
         title: config.getTitle(item, { language }),

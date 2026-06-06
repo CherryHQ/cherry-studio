@@ -31,8 +31,8 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 2. Indexable item filtering
    - Only vectors mapped to indexable V2 item types are migrated.
    - Indexable types are `file`, `url`, and `note`.
-   - Vectors mapped to container items, currently `directory` and `sitemap`, are skipped with warnings.
-   - This does not remove the `directory` or `sitemap` rows from `knowledge_item`; it only prevents container-level vectors from being written into the V2 vector store.
+   - Vectors mapped to container items, currently `directory`, are skipped with warnings.
+   - This does not remove the `directory` rows from `knowledge_item`; it only prevents container-level vectors from being written into the V2 vector store.
 
 3. Chunk payload migration
    - `pageContent` -> `document`
@@ -84,7 +84,7 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 - Bases marked `failed` or with `embeddingModelId = null`
 - Bases whose legacy DB file is missing, resolves to a directory, or does not contain a `vectors` table
 - Vector rows whose `uniqueLoaderId` cannot be mapped to a migrated `knowledge_item.id`
-- Vector rows mapped to non-indexable container item types such as `directory` or `sitemap`
+- Vector rows mapped to non-indexable container item types such as `directory`
 - Vector rows with missing or empty `vector` payloads
 - Vector rows whose `vector` payload exists but is exposed through an unsupported runtime encoding
 - Vector rows whose source cannot be resolved from either the legacy row or migrated `knowledge_item.data.source`

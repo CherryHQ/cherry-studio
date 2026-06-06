@@ -3,7 +3,6 @@ import type { KnowledgeItemType } from '@shared/data/types/knowledge'
 import DirectorySourceContent from './sources/DirectorySourceContent'
 import FileSourceContent from './sources/FileSourceContent'
 import NoteSourceContent from './sources/NoteSourceContent'
-import SitemapSourceContent from './sources/SitemapSourceContent'
 import UrlSourceContent from './sources/UrlSourceContent'
 import type { DirectoryItem, DropzoneOnDrop } from './types'
 
@@ -11,13 +10,11 @@ interface AddKnowledgeItemDialogSourceTabsProps {
   activeSource: KnowledgeItemType
   selectedDirectories: DirectoryItem[]
   selectedFiles: File[]
-  sitemapValue: string
   urlValue: string
   onDirectoryRemove: (directoryPath: string) => void
   onDirectorySelect: () => void | Promise<void>
   onFileDrop: DropzoneOnDrop
   onFileRemove: (fileIndex: number) => void
-  onSitemapValueChange: (value: string) => void
   onUrlValueChange: (value: string) => void
 }
 
@@ -25,13 +22,11 @@ const AddKnowledgeItemDialogSourceTabs = ({
   activeSource,
   selectedDirectories,
   selectedFiles,
-  sitemapValue,
   urlValue,
   onDirectoryRemove,
   onDirectorySelect,
   onFileDrop,
   onFileRemove,
-  onSitemapValueChange,
   onUrlValueChange
 }: AddKnowledgeItemDialogSourceTabsProps) => {
   const renderSourceContent = (source: KnowledgeItemType) => {
@@ -50,8 +45,6 @@ const AddKnowledgeItemDialogSourceTabs = ({
         )
       case 'url':
         return <UrlSourceContent value={urlValue} onValueChange={onUrlValueChange} />
-      case 'sitemap':
-        return <SitemapSourceContent value={sitemapValue} onValueChange={onSitemapValueChange} />
       default:
         return null
     }

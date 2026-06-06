@@ -2155,24 +2155,18 @@
         },
         "note": {
           "description": "选择已有笔记作为知识库数据源",
-          "empty_description": "真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录、网址或站点地图。",
+          "empty_description": "真實筆記清單接入後，將在這裡展示可多選的筆記。當前可先使用檔案、目錄或連結。",
           "empty_title": "暂未接入笔记数据源"
         },
         "placeholder": {
           "supported_formats": "支持 PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "点击选择文件或拖拽到此处"
         },
-        "sitemap": {
-          "description": "输入 Sitemap 地址：",
-          "help": "将读取 Sitemap 中包含的页面并建立索引",
-          "placeholder": "https://example.com/sitemap.xml"
-        },
         "sources": {
           "directory": "目录",
           "file": "文件",
           "note": "笔记",
-          "sitemap": "网站",
-          "url": "网址"
+          "url": "連結"
         },
         "submit": {
           "error": "添加数据源失败",
@@ -2209,11 +2203,8 @@
           "file": {
             "title": "檔案"
           },
-          "sitemap": {
-            "title": "網站同步"
-          },
           "url": {
-            "title": "網址"
+            "title": "連結"
           }
         },
         "title": "上傳第一個資料來源"
@@ -2224,8 +2215,7 @@
         "directory": "目录",
         "file": "文件",
         "note": "笔记",
-        "sitemap": "网站",
-        "url": "网址"
+        "url": "連結"
       },
       "preview": {
         "failed": "預覽原文失敗",
