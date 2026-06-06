@@ -6382,7 +6382,7 @@
             "title": "API 金鑰管理"
           },
           "new_key": {
-            "placeholder": "輸入一個或多個金鑰"
+            "placeholder": "輸入 API 金鑰"
           }
         },
         "options": {
@@ -6439,10 +6439,10 @@
         "label": "API 金鑰",
         "label_placeholder": "標籤",
         "list_description": "管理目前供應商的多個 API Key",
-        "placeholder": "多個金鑰使用逗號分隔",
+        "placeholder": "輸入 API 金鑰",
         "save_failed": "API 金鑰儲存失敗",
         "show_key": "顯示金鑰",
-        "tip": "多個金鑰使用逗號分隔",
+        "tip": "每次新增一個 API 金鑰",
         "unnamed": "API Key"
       },
       "api_version": "API 版本",

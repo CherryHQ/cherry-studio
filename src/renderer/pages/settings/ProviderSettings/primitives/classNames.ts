@@ -433,14 +433,24 @@ export const apiKeyListClasses = {
   listWrap: 'overflow-hidden rounded-lg border border-[color:var(--color-border-fg-muted)]',
   listScroller: 'max-h-[60vh] overflow-x-hidden',
   keyRow: 'flex flex-col gap-2 border-b border-[color:var(--color-border-fg-hairline)] px-4 py-3 last:border-b-0',
-  keyRowHeader: 'flex items-start justify-between gap-3',
+  keyDisplayRow: 'flex min-w-0 items-center gap-3',
+  keyTextBlock: 'min-w-0 flex-1',
+  keyRowActions: 'flex shrink-0 items-center gap-1.5',
   keyLabel:
     'min-w-0 truncate text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-foreground font-[weight:var(--font-weight-medium)]',
   keyValue:
     'min-w-0 flex-1 truncate font-mono text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted',
-  keyInputRow: 'grid gap-2 sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]',
-  actionRow: 'flex items-center justify-between gap-3',
-  actionCluster: 'flex items-center gap-1'
+  keyDraftRow: 'flex min-w-0 items-center gap-2',
+  keyDraftInputs: 'grid min-w-0 flex-1 gap-2 sm:grid-cols-[minmax(4.5rem,6rem)_minmax(0,1fr)]',
+  keyDraftInput:
+    'h-8 rounded-[length:var(--radius-md)] bg-background px-2.5 text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)]',
+  keyIconButton:
+    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-muted-foreground/70 disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3',
+  keySaveIconButton:
+    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-success/10 hover:text-success disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3',
+  keyDestructiveIconButton:
+    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-destructive/10 hover:text-destructive/70 disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3',
+  actionRow: 'flex items-center justify-between gap-3'
 } as const
 
 export const oauthCardClasses = {

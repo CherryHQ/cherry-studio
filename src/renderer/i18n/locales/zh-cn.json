@@ -6382,7 +6382,7 @@
             "title": "API 密钥管理"
           },
           "new_key": {
-            "placeholder": "输入一个或多个密钥"
+            "placeholder": "输入 API 密钥"
           }
         },
         "options": {
@@ -6439,10 +6439,10 @@
         "label": "API 密钥",
         "label_placeholder": "标签",
         "list_description": "管理当前服务商的多个 API Key",
-        "placeholder": "多个密钥使用逗号分隔",
+        "placeholder": "输入 API 密钥",
         "save_failed": "API 密钥保存失败",
         "show_key": "显示密钥",
-        "tip": "多个密钥使用逗号分隔",
+        "tip": "每次添加一个 API 密钥",
         "unnamed": "API Key"
       },
       "api_version": "API 版本",

@@ -6382,7 +6382,7 @@
             "title": "API Key Management"
           },
           "new_key": {
-            "placeholder": "Enter one or more keys"
+            "placeholder": "Enter API key"
           }
         },
         "options": {
@@ -6439,10 +6439,10 @@
         "label": "API Key",
         "label_placeholder": "Label",
         "list_description": "Manage multiple API keys for this provider",
-        "placeholder": "Use commas to separate multiple keys",
+        "placeholder": "Enter API key",
         "save_failed": "Failed to save API keys",
         "show_key": "Show key",
-        "tip": "Use commas to separate multiple keys",
+        "tip": "Add one API key at a time",
         "unnamed": "API Key"
       },
       "api_version": "API Version",
