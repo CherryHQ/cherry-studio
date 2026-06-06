@@ -6,6 +6,7 @@ import path from 'node:path'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
+import { FileEntrySchema } from '@shared/data/types/file'
 import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import { sql } from 'drizzle-orm'
@@ -172,7 +173,7 @@ function toFileEntry(
     return null
   }
 
-  return {
+  const entry: PreparedFileEntry = {
     id: row.id,
     origin: 'internal',
     name: deriveSafeName(row.origin_name || row.name, row.id, onWarning),
@@ -183,6 +184,29 @@ function toFileEntry(
     createdAt,
     updatedAt: createdAt
   }
+
+  // Spec R5: write-side validation must be >= read-side validation. Probe
+  // through the same schema the runtime read path applies (rowToFileEntry →
+  // FileEntrySchema.parse) so a malformed row can never reach SQLite and
+  // detonate at read time (#15733). Unreachable by construction today —
+  // this guards future field/schema drift.
+  const probe = FileEntrySchema.safeParse({
+    id: entry.id,
+    origin: 'internal',
+    name: entry.name,
+    ext: entry.ext,
+    size: entry.size,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt
+  })
+  if (!probe.success) {
+    onWarning(
+      `Prepared entry for file id=${row.id} failed read-schema validation; skipping. issues=${JSON.stringify(probe.error.issues)}`
+    )
+    return null
+  }
+
+  return entry
 }
 
 export class FileMigrator extends BaseMigrator {

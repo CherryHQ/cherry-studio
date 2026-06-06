@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 
+import { FileEntrySchema } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -603,7 +604,10 @@ describe('FileMigrator malformed row handling', () => {
 
   it('execute still succeeds after skipping malformed rows', async () => {
     const badRow = { ...makeInternalRow(), id: '' } as any
-    const goodRow = makeInternalRow({ id: 'ccccdddd-cccc-4ccc-cccc-cccccccccccc' })
+    // Note the RFC 4122 variant nibble must be [89ab] — the write-side
+    // read-schema probe rejects ids the runtime FileEntryIdSchema would
+    // reject anyway.
+    const goodRow = makeInternalRow({ id: 'ccccdddd-cccc-4ccc-8ccc-cccccccccccc' })
     const { ctx } = createMockContext([badRow, goodRow])
 
     const m = new FileMigrator()
@@ -715,5 +719,48 @@ describe('FileMigrator name degradation chain', () => {
     const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
     // makeInternalRow: name='report' (no dot) → stays as-is
     expect(firstRow.name).toBe('report')
+  })
+})
+
+// ─── Write-side ≥ read-side validation invariant (spec R5) ──────────────────
+
+describe('FileMigrator write/read validation invariant', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('every prepared entry passes the runtime read schema (AC5)', async () => {
+    const rows = [
+      makeInternalRow(),
+      makeInternalRow({
+        id: 'aaaabbbb-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
+        path: `${MOCK_USER_DATA}/Data/Files/aaaabbbb-aaaa-4aaa-aaaa-aaaaaaaaaaaa.pdf`,
+        origin_name: 'evil\\dir/report.pdf'
+      }),
+      makeInternalRow({
+        id: 'bbbbcccc-bbbb-4bbb-bbbb-bbbbbbbbbbbb',
+        path: `${MOCK_USER_DATA}/Data/Files/bbbbcccc-bbbb-4bbb-bbbb-bbbbbbbbbbbb.txt`,
+        origin_name: '..',
+        ext: '.txt'
+      })
+    ]
+    const { ctx } = createMockContext(rows)
+    const m = new FileMigrator()
+    await m.prepare(ctx as never)
+
+    const prepared = (m as any).preparedEntries as Array<Record<string, unknown>>
+    expect(prepared).toHaveLength(3)
+    for (const e of prepared) {
+      const probe = FileEntrySchema.safeParse({
+        id: e.id,
+        origin: 'internal',
+        name: e.name,
+        ext: e.ext,
+        size: e.size,
+        createdAt: e.createdAt,
+        updatedAt: e.updatedAt
+      })
+      expect(probe.success).toBe(true)
+    }
   })
 })
