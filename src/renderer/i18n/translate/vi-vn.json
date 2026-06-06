@@ -2447,7 +2447,7 @@
       "no_match_title": "Không có trợ lý phù hợp",
       "preview": "Xem trước",
       "preview_description": "Tổng quan",
-      "preview_prompt": "[to be translated]:Prompt",
+      "preview_prompt": "Lời nhắc",
       "scroll_left": "Cuộn danh mục sang trái",
       "scroll_right": "Cuộn sang phải các danh mục"
     },
@@ -2593,36 +2593,36 @@
             "hint": "Số lượng tin nhắn gần đây được giữ lại làm ngữ cảnh"
           },
           "custom_params": {
-            "hint": "[to be translated]:Extra provider parameters sent with requests"
+            "hint": "Các tham số bổ sung của nhà cung cấp được gửi kèm theo yêu cầu"
           },
           "description": {
-            "hint": "[to be translated]:Helps distinguish what this assistant is for",
-            "placeholder": "[to be translated]:What this assistant is for..."
+            "hint": "Giúp phân biệt chức năng của trợ lý này",
+            "placeholder": "Mục đích của trợ lý này..."
           },
           "max_tokens": {
-            "hint": "[to be translated]:Caps response length when enabled"
+            "hint": "Giới hạn độ dài phản hồi của Caps khi được bật"
           },
           "max_tool_calls": {
-            "hint": "[to be translated]:Limits tool-call loops when enabled"
+            "hint": "Giới hạn vòng lặp gọi công cụ khi được bật"
           },
           "model": {
-            "hint": "[to be translated]:Overrides the global default model for this assistant"
+            "hint": "Ghi đè mô hình mặc định toàn cục cho trợ lý này"
           },
           "name": {
-            "hint": "[to be translated]:Shown in the library and assistant selectors",
-            "placeholder": "[to be translated]:Give the assistant a name"
+            "hint": "Hiển thị trong các bộ chọn thư viện và trợ lý",
+            "placeholder": "Đặt tên cho trợ lý"
           },
           "stream_output": {
-            "hint": "[to be translated]:Shows responses as they are generated"
+            "hint": "Hiển thị các phản hồi ngay khi chúng được tạo ra"
           },
           "tags": {
-            "hint": "[to be translated]:Used for filtering and organizing assistants"
+            "hint": "Dùng để lọc và tổ chức các trợ lý"
           },
           "temperature": {
-            "hint": "[to be translated]:Controls randomness when enabled"
+            "hint": "Kiểm soát tính ngẫu nhiên khi được bật"
           },
           "top_p": {
-            "hint": "[to be translated]:Limits token sampling range when enabled"
+            "hint": "Giới hạn phạm vi lấy mẫu token khi được bật"
           }
         },
         "json_invalid": "Định dạng JSON không hợp lệ",
@@ -2720,42 +2720,42 @@
       "tools": {
         "add_mcp": "Thêm máy chủ MCP",
         "added": "Đã thêm các máy chủ MCP",
-        "added_hint": "[to be translated]:Manual mode exposes only the servers in this list",
+        "added_hint": "Chế độ thủ công chỉ hiển thị các máy chủ trong danh sách này",
         "desc": "Cấu hình các máy chủ MCP mà trợ lý này có thể gọi trong quá trình trò chuyện",
-        "empty_desc": "[to be translated]:Once added, the assistant can invoke external tools",
-        "empty_title": "[to be translated]:No MCP servers added",
-        "inactive_badge": "[to be translated]:Inactive",
-        "info_main": "[to be translated]:MCP (Model Context Protocol) lets the model safely invoke external tools.",
-        "info_sub": "[to be translated]:Enabling only necessary servers improves safety and response speed.",
+        "empty_desc": "Sau khi được thêm vào, trợ lý có thể gọi các công cụ bên ngoài",
+        "empty_title": "Chưa có máy chủ MCP nào được thêm",
+        "inactive_badge": "Không hoạt động",
+        "info_main": "MCP (Model Context Protocol) cho phép mô hình gọi các công cụ bên ngoài một cách an toàn.",
+        "info_sub": "Chỉ bật các máy chủ cần thiết giúp cải thiện độ an toàn và tốc độ phản hồi.",
         "mode": {
           "auto": {
-            "desc": "[to be translated]:The model decides which enabled MCP tools to call",
-            "label": "[to be translated]:Auto"
+            "desc": "Mô hình quyết định gọi công cụ MCP nào đang được bật",
+            "label": "Tự động"
           },
           "disabled": {
-            "desc": "[to be translated]:No MCP tools are available during chat",
-            "label": "[to be translated]:Disabled"
+            "desc": "Không có công cụ MCP nào khả dụng trong cuộc trò chuyện",
+            "label": "Vô hiệu hóa"
           },
           "manual": {
-            "desc": "[to be translated]:Expose only the MCP servers selected below",
-            "label": "[to be translated]:Manual"
+            "desc": "Chỉ hiển thị các máy chủ MCP được chọn bên dưới",
+            "label": "Sách hướng dẫn"
           }
         },
-        "no_more": "[to be translated]:No more servers available",
-        "search": "[to be translated]:Search available servers...",
-        "switch_title_active": "[to be translated]:Toggle off to remove",
-        "switch_title_inactive": "[to be translated]:This server is disabled in MCP settings; remove it to re-add later",
-        "title": "[to be translated]:Tools"
+        "no_more": "Không còn máy chủ nào khả dụng",
+        "search": "Tìm kiếm máy chủ khả dụng...",
+        "switch_title_active": "Tắt để loại bỏ",
+        "switch_title_inactive": "Máy chủ này đã bị vô hiệu hóa trong cài đặt MCP; hãy gỡ bỏ để có thể thêm lại sau",
+        "title": "Công cụ"
       }
     },
     "create_menu": {
-      "create": "[to be translated]:New {{type}}",
-      "import": "[to be translated]:Import {{type}}"
+      "create": "{{type}} mới",
+      "import": "Nhập {{type}}"
     },
     "delete": {
       "agent": {
-        "content": "[to be translated]:Are you sure you want to delete this agent? This action cannot be undone.",
-        "title": "[to be translated]:Delete agent"
+        "content": "Bạn có chắc chắn muốn xóa tác nhân này không? Hành động này không thể hoàn tác.",
+        "title": "Xóa tác nhân"
       },
       "skill": {
         "content": "Bạn có chắc chắn muốn gỡ cài đặt kỹ năng này không? Nó sẽ bị xóa khỏi thư viện toàn cục và tất cả các liên kết tượng trưng trong không gian làm việc của agent sẽ được dọn dẹp.",

@@ -14,14 +14,18 @@
  * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
  * --------------------------------------------------------------------------
  */
-import { loggerService } from '@logger'
 import { combineReducers, configureStore } from '@reduxjs/toolkit'
 // [v2] Removed: IpcChannel only referenced by the ReduxStoreReady signal below, which is now commented out.
 // import { IpcChannel } from '@shared/IpcChannel'
 import { useDispatch, useSelector, useStore } from 'react-redux'
-import { FLUSH, PAUSE, PERSIST, persistReducer, persistStore, PURGE, REGISTER, REHYDRATE } from 'redux-persist'
-import storage from 'redux-persist/lib/storage'
 
+// [v2] redux-persist removed — the Redux store is now in-memory only. These imports are
+// commented out (not deleted) because everything under src/renderer/store/ is still read by
+// the v2 data-classify inventory tooling. The matching <PersistGate> wrappers were deleted
+// from the window entry points (outside store/).
+// import { loggerService } from '@logger'
+// import { FLUSH, PAUSE, PERSIST, persistReducer, persistStore, PURGE, REGISTER, REHYDRATE } from 'redux-persist'
+// import storage from 'redux-persist/lib/storage'
 import assistants from './assistants'
 import backup from './backup'
 import codeTools from './codeTools'
@@ -32,10 +36,12 @@ import llm from './llm'
 import mcp from './mcp'
 import memory from './memory'
 import messageBlocksReducer from './messageBlock'
-import migrate from './migrate'
+// [v2] redux-persist removed: `migrate` was only consumed by persistReducer below.
+// import migrate from './migrate'
 import minapps from './minapps'
 import newMessagesReducer from './newMessage'
-import { setNotesPath } from './note'
+// [v2] redux-persist removed: `setNotesPath` was only dispatched by the persistor rehydration callback below.
+// import { setNotesPath } from './note'
 import note from './note'
 import nutstore from './nutstore'
 import ocr from './ocr'
@@ -51,7 +57,7 @@ import toolPermissions from './toolPermissions'
 import translate from './translate'
 import websearch from './websearch'
 
-const logger = loggerService.withContext('Store')
+// [v2] redux-persist removed: const logger = loggerService.withContext('Store')
 
 const rootReducer = combineReducers({
   assistants,
@@ -82,53 +88,54 @@ const rootReducer = combineReducers({
   toolPermissions
 })
 
-const persistedReducer = persistReducer(
-  {
-    key: 'cherry-studio',
-    storage,
-    version: 207,
-    blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs', 'toolPermissions'],
-    migrate
-  },
-  rootReducer
-)
+// [v2] redux-persist removed — store no longer persists to localStorage or rehydrates on boot.
+// const persistedReducer = persistReducer(
+//   {
+//     key: 'cherry-studio',
+//     storage,
+//     version: 207,
+//     blacklist: ['runtime', 'messages', 'messageBlocks', 'tabs', 'toolPermissions'],
+//     migrate
+//   },
+//   rootReducer
+// )
 
 const store = configureStore({
-  // @ts-ignore store type is unknown
-  reducer: persistedReducer as typeof rootReducer,
-  middleware: (getDefaultMiddleware) => {
-    return getDefaultMiddleware({
-      serializableCheck: {
-        ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER]
-      }
-    })
-  },
+  // [v2] redux-persist removed — use rootReducer directly instead of the persisted reducer:
+  //   reducer: persistedReducer as typeof rootReducer,  (the cast needed a ts-ignore)
+  //   middleware: (getDefaultMiddleware) => getDefaultMiddleware({
+  //     serializableCheck: { ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER] }
+  //   }),
+  reducer: rootReducer,
   devTools: true
 })
 
 export type RootState = ReturnType<typeof rootReducer>
 export type AppDispatch = typeof store.dispatch
 
-export const persistor = persistStore(store, undefined, () => {
-  // Initialize notes path after rehydration if empty
-  const state = store.getState()
-  if (!state.note.notesPath) {
-    // Use setTimeout to ensure this runs after the store is fully initialized
-    setTimeout(async () => {
-      try {
-        const info = await window.api.getAppInfo()
-        store.dispatch(setNotesPath(info.notesPath))
-        logger.info('Initialized notes path on startup:', info.notesPath)
-      } catch (error) {
-        logger.error('Failed to initialize notes path on startup:', error as Error)
-      }
-    }, 0)
-  }
-
-  // [v2] Removed: ReduxService is stubbed in v2 and no longer registers a handler for this channel.
-  // void window.electron?.ipcRenderer?.invoke(IpcChannel.ReduxStoreReady)
-  // logger.info('Redux store ready, notified main process')
-})
+// [v2] redux-persist removed — no persistor. The rehydration callback below initialised the
+// legacy `note.notesPath` slice, which v2 no longer reads (notesPath now lives in the
+// `feature.notes.path` preference, see useNotesSettings).
+// export const persistor = persistStore(store, undefined, () => {
+//   // Initialize notes path after rehydration if empty
+//   const state = store.getState()
+//   if (!state.note.notesPath) {
+//     // Use setTimeout to ensure this runs after the store is fully initialized
+//     setTimeout(async () => {
+//       try {
+//         const info = await window.api.getAppInfo()
+//         store.dispatch(setNotesPath(info.notesPath))
+//         logger.info('Initialized notes path on startup:', info.notesPath)
+//       } catch (error) {
+//         logger.error('Failed to initialize notes path on startup:', error as Error)
+//       }
+//     }, 0)
+//   }
+//
+//   // [v2] Removed: ReduxService is stubbed in v2 and no longer registers a handler for this channel.
+//   // void window.electron?.ipcRenderer?.invoke(IpcChannel.ReduxStoreReady)
+//   // logger.info('Redux store ready, notified main process')
+// })
 
 export const useAppDispatch = useDispatch.withTypes<AppDispatch>()
 export const useAppSelector = useSelector.withTypes<RootState>()

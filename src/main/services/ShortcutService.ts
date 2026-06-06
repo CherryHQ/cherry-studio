@@ -3,36 +3,65 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
-import { handleZoomFactor } from '@main/utils/zoom'
-import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import type { CommandShortcutPreferenceKey } from '@shared/command'
+import {
+  collectContextKeys,
+  type CommandId,
+  type ContextReader,
+  type ContextValue,
+  evaluateContextExpr,
+  findCommandDefinition,
+  REGISTERED_KEYBINDINGS,
+  resolveCommandKeybinding,
+  type SupportedPlatform
+} from '@shared/command'
+import type { PreferenceKeyType, PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
-import { SHORTCUT_DEFINITIONS } from '@shared/shortcuts/definitions'
-import type { ShortcutPreferenceKey, SupportedPlatform } from '@shared/shortcuts/types'
-import { isShortcutDefinitionEnabled, resolveShortcutPreference } from '@shared/shortcuts/utils'
+import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import type { BrowserWindow } from 'electron'
 import { globalShortcut } from 'electron'
 
 const logger = loggerService.withContext('ShortcutService')
 type ShortcutHandler = (window?: BrowserWindow) => void
-type RegisteredShortcut = { key: ShortcutPreferenceKey; handler: ShortcutHandler; window: BrowserWindow }
+type RegisteredShortcut = {
+  key: CommandShortcutPreferenceKey<CommandId>
+  handler: ShortcutHandler
+  window: BrowserWindow
+}
 
-const toAccelerator = (keys: string[]): string => keys.join('+')
+const mainKeybindings = REGISTERED_KEYBINDINGS.filter((rule) => rule.scope !== 'renderer')
 
-const relevantDefinitions = SHORTCUT_DEFINITIONS.filter(
-  (d) =>
-    d.scope !== 'renderer' &&
-    !(isMac && d.key === 'shortcut.general.show_settings') &&
-    (!d.supportedPlatforms || d.supportedPlatforms.includes(process.platform as SupportedPlatform))
+const relevantKeybindings = mainKeybindings.filter(
+  (rule) =>
+    !(isMac && rule.command === 'app.settings.open') &&
+    (!rule.supportedPlatforms || rule.supportedPlatforms.includes(process.platform as SupportedPlatform))
 )
+
+const contextKeys = Array.from(
+  new Set(
+    relevantKeybindings.flatMap((rule) => {
+      const command = findCommandDefinition(rule.command)
+      return [...collectContextKeys(command?.enablement), ...collectContextKeys(rule.when)].filter(
+        (key) => key !== 'platform'
+      )
+    })
+  )
+)
+
+const toContextValue = (value: unknown): ContextValue => {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || value == null
+    ? value
+    : undefined
+}
 
 @Injectable('ShortcutService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['MainWindowService', 'SelectionService', 'SettingsWindowService'])
+@DependsOn(['MainWindowService', 'CommandService'])
 export class ShortcutService extends BaseService {
   private mainWindow: BrowserWindow | null = null
-  private handlers = new Map<ShortcutPreferenceKey, ShortcutHandler>()
+  private handlers = new Map<CommandId, ShortcutHandler>()
   private registeredWindows = new Set<BrowserWindow>()
-  private conflictedKeys = new Set<ShortcutPreferenceKey>()
+  private conflictedKeys = new Set<CommandShortcutPreferenceKey<CommandId>>()
   private isRegisterOnBoot = true
   private registeredAccelerators = new Map<string, RegisteredShortcut>()
 
@@ -50,62 +79,27 @@ export class ShortcutService extends BaseService {
   }
 
   private registerBuiltInHandlers(): void {
-    this.handlers.set('shortcut.general.show_main_window', () => {
-      application.get('MainWindowService').toggleMainWindow()
-    })
-
-    this.handlers.set('shortcut.general.show_settings', () => {
-      application.get('SettingsWindowService').open('/settings/provider')
-    })
-
-    this.handlers.set('shortcut.feature.quick_assistant.toggle_window', () => {
-      if (!application.get('PreferenceService').get('feature.quick_assistant.enabled')) return
-      application.get('QuickAssistantService').toggleQuickAssistant()
-    })
-
-    this.handlers.set('shortcut.general.zoom_in', (window) => {
-      if (window) handleZoomFactor([window], 0.1)
-    })
-
-    this.handlers.set('shortcut.general.zoom_out', (window) => {
-      if (window) handleZoomFactor([window], -0.1)
-    })
-
-    this.handlers.set('shortcut.general.zoom_reset', (window) => {
-      if (window) handleZoomFactor([window], 0, true)
-    })
-
-    this.handlers.set('shortcut.feature.selection.toggle_enabled', () => {
-      application.get('SelectionService').toggleEnabled()
-    })
-
-    this.handlers.set('shortcut.feature.selection.get_text', () => {
-      application.get('SelectionService').processSelectTextByShortcut()
-    })
+    for (const rule of mainKeybindings) {
+      this.handlers.set(rule.command, (window) => {
+        application.get('CommandService').execute(rule.command, window)
+      })
+    }
   }
 
   private subscribeToPreferenceChanges(): void {
     const preferenceService = application.get('PreferenceService')
-    for (const definition of relevantDefinitions) {
+    for (const rule of relevantKeybindings) {
       this.registerDisposable(
-        preferenceService.subscribeChange(definition.key, () => {
-          logger.debug(`Shortcut preference changed: ${definition.key}`)
+        preferenceService.subscribeChange(rule.preferenceKey, () => {
+          logger.debug(`Shortcut preference changed: ${rule.preferenceKey}`)
           this.reregisterShortcuts()
         })
       )
     }
 
-    const dependencyKeys = new Set<NonNullable<(typeof relevantDefinitions)[number]['enabledWhen']>>()
-    for (const definition of relevantDefinitions) {
-      if (!definition.enabledWhen) {
-        continue
-      }
-      dependencyKeys.add(definition.enabledWhen)
-    }
-
-    for (const key of dependencyKeys) {
+    for (const key of contextKeys) {
       this.registerDisposable(
-        preferenceService.subscribeChange(key, () => {
+        preferenceService.subscribeChange(key as PreferenceKeyType, () => {
           logger.debug(`Shortcut dependency changed: ${key}`)
           this.reregisterShortcuts()
         })
@@ -166,31 +160,42 @@ export class ShortcutService extends BaseService {
 
     // Build the desired set of accelerators
     const desired = new Map<string, RegisteredShortcut>()
+    const context: ContextReader = (key) => {
+      if (key === 'platform') {
+        return process.platform
+      }
+      return toContextValue(preferenceService.get(key as PreferenceKeyType))
+    }
 
-    for (const definition of relevantDefinitions) {
-      if (onlyPersistent && !definition.global) continue
+    for (const rule of relevantKeybindings) {
+      if (onlyPersistent && !rule.global) continue
 
-      if (!isShortcutDefinitionEnabled(definition, (key) => preferenceService.get(key))) {
+      const command = findCommandDefinition(rule.command)
+      if (!command || !evaluateContextExpr(command.enablement, context)) {
         continue
       }
 
-      const rawPref = preferenceService.get(definition.key) as PreferenceShortcutType | undefined
-      const pref = resolveShortcutPreference(definition, rawPref)
-      if (!pref.enabled || !pref.binding.length) continue
+      const rawPref = preferenceService.get(rule.preferenceKey) as PreferenceShortcutType | undefined
+      const resolved = resolveCommandKeybinding({
+        command: rule.command,
+        preference: rawPref,
+        context,
+        platform: process.platform as SupportedPlatform
+      })
+      if (!resolved?.enabled || !resolved.binding.length) continue
 
-      const handler = this.handlers.get(definition.key)
+      const handler = this.handlers.get(rule.command)
       if (!handler) continue
 
-      const accelerator = toAccelerator(pref.binding)
-      if (accelerator) {
-        desired.set(accelerator, { key: definition.key, handler, window })
+      if (resolved.accelerator) {
+        desired.set(resolved.accelerator, { key: rule.preferenceKey, handler, window })
       }
 
-      if (definition.variants) {
-        for (const variant of definition.variants) {
-          const variantAccelerator = toAccelerator(variant)
+      if (resolved.additionalBindings) {
+        for (const variant of resolved.additionalBindings) {
+          const variantAccelerator = variant.join('+')
           if (variantAccelerator) {
-            desired.set(variantAccelerator, { key: definition.key, handler, window })
+            desired.set(variantAccelerator, { key: rule.preferenceKey, handler, window })
           }
         }
       }
@@ -271,7 +276,7 @@ export class ShortcutService extends BaseService {
     this.isRegisterOnBoot = true
   }
 
-  private markRegistrationConflict(key: ShortcutPreferenceKey, accelerator: string): void {
+  private markRegistrationConflict(key: CommandShortcutPreferenceKey<CommandId>, accelerator: string): void {
     if (this.conflictedKeys.has(key)) {
       return
     }
@@ -280,7 +285,7 @@ export class ShortcutService extends BaseService {
     this.emitRegistrationConflict({ key, accelerator, hasConflict: true })
   }
 
-  private clearRegistrationConflict(key: ShortcutPreferenceKey): void {
+  private clearRegistrationConflict(key: CommandShortcutPreferenceKey<CommandId>): void {
     if (!this.conflictedKeys.delete(key)) {
       return
     }

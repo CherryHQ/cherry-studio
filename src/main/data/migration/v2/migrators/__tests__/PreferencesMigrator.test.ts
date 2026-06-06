@@ -152,11 +152,11 @@ describe('PreferencesMigrator', () => {
       await migrator.prepare(ctx)
       await migrator.execute(ctx)
 
-      const zoomRows = await selectByKey(dbh.db, 'shortcut.general.zoom_in')
+      const zoomRows = await selectByKey(dbh.db, 'shortcut.app.zoom.in')
       expect(zoomRows).toHaveLength(1)
       expect(zoomRows[0].value).toEqual({ binding: ['CommandOrControl', '='], enabled: true })
 
-      const settingsRows = await selectByKey(dbh.db, 'shortcut.general.show_settings')
+      const settingsRows = await selectByKey(dbh.db, 'shortcut.app.settings.open')
       expect(settingsRows).toHaveLength(1)
       expect(settingsRows[0].value).toEqual({ binding: ['CommandOrControl', ','], enabled: false })
     })
@@ -283,7 +283,7 @@ describe('PreferencesMigrator', () => {
       await migrator.prepare(ctx)
       await migrator.execute(ctx)
 
-      const [row] = await selectByKey(dbh.db, 'shortcut.general.zoom_in')
+      const [row] = await selectByKey(dbh.db, 'shortcut.app.zoom.in')
       expect(row.value).toEqual({ binding: ['CommandOrControl', '='], enabled: true })
     })
 

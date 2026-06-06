@@ -155,6 +155,8 @@ export enum IpcChannel {
 
   Shortcut_RegistrationConflict = 'shortcut:registration-conflict',
 
+  NativeCommandPopupMenu_Show = 'native-command-popup-menu:show',
+
   // Tab
   Tab_Attach = 'tab:attach',
   Tab_Detach = 'tab:detach',
@@ -213,7 +215,7 @@ export enum IpcChannel {
   File_OpenWithRelativePath = 'file:openWithRelativePath',
   File_IsTextFile = 'file:isTextFile',
   File_IsDirectory = 'file:isDirectory',
-  File_CheckWorkspacePath = 'file:checkWorkspacePath',
+  File_GetMetadata = 'file:getMetadata',
   File_ListDirectory = 'file:listDirectory',
   File_CheckFileName = 'file:checkFileName',
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',

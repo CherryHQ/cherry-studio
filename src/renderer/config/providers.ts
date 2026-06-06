@@ -894,7 +894,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     },
     websites: {
       official: 'https://open.bigmodel.cn/',
-      apiKey: 'https://open.bigmodel.cn/usercenter/apikeys',
+      apiKey: 'https://open.bigmodel.cn/apikey/platform',
       docs: 'https://docs.bigmodel.cn/',
       models: 'https://open.bigmodel.cn/modelcenter/square'
     }
