@@ -170,13 +170,8 @@ export const SearchMessagesQuerySchema = z.strictObject({
   limit: z.coerce.number().int().positive().max(1000).optional(),
   createdAtFrom: z.iso.datetime().optional()
 })
-export type SearchMessagesQueryParams = {
-  q: string
-  topicId?: string
-  cursor?: string
-  limit?: number
-  createdAtFrom?: string
-} & CursorPaginationParams
+export type SearchMessagesQueryParams = z.input<typeof SearchMessagesQuerySchema>
+export type SearchMessagesQuery = z.output<typeof SearchMessagesQuerySchema>
 
 export interface SearchMessageResult {
   messageId: string

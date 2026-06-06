@@ -18,7 +18,7 @@ import type {
   CreateMessageDto,
   DeleteMessageResponse,
   SearchMessageResult,
-  SearchMessagesQueryParams,
+  SearchMessagesQuery,
   SearchMessagesResponse,
   UpdateMessageDto
 } from '@shared/data/api/schemas/messages'
@@ -617,7 +617,7 @@ export class MessageService {
     })
   }
 
-  async search(query: SearchMessagesQueryParams): Promise<SearchMessagesResponse> {
+  async search(query: SearchMessagesQuery): Promise<SearchMessagesResponse> {
     const db = application.get('DbService').getDb()
     const topicConditionForMessageAlias = query.topicId ? sql`message.topic_id = ${query.topicId}` : sql`1 = 1`
 
