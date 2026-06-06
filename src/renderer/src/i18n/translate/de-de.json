@@ -7,9 +7,9 @@
         "invalid_agent": "Ungültiger Agent"
       },
       "model": {
-        "docs_link": "[to be translated]:Custom provider",
-        "empty": "[to be translated]:No compatible models found for this Agent type.",
-        "empty_docs": "[to be translated]:View setup guide",
+        "docs_link": "Benutzerdefinierter Anbieter",
+        "empty": "Für diesen Agent-Typ wurden keine kompatiblen Modelle gefunden.",
+        "empty_docs": "Einrichtungsanleitung anzeigen",
         "supported_providers": "Unterstützte Anbieter",
         "tooltip": "Derzeit sind für die Agent-Funktion nur Modelle verfügbar, die Anthropic-Endpunkte unterstützen.",
         "view_providers": "Unterstützte Anbieter anzeigen"

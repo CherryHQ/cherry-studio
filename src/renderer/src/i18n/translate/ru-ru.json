@@ -7,9 +7,9 @@
         "invalid_agent": "Недействительный агент"
       },
       "model": {
-        "docs_link": "[to be translated]:Custom provider",
-        "empty": "[to be translated]:No compatible models found for this Agent type.",
-        "empty_docs": "[to be translated]:View setup guide",
+        "docs_link": "Пользовательский провайдер",
+        "empty": "Для этого типа агента не найдено совместимых моделей.",
+        "empty_docs": "Открыть руководство по настройке",
         "supported_providers": "Поддерживаемые поставщики",
         "tooltip": "В настоящее время для функции агента доступны только модели, поддерживающие конечные точки Anthropic.",
         "view_providers": "Просмотреть поддерживаемых поставщиков"

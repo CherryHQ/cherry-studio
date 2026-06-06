@@ -7,9 +7,9 @@
         "invalid_agent": "無効なエージェント"
       },
       "model": {
-        "docs_link": "[to be translated]:Custom provider",
-        "empty": "[to be translated]:No compatible models found for this Agent type.",
-        "empty_docs": "[to be translated]:View setup guide",
+        "docs_link": "カスタムプロバイダー",
+        "empty": "この Agent タイプに対応するモデルが見つかりません。",
+        "empty_docs": "セットアップガイドを表示",
         "supported_providers": "サポートされているプロバイダー",
         "tooltip": "現在、エージェント機能では、Anthropicエンドポイントをサポートするモデルのみが利用可能です。",
         "view_providers": "サポートされているプロバイダーを表示"

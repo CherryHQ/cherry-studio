@@ -7,9 +7,9 @@
         "invalid_agent": "Agent inválido"
       },
       "model": {
-        "docs_link": "[to be translated]:Custom provider",
-        "empty": "[to be translated]:No compatible models found for this Agent type.",
-        "empty_docs": "[to be translated]:View setup guide",
+        "docs_link": "Fornecedor personalizado",
+        "empty": "Não foram encontrados modelos compatíveis para este tipo de agente.",
+        "empty_docs": "Ver guia de configuração",
         "supported_providers": "Provedores Suportados",
         "tooltip": "Atualmente, apenas modelos que suportam endpoints da Anthropic estão disponíveis para o recurso Agente.",
         "view_providers": "Ver provedores suportados"

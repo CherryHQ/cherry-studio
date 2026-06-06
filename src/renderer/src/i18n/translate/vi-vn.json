@@ -7,9 +7,9 @@
         "invalid_agent": "Đại lý không hợp lệ"
       },
       "model": {
-        "docs_link": "[to be translated]:Custom provider",
-        "empty": "[to be translated]:No compatible models found for this Agent type.",
-        "empty_docs": "[to be translated]:View setup guide",
+        "docs_link": "Nhà cung cấp tùy chỉnh",
+        "empty": "Không tìm thấy mô hình tương thích cho loại Agent này.",
+        "empty_docs": "Xem hướng dẫn thiết lập",
         "supported_providers": "Nhà cung cấp được hỗ trợ",
         "tooltip": "Hiện tại, chỉ những mô hình hỗ trợ các điểm cuối Anthropic mới có sẵn cho tính năng Agent.",
         "view_providers": "Xem các nhà cung cấp được hỗ trợ"
