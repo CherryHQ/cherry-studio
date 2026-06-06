@@ -1,4 +1,5 @@
 import type * as RendererConstantModule from '@renderer/config/constant'
+import type { ShortcutListItem } from '@renderer/hooks/useShortcuts'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -6,14 +7,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ShortcutSettings from '../ShortcutSettings'
 
 const shortcutsMock = vi.hoisted(() => ({
-  shortcuts: [] as any[],
+  shortcuts: [] as ShortcutListItem[],
   updatePreference: vi.fn()
 }))
 
 const setTimeoutTimerMock = vi.hoisted(() => vi.fn((_key: string, callback: () => void) => callback()))
 const clearTimeoutTimerMock = vi.hoisted(() => vi.fn())
 const registrationConflictMock = vi.hoisted(() => vi.fn(() => vi.fn()))
-const setMultipleMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -40,21 +40,6 @@ vi.mock('@renderer/config/constant', async (importOriginal) => {
 
 vi.mock('@renderer/utils/style', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
-}))
-
-vi.mock('@data/PreferenceService', () => ({
-  preferenceService: {
-    get: vi.fn().mockResolvedValue(undefined),
-    setMultiple: setMultipleMock
-  }
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      error: vi.fn()
-    })
-  }
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({
@@ -182,7 +167,6 @@ describe('ShortcutSettings shortcut recorder', () => {
     setTimeoutTimerMock.mockClear()
     clearTimeoutTimerMock.mockClear()
     registrationConflictMock.mockClear()
-    setMultipleMock.mockClear()
 
     window.api = {
       shortcut: {
