@@ -53,10 +53,12 @@ export function buildHostEndpointPreviews(params: {
     if (primaryEndpoint === ENDPOINT_TYPE.OLLAMA_CHAT) return `${formattedHost}/chat`
     if (provider.id === 'gateway') return `${formattedHost}/language-model`
     if (isAzureOpenAIProvider(provider)) {
-      const version = provider.settings?.apiVersion || ''
-      const path = !['preview', 'v1'].includes(version)
-        ? '/v1/chat/completions?apiVersion=v1'
-        : '/v1/responses?apiVersion=v1'
+      const version = provider.settings?.apiVersion?.trim() || ''
+      const isV1Variant = version === '' || version === 'preview' || version === 'v1'
+      const previewVersion = version || 'v1'
+      const path = isV1Variant
+        ? `/v1/responses?apiVersion=${previewVersion}`
+        : `/v1/chat/completions?apiVersion=${previewVersion}`
       return `${formattedHost}${path}`
     }
     if (primaryEndpoint === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) return `${formattedHost}/chat/completions`
