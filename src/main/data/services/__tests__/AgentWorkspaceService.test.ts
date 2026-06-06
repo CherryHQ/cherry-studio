@@ -96,6 +96,25 @@ describe('AgentWorkspaceService', () => {
     })
   })
 
+  it('maps transactional system workspace duplicate paths to conflict errors', async () => {
+    const systemWorkspacePath = workspacePath('prepared-system-tx')
+    await agentWorkspaceService.createSystemWorkspace({
+      path: systemWorkspacePath,
+      name: 'No project 2026-05-25 14:30:12'
+    })
+
+    await expect(
+      dbh.db.transaction((tx) =>
+        agentWorkspaceService.createSystemWorkspaceTx(tx, {
+          path: systemWorkspacePath,
+          name: 'No project 2026-05-25 14:30:13'
+        })
+      )
+    ).rejects.toMatchObject({
+      code: ErrorCode.CONFLICT
+    })
+  })
+
   it('deletes a workspace with its sessions and returns the system path when needed', async () => {
     const workspace = await agentWorkspaceService.createSystemWorkspace({
       path: workspacePath('system-delete'),
@@ -192,5 +211,30 @@ describe('AgentWorkspaceService', () => {
     ])
     workspaces = await agentWorkspaceService.list()
     expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id, third.id])
+  })
+
+  it('rejects system workspace targets and anchors in default reorder APIs', async () => {
+    const userWorkspace = await agentWorkspaceService.findOrCreateByPath(workspacePath('user-order'))
+    const otherUserWorkspace = await agentWorkspaceService.findOrCreateByPath(workspacePath('other-user-order'))
+    await insertSystemWorkspace('system-workspace-order', workspacePath('system-order'))
+
+    await expect(agentWorkspaceService.reorder('system-workspace-order', { position: 'first' })).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    await expect(
+      agentWorkspaceService.reorder(userWorkspace.id, { before: 'system-workspace-order' })
+    ).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    await expect(
+      agentWorkspaceService.reorderBatch([{ id: 'system-workspace-order', anchor: { position: 'last' } }])
+    ).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    await expect(
+      agentWorkspaceService.reorderBatch([{ id: otherUserWorkspace.id, anchor: { after: 'system-workspace-order' } }])
+    ).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
   })
 })

@@ -8,7 +8,7 @@ import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentWorkspaceEntity, AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -43,6 +43,30 @@ function normalizeWorkspacePath(rawPath: string): string {
 
 function defaultWorkspaceName(workspacePath: string): string {
   return path.basename(workspacePath) || workspacePath
+}
+
+function userWorkspaceScope() {
+  return eq(agentWorkspaceTable.type, 'user')
+}
+
+function collectOrderReferenceIds(moves: Array<{ id: string; anchor: OrderRequest }>): string[] {
+  const ids: string[] = []
+  const seen = new Set<string>()
+
+  for (const move of moves) {
+    if (!seen.has(move.id)) {
+      ids.push(move.id)
+      seen.add(move.id)
+    }
+
+    const anchorId = 'before' in move.anchor ? move.anchor.before : 'after' in move.anchor ? move.anchor.after : null
+    if (anchorId && !seen.has(anchorId)) {
+      ids.push(anchorId)
+      seen.add(anchorId)
+    }
+  }
+
+  return ids
 }
 
 export class AgentWorkspaceService {
@@ -134,7 +158,11 @@ export class AgentWorkspaceService {
   }
 
   async createSystemWorkspaceTx(tx: DbOrTx, input: CreateSystemWorkspaceInput): Promise<AgentWorkspaceEntity> {
-    const row = await this.createSystemWorkspaceRowTx(tx, input)
+    const workspacePath = normalizeWorkspacePath(input.path)
+    const row = await withSqliteErrors(() => this.createSystemWorkspaceRowTx(tx, { ...input, path: workspacePath }), {
+      ...defaultHandlersFor('Workspace', workspacePath),
+      unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
+    })
     return rowToWorkspace(row)
   }
 
@@ -199,12 +227,12 @@ export class AgentWorkspaceService {
   }
 
   async reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): Promise<void> {
-    const [target] = await tx
-      .select({ id: agentWorkspaceTable.id })
-      .from(agentWorkspaceTable)
-      .where(eq(agentWorkspaceTable.id, id))
-    if (!target) throw DataApiErrorFactory.notFound('Workspace', id)
-    await applyMoves(tx, agentWorkspaceTable, [{ id, anchor }], { pkColumn: agentWorkspaceTable.id })
+    const moves = [{ id, anchor }]
+    await this.assertUserWorkspaceOrderReferencesTx(tx, moves)
+    await applyMoves(tx, agentWorkspaceTable, moves, {
+      pkColumn: agentWorkspaceTable.id,
+      scope: userWorkspaceScope()
+    })
   }
 
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
@@ -213,7 +241,30 @@ export class AgentWorkspaceService {
   }
 
   async reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
-    await applyMoves(tx, agentWorkspaceTable, moves, { pkColumn: agentWorkspaceTable.id })
+    await this.assertUserWorkspaceOrderReferencesTx(tx, moves)
+    await applyMoves(tx, agentWorkspaceTable, moves, {
+      pkColumn: agentWorkspaceTable.id,
+      scope: userWorkspaceScope()
+    })
+  }
+
+  private async assertUserWorkspaceOrderReferencesTx(
+    tx: DbOrTx,
+    moves: Array<{ id: string; anchor: OrderRequest }>
+  ): Promise<void> {
+    const ids = collectOrderReferenceIds(moves)
+    if (ids.length === 0) return
+
+    const rows = await tx
+      .select({ id: agentWorkspaceTable.id })
+      .from(agentWorkspaceTable)
+      .where(and(inArray(agentWorkspaceTable.id, ids), userWorkspaceScope()))
+
+    if (rows.length === ids.length) return
+
+    const found = new Set(rows.map((row) => row.id))
+    const missing = ids.find((id) => !found.has(id)) ?? ids[0]
+    throw DataApiErrorFactory.notFound('Workspace', missing)
   }
 }
 
