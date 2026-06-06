@@ -25,12 +25,6 @@ function createItem(type: KnowledgeItem['type']): KnowledgeItem {
       return { ...base, type, data: { source: 'https://example.com', url: 'https://example.com' } }
     case 'note':
       return { ...base, type, data: { source: 'note', content: 'note' } }
-    case 'sitemap':
-      return {
-        ...base,
-        type,
-        data: { source: 'https://example.com/sitemap.xml', url: 'https://example.com/sitemap.xml' }
-      }
     case 'directory':
       return { ...base, type, data: { source: '/docs', path: '/docs' } }
   }
@@ -38,11 +32,9 @@ function createItem(type: KnowledgeItem['type']): KnowledgeItem {
 
 describe('indexable knowledge item helpers', () => {
   it('recognizes file, url, and note as indexable leaves', () => {
-    const items = ['file', 'url', 'note', 'sitemap', 'directory'].map((type) =>
-      createItem(type as KnowledgeItem['type'])
-    )
+    const items = ['file', 'url', 'note', 'directory'].map((type) => createItem(type as KnowledgeItem['type']))
 
-    expect(items.map((item) => isIndexableKnowledgeItem(item))).toEqual([true, true, true, false, false])
+    expect(items.map((item) => isIndexableKnowledgeItem(item))).toEqual([true, true, true, false])
     expect(filterIndexableKnowledgeItems(items).map((item) => item.type)).toEqual(['file', 'url', 'note'])
   })
 })

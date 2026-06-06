@@ -164,18 +164,14 @@ vi.mock('react-i18next', () => ({
         'knowledge.data_source.add_dialog.footer.selected_files': `已选 ${options?.count ?? 0} 个文件`,
         'knowledge.data_source.add_dialog.note.description': '选择已有笔记作为知识库数据源',
         'knowledge.data_source.add_dialog.note.empty_description':
-          '真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录、网址或站点地图。',
+          '真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录或链接。',
         'knowledge.data_source.add_dialog.note.empty_title': '暂未接入笔记数据源',
         'knowledge.data_source.add_dialog.placeholder.supported_formats': '支持 PDF, DOCX, MD, XLSX, TXT, CSV',
         'knowledge.data_source.add_dialog.placeholder.title': '点击选择文件或拖拽到此处',
-        'knowledge.data_source.add_dialog.sitemap.description': '输入 Sitemap 地址：',
-        'knowledge.data_source.add_dialog.sitemap.help': '将读取 Sitemap 中包含的页面并建立索引',
-        'knowledge.data_source.add_dialog.sitemap.placeholder': 'https://example.com/sitemap.xml',
         'knowledge.data_source.add_dialog.sources.directory': '目录',
         'knowledge.data_source.add_dialog.sources.file': '文件',
         'knowledge.data_source.add_dialog.sources.note': '笔记',
-        'knowledge.data_source.add_dialog.sources.sitemap': '网站',
-        'knowledge.data_source.add_dialog.sources.url': '网址',
+        'knowledge.data_source.add_dialog.sources.url': '链接',
         'knowledge.data_source.add_dialog.submit.error': '添加数据源失败',
         'knowledge.data_source.add_dialog.submit.success': '数据源已添加到知识库',
         'knowledge.data_source.add_dialog.title': '添加数据源',
@@ -211,7 +207,7 @@ describe('AddKnowledgeItemDialog', () => {
     ;(window as any).toast = { success: vi.fn(), error: vi.fn() }
   })
 
-  const setPendingAddSource = (pendingAddSource: 'file' | 'note' | 'directory' | 'url' | 'sitemap') => {
+  const setPendingAddSource = (pendingAddSource: 'file' | 'note' | 'directory' | 'url') => {
     mockUseKnowledgePage.mockReturnValue({ selectedBaseId: 'base-1', pendingAddSource })
   }
 
@@ -360,9 +356,9 @@ describe('AddKnowledgeItemDialog', () => {
     expect(screen.getByText('docs')).toBeInTheDocument()
   })
 
-  it('enables url and sitemap submit only after input', () => {
+  it('enables url submit only after input', () => {
     setPendingAddSource('url')
-    const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
     const urlInput = screen.getByPlaceholderText('https://example.com')
 
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
@@ -373,21 +369,6 @@ describe('AddKnowledgeItemDialog', () => {
     expect(urlInput).toHaveClass('focus-visible:ring-0')
     fireEvent.change(urlInput, {
       target: { value: 'https://example.com' }
-    })
-    expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
-
-    setPendingAddSource('sitemap')
-    rerender(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
-
-    expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
-    const sitemapInput = screen.getByPlaceholderText('https://example.com/sitemap.xml')
-    expect(sitemapInput.parentElement).toHaveClass('min-w-0')
-    expect(sitemapInput.parentElement?.parentElement).toHaveClass('min-w-0')
-    expect(sitemapInput).toHaveClass('w-full')
-    expect(sitemapInput).toHaveClass('border-border-subtle')
-    expect(sitemapInput).toHaveClass('focus-visible:ring-0')
-    fireEvent.change(sitemapInput, {
-      target: { value: 'https://example.com/sitemap.xml' }
     })
     expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
   })
@@ -430,28 +411,6 @@ describe('AddKnowledgeItemDialog', () => {
           data: {
             source: 'https://example.com',
             url: 'https://example.com'
-          }
-        }
-      ])
-    })
-  })
-
-  it('submits sitemap source body through generic hook', async () => {
-    setPendingAddSource('sitemap')
-    mockSubmitKnowledgeItems.mockResolvedValue(undefined)
-    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
-
-    fireEvent.change(screen.getByPlaceholderText('https://example.com/sitemap.xml'), {
-      target: { value: ' https://example.com/sitemap.xml ' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: '添加' }))
-    await waitFor(() => {
-      expect(mockSubmitKnowledgeItems).toHaveBeenLastCalledWith([
-        {
-          type: 'sitemap',
-          data: {
-            source: 'https://example.com/sitemap.xml',
-            url: 'https://example.com/sitemap.xml'
           }
         }
       ])

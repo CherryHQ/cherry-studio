@@ -50,6 +50,7 @@ export interface ProviderModelListSectionsSurface {
   pendingModelIds: Set<string>
   onEditModel: (model: Model) => void
   onToggleModel: (model: Model, enabled: boolean) => Promise<void>
+  onToggleModels: (models: Model[], enabled: boolean) => Promise<void>
 }
 
 interface UseProviderModelListArgs {
@@ -58,7 +59,6 @@ interface UseProviderModelListArgs {
   disabled?: boolean
 }
 
-type SessionPlacement = keyof ModelSections
 type DisplayedSectionState = {
   sections: ModelSections
   displayEnabledModelCount: number
@@ -88,13 +88,6 @@ const withPrunedModelIds = <T>(entries: Record<string, T>, validIds: Set<string>
   return changed ? next : entries
 }
 
-const getDisplayedPlacement = (
-  model: Model,
-  placementByModelId: Record<string, SessionPlacement>
-): SessionPlacement => {
-  return placementByModelId[model.id] ?? (model.isEnabled ? 'enabled' : 'disabled')
-}
-
 export function useProviderModelList({ providerId, disabled = false }: UseProviderModelListArgs) {
   const { models, isLoading: isModelsLoading } = useModels(
     { providerId },
@@ -107,7 +100,6 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
   const [editingModel, setEditingModel] = useState<Model | null>(null)
   const [isBulkUpdating, setIsBulkUpdating] = useState(false)
   const [optimisticEnabledByModelId, setOptimisticEnabledByModelId] = useState<Record<string, boolean>>({})
-  const [sessionPlacementByModelId, setSessionPlacementByModelId] = useState<Record<string, SessionPlacement>>({})
   const [pendingModelIdMap, setPendingModelIdMap] = useState<Record<string, true>>({})
 
   const setSelectedCapabilityFilter = useCallback((filter: ModelListCapabilityFilter) => {
@@ -151,7 +143,6 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
   useEffect(() => {
     const validModelIds = new Set(models.map((model) => model.id))
 
-    setSessionPlacementByModelId((current) => withPrunedModelIds(current, validModelIds))
     setPendingModelIdMap((current) => withPrunedModelIds(current, validModelIds))
     setOptimisticEnabledByModelId((current) => {
       const pruned = withPrunedModelIds(current, validModelIds)
@@ -178,16 +169,12 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     const disabledModels: Model[] = []
     const preserveGroupOrder = Boolean(searchText.trim())
 
-    // Final grouping happens only once here because the displayed section can
-    // diverge from persisted `isEnabled` while local optimistic/session
-    // placement is active.
     for (const model of derivedState.filteredModels) {
-      if (getDisplayedPlacement(model, sessionPlacementByModelId) === 'enabled') {
+      if (model.isEnabled) {
         enabledModels.push(model)
-        continue
+      } else {
+        disabledModels.push(model)
       }
-
-      disabledModels.push(model)
     }
 
     const sections: ModelSections = {
@@ -200,7 +187,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       displayEnabledModelCount: countModelsInGroups(sections.enabled),
       displayDisabledModelCount: countModelsInGroups(sections.disabled)
     }
-  }, [derivedState.filteredModels, searchText, sessionPlacementByModelId])
+  }, [derivedState.filteredModels, searchText])
 
   const openEditModelDrawer = useCallback((model: Model) => {
     setEditingModel(model)
@@ -214,16 +201,9 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     async (model: Model, enabled: boolean) => {
       const { modelId } = parseUniqueModelId(model.id)
       const previousEnabled = optimisticEnabledByModelId[model.id] ?? model.isEnabled
-      const previousPlacement = sessionPlacementByModelId[model.id]
-      const displayedPlacement = getDisplayedPlacement(model, sessionPlacementByModelId)
-      const shouldKeepDisabledModelInPlace = displayedPlacement === 'enabled' && !enabled
 
       setOptimisticEnabledByModelId((current) => ({ ...current, [model.id]: enabled }))
       setPendingModelIdMap((current) => ({ ...current, [model.id]: true }))
-
-      if (shouldKeepDisabledModelInPlace && previousPlacement === undefined) {
-        setSessionPlacementByModelId((current) => ({ ...current, [model.id]: 'enabled' }))
-      }
 
       try {
         await updateModel(model.providerId, modelId, { isEnabled: enabled })
@@ -240,14 +220,6 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
           return next
         })
 
-        if (shouldKeepDisabledModelInPlace && previousPlacement === undefined) {
-          setSessionPlacementByModelId((current) => {
-            const next = { ...current }
-            delete next[model.id]
-            return next
-          })
-        }
-
         throw error
       } finally {
         setPendingModelIdMap((current) => {
@@ -257,12 +229,12 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         })
       }
     },
-    [optimisticEnabledByModelId, sessionPlacementByModelId, updateModel]
+    [optimisticEnabledByModelId, updateModel]
   )
 
-  const onToggleVisibleModels = useCallback(
-    async (enabled: boolean) => {
-      const targetModels = derivedState.filteredModels.filter((model) => model.isEnabled !== enabled)
+  const onToggleModels = useCallback(
+    async (modelsToToggle: Model[], enabled: boolean) => {
+      const targetModels = modelsToToggle.filter((model) => model.isEnabled !== enabled)
 
       if (targetModels.length === 0) {
         return
@@ -270,14 +242,10 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
 
       const targetStates = targetModels.map((model) => {
         const previousEnabled = optimisticEnabledByModelId[model.id] ?? model.isEnabled
-        const previousPlacement = sessionPlacementByModelId[model.id]
-        const displayedPlacement = getDisplayedPlacement(model, sessionPlacementByModelId)
 
         return {
           model,
-          previousEnabled,
-          previousPlacement,
-          shouldKeepDisabledModelInPlace: !enabled && displayedPlacement === 'enabled'
+          previousEnabled
         }
       })
 
@@ -299,20 +267,6 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
 
         return next
       })
-
-      if (!enabled) {
-        setSessionPlacementByModelId((current) => {
-          const next = { ...current }
-
-          for (const { model, previousPlacement, shouldKeepDisabledModelInPlace } of targetStates) {
-            if (shouldKeepDisabledModelInPlace && previousPlacement === undefined) {
-              next[model.id] = 'enabled'
-            }
-          }
-
-          return next
-        })
-      }
 
       setIsBulkUpdating(true)
 
@@ -339,17 +293,6 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
 
           return next
         })
-        setSessionPlacementByModelId((current) => {
-          const next = { ...current }
-
-          for (const { model, previousPlacement, shouldKeepDisabledModelInPlace } of targetStates) {
-            if (shouldKeepDisabledModelInPlace && previousPlacement === undefined) {
-              delete next[model.id]
-            }
-          }
-
-          return next
-        })
 
         throw error
       } finally {
@@ -365,7 +308,14 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
         setIsBulkUpdating(false)
       }
     },
-    [derivedState.filteredModels, optimisticEnabledByModelId, sessionPlacementByModelId, updateModels]
+    [optimisticEnabledByModelId, updateModels]
+  )
+
+  const onToggleVisibleModels = useCallback(
+    async (enabled: boolean) => {
+      await onToggleModels(derivedState.filteredModels, enabled)
+    },
+    [derivedState.filteredModels, onToggleModels]
   )
 
   const enabledSections = useMemo(() => toGroupSections(displayState.sections.enabled), [displayState.sections.enabled])
@@ -401,7 +351,8 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     disabled,
     pendingModelIds,
     onEditModel: openEditModelDrawer,
-    onToggleModel
+    onToggleModel,
+    onToggleModels
   }
 
   return {

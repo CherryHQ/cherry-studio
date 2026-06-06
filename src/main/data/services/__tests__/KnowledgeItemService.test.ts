@@ -25,15 +25,12 @@ const CHILD_1_ID = itemId('7d21')
 const NOTE_A_ID = itemId('7d22')
 const VISIBLE_NOTE_ID = itemId('7d23')
 const DELETING_NOTE_ID = itemId('7d24')
-const SITEMAP_A_ID = itemId('7d25')
 const NOTE_OWNER_ID = itemId('7d26')
 const DIR_CHILD_ID = itemId('7d30')
 const DIR_ROOT_ID = itemId('7d31')
 const FILE_CHILD_ID = itemId('7d40')
 const NOTE_GRANDCHILD_ID = itemId('7d41')
 const NOTE_ROOT_ID = itemId('7d42')
-const URL_CHILD_ID = itemId('7d43')
-const SITEMAP_ROOT_ID = itemId('7d44')
 const DIR_OWNER_ID = itemId('7d45')
 const CHILD_A_ID = itemId('7d46')
 const CHILD_B_ID = itemId('7d47')
@@ -372,26 +369,6 @@ describe('KnowledgeItemService', () => {
       })
     })
 
-    it('accepts sitemap group owners', async () => {
-      await seedItem({
-        id: SITEMAP_A_ID,
-        type: 'sitemap',
-        data: { source: 'https://example.com/sitemap.xml', url: 'https://example.com/sitemap.xml' }
-      })
-
-      const result = await service.create(KNOWLEDGE_BASE_ID, {
-        groupId: SITEMAP_A_ID,
-        type: 'url',
-        data: { source: 'https://example.com/page', url: 'https://example.com/page' }
-      })
-
-      expect(result).toMatchObject({
-        baseId: KNOWLEDGE_BASE_ID,
-        groupId: SITEMAP_A_ID,
-        type: 'url'
-      })
-    })
-
     it('rejects deleting group owners', async () => {
       await seedItem({
         id: DIR_A_ID,
@@ -429,7 +406,7 @@ describe('KnowledgeItemService', () => {
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
-            groupId: [`Knowledge item group owner must be a directory or sitemap: ${NOTE_OWNER_ID}`]
+            groupId: [`Knowledge item group owner must be a directory: ${NOTE_OWNER_ID}`]
           }
         }
       })
@@ -658,35 +635,15 @@ describe('KnowledgeItemService', () => {
         type: 'note',
         data: { source: 'grandchild', content: 'grandchild' }
       })
-      await seedItem({
-        id: SITEMAP_ROOT_ID,
-        type: 'sitemap',
-        data: { source: 'https://example.com', url: 'https://example.com' }
-      })
-      await seedItem({
-        id: URL_CHILD_ID,
-        groupId: SITEMAP_ROOT_ID,
-        type: 'url',
-        data: { source: 'https://example.com/page', url: 'https://example.com/page' }
-      })
       await seedItem({ id: NOTE_ROOT_ID, type: 'note', data: { source: 'root note', content: 'root note' } })
 
-      const result = await service.getSubtreeItems(
-        KNOWLEDGE_BASE_ID,
-        [DIR_ROOT_ID, SITEMAP_ROOT_ID, NOTE_ROOT_ID, 'missing'],
-        {
-          includeRoots: true,
-          leafOnly: true
-        }
-      )
+      const result = await service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID, NOTE_ROOT_ID, 'missing'], {
+        includeRoots: true,
+        leafOnly: true
+      })
       const itemsById = new Map(result.map((item) => [item.id, item]))
 
-      expect(result.map((item) => item.id).sort()).toEqual([
-        FILE_CHILD_ID,
-        NOTE_GRANDCHILD_ID,
-        NOTE_ROOT_ID,
-        URL_CHILD_ID
-      ])
+      expect(result.map((item) => item.id).sort()).toEqual([FILE_CHILD_ID, NOTE_GRANDCHILD_ID, NOTE_ROOT_ID])
       expect(itemsById.get(FILE_CHILD_ID)).toMatchObject({
         id: FILE_CHILD_ID,
         baseId: KNOWLEDGE_BASE_ID,
@@ -701,16 +658,8 @@ describe('KnowledgeItemService', () => {
         type: 'note',
         data: { content: 'grandchild' }
       })
-      expect(itemsById.get(URL_CHILD_ID)).toMatchObject({
-        id: URL_CHILD_ID,
-        baseId: KNOWLEDGE_BASE_ID,
-        groupId: SITEMAP_ROOT_ID,
-        type: 'url',
-        data: { url: 'https://example.com/page' }
-      })
       expect(itemsById.has(DIR_ROOT_ID)).toBe(false)
       expect(itemsById.has(DIR_CHILD_ID)).toBe(false)
-      expect(itemsById.has(SITEMAP_ROOT_ID)).toBe(false)
     })
 
     it('returns every descendant in the requested subtrees without roots by default', async () => {

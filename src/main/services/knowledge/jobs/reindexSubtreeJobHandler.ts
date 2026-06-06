@@ -83,10 +83,7 @@ export function createReindexSubtreeJobHandler(
         }
 
         for (const item of selectedRoots) {
-          await knowledgeItemService.updateStatus(
-            item.id,
-            item.type === 'directory' || item.type === 'sitemap' ? 'preparing' : 'processing'
-          )
+          await knowledgeItemService.updateStatus(item.id, item.type === 'directory' ? 'preparing' : 'processing')
         }
         return { roots: selectedRoots, skippedDeleting: false }
       })

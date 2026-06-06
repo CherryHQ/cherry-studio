@@ -7,11 +7,10 @@ import {
   VisionTag,
   WebSearchTag
 } from '@renderer/components/Tags/Model'
-import i18n from '@renderer/i18n'
 import { type Model, MODEL_CAPABILITY, type ModelCapability } from '@shared/data/types/model'
 import { isFreeModel } from '@shared/utils/model'
 import type { FC } from 'react'
-import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { memo } from 'react'
 
 export type ModelTagsWithLabelModel = Pick<Model, 'id' | 'name' | 'providerId' | 'capabilities' | 'endpointTypes'> &
   Partial<Pick<Model, 'description' | 'group'>>
@@ -22,7 +21,6 @@ interface ModelTagsProps {
   showReasoning?: boolean
   showToolsCalling?: boolean
   size?: number
-  showLabel?: boolean
   showTooltip?: boolean
   style?: React.CSSProperties
 }
@@ -54,11 +52,11 @@ const CAPABILITY_TAGS: readonly CapabilityTagConfig[] = [
   },
   {
     capability: MODEL_CAPABILITY.EMBEDDING,
-    render: ({ size }) => <EmbeddingTag size={size} />
+    render: (props) => <EmbeddingTag {...props} />
   },
   {
     capability: MODEL_CAPABILITY.RERANK,
-    render: ({ size }) => <RerankerTag size={size} />
+    render: (props) => <RerankerTag {...props} />
   }
 ] as const
 
@@ -68,45 +66,14 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   showReasoning = true,
   showToolsCalling = true,
   size = 8,
-  showLabel = true,
   showTooltip = true,
   style
 }) => {
-  const [shouldShowLabel, setShouldShowLabel] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const resizeObserver = useRef<ResizeObserver | null>(null)
-
-  const maxWidth = useMemo(() => (i18n.language.startsWith('zh') ? 300 : 350), [])
-
-  useLayoutEffect(() => {
-    const currentElement = containerRef.current
-    if (!showLabel || !currentElement) return
-
-    setShouldShowLabel(currentElement.offsetWidth >= maxWidth)
-
-    resizeObserver.current = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setShouldShowLabel(entry.contentRect.width >= maxWidth)
-      }
-    })
-    resizeObserver.current.observe(currentElement)
-
-    return () => {
-      if (resizeObserver.current) {
-        resizeObserver.current.disconnect()
-        resizeObserver.current = null
-      }
-    }
-  }, [maxWidth, showLabel])
-
   const capabilities = new Set(model.capabilities)
-  const tagProps = { size, showTooltip, showLabel: shouldShowLabel }
+  const tagProps = { size, showTooltip, showLabel: false }
 
   return (
-    <div
-      ref={containerRef}
-      className="flex min-w-0 max-w-full flex-row flex-wrap items-center gap-0.5 overflow-visible"
-      style={style}>
+    <div className="flex min-w-0 max-w-full flex-row flex-wrap items-center gap-0.5 overflow-visible" style={style}>
       {CAPABILITY_TAGS.map(({ capability, isVisible, render }) =>
         capabilities.has(capability) && (isVisible?.({ showReasoning, showToolsCalling }) ?? true) ? (
           <span key={capability} className="inline-flex">
@@ -114,7 +81,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
           </span>
         ) : null
       )}
-      {showFree && isFreeModel(model) && <FreeTag size={size} />}
+      {showFree && isFreeModel(model) && <FreeTag {...tagProps} />}
     </div>
   )
 }
