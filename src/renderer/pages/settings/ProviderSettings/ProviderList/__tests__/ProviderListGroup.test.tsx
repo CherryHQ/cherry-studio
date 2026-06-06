@@ -1,5 +1,5 @@
 import type { Provider } from '@shared/data/types/provider'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const reorderableItemsCalls: Provider[][] = []
@@ -26,11 +26,6 @@ vi.mock('@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPr
 
 import ProviderListGroup from '../ProviderListGroup'
 
-class ResizeObserverMock {
-  observe = vi.fn()
-  disconnect = vi.fn()
-}
-
 function provider(id: string, presetProviderId: string): Provider {
   return {
     id,
@@ -49,31 +44,13 @@ describe('ProviderListGroup', () => {
 
   beforeEach(() => {
     reorderableItemsCalls.length = 0
-    vi.stubGlobal('ResizeObserver', ResizeObserverMock)
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
-      () =>
-        ({
-          width: 160,
-          height: 72,
-          top: 0,
-          right: 160,
-          bottom: 72,
-          left: 0,
-          x: 0,
-          y: 0,
-          toJSON: () => ({})
-        }) as DOMRect
-    )
   })
 
   afterEach(() => {
     vi.restoreAllMocks()
-    vi.unstubAllGlobals()
   })
 
-  it('reports expanded body height while keeping the inner reorder list rendered', async () => {
-    const onBodyHeightChange = vi.fn()
-
+  it('renders the in-flow body with the full cache when expanded', () => {
     render(
       <ProviderListGroup
         presetProviderId="zhipu"
@@ -84,28 +61,22 @@ describe('ProviderListGroup', () => {
         onToggle={() => {}}
         onDragStateChange={() => {}}
         onReorder={() => {}}
-        onBodyHeightChange={onBodyHeightChange}
         renderItem={() => null}
       />
     )
 
     expect(screen.getByTestId('provider-list-group-inner-list')).toBeInTheDocument()
     expect(reorderableItemsCalls).toEqual([providers])
-
-    await waitFor(() => {
-      expect(onBodyHeightChange).toHaveBeenCalledWith('zhipu', 72)
-    })
   })
 
-  it('renders only the header while the outer group item is being dragged', () => {
+  it('hides the body when collapsed', () => {
     render(
       <ProviderListGroup
         presetProviderId="zhipu"
         members={providers}
         items={providers}
-        expanded
+        expanded={false}
         containsSelected={false}
-        dragging
         onToggle={() => {}}
         onDragStateChange={() => {}}
         onReorder={() => {}}

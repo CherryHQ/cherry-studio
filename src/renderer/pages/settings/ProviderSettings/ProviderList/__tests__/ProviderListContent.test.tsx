@@ -9,13 +9,11 @@ const reorderableItemsCalls: Provider[][] = []
 const sortableCalls: Array<{
   items: Array<{ id: string }>
   collisionDetection?: unknown
-  itemStyle?: (item: { id: string }, index: number) => React.CSSProperties | undefined
   onDragStart: (event: { active: { id: string } }) => void
   onDragEnd: () => void
   onDragCancel: () => void
   onSortEnd: (event: { oldIndex: number; newIndex: number }) => void
 }> = []
-const providerListGroupCalls: any[] = []
 
 vi.mock('@cherrystudio/ui', async () => {
   // The component imports `closestCenter` from `@cherrystudio/ui` (which
@@ -30,36 +28,15 @@ vi.mock('@cherrystudio/ui', async () => {
       reorderableItemsCalls.push(items)
       return null
     },
-    Sortable: ({
-      items,
-      renderItem,
-      collisionDetection,
-      itemStyle,
-      onDragStart,
-      onDragEnd,
-      onDragCancel,
-      onSortEnd
-    }: any) => {
-      sortableCalls.push({
-        items,
-        collisionDetection,
-        itemStyle,
-        onDragStart,
-        onDragEnd,
-        onDragCancel,
-        onSortEnd
-      })
+    Sortable: ({ items, renderItem, collisionDetection, onDragStart, onDragEnd, onDragCancel, onSortEnd }: any) => {
+      sortableCalls.push({ items, collisionDetection, onDragStart, onDragEnd, onDragCancel, onSortEnd })
       return (
         <div>
-          {items.map((item: any, index: number) => {
-            const style = typeof itemStyle === 'function' ? itemStyle(item, index) : itemStyle
-
-            return (
-              <div key={item.id} data-testid={`sortable-item-${item.id}`} style={style}>
-                {renderItem(item, { dragging: false })}
-              </div>
-            )
-          })}
+          {items.map((item: any) => (
+            <div key={item.id} data-testid={`sortable-item-${item.id}`}>
+              {renderItem(item, { dragging: false })}
+            </div>
+          ))}
         </div>
       )
     }
@@ -68,9 +45,8 @@ vi.mock('@cherrystudio/ui', async () => {
 
 vi.mock('../ProviderListGroup', () => ({
   default: (props: any) => {
-    providerListGroupCalls.push(props)
     reorderableItemsCalls.push(props.items)
-    return <div data-testid={`provider-list-group-${props.presetProviderId}`} data-dragging={String(props.dragging)} />
+    return <div data-testid={`provider-list-group-${props.presetProviderId}`} />
   }
 }))
 
@@ -110,7 +86,6 @@ describe('ProviderListContent — C1 grouped reorder', () => {
   beforeEach(() => {
     reorderableItemsCalls.length = 0
     sortableCalls.length = 0
-    providerListGroupCalls.length = 0
   })
 
   // Standard block-reorder fixture: an expanded 2-member group flanked by two
@@ -238,7 +213,7 @@ describe('ProviderListContent — C1 grouped reorder', () => {
     expect(onReorder).not.toHaveBeenCalled()
   })
 
-  it('uses center collision and reserves expanded group body height outside the sortable rect', () => {
+  it('uses center collision detection for grouped sorting', () => {
     const all = [
       provider('solo-a', 'solo-a', true),
       provider('zhipu-a', 'zhipu', true),
@@ -259,18 +234,10 @@ describe('ProviderListContent — C1 grouped reorder', () => {
     )
 
     expect(sortableCalls[0].collisionDetection).toBe(closestCenter)
-    expect(sortableCalls[0].itemStyle?.(sortableCalls[0].items[0], 0)).toBeUndefined()
-    expect(sortableCalls[0].itemStyle?.(sortableCalls[0].items[1], 1)).toBeUndefined()
-
-    act(() => {
-      providerListGroupCalls[0].onBodyHeightChange('zhipu', 48)
-    })
-
-    const latestSortableCall = sortableCalls.at(-1)!
-    expect(latestSortableCall.itemStyle?.(latestSortableCall.items[1], 1)).toMatchObject({ marginBottom: 48 })
   })
 
-  it('marks the active outer group as dragging while the outer Sortable is active', () => {
+  it('reports the outer drag state to the parent while the Sortable is active', () => {
+    const onDragStateChange = vi.fn()
     const all = [
       provider('solo-a', 'solo-a', true),
       provider('zhipu-a', 'zhipu', true),
@@ -284,24 +251,22 @@ describe('ProviderListContent — C1 grouped reorder', () => {
         searchActive={false}
         expandedGroups={{ zhipu: true }}
         onToggleGroup={() => {}}
-        onDragStateChange={() => {}}
+        onDragStateChange={onDragStateChange}
         onReorder={() => {}}
         renderItem={() => null}
       />
     )
 
-    expect(providerListGroupCalls.at(-1).dragging).toBe(false)
-
     act(() => {
       sortableCalls[0].onDragStart({ active: { id: 'group:zhipu' } })
     })
 
-    expect(providerListGroupCalls.at(-1).dragging).toBe(true)
+    expect(onDragStateChange).toHaveBeenLastCalledWith(true)
 
     act(() => {
       sortableCalls.at(-1)!.onDragEnd()
     })
 
-    expect(providerListGroupCalls.at(-1).dragging).toBe(false)
+    expect(onDragStateChange).toHaveBeenLastCalledWith(false)
   })
 })

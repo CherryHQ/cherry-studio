@@ -1,8 +1,8 @@
-import { type Active, closestCenter, ReorderableList, Sortable } from '@cherrystudio/ui'
+import { closestCenter, ReorderableList, Sortable } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import type { Provider } from '@shared/data/types/provider'
-import { type ReactNode, useCallback, useMemo, useState } from 'react'
+import { type ReactNode, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { groupProvidersByPreset } from './providerGrouping'
@@ -96,8 +96,6 @@ export default function ProviderListContent({
   renderItem
 }: ProviderListContentProps) {
   const { t } = useTranslation()
-  const [activeOuterItemId, setActiveOuterItemId] = useState<string | null>(null)
-  const [groupBodyHeights, setGroupBodyHeights] = useState<Record<string, number>>({})
   const entries = useMemo(() => groupProvidersByPreset(visibleProviders), [visibleProviders])
   const hasResults = visibleProviders.length > 0
   const visibleIndexById = useMemo(
@@ -119,16 +117,6 @@ export default function ProviderListContent({
       renderItem={renderItem}
     />
   )
-
-  const handleGroupBodyHeightChange = useCallback((presetProviderId: string, height: number) => {
-    setGroupBodyHeights((current) => {
-      if (current[presetProviderId] === height) {
-        return current
-      }
-
-      return { ...current, [presetProviderId]: height }
-    })
-  }, [])
 
   // A visible group represents multiple provider rows in the persisted list,
   // so grouped sorting needs a provider-list adapter instead of ReorderableList.
@@ -166,25 +154,12 @@ export default function ProviderListContent({
       })
     }
 
-    const handleDragStart = ({ active }: { active: Active }) => {
-      setActiveOuterItemId(String(active.id))
+    const handleDragStart = () => {
       onDragStateChange(true)
     }
 
     const handleDragEnd = () => {
-      setActiveOuterItemId(null)
       onDragStateChange(false)
-    }
-
-    const getItemStyle = (item: ProviderListSortableItem): React.CSSProperties | undefined => {
-      if (item.kind !== 'group') {
-        return undefined
-      }
-
-      const expanded = searchActive || (expandedGroups[item.presetProviderId] ?? false)
-      const bodyHeight = groupBodyHeights[item.presetProviderId] ?? 0
-
-      return expanded && bodyHeight > 0 ? { marginBottom: bodyHeight } : undefined
     }
 
     return (
@@ -198,7 +173,6 @@ export default function ProviderListContent({
         collisionDetection={closestCenter}
         className="w-full"
         gap="var(--provider-list-row-gap)"
-        itemStyle={getItemStyle}
         restrictions={{ scrollableAncestor: true }}
         renderItem={(item, state) => {
           if (item.kind === 'single') {
@@ -209,7 +183,6 @@ export default function ProviderListContent({
           // matches and shouldn't have to click through a chevron to see them.
           const expanded = searchActive || (expandedGroups[item.presetProviderId] ?? false)
           const containsSelected = !!selectedProviderId && item.members.some((m) => m.id === selectedProviderId)
-          const dragging = state.dragging || activeOuterItemId === item.id
 
           return (
             <ProviderListGroup
@@ -218,10 +191,8 @@ export default function ProviderListContent({
               items={providers}
               expanded={expanded}
               containsSelected={containsSelected}
-              dragging={dragging}
               onToggle={() => onToggleGroup(item.presetProviderId)}
               onAddAnother={onAddAnotherInGroup}
-              onBodyHeightChange={handleGroupBodyHeightChange}
               onDragStateChange={onDragStateChange}
               onReorder={onReorder}
               onReorderError={onReorderError}
