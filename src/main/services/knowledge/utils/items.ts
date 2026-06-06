@@ -11,5 +11,5 @@ export function filterIndexableKnowledgeItems(items: KnowledgeItem[]): Indexable
 }
 
 export function isContainerKnowledgeItem(item: KnowledgeItem): item is ContainerKnowledgeItem {
-  return item.type === 'directory' || item.type === 'sitemap'
+  return item.type === 'directory'
 }
