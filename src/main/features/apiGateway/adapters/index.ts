@@ -40,7 +40,6 @@ export { StreamAdapterFactory } from './factory/StreamAdapterFactory'
 
 // Interfaces
 export type {
-  AdapterRegistryEntry,
   AdapterState,
   ContentBlockState,
   IMessageConverter,
@@ -48,7 +47,6 @@ export type {
   ISseFormatter,
   IStreamAdapter,
   OutputFormat,
-  StreamAdapterConstructor,
   StreamAdapterOptions,
   StreamTextOptions
 } from './interfaces'

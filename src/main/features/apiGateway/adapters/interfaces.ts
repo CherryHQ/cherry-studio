@@ -29,7 +29,7 @@ export interface GatewayUsageMetadata {
 /**
  * Supported output formats for stream adapters
  */
-export type OutputFormat = 'anthropic' | 'openai' | 'gemini' | 'openai-responses'
+export type OutputFormat = 'anthropic' | 'openai' | 'openai-responses'
 
 /**
  * Supported input formats for message converters
@@ -183,7 +183,6 @@ export interface AdapterState {
   model: string
   inputTokens: number
   outputTokens: number
-  cacheInputTokens: number
   currentBlockIndex: number
   blocks: Map<number, ContentBlockState>
   textBlockIndex: number | null
@@ -192,20 +191,4 @@ export interface AdapterState {
   toolBlocks: Map<string, number>
   stopReason: string | null
   hasEmittedMessageStart: boolean
-}
-
-/**
- * Constructor type for stream adapters
- */
-export type StreamAdapterConstructor<TOutputEvent = unknown> = new (
-  options: StreamAdapterOptions
-) => IStreamAdapter<TOutputEvent>
-
-/**
- * Registry entry for adapter factory
- */
-export interface AdapterRegistryEntry<TOutputEvent = unknown> {
-  format: OutputFormat
-  adapterClass: StreamAdapterConstructor<TOutputEvent>
-  formatterClass: new () => ISseFormatter<TOutputEvent>
 }

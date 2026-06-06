@@ -40,7 +40,6 @@ export abstract class BaseStreamAdapter<TOutputEvent> implements IStreamAdapter<
       model: options.model,
       inputTokens: options.inputTokens || 0,
       outputTokens: 0,
-      cacheInputTokens: 0,
       currentBlockIndex: 0,
       blocks: new Map(),
       textBlockIndex: null,

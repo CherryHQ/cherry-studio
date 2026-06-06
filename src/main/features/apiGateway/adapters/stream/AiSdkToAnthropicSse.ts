@@ -452,7 +452,8 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
     const usage: MessageDeltaUsage = {
       output_tokens: this.state.outputTokens,
       input_tokens: this.state.inputTokens,
-      cache_creation_input_tokens: this.state.cacheInputTokens,
+      // The UIMessageChunk usage projection carries no cache-token breakdown.
+      cache_creation_input_tokens: 0,
       cache_read_input_tokens: null,
       server_tool_use: null
     }

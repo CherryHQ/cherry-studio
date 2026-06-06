@@ -99,37 +99,12 @@ export class StreamAdapterFactory {
   }
 
   /**
-   * Check if a format is supported
-   *
-   * @param format - The format to check
-   * @returns true if the format is supported
-   */
-  static supportsFormat(format: OutputFormat): boolean {
-    return this.registry.has(format)
-  }
-
-  /**
    * Get list of all supported formats
    *
    * @returns Array of supported format names
    */
   static getSupportedFormats(): OutputFormat[] {
     return Array.from(this.registry.keys())
-  }
-
-  /**
-   * Register a new adapter and formatter for a format
-   *
-   * @param format - The format name
-   * @param adapterClass - The adapter class constructor
-   * @param formatterClass - The formatter class constructor
-   */
-  static registerAdapter(
-    format: OutputFormat,
-    adapterClass: new (options: StreamAdapterOptions) => IStreamAdapter,
-    formatterClass: new () => ISseFormatter
-  ): void {
-    this.registry.set(format, { adapterClass, formatterClass })
   }
 }
 

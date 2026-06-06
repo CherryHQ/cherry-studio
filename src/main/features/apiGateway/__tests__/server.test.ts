@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 /**
- * Server lifecycle tests for `ApiGateway` (start/stop/restart) against the real
- * `@elysia/node` adapter on an ephemeral port.
+ * Server lifecycle tests for `ApiGateway` (start/stop) against the real
+ * `@elysia/node` adapter on an ephemeral port. Restart at the service level is
+ * `ApiGatewayService.restart()` (deactivate+activate, constructing a fresh
+ * `ApiGateway` each cycle) — exercised via "can start again after stop" below.
  *
  * Regression guard for the bug where `stop()` called `app.stop()` — which throws
  * "Elysia isn't running" under the node adapter (it never assigns `app.server`).
@@ -61,13 +63,6 @@ describe('ApiGateway server lifecycle', () => {
     await gateway.start()
     await gateway.stop()
     await expect(gateway.start()).resolves.toBeUndefined()
-    expect(gateway.isRunning()).toBe(true)
-  })
-
-  it('restarts cleanly', async () => {
-    gateway = new ApiGateway()
-    await gateway.start()
-    await expect(gateway.restart()).resolves.toBeUndefined()
     expect(gateway.isRunning()).toBe(true)
   })
 

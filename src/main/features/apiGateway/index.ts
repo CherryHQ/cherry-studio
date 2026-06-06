@@ -1,1 +1,0 @@
-export { ApiGateway } from './server'

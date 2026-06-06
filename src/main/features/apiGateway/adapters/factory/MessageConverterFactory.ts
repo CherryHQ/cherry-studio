@@ -71,20 +71,6 @@ export class MessageConverterFactory {
       openRouterReasoningCache: options.openRouterReasoningCache
     }) as IMessageConverter<InputParamsMap[T]>
   }
-
-  /**
-   * Check if a format is supported
-   */
-  static supportsFormat(format: string): format is InputFormat {
-    return format === 'openai' || format === 'anthropic' || format === 'openai-responses'
-  }
-
-  /**
-   * Get list of all supported formats
-   */
-  static getSupportedFormats(): InputFormat[] {
-    return ['openai', 'anthropic', 'openai-responses']
-  }
 }
 
 export default MessageConverterFactory

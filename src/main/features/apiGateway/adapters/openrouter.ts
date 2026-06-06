@@ -1,95 +1,43 @@
-import * as z from 'zod/v4'
+/**
+ * OpenRouter `reasoning_details` shapes.
+ *
+ * Only the `ReasoningDetailUnion` type is consumed (by the reasoning cache). The
+ * cached values are round-tripped opaquely — written from provider metadata and
+ * replayed via `JSON.parse(JSON.stringify(...))` — so there is no runtime zod
+ * validation; this file is the type contract only.
+ *
+ * @see https://openrouter.ai/docs/use-cases/reasoning-tokens
+ */
 
-enum ReasoningFormat {
-  Unknown = 'unknown',
-  OpenAIResponsesV1 = 'openai-responses-v1',
-  XAIResponsesV1 = 'xai-responses-v1',
-  AnthropicClaudeV1 = 'anthropic-claude-v1',
-  GoogleGeminiV1 = 'google-gemini-v1'
+export type ReasoningFormat =
+  | 'unknown'
+  | 'openai-responses-v1'
+  | 'xai-responses-v1'
+  | 'anthropic-claude-v1'
+  | 'google-gemini-v1'
+
+interface CommonReasoningDetail {
+  id?: string | null
+  format?: ReasoningFormat | null
+  index?: number
+  // The original schema was `.loose()`: provider-specific extra keys are allowed.
+  [key: string]: unknown
 }
 
-// Anthropic Claude was the first reasoning that we're
-// passing back and forth
-export const DEFAULT_REASONING_FORMAT = ReasoningFormat.AnthropicClaudeV1
-
-function isDefinedOrNotNull<T>(value: T | null | undefined): value is T {
-  return value !== null && value !== undefined
+export interface ReasoningDetailSummary extends CommonReasoningDetail {
+  type: 'reasoning.summary'
+  summary: string
 }
 
-export enum ReasoningDetailType {
-  Summary = 'reasoning.summary',
-  Encrypted = 'reasoning.encrypted',
-  Text = 'reasoning.text'
+export interface ReasoningDetailEncrypted extends CommonReasoningDetail {
+  type: 'reasoning.encrypted'
+  data: string
 }
 
-export const CommonReasoningDetailSchema = z
-  .object({
-    id: z.string().nullish(),
-    format: z.enum(ReasoningFormat).nullish(),
-    index: z.number().optional()
-  })
-  .loose()
+export interface ReasoningDetailText extends CommonReasoningDetail {
+  type: 'reasoning.text'
+  text?: string | null
+  signature?: string | null
+}
 
-export const ReasoningDetailSummarySchema = z
-  .object({
-    type: z.literal(ReasoningDetailType.Summary),
-    summary: z.string()
-  })
-  .extend(CommonReasoningDetailSchema.shape)
-export type ReasoningDetailSummary = z.infer<typeof ReasoningDetailSummarySchema>
-
-export const ReasoningDetailEncryptedSchema = z
-  .object({
-    type: z.literal(ReasoningDetailType.Encrypted),
-    data: z.string()
-  })
-  .extend(CommonReasoningDetailSchema.shape)
-
-export type ReasoningDetailEncrypted = z.infer<typeof ReasoningDetailEncryptedSchema>
-
-export const ReasoningDetailTextSchema = z
-  .object({
-    type: z.literal(ReasoningDetailType.Text),
-    text: z.string().nullish(),
-    signature: z.string().nullish()
-  })
-  .extend(CommonReasoningDetailSchema.shape)
-
-export type ReasoningDetailText = z.infer<typeof ReasoningDetailTextSchema>
-
-export const ReasoningDetailUnionSchema = z.union([
-  ReasoningDetailSummarySchema,
-  ReasoningDetailEncryptedSchema,
-  ReasoningDetailTextSchema
-])
-
-export type ReasoningDetailUnion = z.infer<typeof ReasoningDetailUnionSchema>
-
-const ReasoningDetailsWithUnknownSchema = z.union([ReasoningDetailUnionSchema, z.unknown().transform(() => null)])
-
-export const ReasoningDetailArraySchema = z
-  .array(ReasoningDetailsWithUnknownSchema)
-  .transform((d) => d.filter((d): d is ReasoningDetailUnion => !!d))
-
-export const OutputUnionToReasoningDetailsSchema = z.union([
-  z
-    .object({
-      delta: z.object({
-        reasoning_details: z.array(ReasoningDetailsWithUnknownSchema)
-      })
-    })
-    .transform((data) => data.delta.reasoning_details.filter(isDefinedOrNotNull)),
-  z
-    .object({
-      message: z.object({
-        reasoning_details: z.array(ReasoningDetailsWithUnknownSchema)
-      })
-    })
-    .transform((data) => data.message.reasoning_details.filter(isDefinedOrNotNull)),
-  z
-    .object({
-      text: z.string(),
-      reasoning_details: z.array(ReasoningDetailsWithUnknownSchema)
-    })
-    .transform((data) => data.reasoning_details.filter(isDefinedOrNotNull))
-])
+export type ReasoningDetailUnion = ReasoningDetailSummary | ReasoningDetailEncrypted | ReasoningDetailText

@@ -117,11 +117,6 @@ export class ApiGateway {
     }
   }
 
-  async restart(): Promise<void> {
-    await this.stop()
-    await this.start()
-  }
-
   isRunning(): boolean {
     const http = this.serverInfo?.raw?.node?.server
     const result = this.running && (http?.listening ?? true)
