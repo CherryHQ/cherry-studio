@@ -212,7 +212,7 @@ export const modelListClasses = {
   /** Connected top-row model list actions; uses shared ButtonGroup + Button outline primitives. */
   toolbarButtonGroup: 'max-w-full shrink-0',
   /** Model-list section title: same size, line-height, and color; scoped weight `--font-weight-semibold` (600). */
-  sectionTitle: cn(sectionHeadingBase, 'font-[weight:var(--font-weight-semibold)]'),
+  sectionTitle: cn(sectionHeadingBase, 'shrink-0 whitespace-nowrap font-[weight:var(--font-weight-semibold)]'),
   countMeta:
     'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted tabular-nums',
   toolbarGhost:
@@ -228,7 +228,7 @@ export const modelListClasses = {
   searchRow: 'flex min-w-0 w-full flex-wrap items-center gap-2',
   searchActions: 'flex max-w-full shrink-0 flex-wrap items-center gap-2',
   searchWrap:
-    'flex h-8 w-full min-w-[160px] max-w-[200px] items-center gap-1 rounded-[10px] border border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-1',
+    'flex h-8 w-full min-w-[260px] max-w-[420px] items-center gap-1 rounded-[10px] border border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-1',
   searchIcon: 'size-3 shrink-0 text-muted-foreground/65',
   searchInput:
     'min-w-0 flex-1 border-none bg-transparent text-sm leading-5 text-foreground/80 outline-none placeholder:text-muted-foreground/75 disabled:cursor-not-allowed disabled:opacity-60',
@@ -265,13 +265,13 @@ export const modelListClasses = {
   listActionMenuIcon: 'size-3.5 text-muted-foreground/70',
   subsectionTooltipTrigger: 'inline-flex size-5 min-h-0 shrink-0 items-center justify-center leading-none',
   subsectionTitleEnabled:
-    'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted',
+    'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground font-[weight:var(--font-weight-semibold)]',
   subsectionCountEnabled:
-    'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted tabular-nums',
+    'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground-muted tabular-nums font-[weight:var(--font-weight-medium)]',
   subsectionTitleDisabled:
-    'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted',
+    'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground font-[weight:var(--font-weight-semibold)]',
   subsectionCountDisabled:
-    'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted tabular-nums',
+    'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground-muted tabular-nums font-[weight:var(--font-weight-medium)]',
   emptyState:
     'flex min-h-40 items-center justify-center rounded-2xl border border-(--color-border) border-dashed bg-[var(--color-surface-fg-sunken)] px-4 text-center text-[length:var(--font-size-body-md)] leading-[var(--line-height-body-md)] text-foreground-muted',
   listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden pr-1',

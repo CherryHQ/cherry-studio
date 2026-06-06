@@ -37,6 +37,26 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
         <div className="min-w-0">
           <div className={modelListClasses.titleWrap}>
             <h2 className={modelListClasses.sectionTitle}>{t('settings.models.list_title')}</h2>
+            <div className={modelListClasses.searchWrap}>
+              <Search className={modelListClasses.searchIcon} />
+              <input
+                type="text"
+                value={searchText}
+                placeholder={t('models.search.placeholder')}
+                disabled={isBusy}
+                onChange={(event) => setSearchText(event.target.value)}
+                className={modelListClasses.searchInput}
+              />
+              {searchText ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchText('')}
+                  className={modelListClasses.searchClear}
+                  aria-label={t('common.clear')}>
+                  <X size={9} />
+                </button>
+              ) : null}
+            </div>
             {!hasNoModels ? (
               <ModelListCapabilityChips
                 capabilityOptions={capabilityOptions}
@@ -47,29 +67,7 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
             ) : null}
           </div>
         </div>
-        <div className={modelListClasses.titleActions}>
-          <div className={modelListClasses.searchWrap}>
-            <Search className={modelListClasses.searchIcon} />
-            <input
-              type="text"
-              value={searchText}
-              placeholder={t('models.search.placeholder')}
-              disabled={isBusy}
-              onChange={(event) => setSearchText(event.target.value)}
-              className={modelListClasses.searchInput}
-            />
-            {searchText ? (
-              <button
-                type="button"
-                onClick={() => setSearchText('')}
-                className={modelListClasses.searchClear}
-                aria-label={t('common.clear')}>
-                <X size={9} />
-              </button>
-            ) : null}
-          </div>
-          {actions}
-        </div>
+        <div className={modelListClasses.titleActions}>{actions}</div>
       </div>
     </div>
   )

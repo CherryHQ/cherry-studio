@@ -70,7 +70,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
           <div className="space-y-5">
             <div className={modelListClasses.subsectionRow}>
               <div className={modelListClasses.subsectionTitleWrap}>
-                <p className={modelListClasses.subsectionTitleEnabled}>{t('settings.models.check.enabled')}</p>
+                <p className={modelListClasses.subsectionTitleEnabled}>{t('settings.models.enabled_models')}</p>
                 <span className={modelListClasses.subsectionCountEnabled}>{displayEnabledModelCount}</span>
               </div>
               {enabledSectionActions ? (
@@ -102,7 +102,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
           <div className="space-y-5">
             <div className={modelListClasses.subsectionRow}>
               <div className={modelListClasses.subsectionTitleWrap}>
-                <p className={modelListClasses.subsectionTitleDisabled}>{t('settings.models.check.disabled')}</p>
+                <p className={modelListClasses.subsectionTitleDisabled}>{t('settings.models.not_enabled_models')}</p>
                 <span className={modelListClasses.subsectionCountDisabled}>{displayDisabledModelCount}</span>
               </div>
               {disabledSectionActions ? (

@@ -6175,6 +6175,7 @@
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "empty": "No models found",
+      "enabled_models": "Enabled",
       "expand_all": "Expand all",
       "filter": {
         "clear": "Clear model filter",
@@ -6248,6 +6249,7 @@
         "sync_will_deprecate": "Will be marked deprecated"
       },
       "more_actions": "More model list actions",
+      "not_enabled_models": "Disabled",
       "provider_id": "Provider ID",
       "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",
