@@ -31,7 +31,6 @@ export enum IpcChannel {
   App_InstallBunBinary = 'app:install-bun-binary',
   App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
-  App_GetDiskInfo = 'app:get-disk-info',
   App_GetSystemFonts = 'app:get-system-fonts',
   App_GetIpCountry = 'app:get-ip-country',
 
@@ -39,6 +38,10 @@ export enum IpcChannel {
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
 
   App_QuoteToMain = 'app:quote-to-main',
+
+  // StorageMonitor: main-process disk-space watcher for the user-data volume
+  StorageMonitor_GetHealth = 'storage-monitor:get-health',
+  StorageMonitor_HealthChanged = 'storage-monitor:health-changed',
 
   Notification_Send = 'notification:send',
   Notification_OnClick = 'notification:on-click',

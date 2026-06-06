@@ -2825,8 +2825,8 @@
       "title": "Настройка серверной части в процессе"
     },
     "sidebar": {
-      "all_resources": "[to be translated]:All resources",
-      "all_tags": "[to be translated]:All tags",
+      "all_resources": "Все ресурсы",
+      "all_tags": "Все теги",
       "no_tags": "Пока нет меток",
       "subtitle": "Управляйте своими ресурсами ИИ",
       "tags": "Теги",

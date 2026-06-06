@@ -9,11 +9,10 @@ import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { TabsProvider } from '@renderer/context/TabsContext'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import { CommandProvider, ContextKeyProvider } from '@renderer/features/command'
-import store, { persistor } from '@renderer/store'
+import store from '@renderer/store'
 import { SubWindowAppShell } from '@renderer/windows/subWindow/SubWindowAppShell'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Provider } from 'react-redux'
-import { PersistGate } from 'redux-persist/integration/react'
 
 void preferenceService.preloadAll()
 
@@ -36,17 +35,15 @@ function SubWindowApp(): React.ReactElement {
             <AntdProvider>
               <NotificationProvider>
                 <CodeStyleProvider>
-                  <PersistGate loading={null} persistor={persistor}>
-                    <ContextKeyProvider>
-                      <CommandProvider>
-                        <TabsProvider>
-                          <TopViewContainer>
-                            <SubWindowAppShell />
-                          </TopViewContainer>
-                        </TabsProvider>
-                      </CommandProvider>
-                    </ContextKeyProvider>
-                  </PersistGate>
+                  <ContextKeyProvider>
+                    <CommandProvider>
+                      <TabsProvider>
+                        <TopViewContainer>
+                          <SubWindowAppShell />
+                        </TopViewContainer>
+                      </TabsProvider>
+                    </CommandProvider>
+                  </ContextKeyProvider>
                 </CodeStyleProvider>
               </NotificationProvider>
             </AntdProvider>
