@@ -114,7 +114,7 @@ describe('ModelListGroup', () => {
       'true'
     )
     expect(screen.getByRole('switch', { name: 'settings.models.group_disable' })).toHaveAttribute('data-size', 'sm')
-    expect(screen.getByTestId('tooltip-trigger')).toHaveClass('inline-flex', 'h-7', 'items-center')
+    expect(screen.getByTestId('tooltip-trigger')).toHaveClass('inline-flex', 'h-6', 'items-center')
   })
 
   it('toggles the group body from the title row while keeping the action separate', () => {
