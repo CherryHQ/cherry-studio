@@ -7,23 +7,15 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { mkdtemp } from 'fs/promises'
-import { tmpdir } from 'os'
 import path from 'path'
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { v4 as uuidv4 } from 'uuid'
+import { afterEach, beforeEach, describe, expect, it, type Mock } from 'vitest'
 
 describe('AgentSessionService', () => {
   const dbh = setupTestDatabase()
-  let root: string
+  const root = path.join('/tmp', 'cherry-session-service')
 
   beforeEach(async () => {
-    root = await mkdtemp(path.join(tmpdir(), 'cherry-session-'))
-    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
-      if (key === 'feature.agents.workspaces') {
-        return filename ? path.join(root, 'Agents', filename) : path.join(root, 'Agents')
-      }
-      return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
-    })
     ;(application.get('DbService').withWriteTx as Mock).mockImplementation(async (fn) =>
       dbh.db.transaction(fn as never)
     )
@@ -39,62 +31,125 @@ describe('AgentSessionService', () => {
 
   afterEach(() => {
     ;(application.get('DbService').withWriteTx as Mock).mockReset()
-    vi.restoreAllMocks()
   })
 
+  function workspacePath(...segments: string[]) {
+    return path.join(root, ...segments)
+  }
+
+  async function createWorkspace(name: string) {
+    return await agentWorkspaceService.findOrCreateByPath(workspacePath(name))
+  }
+
   async function createSession(name: string, workspaceId?: string) {
-    return await agentSessionService.createSession({
-      agentId: 'agent-session-test',
-      name,
-      workspaceId
-    })
+    const workspace = workspaceId ? null : await createWorkspace(`${name}-workspace`)
+    const result = await agentSessionService.createWithWorkspaceResolution(
+      {
+        agentId: 'agent-session-test',
+        name,
+        workspaceId: workspaceId ?? workspace?.id
+      },
+      { id: uuidv4() }
+    )
+    if (result.needsDefaultWorkspace) {
+      throw new Error('Expected session creation to resolve a workspace')
+    }
+    return await agentSessionService.getById(result.sessionId)
   }
 
   it('binds a session to an explicit workspace', async () => {
-    const workspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'explicit'))
+    const workspace = await createWorkspace('explicit')
 
-    const session = await agentSessionService.createSession({
-      agentId: 'agent-session-test',
-      name: 'Explicit',
-      workspaceId: workspace.id
-    })
+    const result = await agentSessionService.createWithWorkspaceResolution(
+      {
+        agentId: 'agent-session-test',
+        name: 'Explicit',
+        workspaceId: workspace.id
+      },
+      { id: 'explicit-session' }
+    )
 
+    if (result.needsDefaultWorkspace) {
+      throw new Error('Expected explicit workspace creation to resolve a workspace')
+    }
+    const session = await agentSessionService.getById(result.sessionId)
     expect(session.workspaceId).toBe(workspace.id)
     expect(session.workspace?.path).toBe(workspace.path)
   })
 
   it('inherits the latest sibling workspace when no workspace is provided', async () => {
-    const firstWorkspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'first'))
-    const secondWorkspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'second'))
+    const firstWorkspace = await createWorkspace('first')
+    const secondWorkspace = await createWorkspace('second')
 
-    await agentSessionService.createSession({
-      agentId: 'agent-session-test',
-      name: 'First',
-      workspaceId: firstWorkspace.id
-    })
-    await agentSessionService.createSession({
-      agentId: 'agent-session-test',
-      name: 'Second',
-      workspaceId: secondWorkspace.id
-    })
+    await agentSessionService.createWithWorkspaceResolution(
+      {
+        agentId: 'agent-session-test',
+        name: 'First',
+        workspaceId: firstWorkspace.id
+      },
+      { id: 'first-session' }
+    )
+    await agentSessionService.createWithWorkspaceResolution(
+      {
+        agentId: 'agent-session-test',
+        name: 'Second',
+        workspaceId: secondWorkspace.id
+      },
+      { id: 'second-session' }
+    )
 
-    const inherited = await agentSessionService.createSession({
-      agentId: 'agent-session-test',
-      name: 'Inherited'
-    })
+    const inherited = await agentSessionService.createWithWorkspaceResolution(
+      {
+        agentId: 'agent-session-test',
+        name: 'Inherited'
+      },
+      { id: 'inherited-session' }
+    )
 
-    expect(inherited.workspaceId).toBe(secondWorkspace.id)
-    expect(inherited.workspace?.path).toBe(secondWorkspace.path)
+    if (inherited.needsDefaultWorkspace) {
+      throw new Error('Expected sibling workspace to be inherited')
+    }
+    const session = await agentSessionService.getById(inherited.sessionId)
+    expect(session.workspaceId).toBe(secondWorkspace.id)
+    expect(session.workspace?.path).toBe(secondWorkspace.path)
   })
 
-  it('creates and binds a default workspace when none can be inherited', async () => {
-    const session = await agentSessionService.createSession({
-      agentId: 'agent-session-test',
-      name: 'Default'
-    })
+  it('signals when a default workspace directory is needed', async () => {
+    const result = await agentSessionService.createWithWorkspaceResolution(
+      {
+        agentId: 'agent-session-test',
+        name: 'Default'
+      },
+      { id: 'needs-default-session' }
+    )
 
+    expect(result).toEqual({
+      needsDefaultWorkspace: true,
+      usedDefaultWorkspace: false,
+      session: null
+    })
+    const rows = await dbh.db.select().from(agentSessionTable)
+    expect(rows).toHaveLength(0)
+  })
+
+  it('creates and binds a default workspace row when a prepared path is supplied', async () => {
+    const defaultWorkspacePath = workspacePath('prepared-default')
+
+    const result = await agentSessionService.createWithWorkspaceResolution(
+      {
+        agentId: 'agent-session-test',
+        name: 'Default'
+      },
+      { id: 'default-session', defaultWorkspacePath }
+    )
+
+    if (result.needsDefaultWorkspace) {
+      throw new Error('Expected prepared default workspace to be consumed')
+    }
+    const session = await agentSessionService.getById(result.sessionId)
+    expect(result.usedDefaultWorkspace).toBe(true)
     expect(session.workspaceId).toBeTruthy()
-    expect(session.workspace?.path).toBeTruthy()
+    expect(session.workspace?.path).toBe(defaultWorkspacePath)
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(1)
     expect(rows[0].id).toBe(session.workspaceId)
@@ -136,8 +191,8 @@ describe('AgentSessionService', () => {
   })
 
   it('ignores workspace updates even if callers bypass the schema', async () => {
-    const firstWorkspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'before-switch'))
-    const secondWorkspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'after-switch'))
+    const firstWorkspace = await createWorkspace('before-switch')
+    const secondWorkspace = await createWorkspace('after-switch')
     const session = await createSession('Workspace switch', firstWorkspace.id)
 
     const updated = await agentSessionService.update(session.id, {
@@ -190,7 +245,7 @@ describe('AgentSessionService', () => {
   })
 
   it('clears workspace bindings when the workspace row is deleted', async () => {
-    const workspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'transient'))
+    const workspace = await createWorkspace('transient')
     const session = await createSession('Workspace delete', workspace.id)
 
     await dbh.db.delete(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, workspace.id))
@@ -221,10 +276,13 @@ describe('AgentSessionService', () => {
 
   it('does not leave an orphan default workspace row when session creation fails', async () => {
     await expect(
-      agentSessionService.createSession({
-        agentId: 'agent-session-test',
-        name: null as never
-      })
+      agentSessionService.createWithWorkspaceResolution(
+        {
+          agentId: 'agent-session-test',
+          name: null as never
+        },
+        { id: 'invalid-session', defaultWorkspacePath: workspacePath('invalid-default') }
+      )
     ).rejects.toThrow()
 
     const rows = await dbh.db.select().from(agentWorkspaceTable)
