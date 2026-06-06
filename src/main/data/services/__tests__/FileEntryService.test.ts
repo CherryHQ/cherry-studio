@@ -6,6 +6,21 @@ import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { loggerWarnMock } = vi.hoisted(() => ({
+  loggerWarnMock: vi.fn()
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: vi.fn(() => ({
+      info: vi.fn(),
+      warn: loggerWarnMock,
+      error: vi.fn(),
+      debug: vi.fn()
+    }))
+  }
+}))
+
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
@@ -949,6 +964,74 @@ describe('FileEntryService', () => {
 
       const result = await fileEntryService.findUnreferenced()
       expect(result.find((e) => e.id === id)).toBeUndefined()
+    })
+  })
+
+  describe('bulk-read fault isolation (#15733)', () => {
+    const goodId = '019606a0-0000-7000-8000-00000000aa01' as FileEntryId
+    const badId = '019606a0-0000-7000-8000-00000000aa02' as FileEntryId
+
+    async function seedOneGoodOneBad() {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: goodId,
+          origin: 'internal',
+          name: 'good',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          // Simulates pre-fix FileMigrator output: a name carrying path
+          // separators. No DB CHECK guards `name`, so it inserts cleanly
+          // and only SafeNameSchema rejects it at read time.
+          id: badId,
+          origin: 'internal',
+          name: 'C:\\Users\\x\\bad',
+          ext: 'png',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        }
+      ])
+    }
+
+    it('findMany returns parseable rows and warns once per bad row', async () => {
+      await seedOneGoodOneBad()
+      loggerWarnMock.mockClear()
+
+      const entries = await fileEntryService.findMany()
+      expect(entries.map((e) => e.id)).toEqual([goodId])
+      expect(loggerWarnMock).toHaveBeenCalledTimes(1)
+      expect(loggerWarnMock).toHaveBeenCalledWith(
+        expect.stringContaining('un-parseable'),
+        expect.objectContaining({ id: badId })
+      )
+    })
+
+    it('findById still throws for the bad row; good rows unaffected', async () => {
+      await seedOneGoodOneBad()
+      await expect(fileEntryService.findById(badId)).rejects.toThrow()
+      await expect(fileEntryService.findById(goodId)).resolves.toMatchObject({ id: goodId })
+    })
+
+    it('listPaged excludes bad rows from items while total still counts them', async () => {
+      await seedOneGoodOneBad()
+      const page = await fileEntryService.listPaged()
+      expect(page.items.map((e) => e.id)).toEqual([goodId])
+      expect(page.total).toBe(2)
+    })
+
+    it('findUnreferenced skips bad rows', async () => {
+      await seedOneGoodOneBad()
+      const entries = await fileEntryService.findUnreferenced()
+      expect(entries.map((e) => e.id)).toEqual([goodId])
     })
   })
 })
