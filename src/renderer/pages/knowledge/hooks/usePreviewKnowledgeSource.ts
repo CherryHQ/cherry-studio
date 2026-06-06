@@ -33,18 +33,7 @@ export const usePreviewKnowledgeSource = () => {
       }
 
       try {
-        if (item.type === 'url') {
-          const previewUrl = sanitizeHttpUrl(source)
-          if (!previewUrl) {
-            window.toast.warning(t('knowledge.data_source.preview.unavailable'))
-            return
-          }
-
-          await window.api.shell.openExternal(previewUrl)
-          return
-        }
-
-        if (item.type === 'note') {
+        if (item.type === 'url' || item.type === 'note') {
           const previewUrl = sanitizeHttpUrl(source)
           if (!previewUrl) {
             window.toast.warning(t('knowledge.data_source.preview.unavailable'))

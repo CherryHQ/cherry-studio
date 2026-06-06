@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "8718825f-bc37-4cb9-957c-5a3b9fea0ec8",
+  "id": "42474ea0-ee52-400c-830d-844399281ff1",
   "prevId": "7d3a1018-0a36-43dd-a9a0-3aea2909de02",
   "tables": {
     "agent": {
@@ -670,6 +670,11 @@
         "agent_session_message_session_created_id_idx": {
           "name": "agent_session_message_session_created_id_idx",
           "columns": ["session_id", "created_at", "id"],
+          "isUnique": false
+        },
+        "agent_session_message_status_idx": {
+          "name": "agent_session_message_status_idx",
+          "columns": ["status"],
           "isUnique": false
         }
       },
@@ -2390,6 +2395,11 @@
         "message_trace_id_idx": {
           "name": "message_trace_id_idx",
           "columns": ["trace_id"],
+          "isUnique": false
+        },
+        "message_status_idx": {
+          "name": "message_status_idx",
+          "columns": ["status"],
           "isUnique": false
         }
       },
