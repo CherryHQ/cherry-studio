@@ -11,7 +11,7 @@ const OVMS_EX_URL = 'https://gitcode.com/gcw_ggDjjkY3/kjfile/releases/download/d
 
 /**
  * error code:
- * 101: Unsupported CPU (not Intel)
+ * 101: Unsupported GPU (not Intel)
  * 102: Unsupported platform (not Windows)
  * 103: Download failed
  * 104: Installation failed
