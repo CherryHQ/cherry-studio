@@ -102,7 +102,7 @@ export type ModelWithStatus =
     }
 
 export interface ModelCheckOptions {
-  models: Model[]
+  models: readonly Model[]
   apiKeys: string[]
   isConcurrent: boolean
   timeout?: number

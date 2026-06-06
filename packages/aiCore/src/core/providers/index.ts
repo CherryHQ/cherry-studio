@@ -26,6 +26,12 @@ export type {
 
 // 工具函数和错误类
 export { formatPrivateKey, ProviderCreationError } from './core/utils'
+export {
+  createOpenAICompatibleRerankingModel,
+  OpenAICompatibleRerankingModel,
+  type OpenAICompatibleRerankingModelConfig,
+  type OpenAICompatibleRerankingModelSettings
+} from './openaiCompatible/rerankingModel'
 
 // ==================== Provider Extension 系统 ====================
 
