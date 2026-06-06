@@ -39,6 +39,12 @@ describe('AgentWorkspaceDirectoryService', () => {
     )
   })
 
+  it('rejects empty workspace paths', () => {
+    expect(() => agentWorkspaceDirectoryService.ensureWorkspaceDirectory('   ')).toThrow(
+      expect.objectContaining({ code: ErrorCode.VALIDATION_ERROR })
+    )
+  })
+
   it('surfaces directory creation failures', async () => {
     const filePath = path.join(root, 'not-a-directory')
     await writeFile(filePath, 'file blocks recursive mkdir')

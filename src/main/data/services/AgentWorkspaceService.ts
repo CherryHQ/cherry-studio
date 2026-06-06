@@ -4,6 +4,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { timestampToISO } from '@data/services/utils/rowMappers'
+import { normalizeWorkspacePath } from '@main/utils/agentWorkspacePath'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
@@ -20,17 +21,6 @@ export function rowToWorkspace(row: AgentWorkspaceRow): AgentWorkspaceEntity {
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
-}
-
-function normalizeWorkspacePath(rawPath: string): string {
-  const trimmed = rawPath.trim()
-  if (!trimmed) {
-    throw DataApiErrorFactory.validation({ path: ['Workspace path is required'] })
-  }
-  if (!path.isAbsolute(trimmed)) {
-    throw DataApiErrorFactory.validation({ path: ['Workspace path must be absolute'] })
-  }
-  return path.normalize(trimmed)
 }
 
 function defaultWorkspaceName(workspacePath: string): string {
@@ -62,22 +52,6 @@ export class AgentWorkspaceService {
     const [row] = await tx.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, id)).limit(1)
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
     return row
-  }
-
-  async findOrCreateByPath(rawPath: string, options: { name?: string } = {}): Promise<AgentWorkspaceEntity> {
-    const workspacePath = normalizeWorkspacePath(rawPath)
-    const row = await withSqliteErrors(
-      () =>
-        application
-          .get('DbService')
-          .withWriteTx((tx) => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options)),
-      {
-        ...defaultHandlersFor('Workspace', workspacePath),
-        unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
-      }
-    )
-
-    return rowToWorkspace(row)
   }
 
   async findOrCreateByPathTx(

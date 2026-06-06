@@ -16,18 +16,25 @@ import { agentWorkspaceDirectoryService } from '../AgentWorkspaceDirectoryServic
 describe('AgentSessionWorkflowService', () => {
   const dbh = setupTestDatabase()
   let root: string
+  let writeQueue: Promise<void>
 
   beforeEach(async () => {
     root = await mkdtemp(path.join(tmpdir(), 'cherry-session-flow-'))
+    writeQueue = Promise.resolve()
     vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
       if (key === 'feature.agents.workspaces') {
         return filename ? path.join(root, 'Agents', filename) : path.join(root, 'Agents')
       }
       return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
     })
-    ;(application.get('DbService').withWriteTx as Mock).mockImplementation(async (fn) =>
-      dbh.db.transaction(fn as never)
-    )
+    ;(application.get('DbService').withWriteTx as Mock).mockImplementation((fn) => {
+      const run = writeQueue.then(() => dbh.db.transaction(fn as never))
+      writeQueue = run.then(
+        () => undefined,
+        () => undefined
+      )
+      return run
+    })
     await dbh.db.insert(agentTable).values({
       id: 'agent-session-flow-test',
       type: 'claude-code',
@@ -45,7 +52,7 @@ describe('AgentSessionWorkflowService', () => {
 
   async function createWorkspace(rawPath: string) {
     const workspacePath = agentWorkspaceDirectoryService.ensureWorkspaceDirectory(rawPath)
-    return await agentWorkspaceService.findOrCreateByPath(workspacePath)
+    return await dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, workspacePath))
   }
 
   it('binds a session to an explicit workspace', async () => {
@@ -99,6 +106,29 @@ describe('AgentSessionWorkflowService', () => {
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(1)
     expect(rows[0].id).toBe(session.workspaceId)
+  })
+
+  it('converges concurrent same-agent default sessions to one workspace and cleans the unused directory', async () => {
+    const [first, second] = await Promise.all([
+      agentSessionWorkflowService.createSession({
+        agentId: 'agent-session-flow-test',
+        name: 'Concurrent first'
+      }),
+      agentSessionWorkflowService.createSession({
+        agentId: 'agent-session-flow-test',
+        name: 'Concurrent second'
+      })
+    ])
+
+    expect(first.workspaceId).toBe(second.workspaceId)
+    expect(first.workspace?.path).toBe(second.workspace?.path)
+
+    const workspaces = await dbh.db.select().from(agentWorkspaceTable)
+    expect(workspaces).toHaveLength(1)
+    const sessions = await dbh.db.select().from(agentSessionTable)
+    expect(sessions).toHaveLength(2)
+    await expect(stat(workspaces[0].path)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
+    await expect(readdir(path.join(root, 'Agents'))).resolves.toHaveLength(1)
   })
 
   it('keeps a bound default workspace directory when session hydration fails', async () => {

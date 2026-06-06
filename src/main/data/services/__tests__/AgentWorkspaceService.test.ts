@@ -13,6 +13,10 @@ describe('AgentWorkspaceService', () => {
     return path.join('/tmp', 'cherry-workspace-service', ...segments)
   }
 
+  async function findOrCreateWorkspace(rawPath: string, options: { name?: string } = {}) {
+    return await dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, rawPath, options))
+  }
+
   it('should export a module-level singleton of AgentWorkspaceService', () => {
     expect(agentWorkspaceService).toBeInstanceOf(AgentWorkspaceService)
   })
@@ -21,8 +25,8 @@ describe('AgentWorkspaceService', () => {
     const rawPath = workspacePath('project', '..', 'project')
     const normalizedPath = workspacePath('project')
 
-    const first = await agentWorkspaceService.findOrCreateByPath(rawPath)
-    const second = await agentWorkspaceService.findOrCreateByPath(normalizedPath)
+    const first = await findOrCreateWorkspace(rawPath)
+    const second = await findOrCreateWorkspace(normalizedPath)
 
     expect(second.id).toBe(first.id)
     expect(first).toMatchObject({
@@ -35,8 +39,8 @@ describe('AgentWorkspaceService', () => {
   })
 
   it('inserts newly created workspaces at the front of the list', async () => {
-    const first = await agentWorkspaceService.findOrCreateByPath(workspacePath('first'))
-    const second = await agentWorkspaceService.findOrCreateByPath(workspacePath('second'))
+    const first = await findOrCreateWorkspace(workspacePath('first'))
+    const second = await findOrCreateWorkspace(workspacePath('second'))
 
     const workspaces = await agentWorkspaceService.list()
 
@@ -44,7 +48,7 @@ describe('AgentWorkspaceService', () => {
   })
 
   it('rejects relative workspace paths', async () => {
-    await expect(agentWorkspaceService.findOrCreateByPath('relative/project')).rejects.toMatchObject({
+    await expect(findOrCreateWorkspace('relative/project')).rejects.toMatchObject({
       code: ErrorCode.VALIDATION_ERROR
     })
   })
@@ -56,7 +60,7 @@ describe('AgentWorkspaceService', () => {
   })
 
   it('returns database workspace data without consulting the backing directory', async () => {
-    const workspace = await agentWorkspaceService.findOrCreateByPath(workspacePath('db-only'))
+    const workspace = await findOrCreateWorkspace(workspacePath('db-only'))
 
     await expect(agentWorkspaceService.getById(workspace.id)).resolves.toMatchObject({
       id: workspace.id,
@@ -66,7 +70,7 @@ describe('AgentWorkspaceService', () => {
 
   it('translates findOrCreateByPathTx unique races to conflict errors', async () => {
     const workspacePathValue = workspacePath('race')
-    await agentWorkspaceService.findOrCreateByPath(workspacePathValue)
+    await findOrCreateWorkspace(workspacePathValue)
 
     const emptyRows = { limit: async () => [] }
     const afterWhere = { ...emptyRows, orderBy: () => emptyRows }
@@ -89,9 +93,9 @@ describe('AgentWorkspaceService', () => {
   })
 
   it('reorders workspaces with single and batch moves', async () => {
-    const first = await agentWorkspaceService.findOrCreateByPath(workspacePath('first'))
-    const second = await agentWorkspaceService.findOrCreateByPath(workspacePath('second'))
-    const third = await agentWorkspaceService.findOrCreateByPath(workspacePath('third'))
+    const first = await findOrCreateWorkspace(workspacePath('first'))
+    const second = await findOrCreateWorkspace(workspacePath('second'))
+    const third = await findOrCreateWorkspace(workspacePath('third'))
 
     await agentWorkspaceService.reorder(first.id, { position: 'first' })
     let workspaces = await agentWorkspaceService.list()

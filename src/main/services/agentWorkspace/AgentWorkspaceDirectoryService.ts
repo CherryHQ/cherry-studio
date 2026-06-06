@@ -1,22 +1,12 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { normalizeWorkspacePath } from '@main/utils/agentWorkspacePath'
 import { DataApiErrorFactory } from '@shared/data/api'
 import fs from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentWorkspaceDirectoryService')
-
-function normalizeWorkspacePath(rawPath: string): string {
-  const trimmed = rawPath.trim()
-  if (!trimmed) {
-    throw DataApiErrorFactory.validation({ path: ['Workspace path is required'] })
-  }
-  if (!path.isAbsolute(trimmed)) {
-    throw DataApiErrorFactory.validation({ path: ['Workspace path must be absolute'] })
-  }
-  return path.normalize(trimmed)
-}
 
 export class AgentWorkspaceDirectoryService {
   ensureWorkspaceDirectory(rawPath: string): string {

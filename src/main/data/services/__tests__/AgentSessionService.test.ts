@@ -38,7 +38,7 @@ describe('AgentSessionService', () => {
   }
 
   async function createWorkspace(name: string) {
-    return await agentWorkspaceService.findOrCreateByPath(workspacePath(name))
+    return await dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, workspacePath(name)))
   }
 
   async function createSession(name: string, workspaceId?: string) {
@@ -124,9 +124,7 @@ describe('AgentSessionService', () => {
     )
 
     expect(result).toEqual({
-      needsDefaultWorkspace: true,
-      usedDefaultWorkspace: false,
-      session: null
+      needsDefaultWorkspace: true
     })
     const rows = await dbh.db.select().from(agentSessionTable)
     expect(rows).toHaveLength(0)

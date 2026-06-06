@@ -56,8 +56,6 @@ type CreateWithWorkspaceResolutionOptions = {
 export type CreateWithWorkspaceResolutionResult =
   | {
       needsDefaultWorkspace: true
-      usedDefaultWorkspace: false
-      session: null
     }
   | {
       needsDefaultWorkspace: false
@@ -97,7 +95,7 @@ export class AgentSessionService {
     )
 
     if (result.needsDefaultWorkspace) {
-      return { needsDefaultWorkspace: true, usedDefaultWorkspace: false, session: null }
+      return { needsDefaultWorkspace: true }
     }
 
     return {
@@ -111,10 +109,7 @@ export class AgentSessionService {
     tx: DbOrTx,
     dto: CreateAgentSessionDto,
     options: CreateWithWorkspaceResolutionOptions
-  ): Promise<
-    | { needsDefaultWorkspace: true; usedDefaultWorkspace: false }
-    | { needsDefaultWorkspace: false; usedDefaultWorkspace: boolean }
-  > {
+  ): Promise<{ needsDefaultWorkspace: true } | { needsDefaultWorkspace: false; usedDefaultWorkspace: boolean }> {
     await this.assertAgentExistsTx(tx, dto.agentId)
 
     let workspaceId: string | null | undefined = dto.workspaceId
@@ -125,7 +120,7 @@ export class AgentSessionService {
       workspaceId = await this.findLatestWorkspaceIdTx(tx, dto.agentId)
       if (!workspaceId) {
         if (!options.defaultWorkspacePath) {
-          return { needsDefaultWorkspace: true, usedDefaultWorkspace: false }
+          return { needsDefaultWorkspace: true }
         }
         workspaceId = (await agentWorkspaceService.findOrCreateByPathTx(tx, options.defaultWorkspacePath)).id
         usedDefaultWorkspace = true
@@ -166,7 +161,7 @@ export class AgentSessionService {
 
   /**
    * Resolve an agent's workspace path WITHOUT creating a session. Sessions for the same
-   * agent reuse the most-recent sibling's workspace (see `createSessionTx`), so this returns
+   * agent reuse the most-recent sibling's workspace (see `createWithWorkspaceResolutionTx`), so this returns
    * that shared path, or null when the agent has no session/workspace yet. Used by heartbeat
    * scheduling to read `heartbeat.md` before deciding whether a fire warrants a session.
    */

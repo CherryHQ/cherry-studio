@@ -179,13 +179,14 @@ treat the two as complementary, not as a replacement.
 
 ### New services
 
-- **`SessionService.ts`** (188 LOC). Cursor-paginated list with order
-  keys, transactional create that joins workspace (selects most recent
-  sibling's workspace if none supplied, else creates a default), insert-
-  only workspace binding.
-- **`WorkspaceService.ts`** (164 LOC). CRUD + path normalization + dir
-  creation + reorder. `createDefaultWorkspaceTx` is the auto-create path
-  used when a session is created without a workspace.
+- **`AgentSessionService.ts`**. Cursor-paginated list with order keys,
+  transactional create that joins workspace, selects the most recent
+  sibling's workspace if none supplied, or signals the workflow to prepare
+  a default workspace path. Workspace binding remains insert-only.
+- **`AgentWorkspaceService.ts`**. DB-only workspace row access, path
+  normalization, and reorder. Directory creation/cleanup is owned by
+  `AgentWorkspaceDirectoryService` and orchestrated by
+  `AgentSessionWorkflowService`.
 
 ### Heavy rewrites
 
@@ -291,7 +292,7 @@ omits `workspaceId` to enforce insert-only binding.
 ### `packages/shared/data/api/schemas/workspaces.ts` (new)
 
 Entity + DTO schemas for workspaces. Path validation matches
-`WorkspaceService.normalizeWorkspacePath`.
+the shared main-process `normalizeWorkspacePath` helper.
 
 ### `packages/shared/data/api/schemas/agents.ts` (slimmed)
 
