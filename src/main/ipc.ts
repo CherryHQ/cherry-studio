@@ -513,7 +513,10 @@ export async function registerIpc() {
 
   // OVMS — operation handlers registered by OvmsManager.onInit() (activated only on Win+Intel)
   // Condition logic must stay in sync with OvmsManager's @Conditional(onPlatform('win32'), onCpuVendor('intel'))
-  ipcMain.handle(IpcChannel.Ovms_IsSupported, () => isWin && getCpuName().toLowerCase().includes('intel'))
+  ipcMain.handle(
+    IpcChannel.Ovms_IsSupported,
+    () => isWin && getGpuNames().some((name) => name.toLowerCase().includes('intel'))
+  )
 
   // CherryAI
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))

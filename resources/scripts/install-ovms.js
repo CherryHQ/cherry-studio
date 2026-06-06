@@ -203,14 +203,9 @@ function getCpuInfo() {
 }
 
 /**
- * Get the GPU Name and ID
+ * Get the all GPU Names and IDs
  */
-function getGpuInfo() {
-  const gpuInfo = {
-    name: '',
-    id: ''
-  }
-
+function getGpuInfos() {
   // Use PowerShell to get GPU information
   try {
     const psCommand = `powershell -Command "Get-CimInstance -ClassName Win32_VideoController | Select-Object Name, PNPDeviceID | ConvertTo-Json"`
@@ -223,17 +218,14 @@ function getGpuInfo() {
       return !name.includes('remote') && !name.includes('virtual')
     }
 
-    const gpus = (Array.isArray(gpuData) ? gpuData : [gpuData]).filter(isPhysicalGpu)
-
-    if (gpus.length > 0) {
-      gpuInfo.name = gpus[0].Name || ''
-      gpuInfo.id = gpus[0].PNPDeviceID || ''
-    }
+    return (Array.isArray(gpuData) ? gpuData : [gpuData]).filter(isPhysicalGpu).map((gpu) => ({
+      name: gpu.Name || '',
+      id: gpu.PNPDeviceID || ''
+    }))
   } catch (error) {
     console.error(`Failed to get GPU info: ${error.message}`)
+    return []
   }
-
-  return gpuInfo
 }
 
 /**
@@ -243,10 +235,11 @@ async function installOvms() {
   const platform = os.platform()
   console.log(`Detected platform: ${platform}`)
 
-  const gpuInfo = getGpuInfo()
-  console.log(`GPU Name: ${gpuInfo.name}`)
+  const gpuInfos = getGpuInfos()
+  gpuInfos.forEach((gpu) => console.log(`GPU Name: ${gpu.name}`))
 
-  if (!gpuInfo.name.toLowerCase().includes('intel')) {
+  const hasIntelGpu = gpuInfos.some((gpu) => gpu.name.toLowerCase().includes('intel'))
+  if (!hasIntelGpu) {
     console.error('OVMS installation requires an Intel GPU.')
     return 101
   }
@@ -297,4 +290,4 @@ if (require.main === module) {
     })
 }
 
-module.exports = { getGpuInfo, getCpuInfo }
+module.exports = { getGpuInfos, getCpuInfo }
