@@ -47,7 +47,7 @@ function makeInternalRow(overrides: Partial<FileMetadata> = {}): FileMetadata {
 
 function makeExternalRow(overrides: Partial<FileMetadata> = {}): FileMetadata {
   return {
-    id: 'ext-file-v4-id-001',
+    id: '6f9619ff-8b86-4d01-b42d-00cf4fc964ff',
     name: 'notes.txt',
     origin_name: 'notes.txt',
     path: '/Users/alice/Documents/notes.txt',
@@ -58,6 +58,21 @@ function makeExternalRow(overrides: Partial<FileMetadata> = {}): FileMetadata {
     count: 1,
     ...overrides
   }
+}
+
+// 脱敏自 #15733 报告者的真实数据:Windows 上创建的 internal 文件,数据同步到
+// POSIX 机器后迁移。前缀匹配必然失败(分隔符不同),唯一可靠的判别是物理文件
+// 是否存在于本机 Files 目录。
+const FIXTURE_WINDOWS_ROW: FileMetadata = {
+  id: '11111111-1111-4111-8111-111111111111',
+  name: '11111111-1111-4111-8111-111111111111.png',
+  origin_name: 'Screenshot_2025-03-13_21-25-45.png',
+  path: 'C:\\Users\\testuser\\AppData\\Roaming\\CherryStudio\\Data\\Files\\11111111-1111-4111-8111-111111111111.png',
+  size: 442074,
+  ext: '.png',
+  type: 'image',
+  created_at: '2025-03-13T13:34:04.480Z',
+  count: 1
 }
 
 function createMockContext(rows: FileMetadata[], overrides: Record<string, unknown> = {}) {
@@ -232,19 +247,18 @@ describe('FileMigrator origin discrimination', () => {
     expect(typeof firstRow.size).toBe('number')
   })
 
-  it('absolute path outside userData → origin=external, externalPath = row.path', async () => {
+  it('row outside internal dir with no physical file → orphan, skipped with warning', async () => {
+    vi.mocked(fs.existsSync).mockReturnValue(false)
     const row = makeExternalRow()
     const { ctx, insertValues } = createMockContext([row])
     const m = new FileMigrator()
-    await m.prepare(ctx as never)
+    const result = await m.prepare(ctx as never)
     await m.execute(ctx as never)
 
-    expect(insertValues).toHaveBeenCalled()
-    const inserted = insertValues.mock.calls[0][0]
-    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
-    expect(firstRow.origin).toBe('external')
-    expect(firstRow.externalPath).toBe('/Users/alice/Documents/notes.txt')
-    expect(firstRow.size).toBeNull()
+    expect(insertValues).not.toHaveBeenCalled()
+    const joined = (result.warnings ?? []).join('\n')
+    expect(joined).toContain('Orphan file row')
+    expect(joined).toContain(row.id)
   })
 })
 
@@ -598,5 +612,42 @@ describe('FileMigrator malformed row handling', () => {
 
     expect(result.success).toBe(true)
     expect(result.processedCount).toBe(1)
+  })
+})
+
+// ─── Cross-platform recovery (#15733) ────────────────────────────────────────
+
+describe('FileMigrator cross-platform recovery (#15733)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('recovers a Windows-origin internal row on POSIX when the physical file is present (AC1)', async () => {
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === `${MOCK_USER_DATA}/Data/Files/${FIXTURE_WINDOWS_ROW.name}`)
+    const { ctx, insertValues } = createMockContext([FIXTURE_WINDOWS_ROW])
+    const m = new FileMigrator()
+    await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.origin).toBe('internal')
+    expect(firstRow.name).toBe('Screenshot_2025-03-13_21-25-45')
+    expect(firstRow.ext).toBe('png')
+    expect(firstRow.size).toBe(442074)
+    expect(firstRow.externalPath).toBeNull()
+  })
+
+  it('skips the same row as orphan when the physical file is absent (AC2)', async () => {
+    vi.mocked(fs.existsSync).mockReturnValue(false)
+    const { ctx, insertValues } = createMockContext([FIXTURE_WINDOWS_ROW])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    expect(insertValues).not.toHaveBeenCalled()
+    const joined = (result.warnings ?? []).join('\n')
+    expect(joined).toContain('Orphan file row')
+    expect(joined).toContain(FIXTURE_WINDOWS_ROW.id)
   })
 })
