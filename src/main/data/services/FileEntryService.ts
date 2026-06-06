@@ -248,14 +248,19 @@ function rowToFileEntry(row: FileEntryRow): FileEntry {
  *
  * Contract change for bulk reads: they return every PARSEABLE row, not
  * every physically existing row. Excluded rows are warned with their id.
+ *
+ * Only validation failures (`ZodError`) are isolated — anything else
+ * rethrows, so a programming error inside `rowToFileEntry` cannot
+ * masquerade as a corrupt row and vanish from bulk reads.
  */
 function rowToFileEntrySafe(row: FileEntryRow): FileEntry | null {
   try {
     return rowToFileEntry(row)
   } catch (error) {
+    if (!(error instanceof ZodError)) throw error
     logger.warn('Skipping un-parseable file_entry row in bulk read', {
       id: row.id,
-      issues: error instanceof ZodError ? error.issues : String(error)
+      issues: error.issues
     })
     return null
   }
