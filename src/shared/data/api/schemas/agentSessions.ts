@@ -128,10 +128,6 @@ export type AgentSessionSchemas = {
       query?: ListAgentSessionsQuery
       response: CursorPaginationResponse<AgentSessionEntity>
     }
-    POST: {
-      body: CreateAgentSessionDto
-      response: AgentSessionEntity
-    }
   }
 
   '/agent-sessions/:sessionId': {

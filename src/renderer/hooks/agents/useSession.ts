@@ -107,21 +107,24 @@ export const useSessions = (agentId?: string | null, pageSize = DEFAULT_SESSION_
     }
   }, [hasMore, isLoadingMore, loadNext])
 
-  const { trigger: createTrigger } = useMutation('POST', '/agent-sessions', { refresh: ['/agent-sessions'] })
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<AgentSessionEntity | null> => {
       if (!agentId) return null
       try {
-        const result = await createTrigger({
-          body: { agentId, name: form.name, description: form.description, workspaceId: form.workspaceId }
+        const result = await window.api.agentSession.create({
+          agentId,
+          name: form.name,
+          description: form.description,
+          workspaceId: form.workspaceId
         })
+        await refresh()
         return result
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
         return null
       }
     },
-    [agentId, createTrigger, t]
+    [agentId, refresh, t]
   )
 
   const { trigger: deleteTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId', {

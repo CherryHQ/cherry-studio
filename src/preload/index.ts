@@ -29,6 +29,7 @@ import type {
   OperationResult,
   WebviewKeyEvent
 } from '@shared/config/types'
+import type { AgentSessionEntity, CreateAgentSessionDto } from '@shared/data/api/schemas/agentSessions'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
@@ -826,6 +827,8 @@ const api = {
     }
   },
   agentSession: {
+    create: (dto: CreateAgentSessionDto): Promise<AgentSessionEntity> =>
+      ipcRenderer.invoke(IpcChannel.AgentSession_Create, dto),
     onAutoRenamed: (callback: (payload: { sessionId: string }) => void) => {
       const listener = (_: any, payload: { sessionId: string }) => callback(payload)
       ipcRenderer.on(IpcChannel.AgentSession_AutoRenamed, listener)
