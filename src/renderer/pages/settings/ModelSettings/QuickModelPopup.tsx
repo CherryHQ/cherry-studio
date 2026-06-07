@@ -49,7 +49,7 @@ export const TopicNamingSettings = () => {
         <Divider className="m-0" />
 
         <VStack gap={2} className="px-3 pt-3 pb-3.5">
-          <Flex className="min-h-7 items-center justify-between gap-2">
+          <Flex align="center" justify="between" gap={2} className="min-h-7">
             <Flex direction="row" align="center" gap={1} className="min-w-0 flex-1">
               <div className="truncate font-medium text-foreground text-sm">
                 {t('settings.models.topic_naming.prompt')}

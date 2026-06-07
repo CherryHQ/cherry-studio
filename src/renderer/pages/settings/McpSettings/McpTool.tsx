@@ -92,7 +92,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
 
     return (
       <Flex direction="col" gap={1}>
-        <Flex className="items-center gap-2">
+        <Flex align="center" gap={2}>
           {itemType && <Badge className={getTypeBadgeClass(prop.type)}>{itemType}</Badge>}
         </Flex>
         {prop.description && <p className="m-0 text-foreground-secondary text-sm leading-5">{prop.description}</p>}
@@ -134,7 +134,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
           <McpDetailItem
             key={key}
             label={
-              <Flex className="gap-1">
+              <Flex gap={1}>
                 <span className="font-medium">{key}</span>
                 {required?.includes(key) && (
                   <Tooltip content={t('common.required_field')}>
@@ -177,7 +177,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
 
         return (
           <Flex direction="col" gap={1}>
-            <Flex className="items-center gap-1">
+            <Flex align="center" gap={1}>
               <span className="truncate font-medium text-foreground text-sm" title={tool.name}>
                 {tool.name}
               </span>
@@ -195,7 +195,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
     {
       id: 'enable',
       header: () => (
-        <Flex className="items-center justify-center gap-1">
+        <Flex align="center" justify="center" gap={1}>
           <McpLogo width={14} height={14} style={{ opacity: 0.8 }} />
           <span className="font-medium">{t('settings.mcp.tools.enable')}</span>
         </Flex>
@@ -212,7 +212,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
     {
       id: 'autoApprove',
       header: () => (
-        <Flex className="items-center justify-center gap-1">
+        <Flex align="center" justify="center" gap={1}>
           <Zap size={14} color="red" />
           <span className="font-medium">{t('settings.mcp.tools.autoApprove.label')}</span>
         </Flex>

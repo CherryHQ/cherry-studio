@@ -432,7 +432,7 @@ const CommonSettings: FC = () => {
               onChange={onSelectLanguage}
               options={languagesOptions.map((lang) => ({
                 label: (
-                  <Flex className="items-center gap-2">
+                  <Flex align="center" gap={2}>
                     <span role="img" aria-label={lang.flag}>
                       {lang.flag}
                     </span>
@@ -692,7 +692,7 @@ const CommonSettings: FC = () => {
                 options={spellCheckLanguageOptions.map((lang) => ({
                   value: lang.value,
                   label: (
-                    <Flex className="items-center gap-2">
+                    <Flex align="center" gap={2}>
                       <span role="img" aria-label={lang.flag}>
                         {lang.flag}
                       </span>
@@ -765,7 +765,7 @@ const CommonSettings: FC = () => {
         <SettingTitle>{t('settings.developer.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <Flex className="items-center gap-1">
+          <Flex align="center" gap={1}>
             <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
             <InfoTooltip content={t('settings.developer.help')} />
           </Flex>

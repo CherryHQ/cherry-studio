@@ -53,14 +53,14 @@ const CopyButton: FC<CopyButtonProps> = ({
 
   const button = (
     <HStack
-      className="group cursor-pointer flex-row text-[var(--copy-button-color)] transition-colors hover:text-[var(--copy-button-hover-color)]"
       style={buttonStyle}
       onClick={handleCopy}
       onKeyDown={handleKeyDown}
       role="button"
       aria-label={ariaLabel}
       tabIndex={0}
-      gap={1}>
+      gap={1}
+      className="group cursor-pointer text-[var(--copy-button-color)] transition-colors hover:text-[var(--copy-button-hover-color)]">
       <Copy size={size} className="copy-icon shrink-0 transition-colors" />
       {label && <span style={{ fontSize: size }}>{label}</span>}
     </HStack>

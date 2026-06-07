@@ -15,7 +15,8 @@ const RecallResultSummary = () => {
   return (
     <HStack
       gap={4}
-      className="justify-between border-border-muted border-b px-4 py-3 text-foreground-muted text-xs leading-4">
+      justify="between"
+      className="border-border-muted border-b px-4 py-3 text-foreground-muted text-xs leading-4">
       <HStack gap={2}>
         <span className="flex items-center gap-0.5">
           <Sparkles className="size-3" />

@@ -106,7 +106,7 @@ export function BashOutputTool({
   const children = parsedOutput ? (
     <VStack gap={4}>
       {/* Status Info */}
-      <HStack gap={2} className="flex-wrap">
+      <HStack gap={2} wrap>
         {parsedOutput.exit_code !== undefined && (
           <Tag color={parsedOutput.exit_code === 0 ? 'success' : 'danger'}>
             {t('message.tools.sections.exitCode')}: {parsedOutput.exit_code}

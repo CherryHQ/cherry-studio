@@ -31,7 +31,7 @@ const McpPromptsSection = ({ prompts }: McpPromptsSectionProps) => {
             <McpDetailItem
               key={index}
               label={
-                <Flex className="gap-1">
+                <Flex gap={1}>
                   <span className="font-medium">{arg.name}</span>
                   {arg.required && (
                     <Tooltip content={t('common.required_field')}>
@@ -64,7 +64,7 @@ const McpPromptsSection = ({ prompts }: McpPromptsSectionProps) => {
               <AccordionItem key={prompt.id || prompt.name} value={prompt.id || prompt.name}>
                 <AccordionTrigger className="py-3">
                   <Flex direction="col" align="start" className="min-w-0">
-                    <Flex className="w-full min-w-0 items-center">
+                    <Flex align="center" className="w-full min-w-0">
                       <span className="truncate font-medium text-foreground text-sm">{prompt.name}</span>
                     </Flex>
                     {prompt.description && (

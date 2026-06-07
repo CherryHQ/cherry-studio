@@ -33,7 +33,7 @@ export function ModelCapabilityToggles({
 
   return (
     <VStack gap={3}>
-      <HStack gap={3} className="justify-between">
+      <HStack gap={3} justify="between">
         <HStack
           gap={1}
           className="font-[weight:var(--font-weight-semibold)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
@@ -46,7 +46,7 @@ export function ModelCapabilityToggles({
           </Button>
         )}
       </HStack>
-      <HStack gap={1} className="flex-wrap" aria-label={t('models.type.select')}>
+      <HStack gap={1} aria-label={t('models.type.select')} wrap>
         <VisionTag
           showLabel
           inactive={isOtherDisabled || !selectedCaps.has(MODEL_CAPABILITY.IMAGE_RECOGNITION)}

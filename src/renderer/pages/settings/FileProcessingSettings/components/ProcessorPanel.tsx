@@ -176,7 +176,7 @@ export function ProcessorPanel({
 
   return (
     <VStack gap={3} className="w-full">
-      <HStack gap={4} className="justify-between">
+      <HStack gap={4} justify="between">
         <HStack gap={2} className="min-w-0">
           <ProcessorAvatar processorId={processor.id} />
           <div className="min-w-0">

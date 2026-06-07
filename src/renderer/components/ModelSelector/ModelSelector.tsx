@@ -222,7 +222,7 @@ function ModelRow({
       </div>
       {/* 右侧：tags — 容器固定 h-4，所有 tag h-full + items-center，消除 SVG/iconfont/纯文字渲染高度差 */}
       {rowTags.length > 0 && (
-        <HStack className="ml-2 h-4 max-w-[65%] shrink-0 justify-end overflow-hidden" gap={1}>
+        <HStack gap={1} justify="end" className="ml-2 h-4 max-w-[65%] shrink-0 overflow-hidden">
           {rowTags.map((tag) => (
             <ModelTagChip
               key={`${item.key}-${tag}`}
@@ -682,7 +682,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         </HStack>
 
         {showTagFilter && availableTags.length > 0 && (
-          <HStack className="flex-wrap border-border/60 border-b px-3 py-2" gap={1}>
+          <HStack gap={1} wrap className="border-border/60 border-b px-3 py-2">
             <span className="mr-1 text-[10px] text-muted-foreground">{t('models.filter.by_tag')}</span>
             {availableTags.map((tag) => (
               <ModelTagChip
@@ -700,9 +700,10 @@ export function ModelSelector(props: ModelSelectorProps) {
 
         {multiple && (
           <HStack
-            className="justify-between border-border/60 border-b px-3 py-2"
             data-testid="model-selector-multi-select-row"
-            gap={3}>
+            gap={3}
+            justify="between"
+            className="border-border/60 border-b px-3 py-2">
             <span className="min-w-0 truncate text-[10px] text-muted-foreground">{t('models.multi_select.label')}</span>
             <Switch
               checked={multiSelectMode}

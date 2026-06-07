@@ -344,7 +344,7 @@ const OpenClawPage: FC = () => {
           <p className="mt-2 text-muted-foreground text-sm leading-relaxed">
             {t(needsMigration ? 'openclaw.migration.description' : 'openclaw.not_installed.description')}
           </p>
-          <HStack gap={2} className="mt-6 justify-center">
+          <HStack gap={2} justify="center" className="mt-6">
             <Button disabled={isInstalling} onClick={handleInstall} loading={isInstalling}>
               {!isInstalling && <Download size={16} />}
               {t(needsMigration ? 'openclaw.migration.install_button' : 'openclaw.not_installed.install_button')}
@@ -387,8 +387,9 @@ const OpenClawPage: FC = () => {
         {installPath && gatewayStatus !== 'running' && (
           <HStack
             gap={2}
-            className="mb-6 justify-between rounded-lg px-3 py-2 text-sm"
-            style={{ background: 'var(--color-background-soft)', color: 'var(--color-text-3)' }}>
+            style={{ background: 'var(--color-background-soft)', color: 'var(--color-text-3)' }}
+            justify="between"
+            className="mb-6 rounded-lg px-3 py-2 text-sm">
             <div className="min-w-0 shrink overflow-hidden">
               <div className="mb-1">{t('openclaw.installed_at')}</div>
               <HStack gap={2}>

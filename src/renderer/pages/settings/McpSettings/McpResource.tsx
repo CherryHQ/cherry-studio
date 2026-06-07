@@ -67,7 +67,7 @@ const McpResourcesSection = ({ resources }: McpResourcesSectionProps) => {
               <AccordionItem key={resource.uri} value={resource.uri}>
                 <AccordionTrigger className="py-3">
                   <Flex direction="col" align="start" className="w-full min-w-0">
-                    <Flex className="w-full min-w-0 items-center">
+                    <Flex align="center" className="w-full min-w-0">
                       <span className="truncate font-medium text-foreground text-sm">{`${resource.name} (${resource.uri})`}</span>
                     </Flex>
                     {resource.description && (

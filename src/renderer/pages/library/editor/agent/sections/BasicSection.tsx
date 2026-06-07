@@ -265,7 +265,7 @@ function SwitchRow({
 }) {
   return (
     <div className="rounded-xs border border-border/30 bg-accent/15 px-3 py-2.5">
-      <HStack gap={3} className="justify-between">
+      <HStack gap={3} justify="between">
         <FieldHeader label={label} hint={hint} className="min-w-0 flex-1" />
         <Switch size="sm" checked={checked} onCheckedChange={onCheckedChange} aria-label={label} />
       </HStack>

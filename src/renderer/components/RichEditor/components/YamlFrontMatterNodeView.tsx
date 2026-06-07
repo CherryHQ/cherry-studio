@@ -328,7 +328,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
       const isShowingInput = showArrayInput[property.key]
 
       return (
-        <HStack className="flex-1 flex-wrap" gap={1}>
+        <HStack gap={1} wrap className="flex-1">
           {property.value.map((item, index) => (
             <span
               key={index}

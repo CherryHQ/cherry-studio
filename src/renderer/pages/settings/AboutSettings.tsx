@@ -179,7 +179,7 @@ const AboutSettings: FC = () => {
 
         <Divider className="my-1.5" />
 
-        <HStack gap={3} className="flex-wrap justify-between py-1">
+        <HStack gap={3} wrap justify="between" className="py-1">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               type="button"

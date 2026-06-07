@@ -467,7 +467,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
                 type="button"
                 className="flex w-full cursor-pointer items-center justify-between rounded-md border border-border p-3 text-left transition-colors hover:border-primary"
                 onClick={() => handleContentTypeToggle(option.type)}>
-                <Flex className="items-center gap-2">
+                <Flex align="center" gap={2}>
                   <CustomTag
                     color={selectedTypes.includes(option.type) ? TAG_COLORS.SELECTED : TAG_COLORS.UNSELECTED}
                     size={12}>

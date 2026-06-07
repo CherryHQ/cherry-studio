@@ -61,7 +61,7 @@ const BuiltinMcpServerList: FC = () => {
         </span>
       </HStack>
 
-      <HStack gap={3} className="mb-3 w-full min-w-0 flex-wrap justify-between">
+      <HStack gap={3} wrap justify="between" className="mb-3 w-full min-w-0">
         <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="min-w-0">
           <TabsList className="h-8 rounded-full bg-muted/70 p-0.5">
             <TabsTrigger value="all" className="h-7 rounded-[14px] px-2.5 text-xs">

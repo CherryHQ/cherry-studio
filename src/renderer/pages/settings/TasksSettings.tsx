@@ -277,7 +277,7 @@ const TaskDetail: FC<{
           </HStack>
         </SettingTitle>
         <SettingDivider />
-        <HStack gap={3} className="flex-wrap text-xs">
+        <HStack gap={3} wrap className="text-xs">
           <Badge className={badgeColorClass(task.trigger.kind)}>
             {scheduleTypeLabels[task.trigger.kind] ?? task.trigger.kind}
           </Badge>

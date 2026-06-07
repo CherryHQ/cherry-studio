@@ -146,7 +146,7 @@ const PromptConfigPage: FC<Props> = ({ prompt, onBack, onCreated }) => {
           </Field>
 
           <Field data-invalid={Boolean(contentError) || undefined} className="gap-1.5">
-            <HStack gap={3} className="mb-3 justify-between">
+            <HStack gap={3} justify="between" className="mb-3">
               <FieldHeader label={t('library.config.prompt.field.content.label')} />
               <Button
                 type="button"

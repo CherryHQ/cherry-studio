@@ -237,7 +237,7 @@ export function ModelSyncPreviewFooter({
 
   return (
     <>
-      <HStack gap={3} className="flex-wrap text-foreground-muted text-xs">
+      <HStack gap={3} wrap className="text-foreground-muted text-xs">
         {hasNew ? (
           <span className="inline-flex items-center gap-1">
             <Plus className="size-3 text-primary" aria-hidden />
@@ -257,7 +257,7 @@ export function ModelSyncPreviewFooter({
           </span>
         ) : null}
       </HStack>
-      <HStack gap={2} className="justify-end">
+      <HStack gap={2} justify="end">
         <Button type="button" variant="outline" disabled={isApplying} onClick={onCancel}>
           {t('common.cancel')}
         </Button>

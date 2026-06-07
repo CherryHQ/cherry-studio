@@ -196,7 +196,7 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
           onKeyDown={onKeyDown}
           onPaste={handlePaste}
         />
-        <HStack gap={2} className="min-h-11 flex-wrap justify-between px-3.5 pt-2 pb-3">
+        <HStack gap={2} wrap justify="between" className="min-h-11 px-3.5 pt-2 pb-3">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             {acceptsImageInput && (
               <>

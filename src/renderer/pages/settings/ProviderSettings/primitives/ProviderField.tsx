@@ -22,7 +22,7 @@ export default function ProviderField({
 }: ProviderFieldProps) {
   return (
     <div className={cn('space-y-2', className)}>
-      <HStack gap={3} className="justify-between">
+      <HStack gap={3} justify="between">
         <div
           className={cn(
             'font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-sm)] text-foreground-secondary leading-[var(--line-height-body-sm)]',

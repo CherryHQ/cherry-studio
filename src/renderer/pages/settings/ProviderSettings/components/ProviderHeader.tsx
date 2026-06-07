@@ -48,7 +48,7 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <ProviderAvatar provider={provider} size={32} className="shrink-0 rounded-xl" />
           <div className="min-w-0 self-center">
-            <HStack gap={1} className="min-w-0 flex-wrap">
+            <HStack gap={1} wrap className="min-w-0">
               <h1 className="truncate font-semibold text-(--color-foreground) text-[16px] leading-[1.25]">
                 {meta.fancyProviderName}
               </h1>

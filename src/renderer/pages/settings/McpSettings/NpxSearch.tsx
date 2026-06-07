@@ -146,7 +146,7 @@ const NpxSearch: FC = () => {
                 className="rounded-lg border border-transparent bg-transparent px-3 py-2 transition-colors hover:bg-accent">
                 <div className="mb-1.5 flex items-start justify-between gap-3">
                   <h3 className="selectable m-0 min-w-0 truncate font-semibold text-sm leading-6">{record.name}</h3>
-                  <Flex className="shrink-0 items-center gap-1">
+                  <Flex align="center" gap={1} className="shrink-0">
                     <Badge className="border-success/30 bg-success/10 text-success">v{record.version}</Badge>
                     <Button
                       variant="ghost"

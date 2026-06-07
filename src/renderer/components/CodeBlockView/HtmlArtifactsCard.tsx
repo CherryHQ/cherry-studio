@@ -68,7 +68,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
 
         <div className="bg-background">
           {isStreaming && !hasContent ? (
-            <HStack className="min-h-[78px] justify-center p-5" gap={2}>
+            <HStack gap={2} justify="center" className="min-h-[78px] p-5">
               <ClipLoader size={20} color="var(--color-primary)" />
               <div className="text-muted-foreground text-sm">
                 {t('html_artifacts.generating', 'Generating content...')}

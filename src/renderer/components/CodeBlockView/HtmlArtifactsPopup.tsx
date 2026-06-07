@@ -56,7 +56,7 @@ const CodePanel = memo<CodePanelProps>(({ codeEditorRef, html, onSave, saved, on
           keymap: true
         }}
       />
-      <VStack className="absolute right-4 bottom-4 z-10 items-center" gap={1}>
+      <VStack gap={1} align="center" className="absolute right-4 bottom-4 z-10">
         <Tooltip content={saveLabel}>
           <Button
             size="icon"
@@ -282,9 +282,10 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
             </div>
 
             <HStack
-              className="flex-1 justify-end pr-3 [-webkit-app-region:no-drag]"
               onDoubleClick={(event) => event.stopPropagation()}
-              gap={2}>
+              gap={2}
+              justify="end"
+              className="flex-1 pr-3 [-webkit-app-region:no-drag]">
               <Popover open={captureOpen} onOpenChange={setCaptureOpen}>
                 <Tooltip content={t('html_artifacts.capture.label')}>
                   <PopoverTrigger asChild>

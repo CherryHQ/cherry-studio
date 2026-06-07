@@ -24,7 +24,7 @@ type FooterProps = Omit<SidebarFooterProps, 'layout'>
 
 function IconFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
   return (
-    <VStack className="items-center px-1.5 pt-2 pb-5 [-webkit-app-region:no-drag]" gap={1}>
+    <VStack gap={1} align="center" className="px-1.5 pt-2 pb-5 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <SidebarTooltip content={extensionsLabel}>
           <button
@@ -47,7 +47,7 @@ function IconFooter({ user, actions, extensionsLabel, onExtensionsClick }: Foote
 
 function VerticalCardFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
   return (
-    <VStack className="items-center px-1 pt-1 pb-5 [-webkit-app-region:no-drag]" gap={0}>
+    <VStack gap={0} align="center" className="px-1 pt-1 pb-5 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <button
           type="button"

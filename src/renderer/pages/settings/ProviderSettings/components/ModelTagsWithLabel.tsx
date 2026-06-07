@@ -74,7 +74,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   const tagProps = { size, showTooltip, showLabel: false }
 
   return (
-    <HStack gap={0} className="min-w-0 max-w-full flex-row flex-wrap overflow-visible" style={style}>
+    <HStack gap={0} style={style} wrap className="min-w-0 max-w-full overflow-visible">
       {CAPABILITY_TAGS.map(({ capability, isVisible, render }) =>
         capabilities.has(capability) && (isVisible?.({ showReasoning, showToolsCalling }) ?? true) ? (
           <span key={capability} className="inline-flex">

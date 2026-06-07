@@ -22,7 +22,8 @@ const LoadingStateCard: FC<{ text: React.ReactNode; onCancel: () => void; cancel
   return (
     <VStack
       gap={4}
-      className="min-w-56 items-center rounded-[18px] border border-border-subtle bg-card/96 px-10 py-10 shadow-2xl backdrop-blur-sm">
+      align="center"
+      className="min-w-56 rounded-[18px] border border-border-subtle bg-card/96 px-10 py-10 shadow-2xl backdrop-blur-sm">
       <div className="relative h-12 w-12">
         <motion.div
           className="absolute inset-0 rounded-full border-2 border-border"

@@ -108,7 +108,7 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
       )}
 
       <Field data-invalid={promptInvalid || undefined} className="gap-1.5">
-        <HStack gap={3} className="justify-between">
+        <HStack gap={3} justify="between">
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
             <FieldHeader label={t('library.config.prompt.label')} className="min-w-0" />
             <PromptVariablesTooltip />

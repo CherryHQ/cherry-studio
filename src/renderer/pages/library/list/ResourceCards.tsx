@@ -132,7 +132,7 @@ function AssistantPresetGridCard({ preset, adding, onAdd, onPreview }: Assistant
         </div>
         <div className="min-w-0 flex-1">
           <h4 className="truncate text-foreground text-sm">{preset.name}</h4>
-          <HStack className="mt-1 min-h-5 flex-wrap" gap={1}>
+          <HStack gap={1} wrap className="mt-1 min-h-5">
             {groups.map((group) => (
               <Badge
                 key={group}
@@ -145,7 +145,7 @@ function AssistantPresetGridCard({ preset, adding, onAdd, onPreview }: Assistant
         </div>
       </div>
       <p className="line-clamp-3 min-h-[4.5em] flex-1 text-muted-foreground/70 text-xs leading-relaxed">{summary}</p>
-      <HStack className="mt-4 justify-end" gap={1}>
+      <HStack gap={1} justify="end" className="mt-4">
         <Button
           variant="default"
           disabled={adding}

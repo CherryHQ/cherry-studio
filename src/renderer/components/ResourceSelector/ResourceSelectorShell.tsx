@@ -451,7 +451,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const filterPanel = hasFilterControls ? (
     <VStack gap={1}>
       {tags && tags.length > 0 ? (
-        <HStack className="flex-wrap" gap={1}>
+        <HStack gap={1} wrap>
           {tags.map((tag) => {
             const active = selectedTagIds.includes(tag)
             return (
@@ -474,7 +474,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
         </HStack>
       ) : null}
       {sortOptions && sortOptions.length > 0 ? (
-        <HStack className="flex-wrap" gap={1}>
+        <HStack gap={1} wrap>
           <span className="text-muted-foreground/35 text-xs">{labels.sortLabel}</span>
           {sortOptions.map((s) => {
             const active = selectedSortId === s.id

@@ -61,7 +61,7 @@ const WaitingToolHeader = React.memo(({ item }: WaitingToolHeaderProps) => {
   const effectiveStatus = getEffectiveStatus(toolResponse?.status, approval.isWaiting)
 
   return (
-    <HStack gap={2} className="w-full justify-between">
+    <HStack gap={2} justify="between" className="w-full">
       <ToolHeader toolResponse={toolResponse} variant="collapse-label" status={effectiveStatus} />
       {(approval.isWaiting || approval.isExecuting) && <ToolApprovalActionsComponent {...approval} compact />}
     </HStack>

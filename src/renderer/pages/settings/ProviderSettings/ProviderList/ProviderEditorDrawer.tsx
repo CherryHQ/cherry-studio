@@ -287,7 +287,7 @@ export default function ProviderEditorDrawer({
   })()
 
   const footer = (
-    <HStack gap={2} className="justify-end">
+    <HStack gap={2} justify="end">
       <Button variant="outline" onClick={onClose}>
         {t('common.cancel')}
       </Button>
@@ -398,7 +398,7 @@ function AvatarSection({
 }: AvatarSectionProps) {
   const { t } = useTranslation()
   return (
-    <VStack gap={3} className="items-center">
+    <VStack gap={3} align="center">
       <div
         className="flex h-[76px] w-[76px] items-center justify-center overflow-hidden rounded-full border border-border/70 bg-muted/50"
         style={
@@ -413,7 +413,7 @@ function AvatarSection({
           size={76}
         />
       </div>
-      <HStack gap={2} className="flex-wrap justify-center">
+      <HStack gap={2} wrap justify="center">
         <Button variant="outline" onClick={() => uploadInputRef.current?.click()}>
           <ImagePlus size={16} />
           {t('settings.general.image_upload')}

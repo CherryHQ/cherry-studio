@@ -62,7 +62,7 @@ const DataSourcePanelHeader = ({
 
   if (selectedCount > 0) {
     return (
-      <HStack gap={3} className="min-w-0 justify-between">
+      <HStack gap={3} justify="between" className="min-w-0">
         <HStack gap={2} className="min-w-0">
           <span className="text-foreground text-sm">
             {t('knowledge.data_source.bulk.selected_count', { count: selectedCount })}
@@ -86,7 +86,7 @@ const DataSourcePanelHeader = ({
   }
 
   return (
-    <HStack gap={2} className="min-w-0 justify-end">
+    <HStack gap={2} justify="end" className="min-w-0">
       <HStack gap={2} className="shrink-0">
         {totalCount > 0 ? (
           <span className="text-foreground-muted text-xs leading-4">

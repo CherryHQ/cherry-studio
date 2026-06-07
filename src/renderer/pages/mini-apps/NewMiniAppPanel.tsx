@@ -158,7 +158,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
           </Field>
 
           <Field>
-            <HStack gap={2} className="justify-between">
+            <HStack gap={2} justify="between">
               <FieldLabel htmlFor="miniapp-logo">{t('settings.miniApps.custom.logo')}</FieldLabel>
               <Button
                 type="button"

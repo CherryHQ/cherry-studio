@@ -52,7 +52,7 @@ const MainTextBlock: React.FC<Props> = ({
     <>
       {/* Render mentions associated with the message */}
       {mentions && mentions.length > 0 && (
-        <Flex className="mb-2.5 flex-wrap gap-2">
+        <Flex wrap gap={2} className="mb-2.5">
           {mentions.map((m) => (
             <span key={createUniqueModelId(m.provider, m.id)} className="text-(--color-link)">
               {'@' + m.name}

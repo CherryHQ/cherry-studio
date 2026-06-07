@@ -286,7 +286,7 @@ const ManagePanel: FC<PropsWithChildren> = ({ children }) => (
 )
 
 const ManagePanelContent: FC<PropsWithChildren> = ({ children }) => (
-  <HStack gap={1} className="w-full min-w-0 flex-row overflow-hidden">
+  <HStack gap={1} className="w-full min-w-0 overflow-hidden">
     {children}
   </HStack>
 )

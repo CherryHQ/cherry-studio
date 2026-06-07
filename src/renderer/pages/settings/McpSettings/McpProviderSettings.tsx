@@ -152,7 +152,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
       </ProviderHeader>
 
       <SettingsPanel>
-        <HStack gap={3} className="mb-2 justify-between">
+        <HStack gap={3} justify="between" className="mb-2">
           <PanelTitle>{t('settings.provider.api_key.label')}</PanelTitle>
         </HStack>
         <Input
@@ -190,7 +190,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
           <ServerList>
             {filteredServers.map((server) => (
               <ServerItem key={server.id}>
-                <HStack gap={3} className="flex-1 flex-row">
+                <HStack gap={3} className="flex-1">
                   {server.logoUrl && (
                     <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
                       <img src={server.logoUrl} alt={server.name} className="h-full w-full object-cover" />

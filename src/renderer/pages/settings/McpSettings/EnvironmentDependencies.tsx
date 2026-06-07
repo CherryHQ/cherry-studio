@@ -70,7 +70,7 @@ const EnvironmentDependencyItem: FC<EnvironmentDependencyItemProps> = ({
       </HStack>
     </div>
 
-    <HStack gap={2} className="min-w-[92px] shrink-0 justify-end">
+    <HStack gap={2} justify="end" className="min-w-[92px] shrink-0">
       {installed ? (
         <Badge className="border-transparent bg-success/10 px-1.5 py-0 font-medium text-[11px] text-success leading-4">
           {t('settings.skills.installed')}

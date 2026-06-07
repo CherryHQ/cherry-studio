@@ -158,7 +158,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
               <div className="text-[length:var(--font-size-body-xs)] text-foreground-muted">
                 {t('settings.models.api_key')}
               </div>
-              <HStack gap={2} className="min-w-0 justify-between">
+              <HStack gap={2} justify="between" className="min-w-0">
                 <span className="min-w-0 truncate font-mono text-[length:var(--font-size-body-sm)] text-foreground/85">
                   {showFullKey ? newApiKey : maskApiKey(newApiKey)}
                 </span>

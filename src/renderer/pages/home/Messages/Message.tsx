@@ -241,7 +241,7 @@ const MessageItem: FC<Props> = ({
               </MessageErrorBoundary>
             </Scrollbar>
             {showMenubar && (
-              <HStack gap={2} className="MessageFooter mt-[3px] ml-[46px] justify-between">
+              <HStack gap={2} justify="between" className="MessageFooter mt-[3px] ml-[46px]">
                 <HorizontalScrollContainer
                   classNames={{
                     content: cn(

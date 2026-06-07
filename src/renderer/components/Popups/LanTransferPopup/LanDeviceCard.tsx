@@ -72,7 +72,7 @@ export const LanDeviceCard: FC<LanDeviceCardProps> = ({
         isDisabled && 'pointer-events-none translate-y-0 opacity-70 shadow-none'
       )}>
       {/* Header */}
-      <HStack className="justify-between" gap={2}>
+      <HStack gap={2} justify="between">
         <VStack gap={1}>
           <div className="break-words font-semibold text-[var(--color-text-1)] text-sm">{displayTitle}</div>
           <span className="text-[var(--color-text-2)] text-xs">{statusText}</span>
@@ -88,7 +88,7 @@ export const LanDeviceCard: FC<LanDeviceCardProps> = ({
       </VStack>
 
       {/* Footer with Progress */}
-      <HStack className="flex-wrap justify-between text-[11px] text-[var(--color-text-3)]" gap={2}>
+      <HStack gap={2} wrap justify="between" className="text-[11px] text-[var(--color-text-3)]">
         {shouldShowProgress && transferState && (
           <ProgressIndicator transferState={transferState} handshakeInProgress={handshakeInProgress} />
         )}

@@ -221,7 +221,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
       cell: ({ row }) => {
         const record = row.original
         return (
-          <Flex className="items-center gap-1">
+          <Flex align="center" gap={1}>
             <Button
               className="inline-flex"
               size="sm"
@@ -271,7 +271,7 @@ export function LocalBackupManager({ visible, onClose, localBackupDir, restoreMe
             )}
           </div>
           {backupFiles.length > PAGE_SIZE && (
-            <HStack className="justify-end text-muted-foreground text-sm" gap={2}>
+            <HStack gap={2} justify="end" className="text-muted-foreground text-sm">
               <span>
                 {safeCurrentPage} / {totalPages}
               </span>

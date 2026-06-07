@@ -301,7 +301,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
             )}
           </div>
           {backupFiles.length > PAGE_SIZE && (
-            <HStack className="justify-end text-muted-foreground text-sm" gap={2}>
+            <HStack gap={2} justify="end" className="text-muted-foreground text-sm">
               <span>
                 {safeCurrentPage} / {totalPages}
               </span>

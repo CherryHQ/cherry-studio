@@ -387,7 +387,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
               maxFiles={1}
               src={dxtFile ? [dxtFile] : undefined}
               onDrop={(files) => setDxtFile(files[0] ?? null)}>
-              <VStack gap={1} className="items-center text-sm">
+              <VStack gap={1} align="center" className="text-sm">
                 <UploadIcon className="size-5 text-muted-foreground" />
                 <span>{dxtFile?.name ?? t('settings.mcp.addServer.importFrom.selectDxtFile')}</span>
               </VStack>

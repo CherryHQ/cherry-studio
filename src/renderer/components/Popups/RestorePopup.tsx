@@ -75,7 +75,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         </DialogHeader>
         {!progressData && <div>{t('restore.content')}</div>}
         {progressData && (
-          <VStack className="items-center py-5 text-center" gap={4}>
+          <VStack gap={4} align="center" className="py-5 text-center">
             <CircularProgress
               value={Math.floor(progressData.progress)}
               size={72}

@@ -503,7 +503,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   return (
     <Scrollbar className="flex flex-1 flex-col" style={{ height: 'calc(100vh - var(--navbar-height))' }}>
       <SettingsContentBody>
-        <HStack gap={4} className="justify-between pb-1">
+        <HStack gap={4} justify="between" className="pb-1">
           <div className="min-w-0">
             <SettingTitle className="justify-start gap-2">
               {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}

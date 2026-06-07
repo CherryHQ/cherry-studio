@@ -331,7 +331,7 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
           <DialogHeader>
             <DialogTitle>{t('agent.cherryClaw.channels.feishu.qrTitle')}</DialogTitle>
           </DialogHeader>
-          <VStack gap={4} className="items-center py-4">
+          <VStack gap={4} align="center" className="py-4">
             {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
             <span className="text-center text-muted-foreground text-xs">
               {t('agent.cherryClaw.channels.feishu.qrScanHint')}
@@ -477,7 +477,7 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
           <DialogHeader>
             <DialogTitle>{t('agent.cherryClaw.channels.wechat.qrTitle')}</DialogTitle>
           </DialogHeader>
-          <VStack gap={4} className="items-center py-4">
+          <VStack gap={4} align="center" className="py-4">
             {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
             <span className="text-center text-muted-foreground text-xs">
               {t('agent.cherryClaw.channels.wechat.qrHint')}

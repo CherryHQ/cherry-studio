@@ -81,7 +81,7 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
 
   // Logged-in: charge / bills actions (original centered layout).
   return (
-    <VStack gap={3} className="items-center justify-center py-3 pb-2">
+    <VStack gap={3} align="center" justify="center" className="py-3 pb-2">
       {Icon ? (
         <Icon.Avatar size={60} />
       ) : (

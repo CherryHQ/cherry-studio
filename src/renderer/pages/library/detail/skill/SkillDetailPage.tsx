@@ -210,7 +210,7 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
               </div>
               <div className="min-w-0">
                 <h1 className="truncate font-semibold text-2xl text-foreground">{skill.name}</h1>
-                <HStack gap={2} className="mt-2 flex-wrap">
+                <HStack gap={2} wrap className="mt-2">
                   <Badge variant="secondary" className="border-0 bg-amber-500/10 px-2 py-0.5 text-amber-600 text-xs">
                     {t('library.type.skill')}
                   </Badge>
@@ -285,7 +285,7 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
               ) : loadingContent ? (
                 <div className="min-h-[360px]" aria-hidden="true" />
               ) : (
-                <VStack gap={2} className="min-h-[360px] items-center justify-center text-muted-foreground/40">
+                <VStack gap={2} align="center" justify="center" className="min-h-[360px] text-muted-foreground/40">
                   <FileText size={28} strokeWidth={1.2} />
                   <span className="text-xs">
                     {selectedFile ? t('settings.skills.noSkillFile') : t('settings.skills.selectFile')}

@@ -151,7 +151,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
                 window.toast.error(err.message || t('richEditor.imageUploader.invalidType'))
               }}
               className="min-h-44 border-dashed bg-muted/20 hover:bg-accent/40">
-              <VStack className="items-center justify-center text-center" gap={2}>
+              <VStack gap={2} align="center" justify="center" className="text-center">
                 <div className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
                   {loading ? <LoaderCircle className="size-5 animate-spin" /> : <ImageUp className="size-5" />}
                 </div>
@@ -166,7 +166,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
           </TabsContent>
 
           <TabsContent value="url" className="pt-2">
-            <HStack className="justify-center" gap={3}>
+            <HStack gap={3} justify="center">
               <div className="relative flex-1">
                 <Link className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground" />
                 <Input

@@ -88,7 +88,7 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
   }
 
   return (
-    <HStack gap={2} className="min-h-10 justify-between border-border/40 border-b px-3 py-2 last:border-b-0">
+    <HStack gap={2} justify="between" className="min-h-10 border-border/40 border-b px-3 py-2 last:border-b-0">
       {isEditing ? (
         <>
           <Input
@@ -191,7 +191,7 @@ export const WebSearchApiKeyList: FC<WebSearchApiKeyListProps> = ({ providerId }
         )}
       </div>
 
-      <HStack gap={3} className="mt-3.5 justify-between">
+      <HStack gap={3} justify="between" className="mt-3.5">
         <span className="min-w-0 text-muted-foreground text-xs leading-tight">
           {t('settings.provider.api_key.tip')}
         </span>

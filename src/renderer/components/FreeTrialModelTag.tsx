@@ -42,7 +42,7 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
 
   if (!showLabel) {
     return (
-      <HStack className="flex-row" gap={1}>
+      <HStack gap={1}>
         <CustomTag
           color="var(--color-primary)"
           size={11}
@@ -56,7 +56,7 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
   }
 
   return (
-    <HStack className="flex-row" gap={1}>
+    <HStack gap={1}>
       <IndicatorLight size={6} color="var(--color-primary)" animation={false} shadow={false} />
       <span className="text-[12px] text-foreground-secondary">{t('common.powered_by')}</span>
       <a className="text-[12px] text-primary" onClick={onSelectProvider}>

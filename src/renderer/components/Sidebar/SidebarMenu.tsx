@@ -23,7 +23,7 @@ type MenuItemsProps = Omit<SidebarMenuProps, 'layout'>
 
 function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }: MenuItemsProps) {
   return (
-    <VStack className="items-center px-1.5 [-webkit-app-region:no-drag]" gap={0}>
+    <VStack gap={0} align="center" className="px-1.5 [-webkit-app-region:no-drag]">
       {items.map((item) => {
         const isActive = activeItem === item.id
         const Icon = item.icon
@@ -67,7 +67,7 @@ function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
 
 function VerticalCardMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }: MenuItemsProps) {
   return (
-    <VStack className="items-center px-1.5 [-webkit-app-region:no-drag]" gap={1}>
+    <VStack gap={1} align="center" className="px-1.5 [-webkit-app-region:no-drag]">
       {items.map((item) => {
         const isActive = activeItem === item.id
         const Icon = item.icon

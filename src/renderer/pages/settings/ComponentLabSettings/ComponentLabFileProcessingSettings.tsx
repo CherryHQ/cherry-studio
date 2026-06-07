@@ -389,7 +389,7 @@ const ComponentLabFileProcessingSettings: FC = () => {
                 </Badge>
               </div>
 
-              <HStack gap={2} className="mt-4 flex-wrap">
+              <HStack gap={2} wrap className="mt-4">
                 <Button variant="outline" size="sm" onClick={() => void handleSelectFile(section)}>
                   <Upload className="size-4" />
                   {t(section.selectKey)}

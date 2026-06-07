@@ -143,8 +143,8 @@ const McpServersList: FC = () => {
   return (
     <VStack gap={2} className="h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 overflow-hidden px-6 py-4">
       <VStack gap={2} className="mx-auto min-h-0 w-full max-w-3xl flex-1">
-        <HStack gap={3} className="w-full flex-wrap justify-between">
-          <HStack gap={3} className="min-w-0 flex-wrap">
+        <HStack gap={3} wrap justify="between" className="w-full">
+          <HStack gap={3} wrap className="min-w-0">
             <HStack gap={3} className="min-w-0">
               <SettingTitle>{t('settings.mcp.allServers')}</SettingTitle>
               <span className="shrink-0 text-muted-foreground text-sm">
@@ -160,7 +160,7 @@ const McpServersList: FC = () => {
               style={{ borderRadius: 16 }}
             />
           </HStack>
-          <HStack gap={2} className="min-w-0 flex-wrap justify-end">
+          <HStack gap={2} wrap justify="end" className="min-w-0">
             <EnvironmentDependencies mini />
             <Button
               variant="ghost"
@@ -186,7 +186,7 @@ const McpServersList: FC = () => {
             </Popover>
           </HStack>
         </HStack>
-        <HStack gap={3} className="w-full min-w-0 flex-wrap">
+        <HStack gap={3} wrap className="w-full min-w-0">
           <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="hidden xl:block">
             <TabsList className="h-8 rounded-full bg-muted/70 p-0.5">
               <TabsTrigger value="all" className="h-7 rounded-[14px] px-2.5 text-xs">

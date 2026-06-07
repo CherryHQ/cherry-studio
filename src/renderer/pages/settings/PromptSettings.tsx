@@ -172,7 +172,7 @@ const PromptSettings: FC = () => {
                           </HStack>
                         ),
                         actions: (
-                          <Flex className="gap-1 opacity-60">
+                          <Flex gap={1} className="opacity-60">
                             <Button key="edit" variant="ghost" onClick={() => handleEdit(prompt)} size="icon">
                               <EditIcon size={14} />
                             </Button>

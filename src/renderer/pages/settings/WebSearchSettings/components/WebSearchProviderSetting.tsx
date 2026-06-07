@@ -288,8 +288,8 @@ export const WebSearchProviderSetting: FC<Props> = ({
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle>
-          <Flex className="items-center justify-between" style={{ width: '100%' }}>
-            <Flex className="items-center gap-2">
+          <Flex style={{ width: '100%' }} align="center" justify="between">
+            <Flex align="center" gap={2}>
               <WebSearchProviderLogo providerId={provider.id} providerName={provider.name} size={20} />
               <span className="font-medium text-sm">{provider.name}</span>
               {officialWebsite && (
@@ -385,7 +385,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
             <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
               {t('settings.provider.api_host')}
             </SettingSubtitle>
-            <Flex className="min-w-0 gap-2">
+            <Flex gap={2} className="min-w-0">
               <Input
                 value={apiHostInput}
                 placeholder={t('settings.provider.api_host')}

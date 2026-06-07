@@ -77,9 +77,9 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   return (
     <HStack
       ref={containerRef}
-      className="flex-row flex-nowrap overflow-x-scroll [&::-webkit-scrollbar]:hidden"
       style={style}
-      gap={1}>
+      gap={1}
+      className="flex-nowrap overflow-x-scroll [&::-webkit-scrollbar]:hidden">
       {isVisionModel(model) && <VisionTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
       {isWebSearchModel(model) && <WebSearchTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
       {showReasoning && isReasoningModel(model) && (

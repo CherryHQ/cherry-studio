@@ -80,7 +80,7 @@ export const PopupContainer: FC<PopupContainerProps> = ({ resolve }) => {
           {/* Device List */}
           <VStack className="mt-2" gap={3}>
             {lanDevices.length === 0 ? (
-              <VStack className="items-center justify-center py-10 text-center" gap={3}>
+              <VStack gap={3} align="center" justify="center" className="py-10 text-center">
                 <Smartphone size={60} color="var(--color-foreground-muted)" />
                 <span>{t('settings.data.export_to_phone.lan.no_connection_warning')}</span>
               </VStack>

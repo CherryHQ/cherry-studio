@@ -177,7 +177,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
       title={t('settings.provider.api.key.list.title')}
       description={t('settings.provider.api_key.list_description')}
       footer={
-        <HStack gap={3} className="justify-between">
+        <HStack gap={3} justify="between">
           <div className={apiKeyListClasses.summaryMeta}>
             {enabledCount} / {apiKeys.length} {t('settings.provider.api_key.enabled_suffix')}
           </div>
@@ -335,7 +335,7 @@ function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: 
         </div>
         <Switch checked={entry.isEnabled} disabled={saving} onCheckedChange={onToggleEnabled} />
       </div>
-      <HStack gap={1} className="justify-end">
+      <HStack gap={1} justify="end">
         <Tooltip content={t('settings.provider.api_key.copy')}>
           <Button
             variant="ghost"

@@ -163,7 +163,7 @@ export default function HealthCheckDrawer({
         <VStack gap={0} className="min-h-0 flex-1">
           {isChecking ? (
             <div className="px-4 pt-3 pb-2">
-              <HStack gap={3} className="mb-2 justify-between">
+              <HStack gap={3} justify="between" className="mb-2">
                 <span className="font-medium text-[13px] text-foreground/85">
                   {t('settings.models.check.pipeline_heading')}
                 </span>
@@ -338,7 +338,7 @@ export default function HealthCheckDrawer({
       {!showPipeline ? (
         <>
           <VStack gap={4}>
-            <HStack gap={3} className="justify-between">
+            <HStack gap={3} justify="between">
               <span className="font-medium text-foreground text-sm">{t('settings.models.check.use_all_keys')}</span>
               <SegmentedControl
                 size="sm"
@@ -351,7 +351,7 @@ export default function HealthCheckDrawer({
               />
             </HStack>
 
-            <HStack gap={3} className="justify-between">
+            <HStack gap={3} justify="between">
               <span className="font-medium text-foreground text-sm">
                 {t('settings.models.check.enable_concurrent')}
               </span>
@@ -366,7 +366,7 @@ export default function HealthCheckDrawer({
               />
             </HStack>
 
-            <HStack gap={3} className="justify-between">
+            <HStack gap={3} justify="between">
               <span className="font-medium text-foreground text-sm">{t('settings.models.check.timeout')}</span>
               <HStack gap={2} className="w-[112px]">
                 <Input

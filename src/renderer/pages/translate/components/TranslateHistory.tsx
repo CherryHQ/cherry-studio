@@ -173,7 +173,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
           ) : (
             <>
               {showHistoryActions && (
-                <HStack gap={1} className="shrink-0 justify-end">
+                <HStack gap={1} justify="end" className="shrink-0">
                   <IconButton
                     size="md"
                     tone="star"
@@ -348,7 +348,7 @@ const HistoryDetail: FC<{
         <span>{t('translate.history.back')}</span>
       </button>
       <VStack gap={3}>
-        <HStack gap={2} className="flex-wrap">
+        <HStack gap={2} wrap>
           <span className="rounded-sm bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
             {item._sourceEmoji} {item._sourceLabel}
           </span>

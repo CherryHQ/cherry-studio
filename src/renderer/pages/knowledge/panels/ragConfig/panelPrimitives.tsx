@@ -143,7 +143,7 @@ export const RagSliderField = ({
 }) => {
   return (
     <div>
-      <HStack gap={3} className="mb-2 justify-between">
+      <HStack gap={3} justify="between" className="mb-2">
         <RagFieldLabel label={label} hint={hint} className="mb-0" />
         <span className="text-foreground-secondary text-xs tabular-nums leading-4">{formatValue(value)}</span>
       </HStack>
