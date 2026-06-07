@@ -1513,7 +1513,7 @@
       "export": {
         "failed": "Η εξαγωγή απέτυχε",
         "failed": "[to be translated]:Export failed",
-        "html": "[to be translated]:Export as HTML",
+        "html": "Εξαγωγή ως HTML",
         "image": "Εξαγωγή ως εικόνα",
         "image_saved": "Η εικόνα αποθηκεύτηκε με επιτυχία",
         "joplin": "Εξαγωγή στο Joplin",
@@ -2981,7 +2981,7 @@
       "get_embedding_dimensions": "Απέτυχε η πρόσληψη διαστάσεων ενσωμάτωσης",
       "html": {
         "export": {
-          "specified": "[to be translated]:Failed to export the HTML file"
+          "specified": "Αποτυχία εξαγωγής του αρχείου HTML"
         }
       },
       "invalid": {
@@ -3116,7 +3116,7 @@
       },
       "html": {
         "export": {
-          "specified": "[to be translated]:Successfully exported the HTML file"
+          "specified": "Το αρχείο HTML εξήχθη με επιτυχία"
         }
       },
       "joplin": {
@@ -4957,7 +4957,7 @@
       },
       "export_menu": {
         "docx": "Εξαγωγή σε Word",
-        "html": "[to be translated]:Export as HTML",
+        "html": "Εξαγωγή ως HTML",
         "image": "Εξαγωγή ως εικόνα",
         "joplin": "Εξαγωγή στο Joplin",
         "markdown": "Εξαγωγή σε Markdown",

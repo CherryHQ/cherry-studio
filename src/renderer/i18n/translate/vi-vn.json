@@ -1513,7 +1513,7 @@
       "export": {
         "failed": "Xuất khẩu thất bại",
         "failed": "[to be translated]:Export failed",
-        "html": "[to be translated]:Export as HTML",
+        "html": "Xuất dưới dạng HTML",
         "image": "Xuất dưới dạng hình ảnh",
         "image_saved": "Hình ảnh đã được lưu thành công",
         "joplin": "Exporteren naar Joplin",
@@ -2981,7 +2981,7 @@
       "get_embedding_dimensions": "Không thể lấy kích thước embedding",
       "html": {
         "export": {
-          "specified": "[to be translated]:Failed to export the HTML file"
+          "specified": "Xuất tệp HTML thất bại"
         }
       },
       "invalid": {
@@ -3116,7 +3116,7 @@
       },
       "html": {
         "export": {
-          "specified": "[to be translated]:Successfully exported the HTML file"
+          "specified": "Đã xuất tệp HTML thành công"
         }
       },
       "joplin": {
@@ -4957,7 +4957,7 @@
       },
       "export_menu": {
         "docx": "Xuất ra Word",
-        "html": "[to be translated]:Export as HTML",
+        "html": "Xuất dưới dạng HTML",
         "image": "Xuất dưới dạng hình ảnh",
         "joplin": "Xuất sang Joplin",
         "markdown": "Xuất ra dạng Markdown",

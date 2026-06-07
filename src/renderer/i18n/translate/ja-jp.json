@@ -1513,7 +1513,7 @@
       "export": {
         "failed": "エクスポートに失敗しました",
         "failed": "[to be translated]:Export failed",
-        "html": "[to be translated]:Export as HTML",
+        "html": "HTMLとしてエクスポート",
         "image": "画像としてエクスポート",
         "image_saved": "画像が正常に保存されました",
         "joplin": "Joplin にエクスポート",
@@ -2981,7 +2981,7 @@
       "get_embedding_dimensions": "埋込み次元を取得できませんでした",
       "html": {
         "export": {
-          "specified": "[to be translated]:Failed to export the HTML file"
+          "specified": "HTMLファイルのエクスポートに失敗しました"
         }
       },
       "invalid": {
@@ -3116,7 +3116,7 @@
       },
       "html": {
         "export": {
-          "specified": "[to be translated]:Successfully exported the HTML file"
+          "specified": "HTMLファイルを正常にエクスポートしました"
         }
       },
       "joplin": {
@@ -4957,7 +4957,7 @@
       },
       "export_menu": {
         "docx": "Wordとしてエクスポート",
-        "html": "[to be translated]:Export as HTML",
+        "html": "HTMLとしてエクスポート",
         "image": "画像としてエクスポート",
         "joplin": "Joplinにエクスポート",
         "markdown": "Markdownとしてエクスポート",

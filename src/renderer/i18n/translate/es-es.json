@@ -1513,7 +1513,7 @@
       "export": {
         "failed": "Exportación fallida",
         "failed": "[to be translated]:Export failed",
-        "html": "[to be translated]:Export as HTML",
+        "html": "Exportar como HTML",
         "image": "Exportar como imagen",
         "image_saved": "Imagen guardada con éxito",
         "joplin": "Exportar a Joplin",
@@ -2981,7 +2981,7 @@
       "get_embedding_dimensions": "Fallo al obtener las dimensiones de incrustación",
       "html": {
         "export": {
-          "specified": "[to be translated]:Failed to export the HTML file"
+          "specified": "Error al exportar el archivo HTML"
         }
       },
       "invalid": {
@@ -3116,7 +3116,7 @@
       },
       "html": {
         "export": {
-          "specified": "[to be translated]:Successfully exported the HTML file"
+          "specified": "Archivo HTML exportado correctamente"
         }
       },
       "joplin": {
@@ -4957,7 +4957,7 @@
       },
       "export_menu": {
         "docx": "Exportar a Word",
-        "html": "[to be translated]:Export as HTML",
+        "html": "Exportar como HTML",
         "image": "Exportar como imagen",
         "joplin": "Exportar a Joplin",
         "markdown": "Exportar a Markdown",

@@ -1513,7 +1513,7 @@
       "export": {
         "failed": "Export fehlgeschlagen",
         "failed": "[to be translated]:Export failed",
-        "html": "[to be translated]:Export as HTML",
+        "html": "Als HTML exportieren",
         "image": "Als Bild exportieren",
         "image_saved": "Bild erfolgreich gespeichert",
         "joplin": "Nach Joplin exportieren",
@@ -2981,7 +2981,7 @@
       "get_embedding_dimensions": "Embedding-Dimensionen abrufen fehlgeschlagen",
       "html": {
         "export": {
-          "specified": "[to be translated]:Failed to export the HTML file"
+          "specified": "Export der HTML-Datei fehlgeschlagen"
         }
       },
       "invalid": {
@@ -3116,7 +3116,7 @@
       },
       "html": {
         "export": {
-          "specified": "[to be translated]:Successfully exported the HTML file"
+          "specified": "HTML-Datei erfolgreich exportiert"
         }
       },
       "joplin": {
@@ -4957,7 +4957,7 @@
       },
       "export_menu": {
         "docx": "Als Word exportieren",
-        "html": "[to be translated]:Export as HTML",
+        "html": "Als HTML exportieren",
         "image": "Als Bild exportieren",
         "joplin": "Nach Joplin exportieren",
         "markdown": "Als Markdown exportieren",

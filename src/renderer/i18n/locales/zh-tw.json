@@ -1512,7 +1512,7 @@
       },
       "export": {
         "failed": "匯出失敗",
-        "html": "[to be translated]:Export as HTML",
+        "html": "匯出為 HTML",
         "image": "匯出為圖片",
         "image_saved": "圖片儲存成功",
         "joplin": "匯出到 Joplin",
@@ -2970,7 +2970,7 @@
       "get_embedding_dimensions": "取得嵌入維度失敗",
       "html": {
         "export": {
-          "specified": "[to be translated]:Failed to export the HTML file"
+          "specified": "匯出 HTML 檔案失敗"
         }
       },
       "invalid": {
@@ -3105,7 +3105,7 @@
       },
       "html": {
         "export": {
-          "specified": "[to be translated]:Successfully exported the HTML file"
+          "specified": "已成功匯出 HTML 檔案"
         }
       },
       "joplin": {
@@ -4946,7 +4946,7 @@
       },
       "export_menu": {
         "docx": "匯出為 Word",
-        "html": "[to be translated]:Export as HTML",
+        "html": "匯出為 HTML",
         "image": "匯出為圖片",
         "joplin": "匯出到 Joplin",
         "markdown": "匯出為 Markdown",
