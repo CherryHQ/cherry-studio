@@ -583,6 +583,43 @@
       }
     },
     "sidebar_title": "Агенты",
+    "stats": {
+      "active_days": "[to be translated]:days active",
+      "avg_completion": "[to be translated]:Avg Completion",
+      "avg_first_token": "[to be translated]:Avg First Token",
+      "avg_speed": "[to be translated]:Avg Speed",
+      "conversation_info": "[to be translated]:Conversation Info",
+      "daily_usage": "[to be translated]:Daily Usage",
+      "duration": "[to be translated]:Duration",
+      "limit": "[to be translated]:Display limit",
+      "loading": "[to be translated]:Loading statistics...",
+      "messages": "[to be translated]:Messages",
+      "model_filter_all": "[to be translated]:All Providers",
+      "model_sort_messages": "[to be translated]:By Messages",
+      "model_sort_speed": "[to be translated]:By Speed",
+      "model_sort_tokens": "[to be translated]:By Tokens",
+      "model_usage": "[to be translated]:Model Usage",
+      "no_data": "[to be translated]:No statistics available",
+      "no_data_hint": "[to be translated]:Start a conversation to see usage statistics here.",
+      "no_models_match": "[to be translated]:No models match the current filters.",
+      "performance": "[to be translated]:Performance",
+      "popup": {
+        "load_failed": "[to be translated]:Failed to load topic statistics",
+        "title": "[to be translated]:Topic Statistics",
+        "topic_not_found": "[to be translated]:Topic not found"
+      },
+      "search_placeholder": "[to be translated]:Search model or provider...",
+      "sort_by": "[to be translated]:Sort by",
+      "thinking_tokens": "[to be translated]:Thinking Tokens",
+      "title": "[to be translated]:Usage Statistics",
+      "token_breakdown": "[to be translated]:Token Breakdown",
+      "topics": "[to be translated]:Topics",
+      "total_characters": "[to be translated]:Total Characters",
+      "total_messages": "[to be translated]:Total Messages",
+      "total_tokens": "[to be translated]:Total Tokens",
+      "total_words": "[to be translated]:Total Words",
+      "unique_models": "[to be translated]:Models Used"
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1600,6 +1637,7 @@
         "placeholder": "Искать темы...",
         "title": "Поиск"
       },
+      "statistics": "[to be translated]:Statistics",
       "title": "Топики",
       "unpin": "Открепленные темы"
     },
@@ -6801,6 +6839,9 @@
       "uninstallSuccess": "Навык удалён: {{name}}",
       "viewSource": "Посмотреть исходный код",
       "zip": "ЗИП"
+    },
+    "stats": {
+      "title": "[to be translated]:Usage Statistics"
     },
     "theme": {
       "color_primary": "Цвет темы",

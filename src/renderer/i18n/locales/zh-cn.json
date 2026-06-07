@@ -583,6 +583,43 @@
       }
     },
     "sidebar_title": "智能体",
+    "stats": {
+      "active_days": "活跃天数",
+      "avg_completion": "平均完成时间",
+      "avg_first_token": "平均首 Token",
+      "avg_speed": "平均速度",
+      "conversation_info": "对话信息",
+      "daily_usage": "每日用量",
+      "duration": "持续时长",
+      "limit": "显示数量",
+      "loading": "正在加载统计数据...",
+      "messages": "消息数",
+      "model_filter_all": "全部提供商",
+      "model_sort_messages": "按消息数",
+      "model_sort_speed": "按速度",
+      "model_sort_tokens": "按 Token",
+      "model_usage": "模型用量",
+      "no_data": "暂无统计数据",
+      "no_data_hint": "开始对话后即可在此查看用量统计。",
+      "no_models_match": "没有符合当前筛选条件的模型。",
+      "performance": "性能指标",
+      "popup": {
+        "load_failed": "加载话题统计失败",
+        "title": "话题统计",
+        "topic_not_found": "话题不存在"
+      },
+      "search_placeholder": "搜索模型或提供商...",
+      "sort_by": "排序方式",
+      "thinking_tokens": "思考 Token",
+      "title": "用量统计",
+      "token_breakdown": "Token 分布",
+      "topics": "话题数",
+      "total_characters": "总字符数",
+      "total_messages": "总消息数",
+      "total_tokens": "总 Token",
+      "total_words": "总词数",
+      "unique_models": "使用模型数"
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1600,6 +1637,7 @@
         "placeholder": "搜索话题...",
         "title": "搜索"
       },
+      "statistics": "用量统计",
       "title": "话题",
       "unpin": "取消固定"
     },
@@ -6800,6 +6838,9 @@
       "uninstallSuccess": "技能已卸载：{{name}}",
       "viewSource": "查看源码",
       "zip": "ZIP"
+    },
+    "stats": {
+      "title": "用量统计"
     },
     "theme": {
       "color_primary": "主题颜色",
