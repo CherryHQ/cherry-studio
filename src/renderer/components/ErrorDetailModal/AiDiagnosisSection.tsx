@@ -1,3 +1,4 @@
+import { HStack, VStack } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import type { DiagnosisContext, DiagnosisResult } from '@renderer/services/ErrorDiagnosisService'
@@ -118,18 +119,16 @@ const AiDiagnosisSectionWithStatus = memo(
     return (
       <div className="mt-4 rounded-lg p-3.5 px-4" style={diagPanelStyle}>
         {status === 'loading' && (
-          <div className="flex items-center gap-1.5 font-semibold text-sm" style={{ color: 'var(--color-primary)' }}>
+          <HStack className="font-semibold text-sm" style={{ color: 'var(--color-primary)' }} gap={1}>
             <Loader2 size={14} className="animation-rotate" />
             {t('error.diagnosis.ai_loading')}...
-          </div>
+          </HStack>
         )}
         {status === 'error' && (
           <>
-            <div
-              className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm"
-              style={{ color: 'var(--color-error)' }}>
+            <HStack className="mb-2.5 font-semibold text-sm" style={{ color: 'var(--color-error)' }} gap={1}>
               {diagError}
-            </div>
+            </HStack>
             <button
               type="button"
               className="cursor-pointer rounded border px-2 py-1 text-xs"
@@ -141,31 +140,26 @@ const AiDiagnosisSectionWithStatus = memo(
         )}
         {status === 'done' && result && (
           <>
-            <div
-              className="mb-2.5 flex items-center gap-1.5 font-semibold text-sm"
-              style={{ color: 'var(--color-primary)' }}>
+            <HStack className="mb-2.5 font-semibold text-sm" style={{ color: 'var(--color-primary)' }} gap={1}>
               <CheckCircle size={14} />
               {t('error.diagnosis.ai_result')}
-            </div>
+            </HStack>
             <div className="text-[13px] leading-[1.7]" style={{ color: 'var(--color-text-2)' }}>
               {result.explanation || result.summary}
             </div>
             {result.steps.length > 0 && (
-              <div className="mt-2.5 flex flex-col gap-1.5">
+              <VStack className="mt-2.5" gap={1}>
                 {result.steps.map((step, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[13px]"
-                    style={stepBgStyle}>
+                  <HStack key={i} className="rounded-md px-2.5 py-1.5 text-[13px]" style={stepBgStyle} gap={2}>
                     <span
                       className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full font-bold text-[10px] text-white"
                       style={{ background: 'var(--color-primary)' }}>
                       {i + 1}
                     </span>
                     <span>{step.text}</span>
-                  </div>
+                  </HStack>
                 ))}
-              </div>
+              </VStack>
             )}
           </>
         )}

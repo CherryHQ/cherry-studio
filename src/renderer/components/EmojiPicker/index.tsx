@@ -1,4 +1,4 @@
-import { Scrollbar } from '@cherrystudio/ui'
+import { Grid, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { defaultLanguage } from '@shared/config/constant'
@@ -108,7 +108,7 @@ interface EmojiGridProps {
 
 const EmojiGrid: FC<EmojiGridProps> = ({ emojis, onPick }) => {
   return (
-    <div className="grid grid-cols-8 gap-0.5">
+    <Grid columns={8} gap={0}>
       {emojis.map((record) => (
         <button
           key={record.emoji}
@@ -122,7 +122,7 @@ const EmojiGrid: FC<EmojiGridProps> = ({ emojis, onPick }) => {
           {record.emoji}
         </button>
       ))}
-    </div>
+    </Grid>
   )
 }
 

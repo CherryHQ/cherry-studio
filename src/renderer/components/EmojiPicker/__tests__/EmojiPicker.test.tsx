@@ -23,7 +23,11 @@ vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
   const Scrollbar = ({ children, className, ref }: any) =>
     React.createElement('div', { ref, className, 'data-testid': 'emoji-scrollbar' }, children)
-  return { Scrollbar }
+  const Grid = ({ children, className, ...props }: any) => {
+    for (const key of ['columns', 'gap', 'flow', 'asChild']) delete props[key]
+    return React.createElement('div', { className, ...props }, children)
+  }
+  return { Scrollbar, Grid }
 })
 
 afterEach(async () => {

@@ -6,7 +6,8 @@ import {
   DialogHeader,
   DialogTitle,
   Input,
-  Textarea
+  Textarea,
+  VStack
 } from '@cherrystudio/ui'
 import type { Prompt } from '@shared/data/types/prompt'
 import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '@shared/data/types/prompt'
@@ -85,7 +86,7 @@ const PromptEditModal: FC<PromptEditModalProps> = ({ open, prompt, saving, onSav
           <DialogTitle>{isEdit ? t('settings.prompts.edit') : t('settings.prompts.add')}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4">
+        <VStack gap={4}>
           <label className="flex flex-col gap-1 font-medium text-foreground text-sm">
             {t('settings.prompts.titleLabel')}
             <Input
@@ -105,7 +106,7 @@ const PromptEditModal: FC<PromptEditModalProps> = ({ open, prompt, saving, onSav
               rows={8}
             />
           </label>
-        </div>
+        </VStack>
 
         <DialogFooter>
           <Button variant="outline" onClick={onCancel} disabled={isSaving}>

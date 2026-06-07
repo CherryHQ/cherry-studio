@@ -72,7 +72,11 @@ type SourceFile = ReturnType<Project['addSourceFilesAtPaths']>[number]
 
 /** Ensure `import { <names> } from '@cherrystudio/ui'` includes each name. */
 function ensureNamedImports(sourceFile: SourceFile, names: string[]): void {
-  const existing = sourceFile.getImportDeclaration((d) => d.getModuleSpecifierValue() === '@cherrystudio/ui')
+  // Prefer a value (non-type-only) import — a `import type {…}` declaration cannot
+  // hold value imports, so adding to it would make the primitive type-only (TS1361).
+  const existing = sourceFile
+    .getImportDeclarations()
+    .find((d) => d.getModuleSpecifierValue() === '@cherrystudio/ui' && !d.isTypeOnly())
   if (!existing) {
     sourceFile.addImportDeclaration({
       moduleSpecifier: '@cherrystudio/ui',
@@ -258,9 +262,29 @@ function run(): void {
         continue
       }
 
+      // --- space-y-N on a plain (non-flex/grid) div -> VStack ---
+      // VStack's align="stretch" default + gap reproduce a block stack's full-width
+      // children and inter-child spacing; only convert true block stacks.
+      const spaceYTok = tokens.find((t) => /^space-y-\d+(\.\d+)?$/.test(t))
+      if (spaceYTok && !has('flex') && !has('inline-flex') && !has('grid')) {
+        const raw = Number(spaceYTok.slice('space-y-'.length))
+        const rounded = roundGapDown(raw)
+        const remaining = tokens.filter((t) => t !== spaceYTok)
+        report.vstack.push({
+          file: rel,
+          line,
+          gap: rounded,
+          ...(raw !== rounded ? { rounded: { from: raw, to: rounded } } : {})
+        })
+        if (apply) {
+          transformElement(element, 'VStack', remaining, [{ name: 'gap', initializer: `{${rounded}}` }])
+          markChanged('VStack')
+        }
+        continue
+      }
+
       // --- Report-only candidates (display/structure change — migrate by hand) ---
       if (isTruncationRow) report.truncatingRow.push({ file: rel, line, className })
-      else if (tokens.some((t) => /^space-y-\d/.test(t))) report.spaceY.push({ file: rel, line, className })
     }
 
     if (apply && fileChanged) {

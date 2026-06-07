@@ -8,10 +8,12 @@ import {
   ContextMenuSubContent,
   ContextMenuSubTrigger,
   ContextMenuTrigger,
+  HStack,
   Input,
   Popover,
   PopoverContent,
-  PopoverTrigger
+  PopoverTrigger,
+  VStack
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
@@ -277,7 +279,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
   )
 
   const renderActionMenu = (property: ParsedProperty) => (
-    <div className="flex flex-col gap-1">
+    <VStack gap={1}>
       <button
         type="button"
         className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent"
@@ -315,7 +317,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
         <Trash2 size={14} />
         {t('richEditor.frontMatter.deleteProperty')}
       </button>
-    </div>
+    </VStack>
   )
 
   // Render property value based on type
@@ -326,7 +328,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
       const isShowingInput = showArrayInput[property.key]
 
       return (
-        <div className="flex flex-1 flex-wrap items-center gap-1.5">
+        <HStack className="flex-1 flex-wrap" gap={1}>
           {property.value.map((item, index) => (
             <span
               key={index}
@@ -373,7 +375,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
               <Plus size={12} />
             </button>
           )}
-        </div>
+        </HStack>
       )
     }
 
@@ -462,7 +464,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
                   {property.key}
                 </div>
                 {renderPropertyValue(property)}
-                <div className="mr-1 ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                <HStack className="mr-1 ml-auto opacity-0 transition-opacity group-hover:opacity-100" gap={1}>
                   <Popover
                     open={openDropdown === `action-${property.key}`}
                     onOpenChange={(open) => {
@@ -481,7 +483,7 @@ const YamlFrontMatterNodeView: React.FC<NodeViewProps> = ({ node, updateAttribut
                       {renderActionMenu(property)}
                     </PopoverContent>
                   </Popover>
-                </div>
+                </HStack>
               </div>
             </ContextMenuTrigger>
             {renderContextMenu(property)}

@@ -152,7 +152,30 @@ vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
+  // Layout primitives (composites/flex): passthrough <div> stubs. Layout-only props
+  // are stripped so they don't leak onto the DOM; className/children/handlers pass through.
+  const layoutStub =
+    (extraOmit = []) =>
+    ({ children, ...props }) => {
+      for (const key of ['direction', 'align', 'justify', 'gap', 'wrap', 'inline', 'asChild', ...extraOmit])
+        delete props[key]
+      return React.createElement('div', props, children)
+    }
   return {
+    Box: layoutStub(),
+    Flex: layoutStub(),
+    HStack: layoutStub(),
+    VStack: layoutStub(),
+    Stack: layoutStub(),
+    Center: layoutStub(),
+    Grid: layoutStub(['columns', 'flow']),
+    PageShell: layoutStub(['scroll']),
+    Container: layoutStub(['size', 'padded', 'fluid']),
+    Spacer: layoutStub(),
+    TruncatingRow: ({ children, leading, trailing, ...props }) => {
+      for (const key of ['gap', 'align', 'justify', 'wrap', 'asChild']) delete props[key]
+      return React.createElement('div', props, leading, children, trailing)
+    },
     Button: ({ children, onPress, disabled, isDisabled, startContent, asChild, ...props }) => {
       const buttonProps = { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled }
       if (asChild && React.isValidElement(children)) {

@@ -3,6 +3,7 @@ import {
   AvatarFallback,
   Button,
   Checkbox,
+  HStack,
   Input,
   Popover,
   PopoverContent,
@@ -221,7 +222,7 @@ function ModelRow({
       </div>
       {/* 右侧：tags — 容器固定 h-4，所有 tag h-full + items-center，消除 SVG/iconfont/纯文字渲染高度差 */}
       {rowTags.length > 0 && (
-        <div className="ml-2 flex h-4 max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+        <HStack className="ml-2 h-4 max-w-[65%] shrink-0 justify-end overflow-hidden" gap={1}>
           {rowTags.map((tag) => (
             <ModelTagChip
               key={`${item.key}-${tag}`}
@@ -232,7 +233,7 @@ function ModelRow({
               className="h-full items-center"
             />
           ))}
-        </div>
+        </HStack>
       )}
       {/* Pin 按钮 — 悬浮/置顶时显示 */}
       {showPinActions && (
@@ -586,7 +587,7 @@ export function ModelSelector(props: ModelSelectorProps) {
           item.groupKind === 'pinned' ? t('models.pinned') : item.provider ? getProviderDisplayName(item.provider) : ''
 
         return (
-          <div className="group flex h-7 items-center gap-1 bg-popover px-3 text-[11px] text-muted-foreground">
+          <HStack className="group h-7 bg-popover px-3 text-[11px] text-muted-foreground" gap={1}>
             <span className="truncate">{groupTitle}</span>
             {item.provider && item.canNavigateToSettings && (
               <Tooltip content={t('navigate.provider_settings')} delay={500}>
@@ -604,7 +605,7 @@ export function ModelSelector(props: ModelSelectorProps) {
                 </Button>
               </Tooltip>
             )}
-          </div>
+          </HStack>
         )
       }
 
@@ -656,7 +657,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         sideOffset={sideOffset}
         className={cn('max-h-140 w-90 overflow-hidden rounded-lg p-0 py-1', contentClassName)}
         data-testid="model-selector-content">
-        <div className="flex items-center gap-2 border-border/60 border-b px-3 py-2.5">
+        <HStack className="border-border/60 border-b px-3 py-2.5" gap={2}>
           <Search className="pointer-events-none size-3.25 shrink-0 text-muted-foreground/50" />
           <Input
             ref={inputRef}
@@ -678,10 +679,10 @@ export function ModelSelector(props: ModelSelectorProps) {
               }
             }}
           />
-        </div>
+        </HStack>
 
         {showTagFilter && availableTags.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 border-border/60 border-b px-3 py-2">
+          <HStack className="flex-wrap border-border/60 border-b px-3 py-2" gap={1}>
             <span className="mr-1 text-[10px] text-muted-foreground">{t('models.filter.by_tag')}</span>
             {availableTags.map((tag) => (
               <ModelTagChip
@@ -694,13 +695,14 @@ export function ModelSelector(props: ModelSelectorProps) {
                 className="transition-colors"
               />
             ))}
-          </div>
+          </HStack>
         )}
 
         {multiple && (
-          <div
-            className="flex items-center justify-between gap-3 border-border/60 border-b px-3 py-2"
-            data-testid="model-selector-multi-select-row">
+          <HStack
+            className="justify-between border-border/60 border-b px-3 py-2"
+            data-testid="model-selector-multi-select-row"
+            gap={3}>
             <span className="min-w-0 truncate text-[10px] text-muted-foreground">{t('models.multi_select.label')}</span>
             <Switch
               checked={multiSelectMode}
@@ -708,7 +710,7 @@ export function ModelSelector(props: ModelSelectorProps) {
               data-testid="model-selector-multi-select-switch"
               onCheckedChange={handleMultiSelectModeChange}
             />
-          </div>
+          </HStack>
         )}
 
         {listItems.length > 0 ? (

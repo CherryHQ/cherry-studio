@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
+  HStack,
   Input,
   Label,
   Select,
@@ -17,7 +18,8 @@ import {
   Spinner,
   Switch,
   TreeSelect,
-  type TreeSelectOption
+  type TreeSelectOption,
+  VStack
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -419,7 +421,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
           <DialogTitle>{i18n.t('chat.topics.export.obsidian_atributes')}</DialogTitle>
         </DialogHeader>
         {error && <Alert className="mb-1" message={error} type="error" showIcon />}
-        <div className="space-y-4">
+        <VStack gap={4}>
           <FormRow label={i18n.t('chat.topics.export.obsidian_title')}>
             <Input
               value={state.title}
@@ -451,7 +453,7 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
             />
           </FormRow>
           <FormRow label={i18n.t('chat.topics.export.obsidian_operate')}>
-            <div className="flex items-center gap-2">
+            <HStack gap={2}>
               <Select
                 value={state.processingMethod || undefined}
                 onValueChange={(value) => handleChange('processingMethod', value)}>
@@ -479,14 +481,14 @@ const PopupContainer: React.FC<PopupContainerProps> = ({
                 onClick={() => handleChange('processingMethod', undefined)}>
                 <XIcon size={14} />
               </Button>
-            </div>
+            </HStack>
           </FormRow>
           {!rawContent && (
             <FormRow label={i18n.t('chat.topics.export.obsidian_reasoning')}>
               <Switch checked={exportReasoning} onCheckedChange={setExportReasoning} />
             </FormRow>
           )}
-        </div>
+        </VStack>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={handleCancel}>
             {i18n.t('common.cancel')}

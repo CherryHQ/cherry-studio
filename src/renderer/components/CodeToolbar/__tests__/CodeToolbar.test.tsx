@@ -41,7 +41,7 @@ vi.mock('../button', () => ({
 
 vi.mock('@cherrystudio/ui', () => ({
   Tooltip: mocks.Tooltip,
-  RowFlex: mocks.RowFlex
+  HStack: mocks.RowFlex
 }))
 
 vi.mock('./styles', () => ({

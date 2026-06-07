@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, HStack, VStack } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { extractHtmlTitle, getFileNameFromHtmlTitle } from '@renderer/utils/formats'
@@ -47,7 +47,7 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
   return (
     <>
       <div className="mt-0 mb-2.5 overflow-hidden rounded-md border border-border bg-background">
-        <div className="flex items-center gap-3 rounded-t-md border-border border-b bg-muted/50 px-6 pt-5 pb-4">
+        <HStack className="rounded-t-md border-border border-b bg-muted/50 px-6 pt-5 pb-4" gap={3}>
           <div
             className={cn(
               'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-white shadow-sm transition-colors',
@@ -57,23 +57,23 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
             )}>
             {isStreaming ? <Sparkles size={20} /> : <Globe size={20} />}
           </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <VStack className="min-w-0 flex-1" gap={1}>
             <span className="truncate font-['Ubuntu'] font-bold text-foreground text-sm leading-snug">{title}</span>
             <div className="inline-flex w-fit items-center gap-1 rounded-md border border-border bg-muted px-1.5 py-0.75 font-medium text-[10px] text-muted-foreground">
               <Code size={12} />
               <span>HTML</span>
             </div>
-          </div>
-        </div>
+          </VStack>
+        </HStack>
 
         <div className="bg-background">
           {isStreaming && !hasContent ? (
-            <div className="flex min-h-[78px] items-center justify-center gap-2 p-5">
+            <HStack className="min-h-[78px] justify-center p-5" gap={2}>
               <ClipLoader size={20} color="var(--color-primary)" />
               <div className="text-muted-foreground text-sm">
                 {t('html_artifacts.generating', 'Generating content...')}
               </div>
-            </div>
+            </HStack>
           ) : isStreaming && hasContent ? (
             <>
               <div className="m-4 overflow-hidden rounded-md bg-muted font-mono dark:bg-neutral-900">

@@ -1,3 +1,4 @@
+import { HStack } from '@cherrystudio/ui'
 import {
   isEmbeddingModel,
   isFunctionCallingModel,
@@ -74,10 +75,11 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   }, [maxWidth, showLabel])
 
   return (
-    <div
+    <HStack
       ref={containerRef}
-      className="flex flex-row flex-nowrap items-center gap-1 overflow-x-scroll [&::-webkit-scrollbar]:hidden"
-      style={style}>
+      className="flex-row flex-nowrap overflow-x-scroll [&::-webkit-scrollbar]:hidden"
+      style={style}
+      gap={1}>
       {isVisionModel(model) && <VisionTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
       {isWebSearchModel(model) && <WebSearchTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
       {showReasoning && isReasoningModel(model) && (
@@ -89,7 +91,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
       {isEmbeddingModel(model) && <EmbeddingTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
       {showFree && isFreeModel(model) && <FreeTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
       {isRerankModel(model) && <RerankerTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
-    </div>
+    </HStack>
   )
 }
 

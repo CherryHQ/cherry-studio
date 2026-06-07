@@ -1,3 +1,4 @@
+import { HStack } from '@cherrystudio/ui'
 import { isMac } from '@renderer/config/constant'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn } from '@renderer/utils'
@@ -109,22 +110,23 @@ export function Sidebar({
           onMouseEnter={() => {
             if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
           }}>
-          <div className="flex h-14 shrink-0 items-center gap-2.5 px-4 [-webkit-app-region:drag]">
+          <HStack className="h-14 shrink-0 px-4 [-webkit-app-region:drag]" gap={2}>
             {renderLogo()}
             <span className="truncate text-sidebar-foreground text-sm">{title}</span>
-          </div>
+          </HStack>
 
           {showSearch && (
             <div className="px-3 py-2">
-              <div
+              <HStack
                 onClick={() => {
                   onSearchClick?.()
                   handleDismiss()
                 }}
-                className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2.5 py-1.5 text-muted-foreground text-xs transition-colors [-webkit-app-region:no-drag] hover:bg-accent">
+                className="cursor-pointer rounded-md bg-sidebar-accent/50 px-2.5 py-1.5 text-muted-foreground text-xs transition-colors [-webkit-app-region:no-drag] hover:bg-accent"
+                gap={2}>
                 <Search size={13} />
                 <span>{searchLabel}</span>
-              </div>
+              </HStack>
             </div>
           )}
 
@@ -192,12 +194,13 @@ export function Sidebar({
       {showSearch &&
         (layout === 'full' ? (
           <div className="px-3 py-2">
-            <div
+            <HStack
               onClick={onSearchClick}
-              className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-1.5 text-muted-foreground text-xs transition-colors [-webkit-app-region:no-drag] hover:bg-accent">
+              className="cursor-pointer rounded-md bg-sidebar-accent px-2.5 py-1.5 text-muted-foreground text-xs transition-colors [-webkit-app-region:no-drag] hover:bg-accent"
+              gap={2}>
               <Search size={13} />
               <span>{searchLabel}</span>
-            </div>
+            </HStack>
           </div>
         ) : (
           <div className="flex justify-center py-1.5 [-webkit-app-region:no-drag]">

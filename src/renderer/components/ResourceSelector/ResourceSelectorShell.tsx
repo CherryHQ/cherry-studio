@@ -9,7 +9,9 @@ import {
   EntitySelector,
   type EntitySelectorRowContext,
   type EntitySelectorSection,
-  Separator
+  HStack,
+  Separator,
+  VStack
 } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils'
 import { ArrowDown, ArrowUp, Bolt, Check, ChevronRight, Pencil, Pin, Plus } from 'lucide-react'
@@ -447,9 +449,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const filterActive = selectedTagIds.length > 0 || selectedSortId !== null
 
   const filterPanel = hasFilterControls ? (
-    <div className="space-y-1.5">
+    <VStack gap={1}>
       {tags && tags.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-1.5">
+        <HStack className="flex-wrap" gap={1}>
           {tags.map((tag) => {
             const active = selectedTagIds.includes(tag)
             return (
@@ -469,10 +471,10 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
               </button>
             )
           })}
-        </div>
+        </HStack>
       ) : null}
       {sortOptions && sortOptions.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-1.5">
+        <HStack className="flex-wrap" gap={1}>
           <span className="text-muted-foreground/35 text-xs">{labels.sortLabel}</span>
           {sortOptions.map((s) => {
             const active = selectedSortId === s.id
@@ -492,9 +494,9 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
               </button>
             )
           })}
-        </div>
+        </HStack>
       ) : null}
-    </div>
+    </VStack>
   ) : undefined
 
   const multiToggleLabel = 'multiToggleLabel' in props ? props.multiToggleLabel : null

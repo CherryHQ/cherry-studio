@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, VStack } from '@cherrystudio/ui'
 import { Smartphone } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
@@ -73,17 +73,17 @@ export const PopupContainer: FC<PopupContainerProps> = ({ resolve }) => {
         <DialogHeader>
           <DialogTitle>{contentTitle}</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-3">
+        <VStack gap={3}>
           {/* Error Display */}
           {lastError && <div className="text-error-base text-xs">{lastError}</div>}
 
           {/* Device List */}
-          <div className="mt-2 flex flex-col gap-3">
+          <VStack className="mt-2" gap={3}>
             {lanDevices.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+              <VStack className="items-center justify-center py-10 text-center" gap={3}>
                 <Smartphone size={60} color="var(--color-foreground-muted)" />
                 <span>{t('settings.data.export_to_phone.lan.no_connection_warning')}</span>
-              </div>
+              </VStack>
             ) : (
               // Device cards
               lanDevices.map((service) => {
@@ -105,8 +105,8 @@ export const PopupContainer: FC<PopupContainerProps> = ({ resolve }) => {
                 )
               })
             )}
-          </div>
-        </div>
+          </VStack>
+        </VStack>
       </DialogContent>
     </Dialog>
   )

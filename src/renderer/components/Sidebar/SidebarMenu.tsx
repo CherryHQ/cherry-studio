@@ -1,4 +1,4 @@
-import { MenuItem } from '@cherrystudio/ui'
+import { MenuItem, VStack } from '@cherrystudio/ui'
 
 import { ActiveIndicator, MiniAppIcon } from './primitives'
 import { SidebarTooltip } from './Tooltip'
@@ -23,7 +23,7 @@ type MenuItemsProps = Omit<SidebarMenuProps, 'layout'>
 
 function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }: MenuItemsProps) {
   return (
-    <div className="flex flex-col items-center gap-0.5 px-1.5 [-webkit-app-region:no-drag]">
+    <VStack className="items-center px-1.5 [-webkit-app-region:no-drag]" gap={0}>
       {items.map((item) => {
         const isActive = activeItem === item.id
         const Icon = item.icon
@@ -61,20 +61,20 @@ function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
           </div>
         )
       })}
-    </div>
+    </VStack>
   )
 }
 
 function VerticalCardMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }: MenuItemsProps) {
   return (
-    <div className="flex flex-col items-center gap-1 px-1.5 [-webkit-app-region:no-drag]">
+    <VStack className="items-center px-1.5 [-webkit-app-region:no-drag]" gap={1}>
       {items.map((item) => {
         const isActive = activeItem === item.id
         const Icon = item.icon
         const miniTabs = item.miniAppTabs ?? []
 
         return (
-          <div key={item.id} className="flex w-full flex-col gap-1">
+          <VStack key={item.id} className="w-full" gap={1}>
             <button
               type="button"
               onClick={() => void onItemClick(item.id)}
@@ -103,16 +103,16 @@ function VerticalCardMenuItems({ items, activeItem, activeTabId, onItemClick, on
                 <span className="max-w-[50px] truncate text-[8px] leading-tight">{miniTab.title}</span>
               </button>
             ))}
-          </div>
+          </VStack>
         )
       })}
-    </div>
+    </VStack>
   )
 }
 
 function FullMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }: MenuItemsProps) {
   return (
-    <div className="space-y-0.5 px-2 [-webkit-app-region:no-drag]">
+    <VStack className="px-2 [-webkit-app-region:no-drag]" gap={0}>
       {items.map((item) => {
         const isActive = activeItem === item.id
         const Icon = item.icon
@@ -150,6 +150,6 @@ function FullMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
           </div>
         )
       })}
-    </div>
+    </VStack>
   )
 }

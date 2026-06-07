@@ -6,7 +6,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Spinner
+  Spinner,
+  VStack
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { importChatGPTConversations } from '@renderer/services/import'
@@ -95,7 +96,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           <DialogTitle>{t('import.chatgpt.title')}</DialogTitle>
         </DialogHeader>
         {!selecting && !importing && (
-          <div className="flex w-full flex-col gap-3">
+          <VStack className="w-full" gap={3}>
             <div>{t('import.chatgpt.description')}</div>
             <Alert
               message={t('import.chatgpt.help.title')}
@@ -109,7 +110,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
               type="info"
               showIcon
             />
-          </div>
+          </VStack>
         )}
         {selecting && (
           <div className="flex justify-center py-10">

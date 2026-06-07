@@ -5,7 +5,8 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
+  VStack
 } from '@cherrystudio/ui'
 import { getRestoreProgressLabel } from '@renderer/i18n/label'
 import { restore } from '@renderer/services/BackupService'
@@ -74,7 +75,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         </DialogHeader>
         {!progressData && <div>{t('restore.content')}</div>}
         {progressData && (
-          <div className="flex flex-col items-center gap-4 py-5 text-center">
+          <VStack className="items-center py-5 text-center" gap={4}>
             <CircularProgress
               value={Math.floor(progressData.progress)}
               size={72}
@@ -83,7 +84,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
               renderLabel={(progress) => `${progress}%`}
             />
             <div>{getProgressText()}</div>
-          </div>
+          </VStack>
         )}
         <DialogFooter>
           <Button variant="outline" disabled={isDisabled} onClick={onCancel}>

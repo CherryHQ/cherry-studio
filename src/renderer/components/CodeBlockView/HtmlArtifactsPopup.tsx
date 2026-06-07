@@ -5,6 +5,7 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  HStack,
   MenuItem,
   MenuList,
   Popover,
@@ -14,7 +15,8 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
   SegmentedControl,
-  Tooltip
+  Tooltip,
+  VStack
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { CopyIcon, FilePngIcon } from '@renderer/components/Icons'
@@ -54,7 +56,7 @@ const CodePanel = memo<CodePanelProps>(({ codeEditorRef, html, onSave, saved, on
           keymap: true
         }}
       />
-      <div className="absolute right-4 bottom-4 z-10 flex flex-col items-center gap-1">
+      <VStack className="absolute right-4 bottom-4 z-10 items-center" gap={1}>
         <Tooltip content={saveLabel}>
           <Button
             size="icon"
@@ -63,7 +65,7 @@ const CodePanel = memo<CodePanelProps>(({ codeEditorRef, html, onSave, saved, on
             {saved ? <Check size={16} className="text-success" /> : <SaveIcon size={16} className="custom-lucide" />}
           </Button>
         </Tooltip>
-      </div>
+      </VStack>
     </div>
   )
 })
@@ -279,9 +281,10 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
               />
             </div>
 
-            <div
-              className="flex flex-1 items-center justify-end gap-2 pr-3 [-webkit-app-region:no-drag]"
-              onDoubleClick={(event) => event.stopPropagation()}>
+            <HStack
+              className="flex-1 justify-end pr-3 [-webkit-app-region:no-drag]"
+              onDoubleClick={(event) => event.stopPropagation()}
+              gap={2}>
               <Popover open={captureOpen} onOpenChange={setCaptureOpen}>
                 <Tooltip content={t('html_artifacts.capture.label')}>
                   <PopoverTrigger asChild>
@@ -311,7 +314,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
               <Button onClick={onClose} variant="ghost" size="icon">
                 <X size={16} />
               </Button>
-            </div>
+            </HStack>
           </header>
 
           <div className="min-h-0 overflow-hidden bg-background">{renderContent()}</div>

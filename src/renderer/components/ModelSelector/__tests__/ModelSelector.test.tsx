@@ -48,6 +48,10 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
 
 vi.mock('@cherrystudio/ui', () => {
   return {
+    HStack: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => {
+      for (const key of ['align', 'justify', 'gap', 'wrap', 'asChild']) delete props[key]
+      return <div {...props}>{children}</div>
+    },
     Avatar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
     AvatarFallback: ({ children }: { children: ReactNode }) => <span>{children}</span>,
     Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) => {

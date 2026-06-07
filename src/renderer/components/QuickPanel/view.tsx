@@ -1,4 +1,4 @@
-import { Flex } from '@cherrystudio/ui'
+import { Flex, HStack } from '@cherrystudio/ui'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isMac } from '@renderer/config/constant'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -724,7 +724,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             </span>
           </div>
 
-          <div className="flex min-w-[20%] items-center justify-end gap-0.5 text-[11px] text-muted-foreground">
+          <HStack className="min-w-[20%] justify-end text-[11px] text-muted-foreground" gap={0}>
             {item.description && (
               <span className="overflow-hidden text-ellipsis whitespace-nowrap">{item.description}</span>
             )}
@@ -737,7 +737,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
                 item.isMenu && !item.disabled && <ChevronRight size={14} />
               )}
             </span>
-          </div>
+          </HStack>
         </div>
       )
     },
@@ -779,11 +779,11 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             {rowRenderer}
           </DynamicVirtualList>
         )}
-        <div ref={footerRef} className="flex w-full items-center justify-between gap-4 px-3 pt-2 pb-[5px]">
+        <HStack ref={footerRef} className="w-full justify-between px-3 pt-2 pb-[5px]" gap={4}>
           <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-muted-foreground">
             {ctx.title || ''}
           </div>
-          <div className="flex shrink-0 items-center justify-end gap-4 text-[12px] text-muted-foreground">
+          <HStack className="shrink-0 justify-end text-[12px] text-muted-foreground" gap={4}>
             <span>ESC {t('settings.quickPanel.close')}</span>
 
             <Flex className="items-center gap-1">▲▼ {t('settings.quickPanel.select')}</Flex>
@@ -809,8 +809,8 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             )}
 
             <Flex className="items-center gap-1">↩︎ {t('settings.quickPanel.confirm')}</Flex>
-          </div>
-        </div>
+          </HStack>
+        </HStack>
       </div>
     </div>
   )
