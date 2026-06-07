@@ -171,6 +171,36 @@ describe('useSessions', () => {
     expect(created).toBe(mockSession)
   })
 
+  it('returns the created session when refreshing the session list fails', async () => {
+    const refresh = vi.fn().mockRejectedValue(new Error('refresh failed'))
+    const mockSession = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: 'New session',
+      description: 'Notes',
+      workspaceId: 'workspace-1',
+      workspace: null,
+      orderKey: 'a0',
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z'
+    }
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ refresh }) as never)
+    mockCreateAgentSession.mockResolvedValueOnce(mockSession)
+
+    const { result } = renderHook(() => useSessions('agent-1'))
+    const created = await act(async () =>
+      result.current.createSession({
+        name: 'New session',
+        description: 'Notes',
+        workspaceId: 'workspace-1'
+      })
+    )
+
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(created).toBe(mockSession)
+    expect(mockToast.error).toHaveBeenCalled()
+  })
+
   it('shows an error toast and returns null when IPC session creation fails', async () => {
     mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn() as never)
     mockCreateAgentSession.mockRejectedValueOnce(new Error('create failed'))

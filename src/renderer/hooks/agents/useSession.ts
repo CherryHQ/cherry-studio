@@ -110,19 +110,24 @@ export const useSessions = (agentId?: string | null, pageSize = DEFAULT_SESSION_
   const createSession = useCallback(
     async (form: CreateSessionForm): Promise<AgentSessionEntity | null> => {
       if (!agentId) return null
+      let result: AgentSessionEntity
       try {
-        const result = await window.api.agentSession.create({
+        result = await window.api.agentSession.create({
           agentId,
           name: form.name,
           description: form.description,
           workspaceId: form.workspaceId
         })
-        await refresh()
-        return result
       } catch (error) {
         window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.create.error.failed')))
         return null
       }
+
+      await refresh().catch((error) => {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.get.error.failed')))
+      })
+
+      return result
     },
     [agentId, refresh, t]
   )
