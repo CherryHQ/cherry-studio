@@ -1,169 +1,58 @@
 /*
- * `provider-settings-scoped-theme.css` — scoped theme (`.provider-settings-default-scope`)
+ * `provider-settings-scoped-theme.css` — provider detail column (`.provider-settings-default-scope`)
  *
- * Not a second Tailwind build: hand-authored CSS variables + `@container` queries only (no `@tailwind` preflight here).
+ * No forked palette / `--color-*` bridge: the surface inherits the global `:root` / Tailwind v2 theme.
+ * What remains is scope-local and not expressible as a global design token:
+ *  - a tighter radius scale for this dense surface (global small steps are near-square),
+ *  - a few local tokens (opaque drawer surface, provider-list row gap, model-list glyph size,
+ *    scroll max-height, and the two "soft" surfaces that mix over the page background),
+ *  - `@container` queries driving the model-list responsive layout (replaces a JS ResizeObserver).
  *
- * Local semantic palette + atomic layout/type tokens for the **provider detail column** only, so we can tune
- * this surface without changing app-wide `:root` / global Tailwind theme.
- *
- * - **Atoms here** — spacing, radii, font steps, soft borders/surfaces, scroll max-height, chip refs, etc.
- * - **Compose in TS** — `ProviderSettingsPrimitives.tsx` (`actionClasses`, `fieldClasses`, `modelListClasses`, …).
- * - **Bridge `--color-*`** — utilities from `@cherrystudio/ui` often resolve `var(--color-foreground)` etc.; those
- *   are normally `:root`-bound, so this block shadows `--color-*` to the same values as `--foreground`, … inside
- *   the shell only.
- *
- * **Workflow** — add or adjust variables (and bridge) first; then extend `*Classes`; then TSX. Cross-links:
- * `ProviderSetting.tsx` (shell node), `ProviderSettingsPage.tsx` (`provider-settings-layout-cq` + `ModelList` `ps-model-list-cq` + `@container` rules below).
+ * Cross-links: `ProviderSetting.tsx` (shell node); `ProviderSettingsPage.tsx` imports this file and sets
+ * the `provider-settings-layout-cq` + `ps-model-list-cq` containers used by the `@container` rules below.
  */
 .provider-settings-default-scope {
-  --font-size: 16px;
-  --background: var(--cs-background);
+  /* Drawer surfaces stay opaque — the page background can be translucent in dark mode. */
   --drawer-background: oklch(1 0 0);
-  --foreground: var(--cs-foreground);
-  --card: var(--cs-card);
-  --card-foreground: var(--cs-foreground);
-  --popover: var(--cs-popover);
-  --popover-foreground: var(--cs-foreground);
-  --primary: #00b96b;
-  --primary-foreground: #ffffff;
-  --secondary: oklch(0.95 0.0058 264.53);
-  --secondary-foreground: #030213;
-  --muted-foreground: #717182;
-  --accent: #e9ebef;
-  --accent-foreground: #030213;
-  --destructive: #d4183d;
-  --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.1);
-  --input: transparent;
-  --input-background: #f3f3f5;
-  --switch-background: #cbced4;
-  --font-weight-medium: 500;
-  --font-weight-normal: 400;
-  --font-weight-semibold: 600;
-  --font-weight-bold: 700;
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  /* Tighter radius scale for this dense surface (global small steps would render near-square). */
   --radius: 0.625rem;
   --radius-4xs: 0.25rem;
   --radius-3xs: 0.5rem;
   --radius-2xs: 0.625rem;
   --radius-xs: 0.75rem;
   --radius-sm: 0.875rem;
-  /* --radius-md intentionally NOT overridden: it must match the design system default (8px)
-     so `rounded-md` from shared components like Button, Input, Avatar renders consistently. */
+  /* --radius-md intentionally NOT overridden: it must match the design-system default (8px). */
   --radius-lg: 0.625rem;
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
   --radius-3xl: 1.5rem;
   --radius-round: 9999px;
-  /* provider column — `border-section-border` */
-  --section-border: #f0f0ef;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #030213;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --cherry-active-bg: rgba(107, 114, 128, 0.08);
-  --cherry-active-border: rgba(107, 114, 128, 0.15);
-  --cherry-primary: #6b7280;
-  --cherry-primary-hover: #9ca3af;
-  --cherry-primary-dark: #4b5563;
-  --cherry-text-muted: rgba(107, 114, 128, 0.7);
-  /* Provider list — Sortable list uses inline `gap: var(--provider-list-row-gap)` */
+  /* Provider list — Sortable list uses inline `gap: var(--provider-list-row-gap)`. */
   --provider-list-row-gap: 0.5rem;
-  /* Model list capability glyphs — match CustomTag `size` (e.g. 10px) for lucide SVG + iconfont */
+  /* Model list capability glyphs — match CustomTag `size` (e.g. 10px) for lucide SVG + iconfont. */
   --icon-size-model-list-cap: 0.625rem;
-  --color-surface-warning-soft: color-mix(in srgb, var(--destructive) 8%, var(--background));
-  --color-surface-info-soft: color-mix(in srgb, var(--foreground) 4%, var(--background));
-  /* Unify outer list scroller with virtual list max (was 380 vs 390) */
+  /* Soft surfaces that mix over the page background — no `/N` opacity-utility equivalent. */
+  --color-surface-warning-soft: color-mix(in srgb, var(--color-destructive) 8%, var(--color-background));
+  --color-surface-info-soft: color-mix(in srgb, var(--color-foreground) 4%, var(--color-background));
+  /* Unify outer list scroller with virtual list max (was 380 vs 390). */
   --max-height-scroll-sm: 390px;
-  /*
-   * Bridge shadcn-style tokens above to Tailwind `@theme` / `text-foreground` etc.
-   * Those utilities resolve `var(--color-foreground)` from @cherrystudio/ui — that
-   * variable is normally only set on `:root`, so it would NOT follow this scope
-   * unless we shadow `--color-*` here to point at the same values as `--foreground`, …
-   */
-  --color-foreground: var(--foreground);
-  --color-background: var(--background);
-  --color-drawer-background: var(--drawer-background);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-border: var(--border);
-  --color-section-border: var(--section-border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-background);
+  color: var(--color-foreground);
 }
 
-/* Dark: same scope node; only semantic palette overrides (atoms above inherit unless reset here). */
+/* Dark: only the opaque drawer surface flips; the palette inherits global. */
 .dark .provider-settings-default-scope {
-  --background: var(--cs-background);
   --drawer-background: oklch(0 0 0);
-  --foreground: var(--cs-foreground);
-  --card: var(--cs-card);
-  --card-foreground: var(--cs-foreground);
-  --popover: var(--cs-popover);
-  --popover-foreground: var(--cs-foreground);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.269 0 0);
-  --input: oklch(0.269 0 0);
-  --ring: oklch(0.439 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
   --radius-4xs: 0.25rem;
   --radius-3xs: 0.5rem;
   --radius-2xs: 0.625rem;
   --radius-xs: 0.75rem;
   --radius-sm: 0.875rem;
-  /* --radius-md intentionally NOT overridden — see comment in light-mode block. */
   --radius-lg: 0.625rem;
   --radius-xl: 0.75rem;
   --radius-2xl: 1rem;
   --radius-3xl: 1.5rem;
   --radius-round: 9999px;
-  --section-border: #1f201d;
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.269 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
-  --cherry-active-bg: rgba(156, 163, 175, 0.06);
-  --cherry-active-border: rgba(156, 163, 175, 0.1);
-  --cherry-primary: #9ca3af;
-  --cherry-primary-hover: #d1d5db;
-  --cherry-primary-dark: #6b7280;
-  --cherry-text-muted: rgba(156, 163, 175, 0.7);
 }
 
 /*

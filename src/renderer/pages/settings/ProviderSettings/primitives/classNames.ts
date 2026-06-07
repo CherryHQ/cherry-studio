@@ -1,22 +1,17 @@
 import { cn } from '@renderer/utils'
 
 /**
- * Provider settings — design alignment (scoped theme + composition)
+ * Provider settings — composed className bags for the provider detail surface.
  *
- * **Shell** — `ProviderSetting.tsx` wraps the detail column in `.provider-settings-default-scope`. Everything
- * that must follow the provider-settings surface must stay in that subtree so tokens and `--color-*` bridge apply.
+ * The surface uses the global `@cherrystudio/ui` / Tailwind v2 theme directly (`bg-accent`,
+ * `text-muted-foreground`, `border-border`, …) — there is no longer a forked palette or `--color-*`
+ * bridge. The companion `assets/styles/provider-settings-scoped-theme.css` only supplies a tighter
+ * radius scale, a few scope-local tokens (`--provider-list-row-gap`, `--color-surface-*-soft`, glyph
+ * size, opaque drawer surface) and the model-list `@container` queries.
  *
- * **Two layers**
- * - **CSS** — `assets/styles/provider-settings-scoped-theme.css`: atomic vars only (`--font-size-*`, `--space-*`, soft
- *   surfaces, `--color-*` → shadcn/Tailwind). No screen- or feature-prefixed names. When fixed pixels hurt a11y /
- *   readability, prefer named steps and note the tradeoff in a CSS comment.
- * - **TS (this file)** — merge atoms into `actionClasses`, `fieldClasses`, `modelListClasses`, `providerDetailColumnClasses`,
- *   `apiKeyListClasses`, …
- *   Use `var(--*)` in class strings; avoid scattered `text-[Npx]` and inline `fontWeight` styles.
- *
- * **Rules (short)** — Do not satisfy this page by editing global `:root` unless product wants a global change.
- * Figma “infinite” radius exports → `rounded-full` in UI. Secondary actions: `btnNeutral`, not brand primary fill,
- * unless the spec demands emphasis. Execution order: scope vars + bridge in CSS → extend `*Classes` → touch TSX.
+ * Off-scale values with no theme-token equivalent stay as arbitrary utilities (`text-[13px]`,
+ * `leading-[1.25]`). `ProviderSetting.tsx` wraps the column in `.provider-settings-default-scope`;
+ * secondary actions use `btnNeutral`, not a brand primary fill, unless the spec demands emphasis.
  */
 export const providerSettingsTypography = {
   menu: 'text-sm',
@@ -27,15 +22,9 @@ export const providerSettingsTypography = {
   subtitle: 'text-base'
 } as const
 
-/**
- * Input row + icon slots for provider settings, using tokens from `provider-settings-scoped-theme.css`
- * (`.provider-settings-default-scope` — `--border`, `--foreground`, `--cherry-*`).
- * The provider detail shell should include `provider-settings-default-scope` so these inherit correctly.
- */
-/** Connection — `bg-muted/50` strip + `border-section-border` (`provider-settings-scoped-theme.css`).
+/** Connection — `bg-muted/50` strip + `border-border` hairline.
  * Fixed `h-8` (32px) so all input groups in this page line up regardless of trailing-control height. */
-const providerSettingsInputGroupBase =
-  'h-8 rounded-lg border border-[color:var(--section-border)] bg-muted/50 px-2.5 shadow-none'
+const providerSettingsInputGroupBase = 'h-8 rounded-lg border border-border bg-muted/50 px-2.5 shadow-none'
 
 /** Softer focus ring than `@cherrystudio/ui` InputGroup default (`ring-[3px]`) — business-layer override only. */
 const providerSettingsInputGroupFocusOverride =
@@ -50,7 +39,7 @@ export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-medium')
  * Authentication card: bordered container + section title.
  */
 export const authConnectionClasses = {
-  shell: 'rounded-xl border border-[color:var(--section-border)] px-3.5 py-3',
+  shell: 'rounded-xl border border-border px-3.5 py-3',
   body: 'flex flex-col gap-2'
 } as const
 
@@ -66,26 +55,24 @@ export const providerDetailColumnClasses = {
   sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-8'
 } as const
 
-/** Connection-field actions; composes atomic `--space-*`, `--font-size-caption`, `--color-*-soft` from scope CSS. */
+/** Connection-field actions (neutral outline buttons + caption-size labels). */
 export const actionClasses = {
   row: 'flex flex-wrap items-center gap-3',
   icon: 'size-[13px] shrink-0',
   btnBase: 'h-auto min-h-0 gap-2 rounded-lg px-3 py-1.5 text-[13px] leading-[1.25] shadow-none',
   /** Neutral outline (design: action row — no brand fill on check / API-key-list actions). */
-  btnNeutral:
-    'border-border/25 bg-transparent text-foreground/70 hover:bg-[var(--accent)] hover:text-[color:var(--foreground)]'
+  btnNeutral: 'border-border/25 bg-transparent text-foreground/70 hover:bg-accent hover:text-foreground'
 } as const
 
 /** Provider list rows + detached menus. */
 export const providerListClasses = {
-  shell: 'flex h-full w-[200px] shrink-0 basis-[200px] flex-col border-r border-[color:var(--section-border)]',
+  shell: 'flex h-full w-[200px] shrink-0 basis-[200px] flex-col border-r border-border',
   headerIconButton:
     'flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
   searchInlineAddButton:
     'flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-foreground transition-colors hover:bg-accent/40 disabled:pointer-events-none disabled:opacity-30',
   searchRow: 'flex items-center gap-1.5 px-3 pb-2.5',
-  searchWrap:
-    'flex h-8 items-center gap-1 rounded-xl border border-[color:var(--section-border)] bg-background py-1 pl-2.5 pr-1',
+  searchWrap: 'flex h-8 items-center gap-1 rounded-xl border border-border bg-background py-1 pl-2.5 pr-1',
   searchIcon: 'size-4 shrink-0 text-muted-foreground/60',
   searchInput:
     'min-w-0 flex-1 bg-transparent text-sm leading-none text-foreground/80 outline-none placeholder:text-muted-foreground/60',
@@ -96,9 +83,9 @@ export const providerListClasses = {
   sectionHeaderAfterEnabled: 'pt-2',
   sectionLabel: 'mb-0.5 text-xs leading-[1.2] text-foreground-muted',
   emptyState: 'flex h-full min-h-40 items-center justify-center px-3 text-center text-foreground-muted text-[14px]',
-  addWrap: 'shrink-0 border-t border-[color:var(--section-border)] px-2.5 py-2',
+  addWrap: 'shrink-0 border-t border-border px-2.5 py-2',
   addButton:
-    'flex w-full items-center justify-center gap-1.5 rounded-lg border border-[color:var(--section-border)] border-dashed bg-transparent py-[5px] text-xs text-foreground-muted shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
+    'flex w-full items-center justify-center gap-1.5 rounded-lg border border-border border-dashed bg-transparent py-[5px] text-xs text-foreground-muted shadow-none transition-colors hover:border-border hover:bg-accent/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
   item: 'relative flex h-8 w-full items-center justify-between rounded-lg border border-transparent px-2.5 text-left shadow-none outline-none transition-colors focus-visible:ring-0',
   itemSelected: 'bg-muted',
   itemIdle: 'hover:bg-muted',
@@ -119,7 +106,7 @@ export const providerListClasses = {
   itemEnabledDot:
     'pointer-events-none absolute right-2 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
   groupAddRow:
-    'flex w-full items-center gap-2 rounded-xl border border-dashed border-[color:var(--section-border)] bg-transparent px-2 py-[6px] text-xs leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/40 hover:text-foreground',
+    'flex w-full items-center gap-2 rounded-xl border border-dashed border-border bg-transparent px-2 py-[6px] text-xs leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-border hover:bg-accent/40 hover:text-foreground',
   disclosureToggle:
     'flex w-full items-center gap-1.5 rounded-md bg-transparent px-1 py-1 text-left text-xs leading-none text-muted-foreground/80 shadow-none outline-none transition-colors hover:text-foreground focus-visible:ring-0',
   disclosureChevron: 'size-3 shrink-0 text-muted-foreground/60 transition-transform duration-150',
@@ -134,7 +121,7 @@ export const customHeaderDrawerClasses = {
   bodyScroll: 'flex flex-col gap-4 py-3',
   /** JSON mode — matches structured monospace block for custom headers. */
   headersJsonEditor:
-    'min-h-[120px] w-full resize-y rounded-xl border border-[color:var(--section-border)] bg-muted/50 px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground shadow-none outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35 placeholder:text-muted-foreground/45',
+    'min-h-[120px] w-full resize-y rounded-xl border border-border bg-muted/50 px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground shadow-none outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35 placeholder:text-muted-foreground/45',
   /** Header rows stack; each row is `[name] [value] [delete]` on a single line. */
   headerList: 'flex flex-col gap-2',
   headerRow: 'grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] items-center gap-2',
@@ -178,8 +165,7 @@ export const drawerClasses = {
   endpointChipRow: 'flex min-w-0 flex-wrap items-center gap-2',
   footer: 'flex items-center justify-end gap-2',
   /** Model health-check drawer: determinate progress (scoped neutral track + primary fill). */
-  healthProgressTrack:
-    'h-1.5 w-full overflow-hidden rounded-full bg-[color:color-mix(in_srgb,var(--muted-foreground)_12%,transparent)]',
+  healthProgressTrack: 'h-1.5 w-full overflow-hidden rounded-full bg-muted-foreground/12',
   healthProgressFill: 'h-full rounded-full bg-primary transition-[width] duration-300 ease-out',
   healthProgressMeta: 'text-[13px] tabular-nums text-muted-foreground/85',
   healthProgressCurrent: 'truncate text-[13px] text-foreground/80'
@@ -237,7 +223,7 @@ export const modelListClasses = {
   capabilityTabIcon: 'size-3 shrink-0',
   capabilityTabLabel: 'min-w-0 truncate text-xs leading-4',
   capabilityTabsFadeMask:
-    'pointer-events-none absolute inset-y-0 right-0 w-[100px] bg-[linear-gradient(to_right,transparent_0%,var(--background)_85%)]',
+    'pointer-events-none absolute inset-y-0 right-0 w-[100px] bg-[linear-gradient(to_right,transparent_0%,var(--color-background)_85%)]',
   subsectionRow: 'flex min-w-0 items-center justify-between gap-2',
   subsectionTitleWrap: 'flex min-w-0 items-center gap-2',
   subsectionActions: 'flex shrink-0 items-center gap-2 pr-1',
@@ -416,7 +402,7 @@ export const oauthCardClasses = {
   /** Fills the auth column; no max-width so the card tracks the detail pane (fluid layout). */
   container: 'w-full min-w-0',
   /** Aligned with `authConnectionClasses.shell`: `--section-border` hairline, `--radius-xl` (large card), no shadow / fill. */
-  shell: 'w-full min-w-0 overflow-hidden rounded-xl border border-[color:var(--section-border)] px-3.5 py-3',
+  shell: 'w-full min-w-0 overflow-hidden rounded-xl border border-border px-3.5 py-3',
   loginFooterRow: 'mt-2.5 flex items-center justify-center gap-4',
   loginFooterLink:
     'h-auto min-h-0 p-0 text-xs text-muted-foreground/60 shadow-none hover:bg-transparent hover:text-foreground',
@@ -424,7 +410,7 @@ export const oauthCardClasses = {
   /** CherryIN portal link — matches scoped caption + primary link treatment. */
   externalLink: 'mt-1 inline-block text-xs text-primary hover:underline',
   /** Logged-in CherryIN: mock CherryIN account section — one row, no stat grid. */
-  shellLoggedIn: 'w-full min-w-0 overflow-hidden rounded-xl border border-[color:var(--section-border)] p-3.5',
+  shellLoggedIn: 'w-full min-w-0 overflow-hidden rounded-xl border border-border p-3.5',
   loggedInRow: 'flex w-full min-w-0 flex-wrap items-center justify-between gap-3',
   profileMeta: 'flex min-w-0 flex-1 items-center gap-3',
   /** Avatar: 32px round avatar, primary fill, initials (/ CherryIN row). */
@@ -455,7 +441,7 @@ export const oauthCardClasses = {
 
 /** Shared visual for provider-settings icon buttons (bordered, cherry-* hover); size is composed per usage. */
 const fieldIconButtonBase =
-  'flex shrink-0 items-center justify-center rounded-lg border border-[var(--cherry-active-border)] text-[var(--cherry-text-muted)] transition-colors hover:bg-[var(--cherry-active-bg)] hover:text-[var(--cherry-primary-hover)] disabled:pointer-events-none disabled:opacity-40'
+  'flex shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40'
 
 export const fieldClasses = {
   inputRow: 'flex min-w-0 items-center gap-1.5',
@@ -487,5 +473,5 @@ export const fieldClasses = {
   inputActionButton: cn(fieldIconButtonBase, 'size-8'),
   /** Inline show/hide control kept inside the field without adding another border. */
   apiKeyVisibilityToggle:
-    'flex size-5 shrink-0 items-center justify-center text-[var(--cherry-text-muted)] transition-colors hover:text-[var(--cherry-primary-hover)] disabled:pointer-events-none disabled:opacity-40'
+    'flex size-5 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40'
 } as const
