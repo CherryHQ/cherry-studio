@@ -54,7 +54,7 @@ export default function ProviderListItem({
         dragging && 'opacity-65'
       )}>
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
-        <ProviderAvatar provider={provider} size={22} className={providerListClasses.itemAvatar} />
+        <ProviderAvatar provider={provider} size={26} className={providerListClasses.itemAvatar} />
         <span
           className={cn(
             providerListClasses.itemLabel,

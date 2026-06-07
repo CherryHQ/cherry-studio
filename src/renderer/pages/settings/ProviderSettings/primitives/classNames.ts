@@ -78,9 +78,12 @@ export const actionClasses = {
     'border-[color:var(--color-border-default-soft)] bg-transparent text-[color:var(--color-fg-subtle)] hover:bg-[var(--accent)] hover:text-[color:var(--foreground)]'
 } as const
 
+const providerListItemFrame =
+  'relative flex h-8 w-full items-center justify-between rounded-[10px] border border-transparent py-0 pr-2.5 pl-1.5 text-left shadow-none outline-none transition-colors focus-visible:ring-0'
+
 /** Provider list rows + detached menus. */
 export const providerListClasses = {
-  shell: 'flex h-full w-[200px] shrink-0 basis-[200px] flex-col border-r border-[color:var(--section-border)]',
+  shell: 'flex h-full w-[232px] shrink-0 basis-[232px] flex-col border-r border-[color:var(--section-border)]',
   headerIconButton:
     'flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
   searchInlineAddButton:
@@ -101,16 +104,15 @@ export const providerListClasses = {
   addWrap: 'shrink-0 border-t border-[color:var(--section-border)] px-2.5 py-2',
   addButton:
     'flex w-full items-center justify-center gap-1.5 rounded-lg border border-[color:var(--section-border)] border-dashed bg-transparent py-[5px] text-xs text-foreground-muted shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
-  item: 'relative flex h-8 w-full items-center justify-between rounded-[10px] border border-transparent px-2.5 text-left shadow-none outline-none transition-colors focus-visible:ring-0',
+  item: providerListItemFrame,
   itemSelected: 'bg-muted',
   itemIdle: 'hover:bg-muted',
   itemAvatar: 'shrink-0 rounded-lg border border-border/30',
   itemLabel: 'truncate text-sm leading-[1.35]',
   itemMenuContent: 'w-fit min-w-32 rounded-xl p-1.5',
   itemMenuEntry: 'h-8 rounded-lg px-2.5 text-sm',
-  groupHeader:
-    'relative flex w-full items-center justify-between rounded-xl border border-transparent pl-2 pr-1.5 py-2 text-left shadow-none outline-none transition-colors hover:bg-accent/50 focus-visible:ring-0',
-  groupHeaderHasSelected: 'bg-muted/30 dark:bg-muted/25',
+  groupHeader: cn(providerListItemFrame, 'hover:bg-muted'),
+  groupHeaderHasSelected: 'bg-muted',
   groupChevron: 'shrink-0 text-muted-foreground/60 transition-transform duration-150',
   groupChevronOpen: 'rotate-90',
   groupCount: 'shrink-0 text-[length:var(--font-size-body-xs)] leading-none text-muted-foreground/60 tabular-nums',
@@ -119,9 +121,9 @@ export const providerListClasses = {
     'absolute right-1.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 data-[active=true]:opacity-100',
   /** Enabled-state dot — shown when `provider.isEnabled` is true; hidden on row hover or focus so the kebab takes the slot. */
   itemEnabledDot:
-    'pointer-events-none absolute right-2 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
+    'pointer-events-none absolute right-[13px] top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
   groupAddRow:
-    'flex w-full items-center gap-2 rounded-xl border border-dashed border-[color:var(--section-border)] bg-transparent px-2 py-[6px] text-[length:var(--font-size-body-xs)] leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/40 hover:text-foreground',
+    'flex w-full items-center gap-2 rounded-[10px] border border-dashed border-[color:var(--section-border)] bg-transparent px-2 py-[6px] text-[length:var(--font-size-body-xs)] leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/40 hover:text-foreground',
   disclosureToggle:
     'flex w-full items-center gap-1.5 rounded-md bg-transparent px-1 py-1 text-left text-[length:var(--font-size-body-xs)] leading-none text-muted-foreground/80 shadow-none outline-none transition-colors hover:text-foreground focus-visible:ring-0',
   disclosureChevron: 'size-3 shrink-0 text-muted-foreground/60 transition-transform duration-150',

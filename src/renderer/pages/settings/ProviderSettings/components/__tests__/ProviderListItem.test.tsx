@@ -34,10 +34,10 @@ describe('ProviderListItem', () => {
     expect(screen.getByText('硅基流动')).toHaveClass('font-medium')
   })
 
-  it('renders provider logos at 22px in the list', () => {
+  it('renders provider logos at 26px in the list', () => {
     render(<ProviderListItem provider={provider} selected={false} dragging={false} onClick={vi.fn()} />)
 
-    expect(providerAvatarMock).toHaveBeenCalledWith(expect.objectContaining({ size: 22 }))
+    expect(providerAvatarMock).toHaveBeenCalledWith(expect.objectContaining({ size: 26 }))
   })
 
   it('shows an enabled-state dot when provider.isEnabled is true', () => {

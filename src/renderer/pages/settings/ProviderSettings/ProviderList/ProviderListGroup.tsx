@@ -67,17 +67,17 @@ export default function ProviderListGroup({
         data-has-selected={containsSelected ? 'true' : 'false'}
         onClick={onToggle}
         className={cn(providerListClasses.groupHeader, headerHighlight && providerListClasses.groupHeaderHasSelected)}>
-        <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <ProviderAvatar
             provider={{ id: presetProviderId, name: label }}
-            size={18}
+            size={26}
             className={providerListClasses.itemAvatar}
           />
           <span className={cn(providerListClasses.itemLabel, 'text-foreground')}>{label}</span>
           <span className={providerListClasses.groupCount}>{members.length}</span>
         </div>
         <ChevronRight
-          size={10}
+          size={12}
           className={cn(providerListClasses.groupChevron, expanded && providerListClasses.groupChevronOpen)}
         />
       </button>
