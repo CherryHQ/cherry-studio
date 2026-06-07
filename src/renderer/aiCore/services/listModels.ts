@@ -225,6 +225,7 @@ const anthropicFetcher: ModelFetcher = {
     }
     const models: z.infer<typeof AnthropicModelsResponseSchema>['data'] = []
     let afterId: string | undefined
+    const seenCursors = new Set<string>()
 
     do {
       const searchParams = new URLSearchParams({ limit: '1000' })
@@ -236,7 +237,16 @@ const anthropicFetcher: ModelFetcher = {
         abortSignal: signal
       })
       models.push(...response.data)
-      afterId = response.has_more && response.last_id ? response.last_id : undefined
+      const nextAfterId = response.has_more && response.last_id ? response.last_id : undefined
+      if (nextAfterId && seenCursors.has(nextAfterId)) {
+        logger.warn('Stopping Anthropic model pagination due to repeated cursor', {
+          providerId: provider.id,
+          cursor: nextAfterId
+        })
+        break
+      }
+      if (nextAfterId) seenCursors.add(nextAfterId)
+      afterId = nextAfterId
     } while (afterId)
 
     return dedup(models, (m) => m.id).map((m) =>
@@ -264,6 +274,7 @@ const vertexFetcher: ModelFetcher = {
         try {
           const publisherModels: z.infer<typeof VertexPublisherModelsResponseSchema>['publisherModels'] = []
           let pageToken: string | undefined
+          const seenTokens = new Set<string>()
 
           do {
             const searchParams = new URLSearchParams({
@@ -283,7 +294,17 @@ const vertexFetcher: ModelFetcher = {
             })
 
             publisherModels.push(...response.publisherModels)
-            pageToken = response.nextPageToken
+            const nextToken = response.nextPageToken
+            if (nextToken && seenTokens.has(nextToken)) {
+              logger.warn('Stopping Vertex model pagination due to repeated cursor', {
+                providerId: provider.id,
+                publisher,
+                cursor: nextToken
+              })
+              break
+            }
+            if (nextToken) seenTokens.add(nextToken)
+            pageToken = nextToken
           } while (pageToken)
 
           return publisherModels
