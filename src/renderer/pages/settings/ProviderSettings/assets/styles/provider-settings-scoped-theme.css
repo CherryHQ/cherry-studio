@@ -82,22 +82,8 @@
    * Atomic tokens for this scope (spacing / type / soft surfaces). Compose in components; do not name by screen.
    * Caption scale 0.8125rem aligns with endpoint tabs here; section titles use larger type for hierarchy.
    */
-  --space-inline-xs: 0.375rem;
-  --space-inline-sm: 0.5rem;
-  --space-inline-md: 0.75rem;
-  --space-stack-2xs: 0.25rem;
-  --space-stack-xs: 0.5rem;
-  --space-stack-sm: 0.625rem;
-  --space-stack-md: 0.75rem;
-  --space-stack-lg: 1.5rem;
   --font-size-caption: 0.8125rem;
   --line-height-caption: 1.25;
-  --padding-x-control: 0.75rem;
-  --padding-y-control: 0.375rem;
-  --padding-x-control-compact: 0.5rem;
-  --padding-y-control-compact: 0.1875rem;
-  --icon-size-caption: 0.8125rem;
-  --icon-size-body-xs: 0.75rem;
   /* Model list capability glyphs — match CustomTag `size` (e.g. 10px) for lucide SVG + iconfont */
   --icon-size-model-list-cap: 0.625rem;
   --color-border-default-soft: color-mix(in srgb, var(--border) 25%, transparent);
@@ -133,7 +119,6 @@
   --color-border-warning-soft: color-mix(in srgb, var(--destructive) 22%, transparent);
   --color-surface-info-soft: color-mix(in srgb, var(--foreground) 4%, var(--background));
   --color-border-info-soft: color-mix(in srgb, var(--foreground) 12%, transparent);
-  --padding-x-list-group: 0.875rem;
   /* Unify outer list scroller with virtual list max (was 380 vs 390) */
   --max-height-scroll-sm: 390px;
   /*

@@ -68,10 +68,10 @@ export const providerDetailColumnClasses = {
 
 /** Connection-field actions; composes atomic `--space-*`, `--font-size-caption`, `--color-*-soft` from scope CSS. */
 export const actionClasses = {
-  row: 'flex flex-wrap items-center gap-[length:var(--space-inline-md)]',
-  icon: 'size-[length:var(--icon-size-caption)] shrink-0',
+  row: 'flex flex-wrap items-center gap-3',
+  icon: 'size-[13px] shrink-0',
   btnBase:
-    'h-auto min-h-0 gap-2 rounded-lg px-[length:var(--padding-x-control)] py-[length:var(--padding-y-control)] text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] shadow-none',
+    'h-auto min-h-0 gap-2 rounded-lg px-3 py-1.5 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] shadow-none',
   /** Neutral outline (design: action row — no brand fill on check / API-key-list actions). */
   btnNeutral:
     'border-[color:var(--color-border-default-soft)] bg-transparent text-[color:var(--color-fg-subtle)] hover:bg-[var(--accent)] hover:text-[color:var(--foreground)]'
@@ -189,13 +189,13 @@ export const drawerClasses = {
 /** Model list block; composes atomic tokens from `provider-settings-scoped-theme.css` under `.provider-settings-default-scope`. */
 export const modelListClasses = {
   /** Inline-size container for `@container model-list` rules in `provider-settings-scoped-theme.css` (replaces JS width measurement). */
-  cqRoot: 'ps-model-list-cq flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-[length:var(--space-stack-sm)]',
-  section: 'flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-[length:var(--space-stack-sm)]',
-  headerBlock: 'flex min-h-0 min-w-0 w-full flex-1 flex-col gap-[length:var(--space-stack-lg)]',
+  cqRoot: 'ps-model-list-cq flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-2.5',
+  section: 'flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-2.5',
+  headerBlock: 'flex min-h-0 min-w-0 w-full flex-1 flex-col gap-6',
   titleRow: 'flex min-w-0 w-full flex-wrap items-center justify-between gap-3',
   /** Model list header stack — matches model list block. */
-  headerToolStack: 'flex min-w-0 w-full flex-col gap-[length:var(--space-stack-lg)]',
-  titleWrap: 'flex min-w-0 items-baseline gap-[length:var(--space-inline-md)]',
+  headerToolStack: 'flex min-w-0 w-full flex-col gap-6',
+  titleWrap: 'flex min-w-0 items-baseline gap-3',
   titleActions: 'flex max-w-full flex-1 flex-wrap items-center justify-end gap-2',
   toolbarDesignIcon: 'size-4 shrink-0',
   /** Connected top-row model list actions; uses shared ButtonGroup + Button outline primitives. */
@@ -207,11 +207,11 @@ export const modelListClasses = {
     'h-auto rounded-3xs px-2.5 py-[5px] text-[length:var(--font-size-caption)] leading-[length:var(--line-height-caption)] text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground',
   /** Model-list title-row ghost: one step tighter than `toolbarGhost` (padding + body-xs + small icon). */
   toolbarHeaderGhost:
-    'h-auto min-h-0 rounded-4xs px-[length:var(--padding-x-control-compact)] py-[length:var(--padding-y-control-compact)] text-xs text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
+    'h-auto min-h-0 rounded-4xs px-2 py-[3px] text-xs text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
   toolbarHeaderIconButton:
     'size-8 rounded-4xs p-0 text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
-  toolbarIcon: 'size-[length:var(--icon-size-caption)] shrink-0',
-  toolbarHeaderIcon: 'size-[length:var(--icon-size-body-xs)] shrink-0',
+  toolbarIcon: 'size-[13px] shrink-0',
+  toolbarHeaderIcon: 'size-3 shrink-0',
   searchExpandRow: 'flex min-w-0 w-full flex-wrap items-center gap-2',
   searchRow: 'flex min-w-0 w-full flex-wrap items-center gap-2',
   searchActions: 'flex max-w-full shrink-0 flex-wrap items-center gap-2',
