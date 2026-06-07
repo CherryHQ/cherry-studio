@@ -41,26 +41,20 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     assistant: {
       id: 'assistant-1',
       name: 'Assistant',
-      model: {
-        id: 'claude-3-5-sonnet',
-        provider: 'anthropic',
-        name: 'Claude 3.5 Sonnet',
-        group: 'anthropic',
-        capabilities: []
-      },
-      settings: {
-        toolUseMode: 'function'
-      },
+      settings: {},
       enableWebSearch: false,
       mcpMode: 'disabled',
       mcpServers: []
     },
+    model: {
+      id: 'claude-3-5-sonnet',
+      provider: 'anthropic',
+      name: 'Claude 3.5 Sonnet',
+      group: 'anthropic',
+      capabilities: []
+    },
     updateAssistant: updateAssistantMock
   })
-}))
-
-vi.mock('@renderer/services/AssistantService', () => ({
-  getProviderByModel: () => ({ id: 'anthropic', type: 'anthropic' })
 }))
 
 vi.mock('@renderer/utils/api', () => ({
@@ -92,7 +86,7 @@ vi.mock('@renderer/config/models', () => {
 })
 
 vi.mock('@renderer/types', () => ({
-  BuiltinMCPServerNames: {
+  BuiltinMcpServerNames: {
     flomo: '@cherry/flomo',
     mcpAutoInstall: '@cherry/mcp-auto-install',
     memory: '@cherry/memory',
@@ -102,20 +96,12 @@ vi.mock('@renderer/types', () => ({
     filesystem: '@cherry/filesystem',
     difyKnowledge: '@cherry/dify-knowledge',
     python: '@cherry/python',
-    didiMCP: '@cherry/didi-mcp',
+    didiMcp: '@cherry/didi-mcp',
     browser: '@cherry/browser',
     nowledgeMem: '@cherry/nowledge-mem',
     hub: '@cherry/hub'
   },
   getEffectiveMcpMode: () => 'disabled'
-}))
-
-vi.mock('@renderer/utils/assistant', () => ({
-  isToolUseModeFunction: () => true
-}))
-
-vi.mock('@renderer/utils/provider', () => ({
-  isGeminiWebSearchProvider: () => false
 }))
 
 describe('WebSearchButton', () => {

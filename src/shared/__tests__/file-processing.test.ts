@@ -14,8 +14,7 @@ import {
 import { FILE_TYPE } from '../data/types/file'
 import {
   FileProcessingArtifactSchema,
-  FileProcessingTaskResultSchema,
-  FileProcessingTaskStartResultSchema,
+  FileProcessingJobOutputSchema,
   ListAvailableFileProcessorsResultSchema
 } from '../data/types/fileProcessing'
 
@@ -135,31 +134,6 @@ describe('FileProcessorOverrideSchema', () => {
   })
 })
 
-describe('FileProcessingTaskStartResultSchema', () => {
-  it('requires taskId and feature on task start results', () => {
-    expect(() =>
-      FileProcessingTaskStartResultSchema.parse({
-        status: 'processing',
-        progress: 0,
-        processorId: 'mineru'
-      })
-    ).toThrow()
-  })
-
-  it('accepts valid task start results', () => {
-    const result = FileProcessingTaskStartResultSchema.parse({
-      taskId: 'task-1',
-      feature: 'document_to_markdown',
-      status: 'processing',
-      progress: 0,
-      processorId: 'mineru'
-    })
-
-    expect(result.taskId).toBe('task-1')
-    expect(result.processorId).toBe('mineru')
-  })
-})
-
 describe('ListAvailableFileProcessorsResultSchema', () => {
   it('accepts known processor ids', () => {
     expect(() =>
@@ -186,73 +160,47 @@ describe('FileProcessingArtifactSchema', () => {
       text: 'hello'
     })
 
-    expect(FileProcessingArtifactSchema.parse({ kind: 'file', format: 'markdown', path: '/tmp/output.md' })).toEqual({
+    expect(
+      FileProcessingArtifactSchema.parse({
+        kind: 'file',
+        format: 'markdown',
+        fileEntryId: '019606a0-0000-7000-8000-000000000601'
+      })
+    ).toEqual({
       kind: 'file',
       format: 'markdown',
-      path: '/tmp/output.md'
+      fileEntryId: '019606a0-0000-7000-8000-000000000601'
     })
   })
 })
 
-describe('FileProcessingTaskResultSchema', () => {
-  it('rejects completed results without artifacts', () => {
-    expect(() =>
-      FileProcessingTaskResultSchema.parse({
-        taskId: 'task-1',
-        feature: 'document_to_markdown',
-        status: 'completed',
-        progress: 100,
-        processorId: 'mineru'
+describe('FileProcessingJobOutputSchema', () => {
+  it('accepts a job output artifact', () => {
+    expect(
+      FileProcessingJobOutputSchema.parse({
+        artifact: { kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000601' }
       })
-    ).toThrow()
+    ).toEqual({
+      artifact: { kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000601' }
+    })
   })
 
-  it('rejects failed results without error', () => {
-    expect(() =>
-      FileProcessingTaskResultSchema.parse({
-        taskId: 'task-1',
-        feature: 'document_to_markdown',
-        status: 'failed',
-        progress: 0,
-        processorId: 'mineru'
-      })
-    ).toThrow()
+  it('rejects legacy artifact arrays', () => {
+    const result = FileProcessingJobOutputSchema.safeParse({
+      artifacts: []
+    })
+
+    expect(result.success).toBe(false)
   })
 
-  it('rejects processing results with completed-only fields', () => {
-    expect(() =>
-      FileProcessingTaskResultSchema.parse({
-        taskId: 'task-1',
-        feature: 'document_to_markdown',
-        status: 'processing',
-        progress: 50,
-        processorId: 'mineru',
-        artifacts: [{ kind: 'file', format: 'markdown', path: '/tmp/output.md' }]
-      })
-    ).toThrow()
-  })
-
-  it('accepts valid completed and cancelled results', () => {
-    const completed = FileProcessingTaskResultSchema.parse({
+  it('rejects legacy task result fields', () => {
+    const result = FileProcessingJobOutputSchema.safeParse({
       taskId: 'task-1',
-      feature: 'document_to_markdown',
       status: 'completed',
       progress: 100,
-      processorId: 'mineru',
-      artifacts: [{ kind: 'file', format: 'markdown', path: '/tmp/output.md' }]
+      artifact: { kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000601' }
     })
 
-    expect(completed.status).toBe('completed')
-
-    const cancelled = FileProcessingTaskResultSchema.parse({
-      taskId: 'task-2',
-      feature: 'image_to_text',
-      status: 'cancelled',
-      progress: 10,
-      processorId: 'tesseract',
-      reason: 'cancelled'
-    })
-
-    expect(cancelled.status).toBe('cancelled')
+    expect(result.success).toBe(false)
   })
 })

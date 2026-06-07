@@ -1,13 +1,19 @@
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useKnowledgeRagConfig } from '../useKnowledgeRagConfig'
 
+const mockUseModels = vi.fn()
 const mockUseMutation = vi.fn()
 const mockTrigger = vi.fn()
 const mockLogger = vi.hoisted(() => ({
   error: vi.fn()
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModels: (...args: unknown[]) => mockUseModels(...args)
 }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
@@ -52,7 +58,6 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   id: 'base-1',
   name: 'Base 1',
   groupId: null,
-  emoji: '📁',
   dimensions: 1536,
   embeddingModelId: 'openai::text-embedding-3-small',
   rerankModelId: undefined,
@@ -73,6 +78,25 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
 describe('useKnowledgeRagConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUseModels.mockImplementation((query?: { capability?: string; enabled?: boolean }) => {
+      if (query?.capability === MODEL_CAPABILITY.EMBEDDING) {
+        return {
+          models: [
+            {
+              id: 'openai::text-embedding-3-small',
+              providerId: 'openai',
+              name: 'text-embedding-3-small',
+              capabilities: [MODEL_CAPABILITY.EMBEDDING],
+              supportsStreaming: false,
+              isEnabled: true,
+              isHidden: false
+            }
+          ]
+        }
+      }
+
+      return { models: [] }
+    })
     mockUseMutation.mockReturnValue({
       trigger: mockTrigger,
       isLoading: false,

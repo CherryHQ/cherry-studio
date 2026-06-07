@@ -1,3 +1,4 @@
+import { ButtonGroup } from '@cherrystudio/ui'
 import React, { memo } from 'react'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -18,23 +19,30 @@ function ModelListContent({ providerId }: { providerId: string }) {
   const disabled = health.isHealthChecking
 
   return (
-    <ProviderModelList
-      providerId={providerId}
-      disabled={disabled}
-      actions={({ disabled: toolbarDisabled, hasVisibleModels }) => (
-        <>
-          <ProviderModelHealthCheck disabled={toolbarDisabled} hasVisibleModels={hasVisibleModels} />
-          <div className={modelListClasses.toolbarOutlineActions}>
+    <>
+      <ProviderModelList
+        providerId={providerId}
+        disabled={disabled}
+        actions={({ disabled: toolbarDisabled }) => (
+          <ButtonGroup className={modelListClasses.toolbarButtonGroup}>
             <ProviderModelPullReconcile providerId={providerId} disabled={toolbarDisabled} />
             {providerId === 'ovms' ? (
               <ProviderModelDownload providerId={providerId} disabled={toolbarDisabled} />
             ) : (
               <ProviderModelAdd providerId={providerId} disabled={toolbarDisabled} />
             )}
-          </div>
-        </>
-      )}
-    />
+          </ButtonGroup>
+        )}
+        enabledSectionActions={({ disabled: toolbarDisabled, hasVisibleModels }) => (
+          <ProviderModelHealthCheck
+            disabled={toolbarDisabled}
+            hasVisibleModels={hasVisibleModels}
+            renderDrawer={false}
+          />
+        )}
+      />
+      <ProviderModelHealthCheck disabled={disabled} hasVisibleModels={false} renderTrigger={false} />
+    </>
   )
 }
 

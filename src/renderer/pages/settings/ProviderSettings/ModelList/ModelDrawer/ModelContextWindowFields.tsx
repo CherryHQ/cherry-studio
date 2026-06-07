@@ -1,3 +1,4 @@
+import { Input } from '@cherrystudio/ui'
 import ProviderField from '@renderer/pages/settings/ProviderSettings/primitives/ProviderField'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { useTranslation } from 'react-i18next'
@@ -11,8 +12,6 @@ interface ModelContextWindowFieldsProps {
   onMaxOutputTokensChange: (value: string) => void
 }
 
-const drawerFieldTitleClassName = 'text-[13px] text-foreground/85'
-
 export function ModelContextWindowFields({
   contextWindow,
   maxInputTokens,
@@ -25,8 +24,11 @@ export function ModelContextWindowFields({
 
   return (
     <>
-      <ProviderField title={t('settings.models.add.context_window.label')} titleClassName={drawerFieldTitleClassName}>
-        <input
+      <ProviderField
+        title={t('settings.models.add.context_window.label')}
+        titleClassName={drawerClasses.fieldTitle}
+        className={drawerClasses.field}>
+        <Input
           type="number"
           min={1}
           step={1}
@@ -39,8 +41,11 @@ export function ModelContextWindowFields({
         />
       </ProviderField>
 
-      <ProviderField title={t('settings.models.add.max_input_tokens.label')} titleClassName={drawerFieldTitleClassName}>
-        <input
+      <ProviderField
+        title={t('settings.models.add.max_input_tokens.label')}
+        titleClassName={drawerClasses.fieldTitle}
+        className={drawerClasses.field}>
+        <Input
           type="number"
           min={1}
           step={1}
@@ -55,8 +60,9 @@ export function ModelContextWindowFields({
 
       <ProviderField
         title={t('settings.models.add.max_output_tokens.label')}
-        titleClassName={drawerFieldTitleClassName}>
-        <input
+        titleClassName={drawerClasses.fieldTitle}
+        className={drawerClasses.field}>
+        <Input
           type="number"
           min={1}
           step={1}

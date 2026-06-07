@@ -80,7 +80,7 @@ The migrator is safe to re-run. `MigrationEngine.verifyAndClearNewTables` clears
 
 `validate()` performs:
 1. **Count check**: asserts `SELECT count(*) FROM file_entry >= preparedEntries.length`
-2. **Physical file sampling**: up to `VALIDATE_SAMPLE_LIMIT = 10` internal entries are checked for their physical file at `{userData}/Data/Files/{id}.{ext}` via `fs.existsSync`. `10` is small enough to keep validate cheap on large migrations and large enough to catch a systematic "Files directory moved/missing" issue early; per-row I/O is intentionally bounded since the migration's own physical-copy step is the authoritative integrity boundary. Missing physical files produce `file_entry_missing_physical_file` errors.
+2. **Physical file sampling**: up to `VALIDATE_SAMPLE_LIMIT = 10` internal entries are checked for their physical file at `{userData}/Data/Files/{id}.{ext}` via `fs.existsSync`. `10` is small enough to keep validate cheap on large migrations and large enough to catch a systematic "Files directory moved/missing" issue early; per-row I/O is intentionally bounded since the migration's own physical-copy step is the authoritative integrity boundary. Missing physical files go through `this.recordWarning` (not validation errors) — v1 routinely leaves dangling `file_entry` rows behind (deleted attachments, interrupted uploads), and the DB row keeps the historical reference even when bytes are gone.
 
 External entries are not sampled in validate (physical files are user-owned and may have moved).
 

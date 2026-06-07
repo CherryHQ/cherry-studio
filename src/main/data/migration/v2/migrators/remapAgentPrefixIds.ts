@@ -3,24 +3,42 @@ import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agent
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
-import { agentTaskRunLogTable, agentTaskTable } from '@data/db/schemas/agentTask'
 import { loggerService } from '@logger'
 import { eq, sql } from 'drizzle-orm'
+import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 
 const logger = loggerService.withContext('remapAgentPrefixIds')
 
-/** Remap old prefix IDs and hardcoded builtin IDs to UUID v4, updating all FK references.
- *  Uses manual BEGIN/COMMIT (not db.transaction()) so PRAGMA foreign_keys = OFF and all
- *  DML share the same connection — db.transaction() may open a fresh connection in libsql.
- *  Idempotent. */
+/**
+ * Every agent-domain table this remap touches. AgentsMigrator passes these to
+ * `assertOwnedForeignKeys()` to verify agent-domain referential integrity once the
+ * remap completes — keeping the FK self-check scoped to exactly the tables this
+ * function rewrites.
+ */
+export const AGENT_TABLES: SQLiteTable[] = [
+  agentTable,
+  agentSessionTable,
+  agentSkillTable,
+  agentChannelTable,
+  agentSessionMessageTable,
+  agentChannelTaskTable
+]
+
+/**
+ * Remap old prefix IDs and hardcoded builtin IDs to UUID v4, updating all FK references.
+ *
+ * Runs inside AgentsMigrator's ATTACH window, so it uses manual BEGIN/COMMIT — never
+ * `db.transaction()`, which would swap to a fresh libsql connection, making `agents_legacy`
+ * invisible and breaking the subsequent DETACH. Foreign keys are already OFF for the entire
+ * migration (MigrationDbService registers `foreign_keys = OFF` via setPragma), so this does
+ * not toggle FK itself; AgentsMigrator asserts agent-domain FK integrity via
+ * `assertOwnedForeignKeys(AGENT_TABLES)` after this returns. Idempotent.
+ */
 export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<void> {
-  // PRAGMA foreign_keys cannot be changed inside a transaction; must be set before BEGIN.
-  await db.run(sql.raw('PRAGMA foreign_keys = OFF'))
   let committed = false
-  let pendingError: unknown = null
   try {
     await db.run(sql.raw('BEGIN'))
 
@@ -36,9 +54,21 @@ export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<v
       await db.update(agentTable).set({ id: newId }).where(eq(agentTable.id, oldId))
       await db.update(agentSessionTable).set({ agentId: newId }).where(eq(agentSessionTable.agentId, oldId))
       await db.update(agentSkillTable).set({ agentId: newId }).where(eq(agentSkillTable.agentId, oldId))
-      await db.update(agentTaskTable).set({ agentId: newId }).where(eq(agentTaskTable.agentId, oldId))
       await db.update(agentChannelTable).set({ agentId: newId }).where(eq(agentChannelTable.agentId, oldId))
+      // job_schedule.jobInputTemplate is a JSON column carrying the same agent_id
+      // for migrated agent.task schedules. json_set rewrites it atomically so
+      // post-remap reads see the new id consistently with agent.id above.
+      await db.run(sql`
+        UPDATE job_schedule
+        SET job_input_template = json_set(job_input_template, '$.agentId', ${newId})
+        WHERE type = 'agent.task'
+          AND json_extract(job_input_template, '$.agentId') = ${oldId}
+      `)
     }
+    // agent_task is dropped in v2 — its rows are migrated into jobScheduleTable
+    // by AgentsMigrator's TS-loop, which writes fresh UUIDs straight away. No
+    // prefix-id remap needed for the schedule rows or the agent_channel_task
+    // link rows (the TS-loop populates them with the new schedule ids).
 
     const oldSessions = await db
       .select({ id: agentSessionTable.id })
@@ -53,39 +83,6 @@ export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<v
         .set({ sessionId: newId })
         .where(eq(agentSessionMessageTable.sessionId, oldId))
       await db.update(agentChannelTable).set({ sessionId: newId }).where(eq(agentChannelTable.sessionId, oldId))
-      await db.update(agentTaskRunLogTable).set({ sessionId: newId }).where(eq(agentTaskRunLogTable.sessionId, oldId))
-    }
-
-    const oldTasks = await db
-      .select({ id: agentTaskTable.id })
-      .from(agentTaskTable)
-      .where(sql`${agentTaskTable.id} GLOB 'task_*'`)
-
-    for (const { id: oldId } of oldTasks) {
-      const newId = uuidv4()
-      await db.update(agentTaskTable).set({ id: newId }).where(eq(agentTaskTable.id, oldId))
-      await db.update(agentTaskRunLogTable).set({ taskId: newId }).where(eq(agentTaskRunLogTable.taskId, oldId))
-      await db.update(agentChannelTaskTable).set({ taskId: newId }).where(eq(agentChannelTaskTable.taskId, oldId))
-    }
-
-    // Final FK integrity check inside the FK=OFF window: if any FK update missed
-    // rows we'd otherwise commit a corrupted state and re-enable FKs as if all
-    // were well. PRAGMA foreign_key_check returns one row per violation; an empty
-    // result means every (table, rowid, parent, fkid) tuple satisfies its FK.
-    const fkViolations = await db.all<{
-      table: string
-      rowid: number | null
-      parent: string
-      fkid: number
-    }>(sql.raw('PRAGMA foreign_key_check'))
-    if (fkViolations.length > 0) {
-      throw new Error(
-        `remapAgentPrefixIds left ${fkViolations.length} foreign-key violation(s): ` +
-          fkViolations
-            .slice(0, 5)
-            .map((v) => `${v.table}->${v.parent} (rowid=${v.rowid})`)
-            .join(', ')
-      )
     }
 
     await db.run(sql.raw('COMMIT'))
@@ -101,18 +98,6 @@ export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<v
         )
       }
     }
-    pendingError = error
+    throw error
   }
-
-  try {
-    await db.run(sql.raw('PRAGMA foreign_keys = ON'))
-  } catch (pragmaError) {
-    logger.error(
-      'Failed to re-enable foreign_keys after remapAgentPrefixIds — aborting migration',
-      pragmaError as Error
-    )
-    if (!pendingError) pendingError = pragmaError
-  }
-
-  if (pendingError) throw pendingError
 }

@@ -13,6 +13,8 @@ import { loggerService } from '@logger'
 import type { OffsetPaginationResponse } from '@shared/data/api'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
+import type { FileEntryId } from '@shared/data/types/file'
+import type { KnowledgeItemFileRefRole } from '@shared/data/types/file/ref'
 import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import {
   type CreateKnowledgeItemDto,
@@ -283,9 +285,9 @@ export class KnowledgeItemService {
       })
     }
 
-    if (owner.type !== 'directory' && owner.type !== 'sitemap') {
+    if (owner.type !== 'directory') {
       throw DataApiErrorFactory.validation({
-        groupId: [`Knowledge item group owner must be a directory or sitemap: ${groupId}`]
+        groupId: [`Knowledge item group owner must be a directory: ${groupId}`]
       })
     }
 
@@ -431,24 +433,50 @@ export class KnowledgeItemService {
     `)
   }
 
-  async detachFileRefs(itemIds: string[]): Promise<void> {
-    const uniqueItemIds = [...new Set(itemIds)]
-    if (uniqueItemIds.length === 0) {
-      return
-    }
-
+  async replaceFileRef(itemId: string, fileEntryId: FileEntryId, role: KnowledgeItemFileRefRole): Promise<void> {
     const dbService = application.get('DbService')
-    const detachedRefs = await dbService.withWriteTx(
-      async (tx) =>
-        await tx
-          .delete(fileRefTable)
-          .where(
-            and(eq(fileRefTable.sourceType, knowledgeItemSourceType), inArray(fileRefTable.sourceId, uniqueItemIds))
-          )
-          .returning({ id: fileRefTable.id })
-    )
+    await dbService.withWriteTx(async (tx) => {
+      const [item] = await tx
+        .select({ id: knowledgeItemTable.id })
+        .from(knowledgeItemTable)
+        .where(eq(knowledgeItemTable.id, itemId))
+        .limit(1)
+      if (!item) {
+        throw DataApiErrorFactory.notFound('KnowledgeItem', itemId)
+      }
 
-    logger.info('Detached knowledge item file refs', { count: detachedRefs.length, itemCount: uniqueItemIds.length })
+      const [fileEntry] = await tx
+        .select({ id: fileEntryTable.id })
+        .from(fileEntryTable)
+        .where(eq(fileEntryTable.id, fileEntryId))
+        .limit(1)
+      if (!fileEntry) {
+        throw DataApiErrorFactory.notFound('FileEntry', fileEntryId)
+      }
+
+      await tx
+        .delete(fileRefTable)
+        .where(
+          and(
+            eq(fileRefTable.sourceType, knowledgeItemSourceType),
+            eq(fileRefTable.sourceId, itemId),
+            eq(fileRefTable.role, role)
+          )
+        )
+
+      const now = Date.now()
+      await tx.insert(fileRefTable).values({
+        id: uuidv4(),
+        fileEntryId,
+        sourceType: knowledgeItemSourceType,
+        sourceId: itemId,
+        role,
+        createdAt: now,
+        updatedAt: now
+      })
+    })
+
+    logger.info('Replaced knowledge item file ref', { itemId, fileEntryId, role })
   }
 
   async rebuildFileRefsForItems(itemIds: string[]): Promise<void> {
@@ -464,7 +492,13 @@ export class KnowledgeItemService {
 
       await tx
         .delete(fileRefTable)
-        .where(and(eq(fileRefTable.sourceType, knowledgeItemSourceType), inArray(fileRefTable.sourceId, uniqueItemIds)))
+        .where(
+          and(
+            eq(fileRefTable.sourceType, knowledgeItemSourceType),
+            inArray(fileRefTable.sourceId, uniqueItemIds),
+            eq(fileRefTable.role, 'source')
+          )
+        )
 
       const fileItems = targetItems.filter((item) => item.type === 'file')
       if (fileItems.length === 0) {
@@ -608,7 +642,7 @@ export class KnowledgeItemService {
       return {
         item: rowToKnowledgeItem(updatedRow),
         startContainerIds:
-          status === 'failed' && (updatedRow.type === 'directory' || updatedRow.type === 'sitemap')
+          status === 'failed' && updatedRow.type === 'directory'
             ? [existingRow.groupId]
             : [updatedRow.id, existingRow.groupId]
       }
@@ -641,7 +675,7 @@ export class KnowledgeItemService {
           .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
           .limit(1)
 
-        if (!containerRow || (containerRow.type !== 'directory' && containerRow.type !== 'sitemap')) {
+        if (!containerRow || containerRow.type !== 'directory') {
           continue
         }
 

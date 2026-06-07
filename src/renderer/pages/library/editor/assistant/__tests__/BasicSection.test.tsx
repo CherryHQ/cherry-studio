@@ -71,11 +71,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: [] })
-}))
-
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: () => ({ models, isLoading: false })
 }))
 
@@ -126,9 +122,7 @@ function createForm(overrides: Partial<AssistantFormState> = {}): AssistantFormS
     enableTopP: false,
     maxTokens: 4096,
     enableMaxTokens: false,
-    contextCount: 5,
     streamOutput: true,
-    toolUseMode: 'function',
     maxToolCalls: 20,
     enableMaxToolCalls: true,
     customParameters: [],
@@ -237,21 +231,5 @@ describe('BasicSection model settings', () => {
         /这个助手的用途|What this assistant is for|library\.config\.basic\.field\.description\.placeholder/
       )
     ).toBeInTheDocument()
-  })
-
-  it('does not expose zero as a context count slider value', () => {
-    render(
-      <BasicSection
-        form={createForm()}
-        onChange={vi.fn()}
-        mode="optional"
-        tagColorByName={new Map()}
-        allTagNames={[]}
-      />
-    )
-
-    const contextSlider = screen.getAllByRole('slider').find((slider) => slider.getAttribute('aria-valuemax') === '20')
-
-    expect(contextSlider).toHaveAttribute('aria-valuemin', '1')
   })
 })

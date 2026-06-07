@@ -1,0 +1,1 @@
+ALTER TABLE `knowledge_base` DROP COLUMN `emoji`;

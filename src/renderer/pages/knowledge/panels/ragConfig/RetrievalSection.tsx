@@ -4,10 +4,9 @@ import {
 } from '@renderer/pages/knowledge/components/KnowledgeModelSelectField'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 import type { KnowledgeSearchMode } from '@shared/data/types/knowledge'
-import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { RagFieldLabel, RagSectionTitle, RagSelectField, RagSliderField } from './panelPrimitives'
+import { RagFieldLabel, RagSelectField, RagSliderField } from './panelPrimitives'
 
 const DEFAULT_HYBRID_ALPHA = 0.5
 
@@ -40,12 +39,10 @@ const RetrievalSection = ({
 }: RetrievalSectionProps) => {
   const { t } = useTranslation()
   const isHybridMode = searchMode === 'hybrid'
-  const usesRelevanceThreshold = searchMode === 'default'
+  const usesRelevanceThreshold = searchMode === 'default' || rerankModelId !== null
 
   return (
-    <section className="space-y-2.5">
-      <RagSectionTitle title={t('knowledge.rag.retrieval')} icon={Search} />
-
+    <div className="flex flex-col gap-4">
       <RagSliderField
         label={t('knowledge.rag.document_count')}
         hint={t('knowledge.rag.hints.document_count')}
@@ -59,19 +56,20 @@ const RetrievalSection = ({
         formatValue={(value) => String(value)}
       />
 
-      <RagSliderField
-        label={t('knowledge.rag.threshold')}
-        hint={t(usesRelevanceThreshold ? 'knowledge.rag.hints.threshold' : 'knowledge.rag.hints.threshold_disabled')}
-        value={threshold}
-        onValueChange={onThresholdChange}
-        min={0}
-        max={1}
-        step={0.1}
-        minLabel="0.0"
-        maxLabel="1.0"
-        formatValue={(value) => value.toFixed(1)}
-        disabled={!usesRelevanceThreshold}
-      />
+      {usesRelevanceThreshold ? (
+        <RagSliderField
+          label={t('knowledge.rag.threshold')}
+          hint={t('knowledge.rag.hints.threshold')}
+          value={threshold}
+          onValueChange={onThresholdChange}
+          min={0}
+          max={1}
+          step={0.1}
+          minLabel="0.0"
+          maxLabel="1.0"
+          formatValue={(value) => value.toFixed(1)}
+        />
+      ) : null}
 
       <div>
         <RagFieldLabel label={t('knowledge.rag.search_mode.title')} hint={t('knowledge.rag.hints.search_mode')} />
@@ -109,7 +107,7 @@ const RetrievalSection = ({
           onValueChange={onRerankModelChange}
         />
       </div>
-    </section>
+    </div>
   )
 }
 

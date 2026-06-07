@@ -1,10 +1,8 @@
 /**
- * Job API Handlers — Read-only.
+ * Job API Handlers
  *
- * GET-only surface for the renderer's `useJob` / `useJobProgress` consumers.
- * Triggering / cancelling jobs is workflow orchestration and lives in main:
- * business services call `application.get('JobManager').enqueue(...)`, and
- * renderer-initiated triggering goes through a dedicated IPC channel.
+ * DataApi is read-only for jobs. Lifecycle commands such as enqueue/cancel
+ * stay on JobManager or dedicated IPC owned by the business feature.
  */
 
 import { jobService } from '@data/services/JobService'

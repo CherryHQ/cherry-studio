@@ -2,9 +2,8 @@ import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
 import type { FileEntry } from '@shared/data/types/file'
 import type { KnowledgeItemOf, KnowledgeItemStatus, KnowledgeItemType } from '@shared/data/types/knowledge'
 import type { LucideIcon } from 'lucide-react'
-import { FileText, Folder, Globe, Link2, StickyNote } from 'lucide-react'
+import { FileText, Folder, Link2, StickyNote } from 'lucide-react'
 
-export type DataSourceFilter = 'all' | KnowledgeItemType
 export type DataSourceStatus = 'completed' | 'processing' | 'failed'
 export type DataSourceStatusIcon = 'check' | 'loader' | 'alert'
 
@@ -16,11 +15,6 @@ export interface DataSourceDisplayContext {
 export interface DataSourceIconMeta {
   icon: LucideIcon
   iconClassName: string
-}
-
-export interface DataSourceFilterDefinition {
-  value: DataSourceFilter
-  labelKey: string
 }
 
 export interface DataSourceStatusViewModel {
@@ -91,7 +85,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
     return {
       kind: 'completed',
       labelKey: 'knowledge.data_source.status.ready',
-      textClassName: 'text-emerald-500/70',
+      textClassName: 'text-success',
       icon: 'check'
     }
   }
@@ -178,7 +172,7 @@ export const dataSourceTypeDisplayConfig: DataSourceTypeDisplayConfigMap = {
       icon: Folder,
       iconClassName: 'text-violet-500'
     },
-    getTitle: (item) => item.data.source,
+    getTitle: (item) => getPathName(item.data.source),
     getSuffix: () => '',
     getMetaParts: (item, { language }) => getRelativeMetaParts(item.updatedAt, language),
     getStatus: resolveDataSourceStatusViewModel
@@ -193,31 +187,5 @@ export const dataSourceTypeDisplayConfig: DataSourceTypeDisplayConfigMap = {
     getSuffix: () => '',
     getMetaParts: (item, { language }) => getRelativeMetaParts(item.updatedAt, language),
     getStatus: resolveDataSourceStatusViewModel
-  },
-  sitemap: {
-    filterLabelKey: 'knowledge.data_source.filters.sitemap',
-    icon: {
-      icon: Globe,
-      iconClassName: 'text-emerald-500'
-    },
-    getTitle: (item) => item.data.source,
-    getSuffix: () => '',
-    getMetaParts: (item, { language }) => getRelativeMetaParts(item.updatedAt, language),
-    getStatus: resolveDataSourceStatusViewModel
   }
 }
-
-const dataSourceTypeDisplayEntries = Object.entries(dataSourceTypeDisplayConfig) as Array<
-  [KnowledgeItemType, DataSourceTypeDisplayConfigMap[KnowledgeItemType]]
->
-
-export const dataSourceFilterDefinitions: DataSourceFilterDefinition[] = [
-  {
-    value: 'all',
-    labelKey: 'knowledge.data_source.filters.all'
-  },
-  ...dataSourceTypeDisplayEntries.map(([value, config]) => ({
-    value,
-    labelKey: config.filterLabelKey
-  }))
-]

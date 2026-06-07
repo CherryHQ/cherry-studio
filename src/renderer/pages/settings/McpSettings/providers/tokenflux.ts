@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import type { MCPServer } from '@renderer/types'
+import type { McpServer } from '@renderer/types'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('TokenFluxSyncUtils')
@@ -44,17 +44,12 @@ interface TokenFluxServer {
 interface TokenFluxSyncResult {
   success: boolean
   message: string
-  addedServers: MCPServer[]
-  updatedServers: MCPServer[]
-  allServers: MCPServer[]
+  allServers: McpServer[]
   errorDetails?: string
 }
 
 // Function to fetch and process TokenFlux servers
-export const syncTokenFluxServers = async (
-  token: string,
-  existingServers: MCPServer[]
-): Promise<TokenFluxSyncResult> => {
+export const syncTokenFluxServers = async (token: string): Promise<TokenFluxSyncResult> => {
   const t = i18next.t
 
   try {
@@ -72,8 +67,6 @@ export const syncTokenFluxServers = async (
       return {
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
@@ -83,8 +76,6 @@ export const syncTokenFluxServers = async (
       return {
         success: false,
         message: t('settings.mcp.sync.error'),
-        addedServers: [],
-        updatedServers: [],
         allServers: [],
         errorDetails: `Status: ${response.status}`
       }
@@ -98,22 +89,15 @@ export const syncTokenFluxServers = async (
       return {
         success: true,
         message: t('settings.mcp.sync.noServersAvailable', 'No MCP servers available'),
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
 
     // Transform TokenFlux servers to MCP servers format
-    const addedServers: MCPServer[] = []
-    const updatedServers: MCPServer[] = []
-    const allServers: MCPServer[] = []
+    const allServers: McpServer[] = []
     logger.debug('TokenFlux servers:', servers)
     for (const server of servers) {
       try {
-        // Check if server already exists
-        const existingServer = existingServers.find((s) => s.id === `@tokenflux/${server.name}`)
-
         const authHeaders = {}
         if (server.security_schemes && server.security_schemes.api_key) {
           const keyAuth = server.security_schemes.api_key as TokenFluxServerAuthSchemaApiKey
@@ -122,7 +106,7 @@ export const syncTokenFluxServers = async (
           }
         }
 
-        const mcpServer: MCPServer = {
+        const mcpServer: McpServer = {
           id: `@tokenflux/${server.name}`,
           name: server.display_name || server.name || `TokenFlux Server ${nanoid()}`,
           description: server.description || '',
@@ -135,26 +119,15 @@ export const syncTokenFluxServers = async (
           tags: server.categories || [],
           headers: authHeaders
         }
-
-        if (existingServer) {
-          // Update existing server with corrected URL and latest info
-          updatedServers.push(mcpServer)
-        } else {
-          // Add new server
-          addedServers.push(mcpServer)
-        }
         allServers.push(mcpServer)
       } catch (err) {
         logger.error('Error processing TokenFlux server:', err as Error)
       }
     }
 
-    const totalServers = addedServers.length + updatedServers.length
     return {
       success: true,
-      message: t('settings.mcp.sync.success', { count: totalServers }),
-      addedServers,
-      updatedServers,
+      message: t('settings.mcp.sync.success', { count: allServers.length }),
       allServers
     }
   } catch (error) {
@@ -162,8 +135,6 @@ export const syncTokenFluxServers = async (
     return {
       success: false,
       message: t('settings.mcp.sync.error'),
-      addedServers: [],
-      updatedServers: [],
       allServers: [],
       errorDetails: String(error)
     }

@@ -1,8 +1,8 @@
 import type { LoggerService } from '@main/core/logger/LoggerService'
 import type { JobError, JobSnapshot, JobStatus } from '@shared/data/api/schemas/jobs'
+import type { CatchUpPolicy, RetryPolicy, Trigger } from '@shared/data/api/schemas/jobs'
 
 import type { JobPayloadOf, JobType } from './jobRegistry'
-import type { CatchUpPolicy, RetryPolicy, Trigger } from './scheduleTypes'
 
 /**
  * Startup recovery strategy declared at handler registration. Determines how
@@ -103,6 +103,25 @@ export interface JobHandle {
    * an external timeout.
    */
   finished: Promise<JobSnapshot>
+}
+
+/**
+ * Outcome of a single `jobManager.cancel()` call. Lets callers distinguish a
+ * clean cancel from a force-finalize-after-timeout without parsing
+ * `error.message`. Main-only — `cancel()` never crosses the IPC boundary.
+ *
+ *   - 'cancelled'       : reached a terminal state within the grace window
+ *                         (in-flight handler settled, or a pending/delayed row
+ *                         finalized directly).
+ *   - 'timed-out'       : in-flight handler did NOT settle within
+ *                         `cancelTimeoutMs`; JobManager force-finalized the row.
+ *                         The handler may still be running in-memory.
+ *   - 'not-cancellable' : nothing to cancel (already terminal / unknown row).
+ */
+export type JobCancelOutcome = 'cancelled' | 'timed-out' | 'not-cancellable'
+
+export interface JobCancelResult {
+  outcome: JobCancelOutcome
 }
 
 export interface EnqueueOptions {

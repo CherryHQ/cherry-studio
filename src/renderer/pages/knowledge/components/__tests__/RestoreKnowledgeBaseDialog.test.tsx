@@ -18,7 +18,7 @@ const { testModels } = vi.hoisted(() => ({
   ]
 }))
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
 }))
 
@@ -59,8 +59,10 @@ vi.mock('@cherrystudio/ui', async () => {
       <button {...props}>{loading ? 'loading' : children}</button>
     ),
     Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
-    DialogContent: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-      <div {...props}>{children}</div>
+    DialogContent: ({ children, size, ...props }: { children: ReactNode; size?: string; [key: string]: unknown }) => (
+      <div role="dialog" data-size={size} {...props}>
+        {children}
+      </div>
     ),
     DialogFooter: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <div {...props}>{children}</div>
@@ -130,7 +132,6 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   id: 'source-base',
   name: 'Legacy KB',
   groupId: 'group-1',
-  emoji: '📁',
   dimensions: null,
   embeddingModelId: null,
   rerankModelId: undefined,
@@ -183,7 +184,8 @@ describe('RestoreKnowledgeBaseDialog', () => {
       />
     )
 
-    expect(screen.getByRole('heading', { name: '重建知识库' })).toHaveClass('leading-4')
+    expect(screen.getByRole('heading', { name: '重建知识库' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'lg')
     expect(screen.getByLabelText('名称')).toHaveValue('Legacy KB_副本')
 
     fireEvent.click(screen.getByRole('button', { name: 'select-text-embedding-3-small' }))

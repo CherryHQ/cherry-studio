@@ -63,6 +63,7 @@ export default function ProviderListItem({
           {provider.name}
         </span>
       </div>
+      {provider.isEnabled && <span aria-hidden className={providerListClasses.itemEnabledDot} />}
       {onOpenMenu &&
         (renderMenuButton ? (
           renderMenuButton(

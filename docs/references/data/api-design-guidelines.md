@@ -13,6 +13,27 @@ Guidelines for designing RESTful APIs in the Cherry Studio Data API system.
 | Express hierarchy via nesting | `/topics/:topicId/messages` | Parent-child relationships |
 | Avoid verbs for CRUD operations | `/topics` not `/getTopics` | HTTP methods express action |
 
+## Resource ↔ Table Naming
+
+When a route is backed by a SQLite table, the route, table, and type names MUST express one shared domain noun, each in its own layer's casing:
+
+| Layer | Convention | Example |
+|---|---|---|
+| DB table | singular snake_case | `agent_session` |
+| REST route (collection) | plural kebab-case | `/agent-sessions` |
+| Schema / entity type | singular PascalCase | `AgentSessionEntity` |
+| Inferred row type | `XxxRow` ([§5.3](../naming-conventions.md#53-drizzle-schema-inferred-row-types)) | `AgentSessionRow` |
+
+A route noun that diverges from its backing table's concept is drift — fix the route, not the table.
+
+**Exceptions** (noun diverges from a single table):
+
+| Case | Example |
+|---|---|
+| Shared / library resource | `/skills`, `/models` |
+| Nested sub-resource | `/agents/:agentId/tasks` |
+| Aggregate / derived / non-CRUD | `/topics/search`, `/topics/stats` |
+
 ## HTTP Method Semantics
 
 | Method | Purpose | Idempotent | Typical Response |
@@ -427,6 +448,16 @@ All three conditions must be met before adding a DataApi endpoint:
 3. A **database table schema** exists (or will be created) for this data
 
 If any condition is not met, use an IPC handler in `src/main/ipc.ts` or a lifecycle service instead.
+
+Meeting all three is **necessary but not sufficient** — the operation must also satisfy the side-effect boundary below.
+
+### Hard Rule: No Non-Data Side Effects
+
+A DataApi handler and the service behind it may perform **one kind of effect only: SQLite reads/writes via Drizzle.** Any filesystem, network, process-spawn, child-window, or external-service call on a DataApi code path is a boundary violation — **regardless of how many layers deep it is hidden, and even when the operation also legitimately writes the database.**
+
+DataApiService is the **data** business-logic layer (persisting and querying records), **not** the application's business-logic layer. A non-data side effect bundled into a DB write is still a non-data side effect.
+
+**Mixed operations** ("write a row *and* write a file") are split: a business/lifecycle service in main owns the orchestration and the side effect, calls the Entity Service for the DB part, and is triggered from the renderer via a dedicated IPC channel. The side effect never rides through DataApi.
 
 ### Anti-patterns: What Does NOT Belong in DataApi
 

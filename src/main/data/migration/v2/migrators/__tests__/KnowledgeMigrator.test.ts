@@ -26,6 +26,7 @@ vi.mock('@logger', () => ({
 }))
 
 import { KnowledgeMigrator } from '../KnowledgeMigrator'
+import { transformKnowledgeItem } from '../mappings/KnowledgeMappings'
 
 vi.mock('@libsql/client', () => ({
   createClient: vi.fn()
@@ -39,6 +40,90 @@ const LEGACY_FILE_B_ID = '019606a0-0000-7000-8000-000000000302'
 const LEGACY_FILE_SURVIVOR_ID = '019606a0-0000-7000-8000-000000000303'
 const LEGACY_FILE_SKIPPED_ID = '019606a0-0000-7000-8000-000000000304'
 const LEGACY_FILE_GHOST_ID = '019606a0-0000-7000-8000-000000000305'
+
+describe('KnowledgeMappings', () => {
+  it('migrates legacy sitemap items as url items', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'legacy-sitemap-1',
+        type: 'sitemap',
+        content: 'https://example.com/sitemap.xml',
+        uniqueId: 'loader-sitemap'
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'url',
+        data: {
+          source: 'https://example.com/sitemap.xml',
+          url: 'https://example.com/sitemap.xml'
+        },
+        status: 'completed',
+        error: null
+      }
+    })
+  })
+
+  it('trims whitespace around legacy sitemap content before migrating', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'legacy-sitemap-2',
+        type: 'sitemap',
+        content: '   https://example.com/sitemap.xml   ',
+        uniqueId: 'loader-sitemap'
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'url',
+        data: {
+          source: 'https://example.com/sitemap.xml',
+          url: 'https://example.com/sitemap.xml'
+        },
+        status: 'completed',
+        error: null
+      }
+    })
+  })
+
+  it('keeps invalid legacy sitemap items skippable', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'legacy-sitemap-1',
+        type: 'sitemap',
+        content: '   '
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'invalid_sitemap'
+    })
+  })
+})
 
 describe('KnowledgeMigrator dimensions resolution', () => {
   beforeEach(() => {
@@ -1056,7 +1141,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     const deleteMock = createDeleteMock()
 
     const result = await migrator.execute({
-      db: { delete: deleteMock }
+      db: { delete: deleteMock, all: vi.fn().mockResolvedValue([]) }
     } as any)
 
     expect(result).toEqual({
@@ -1086,7 +1171,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     })
 
     const result = await migrator.execute({
-      db: { transaction, delete: createDeleteMock() },
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockResolvedValue([]) },
       sharedData: new Map()
     } as any)
 
@@ -1138,7 +1223,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     })
 
     const result = await migrator.execute({
-      db: { transaction, delete: createDeleteMock() },
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockResolvedValue([]) },
       sharedData: new Map()
     } as any)
 
@@ -1183,7 +1268,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     const sharedData = new Map<string, unknown>()
 
     const result = await migrator.execute({
-      db: { transaction, delete: createDeleteMock() },
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockResolvedValue([]) },
       sharedData
     } as any)
 
@@ -1215,7 +1300,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     const deleteMock = createDeleteMock()
 
     const result = await migrator.execute({
-      db: { transaction, delete: deleteMock },
+      db: { transaction, delete: deleteMock, all: vi.fn().mockResolvedValue([]) },
       sharedData: new Map()
     } as any)
 
@@ -1231,7 +1316,6 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         id: 'kb-missing-model',
         name: 'Missing Model KB',
         groupId: null,
-        emoji: '📁',
         dimensions: 768,
         embeddingModelId: null,
         status: 'failed',
@@ -1272,7 +1356,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     })
 
     const result = await migrator.execute({
-      db: { transaction, delete: createDeleteMock() },
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockResolvedValue([]) },
       sharedData: new Map()
     } as any)
 
@@ -1341,7 +1425,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     })
 
     const result = await migrator.execute({
-      db: { transaction, delete: createDeleteMock() }
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockResolvedValue([]) }
     } as any)
 
     expect(result.success).toBe(false)
@@ -1470,7 +1554,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
 
     return {
       sharedData,
-      db: { transaction, insert: outerInsert, delete: deleteMock },
+      db: { transaction, insert: outerInsert, delete: deleteMock, all: vi.fn().mockResolvedValue([]) },
       logger,
       insertedInsideTx,
       insertedOutsideTx,

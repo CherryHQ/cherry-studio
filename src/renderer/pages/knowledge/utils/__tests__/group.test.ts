@@ -1,14 +1,14 @@
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { describe, expect, it } from 'vitest'
 
 import { buildKnowledgeBaseGroupSections } from '..'
 
-const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
+const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): KnowledgeBaseListItem => ({
   id: '',
   name: '',
+  itemCount: 0,
   groupId: null,
-  emoji: '📁',
   dimensions: 1536,
   embeddingModelId: null,
   rerankModelId: undefined,
@@ -64,7 +64,7 @@ describe('buildKnowledgePageBaseGroupSections', () => {
     ])
   })
 
-  it('keeps empty real groups visible when search is empty', () => {
+  it('keeps the default group and empty real groups visible when search is empty', () => {
     const bases = [createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-2' })]
     const groups = [
       createGroup({ id: 'group-1', name: 'Research', orderKey: 'a0' }),
@@ -72,6 +72,10 @@ describe('buildKnowledgePageBaseGroupSections', () => {
     ]
 
     expect(buildKnowledgeBaseGroupSections(bases, groups, '')).toEqual([
+      {
+        groupId: null,
+        items: []
+      },
       {
         groupId: 'group-1',
         items: []

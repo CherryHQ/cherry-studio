@@ -6,7 +6,6 @@ import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
-  DEFAULT_KNOWLEDGE_BASE_EMOJI,
   DEFAULT_KNOWLEDGE_SEARCH_MODE,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
 } from '@shared/data/types/knowledge'
@@ -95,7 +94,6 @@ describe('KnowledgeOrchestrationService integration', () => {
       id: SOURCE_BASE_ID,
       name: 'Legacy KB',
       groupId: SOURCE_GROUP_ID,
-      emoji: DEFAULT_KNOWLEDGE_BASE_EMOJI,
       dimensions: null,
       embeddingModelId: null,
       status: 'failed',
@@ -178,7 +176,7 @@ describe('KnowledgeOrchestrationService integration', () => {
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
-      { baseId: restoredBase.id, itemId: restoredItems[0].id },
+      { baseId: restoredBase.id, itemId: restoredItems[0].id, parentJobId: null },
       {
         idempotencyKey: `knowledge:${restoredBase.id}:${restoredItems[0].id}:index`,
         queue: `base.${restoredBase.id}`,

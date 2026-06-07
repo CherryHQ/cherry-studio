@@ -1,7 +1,54 @@
 import { loggerService } from '@logger'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { CreateMcpServerDto, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 const logger = loggerService.withContext('McpSettings/utils')
+
+type McpServerDraft = Partial<McpServer> & { url?: string }
+type CreateMcpServerDraft = McpServerDraft & Pick<McpServer, 'name'>
+
+const stripReadonlyMcpServerFields = (server: McpServerDraft): UpdateMcpServerDto => {
+  const dto = { ...server }
+  // Keep this aligned with fields that strict create/update DTO schemas reject.
+  delete dto.id
+  delete dto.createdAt
+  delete dto.updatedAt
+  delete dto.url
+  return dto
+}
+
+export const toCreateMcpServerDto = (server: CreateMcpServerDraft): CreateMcpServerDto => {
+  const dto: CreateMcpServerDto = { ...stripReadonlyMcpServerFields(server), name: server.name }
+
+  if (dto.baseUrl === undefined && server.url !== undefined) {
+    dto.baseUrl = server.url
+  }
+
+  return dto
+}
+
+export const toUpdateMcpServerDto = (server: McpServerDraft): UpdateMcpServerDto => {
+  return stripReadonlyMcpServerFields(server)
+}
+
+export const isSameMcpServerCandidate = (existing: McpServer, candidate: McpServer): boolean => {
+  if (candidate.baseUrl && existing.baseUrl === candidate.baseUrl) {
+    return true
+  }
+
+  if (candidate.provider && existing.provider === candidate.provider) {
+    return (
+      (candidate.providerUrl !== undefined && existing.providerUrl === candidate.providerUrl) ||
+      existing.name === candidate.name
+    )
+  }
+
+  if (candidate.installSource === 'builtin') {
+    return existing.name === candidate.name
+  }
+
+  return false
+}
 
 /**
  * Whitelist of trusted MCP server URLs that auto-approve without user confirmation
@@ -13,7 +60,7 @@ const TRUSTED_SERVER_WHITELIST: readonly string[] = [
 /**
  * Check if a server URL is in the trusted whitelist
  */
-function isServerInWhitelist(server: MCPServer): boolean {
+function isServerInWhitelist(server: McpServer): boolean {
   const isUrlBasedServer = server.type === 'sse' || server.type === 'streamableHttp'
   if (!isUrlBasedServer || !server.baseUrl) {
     return false
@@ -26,7 +73,7 @@ function isServerInWhitelist(server: MCPServer): boolean {
  * @param server - The MCP server to extract command from
  * @returns Formatted command string with arguments
  */
-export const getCommandPreview = (server: MCPServer): string => {
+export const getCommandPreview = (server: McpServer): string => {
   return [server.command, ...(server.args ?? [])]
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join(' ')
@@ -40,10 +87,10 @@ export const getCommandPreview = (server: MCPServer): string => {
  * @returns The trusted server if confirmed, or null if user declined
  */
 export async function ensureServerTrusted(
-  currentServer: MCPServer,
-  requestConfirm: (server: MCPServer) => Promise<boolean>,
-  updateServer: (body: Partial<MCPServer>) => void
-): Promise<MCPServer | null> {
+  currentServer: McpServer,
+  requestConfirm: (server: McpServer) => Promise<boolean>,
+  updateServer: (body: UpdateMcpServerDto) => void
+): Promise<McpServer | null> {
   const isProtocolInstall = currentServer.installSource === 'protocol'
 
   logger.silly('ensureServerTrusted', {

@@ -117,7 +117,7 @@ export class KnowledgeMigrator extends BaseMigrator {
   readonly id = 'knowledge'
   readonly name = 'KnowledgeBase'
   readonly description = 'Migrate knowledge base and knowledge item data'
-  readonly order = 3
+  readonly order = 1.8
 
   private sourceCount = 0
   private skippedCount = 0
@@ -353,6 +353,10 @@ export class KnowledgeMigrator extends BaseMigrator {
       return `Skipped directory item with invalid content (itemId=${item.id})`
     }
 
+    if (reason === 'invalid_note') {
+      return `Skipped note item with neither sourceUrl nor content (itemId=${item.id})`
+    }
+
     return `Skipped invalid knowledge item in base ${baseId} (itemId=${item.id})`
   }
 
@@ -521,7 +525,9 @@ export class KnowledgeMigrator extends BaseMigrator {
           continue
         }
 
-        const baseResult = transformKnowledgeBase(validBase, resolvedDimensions.dimensions)
+        const baseResult = transformKnowledgeBase(validBase, resolvedDimensions.dimensions, (msg) =>
+          this.recordWarning(msg)
+        )
         const preparedBase = { ...baseResult.value }
 
         if (embeddingResolution.kind === 'resolved') {
@@ -611,6 +617,9 @@ export class KnowledgeMigrator extends BaseMigrator {
 
     if (this.preparedBases.length === 0 && this.preparedItems.length === 0) {
       await this.dropDanglingAssistantKnowledgeBaseRefs(ctx)
+      // No bases/items to migrate, but dropDangling may have pruned assistant_knowledge_base —
+      // verify the domain is referentially clean (see the main-path note below).
+      await this.assertOwnedForeignKeys(ctx.db, [knowledgeBaseTable, knowledgeItemTable, assistantKnowledgeBaseTable])
       logger.info('No knowledge data to migrate')
       return {
         success: true,
@@ -757,6 +766,14 @@ export class KnowledgeMigrator extends BaseMigrator {
       }
 
       await this.dropDanglingAssistantKnowledgeBaseRefs(ctx)
+
+      // Self-check the knowledge domain. assistant_knowledge_base is verified HERE (not in
+      // AssistantMigrator): AssistantMigrator writes those rows with legacy KB ids, and this
+      // migrator remaps them to the new base ids + drops any that stay dangling — so they are
+      // referentially consistent only now. file_ref is excluded as a shared polymorphic table,
+      // covered by the engine's final verifyForeignKeys().
+      await this.assertOwnedForeignKeys(ctx.db, [knowledgeBaseTable, knowledgeItemTable, assistantKnowledgeBaseTable])
+
       this.flushSkippedWarnings()
       ctx.sharedData.set(KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY, new Map(this.legacyBaseIdRemap))
       ctx.sharedData.set(KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY, new Map(this.legacyItemIdRemap))

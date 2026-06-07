@@ -1,4 +1,4 @@
-import type { CatchUpPolicy, Trigger } from '@main/core/job/scheduleTypes'
+import type { CatchUpPolicy, Trigger } from '@shared/data/api/schemas/jobs'
 import type { JobError } from '@shared/data/api/schemas/jobs'
 import { sql } from 'drizzle-orm'
 import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'

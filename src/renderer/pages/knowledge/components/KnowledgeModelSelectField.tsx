@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { ModelSelector } from '@renderer/components/ModelSelector'
-import { useModels } from '@renderer/hooks/useModels'
+import { useModels } from '@renderer/hooks/useModel'
 import { isUniqueModelId, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { ChevronsUpDown, X } from 'lucide-react'
 import { useMemo } from 'react'

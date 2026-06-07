@@ -9,7 +9,7 @@ const useReorderMock = vi.fn()
 const updateProviderMock = vi.fn().mockResolvedValue(undefined)
 const moveMock = vi.fn().mockResolvedValue(undefined)
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args),
   useProviderMutations: (...args: any[]) => useProviderMutationsMock(...args)
 }))

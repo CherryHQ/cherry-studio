@@ -1,5 +1,5 @@
-import type { ProviderV3 } from '@ai-sdk/provider'
-import { LRUCache } from 'lru-cache'
+import type { ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
+import QuickLRU from 'quick-lru'
 
 import { deepMergeObjects } from '../../utils'
 import type { ProviderVariant, ToolFactoryMap } from '../types'
@@ -51,6 +51,9 @@ interface ProviderExtensionConfigBase<
    * 工具工厂从 provider 实例的 .tools 属性提取
    */
   toolFactories?: ToolFactoryMap<TProvider>
+
+  /** Creates provider.rerankingModel when the SDK provider does not expose it natively. */
+  createRerankingModel?: (modelId: string, settings: TSettings) => RerankingModelV3
 }
 
 /**
@@ -116,7 +119,7 @@ export class ProviderExtension<
   >
 > {
   /** Provider 实例缓存 - 按 settings hash 存储，LRU 自动清理 */
-  private instances: LRUCache<string, TProvider>
+  private instances: QuickLRU<string, TProvider>
 
   /** In-flight promise map - 防止并发创建相同 settings 的 provider */
   private pendingCreations: Map<string, Promise<TProvider>> = new Map()
@@ -126,9 +129,8 @@ export class ProviderExtension<
       throw new Error('ProviderExtension: name is required')
     }
 
-    this.instances = new LRUCache<string, TProvider>({
-      max: 10,
-      updateAgeOnGet: true
+    this.instances = new QuickLRU<string, TProvider>({
+      maxSize: 10
     })
   }
 
@@ -161,10 +163,13 @@ export class ProviderExtension<
         return 'default'
       }
 
+      const seen = new WeakSet()
       const stableStringify = (obj: any): string => {
         if (obj === null || obj === undefined) return 'null'
         if (typeof obj === 'function') return '"[function]"'
         if (typeof obj !== 'object') return JSON.stringify(obj)
+        if (seen.has(obj)) return '"[circular]"'
+        seen.add(obj)
         if (Array.isArray(obj)) return `[${obj.map(stableStringify).join(',')}]`
 
         const keys = Object.keys(obj).sort()
@@ -249,6 +254,8 @@ export class ProviderExtension<
       throw new Error(`ProviderExtension "${this.config.name}": cannot create provider, invalid configuration`)
     }
 
+    this.attachRerankingModel(baseProvider as TProvider, mergedSettings)
+
     let finalProvider: TProvider
     if (variantSuffix) {
       const variant = this.getVariant(variantSuffix)!
@@ -267,9 +274,20 @@ export class ProviderExtension<
       finalProvider = baseProvider as TProvider
     }
 
+    // Variant transforms can return a new provider object, so attach to the final instance too.
+    this.attachRerankingModel(finalProvider, mergedSettings)
     this.instances.set(hash, finalProvider)
 
     return finalProvider
+  }
+
+  private attachRerankingModel(provider: TProvider, settings: TSettings): void {
+    const { createRerankingModel } = this.config
+    if (!createRerankingModel || provider.rerankingModel) {
+      return
+    }
+
+    provider.rerankingModel = (modelId: string) => createRerankingModel(modelId, settings)
   }
 
   /**
@@ -324,10 +342,10 @@ export class ProviderExtension<
    * 获取已缓存的 provider 实例（如果存在）
    */
   getCachedProvider(): TProvider | undefined {
-    for (const [key, value] of this.instances.entries()) {
+    for (const [key, value] of this.instances) {
       if (!key.includes(':')) return value
     }
-    for (const [, value] of this.instances.entries()) {
+    for (const [, value] of this.instances) {
       return value
     }
     return undefined

@@ -39,4 +39,30 @@ describe('ProviderListItem', () => {
 
     expect(providerAvatarMock).toHaveBeenCalledWith(expect.objectContaining({ size: 22 }))
   })
+
+  it('shows an enabled-state dot when provider.isEnabled is true', () => {
+    const { container } = render(
+      <ProviderListItem
+        provider={{ ...provider, isEnabled: true }}
+        selected={false}
+        dragging={false}
+        onClick={vi.fn()}
+      />
+    )
+
+    expect(container.querySelector('span[aria-hidden].bg-green-500')).toBeInTheDocument()
+  })
+
+  it('omits the enabled-state dot when provider.isEnabled is false', () => {
+    const { container } = render(
+      <ProviderListItem
+        provider={{ ...provider, isEnabled: false }}
+        selected={false}
+        dragging={false}
+        onClick={vi.fn()}
+      />
+    )
+
+    expect(container.querySelector('span[aria-hidden].bg-green-500')).not.toBeInTheDocument()
+  })
 })

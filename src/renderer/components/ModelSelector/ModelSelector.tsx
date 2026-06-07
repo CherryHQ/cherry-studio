@@ -15,6 +15,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isDev } from '@renderer/config/constant'
+import { useCommandHandler } from '@renderer/features/command'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
 import { first } from 'lodash'
@@ -149,6 +150,7 @@ function ModelRow({
   onSelect,
   onNavigateBeforeTrial,
   showCheckbox,
+  showPinActions,
   isPinActionDisabled,
   t
 }: {
@@ -158,6 +160,7 @@ function ModelRow({
   onSelect: (item: ModelSelectorModelItem) => void
   onNavigateBeforeTrial: () => void
   showCheckbox: boolean
+  showPinActions: boolean
   isPinActionDisabled: boolean
   t: (key: string) => string
 }) {
@@ -232,22 +235,24 @@ function ModelRow({
         </div>
       )}
       {/* Pin 按钮 — 悬浮/置顶时显示 */}
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        disabled={isPinActionDisabled}
-        aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
-        className={cn(
-          'ml-1 size-5 shrink-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60',
-          item.isPinned && '-rotate-45 text-primary opacity-100'
-        )}
-        onClick={(event) => {
-          event.stopPropagation()
-          onPin(item.modelId)
-        }}>
-        <Pin className="size-3" />
-      </Button>
+      {showPinActions && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          disabled={isPinActionDisabled}
+          aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
+          className={cn(
+            'ml-1 size-5 shrink-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60',
+            item.isPinned && '-rotate-45 text-primary opacity-100'
+          )}
+          onClick={(event) => {
+            event.stopPropagation()
+            onPin(item.modelId)
+          }}>
+          <Pin className="size-3" />
+        </Button>
+      )}
     </div>
   )
 }
@@ -260,6 +265,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     filter,
     showTagFilter = true,
     showPinnedModels = true,
+    showPinActions = true,
     prioritizedProviderIds = [],
     side = 'bottom',
     align = 'start',
@@ -268,7 +274,8 @@ export function ModelSelector(props: ModelSelectorProps) {
     listVisibleCount = PAGE_SIZE,
     multiSelectMode: multiSelectModeProp,
     defaultMultiSelectMode = false,
-    onMultiSelectModeChange
+    onMultiSelectModeChange,
+    shortcut
   } = props
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -328,6 +335,8 @@ export function ModelSelector(props: ModelSelectorProps) {
     [onOpenChange, openProp]
   )
 
+  const handleShortcut = useCallback(() => setOpen(true), [setOpen])
+
   const setMultiSelectMode = useCallback(
     (nextEnabled: boolean) => {
       if (!multiple) {
@@ -346,6 +355,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     () => normalizeSelectedIdsFromValue(props),
     // Narrowing is driven by the three discriminators — any of them changing
     // means `props.value` may be typed differently too.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- these discriminators intentionally cover the relevant prop shape.
     [props.multiple, props.selectionType, props.value]
   )
 
@@ -406,7 +416,10 @@ export function ModelSelector(props: ModelSelectorProps) {
 
       props.onSelect(nextSelectedId ? selectableModelsById.get(nextSelectedId) : undefined)
     },
-    [props, selectableModelsById]
+    // Narrow deps to the actual reads — `props` as a whole is a fresh
+    // object reference every render, which would cancel memoisation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional narrow
+    [props.multiple, props.selectionType, props.onSelect, selectableModelsById]
   )
 
   const focusItem = useCallback(
@@ -520,6 +533,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
     malformedSelectionWarningKeyRef.current = warningKey
     logger.warn(warning.message, warning.context)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the warning only depends on the discriminator subset above.
   }, [props.multiple, props.selectionType, props.value])
 
   useEffect(() => {
@@ -611,6 +625,7 @@ export function ModelSelector(props: ModelSelectorProps) {
             onSelect={handleSelectItem}
             onNavigateBeforeTrial={handleClose}
             showCheckbox={multiple && multiSelectMode}
+            showPinActions={showPinActions}
             t={t}
           />
         </div>
@@ -626,18 +641,20 @@ export function ModelSelector(props: ModelSelectorProps) {
       multiple,
       multiSelectMode,
       setFocusedItemKey,
+      showPinActions,
       t
     ]
   )
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
+      {shortcut ? <ShortcutBinding shortcut={shortcut} onTrigger={handleShortcut} /> : null}
       <PopoverTrigger asChild>{triggerNode}</PopoverTrigger>
       <PopoverContent
         side={side}
         align={align}
         sideOffset={sideOffset}
-        className={cn('max-h-140 w-90 overflow-hidden rounded-2xs p-0 py-1', contentClassName)}
+        className={cn('max-h-140 w-90 overflow-hidden rounded-lg p-0 py-1', contentClassName)}
         data-testid="model-selector-content">
         <div className="flex items-center gap-2 border-border/60 border-b px-3 py-2.5">
           <Search className="pointer-events-none size-3.25 shrink-0 text-muted-foreground/50" />
@@ -719,4 +736,21 @@ export function ModelSelector(props: ModelSelectorProps) {
       </PopoverContent>
     </Popover>
   )
+}
+
+/**
+ * Renders nothing — its only job is to register a shortcut for the parent
+ * ModelSelector. Extracted as a sub-component so the hook is only called when
+ * `shortcut` is set (extracting it via a conditional return inside ModelSelector
+ * itself would violate the rules-of-hooks).
+ */
+function ShortcutBinding({
+  shortcut,
+  onTrigger
+}: {
+  shortcut: NonNullable<ModelSelectorProps['shortcut']>
+  onTrigger: () => void
+}) {
+  useCommandHandler(shortcut, onTrigger)
+  return null
 }

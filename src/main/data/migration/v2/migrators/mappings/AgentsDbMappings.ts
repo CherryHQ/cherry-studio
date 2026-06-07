@@ -56,10 +56,7 @@ export type AgentsTableMigrationSpec = {
     | 'agent_session'
     | 'agent_global_skill'
     | 'agent_skill'
-    | 'agent_task'
-    | 'agent_task_run_log'
     | 'agent_channel'
-    | 'agent_channel_task'
     | 'agent_session_message'
   columns: readonly AgentsColumnExpr[]
   /** Optional WHERE clause appended to the SELECT to filter source rows */
@@ -74,6 +71,22 @@ export type AgentsTableMigrationSpec = {
    * `agents_legacy.*` tables so the filter is stable across remap.
    */
   validateWhereClause?: string
+  manualImport?: boolean
+}
+
+/**
+ * Resolve a legacy `provider:modelId` string into the matching `user_model.id`
+ * via attached-DB lookup. Same matching rule as `resolveUserModelId` in the
+ * runtime path; misses become NULL so the FK on agent.{model,plan_model,
+ * small_model} / agent_session.* holds.
+ */
+export function buildUserModelLookupExpr(sourceColumn: string): string {
+  return (
+    `(SELECT user_model.id FROM user_model ` +
+    `WHERE user_model.id = ${sourceColumn} ` +
+    `OR (user_model.provider_id || ':' || user_model.model_id) = ${sourceColumn} ` +
+    `LIMIT 1)`
+  )
 }
 
 /**
@@ -84,8 +97,13 @@ export type AgentsTableMigrationSpec = {
  * FROM agent)`). That only works because the parent spec runs first and has
  * already populated the target table. Build order therefore follows FK
  * parent → child: `agent` → `agent_session` → `agent_global_skill` →
- * `agent_skill` → `agent_task` → `agent_task_run_log` → `agent_channel` →
- * `agent_channel_task` → `agent_session_message`.
+ * `agent_skill` → `agent_channel` → `agent_session_message`.
+ *
+ * `scheduled_tasks`, `task_run_logs`, and `channel_task_subscriptions` are
+ * handled by `AgentsMigrator.migrateScheduledTasksTs` in TypeScript — the
+ * v1 `(scheduleType, scheduleValue)` columns cannot be encoded into a
+ * `Trigger` JSON blob with pure SQL expressions cleanly, and v1 run logs
+ * are discarded (see breaking-changes/2026-05-19).
  *
  * Do not reorder entries without updating the child `whereClause`s.
  */
@@ -98,15 +116,14 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'type',
       'name',
       notNullCol('description', "''"),
-      notNullCol('accessible_paths', "'[]'"),
-      notNullCol('instructions', "''"),
-      'model',
-      'plan_model',
-      'small_model',
+      'instructions',
+      { name: 'model', expr: buildUserModelLookupExpr('model'), sourceColumn: 'model' },
+      { name: 'plan_model', expr: buildUserModelLookupExpr('plan_model'), sourceColumn: 'plan_model' },
+      { name: 'small_model', expr: buildUserModelLookupExpr('small_model'), sourceColumn: 'small_model' },
       notNullCol('mcps', "'[]'"),
       notNullCol('allowed_tools', "'[]'"),
       notNullCol('configuration', "'{}'"),
-      notNullCol('sort_order', '0'),
+      notNullCol('order_key', "''"),
       {
         name: 'deleted_at',
         expr: "CASE WHEN deleted_at IS NULL THEN NULL ELSE CAST(strftime('%s', deleted_at) AS INTEGER) * 1000 END",
@@ -129,20 +146,17 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
     targetTable: 'agent_session',
     columns: [
       'id',
-      'agent_type',
       'agent_id',
       'name',
       notNullCol('description', "''"),
-      notNullCol('accessible_paths', "'[]'"),
-      notNullCol('instructions', "''"),
-      'model',
-      'plan_model',
-      'small_model',
-      notNullCol('mcps', "'[]'"),
-      notNullCol('allowed_tools', "'[]'"),
-      notNullCol('slash_commands', "'[]'"),
-      notNullCol('configuration', "'{}'"),
-      notNullCol('sort_order', '0'),
+      {
+        name: 'workspace_id',
+        expr: '(SELECT workspace_id FROM session_workspace_map WHERE session_id = sessions.id)',
+        sourceColumn: 'id'
+      },
+      // Placeholder; AgentsMigrator backfills real fractional-indexing keys
+      // scoped by agentId, ordered by source `sort_order` after INSERT.
+      notNullCol('order_key', "''"),
       {
         name: 'created_at',
         expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",
@@ -195,80 +209,6 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'agent_id IN (SELECT id FROM agents_legacy.agents) AND skill_id IN (SELECT id FROM agents_legacy.skills)'
   },
   {
-    sourceTable: 'scheduled_tasks',
-    targetTable: 'agent_task',
-    columns: [
-      'id',
-      'agent_id',
-      'name',
-      'prompt',
-      'schedule_type',
-      'schedule_value',
-      notNullCol('timeout_minutes', '2'),
-      {
-        name: 'next_run',
-        expr: "CASE WHEN next_run IS NULL THEN NULL ELSE CAST(strftime('%s', next_run) AS INTEGER) * 1000 END",
-        sourceColumn: 'next_run'
-      },
-      {
-        name: 'last_run',
-        expr: "CASE WHEN last_run IS NULL THEN NULL ELSE CAST(strftime('%s', last_run) AS INTEGER) * 1000 END",
-        sourceColumn: 'last_run'
-      },
-      'last_result',
-      'status',
-      {
-        name: 'created_at',
-        expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",
-        sourceColumn: 'created_at'
-      },
-      {
-        name: 'updated_at',
-        expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000",
-        sourceColumn: 'updated_at'
-      }
-    ],
-    // Only import tasks whose agent was successfully migrated; orphaned rows
-    // would fail the FK check on agent_task.agent_id → agent.id.
-    whereClause: 'agent_id IN (SELECT id FROM agent)',
-    validateWhereClause: 'agent_id IN (SELECT id FROM agents_legacy.agents)'
-  },
-  {
-    sourceTable: 'task_run_logs',
-    targetTable: 'agent_task_run_log',
-    columns: [
-      'id',
-      'task_id',
-      'session_id',
-      {
-        name: 'run_at',
-        expr: "CAST(strftime('%s', run_at) AS INTEGER) * 1000",
-        sourceColumn: 'run_at'
-      },
-      'duration_ms',
-      'status',
-      'result',
-      'error',
-      {
-        // run_at is the best proxy for created_at/updated_at; COALESCE mirrors
-        // $defaultFn (Date.now()) for NULL run_at since raw INSERT...SELECT bypasses it.
-        name: 'created_at',
-        expr: "COALESCE(CAST(strftime('%s', run_at) AS INTEGER) * 1000, CAST(strftime('%s', 'now') AS INTEGER) * 1000)",
-        sourceColumn: 'run_at'
-      },
-      {
-        name: 'updated_at',
-        expr: "COALESCE(CAST(strftime('%s', run_at) AS INTEGER) * 1000, CAST(strftime('%s', 'now') AS INTEGER) * 1000)",
-        sourceColumn: 'run_at'
-      }
-    ],
-    // Only import logs whose task was successfully migrated; orphaned rows
-    // would fail the FK check on agent_task_run_log.task_id → agent_task.id.
-    whereClause: 'task_id IN (SELECT id FROM agent_task)',
-    validateWhereClause:
-      'task_id IN (SELECT id FROM agents_legacy.scheduled_tasks WHERE agent_id IN (SELECT id FROM agents_legacy.agents))'
-  },
-  {
     sourceTable: 'channels',
     targetTable: 'agent_channel',
     // Legacy `channels.created_at` / `updated_at` are NULLABLE INTEGER epoch-ms
@@ -310,41 +250,10 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       '(session_id IS NULL OR session_id IN (SELECT id FROM agents_legacy.sessions WHERE agent_id IN (SELECT id FROM agents_legacy.agents)))'
   },
   {
-    sourceTable: 'channel_task_subscriptions',
-    targetTable: 'agent_channel_task',
-    columns: ['channel_id', 'task_id'],
-    // Only import subscriptions whose channel and task were both successfully
-    // migrated; orphaned rows would fail the FK checks.
-    whereClause: 'channel_id IN (SELECT id FROM agent_channel) AND task_id IN (SELECT id FROM agent_task)',
-    validateWhereClause:
-      'channel_id IN (SELECT id FROM agents_legacy.channels WHERE ' +
-      '(agent_id IS NULL OR agent_id IN (SELECT id FROM agents_legacy.agents)) AND ' +
-      '(session_id IS NULL OR session_id IN (SELECT id FROM agents_legacy.sessions WHERE agent_id IN (SELECT id FROM agents_legacy.agents)))) AND ' +
-      'task_id IN (SELECT id FROM agents_legacy.scheduled_tasks WHERE agent_id IN (SELECT id FROM agents_legacy.agents))'
-  },
-  {
     sourceTable: 'session_messages',
     targetTable: 'agent_session_message',
-    columns: [
-      // id is autoincrement in target, but copying source values is safe — SQLite
-      // resumes from max(rowid)+1 for new rows, so migrated IDs are preserved.
-      'id',
-      'session_id',
-      'role',
-      'content',
-      'agent_session_id',
-      'metadata',
-      {
-        name: 'created_at',
-        expr: "CAST(strftime('%s', created_at) AS INTEGER) * 1000",
-        sourceColumn: 'created_at'
-      },
-      {
-        name: 'updated_at',
-        expr: "CAST(strftime('%s', updated_at) AS INTEGER) * 1000",
-        sourceColumn: 'updated_at'
-      }
-    ],
+    columns: [],
+    manualImport: true,
     // Only import messages whose session was successfully migrated; messages
     // referencing a filtered-out session would fail the FK check.
     whereClause: 'session_id IN (SELECT id FROM agent_session)',
@@ -416,6 +325,9 @@ export function buildAgentsImportStatements(dbPath: string, schemaInfo: AgentsSc
   for (const spec of AGENTS_TABLE_MIGRATION_SPECS) {
     const sourceSchema = schemaInfo[spec.sourceTable]
     if (!sourceSchema.exists) {
+      continue
+    }
+    if (spec.manualImport) {
       continue
     }
 

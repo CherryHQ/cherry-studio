@@ -1,6 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import type { Provider } from '@shared/data/types/provider'
 
 import { fetchResolvedProviderModels } from './modelSync'
 import type { ModelSyncPreviewMissingItem, ModelSyncPreviewResponse } from './modelSyncPreviewTypes'
@@ -8,18 +7,16 @@ import type { ModelSyncPreviewMissingItem, ModelSyncPreviewResponse } from './mo
 const logger = loggerService.withContext('ModelListSyncPreview')
 
 /**
- * Build pull preview: same remote resolution as first API key (see `fetchResolvedProviderModels`).
- * Apply uses `POST /models` and `DELETE /models/:uniqueModelId` with the preview selection (no extra apply route).
+ * Build pull preview: remote model list (resolved via IPC) vs local DataApi
+ * state. Apply uses `POST /models` and `DELETE /models/:uniqueModelId` with
+ * the preview selection (no extra apply route).
  */
-export async function buildModelListSyncPreview(params: {
-  providerId: string
-  provider: Provider
-}): Promise<ModelSyncPreviewResponse> {
-  const { providerId, provider } = params
+export async function buildModelListSyncPreview(params: { providerId: string }): Promise<ModelSyncPreviewResponse> {
+  const { providerId } = params
 
   const [localModels, remoteModels] = await Promise.all([
     dataApiService.get('/models' as const, { query: { providerId } }),
-    fetchResolvedProviderModels(providerId, provider)
+    fetchResolvedProviderModels(providerId)
   ])
 
   const localIds = new Set(localModels.map((m) => m.id))

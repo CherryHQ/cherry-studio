@@ -7,8 +7,8 @@ import {
   isWebSearchModel
 } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
-import type { Model } from '@renderer/types'
-import { isFreeModel } from '@renderer/utils/model'
+import type { Model } from '@shared/data/types/model'
+import { isFreeModel } from '@shared/utils/model'
 import type { FC } from 'react'
 import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
@@ -86,9 +86,9 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
       {showToolsCalling && isFunctionCallingModel(model) && (
         <ToolsCallingTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />
       )}
-      {isEmbeddingModel(model) && <EmbeddingTag size={size} />}
-      {showFree && isFreeModel(model) && <FreeTag size={size} />}
-      {isRerankModel(model) && <RerankerTag size={size} />}
+      {isEmbeddingModel(model) && <EmbeddingTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
+      {showFree && isFreeModel(model) && <FreeTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
+      {isRerankModel(model) && <RerankerTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
     </div>
   )
 }

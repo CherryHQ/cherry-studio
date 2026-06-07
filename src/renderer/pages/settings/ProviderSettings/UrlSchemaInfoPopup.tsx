@@ -9,11 +9,11 @@ import {
 } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { TopView } from '@renderer/components/TopView'
-import { useProviders } from '@renderer/hooks/useProviders'
-import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/provider'
-import { getProviderHostTopology } from '@renderer/pages/settings/ProviderSettings/utils/providerTopology'
+import { useProviders } from '@renderer/hooks/useProvider'
+import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import type { ProviderType } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils'
+import { getProviderHostTopology } from '@shared/utils/providerTopology'
 import { Eye, EyeOff } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -146,14 +146,14 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
               <div
                 key={row.label}
                 className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 border-[color:var(--color-border-fg-hairline)] border-b px-3 py-2.5 last:border-b-0">
-                <div className="text-[length:var(--font-size-body-xs)] text-muted-foreground">{row.label}</div>
+                <div className="text-[length:var(--font-size-body-xs)] text-foreground-muted">{row.label}</div>
                 <div className="min-w-0 truncate text-[length:var(--font-size-body-sm)] text-foreground/85">
                   {row.value}
                 </div>
               </div>
             ))}
             <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 px-3 py-2.5">
-              <div className="text-[length:var(--font-size-body-xs)] text-muted-foreground">
+              <div className="text-[length:var(--font-size-body-xs)] text-foreground-muted">
                 {t('settings.models.api_key')}
               </div>
               <div className="flex min-w-0 items-center justify-between gap-2">

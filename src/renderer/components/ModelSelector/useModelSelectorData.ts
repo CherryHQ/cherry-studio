@@ -1,6 +1,7 @@
-import { useModels } from '@renderer/hooks/useModels'
+import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
-import { useProviders } from '@renderer/hooks/useProviders'
+import { useProviders } from '@renderer/hooks/useProvider'
+import { getSearchMatchScore } from '@renderer/utils/modelSearch'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { sortBy } from 'lodash'
@@ -17,27 +18,17 @@ import { getProviderDisplayName } from './utils'
 
 const EMPTY_TAGS: ModelSelectorTag[] = []
 
-function matchKeywords(keywords: string, model: Model, provider: Provider) {
-  const normalizedKeywords = keywords.toLowerCase().split(/\s+/).filter(Boolean)
-  if (normalizedKeywords.length === 0) {
-    return true
-  }
-
-  const searchableText = [
-    model.name,
-    model.id,
-    model.apiModelId,
-    provider.name,
-    provider.id,
-    provider.presetProviderId,
+function getModelSearchScore(keywords: string, model: Model, provider: Provider, providerDisplayName: string) {
+  return getSearchMatchScore(keywords, [
+    { value: model.name, weight: 0, allowAbbreviation: true },
+    { value: model.apiModelId, weight: 1, allowAbbreviation: true },
+    { value: model.id, weight: 1, allowAbbreviation: true },
+    { value: provider.name, weight: 2, allowAbbreviation: false },
+    { value: provider.id, weight: 2, allowAbbreviation: false },
+    { value: provider.presetProviderId, weight: 2, allowAbbreviation: false },
     // UI 展示的 provider 名（内置 provider 走 i18n 翻译），确保用户按界面上看到的名字搜索能命中
-    getProviderDisplayName(provider)
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
-
-  return normalizedKeywords.every((keyword) => searchableText.includes(keyword))
+    { value: providerDisplayName, weight: 2, allowAbbreviation: false }
+  ])
 }
 
 function getDuplicateModelNames<T extends Pick<Model, 'name'>>(models: T[]): Set<string> {
@@ -95,12 +86,14 @@ export function useModelSelectorData({
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
 
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
+  const availableProviders = providers
+  const availableModels = models
 
   const baseModelFilter = useCallback((model: Model) => filter?.(model) ?? true, [filter])
 
   const sortedProviders = useMemo(
-    () => sortProvidersByPriority(providers, prioritizedProviderIds),
-    [prioritizedProviderIds, providers]
+    () => sortProvidersByPriority(availableProviders, prioritizedProviderIds),
+    [availableProviders, prioritizedProviderIds]
   )
 
   // 交叉过滤：Provider.isEnabled 与 Model.isEnabled 互不联动，禁用 provider 下可能仍有启用 model。
@@ -109,7 +102,7 @@ export function useModelSelectorData({
     const enabledProviderIds = new Set(sortedProviders.map((provider) => provider.id))
     const grouped = new Map<string, Model[]>()
 
-    for (const model of models) {
+    for (const model of availableModels) {
       if (!enabledProviderIds.has(model.providerId) || !baseModelFilter(model)) {
         continue
       }
@@ -123,7 +116,7 @@ export function useModelSelectorData({
     }
 
     return grouped
-  }, [baseModelFilter, models, sortedProviders])
+  }, [availableModels, baseModelFilter, sortedProviders])
 
   const availableTags = useMemo(() => {
     const selectableModels = [...modelsByProvider.values()].flat()
@@ -168,10 +161,17 @@ export function useModelSelectorData({
 
   const searchFilter = useCallback(
     (provider: Provider) => {
-      let providerModels = modelsByProvider.get(provider.id) ?? []
+      const providerModels = modelsByProvider.get(provider.id) ?? []
 
       if (searchText.trim()) {
-        providerModels = providerModels.filter((model) => matchKeywords(searchText, model, provider))
+        const providerDisplayName = getProviderDisplayName(provider)
+        return sortBy(
+          providerModels.flatMap((model) => {
+            const searchScore = getModelSearchScore(searchText, model, provider, providerDisplayName)
+            return searchScore === null ? [] : [{ model, searchScore }]
+          }),
+          ['searchScore', 'model.group', 'model.name']
+        ).map(({ model }) => model)
       }
 
       return sortModels(providerModels)
@@ -203,10 +203,18 @@ export function useModelSelectorData({
     const pinnedIdSet = new Set(pinnedIds)
     const providerById = new Map(sortedProviders.map((provider) => [provider.id, provider]))
     const finalModelFilter = (model: Model) => (!showTagFilter || tagFilter(model)) && baseModelFilter(model)
+    // `searchFilter(provider)` runs fuzzy scoring + sort per provider; cache the tag-filtered
+    // result so duplicate-name detection and the list below share one pass per provider.
+    const tagFilteredModelsByProvider = new Map<string, Model[]>(
+      sortedProviders.map((provider) => [
+        provider.id,
+        searchFilter(provider).filter((model) => (!showTagFilter ? true : tagFilter(model)))
+      ])
+    )
     const duplicateNamesByProvider = new Map<string, Set<string>>(
       sortedProviders.map((provider) => [
         provider.id,
-        getDuplicateModelNames(searchFilter(provider).filter((model) => (!showTagFilter ? true : tagFilter(model))))
+        getDuplicateModelNames(tagFilteredModelsByProvider.get(provider.id) ?? [])
       ])
     )
 
@@ -235,9 +243,9 @@ export function useModelSelectorData({
     }
 
     sortedProviders.forEach((provider) => {
-      const filteredModels = searchFilter(provider)
-        .filter((model) => (!showTagFilter ? true : tagFilter(model)))
-        .filter((model) => !showPinnedModels || searchText.length > 0 || !pinnedIdSet.has(model.id))
+      const filteredModels = (tagFilteredModelsByProvider.get(provider.id) ?? []).filter(
+        (model) => !showPinnedModels || searchText.length > 0 || !pinnedIdSet.has(model.id)
+      )
 
       if (filteredModels.length === 0) {
         return

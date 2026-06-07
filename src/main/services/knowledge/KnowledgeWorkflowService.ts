@@ -4,12 +4,16 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import { FileProcessorIdSchema } from '@shared/data/presets/file-processing'
+import type { FileEntryId } from '@shared/data/types/file'
 import type { KnowledgeItem, KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
 
+import { cancelJobOrThrow } from './jobs/utils/cancel'
 import type { KnowledgeLockManager } from './KnowledgeLockManager'
 import {
   type KnowledgeBaseId,
   knowledgeDeleteSubtreeIdempotencyKey,
+  knowledgeFileProcessingCheckIdempotencyKey,
   knowledgeIndexIdempotencyKey,
   type KnowledgeItemId,
   knowledgePrepareIdempotencyKey,
@@ -24,6 +28,8 @@ import { isContainerKnowledgeItem } from './utils/items'
 import { planKnowledgeItemSource } from './utils/sources/sourcePlanning'
 
 const logger = loggerService.withContext('Knowledge:WorkflowService')
+// Keep poll jobs delayed enough to avoid hot-looping while remote processors are still working.
+const FILE_PROCESSING_CHECK_DELAY_MS = 5_000
 
 export class KnowledgeWorkflowService {
   constructor(private readonly knowledgeLockManager: KnowledgeLockManager) {}
@@ -114,6 +120,7 @@ export class KnowledgeWorkflowService {
     itemId: KnowledgeItemId,
     parentJobId: string | null = null
   ): Promise<void> {
+    const base = await knowledgeBaseService.getById(baseId)
     const item = await knowledgeItemService.getById(itemId)
     if (item.baseId !== baseId) {
       throw new Error(`Knowledge item '${itemId}' does not belong to base '${baseId}'`)
@@ -122,7 +129,7 @@ export class KnowledgeWorkflowService {
       return
     }
 
-    const plan = planKnowledgeItemSource(item)
+    const plan = planKnowledgeItemSource(base, item)
     if (plan.kind === 'invalid') {
       await knowledgeItemService.updateStatus(itemId, 'failed', { error: plan.reason })
       return
@@ -142,11 +149,96 @@ export class KnowledgeWorkflowService {
       return
     }
 
+    if (plan.kind === 'needsFileProcessing') {
+      if (item.type !== 'file') {
+        throw new Error(`File processing source plan produced for non-file item: ${item.id}`)
+      }
+      const processorId = FileProcessorIdSchema.parse(base.fileProcessorId)
+      const fileProcessing = application.get('FileProcessingOrchestrationService')
+      const fileProcessingJob = await fileProcessing.startJob(
+        {
+          feature: 'document_to_markdown',
+          fileEntryId: item.data.fileEntryId,
+          processorId
+        },
+        {
+          parentId: parentJobId ?? undefined
+        }
+      )
+      try {
+        await this.scheduleFileProcessingCheck(baseId, itemId, fileProcessingJob.id, item.data.fileEntryId, {
+          pollRound: 0,
+          firstScheduledAt: Date.now(),
+          // Use the file-processing job as workflow parent when this is a direct add flow,
+          // so retries keep a stable index idempotency key across poll rounds.
+          parentJobId: parentJobId ?? fileProcessingJob.id
+        })
+      } catch (error) {
+        try {
+          await cancelJobOrThrow(fileProcessingJob.id, 'knowledge-file-processing-check-enqueue-failed')
+        } catch (cancelError) {
+          logger.warn('Failed to cancel file-processing job after check enqueue failure', {
+            fileProcessingJobId: fileProcessingJob.id,
+            cancelError: cancelError instanceof Error ? cancelError.message : String(cancelError)
+          })
+        }
+        throw error
+      }
+      return
+    }
+
     await jobManager.enqueue(
       'knowledge.index-documents',
-      { baseId, itemId },
+      { baseId, itemId, parentJobId },
       {
-        idempotencyKey: knowledgeIndexIdempotencyKey(baseId, itemId),
+        idempotencyKey: knowledgeIndexIdempotencyKey(baseId, itemId, parentJobId),
+        queue: knowledgeQueueName(baseId),
+        parentId: parentJobId ?? undefined
+      }
+    )
+  }
+
+  async scheduleFileProcessingCheck(
+    baseId: KnowledgeBaseId,
+    itemId: KnowledgeItemId,
+    fileProcessingJobId: string,
+    sourceFileEntryId: FileEntryId,
+    options: { pollRound: number; firstScheduledAt: number; parentJobId: string | null }
+  ): Promise<void> {
+    const { pollRound, firstScheduledAt, parentJobId } = options
+    const jobManager = application.get('JobManager')
+    await jobManager.enqueue(
+      'knowledge.check-file-processing-result',
+      {
+        baseId,
+        itemId,
+        fileProcessingJobId,
+        sourceFileEntryId,
+        pollRound,
+        firstScheduledAt,
+        parentJobId
+      },
+      {
+        idempotencyKey: knowledgeFileProcessingCheckIdempotencyKey(baseId, itemId, fileProcessingJobId, pollRound),
+        queue: knowledgeQueueName(baseId),
+        parentId: parentJobId ?? undefined,
+        scheduledAt: Date.now() + FILE_PROCESSING_CHECK_DELAY_MS
+      }
+    )
+  }
+
+  async scheduleIndexing(
+    baseId: KnowledgeBaseId,
+    itemId: KnowledgeItemId,
+    processedFileEntryId: FileEntryId,
+    parentJobId: string | null = null
+  ): Promise<void> {
+    const jobManager = application.get('JobManager')
+    await jobManager.enqueue(
+      'knowledge.index-documents',
+      { baseId, itemId, parentJobId, processedFileEntryId },
+      {
+        idempotencyKey: knowledgeIndexIdempotencyKey(baseId, itemId, parentJobId),
         queue: knowledgeQueueName(baseId),
         parentId: parentJobId ?? undefined
       }

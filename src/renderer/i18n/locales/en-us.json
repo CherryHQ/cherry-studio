@@ -221,9 +221,11 @@
         "intervalUnit": "minutes",
         "lastRun": "Last Run",
         "logs": {
+          "cancelled": "Cancelled",
+          "completed": "Completed",
           "duration": "Duration",
           "empty": "No run history yet.",
-          "error": "Error",
+          "failed": "Failed",
           "justNow": "just now",
           "label": "Run History",
           "loadError": "Failed to load run history",
@@ -232,7 +234,6 @@
           "running": "Running...",
           "search": "Search logs...",
           "status": "Status",
-          "success": "Success",
           "viewSession": "View session"
         },
         "name": {
@@ -398,6 +399,11 @@
         "error": {
           "failed": "Failed to update the session"
         }
+      },
+      "workspace_status": {
+        "inaccessible": "Workspace path is not accessible: {{path}}",
+        "missing": "Workspace path does not exist: {{path}}",
+        "not_directory": "Workspace path is not a directory: {{path}}"
       }
     },
     "settings": {
@@ -1185,7 +1191,7 @@
       "auto_resize": "Auto resize height",
       "clear": {
         "content": "Do you want to clear all messages of the current topic?",
-        "label": "Clear {{Command}}",
+        "label": "Clear",
         "title": "Clear all messages?"
       },
       "collapse": "Collapse",
@@ -1203,7 +1209,7 @@
       "generate_image_not_supported": "The model does not support generating images.",
       "knowledge_base": "Knowledge Base",
       "new": {
-        "context": "Clear Context {{Command}}"
+        "context": "Clear Context"
       },
       "new_session": "New Session {{Command}}",
       "new_topic": "New Topic {{Command}}",
@@ -1230,6 +1236,7 @@
         "title": "Resources"
       },
       "send": "Send",
+      "send_failed": "Failed to send message",
       "settings": "Settings",
       "slash_commands": {
         "description": "Agent session slash commands",
@@ -1847,6 +1854,23 @@
   "docs": {
     "title": "Docs"
   },
+  "emoji_picker": {
+    "categories": {
+      "activities": "Activities",
+      "animals_nature": "Animals & Nature",
+      "flags": "Flags",
+      "food_drink": "Food & Drink",
+      "objects": "Objects",
+      "people_body": "People & Body",
+      "recent": "Frequently used",
+      "smileys_emotion": "Smileys & Emotion",
+      "symbols": "Symbols",
+      "travel_places": "Travel & Places"
+    },
+    "clear_recent": "Clear recent",
+    "no_results": "No matching emoji",
+    "search": "Search"
+  },
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
@@ -2102,7 +2126,6 @@
   "knowledge": {
     "add": {
       "group": "Group",
-      "icon": "Icon",
       "submit": "Create",
       "title": "New Knowledge Base"
     },
@@ -2132,23 +2155,17 @@
         },
         "note": {
           "description": "Select existing notes as knowledge base sources",
-          "empty_description": "Selectable notes will appear here after the real notes list is connected. For now, use files, folders, URLs, or sitemaps.",
+          "empty_description": "Selectable notes will appear here after the real notes list is connected. For now, use files, folders, or URLs.",
           "empty_title": "Notes are not connected yet"
         },
         "placeholder": {
           "supported_formats": "Supports PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Click to select files or drag them here"
         },
-        "sitemap": {
-          "description": "Enter a sitemap URL:",
-          "help": "Pages listed in the sitemap will be read and indexed",
-          "placeholder": "https://example.com/sitemap.xml"
-        },
         "sources": {
           "directory": "Folder",
           "file": "File",
           "note": "Note",
-          "sitemap": "Website",
           "url": "URL"
         },
         "submit": {
@@ -2164,19 +2181,40 @@
           "title": "Import a single webpage"
         }
       },
+      "bulk": {
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "delete_confirm_description": "Delete {{count}} selected data sources? This cannot be undone.",
+        "delete_confirm_title": "Delete Selected Data Sources?",
+        "reindex": "Reindex",
+        "selected_count": "{{count}} selected"
+      },
       "chunk_delete_confirm_description": "After deletion, this chunk will no longer be used for retrieval. Reindexing the data source will generate it again.",
       "chunk_delete_confirm_title": "Delete Chunk?",
       "chunks_count": "{{count}} chunks",
       "delete_confirm_description": "This data source and its index data cannot be recovered after deletion.",
       "delete_confirm_title": "Delete Data Source?",
       "delete_failed": "Failed to delete data source",
+      "empty": {
+        "shortcuts": {
+          "directory": {
+            "title": "Folder Import"
+          },
+          "file": {
+            "title": "File"
+          },
+          "url": {
+            "title": "URL"
+          }
+        },
+        "title": "Upload Your First Data Source"
+      },
       "empty_description": "No data sources yet",
       "filters": {
         "all": "All",
         "directory": "Folders",
         "file": "Files",
         "note": "Notes",
-        "sitemap": "Websites",
         "url": "URLs"
       },
       "preview": {
@@ -2191,6 +2229,22 @@
         "error": "Error",
         "pending": "Waiting",
         "ready": "Ready"
+      },
+      "table": {
+        "columns": {
+          "actions": "Actions",
+          "name": "Name",
+          "status": "Status",
+          "type": "Type",
+          "updated_at": "Updated"
+        },
+        "select_all": "Select all",
+        "select_row": "Select row"
+      },
+      "toolbar": {
+        "add": "Add Data Source",
+        "no_search_results": "No matching data sources",
+        "search_placeholder": "Search data sources"
       }
     },
     "dimensions": "Embedding Dimensions",
@@ -2214,8 +2268,9 @@
     "groups": {
       "add": "New Group",
       "create_base_here": "Create here",
+      "default": "Default",
       "delete": "Delete Group",
-      "delete_confirm_description": "Knowledge bases in this group will be moved to Ungrouped after deletion.",
+      "delete_confirm_description": "Knowledge bases in this group will be moved to the default group after deletion.",
       "delete_confirm_title": "Delete Group?",
       "error": {
         "failed_to_create": "Failed to create group",
@@ -2229,7 +2284,9 @@
       "ungrouped": "Ungrouped"
     },
     "meta": {
-      "documents_count": "{{count}} documents"
+      "data_sources_count": "{{count}} sources",
+      "documents_count": "{{count}} documents",
+      "updated_at": "Updated {{time}}"
     },
     "name_required": "Knowledge base name is required",
     "not_set": "Not Set",
@@ -2248,7 +2305,7 @@
       "document_count": "Requested Chunks (Top K)",
       "embedding_model": "Embedding Model",
       "embedding_model_select": "Model Selection",
-      "file_processing": "Document Preprocessing",
+      "file_processing": "File Processing",
       "file_processing_hint": "Document preprocessing runs automatically during document import. Choosing the right provider can improve document parsing quality.",
       "hints": {
         "chunk_overlap": "Number of overlapping tokens kept between adjacent chunks to reduce semantic breaks.",
@@ -2271,7 +2328,7 @@
       "rerank_model": "Rerank Model",
       "reset_action": "Restore Defaults",
       "reset_defaults": "Reset Defaults",
-      "retrieval": "Retrieval Settings",
+      "retrieval": "Retrieval",
       "save_action": "Save",
       "saved": "Saved",
       "search_mode": {
@@ -2554,9 +2611,6 @@
           "temperature": {
             "hint": "Controls randomness when enabled"
           },
-          "tool_use_mode": {
-            "hint": "Controls how tools are exposed to the model"
-          },
           "top_p": {
             "hint": "Limits token sampling range when enabled"
           }
@@ -2578,9 +2632,6 @@
         "tags": "Tags",
         "temperature": "Temperature",
         "title": "Basic settings",
-        "tool_use_function": "Function",
-        "tool_use_mode": "Tool call mode",
-        "tool_use_prompt": "Prompt",
         "top_p": "Top-P",
         "unlimited": "Unlimited"
       },
@@ -3358,6 +3409,7 @@
     },
     "stream_output": "Stream output",
     "type": {
+      "audio": "Audio",
       "embedding": "Embedding",
       "free": "Free",
       "function_calling": "Tool",
@@ -3365,6 +3417,7 @@
       "rerank": "Reranker",
       "select": "Model Types",
       "text": "Text",
+      "video": "Video",
       "vision": "Vision",
       "websearch": "WebSearch"
     }
@@ -3764,40 +3817,51 @@
       },
       "new": {
         "image": "New Image"
+      },
+      "select": {
+        "image": "Select Image"
       }
     },
     "custom_size": "Custom Size",
+    "dashscope": {
+      "bottom_scale": "Expand Bottom",
+      "enable_interleave": "Text+Image Mixed Mode",
+      "enable_interleave_tip": "When on, generates text-and-image mixed output without requiring an input image. Turn off to use edit mode (requires 1–4 input images).",
+      "function": "Edit Function",
+      "function_options": {
+        "colorization": "Colorization",
+        "control_cartoon_feature": "Cartoon Reference",
+        "description_edit": "Instruction Edit",
+        "description_edit_with_mask": "Masked Edit",
+        "doodle": "Doodle to Image",
+        "expand": "Expand",
+        "remove_watermark": "Remove Watermark",
+        "stylization_all": "Global Stylization",
+        "stylization_local": "Local Stylization",
+        "super_resolution": "Super Resolution"
+      },
+      "is_sketch": "Sketch Input",
+      "left_scale": "Expand Left",
+      "ref_mode": "Reference Mode",
+      "ref_mode_options": {
+        "refonly": "Reference only",
+        "repaint": "Repaint"
+      },
+      "ref_strength": "Reference Strength",
+      "right_scale": "Expand Right",
+      "source_lang": "Source Language",
+      "strength": "Strength",
+      "target_lang": "Target Language",
+      "top_scale": "Expand Top",
+      "upscale_factor": "Upscale Factor"
+    },
     "dmxapi": {
       "generating_tip": "Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
-      "style": ", Style: ",
-      "style_types": {
-        "25d_animation": "2.5D Animation",
-        "3d_cartoon": "3D Cartoon",
-        "american_retro": "American Retro",
-        "baroque": "Baroque",
-        "cartoon_illustration": "Cartoon Illustration",
-        "chinese_gongbi": "Chinese Gongbi",
-        "clay": "Clay",
-        "cyberpunk": "Cyberpunk",
-        "felt": "Felt",
-        "flat": "Flat",
-        "fresh_anime": "Fresh Anime",
-        "ghibli": "Ghibli",
-        "japanese_anime": "Japanese Anime",
-        "little_people_book": "Little People Book",
-        "monet_garden": "Monet Garden",
-        "oil_painting": "Oil Painting",
-        "pixar": "Pixar",
-        "pixel_art": "Pixel Art",
-        "poetic_ancient": "Poetic Ancient",
-        "psychedelic": "Psychedelic",
-        "sketch": "Sketch",
-        "street_art": "Street Art",
-        "texture": "Texture",
-        "ukiyo_e": "Ukiyo-e",
-        "watercolor": "Watercolor",
-        "wood_carving": "Wood Carving",
-        "yarn_doll": "Yarn Doll"
+      "max_images": "Max Images",
+      "sequential_image_generation": "Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "Auto",
+        "disabled": "Disabled"
       }
     },
     "edit": {
@@ -3806,24 +3870,14 @@
     },
     "generate": {
       "height": "Height",
-      "magic_prompt_option_tip": "Intelligently enhances prompts for better results",
-      "model_tip": "Model version: V3 is the latest version, V2 is the previous model, V2A is the fast model, V_1 is the first-generation model, _TURBO is the acceleration version",
-      "negative_prompt_tip": "Describe unwanted elements, only for V_1, V_1_TURBO, V_2, and V_2_TURBO",
-      "number_images_tip": "Number of images to generate",
-      "person_generation": "Generate person",
-      "person_generation_tip": "Allow model to generate person images",
-      "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
-      "safety_tolerance": "Safety Tolerance",
-      "safety_tolerance_tip": "Controls safety tolerance for image generation, only available for FLUX.1-Kontext-pro",
-      "seed_tip": "Controls image generation randomness for reproducible results",
-      "style_type_tip": "Image generation style for V_2 and above",
       "width": "Width"
     },
     "generate_failed": "Failed to generate image",
     "generated_image": "Generated Image",
+    "generating": "Generating...",
     "go_to_settings": "Go to Settings",
     "guidance_scale": "Guidance Scale",
-    "guidance_scale_tip": "Classifier Free Guidance. How close you want the model to stick to your prompt when looking for a related image to show you",
+    "guidance_scale_tip": "Classifier Free Guidance ({{min}}-{{max}}). How close you want the model to stick to your prompt when looking for a related image to show you",
     "image": {
       "size": "Image Size"
     },
@@ -3836,8 +3890,9 @@
     "image_size_options": {
       "auto": "Auto"
     },
+    "image_weight": "Image Weight",
     "inference_steps": "Inference Steps",
-    "inference_steps_tip": "The number of inference steps to perform. More steps produce higher quality but take longer",
+    "inference_steps_tip": "The number of inference steps to perform ({{min}}-{{max}}). More steps produce higher quality but take longer",
     "input_image": "Input Image",
     "input_parameters": "Input Parameters",
     "invalid_image_url": "Invalid image URL format",
@@ -3861,16 +3916,18 @@
     "negative_prompt_tip": "Describe what you don't want included in the image",
     "no_image_generation_model": "No available image generation model, please add a model and set the endpoint type to {{endpoint_type}}",
     "number_images": "Number Images",
-    "number_images_tip": "Number of images to generate (1-4)",
+    "number_images_tip": "Number of images to generate ({{min}}-{{max}})",
     "operation_failed": "Operation failed, please try again later",
     "paint_course": "tutorial",
     "per_image": "per image",
     "per_images": "per images",
+    "person_generation": "Generate people",
     "person_generation_options": {
       "allow_adult": "Allow adult",
       "allow_all": "Allow all",
       "allow_none": "Not allowed"
     },
+    "person_generation_tip": "Allow the model to generate images of people",
     "ppio": {
       "edit_prompt_tip": "Used to specify the object or area to remove from the image, e.g., 'dog' or 'hat'",
       "mask_image": "Mask Image",
@@ -3887,28 +3944,19 @@
     "prompt_placeholder": "Describe the image you want to create, e.g. A serene lake at sunset with mountains in the background",
     "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
     "prompt_placeholder_en": "Enter your image description, currently only supports English prompts",
+    "prompt_required": "Please enter a prompt",
     "proxy_required": "Open the proxy and enable \"TUN mode\" to view generated images or copy them to the browser for opening. In the future, domestic direct connection will be supported",
     "quality": "Quality",
     "quality_options": {
       "auto": "Auto",
+      "hd": "HD",
       "high": "High",
       "low": "Low",
-      "medium": "Medium"
+      "medium": "Medium",
+      "standard": "Standard"
     },
     "regenerate": {
       "confirm": "This will replace your existing generated images. Do you want to continue?"
-    },
-    "remix": {
-      "image_file": "Reference Image",
-      "image_weight": "Reference Image Weight",
-      "image_weight_tip": "Adjust reference image influence",
-      "magic_prompt_option_tip": "Intelligently enhances remix prompts",
-      "model_tip": "Select AI model version for remixing",
-      "negative_prompt_tip": "Describe unwanted elements in remix results",
-      "number_images_tip": "Number of remix results to generate",
-      "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
-      "seed_tip": "Control the randomness of the mixed result",
-      "style_type_tip": "Style for remixed image, only for V_2 and above"
     },
     "rendering_speed": "Rendering Speed",
     "rendering_speeds": {
@@ -3921,21 +3969,40 @@
     "req_error_text": "The server is busy or the prompt contains \"copyrighted\" or \"sensitive\" terms. Please try again.",
     "req_error_token": "Please check the validity of the token",
     "required_field": "Required field",
+    "safety_tolerance": "Safety Tolerance",
+    "safety_tolerance_tip": "Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Seed",
     "seed_desc_tip": "The same seed and prompt can generate similar images, setting -1 will generate different results each time",
     "seed_random": "Random",
     "seed_tip": "The same seed and prompt can produce similar images",
     "select_model": "Select Model",
+    "style_options": {
+      "anime": "Anime",
+      "auto": "Auto",
+      "cartoon_3d": "3D Cartoon",
+      "chinese_painting": "Chinese Painting",
+      "flat_illustration": "Flat Illustration",
+      "natural": "Natural",
+      "oil_painting": "Oil Painting",
+      "photography": "Photography",
+      "portrait": "Portrait",
+      "sketch": "Sketch",
+      "vivid": "Vivid",
+      "watercolor": "Watercolor"
+    },
     "style_type": "Style",
-    "style_types": {
-      "3d": "3D",
+    "style_type_options": {
       "anime": "Anime",
       "auto": "Auto",
       "design": "Design",
       "general": "General",
-      "realistic": "Realistic"
+      "realistic": "Realistic",
+      "render_3d": "3D Render"
     },
+    "style_type_tip": "Image generation style",
     "text_desc_required": "Please enter image description first",
+    "thinking_mode": "Thinking Mode",
+    "thinking_mode_tip": "When on, generation quality is higher but adds about 10–30 seconds.",
     "title": "Images",
     "top_up": "Top up ",
     "translating": "Translating...",
@@ -4630,6 +4697,10 @@
       },
       "sort_label": "Sort",
       "unpin": "Unpin"
+    },
+    "workspace": {
+      "empty_text": "No workspaces yet",
+      "placeholder": "Select workspace"
     }
   },
   "settings": {
@@ -4738,6 +4809,7 @@
         },
         "description": "Run every configured file processor through the real file processing IPC and compare results.",
         "duration": "{{seconds}}s",
+        "jobId": "Job ID",
         "markdown": {
           "description": "Select a document and run all document-to-markdown processors.",
           "fileFilterName": "Documents",
@@ -4759,13 +4831,14 @@
         "status": {
           "cancelled": "Cancelled",
           "completed": "Completed",
+          "delayed": "Delayed",
           "failed": "Failed",
           "idle": "Idle",
           "pending": "Pending",
           "processing": "Processing",
+          "running": "Running",
           "starting": "Starting"
         },
-        "taskId": "Task ID",
         "title": "Document Parsing"
       },
       "label": "Component Lab",
@@ -6049,8 +6122,9 @@
         }
       },
       "api_key": "API Key",
+      "available_count": "{{count}} available",
       "base_url": "Base URL",
-      "bulk_disable": "Select none",
+      "bulk_disable": "Close all",
       "bulk_enable": "Select all",
       "check": {
         "all": "All",
@@ -6063,6 +6137,9 @@
         "enabled": "Enabled",
         "failed": "Failed",
         "failed_to_start": "Failed to start health check",
+        "generation_output_audio": "audio",
+        "generation_output_image": "an image",
+        "generation_output_video": "a video",
         "keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
         "model_status_failed": "{{count}} models completely inaccessible",
         "model_status_partial": "{{count}} models had inaccessible keys",
@@ -6071,6 +6148,7 @@
         "no_api_keys": "No API keys found, please add API keys first.",
         "no_results": "No results",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "{{count}} skipped",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Passed",
@@ -6082,8 +6160,11 @@
         "retry": "Check again",
         "select_api_key": "Select the API key to use:",
         "single": "Single",
+        "skip_reason_generation_cost": "This model's health check would generate {{output}} and consume quota, so it is skipped by default.",
+        "skip_reason_unsupported_probe": "This model type does not have a low-cost health check yet, so it is skipped by default.",
         "start": "Start",
         "status_checking": "Checking…",
+        "status_skipped": "Skipped",
         "timeout": "Timeout",
         "title": "Model health check",
         "use_all_keys": "Key(s)"
@@ -6092,6 +6173,8 @@
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "empty": "No models found",
+      "group_disable": "Close this group",
+      "group_enable": "Enable this group",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",
@@ -6181,7 +6264,7 @@
         "custom_add": "Custom",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Add"
+        "pull_short": "Get model list"
       },
       "topic_naming": {
         "auto": "Topic Auto Naming",
@@ -6363,7 +6446,6 @@
         "unnamed": "API Key"
       },
       "api_version": "API Version",
-      "auth_connection_section": "Connection & authentication",
       "aws-bedrock": {
         "access_key_id": "AWS Access Key ID",
         "access_key_id_help": "Your AWS Access Key ID for accessing AWS Bedrock services",
@@ -6511,11 +6593,11 @@
         "balance_error": "Failed to fetch balance",
         "button": "Login with {{provider}}",
         "cherryIn": {
-          "account_title": "Cherry IN account",
           "description": "Login to CherryIN using OAuth 2.0",
           "logged_in": "Logged in via OAuth",
-          "login_button": "Authorize with OAuth",
+          "login_button": "Authorize with CherryIN",
           "logout_button": "Logout",
+          "not_logged_in": "Not logged in",
           "register_account": "Create account",
           "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
           "tagline": "After you sign in, you can use all model services",
@@ -6549,6 +6631,10 @@
       "save_failed": "Failed to save provider settings",
       "search": "Search Providers...",
       "search_placeholder": "Search model id or name",
+      "section": {
+        "account": "Account",
+        "configuration": "Configuration"
+      },
       "title": "Model Provider",
       "vertex_ai": {
         "api_host_help": "The API host for Vertex AI, not recommended to fill in, generally applicable to reverse proxy",
@@ -6987,23 +7073,6 @@
     "settings": "Settings",
     "store": "Assistant Library",
     "translate": "Translate"
-  },
-  "trace": {
-    "backList": "Back To List",
-    "edasSupport": "Powered by Alibaba Cloud EDAS",
-    "endTime": "End Time",
-    "inputs": "Inputs",
-    "label": "Call Chain",
-    "name": "Node Name",
-    "noTraceList": "No trace information found",
-    "outputs": "Outputs",
-    "parentId": "Parent Id",
-    "spanDetail": "Span Details",
-    "spendTime": "Spend Time",
-    "startTime": "Start Time",
-    "tag": "Tag",
-    "tokenUsage": "Token Usage",
-    "traceWindow": "Call Chain Window"
   },
   "translate": {
     "alter_language": "Alternative Language",

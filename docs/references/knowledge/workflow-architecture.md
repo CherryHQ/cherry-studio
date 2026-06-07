@@ -39,8 +39,8 @@ The workflow service owns all branching:
 
 ```text
 scheduleItem(baseId, itemId)
-  directory / sitemap -> enqueue knowledge.prepare-root
-  file / note / url   -> source planning
+  directory         -> enqueue knowledge.prepare-root
+  file / note / url -> source planning
        direct         -> enqueue knowledge.index-documents
        invalid        -> mark item failed
        needs processing -> Round 2 FileProcessing path
@@ -50,7 +50,7 @@ Job handlers do not decide whether an item is a root, nested container, direct l
 
 ## Recursive Container Expansion
 
-`knowledge.prepare-root` expands a `directory` or `sitemap` item and creates or replaces its child rows. Expansion results must not assume every child is a leaf:
+`knowledge.prepare-root` expands a `directory` item and creates or replaces its child rows. Expansion results must not assume every child is a leaf:
 
 ```text
 prepare-root(container)
@@ -59,7 +59,7 @@ prepare-root(container)
        workflowService.scheduleItem(baseId, childId)
 ```
 
-If a child is another `directory` or `sitemap`, `scheduleItem` queues another `knowledge.prepare-root`. If a child is `file`, `note`, or `url`, `scheduleItem` routes it to source planning and indexing. Recursive processing therefore lives in the workflow service loop, not inside a reader-specific branch.
+If a child is another `directory`, `scheduleItem` queues another `knowledge.prepare-root`. If a child is `file`, `note`, or `url`, `scheduleItem` routes it to source planning and indexing. Recursive processing therefore lives in the workflow service loop, not inside a reader-specific branch.
 
 ## Future Rename
 
@@ -74,11 +74,9 @@ Round 1 job types:
 - `knowledge.delete-subtree`: cancel active subtree jobs, delete vectors, detach Knowledge file refs, then delete resolved item ids with `deleteItemsByIds`. Detached `FileEntry` rows are preserved by the file module's no-reference policy.
 - `knowledge.reindex-subtree`: for terminal subtrees only, delete vectors, remove stale container descendants, reset selected root state, then call `scheduleItem`. Selected leaf root source refs remain attached and are repaired by `index-documents` from `knowledge_item.data`.
 
-Round 2 adds FileProcessing:
-
 - `knowledge.check-file-processing-result`: poll or inspect the FileProcessing job, attach the markdown artifact on success, then schedule indexing.
 
-`knowledge_base.fileProcessorId` is persisted today but indexing does not consume it in Round 1. Round 2 wires source planning to FileProcessing.
+`knowledge_base.fileProcessorId` controls source planning for supported file items. When a source needs conversion, the workflow starts FileProcessing, schedules `knowledge.check-file-processing-result`, attaches the converted markdown as a `processed_artifact` ref, then indexes that artifact.
 
 ## Mutation And Crash Semantics
 

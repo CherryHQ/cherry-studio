@@ -44,7 +44,7 @@ export function ModelCapabilityToggles({
           </Button>
         )}
       </div>
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5" aria-label={t('models.type.select')}>
         <VisionTag
           showLabel
           inactive={isOtherDisabled || !selectedCaps.has(MODEL_CAPABILITY.IMAGE_RECOGNITION)}

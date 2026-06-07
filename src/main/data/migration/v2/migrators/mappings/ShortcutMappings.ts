@@ -15,6 +15,7 @@
 
 import { loggerService } from '@logger'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import { normalizeShortcutBinding } from '@shared/shortcuts/tokens'
 
 import type { TransformFunction } from './ComplexPreferenceMappings'
 
@@ -23,28 +24,26 @@ const logger = loggerService.withContext('Migration:ShortcutMappings')
 /**
  * Maps the legacy Redux shortcut `key` field to the new preference target key.
  */
-const LEGACY_KEY_TO_TARGET_KEY: Record<string, string> = {
-  zoom_in: 'shortcut.general.zoom_in',
-  zoom_out: 'shortcut.general.zoom_out',
-  zoom_reset: 'shortcut.general.zoom_reset',
-  show_settings: 'shortcut.general.show_settings',
-  show_app: 'shortcut.general.show_main_window',
-  new_topic: 'shortcut.topic.new',
+export const LEGACY_KEY_TO_TARGET_KEY: Record<string, string> = {
+  zoom_in: 'shortcut.app.zoom.in',
+  zoom_out: 'shortcut.app.zoom.out',
+  zoom_reset: 'shortcut.app.zoom.reset',
+  show_settings: 'shortcut.app.settings.open',
+  show_app: 'shortcut.app.window.show',
+  new_topic: 'shortcut.topic.create',
   rename_topic: 'shortcut.topic.rename',
-  toggle_show_topics: 'shortcut.topic.toggle_show_topics',
-  toggle_show_assistants: 'shortcut.general.toggle_sidebar',
-  toggle_sidebar: 'shortcut.general.toggle_sidebar',
-  copy_last_message: 'shortcut.chat.copy_last_message',
-  edit_last_user_message: 'shortcut.chat.edit_last_user_message',
-  search_message_in_chat: 'shortcut.chat.search_message',
-  search_message: 'shortcut.general.search',
-  clear_topic: 'shortcut.chat.clear',
-  toggle_new_context: 'shortcut.chat.toggle_new_context',
-  select_model: 'shortcut.chat.select_model',
-  exit_fullscreen: 'shortcut.general.exit_fullscreen',
-  mini_window: 'shortcut.feature.quick_assistant.toggle_window',
-  selection_assistant_toggle: 'shortcut.feature.selection.toggle_enabled',
-  selection_assistant_select_text: 'shortcut.feature.selection.get_text'
+  toggle_show_topics: 'shortcut.topic.sidebar.toggle',
+  toggle_show_assistants: 'shortcut.app.sidebar.toggle',
+  toggle_sidebar: 'shortcut.app.sidebar.toggle',
+  copy_last_message: 'shortcut.chat.message.copy_last',
+  edit_last_user_message: 'shortcut.chat.message.edit_last_user',
+  search_message_in_chat: 'shortcut.chat.message.search',
+  search_message: 'shortcut.app.search',
+  select_model: 'shortcut.chat.model.select',
+  exit_fullscreen: 'shortcut.app.fullscreen.exit',
+  mini_window: 'shortcut.quick_assistant.toggle',
+  selection_assistant_toggle: 'shortcut.selection.toggle',
+  selection_assistant_select_text: 'shortcut.selection.capture_text'
 }
 
 export const SHORTCUT_TARGET_KEYS: readonly string[] = [...new Set(Object.values(LEGACY_KEY_TO_TARGET_KEY))]
@@ -99,7 +98,7 @@ export const transformShortcuts: TransformFunction = (sources) => {
       continue
     }
 
-    const binding = isStringArray(entry.shortcut) ? entry.shortcut : []
+    const binding = normalizeShortcutBinding(isStringArray(entry.shortcut) ? entry.shortcut : [])
     const enabled = typeof entry.enabled === 'boolean' ? entry.enabled : true
 
     result[targetKey] = { binding, enabled }

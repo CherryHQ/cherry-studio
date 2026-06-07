@@ -94,6 +94,7 @@ vi.mock('../files/EpubReader', () => ({
 const { loadKnowledgeItemDocuments } = await import('../KnowledgeReader')
 
 const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000501'
+const PROCESSED_FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000502'
 
 function createFileItem(ext: string, sourcePath?: string): KnowledgeItemOf<'file'> {
   return {
@@ -143,23 +144,6 @@ function createUrlItem(): KnowledgeItemOf<'url'> {
     data: {
       source: 'https://example.com',
       url: 'https://example.com'
-    }
-  }
-}
-
-function createSitemapItem(): KnowledgeItemOf<'sitemap'> {
-  return {
-    id: 'sitemap-1',
-    baseId: 'base-1',
-    groupId: null,
-    type: 'sitemap',
-    status: 'idle',
-    error: null,
-    createdAt: '2026-04-03T00:00:00.000Z',
-    updatedAt: '2026-04-03T00:00:00.000Z',
-    data: {
-      source: 'https://example.com/sitemap.xml',
-      url: 'https://example.com/sitemap.xml'
     }
   }
 }
@@ -221,6 +205,31 @@ describe('loadKnowledgeItemDocuments', () => {
         source: '/tmp/sample.log'
       }
     })
+  })
+
+  it('can read a processed artifact file entry while preserving source metadata', async () => {
+    const item = createFileItem('.pdf', '/tmp/source.pdf')
+    getPhysicalPathMock.mockResolvedValueOnce('/resolved/processed.md')
+
+    const docs = await loadKnowledgeItemDocuments(item, undefined, { fileEntryId: PROCESSED_FILE_ENTRY_ID })
+
+    expect(getPhysicalPathMock).toHaveBeenCalledWith(PROCESSED_FILE_ENTRY_ID)
+    expect(readerSpies.markdown).toHaveBeenCalledWith('/resolved/processed.md')
+    expect(docs[0]).toMatchObject({
+      metadata: {
+        source: '/tmp/source.pdf'
+      }
+    })
+  })
+
+  it('rejects fileEntryId overrides for non-file items', async () => {
+    const item = createNoteItem('hello world', 'https://example.com/note')
+
+    await expect(loadKnowledgeItemDocuments(item, undefined, { fileEntryId: PROCESSED_FILE_ENTRY_ID })).rejects.toThrow(
+      'fileEntryId override is only supported for file knowledge items: note'
+    )
+
+    expect(getPhysicalPathMock).not.toHaveBeenCalled()
   })
 
   it('uses the drafts export reader for .draftsexport files', async () => {
@@ -313,10 +322,9 @@ describe('loadKnowledgeItemDocuments', () => {
     })
   })
 
-  it.each([
-    ['directory', createDirectoryItem()],
-    ['sitemap', createSitemapItem()]
-  ])('throws for unsupported %s items', async (_type, item) => {
+  it('throws for unsupported directory items', async () => {
+    const item = createDirectoryItem()
+
     await expect(
       loadKnowledgeItemDocuments(item as unknown as Parameters<typeof loadKnowledgeItemDocuments>[0])
     ).rejects.toThrow(`Unsupported knowledge item type: ${item.type}`)

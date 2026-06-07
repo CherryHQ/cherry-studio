@@ -6,7 +6,7 @@ Migrates MCP server configurations from Redux to SQLite.
 
 | Source | Path | Description |
 |--------|------|-------------|
-| Redux | `state.mcp.servers` | Array of MCPServer objects |
+| Redux | `state.mcp.servers` | Array of McpServer objects |
 
 ## Target Table
 
@@ -27,7 +27,7 @@ Migrates MCP server configurations from Redux to SQLite.
 
 ## Field Mappings
 
-All MCPServer fields are mapped 1:1 at the Drizzle ORM level (camelCase property names). The underlying SQLite columns use snake_case (e.g., `baseUrl` → `base_url`), handled automatically by Drizzle:
+All McpServer fields are mapped 1:1 at the Drizzle ORM level (camelCase property names). The underlying SQLite columns use snake_case (e.g., `baseUrl` → `base_url`), handled automatically by Drizzle:
 
 | Source Field | Target Column | Transform |
 |---|---|---|

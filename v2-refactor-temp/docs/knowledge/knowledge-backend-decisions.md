@@ -60,7 +60,7 @@ Data API knowledge handlers：
 
 1. 负责 `addItems` / `deleteItems` / `reindexItems` 的 workflow 分支。
 2. 负责 `scheduleItem(baseId, itemId)`。
-3. 将 `directory` / `sitemap` 分派为 `knowledge.prepare-root`。
+3. 将 `directory` 分派为 `knowledge.prepare-root`。
 4. 将 `file` / `note` / `url` 分派为 `knowledge.index-documents`。
 5. 负责 add/reindex 调度失败后的状态补偿。
 
@@ -89,7 +89,7 @@ UI
        -> list/delete chunks
 ```
 
-添加 file / url / note / directory / sitemap 时，调用方直接走：
+添加 file / url / note / directory 时，调用方直接走：
 
 ```text
 caller
@@ -110,7 +110,7 @@ add-items(leaf payloads)
 Container item 当前链路：
 
 ```text
-add-items(directory/sitemap payloads)
+add-items(directory payloads)
  -> create root item rows
  -> status = preparing
  -> enqueue knowledge.prepare-root
@@ -119,7 +119,7 @@ add-items(directory/sitemap payloads)
  -> workflowService.scheduleItem(child)
 ```
 
-`prepare-root` 创建出的 child 可以继续是 `directory` / `sitemap`，由 workflow service 再次分派为 `knowledge.prepare-root`。递归展开不由 reader 或 leaf indexing 分支处理。
+`prepare-root` 创建出的 child 可以继续是 `directory`，由 workflow service 再次分派为 `knowledge.prepare-root`。递归展开不由 reader 或 leaf indexing 分支处理。
 
 ## 4. JobManager 模型
 
@@ -238,7 +238,7 @@ Reindex 不是 cancellation primitive。Active subtree 只能 delete，不能 re
 
 状态语义：
 
-1. `preparing`：`directory` / `sitemap` 正在 expand / create children。
+1. `preparing`：`directory` 正在 expand / create children。
 2. `processing`：leaf 已接受但尚未进入 reading，或 container 仍有 active children。
 3. `reading`：leaf 正在读取 source documents。
 4. `embedding`：leaf 正在 embedding。
@@ -299,7 +299,7 @@ Restore 允许 failed base，也允许 completed base；即使 completed source 
 
 1. 拒绝 failed base。
 2. 要求目标 item 自身为 `completed`。
-3. 对 completed `directory` / `sitemap` list 请求，如果 subtree 仍含 `deleting` descendant，则拒绝。
+3. 对 completed `directory` list 请求，如果 subtree 仍含 `deleting` descendant，则拒绝。
 
 ## 10. 当前明确不做的内容
 

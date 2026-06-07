@@ -1,6 +1,13 @@
 import { EventEmitter } from 'node:events'
 
 import { loggerService } from '@logger'
+import {
+  CpuProfiler,
+  DIAGNOSTICS_ENABLED,
+  EventLoopLagSampler,
+  formatPhaseProfile,
+  type ServiceSpan
+} from '@main/core/diagnostics'
 
 import { DependencyResolver, type PhaseAdjustment } from './DependencyResolver'
 import { ServiceContainer } from './ServiceContainer'
@@ -39,6 +46,10 @@ export class LifecycleManager extends EventEmitter {
   private phaseTiming: Map<Phase, { duration: number; serviceCount: number }> = new Map()
   /** Phase adjustments captured from validateAndAdjustPhases */
   private phaseAdjustments: PhaseAdjustment[] = []
+
+  /** Diagnostic profiling state, only populated when CS_DIAGNOSTICS is set. */
+  private phaseEpoch = 0
+  private serviceSpans: Map<string, ServiceSpan> = new Map()
 
   /** Tracks services that were paused due to cascade from another service */
   private pausedByCascade: Map<string, Set<string>> = new Map()
@@ -110,6 +121,11 @@ export class LifecycleManager extends EventEmitter {
     logger.info(`--- ${phase} start (${serviceCount} services) --- ${orderStr}`)
 
     const phaseStart = performance.now()
+    this.phaseEpoch = phaseStart
+    const lagSampler = DIAGNOSTICS_ENABLED ? new EventLoopLagSampler() : null
+    lagSampler?.start(phaseStart)
+    const cpuProfiler = DIAGNOSTICS_ENABLED && phase === Phase.WhenReady ? new CpuProfiler() : null
+    await cpuProfiler?.start()
 
     // Initialize services layer by layer, parallel within each layer
     for (const layer of layers) {
@@ -134,6 +150,26 @@ export class LifecycleManager extends EventEmitter {
     const phaseDuration = performance.now() - phaseStart
     this.phaseTiming.set(phase, { duration: phaseDuration, serviceCount })
     logger.info(`--- ${phase} complete (${phaseDuration.toFixed(3)}ms) ---`)
+
+    if (lagSampler) {
+      const lagSummary = lagSampler.stop()
+      const spans = [...this.serviceSpans.values()].filter((s) => this.servicePhase.get(s.name) === phase)
+      logger.info(`\n${formatPhaseProfile(phase, spans, lagSummary, lagSampler.thresholdMs)}`)
+    }
+    if (cpuProfiler) {
+      // Write next to app.log (always writable, predictable) — not process.cwd(),
+      // which is unwritable/surprising for a packaged app. A failed write must
+      // never break boot. `application` is imported lazily here (only on the
+      // diagnostics path) to avoid a static Application↔LifecycleManager cycle.
+      try {
+        const { application } = await import('@application')
+        const cpuProfilePath = application.getPath('app.logs', 'boot-whenReady.cpuprofile')
+        await cpuProfiler.stopAndWrite(cpuProfilePath)
+        logger.info(`[Diagnostics] CPU profile written to ${cpuProfilePath}`)
+      } catch (err) {
+        logger.warn('[Diagnostics] Failed to write CPU profile', err as Error)
+      }
+    }
 
     // Mark as initialized when WhenReady phase completes
     if (phase === Phase.WhenReady) {
@@ -206,6 +242,14 @@ export class LifecycleManager extends EventEmitter {
       await instance._doInit()
       const duration = performance.now() - start
       this.serviceTiming.set(serviceName, duration)
+      if (DIAGNOSTICS_ENABLED) {
+        this.serviceSpans.set(serviceName, {
+          name: serviceName,
+          startOffset: start - this.phaseEpoch,
+          endOffset: start + duration - this.phaseEpoch,
+          duration
+        })
+      }
       logger.info(`Service '${serviceName}' initialized (${duration.toFixed(3)}ms)`)
 
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_READY, serviceName, LifecycleState.Ready)
@@ -230,7 +274,7 @@ export class LifecycleManager extends EventEmitter {
       await instance._doStop()
       const duration = performance.now() - start
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_STOPPED, serviceName, LifecycleState.Stopped)
-      logger.info(`Service '${serviceName}' stopped (${duration.toFixed(3)}ms)`)
+      logger.debug(`Service '${serviceName}' stopped (${duration.toFixed(3)}ms)`)
     } catch (error) {
       logger.error(`Error stopping service '${serviceName}':`, error as Error)
     }
@@ -244,11 +288,8 @@ export class LifecycleManager extends EventEmitter {
     if (!instance || instance.state === LifecycleState.Destroyed) return
 
     try {
-      const start = performance.now()
       await instance._doDestroy()
-      const duration = performance.now() - start
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_DESTROYED, serviceName, LifecycleState.Destroyed)
-      logger.info(`Service '${serviceName}' destroyed (${duration.toFixed(3)}ms)`)
     } catch (error) {
       logger.error(`Error destroying service '${serviceName}':`, error as Error)
     }
