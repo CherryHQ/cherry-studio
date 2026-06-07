@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback, Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Button, Flex, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getModelLogo } from '@renderer/config/models'
 import { getModelClipboardId } from '@renderer/pages/settings/ProviderSettings/ModelList/utils'
@@ -52,7 +52,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
 
   return (
     <div ref={ref} className={cn(modelListClasses.row, !model.isEnabled && 'opacity-60')}>
-      <RowFlex className={modelListClasses.rowMain}>
+      <Flex direction="row" className={modelListClasses.rowMain}>
         {(() => {
           const Icon = getModelLogo(model)
           return Icon ? (
@@ -87,8 +87,8 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
             </Tooltip>
           </div>
         </div>
-      </RowFlex>
-      <RowFlex className={modelListClasses.rowActions}>
+      </Flex>
+      <Flex direction="row" className={modelListClasses.rowActions}>
         <div className={modelListClasses.rowActionsCluster}>
           <div className={modelListClasses.rowCapabilityStrip}>
             <div className={modelListClasses.rowCapabilityTagCluster}>
@@ -106,7 +106,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
             />
           </div>
         </div>
-      </RowFlex>
+      </Flex>
     </div>
   )
 }

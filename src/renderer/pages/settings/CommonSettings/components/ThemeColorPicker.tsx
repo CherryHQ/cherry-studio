@@ -1,4 +1,4 @@
-import { Input, RowFlex } from '@cherrystudio/ui'
+import { Flex, Input } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import { useEffect, useState } from 'react'
 
@@ -57,8 +57,8 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
   }
 
   return (
-    <RowFlex className={cn('min-w-0 max-w-full flex-wrap items-center gap-3', className)}>
-      <RowFlex className="min-w-0 max-w-full flex-wrap gap-3">
+    <Flex direction="row" className={cn('min-w-0 max-w-full flex-wrap items-center gap-3', className)}>
+      <Flex direction="row" wrap gap={3} className="min-w-0 max-w-full">
         {presets.map((color) => {
           const normalizedPreset = normalizeHexColor(color) ?? color
           const selected = normalizedPreset === normalizedValue
@@ -80,7 +80,7 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
             </button>
           )
         })}
-      </RowFlex>
+      </Flex>
       <label className="relative flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border border-border bg-background shadow-xs outline-none focus-within:ring-3 focus-within:ring-ring/50">
         <input
           type="color"
@@ -98,7 +98,7 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
         className="h-8 w-24 font-mono text-xs uppercase"
         spellCheck={false}
       />
-    </RowFlex>
+    </Flex>
   )
 }
 

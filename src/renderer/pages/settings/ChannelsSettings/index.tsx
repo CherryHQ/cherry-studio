@@ -1,4 +1,4 @@
-import { MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
+import { Flex, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import type { FC } from 'react'
@@ -19,7 +19,7 @@ const ChannelsSettings: FC = () => {
   const [selectedType, setSelectedType] = useState<AvailableChannel>(AVAILABLE_CHANNELS[0])
 
   return (
-    <RowFlex className="flex-1">
+    <Flex direction="row" className="flex-1">
       <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
         <PageHeader title={t('settings.channels.title')} />
         <Scrollbar className="min-h-0 flex-1">
@@ -46,7 +46,7 @@ const ChannelsSettings: FC = () => {
       <div className="relative flex-1">
         <ChannelDetail key={selectedType.type} channelDef={selectedType} />
       </div>
-    </RowFlex>
+    </Flex>
   )
 }
 

@@ -1,4 +1,4 @@
-import { Input, Label, RadioGroup, RadioGroupItem, RowFlex } from '@cherrystudio/ui'
+import { Flex, Input, Label, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProvider'
 import { Info } from 'lucide-react'
@@ -201,11 +201,11 @@ const AwsBedrockSettings: FC<Props> = ({ providerId }) => {
           />
           {apiKeyWebsite && (
             <ProviderHelpTextRow className="justify-between">
-              <RowFlex>
+              <Flex direction="row">
                 <ProviderHelpLink target="_blank" href={apiKeyWebsite}>
                   {t('settings.provider.get_api_key')}
                 </ProviderHelpLink>
-              </RowFlex>
+              </Flex>
               <ProviderHelpText>{t('settings.provider.aws-bedrock.secret_access_key_help')}</ProviderHelpText>
             </ProviderHelpTextRow>
           )}

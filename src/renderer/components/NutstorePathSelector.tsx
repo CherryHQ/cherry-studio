@@ -1,4 +1,4 @@
-import { Button, Input, RowFlex } from '@cherrystudio/ui'
+import { Button, Flex, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { FolderIcon as NutstoreFolderIcon } from '@renderer/components/Icons/NutstoreIcons'
 import { useCallback, useEffect, useState } from 'react'
@@ -155,21 +155,21 @@ interface FooterProps {
 export function NustorePathSelectorFooter(props: FooterProps) {
   const { t } = useTranslation()
   return (
-    <RowFlex className="mt-3 justify-between bg-transparent p-0">
-      <RowFlex className="items-center gap-2">
+    <Flex direction="row" justify="between" className="mt-3 bg-transparent p-0">
+      <Flex direction="row" align="center" gap={2}>
         <Button variant="outline" onClick={props.returnPrev}>
           {t('settings.data.nutstore.pathSelector.return')}
         </Button>
         <Button size="sm" variant="ghost" onClick={props.mkdir}>
           {t('settings.data.nutstore.new_folder.button.label')}
         </Button>
-      </RowFlex>
-      <RowFlex className="items-center gap-2">
+      </Flex>
+      <Flex direction="row" align="center" gap={2}>
         <Button variant="outline" onClick={props.cancel}>
           {t('settings.data.nutstore.new_folder.button.cancel')}
         </Button>
         <Button onClick={props.confirm}>{t('backup.confirm.button')}</Button>
-      </RowFlex>
-    </RowFlex>
+      </Flex>
+    </Flex>
   )
 }

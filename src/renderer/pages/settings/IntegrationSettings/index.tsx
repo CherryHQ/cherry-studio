@@ -1,5 +1,5 @@
 import { YuqueOutlined } from '@ant-design/icons'
-import { MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
+import { Flex, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import { JoplinIcon, SiyuanIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -42,7 +42,7 @@ const IntegrationSettings: FC = () => {
   ]
 
   return (
-    <RowFlex className="min-w-0 flex-1">
+    <Flex direction="row" className="min-w-0 flex-1">
       <div className={`flex shrink-0 flex-col ${settingsSubmenuScrollClassName}`}>
         <PageHeader title={t('settings.integrations.title')} />
         <Scrollbar className="min-h-0 flex-1 [&_.iconfont]:text-current [&_.iconfont]:leading-4">
@@ -68,7 +68,7 @@ const IntegrationSettings: FC = () => {
         {menu === 'obsidian' && <ObsidianSettings />}
         {menu === 'siyuan' && <SiyuanSettings />}
       </SettingsContentColumn>
-    </RowFlex>
+    </Flex>
   )
 }
 

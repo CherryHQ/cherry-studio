@@ -1,5 +1,5 @@
 import { DeleteOutlined, FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
-import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Flex, Input, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
@@ -150,7 +150,7 @@ const LocalBackupSettings: React.FC = () => {
     }
 
     return (
-      <RowFlex className="items-center gap-1.25">
+      <Flex direction="row" align="center" gap={1}>
         {localBackupSync.syncing && <SyncOutlined spin />}
         {!localBackupSync.syncing && localBackupSync.lastSyncError && (
           <WarnTooltip
@@ -163,7 +163,7 @@ const LocalBackupSettings: React.FC = () => {
             {t('settings.data.local.lastSync')}: {dayjs(localBackupSync.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}
-      </RowFlex>
+      </Flex>
     )
   }
 
@@ -184,7 +184,7 @@ const LocalBackupSettings: React.FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.local.directory.label')}</SettingRowTitle>
-        <RowFlex className="gap-1.25">
+        <Flex direction="row" gap={1}>
           <Input
             value={localBackupDir}
             onChange={(e) => setLocalBackupDir(e.target.value)}
@@ -200,12 +200,12 @@ const LocalBackupSettings: React.FC = () => {
             <DeleteOutlined />
             {t('common.clear')}
           </Button>
-        </RowFlex>
+        </Flex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-        <RowFlex className="justify-between gap-1.25">
+        <Flex direction="row" justify="between" gap={1}>
           <Button onClick={showBackupModal} disabled={!localBackupDir || backuping} variant="outline">
             <SaveOutlined />
             {t('settings.data.local.backup.button')}
@@ -214,7 +214,7 @@ const LocalBackupSettings: React.FC = () => {
             <FolderOpenOutlined />
             {t('settings.data.local.restore.button')}
           </Button>
-        </RowFlex>
+        </Flex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>

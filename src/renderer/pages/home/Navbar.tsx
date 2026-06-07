@@ -1,4 +1,4 @@
-import { RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Flex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
@@ -76,7 +76,7 @@ const HeaderNavbar: FC<Props> = () => {
           paddingRight: '15px'
         }}
         className="home-navbar-right">
-        <RowFlex className="items-center gap-1.5">
+        <Flex direction="row" align="center" gap={1}>
           <UpdateAppButton />
           <Tooltip placement="bottom" content={t('chat.assistant.search.placeholder')} delay={800}>
             <NarrowIcon onClick={() => SearchPopup.show()}>
@@ -98,7 +98,7 @@ const HeaderNavbar: FC<Props> = () => {
               </NavbarIcon>
             </Tooltip>
           )}
-        </RowFlex>
+        </Flex>
       </NavbarRight>
     </Navbar>
   )

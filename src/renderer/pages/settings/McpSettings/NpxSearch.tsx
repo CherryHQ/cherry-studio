@@ -1,4 +1,4 @@
-import { Badge, Button, Center, Flex, Input, RowFlex, Spinner } from '@cherrystudio/ui'
+import { Badge, Button, Center, Flex, Input, Spinner } from '@cherrystudio/ui'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import type { McpServer } from '@renderer/types'
@@ -115,7 +115,7 @@ const NpxSearch: FC = () => {
               className="h-10 rounded-full"
             />
           </div>
-          <RowFlex className="items-center justify-center">
+          <Flex direction="row" align="center" justify="center">
             {npmScopes.map((scope) => (
               <Badge
                 key={scope}
@@ -128,7 +128,7 @@ const NpxSearch: FC = () => {
                 {scope}
               </Badge>
             ))}
-          </RowFlex>
+          </Flex>
         </div>
       </Center>
       {searchLoading && (

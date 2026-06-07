@@ -1,5 +1,5 @@
 import { LoadingOutlined, WifiOutlined } from '@ant-design/icons'
-import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Flex, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
 import LanTransferPopup from '@renderer/components/Popups/LanTransferPopup'
@@ -432,7 +432,7 @@ const BasicDataSettings: React.FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-          <RowFlex className="justify-between gap-1.25">
+          <Flex direction="row" justify="between" gap={1}>
             <Button onClick={() => BackupPopup.show()} variant="outline">
               <SaveIcon size={14} />
               {t('settings.general.backup.button')}
@@ -441,7 +441,7 @@ const BasicDataSettings: React.FC = () => {
               <FolderOpen size={14} />
               {t('settings.general.restore.button')}
             </Button>
-          </RowFlex>
+          </Flex>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
@@ -457,22 +457,22 @@ const BasicDataSettings: React.FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.data.export_to_phone.lan.title')}</SettingRowTitle>
-          <RowFlex className="justify-between gap-1.25">
+          <Flex direction="row" justify="between" gap={1}>
             <Button onClick={LanTransferPopup.show} variant="outline">
               <WifiOutlined size={14} />
               {t('settings.data.export_to_phone.lan.button')}
             </Button>
-          </RowFlex>
+          </Flex>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.data.export_to_phone.file.title')}</SettingRowTitle>
-          <RowFlex className="justify-between gap-1.25">
+          <Flex direction="row" justify="between" gap={1}>
             <Button onClick={() => BackupPopup.show('lan-transfer')} variant="outline">
               <FolderInput size={14} />
               {t('settings.data.export_to_phone.file.button')}
             </Button>
-          </RowFlex>
+          </Flex>
         </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
@@ -489,11 +489,11 @@ const BasicDataSettings: React.FC = () => {
             <Tooltip title={t('settings.data.app_data.select')}>
               <FolderOutput onClick={handleSelectAppDataPath} style={{ cursor: 'pointer' }} size={16} />
             </Tooltip>
-            <RowFlex className="ml-2 gap-1.25">
+            <Flex direction="row" gap={1} className="ml-2">
               <Button onClick={() => handleOpenPath(appInfo?.appDataPath)} variant="outline">
                 {t('settings.data.app_data.open')}
               </Button>
-            </RowFlex>
+            </Flex>
           </PathRow>
         </SettingRow>
         <SettingDivider />
@@ -505,11 +505,11 @@ const BasicDataSettings: React.FC = () => {
               onClick={() => handleOpenPath(appInfo?.logsPath)}>
               {appInfo?.logsPath}
             </PathText>
-            <RowFlex className="ml-2 gap-1.25">
+            <Flex direction="row" gap={1} className="ml-2">
               <Button onClick={() => handleOpenPath(appInfo?.logsPath)} variant="outline">
                 {t('settings.data.app_logs.button')}
               </Button>
-            </RowFlex>
+            </Flex>
           </PathRow>
         </SettingRow>
         <SettingDivider />
@@ -518,20 +518,20 @@ const BasicDataSettings: React.FC = () => {
             {t('settings.data.clear_cache.title')}
             {cacheSize && <CacheText>({cacheSize}MB)</CacheText>}
           </SettingRowTitle>
-          <RowFlex className="gap-1.25">
+          <Flex direction="row" gap={1}>
             <Button onClick={handleClearCache} variant="outline">
               {t('settings.data.clear_cache.button')}
             </Button>
-          </RowFlex>
+          </Flex>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.general.reset.title')}</SettingRowTitle>
-          <RowFlex className="gap-1.25">
+          <Flex direction="row" gap={1}>
             <Button onClick={reset} variant="destructive">
               {t('settings.general.reset.title')}
             </Button>
-          </RowFlex>
+          </Flex>
         </SettingRow>
       </SettingGroup>
     </>
@@ -577,8 +577,8 @@ const MigrationProgressBar = ({ percent, status, strokeWidth }: MigrationProgres
   )
 }
 
-const PathRow = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof RowFlex>) => (
-  <RowFlex className={cn('w-0 min-w-0 flex-1 items-center gap-1.25', className)} {...props} />
+const PathRow = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Flex>) => (
+  <Flex direction="row" className={cn('w-0 min-w-0 flex-1 items-center gap-1.25', className)} {...props} />
 )
 
 const MigrationModalContent = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

@@ -1,5 +1,5 @@
 import { UndoOutlined } from '@ant-design/icons'
-import { Button, Input, Kbd, MenuItem, MenuList, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Flex, Input, Kbd, MenuItem, MenuList, Switch, Tooltip } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -396,7 +396,7 @@ const ShortcutSettings: FC = () => {
     if (displayShortcut) {
       return (
         <div className="relative flex flex-col items-end">
-          <RowFlex className="items-center justify-end gap-2">
+          <Flex direction="row" align="center" justify="end" gap={2}>
             {isBindingModified && (
               <Tooltip content={t('settings.shortcuts.reset_to_default')}>
                 <UndoOutlined
@@ -407,7 +407,8 @@ const ShortcutSettings: FC = () => {
                 />
               </Tooltip>
             )}
-            <RowFlex
+            <Flex
+              direction="row"
               className={cn(
                 'min-h-9 items-center gap-1 rounded-lg border border-transparent bg-transparent px-2 py-1 transition-colors hover:border-border/60 hover:bg-muted/35',
                 hasSystemConflict && 'border-red-500',
@@ -424,8 +425,8 @@ const ShortcutSettings: FC = () => {
                   {formatKeyDisplay(key, isMac)}
                 </Kbd>
               ))}
-            </RowFlex>
-          </RowFlex>
+            </Flex>
+          </Flex>
           {hasSystemConflict && (
             <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
               {conflictMessage}

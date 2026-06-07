@@ -1,4 +1,4 @@
-import { Input, RowFlex } from '@cherrystudio/ui'
+import { Flex, Input } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
 import type { PaintingFieldComponentProps } from '../fieldRegistry'
@@ -18,7 +18,7 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
   // this widget rendered.
   return (
     <div className="flex flex-col gap-2">
-      <RowFlex className="items-center gap-2">
+      <Flex direction="row" align="center" gap={2}>
         <Input
           aria-label={t('paintings.generate.width')}
           placeholder={t('paintings.generate.width')}
@@ -47,7 +47,7 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
           className="flex-1"
         />
         <span className="text-muted-foreground text-xs">px</span>
-      </RowFlex>
+      </Flex>
     </div>
   )
 }

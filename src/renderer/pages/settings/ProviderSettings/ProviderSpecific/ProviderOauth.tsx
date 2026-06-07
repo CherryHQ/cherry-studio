@@ -1,4 +1,4 @@
-import { Button, RowFlex } from '@cherrystudio/ui'
+import { Button, Flex } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import OauthButton from '@renderer/components/Oauth/OauthButton'
 import { PROVIDER_URLS } from '@renderer/config/providers'
@@ -89,7 +89,7 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
           {provider.name[0]}
         </div>
       )}
-      <RowFlex className="gap-2.5">
+      <Flex direction="row" gap={2}>
         <Button
           className="rounded-lg px-3 py-[6px] text-[13px] shadow-none"
           onClick={() => providerCharge(provider.id)}>
@@ -100,7 +100,7 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
           <ReceiptText aria-hidden className="size-4 shrink-0 text-white" />
           {t('settings.provider.bills')}
         </Button>
-      </RowFlex>
+      </Flex>
       <div className="flex items-center gap-1.5 text-(--color-text-2) text-[13px] leading-[1.35]">
         {serviceDescription}
       </div>

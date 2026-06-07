@@ -1,5 +1,5 @@
 import type { ColumnDef } from '@cherrystudio/ui'
-import { Badge, ColFlex, DataTable, Flex, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
+import { Badge, DataTable, Flex, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import { useIsToolAutoApproved } from '@renderer/hooks/useMcpServer'
 import type { McpServer, McpTool } from '@renderer/types'
@@ -91,7 +91,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
     const itemType = prop.type === 'array' && prop.items?.type ? `${prop.items.type}[]` : prop.type
 
     return (
-      <ColFlex className="gap-1">
+      <Flex direction="col" gap={1}>
         <Flex className="items-center gap-2">
           {itemType && <Badge className={getTypeBadgeClass(prop.type)}>{itemType}</Badge>}
         </Flex>
@@ -123,7 +123,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
               {renderSchemaProperties(prop.items.properties, prop.items.required, depth + 1)}
             </div>
           )}
-      </ColFlex>
+      </Flex>
     )
   }
 
@@ -176,7 +176,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
         const tool = row.original
 
         return (
-          <ColFlex className="gap-1">
+          <Flex direction="col" gap={1}>
             <Flex className="items-center gap-1">
               <span className="truncate font-medium text-foreground text-sm" title={tool.name}>
                 {tool.name}
@@ -188,7 +188,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
                 <p className="m-0 line-clamp-1 text-[13px] text-foreground-secondary leading-5">{tool.description}</p>
               </Tooltip>
             )}
-          </ColFlex>
+          </Flex>
         )
       }
     },

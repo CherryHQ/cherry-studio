@@ -1,5 +1,5 @@
 import { CloudServerOutlined, CloudSyncOutlined } from '@ant-design/icons'
-import { MenuDivider, MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
+import { Flex, MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -58,7 +58,7 @@ const DataSettings: FC = () => {
   ]
 
   return (
-    <RowFlex className="flex-1">
+    <Flex direction="row" className="flex-1">
       <div
         className={`flex flex-col ${settingsSubmenuScrollClassName} [&_.iconfont]:text-current [&_.iconfont]:leading-4`}>
         <PageHeader title={t('settings.data.title')} />
@@ -95,7 +95,7 @@ const DataSettings: FC = () => {
         {menu === 'markdown_export' && <MarkdownExportSettings />}
         {menu === 'local_backup' && <LocalBackupSettings />}
       </SettingsContentColumn>
-    </RowFlex>
+    </Flex>
   )
 }
 

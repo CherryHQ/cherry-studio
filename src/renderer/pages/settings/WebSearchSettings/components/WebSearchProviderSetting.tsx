@@ -1,4 +1,4 @@
-import { Button, ButtonGroup, Flex, InfoTooltip, Input, Label, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Button, ButtonGroup, Flex, InfoTooltip, Input, Label, Tooltip } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import type { WebSearchBasicAuthPatch } from '@renderer/hooks/useWebSearch'
 import { formatApiKeys, splitApiKeyString, withoutTrailingSlash } from '@renderer/utils/api'
@@ -368,13 +368,13 @@ export const WebSearchProviderSetting: FC<Props> = ({
               </Button>
             </ButtonGroup>
             <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
-              <RowFlex>
+              <Flex direction="row">
                 {apiKeyWebsite && (
                   <SettingHelpLink target="_blank" href={apiKeyWebsite}>
                     {t('settings.provider.get_api_key')}
                   </SettingHelpLink>
                 )}
-              </RowFlex>
+              </Flex>
               <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
             </SettingHelpTextRow>
           </>

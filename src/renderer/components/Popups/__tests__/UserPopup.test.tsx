@@ -40,6 +40,11 @@ vi.mock('@cherrystudio/ui', () => {
         {children}
       </div>
     ),
+    Flex: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+      <div data-testid="flex" {...props}>
+        {children}
+      </div>
+    ),
     ColFlex: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
       <div data-testid="col-flex" {...props}>
         {children}

@@ -3,7 +3,6 @@ import {
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
-  ColFlex,
   EmptyState,
   Flex,
   Tooltip
@@ -41,11 +40,11 @@ const McpPromptsSection = ({ prompts }: McpPromptsSectionProps) => {
                   )}
                 </Flex>
               }>
-              <ColFlex className="gap-1">
+              <Flex direction="col" gap={1}>
                 {arg.description && (
                   <p className="m-0 text-foreground-secondary text-sm leading-5">{arg.description}</p>
                 )}
-              </ColFlex>
+              </Flex>
             </McpDetailItem>
           ))}
         </McpDetailList>
@@ -64,14 +63,14 @@ const McpPromptsSection = ({ prompts }: McpPromptsSectionProps) => {
             {prompts.map((prompt) => (
               <AccordionItem key={prompt.id || prompt.name} value={prompt.id || prompt.name}>
                 <AccordionTrigger className="py-3">
-                  <ColFlex className="min-w-0 items-start">
+                  <Flex direction="col" align="start" className="min-w-0">
                     <Flex className="w-full min-w-0 items-center">
                       <span className="truncate font-medium text-foreground text-sm">{prompt.name}</span>
                     </Flex>
                     {prompt.description && (
                       <span className="mt-1 text-[13px] text-foreground-secondary leading-5">{prompt.description}</span>
                     )}
-                  </ColFlex>
+                  </Flex>
                 </AccordionTrigger>
                 <AccordionContent className="select-text px-3">{renderPromptArguments(prompt)}</AccordionContent>
               </AccordionItem>

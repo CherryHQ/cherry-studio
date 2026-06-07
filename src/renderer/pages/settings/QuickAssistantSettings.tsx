@@ -7,11 +7,11 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  Flex,
   InfoTooltip,
   Popover,
   PopoverContent,
   PopoverTrigger,
-  RowFlex,
   Switch
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
@@ -128,8 +128,8 @@ const QuickAssistantSettings: FC = () => {
       </SettingGroup>
       {enableQuickAssistant && (
         <SettingGroup theme={theme}>
-          <RowFlex className="items-center justify-between">
-            <RowFlex className="items-center gap-2.5">
+          <Flex direction="row" align="center" justify="between">
+            <Flex direction="row" align="center" gap={2}>
               {t('settings.models.quick_assistant_model')}
               <InfoTooltip
                 content={t('selection.settings.user_modal.model.tooltip')}
@@ -137,10 +137,10 @@ const QuickAssistantSettings: FC = () => {
                 iconProps={{ className: 'cursor-pointer' }}
               />
               <Spacer />
-            </RowFlex>
-            <RowFlex className="items-center gap-2.5">
+            </Flex>
+            <Flex direction="row" align="center" gap={2}>
               {!quickAssistantId ? null : (
-                <RowFlex className="items-center">
+                <Flex direction="row" align="center">
                   <Popover open={assistantSelectOpen} onOpenChange={setAssistantSelectOpen}>
                     <PopoverTrigger asChild>
                       <Button
@@ -190,7 +190,7 @@ const QuickAssistantSettings: FC = () => {
                       </Command>
                     </PopoverContent>
                   </Popover>
-                </RowFlex>
+                </Flex>
               )}
               <ButtonGroup>
                 <Button
@@ -208,8 +208,8 @@ const QuickAssistantSettings: FC = () => {
                   {t('settings.models.use_model')}
                 </Button>
               </ButtonGroup>
-            </RowFlex>
-          </RowFlex>
+            </Flex>
+          </Flex>
         </SettingGroup>
       )}
       {enableQuickAssistant && (

@@ -9,7 +9,6 @@ import {
   MenuItem,
   MenuList,
   PageHeader,
-  RowFlex,
   SegmentedControl,
   Switch,
   Tooltip
@@ -681,7 +680,7 @@ const CommonSettings: FC = () => {
         <SettingTitle>{t('settings.general.spell_check.label')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <RowFlex className="mr-4 flex-1 items-center justify-between">
+          <Flex direction="row" align="center" justify="between" className="mr-4 flex-1">
             <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
             {enableSpellCheck && !isMac && (
               <Selector<string>
@@ -703,7 +702,7 @@ const CommonSettings: FC = () => {
                 }))}
               />
             )}
-          </RowFlex>
+          </Flex>
           <Switch checked={enableSpellCheck} onCheckedChange={handleSpellCheckChange} />
         </SettingRow>
       </SettingGroup>

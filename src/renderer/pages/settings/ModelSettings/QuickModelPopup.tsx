@@ -1,6 +1,5 @@
 import {
   Button,
-  ColFlex,
   Dialog,
   DialogContent,
   DialogFooter,
@@ -11,7 +10,6 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  RowFlex,
   Switch,
   Textarea
 } from '@cherrystudio/ui'
@@ -41,17 +39,17 @@ export const TopicNamingSettings = () => {
     <section>
       <SettingSubtitle className="mt-0 mb-3">{t('settings.models.topic_naming.label')}</SettingSubtitle>
 
-      <ColFlex className="items-stretch rounded-md border border-border-muted">
-        <RowFlex className="min-h-11 items-center justify-between gap-4 px-3 py-2.5">
+      <Flex direction="col" align="stretch" className="rounded-md border border-border-muted">
+        <Flex direction="row" align="center" justify="between" gap={4} className="min-h-11 px-3 py-2.5">
           <div className="font-medium text-foreground text-sm">{t('settings.models.topic_naming.auto')}</div>
           <Switch checked={enableTopicNaming} onCheckedChange={setEnableTopicNaming} />
-        </RowFlex>
+        </Flex>
 
         <Divider className="m-0" />
 
         <div className="space-y-2 px-3 pt-3 pb-3.5">
           <Flex className="min-h-7 items-center justify-between gap-2">
-            <RowFlex className="min-w-0 flex-1 items-center gap-1.5">
+            <Flex direction="row" align="center" gap={1} className="min-w-0 flex-1">
               <div className="truncate font-medium text-foreground text-sm">
                 {t('settings.models.topic_naming.prompt')}
               </div>
@@ -70,7 +68,7 @@ export const TopicNamingSettings = () => {
                   </pre>
                 </PopoverContent>
               </Popover>
-            </RowFlex>
+            </Flex>
 
             {topicNamingPrompt && (
               <Button onClick={handleReset} variant="ghost" size="icon-sm" className="size-7 shrink-0">
@@ -86,7 +84,7 @@ export const TopicNamingSettings = () => {
             placeholder={t('prompts.title')}
           />
         </div>
-      </ColFlex>
+      </Flex>
     </section>
   )
 }

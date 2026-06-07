@@ -1,4 +1,4 @@
-import { Button, InfoTooltip, Input, RowFlex } from '@cherrystudio/ui'
+import { Button, Flex, InfoTooltip, Input } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -77,14 +77,14 @@ const SiyuanSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.api_url')}</SettingRowTitle>
-        <RowFlex className="w-[315px] min-w-0 max-w-full items-center gap-1.25">
+        <Flex direction="row" align="center" gap={1} className="w-[315px] min-w-0 max-w-full">
           <Input
             type="text"
             value={siyuanApiUrl || ''}
             onChange={handleApiUrlChange}
             placeholder={t('settings.data.siyuan.api_url_placeholder')}
           />
-        </RowFlex>
+        </Flex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
@@ -97,8 +97,8 @@ const SiyuanSettings: FC = () => {
             onClick={handleSiyuanHelpClick}
           />
         </SettingRowTitle>
-        <RowFlex className="w-[315px] min-w-0 max-w-full items-center gap-1.25">
-          <RowFlex className="w-full min-w-0 items-center gap-1.25">
+        <Flex direction="row" align="center" gap={1} className="w-[315px] min-w-0 max-w-full">
+          <Flex direction="row" align="center" gap={1} className="w-full min-w-0">
             <Input
               type="password"
               value={siyuanToken || ''}
@@ -110,32 +110,32 @@ const SiyuanSettings: FC = () => {
             <Button onClick={handleCheckConnection} variant="outline" className="h-9 shrink-0">
               {t('settings.data.siyuan.check.button')}
             </Button>
-          </RowFlex>
-        </RowFlex>
+          </Flex>
+        </Flex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.box_id')}</SettingRowTitle>
-        <RowFlex className="w-[315px] min-w-0 max-w-full items-center gap-1.25">
+        <Flex direction="row" align="center" gap={1} className="w-[315px] min-w-0 max-w-full">
           <Input
             type="text"
             value={siyuanBoxId || ''}
             onChange={handleBoxIdChange}
             placeholder={t('settings.data.siyuan.box_id_placeholder')}
           />
-        </RowFlex>
+        </Flex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.siyuan.root_path')}</SettingRowTitle>
-        <RowFlex className="w-[315px] min-w-0 max-w-full items-center gap-1.25">
+        <Flex direction="row" align="center" gap={1} className="w-[315px] min-w-0 max-w-full">
           <Input
             type="text"
             value={siyuanRootPath || ''}
             onChange={handleRootPathChange}
             placeholder={t('settings.data.siyuan.root_path_placeholder')}
           />
-        </RowFlex>
+        </Flex>
       </SettingRow>
     </SettingGroup>
   )

@@ -1,6 +1,5 @@
 import {
   Button,
-  ColFlex,
   Combobox,
   Dialog,
   DialogContent,
@@ -460,7 +459,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
                 : 'chat.save.knowledge.select.content.title'
             )}
           </Label>
-          <ColFlex className="gap-2">
+          <Flex direction="col" gap={2}>
             {contentTypeOptions.map((option) => (
               <button
                 key={option.type}
@@ -479,7 +478,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
                 {selectedTypes.includes(option.type) && <Check size={16} color={TAG_COLORS.SELECTED} />}
               </button>
             ))}
-          </ColFlex>
+          </Flex>
         </div>
       )}
 

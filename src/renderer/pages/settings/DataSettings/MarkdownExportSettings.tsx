@@ -1,13 +1,5 @@
 import { DeleteOutlined, FolderOpenOutlined } from '@ant-design/icons'
-import {
-  Button,
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-  RowFlex,
-  Switch
-} from '@cherrystudio/ui'
+import { Button, Flex, InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import type { FC } from 'react'
@@ -78,7 +70,7 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.path')}</SettingRowTitle>
-        <RowFlex className="w-[315px] items-center gap-1.25">
+        <Flex direction="row" align="center" gap={1} className="w-[315px]">
           <InputGroup className="h-8 w-[250px]">
             <InputGroupInput
               type="text"
@@ -101,7 +93,7 @@ const MarkdownExportSettings: FC = () => {
             <FolderOpenOutlined />
             {t('settings.data.markdown_export.select')}
           </Button>
-        </RowFlex>
+        </Flex>
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.markdown_export.help')}</SettingHelpText>

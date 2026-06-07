@@ -1,4 +1,4 @@
-import { RowFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
@@ -114,7 +114,7 @@ const Chat: FC<Props> = (props) => {
         '[navbar-position=top]_&:bg-(--color-background)',
         '[navbar-position=top]_&:rounded-tl-[10px] [navbar-position=top]_&:rounded-bl-[10px]'
       ])}>
-      <RowFlex className="min-h-0 flex-1">
+      <Flex direction="row" className="min-h-0 flex-1">
         <motion.div
           layout
           transition={{ duration: 0.3, ease: 'easeInOut' }}
@@ -157,7 +157,7 @@ const Chat: FC<Props> = (props) => {
             </motion.div>
           )}
         </AnimatePresence>
-      </RowFlex>
+      </Flex>
     </div>
   )
 }
