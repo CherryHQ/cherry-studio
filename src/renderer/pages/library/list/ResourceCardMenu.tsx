@@ -1,4 +1,4 @@
-import { Button, Checkbox, Input, MenuDivider, MenuItem, Separator } from '@cherrystudio/ui'
+import { Button, Checkbox, HStack, Input, MenuDivider, MenuItem, Separator } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import { ChevronDown, Copy, Download, Pencil, Plus, Tag, Trash2 } from 'lucide-react'
@@ -163,7 +163,7 @@ export function FixedCardMenu({
             {showTagPicker && (
               <div
                 className={`absolute ${subMenuPos} flex max-h-[260px] min-w-[160px] flex-col rounded-xs border border-border/30 bg-popover p-1 shadow-xl`}>
-                <div className="mb-0.5 flex items-center gap-1 px-2 py-1">
+                <HStack className="mb-0.5 px-2 py-1" gap={1}>
                   <Input
                     autoFocus
                     value={tagInput}
@@ -184,7 +184,7 @@ export function FixedCardMenu({
                       <Plus size={10} />
                     </Button>
                   )}
-                </div>
+                </HStack>
                 <Separator className="mx-1 mb-0.5 bg-border/15" />
                 <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[2px]">
                   {allTagNames.length === 0 && !tagInput.trim() && (

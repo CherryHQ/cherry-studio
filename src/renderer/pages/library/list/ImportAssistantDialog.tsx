@@ -5,6 +5,7 @@ import {
   DialogContent,
   Dropzone,
   DropzoneEmptyState,
+  HStack,
   Input,
   Tabs,
   TabsList,
@@ -424,7 +425,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                   placeholder="https://gist.github.com/..."
                   className="h-auto w-full rounded-md border border-border/20 bg-accent/10 px-3 py-2 font-mono text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0 disabled:cursor-not-allowed"
                 />
-                <div className="mt-3 flex items-center gap-3">
+                <HStack className="mt-3" gap={3}>
                   <Button
                     onClick={() => void handleUrlImport()}
                     disabled={!urlText.trim() || loading}
@@ -433,7 +434,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                     <span>{t('library.import_dialog.url.button')}</span>
                   </Button>
                   <p className="text-[9px] text-muted-foreground/35">{t('library.import_dialog.url.supports')}</p>
-                </div>
+                </HStack>
               </motion.div>
             )}
           </AnimatePresence>

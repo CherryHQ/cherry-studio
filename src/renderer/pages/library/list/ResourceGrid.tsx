@@ -1,4 +1,4 @@
-import { Button, EmptyState, Input } from '@cherrystudio/ui'
+import { Button, EmptyState, HStack, Input, PageShell } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Plus, Search, Tag, Upload, X } from 'lucide-react'
@@ -173,9 +173,9 @@ export const ResourceGrid: FC<Props> = ({
   )
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <PageShell>
       <div className="flex shrink-0 flex-col border-border/50 border-b">
-        <div className="flex items-center gap-2 px-5 py-3">
+        <HStack className="px-5 py-3" gap={2}>
           <div className="relative max-w-[260px] flex-1">
             <Search size={13} className="-translate-y-1/2 absolute top-1/2 left-2.5 text-muted-foreground/50" />
             <Input
@@ -196,7 +196,7 @@ export const ResourceGrid: FC<Props> = ({
 
           <div className="flex-1" />
 
-          <div className="flex shrink-0 items-center gap-2">
+          <HStack className="shrink-0" gap={2}>
             {activeResourceType !== 'skill' && (
               <Button
                 variant="default"
@@ -228,8 +228,8 @@ export const ResourceGrid: FC<Props> = ({
                 <span>{t('library.create_menu.import', { type: t(RESOURCE_TYPE_META.skill.labelKey) })}</span>
               </Button>
             )}
-          </div>
-        </div>
+          </HStack>
+        </HStack>
 
         {assistantCatalog && (
           <AssistantCatalogTabRail
@@ -240,7 +240,7 @@ export const ResourceGrid: FC<Props> = ({
         )}
 
         {showTagToolbar && (
-          <div className="flex items-center gap-1.5 overflow-x-auto px-5 pb-3 [&::-webkit-scrollbar]:h-0">
+          <HStack className="overflow-x-auto px-5 pb-3 [&::-webkit-scrollbar]:h-0" gap={1}>
             <Tag size={11} className="mr-0.5 shrink-0 text-muted-foreground/40" />
             {tags.map((tag) => (
               <Button
@@ -259,7 +259,7 @@ export const ResourceGrid: FC<Props> = ({
             ))}
 
             {showAddTag ? (
-              <div className="flex shrink-0 items-center gap-1">
+              <HStack className="shrink-0" gap={1}>
                 <Input
                   autoFocus
                   value={newTagName}
@@ -285,7 +285,7 @@ export const ResourceGrid: FC<Props> = ({
                   className="h-auto min-h-0 w-auto p-0 font-normal text-muted-foreground/40 shadow-none transition-colors hover:text-foreground focus-visible:ring-0 disabled:opacity-40">
                   <Plus size={10} />
                 </Button>
-              </div>
+              </HStack>
             ) : (
               <Button
                 variant="ghost"
@@ -294,7 +294,7 @@ export const ResourceGrid: FC<Props> = ({
                 <Plus size={9} /> {t('library.toolbar.tag_button')}
               </Button>
             )}
-          </div>
+          </HStack>
         )}
       </div>
 
@@ -349,7 +349,7 @@ export const ResourceGrid: FC<Props> = ({
             />
           )
         })()}
-    </div>
+    </PageShell>
   )
 }
 

@@ -1,4 +1,4 @@
-import { Badge, Button, EmptyState } from '@cherrystudio/ui'
+import { Badge, Button, EmptyState, Grid, HStack } from '@cherrystudio/ui'
 import type { VirtualItem } from '@tanstack/react-virtual'
 import { MoreHorizontal } from 'lucide-react'
 import type { MouseEvent } from 'react'
@@ -93,7 +93,7 @@ export function AssistantCatalogPresetContent({
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    <Grid columns={{ base: 1, sm: 2, lg: 3 }} gap={3}>
       {presets.map((preset, index) => {
         const presetKey = getAssistantPresetCatalogKey(preset)
         return (
@@ -106,7 +106,7 @@ export function AssistantCatalogPresetContent({
           />
         )
       })}
-    </div>
+    </Grid>
   )
 }
 
@@ -132,7 +132,7 @@ function AssistantPresetGridCard({ preset, adding, onAdd, onPreview }: Assistant
         </div>
         <div className="min-w-0 flex-1">
           <h4 className="truncate text-foreground text-sm">{preset.name}</h4>
-          <div className="mt-1 flex min-h-5 flex-wrap items-center gap-1">
+          <HStack className="mt-1 min-h-5 flex-wrap" gap={1}>
             {groups.map((group) => (
               <Badge
                 key={group}
@@ -141,11 +141,11 @@ function AssistantPresetGridCard({ preset, adding, onAdd, onPreview }: Assistant
                 {group}
               </Badge>
             ))}
-          </div>
+          </HStack>
         </div>
       </div>
       <p className="line-clamp-3 min-h-[4.5em] flex-1 text-muted-foreground/70 text-xs leading-relaxed">{summary}</p>
-      <div className="mt-4 flex items-center justify-end gap-1.5">
+      <HStack className="mt-4 justify-end" gap={1}>
         <Button
           variant="default"
           disabled={adding}
@@ -156,7 +156,7 @@ function AssistantPresetGridCard({ preset, adding, onAdd, onPreview }: Assistant
           className="flex h-7 min-h-0 items-center gap-1 rounded-lg px-2.5 font-normal text-xs shadow-none transition-colors focus-visible:ring-0">
           {t('library.assistant_catalog.add')}
         </Button>
-      </div>
+      </HStack>
     </div>
   )
 }
@@ -186,13 +186,13 @@ export function ResourceCard({ resource: r, onEdit, onOpenMenu }: ResourceCardPr
             {r.avatar}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
+            <HStack gap={1}>
               <h4 className="truncate text-foreground text-sm">{r.name}</h4>
-            </div>
+            </HStack>
             {r.model && (
-              <div className="mt-0.5 flex items-center gap-1.5">
+              <HStack className="mt-0.5" gap={1}>
                 <span className="min-w-0 flex-1 truncate text-muted-foreground/50 text-xs">{r.model}</span>
-              </div>
+              </HStack>
             )}
           </div>
           <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -209,7 +209,7 @@ export function ResourceCard({ resource: r, onEdit, onOpenMenu }: ResourceCardPr
           {r.description}
         </p>
         <div className="flex min-h-5 items-center justify-end">
-          <div className="flex items-center gap-1.5">
+          <HStack gap={1}>
             {r.tags.slice(0, 2).map((tag, i) => (
               <Badge
                 key={`${tag}-${i}`}
@@ -219,7 +219,7 @@ export function ResourceCard({ resource: r, onEdit, onOpenMenu }: ResourceCardPr
               </Badge>
             ))}
             {r.tags.length > 2 && <span className="text-muted-foreground/50 text-xs">+{r.tags.length - 2}</span>}
-          </div>
+          </HStack>
         </div>
       </div>
     </div>

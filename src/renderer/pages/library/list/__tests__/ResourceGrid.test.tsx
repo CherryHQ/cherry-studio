@@ -23,6 +23,12 @@ vi.mock('@renderer/pages/library/list/AssistantPresetGroupIcon', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  HStack: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+    <div {...props}>{children}</div>
+  ),
+  PageShell: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+    <div {...props}>{children}</div>
+  ),
   Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Button: ({
     children,

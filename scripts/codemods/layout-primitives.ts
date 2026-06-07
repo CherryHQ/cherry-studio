@@ -7,11 +7,16 @@
  *
  * Default is a DRY-RUN report; pass --apply to write changes.
  *
- * Conservative by design — it only auto-transforms the display-preserving case
- * (`<div className="flex flex-col gap-N …">` → `<VStack gap={N} …>`, both already
- * flex) on a STRING-LITERAL className. The riskier shapes (`space-y-N`, the
- * truncation row) change display semantics or restructure children, so they are
- * REPORTED for hand-migration rather than rewritten.
+ * Conservative by design — it only auto-transforms display-preserving shapes on a
+ * STRING-LITERAL className (the element is already flex/grid, so swapping the tag +
+ * lifting the axis tokens into props changes nothing visually):
+ *   - `flex flex-col min-h-0 flex-1 [overflow-*]`        -> <PageShell [scroll]>
+ *   - `flex flex-col gap-N`                              -> <VStack gap={N}>
+ *   - `flex items-center gap-N` (not a truncation row)   -> <HStack gap={N}>
+ *   - `grid grid-cols-N gap-K` (no responsive/arbitrary) -> <Grid columns={N} gap={K}>
+ * The riskier shapes (the truncation row, `space-y-N`, responsive/arbitrary grids)
+ * change display semantics or restructure children, so they are REPORTED for
+ * hand-migration rather than rewritten.
  *
  * `gap` is normalized to the canonical token scale; off-scale half-steps are
  * rounded DOWN and listed in the report so a reviewer can confirm density.
@@ -20,7 +25,16 @@
 import path from 'node:path'
 import process from 'node:process'
 
-import { type JsxElement, type JsxSelfClosingElement, Node, Project, QuoteKind, SyntaxKind } from 'ts-morph'
+import {
+  type JsxAttributeStructure,
+  type JsxElement,
+  type JsxSelfClosingElement,
+  Node,
+  type OptionalKind,
+  Project,
+  QuoteKind,
+  SyntaxKind
+} from 'ts-morph'
 
 const CANONICAL_GAPS = [0, 1, 2, 3, 4, 5, 6, 8]
 
@@ -31,9 +45,13 @@ function roundGapDown(value: number): number {
 }
 
 interface Report {
-  vstack: { file: string; line: number; from: string; gap: number; rounded?: { from: number; to: number } }[]
+  vstack: { file: string; line: number; gap: number; rounded?: { from: number; to: number } }[]
+  hstack: { file: string; line: number; gap: number; rounded?: { from: number; to: number } }[]
+  pageShell: { file: string; line: number; scroll: boolean }[]
+  grid: { file: string; line: number; columns: number }[]
   spaceY: { file: string; line: number; className: string }[]
   truncatingRow: { file: string; line: number; className: string }[]
+  gridResponsive: { file: string; line: number; className: string }[]
 }
 
 function parseArgs(argv: string[]): { globs: string[]; apply: boolean } {
@@ -50,8 +68,10 @@ function parseArgs(argv: string[]): { globs: string[]; apply: boolean } {
   return { globs, apply }
 }
 
+type SourceFile = ReturnType<Project['addSourceFilesAtPaths']>[number]
+
 /** Ensure `import { <names> } from '@cherrystudio/ui'` includes each name. */
-function ensureNamedImports(sourceFile: ReturnType<Project['addSourceFilesAtPaths']>[number], names: string[]): void {
+function ensureNamedImports(sourceFile: SourceFile, names: string[]): void {
   const existing = sourceFile.getImportDeclaration((d) => d.getModuleSpecifierValue() === '@cherrystudio/ui')
   if (!existing) {
     sourceFile.addImportDeclaration({
@@ -75,6 +95,25 @@ function renameTag(element: JsxElement | JsxSelfClosingElement, to: string): voi
   element.getOpeningElement().getTagNameNode().replaceWithText(to)
 }
 
+/** Rename the element, rewrite its className to `remaining`, and append `attrs`. */
+function transformElement(
+  element: JsxElement | JsxSelfClosingElement,
+  to: string,
+  remaining: string[],
+  attrs: OptionalKind<JsxAttributeStructure>[]
+): void {
+  // Rename the tag(s) first while the element is balanced, then re-fetch the
+  // opening element and edit its attributes (earlier refs are now stale).
+  renameTag(element, to)
+  const op = Node.isJsxSelfClosingElement(element) ? element : element.getOpeningElement()
+  const ca = op.getAttributes().find((a) => Node.isJsxAttribute(a) && a.getNameNode().getText() === 'className')
+  if (ca && Node.isJsxAttribute(ca)) {
+    if (remaining.length > 0) ca.setInitializer(`"${remaining.join(' ')}"`)
+    else ca.remove()
+  }
+  for (const attr of attrs) op.addAttribute(attr)
+}
+
 function run(): void {
   const { globs, apply } = parseArgs(process.argv.slice(2))
   if (globs.length === 0) {
@@ -89,7 +128,15 @@ function run(): void {
   })
   for (const glob of globs) project.addSourceFilesAtPaths(path.resolve(process.cwd(), glob))
 
-  const report: Report = { vstack: [], spaceY: [], truncatingRow: [] }
+  const report: Report = {
+    vstack: [],
+    hstack: [],
+    pageShell: [],
+    grid: [],
+    spaceY: [],
+    truncatingRow: [],
+    gridResponsive: []
+  }
   let changedFiles = 0
 
   for (const sourceFile of project.getSourceFiles()) {
@@ -97,11 +144,14 @@ function run(): void {
     let fileChanged = false
     const needImports = new Set<string>()
 
-    // Snapshot the candidate elements first (editing forgets descendant iterators).
+    // Snapshot the candidate elements, then process them bottom-up (deepest/last
+    // first). Editing an element shifts the text after it, so transforming an outer
+    // element before an inner one would invalidate the inner node; going last-first
+    // means every edit only touches text past elements we have already handled.
     const elements: (JsxElement | JsxSelfClosingElement)[] = [
       ...sourceFile.getDescendantsOfKind(SyntaxKind.JsxElement),
       ...sourceFile.getDescendantsOfKind(SyntaxKind.JsxSelfClosingElement)
-    ]
+    ].sort((a, b) => b.getStart() - a.getStart())
 
     for (const element of elements) {
       if (element.wasForgotten()) continue // a prior edit replaced this subtree
@@ -118,47 +168,99 @@ function run(): void {
 
       const className = init.getLiteralValue()
       const tokens = className.split(/\s+/).filter(Boolean)
+      const has = (t: string) => tokens.includes(t)
       const line = element.getStartLineNumber()
 
-      const hasSpaceY = tokens.some((t) => /^space-y-\d/.test(t))
-      const isTruncationRow =
-        tokens.includes('flex') && tokens.includes('min-w-0') && tokens.some((t) => /^flex-1$/.test(t))
-
-      // --- Auto transform: flex flex-col gap-N -> VStack ---
       const gapTok = tokens.find((t) => /^gap-\d+(\.\d+)?$/.test(t))
-      if (tokens.includes('flex') && tokens.includes('flex-col') && gapTok) {
-        const raw = Number(gapTok.slice('gap-'.length))
-        const rounded = roundGapDown(raw)
-        const remaining = tokens.filter((t) => t !== 'flex' && t !== 'flex-col' && t !== gapTok)
+      const rawGap = gapTok ? Number(gapTok.slice('gap-'.length)) : undefined
+      const roundedGap = rawGap !== undefined ? roundGapDown(rawGap) : undefined
+      const gapNote =
+        rawGap !== undefined && rawGap !== roundedGap ? { from: rawGap, to: roundedGap as number } : undefined
 
-        report.vstack.push({
-          file: rel,
-          line,
-          from: className,
-          gap: rounded,
-          ...(raw !== rounded ? { rounded: { from: raw, to: rounded } } : {})
-        })
+      const hasFlex1 = tokens.some((t) => t === 'flex-1')
+      const isTruncationRow = has('flex') && has('min-w-0') && hasFlex1 && !has('flex-col')
 
+      const markChanged = (name: string) => {
+        needImports.add(name)
+        fileChanged = true
+      }
+
+      // --- PageShell: flex flex-col min-h-0 flex-1 overflow-* fill shell ---
+      // Require an explicit overflow class so the transform stays display-preserving
+      // (PageShell defaults to overflow-hidden; adding it to a shell that had none
+      // would silently introduce clipping). Overflow-less shells are reported instead.
+      const hasOverflow = has('overflow-hidden') || has('overflow-y-auto') || has('overflow-auto')
+      if (has('flex') && has('flex-col') && has('min-h-0') && hasFlex1 && hasOverflow) {
+        const scroll = has('overflow-y-auto') || has('overflow-auto')
+        const consumed = new Set([
+          'flex',
+          'flex-col',
+          'min-h-0',
+          'flex-1',
+          'overflow-hidden',
+          'overflow-y-auto',
+          'overflow-auto'
+        ])
+        const remaining = tokens.filter((t) => !consumed.has(t) && t !== gapTok)
+        report.pageShell.push({ file: rel, line, scroll })
         if (apply) {
-          // Rename the tag(s) first while the element is balanced, then re-fetch the
-          // opening element and edit its attributes (the earlier refs are now stale).
-          renameTag(element, 'VStack')
-          const op = Node.isJsxSelfClosingElement(element) ? element : element.getOpeningElement()
-          const ca = op.getAttributes().find((a) => Node.isJsxAttribute(a) && a.getNameNode().getText() === 'className')
-          if (ca && Node.isJsxAttribute(ca)) {
-            if (remaining.length > 0) ca.setInitializer(`"${remaining.join(' ')}"`)
-            else ca.remove()
-          }
-          op.addAttribute({ name: 'gap', initializer: `{${rounded}}` })
-          needImports.add('VStack')
-          fileChanged = true
+          const attrs: OptionalKind<JsxAttributeStructure>[] = []
+          if (scroll) attrs.push({ name: 'scroll' })
+          if (roundedGap !== undefined && roundedGap !== 0) attrs.push({ name: 'gap', initializer: `{${roundedGap}}` })
+          transformElement(element, 'PageShell', remaining, attrs)
+          markChanged('PageShell')
         }
+        continue
+      }
+
+      // --- VStack: flex flex-col gap-N ---
+      if (has('flex') && has('flex-col') && gapTok) {
+        const remaining = tokens.filter((t) => t !== 'flex' && t !== 'flex-col' && t !== gapTok)
+        report.vstack.push({ file: rel, line, gap: roundedGap as number, ...(gapNote ? { rounded: gapNote } : {}) })
+        if (apply) {
+          transformElement(element, 'VStack', remaining, [{ name: 'gap', initializer: `{${roundedGap}}` }])
+          markChanged('VStack')
+        }
+        continue
+      }
+
+      // --- HStack: flex items-center gap-N (vertically-centered row, not a truncation row) ---
+      if (has('flex') && has('items-center') && gapTok && !has('flex-col') && !isTruncationRow) {
+        const remaining = tokens.filter((t) => t !== 'flex' && t !== 'items-center' && t !== gapTok)
+        report.hstack.push({ file: rel, line, gap: roundedGap as number, ...(gapNote ? { rounded: gapNote } : {}) })
+        if (apply) {
+          transformElement(element, 'HStack', remaining, [{ name: 'gap', initializer: `{${roundedGap}}` }])
+          markChanged('HStack')
+        }
+        continue
+      }
+
+      // --- Grid: grid grid-cols-N gap-K (single column count, no responsive/arbitrary) ---
+      if (has('grid')) {
+        const baseCol = tokens.find((t) => /^grid-cols-\d+$/.test(t))
+        const responsiveOrArbitrary = tokens.some((t) => /^(sm|md|lg|xl):grid-cols-/.test(t) || /^grid-cols-\[/.test(t))
+        if (baseCol && !responsiveOrArbitrary) {
+          const cols = Number(baseCol.slice('grid-cols-'.length))
+          const remaining = tokens.filter((t) => t !== 'grid' && t !== baseCol && t !== gapTok)
+          report.grid.push({ file: rel, line, columns: cols })
+          if (apply) {
+            // Grid defaults gap=3, so always emit an explicit gap to preserve the original.
+            const gridGap = roundedGap ?? 0
+            transformElement(element, 'Grid', remaining, [
+              { name: 'columns', initializer: `{${cols}}` },
+              { name: 'gap', initializer: `{${gridGap}}` }
+            ])
+            markChanged('Grid')
+          }
+          continue
+        }
+        report.gridResponsive.push({ file: rel, line, className })
         continue
       }
 
       // --- Report-only candidates (display/structure change — migrate by hand) ---
       if (isTruncationRow) report.truncatingRow.push({ file: rel, line, className })
-      else if (hasSpaceY) report.spaceY.push({ file: rel, line, className })
+      else if (tokens.some((t) => /^space-y-\d/.test(t))) report.spaceY.push({ file: rel, line, className })
     }
 
     if (apply && fileChanged) {
@@ -171,20 +273,29 @@ function run(): void {
 
   // --- Print report ---
   const log = console.log
+  const gapLine = (r: { file: string; line: number; gap: number; rounded?: { from: number; to: number } }) =>
+    `  ${r.file}:${r.line}  gap={${r.gap}}${r.rounded ? `  ⚠ gap ${r.rounded.from} -> ${r.rounded.to} (rounded down — verify density)` : ''}`
+
   log(`\n=== layout-primitives codemod (${apply ? 'APPLY' : 'dry-run'}) ===`)
   log(`globs: ${globs.join(', ')}`)
-  log(`\nVStack auto-transforms (flex flex-col gap-N -> VStack): ${report.vstack.length}`)
-  for (const r of report.vstack) {
-    const note = r.rounded ? `  ⚠ gap ${r.rounded.from} -> ${r.rounded.to} (rounded down — verify density)` : ''
-    log(`  ${r.file}:${r.line}  gap={${r.gap}}${note}`)
-  }
+  log(`\nVStack (flex flex-col gap-N): ${report.vstack.length}`)
+  for (const r of report.vstack) log(gapLine(r))
+  log(`\nHStack (flex items-center gap-N): ${report.hstack.length}`)
+  for (const r of report.hstack) log(gapLine(r))
+  log(`\nPageShell (flex flex-col min-h-0 flex-1): ${report.pageShell.length}`)
+  for (const r of report.pageShell) log(`  ${r.file}:${r.line}${r.scroll ? '  scroll' : ''}`)
+  log(`\nGrid (grid grid-cols-N): ${report.grid.length}`)
+  for (const r of report.grid) log(`  ${r.file}:${r.line}  columns={${r.columns}}`)
   log(`\nTruncatingRow candidates (hand-migrate): ${report.truncatingRow.length}`)
   for (const r of report.truncatingRow) log(`  ${r.file}:${r.line}  "${r.className}"`)
-  log(`\nspace-y candidates (hand-migrate to VStack — display change): ${report.spaceY.length}`)
+  log(`\nspace-y candidates (hand-migrate — display change): ${report.spaceY.length}`)
   for (const r of report.spaceY) log(`  ${r.file}:${r.line}  "${r.className}"`)
+  log(`\nResponsive/arbitrary grids (hand-migrate): ${report.gridResponsive.length}`)
+  for (const r of report.gridResponsive) log(`  ${r.file}:${r.line}  "${r.className}"`)
 
+  const autoCount = report.vstack.length + report.hstack.length + report.pageShell.length + report.grid.length
   if (apply) log(`\nWrote ${changedFiles} file(s).`)
-  else log(`\nDry run — re-run with --apply to write the ${report.vstack.length} VStack transform(s).`)
+  else log(`\nDry run — re-run with --apply to write the ${autoCount} auto-transform(s).`)
 }
 
 run()
