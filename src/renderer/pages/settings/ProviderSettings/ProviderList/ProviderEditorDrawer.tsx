@@ -347,7 +347,7 @@ export default function ProviderEditorDrawer({
         )}
 
         {duplicateSource && !duplicateNeedsBaseUrl(duplicateSource.authType) && (
-          <p className="text-(length:--font-size-body-xs) text-muted-foreground/80 leading-[1.4]">
+          <p className="text-muted-foreground/80 text-xs leading-[1.4]">
             {t('settings.provider.duplicate.fill_after_create')}
           </p>
         )}

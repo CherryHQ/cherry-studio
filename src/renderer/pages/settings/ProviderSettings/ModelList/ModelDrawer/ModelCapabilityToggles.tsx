@@ -34,9 +34,7 @@ export function ModelCapabilityToggles({
   return (
     <VStack gap={3}>
       <HStack gap={3} justify="between">
-        <HStack
-          gap={1}
-          className="font-[weight:var(--font-weight-semibold)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
+        <HStack gap={1} className="font-[weight:var(--font-weight-semibold)] text-base text-foreground/90">
           {t('models.type.select')}
           <WarnTooltip content={t('settings.moresetting.check.warn')} />
         </HStack>

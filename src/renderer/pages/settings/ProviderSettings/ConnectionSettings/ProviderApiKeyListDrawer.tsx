@@ -190,9 +190,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
         <div className={apiKeyListClasses.listWrap}>
           <Scrollbar className={apiKeyListClasses.listScroller}>
             {apiKeys.length === 0 && !draft ? (
-              <div className="px-4 py-6 text-center text-[length:var(--font-size-body-md)] text-muted-foreground">
-                {t('error.no_api_key')}
-              </div>
+              <div className="px-4 py-6 text-center text-base text-muted-foreground">{t('error.no_api_key')}</div>
             ) : null}
             {apiKeys.map((entry) => (
               <div key={entry.id} className={apiKeyListClasses.keyRow}>
@@ -281,7 +279,7 @@ function ApiKeyDraftRow({ draft, saving, onChange, onSave, onCancel }: ApiKeyDra
         />
       </div>
       <div className={apiKeyListClasses.actionRow}>
-        <label className="text-(length:--font-size-body-xs) flex items-center gap-2 text-foreground-muted">
+        <label className="flex items-center gap-2 text-foreground-muted text-xs">
           <Switch
             checked={draft.isEnabled}
             disabled={saving}

@@ -24,10 +24,7 @@ export default function ProviderField({
     <div className={cn('space-y-2', className)}>
       <HStack gap={3} justify="between">
         <div
-          className={cn(
-            'font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-sm)] text-foreground-secondary leading-[var(--line-height-body-sm)]',
-            titleClassName
-          )}>
+          className={cn('font-[weight:var(--font-weight-medium)] text-foreground-secondary text-sm', titleClassName)}>
           {title}
         </div>
         {action}

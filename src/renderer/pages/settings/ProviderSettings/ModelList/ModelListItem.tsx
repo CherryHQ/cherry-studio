@@ -68,7 +68,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
             <button
               type="button"
               className={cn(
-                'block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap text-left font-[weight:var(--font-weight-normal)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]',
+                'block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap text-left font-[weight:var(--font-weight-normal)] text-base text-foreground/90',
                 modelListClasses.rowNameCopyable
               )}
               onClick={handleEdit}>
