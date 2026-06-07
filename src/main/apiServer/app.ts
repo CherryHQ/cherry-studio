@@ -12,6 +12,7 @@ import { clawMcpRoutes } from './routes/claw-mcp'
 import { knowledgeRoutes } from './routes/knowledge'
 import { mcpRoutes } from './routes/mcp'
 import { messagesProviderRoutes, messagesRoutes } from './routes/messages'
+import { modelsRoutes } from './routes/models'
 
 const logger = loggerService.withContext('ApiServer')
 
@@ -129,6 +130,7 @@ export function createApp(): express.Application {
         health: 'GET /health',
         docs: 'GET /api-docs',
         docs_json: 'GET /api-docs.json',
+        models: 'GET /v1/models',
         chat_completions: 'POST /v1/chat/completions',
         messages: 'POST /v1/messages',
         messages_provider: 'POST /:provider/v1/messages',
@@ -150,6 +152,7 @@ export function createApp(): express.Application {
   const apiRouter = express.Router()
   apiRouter.use(authMiddleware)
   // Mount routes
+  apiRouter.use('/models', modelsRoutes)
   apiRouter.use('/chat', chatRoutes)
   apiRouter.use('/mcps', mcpRoutes)
   apiRouter.use('/messages', extendMessagesTimeout, messagesRoutes)
