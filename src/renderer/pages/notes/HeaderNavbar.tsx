@@ -11,7 +11,8 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Tooltip
+  Tooltip,
+  VStack
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
@@ -166,13 +167,13 @@ const HeaderNavbar = ({
 
     if (item.children) {
       return (
-        <div key={item.key} className="space-y-1">
-          <div className="flex items-center gap-2.5 px-2.5 py-1 font-medium text-muted-foreground text-xs">
+        <VStack gap={1} key={item.key}>
+          <HStack gap={2} className="px-2.5 py-1 font-medium text-muted-foreground text-xs">
             {IconComponent && <IconComponent size={14} />}
             <span>{t(item.labelKey)}</span>
-          </div>
+          </HStack>
           <div className="pl-3">{item.children.map(renderMenuItem)}</div>
-        </div>
+        </VStack>
       )
     }
 

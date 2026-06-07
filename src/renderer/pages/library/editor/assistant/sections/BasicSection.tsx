@@ -6,6 +6,7 @@ import {
   FieldContent,
   FieldDescription,
   FieldError,
+  HStack,
   Input,
   Popover,
   PopoverContent,
@@ -19,7 +20,8 @@ import {
   Slider,
   Switch,
   Textarea,
-  Tooltip
+  Tooltip,
+  VStack
 } from '@cherrystudio/ui'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
@@ -100,7 +102,7 @@ export const BasicSection: FC<Props> = ({
   }
 
   return (
-    <div className="space-y-6">
+    <VStack gap={6}>
       <div>
         <h3 className="mb-1 text-base text-foreground">
           {t(mode === 'required' ? 'library.config.basic.title' : 'library.config.section.more.label')}
@@ -115,7 +117,7 @@ export const BasicSection: FC<Props> = ({
           <Field className="gap-1.5">
             <FieldHeader label={t('common.avatar')} hint={t('library.config.basic.field.avatar.hint')} />
             <FieldContent>
-              <div className="flex items-center gap-2">
+              <HStack gap={2}>
                 <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
                   <PopoverTrigger asChild>
                     <Button
@@ -151,7 +153,7 @@ export const BasicSection: FC<Props> = ({
                     </Button>
                   ))}
                 </div>
-              </div>
+              </HStack>
             </FieldContent>
           </Field>
 
@@ -306,7 +308,7 @@ export const BasicSection: FC<Props> = ({
           />
         </>
       )}
-    </div>
+    </VStack>
   )
 }
 
@@ -377,7 +379,7 @@ function CustomParametersField({ value, onChange }: CustomParametersFieldProps) 
       </div>
 
       {value.length > 0 && (
-        <div className="mt-2 space-y-2">
+        <VStack gap={2} className="mt-2">
           {value.map((param, index) => (
             <CustomParameterRow
               key={index}
@@ -388,7 +390,7 @@ function CustomParametersField({ value, onChange }: CustomParametersFieldProps) 
               onDelete={() => remove(index)}
             />
           ))}
-        </div>
+        </VStack>
       )}
     </div>
   )

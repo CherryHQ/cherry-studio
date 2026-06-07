@@ -1,3 +1,4 @@
+import { HStack, PageShell } from '@cherrystudio/ui'
 import { Check, Copy } from 'lucide-react'
 import type { Ref, UIEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -28,17 +29,17 @@ const TranslateOutputPane = ({
   const { t } = useTranslation()
 
   return (
-    <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+    <PageShell className="relative min-w-0 bg-background">
       <div
         ref={ref}
         onScroll={onScroll}
         className="selectable min-h-0 flex-1 overflow-y-auto p-4 pr-12 text-base leading-relaxed">
         <div className="flex min-h-full flex-col">
           {translating && !translatedContent ? (
-            <div className="flex items-center gap-2 text-foreground-secondary">
+            <HStack gap={2} className="text-foreground-secondary">
               <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
               <span>{t('translate.processing')}</span>
-            </div>
+            </HStack>
           ) : translatedContent ? (
             enableMarkdown ? (
               <div className="markdown" dangerouslySetInnerHTML={{ __html: renderedMarkdown }} />
@@ -59,7 +60,7 @@ const TranslateOutputPane = ({
       <div className="flex shrink-0 items-center px-3 py-4">
         {translatedContent && <span className="text-foreground-muted text-xs">{translatedContent.length}</span>}
       </div>
-    </div>
+    </PageShell>
   )
 }
 

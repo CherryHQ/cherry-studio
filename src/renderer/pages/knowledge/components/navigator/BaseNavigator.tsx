@@ -1,3 +1,4 @@
+import { HStack } from '@cherrystudio/ui'
 import { buildKnowledgeBaseGroupSections, DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
@@ -68,12 +69,12 @@ const BaseNavigator = ({
   return (
     <div style={{ width }} className="relative h-full min-h-0 shrink-0">
       <aside className="flex size-full min-h-0 flex-col border-border-muted border-r">
-        <div className="flex shrink-0 items-center gap-2 p-3">
+        <HStack gap={2} className="shrink-0 p-3">
           <div className="min-w-0 flex-1">
             <BaseNavigatorSearch value={searchValue} onValueChange={setSearchValue} />
           </div>
           <BaseNavigatorCreateMenu onCreateBase={onCreateBase} onCreateGroup={onCreateGroup} />
-        </div>
+        </HStack>
 
         <BaseNavigatorContent
           sections={knowledgeBaseGroupSections}

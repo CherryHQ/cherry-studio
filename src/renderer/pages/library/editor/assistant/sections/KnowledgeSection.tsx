@@ -1,4 +1,15 @@
-import { Button, Input, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Scrollbar } from '@cherrystudio/ui'
+import {
+  Button,
+  HStack,
+  Input,
+  MenuItem,
+  MenuList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Scrollbar,
+  VStack
+} from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { FieldHeader } from '@renderer/pages/library/editor/FieldHeader'
 import { Database, Plus, Search, Trash2 } from 'lucide-react'
@@ -46,7 +57,7 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
   }
 
   return (
-    <div className="space-y-6">
+    <VStack gap={6}>
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.knowledge.title')}</h3>
         <p className="text-muted-foreground/80 text-xs">{t('library.config.knowledge.desc')}</p>
@@ -65,11 +76,12 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
             <p className="text-muted-foreground/80 text-xs">{t('library.config.knowledge.empty_desc')}</p>
           </div>
         ) : (
-          <div className="space-y-1.5">
+          <VStack gap={1}>
             {linkedItems.map((kb) => (
-              <div
-                key={kb.id}
-                className="group flex items-center gap-3 rounded-xs border border-border/35 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/50 hover:bg-accent/20">
+              <HStack
+                gap={3}
+                className="group rounded-xs border border-border/35 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/50 hover:bg-accent/20"
+                key={kb.id}>
                 <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-2xs bg-accent/50">
                   <Database size={14} strokeWidth={1.4} className="text-foreground/70" />
                 </div>
@@ -87,9 +99,9 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
                   className="flex h-6 min-h-0 w-6 items-center justify-center rounded-3xs font-normal text-muted-foreground/80 opacity-0 shadow-none transition-all hover:bg-destructive/10 hover:text-destructive focus-visible:ring-0 group-hover:opacity-100">
                   <Trash2 size={10} />
                 </Button>
-              </div>
+              </HStack>
             ))}
-          </div>
+          </VStack>
         )}
 
         <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
@@ -143,7 +155,7 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
           </PopoverContent>
         </Popover>
       </div>
-    </div>
+    </VStack>
   )
 }
 

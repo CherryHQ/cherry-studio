@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, HStack, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -226,8 +226,8 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
 
   return (
     <div className="flex h-8.75 shrink-0 items-center justify-between bg-background px-3">
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-0.5">
+      <HStack gap={2}>
+        <HStack gap={0}>
           <Tooltip content={t('miniApp.popup.goBack')} placement="bottom">
             <Button
               type="button"
@@ -265,11 +265,11 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
               <RotateCw size={14} />
             </Button>
           </Tooltip>
-        </div>
-      </div>
+        </HStack>
+      </HStack>
 
       <div className="flex items-center">
-        <div className="flex items-center gap-0.5">
+        <HStack gap={0}>
           {canOpenExternalLink && (
             <Tooltip content={t('miniApp.popup.openExternal')} placement="bottom">
               <Button
@@ -333,7 +333,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
               </Button>
             </Tooltip>
           )}
-        </div>
+        </HStack>
       </div>
     </div>
   )

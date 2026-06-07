@@ -1,4 +1,14 @@
-import { Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Tooltip } from '@cherrystudio/ui'
+import {
+  HStack,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Slider,
+  Tooltip
+} from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 import { Info } from 'lucide-react'
@@ -133,10 +143,10 @@ export const RagSliderField = ({
 }) => {
   return (
     <div>
-      <div className="mb-2 flex items-center justify-between gap-3">
+      <HStack gap={3} className="mb-2 justify-between">
         <RagFieldLabel label={label} hint={hint} className="mb-0" />
         <span className="text-foreground-secondary text-xs tabular-nums leading-4">{formatValue(value)}</span>
-      </div>
+      </HStack>
 
       <div className={disabled ? 'opacity-50' : undefined}>
         <Slider

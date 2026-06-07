@@ -1,3 +1,4 @@
+import { PageShell } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
@@ -1032,7 +1033,7 @@ const NotesPage: FC = () => {
   }, [activeNode?.id, activeFilePath, notesTree, invalidateFileContent, setActiveFilePath])
 
   return (
-    <div id="notes-page" className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+    <PageShell className="h-full w-full" id="notes-page">
       <div id="content-container" className="flex h-full min-h-0 flex-1 flex-row overflow-hidden">
         <AnimatePresence initial={false}>
           {showWorkspace && (
@@ -1061,7 +1062,7 @@ const NotesPage: FC = () => {
             </motion.div>
           )}
         </AnimatePresence>
-        <div className="relative flex min-h-0 min-w-0 max-w-full flex-1 flex-col justify-between overflow-hidden">
+        <PageShell className="relative min-w-0 max-w-full justify-between">
           <HeaderNavbar
             notesTree={notesTree}
             activeFilePath={activeFilePath}
@@ -1079,9 +1080,9 @@ const NotesPage: FC = () => {
             editorRef={editorRef}
             codeEditorRef={codeEditorRef}
           />
-        </div>
+        </PageShell>
       </div>
-    </div>
+    </PageShell>
   )
 }
 

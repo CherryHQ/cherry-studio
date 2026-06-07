@@ -1,4 +1,4 @@
-import { Checkbox, Scrollbar, Table, TableBody, TableHead, TableHeader, TableRow } from '@cherrystudio/ui'
+import { Checkbox, HStack, Scrollbar, Table, TableBody, TableHead, TableHeader, TableRow } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { useTranslation } from 'react-i18next'
@@ -83,10 +83,10 @@ const KnowledgeItemList = ({
               </div>
             </TableHead>
             <TableHead className="font-medium text-foreground-muted text-xs">
-              <div className="flex h-10 min-w-0 items-center gap-2">
+              <HStack gap={2} className="h-10 min-w-0">
                 <span className="size-6 shrink-0" aria-hidden="true" />
                 <span>{t('knowledge.data_source.table.columns.name')}</span>
-              </div>
+              </HStack>
             </TableHead>
             <TableHead className="w-24 font-medium text-foreground-muted text-xs">
               <div className="flex h-10 items-center">{t('knowledge.data_source.table.columns.type')}</div>

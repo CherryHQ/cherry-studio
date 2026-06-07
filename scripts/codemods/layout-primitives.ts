@@ -88,34 +88,37 @@ function ensureNamedImports(sourceFile: SourceFile, names: string[]): void {
   for (const name of names) if (!present.has(name)) existing.addNamedImport({ name })
 }
 
-function renameTag(element: JsxElement | JsxSelfClosingElement, to: string): void {
-  if (Node.isJsxSelfClosingElement(element)) {
-    element.getTagNameNode().replaceWithText(to)
-    return
-  }
-  // Rename the closing tag first so the opening edit below never leaves the
-  // element transiently unbalanced in a way the manipulation engine rejects.
-  element.getClosingElement().getTagNameNode().replaceWithText(to)
-  element.getOpeningElement().getTagNameNode().replaceWithText(to)
-}
-
-/** Rename the element, rewrite its className to `remaining`, and append `attrs`. */
+/**
+ * Rename the element to `to`, set its className to `remaining`, and prepend `attrs`,
+ * by rewriting the whole element in ONE atomic `replaceWithText`. Incremental
+ * tag-rename + attribute edits corrupt ts-morph's tree on nested cases; an atomic
+ * replace preserves inner text verbatim (nested matches convert on a later pass).
+ */
 function transformElement(
   element: JsxElement | JsxSelfClosingElement,
   to: string,
   remaining: string[],
   attrs: OptionalKind<JsxAttributeStructure>[]
 ): void {
-  // Rename the tag(s) first while the element is balanced, then re-fetch the
-  // opening element and edit its attributes (earlier refs are now stale).
-  renameTag(element, to)
-  const op = Node.isJsxSelfClosingElement(element) ? element : element.getOpeningElement()
-  const ca = op.getAttributes().find((a) => Node.isJsxAttribute(a) && a.getNameNode().getText() === 'className')
-  if (ca && Node.isJsxAttribute(ca)) {
-    if (remaining.length > 0) ca.setInitializer(`"${remaining.join(' ')}"`)
-    else ca.remove()
+  const opening = Node.isJsxSelfClosingElement(element) ? element : element.getOpeningElement()
+  const otherParts: string[] = []
+  for (const attr of opening.getAttributes()) {
+    if (Node.isJsxAttribute(attr) && attr.getNameNode().getText() === 'className') continue
+    otherParts.push(attr.getText())
   }
-  for (const attr of attrs) op.addAttribute(attr)
+  const attrParts = attrs.map((a) => (a.initializer !== undefined ? `${a.name}=${a.initializer}` : (a.name as string)))
+  const classNamePart = remaining.length > 0 ? [`className="${remaining.join(' ')}"`] : []
+  const attrText = [...attrParts, ...classNamePart, ...otherParts].join(' ')
+
+  if (Node.isJsxSelfClosingElement(element)) {
+    element.replaceWithText(`<${to} ${attrText} />`)
+  } else {
+    const whole = element.getText()
+    const openText = element.getOpeningElement().getText()
+    const closeText = element.getClosingElement().getText()
+    const inner = whole.slice(openText.length, whole.length - closeText.length)
+    element.replaceWithText(`<${to} ${attrText}>${inner}</${to}>`)
+  }
 }
 
 function run(): void {

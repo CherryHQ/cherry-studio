@@ -7,9 +7,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  HStack,
   Label,
   SelectDropdown,
-  Textarea
+  Textarea,
+  VStack
 } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
@@ -508,7 +510,7 @@ const CodeCliPage: FC = () => {
                 <DialogTitle>{activeMeta.label}</DialogTitle>
               </DialogHeader>
 
-              <div className="flex flex-col gap-4">
+              <VStack gap={4}>
                 {selectedCliTool !== codeCLI.githubCopilotCli && (
                   <div>
                     <FieldLabel hint={t('code.model_hint')}>{t('code.model')}</FieldLabel>
@@ -526,14 +528,14 @@ const CodeCliPage: FC = () => {
                         </div>
                       )}
                       renderItem={(item, isSelected) => (
-                        <div className="flex items-center gap-2">
+                        <HStack gap={2}>
                           <ModelAvatar model={item.model} size={18} />
                           <span className="flex-1 truncate">{item.model.name || item.model.id}</span>
                           <span className="shrink-0 text-muted-foreground text-xs">
                             {getProviderDisplayName(item.provider)}
                           </span>
                           {isSelected && <Check size={11} className="ml-0.5 shrink-0 text-foreground" />}
-                        </div>
+                        </HStack>
                       )}
                     />
                   </div>
@@ -541,7 +543,7 @@ const CodeCliPage: FC = () => {
 
                 <div>
                   <FieldLabel hint={t('code.working_directory_hint')}>{t('code.working_directory')}</FieldLabel>
-                  <div className="flex items-center gap-2">
+                  <HStack gap={2}>
                     <div className="min-w-0 flex-1">
                       <SelectDropdown
                         items={directoryItems}
@@ -569,7 +571,7 @@ const CodeCliPage: FC = () => {
                     <Button variant="secondary" size="lg" onClick={() => void selectFolder()} className="shrink-0">
                       {t('code.select_folder')}
                     </Button>
-                  </div>
+                  </HStack>
                 </div>
 
                 {(isMac || isWin) && terminalItems.length > 0 && (
@@ -583,14 +585,14 @@ const CodeCliPage: FC = () => {
                       triggerClassName="data-[state=open]:border-foreground! data-[state=open]:ring-foreground/10!"
                       renderSelected={(item) => <span className="truncate text-foreground">{item.name}</span>}
                       renderItem={(item, isSelected) => (
-                        <div className="flex items-center gap-2">
+                        <HStack gap={2}>
                           <span className="flex-1">{item.name}</span>
                           {isSelected && <Check size={11} className="shrink-0 text-foreground" />}
-                        </div>
+                        </HStack>
                       )}
                     />
                     {needsWindowsCustomPath && (
-                      <div className="mt-2 flex items-center gap-2">
+                      <HStack gap={2} className="mt-2">
                         <Button
                           variant="secondary"
                           size="sm"
@@ -604,7 +606,7 @@ const CodeCliPage: FC = () => {
                             ? `${t('code.custom_path')}: ${terminalCustomPaths[selectedTerminal]}`
                             : t('code.custom_path_required')}
                         </span>
-                      </div>
+                      </HStack>
                     )}
                   </div>
                 )}
@@ -620,7 +622,7 @@ const CodeCliPage: FC = () => {
                   />
                 </div>
 
-                <div className="flex items-center gap-2 pt-1">
+                <HStack gap={2} className="pt-1">
                   <Checkbox
                     id="code-cli-auto-update"
                     size="sm"
@@ -633,8 +635,8 @@ const CodeCliPage: FC = () => {
                     className="cursor-pointer font-normal text-muted-foreground text-sm hover:text-foreground">
                     {t('code.auto_update_to_latest')}
                   </Label>
-                </div>
-              </div>
+                </HStack>
+              </VStack>
 
               <DialogFooter>
                 <DialogClose asChild>

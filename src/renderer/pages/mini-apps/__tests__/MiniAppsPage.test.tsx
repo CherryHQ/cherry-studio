@@ -70,6 +70,31 @@ vi.mock('@cherrystudio/ui', async () => {
   const actual = await vi.importActual<typeof CherryStudioUI>('@cherrystudio/ui')
 
   return {
+    ...(() => {
+      const R = require('react')
+      const s =
+        (omit: string[] = []) =>
+        ({ children, ...p }: any) => {
+          for (const k of ['direction', 'align', 'justify', 'gap', 'wrap', 'inline', 'asChild', ...omit]) delete p[k]
+          return R.createElement('div', p, children)
+        }
+      return {
+        Box: s(),
+        Flex: s(),
+        HStack: s(),
+        VStack: s(),
+        Stack: s(),
+        Center: s(),
+        Grid: s(['columns', 'flow']),
+        PageShell: s(['scroll']),
+        Container: s(['size', 'padded', 'fluid']),
+        Spacer: s(),
+        TruncatingRow: ({ children, leading, trailing, ...p }: any) => {
+          for (const k of ['gap', 'align', 'justify', 'wrap', 'asChild']) delete p[k]
+          return R.createElement('div', p, leading, children, trailing)
+        }
+      }
+    })(),
     ...actual,
     EmptyState: ({ title }: { title: string }) => <div>{title}</div>,
     ContextMenu: ({ children }: React.PropsWithChildren) => <div data-testid="context-menu">{children}</div>,

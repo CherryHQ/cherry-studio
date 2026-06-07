@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, ConfirmDialog, Separator } from '@cherrystudio/ui'
+import { Alert, Badge, Button, ConfirmDialog, HStack, PageShell, Separator, VStack } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
 import RichEditor from '@renderer/components/RichEditor'
@@ -201,8 +201,8 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
 
   return (
     <ResourceEditorShell title={skill.name} onBack={onBack}>
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto bg-background">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-8 py-8">
+      <PageShell scroll className="bg-background">
+        <VStack gap={8} className="mx-auto w-full max-w-5xl px-8 py-8">
           <div className="flex items-start justify-between gap-6">
             <div className="flex min-w-0 items-start gap-4">
               <div className="flex size-16 shrink-0 items-center justify-center rounded-sm bg-amber-500/10 text-amber-500">
@@ -210,7 +210,7 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
               </div>
               <div className="min-w-0">
                 <h1 className="truncate font-semibold text-2xl text-foreground">{skill.name}</h1>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
+                <HStack gap={2} className="mt-2 flex-wrap">
                   <Badge variant="secondary" className="border-0 bg-amber-500/10 px-2 py-0.5 text-amber-600 text-xs">
                     {t('library.type.skill')}
                   </Badge>
@@ -221,7 +221,7 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
                       {tag}
                     </span>
                   ))}
-                </div>
+                </HStack>
               </div>
             </div>
             <Badge
@@ -264,10 +264,10 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
                   <div className="min-h-[360px]" aria-hidden="true" />
                 ) : isMarkdownFile(selectedFile) ? (
                   <div className="max-h-[520px] overflow-auto px-5 py-4">
-                    <div className="mb-4 flex items-center gap-2 text-muted-foreground/45 text-xs">
+                    <HStack gap={2} className="mb-4 text-muted-foreground/45 text-xs">
                       <FileText size={13} />
                       <span>{selectedFileName}</span>
-                    </div>
+                    </HStack>
                     <RichEditor
                       key={selectedFile}
                       initialContent={fileContent}
@@ -285,12 +285,12 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
               ) : loadingContent ? (
                 <div className="min-h-[360px]" aria-hidden="true" />
               ) : (
-                <div className="flex min-h-[360px] flex-col items-center justify-center gap-2 text-muted-foreground/40">
+                <VStack gap={2} className="min-h-[360px] items-center justify-center text-muted-foreground/40">
                   <FileText size={28} strokeWidth={1.2} />
                   <span className="text-xs">
                     {selectedFile ? t('settings.skills.noSkillFile') : t('settings.skills.selectFile')}
                   </span>
-                </div>
+                </VStack>
               )}
             </div>
           </section>
@@ -298,26 +298,26 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
           <Separator className="bg-border/20" />
 
           <section className="grid gap-6 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
+            <VStack gap={2}>
               <span className="font-medium text-muted-foreground/60 text-sm">
                 {t('library.skill_detail.created_at')}
               </span>
-              <div className="flex items-center gap-2 text-muted-foreground/60 text-sm">
+              <HStack gap={2} className="text-muted-foreground/60 text-sm">
                 <Clock size={13} />
                 <span>{formatDate(skill.createdAt)}</span>
-              </div>
-            </div>
-            <div className="flex flex-col gap-2">
+              </HStack>
+            </VStack>
+            <VStack gap={2}>
               <span className="font-medium text-muted-foreground/60 text-sm">
                 {t('library.skill_detail.updated_at')}
               </span>
-              <div className="flex items-center gap-2 text-muted-foreground/60 text-sm">
+              <HStack gap={2} className="text-muted-foreground/60 text-sm">
                 <Clock size={13} />
                 <span>
                   {formatDate(skill.updatedAt)} ({timeAgo(t, skill.updatedAt)})
                 </span>
-              </div>
-            </div>
+              </HStack>
+            </VStack>
           </section>
 
           {!isBuiltin ? (
@@ -340,7 +340,7 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
               </div>
             </Alert>
           ) : null}
-        </div>
+        </VStack>
         <ConfirmDialog
           open={confirmUninstallOpen}
           onOpenChange={(open) => {
@@ -358,7 +358,7 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
           confirmLoading={uninstalling}
           onConfirm={handleUninstall}
         />
-      </div>
+      </PageShell>
     </ResourceEditorShell>
   )
 }

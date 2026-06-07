@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, HStack, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
@@ -89,7 +89,7 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
           )}
         </AnimatePresence>
         <HorizontalScrollContainer className="ml-2 min-w-0 flex-initial shrink">
-          <div className="flex flex-nowrap items-center gap-2">
+          <HStack gap={2} className="flex-nowrap">
             <AgentSelector
               value={activeAgent.id}
               onChange={handleAgentChange}
@@ -126,7 +126,7 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
                 <WorkspaceSelector session={activeSession} />
               </>
             )}
-          </div>
+          </HStack>
         </HorizontalScrollContainer>
       </div>
       <div className="flex items-center">

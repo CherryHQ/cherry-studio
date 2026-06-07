@@ -36,7 +36,7 @@ const ChunkingSection = ({
   }
 
   return (
-    <div className="space-y-2">
+    <VStack gap={2}>
       <VStack gap={4}>
         <RagNumericField
           label={t('knowledge.rag.chunk_size')}
@@ -61,7 +61,7 @@ const ChunkingSection = ({
         <RagHintText tone="error">{getValidationErrorMessage(chunkOverlapErrorCode)}</RagHintText>
       ) : null}
       <RagHintText tone="warning">{t('knowledge.rag.chunk_size_change_warning')}</RagHintText>
-    </div>
+    </VStack>
   )
 }
 

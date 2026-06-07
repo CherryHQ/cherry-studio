@@ -1,4 +1,4 @@
-import { Button, ImagePreviewTrigger } from '@cherrystudio/ui'
+import { Button, ImagePreviewTrigger, VStack } from '@cherrystudio/ui'
 import FileManager from '@renderer/services/FileManager'
 import { motion } from 'framer-motion'
 import { type FC, useCallback, useEffect, useState } from 'react'
@@ -20,7 +20,9 @@ const LoadingStateCard: FC<{ text: React.ReactNode; onCancel: () => void; cancel
   cancelLabel
 }) => {
   return (
-    <div className="flex min-w-56 flex-col items-center gap-4 rounded-[18px] border border-border-subtle bg-card/96 px-10 py-10 shadow-2xl backdrop-blur-sm">
+    <VStack
+      gap={4}
+      className="min-w-56 items-center rounded-[18px] border border-border-subtle bg-card/96 px-10 py-10 shadow-2xl backdrop-blur-sm">
       <div className="relative h-12 w-12">
         <motion.div
           className="absolute inset-0 rounded-full border-2 border-border"
@@ -37,7 +39,7 @@ const LoadingStateCard: FC<{ text: React.ReactNode; onCancel: () => void; cancel
       <Button variant="outline" size="sm" onClick={onCancel} className="mt-1 min-w-20">
         {cancelLabel}
       </Button>
-    </div>
+    </VStack>
   )
 }
 

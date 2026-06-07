@@ -1,6 +1,7 @@
 import {
   Button,
   Checkbox,
+  HStack,
   MenuItem,
   MenuList,
   NormalTooltip,
@@ -284,12 +285,12 @@ const KnowledgeItemRow = ({
             <Icon className={cn('size-3.5', icon.iconClassName)} />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-1.5">
+            <HStack gap={1} className="min-w-0">
               <span className="min-w-0 truncate text-foreground text-sm" title={fullTitle}>
                 {title}
               </span>
               {suffix ? <span className="shrink-0 text-foreground-muted text-xs uppercase">{suffix}</span> : null}
-            </div>
+            </HStack>
             {metaParts.length > 0 ? (
               <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-foreground-muted text-xs leading-4">
                 {metaParts.map((part, index) => (

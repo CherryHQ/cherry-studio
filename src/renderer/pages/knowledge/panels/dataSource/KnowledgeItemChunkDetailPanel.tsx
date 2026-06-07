@@ -1,4 +1,4 @@
-import { Button, ConfirmDialog, EmptyState, Scrollbar } from '@cherrystudio/ui'
+import { Button, ConfirmDialog, EmptyState, HStack, Scrollbar, VStack } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
@@ -69,14 +69,14 @@ const KnowledgeItemChunkCard = ({
 
   return (
     <div className="group/ck rounded-lg border border-border-subtle transition-all hover:border-border-hover">
-      <div className="flex items-center gap-2 px-3 py-2">
+      <HStack gap={2} className="px-3 py-2">
         <span className="flex size-5 shrink-0 items-center justify-center rounded bg-accent text-foreground-muted text-xs leading-4">
           {chunk.metadata.chunkIndex}
         </span>
         <span className="flex-1 text-foreground-muted text-xs leading-4">
           {chunk.metadata.tokenCount} {t('knowledge.rag.tokens_unit')}
         </span>
-        <div className="flex items-center gap-0.5 opacity-0 transition-all group-hover/ck:opacity-100">
+        <HStack gap={0} className="opacity-0 transition-all group-hover/ck:opacity-100">
           <KnowledgeItemChunkActionButton
             label={t('common.delete')}
             className="hover:bg-error-bg hover:text-error-text"
@@ -84,8 +84,8 @@ const KnowledgeItemChunkCard = ({
             onClick={() => onDelete(chunk)}>
             <Trash2 className="size-3" />
           </KnowledgeItemChunkActionButton>
-        </div>
-      </div>
+        </HStack>
+      </HStack>
       <div className="px-3 pb-3">
         <p className="line-clamp-2 text-foreground-secondary text-sm leading-relaxed">{chunk.content}</p>
       </div>
@@ -208,7 +208,7 @@ const KnowledgeItemChunkDetailPanel = ({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center gap-2 border-border-muted border-b px-3 py-2">
+      <HStack gap={2} className="shrink-0 border-border-muted border-b px-3 py-2">
         <Button
           type="button"
           variant="ghost"
@@ -231,15 +231,15 @@ const KnowledgeItemChunkDetailPanel = ({
           <span className="block truncate text-foreground text-sm leading-5">
             {viewModel?.title ?? t('common.loading')}
           </span>
-          <div className="flex items-center gap-2 text-foreground-muted text-xs leading-4">
+          <HStack gap={2} className="text-foreground-muted text-xs leading-4">
             {metaParts.map((part) => (
               <span key={part} className={viewModel && part === typeMeta && viewModel.suffix ? 'uppercase' : undefined}>
                 {part}
               </span>
             ))}
-          </div>
+          </HStack>
         </div>
-      </div>
+      </HStack>
 
       <Scrollbar className="min-h-0 flex-1 px-4 py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {isItemLoading || isLoading ? <KnowledgeItemChunkState>{t('common.loading')}</KnowledgeItemChunkState> : null}
@@ -256,7 +256,7 @@ const KnowledgeItemChunkDetailPanel = ({
           />
         ) : null}
         {!isItemLoading && !isLoading && !itemError && chunks.length > 0 ? (
-          <div className="space-y-2">
+          <VStack gap={2}>
             {chunks.map((chunk) => (
               <KnowledgeItemChunkCard
                 key={chunk.id}
@@ -265,7 +265,7 @@ const KnowledgeItemChunkDetailPanel = ({
                 onDelete={handleRequestDeleteChunk}
               />
             ))}
-          </div>
+          </VStack>
         ) : null}
       </Scrollbar>
       <ConfirmDialog

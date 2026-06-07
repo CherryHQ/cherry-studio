@@ -1,4 +1,5 @@
 import {
+  HStack,
   Input,
   MenuDivider,
   MenuItem,
@@ -58,7 +59,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
       className={`flex h-(--navbar-height) border-border border-b px-3 py-2 ${
         isShowStarred || isShowSearch ? 'justify-start' : 'justify-center'
       }`}>
-      <div className="flex items-center gap-1">
+      <HStack gap={1}>
         {!isShowStarred && !isShowSearch && (
           <>
             <Tooltip content={t('notes.new_note')} delay={800}>
@@ -164,7 +165,7 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
             </div>
           </>
         )}
-      </div>
+      </HStack>
     </div>
   )
 }

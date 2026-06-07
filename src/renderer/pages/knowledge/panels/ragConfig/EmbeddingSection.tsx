@@ -1,4 +1,4 @@
-import { Button, VStack } from '@cherrystudio/ui'
+import { Button, HStack, VStack } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { Model } from '@shared/data/types/model'
 import { RefreshCw } from 'lucide-react'
@@ -46,7 +46,7 @@ const EmbeddingSection = ({
 
       <div>
         <RagFieldLabel label={t('knowledge.rag.dimensions')} hint={t('knowledge.rag.hints.dimensions')} />
-        <div className="flex items-center gap-2">
+        <HStack gap={2}>
           <div className="min-w-0 flex-1">
             <RagNumericField value={dimensions} onChange={onDimensionsChange} />
           </div>
@@ -60,7 +60,7 @@ const EmbeddingSection = ({
             className="shrink-0">
             <RefreshCw className={cn('size-3.5', isFetchingDimensions ? 'animation-rotate' : undefined)} />
           </Button>
-        </div>
+        </HStack>
         {dimensionsErrorCode === 'dimensionsInvalid' ? (
           <div className="mt-1 text-destructive text-xs leading-4">{t('knowledge.dimensions_error_invalid')}</div>
         ) : null}

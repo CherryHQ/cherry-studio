@@ -1,4 +1,13 @@
-import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from '@cherrystudio/ui'
+import {
+  Badge,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+  VStack
+} from '@cherrystudio/ui'
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -59,7 +68,9 @@ export function AssistantPresetPreviewDialog({ preset, open, adding = false, onO
           </Button>
         </div>
 
-        <div className="max-h-[60vh] space-y-5 overflow-y-auto px-5 py-5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]">
+        <VStack
+          gap={5}
+          className="max-h-[60vh] overflow-y-auto px-5 py-5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]">
           {description && (
             <section>
               <div className="mb-2 text-muted-foreground/60 text-sm">
@@ -79,7 +90,7 @@ export function AssistantPresetPreviewDialog({ preset, open, adding = false, onO
               </p>
             </section>
           )}
-        </div>
+        </VStack>
 
         <DialogFooter className="border-border/15 border-t px-5 py-4">
           <Button

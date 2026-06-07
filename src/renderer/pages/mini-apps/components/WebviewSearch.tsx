@@ -1,4 +1,4 @@
-import { Button, Input } from '@cherrystudio/ui'
+import { Button, HStack, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { WebviewTag } from 'electron'
 import { ChevronDown, ChevronUp, X } from 'lucide-react'
@@ -310,7 +310,9 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
   const disableNavigation = !query || matchCount === 0
 
   return (
-    <div className="pointer-events-auto absolute top-3 right-3 z-50 flex items-center gap-2 rounded-xl border border-border bg-card px-2 py-1 shadow-lg">
+    <HStack
+      gap={2}
+      className="pointer-events-auto absolute top-3 right-3 z-50 rounded-xl border border-border bg-card px-2 py-1 shadow-lg">
       <Input
         ref={inputRef}
         autoFocus
@@ -359,7 +361,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         className="text-foreground-secondary shadow-none hover:text-foreground">
         <X size={16} />
       </Button>
-    </div>
+    </HStack>
   )
 }
 

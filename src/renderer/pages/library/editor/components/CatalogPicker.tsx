@@ -1,5 +1,6 @@
 import {
   Button,
+  HStack,
   Input,
   MenuItem,
   MenuList,
@@ -8,7 +9,8 @@ import {
   PopoverTrigger,
   Scrollbar,
   Switch,
-  Tooltip
+  Tooltip,
+  VStack
 } from '@cherrystudio/ui'
 import { Plus, Search } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
@@ -30,12 +32,14 @@ export interface CatalogItem {
 
 export function BoundCatalogRow({ item, onDisable }: { item: CatalogItem; onDisable: () => void }) {
   return (
-    <div className="flex items-center gap-3 rounded-xs border border-border/35 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/50 hover:bg-accent/20">
+    <HStack
+      gap={3}
+      className="rounded-xs border border-border/35 bg-accent/15 px-3 py-2.5 transition-colors hover:border-border/50 hover:bg-accent/20">
       {item.icon ? (
         <div className="flex size-8 shrink-0 items-center justify-center rounded-2xs bg-accent/50">{item.icon}</div>
       ) : null}
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
+        <HStack gap={1}>
           <span className="truncate text-foreground text-sm" title={item.name}>
             {item.name}
           </span>
@@ -52,7 +56,7 @@ export function BoundCatalogRow({ item, onDisable }: { item: CatalogItem; onDisa
               {item.statusBadge}
             </span>
           ) : null}
-        </div>
+        </HStack>
         {item.description ? (
           <div className="mt-0.5 truncate text-muted-foreground/80 text-xs" title={item.description}>
             {item.description}
@@ -71,7 +75,7 @@ export function BoundCatalogRow({ item, onDisable }: { item: CatalogItem; onDisa
           }}
         />
       </Tooltip>
-    </div>
+    </HStack>
   )
 }
 
@@ -119,11 +123,11 @@ export const BoundCatalogList: FC<{
     return <CatalogEmptyPlaceholder>{noMatchLabel}</CatalogEmptyPlaceholder>
   }
   return (
-    <div className="flex flex-col gap-1.5">
+    <VStack gap={1}>
       {filtered.map((it) => (
         <BoundCatalogRow key={it.id} item={it} onDisable={() => onDisable(it.id)} />
       ))}
-    </div>
+    </VStack>
   )
 }
 

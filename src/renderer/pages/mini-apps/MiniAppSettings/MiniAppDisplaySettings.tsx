@@ -1,4 +1,13 @@
-import { Button, PageSidePanelItem, PageSidePanelSection, Slider, Switch, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  HStack,
+  PageSidePanelItem,
+  PageSidePanelSection,
+  Slider,
+  Switch,
+  Tooltip,
+  VStack
+} from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
@@ -54,7 +63,7 @@ const MiniAppDisplaySettings: FC = () => {
   return (
     <PageSidePanelSection title={t('settings.miniApps.group.preferences')}>
       {/* Roomier gap between items so each title + description block reads as its own unit. */}
-      <div className="flex flex-col gap-5">
+      <VStack gap={5}>
         <PageSidePanelItem
           title={t('settings.miniApps.region.title')}
           description={t('settings.miniApps.region.description')}
@@ -89,7 +98,7 @@ const MiniAppDisplaySettings: FC = () => {
               </Button>
             </Tooltip>
           }>
-          <div className="flex items-center gap-3">
+          <HStack gap={3}>
             <Slider
               className="flex-1"
               min={1}
@@ -99,9 +108,9 @@ const MiniAppDisplaySettings: FC = () => {
               showValueLabel
             />
             <span className="w-6 text-right text-muted-foreground text-xs">{maxKeepAlive}</span>
-          </div>
+          </HStack>
         </PageSidePanelItem>
-      </div>
+      </VStack>
     </PageSidePanelSection>
   )
 }

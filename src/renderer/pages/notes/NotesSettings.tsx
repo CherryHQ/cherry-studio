@@ -1,4 +1,4 @@
-import { Button, Input, Slider, Switch, VStack } from '@cherrystudio/ui'
+import { Button, HStack, Input, Slider, Switch, VStack } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -110,12 +110,12 @@ const NotesSettings: FC = () => {
               {t('notes.settings.data.select')}
             </Button>
           </div>
-          <div className="flex items-center gap-2 self-start">
+          <HStack gap={2} className="self-start">
             <Button onClick={handleApplyPath} disabled={!isPathChanged}>
               {t('notes.settings.data.apply')}
             </Button>
             <Button onClick={handleResetToDefault}>{t('notes.settings.data.reset_to_default')}</Button>
-          </div>
+          </HStack>
         </VStack>
         <SettingRow>
           <SettingHelpText>{t('notes.settings.data.work_directory_description')}</SettingHelpText>

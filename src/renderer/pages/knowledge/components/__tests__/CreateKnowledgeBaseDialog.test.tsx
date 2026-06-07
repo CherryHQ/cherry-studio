@@ -21,6 +21,31 @@ vi.mock('@cherrystudio/ui', async () => {
   const SelectContext = React.createContext<{ onValueChange?: (value: string) => void }>({})
 
   return {
+    ...(() => {
+      const R = require('react')
+      const s =
+        (omit: string[] = []) =>
+        ({ children, ...p }: any) => {
+          for (const k of ['direction', 'align', 'justify', 'gap', 'wrap', 'inline', 'asChild', ...omit]) delete p[k]
+          return R.createElement('div', p, children)
+        }
+      return {
+        Box: s(),
+        Flex: s(),
+        HStack: s(),
+        VStack: s(),
+        Stack: s(),
+        Center: s(),
+        Grid: s(['columns', 'flow']),
+        PageShell: s(['scroll']),
+        Container: s(['size', 'padded', 'fluid']),
+        Spacer: s(),
+        TruncatingRow: ({ children, leading, trailing, ...p }: any) => {
+          for (const k of ['gap', 'align', 'justify', 'wrap', 'asChild']) delete p[k]
+          return R.createElement('div', p, leading, children, trailing)
+        }
+      }
+    })(),
     Button: ({ children, loading, ...props }: { children: ReactNode; loading?: boolean; [key: string]: unknown }) => (
       <button {...props}>{loading ? 'loading' : children}</button>
     ),

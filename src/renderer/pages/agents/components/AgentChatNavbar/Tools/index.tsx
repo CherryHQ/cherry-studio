@@ -1,3 +1,4 @@
+import { HStack } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
@@ -21,7 +22,7 @@ const Tools = () => {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <HStack gap={2}>
       <SettingsButton />
       {isTopNavbar && (
         <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
@@ -38,7 +39,7 @@ const Tools = () => {
           </NavbarIcon>
         </Tooltip>
       )}
-    </div>
+    </HStack>
   )
 }
 

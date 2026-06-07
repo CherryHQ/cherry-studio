@@ -8,6 +8,7 @@ import {
   DialogTitle,
   Field,
   FieldLabel,
+  HStack,
   Input
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
@@ -157,7 +158,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
           </Field>
 
           <Field>
-            <div className="flex items-center justify-between gap-2">
+            <HStack gap={2} className="justify-between">
               <FieldLabel htmlFor="miniapp-logo">{t('settings.miniApps.custom.logo')}</FieldLabel>
               <Button
                 type="button"
@@ -168,7 +169,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, onClose }) => {
                 <Upload size={12} />
                 {t('settings.miniApps.custom.logo_file')}
               </Button>
-            </div>
+            </HStack>
             <Input
               id="miniapp-logo"
               value={logoUrl}

@@ -25,16 +25,16 @@ const DirectorySourceContent = ({ directories, onRemove, onSelectDirectory }: Di
           <div className="flex size-8 items-center justify-center rounded-full bg-accent text-foreground-muted">
             <Folder className="size-4" />
           </div>
-          <div className="min-w-0 space-y-1">
+          <VStack gap={1} className="min-w-0">
             <p className="text-foreground text-sm leading-5">{t('knowledge.data_source.add_dialog.directory.title')}</p>
             <p className="text-xs leading-5">{t('knowledge.data_source.add_dialog.directory.description')}</p>
-          </div>
+          </VStack>
         </VStack>
       </button>
 
       {directories.length > 0 ? (
         <div data-testid="knowledge-source-directory-list" className="min-h-0 flex-1 overflow-y-auto">
-          <div role="list" className="space-y-1.5 pr-1">
+          <VStack gap={1} className="pr-1" role="list">
             {directories.map((directory) => (
               <SelectionListItem
                 key={directory.path}
@@ -46,7 +46,7 @@ const DirectorySourceContent = ({ directories, onRemove, onSelectDirectory }: Di
                 removeLabel={t('common.delete')}
               />
             ))}
-          </div>
+          </VStack>
         </div>
       ) : null}
     </VStack>

@@ -1,3 +1,4 @@
+import { VStack } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { LogoAvatar } from '@renderer/components/Icons'
 import { getMiniAppsLogo } from '@renderer/config/miniApps'
@@ -123,9 +124,9 @@ const MiniAppPage: FC = () => {
   if (isLoading) {
     return (
       <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
-        <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
+        <VStack gap={3} className="absolute inset-x-0 top-8.75 bottom-0 z-4 items-center justify-center bg-card">
           <BeatLoader color="var(--color-text-2)" size={8} />
-        </div>
+        </VStack>
       </div>
     )
   }
@@ -135,11 +136,11 @@ const MiniAppPage: FC = () => {
     const isNotFound = error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND
     return (
       <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
-        <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
+        <VStack gap={3} className="absolute inset-x-0 top-8.75 bottom-0 z-4 items-center justify-center bg-card">
           <div className="text-[14px] text-foreground-secondary">
             {t(isNotFound ? 'miniApp.error.not_found' : 'miniApp.error.load_failed')}
           </div>
-        </div>
+        </VStack>
       </div>
     )
   }
@@ -149,9 +150,9 @@ const MiniAppPage: FC = () => {
   if (!app) {
     return (
       <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
-        <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
+        <VStack gap={3} className="absolute inset-x-0 top-8.75 bottom-0 z-4 items-center justify-center bg-card">
           <div className="text-[14px] text-foreground-secondary">{t('miniApp.error.not_found')}</div>
-        </div>
+        </VStack>
       </div>
     )
   }
@@ -184,10 +185,10 @@ const MiniAppPage: FC = () => {
       </div>
       <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.appId} />
       {!isReady && (
-        <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
+        <VStack gap={3} className="absolute inset-x-0 top-8.75 bottom-0 z-4 items-center justify-center bg-card">
           <LogoAvatar logo={getMiniAppsLogo(app.logo) ?? app.logo} size={60} />
           <BeatLoader color="var(--color-text-2)" size={8} style={{ marginTop: 12 }} />
-        </div>
+        </VStack>
       )}
     </div>
   )

@@ -1,4 +1,4 @@
-import { Button, ConfirmDialog } from '@cherrystudio/ui'
+import { Button, ConfirmDialog, HStack } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -71,14 +71,14 @@ const KnowledgeBaseRow = ({
 
           <div className="min-w-0 flex-1 pr-5">
             <div className="truncate font-medium text-foreground text-sm leading-5">{base.name}</div>
-            <div className="flex min-w-0 items-center gap-1.5 text-foreground-muted text-xs leading-4">
+            <HStack gap={1} className="min-w-0 text-foreground-muted text-xs leading-4">
               <span className="truncate">{t('knowledge.meta.documents_count', { count: base.itemCount })}</span>
               <span
                 className={cn('size-1.5 shrink-0 rounded-full', statusDotClassNames[base.status])}
                 aria-label={statusLabel}
                 title={statusLabel}
               />
-            </div>
+            </HStack>
           </div>
         </Button>
 

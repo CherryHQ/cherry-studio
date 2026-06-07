@@ -2,6 +2,7 @@ import {
   Badge,
   Button,
   ConfirmDialog,
+  HStack,
   MenuItem,
   MenuList,
   Popover,
@@ -86,7 +87,7 @@ const DetailHeader = ({
             <KnowledgeBaseIcon />
 
             <VStack className="min-w-0" gap={1}>
-              <div className="flex min-w-0 items-center gap-2">
+              <HStack gap={2} className="min-w-0">
                 <h1 className="min-w-0 truncate font-bold text-2xl text-foreground leading-8">{base.name}</h1>
                 <Badge
                   variant="outline"
@@ -95,7 +96,7 @@ const DetailHeader = ({
                   title={statusLabel}>
                   {statusLabel}
                 </Badge>
-              </div>
+              </HStack>
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-foreground-muted text-xs leading-4">
                 <span>{t('knowledge.meta.data_sources_count', { count: itemCount })}</span>
                 <span aria-hidden="true">·</span>
@@ -104,7 +105,7 @@ const DetailHeader = ({
             </VStack>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1">
+          <HStack gap={1} className="shrink-0">
             {canSearch ? (
               isSearchVisible ? (
                 <div className="w-36 shrink-0 [&_[data-slot=input-group-addon]]:py-1 [&_[data-slot=input-group-control]]:h-7 [&_[data-slot=input-group-control]]:py-0 [&_[data-slot=input-group]]:h-7">
@@ -180,7 +181,7 @@ const DetailHeader = ({
                 </MenuList>
               </PopoverContent>
             </Popover>
-          </div>
+          </HStack>
         </div>
       </header>
 

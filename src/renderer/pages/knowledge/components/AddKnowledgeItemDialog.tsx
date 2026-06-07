@@ -1,4 +1,4 @@
-import { Dialog, DialogContent } from '@cherrystudio/ui'
+import { Dialog, DialogContent, PageShell } from '@cherrystudio/ui'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { resolveKnowledgeFileEntryData } from '@renderer/utils/knowledgeFileEntry'
@@ -225,7 +225,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent size="lg" className="flex max-h-[70vh] flex-col overflow-hidden">
         <AddKnowledgeItemDialogHeader title={t('knowledge.data_source.add_dialog.title')} />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pr-1">
+        <PageShell className="min-w-0 pr-1">
           <AddKnowledgeItemDialogSourceTabs
             activeSource={activeSource}
             selectedDirectories={selectedDirectories}
@@ -240,7 +240,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
               setUrlValue(value)
             }}
           />
-        </div>
+        </PageShell>
         <AddKnowledgeItemDialogFooter
           activeSource={activeSource}
           canSubmit={canSubmit}

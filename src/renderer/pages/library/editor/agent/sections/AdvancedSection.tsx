@@ -1,4 +1,4 @@
-import { EditableNumber, Textarea } from '@cherrystudio/ui'
+import { EditableNumber, Textarea, VStack } from '@cherrystudio/ui'
 import { FieldHeader } from '@renderer/pages/library/editor/FieldHeader'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -18,13 +18,13 @@ const AdvancedSection: FC<Props> = ({ form, onChange }) => {
   const { t } = useTranslation()
 
   return (
-    <div className="flex flex-col gap-6">
+    <VStack gap={6}>
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.agent.section.advanced.title')}</h3>
         <p className="text-muted-foreground/80 text-xs">{t('library.config.agent.section.advanced.desc')}</p>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <VStack gap={1}>
         <FieldHeader
           label={t('library.config.agent.field.max_turns.label')}
           hint={t('library.config.agent.field.max_turns.help')}
@@ -41,9 +41,9 @@ const AdvancedSection: FC<Props> = ({ form, onChange }) => {
           onChange={(v) => onChange({ maxTurns: typeof v === 'number' ? v : 0 })}
           placeholder="0"
         />
-      </div>
+      </VStack>
 
-      <div className="flex flex-col gap-1.5">
+      <VStack gap={1}>
         <FieldHeader
           label={t('library.config.agent.field.env_vars.label')}
           hint={t('library.config.agent.field.env_vars.help')}
@@ -54,8 +54,8 @@ const AdvancedSection: FC<Props> = ({ form, onChange }) => {
           placeholder={'KEY=value\nANOTHER_KEY=another_value'}
           rows={5}
         />
-      </div>
-    </div>
+      </VStack>
+    </VStack>
   )
 }
 

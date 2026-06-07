@@ -17,12 +17,12 @@ const NoteSourceContent = () => {
           <div className="flex size-8 items-center justify-center rounded-full bg-accent text-foreground-muted">
             <NotebookPen className="size-4" />
           </div>
-          <div className="min-w-0 space-y-1">
+          <VStack gap={1} className="min-w-0">
             <p className="text-foreground text-sm leading-5">
               {t('knowledge.data_source.add_dialog.note.empty_title')}
             </p>
             <p className="max-w-60 text-xs leading-5">{t('knowledge.data_source.add_dialog.note.empty_description')}</p>
-          </div>
+          </VStack>
         </VStack>
       </div>
     </VStack>

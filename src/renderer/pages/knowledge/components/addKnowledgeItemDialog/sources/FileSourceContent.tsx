@@ -21,7 +21,7 @@ const FileSourceContent = ({ files, onDrop, onRemove }: FileSourceContentProps) 
     <VStack className="h-full min-h-0 flex-1" gap={3}>
       <div data-testid="knowledge-source-file-list" className="min-h-0 flex-1 overflow-y-auto">
         {files.length > 0 ? (
-          <div role="list" className="space-y-1.5 pr-1">
+          <VStack gap={1} className="pr-1" role="list">
             {files.map((file, index) => (
               <SelectionListItem
                 key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
@@ -33,7 +33,7 @@ const FileSourceContent = ({ files, onDrop, onRemove }: FileSourceContentProps) 
                 removeLabel={t('common.delete')}
               />
             ))}
-          </div>
+          </VStack>
         ) : null}
       </div>
 
