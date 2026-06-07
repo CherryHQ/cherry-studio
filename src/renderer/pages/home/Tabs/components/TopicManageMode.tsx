@@ -1,3 +1,4 @@
+import { HStack } from '@cherrystudio/ui'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import type { Topic } from '@renderer/types'
 import { cn } from '@renderer/utils'
@@ -285,7 +286,9 @@ const ManagePanel: FC<PropsWithChildren> = ({ children }) => (
 )
 
 const ManagePanelContent: FC<PropsWithChildren> = ({ children }) => (
-  <div className="flex w-full min-w-0 flex-row items-center gap-1 overflow-hidden">{children}</div>
+  <HStack gap={1} className="w-full min-w-0 flex-row overflow-hidden">
+    {children}
+  </HStack>
 )
 
 interface ManageIconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -317,10 +320,12 @@ const ManageIconButton: FC<PropsWithChildren<ManageIconButtonProps>> = ({
 
 const ManageDivider: FC = () => <div className="mx-1 h-5 w-px bg-(--color-border)" />
 
-const LeftGroup: FC<PropsWithChildren> = ({ children }) => <div className="flex items-center gap-1">{children}</div>
+const LeftGroup: FC<PropsWithChildren> = ({ children }) => <HStack gap={1}>{children}</HStack>
 
 const RightGroup: FC<PropsWithChildren> = ({ children }) => (
-  <div className="ml-auto flex items-center gap-1">{children}</div>
+  <HStack gap={1} className="ml-auto">
+    {children}
+  </HStack>
 )
 
 const SelectedBadge: FC<PropsWithChildren<React.HTMLAttributes<HTMLSpanElement>>> = ({

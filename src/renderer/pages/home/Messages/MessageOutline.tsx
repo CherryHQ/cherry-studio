@@ -1,3 +1,4 @@
+import { HStack } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import Scrollbar from '@renderer/components/Scrollbar'
 import type { Message } from '@renderer/types/newMessage'
@@ -107,9 +108,10 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
           top: `max(calc(50% - ${Math.floor((headings.length * 24) / 2 + 10)}px), 20px)`
         }}>
         {headings.map((heading, index) => (
-          <div
+          <HStack
+            gap={2}
+            className="h-6 shrink-0 cursor-pointer [&:hover_.outline-dot]:bg-(--color-text-3) [&:hover_.outline-text]:text-(--color-text-2)"
             key={index}
-            className="flex h-6 shrink-0 cursor-pointer items-center gap-2 [&:hover_.outline-dot]:bg-(--color-text-3) [&:hover_.outline-text]:text-(--color-text-2)"
             onClick={() => scrollToHeading(heading.id)}>
             <div
               className="mr-1 h-1 shrink-0 rounded-[2px] bg-(--color-border) outline-dot transition-colors duration-200 ease-out"
@@ -125,7 +127,7 @@ const MessageOutline: FC<MessageOutlineProps> = ({ message }) => {
               }}>
               {heading.text}
             </div>
-          </div>
+          </HStack>
         ))}
       </Scrollbar>
     </div>

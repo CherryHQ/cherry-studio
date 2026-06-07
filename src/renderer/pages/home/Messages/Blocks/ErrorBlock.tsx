@@ -1,5 +1,5 @@
 import { SettingOutlined } from '@ant-design/icons'
-import { Button } from '@cherrystudio/ui'
+import { Button, HStack } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
@@ -209,14 +209,14 @@ const MessageErrorInfo: React.FC<{
       </button>
 
       {/* Header: icon + title */}
-      <div className="mb-1.5 flex items-center gap-2">
+      <HStack gap={2} className="mb-1.5">
         <div className="flex shrink-0 items-center justify-center" style={{ color: 'var(--color-error)' }}>
           <AlertTriangle size={15} />
         </div>
         <div className="pr-5 font-semibold text-[13px] leading-[1.4]" style={{ color: 'var(--color-error)' }}>
           {aiSummary || t(classification.i18nKey)}
         </div>
-      </div>
+      </HStack>
 
       {/* Description */}
       <div
@@ -226,7 +226,7 @@ const MessageErrorInfo: React.FC<{
       </div>
 
       {/* Footer */}
-      <div className="mt-2.5 ml-5.75 flex items-center gap-2">
+      <HStack gap={2} className="mt-2.5 ml-5.75">
         {classification.navTarget && (
           <Button
             size="sm"
@@ -243,7 +243,7 @@ const MessageErrorInfo: React.FC<{
           {t('common.detail')}
           <ChevronRight size={14} />
         </div>
-      </div>
+      </HStack>
     </div>
   )
 }

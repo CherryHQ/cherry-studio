@@ -1,3 +1,4 @@
+import { VStack } from '@cherrystudio/ui'
 import type { CollapseProps } from 'antd'
 import { useTranslation } from 'react-i18next'
 
@@ -32,7 +33,7 @@ export function BashTool({
       />
     ),
     children: (
-      <div className="flex flex-col gap-3">
+      <VStack gap={3}>
         {/* Command 输入区域 */}
         {command && (
           <div>
@@ -51,7 +52,7 @@ export function BashTool({
         ) : (
           <SkeletonValue value={null} width="100%" fallback={null} />
         )}
-      </div>
+      </VStack>
     )
   }
 }

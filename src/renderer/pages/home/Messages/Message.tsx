@@ -1,3 +1,4 @@
+import { HStack } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
@@ -188,11 +189,11 @@ const MessageItem: FC<Props> = ({
           if (isMultiSelectMode) return
           void EventEmitter.emit(EVENT_NAMES.NEW_CONTEXT)
         }}>
-        <div className="mx-5 my-0 flex items-center gap-2 text-(--color-text-3) text-sm">
+        <HStack gap={2} className="mx-5 my-0 text-(--color-text-3) text-sm">
           <hr className="flex-1 border-(--color-border) border-dashed" />
           <span>{t('chat.message.new.context')}</span>
           <hr className="flex-1 border-(--color-border) border-dashed" />
-        </div>
+        </HStack>
       </div>
     )
   }
@@ -240,7 +241,7 @@ const MessageItem: FC<Props> = ({
               </MessageErrorBoundary>
             </Scrollbar>
             {showMenubar && (
-              <div className="MessageFooter mt-[3px] ml-[46px] flex items-center justify-between gap-2.5">
+              <HStack gap={2} className="MessageFooter mt-[3px] ml-[46px] justify-between">
                 <HorizontalScrollContainer
                   classNames={{
                     content: cn(
@@ -262,7 +263,7 @@ const MessageItem: FC<Props> = ({
                   />
                 </HorizontalScrollContainer>
                 <SiblingNavigator messageId={message.id} />
-              </div>
+              </HStack>
             )}
           </>
         )}

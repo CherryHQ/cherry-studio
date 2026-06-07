@@ -1,3 +1,4 @@
+import { HStack, VStack } from '@cherrystudio/ui'
 import type { CollapseProps } from 'antd'
 import { Tag } from 'antd'
 import { CheckCircle, Terminal, XCircle } from 'lucide-react'
@@ -103,9 +104,9 @@ export function BashOutputTool({
   const truncatedRawOutput = truncateOutput(output)
 
   const children = parsedOutput ? (
-    <div className="flex flex-col gap-4">
+    <VStack gap={4}>
       {/* Status Info */}
-      <div className="flex flex-wrap items-center gap-2">
+      <HStack gap={2} className="flex-wrap">
         {parsedOutput.exit_code !== undefined && (
           <Tag color={parsedOutput.exit_code === 0 ? 'success' : 'danger'}>
             {t('message.tools.sections.exitCode')}: {parsedOutput.exit_code}
@@ -114,7 +115,7 @@ export function BashOutputTool({
         {parsedOutput.timestamp && (
           <Tag className="py-0 font-mono text-xs">{new Date(parsedOutput.timestamp).toLocaleString()}</Tag>
         )}
-      </div>
+      </HStack>
 
       {/* Standard Output */}
       {truncatedStdout.data && (
@@ -137,15 +138,15 @@ export function BashOutputTool({
       {/* Tool Use Error */}
       {truncatedError.data && (
         <div className="border border-danger-200">
-          <div className="mb-2 flex items-center gap-2">
+          <HStack gap={2} className="mb-2">
             <XCircle className="h-4 w-4 text-danger" />
             <span className="font-medium text-danger-600 text-xs">{t('message.tools.status.error')}:</span>
-          </div>
+          </HStack>
           <TerminalOutput content={truncatedError.data} />
           {truncatedError.isTruncated && <TruncatedIndicator originalLength={truncatedError.originalLength} />}
         </div>
       )}
-    </div>
+    </VStack>
   ) : (
     // 原始输出（如果解析失败或非 XML 格式）
     truncatedRawOutput.data && (
@@ -161,7 +162,7 @@ export function BashOutputTool({
       <ToolHeader
         toolName={AgentToolsType.BashOutput}
         params={
-          <div className="flex items-center gap-2">
+          <HStack gap={2}>
             <Tag className="py-0 font-mono text-xs">{input?.bash_id}</Tag>
             {statusConfig && (
               <Tag
@@ -176,7 +177,7 @@ export function BashOutputTool({
                 {statusConfig.text}
               </Tag>
             )}
-          </div>
+          </HStack>
         }
         variant="collapse-label"
         showStatus={false}

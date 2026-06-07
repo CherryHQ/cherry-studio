@@ -1,3 +1,4 @@
+import { VStack } from '@cherrystudio/ui'
 import type { CollapseProps } from 'antd'
 import { useTranslation } from 'react-i18next'
 
@@ -39,10 +40,10 @@ export function ToolSearchTool({
       />
     ),
     children: (
-      <div className="space-y-1">
+      <VStack gap={1}>
         {normalizedInput && <ToolArgsTable args={normalizedInput} title={t('message.tools.sections.input')} />}
         {normalizedOutput && <ToolArgsTable args={normalizedOutput} title={t('message.tools.sections.output')} />}
-      </div>
+      </VStack>
     )
   }
 }
