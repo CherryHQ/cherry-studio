@@ -19,6 +19,26 @@ vi.mock('@cherrystudio/ui', async () => {
   const SelectContext = React.createContext<{ onValueChange?: (value: string) => void }>({})
 
   return {
+    VStack: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+      <div {...props}>{children}</div>
+    ),
+    TruncatingRow: ({
+      children,
+      leading,
+      trailing,
+      ...props
+    }: {
+      children?: ReactNode
+      leading?: ReactNode
+      trailing?: ReactNode
+      [key: string]: unknown
+    }) => (
+      <div {...props}>
+        {leading}
+        {children}
+        {trailing}
+      </div>
+    ),
     Alert: ({
       action,
       description,

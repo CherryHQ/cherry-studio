@@ -1,4 +1,4 @@
-import { Button, Input, Slider, Switch } from '@cherrystudio/ui'
+import { Button, Input, Slider, Switch, VStack } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -97,7 +97,7 @@ const NotesSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('notes.settings.data.current_work_directory')}</SettingRowTitle>
         </SettingRow>
-        <div className="mt-2 flex flex-col gap-3">
+        <VStack className="mt-2" gap={3}>
           <div className="flex w-full items-center">
             <Input
               value={tempPath}
@@ -116,7 +116,7 @@ const NotesSettings: FC = () => {
             </Button>
             <Button onClick={handleResetToDefault}>{t('notes.settings.data.reset_to_default')}</Button>
           </div>
-        </div>
+        </VStack>
         <SettingRow>
           <SettingHelpText>{t('notes.settings.data.work_directory_description')}</SettingHelpText>
         </SettingRow>

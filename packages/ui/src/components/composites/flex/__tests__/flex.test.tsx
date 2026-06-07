@@ -108,16 +108,28 @@ describe('Grid', () => {
 })
 
 describe('TruncatingRow', () => {
-  it('bakes the parent truncation chain and shrink-0 slots', () => {
-    const { container } = render(
+  it('bakes the parent chain and injects min-w-0 flex-1 onto a single content child', () => {
+    const { container, getByText } = render(
       <TruncatingRow leading={<i data-testid="lead" />} trailing={<i data-testid="trail" />}>
         <span className="truncate">label</span>
       </TruncatingRow>
     )
     expect(slot(container, 'truncating-row')!).toHaveClass('flex', 'min-w-0', 'items-center')
-    expect(slot(container, 'truncating-row-content')!).toHaveClass('min-w-0', 'flex-1')
+    // single child stays a direct flex item with the truncation chain (no extra wrapper)
+    expect(getByText('label')).toHaveClass('min-w-0', 'flex-1', 'truncate')
+    expect(slot(container, 'truncating-row-content')).toBeNull()
     expect(slot(container, 'truncating-row-leading')!).toHaveClass('shrink-0')
     expect(slot(container, 'truncating-row-trailing')!).toHaveClass('shrink-0')
+  })
+
+  it('wraps multiple children in a min-w-0 flex-1 content region', () => {
+    const { container } = render(
+      <TruncatingRow>
+        <span>a</span>
+        <span>b</span>
+      </TruncatingRow>
+    )
+    expect(slot(container, 'truncating-row-content')!).toHaveClass('min-w-0', 'flex-1')
   })
 
   it('omits slots that are not provided', () => {

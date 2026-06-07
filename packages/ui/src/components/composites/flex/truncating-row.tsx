@@ -1,5 +1,5 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { ReactNode } from 'react'
+import { Children, cloneElement, isValidElement, type ReactElement, type ReactNode } from 'react'
 
 import { Flex, type FlexProps } from './flex'
 
@@ -13,9 +13,13 @@ export interface TruncatingRowProps extends Omit<FlexProps, 'direction'> {
 /**
  * A horizontal row whose growable middle region can truncate safely. Bakes the
  * error-prone parent half of the truncation contract: the row gets `min-w-0`, the
- * content region gets `min-w-0 flex-1`, and the optional `leading`/`trailing`
- * slots get `shrink-0`. The content child still applies `truncate` (or wraps in
- * `Ellipsis` for multi-line clamp).
+ * optional `leading`/`trailing` slots get `shrink-0`, and the growable content
+ * region gets `min-w-0 flex-1`.
+ *
+ * A single element child receives `min-w-0 flex-1` directly (so a child carrying
+ * `truncate` stays a flex item and clips correctly — matching the hand-rolled
+ * pattern); multiple/text children fall back to a `min-w-0 flex-1` wrapper. The
+ * content child still applies `truncate` (or wraps in `Ellipsis` for multi-line).
  */
 export function TruncatingRow({
   className,
@@ -27,6 +31,17 @@ export function TruncatingRow({
   children,
   ...props
 }: TruncatingRowProps) {
+  const content =
+    isValidElement(children) && Children.count(children) === 1 ? (
+      cloneElement(children as ReactElement<{ className?: string }>, {
+        className: cn('min-w-0 flex-1', (children as ReactElement<{ className?: string }>).props.className)
+      })
+    ) : (
+      <div data-slot="truncating-row-content" className="min-w-0 flex-1">
+        {children}
+      </div>
+    )
+
   return (
     <Flex
       data-slot="truncating-row"
@@ -41,9 +56,7 @@ export function TruncatingRow({
           {leading}
         </span>
       )}
-      <div data-slot="truncating-row-content" className="min-w-0 flex-1">
-        {children}
-      </div>
+      {content}
       {trailing != null && (
         <span data-slot="truncating-row-trailing" className="flex shrink-0 items-center">
           {trailing}

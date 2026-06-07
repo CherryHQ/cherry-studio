@@ -25,6 +25,26 @@ vi.mock('@cherrystudio/ui', async () => {
   })
 
   return {
+    VStack: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
+      <div {...props}>{children}</div>
+    ),
+    TruncatingRow: ({
+      children,
+      leading,
+      trailing,
+      ...props
+    }: {
+      children?: ReactNode
+      leading?: ReactNode
+      trailing?: ReactNode
+      [key: string]: unknown
+    }) => (
+      <div {...props}>
+        {leading}
+        {children}
+        {trailing}
+      </div>
+    ),
     Badge: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <span {...props}>{children}</span>
     ),

@@ -1,4 +1,4 @@
-import { Button, DialogClose } from '@cherrystudio/ui'
+import { Button, DialogClose, VStack } from '@cherrystudio/ui'
 import type { KnowledgeItemType } from '@shared/data/types/knowledge'
 import { useTranslation } from 'react-i18next'
 
@@ -35,7 +35,7 @@ const AddKnowledgeItemDialogFooter = ({
         ? t('knowledge.data_source.add_dialog.footer.selected_directories', { count: selectedDirectoryCount })
         : ''
   return (
-    <div className="flex w-full min-w-0 shrink-0 flex-col gap-3 overflow-hidden">
+    <VStack className="w-full min-w-0 shrink-0 overflow-hidden" gap={3}>
       {errorMessage ? (
         <div
           role="alert"
@@ -64,7 +64,7 @@ const AddKnowledgeItemDialogFooter = ({
           </Button>
         </div>
       </KnowledgeDialogFooter>
-    </div>
+    </VStack>
   )
 }
 

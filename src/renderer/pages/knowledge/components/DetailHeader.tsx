@@ -7,7 +7,8 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  SearchInput
+  SearchInput,
+  VStack
 } from '@cherrystudio/ui'
 import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -84,7 +85,7 @@ const DetailHeader = ({
           <div className="flex min-w-0 items-start gap-3">
             <KnowledgeBaseIcon />
 
-            <div className="flex min-w-0 flex-col gap-1.5">
+            <VStack className="min-w-0" gap={1}>
               <div className="flex min-w-0 items-center gap-2">
                 <h1 className="min-w-0 truncate font-bold text-2xl text-foreground leading-8">{base.name}</h1>
                 <Badge
@@ -100,7 +101,7 @@ const DetailHeader = ({
                 <span aria-hidden="true">·</span>
                 <span>{t('knowledge.meta.updated_at', { time: formattedUpdatedAt })}</span>
               </div>
-            </div>
+            </VStack>
           </div>
 
           <div className="flex shrink-0 items-center gap-1">

@@ -1,4 +1,4 @@
-import { Alert, Button, Scrollbar } from '@cherrystudio/ui'
+import { Alert, Button, Scrollbar, VStack } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -124,7 +124,7 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
   return (
     <KnowledgePanelShell>
       <Scrollbar className="min-h-0 flex-1 px-6 py-5">
-        <div className="flex flex-col gap-4">
+        <VStack gap={4}>
           <FileProcessingSection
             fileProcessorId={values.fileProcessorId}
             fileProcessorOptions={fileProcessorOptions}
@@ -178,7 +178,7 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
             onHybridAlphaChange={(hybridAlpha) => setValues((currentValues) => ({ ...currentValues, hybridAlpha }))}
             onRerankModelChange={(rerankModelId) => setValues((currentValues) => ({ ...currentValues, rerankModelId }))}
           />
-        </div>
+        </VStack>
       </Scrollbar>
 
       <KnowledgeDialogFooter className="shrink-0 border-border-subtle border-t px-6 py-4">

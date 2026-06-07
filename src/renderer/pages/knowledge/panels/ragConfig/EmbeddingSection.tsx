@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, VStack } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { Model } from '@shared/data/types/model'
 import { RefreshCw } from 'lucide-react'
@@ -33,7 +33,7 @@ const EmbeddingSection = ({
   const { t } = useTranslation()
 
   return (
-    <div className="flex flex-col gap-4">
+    <VStack gap={4}>
       <div>
         <RagFieldLabel label={t('knowledge.rag.embedding_model')} hint={t('knowledge.rag.hints.embedding_model')} />
         <RagSelectField
@@ -65,7 +65,7 @@ const EmbeddingSection = ({
           <div className="mt-1 text-destructive text-xs leading-4">{t('knowledge.dimensions_error_invalid')}</div>
         ) : null}
       </div>
-    </div>
+    </VStack>
   )
 }
 
