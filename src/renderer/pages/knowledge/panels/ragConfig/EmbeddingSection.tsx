@@ -1,13 +1,15 @@
 import { Button } from '@cherrystudio/ui'
-import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
+import {
+  isEmbeddingModel,
+  KnowledgeModelSelectField
+} from '@renderer/pages/knowledge/components/KnowledgeModelSelectField'
 import { Cpu, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { RagFieldLabel, RagNumericField, RagSectionTitle, RagSelectField } from './panelPrimitives'
+import { RagFieldLabel, RagNumericField, RagSectionTitle } from './panelPrimitives'
 
 interface EmbeddingSectionProps {
   embeddingModelId: string | null
-  embeddingModelOptions: KnowledgeSelectOption[]
   dimensions: string
   dimensionsErrorCode?: 'dimensionsInvalid'
   onEmbeddingModelChange: (embeddingModelId: string) => void
@@ -16,7 +18,6 @@ interface EmbeddingSectionProps {
 
 const EmbeddingSection = ({
   embeddingModelId,
-  embeddingModelOptions,
   dimensions,
   dimensionsErrorCode,
   onEmbeddingModelChange,
@@ -34,11 +35,16 @@ const EmbeddingSection = ({
             label={t('knowledge.rag.embedding_model_select')}
             hint={t('knowledge.rag.hints.embedding_model')}
           />
-          <RagSelectField
-            value={embeddingModelId ?? undefined}
-            options={embeddingModelOptions}
+          <KnowledgeModelSelectField
+            value={embeddingModelId}
+            filter={isEmbeddingModel}
             placeholder={t('knowledge.not_set')}
-            onValueChange={onEmbeddingModelChange}
+            triggerClassName="h-7.5 rounded-md border-border/40 bg-transparent px-2.5 py-1.5 font-medium text-xs hover:bg-muted/20 dark:bg-transparent"
+            onValueChange={(modelId) => {
+              if (modelId) {
+                onEmbeddingModelChange(modelId)
+              }
+            }}
           />
         </div>
 

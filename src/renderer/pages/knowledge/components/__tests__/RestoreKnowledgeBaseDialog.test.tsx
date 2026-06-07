@@ -7,8 +7,47 @@ import RestoreKnowledgeBaseDialog from '../RestoreKnowledgeBaseDialog'
 
 const mockUseModels = vi.fn()
 
+const { testModels } = vi.hoisted(() => ({
+  testModels: [
+    {
+      id: 'openai::text-embedding-3-small',
+      name: 'text-embedding-3-small',
+      providerId: 'openai',
+      capabilities: ['embedding']
+    }
+  ]
+}))
+
 vi.mock('@renderer/hooks/useModels', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
+}))
+
+vi.mock('@renderer/components/ModelSelector', () => ({
+  ModelSelector: ({
+    trigger,
+    filter,
+    onSelect
+  }: {
+    trigger: ReactNode
+    filter?: (model: (typeof testModels)[number]) => boolean
+    onSelect: (modelId: string | undefined) => void
+  }) => {
+    const options = filter ? testModels.filter(filter) : testModels
+    return (
+      <div>
+        {trigger}
+        {options.map((model) => (
+          <button key={model.id} type="button" onClick={() => onSelect(model.id)}>
+            {`select-${model.name}`}
+          </button>
+        ))}
+      </div>
+    )
+  }
+}))
+
+vi.mock('@cherrystudio/ui/lib/utils', () => ({
+  cn: (...classNames: Array<string | false | null | undefined>) => classNames.filter(Boolean).join(' ')
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -112,9 +151,7 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
 describe('RestoreKnowledgeBaseDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUseModels.mockReturnValue({
-      models: [{ id: 'openai::text-embedding-3-small' }]
-    })
+    mockUseModels.mockReturnValue({ models: testModels })
     Object.assign(window, {
       toast: {
         error: vi.fn()
@@ -149,7 +186,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
     expect(screen.getByRole('heading', { name: '重建知识库' })).toHaveClass('leading-4')
     expect(screen.getByLabelText('名称')).toHaveValue('Legacy KB_副本')
 
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select-text-embedding-3-small' }))
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
     await waitFor(() =>
@@ -190,7 +227,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
     await waitFor(() => expect(restoreBase).not.toHaveBeenCalled())
     expect(screen.getByText('知识库嵌入模型是必需的')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select-text-embedding-3-small' }))
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
     await waitFor(() => expect(restoreBase).toHaveBeenCalled())
@@ -249,7 +286,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select-text-embedding-3-small' }))
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('知识库重建失败: restore failed'))

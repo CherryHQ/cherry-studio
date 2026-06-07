@@ -1,3 +1,7 @@
+import {
+  isRerankModel,
+  KnowledgeModelSelectField
+} from '@renderer/pages/knowledge/components/KnowledgeModelSelectField'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 import type { KnowledgeSearchMode } from '@shared/data/types/knowledge'
 import { Search } from 'lucide-react'
@@ -5,12 +9,10 @@ import { useTranslation } from 'react-i18next'
 
 import { RagFieldLabel, RagSectionTitle, RagSelectField, RagSliderField } from './panelPrimitives'
 
-const EMPTY_OPTION_VALUE = '__none__'
 const DEFAULT_HYBRID_ALPHA = 0.5
 
 interface RetrievalSectionProps {
   searchModeOptions: KnowledgeSelectOption[]
-  rerankModelOptions: KnowledgeSelectOption[]
   documentCount: number
   threshold: number
   searchMode: KnowledgeSearchMode
@@ -25,7 +27,6 @@ interface RetrievalSectionProps {
 
 const RetrievalSection = ({
   searchModeOptions,
-  rerankModelOptions,
   documentCount,
   threshold,
   searchMode,
@@ -98,10 +99,14 @@ const RetrievalSection = ({
 
       <div>
         <RagFieldLabel label={t('knowledge.rag.rerank_model')} hint={t('knowledge.rag.hints.rerank_model')} />
-        <RagSelectField
-          value={rerankModelId ?? EMPTY_OPTION_VALUE}
-          options={[{ value: EMPTY_OPTION_VALUE, label: t('knowledge.rag.rerank_disabled') }, ...rerankModelOptions]}
-          onValueChange={(value) => onRerankModelChange(value === EMPTY_OPTION_VALUE ? null : value)}
+        <KnowledgeModelSelectField
+          value={rerankModelId}
+          filter={isRerankModel}
+          placeholder={t('knowledge.rag.rerank_disabled')}
+          triggerClassName="h-7.5 rounded-md border-border/40 bg-transparent px-2.5 py-1.5 font-medium text-xs hover:bg-muted/20 dark:bg-transparent"
+          allowClear
+          clearLabel={t('knowledge.rag.rerank_disabled')}
+          onValueChange={onRerankModelChange}
         />
       </div>
     </section>

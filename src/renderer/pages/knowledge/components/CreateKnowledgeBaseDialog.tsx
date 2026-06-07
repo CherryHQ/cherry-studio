@@ -15,15 +15,14 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { useModels } from '@renderer/hooks/useModels'
-import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Group } from '@shared/data/types/group'
 import type { CreateKnowledgeBaseDto, KnowledgeBase, KnowledgeBaseEmoji } from '@shared/data/types/knowledge'
-import { isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { isEmbeddingModel, KnowledgeModelSelectField } from './KnowledgeModelSelectField'
 
 interface CreateKnowledgeBaseDialogProps {
   open: boolean
@@ -62,15 +61,6 @@ const createInitialInput = (groupId?: string): CreateKnowledgeBaseFormValues => 
   groupId,
   embeddingModelId: null
 })
-
-export const formatKnowledgeModelOptionLabel = (uniqueModelId: string) => {
-  if (!isUniqueModelId(uniqueModelId)) {
-    return uniqueModelId
-  }
-
-  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  return `${modelId} · ${providerId}`
-}
 
 const CreateKnowledgeBaseDialogHeader = ({ title }: { title: string }) => {
   return (
@@ -162,10 +152,6 @@ const CreateKnowledgeBaseDialogRoot = ({
   onCreated
 }: CreateKnowledgeBaseDialogProps) => {
   const { t } = useTranslation()
-  const { models: embeddingModels } = useModels({
-    capability: MODEL_CAPABILITY.EMBEDDING,
-    enabled: true
-  })
   const groupIds = useMemo(() => new Set(groups.map((group) => group.id)), [groups])
   const normalizedInitialGroupId = initialGroupId && groupIds.has(initialGroupId) ? initialGroupId : undefined
   const [values, setValues] = useState<CreateKnowledgeBaseFormValues>(() =>
@@ -191,11 +177,6 @@ const CreateKnowledgeBaseDialogRoot = ({
       return { ...currentValues, groupId: undefined }
     })
   }, [groupIds])
-
-  const embeddingModelOptions: KnowledgeSelectOption[] = embeddingModels.map((model) => ({
-    value: model.id,
-    label: formatKnowledgeModelOptionLabel(model.id)
-  }))
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -292,29 +273,16 @@ const CreateKnowledgeBaseDialogRoot = ({
 
             <div className="space-y-1">
               <Label className="text-muted-foreground leading-4">{t('knowledge.embedding_model')}</Label>
-              <Select
-                value={values.embeddingModelId ?? undefined}
+              <KnowledgeModelSelectField
+                value={values.embeddingModelId}
+                filter={isEmbeddingModel}
+                placeholder={t('knowledge.not_set')}
+                invalid={hasAttemptedSubmit && !values.embeddingModelId}
+                triggerClassName="h-8 rounded-lg border-border/40 bg-transparent px-2.5 leading-4 hover:bg-muted/20"
                 onValueChange={(embeddingModelId) =>
                   setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
-                }>
-                <SelectTrigger
-                  size="sm"
-                  className="h-8 w-full rounded-lg px-2.5 leading-4 data-placeholder:text-muted-foreground/70"
-                  aria-invalid={hasAttemptedSubmit && !values.embeddingModelId}>
-                  <SelectValue placeholder={t('knowledge.not_set')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {embeddingModelOptions.length > 0 ? (
-                    embeddingModelOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <div className="px-2.5 py-2 text-muted-foreground text-sm">{t('knowledge.not_set')}</div>
-                  )}
-                </SelectContent>
-              </Select>
+                }
+              />
               {hasAttemptedSubmit && !values.embeddingModelId ? (
                 <FieldError className="leading-4">{t('knowledge.embedding_model_required')}</FieldError>
               ) : null}
