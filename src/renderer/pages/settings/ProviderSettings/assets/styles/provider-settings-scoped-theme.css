@@ -122,7 +122,7 @@
    * Label/count align to shell caption + body-xs for readability (strict 9px/8px mock was too small).
    */
   --font-size-chip-label: var(--font-size-caption);
-  --font-size-chip-count: var(--font-size-body-xs);
+  --font-size-chip-count: var(--cs-font-size-body-xs);
   --color-border-fg-hairline: color-mix(in srgb, var(--foreground) 6%, transparent);
   --color-surface-fg-sunken: color-mix(in srgb, var(--foreground) 3%, transparent);
   --color-surface-fg-subtle: color-mix(in srgb, var(--foreground) 4%, transparent);

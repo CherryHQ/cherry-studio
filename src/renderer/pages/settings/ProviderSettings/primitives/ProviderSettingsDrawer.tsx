@@ -38,7 +38,7 @@ export default function ProviderSettingsDrawer({
   const header = description ? (
     <VStack gap={1} className="min-w-0 flex-1">
       <span className="font-semibold text-base text-foreground">{title}</span>
-      <span className="text-foreground-muted text-xs leading-[var(--line-height-body-xs)]">{description}</span>
+      <span className="text-foreground-muted text-xs">{description}</span>
     </VStack>
   ) : undefined
 

@@ -27,7 +27,13 @@ describe('buildThemeContractCss', () => {
     expect(css).toContain('--color-destructive: var(--cs-destructive);')
     expect(css).toContain('--color-error-base: var(--cs-error-base);')
     expect(css).toContain('--radius-md: var(--cs-radius-md);')
-    expect(css).toContain('--font-size-body-md: var(--cs-font-size-body-md);')
+    // font-size-*/line-height-* get NO raw @theme mapping (wired via --text-* instead);
+    // font-family / font-weight keep their direct mappings.
+    expect(css).not.toContain('--font-size-body')
+    expect(css).not.toContain('--line-height-body')
+    expect(css).not.toContain('--font-size-heading')
+    expect(css).toContain('--font-weight-medium: var(--cs-font-weight-medium);')
+    expect(css).toContain('--font-family-body: var(--cs-font-family-body);')
     // Body scale overrides the built-in text-xs/sm/base/lg with the design line-height
     expect(css).toContain('--text-xs: var(--cs-font-size-body-xs);')
     expect(css).toContain('--text-xs--line-height: var(--cs-line-height-body-xs);')

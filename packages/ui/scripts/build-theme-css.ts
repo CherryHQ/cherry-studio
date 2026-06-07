@@ -81,8 +81,8 @@ function toDirectMappings(tokenNames: string[], sourcePrefix = '--cs-'): string[
  * scale gets semantic `text-heading-*` names (heading-md/lg are off Tailwind's scale,
  * and this avoids changing the built-in display sizes `text-xl/2xl/5xl`).
  *
- * The raw `--font-size-*` / `--line-height-*` mappings are kept too for code that
- * references them directly.
+ * The raw `--font-size-*` / `--line-height-*` mappings are NOT emitted (they made no
+ * utilities); code that needs the raw value references `var(--cs-font-size-*)` directly.
  */
 const FONT_SIZE_UTILITY_MAP: Record<string, string> = {
   'body-xs': 'xs',
@@ -137,7 +137,13 @@ export function buildThemeContractCss(inputs: ThemeContractInputs): string {
     buildSection('Spacing', SPACING_COMMENT_LINES),
     buildSection('Radius', toDirectMappings(inputs.radiusTokens)),
     buildSection('Typography', [
-      ...toDirectMappings(inputs.typographyTokens),
+      // `font-size-*` / `line-height-*` are wired via the `--text-*` utilities below
+      // (Tailwind doesn't make utilities from those namespaces), so they get no raw
+      // `@theme` mapping; everything else (font-family, font-weight, paragraph-spacing)
+      // keeps its direct mapping. Code that needs the raw value uses `var(--cs-*)`.
+      ...toDirectMappings(
+        inputs.typographyTokens.filter((name) => !name.startsWith('font-size-') && !name.startsWith('line-height-'))
+      ),
       ...toTextUtilityMappings(inputs.typographyTokens)
     ])
   ]

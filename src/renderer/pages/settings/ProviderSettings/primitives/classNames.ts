@@ -19,12 +19,12 @@ import { cn } from '@renderer/utils'
  * unless the spec demands emphasis. Execution order: scope vars + bridge in CSS → extend `*Classes` → touch TSX.
  */
 export const providerSettingsTypography = {
-  menu: 'text-sm leading-[length:var(--line-height-body-sm)]',
-  body: 'text-sm leading-[length:var(--line-height-body-sm)]',
-  label: 'text-xs leading-[length:var(--line-height-body-xs)]',
-  micro: 'text-xs leading-[length:var(--line-height-body-xs)]',
-  caption: 'text-xs leading-[length:var(--line-height-body-xs)]',
-  subtitle: 'text-base leading-[length:var(--line-height-body-md)]'
+  menu: 'text-sm',
+  body: 'text-sm',
+  label: 'text-xs',
+  micro: 'text-xs',
+  caption: 'text-xs',
+  subtitle: 'text-base'
 } as const
 
 /**
@@ -338,7 +338,7 @@ export const modelSyncClasses = {
   summaryMetric:
     'rounded-xl border border-[color:var(--color-border-fg-hairline)] bg-background/75 px-3 py-2 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-foreground/75',
   warningBlock:
-    'rounded-2xl border border-[color:var(--color-border-warning-soft)] bg-[var(--color-surface-warning-soft)] px-4 py-3 text-[length:var(--font-size-caption)] leading-[var(--line-height-body-md)] text-foreground/80',
+    'rounded-2xl border border-[color:var(--color-border-warning-soft)] bg-[var(--color-surface-warning-soft)] px-4 py-3 text-[length:var(--font-size-caption)] leading-6 text-foreground/80',
   section: 'rounded-2xl border border-[color:var(--color-border-fg-muted)] bg-background px-4 py-4 shadow-none',
   sectionHeader: 'flex flex-wrap items-center justify-between gap-3',
   sectionTitleWrap: 'min-w-0',
@@ -364,7 +364,7 @@ export const modelSyncClasses = {
     'rounded-2xl border border-[color:var(--color-border-info-soft)] bg-[var(--color-surface-info-soft)] px-4 py-4',
   impactList: 'mt-3 space-y-2',
   impactItem:
-    'rounded-xl border border-[color:var(--color-border-fg-hairline)] bg-background/80 px-3 py-2 text-[length:var(--font-size-caption)] leading-[var(--line-height-body-md)] text-foreground/78',
+    'rounded-xl border border-[color:var(--color-border-fg-hairline)] bg-background/80 px-3 py-2 text-[length:var(--font-size-caption)] leading-6 text-foreground/78',
   emptyState:
     'rounded-2xl border border-dashed border-[color:var(--color-border-fg-muted)] bg-[var(--color-surface-fg-sunken)] px-4 py-8 text-center text-base text-muted-foreground/75',
   footer: 'flex items-center justify-end gap-2',
@@ -394,10 +394,9 @@ export const modelSyncClasses = {
     'flex min-h-11 cursor-pointer items-center gap-2 rounded-[length:var(--radius-lg)] border border-transparent px-2.5 py-2 transition-colors hover:border-destructive/15 hover:bg-destructive/[0.03] focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/30 data-[checked=true]:border-destructive/15 data-[checked=true]:bg-background',
   fetchAvatar:
     'flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-muted font-medium text-xs leading-none text-foreground-muted',
-  fetchRowTitle:
-    'truncate text-sm font-[weight:var(--font-weight-medium)] leading-[var(--line-height-body-xs)] text-foreground',
+  fetchRowTitle: 'truncate text-sm font-[weight:var(--font-weight-medium)] leading-5 text-foreground',
   fetchRowTitleStrike:
-    'truncate text-sm font-[weight:var(--font-weight-medium)] leading-[var(--line-height-body-xs)] text-foreground-muted line-through decoration-foreground-muted',
+    'truncate text-sm font-[weight:var(--font-weight-medium)] leading-5 text-foreground-muted line-through decoration-foreground-muted',
   fetchRowId: 'mt-0.5 truncate font-mono text-xs text-foreground-muted',
   fetchRowIdStrike: 'mt-0.5 truncate font-mono text-xs text-foreground-muted/70',
   fetchContextValue: 'shrink-0 text-xs text-foreground-muted tabular-nums',
