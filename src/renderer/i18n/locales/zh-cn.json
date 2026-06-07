@@ -613,12 +613,21 @@
       "thinking_tokens": "思考 Token",
       "title": "用量统计",
       "token_breakdown": "Token 分布",
+      "token_input": "输入 {{count}}",
+      "token_output": "输出 {{count}}",
+      "token_thinking": "思考 {{count}}",
       "topics": "话题数",
       "total_characters": "总字符数",
       "total_messages": "总消息数",
       "total_tokens": "总 Token",
       "total_words": "总词数",
-      "unique_models": "使用模型数"
+      "unique_models": "使用模型数",
+      "units": {
+        "d_h_m": "{{d}}天 {{h}}时 {{m}}分",
+        "tok": "tok",
+        "tok_per_sec": "{{value}} tok/s",
+        "ttft": "首 Token {{ms}}ms"
+      }
     },
     "todo": {
       "mock": {

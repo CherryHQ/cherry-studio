@@ -584,41 +584,50 @@
     },
     "sidebar_title": "Agents",
     "stats": {
-      "active_days": "[to be translated]:days active",
-      "avg_completion": "[to be translated]:Avg Completion",
-      "avg_first_token": "[to be translated]:Avg First Token",
-      "avg_speed": "[to be translated]:Avg Speed",
-      "conversation_info": "[to be translated]:Conversation Info",
-      "daily_usage": "[to be translated]:Daily Usage",
-      "duration": "[to be translated]:Duration",
-      "limit": "[to be translated]:Display limit",
-      "loading": "[to be translated]:Loading statistics...",
-      "messages": "[to be translated]:Messages",
-      "model_filter_all": "[to be translated]:All Providers",
-      "model_sort_messages": "[to be translated]:By Messages",
-      "model_sort_speed": "[to be translated]:By Speed",
-      "model_sort_tokens": "[to be translated]:By Tokens",
-      "model_usage": "[to be translated]:Model Usage",
-      "no_data": "[to be translated]:No statistics available",
-      "no_data_hint": "[to be translated]:Start a conversation to see usage statistics here.",
-      "no_models_match": "[to be translated]:No models match the current filters.",
-      "performance": "[to be translated]:Performance",
+      "active_days": "活躍天數",
+      "avg_completion": "平均完成時間",
+      "avg_first_token": "平均首 Token",
+      "avg_speed": "平均速度",
+      "conversation_info": "對話資訊",
+      "daily_usage": "每日用量",
+      "duration": "持續時間",
+      "limit": "顯示數量",
+      "loading": "正在載入統計資料...",
+      "messages": "訊息數",
+      "model_filter_all": "全部提供商",
+      "model_sort_messages": "按訊息數",
+      "model_sort_speed": "按速度",
+      "model_sort_tokens": "按 Token",
+      "model_usage": "模型用量",
+      "no_data": "暫無統計資料",
+      "no_data_hint": "開始對話後即可在此查看用量統計。",
+      "no_models_match": "沒有符合目前篩選條件的模型。",
+      "performance": "效能指標",
       "popup": {
-        "load_failed": "[to be translated]:Failed to load topic statistics",
-        "title": "[to be translated]:Topic Statistics",
-        "topic_not_found": "[to be translated]:Topic not found"
+        "load_failed": "載入話題統計失敗",
+        "title": "話題統計",
+        "topic_not_found": "話題不存在"
       },
-      "search_placeholder": "[to be translated]:Search model or provider...",
-      "sort_by": "[to be translated]:Sort by",
-      "thinking_tokens": "[to be translated]:Thinking Tokens",
-      "title": "[to be translated]:Usage Statistics",
-      "token_breakdown": "[to be translated]:Token Breakdown",
-      "topics": "[to be translated]:Topics",
-      "total_characters": "[to be translated]:Total Characters",
-      "total_messages": "[to be translated]:Total Messages",
-      "total_tokens": "[to be translated]:Total Tokens",
-      "total_words": "[to be translated]:Total Words",
-      "unique_models": "[to be translated]:Models Used"
+      "search_placeholder": "搜尋模型或提供商...",
+      "sort_by": "排序方式",
+      "thinking_tokens": "思考 Token",
+      "title": "使用統計",
+      "token_breakdown": "Token 分布",
+      "token_input": "輸入 {{count}}",
+      "token_output": "輸出 {{count}}",
+      "token_thinking": "思考 {{count}}",
+      "topics": "話題數",
+      "total_characters": "總字元數",
+      "total_messages": "總訊息數",
+      "total_tokens": "總 Token",
+      "total_words": "總詞數",
+      "unique_models": "使用模型數",
+      "units": {
+        "d_h_m": "{{d}}天 {{h}}時 {{m}}分",
+        "tok": "tok",
+        "tok_per_sec": "{{value}} tok/s",
+        "ttft": "首 Token {{ms}}ms"
+      }
     },
     "todo": {
       "mock": {
@@ -1637,7 +1646,7 @@
         "placeholder": "搜尋話題...",
         "title": "搜尋"
       },
-      "statistics": "[to be translated]:Statistics",
+      "statistics": "統計",
       "title": "話題",
       "unpin": "取消固定"
     },
@@ -6840,7 +6849,7 @@
       "zip": "ZIP"
     },
     "stats": {
-      "title": "[to be translated]:Usage Statistics"
+      "title": "使用統計"
     },
     "theme": {
       "color_primary": "主題顏色",

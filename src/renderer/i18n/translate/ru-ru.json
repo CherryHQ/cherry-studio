@@ -584,41 +584,50 @@
     },
     "sidebar_title": "Агенты",
     "stats": {
-      "active_days": "[to be translated]:days active",
-      "avg_completion": "[to be translated]:Avg Completion",
-      "avg_first_token": "[to be translated]:Avg First Token",
-      "avg_speed": "[to be translated]:Avg Speed",
-      "conversation_info": "[to be translated]:Conversation Info",
-      "daily_usage": "[to be translated]:Daily Usage",
-      "duration": "[to be translated]:Duration",
-      "limit": "[to be translated]:Display limit",
-      "loading": "[to be translated]:Loading statistics...",
-      "messages": "[to be translated]:Messages",
-      "model_filter_all": "[to be translated]:All Providers",
-      "model_sort_messages": "[to be translated]:By Messages",
-      "model_sort_speed": "[to be translated]:By Speed",
-      "model_sort_tokens": "[to be translated]:By Tokens",
-      "model_usage": "[to be translated]:Model Usage",
-      "no_data": "[to be translated]:No statistics available",
-      "no_data_hint": "[to be translated]:Start a conversation to see usage statistics here.",
-      "no_models_match": "[to be translated]:No models match the current filters.",
-      "performance": "[to be translated]:Performance",
+      "active_days": "дней активности",
+      "avg_completion": "Среднее завершение",
+      "avg_first_token": "Среднее время до первого токена",
+      "avg_speed": "Средняя скорость",
+      "conversation_info": "Информация о диалоге",
+      "daily_usage": "Ежедневное использование",
+      "duration": "Длительность",
+      "limit": "Лимит отображения",
+      "loading": "Загрузка статистики...",
+      "messages": "Сообщения",
+      "model_filter_all": "Все провайдеры",
+      "model_sort_messages": "По сообщениям",
+      "model_sort_speed": "По скорости",
+      "model_sort_tokens": "По токенам",
+      "model_usage": "Использование модели",
+      "no_data": "Статистика недоступна",
+      "no_data_hint": "Начните диалог, чтобы увидеть здесь статистику использования.",
+      "no_models_match": "Нет моделей, соответствующих текущим фильтрам.",
+      "performance": "Производительность",
       "popup": {
-        "load_failed": "[to be translated]:Failed to load topic statistics",
-        "title": "[to be translated]:Topic Statistics",
-        "topic_not_found": "[to be translated]:Topic not found"
+        "load_failed": "Не удалось загрузить статистику топика",
+        "title": "Статистика топика",
+        "topic_not_found": "Топик не найден"
       },
-      "search_placeholder": "[to be translated]:Search model or provider...",
-      "sort_by": "[to be translated]:Sort by",
-      "thinking_tokens": "[to be translated]:Thinking Tokens",
-      "title": "[to be translated]:Usage Statistics",
-      "token_breakdown": "[to be translated]:Token Breakdown",
-      "topics": "[to be translated]:Topics",
-      "total_characters": "[to be translated]:Total Characters",
-      "total_messages": "[to be translated]:Total Messages",
-      "total_tokens": "[to be translated]:Total Tokens",
-      "total_words": "[to be translated]:Total Words",
-      "unique_models": "[to be translated]:Models Used"
+      "search_placeholder": "Поиск модели или провайдера...",
+      "sort_by": "Сортировать по",
+      "thinking_tokens": "Токены размышления",
+      "title": "Статистика использования",
+      "token_breakdown": "Распределение токенов",
+      "token_input": "Вход {{count}}",
+      "token_output": "Выход {{count}}",
+      "token_thinking": "Размышление {{count}}",
+      "topics": "Топики",
+      "total_characters": "Всего символов",
+      "total_messages": "Всего сообщений",
+      "total_tokens": "Всего токенов",
+      "total_words": "Всего слов",
+      "unique_models": "Используемые модели",
+      "units": {
+        "d_h_m": "{{d}}д {{h}}ч {{m}}м",
+        "tok": "tok",
+        "tok_per_sec": "{{value}} tok/s",
+        "ttft": "TTFT {{ms}}ms"
+      }
     },
     "todo": {
       "mock": {
@@ -1637,7 +1646,7 @@
         "placeholder": "Искать темы...",
         "title": "Поиск"
       },
-      "statistics": "[to be translated]:Statistics",
+      "statistics": "Статистика",
       "title": "Топики",
       "unpin": "Открепленные темы"
     },
@@ -2200,16 +2209,10 @@
           "supported_formats": "Поддерживает PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Нажмите, чтобы выбрать файлы, или перетащите их сюда"
         },
-        "sitemap": {
-          "description": "Введите URL карты сайта:",
-          "help": "Страницы, перечисленные в карте сайта, будут прочитаны и проиндексированы",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
-        },
         "sources": {
           "directory": "Папка",
           "file": "Файл",
           "note": "Примечание",
-          "sitemap": "Веб-сайт",
           "url": "URL"
         },
         "submit": {
@@ -2247,9 +2250,6 @@
           "file": {
             "title": "Файл"
           },
-          "sitemap": {
-            "title": "Синхронизация веб-сайта"
-          },
           "url": {
             "title": "URL"
           }
@@ -2262,7 +2262,6 @@
         "directory": "Папки",
         "file": "Файлы",
         "note": "Заметки",
-        "sitemap": "Веб-сайты",
         "url": "URL-адреса"
       },
       "preview": {
@@ -6185,6 +6184,9 @@
         "enabled": "Включено",
         "failed": "Не прошло",
         "failed_to_start": "Не удалось запустить проверку работоспособности",
+        "generation_output_audio": "[to be translated]:audio",
+        "generation_output_image": "[to be translated]:an image",
+        "generation_output_video": "[to be translated]:a video",
         "keys_status_count": "Прошло: {{count_passed}} ключей, Не прошло: {{count_failed}} ключей",
         "model_status_failed": "{{count}} моделей полностью недоступны",
         "model_status_partial": "{{count}} моделей недоступны с некоторыми ключами",
@@ -6193,6 +6195,7 @@
         "no_api_keys": "API ключи не найдены, пожалуйста, добавьте API ключи.",
         "no_results": "нет результатов",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "[to be translated]:{{count}} skipped",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Прошло",
@@ -6204,8 +6207,11 @@
         "retry": "Check again",
         "select_api_key": "Выберите API ключ для использования:",
         "single": "Один",
+        "skip_reason_generation_cost": "[to be translated]:This model's health check would generate {{output}} and consume quota, so it is skipped by default.",
+        "skip_reason_unsupported_probe": "[to be translated]:This model type does not have a low-cost health check yet, so it is skipped by default.",
         "start": "Начать",
         "status_checking": "Checking…",
+        "status_skipped": "[to be translated]:Skipped",
         "timeout": "Тайм-аут",
         "title": "Проверка состояния моделей",
         "use_all_keys": "Использовать все ключи"
@@ -6214,6 +6220,8 @@
       "default_assistant_model": "Модель ассистента по умолчанию",
       "default_assistant_model_description": "Используется, если у ассистента нет модели.",
       "empty": "Модели не найдены",
+      "group_disable": "[to be translated]:Close this group",
+      "group_enable": "[to be translated]:Enable this group",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",
@@ -6841,7 +6849,7 @@
       "zip": "ЗИП"
     },
     "stats": {
-      "title": "[to be translated]:Usage Statistics"
+      "title": "Статистика использования"
     },
     "theme": {
       "color_primary": "Цвет темы",

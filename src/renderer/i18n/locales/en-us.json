@@ -613,12 +613,21 @@
       "thinking_tokens": "Thinking Tokens",
       "title": "Usage Statistics",
       "token_breakdown": "Token Breakdown",
+      "token_input": "Input {{count}}",
+      "token_output": "Output {{count}}",
+      "token_thinking": "Thinking {{count}}",
       "topics": "Topics",
       "total_characters": "Total Characters",
       "total_messages": "Total Messages",
       "total_tokens": "Total Tokens",
       "total_words": "Total Words",
-      "unique_models": "Models Used"
+      "unique_models": "Models Used",
+      "units": {
+        "d_h_m": "{{d}}d {{h}}h {{m}}m",
+        "tok": "tok",
+        "tok_per_sec": "{{value}} tok/s",
+        "ttft": "TTFT {{ms}}ms"
+      }
     },
     "todo": {
       "mock": {

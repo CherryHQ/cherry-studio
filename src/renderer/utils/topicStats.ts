@@ -195,12 +195,14 @@ export const computePerformanceMetrics = (messages: Message[]): PerformanceMetri
 // Model usage
 // ---------------------------------------------------------------------------
 
-const emptyModelPerf = (): PerformanceMetrics => ({
-  avgFirstTokenMs: null,
-  avgCompletionMs: null,
-  avgTokensPerSecond: null,
-  measuredMessages: 0
-})
+interface ModelAggregatePerf {
+  firstTokenSum: number
+  firstTokenCount: number
+  completionSum: number
+  completionCount: number
+  speedSum: number
+  speedCount: number
+}
 
 interface ModelAggregate {
   modelId: string
@@ -211,7 +213,7 @@ interface ModelAggregate {
   outputTokens: number
   thinkingTokens: number
   totalTokens: number
-  perf: PerformanceMetrics & { _measured: number }
+  perf: ModelAggregatePerf
 }
 
 const blankAggregate = (modelId: string, modelName: string, provider: string): ModelAggregate => ({
@@ -223,7 +225,7 @@ const blankAggregate = (modelId: string, modelName: string, provider: string): M
   outputTokens: 0,
   thinkingTokens: 0,
   totalTokens: 0,
-  perf: { ...emptyModelPerf(), _measured: 0 }
+  perf: { firstTokenSum: 0, firstTokenCount: 0, completionSum: 0, completionCount: 0, speedSum: 0, speedCount: 0 }
 })
 
 /**
@@ -260,26 +262,37 @@ export const computeModelStats = (messages: Message[]): ModelUsage[] => {
     const metrics = m.metrics
     if (metrics) {
       if (typeof metrics.time_first_token_millsec === 'number' && metrics.time_first_token_millsec > 0) {
-        agg.perf.avgFirstTokenMs =
-          (agg.perf.avgFirstTokenMs ?? 0) * agg.perf.measuredMessages + metrics.time_first_token_millsec
-        agg.perf.measuredMessages += 1
-        agg.perf.avgFirstTokenMs = agg.perf.avgFirstTokenMs / agg.perf.measuredMessages
+        agg.perf.firstTokenSum += metrics.time_first_token_millsec
+        agg.perf.firstTokenCount += 1
       }
       if (typeof metrics.time_completion_millsec === 'number' && metrics.time_completion_millsec > 0) {
-        agg.perf.avgCompletionMs =
-          (agg.perf.avgCompletionMs ?? 0) * agg.perf._measured + metrics.time_completion_millsec
-        agg.perf._measured += 1
-        agg.perf.avgCompletionMs = agg.perf.avgCompletionMs / agg.perf._measured
+        agg.perf.completionSum += metrics.time_completion_millsec
+        agg.perf.completionCount += 1
+      }
+      if (
+        typeof metrics.completion_tokens === 'number' &&
+        typeof metrics.time_completion_millsec === 'number' &&
+        metrics.time_completion_millsec > 0
+      ) {
+        const tps = (metrics.completion_tokens / metrics.time_completion_millsec) * 1000
+        if (Number.isFinite(tps) && tps > 0) {
+          agg.perf.speedSum += tps
+          agg.perf.speedCount += 1
+        }
       }
     }
   }
 
   return Array.from(byId.values())
-    .map(({ perf, ...rest }) => {
-      const { _measured, ...cleanPerf } = perf
-      void _measured
-      return { ...rest, performance: cleanPerf }
-    })
+    .map(({ perf, ...rest }) => ({
+      ...rest,
+      performance: {
+        avgFirstTokenMs: perf.firstTokenCount > 0 ? perf.firstTokenSum / perf.firstTokenCount : null,
+        avgCompletionMs: perf.completionCount > 0 ? perf.completionSum / perf.completionCount : null,
+        avgTokensPerSecond: perf.speedCount > 0 ? perf.speedSum / perf.speedCount : null,
+        measuredMessages: perf.firstTokenCount + perf.completionCount
+      }
+    }))
     .sort((a, b) => b.totalTokens - a.totalTokens)
 }
 

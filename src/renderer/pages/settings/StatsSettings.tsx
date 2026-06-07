@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next'
 
 import {
   type AggregatedStats,
+  invalidateGlobalStatsCache,
   loadGlobalStats,
   reaggregateModelUsage,
   type ResolvedModelUsage
@@ -218,9 +219,9 @@ const useResizeObserver = (cb: (width: number) => void) => {
 // Model usage card
 // ---------------------------------------------------------------------------
 
-const ModelCard: FC<{ usage: ResolvedModelUsage }> = ({ usage }) => {
+const ModelCard: FC<{ usage: ResolvedModelUsage; maxTokens: number }> = ({ usage, maxTokens }) => {
   const { t } = useTranslation()
-  const max = Math.max(usage.totalTokens, 1)
+  const ratio = maxTokens > 0 ? (usage.totalTokens / maxTokens) * 100 : 0
   return (
     <div className="rounded-lg border border-border/60 bg-(--color-background) p-3">
       <div className="flex items-baseline justify-between gap-2">
@@ -229,21 +230,22 @@ const ModelCard: FC<{ usage: ResolvedModelUsage }> = ({ usage }) => {
           <div className="truncate text-(--color-foreground-muted) text-xs">{usage.providerName}</div>
         </div>
         <div className="text-right text-(--color-foreground) text-sm tabular-nums">
-          {usage.totalTokens.toLocaleString()} <span className="text-(--color-foreground-muted) text-xs">tok</span>
+          {usage.totalTokens.toLocaleString()}{' '}
+          <span className="text-(--color-foreground-muted) text-xs">{t('stats.units.tok')}</span>
         </div>
       </div>
       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-(--color-background-soft)">
-        <div className="h-full bg-(--color-primary)" style={{ width: `${(usage.totalTokens / max) * 100}%` }} />
+        <div className="h-full bg-(--color-primary)" style={{ width: `${ratio}%` }} />
       </div>
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-(--color-foreground-muted) text-xs">
         <span>
           {t('stats.messages')}: {usage.messageCount}
         </span>
         {usage.performance.avgFirstTokenMs != null && (
-          <span>TTFT {Math.round(usage.performance.avgFirstTokenMs)}ms</span>
+          <span>{t('stats.units.ttft', { ms: Math.round(usage.performance.avgFirstTokenMs) })}</span>
         )}
         {usage.performance.avgTokensPerSecond != null && (
-          <span>{usage.performance.avgTokensPerSecond.toFixed(1)} tok/s</span>
+          <span>{t('stats.units.tok_per_sec', { value: usage.performance.avgTokensPerSecond.toFixed(1) })}</span>
         )}
       </div>
     </div>
@@ -332,7 +334,10 @@ const StatsSettings: FC = () => {
         <button
           type="button"
           className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-(--color-background) px-2.5 py-1 text-(--color-foreground) text-xs hover:bg-(--color-background-soft)"
-          onClick={() => setRefreshTick((x) => x + 1)}>
+          onClick={() => {
+            invalidateGlobalStatsCache()
+            setRefreshTick((x) => x + 1)
+          }}>
           <RefreshIcon size={12} />
           {t('common.refresh')}
         </button>
@@ -454,9 +459,12 @@ const StatsSettings: FC = () => {
           <div className="mt-4 text-center text-(--color-foreground-muted) text-xs">{t('stats.no_models_match')}</div>
         ) : (
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((u) => (
-              <ModelCard key={`${u.modelId}-${u.provider}`} usage={u} />
-            ))}
+            {(() => {
+              const maxTokens = filtered.reduce((m, u) => Math.max(m, u.totalTokens), 0)
+              return filtered.map((u) => (
+                <ModelCard key={`${u.modelId}-${u.provider}`} usage={u} maxTokens={maxTokens} />
+              ))
+            })()}
           </div>
         )}
       </SettingGroup>

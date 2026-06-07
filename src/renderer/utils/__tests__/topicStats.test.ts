@@ -406,9 +406,9 @@ describe('computeTopicStats', () => {
     expect(stats.totalTokens).toBe(70)
 
     // Text metrics
-    // 'Hello 你好' (5+2) + 'World 世界' (5+2) + 'foo bar baz' (3) = 17
+    // 'Hello 你好' (1 Latin + 2 CJK = 3) + 'World 世界' (1 + 2 = 3) + 'foo bar baz' (3) = 9
     expect(stats.totalCharacters).toBe('Hello 你好'.length + 'World 世界'.length + 'foo bar baz'.length)
-    expect(stats.totalWords).toBe(7 + 7 + 3) // CJK counted per char
+    expect(stats.totalWords).toBe(3 + 3 + 3) // CJK counted per char
 
     // Duration: 5s + 5s = 10s
     expect(stats.durationMs).toBe(10_000)

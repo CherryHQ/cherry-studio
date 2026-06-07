@@ -5,6 +5,8 @@ import { loadTopicStats, type ResolvedModelUsage } from '@renderer/utils/topicSt
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+type TFunc = ReturnType<typeof useTranslation>['t']
+
 const logger = loggerService.withContext('Popups:TopicStatsPopup')
 const CLOSE_ANIMATION_MS = 200
 
@@ -115,13 +117,14 @@ const Body: React.FC<{ data: TopicStatsData }> = ({ data }) => {
           <StatBox label={t('stats.total_tokens')} value={stats.totalTokens.toLocaleString()} />
           <StatBox label={t('stats.total_characters')} value={stats.totalCharacters.toLocaleString()} />
           <StatBox label={t('stats.total_words')} value={stats.totalWords.toLocaleString()} />
-          {stats.durationMs > 0 && <StatBox label={t('stats.duration')} value={formatDuration(stats.durationMs)} />}
+          {stats.durationMs > 0 && <StatBox label={t('stats.duration')} value={formatDuration(stats.durationMs, t)} />}
         </div>
       </Section>
 
       {/* Token Breakdown */}
       <Section title={t('stats.token_breakdown')}>
         <TokenBar
+          t={t}
           input={stats.inputTokens}
           output={stats.outputTokens}
           thinking={stats.thinkingTokens}
@@ -138,7 +141,7 @@ const Body: React.FC<{ data: TopicStatsData }> = ({ data }) => {
             label={t('stats.avg_speed')}
             value={
               stats.performance.avgTokensPerSecond != null
-                ? `${stats.performance.avgTokensPerSecond.toFixed(1)} tok/s`
+                ? t('stats.units.tok_per_sec', { value: stats.performance.avgTokensPerSecond.toFixed(1) })
                 : '—'
             }
           />
@@ -159,7 +162,8 @@ const Body: React.FC<{ data: TopicStatsData }> = ({ data }) => {
                     <div className="truncate text-(--color-foreground-muted) text-xs">{u.providerName}</div>
                   </div>
                   <div className="text-right text-(--color-foreground) text-xs tabular-nums">
-                    {u.totalTokens.toLocaleString()} <span className="text-(--color-foreground-muted)">tok</span>
+                    {u.totalTokens.toLocaleString()}{' '}
+                    <span className="text-(--color-foreground-muted)">{t('stats.units.tok')}</span>
                   </div>
                 </div>
                 <div className="mt-1.5 flex flex-wrap gap-x-3 text-(--color-foreground-muted) text-xs">
@@ -167,7 +171,7 @@ const Body: React.FC<{ data: TopicStatsData }> = ({ data }) => {
                     {t('stats.messages')}: {u.messageCount}
                   </span>
                   {u.performance.avgFirstTokenMs != null && (
-                    <span>TTFT {Math.round(u.performance.avgFirstTokenMs)}ms</span>
+                    <span>{t('stats.units.ttft', { ms: Math.round(u.performance.avgFirstTokenMs) })}</span>
                   )}
                 </div>
               </div>
@@ -194,12 +198,13 @@ const StatBox: React.FC<{ label: string; value: string; sub?: string }> = ({ lab
   </div>
 )
 
-const TokenBar: React.FC<{ input: number; output: number; thinking: number; total: number }> = ({
-  input,
-  output,
-  thinking,
-  total
-}) => {
+const TokenBar: React.FC<{
+  input: number
+  output: number
+  thinking: number
+  total: number
+  t: TFunc
+}> = ({ input, output, thinking, total, t }) => {
   if (total === 0) return <div className="text-(--color-foreground-muted) text-xs">—</div>
   const i = (input / total) * 100
   const o = (output / total) * 100
@@ -207,23 +212,25 @@ const TokenBar: React.FC<{ input: number; output: number; thinking: number; tota
   return (
     <div className="space-y-1.5">
       <div className="flex h-2 w-full overflow-hidden rounded-full bg-(--color-background-soft)">
-        {i > 0 && <div className="bg-[#6366f1]" style={{ width: `${i}%` }} title={`Input ${input}`} />}
-        {o > 0 && <div className="bg-[#10b981]" style={{ width: `${o}%` }} title={`Output ${output}`} />}
-        {th > 0 && <div className="bg-[#a855f7]" style={{ width: `${th}%` }} title={`Thinking ${thinking}`} />}
+        {i > 0 && <div className="bg-[#6366f1]" style={{ width: `${i}%` }} title={tokenLabel('input', input, t)} />}
+        {o > 0 && <div className="bg-[#10b981]" style={{ width: `${o}%` }} title={tokenLabel('output', output, t)} />}
+        {th > 0 && (
+          <div className="bg-[#a855f7]" style={{ width: `${th}%` }} title={tokenLabel('thinking', thinking, t)} />
+        )}
       </div>
       <div className="flex flex-wrap gap-x-3 text-(--color-foreground-muted) text-xs">
         <span>
           <span className="mr-1 inline-block size-2 rounded-full bg-[#6366f1]" />
-          Input {input.toLocaleString()}
+          {tokenLabel('input', input, t)}
         </span>
         <span>
           <span className="mr-1 inline-block size-2 rounded-full bg-[#10b981]" />
-          Output {output.toLocaleString()}
+          {tokenLabel('output', output, t)}
         </span>
         {thinking > 0 && (
           <span>
             <span className="mr-1 inline-block size-2 rounded-full bg-[#a855f7]" />
-            Thinking {thinking.toLocaleString()}
+            {tokenLabel('thinking', thinking, t)}
           </span>
         )}
       </div>
@@ -237,13 +244,25 @@ const formatMs = (ms: number | null): string => {
   return `${(ms / 1000).toFixed(2)}s`
 }
 
-const formatDuration = (ms: number): string => {
+const formatDuration = (ms: number, t: TFunc): string => {
   if (ms <= 0) return '—'
   const totalMin = Math.floor(ms / 60_000)
   const d = Math.floor(totalMin / (60 * 24))
   const h = Math.floor((totalMin - d * 60 * 24) / 60)
   const m = totalMin - d * 60 * 24 - h * 60
-  return `${d}d ${h}h ${m}m`
+  return t('stats.units.d_h_m', { d, h, m })
+}
+
+/**
+ * Localised token-segment label. Kept as a tiny wrapper so the
+ * `t(key, { count })` calls (which i18next's strict typegen can't
+ * infer for new keys) live in one place.
+ */
+const tokenLabel = (kind: 'input' | 'output' | 'thinking', count: number, t: TFunc): string => {
+  const key = kind === 'input' ? 'stats.token_input' : kind === 'output' ? 'stats.token_output' : 'stats.token_thinking'
+  // The plural-aware t() signature expects a count; cast through unknown
+  // because our typegen doesn't yet model the interpolation slot.
+  return (t as unknown as (k: string, opts: { count: string }) => string)(key, { count: count.toLocaleString() })
 }
 
 const TopViewKey = 'TopicStatsPopup'

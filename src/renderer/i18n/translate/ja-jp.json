@@ -584,41 +584,50 @@
     },
     "sidebar_title": "エージェント",
     "stats": {
-      "active_days": "[to be translated]:days active",
-      "avg_completion": "[to be translated]:Avg Completion",
-      "avg_first_token": "[to be translated]:Avg First Token",
-      "avg_speed": "[to be translated]:Avg Speed",
-      "conversation_info": "[to be translated]:Conversation Info",
-      "daily_usage": "[to be translated]:Daily Usage",
-      "duration": "[to be translated]:Duration",
-      "limit": "[to be translated]:Display limit",
-      "loading": "[to be translated]:Loading statistics...",
-      "messages": "[to be translated]:Messages",
-      "model_filter_all": "[to be translated]:All Providers",
-      "model_sort_messages": "[to be translated]:By Messages",
-      "model_sort_speed": "[to be translated]:By Speed",
-      "model_sort_tokens": "[to be translated]:By Tokens",
-      "model_usage": "[to be translated]:Model Usage",
-      "no_data": "[to be translated]:No statistics available",
-      "no_data_hint": "[to be translated]:Start a conversation to see usage statistics here.",
-      "no_models_match": "[to be translated]:No models match the current filters.",
-      "performance": "[to be translated]:Performance",
+      "active_days": "アクティブな日数",
+      "avg_completion": "平均完了時間",
+      "avg_first_token": "平均初回トークン",
+      "avg_speed": "平均速度",
+      "conversation_info": "会話情報",
+      "daily_usage": "日次使用量",
+      "duration": "期間",
+      "limit": "表示件数",
+      "loading": "統計を読み込み中...",
+      "messages": "メッセージ数",
+      "model_filter_all": "すべてのプロバイダー",
+      "model_sort_messages": "メッセージ順",
+      "model_sort_speed": "速度順",
+      "model_sort_tokens": "トークン順",
+      "model_usage": "モデル使用状況",
+      "no_data": "利用可能な統計はありません",
+      "no_data_hint": "会話を開始すると、ここに使用統計が表示されます。",
+      "no_models_match": "現在のフィルターに一致するモデルはありません。",
+      "performance": "パフォーマンス",
       "popup": {
-        "load_failed": "[to be translated]:Failed to load topic statistics",
-        "title": "[to be translated]:Topic Statistics",
-        "topic_not_found": "[to be translated]:Topic not found"
+        "load_failed": "トピック統計の読み込みに失敗しました",
+        "title": "トピック統計",
+        "topic_not_found": "トピックが見つかりません"
       },
-      "search_placeholder": "[to be translated]:Search model or provider...",
-      "sort_by": "[to be translated]:Sort by",
-      "thinking_tokens": "[to be translated]:Thinking Tokens",
-      "title": "[to be translated]:Usage Statistics",
-      "token_breakdown": "[to be translated]:Token Breakdown",
-      "topics": "[to be translated]:Topics",
-      "total_characters": "[to be translated]:Total Characters",
-      "total_messages": "[to be translated]:Total Messages",
-      "total_tokens": "[to be translated]:Total Tokens",
-      "total_words": "[to be translated]:Total Words",
-      "unique_models": "[to be translated]:Models Used"
+      "search_placeholder": "モデルまたはプロバイダーを検索...",
+      "sort_by": "並び替え",
+      "thinking_tokens": "思考トークン",
+      "title": "使用統計",
+      "token_breakdown": "トークン内訳",
+      "token_input": "入力 {{count}}",
+      "token_output": "出力 {{count}}",
+      "token_thinking": "思考 {{count}}",
+      "topics": "トピック数",
+      "total_characters": "総文字数",
+      "total_messages": "総メッセージ数",
+      "total_tokens": "総トークン数",
+      "total_words": "総単語数",
+      "unique_models": "使用モデル数",
+      "units": {
+        "d_h_m": "{{d}}日 {{h}}時 {{m}}分",
+        "tok": "tok",
+        "tok_per_sec": "{{value}} tok/s",
+        "ttft": "TTFT {{ms}}ms"
+      }
     },
     "todo": {
       "mock": {
@@ -1637,7 +1646,7 @@
         "placeholder": "トピックを検索...",
         "title": "検索"
       },
-      "statistics": "[to be translated]:Statistics",
+      "statistics": "統計",
       "title": "トピック",
       "unpin": "固定解除"
     },
@@ -2200,16 +2209,10 @@
           "supported_formats": "PDF、DOCX、MD、XLSX、TXT、CSVに対応",
           "title": "ファイルを選択するにはクリックするか、ここにドラッグしてください"
         },
-        "sitemap": {
-          "description": "サイトマップのURLを入力してください:",
-          "help": "サイトマップに記載されているページは読み込まれ、インデックスされます。",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
-        },
         "sources": {
           "directory": "フォルダ",
           "file": "ファイル",
           "note": "注",
-          "sitemap": "ウェブサイト",
           "url": "URL"
         },
         "submit": {
@@ -2247,9 +2250,6 @@
           "file": {
             "title": "ファイル"
           },
-          "sitemap": {
-            "title": "ウェブサイト同期"
-          },
           "url": {
             "title": "URL"
           }
@@ -2262,7 +2262,6 @@
         "directory": "フォルダ",
         "file": "ファイル",
         "note": "メモ",
-        "sitemap": "ウェブサイト",
         "url": "URL"
       },
       "preview": {
@@ -6185,6 +6184,9 @@
         "enabled": "開く",
         "failed": "失敗",
         "failed_to_start": "ヘルスチェックの開始に失敗しました",
+        "generation_output_audio": "[to be translated]:audio",
+        "generation_output_image": "[to be translated]:an image",
+        "generation_output_video": "[to be translated]:a video",
         "keys_status_count": "合格：{{count_passed}}個のキー、不合格：{{count_failed}}個のキー",
         "model_status_failed": "{{count}} 個のモデルが完全にアクセスできません",
         "model_status_partial": "{{count}} 個のモデルが一部のキーでアクセスできません",
@@ -6193,6 +6195,7 @@
         "no_api_keys": "APIキーが見つかりません。まずAPIキーを追加してください。",
         "no_results": "結果なし",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "[to be translated]:{{count}} skipped",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "成功",
@@ -6204,8 +6207,11 @@
         "retry": "Check again",
         "select_api_key": "使用するAPIキーを選択：",
         "single": "単一",
+        "skip_reason_generation_cost": "[to be translated]:This model's health check would generate {{output}} and consume quota, so it is skipped by default.",
+        "skip_reason_unsupported_probe": "[to be translated]:This model type does not have a low-cost health check yet, so it is skipped by default.",
         "start": "開始",
         "status_checking": "Checking…",
+        "status_skipped": "[to be translated]:Skipped",
         "timeout": "タイムアウト",
         "title": "モデル健康チェック",
         "use_all_keys": "キー"
@@ -6214,6 +6220,8 @@
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
       "empty": "モデルが見つかりません",
+      "group_disable": "[to be translated]:Close this group",
+      "group_enable": "[to be translated]:Enable this group",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",
@@ -6841,7 +6849,7 @@
       "zip": "ZIP"
     },
     "stats": {
-      "title": "[to be translated]:Usage Statistics"
+      "title": "使用統計"
     },
     "theme": {
       "color_primary": "テーマ色",
