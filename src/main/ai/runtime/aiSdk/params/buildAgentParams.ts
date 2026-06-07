@@ -1,3 +1,4 @@
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constant'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
@@ -15,7 +16,7 @@ import { resolveAssistantMcpToolIds } from '../../../tools/adapters/aiSdk/mcp/re
 import { registry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
-import type { AiBaseRequest } from '../../../types/requests'
+import type { AiBaseRequest, CallOverrides } from '../../../types/requests'
 import { filterStandardParams } from '../../../utils/modelParameters'
 import {
   buildCapabilityProviderOptions,
@@ -158,6 +159,13 @@ async function resolveTools(
     tools = {}
     for (const entry of activeEntries) tools[entry.name] = entry.tool
   }
+  // First-class client tools (no `execute`) supplied per request by assistant-less
+  // callers (the API gateway). Merged here so they share the registry/defer-exposition
+  // path instead of being mutated onto raw SDK params.
+  const clientTools = request.callOverrides?.tools
+  if (clientTools && Object.keys(clientTools).length > 0) {
+    tools = { ...tools, ...clientTools }
+  }
   const exposed = applyDeferExposition(tools, registry, model.contextWindow)
   return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, mcpToolIds }
 }
@@ -183,6 +191,12 @@ function buildAgentOptions(scope: RequestScope): AgentOptions {
     }
   }
 
+  // Highest-precedence per-request overrides (assistant-less callers, e.g. the API gateway).
+  const callOverrides = request.callOverrides
+  const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
+  standardParams = overridden.standardParams
+  providerOptions = overridden.providerOptions as typeof providerOptions
+
   const { headers, maxRetries } = request.requestOptions ?? {}
   const stopWhen = assistant ? resolveStopWhenForAssistant(assistant) : undefined
   const telemetry = buildTelemetry(scope)
@@ -191,6 +205,7 @@ function buildAgentOptions(scope: RequestScope): AgentOptions {
     maxRetries: maxRetries ?? 0,
     ...(stopWhen && { stopWhen }),
     ...(headers && { headers }),
+    ...(callOverrides?.toolChoice && { toolChoice: callOverrides.toolChoice }),
     ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
     ...(telemetry && { telemetry }),
     ...standardParams,
@@ -201,6 +216,38 @@ function buildAgentOptions(scope: RequestScope): AgentOptions {
       modelId: sdkConfig.modelId
     })
   }
+}
+
+/**
+ * Merge per-request `callOverrides` (highest precedence) onto base sampling params +
+ * providerOptions. Sampling passes through `filterStandardParams` for model-capability
+ * gating (e.g. topK dropped for Gemini 3.x / Claude 4.7); providerOptions merge
+ * per-provider so other providers' keys aren't clobbered. Exported for unit testing.
+ */
+export function applyCallOverrides(
+  base: { standardParams: Partial<Record<string, unknown>>; providerOptions: ProviderOptions },
+  callOverrides: CallOverrides | undefined,
+  model: Model
+): { standardParams: Partial<Record<string, unknown>>; providerOptions: ProviderOptions } {
+  if (!callOverrides) return base
+
+  const sampling: Partial<Record<string, unknown>> = {}
+  if (callOverrides.temperature !== undefined) sampling.temperature = callOverrides.temperature
+  if (callOverrides.maxOutputTokens !== undefined) sampling.maxOutputTokens = callOverrides.maxOutputTokens
+  if (callOverrides.topP !== undefined) sampling.topP = callOverrides.topP
+  if (callOverrides.topK !== undefined) sampling.topK = callOverrides.topK
+  if (callOverrides.stopSequences !== undefined) sampling.stopSequences = callOverrides.stopSequences
+  const standardParams = { ...base.standardParams, ...filterStandardParams(sampling, model) }
+
+  let providerOptions = base.providerOptions
+  if (callOverrides.providerOptions) {
+    const merged: ProviderOptions = { ...providerOptions }
+    for (const [pid, opts] of Object.entries(callOverrides.providerOptions)) {
+      merged[pid] = { ...merged[pid], ...opts }
+    }
+    providerOptions = merged
+  }
+  return { standardParams, providerOptions }
 }
 
 function resolveStopWhenForAssistant(assistant: Assistant): ReturnType<typeof stepCountIs> {

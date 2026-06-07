@@ -342,7 +342,7 @@
     },
     "server": {
       "error": {
-        "not_running": "API 伺服器已啟用，但運作不正常。"
+        "not_running": "API 閘道已啟用，但運作不正常。"
       }
     },
     "session": {
@@ -779,19 +779,19 @@
     },
     "warning": {
       "enable_and_start": "啟用並啟動",
-      "enable_server": "啟用 API 伺服器以使用 Agent。",
-      "enable_server_description": "智能體功能需要啟用 API 伺服器。你可以直接啟用，或前往設定頁面進行配置。",
-      "server_not_running": "API 伺服器已啟用但未執行。請檢查伺服器設定。",
-      "server_not_running_description": "智能體功能需要 API 伺服器運行。你可以直接啟動伺服器，或前往設定頁面檢查配置。"
+      "enable_server": "啟用 API 閘道以使用 Agent。",
+      "enable_server_description": "智能體功能需要啟用 API 閘道。你可以直接啟用，或前往設定頁面進行配置。",
+      "server_not_running": "API 閘道已啟用但未執行。請檢查閘道設定。",
+      "server_not_running_description": "智能體功能需要 API 閘道運行。你可以直接啟動閘道，或前往設定頁面檢查配置。"
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "複製",
       "regenerate": "重新產生",
       "restart": {
         "button": "重新啟動",
-        "tooltip": "重新啟動伺服器"
+        "tooltip": "重新啟動閘道"
       },
       "start": "啟動",
       "stop": "停止"
@@ -801,7 +801,7 @@
     },
     "authHeaderText": "在授權標頭中使用：",
     "configuration": "設定",
-    "description": "透過 OpenAI 相容的 HTTP API 公開 Cherry Studio 的 AI 功能",
+    "description": "透過 OpenAI 和 Anthropic 相容的 HTTP API 公開 Cherry Studio 的 AI 功能",
     "documentation": {
       "title": "API 文件"
     },
@@ -813,8 +813,8 @@
         "placeholder": "API 金鑰會自動產生"
       },
       "port": {
-        "description": "HTTP 伺服器的 TCP 連接埠 (1000-65535)",
-        "helpText": "停止伺服器以變更連接埠",
+        "description": "閘道的 TCP 連接埠 (1000-65535)",
+        "helpText": "停止閘道以變更連接埠",
         "label": "連接埠"
       },
       "url": {
@@ -825,22 +825,22 @@
     "messages": {
       "apiKeyCopied": "API 金鑰已複製到剪貼簿",
       "apiKeyRegenerated": "API 金鑰已重新產生",
-      "notEnabled": "API 伺服器未啟用。",
-      "operationFailed": "API 伺服器操作失敗：",
-      "restartError": "重新啟動 API 伺服器失敗：",
-      "restartFailed": "API 伺服器重新啟動失敗：",
-      "restartSuccess": "API 伺服器重新啟動成功",
-      "startError": "啟動 API 伺服器失敗：",
-      "startSuccess": "API 伺服器啟動成功",
-      "stopError": "停止 API 伺服器失敗：",
-      "stopSuccess": "API 伺服器停止成功",
-      "urlCopied": "伺服器 URL 已複製到剪貼簿"
+      "notEnabled": "API 閘道未啟用。",
+      "operationFailed": "API 閘道操作失敗：",
+      "restartError": "重新啟動 API 閘道失敗：",
+      "restartFailed": "API 閘道重新啟動失敗：",
+      "restartSuccess": "API 閘道重新啟動成功",
+      "startError": "啟動 API 閘道失敗：",
+      "startSuccess": "API 閘道啟動成功",
+      "stopError": "停止 API 閘道失敗：",
+      "stopSuccess": "API 閘道停止成功",
+      "urlCopied": "閘道 URL 已複製到剪貼簿"
     },
     "status": {
       "running": "執行中",
       "stopped": "已停止"
     },
-    "title": "API 伺服器"
+    "title": "API 閘道"
   },
   "appMenu": {
     "about": "關於",
