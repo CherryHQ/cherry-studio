@@ -42,7 +42,7 @@ const providerSettingsInputGroupFocusOverride =
   'has-[[data-slot=input-group-control]:focus-visible]:ring-[1px] has-[[data-slot=input-group-control]:focus-visible]:ring-ring/35'
 
 /** Connection and `ProviderSection`: 14px, deepest foreground, section-label line-height. */
-const sectionHeadingBase = 'm-0 text-base text-foreground leading-[var(--line-height-section-label)]'
+const sectionHeadingBase = 'm-0 text-base text-foreground leading-[1.3]'
 
 export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-medium')
 
@@ -70,8 +70,7 @@ export const providerDetailColumnClasses = {
 export const actionClasses = {
   row: 'flex flex-wrap items-center gap-3',
   icon: 'size-[13px] shrink-0',
-  btnBase:
-    'h-auto min-h-0 gap-2 rounded-lg px-3 py-1.5 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] shadow-none',
+  btnBase: 'h-auto min-h-0 gap-2 rounded-lg px-3 py-1.5 text-[13px] leading-[1.25] shadow-none',
   /** Neutral outline (design: action row — no brand fill on check / API-key-list actions). */
   btnNeutral:
     'border-border/25 bg-transparent text-foreground/70 hover:bg-[var(--accent)] hover:text-[color:var(--foreground)]'
@@ -164,7 +163,7 @@ export const drawerClasses = {
   helpText: 'text-xs text-foreground-muted',
   errorText: 'text-xs text-destructive',
   emptyInline:
-    'rounded-md border border-dashed border-foreground/12 px-3 py-2 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/70',
+    'rounded-md border border-dashed border-foreground/12 px-3 py-2 text-[13px] leading-[1.25] text-muted-foreground/70',
   toggleButton: cn(
     actionClasses.btnBase,
     actionClasses.btnNeutral,
@@ -182,8 +181,8 @@ export const drawerClasses = {
   healthProgressTrack:
     'h-1.5 w-full overflow-hidden rounded-full bg-[color:color-mix(in_srgb,var(--muted-foreground)_12%,transparent)]',
   healthProgressFill: 'h-full rounded-full bg-primary transition-[width] duration-300 ease-out',
-  healthProgressMeta: 'text-[length:var(--font-size-caption)] tabular-nums text-muted-foreground/85',
-  healthProgressCurrent: 'truncate text-[length:var(--font-size-caption)] text-foreground/80'
+  healthProgressMeta: 'text-[13px] tabular-nums text-muted-foreground/85',
+  healthProgressCurrent: 'truncate text-[13px] text-foreground/80'
 } as const
 
 /** Model list block; composes atomic tokens from `provider-settings-scoped-theme.css` under `.provider-settings-default-scope`. */
@@ -204,7 +203,7 @@ export const modelListClasses = {
   sectionTitle: cn(sectionHeadingBase, 'font-semibold'),
   countMeta: 'text-xs text-foreground-muted tabular-nums',
   toolbarGhost:
-    'h-auto rounded-3xs px-2.5 py-[5px] text-[length:var(--font-size-caption)] leading-[length:var(--line-height-caption)] text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
+    'h-auto rounded-3xs px-2.5 py-[5px] text-[13px] leading-[1.25] text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
   /** Model-list title-row ghost: one step tighter than `toolbarGhost` (padding + body-xs + small icon). */
   toolbarHeaderGhost:
     'h-auto min-h-0 rounded-4xs px-2 py-[3px] text-xs text-muted-foreground/70 shadow-none hover:bg-foreground/4 hover:text-foreground',
@@ -299,7 +298,7 @@ export const modelListClasses = {
   groupChevronOpen: 'rotate-90',
   groupBody: 'mt-1.5 flex flex-col gap-0.5',
   groupOverflowHint:
-    'mt-1 rounded-lg px-3 py-2 text-left text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/70 transition-colors hover:bg-foreground/4 hover:text-foreground',
+    'mt-1 rounded-lg px-3 py-2 text-left text-[13px] leading-[1.25] text-muted-foreground/70 transition-colors hover:bg-foreground/4 hover:text-foreground',
   row: 'group flex items-center gap-3 rounded-xl px-3 py-[10px] text-foreground leading-none transition-colors hover:bg-foreground/4',
   rowMain: 'min-w-0 flex-1 items-center gap-3',
   rowAvatar: 'h-[26px] w-[26px] shrink-0 rounded-lg',
@@ -329,17 +328,17 @@ export const modelSyncClasses = {
   panel: 'provider-settings-default-scope flex min-h-0 flex-1 flex-col gap-4',
   summaryCard: 'rounded-2xl border border-foreground/12 bg-foreground/3 px-4 py-3',
   summaryTitle: 'text-base text-foreground/85 font-medium',
-  summaryMeta: 'text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/75',
+  summaryMeta: 'text-[13px] leading-[1.25] text-muted-foreground/75',
   summaryGrid: 'mt-3 grid gap-2 sm:grid-cols-3',
   summaryMetric:
-    'rounded-xl border border-foreground/6 bg-background/75 px-3 py-2 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-foreground/75',
+    'rounded-xl border border-foreground/6 bg-background/75 px-3 py-2 text-[13px] leading-[1.25] text-foreground/75',
   warningBlock:
-    'rounded-2xl border border-destructive/22 bg-[var(--color-surface-warning-soft)] px-4 py-3 text-[length:var(--font-size-caption)] leading-6 text-foreground/80',
+    'rounded-2xl border border-destructive/22 bg-[var(--color-surface-warning-soft)] px-4 py-3 text-[13px] leading-6 text-foreground/80',
   section: 'rounded-2xl border border-foreground/12 bg-background px-4 py-4 shadow-none',
   sectionHeader: 'flex flex-wrap items-center justify-between gap-3',
   sectionTitleWrap: 'min-w-0',
   sectionTitle: 'text-base text-foreground/85 font-medium',
-  sectionMeta: 'text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/75',
+  sectionMeta: 'text-[13px] leading-[1.25] text-muted-foreground/75',
   sectionActions: 'flex flex-wrap items-center gap-2',
   toggleButton: cn(
     actionClasses.btnBase,
@@ -350,7 +349,7 @@ export const modelSyncClasses = {
   row: 'flex items-start gap-3 rounded-xl border border-foreground/6 bg-foreground/3 px-3 py-3',
   rowBody: 'min-w-0 flex-1',
   rowTitle: 'truncate text-base text-foreground/85',
-  rowMeta: 'mt-1 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/75',
+  rowMeta: 'mt-1 text-[13px] leading-[1.25] text-muted-foreground/75',
   rowBadgeRow: 'mt-2 flex flex-wrap items-center gap-1.5',
   rowBadge: 'rounded-full border border-foreground/12 bg-background px-2 py-0.5 text-xs text-foreground/65',
   rowDangerBadge:
@@ -358,7 +357,7 @@ export const modelSyncClasses = {
   impactCard: 'rounded-2xl border border-foreground/12 bg-[var(--color-surface-info-soft)] px-4 py-4',
   impactList: 'mt-3 space-y-2',
   impactItem:
-    'rounded-xl border border-foreground/6 bg-background/80 px-3 py-2 text-[length:var(--font-size-caption)] leading-6 text-foreground/78',
+    'rounded-xl border border-foreground/6 bg-background/80 px-3 py-2 text-[13px] leading-6 text-foreground/78',
   emptyState:
     'rounded-2xl border border-dashed border-foreground/12 bg-foreground/3 px-4 py-8 text-center text-base text-muted-foreground/75',
   footer: 'flex items-center justify-end gap-2',
@@ -401,13 +400,12 @@ export const modelSyncClasses = {
 export const apiKeyListClasses = {
   shell: 'provider-settings-default-scope space-y-4',
   summaryMeta: 'text-xs text-foreground-muted tabular-nums',
-  helperText: 'text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-foreground-muted',
+  helperText: 'text-[13px] leading-[1.25] text-foreground-muted',
   listWrap: 'overflow-hidden rounded-lg border border-foreground/12 bg-transparent',
   listScroller: 'max-h-[60vh] overflow-x-hidden',
   keyRow: 'flex flex-col gap-2 border-b border-foreground/6 px-4 py-3 last:border-b-0',
   keyRowHeader: 'flex items-start justify-between gap-3',
-  keyLabel:
-    'min-w-0 truncate text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-foreground font-medium',
+  keyLabel: 'min-w-0 truncate text-[13px] leading-[1.25] text-foreground font-medium',
   keyValue: 'min-w-0 flex-1 truncate font-mono text-xs text-foreground-muted',
   keyInputRow: 'grid gap-2 sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]',
   actionRow: 'flex items-center justify-between gap-3',

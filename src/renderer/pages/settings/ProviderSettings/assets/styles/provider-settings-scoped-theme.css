@@ -78,34 +78,8 @@
   --cherry-text-muted: rgba(107, 114, 128, 0.7);
   /* Provider list — Sortable list uses inline `gap: var(--provider-list-row-gap)` */
   --provider-list-row-gap: 0.5rem;
-  /*
-   * Atomic tokens for this scope (spacing / type / soft surfaces). Compose in components; do not name by screen.
-   * Caption scale 0.8125rem aligns with endpoint tabs here; section titles use larger type for hierarchy.
-   */
-  --font-size-caption: 0.8125rem;
-  --line-height-caption: 1.25;
   /* Model list capability glyphs — match CustomTag `size` (e.g. 10px) for lucide SVG + iconfont */
   --icon-size-model-list-cap: 0.625rem;
-  /* 1rem (16px): block title (e.g. Models); stays above caption tier; not shrinking to smaller design-only specs */
-  --font-size-heading-sm: 1rem;
-  --line-height-heading-sm: 1.3;
-  /* 0.875rem (14px): search field + empty-state body */
-  --font-size-body-md: 0.875rem;
-  --line-height-body-md: 1.4;
-  /* Connection / Models section titles: same type tier as `ProviderSection`; slightly tighter than body line-height 1.4. */
-  --line-height-section-label: 1.3;
-  /* 0.9375rem (15px): list row primary name; half step above body-md for scan readability vs matching smaller fixed pixels */
-  --font-size-row-title: 0.9375rem;
-  --line-height-row-title: 1.2;
-  /* 0.75rem (12px): id badge / secondary identifiers only; smallest tier in this shell */
-  --font-size-body-xs: 0.75rem;
-  --line-height-body-xs: 1.2;
-  /*
-   * Model category pills: `rounded-full` in UI for Figma “infinite” radius.
-   * Label/count align to shell caption + body-xs for readability (strict 9px/8px mock was too small).
-   */
-  --font-size-chip-label: var(--font-size-caption);
-  --font-size-chip-count: var(--cs-font-size-body-xs);
   --color-surface-warning-soft: color-mix(in srgb, var(--destructive) 8%, var(--background));
   --color-surface-info-soft: color-mix(in srgb, var(--foreground) 4%, var(--background));
   /* Unify outer list scroller with virtual list max (was 380 vs 390) */
