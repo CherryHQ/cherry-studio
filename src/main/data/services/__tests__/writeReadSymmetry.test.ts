@@ -147,17 +147,17 @@ describe('write/read symmetry contract (#15740)', () => {
         write: () => fileEntryService.create(externalEntry('/Users/me/sym-base.pdf'))
       },
       {
-        label: 'create: name with forward slash is rejected (CHECK)',
+        label: 'create: name with forward slash is rejected (probe; CHECK backstop)',
         accepted: false,
         write: () => fileEntryService.create(internalEntry({ name: 'dir/doc' }))
       },
       {
-        label: 'create: name as full Windows path is rejected (CHECK, the #15733 shape)',
+        label: 'create: name as full Windows path is rejected (probe; CHECK backstop — the #15733 shape)',
         accepted: false,
         write: () => fileEntryService.create(externalEntry('/Users/me/sym-win.pdf', { name: 'C:\\Users\\x\\doc' }))
       },
       {
-        label: 'create: all-whitespace name is rejected (CHECK)',
+        label: 'create: all-whitespace name is rejected (probe; CHECK backstop)',
         accepted: false,
         write: () => fileEntryService.create(internalEntry({ name: '   ' }))
       },
@@ -192,7 +192,7 @@ describe('write/read symmetry contract (#15740)', () => {
         write: () => fileEntryService.create(externalEntry('relative/path.txt'))
       },
       {
-        label: 'create: negative internal size is rejected (CHECK)',
+        label: 'create: negative internal size is rejected (probe; CHECK backstop)',
         accepted: false,
         write: () => fileEntryService.create(internalEntry({ size: -1 }))
       },
@@ -218,6 +218,30 @@ describe('write/read symmetry contract (#15740)', () => {
         write: async () => {
           const entry = await fileEntryService.create(internalEntry())
           return fileEntryService.update(entry.id, { ext: null })
+        }
+      },
+      {
+        label: 'update: negative deletedAt must not persist',
+        accepted: false,
+        write: async () => {
+          const entry = await fileEntryService.create(internalEntry())
+          return fileEntryService.update(entry.id, { deletedAt: -1 })
+        }
+      },
+      {
+        label: 'update: non-integer deletedAt must not persist',
+        accepted: false,
+        write: async () => {
+          const entry = await fileEntryService.create(internalEntry())
+          return fileEntryService.update(entry.id, { deletedAt: 1.5 })
+        }
+      },
+      {
+        label: 'update: restoring from trash (deletedAt: null) is accepted — deletedAt is optional on the BO',
+        accepted: true,
+        write: async () => {
+          const entry = await fileEntryService.create(internalEntry({ deletedAt: 1700000000000 }))
+          return fileEntryService.update(entry.id, { deletedAt: null })
         }
       },
       {
@@ -316,7 +340,7 @@ describe('write/read symmetry contract (#15740)', () => {
         }
       },
       {
-        label: 'create: empty name is rejected (CHECK)',
+        label: 'create: empty name is rejected (probe; CHECK backstop)',
         accepted: false,
         write: async () => {
           await seedEmbeddingModel()
@@ -324,7 +348,7 @@ describe('write/read symmetry contract (#15740)', () => {
         }
       },
       {
-        label: 'create: ideographic-space name is rejected (JS trim + CHECK)',
+        label: 'create: ideographic-space name is rejected (service trim + probe; CHECK backstop)',
         accepted: false,
         write: async () => {
           await seedEmbeddingModel()
@@ -364,7 +388,7 @@ describe('write/read symmetry contract (#15740)', () => {
         }
       },
       {
-        label: 'create: non-positive dimensions is rejected (CHECK)',
+        label: 'create: non-positive dimensions is rejected (probe; CHECK backstop)',
         accepted: false,
         write: async () => {
           await seedEmbeddingModel()
@@ -463,6 +487,20 @@ describe('write/read symmetry contract (#15740)', () => {
             data: { source: 'note', content: 'hello' }
           })
           return knowledgeItemService.updateStatus(item.id, 'failed', { error: '   ' })
+        }
+      },
+      {
+        // `setSubtreeStatus` has its own hand-written blank-error guard,
+        // independent from `updateStatus`'s — pin both parallel paths.
+        label: 'setSubtreeStatus: failed with blank error is rejected (existing guard)',
+        accepted: false,
+        write: async () => {
+          const baseId = await seedKnowledgeBase()
+          const item = await knowledgeItemService.create(baseId, {
+            type: 'note',
+            data: { source: 'note', content: 'hello' }
+          })
+          return knowledgeItemService.setSubtreeStatus(baseId, [item.id], 'failed', { error: '   ' })
         }
       }
     ]
