@@ -15,6 +15,15 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
 
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
+
+// Bundle/externalize split for the main process: everything in `dependencies` is
+// marked `external` below (kept in node_modules of the packaged app), and everything
+// NOT in `dependencies` (i.e. in `devDependencies`) is bundled into the main bundle by
+// rollup. The API gateway's Elysia stack (`elysia`, `@elysia/*`) is intentionally in
+// `devDependencies` for exactly this reason — it is pure JS and bundles cleanly. Do NOT
+// move it to `dependencies`: that would externalize it, and since devDependencies are
+// pruned from production packages, the packaged app would fail at runtime with
+// MODULE_NOT_FOUND (no test catches this). See docs/references/api-gateway/README.md.
 const bundledMainDependencies = new Set(['@vectorstores/libsql'])
 const mainExternalDependencies = Object.keys(pkg.dependencies).filter(
   (dependency) => !bundledMainDependencies.has(dependency)

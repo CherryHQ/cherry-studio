@@ -366,14 +366,10 @@ export enum IpcChannel {
   TRACE_CLEAN_HISTORY = 'trace:cleanHistory',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
 
-  // API Server
-  ApiServer_Start = 'api-server:start',
-  ApiServer_Stop = 'api-server:stop',
-  ApiServer_Restart = 'api-server:restart',
-  ApiServer_GetStatus = 'api-server:get-status',
-  ApiServer_Ready = 'api-server:ready',
-  // NOTE: This api is not be used.
-  ApiServer_GetConfig = 'api-server:get-config',
+  // API Gateway
+  ApiGateway_Start = 'api-gateway:start',
+  ApiGateway_Stop = 'api-gateway:stop',
+  ApiGateway_Restart = 'api-gateway:restart',
 
   // ExternalApps
   ExternalApps_DetectInstalled = 'external-apps:detect-installed',

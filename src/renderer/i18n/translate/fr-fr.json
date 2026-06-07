@@ -785,7 +785,7 @@
       "server_not_running_description": "Le serveur API doit être en cours d'exécution pour que les agents fonctionnent. Vous pouvez le démarrer directement ou vérifier les paramètres."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "Copier",
       "regenerate": "Régénérer",

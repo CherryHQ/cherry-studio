@@ -785,7 +785,7 @@
       "server_not_running_description": "Der API-Server muss laufen, damit die Agents funktionieren. Sie können ihn direkt starten oder die Einstellungen überprüfen."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "Kopieren",
       "regenerate": "Neu generieren",

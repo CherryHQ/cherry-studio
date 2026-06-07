@@ -779,19 +779,19 @@
     },
     "warning": {
       "enable_and_start": "Enable & Start",
-      "enable_server": "Enable API Server to use agents.",
-      "enable_server_description": "The API server must be enabled for agents to work. You can enable it directly or configure it in settings.",
-      "server_not_running": "API Server is enabled but not running. Please check the server configuration.",
-      "server_not_running_description": "The API server needs to be running for agents to work. You can start it directly or check the settings."
+      "enable_server": "Enable API Gateway to use agents.",
+      "enable_server_description": "The API Gateway must be enabled for agents to work. You can enable it directly or configure it in settings.",
+      "server_not_running": "API Gateway is enabled but not running. Please check the server configuration.",
+      "server_not_running_description": "The API Gateway needs to be running for agents to work. You can start it directly or check the settings."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "Copy",
       "regenerate": "Regenerate",
       "restart": {
         "button": "Restart",
-        "tooltip": "Restart Server"
+        "tooltip": "Restart Gateway"
       },
       "start": "Start",
       "stop": "Stop"
@@ -801,7 +801,7 @@
     },
     "authHeaderText": "Use in Authorization header:",
     "configuration": "Configuration",
-    "description": "Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
+    "description": "Expose Cherry Studio's AI capabilities through OpenAI- and Anthropic-compatible HTTP APIs",
     "documentation": {
       "title": "API Documentation"
     },
@@ -813,8 +813,8 @@
         "placeholder": "API key will be auto-generated"
       },
       "port": {
-        "description": "TCP port number for the HTTP server (1000-65535)",
-        "helpText": "Stop server to change port",
+        "description": "TCP port number for the gateway (1000-65535)",
+        "helpText": "Stop the gateway to change port",
         "label": "Port"
       },
       "url": {
@@ -825,22 +825,22 @@
     "messages": {
       "apiKeyCopied": "API Key copied to clipboard",
       "apiKeyRegenerated": "API Key regenerated",
-      "notEnabled": "The API Server is not enabled.",
-      "operationFailed": "API Server operation failed: ",
-      "restartError": "Failed to restart API Server: ",
-      "restartFailed": "API Server restart failed: ",
-      "restartSuccess": "API Server restarted successfully",
-      "startError": "Failed to start API Server: ",
-      "startSuccess": "API Server started successfully",
-      "stopError": "Failed to stop API Server: ",
-      "stopSuccess": "API Server stopped successfully",
-      "urlCopied": "Server URL copied to clipboard"
+      "notEnabled": "The API Gateway is not enabled.",
+      "operationFailed": "API Gateway operation failed: ",
+      "restartError": "Failed to restart API Gateway: ",
+      "restartFailed": "API Gateway restart failed: ",
+      "restartSuccess": "API Gateway restarted successfully",
+      "startError": "Failed to start API Gateway: ",
+      "startSuccess": "API Gateway started successfully",
+      "stopError": "Failed to stop API Gateway: ",
+      "stopSuccess": "API Gateway stopped successfully",
+      "urlCopied": "Gateway URL copied to clipboard"
     },
     "status": {
       "running": "Running",
       "stopped": "Stopped"
     },
-    "title": "API Server"
+    "title": "API Gateway"
   },
   "appMenu": {
     "about": "About",
