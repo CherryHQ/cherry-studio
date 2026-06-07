@@ -107,7 +107,7 @@ const DmxapiSettings: FC<DmxapiSettingsProps> = ({ providerId }) => {
                       href={option.apiKeyWebsite}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-primary underline-offset-4 hover:underline">
+                      className="text-[#1677ff] underline-offset-4 hover:text-[#1677ff] hover:underline dark:text-[#1668dc] dark:hover:text-[#1668dc]">
                       ({t('settings.provider.get_api_key')})
                     </a>
                   </span>

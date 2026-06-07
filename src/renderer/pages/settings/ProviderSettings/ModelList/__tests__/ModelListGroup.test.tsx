@@ -113,7 +113,7 @@ describe('ModelListGroup', () => {
       'aria-checked',
       'true'
     )
-    expect(screen.getByRole('switch', { name: 'settings.models.group_disable' })).toHaveAttribute('data-size', 'sm')
+    expect(screen.getByRole('switch', { name: 'settings.models.group_disable' })).toHaveAttribute('data-size', 'xs')
     expect(screen.getByTestId('tooltip-trigger')).toHaveClass('inline-flex', 'h-6', 'items-center')
   })
 

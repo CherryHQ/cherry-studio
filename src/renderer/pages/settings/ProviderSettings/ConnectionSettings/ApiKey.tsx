@@ -9,7 +9,7 @@ import { useAuthenticationApiKey } from '../hooks/providerSetting/useAuthenticat
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import ProviderField from '../primitives/ProviderField'
 import ProviderSection from '../primitives/ProviderSection'
-import { fieldClasses } from '../primitives/ProviderSettingsPrimitives'
+import { fieldClasses, ProviderHelpLink } from '../primitives/ProviderSettingsPrimitives'
 import ProviderApiKeyListDrawer from './ProviderApiKeyListDrawer'
 
 interface ApiKeyProps {
@@ -45,7 +45,20 @@ export default function ApiKey({
       <ProviderSection id={provider.id === 'cherryin' ? 'cherryin-api-key-section' : undefined}>
         <ProviderField
           className="space-y-2"
-          title={t('settings.provider.api_key.label')}
+          title={
+            <div className={fieldClasses.titleWithHelp}>
+              <span>{t('settings.provider.api_key.label')}</span>
+              {meta.apiKeyWebsite && !meta.isDmxapi ? (
+                <ProviderHelpLink
+                  target="_blank"
+                  rel="noreferrer"
+                  href={meta.apiKeyWebsite}
+                  className={fieldClasses.titleHelpLink}>
+                  {t('settings.provider.get_api_key')}
+                </ProviderHelpLink>
+              ) : null}
+            </div>
+          }
           titleClassName="text-foreground">
           <div className={fieldClasses.inputRow}>
             <InputGroup className={fieldClasses.inputGroup}>

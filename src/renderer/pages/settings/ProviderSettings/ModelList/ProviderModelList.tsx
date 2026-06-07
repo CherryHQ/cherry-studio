@@ -4,6 +4,7 @@ import type React from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { EditModelDrawer } from './ModelDrawer'
 import ModelListHeader from './ModelListHeader'
@@ -28,6 +29,7 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
     providerId,
     disabled
   })
+  const providerMeta = useProviderMeta(providerId)
   const toolbarDisabled = disabled || modelList.isBulkUpdating
   const bulkCloseLabel = t('settings.models.bulk_disable')
   const bulkEnableLabel = t('settings.models.bulk_enable')
@@ -185,6 +187,8 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
           setSelectedCapabilityFilter={modelList.header.setSelectedCapabilityFilter}
           capabilityOptions={modelList.header.capabilityOptions}
           capabilityModelCounts={modelList.header.capabilityModelCounts}
+          docsWebsite={providerMeta.docsWebsite}
+          modelsWebsite={providerMeta.modelsWebsite}
           actions={actions?.({
             disabled: toolbarDisabled,
             hasVisibleModels: modelList.header.hasVisibleModels

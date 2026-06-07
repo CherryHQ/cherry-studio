@@ -16,6 +16,7 @@ import {
   Info,
   Package,
   PackageCheck,
+  Palette,
   PictureInPicture2,
   Radio,
   Search,
@@ -59,7 +60,6 @@ const SettingsPage: FC = () => {
           <PageHeader title={t('settings.menuGroups.appSettings')} />
           <Scrollbar className="min-h-0 flex-1 select-none">
             <MenuList className={settingsSubmenuListClassName}>
-              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.integrations')}</div>
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
@@ -135,6 +135,14 @@ const SettingsPage: FC = () => {
                 label={t('settings.general.common.title')}
                 active={isActive('/settings/general')}
                 onClick={() => go('/settings/general')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Palette />}
+                label={t('settings.general.display.title')}
+                active={isActive('/settings/display')}
+                onClick={() => go('/settings/display')}
               />
               <MenuItem
                 className={settingsSubmenuItemClassName}

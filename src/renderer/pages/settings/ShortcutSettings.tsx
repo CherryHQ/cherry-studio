@@ -1,5 +1,5 @@
 import { UndoOutlined } from '@ant-design/icons'
-import { Button, Input, Kbd, MenuItem, MenuList, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Input, Kbd, MenuItem, MenuList, PageHeader, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -510,32 +510,32 @@ const ShortcutSettings: FC = () => {
   return (
     <div className="flex flex-1" data-theme-mode={theme}>
       <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
-        <Scrollbar className={settingsSubmenuScrollClassName}>
-          <MenuList className={settingsSubmenuListClassName}>
-            <div className="px-2.5 pt-1 pb-2 font-medium text-foreground-muted text-xs">
-              {t('settings.shortcuts.title')}
-            </div>
-            {groupMeta.map((group) => {
-              const count = shortcutsByGroup[group.key].length
-              const isActive = activeGroup === group.key
+        <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
+          <PageHeader title={t('settings.shortcuts.title')} />
+          <Scrollbar className="min-h-0 flex-1">
+            <MenuList className={settingsSubmenuListClassName}>
+              {groupMeta.map((group) => {
+                const count = shortcutsByGroup[group.key].length
+                const isActive = activeGroup === group.key
 
-              return (
-                <MenuItem
-                  key={group.key}
-                  className={settingsSubmenuItemClassName}
-                  icon={groupIconMap[group.key]}
-                  active={isActive}
-                  label={group.label}
-                  suffix={<span className="shrink-0 text-[11px] text-muted-foreground">{count}</span>}
-                  onClick={() => {
-                    setActiveGroup(group.key)
-                    setSearchQuery('')
-                  }}
-                />
-              )
-            })}
-          </MenuList>
-        </Scrollbar>
+                return (
+                  <MenuItem
+                    key={group.key}
+                    className={settingsSubmenuItemClassName}
+                    icon={groupIconMap[group.key]}
+                    active={isActive}
+                    label={group.label}
+                    suffix={<span className="shrink-0 text-[11px] text-muted-foreground">{count}</span>}
+                    onClick={() => {
+                      setActiveGroup(group.key)
+                      setSearchQuery('')
+                    }}
+                  />
+                )
+              })}
+            </MenuList>
+          </Scrollbar>
+        </div>
 
         <Scrollbar className={settingsContentScrollClassName}>
           <SettingsContentBody>

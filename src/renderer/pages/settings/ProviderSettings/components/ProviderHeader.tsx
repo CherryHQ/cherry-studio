@@ -1,7 +1,7 @@
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
-import { Bolt, BookOpen, ExternalLink } from 'lucide-react'
+import { Bolt, ExternalLink } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -66,24 +66,6 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
                       rel="noreferrer"
                       aria-label={`${meta.fancyProviderName} · ${t('common.docs')}`}>
                       <ExternalLink className="size-3.5" aria-hidden />
-                    </a>
-                  </Button>
-                </Tooltip>
-              )}
-              {meta.modelsWebsite && (
-                <Tooltip content={t('settings.models.list_title')}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    asChild
-                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground">
-                    <a
-                      href={meta.modelsWebsite}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label={`${meta.fancyProviderName} · ${t('settings.models.list_title')}`}>
-                      <BookOpen className="size-3.5" aria-hidden />
                     </a>
                   </Button>
                 </Tooltip>

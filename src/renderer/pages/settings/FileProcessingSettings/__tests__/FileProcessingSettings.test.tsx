@@ -510,14 +510,14 @@ describe('FileProcessingSettings', () => {
     )
 
     const apiKeyLabel = screen.getByText('settings.tool.file_processing.fields.api_key')
-    const modelSection = screen.getByText('settings.tool.file_processing.sections.model_parameters')
+    const parseModelLabel = screen.getByText('settings.tool.file_processing.processors.paddleocr.fields.parse_model')
     const deploymentDescription = screen.getByText(
       'settings.tool.file_processing.processors.paddleocr.deployment.description'
     )
 
     expect(deploymentDescription).toBeInTheDocument()
-    expect(apiKeyLabel.compareDocumentPosition(modelSection)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(modelSection.compareDocumentPosition(deploymentDescription)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(apiKeyLabel.compareDocumentPosition(parseModelLabel)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(parseModelLabel.compareDocumentPosition(deploymentDescription)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(
       screen.getByRole('link', { name: /settings.tool.file_processing.processors.paddleocr.deployment.docs/ })
     ).toHaveAttribute('href', PADDLEOCR_DEPLOYMENT_URL)

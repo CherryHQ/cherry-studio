@@ -80,6 +80,24 @@ describe('ModelListHeader', () => {
     expect(screen.queryByRole('button', { name: 'settings.models.bulk_disable' })).not.toBeInTheDocument()
   })
 
+  it('renders provider documentation links when websites are available', () => {
+    render(
+      <ModelListHeader
+        {...baseProps}
+        docsWebsite="https://docs.github.com/en/github-models"
+        modelsWebsite="https://github.com/marketplace/models"
+      />
+    )
+
+    expect(screen.getByRole('link', { name: 'common.docs' })).toHaveAttribute(
+      'href',
+      'https://github.com/marketplace/models'
+    )
+    expect(screen.getAllByRole('link')).toHaveLength(1)
+    expect(screen.queryByText('settings.provider.docs_check')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.provider.docs_more_details')).not.toBeInTheDocument()
+  })
+
   it('updates and clears the persistent search input', () => {
     render(<ModelListHeader {...baseProps} searchText="GPT" />)
 

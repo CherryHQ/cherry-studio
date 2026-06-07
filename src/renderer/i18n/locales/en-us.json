@@ -4927,10 +4927,10 @@
         "title": "Data Directory"
       },
       "divider": {
-        "basic": "Basic Data Settings",
-        "cloud_storage": "Cloud Backup Settings",
-        "export_settings": "Export Settings",
-        "import_settings": "Import Settings",
+        "basic": "Basic Data",
+        "cloud_storage": "Cloud Backup",
+        "export_settings": "Export",
+        "import_settings": "Import",
         "third_party": "Third-party Connections"
       },
       "export_menu": {
@@ -4944,7 +4944,7 @@
         "obsidian": "Export to Obsidian",
         "plain_text": "Copy as Plain Text",
         "siyuan": "Export to SiYuan Note",
-        "title": "Export Menu Settings",
+        "title": "Export Menu",
         "yuque": "Export to Yuque"
       },
       "export_to_phone": {
@@ -5036,7 +5036,7 @@
           "title": "Include Reasoning Chain in Export"
         },
         "help": "In Joplin options, enable the web clipper (no browser extension needed), confirm the port, and copy the auth token here.",
-        "title": "Joplin Configuration",
+        "title": "Joplin",
         "token": "Joplin Authorization Token",
         "token_placeholder": "Joplin Authorization Token",
         "url": "Joplin Web Clipper Service URL",
@@ -5231,7 +5231,7 @@
             "title": "Restore from Nutstore"
           }
         },
-        "title": "Nutstore Configuration",
+        "title": "Nutstore",
         "username": "Nutstore Username"
       },
       "obsidian": {
@@ -5241,7 +5241,7 @@
         "default_vault_loading": "Loading Obsidian vault...",
         "default_vault_no_vaults": "No Obsidian vaults found",
         "default_vault_placeholder": "Please select the default Obsidian vault",
-        "title": "Obsidian Configuration"
+        "title": "Obsidian"
       },
       "s3": {
         "accessKeyId": {
@@ -5383,14 +5383,14 @@
         },
         "root_path": "Siyuan Note Root Path",
         "root_path_placeholder": "e.g.: /CherryStudio",
-        "title": "Siyuan Note Configuration",
+        "title": "Siyuan Note",
         "token": {
           "help": "Get Siyuan Note Token",
           "label": "Siyuan Note Token"
         },
         "token_placeholder": "Please enter Siyuan Note Token"
       },
-      "title": "Data Settings",
+      "title": "Data",
       "webdav": {
         "autoSync": {
           "label": "Auto Backup",
@@ -5487,7 +5487,7 @@
         "help": "Get Yuque Token",
         "repo_url": "Yuque URL",
         "repo_url_placeholder": "https://www.yuque.com/username/xxx",
-        "title": "Yuque Configuration",
+        "title": "Yuque",
         "token": "Yuque Token",
         "token_placeholder": "Please enter the Yuque Token"
       }
@@ -5583,7 +5583,7 @@
         "title": "General"
       },
       "display": {
-        "title": "Display Settings"
+        "title": "Display"
       },
       "emoji_picker": "Emoji Picker",
       "image_upload": "Image Upload",
@@ -5918,7 +5918,7 @@
       "user": "User"
     },
     "menuGroups": {
-      "appSettings": "App Settings",
+      "appSettings": "Settings",
       "integrations": "Models",
       "productivity": "Productivity",
       "services": "Plugins",
@@ -6173,7 +6173,7 @@
       "collapse_all": "Collapse all",
       "copy_model_id_tooltip": "Click to copy model ID: {{id}}",
       "default_assistant_model": "Default Assistant Model",
-      "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
+      "default_assistant_model_description": "Used when an assistant has no model.",
       "empty": "No models found",
       "enabled_models": "Enabled",
       "expand_all": "Expand all",

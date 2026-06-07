@@ -29,7 +29,10 @@ export const SettingsContentColumn = ({
 }: React.ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode; innerClassName?: string }) => (
   <div
     data-theme-mode={theme}
-    className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4 [&::-webkit-scrollbar]:hidden', className)}
+    className={cn(
+      'flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4 pt-3 [&::-webkit-scrollbar]:hidden',
+      className
+    )}
     {...rest}>
     <div className={cn('mx-auto w-full max-w-3xl', innerClassName)}>{children}</div>
   </div>
@@ -43,7 +46,7 @@ export const SettingsContentBody = ({
   children,
   ...rest
 }: React.ComponentPropsWithoutRef<'div'> & { innerClassName?: string }) => (
-  <div className={cn('flex min-h-full w-full flex-col px-6 py-4', className)} {...rest}>
+  <div className={cn('flex min-h-full w-full flex-col px-6 py-4 pt-3', className)} {...rest}>
     <div className={cn('mx-auto w-full max-w-3xl', innerClassName)}>{children}</div>
   </div>
 )
@@ -60,7 +63,7 @@ export const SettingSubtitle = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & { ref?: React.RefObject<HTMLDivElement | null> }) => (
-  <div ref={ref} className={cn('mt-4 select-none font-bold text-(--color-foreground) text-sm', className)} {...props} />
+  <div ref={ref} className={cn('select-none font-bold text-(--color-foreground) text-sm', className)} {...props} />
 )
 
 export const SettingDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

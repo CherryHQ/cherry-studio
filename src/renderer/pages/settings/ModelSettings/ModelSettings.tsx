@@ -24,7 +24,8 @@ import {
   SettingGroup,
   SettingRow,
   SettingRowTitle,
-  SettingsContentColumn
+  SettingsContentColumn,
+  SettingTitle
 } from '..'
 import { TopicNamingSettings } from './QuickModelPopup'
 
@@ -184,6 +185,12 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     <div className="relative flex min-h-0 flex-1">
       <ContainerComponent theme={theme} {...containerProps}>
         <SettingGroup theme={theme} style={groupStyle}>
+          {!compact && (
+            <>
+              <SettingTitle>{t('settings.model')}</SettingTitle>
+              <SettingDivider />
+            </>
+          )}
           <ModelSettingRow
             compact={compact}
             icon={<MessageSquareMore size={16} className="lucide-custom shrink-0 text-(--color-foreground)" />}

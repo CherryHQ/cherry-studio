@@ -99,7 +99,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
               <Switch
                 checked={groupSwitchChecked}
                 aria-label={bulkToggleLabel}
-                size="sm"
+                size="xs"
                 disabled={disabled || bulkActionDisabled || hasPendingModel}
                 onClick={(event) => event.stopPropagation()}
                 onCheckedChange={handleToggleGroupModels}

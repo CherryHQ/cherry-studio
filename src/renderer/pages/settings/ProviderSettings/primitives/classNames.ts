@@ -79,7 +79,7 @@ export const actionClasses = {
 } as const
 
 const providerListItemFrame =
-  'relative flex h-8 w-full items-center justify-between rounded-[10px] border border-transparent py-0 pr-2.5 pl-1.5 text-left shadow-none outline-none transition-colors focus-visible:ring-0'
+  'relative flex h-8 w-full items-center justify-between rounded-[10px] border border-transparent py-0 pr-2.5 pl-0.5 text-left shadow-none outline-none transition-colors focus-visible:ring-0'
 
 /** Provider list rows + detached menus. */
 export const providerListClasses = {
@@ -88,9 +88,9 @@ export const providerListClasses = {
     'flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
   searchInlineAddButton:
     'flex size-6 shrink-0 items-center justify-center rounded-[8px] bg-muted text-foreground transition-colors hover:bg-[var(--color-surface-hover-soft)] disabled:pointer-events-none disabled:opacity-30',
-  searchRow: 'flex items-center gap-1.5 px-3 pb-2.5',
+  searchRow: 'flex items-center gap-1.5 px-2.5 pb-2.5',
   searchWrap:
-    'flex h-8 items-center gap-1 rounded-xl border border-[color:var(--section-border)] bg-background py-1 pl-2.5 pr-1',
+    'flex h-8 items-center gap-1 rounded-[10px] border border-[color:var(--section-border)] bg-background py-1 pl-2.5 pr-1',
   searchIcon: 'size-4 shrink-0 text-muted-foreground/60',
   searchInput:
     'min-w-0 flex-1 bg-transparent text-sm leading-none text-foreground/80 outline-none placeholder:text-muted-foreground/60',
@@ -107,8 +107,13 @@ export const providerListClasses = {
   item: providerListItemFrame,
   itemSelected: 'bg-muted',
   itemIdle: 'hover:bg-muted',
+  itemMain: 'flex min-w-0 flex-1 items-center gap-0',
+  itemIdentity: 'flex min-w-0 flex-1 items-center gap-2.5',
+  itemDragHandle:
+    'flex w-2.5 shrink-0 items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[dragging=true]:opacity-100',
+  itemDragHandleSpacer: 'flex w-2.5 shrink-0',
   itemAvatar: 'shrink-0 rounded-lg border border-border/30',
-  itemLabel: 'truncate text-sm leading-[1.35]',
+  itemLabel: 'truncate text-sm leading-[1.35] text-foreground font-[weight:500]',
   itemMenuContent: 'w-fit min-w-32 rounded-xl p-1.5',
   itemMenuEntry: 'h-8 rounded-lg px-2.5 text-sm',
   groupHeader: cn(providerListItemFrame, 'hover:bg-muted'),
@@ -214,7 +219,14 @@ export const modelListClasses = {
   /** Connected top-row model list actions; uses shared ButtonGroup + Button outline primitives. */
   toolbarButtonGroup: 'max-w-full shrink-0',
   /** Model-list section title: same size, line-height, and color; scoped weight `--font-weight-semibold` (600). */
+  sectionTitleLine: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1',
   sectionTitle: cn(sectionHeadingBase, 'shrink-0 whitespace-nowrap font-[weight:var(--font-weight-semibold)]'),
+  titleHelpRow: 'flex min-w-0 flex-wrap items-center gap-x-1 self-center text-foreground-muted',
+  titleHelpText: 'shrink-0 opacity-60',
+  titleHelpLink:
+    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] text-[#1677ff] hover:text-[#1677ff] hover:underline dark:text-[#1668dc] dark:hover:text-[#1668dc]',
+  titleHelpSeparator:
+    'inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] text-foreground-muted/50',
   countMeta:
     'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted tabular-nums',
   toolbarGhost:
@@ -312,7 +324,7 @@ export const modelListClasses = {
   groupCard:
     'group/modelGroup min-w-0 w-full rounded-[length:var(--radius-md)] border border-[color:var(--color-border-fg-hairline)] bg-transparent px-2 py-1',
   groupHeader:
-    'group/groupRow flex min-h-6 w-full items-center justify-between gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
+    'group/groupRow flex min-h-7 w-full items-center justify-between gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
   groupToggleButton:
     'flex min-w-0 flex-1 items-center gap-1 bg-transparent text-left outline-none focus-visible:outline-none',
   groupHeaderActions: 'flex h-6 shrink-0 items-center gap-1',
@@ -545,5 +557,8 @@ export const fieldClasses = {
   inputActionButton: cn(fieldIconButtonBase, 'size-8'),
   /** Inline show/hide control kept inside the field without adding another border. */
   apiKeyVisibilityToggle:
-    'flex size-5 shrink-0 items-center justify-center text-[var(--cherry-text-muted)] transition-colors hover:text-[var(--cherry-primary-hover)] disabled:pointer-events-none disabled:opacity-40'
+    'flex size-5 shrink-0 items-center justify-center text-[var(--cherry-text-muted)] transition-colors hover:text-[var(--cherry-primary-hover)] disabled:pointer-events-none disabled:opacity-40',
+  titleWithHelp: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1',
+  titleHelpLink:
+    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-body-sm)] text-[#1677ff] hover:text-[#1677ff] hover:underline dark:text-[#1668dc] dark:hover:text-[#1668dc]'
 } as const

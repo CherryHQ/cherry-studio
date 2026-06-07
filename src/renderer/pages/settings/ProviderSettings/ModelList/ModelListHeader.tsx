@@ -2,7 +2,7 @@ import { Search, X } from 'lucide-react'
 import type React from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
+import { modelListClasses, ProviderHelpLink } from '../primitives/ProviderSettingsPrimitives'
 import ModelListCapabilityChips from './ModelListCapabilityChips'
 import type { ModelListCapabilityCounts, ModelListCapabilityFilter } from './modelListDerivedState'
 
@@ -15,6 +15,8 @@ export interface ModelListHeaderProps {
   setSelectedCapabilityFilter: (filter: ModelListCapabilityFilter) => void
   capabilityOptions: readonly ModelListCapabilityFilter[]
   capabilityModelCounts: ModelListCapabilityCounts
+  docsWebsite?: string
+  modelsWebsite?: string
   actions?: React.ReactNode
 }
 
@@ -27,13 +29,29 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
   setSelectedCapabilityFilter,
   capabilityOptions,
   capabilityModelCounts,
+  docsWebsite,
+  modelsWebsite,
   actions
 }) => {
   const { t } = useTranslation()
+  const docsLink = modelsWebsite || docsWebsite
 
   return (
     <div className={modelListClasses.headerToolStack}>
-      <h2 className={modelListClasses.sectionTitle}>{t('settings.models.list_title')}</h2>
+      <div className={modelListClasses.sectionTitleLine}>
+        <h2 className={modelListClasses.sectionTitle}>{t('settings.models.list_title')}</h2>
+        {docsLink ? (
+          <div className={modelListClasses.titleHelpRow}>
+            <ProviderHelpLink
+              target="_blank"
+              rel="noreferrer"
+              href={docsLink}
+              className={modelListClasses.titleHelpLink}>
+              {t('common.docs')}
+            </ProviderHelpLink>
+          </div>
+        ) : null}
+      </div>
       <div className={modelListClasses.titleRow}>
         <div className="flex min-w-0 flex-1">
           <div className={modelListClasses.titleWrap}>

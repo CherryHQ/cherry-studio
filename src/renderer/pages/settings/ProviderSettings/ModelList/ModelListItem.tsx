@@ -84,7 +84,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
             <Switch
               checked={model.isEnabled}
               disabled={disabled}
-              size="sm"
+              size="xs"
               aria-label={t('common.enabled')}
               onCheckedChange={handleToggleEnabled}
             />

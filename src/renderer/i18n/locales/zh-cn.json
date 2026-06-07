@@ -6173,7 +6173,7 @@
       "collapse_all": "全部折叠",
       "copy_model_id_tooltip": "点击复制模型 ID：{{id}}",
       "default_assistant_model": "默认助手模型",
-      "default_assistant_model_description": "创建新助手时使用的模型，如果助手未设置模型，则使用此模型",
+      "default_assistant_model_description": "助手没有模型时使用这个模型",
       "empty": "没有模型",
       "enabled_models": "已启用",
       "expand_all": "全部展开",

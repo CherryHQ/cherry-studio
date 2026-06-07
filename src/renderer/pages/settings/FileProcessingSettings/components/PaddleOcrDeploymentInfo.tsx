@@ -9,7 +9,7 @@ export function PaddleOcrDeploymentInfo() {
   const { t } = useTranslation()
 
   return (
-    <>
+    <div className="flex flex-col gap-2 border-border/60 border-t pt-4">
       <SettingSubtitle>{t('settings.tool.file_processing.sections.description')}</SettingSubtitle>
       <SettingHelpText className="text-xs leading-relaxed">
         {t('settings.tool.file_processing.processors.paddleocr.deployment.description')}
@@ -24,6 +24,6 @@ export function PaddleOcrDeploymentInfo() {
           <ExternalLink size={10} />
         </SettingHelpLink>
       </SettingHelpTextRow>
-    </>
+    </div>
   )
 }

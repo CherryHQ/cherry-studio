@@ -30,8 +30,14 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     Avatar: ({ children }: any) => <span>{children}</span>,
     AvatarFallback: ({ children }: any) => <span>{children}</span>,
     RowFlex: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    Switch: ({ checked, onCheckedChange, ...props }: any) => (
-      <button type="button" role="switch" aria-checked={checked} onClick={() => onCheckedChange(!checked)} {...props}>
+    Switch: ({ checked, onCheckedChange, size, ...props }: any) => (
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        data-size={size}
+        onClick={() => onCheckedChange(!checked)}
+        {...props}>
         {String(checked)}
       </button>
     ),
@@ -91,6 +97,26 @@ describe('ModelListItem', () => {
     await waitFor(() => {
       expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
     })
+  })
+
+  it('uses the smallest switch size for the model row action', () => {
+    render(
+      <ModelListItem
+        model={
+          {
+            id: 'openai::alpha',
+            providerId: 'openai',
+            name: 'Alpha',
+            isEnabled: true,
+            capabilities: []
+          } as any
+        }
+        onEdit={vi.fn()}
+        onToggleEnabled={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('switch')).toHaveAttribute('data-size', 'xs')
   })
 
   it('opens the model drawer from the model name and settings button', async () => {
