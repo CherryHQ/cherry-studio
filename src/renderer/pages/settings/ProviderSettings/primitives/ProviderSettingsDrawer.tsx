@@ -18,7 +18,7 @@ interface ProviderSettingsDrawerProps {
 }
 
 // All callers follow PageSidePanel defaults from DESIGN.md §4 "Drawers & Page Side Panels":
-// w-100, rounded-3xl, shadow-xl, bg-card (opaque via provider-settings-scoped-theme.css),
+// w-100, rounded-3xl, shadow-xl, bg-card (opaque via provider-settings.css),
 // backdrop bg-black/50, header px-6 pt-6 pb-3, body space-y-4 px-6 py-4, footer px-6 pt-3 pb-6.
 export default function ProviderSettingsDrawer({
   open,

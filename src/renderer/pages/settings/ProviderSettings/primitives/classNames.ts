@@ -5,7 +5,7 @@ import { cn } from '@renderer/utils'
  *
  * The surface uses the global `@cherrystudio/ui` / Tailwind v2 theme directly (`bg-accent`,
  * `text-muted-foreground`, `border-border`, …) — there is no longer a forked palette or `--color-*`
- * bridge. The companion `assets/styles/provider-settings-scoped-theme.css` only supplies a tighter
+ * bridge. The companion `assets/styles/provider-settings.css` only supplies a tighter
  * radius scale, a few scope-local tokens (`--provider-list-row-gap`, `--color-surface-*-soft`, glyph
  * size, opaque drawer surface) and the model-list `@container` queries.
  *
@@ -171,9 +171,9 @@ export const drawerClasses = {
   healthProgressCurrent: 'truncate text-[13px] text-foreground/80'
 } as const
 
-/** Model list block; composes atomic tokens from `provider-settings-scoped-theme.css` under `.provider-settings-default-scope`. */
+/** Model list block; composes atomic tokens from `provider-settings.css` under `.provider-settings-default-scope`. */
 export const modelListClasses = {
-  /** Inline-size container for `@container model-list` rules in `provider-settings-scoped-theme.css` (replaces JS width measurement). */
+  /** Inline-size container for `@container model-list` rules in `provider-settings.css` (replaces JS width measurement). */
   cqRoot: 'ps-model-list-cq flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-2.5',
   section: 'flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-2.5',
   headerBlock: 'flex min-h-0 min-w-0 w-full flex-1 flex-col gap-6',
@@ -298,7 +298,7 @@ export const modelListClasses = {
   /** Capability / trial tags to the left of the enable switch; design: single line with the toggle. */
   rowCapabilityStrip:
     'flex min-w-0 max-w-[min(100%,20rem)] shrink items-center gap-1.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
-  /** Wraps `ModelTagsWithLabel` only; pairs with `.ps-model-list-cap-strip` rules in `provider-settings-scoped-theme.css`. */
+  /** Wraps `ModelTagsWithLabel` only; pairs with `.ps-model-list-cap-strip` rules in `provider-settings.css`. */
   rowCapabilityTagCluster: 'ps-compact-cap-strip flex min-w-0 shrink items-center',
   rowMeta: 'ps-model-list-meta mt-[3px] block min-w-0 max-w-full truncate text-xs text-foreground/65',
   /** Wraps `HealthStatusIndicator` so latency (antd Typography) can be hidden via container query. */

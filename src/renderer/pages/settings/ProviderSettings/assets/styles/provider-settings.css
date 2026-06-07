@@ -1,9 +1,9 @@
 /*
- * `provider-settings-scoped-theme.css` — provider detail column (`.provider-settings-default-scope`)
+ * `provider-settings.css` — provider detail column (`.provider-settings-default-scope`)
  *
- * No forked palette / `--color-*` bridge: the surface inherits the global `:root` / Tailwind v2 theme.
- * What remains is scope-local and not expressible as a global design token:
- *  - a tighter radius scale for this dense surface (global small steps are near-square),
+ * The surface inherits the global `:root` / Tailwind v2 theme — no forked palette, no `--color-*`
+ * bridge, no parallel type or radius scale. What remains is scope-local and not expressible as a
+ * global design token:
  *  - a few local tokens (opaque drawer surface, provider-list row gap, model-list glyph size,
  *    scroll max-height, and the two "soft" surfaces that mix over the page background),
  *  - `@container` queries driving the model-list responsive layout (replaces a JS ResizeObserver).
@@ -14,19 +14,6 @@
 .provider-settings-default-scope {
   /* Drawer surfaces stay opaque — the page background can be translucent in dark mode. */
   --drawer-background: oklch(1 0 0);
-  /* Tighter radius scale for this dense surface (global small steps would render near-square). */
-  --radius: 0.625rem;
-  --radius-4xs: 0.25rem;
-  --radius-3xs: 0.5rem;
-  --radius-2xs: 0.625rem;
-  --radius-xs: 0.75rem;
-  --radius-sm: 0.875rem;
-  /* --radius-md intentionally NOT overridden: it must match the design-system default (8px). */
-  --radius-lg: 0.625rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
-  --radius-3xl: 1.5rem;
-  --radius-round: 9999px;
   /* Provider list — Sortable list uses inline `gap: var(--provider-list-row-gap)`. */
   --provider-list-row-gap: 0.5rem;
   /* Model list capability glyphs — match CustomTag `size` (e.g. 10px) for lucide SVG + iconfont. */
@@ -40,19 +27,9 @@
   color: var(--color-foreground);
 }
 
-/* Dark: only the opaque drawer surface flips; the palette inherits global. */
+/* Dark: only the opaque drawer surface flips; everything else inherits global. */
 .dark .provider-settings-default-scope {
   --drawer-background: oklch(0 0 0);
-  --radius-4xs: 0.25rem;
-  --radius-3xs: 0.5rem;
-  --radius-2xs: 0.625rem;
-  --radius-xs: 0.75rem;
-  --radius-sm: 0.875rem;
-  --radius-lg: 0.625rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
-  --radius-3xl: 1.5rem;
-  --radius-round: 9999px;
 }
 
 /*
