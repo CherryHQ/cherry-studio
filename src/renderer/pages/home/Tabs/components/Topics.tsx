@@ -56,8 +56,6 @@ import { findIndex } from 'lodash'
 import {
   BrushCleaning,
   CheckSquare,
-  FolderOpen,
-  HelpCircle,
   LineChart,
   ListChecks,
   MenuIcon,

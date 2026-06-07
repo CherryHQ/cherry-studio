@@ -1,8 +1,10 @@
+import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { db } from '@renderer/databases'
-import { TopicManager } from '@renderer/hooks/useTopic'
+import { getTopicById, getTopicMessages, useAllTopics } from '@renderer/hooks/useTopic'
 import { getProviderLabel } from '@renderer/i18n/label'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
+import type { Topic } from '@shared/data/types/topic'
 
 import {
   type BlockLookup,
@@ -21,7 +23,7 @@ const logger = loggerService.withContext('Utils:topicStatsLoader')
  * Aggregation result plus the raw input used to compute it, so the UI
  * layer can re-render efficiently (e.g. when the user toggles a
  * provider filter, we can re-derive from the same snapshot without
- * another DB round-trip).
+ * another API round-trip).
  */
 export interface AggregatedStats {
   /** Number of topics included. */
@@ -77,6 +79,9 @@ const collectMessageIds = (messages: Message[]): Set<string> => {
  * Load every block referenced by the given message list from
  * `db.message_blocks`. Blocks that no longer exist (e.g. after a
  * migration) are silently skipped.
+ *
+ * Note: blocks are still persisted in Dexie in the current v2
+ * transition; only topic metadata has been moved to SQLite.
  */
 const loadBlocksForMessages = async (messages: Message[]): Promise<Map<string, MessageBlock>> => {
   const ids = Array.from(collectMessageIds(messages))
@@ -101,30 +106,49 @@ const resolveModelUsage = (raw: ModelUsage[]): ResolvedModelUsage[] =>
   raw.map((u) => ({ ...u, providerName: getProviderLabel(u.provider) ?? u.provider }))
 
 // ---------------------------------------------------------------------------
-// Topic name resolution
+// Topic metadata loading
 // ---------------------------------------------------------------------------
 
 /**
- * Best-effort topic name lookup. The v2 `db.topics` table only
- * persists `{ id, messages }` (no name column), so we fall back to:
- *   1. The first user message in the topic (truncated)
- *   2. The topic id (last resort)
+ * Fetch every topic's metadata (id, name, createdAt, …) from the
+ * DataApi. The endpoint is cursor-paginated, so we walk pages until
+ * `nextCursor` is absent. Returns an empty array on error so the
+ * dashboard can still render an empty-state rather than crashing.
  */
-const topicFallbackName = (topicId: string, messages: Message[]): string => {
-  const firstUser = messages.find((m) => m.role === 'user')
-  if (firstUser) {
-    const text = firstUser.blocks?.[0]
-    // blocks array stores ids; the actual text is in message_blocks. We
-    // can still produce a useful preview from `usage` or any cached
-    // field, but in practice the caller may want to override this
-    // from the redux cache. Here we return the topic id if no text
-    // is available.
-    void text
+const fetchAllTopicMetadata = async (): Promise<Topic[]> => {
+  try {
+    const PAGE_SIZE = 200
+    const collected: Topic[] = []
+    let cursor: string | undefined
+
+    do {
+      const response = (await dataApiService.get('/topics', {
+        query: { limit: PAGE_SIZE, cursor }
+      })) as { items?: Topic[]; nextCursor?: string }
+      const items = Array.isArray(response?.items) ? response.items : []
+      collected.push(...items)
+      cursor = response?.nextCursor
+    } while (cursor)
+
+    return collected
+  } catch (error) {
+    logger.error('Failed to load topic list for stats', error as Error)
+    return []
   }
-  // The redux assistant store typically has the canonical name; the
-  // UI layer is expected to overlay it. As a final fallback, return
-  // a shortened id.
-  return `Topic ${topicId.slice(0, 8)}`
+}
+
+/**
+ * Resolve the canonical name for a topic. Falls back to a short id
+ * prefix if the stored name is empty (DB DEFAULT '' allows untitled
+ * topics).
+ *
+ * Accepts any object that has an `id` and a `name` — works for both
+ * the v2 shared `Topic` (loaded from `/topics`) and the renderer
+ * `RendererTopic` (returned by `getTopicById`).
+ */
+const topicDisplayName = (topic: { id: string; name?: string | null }): string => {
+  if (topic.name && topic.name.trim().length > 0) return topic.name
+  return `Topic ${topic.id.slice(0, 8)}`
 }
 
 // ---------------------------------------------------------------------------
@@ -134,13 +158,16 @@ const topicFallbackName = (topicId: string, messages: Message[]): string => {
 /**
  * Compute the global, cross-topic usage statistics.
  *
- * Reads directly from `db.topics` and `db.message_blocks` (NOT from the
- * Redux cache, which only holds messages for topics visited in the
- * current session) so the result is always complete.
+ * Reads topic metadata from the DataApi (`/topics`) and then loads
+ * each topic's messages via the paginated `getTopicMessages` helper.
+ * The 5-minute in-memory cache prevents re-loading on every tab
+ * switch. Call `invalidateGlobalStatsCache()` to force a fresh load.
  *
- * Result is cached in-memory for 5 minutes to avoid reloading on every
- * settings tab switch. Call `invalidateGlobalStatsCache()` to force
- * a fresh load.
+ * **Why not Redux?** In v2 the topic/message data lives in SQLite
+ * (via DataApi) — the Redux store no longer holds the canonical
+ * message history. Reading from the DataApi ensures the dashboard
+ * is always complete, even for topics the user has not visited this
+ * session.
  */
 export const loadGlobalStats = async (opts: { force?: boolean } = {}): Promise<AggregatedStats> => {
   const now = Date.now()
@@ -149,13 +176,27 @@ export const loadGlobalStats = async (opts: { force?: boolean } = {}): Promise<A
   }
 
   const t0 = now
-  const topics = await TopicManager.getAllTopics()
+  const topics = await fetchAllTopicMetadata()
+
+  // Load all messages in parallel — `getTopicMessages` handles its own
+  // pagination. We map the result back to the topic id so the per-topic
+  // snapshot below has its messages available.
+  const messageLists = await Promise.all(
+    topics.map((t) =>
+      getTopicMessages(t.id).catch((e) => {
+        logger.warn(`Failed to load messages for topic ${t.id}`, e as Error)
+        return [] as Message[]
+      })
+    )
+  )
   const allMessages: Message[] = []
-  for (const t of topics) {
-    for (const m of t.messages ?? []) {
-      allMessages.push(m)
-    }
+  const messagesByTopic = new Map<string, Message[]>()
+  for (let i = 0; i < topics.length; i++) {
+    const list = messageLists[i] ?? []
+    messagesByTopic.set(topics[i].id, list)
+    for (const m of list) allMessages.push(m)
   }
+
   const blocks = await loadBlocksForMessages(allMessages)
   const lookup = buildBlockLookup(Array.from(blocks.values()))
 
@@ -164,10 +205,10 @@ export const loadGlobalStats = async (opts: { force?: boolean } = {}): Promise<A
 
   // Per-topic snapshot (for the topic list in the settings page)
   const topicStats = topics.map((t) => {
-    const messages = t.messages ?? []
+    const messages = messagesByTopic.get(t.id) ?? []
     return {
       topicId: t.id,
-      topicName: topicFallbackName(t.id, messages),
+      topicName: topicDisplayName(t),
       stats: computeTopicStats(messages, lookup)
     }
   })
@@ -193,11 +234,12 @@ export const loadGlobalStats = async (opts: { force?: boolean } = {}): Promise<A
 // ---------------------------------------------------------------------------
 
 /**
- * Compute usage statistics for a single topic. Loads only the blocks
- * referenced by that topic's messages; no cross-topic aggregation.
+ * Compute usage statistics for a single topic. Uses the v2 helpers
+ * `getTopicById` (which already loads messages) and Dexie's
+ * `message_blocks` table.
  */
 export const loadTopicStats = async (topicId: string) => {
-  const topic = await TopicManager.getTopic(topicId)
+  const topic = await getTopicById(topicId)
   if (!topic) return null
   const messages = topic.messages ?? []
   const blocks = await loadBlocksForMessages(messages)
@@ -208,7 +250,7 @@ export const loadTopicStats = async (topicId: string) => {
 
   return {
     topicId: topic.id,
-    topicName: topicFallbackName(topic.id, messages),
+    topicName: topicDisplayName(topic),
     stats,
     modelUsage,
     dailyUsage: stats.dailyUsage
@@ -223,7 +265,7 @@ export const loadTopicStats = async (topicId: string) => {
  * Re-compute model aggregation from a previously loaded
  * `AggregatedStats`, applying a predicate + sort. This is what the
  * model search / provider / sort / limit dropdowns use so we don't
- * hit the DB on every keystroke.
+ * hit the DataApi on every keystroke.
  */
 export const reaggregateModelUsage = (
   data: AggregatedStats,
@@ -262,3 +304,7 @@ export const summarizeText = (messages: Message[], blocks: BlockLookup) => {
   }
   return { characters, words }
 }
+
+// Re-export `useAllTopics` so the React layer can subscribe to the
+// raw topic list alongside the cached aggregate.
+export { useAllTopics }
