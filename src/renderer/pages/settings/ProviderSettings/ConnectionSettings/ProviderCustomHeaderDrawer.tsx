@@ -7,7 +7,8 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  Tooltip
+  Tooltip,
+  VStack
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCopilot } from '@renderer/hooks/useCopilot'
@@ -353,7 +354,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
           const label = isPrimary ? t('settings.provider.api_host') : labelKey ? t(labelKey) : type
           const inputId = `provider-request-config-endpoint-${type}`
           return (
-            <div key={type} className="space-y-1.5">
+            <VStack gap={1} key={type}>
               <label className="font-medium text-muted-foreground/60 text-xs" htmlFor={inputId}>
                 {label}
               </label>
@@ -372,7 +373,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                   {t('settings.provider.api_host_drawer_hint')}
                 </p>
               )}
-            </div>
+            </VStack>
           )
         })}
 
@@ -398,7 +399,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
           </Popover>
         )}
 
-        <div className="space-y-2.5">
+        <VStack gap={2}>
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
             <span className="font-medium text-muted-foreground/60 text-xs">
               {t('settings.provider.copilot.custom_headers')}
@@ -475,7 +476,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
               </Button>
             </>
           ) : (
-            <div className="space-y-1.5">
+            <VStack gap={1}>
               <textarea
                 value={jsonDraft}
                 onChange={(e) => {
@@ -491,9 +492,9 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
               <p className="text-muted-foreground/40 text-xs leading-relaxed">
                 {t('settings.provider.copilot.headers_description')}
               </p>
-            </div>
+            </VStack>
           )}
-        </div>
+        </VStack>
       </div>
     </ProviderSettingsDrawer>
   )

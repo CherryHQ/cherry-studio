@@ -1,3 +1,4 @@
+import { HStack } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils'
 import type { ReactNode } from 'react'
 
@@ -21,7 +22,7 @@ export default function ProviderField({
 }: ProviderFieldProps) {
   return (
     <div className={cn('space-y-2', className)}>
-      <div className="flex items-center justify-between gap-3">
+      <HStack gap={3} className="justify-between">
         <div
           className={cn(
             'font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-sm)] text-foreground-secondary leading-[var(--line-height-body-sm)]',
@@ -30,7 +31,7 @@ export default function ProviderField({
           {title}
         </div>
         {action}
-      </div>
+      </HStack>
       {children}
       {help}
     </div>

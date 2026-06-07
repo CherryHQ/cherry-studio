@@ -1,4 +1,4 @@
-import { Badge, Button, type ComboboxOption, Input, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, type ComboboxOption, HStack, Input, Tooltip, VStack } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useLanguages } from '@renderer/hooks/translate'
 import { formatApiKeys, splitApiKeyString, validateApiHost } from '@renderer/utils/api'
@@ -175,14 +175,14 @@ export function ProcessorPanel({
   )
 
   return (
-    <div className="flex w-full flex-col gap-3">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-2">
+    <VStack gap={3} className="w-full">
+      <HStack gap={4} className="justify-between">
+        <HStack gap={2} className="min-w-0">
           <ProcessorAvatar processorId={processor.id} />
           <div className="min-w-0">
             <SettingTitle className="justify-start truncate">{processorName}</SettingTitle>
           </div>
-        </div>
+        </HStack>
         {isDefault ? (
           <Badge className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-600 text-xs dark:text-emerald-400">
             {t('common.default')}
@@ -192,7 +192,7 @@ export function ProcessorPanel({
             {t('settings.tool.file_processing.actions.set_as_default')}
           </Button>
         )}
-      </div>
+      </HStack>
 
       <SettingDivider />
 
@@ -204,7 +204,7 @@ export function ProcessorPanel({
               {t('settings.tool.file_processing.fields.api_key')}
             </SettingRowTitle>
             <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-2">
+              <HStack gap={2} className="min-w-0">
                 <Input
                   type="password"
                   value={apiKeysInput}
@@ -224,7 +224,7 @@ export function ProcessorPanel({
                     <List size={13} />
                   </Button>
                 </Tooltip>
-              </div>
+              </HStack>
               {apiKeyWebsite ? (
                 <SettingHelpTextRow className="justify-between">
                   <SettingHelpLink target="_blank" href={apiKeyWebsite}>
@@ -284,6 +284,6 @@ export function ProcessorPanel({
           onChange={(value) => void handleLanguagesChange(value)}
         />
       ) : null}
-    </div>
+    </VStack>
   )
 }

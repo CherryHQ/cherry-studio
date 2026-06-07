@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback, Button, Flex, Switch, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Button, Flex, HStack, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getModelLogo } from '@renderer/config/models'
 import { getModelClipboardId } from '@renderer/pages/settings/ProviderSettings/ModelList/utils'
@@ -64,7 +64,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
           )
         })()}
         <div className={modelListClasses.rowBody}>
-          <div className="flex min-w-0 items-center gap-1.5">
+          <HStack gap={1} className="min-w-0">
             <button
               type="button"
               className={cn(
@@ -85,7 +85,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
                 <Copy className="size-2.5" />
               </Button>
             </Tooltip>
-          </div>
+          </HStack>
         </div>
       </Flex>
       <Flex direction="row" className={modelListClasses.rowActions}>

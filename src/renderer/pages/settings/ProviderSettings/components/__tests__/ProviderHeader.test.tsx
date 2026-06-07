@@ -8,6 +8,31 @@ const useProviderMetaMock = vi.fn()
 const useProviderEnableMock = vi.fn()
 vi.mock('@cherrystudio/ui', () => {
   return {
+    ...(() => {
+      const R = require('react')
+      const s =
+        (omit: string[] = []) =>
+        ({ children, ...p }: any) => {
+          for (const k of ['direction', 'align', 'justify', 'gap', 'wrap', 'inline', 'asChild', ...omit]) delete p[k]
+          return R.createElement('div', p, children)
+        }
+      return {
+        Box: s(),
+        Flex: s(),
+        HStack: s(),
+        VStack: s(),
+        Stack: s(),
+        Center: s(),
+        Grid: s(['columns', 'flow']),
+        PageShell: s(['scroll']),
+        Container: s(['size', 'padded', 'fluid']),
+        Spacer: s(),
+        TruncatingRow: ({ children, leading, trailing, ...p }: any) => {
+          for (const k of ['gap', 'align', 'justify', 'wrap', 'asChild']) delete p[k]
+          return R.createElement('div', p, leading, children, trailing)
+        }
+      }
+    })(),
     Switch: ({ checked, onCheckedChange }: any) => (
       <button type="button" data-checked={checked ? 'true' : 'false'} onClick={() => onCheckedChange(!checked)}>
         switch

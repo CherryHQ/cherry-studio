@@ -13,6 +13,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  HStack,
   InfoTooltip,
   Input,
   RadioGroup,
@@ -921,7 +922,7 @@ const McpSettings: React.FC = () => {
                         />
                       </FormLabel>
                       <FormControl>
-                        <div className="flex items-center gap-2">
+                        <HStack gap={2}>
                           <Input
                             type="number"
                             min={1}
@@ -931,7 +932,7 @@ const McpSettings: React.FC = () => {
                             className="h-8 w-24 py-0"
                           />
                           <span className="text-foreground-muted text-xs">s</span>
-                        </div>
+                        </HStack>
                       </FormControl>
                     </FormItem>
                   )}
@@ -1127,7 +1128,7 @@ const McpSettings: React.FC = () => {
                 </Flex>
               </SettingTitle>
               <SettingDivider className="mb-0" />
-              <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
+              <HStack gap={2} className="mt-1 min-w-0 justify-between">
                 <TabsList className="min-w-0 max-w-full overflow-x-auto">
                   {tabs.map((tab) => (
                     <TabsTrigger key={tab.key} value={tab.key}>
@@ -1146,7 +1147,7 @@ const McpSettings: React.FC = () => {
                     />
                   </div>
                 )}
-              </div>
+              </HStack>
             </div>
           </div>
           <Scrollbar className="min-h-0 flex-1 px-6 pt-2 pb-4">
@@ -1330,7 +1331,9 @@ const TagsInput = ({ value, onChange }: TagsInputProps) => {
   }
 
   return (
-    <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-2 py-1 shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
+    <HStack
+      gap={1}
+      className="min-h-9 flex-wrap rounded-md border border-input bg-transparent px-2 py-1 shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
       {value.map((tag, index) => (
         <span
           key={`${tag}-${index}`}
@@ -1368,7 +1371,7 @@ const TagsInput = ({ value, onChange }: TagsInputProps) => {
           if (draft.trim()) commit(draft)
         }}
       />
-    </div>
+    </HStack>
   )
 }
 

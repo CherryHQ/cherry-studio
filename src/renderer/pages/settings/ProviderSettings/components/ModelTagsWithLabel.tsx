@@ -1,3 +1,4 @@
+import { HStack } from '@cherrystudio/ui'
 import {
   EmbeddingTag,
   FreeTag,
@@ -73,7 +74,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   const tagProps = { size, showTooltip, showLabel: false }
 
   return (
-    <div className="flex min-w-0 max-w-full flex-row flex-wrap items-center gap-0.5 overflow-visible" style={style}>
+    <HStack gap={0} className="min-w-0 max-w-full flex-row flex-wrap overflow-visible" style={style}>
       {CAPABILITY_TAGS.map(({ capability, isVisible, render }) =>
         capabilities.has(capability) && (isVisible?.({ showReasoning, showToolsCalling }) ?? true) ? (
           <span key={capability} className="inline-flex">
@@ -82,7 +83,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
         ) : null
       )}
       {showFree && isFreeModel(model) && <FreeTag {...tagProps} />}
-    </div>
+    </HStack>
   )
 }
 

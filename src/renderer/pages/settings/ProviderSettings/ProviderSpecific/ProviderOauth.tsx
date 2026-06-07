@@ -1,4 +1,4 @@
-import { Button, Flex } from '@cherrystudio/ui'
+import { Button, Flex, HStack, VStack } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import OauthButton from '@renderer/components/Oauth/OauthButton'
 import { PROVIDER_URLS } from '@renderer/config/providers'
@@ -54,7 +54,7 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
   // avatar/name/description on the left, login button on the right).
   if (!hasApiKeys(provider)) {
     return (
-      <div className="flex flex-col gap-3">
+      <VStack gap={3}>
         <h3 className={sectionHeadingClasses}>{t('settings.provider.section.account')}</h3>
         <div className={oauthCardClasses.shell}>
           <div className={oauthCardClasses.loggedInRow}>
@@ -75,13 +75,13 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
             <OauthButton provider={{ id: provider.id }} onSuccess={setApiKey} variant="emphasis" className="" />
           </div>
         </div>
-      </div>
+      </VStack>
     )
   }
 
   // Logged-in: charge / bills actions (original centered layout).
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-3 pb-2">
+    <VStack gap={3} className="items-center justify-center py-3 pb-2">
       {Icon ? (
         <Icon.Avatar size={60} />
       ) : (
@@ -101,10 +101,10 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
           {t('settings.provider.bills')}
         </Button>
       </Flex>
-      <div className="flex items-center gap-1.5 text-(--color-text-2) text-[13px] leading-[1.35]">
+      <HStack gap={1} className="text-(--color-text-2) text-[13px] leading-[1.35]">
         {serviceDescription}
-      </div>
-    </div>
+      </HStack>
+    </VStack>
   )
 }
 

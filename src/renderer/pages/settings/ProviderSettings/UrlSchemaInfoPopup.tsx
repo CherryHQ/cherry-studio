@@ -5,7 +5,9 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
+  HStack,
+  VStack
 } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { TopView } from '@renderer/components/TopView'
@@ -140,7 +142,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
             {confirmMessage}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <VStack gap={4}>
           <div className="overflow-hidden rounded-xl border border-[color:var(--color-border-fg-muted)] bg-transparent">
             {rows.map((row) => (
               <div
@@ -156,17 +158,17 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
               <div className="text-[length:var(--font-size-body-xs)] text-foreground-muted">
                 {t('settings.models.api_key')}
               </div>
-              <div className="flex min-w-0 items-center justify-between gap-2">
+              <HStack gap={2} className="min-w-0 justify-between">
                 <span className="min-w-0 truncate font-mono text-[length:var(--font-size-body-sm)] text-foreground/85">
                   {showFullKey ? newApiKey : maskApiKey(newApiKey)}
                 </span>
                 <Button variant="ghost" size="icon-sm" onClick={() => setShowFullKey((prev) => !prev)}>
                   {showFullKey ? <Eye size={16} /> : <EyeOff size={16} />}
                 </Button>
-              </div>
+              </HStack>
             </div>
           </div>
-        </div>
+        </VStack>
         <DialogFooter>
           <Button variant="outline" onClick={handleCancel}>
             {t('common.cancel')}

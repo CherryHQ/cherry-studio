@@ -1,4 +1,4 @@
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, VStack } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
@@ -26,7 +26,7 @@ const MacProcessTrustHintModal: FC<MacProcessTrustHintModalProps> = ({ open, onC
         <DialogHeader>
           <DialogTitle>{t('selection.settings.enable.mac_process_trust_hint.title')}</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-3 py-4 text-foreground text-sm">
+        <VStack gap={3} className="py-4 text-foreground text-sm">
           <p className="m-0">
             <Trans i18nKey="selection.settings.enable.mac_process_trust_hint.description.0" />
           </p>
@@ -36,7 +36,7 @@ const MacProcessTrustHintModal: FC<MacProcessTrustHintModalProps> = ({ open, onC
           <p className="m-0">
             <Trans i18nKey="selection.settings.enable.mac_process_trust_hint.description.2" />
           </p>
-        </div>
+        </VStack>
         <div className="flex w-full items-center justify-between">
           <Button
             variant="ghost"

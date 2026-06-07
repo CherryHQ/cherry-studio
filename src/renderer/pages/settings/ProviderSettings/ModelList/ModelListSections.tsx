@@ -1,3 +1,4 @@
+import { VStack } from '@cherrystudio/ui'
 import { LoadingIcon } from '@renderer/components/Icons'
 import type { Model } from '@shared/data/types/model'
 import { isEmpty } from 'lodash'
@@ -63,9 +64,9 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
 
   return (
     <div className={modelListClasses.listScroller}>
-      <div className="flex min-h-full w-full min-w-0 flex-col gap-5">
+      <VStack gap={5} className="min-h-full w-full min-w-0">
         {!isEmpty(enabledSections) && (
-          <div className="space-y-5">
+          <VStack gap={5}>
             <div className={modelListClasses.subsectionRow}>
               <div className={modelListClasses.subsectionTitleWrap}>
                 <p className={modelListClasses.subsectionTitleEnabled}>{t('settings.models.check.enabled')}</p>
@@ -75,7 +76,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
                 <div className={modelListClasses.subsectionActions}>{enabledSectionActions}</div>
               ) : null}
             </div>
-            <div className="flex flex-col gap-3">
+            <VStack gap={3}>
               {enabledSections.map(({ groupName, items }, index) => (
                 <ModelListGroup
                   key={`enabled-${groupName}`}
@@ -92,11 +93,11 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
                   onToggleModels={onToggleModels}
                 />
               ))}
-            </div>
-          </div>
+            </VStack>
+          </VStack>
         )}
         {!isEmpty(disabledSections) && (
-          <div className="space-y-5">
+          <VStack gap={5}>
             <div className={modelListClasses.subsectionRow}>
               <div className={modelListClasses.subsectionTitleWrap}>
                 <p className={modelListClasses.subsectionTitleDisabled}>{t('settings.models.check.disabled')}</p>
@@ -106,7 +107,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
                 <div className={modelListClasses.subsectionActions}>{disabledSectionActions}</div>
               ) : null}
             </div>
-            <div className="flex flex-col gap-3">
+            <VStack gap={3}>
               {disabledSections.map(({ groupName, items }, index) => (
                 <ModelListGroup
                   key={`disabled-${groupName}`}
@@ -123,10 +124,10 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
                   onToggleModels={onToggleModels}
                 />
               ))}
-            </div>
-          </div>
+            </VStack>
+          </VStack>
         )}
-      </div>
+      </VStack>
     </div>
   )
 }

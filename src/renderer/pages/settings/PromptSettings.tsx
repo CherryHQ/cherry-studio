@@ -1,4 +1,4 @@
-import { Button, ConfirmDialog, Flex, Spinner } from '@cherrystudio/ui'
+import { Button, ConfirmDialog, Flex, HStack, Spinner, VStack } from '@cherrystudio/ui'
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
@@ -141,7 +141,7 @@ const PromptSettings: FC = () => {
         </SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <div className="flex h-[calc(100vh-162px)] w-full flex-col gap-2 overflow-y-auto">
+          <VStack gap={2} className="h-[calc(100vh-162px)] w-full overflow-y-auto">
             {isPromptsLoading && reversedPrompts.length === 0 ? (
               <div className="flex flex-1 items-center justify-center">
                 <Spinner text={t('common.loading')} />
@@ -164,12 +164,12 @@ const PromptSettings: FC = () => {
                         name: prompt.title,
                         ext: '.txt',
                         extra: (
-                          <div className="flex items-center gap-2 text-[var(--color-text-3)] text-xs">
+                          <HStack gap={2} className="text-[var(--color-text-3)] text-xs">
                             <span>
                               {prompt.content.slice(0, 80)}
                               {prompt.content.length > 80 ? '...' : ''}
                             </span>
-                          </div>
+                          </HStack>
                         ),
                         actions: (
                           <Flex className="gap-1 opacity-60">
@@ -192,7 +192,7 @@ const PromptSettings: FC = () => {
                 </DraggableList>
               </div>
             )}
-          </div>
+          </VStack>
         </SettingRow>
       </SettingGroup>
 

@@ -408,20 +408,22 @@ export default defineConfig([
                 'PageShell',
                 'Center'
               ])
-              // Tokens that duplicate a prop. Arbitrary values (gap-[6px]) are intentionally
-              // allowed through — the trailing \d / word boundary excludes them.
+              // Tokens that duplicate a prop. The `(?<![\w:-])` lookbehind excludes
+              // variant-prefixed classes (md:flex-row, hover:gap-2) — those are
+              // responsive/state overrides that can't be expressed as props — and
+              // arbitrary values (gap-[6px]) are excluded by the trailing \d.
               const REDUNDANT = [
-                { re: /\bflex-row\b/, prop: 'direction', hint: 'direction="row"' },
-                { re: /\bflex-col\b/, prop: 'direction', hint: 'direction="col"' },
-                { re: /\bflex-wrap\b/, prop: 'wrap', hint: 'wrap' },
-                { re: /\bitems-(?:start|center|end|stretch|baseline)\b/, prop: 'align', hint: 'align="center"' },
+                { re: /(?<![\w:-])flex-row\b/, prop: 'direction', hint: 'direction="row"' },
+                { re: /(?<![\w:-])flex-col\b/, prop: 'direction', hint: 'direction="col"' },
+                { re: /(?<![\w:-])flex-wrap\b/, prop: 'wrap', hint: 'wrap' },
+                { re: /(?<![\w:-])items-(?:start|center|end|stretch|baseline)\b/, prop: 'align', hint: 'align="center"' },
                 {
-                  re: /\bjustify-(?:start|center|end|between|around|evenly)\b/,
+                  re: /(?<![\w:-])justify-(?:start|center|end|between|around|evenly)\b/,
                   prop: 'justify',
                   hint: 'justify="between"'
                 },
-                { re: /\bgap-(?:x-|y-)?\d/, prop: 'gap', hint: 'gap={2}' },
-                { re: /\bspace-[xy]-\d/, prop: 'gap', hint: 'gap={2} via VStack/HStack' }
+                { re: /(?<![\w:-])gap-(?:x-|y-)?\d/, prop: 'gap', hint: 'gap={2}' },
+                { re: /(?<![\w:-])space-[xy]-\d/, prop: 'gap', hint: 'gap={2} via VStack/HStack' }
               ]
 
               function collectStrings(node, out) {

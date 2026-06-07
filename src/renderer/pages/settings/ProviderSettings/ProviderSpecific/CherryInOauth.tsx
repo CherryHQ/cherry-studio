@@ -1,4 +1,4 @@
-import { Button, Skeleton } from '@cherrystudio/ui'
+import { Button, Skeleton, VStack } from '@cherrystudio/ui'
 import { Cherryin } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProvider'
@@ -183,7 +183,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
   if (!isOAuthLoggedIn) {
     return (
-      <div className="flex flex-col gap-3">
+      <VStack gap={3}>
         <h3 className={sectionHeadingClasses}>{t('settings.provider.section.account')}</h3>
         <div className={oauthCardClasses.shell}>
           <div className={oauthCardClasses.loggedInRow}>
@@ -201,7 +201,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
             </Button>
           </div>
         </div>
-      </div>
+      </VStack>
     )
   }
 

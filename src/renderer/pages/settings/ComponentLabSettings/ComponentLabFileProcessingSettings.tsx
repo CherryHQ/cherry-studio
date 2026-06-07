@@ -1,4 +1,4 @@
-import { Badge, Button } from '@cherrystudio/ui'
+import { Badge, Button, HStack, VStack } from '@cherrystudio/ui'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { useJob, useJobProgress } from '@renderer/hooks/useJob'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -214,7 +214,7 @@ function ProcessorJobView({
       ) : null}
 
       {artifact ? (
-        <div className="mt-3 space-y-2">
+        <VStack gap={2} className="mt-3">
           <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
             <div className="mb-1 text-muted-foreground text-xs">
               {artifact.kind === 'file'
@@ -225,7 +225,7 @@ function ProcessorJobView({
               {getArtifactPreview(artifact)}
             </pre>
           </div>
-        </div>
+        </VStack>
       ) : null}
     </>
   )
@@ -354,7 +354,7 @@ const ComponentLabFileProcessingSettings: FC = () => {
   )
 
   return (
-    <div className="space-y-4">
+    <VStack gap={4}>
       <div>
         <div className="font-medium text-foreground text-sm">{t('settings.componentLab.fileProcessing.title')}</div>
         <div className="mt-1 text-muted-foreground text-xs">
@@ -376,10 +376,10 @@ const ComponentLabFileProcessingSettings: FC = () => {
               data-testid={`file-processing-lab-${section.testId}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 font-medium text-foreground text-sm">
+                  <HStack gap={2} className="font-medium text-foreground text-sm">
                     {section.icon}
                     {t(section.titleKey)}
-                  </div>
+                  </HStack>
                   <div className="mt-1 text-muted-foreground text-xs">{t(section.descriptionKey)}</div>
                 </div>
                 <Badge variant="secondary">
@@ -389,7 +389,7 @@ const ComponentLabFileProcessingSettings: FC = () => {
                 </Badge>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2">
+              <HStack gap={2} className="mt-4 flex-wrap">
                 <Button variant="outline" size="sm" onClick={() => void handleSelectFile(section)}>
                   <Upload className="size-4" />
                   {t(section.selectKey)}
@@ -402,7 +402,7 @@ const ComponentLabFileProcessingSettings: FC = () => {
                   <Play className="size-4" />
                   {t(section.startKey)}
                 </Button>
-              </div>
+              </HStack>
 
               <div className="mt-3 truncate rounded-lg border border-border/70 bg-muted/20 px-3 py-2 text-muted-foreground text-xs">
                 {file ? file.path : t(section.noFileKey)}
@@ -423,7 +423,7 @@ const ComponentLabFileProcessingSettings: FC = () => {
           )
         })}
       </div>
-    </div>
+    </VStack>
   )
 }
 

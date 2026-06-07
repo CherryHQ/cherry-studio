@@ -1,4 +1,4 @@
-import { PageSidePanel } from '@cherrystudio/ui'
+import { PageSidePanel, VStack } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -36,10 +36,10 @@ export default function ProviderSettingsDrawer({
   const { t } = useTranslation()
 
   const header = description ? (
-    <div className="flex min-w-0 flex-1 flex-col gap-1">
+    <VStack gap={1} className="min-w-0 flex-1">
       <span className="font-semibold text-base text-foreground">{title}</span>
       <span className="text-foreground-muted text-xs leading-[var(--line-height-body-xs)]">{description}</span>
-    </div>
+    </VStack>
   ) : undefined
 
   return (

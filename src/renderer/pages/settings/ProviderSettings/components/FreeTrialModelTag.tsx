@@ -1,3 +1,4 @@
+import { HStack } from '@cherrystudio/ui'
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { getProviderLabel } from '@renderer/i18n/label'
@@ -37,7 +38,7 @@ export const FreeTrialModelTag: FC<Props> = ({ modelId, providerId, showLabel = 
 
   if (!showLabel) {
     return (
-      <div className="flex flex-row items-center gap-1">
+      <HStack gap={1} className="flex-row">
         <CustomTag
           color="var(--color-primary)"
           size={11}
@@ -46,17 +47,17 @@ export const FreeTrialModelTag: FC<Props> = ({ modelId, providerId, showLabel = 
           {getProviderLabel(linkedProviderId)}
           <ArrowUpRight size={12} />
         </CustomTag>
-      </div>
+      </HStack>
     )
   }
 
   return (
-    <div className="flex flex-row items-center gap-1">
+    <HStack gap={1} className="flex-row">
       <IndicatorLight size={6} color="var(--color-primary)" animation={false} shadow={false} />
       <span className="text-foreground-muted text-xs">{t('common.powered_by')}</span>
       <button type="button" className="text-primary text-xs hover:underline" onClick={onSelectProvider}>
         {getProviderLabel(linkedProviderId)}
       </button>
-    </div>
+    </HStack>
   )
 }

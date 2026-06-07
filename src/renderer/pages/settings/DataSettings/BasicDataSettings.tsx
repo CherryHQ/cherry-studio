@@ -1,5 +1,5 @@
 import { LoadingOutlined, WifiOutlined } from '@ant-design/icons'
-import { Button, Flex, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Flex, HStack, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import BackupPopup from '@renderer/components/Popups/BackupPopup'
 import LanTransferPopup from '@renderer/components/Popups/LanTransferPopup'
@@ -562,7 +562,7 @@ const MigrationProgressBar = ({ percent, status, strokeWidth }: MigrationProgres
   const normalizedPercent = Math.min(100, Math.max(0, Math.round(percent)))
 
   return (
-    <div className="flex w-full items-center gap-2">
+    <HStack gap={2} className="w-full">
       <div className="w-full overflow-hidden rounded-full bg-border" style={{ height: strokeWidth }}>
         <div
           className={cn(
@@ -573,7 +573,7 @@ const MigrationProgressBar = ({ percent, status, strokeWidth }: MigrationProgres
         />
       </div>
       <span className="min-w-10 text-right text-foreground-muted text-xs">{normalizedPercent}%</span>
-    </div>
+    </HStack>
   )
 }
 

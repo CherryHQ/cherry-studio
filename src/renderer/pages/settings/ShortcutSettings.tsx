@@ -1,5 +1,5 @@
 import { UndoOutlined } from '@ant-design/icons'
-import { Button, Flex, Input, Kbd, MenuItem, MenuList, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Flex, HStack, Input, Kbd, MenuItem, MenuList, Switch, Tooltip } from '@cherrystudio/ui'
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -544,7 +544,7 @@ const ShortcutSettings: FC = () => {
               <h1 className={settingsContentHeaderTitleClassName}>
                 {groupMeta.find((item) => item.key === activeGroup)?.label}
               </h1>
-              <div className="flex items-center gap-1">
+              <HStack gap={1}>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -567,7 +567,7 @@ const ShortcutSettings: FC = () => {
                   <Undo2 size={13} />
                   {t('settings.shortcuts.reset')}
                 </Button>
-              </div>
+              </HStack>
             </div>
 
             <div className="mb-3">

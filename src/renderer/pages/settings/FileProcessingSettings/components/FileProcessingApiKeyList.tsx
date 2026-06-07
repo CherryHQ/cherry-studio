@@ -1,4 +1,4 @@
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, HStack, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -122,7 +122,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
   }
 
   return (
-    <div className="flex min-h-10 items-center justify-between gap-2 border-border/40 border-b px-3 py-2 last:border-b-0">
+    <HStack gap={2} className="min-h-10 justify-between border-border/40 border-b px-3 py-2 last:border-b-0">
       {isEditing ? (
         <>
           <Input
@@ -139,7 +139,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
             className="h-8 min-w-0 flex-1 rounded-lg border-border/30 bg-foreground/3 text-sm leading-tight placeholder:text-foreground/25 md:text-sm"
             spellCheck={false}
           />
-          <div className="flex shrink-0 items-center gap-0.5">
+          <HStack gap={0} className="shrink-0">
             <Button
               type="button"
               variant={hasUnsavedChanges ? 'default' : 'ghost'}
@@ -156,7 +156,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
               onClick={handleCancelEdit}>
               <X className="size-3.5" />
             </Button>
-          </div>
+          </HStack>
         </>
       ) : (
         <>
@@ -168,7 +168,7 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
             onClick={handleCopy}>
             <span className="min-w-0 truncate">{maskFileProcessingApiKey(item.key)}</span>
           </Button>
-          <div className="flex shrink-0 items-center gap-0.5">
+          <HStack gap={0} className="shrink-0">
             <Button type="button" variant="ghost" size="icon-sm" aria-label={t('common.copy')} onClick={handleCopy}>
               <Copy className="size-3.5" />
             </Button>
@@ -188,10 +188,10 @@ const FileProcessingApiKeyItem: FC<FileProcessingApiKeyItemProps> = ({ item, onU
               onClick={() => void handleRemove()}>
               <Minus className="size-3.5" />
             </Button>
-          </div>
+          </HStack>
         </>
       )}
-    </div>
+    </HStack>
   )
 }
 
@@ -225,7 +225,7 @@ export const FileProcessingApiKeyList: FC<FileProcessingApiKeyListProps> = ({ pr
         )}
       </div>
 
-      <div className="mt-3.5 flex items-center justify-between gap-3">
+      <HStack gap={3} className="mt-3.5 justify-between">
         <span className="min-w-0 text-muted-foreground text-xs leading-tight">
           {t('settings.provider.api_key.tip')}
         </span>
@@ -239,7 +239,7 @@ export const FileProcessingApiKeyList: FC<FileProcessingApiKeyListProps> = ({ pr
           <Plus className="size-3.5" />
           {t('common.add')}
         </Button>
-      </div>
+      </HStack>
     </div>
   )
 }

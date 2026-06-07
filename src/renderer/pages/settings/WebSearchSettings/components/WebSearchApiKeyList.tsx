@@ -1,4 +1,4 @@
-import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Tooltip } from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, HStack, Input, Tooltip } from '@cherrystudio/ui'
 import { EditIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { TopView } from '@renderer/components/TopView'
@@ -88,7 +88,7 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
   }
 
   return (
-    <div className="flex min-h-10 items-center justify-between gap-2 border-border/40 border-b px-3 py-2 last:border-b-0">
+    <HStack gap={2} className="min-h-10 justify-between border-border/40 border-b px-3 py-2 last:border-b-0">
       {isEditing ? (
         <>
           <Input
@@ -105,7 +105,7 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
             className="h-8 min-w-0 flex-1 rounded-lg border-border/30 bg-foreground/[0.03] text-xs leading-tight placeholder:text-foreground/25 md:text-xs"
             spellCheck={false}
           />
-          <div className="flex shrink-0 items-center gap-0.5">
+          <HStack gap={0} className="shrink-0">
             <Button
               type="button"
               variant={hasUnsavedChanges ? 'default' : 'ghost'}
@@ -122,7 +122,7 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
               onClick={handleCancelEdit}>
               <X className="size-3.5" />
             </Button>
-          </div>
+          </HStack>
         </>
       ) : (
         <>
@@ -134,7 +134,7 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
               {maskApiKey(item.key)}
             </button>
           </Tooltip>
-          <div className="flex shrink-0 items-center gap-0.5">
+          <HStack gap={0} className="shrink-0">
             <Button type="button" variant="ghost" size="icon-sm" aria-label={t('common.copy')} onClick={handleCopy}>
               <Copy className="size-3.5" />
             </Button>
@@ -154,10 +154,10 @@ const WebSearchApiKeyItem: FC<WebSearchApiKeyItemProps> = ({ item, onUpdate, onR
               onClick={() => void handleRemove()}>
               <Minus className="size-3.5" />
             </Button>
-          </div>
+          </HStack>
         </>
       )}
-    </div>
+    </HStack>
   )
 }
 
@@ -191,7 +191,7 @@ export const WebSearchApiKeyList: FC<WebSearchApiKeyListProps> = ({ providerId }
         )}
       </div>
 
-      <div className="mt-3.5 flex items-center justify-between gap-3">
+      <HStack gap={3} className="mt-3.5 justify-between">
         <span className="min-w-0 text-muted-foreground text-xs leading-tight">
           {t('settings.provider.api_key.tip')}
         </span>
@@ -205,7 +205,7 @@ export const WebSearchApiKeyList: FC<WebSearchApiKeyListProps> = ({ providerId }
           <Plus className="size-3.5" />
           {t('common.add')}
         </Button>
-      </div>
+      </HStack>
     </div>
   )
 }

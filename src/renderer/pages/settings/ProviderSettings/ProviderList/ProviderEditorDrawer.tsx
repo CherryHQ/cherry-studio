@@ -1,4 +1,4 @@
-import { Button, Input, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Button, HStack, Input, Popover, PopoverContent, PopoverTrigger, VStack } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
@@ -287,19 +287,19 @@ export default function ProviderEditorDrawer({
   })()
 
   const footer = (
-    <div className="flex items-center justify-end gap-2">
+    <HStack gap={2} className="justify-end">
       <Button variant="outline" onClick={onClose}>
         {t('common.cancel')}
       </Button>
       <Button disabled={!submittable || isSubmitting} loading={isSubmitting} onClick={() => void handleSubmit()}>
         {submitLabel}
       </Button>
-    </div>
+    </HStack>
   )
 
   return (
     <ProviderSettingsDrawer open={open} onClose={onClose} title={title} footer={footer}>
-      <div className="flex flex-col gap-5">
+      <VStack gap={5}>
         {duplicateSource && duplicateSource.presetProviderId && <DuplicateHeader source={duplicateSource} />}
 
         <AvatarSection
@@ -351,7 +351,7 @@ export default function ProviderEditorDrawer({
             {t('settings.provider.duplicate.fill_after_create')}
           </p>
         )}
-      </div>
+      </VStack>
     </ProviderSettingsDrawer>
   )
 }
@@ -360,10 +360,10 @@ function DuplicateHeader({ source }: { source: Provider }) {
   const presetId = source.presetProviderId
   const label = presetId ? getProviderLabel(presetId) : source.name
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-(--section-border) bg-muted/40 px-3 py-2">
+    <HStack gap={2} className="rounded-lg border border-(--section-border) bg-muted/40 px-3 py-2">
       <ProviderAvatar provider={{ id: presetId ?? source.id, name: label }} size={18} />
       <span className="truncate text-foreground/85 text-sm">{label}</span>
-    </div>
+    </HStack>
   )
 }
 
@@ -398,7 +398,7 @@ function AvatarSection({
 }: AvatarSectionProps) {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-col items-center gap-3">
+    <VStack gap={3} className="items-center">
       <div
         className="flex h-[76px] w-[76px] items-center justify-center overflow-hidden rounded-full border border-border/70 bg-muted/50"
         style={
@@ -413,7 +413,7 @@ function AvatarSection({
           size={76}
         />
       </div>
-      <div className="flex flex-wrap items-center justify-center gap-2">
+      <HStack gap={2} className="flex-wrap justify-center">
         <Button variant="outline" onClick={() => uploadInputRef.current?.click()}>
           <ImagePlus size={16} />
           {t('settings.general.image_upload')}
@@ -430,7 +430,7 @@ function AvatarSection({
           <RotateCcw size={16} />
           {t('settings.general.avatar.reset')}
         </Button>
-      </div>
+      </HStack>
       <input
         ref={uploadInputRef}
         type="file"
@@ -438,7 +438,7 @@ function AvatarSection({
         className="hidden"
         onChange={onUpload}
       />
-    </div>
+    </VStack>
   )
 }
 
@@ -452,7 +452,7 @@ interface NameFieldProps {
 function NameField({ name, onNameChange, onEnter, disableEnter }: NameFieldProps) {
   const { t } = useTranslation()
   return (
-    <div className="space-y-2">
+    <VStack gap={2}>
       <label className="font-medium text-[13px] text-foreground/85">{t('settings.provider.add.name.label')}</label>
       <Input
         value={name}
@@ -465,7 +465,7 @@ function NameField({ name, onNameChange, onEnter, disableEnter }: NameFieldProps
           }
         }}
       />
-    </div>
+    </VStack>
   )
 }
 
@@ -517,13 +517,13 @@ interface BaseUrlFieldProps {
 
 function BaseUrlField({ label, placeholder, value, onChange, required }: BaseUrlFieldProps) {
   return (
-    <div className="space-y-2">
+    <VStack gap={2}>
       <label className="font-medium text-[13px] text-foreground">
         {label}
         {required && <span className="ms-1 text-destructive/70">*</span>}
       </label>
       <Input value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
-    </div>
+    </VStack>
   )
 }
 
@@ -543,7 +543,7 @@ function ApiKeyField({ value, onChange }: ApiKeyFieldProps) {
   const [visible, setVisible] = useState(false)
 
   return (
-    <div className="space-y-2">
+    <VStack gap={2}>
       <label className="font-medium text-[13px] text-foreground">{t('settings.provider.api_key.label')}</label>
       <div className="relative">
         <Input
@@ -562,6 +562,6 @@ function ApiKeyField({ value, onChange }: ApiKeyFieldProps) {
           {visible ? <EyeOff size={14} /> : <Eye size={14} />}
         </button>
       </div>
-    </div>
+    </VStack>
   )
 }

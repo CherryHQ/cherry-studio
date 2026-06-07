@@ -1,4 +1,4 @@
-import { Button, Input, Slider, Tooltip } from '@cherrystudio/ui'
+import { Button, HStack, Input, Slider, Tooltip, VStack } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCopilot } from '@renderer/hooks/useCopilot'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -241,12 +241,12 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
             <div className="flex gap-3 rounded-lg border border-success/30 bg-success/10 p-3">
               <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-success" aria-hidden />
               <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2">
+                <HStack gap={2} className="min-w-0">
                   {avatar ? <img src={avatar} alt="" className="size-5 shrink-0 rounded-full" loading="lazy" /> : null}
                   <span className="truncate text-foreground text-sm">
                     {username || t('settings.provider.copilot.auth_success_title')}
                   </span>
-                </div>
+                </HStack>
                 <Button variant="destructive" size="sm" disabled={loading} onClick={handleLogout}>
                   {t('settings.provider.copilot.logout')}
                 </Button>
@@ -257,8 +257,8 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
 
       case AuthStatus.CODE_GENERATED:
         return (
-          <div className="mb-5 flex flex-col gap-4 md:flex-row md:gap-6">
-            <div className="flex min-w-[200px] flex-1 flex-col gap-2">
+          <VStack gap={4} className="mb-5 md:flex-row md:gap-6">
+            <VStack gap={2} className="min-w-[200px] flex-1">
               {getSteps().map((step, idx) => (
                 <div key={idx} className="flex gap-2">
                   <span className={stepDotClass(step.status)} />
@@ -268,9 +268,9 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                   </div>
                 </div>
               ))}
-            </div>
+            </VStack>
 
-            <div className="flex min-w-0 flex-[2] flex-col gap-4">
+            <VStack gap={4} className="min-w-0 flex-[2]">
               {currentStep >= 1 && (
                 <div className="rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:border-border/80">
                   <div className="mb-3 flex items-start gap-3">
@@ -347,8 +347,8 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
                   </Tooltip>
                 </div>
               )}
-            </div>
-          </div>
+            </VStack>
+          </VStack>
         )
 
       default:

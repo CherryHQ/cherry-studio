@@ -1,4 +1,4 @@
-import { Label, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
+import { Label, RadioGroup, RadioGroupItem, VStack } from '@cherrystudio/ui'
 import { Dmxapi } from '@cherrystudio/ui/icons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
@@ -85,7 +85,7 @@ const DmxapiSettings: FC<DmxapiSettingsProps> = ({ providerId }) => {
         <Dmxapi height={70} width="auto" />
       </div>
 
-      <div className="flex w-full flex-col gap-2">
+      <VStack gap={2} className="w-full">
         <ProviderSettingsSubtitle className="mt-1.5">
           {t('settings.provider.dmxapi.select_platform')}
         </ProviderSettingsSubtitle>
@@ -116,7 +116,7 @@ const DmxapiSettings: FC<DmxapiSettingsProps> = ({ providerId }) => {
             )
           })}
         </RadioGroup>
-      </div>
+      </VStack>
     </div>
   )
 }

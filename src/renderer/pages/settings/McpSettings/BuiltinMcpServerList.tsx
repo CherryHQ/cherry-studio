@@ -1,4 +1,15 @@
-import { Badge, Button, Popover, PopoverContent, PopoverTrigger, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import {
+  Badge,
+  Button,
+  HStack,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  VStack
+} from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { getBuiltInMcpServerDescriptionLabel } from '@renderer/i18n/label'
@@ -43,14 +54,14 @@ const BuiltinMcpServerList: FC = () => {
 
   return (
     <div className="mb-5">
-      <div className="mb-3 flex items-center gap-2">
+      <HStack gap={2} className="mb-3">
         <SettingTitle className="m-0">{t('settings.mcp.builtinServers')}</SettingTitle>
         <span className="text-muted-foreground text-sm">
           {installedCount}/{builtinMcpServers.length}
         </span>
-      </div>
+      </HStack>
 
-      <div className="mb-3 flex w-full min-w-0 flex-wrap items-center justify-between gap-3">
+      <HStack gap={3} className="mb-3 w-full min-w-0 flex-wrap justify-between">
         <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="min-w-0">
           <TabsList className="h-8 rounded-full bg-muted/70 p-0.5">
             <TabsTrigger value="all" className="h-7 rounded-[14px] px-2.5 text-xs">
@@ -73,9 +84,9 @@ const BuiltinMcpServerList: FC = () => {
             style={{ borderRadius: 16 }}
           />
         </div>
-      </div>
+      </HStack>
 
-      <div className="flex flex-col gap-2">
+      <VStack gap={2}>
         {filteredServers.map((server) => {
           const isInstalled = mcpServers.some((existingServer) => existingServer.name === server.name)
 
@@ -150,7 +161,7 @@ const BuiltinMcpServerList: FC = () => {
             </div>
           )
         })}
-      </div>
+      </VStack>
     </div>
   )
 }

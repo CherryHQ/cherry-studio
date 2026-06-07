@@ -1,4 +1,4 @@
-import { Button, ButtonGroup, Flex, InfoTooltip, Input, Label, Tooltip } from '@cherrystudio/ui'
+import { Button, ButtonGroup, Flex, InfoTooltip, Input, Label, Tooltip, VStack } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import type { WebSearchBasicAuthPatch } from '@renderer/hooks/useWebSearch'
 import { formatApiKeys, splitApiKeyString, withoutTrailingSlash } from '@renderer/utils/api'
@@ -422,8 +422,8 @@ export const WebSearchProviderSetting: FC<Props> = ({
                 }}
               />
             </SettingSubtitle>
-            <div className="flex w-full flex-col gap-4">
-              <div className="flex flex-col gap-2">
+            <VStack gap={4} className="w-full">
+              <VStack gap={2}>
                 <Label htmlFor="websearch-basic-auth-username">
                   {t('settings.provider.basic_auth.user_name.label')}
                 </Label>
@@ -434,9 +434,9 @@ export const WebSearchProviderSetting: FC<Props> = ({
                   onChange={(e) => setBasicAuthUsernameDraft(e.target.value)}
                   onBlur={() => void persist(commitBasicAuthDraft, 'Failed to save web search basic auth username')}
                 />
-              </div>
+              </VStack>
               {basicAuthUsernameInput && (
-                <div className="flex flex-col gap-2">
+                <VStack gap={2}>
                   <Label htmlFor="websearch-basic-auth-password">
                     {t('settings.provider.basic_auth.password.label')}
                   </Label>
@@ -448,9 +448,9 @@ export const WebSearchProviderSetting: FC<Props> = ({
                     onChange={(e) => setBasicAuthPasswordInput(e.target.value)}
                     onBlur={() => void persist(commitBasicAuthDraft, 'Failed to save web search basic auth password')}
                   />
-                </div>
+                </VStack>
               )}
-            </div>
+            </VStack>
           </>
         )}
       </SettingGroup>

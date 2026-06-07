@@ -2,11 +2,13 @@ import {
   Avatar,
   AvatarFallback,
   Button,
+  HStack,
   Input,
   RadioGroup,
   RadioGroupItem,
   SegmentedControl,
-  Tooltip
+  Tooltip,
+  VStack
 } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getModelLogo } from '@renderer/config/models'
@@ -158,10 +160,10 @@ export default function HealthCheckDrawer({
       <p className={cn(drawerClasses.helpText, 'shrink-0')}>{t('settings.models.check.disclaimer')}</p>
 
       {showPipeline && progressStats ? (
-        <div className="flex min-h-0 flex-1 flex-col gap-0">
+        <VStack gap={0} className="min-h-0 flex-1">
           {isChecking ? (
             <div className="px-4 pt-3 pb-2">
-              <div className="mb-2 flex items-center justify-between gap-3">
+              <HStack gap={3} className="mb-2 justify-between">
                 <span className="font-medium text-[13px] text-foreground/85">
                   {t('settings.models.check.pipeline_heading')}
                 </span>
@@ -171,7 +173,7 @@ export default function HealthCheckDrawer({
                     total: progressStats.total
                   })}
                 </span>
-              </div>
+              </HStack>
               <div
                 className={drawerClasses.healthProgressTrack}
                 role="progressbar"
@@ -185,33 +187,33 @@ export default function HealthCheckDrawer({
 
           {!isChecking && showPipeline ? (
             <div className="mx-4 mt-3 mb-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border/60 bg-muted/50 px-3.5 py-2.5">
-              <div className="flex shrink-0 items-center gap-1.5">
+              <HStack gap={1} className="shrink-0">
                 <div className="flex size-3.5 items-center justify-center rounded-full bg-muted">
                   <CheckCircle2 size={9} className="text-foreground-muted" />
                 </div>
                 <span className="text-foreground-muted text-xs">
                   {t('settings.models.check.outcome_success_short', { count: successCount })}
                 </span>
-              </div>
+              </HStack>
               {failCount > 0 ? (
-                <div className="flex shrink-0 items-center gap-1.5">
+                <HStack gap={1} className="shrink-0">
                   <div className="flex size-3.5 items-center justify-center rounded-full bg-destructive/12">
                     <XCircle size={9} className="text-destructive" />
                   </div>
                   <span className="text-destructive/80 text-xs">
                     {t('settings.models.check.outcome_fail_short', { count: failCount })}
                   </span>
-                </div>
+                </HStack>
               ) : null}
               {skippedCount > 0 ? (
-                <div className="flex shrink-0 items-center gap-1.5">
+                <HStack gap={1} className="shrink-0">
                   <div className="flex size-3.5 items-center justify-center rounded-full bg-muted">
                     <Info size={9} className="text-foreground-muted" />
                   </div>
                   <span className="text-foreground-muted text-xs">
                     {t('settings.models.check.outcome_skipped_short', { count: skippedCount })}
                   </span>
-                </div>
+                </HStack>
               ) : null}
               <span className="ml-auto shrink-0 text-muted-foreground/60 text-xs">
                 {t('settings.models.check.outcome_total', { count: modelStatuses.length })}
@@ -330,13 +332,13 @@ export default function HealthCheckDrawer({
               })}
             </ul>
           </Scrollbar>
-        </div>
+        </VStack>
       ) : null}
 
       {!showPipeline ? (
         <>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
+          <VStack gap={4}>
+            <HStack gap={3} className="justify-between">
               <span className="font-medium text-foreground text-sm">{t('settings.models.check.use_all_keys')}</span>
               <SegmentedControl
                 size="sm"
@@ -347,9 +349,9 @@ export default function HealthCheckDrawer({
                   { value: 'all', label: t('settings.models.check.all') }
                 ]}
               />
-            </div>
+            </HStack>
 
-            <div className="flex items-center justify-between gap-3">
+            <HStack gap={3} className="justify-between">
               <span className="font-medium text-foreground text-sm">
                 {t('settings.models.check.enable_concurrent')}
               </span>
@@ -362,11 +364,11 @@ export default function HealthCheckDrawer({
                   { value: 'on', label: t('settings.models.check.enabled') }
                 ]}
               />
-            </div>
+            </HStack>
 
-            <div className="flex items-center justify-between gap-3">
+            <HStack gap={3} className="justify-between">
               <span className="font-medium text-foreground text-sm">{t('settings.models.check.timeout')}</span>
-              <div className="flex w-[112px] items-center gap-2">
+              <HStack gap={2} className="w-[112px]">
                 <Input
                   type="number"
                   min={5}
@@ -375,12 +377,12 @@ export default function HealthCheckDrawer({
                   onChange={(event) => setTimeoutSeconds(Math.min(60, Math.max(5, Number(event.target.value) || 15)))}
                 />
                 <span className="text-foreground-muted text-xs">s</span>
-              </div>
-            </div>
-          </div>
+              </HStack>
+            </HStack>
+          </VStack>
 
           {keyCheckMode === 'single' && hasMultipleKeys ? (
-            <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
+            <VStack gap={3} className="rounded-xl border border-border/60 bg-muted/20 p-4">
               <div className="font-medium text-[13px] text-foreground/85">
                 {t('settings.models.check.select_api_key')}
               </div>
@@ -396,7 +398,7 @@ export default function HealthCheckDrawer({
                   </label>
                 ))}
               </RadioGroup>
-            </div>
+            </VStack>
           ) : null}
         </>
       ) : null}

@@ -1,4 +1,4 @@
-import { Badge, Button, CircularProgress, Divider, SegmentedControl, Switch, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, CircularProgress, Divider, HStack, SegmentedControl, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import LogoAvatar from '@renderer/components/Icons/LogoAvatar'
 import IndicatorLight from '@renderer/components/IndicatorLight'
@@ -179,7 +179,7 @@ const AboutSettings: FC = () => {
 
         <Divider className="my-1.5" />
 
-        <div className="flex flex-wrap items-center justify-between gap-3 py-1">
+        <HStack gap={3} className="flex-wrap justify-between py-1">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
               type="button"
@@ -231,7 +231,7 @@ const AboutSettings: FC = () => {
               </Button>
             </div>
           )}
-        </div>
+        </HStack>
 
         {!isPortable && (
           <>

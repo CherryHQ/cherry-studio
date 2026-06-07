@@ -1,3 +1,4 @@
+import { PageShell } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -34,9 +35,7 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
     <ProviderSettingsContainer theme={theme}>
       <div className="flex h-full min-h-0 w-full flex-col">
         {/* Scoped mock alignment: tokens in `provider-settings-scoped-theme.css`, compositions in ProviderSettingsPrimitives. */}
-        <div
-          data-testid="provider-detail-shell"
-          className="provider-settings-default-scope flex min-h-0 flex-1 flex-col overflow-hidden">
+        <PageShell className="provider-settings-default-scope" data-testid="provider-detail-shell">
           <div className={providerDetailColumnClasses.headerPad}>
             <div className={providerDetailColumnClasses.headerContentMaxWidth}>
               <ProviderHeader providerId={providerId} />
@@ -48,7 +47,7 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
               <ModelList providerId={providerId} />
             </div>
           </Scrollbar>
-        </div>
+        </PageShell>
       </div>
     </ProviderSettingsContainer>
   )

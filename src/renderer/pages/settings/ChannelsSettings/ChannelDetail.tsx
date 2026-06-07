@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
+  HStack,
   Input,
   Select,
   SelectContent,
@@ -16,7 +17,8 @@ import {
   SelectValue,
   Spinner,
   Switch,
-  Tooltip
+  Tooltip,
+  VStack
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CopyButton from '@renderer/components/CopyButton'
@@ -238,7 +240,7 @@ const ChannelEditModal: FC<
             <DialogHeader>
               <DialogTitle>{channel.name}</DialogTitle>
             </DialogHeader>
-            <div className="flex flex-col gap-4">
+            <VStack gap={4}>
               <div>
                 <label className="mb-1 block font-medium text-xs">{t('common.name')}</label>
                 <Input
@@ -275,7 +277,7 @@ const ChannelEditModal: FC<
               {FormComponent && (
                 <FormComponent channel={channel} onConfigChange={handleUpdate} onRemove={() => onDelete(channel.id)} />
               )}
-            </div>
+            </VStack>
           </>
         )}
       </DialogContent>
@@ -325,13 +327,13 @@ const ChannelInstanceRow: FC<{
   }
 
   return (
-    <div className="flex items-center gap-3 border-(--color-border) border-b-[0.5px] px-1 py-2.5 last:border-b-0">
+    <HStack gap={3} className="border-(--color-border) border-b-[0.5px] px-1 py-2.5 last:border-b-0">
       <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 font-medium text-sm">
+        <HStack gap={2} className="font-medium text-sm">
           {channel.name}
           {statusTag}
-        </div>
+        </HStack>
         <div className="truncate text-foreground-400 text-xs">
           {agentName && <span className="mr-2 text-blue-400">{agentName}</span>}
           {summary}
@@ -366,7 +368,7 @@ const ChannelInstanceRow: FC<{
         onConfirm={onDelete}
       />
       <Switch checked={channel.isActive} size="sm" onCheckedChange={onToggle} />
-    </div>
+    </HStack>
   )
 }
 
@@ -501,7 +503,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   return (
     <Scrollbar className="flex flex-1 flex-col" style={{ height: 'calc(100vh - var(--navbar-height))' }}>
       <SettingsContentBody>
-        <div className="flex items-center justify-between gap-4 pb-1">
+        <HStack gap={4} className="justify-between pb-1">
           <div className="min-w-0">
             <SettingTitle className="justify-start gap-2">
               {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}
@@ -515,7 +517,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
             <Plus className="size-4" />
             {t('agent.cherryClaw.channels.add')}
           </Button>
-        </div>
+        </HStack>
         <SettingDivider className="m-0 mt-2" />
         <div className="flex flex-col">
           {channelList.length === 0 && (

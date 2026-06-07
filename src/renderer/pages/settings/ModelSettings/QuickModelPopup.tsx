@@ -11,7 +11,8 @@ import {
   PopoverContent,
   PopoverTrigger,
   Switch,
-  Textarea
+  Textarea,
+  VStack
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { ResetIcon } from '@renderer/components/Icons'
@@ -47,7 +48,7 @@ export const TopicNamingSettings = () => {
 
         <Divider className="m-0" />
 
-        <div className="space-y-2 px-3 pt-3 pb-3.5">
+        <VStack gap={2} className="px-3 pt-3 pb-3.5">
           <Flex className="min-h-7 items-center justify-between gap-2">
             <Flex direction="row" align="center" gap={1} className="min-w-0 flex-1">
               <div className="truncate font-medium text-foreground text-sm">
@@ -83,7 +84,7 @@ export const TopicNamingSettings = () => {
             onChange={(e) => void setTopicNamingPrompt(e.target.value)}
             placeholder={t('prompts.title')}
           />
-        </div>
+        </VStack>
       </Flex>
     </section>
   )

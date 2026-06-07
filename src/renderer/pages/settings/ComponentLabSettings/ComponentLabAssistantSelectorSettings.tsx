@@ -1,4 +1,4 @@
-import { Button, RadioGroup, RadioGroupItem, Switch } from '@cherrystudio/ui'
+import { Button, RadioGroup, RadioGroupItem, Switch, VStack } from '@cherrystudio/ui'
 import { AssistantSelector, type AssistantSelectorItem } from '@renderer/components/ResourceSelector'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import type { FC, ReactNode } from 'react'
@@ -149,11 +149,11 @@ const AssistantSelectorLabSession: FC<AssistantSelectorLabSessionProps> = ({ mul
   })()
 
   return (
-    <div className="space-y-4">
+    <VStack gap={4}>
       <div className="grid gap-4 lg:grid-cols-[minmax(260px,320px)_1fr]">
         {configPanel}
 
-        <div className="flex flex-col gap-3 rounded-[12px] border border-border bg-background p-4">
+        <VStack gap={3} className="rounded-[12px] border border-border bg-background p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="font-medium text-foreground text-sm">
@@ -169,7 +169,7 @@ const AssistantSelectorLabSession: FC<AssistantSelectorLabSessionProps> = ({ mul
           </div>
 
           {selectorNode}
-        </div>
+        </VStack>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-3">
@@ -186,7 +186,7 @@ const AssistantSelectorLabSession: FC<AssistantSelectorLabSessionProps> = ({ mul
           value={hasLastChange ? formatSnapshot(lastChange) : undefined}
         />
       </div>
-    </div>
+    </VStack>
   )
 }
 
@@ -196,7 +196,7 @@ const ComponentLabAssistantSelectorSettings: FC = () => {
   const [selectionType, setSelectionType] = useState<SelectionType>('id')
 
   const configPanel = (
-    <div className="space-y-3 rounded-[12px] border border-border bg-background p-4">
+    <VStack gap={3} className="rounded-[12px] border border-border bg-background p-4">
       <div>
         <div className="font-medium text-foreground text-sm">
           {t('settings.componentLab.assistantSelector.configTitle')}
@@ -211,7 +211,7 @@ const ComponentLabAssistantSelectorSettings: FC = () => {
         <Switch checked={multi} onCheckedChange={setMulti} />
       </SettingRow>
 
-      <div className="space-y-1.5">
+      <VStack gap={1}>
         <div className="text-muted-foreground text-xs">selectionType</div>
         <RadioGroup
           className="grid grid-cols-2 gap-2"
@@ -230,8 +230,8 @@ const ComponentLabAssistantSelectorSettings: FC = () => {
             <span>item</span>
           </label>
         </RadioGroup>
-      </div>
-    </div>
+      </VStack>
+    </VStack>
   )
 
   return (

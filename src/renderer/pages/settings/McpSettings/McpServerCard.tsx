@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { Alert, Badge, Button, HStack, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { DeleteIcon } from '@renderer/components/Icons'
@@ -191,7 +191,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
           description={<div className="line-clamp-3 text-(--color-error-base) text-xs leading-5">{errorDetails}</div>}
           onClick={onClickDetails}
           action={
-            <div className="flex items-center gap-1">
+            <HStack gap={1}>
               <Button variant="destructive" size="sm" onClick={onClickDetails}>
                 <Tooltip content={t('error.boundary.details')}>
                   <CircleXIcon size={16} />
@@ -202,7 +202,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
                   <DeleteIcon size={16} />
                 </Tooltip>
               </Button>
-            </div>
+            </HStack>
           }
         />
       )

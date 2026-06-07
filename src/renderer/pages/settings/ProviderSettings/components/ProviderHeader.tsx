@@ -1,4 +1,4 @@
-import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, HStack, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { Bolt, BookOpen, ExternalLink } from 'lucide-react'
@@ -44,11 +44,11 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
 
   return (
     <>
-      <div className="flex items-center gap-3">
+      <HStack gap={3}>
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <ProviderAvatar provider={provider} size={32} className="shrink-0 rounded-xl" />
           <div className="min-w-0 self-center">
-            <div className="flex min-w-0 flex-wrap items-center gap-1">
+            <HStack gap={1} className="min-w-0 flex-wrap">
               <h1 className="truncate font-semibold text-(--color-foreground) text-[16px] leading-[1.25]">
                 {meta.fancyProviderName}
               </h1>
@@ -101,7 +101,7 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
                   </Button>
                 </Tooltip>
               )}
-            </div>
+            </HStack>
           </div>
         </div>
         <Switch
@@ -109,7 +109,7 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
           disabled={isTogglingEnabled}
           onCheckedChange={(enabled) => void handleToggleEnabled(enabled)}
         />
-      </div>
+      </HStack>
       <ProviderApiOptionsDrawer
         providerId={providerId}
         open={apiOptionsOpen}
