@@ -27,8 +27,9 @@
 - [[P1-S2b-3_Polish/README|P1-S2b-3 交互精修]] ❌ **已废弃**（sticky-stacking via display:contents → B1 重叠;未入库）→ 被 S2c 取代
 - [[P1-S2c_MasterDetail/README|P1-S2c 面板布局（accordion 定稿）+ 统一键盘]] ✅ 2026-06-03（待 commit）—— accordion 手风琴单滚动区(每分支=标题+紧贴其下内容,修 B1 重叠/串位)+ locate(新建/展开滚到顶)+ 统一共享 composer 键盘修 B3 + compose label;中间态 master/detail 被 accordion 取代
 - P1-S2d 余项（hover 联动 / folder-tab 视觉 / 每卡 loading 态 / B4 菜单兜底 / 可选 sticky 当前标题）— 未开始
-- P1-S2-B5 关闭中止流式（abort，保护区，需批准）— 未开始
-- P1-S3 Disposition（discard vs save on close）— 未开始
+- P1-B5 关闭中止流式（abort）✅ 2026-06-04（commit `ed8314ec1`）
+- [[P1-S3_Disposition/README|P1-S3 关闭去向路由 + 保留按钮]] ✅ 2026-06-04（待 commit）—— pending(默认)静默删 fork topic / kept 不删 + Keep 按钮;只 CALL 现有 DataApi DELETE
+- B4 右键菜单变灰 — ✅ 已调查=非 bug（见 [[../../问题与Debug记录#B4]]）
 
 ## 触碰边界（整个 P1 都遵守）
 

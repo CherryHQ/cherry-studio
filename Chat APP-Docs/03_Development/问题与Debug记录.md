@@ -10,9 +10,34 @@
 | D-006 | fresh install 默认模型仍是 CherryAI Qwen，不自动选 Ollama | `rm -rf ~/Library/Application\ Support/CherryStudioDev && pnpm dev` → 新建 topic 默认 model 是 Qwen \| CherryAI | 🟢 小毛刺，可手动切；非 baseline 阻塞 | 暂未建任务；等 v2 用户偏好 / 默认模型策略迁移时一起处理 | （无） |
 | D-007 | Regenerate 切到 Ollama 后点旧回复 refresh 无明显反应 | 切到 Ollama 模型 → 在历史 assistant 消息上点 refresh / regenerate | 🟢 候选 issue；主聊天侧；与 D-009 分支侧无关 | 用户在 T-009 关闭后可单独复测；如仍存在则开 T-010 | （无） |
 | **B4** | 开关一次分支后右键 "Open as branch"/"Ask" 变灰 | 开分支 → 关 → 重选 assistant 文本右键 | ✅ **已调查 = 非 bug**（菜单正确,重选即恢复）| 不修（保留选区需改 paint 保护区）| 本文 §B4 |
-| **B5** | 流式中关闭分支,回复继续、无法中止 | 分支流式回复中点 X | ✅ **已修(未提交)** | `handleCloseBranch` 前调 `abortBranchTopicStream`,复用 abortCompletion | 本文 §B5 |
+| **B5** | 流式中关闭分支,回复继续、无法中止 | 分支流式回复中点 X | ⚠️ **假绿**(只关了面板,后端没停)→ 由 B6 真修 | `handleCloseBranch` 调 `abortBranchTopicStream` —— 但 status 过滤命中 0 条,abort 从未发出 | 本文 §B5 / §B6 |
+| **B6** | abort 是空操作:取靶按 status 过滤,而消息在流结束前已被标 success | 流式中关分支 → Network 里 Ollama 请求不 cancel、token 继续、finalize 打 404 | ✅ **A 修(未提交)**:取靶改按 abortMap 现存键;**B 上游未修** | `abortBranchTopicStream.ts` 一处改 | 本文 §B6 |
 | **B2** | 关两个分支后第三个开不出 | 见调试弧；多半 = B4 或 stale-ref | 🟡 待复现确认 | accordion 后复测；归 S2d/排查 | 本文 §B1-B5 表 |
 > 注：D-006 / D-007 / B2 是**先记录、待复现**的 issue。**B1/B3 已在 S2c 修复;B4 已调查=非 bug;B5 已修(未提交)**（见文末调试弧）。
+
+### B6 根因 + 修法（A 已修未提交 / B 上游待排期，2026-06-07）
+
+> 由 4 路只读静态追踪 + 3 路对抗验证(含"全力反驳")坐实;运行时日志确认:关闭那刻 assistant 消息(id `019ea072-…`, topic `0bc8d3c0`)`status:"success"` 但 `abortMapHasAskId:true / callbackCount:1`。
+
+**现象**:流式中关分支 → Ollama 后端继续生成(verbose 持续增长),`onComplete`(非 onError)全量跑完 → `finalize` PATCH 打到已删消息 → 404 + unhandled rejection;Ollama 串行时还会**阻塞下一个分支**(实测 A 阻塞 B ~92s)。B5 的"tokens 停了"是**假绿**:只是面板移除了,后端流仍在跑。
+
+**真因(两层)**:
+- **A(下游,取靶)**:`abortBranchTopicStream`(和主聊天 `pauseMessages`)按 `status===processing||pending` 过滤取 abort 目标。
+- **B(上游,过早 success)**:**消息在流真正结束前就被标 `success`**。链路:`text-end`→`TEXT_COMPLETE`(`AiSdkToChunkAdapter.ts:253`)→ `onTextComplete` 设 block=SUCCESS(`textCallbacks.ts:96`)→ `smartBlockUpdate(...,true)`(`BlockManager.ts:119`)→ `updateBlock` dispatch `upsertBlockReference`(`StreamingService.ts:386`)→ **reducer:block===SUCCESS && message===PROCESSING → message=SUCCESS**(`newMessage.ts:270-283`,即 T-009/D-005 修复,本意是消掉 BeatLoader)。这发生在 `readFullStream` 循环 `done=true` **之前**,`onComplete`/finalize 在 ~14s 后才触发。
+- **合流**:close 时消息已 success → status 过滤命中 0 → `abortCompletion` 不调 → `abort()` 不触发。**而 abortController 仍在 abortMap**(`removeAbortController` 生产代码从不调用,只 `abortCompletion` 内部清)→ 靶子还在,只是被过滤挡住。信号链路本身是通的(`messageThunk:950`→`parameterBuilder:214`→`AiProvider:248`→fetch),只要 abort 真发出就能停 Ollama。
+- **范围**:**系统性**。主聊天 Stop(`pauseMessages` 同款过滤)在首个 block 完成后点 Stop 同样停不住。分支注入 system prompt / 合成 assistant 对 block 时序**零影响**(纯文本拼接),不是分支特有。
+
+**修法 A(已实施,未提交,仅 `abortBranchTopicStream.ts` 一文件)**:
+- 取靶从 status 过滤 → **按 abortMap 现存键**:`messages.filter(m => m.role==='assistant' && m.askId && abortMap.has(m.askId))`,对每个 askId 调 `abortCompletion`。
+- 安全性:对已结束控制器调 `abortCompletion` 是**无害幂等 no-op**(`abortController.ts:25` 的 `if(abortFns?.length)` 守卫 + Web 端 `abort()` 幂等),且顺带 GC 掉泄漏的 map 项。
+- 不可见回退确认:abort 触发 `onError(isErrorTypeAbort)` → `finalize(SUCCESS)`(`baseCallbacks.ts:273-276`)→ 消息保持 success,**不会**翻成 error/aborted 的可见态。
+- **已知小权衡**:abortMap 会泄漏(完成的消息控制器永不移除),故"已完成分支"关闭时也会命中 → `scheduleForkTopicDeletion` 走 8s timeout 才删 fork topic(而非立即)。fork topic 不在侧边栏、面板立即移除,**无可见影响、无泄漏、无 404**。未来若 B 修了或引入 topic-loading 信号可恢复"立即删"。
+
+**未修 B(上游,留排期)**:
+- 方向:把 `newMessage.ts:270-283` 的 PROCESSING→SUCCESS **推迟到流真结束**(onComplete),而非首个 block 完成;或 finalize 时清掉 abortController。
+- 风险:碰**保护区**,且可能复活 T-009/D-005 那个"BeatLoader 永不消失 / action bar 不出现",需要重做 loading 判定(`isMessageProcessing`)。**作为独立上游议题排期,不在 B6-A 范围内动。**
+
+---
 
 ### D-009 根因 + 修法（已 closed 2026-05-22，留存供后人复习）
 
