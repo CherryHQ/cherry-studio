@@ -132,39 +132,40 @@ class FileRefServiceImpl implements FileRefService {
 
   async create(values: CreateFileRefRow): Promise<FileRef> {
     const now = Date.now()
-    const rows = await this.getDb()
-      .insert(fileRefTable)
-      .values({
-        id: uuidv4(),
-        fileEntryId: values.fileEntryId,
-        sourceType: values.sourceType,
-        sourceId: values.sourceId,
-        role: values.role,
-        createdAt: now,
-        updatedAt: now
-      })
-      .returning()
+    const row: FileRefRow = {
+      id: uuidv4(),
+      fileEntryId: values.fileEntryId,
+      sourceType: values.sourceType,
+      sourceId: values.sourceId,
+      role: values.role,
+      createdAt: now,
+      updatedAt: now
+    }
+    // Probe the BO projection BEFORE the INSERT so a rejected value never
+    // persists (write/read symmetry, #15740). The discriminated-union parse
+    // rejects unregistered sourceTypes and per-variant illegal roles that
+    // the free-form DB columns deliberately do not constrain.
+    rowToFileRef(row)
+    const rows = await this.getDb().insert(fileRefTable).values(row).returning()
     return rowToFileRef(rows[0])
   }
 
   async createMany(values: readonly CreateFileRefRow[]): Promise<FileRef[]> {
     if (values.length === 0) return []
     const now = Date.now()
-    const rows = await this.getDb()
-      .insert(fileRefTable)
-      .values(
-        values.map((v) => ({
-          id: uuidv4(),
-          fileEntryId: v.fileEntryId,
-          sourceType: v.sourceType,
-          sourceId: v.sourceId,
-          role: v.role,
-          createdAt: now,
-          updatedAt: now
-        }))
-      )
-      .onConflictDoNothing()
-      .returning()
+    const candidateRows: FileRefRow[] = values.map((v) => ({
+      id: uuidv4(),
+      fileEntryId: v.fileEntryId,
+      sourceType: v.sourceType,
+      sourceId: v.sourceId,
+      role: v.role,
+      createdAt: now,
+      updatedAt: now
+    }))
+    // Same pre-INSERT probe as `create` — one bad row must not poison the
+    // whole batch into the table.
+    candidateRows.forEach(rowToFileRef)
+    const rows = await this.getDb().insert(fileRefTable).values(candidateRows).onConflictDoNothing().returning()
     return rows.map(rowToFileRef)
   }
 

@@ -23,7 +23,7 @@ import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
-import { AbsolutePathSchema, FileEntrySchema, SafeNameSchema } from '@shared/data/types/file'
+import { AbsolutePathSchema, FileEntrySchema, SafeExtSchema, SafeNameSchema } from '@shared/data/types/file'
 import { and, asc, count, desc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import { ZodError } from 'zod'
@@ -408,20 +408,25 @@ class FileEntryServiceImpl implements FileEntryService {
   async create(values: CreateFileEntryRow): Promise<FileEntry> {
     const now = Date.now()
     const id = values.id ?? uuidv7()
-    const rows = await this.getDb()
-      .insert(fileEntryTable)
-      .values({
-        id,
-        origin: values.origin,
-        name: values.name,
-        ext: values.ext,
-        size: values.size,
-        externalPath: values.externalPath,
-        deletedAt: values.deletedAt ?? null,
-        createdAt: now,
-        updatedAt: now
-      })
-      .returning()
+    const row: FileEntryRow = {
+      id,
+      origin: values.origin,
+      name: values.name,
+      ext: values.ext,
+      size: values.size,
+      externalPath: values.externalPath,
+      deletedAt: values.deletedAt ?? null,
+      createdAt: now,
+      updatedAt: now
+    }
+    // Probe the BO projection BEFORE the INSERT so a rejected value never
+    // persists (write/read symmetry, #15740). Same rationale as `update`'s
+    // pre-SQL validation: without this, garbage that passes the coarse DB
+    // CHECKs (e.g. name '..', ext '.pdf', a relative externalPath) commits
+    // first and only fails at the read-back parse — leaving the row
+    // permanently un-parseable for strict point reads.
+    rowToFileEntry(row)
+    const rows = await this.getDb().insert(fileEntryTable).values(row).returning()
     return rowToFileEntry(rows[0])
   }
 
@@ -432,6 +437,7 @@ class FileEntryServiceImpl implements FileEntryService {
     // commits to SQLite first and only fails at `rowToFileEntry`'s
     // schema parse — leaving the row permanently un-parseable.
     if (values.name !== undefined) SafeNameSchema.parse(values.name)
+    if (values.ext !== undefined && values.ext !== null) SafeExtSchema.parse(values.ext)
     const updates: Partial<typeof fileEntryTable.$inferInsert> = {
       updatedAt: Date.now()
     }
