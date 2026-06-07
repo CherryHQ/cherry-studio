@@ -4,6 +4,7 @@ import {
   ContextMenuItem,
   ContextMenuItemContent,
   ContextMenuTrigger,
+  HStack,
   Tooltip
 } from '@cherrystudio/ui'
 import { isMac } from '@renderer/config/constant'
@@ -443,10 +444,10 @@ export const AppShellTabBar = ({
         {!isDetached && (pinnedTabs.length > 0 || normalTabs.length > 0) && <Separator />}
 
         {/* Tabs scrollable area — empty space stays draggable; only interactive elements override */}
-        <div className="flex flex-1 items-center gap-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden">
+        <HStack className="flex-1 overflow-x-auto px-1 [&::-webkit-scrollbar]:hidden" gap={1}>
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
-            <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">
+            <HStack className="shrink-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]" gap={0}>
               {pinnedTabs.map((tab) => (
                 <TabRightClickMenu
                   key={tab.id}
@@ -476,7 +477,7 @@ export const AppShellTabBar = ({
                   />
                 </TabRightClickMenu>
               ))}
-            </div>
+            </HStack>
           )}
 
           {/* Separator before normal tabs */}
@@ -528,7 +529,7 @@ export const AppShellTabBar = ({
               <Plus size={14} />
             </button>
           )}
-        </div>
+        </HStack>
 
         <ShellTabBarActions isDetached={isDetached} />
       </header>
