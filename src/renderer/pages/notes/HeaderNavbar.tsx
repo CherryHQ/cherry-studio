@@ -3,6 +3,7 @@ import {
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbSeparator,
+  HStack,
   Input,
   MenuDivider,
   MenuItem,
@@ -10,7 +11,6 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  RowFlex,
   Tooltip
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
@@ -232,7 +232,7 @@ const HeaderNavbar = ({
 
   return (
     <NavbarHeader className="home-navbar shrink-0 justify-start [border-bottom:1px_solid_var(--color-border)]">
-      <RowFlex className="flex-[0_0_auto] items-center">
+      <HStack className="flex-[0_0_auto]">
         {showWorkspace && (
           <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
             <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon" onClick={handleToggleShowWorkspace}>
@@ -247,7 +247,7 @@ const HeaderNavbar = ({
             </BaseNavbarIcon>
           </Tooltip>
         )}
-      </RowFlex>
+      </HStack>
       <NavbarCenter className="min-w-0 flex-1">
         <div className="w-full overflow-hidden">
           <Breadcrumb className="**:data-[slot=breadcrumb-list]:flex-nowrap **:data-[slot=breadcrumb-list]:overflow-hidden **:data-[slot=breadcrumb-list]:whitespace-nowrap [&_[data-slot=breadcrumb-item]:last-child]:min-w-0 [&_[data-slot=breadcrumb-item]:last-child]:flex-1">

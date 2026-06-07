@@ -472,12 +472,49 @@ export default defineConfig([
                 }
               }
             }
+          },
+          'no-deprecated-preset': {
+            meta: {
+              type: 'suggestion',
+              docs: {
+                description:
+                  'Warn when code imports a deprecated @cherrystudio/ui layout preset (RowFlex/ColFlex/SpaceBetweenRowFlex) instead of HStack/VStack/Flex.'
+              },
+              messages: {
+                deprecatedPreset:
+                  'Deprecated layout preset "{{name}}" — use {{replacement}}. RowFlex -> HStack (or Flex direction="row"); ColFlex -> VStack; SpaceBetweenRowFlex -> HStack justify="between".'
+              }
+            },
+            create(context) {
+              const REPLACEMENTS = {
+                RowFlex: 'HStack',
+                ColFlex: 'VStack',
+                SpaceBetweenRowFlex: 'HStack justify="between"'
+              }
+              return {
+                ImportDeclaration(node) {
+                  if (!node.source || node.source.value !== '@cherrystudio/ui') return
+                  for (const spec of node.specifiers) {
+                    if (spec.type !== 'ImportSpecifier' || !spec.imported) continue
+                    const name = spec.imported.name
+                    if (REPLACEMENTS[name]) {
+                      context.report({
+                        node: spec,
+                        messageId: 'deprecatedPreset',
+                        data: { name, replacement: REPLACEMENTS[name] }
+                      })
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
     },
     rules: {
-      'layout-primitives/no-redundant-class': 'warn'
+      'layout-primitives/no-redundant-class': 'warn',
+      'layout-primitives/no-deprecated-preset': 'warn'
     }
   },
   // Schema key naming convention (cache & preferences)

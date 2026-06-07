@@ -1,4 +1,4 @@
-import { EmptyState, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
+import { EmptyState, HStack, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ActionIconButton from '@renderer/components/Buttons/ActionIconButton'
@@ -120,7 +120,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
           )}
         </div>
         <div className="flex h-12 shrink-0 items-center border-border border-t px-4 py-2">
-          <SpaceBetweenRowFlex className="w-full items-center">
+          <HStack justify="between" className="w-full">
             <div className="select-none text-muted-foreground text-xs leading-none">
               {t('notes.characters')}: {tokenCount}
             </div>
@@ -157,7 +157,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 ]}
               />
             </div>
-          </SpaceBetweenRowFlex>
+          </HStack>
         </div>
       </>
     )
