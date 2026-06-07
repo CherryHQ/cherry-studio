@@ -313,6 +313,84 @@ describe('KnowledgeMappings', () => {
     expect(result).toStrictEqual({ ok: false, reason: 'invalid_note' })
   })
 
+  it('transformKnowledgeItem skips a url item with whitespace-only content', () => {
+    // Pins the atom-based guard boundary (`KnowledgeItemUrlSchema`): a
+    // future tightening of the atom must surface here as a deliberate
+    // migrator behavior change, not a silent one.
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'url-blank',
+        type: 'url',
+        content: '   '
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({ ok: false, reason: 'invalid_url' })
+  })
+
+  it('transformKnowledgeItem skips a sitemap item with non-string content', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'sitemap-bad',
+        type: 'sitemap',
+        content: { id: 'not-a-string' }
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({ ok: false, reason: 'invalid_sitemap' })
+  })
+
+  it('transformKnowledgeItem maps a sitemap item to a url item with trimmed content', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'sitemap-ok',
+        type: 'sitemap',
+        content: '  https://example.com/sitemap.xml  '
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.value.type).toBe('url')
+      expect(result.value.data).toStrictEqual({
+        source: 'https://example.com/sitemap.xml',
+        url: 'https://example.com/sitemap.xml'
+      })
+    }
+  })
+
+  it('transformKnowledgeItem skips a directory item with whitespace-only content', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'dir-blank',
+        type: 'directory',
+        content: '   '
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({ ok: false, reason: 'invalid_directory' })
+  })
+
   it('transformKnowledgeItem keeps a note that has a sourceUrl but empty content', () => {
     const result = transformKnowledgeItem(
       'kb-1',
