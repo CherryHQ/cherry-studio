@@ -1818,6 +1818,7 @@
       },
       "export": {
         "failed": "匯出失敗",
+        "html": "匯出為 HTML",
         "image": "匯出為圖片",
         "image_exporting_keep_page": "正在匯出圖片，請保持在此頁面。",
         "image_saved": "圖片儲存成功",
@@ -3519,6 +3520,11 @@
         "text_extraction_failed": "無法從 {{name}} 中擷取文字"
       },
       "get_embedding_dimensions": "取得嵌入維度失敗",
+      "html": {
+        "export": {
+          "specified": "匯出 HTML 檔案失敗"
+        }
+      },
       "invalid": {
         "api": {
           "host": "無效的 API 位址",
@@ -3653,6 +3659,11 @@
     "success": {
       "excel": {
         "export": "Excel 匯出成功"
+      },
+      "html": {
+        "export": {
+          "specified": "已成功匯出 HTML 檔案"
+        }
       },
       "joplin": {
         "export": "成功匯出到 Joplin"
@@ -5472,6 +5483,7 @@
       },
       "export_menu": {
         "docx": "匯出為 Word",
+        "html": "匯出為 HTML",
         "image": "匯出為圖片",
         "joplin": "匯出到 Joplin",
         "markdown": "匯出為 Markdown",

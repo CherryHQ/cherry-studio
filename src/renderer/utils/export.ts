@@ -11,6 +11,7 @@ import type { Topic } from '@renderer/types/topic'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
 import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
+import { markdownToHtml } from '@renderer/utils/markdownConverter'
 import { getComposerTextFromMessage } from '@renderer/utils/message/composerTokens'
 import {
   getCitationContent,
@@ -1211,5 +1212,254 @@ export const exportNote = async ({ node, platform }: NoteExportOptions): Promise
   } catch (error) {
     logger.error(`Failed to export note to ${platform}:`, error as Error)
     throw error
+  }
+}
+
+// ----------------------------------------------------------------------------
+// HTML export
+// ----------------------------------------------------------------------------
+
+/**
+ * Escape a string for safe insertion into an HTML attribute or text node.
+ * Used only for values produced by the export pipeline itself (topic name,
+ * role labels) — message bodies are rendered through `markdownToHtml` which
+ * already goes through markdown-it, not through this helper.
+ */
+const escapeHtml = (str: string): string =>
+  str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+
+/**
+ * Build a self-contained HTML document from a topic or message.
+ * - No external dependencies (no CDN, no web fonts, no JS)
+ * - Respects `prefers-color-scheme` for dark/light auto-switch
+ * - Print-friendly stylesheet
+ * - Reasoning (thinking) sections are collapsible
+ */
+const buildHtmlDocument = (title: string, bodyHtml: string, generatedAt: string): string => `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>${escapeHtml(title)}</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #1f2328;
+    --fg-muted: #57606a;
+    --border: #d0d7de;
+    --code-bg: #f6f8fa;
+    --accent: #0969da;
+    --user-bg: #ddf4ff;
+    --assistant-bg: #ffffff;
+    --system-bg: #fff8c5;
+    --reasoning-bg: #f6f8fa;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --fg: #e6edf3;
+      --fg-muted: #8b949e;
+      --border: #30363d;
+      --code-bg: #161b22;
+      --accent: #58a6ff;
+      --user-bg: #033d80;
+      --assistant-bg: #0d1117;
+      --system-bg: #3d2e00;
+      --reasoning-bg: #161b22;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue",
+      Arial, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--fg);
+    background: var(--bg);
+  }
+  main { max-width: 860px; margin: 0 auto; }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 24px; }
+  h1 { font-size: 24px; margin: 0 0 4px; word-break: break-word; }
+  .meta { color: var(--fg-muted); font-size: 13px; }
+  .message {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 16px 0;
+    background: var(--assistant-bg);
+  }
+  .message.user { background: var(--user-bg); }
+  .message.system { background: var(--system-bg); }
+  .role {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+  }
+  .message p:first-child { margin-top: 0; }
+  .message p:last-child { margin-bottom: 0; }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px;
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 13px;
+  }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.9em;
+  }
+  :not(pre) > code {
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  blockquote {
+    border-left: 3px solid var(--border);
+    margin: 12px 0;
+    padding: 4px 12px;
+    color: var(--fg-muted);
+  }
+  table { border-collapse: collapse; margin: 12px 0; }
+  th, td { border: 1px solid var(--border); padding: 6px 10px; }
+  th { background: var(--code-bg); }
+  img { max-width: 100%; height: auto; }
+  details {
+    background: var(--reasoning-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 12px 0;
+  }
+  details summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--fg-muted);
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 24px 0; }
+  footer {
+    margin-top: 32px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    color: var(--fg-muted);
+    font-size: 12px;
+    text-align: center;
+  }
+  @media print {
+    body { padding: 0; background: #fff; color: #000; }
+    .message { break-inside: avoid; border-color: #ccc; }
+    details { border-color: #ccc; }
+  }
+  @media (max-width: 600px) {
+    body { padding: 12px; }
+    .message { padding: 10px 12px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>${escapeHtml(title)}</h1>
+    <div class="meta">${escapeHtml(generatedAt)}</div>
+  </header>
+  ${bodyHtml}
+  <footer>Exported from Cherry Studio</footer>
+</main>
+</body>
+</html>
+`
+
+/**
+ * Render a single message to a `<div class="message">` HTML block.
+ * The body is produced by `markdownToHtml`; reasoning content (when enabled)
+ * is rendered as a collapsible `<details>` block.
+ */
+const messageToHtmlBlock = async (message: ExportableMessage, exportReasoning: boolean): Promise<string> => {
+  const role = message.role === 'user' ? 'user' : message.role === 'system' ? 'system' : 'assistant'
+  const roleLabel = role === 'user' ? '🧑‍💻 User' : role === 'system' ? '🤖 System' : '🤖 Assistant'
+
+  let thinkingHtml = ''
+  if (exportReasoning) {
+    const thinking = getThinkingContent(message)
+    if (thinking) {
+      thinkingHtml = `<details>
+  <summary>${i18n.t('common.reasoning_content')}</summary>
+  ${markdownToHtml(thinking)}
+</details>`
+    }
+  }
+
+  const body = getMainTextContent(message)
+  const bodyHtml = markdownToHtml(body)
+
+  return `<section class="message ${role}">
+  <div class="role">${escapeHtml(roleLabel)}</div>
+  ${thinkingHtml}
+  ${bodyHtml}
+</section>`
+}
+
+export const topicToHtml = async (topic: Topic, exportReasoning?: boolean): Promise<string> => {
+  const topicName = topic.name || 'Untitled'
+  const generatedAt = dayjs().format('YYYY-MM-DD HH:mm:ss')
+  const includeReasoning = exportReasoning ?? false
+  const messages = await getTopicMessages(topic.id)
+  const blocks = await Promise.all(messages.map((m) => messageToHtmlBlock(m, includeReasoning)))
+  return buildHtmlDocument(topicName, blocks.join('\n<hr/>\n'), generatedAt)
+}
+
+export const exportTopicAsHtml = async (topic: Topic, exportReasoning?: boolean): Promise<void> => {
+  if (getExportState()) {
+    window.toast.warning(i18n.t('message.warn.export.exporting'))
+    return
+  }
+
+  setExportingState(true)
+  try {
+    const html = await topicToHtml(topic, exportReasoning)
+    const fileName = removeSpecialCharactersForFileName(topic.name || 'conversation') + '.html'
+    const result = await window.api.file.save(fileName, html)
+    if (result) {
+      window.toast.success(i18n.t('message.success.html.export.specified'))
+    }
+  } catch (error) {
+    logger.error('Failed to export topic as HTML:', error as Error)
+    window.toast.error(i18n.t('message.error.html.export.specified'))
+  } finally {
+    setExportingState(false)
+  }
+}
+
+export const exportMessageAsHtml = async (message: ExportableMessage, exportReasoning?: boolean): Promise<void> => {
+  if (getExportState()) {
+    window.toast.warning(i18n.t('message.warn.export.exporting'))
+    return
+  }
+
+  setExportingState(true)
+  try {
+    const title = await getMessageTitle(message)
+    const includeReasoning = exportReasoning ?? false
+    const body = await messageToHtmlBlock(message, includeReasoning)
+    const generatedAt = dayjs().format('YYYY-MM-DD HH:mm:ss')
+    const html = buildHtmlDocument(title || 'message', body, generatedAt)
+    const fileName = removeSpecialCharactersForFileName(title || 'message') + '.html'
+    const result = await window.api.file.save(fileName, html)
+    if (result) {
+      window.toast.success(i18n.t('message.success.html.export.specified'))
+    }
+  } catch (error) {
+    logger.error('Failed to export message as HTML:', error as Error)
+    window.toast.error(i18n.t('message.error.html.export.specified'))
+  } finally {
+    setExportingState(false)
   }
 }

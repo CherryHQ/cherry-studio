@@ -1818,6 +1818,8 @@
       },
       "export": {
         "failed": "Exportul a eșuat",
+        "failed": "[to be translated]:Export failed",
+        "html": "Exportă ca HTML",
         "image": "Exportă ca imagine",
         "image_exporting_keep_page": "Se exportă imaginea. Vă rugăm să rămâneți pe această pagină.",
         "image_saved": "Imagine salvată cu succes",
@@ -3519,6 +3521,11 @@
         "text_extraction_failed": "Nu s-a reușit extragerea textului din {{name}}"
       },
       "get_embedding_dimensions": "Nu s-au putut obține dimensiunile embedding",
+      "html": {
+        "export": {
+          "specified": "Exportul fișierului HTML a eșuat"
+        }
+      },
       "invalid": {
         "api": {
           "host": "Gazdă (Host) API invalidă",
@@ -3653,6 +3660,11 @@
     "success": {
       "excel": {
         "export": "Excel exportat cu succes"
+      },
+      "html": {
+        "export": {
+          "specified": "Fișierul HTML a fost exportat cu succes"
+        }
       },
       "joplin": {
         "export": "Exportat cu succes în Joplin"
@@ -5472,6 +5484,7 @@
       },
       "export_menu": {
         "docx": "Exportă ca Word",
+        "html": "Exportă ca HTML",
         "image": "Exportă ca imagine",
         "joplin": "Exportă în Joplin",
         "markdown": "Exportă ca Markdown",

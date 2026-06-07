@@ -21,6 +21,7 @@ import {
 
 export type TopicExportMenuOptions = Record<
   | 'docx'
+  | 'html'
   | 'image'
   | 'joplin'
   | 'markdown'
@@ -52,6 +53,7 @@ export interface TopicActionContext {
   onExportMarkdownReason: TopicMenuHandler
   onExportNotion: TopicMenuHandler
   onExportObsidian: TopicMenuHandler
+  onExportHtml: TopicMenuHandler
   onExportSiyuan: TopicMenuHandler
   onExportWord: TopicMenuHandler
   onExportYuque: TopicMenuHandler
@@ -73,6 +75,7 @@ const hasExportOption = ({ exportMenuOptions }: TopicActionContext) =>
   exportMenuOptions.markdown ||
   exportMenuOptions.markdown_reason ||
   exportMenuOptions.docx ||
+  exportMenuOptions.html ||
   exportMenuOptions.notion ||
   exportMenuOptions.yuque ||
   exportMenuOptions.obsidian ||
@@ -170,6 +173,11 @@ topicActionRegistry.registerCommand({
 topicActionRegistry.registerCommand({
   id: 'topic.export.siyuan',
   run: ({ onExportSiyuan, topic }) => onExportSiyuan(topic)
+})
+
+topicActionRegistry.registerCommand({
+  id: 'topic.export.html',
+  run: ({ onExportHtml, topic }) => onExportHtml(topic)
 })
 
 topicActionRegistry.registerCommand({
@@ -348,6 +356,14 @@ topicActionRegistry.registerAction({
       order: 90,
       surface: 'menu',
       availability: ({ exportMenuOptions }) => ({ visible: exportMenuOptions.siyuan })
+    },
+    {
+      id: 'topic.export.html',
+      commandId: 'topic.export.html',
+      label: ({ t }) => t('chat.topics.export.html'),
+      order: 95,
+      surface: 'menu',
+      availability: ({ exportMenuOptions }) => ({ visible: exportMenuOptions.html })
     }
   ]
 })

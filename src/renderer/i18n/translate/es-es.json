@@ -1818,6 +1818,8 @@
       },
       "export": {
         "failed": "Exportación fallida",
+        "failed": "[to be translated]:Export failed",
+        "html": "Exportar como HTML",
         "image": "Exportar como imagen",
         "image_exporting_keep_page": "Exportando imagen. Por favor, permanezca en esta página.",
         "image_saved": "Imagen guardada con éxito",
@@ -3519,6 +3521,11 @@
         "text_extraction_failed": "Error al extraer el texto de {{name}}"
       },
       "get_embedding_dimensions": "Fallo al obtener las dimensiones de incrustación",
+      "html": {
+        "export": {
+          "specified": "Error al exportar el archivo HTML"
+        }
+      },
       "invalid": {
         "api": {
           "host": "Dirección API inválida",
@@ -3653,6 +3660,11 @@
     "success": {
       "excel": {
         "export": "Excel exportado con éxito"
+      },
+      "html": {
+        "export": {
+          "specified": "Archivo HTML exportado correctamente"
+        }
       },
       "joplin": {
         "export": "Exportado con éxito a Joplin"
@@ -5472,6 +5484,7 @@
       },
       "export_menu": {
         "docx": "Exportar a Word",
+        "html": "Exportar como HTML",
         "image": "Exportar como imagen",
         "joplin": "Exportar a Joplin",
         "markdown": "Exportar a Markdown",

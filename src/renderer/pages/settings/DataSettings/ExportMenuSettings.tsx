@@ -19,6 +19,7 @@ const ExportMenuOptions: FC = () => {
     obsidian: 'data.export.menus.obsidian',
     siyuan: 'data.export.menus.siyuan',
     docx: 'data.export.menus.docx',
+    html: 'data.export.menus.html',
     plain_text: 'data.export.menus.plain_text'
   })
 
@@ -102,6 +103,12 @@ const ExportMenuOptions: FC = () => {
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.docx')}</SettingRowTitle>
         <Switch checked={exportMenuOptions.docx} onCheckedChange={(checked) => handleToggleOption('docx', checked)} />
+      </SettingRow>
+      <SettingDivider />
+
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.export_menu.html')}</SettingRowTitle>
+        <Switch checked={exportMenuOptions.html} onCheckedChange={(checked) => handleToggleOption('html', checked)} />
       </SettingRow>
       <SettingDivider />
 

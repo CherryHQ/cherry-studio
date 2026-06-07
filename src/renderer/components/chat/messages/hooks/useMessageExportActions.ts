@@ -8,6 +8,7 @@ import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
+  exportMessageAsHtml,
   exportMessageAsMarkdown as exportMessageAsMarkdownFile,
   exportMessageToNotes,
   exportMessageToNotion,
@@ -28,6 +29,7 @@ type MessageExportActions = Pick<
   | 'exportToObsidian'
   | 'exportToJoplin'
   | 'exportToSiyuan'
+  | 'exportToHtml'
 >
 
 interface MessageExportActionParams {
@@ -97,6 +99,10 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
     return exportMarkdownToSiyuan(title, markdown)
   }, [])
 
+  const exportToHtml = useCallback((message: MessageExportView) => {
+    return exportMessageAsHtml(message)
+  }, [])
+
   return useMemo(
     () => ({
       saveTextFile,
@@ -109,10 +115,12 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
       exportToYuque,
       exportToObsidian,
       exportToJoplin,
-      exportToSiyuan
+      exportToSiyuan,
+      exportToHtml
     }),
     [
       exportMessageAsMarkdown,
+      exportToHtml,
       exportToJoplin,
       exportToNotes,
       exportToNotion,

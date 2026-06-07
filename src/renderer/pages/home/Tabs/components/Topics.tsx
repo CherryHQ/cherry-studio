@@ -297,7 +297,8 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistoryRecords, revealRe
     obsidian: 'data.export.menus.obsidian',
     plain_text: 'data.export.menus.plain_text',
     siyuan: 'data.export.menus.siyuan',
-    yuque: 'data.export.menus.yuque'
+    yuque: 'data.export.menus.yuque',
+    html: 'data.export.menus.html'
   })
   const displayMode = topicDisplayMode ?? 'time'
   const isAssistantDisplayMode = displayMode === 'assistant'
