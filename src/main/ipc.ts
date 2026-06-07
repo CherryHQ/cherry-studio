@@ -36,6 +36,8 @@ import LegacyBackupManager from './services/LegacyBackupManager'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/nutstore/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
+import { readExcelWorkbookPreview } from './services/office/preview/excel/readWorkbookPreview'
+import { readWordPreview } from './services/office/preview/word/readPreview'
 import { vertexAiService } from './services/VertexAiService'
 import { calculateDirectorySize } from './utils'
 import { decrypt, encrypt } from './utils/aes'
@@ -431,6 +433,12 @@ export async function registerIpc() {
 
   // pdf
   ipcMain.handle(IpcChannel.Pdf_ExtractText, (_, data: Uint8Array | ArrayBuffer | string) => extractPdfText(data))
+
+  // excel
+  ipcMain.handle(IpcChannel.Excel_ReadWorkbookPreview, (_, request) => readExcelWorkbookPreview(request))
+
+  // word
+  ipcMain.handle(IpcChannel.Word_ReadPreview, (_, request) => readWordPreview(request))
 
   // fs
   ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile.bind(FileService))

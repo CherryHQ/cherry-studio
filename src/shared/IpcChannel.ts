@@ -243,6 +243,12 @@ export enum IpcChannel {
   // PDF
   Pdf_ExtractText = 'pdf:extractText',
 
+  // Excel
+  Excel_ReadWorkbookPreview = 'excel:readWorkbookPreview',
+
+  // Word
+  Word_ReadPreview = 'word:readPreview',
+
   Export_Word = 'export:word',
 
   // backup
