@@ -43,6 +43,7 @@ import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
+  exportTopicAsHtml,
   exportTopicAsMarkdown,
   exportTopicToNotes,
   exportTopicToNotion,
@@ -307,7 +308,8 @@ export const Topics: React.FC<Props> = ({ activeTopic, setActiveTopic, position 
     obsidian: 'data.export.menus.obsidian',
     plain_text: 'data.export.menus.plain_text',
     siyuan: 'data.export.menus.siyuan',
-    yuque: 'data.export.menus.yuque'
+    yuque: 'data.export.menus.yuque',
+    html: 'data.export.menus.html'
   })
 
   const handleAutoRenameTopic = useCallback(
@@ -475,6 +477,11 @@ export const Topics: React.FC<Props> = ({ activeTopic, setActiveTopic, position 
                   })
                 }>
                 {t('chat.topics.export.word')}
+              </ContextMenuItem>
+            )}
+            {exportMenuOptions.html && (
+              <ContextMenuItem onSelect={() => void runExport(() => exportTopicAsHtml(topic))}>
+                {t('chat.topics.export.html')}
               </ContextMenuItem>
             )}
             {exportMenuOptions.notion && (

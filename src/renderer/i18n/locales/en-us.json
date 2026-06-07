@@ -1512,6 +1512,7 @@
       },
       "export": {
         "failed": "Export failed",
+        "html": "Export as HTML",
         "image": "Export as image",
         "image_saved": "Image saved successfully",
         "joplin": "Export to Joplin",
@@ -2967,6 +2968,11 @@
         "text_extraction_failed": "Failed to extract text from {{name}}"
       },
       "get_embedding_dimensions": "Failed to get embedding dimensions",
+      "html": {
+        "export": {
+          "specified": "Failed to export the HTML file"
+        }
+      },
       "invalid": {
         "api": {
           "host": "Invalid API Host",
@@ -3096,6 +3102,11 @@
     "success": {
       "excel": {
         "export": "Excel exported successfully"
+      },
+      "html": {
+        "export": {
+          "specified": "Successfully exported the HTML file"
+        }
       },
       "joplin": {
         "export": "Successfully exported to Joplin"
@@ -4935,6 +4946,7 @@
       },
       "export_menu": {
         "docx": "Export as Word",
+        "html": "Export as HTML",
         "image": "Export as Image",
         "joplin": "Export to Joplin",
         "markdown": "Export as Markdown",

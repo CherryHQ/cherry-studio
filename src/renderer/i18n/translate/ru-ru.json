@@ -1512,6 +1512,8 @@
       },
       "export": {
         "failed": "Экспорт не удался",
+        "failed": "[to be translated]:Export failed",
+        "html": "[to be translated]:Export as HTML",
         "image": "Экспорт как изображение",
         "image_saved": "Изображение успешно сохранено",
         "joplin": "Экспорт в Joplin",
@@ -2977,6 +2979,11 @@
         "text_extraction_failed": "Не удалось извлечь текст из {{name}}"
       },
       "get_embedding_dimensions": "Не удалось получить размерность встраивания",
+      "html": {
+        "export": {
+          "specified": "[to be translated]:Failed to export the HTML file"
+        }
+      },
       "invalid": {
         "api": {
           "host": "Неверный API адрес",
@@ -3106,6 +3113,11 @@
     "success": {
       "excel": {
         "export": "Excel успешно экспортирован"
+      },
+      "html": {
+        "export": {
+          "specified": "[to be translated]:Successfully exported the HTML file"
+        }
       },
       "joplin": {
         "export": "Успешный экспорт в Joplin"
@@ -4945,6 +4957,7 @@
       },
       "export_menu": {
         "docx": "Экспорт в Word",
+        "html": "[to be translated]:Export as HTML",
         "image": "Экспорт как изображение",
         "joplin": "Экспорт в Joplin",
         "markdown": "Экспорт в Markdown",
