@@ -59,7 +59,7 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
                     variant="ghost"
                     size="icon"
                     asChild
-                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground">
+                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-foreground/4 hover:text-foreground">
                     <a
                       href={meta.docsWebsite}
                       target="_blank"
@@ -77,7 +77,7 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
                     variant="ghost"
                     size="icon"
                     asChild
-                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground">
+                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-foreground/4 hover:text-foreground">
                     <a
                       href={meta.modelsWebsite}
                       target="_blank"
@@ -94,7 +94,7 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground"
+                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-foreground/4 hover:text-foreground"
                     aria-label={t('settings.provider.api.options.label')}
                     onClick={() => setApiOptionsOpen(true)}>
                     <Bolt className="size-3.5" aria-hidden />

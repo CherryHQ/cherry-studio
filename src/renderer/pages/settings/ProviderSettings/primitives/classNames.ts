@@ -74,16 +74,16 @@ export const actionClasses = {
     'h-auto min-h-0 gap-2 rounded-lg px-3 py-1.5 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] shadow-none',
   /** Neutral outline (design: action row — no brand fill on check / API-key-list actions). */
   btnNeutral:
-    'border-[color:var(--color-border-default-soft)] bg-transparent text-[color:var(--color-fg-subtle)] hover:bg-[var(--accent)] hover:text-[color:var(--foreground)]'
+    'border-border/25 bg-transparent text-foreground/70 hover:bg-[var(--accent)] hover:text-[color:var(--foreground)]'
 } as const
 
 /** Provider list rows + detached menus. */
 export const providerListClasses = {
   shell: 'flex h-full w-[200px] shrink-0 basis-[200px] flex-col border-r border-[color:var(--section-border)]',
   headerIconButton:
-    'flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
+    'flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-accent/40 hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
   searchInlineAddButton:
-    'flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-foreground transition-colors hover:bg-[var(--color-surface-hover-soft)] disabled:pointer-events-none disabled:opacity-30',
+    'flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-foreground transition-colors hover:bg-accent/40 disabled:pointer-events-none disabled:opacity-30',
   searchRow: 'flex items-center gap-1.5 px-3 pb-2.5',
   searchWrap:
     'flex h-8 items-center gap-1 rounded-xl border border-[color:var(--section-border)] bg-background py-1 pl-2.5 pr-1',
@@ -115,7 +115,7 @@ export const providerListClasses = {
   groupCount: 'shrink-0 text-xs leading-none text-muted-foreground/60 tabular-nums',
   groupBody: 'mt-1 flex flex-col gap-[var(--provider-list-row-gap)] pl-3.5',
   itemMoreActions:
-    'absolute right-1.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 data-[active=true]:opacity-100',
+    'absolute right-1.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-foreground/4 hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 data-[active=true]:opacity-100',
   /** Enabled-state dot — shown when `provider.isEnabled` is true; hidden on row hover or focus so the kebab takes the slot. */
   itemEnabledDot:
     'pointer-events-none absolute right-2 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
@@ -164,11 +164,11 @@ export const drawerClasses = {
   helpText: 'text-xs text-foreground-muted',
   errorText: 'text-xs text-destructive',
   emptyInline:
-    'rounded-md border border-dashed border-[color:var(--color-border-fg-muted)] px-3 py-2 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/70',
+    'rounded-md border border-dashed border-foreground/12 px-3 py-2 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/70',
   toggleButton: cn(
     actionClasses.btnBase,
     actionClasses.btnNeutral,
-    'justify-center gap-1.5 rounded-lg border-[color:var(--color-border-fg-muted)] px-3 py-2 text-foreground/75 hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground'
+    'justify-center gap-1.5 rounded-lg border-foreground/12 px-3 py-2 text-foreground/75 hover:bg-foreground/4 hover:text-foreground'
   ),
   inlineRow: 'flex flex-wrap items-center gap-2',
   valueRow: 'flex min-w-0 items-center gap-2',
@@ -204,30 +204,30 @@ export const modelListClasses = {
   sectionTitle: cn(sectionHeadingBase, 'font-semibold'),
   countMeta: 'text-xs text-foreground-muted tabular-nums',
   toolbarGhost:
-    'h-auto rounded-3xs px-2.5 py-[5px] text-[length:var(--font-size-caption)] leading-[length:var(--line-height-caption)] text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground',
+    'h-auto rounded-3xs px-2.5 py-[5px] text-[length:var(--font-size-caption)] leading-[length:var(--line-height-caption)] text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
   /** Model-list title-row ghost: one step tighter than `toolbarGhost` (padding + body-xs + small icon). */
   toolbarHeaderGhost:
-    'h-auto min-h-0 rounded-4xs px-2 py-[3px] text-xs text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
+    'h-auto min-h-0 rounded-4xs px-2 py-[3px] text-xs text-muted-foreground/70 shadow-none hover:bg-foreground/4 hover:text-foreground',
   toolbarHeaderIconButton:
-    'size-8 rounded-4xs p-0 text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
+    'size-8 rounded-4xs p-0 text-muted-foreground/70 shadow-none hover:bg-foreground/4 hover:text-foreground',
   toolbarIcon: 'size-[13px] shrink-0',
   toolbarHeaderIcon: 'size-3 shrink-0',
   searchExpandRow: 'flex min-w-0 w-full flex-wrap items-center gap-2',
   searchRow: 'flex min-w-0 w-full flex-wrap items-center gap-2',
   searchActions: 'flex max-w-full shrink-0 flex-wrap items-center gap-2',
   searchWrap:
-    'flex h-[26px] w-full min-w-[160px] max-w-[200px] items-center gap-1 rounded-lg border border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-1',
+    'flex h-[26px] w-full min-w-[160px] max-w-[200px] items-center gap-1 rounded-lg border border-foreground/12 bg-background px-2.5 py-1',
   searchIcon: 'size-3 shrink-0 text-muted-foreground/65',
   searchInput:
     'min-w-0 flex-1 border-none bg-transparent text-xs leading-4 text-foreground/80 outline-none placeholder:text-muted-foreground/75 disabled:cursor-not-allowed disabled:opacity-60',
   searchClear:
-    'flex h-[18px] w-[18px] items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground/65',
+    'flex h-[18px] w-[18px] items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-foreground/4 hover:text-foreground/65',
   fetchActionButton:
-    'h-[26px] min-h-0 gap-1.5 rounded-md border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-0 text-xs leading-4 text-foreground shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'h-[26px] min-h-0 gap-1.5 rounded-md border-foreground/12 bg-background px-2.5 py-0 text-xs leading-4 text-foreground shadow-none hover:bg-foreground/4 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   addModelIconButton:
-    'size-[26px] min-h-0 rounded-md border-[color:var(--color-border-fg-muted)] bg-background p-0 text-foreground shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'size-[26px] min-h-0 rounded-md border-foreground/12 bg-background p-0 text-foreground shadow-none hover:bg-foreground/4 hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   addIconButton:
-    'size-8 rounded-lg border-[color:var(--color-border-fg-muted)] bg-transparent text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
+    'size-8 rounded-lg border-foreground/12 bg-transparent text-muted-foreground/70 shadow-none hover:bg-foreground/4 hover:text-foreground',
   capabilityTabsRoot: 'relative block min-w-0 w-full overflow-hidden',
   capabilityTabsList:
     'flex h-[30px] min-w-0 max-w-full items-center justify-start gap-3 overflow-x-auto overflow-y-hidden p-0 pr-8 scroll-ps-[100px] scroll-pe-[100px] scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
@@ -243,7 +243,7 @@ export const modelListClasses = {
   subsectionTitleWrap: 'flex min-w-0 items-center gap-2',
   subsectionActions: 'flex shrink-0 items-center gap-2 pr-1',
   subsectionIconButton:
-    'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40',
+    'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-foreground/4 hover:text-foreground disabled:opacity-40',
   subsectionIcon: 'size-4 shrink-0',
   subsectionTooltipTrigger: 'inline-flex size-5 min-h-0 shrink-0 items-center justify-center leading-none',
   subsectionTitleEnabled: 'text-xs text-foreground-muted',
@@ -251,7 +251,7 @@ export const modelListClasses = {
   subsectionTitleDisabled: 'text-xs text-foreground-muted',
   subsectionCountDisabled: 'text-xs text-foreground-muted tabular-nums',
   emptyState:
-    'flex min-h-40 items-center justify-center rounded-2xl border border-(--color-border) border-dashed bg-[var(--color-surface-fg-sunken)] px-4 text-center text-base text-foreground-muted',
+    'flex min-h-40 items-center justify-center rounded-2xl border border-(--color-border) border-dashed bg-foreground/3 px-4 text-center text-base text-foreground-muted',
   listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden pr-1',
   /**
    * — grouped catalog inside manage drawer (flat headers, no collapse).
@@ -284,7 +284,7 @@ export const modelListClasses = {
    * Provider-grouped card (design: bordered shell with collapsible header — provider name + chevron at end).
    * Replaces the antd-coupled wrapper; rows render inside the same card on expand.
    */
-  groupCard: 'min-w-0 w-full rounded-lg border border-[color:var(--color-border-fg-muted)] bg-transparent px-3 py-2',
+  groupCard: 'min-w-0 w-full rounded-lg border border-foreground/12 bg-transparent px-3 py-2',
   groupHeader:
     'group/groupRow flex w-full items-center justify-between gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
   groupToggleButton:
@@ -293,14 +293,14 @@ export const modelListClasses = {
   groupTitle:
     'min-w-0 flex-1 truncate text-xs text-foreground-muted font-normal transition-colors group-hover/groupRow:text-foreground',
   groupChevronButton:
-    'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/65 shadow-none transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground focus-visible:outline-none disabled:opacity-40',
+    'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/65 shadow-none transition-colors hover:bg-foreground/4 hover:text-foreground focus-visible:outline-none disabled:opacity-40',
   groupChevron:
     'size-4 shrink-0 text-muted-foreground/65 transition-[transform,color] duration-150 group-hover/groupRow:text-foreground',
   groupChevronOpen: 'rotate-90',
   groupBody: 'mt-1.5 flex flex-col gap-0.5',
   groupOverflowHint:
-    'mt-1 rounded-lg px-3 py-2 text-left text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/70 transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
-  row: 'group flex items-center gap-3 rounded-xl px-3 py-[10px] text-foreground leading-none transition-colors hover:bg-[var(--color-surface-fg-subtle)]',
+    'mt-1 rounded-lg px-3 py-2 text-left text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/70 transition-colors hover:bg-foreground/4 hover:text-foreground',
+  row: 'group flex items-center gap-3 rounded-xl px-3 py-[10px] text-foreground leading-none transition-colors hover:bg-foreground/4',
   rowMain: 'min-w-0 flex-1 items-center gap-3',
   rowAvatar: 'h-[26px] w-[26px] shrink-0 rounded-lg',
   rowBody: 'min-w-0 max-w-full flex-1 overflow-hidden',
@@ -322,21 +322,20 @@ export const modelListClasses = {
   rowActionsCluster: 'flex min-w-0 items-center gap-2',
   rowActions: 'min-w-0 shrink-0 items-center gap-1.5 self-center',
   rowIconButton:
-    'size-7 rounded-lg border border-[color:var(--color-border-fg-muted)] bg-transparent text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground'
+    'size-7 rounded-lg border border-foreground/12 bg-transparent text-muted-foreground/70 shadow-none hover:bg-foreground/4 hover:text-foreground'
 } as const
 
 export const modelSyncClasses = {
   panel: 'provider-settings-default-scope flex min-h-0 flex-1 flex-col gap-4',
-  summaryCard:
-    'rounded-2xl border border-[color:var(--color-border-fg-muted)] bg-[var(--color-surface-fg-sunken)] px-4 py-3',
+  summaryCard: 'rounded-2xl border border-foreground/12 bg-foreground/3 px-4 py-3',
   summaryTitle: 'text-base text-foreground/85 font-medium',
   summaryMeta: 'text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/75',
   summaryGrid: 'mt-3 grid gap-2 sm:grid-cols-3',
   summaryMetric:
-    'rounded-xl border border-[color:var(--color-border-fg-hairline)] bg-background/75 px-3 py-2 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-foreground/75',
+    'rounded-xl border border-foreground/6 bg-background/75 px-3 py-2 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-foreground/75',
   warningBlock:
-    'rounded-2xl border border-[color:var(--color-border-warning-soft)] bg-[var(--color-surface-warning-soft)] px-4 py-3 text-[length:var(--font-size-caption)] leading-6 text-foreground/80',
-  section: 'rounded-2xl border border-[color:var(--color-border-fg-muted)] bg-background px-4 py-4 shadow-none',
+    'rounded-2xl border border-destructive/22 bg-[var(--color-surface-warning-soft)] px-4 py-3 text-[length:var(--font-size-caption)] leading-6 text-foreground/80',
+  section: 'rounded-2xl border border-foreground/12 bg-background px-4 py-4 shadow-none',
   sectionHeader: 'flex flex-wrap items-center justify-between gap-3',
   sectionTitleWrap: 'min-w-0',
   sectionTitle: 'text-base text-foreground/85 font-medium',
@@ -345,25 +344,23 @@ export const modelSyncClasses = {
   toggleButton: cn(
     actionClasses.btnBase,
     actionClasses.btnNeutral,
-    'rounded-lg border-[color:var(--color-border-fg-muted)] px-3 py-[5px] text-foreground/70 hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground'
+    'rounded-lg border-foreground/12 px-3 py-[5px] text-foreground/70 hover:bg-foreground/4 hover:text-foreground'
   ),
   list: 'mt-4 space-y-2',
-  row: 'flex items-start gap-3 rounded-xl border border-[color:var(--color-border-fg-hairline)] bg-[var(--color-surface-fg-sunken)] px-3 py-3',
+  row: 'flex items-start gap-3 rounded-xl border border-foreground/6 bg-foreground/3 px-3 py-3',
   rowBody: 'min-w-0 flex-1',
   rowTitle: 'truncate text-base text-foreground/85',
   rowMeta: 'mt-1 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/75',
   rowBadgeRow: 'mt-2 flex flex-wrap items-center gap-1.5',
-  rowBadge:
-    'rounded-full border border-[color:var(--color-border-fg-muted)] bg-background px-2 py-0.5 text-xs text-foreground/65',
+  rowBadge: 'rounded-full border border-foreground/12 bg-background px-2 py-0.5 text-xs text-foreground/65',
   rowDangerBadge:
-    'rounded-full border border-[color:var(--color-border-warning-soft)] bg-[var(--color-surface-warning-soft)] px-2 py-0.5 text-xs text-foreground/75',
-  impactCard:
-    'rounded-2xl border border-[color:var(--color-border-info-soft)] bg-[var(--color-surface-info-soft)] px-4 py-4',
+    'rounded-full border border-destructive/22 bg-[var(--color-surface-warning-soft)] px-2 py-0.5 text-xs text-foreground/75',
+  impactCard: 'rounded-2xl border border-foreground/12 bg-[var(--color-surface-info-soft)] px-4 py-4',
   impactList: 'mt-3 space-y-2',
   impactItem:
-    'rounded-xl border border-[color:var(--color-border-fg-hairline)] bg-background/80 px-3 py-2 text-[length:var(--font-size-caption)] leading-6 text-foreground/78',
+    'rounded-xl border border-foreground/6 bg-background/80 px-3 py-2 text-[length:var(--font-size-caption)] leading-6 text-foreground/78',
   emptyState:
-    'rounded-2xl border border-dashed border-[color:var(--color-border-fg-muted)] bg-[var(--color-surface-fg-sunken)] px-4 py-8 text-center text-base text-muted-foreground/75',
+    'rounded-2xl border border-dashed border-foreground/12 bg-foreground/3 px-4 py-8 text-center text-base text-muted-foreground/75',
   footer: 'flex items-center justify-end gap-2',
   /** pull preview panel — pull result side panel */
   fetchEmpty: 'flex flex-col items-center justify-center px-4 py-12 text-center',
@@ -405,9 +402,9 @@ export const apiKeyListClasses = {
   shell: 'provider-settings-default-scope space-y-4',
   summaryMeta: 'text-xs text-foreground-muted tabular-nums',
   helperText: 'text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-foreground-muted',
-  listWrap: 'overflow-hidden rounded-lg border border-[color:var(--color-border-fg-muted)] bg-transparent',
+  listWrap: 'overflow-hidden rounded-lg border border-foreground/12 bg-transparent',
   listScroller: 'max-h-[60vh] overflow-x-hidden',
-  keyRow: 'flex flex-col gap-2 border-b border-[color:var(--color-border-fg-hairline)] px-4 py-3 last:border-b-0',
+  keyRow: 'flex flex-col gap-2 border-b border-foreground/6 px-4 py-3 last:border-b-0',
   keyRowHeader: 'flex items-start justify-between gap-3',
   keyLabel:
     'min-w-0 truncate text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-foreground font-medium',
@@ -452,8 +449,7 @@ export const oauthCardClasses = {
   topupPrimaryButton: 'h-auto min-h-0 px-2.5 py-[3px] text-xs shadow-none',
   logoutCompact:
     'h-auto min-h-0 rounded-md px-1.5 py-[3px] text-xs text-muted-foreground/30 shadow-none hover:bg-transparent hover:text-foreground',
-  serviceAttribution:
-    'mt-2.5 border-t border-[color:var(--color-border-fg-hairline)] pt-2.5 text-xs text-muted-foreground/25',
+  serviceAttribution: 'mt-2.5 border-t border-foreground/6 pt-2.5 text-xs text-muted-foreground/25',
   serviceLink: 'text-muted-foreground/40 transition-colors hover:text-foreground',
   actionsRow: 'flex flex-wrap items-center gap-2',
   footer: 'mt-4 text-[12px] leading-[1.35] text-foreground-muted'

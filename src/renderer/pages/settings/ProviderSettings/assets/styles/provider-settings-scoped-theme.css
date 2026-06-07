@@ -86,8 +86,6 @@
   --line-height-caption: 1.25;
   /* Model list capability glyphs — match CustomTag `size` (e.g. 10px) for lucide SVG + iconfont */
   --icon-size-model-list-cap: 0.625rem;
-  --color-border-default-soft: color-mix(in srgb, var(--border) 25%, transparent);
-  --color-fg-subtle: color-mix(in srgb, var(--foreground) 70%, transparent);
   /* 1rem (16px): block title (e.g. Models); stays above caption tier; not shrinking to smaller design-only specs */
   --font-size-heading-sm: 1rem;
   --line-height-heading-sm: 1.3;
@@ -108,17 +106,8 @@
    */
   --font-size-chip-label: var(--font-size-caption);
   --font-size-chip-count: var(--cs-font-size-body-xs);
-  --color-border-fg-hairline: color-mix(in srgb, var(--foreground) 6%, transparent);
-  --color-surface-fg-sunken: color-mix(in srgb, var(--foreground) 3%, transparent);
-  --color-surface-fg-subtle: color-mix(in srgb, var(--foreground) 4%, transparent);
-  --color-border-fg-muted: color-mix(in srgb, var(--foreground) 12%, transparent);
-  --color-surface-fg-muted: color-mix(in srgb, var(--foreground) 10%, transparent);
-  /* Matches prior hover:bg-accent/40 intent; follows --accent in light/dark */
-  --color-surface-hover-soft: color-mix(in srgb, var(--accent) 40%, transparent);
   --color-surface-warning-soft: color-mix(in srgb, var(--destructive) 8%, var(--background));
-  --color-border-warning-soft: color-mix(in srgb, var(--destructive) 22%, transparent);
   --color-surface-info-soft: color-mix(in srgb, var(--foreground) 4%, var(--background));
-  --color-border-info-soft: color-mix(in srgb, var(--foreground) 12%, transparent);
   /* Unify outer list scroller with virtual list max (was 380 vs 390) */
   --max-height-scroll-sm: 390px;
   /*
