@@ -7,7 +7,7 @@ import {
   BaseService,
   Conditional,
   Injectable,
-  onCpuVendor,
+  onGpuVendor,
   onPlatform,
   Phase,
   ServicePhase
@@ -38,7 +38,7 @@ interface OvmsConfig {
 
 @Injectable('OvmsManager')
 @ServicePhase(Phase.WhenReady)
-@Conditional(onPlatform('win32'), onCpuVendor('intel'))
+@Conditional(onPlatform('win32'), onGpuVendor('intel'))
 export class OvmsManager extends BaseService {
   private ovms: OvmsProcess | null = null
 

@@ -1,5 +1,7 @@
 import os from 'node:os'
 
+import { getGpuNames } from '@main/utils/system'
+
 import type { ConditionContext, ServiceCondition } from './types'
 
 /**
@@ -12,6 +14,7 @@ export function createConditionContext(): ConditionContext {
     platform: process.platform,
     arch: process.arch,
     cpuModel: cpus.length > 0 ? cpus[0].model : '',
+    gpuModel: getGpuNames().join(' '),
     env: process.env as Record<string, string | undefined>
   }
 }
@@ -56,6 +59,22 @@ export function onCpuVendor(vendor: string): ServiceCondition {
     description: `requires ${vendor} CPU`,
     matches(ctx) {
       return ctx.cpuModel.length > 0 && ctx.cpuModel.toLowerCase().includes(vendorLower)
+    }
+  }
+}
+
+/**
+ * Activate only when GPU model string contains the vendor name (case-insensitive).
+ * Returns false when gpuModel is empty (e.g., GPU info could not be detected).
+ * @example onGpuVendor('nvidia')
+ * @example onGpuVendor('intel')
+ */
+export function onGpuVendor(vendor: string): ServiceCondition {
+  const vendorLower = vendor.toLowerCase()
+  return {
+    description: `requires ${vendor} GPU`,
+    matches(ctx) {
+      return ctx.gpuModel.length > 0 && ctx.gpuModel.toLowerCase().includes(vendorLower)
     }
   }
 }

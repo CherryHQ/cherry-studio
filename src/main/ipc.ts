@@ -512,7 +512,7 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
 
   // OVMS — operation handlers registered by OvmsManager.onInit() (activated only on Win+Intel)
-  // Condition logic must stay in sync with OvmsManager's @Conditional(onPlatform('win32'), onCpuVendor('intel'))
+  // Condition logic must stay in sync with OvmsManager's @Conditional(onPlatform('win32'), onGpuVendor('intel'))
   ipcMain.handle(
     IpcChannel.Ovms_IsSupported,
     () => isWin && getGpuNames().some((name) => name.toLowerCase().includes('intel'))
