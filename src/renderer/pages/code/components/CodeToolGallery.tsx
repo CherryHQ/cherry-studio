@@ -125,7 +125,7 @@ export function CodeToolGallery({
               const isPinned = !!overrides[item.id]?.pinned
               return (
                 <div className="group relative">
-                  <div className="absolute top-2 left-2 z-10 cursor-grab rounded-md p-0.5 opacity-0 transition-opacity group-hover:opacity-40 hover:!opacity-100 active:cursor-grabbing">
+                  <div className="hover:!opacity-100 absolute top-2 left-2 z-10 cursor-grab rounded-md p-0.5 opacity-0 transition-opacity active:cursor-grabbing group-hover:opacity-40">
                     <GripVertical size={14} />
                   </div>
                   <CodeToolCard

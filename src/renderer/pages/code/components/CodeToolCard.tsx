@@ -46,13 +46,14 @@ export function CodeToolCard({
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
               e.stopPropagation()
               onTogglePin()
             }
           }}
           className={cn(
             'absolute top-2 right-2 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md transition-opacity',
-            pinned ? 'opacity-100 text-foreground' : 'opacity-0 group-hover:opacity-60 hover:!opacity-100'
+            pinned ? 'text-foreground opacity-100' : 'hover:!opacity-100 opacity-0 group-hover:opacity-60'
           )}>
           {pinned ? <Pin size={13} /> : <PinOff size={13} />}
         </span>
