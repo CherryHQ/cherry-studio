@@ -67,6 +67,53 @@ function toDirectMappings(tokenNames: string[], sourcePrefix = '--cs-'): string[
   return tokenNames.map((tokenName) => `--${tokenName}: var(${sourcePrefix}${tokenName});`)
 }
 
+/**
+ * Wire the semantic font sizes into Tailwind v4 `text-*` utilities.
+ *
+ * Tailwind generates `text-*` font-size utilities from the `--text-*` theme
+ * namespace (pairing a line-height via the `--text-*--line-height` companion). The
+ * design tokens live under `--font-size-*` / `--line-height-*`, which Tailwind does
+ * NOT turn into utilities — so this emits `--text-*` aliases for them.
+ *
+ * The body sizes (12/14/16/18px) are exactly Tailwind's built-in `text-xs/sm/base/lg`,
+ * so we OVERRIDE those built-ins (same size, design line-height) — existing
+ * `text-xs`/`text-sm` usages pick up the design rhythm with no migration. The heading
+ * scale gets semantic `text-heading-*` names (heading-md/lg are off Tailwind's scale,
+ * and this avoids changing the built-in display sizes `text-xl/2xl/5xl`).
+ *
+ * The raw `--font-size-*` / `--line-height-*` mappings are kept too for code that
+ * references them directly.
+ */
+const FONT_SIZE_UTILITY_MAP: Record<string, string> = {
+  'body-xs': 'xs',
+  'body-sm': 'sm',
+  'body-md': 'base',
+  'body-lg': 'lg',
+  'heading-xs': 'heading-xs',
+  'heading-sm': 'heading-sm',
+  'heading-md': 'heading-md',
+  'heading-lg': 'heading-lg',
+  'heading-xl': 'heading-xl',
+  'heading-2xl': 'heading-2xl'
+}
+
+function toTextUtilityMappings(tokenNames: string[], sourcePrefix = '--cs-'): string[] {
+  const hasLineHeight = new Set(tokenNames.filter((name) => name.startsWith('line-height-')))
+  const lines: string[] = []
+  for (const name of tokenNames) {
+    const match = name.match(/^font-size-(.+)$/)
+    if (!match) continue
+    const scale = match[1] // e.g. 'body-sm', 'heading-2xl'
+    const target = FONT_SIZE_UTILITY_MAP[scale]
+    if (!target) continue
+    lines.push(`--text-${target}: var(${sourcePrefix}font-size-${scale});`)
+    if (hasLineHeight.has(`line-height-${scale}`)) {
+      lines.push(`--text-${target}--line-height: var(${sourcePrefix}line-height-${scale});`)
+    }
+  }
+  return lines
+}
+
 function buildSection(title: string, lines: string[]): string {
   const indentedLines = lines.map((line) => (line ? `  ${line}` : '')).join('\n')
 
@@ -89,7 +136,10 @@ export function buildThemeContractCss(inputs: ThemeContractInputs): string {
     buildSection('Status Colors', toPrefixedMappings(inputs.statusColors, 'color-')),
     buildSection('Spacing', SPACING_COMMENT_LINES),
     buildSection('Radius', toDirectMappings(inputs.radiusTokens)),
-    buildSection('Typography', toDirectMappings(inputs.typographyTokens))
+    buildSection('Typography', [
+      ...toDirectMappings(inputs.typographyTokens),
+      ...toTextUtilityMappings(inputs.typographyTokens)
+    ])
   ]
 
   return `/**

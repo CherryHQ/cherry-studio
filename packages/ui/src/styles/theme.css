@@ -429,6 +429,25 @@
   --paragraph-spacing-heading-lg: var(--cs-paragraph-spacing-heading-lg);
   --paragraph-spacing-heading-xl: var(--cs-paragraph-spacing-heading-xl);
   --paragraph-spacing-heading-2xl: var(--cs-paragraph-spacing-heading-2xl);
+  --text-xs: var(--cs-font-size-body-xs);
+  --text-xs--line-height: var(--cs-line-height-body-xs);
+  --text-sm: var(--cs-font-size-body-sm);
+  --text-sm--line-height: var(--cs-line-height-body-sm);
+  --text-base: var(--cs-font-size-body-md);
+  --text-base--line-height: var(--cs-line-height-body-md);
+  --text-lg: var(--cs-font-size-body-lg);
+  --text-lg--line-height: var(--cs-line-height-body-lg);
+  --text-heading-xs: var(--cs-font-size-heading-xs);
+  --text-heading-xs--line-height: var(--cs-line-height-heading-xs);
+  --text-heading-sm: var(--cs-font-size-heading-sm);
+  --text-heading-sm--line-height: var(--cs-line-height-heading-sm);
+  --text-heading-md: var(--cs-font-size-heading-md);
+  --text-heading-md--line-height: var(--cs-line-height-heading-md);
+  --text-heading-lg: var(--cs-font-size-heading-lg);
+  --text-heading-lg--line-height: var(--cs-line-height-heading-lg);
+  --text-heading-xl: var(--cs-font-size-heading-xl);
+  --text-heading-xl--line-height: var(--cs-line-height-heading-xl);
+  --text-heading-2xl: var(--cs-font-size-heading-2xl);
 }
 
 @layer base {

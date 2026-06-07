@@ -127,20 +127,22 @@ Available primitive scales in `tokens/colors/primitive.css` (each has 11 shades,
 
 ### Size Scale
 
-| Role | Token | Approx. value |
-|------|-------|--------------|
-| Body XS | `var(--font-size-body-xs)` | 12px — tags, badges, timestamps, metadata |
-| Body SM | `var(--font-size-body-sm)` | 14px — navigation, secondary labels, captions |
-| Body MD | `var(--font-size-body-md)` | 16px — standard body text, form inputs, descriptions |
-| Body LG | `var(--font-size-body-lg)` | 18px — emphasized body, sub-headings |
-| Heading XS | `var(--font-size-heading-xs)` | 20px — minor section titles |
-| Heading SM | `var(--font-size-heading-sm)` | 24px — sub-section headings |
-| Heading MD | `var(--font-size-heading-md)` | 32px — section headings |
-| Heading LG | `var(--font-size-heading-lg)` | 40px — page titles |
-| Heading XL | `var(--font-size-heading-xl)` | 48px — hero headlines |
-| Heading 2XL | `var(--font-size-heading-2xl)` | 60px — display / landing |
+Each role maps to a **utility class that sets font-size + the paired line-height in one** — prefer these in component code over hand-pairing `text-* leading-*` or arbitrary `text-[Npx]`.
 
-The full Tailwind text scale is also exposed: `--text-xs` through `--text-9xl` (12px → 128px) for large display contexts.
+| Role | Utility class | Approx. value (size / line-height) |
+|------|---------------|------------------------------------|
+| Body XS | `text-xs` | 12 / 20px — tags, badges, timestamps, metadata |
+| Body SM | `text-sm` | 14 / 24px — navigation, secondary labels, captions |
+| Body MD | `text-base` | 16 / 24px — standard body text, form inputs, descriptions |
+| Body LG | `text-lg` | 18 / 28px — emphasized body, sub-headings |
+| Heading XS | `text-heading-xs` | 20 / 32px — minor section titles |
+| Heading SM | `text-heading-sm` | 24 / 40px — sub-section headings |
+| Heading MD | `text-heading-md` | 32 / 48px — section headings |
+| Heading LG | `text-heading-lg` | 40 / 60px — page titles |
+| Heading XL | `text-heading-xl` | 48 / 80px — hero headlines |
+| Heading 2XL | `text-heading-2xl` | 60px (no paired line-height token) — display / landing |
+
+The **body sizes (12/14/16/18px) are exactly Tailwind's built-in `text-xs/sm/base/lg`**, so those built-ins are overridden to carry the design line-height — existing `text-xs`/`text-sm` already get the right rhythm. Headings use semantic `text-heading-*` names (heading-md/lg are off Tailwind's default scale). The `--font-size-*` / `--line-height-*` CSS vars remain for raw `var(...)` references but are legacy — prefer the utility classes. The rest of the Tailwind text scale (`text-3xl/4xl/7xl…`) stays at its defaults for display contexts.
 
 ### Weight System
 
