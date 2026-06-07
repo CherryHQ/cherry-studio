@@ -91,6 +91,22 @@ export const DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP = 200
 export const KNOWLEDGE_RUNTIME_ITEMS_MAX = 100
 export const KNOWLEDGE_NOTE_CONTENT_MAX = 1_000_000
 
+// ─── Field atoms ───
+// Single shared truth for field rules consumed from multiple layers: the BO
+// object schemas below, service DO write guards, and migrator probes all
+// reference these atoms instead of restating the rule. Inlining a rule in an
+// object schema leaves guards nothing to reference, so they hand-copy it —
+// which is how the migrator's `name !== ''` drifted from the read path's
+// `trim().min(1)` and let a blank-name base poison the list query (#15737).
+export const KnowledgeBaseNameSchema = z.string().trim().min(1)
+export const KnowledgeBaseDimensionsSchema = z.number().int().positive()
+export const KnowledgeEmbeddingModelIdSchema = z.string().trim().min(1)
+export const KnowledgeItemSourceSchema = z.string().trim().min(1)
+export const KnowledgeItemUrlSchema = z.string().trim().min(1)
+export const KnowledgeNoteContentSchema = z.string().max(KNOWLEDGE_NOTE_CONTENT_MAX)
+export const KnowledgeDirectoryPathSchema = z.string().trim().min(1)
+export const KnowledgeItemErrorSchema = z.string().trim().min(1)
+
 // ============================================================================
 // Knowledge Base Entity
 // ============================================================================
@@ -100,10 +116,10 @@ export const KNOWLEDGE_NOTE_CONTENT_MAX = 1_000_000
  */
 export const KnowledgeBaseEntitySchema = z.strictObject({
   id: KnowledgeBaseIdSchema,
-  name: z.string().trim().min(1),
+  name: KnowledgeBaseNameSchema,
   groupId: GroupIdSchema.nullable(),
-  dimensions: z.number().int().positive().nullable(),
-  embeddingModelId: z.string().trim().min(1).nullable(),
+  dimensions: KnowledgeBaseDimensionsSchema.nullable(),
+  embeddingModelId: KnowledgeEmbeddingModelIdSchema.nullable(),
   status: KnowledgeBaseStatusSchema,
   error: KnowledgeBaseErrorCodeSchema.nullable(),
   rerankModelId: z.string().nullable().optional(),
@@ -176,7 +192,7 @@ export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
 // ============================================================================
 
 const KnowledgeItemSharedSchema = z.strictObject({
-  source: z.string().trim().min(1).describe('Original user-facing source identifier for the knowledge item.')
+  source: KnowledgeItemSourceSchema.describe('Original user-facing source identifier for the knowledge item.')
 })
 
 /**
@@ -190,14 +206,14 @@ export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
  * URL item data.
  */
 export const UrlItemDataSchema = KnowledgeItemSharedSchema.extend({
-  url: z.string().trim().min(1).describe('URL to read and index.')
+  url: KnowledgeItemUrlSchema.describe('URL to read and index.')
 })
 
 /**
  * Note item data.
  */
 export const NoteItemDataSchema = KnowledgeItemSharedSchema.extend({
-  content: z.string().max(KNOWLEDGE_NOTE_CONTENT_MAX).describe('Plain text note content to index.'),
+  content: KnowledgeNoteContentSchema.describe('Plain text note content to index.'),
   sourceUrl: z.string().optional().describe('Optional external URL associated with the note.')
 })
 
@@ -205,7 +221,7 @@ export const NoteItemDataSchema = KnowledgeItemSharedSchema.extend({
  * Directory item data.
  */
 export const DirectoryItemDataSchema = KnowledgeItemSharedSchema.extend({
-  path: z.string().trim().min(1).describe('Directory path to expand into child file or directory items.')
+  path: KnowledgeDirectoryPathSchema.describe('Directory path to expand into child file or directory items.')
 })
 
 /**
@@ -272,7 +288,7 @@ const DeletingKnowledgeItemLifecycleSchema = {
 
 const FailedKnowledgeItemLifecycleSchema = {
   status: z.literal('failed').describe('Workflow failed.'),
-  error: z.string().trim().min(1).describe('Non-empty failure message for failed items.')
+  error: KnowledgeItemErrorSchema.describe('Non-empty failure message for failed items.')
 } as const
 
 const createLeafKnowledgeItemEntitySchemas = <TType extends KnowledgeItemType, TData extends z.ZodType>(
@@ -390,7 +406,7 @@ export type KnowledgeItemOf<T extends KnowledgeItemType> = Extract<KnowledgeItem
 export const KnowledgeChunkMetadataSchema = z.strictObject({
   itemId: KnowledgeItemIdSchema,
   itemType: KnowledgeItemTypeSchema,
-  source: z.string().trim().min(1),
+  source: KnowledgeItemSourceSchema,
   chunkIndex: z.number().int().min(0),
   tokenCount: z.number().int().min(0)
 })
@@ -424,8 +440,8 @@ export type KnowledgeItemChunk = z.infer<typeof KnowledgeItemChunkSchema>
 // ============================================================================
 
 const KnowledgeBaseRuntimeConfigSchema = z.strictObject({
-  dimensions: z.number().int().positive(),
-  embeddingModelId: z.string().trim().min(1),
+  dimensions: KnowledgeBaseDimensionsSchema,
+  embeddingModelId: KnowledgeEmbeddingModelIdSchema,
   rerankModelId: z.string().nullable().optional(),
   fileProcessorId: z.string().nullable().optional(),
   chunkSize: KnowledgeChunkSizeSchema.optional(),
@@ -459,20 +475,20 @@ const refineRuntimeConfig = (value: z.infer<typeof KnowledgeBaseRuntimeConfigSch
  * orchestration creates the SQLite row and initializes the vector store.
  */
 export const CreateKnowledgeBaseSchema = KnowledgeBaseRuntimeConfigSchema.extend({
-  name: z.string().trim().min(1),
+  name: KnowledgeBaseNameSchema,
   groupId: KnowledgeBaseGroupIdInputSchema.optional()
 }).superRefine(refineRuntimeConfig)
 export type CreateKnowledgeBaseDto = z.input<typeof CreateKnowledgeBaseSchema>
 
 export const RestoreKnowledgeBaseSchema = z.strictObject({
   sourceBaseId: z.string().trim().pipe(KnowledgeBaseIdSchema),
-  name: z.string().trim().min(1),
+  name: KnowledgeBaseNameSchema,
   // Dimensions must be the resolved embedding vector size for embeddingModelId.
   // Automatic callers should fill this from AI Core dimension detection; manual
   // callers are responsible for confirming the value matches the selected model.
   // Restore validates shape only and does not probe the model again server-side.
-  dimensions: z.number().int().positive(),
-  embeddingModelId: z.string().trim().min(1)
+  dimensions: KnowledgeBaseDimensionsSchema,
+  embeddingModelId: KnowledgeEmbeddingModelIdSchema
 })
 export type RestoreKnowledgeBaseDto = z.input<typeof RestoreKnowledgeBaseSchema>
 
