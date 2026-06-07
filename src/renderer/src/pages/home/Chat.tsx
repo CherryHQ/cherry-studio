@@ -1,4 +1,5 @@
 import { RowFlex } from '@cherrystudio/ui'
+import { useMutation } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
@@ -35,6 +36,12 @@ import ChatNavbar from './components/ChatNavBar'
 import Inputbar from './Inputbar/Inputbar'
 import { type Branch, type BranchAnchor, BranchPane, pickNextColor } from './Messages/BranchPanel'
 import { abortBranchTopicStream } from './Messages/BranchPanel/abortBranchTopicStream'
+import {
+  DEFAULT_BRANCH_DISPOSITION,
+  disposeBranchTopicOnClose,
+  toggleDisposition
+} from './Messages/BranchPanel/branchDisposition'
+import { scheduleForkTopicDeletion } from './Messages/BranchPanel/scheduleForkTopicDeletion'
 import ChatNavigation from './Messages/ChatNavigation'
 import Messages from './Messages/Messages'
 import Tabs from './Tabs'
@@ -103,7 +110,9 @@ const Chat: FC<Props> = (props) => {
         },
         topic: null,
         createdAt: Date.now(),
-        color: pickNextColor(prev.map((b) => b.color))
+        color: pickNextColor(prev.map((b) => b.color)),
+        // P1-S3: pending = closing silently deletes the fork topic; Keep opts out.
+        disposition: DEFAULT_BRANCH_DISPOSITION
       }
     ])
   }, [])
@@ -175,24 +184,43 @@ const Chat: FC<Props> = (props) => {
     })
   }, [])
 
-  // P1-S2b-1: per-branch close (X-button OR composer Cancel).
-  // 0. P1-B5: if this branch's forked topic has an in-flight streaming reply,
-  //    abort it FIRST (capture the topic id before we drop the branch). A
-  //    non-streaming branch aborts nothing.
-  // 1. Targeted clear of THIS branch's highlight spans (S2a-targeted API,
-  //    other branches' spans stay intact).
-  // 2. Drop from branches[].
-  // 3. Drop from collapsedBranchIds (else a stale id would haunt the set if
-  //    the user reopens a branch with a recycled id, although uuid makes
-  //    that vanishingly unlikely).
-  // 4. If the closed branch was the currently-creating one, reset fork state
+  // P1-S3: reuse the existing DataApi `DELETE /topics/:id` (the same endpoint
+  // useBranchFork's POST /topics created the fork on) to silently delete a
+  // pending branch's fork topic on close. No Redux/Dexie internals touched.
+  const { trigger: deleteForkTopic } = useMutation('DELETE', '/topics/:id', {
+    refresh: ['/topics']
+  })
+
+  // P1-S3: Keep toggle (pending ↔ kept). Lifted like the other branch fields.
+  const toggleKeepBranch = useCallback((branchId: string) => {
+    setBranches((prev) =>
+      prev.map((b) => (b.id === branchId ? { ...b, disposition: toggleDisposition(b.disposition) } : b))
+    )
+  }, [])
+
+  // P1-S2b-1 + B5 + S3: per-branch close (X-button OR composer Cancel).
+  // 0. P1-B5: abort this branch's in-flight streaming reply FIRST (capture the
+  //    branch before we drop it). Runs regardless of disposition. Returns the
+  //    aborted message ids (empty = non-streaming).
+  // 0b. P1-S3: route by disposition — pending (default) DELETEs the fork topic
+  //    (silently, via the existing DataApi DELETE /topics/:id); kept leaves it.
+  //    P1-S3 delete-after-settle: when streaming was aborted, defer the delete
+  //    until those messages' finalize lands (MESSAGE_COMPLETE) so it doesn't
+  //    race the finalize PATCH → 404. Non-streaming deletes immediately.
+  // 1. Targeted clear of THIS branch's highlight spans (S2a-targeted API).
+  // 2. Drop from branches[] + collapsedBranchIds IMMEDIATELY (instant UX —
+  //    the deferred delete only affects the DB row, not the panel).
+  // 3. If the closed branch was the currently-creating one, reset fork state
   //    so a stale 'creating' / 'error' doesn't bleed into the next compose.
-  // NOTE: this does NOT DELETE the branch topic from SQLite — the row stays
-  // as an orphan until S3 disposition (discard vs save) ships path Y.
   const handleCloseBranch = useCallback(
     (branchId: string) => {
-      const branchTopicId = branches.find((b) => b.id === branchId)?.topic?.id
-      if (branchTopicId) abortBranchTopicStream(branchTopicId)
+      const branch = branches.find((b) => b.id === branchId)
+      const abortedMessageIds = branch?.topic ? abortBranchTopicStream(branch.topic.id) : []
+      if (branch) {
+        disposeBranchTopicOnClose(branch, (topicId) =>
+          scheduleForkTopicDeletion(topicId, abortedMessageIds, (id) => void deleteForkTopic({ params: { id } }))
+        )
+      }
       clearSourceHighlight(branchId)
       setBranches((prev) => prev.filter((b) => b.id !== branchId))
       setCollapsedBranchIds((prev) => {
@@ -207,7 +235,7 @@ const Chat: FC<Props> = (props) => {
         branchFork.reset()
       }
     },
-    [branches, branchFork]
+    [branches, branchFork, deleteForkTopic]
   )
 
   // Synthetic assistant for the branch subtree. Same id as the main assistant,
@@ -465,6 +493,7 @@ const Chat: FC<Props> = (props) => {
             onCreate={handleCreateBranchFollowUp}
             onSendFollowUp={handleSendBranchFollowUp}
             onCloseBranch={handleCloseBranch}
+            onToggleKeepBranch={toggleKeepBranch}
           />
         </BranchAssistantContext>
       </RowFlex>

@@ -29,6 +29,8 @@ interface Props {
   onSendFollowUp: (branchId: string, followUp: string) => void
   /** Close a single branch (header X or composer Cancel). Removes it + clears its spans. */
   onCloseBranch: (branchId: string) => void
+  /** P1-S3: toggle a single branch's disposition pending ↔ kept (Keep button). */
+  onToggleKeepBranch: (branchId: string) => void
 }
 
 /**
@@ -57,7 +59,8 @@ export default function BranchPane({
   forkErrorMessage,
   onCreate,
   onSendFollowUp,
-  onCloseBranch
+  onCloseBranch,
+  onToggleKeepBranch
 }: Props) {
   const { t } = useTranslation()
   const isVisible = branches.length > 0
@@ -142,6 +145,7 @@ export default function BranchPane({
               onClose={() => onCloseBranch(branch.id)}
               onCreate={(followUp) => onCreate(branch.id, followUp)}
               onSendFollowUp={(followUp) => onSendFollowUp(branch.id, followUp)}
+              onToggleKeep={() => onToggleKeepBranch(branch.id)}
             />
           ))}
         </div>

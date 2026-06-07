@@ -31,7 +31,8 @@ const composeBranch: Branch = {
   },
   topic: null,
   createdAt: 1_700_000_000_000,
-  color: 'c2'
+  color: 'c2',
+  disposition: 'pending'
 }
 
 const conversationBranch: Branch = {
@@ -59,6 +60,7 @@ function renderItem(branch: Branch, collapsed: boolean) {
       onClose={vi.fn()}
       onCreate={vi.fn()}
       onSendFollowUp={vi.fn()}
+      onToggleKeep={vi.fn()}
     />
   )
 }
@@ -100,6 +102,7 @@ describe('BranchAccordionItem (P1-S2c-accordion)', () => {
         onClose={vi.fn()}
         onCreate={vi.fn()}
         onSendFollowUp={vi.fn()}
+        onToggleKeep={vi.fn()}
       />
     )
     const itemB = screen.getByTestId(`branch-item-${conversationBranch.id}`)

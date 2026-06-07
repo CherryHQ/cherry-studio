@@ -19,7 +19,8 @@ const branch: Branch = {
   },
   topic: null,
   createdAt: 1_700_000_000_000,
-  color: 'c2'
+  color: 'c2',
+  disposition: 'pending'
 }
 
 afterEach(() => {

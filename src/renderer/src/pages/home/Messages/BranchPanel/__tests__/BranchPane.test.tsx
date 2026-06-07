@@ -60,6 +60,7 @@ function renderPane(props: Partial<React.ComponentProps<typeof BranchPane>> = {}
       onCreate={vi.fn()}
       onSendFollowUp={vi.fn()}
       onCloseBranch={vi.fn()}
+      onToggleKeepBranch={vi.fn()}
       {...props}
     />
   )
@@ -137,6 +138,7 @@ describe('BranchPane (P1-S2c-accordion)', () => {
           onCreate={vi.fn()}
           onSendFollowUp={vi.fn()}
           onCloseBranch={vi.fn()}
+          onToggleKeepBranch={vi.fn()}
         />
       )
       scrollSpy.mockClear() // ignore the mount-time reveal of branch A
@@ -151,6 +153,7 @@ describe('BranchPane (P1-S2c-accordion)', () => {
           onCreate={vi.fn()}
           onSendFollowUp={vi.fn()}
           onCloseBranch={vi.fn()}
+          onToggleKeepBranch={vi.fn()}
         />
       )
       expect(scrollSpy).toHaveBeenCalledTimes(1)

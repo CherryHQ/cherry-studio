@@ -32,7 +32,8 @@ const composeBranch: Branch = {
   },
   topic: null,
   createdAt: 1_700_000_000_000,
-  color: 'c2'
+  color: 'c2',
+  disposition: 'pending'
 }
 
 const conversationBranch: Branch = {
@@ -63,6 +64,7 @@ describe('BranchDetail (P1-S2c detail block)', () => {
         onCreate={vi.fn()}
         onSendFollowUp={vi.fn()}
         onClose={vi.fn()}
+        onToggleKeep={vi.fn()}
       />
     )
     expect(screen.getByTestId('branch-composer-quote')).toBeInTheDocument()
@@ -78,6 +80,7 @@ describe('BranchDetail (P1-S2c detail block)', () => {
         onCreate={vi.fn()}
         onSendFollowUp={vi.fn()}
         onClose={vi.fn()}
+        onToggleKeep={vi.fn()}
       />
     )
     expect(screen.queryByTestId('branch-composer-quote')).toBeNull()
@@ -94,6 +97,7 @@ describe('BranchDetail (P1-S2c detail block)', () => {
         onCreate={vi.fn()}
         onSendFollowUp={vi.fn()}
         onClose={vi.fn()}
+        onToggleKeep={vi.fn()}
       />
     )
     // P1-S2c-accordion: the shrink-0 box now lives on BranchAccordionItem; this
@@ -112,6 +116,7 @@ describe('BranchDetail (P1-S2c detail block)', () => {
         onCreate={vi.fn()}
         onSendFollowUp={vi.fn()}
         onClose={onClose}
+        onToggleKeep={vi.fn()}
       />
     )
     fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
@@ -127,6 +132,7 @@ describe('BranchDetail (P1-S2c detail block)', () => {
         onCreate={vi.fn()}
         onSendFollowUp={onSendFollowUp}
         onClose={vi.fn()}
+        onToggleKeep={vi.fn()}
       />
     )
     fireEvent.change(screen.getByLabelText('chat.message.anchor.panel.follow_up_label'), {
@@ -134,5 +140,51 @@ describe('BranchDetail (P1-S2c detail block)', () => {
     })
     fireEvent.click(screen.getByTestId('branch-followup-send'))
     expect(onSendFollowUp).toHaveBeenCalledExactlyOnceWith('next turn')
+  })
+
+  // ── Keep toggle (P1-S3) ──────────────────────────────────────────────────
+  it('Keep toggle shows pending by default (not kept) and kept when disposition=kept', () => {
+    const { rerender } = render(
+      <BranchDetail
+        branch={composeBranch} // disposition: 'pending'
+        forkStatus="idle"
+        onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
+        onClose={vi.fn()}
+        onToggleKeep={vi.fn()}
+      />
+    )
+    const keep = () => screen.getByTestId('branch-keep-toggle')
+    expect(keep()).toHaveAttribute('aria-pressed', 'false')
+    expect(keep()).toHaveAttribute('data-kept', 'false')
+
+    rerender(
+      <BranchDetail
+        branch={{ ...composeBranch, disposition: 'kept' }}
+        forkStatus="idle"
+        onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
+        onClose={vi.fn()}
+        onToggleKeep={vi.fn()}
+      />
+    )
+    expect(keep()).toHaveAttribute('aria-pressed', 'true')
+    expect(keep()).toHaveAttribute('data-kept', 'true')
+  })
+
+  it('clicking Keep fires onToggleKeep', () => {
+    const onToggleKeep = vi.fn()
+    render(
+      <BranchDetail
+        branch={composeBranch}
+        forkStatus="idle"
+        onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
+        onClose={vi.fn()}
+        onToggleKeep={onToggleKeep}
+      />
+    )
+    fireEvent.click(screen.getByTestId('branch-keep-toggle'))
+    expect(onToggleKeep).toHaveBeenCalledTimes(1)
   })
 })

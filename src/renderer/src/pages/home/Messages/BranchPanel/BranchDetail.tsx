@@ -1,3 +1,5 @@
+import { Button } from '@cherrystudio/ui'
+import { Bookmark, BookmarkCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import BranchComposer from './BranchComposer'
@@ -19,6 +21,8 @@ interface Props {
   onSendFollowUp: (followUp: string) => void
   /** Compose-state Cancel → close this branch (same as the tab's X). */
   onClose: () => void
+  /** P1-S3: toggle this branch's disposition pending ↔ kept (Keep button). */
+  onToggleKeep: () => void
 }
 
 /**
@@ -41,10 +45,12 @@ export default function BranchDetail({
   forkErrorMessage,
   onCreate,
   onSendFollowUp,
-  onClose
+  onClose,
+  onToggleKeep
 }: Props) {
   const { t } = useTranslation()
   const isComposing = branch.topic === null
+  const kept = branch.disposition === 'kept'
 
   const composerAnchor: BranchAnchor = {
     messageId: branch.source.messageId,
@@ -59,6 +65,23 @@ export default function BranchDetail({
       className="flex flex-col border-border border-t"
       data-testid={`branch-detail-${branch.id}`}
       data-branch-id={branch.id}>
+      {/*
+        P1-S3: Keep toggle. Default disposition is `pending` → closing silently
+        deletes the fork topic. Clicking Keep flips to `kept` → closing leaves
+        the topic in the DB. `aria-pressed` + filled icon show the kept state.
+      */}
+      <div className="flex shrink-0 justify-end border-border border-b px-2 py-1">
+        <Button
+          variant={kept ? 'default' : 'ghost'}
+          size="sm"
+          onClick={onToggleKeep}
+          aria-pressed={kept}
+          data-testid="branch-keep-toggle"
+          data-kept={kept}>
+          {kept ? <BookmarkCheck className="mr-1 h-4 w-4" /> : <Bookmark className="mr-1 h-4 w-4" />}
+          {kept ? t('chat.message.anchor.panel.kept') : t('chat.message.anchor.panel.keep')}
+        </Button>
+      </div>
       {isComposing ? (
         <BranchComposer
           anchor={composerAnchor}

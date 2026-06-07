@@ -67,4 +67,14 @@ export interface Branch {
    * through the palette as multiple branches open.
    */
   color: BranchHlColorKey
+  /**
+   * Close-time disposition (P1-S3). `pending` (default on create) → closing
+   * silently DELETES the fork topic (absorbs the orphan). `kept` (opt-in via
+   * the Keep button) → closing leaves the fork topic in the DB. See
+   * `branchDisposition.ts`.
+   */
+  disposition: BranchDisposition
 }
+
+/** P1-S3 close-time disposition for a branch. */
+export type BranchDisposition = 'pending' | 'kept'

@@ -1324,6 +1324,8 @@
           "follow_up_placeholder": "針對選取的內容提問…",
           "from": "選取內容",
           "from_message": "選自訊息 #{{id}}",
+          "keep": "保留",
+          "kept": "已保留",
           "resize_handle": "調整分支面板寬度",
           "send": "傳送",
           "title": "從選區建立分支"

@@ -21,6 +21,8 @@ interface Props {
   onCreate: (followUp: string) => void
   /** Conversation-state submit → send a follow-up to this branch's topic. */
   onSendFollowUp: (followUp: string) => void
+  /** P1-S3: toggle this branch's disposition pending ↔ kept. */
+  onToggleKeep: () => void
 }
 
 /**
@@ -43,7 +45,8 @@ export default function BranchAccordionItem({
   onToggleCollapse,
   onClose,
   onCreate,
-  onSendFollowUp
+  onSendFollowUp,
+  onToggleKeep
 }: Props) {
   return (
     <div
@@ -65,6 +68,7 @@ export default function BranchAccordionItem({
           onCreate={onCreate}
           onSendFollowUp={onSendFollowUp}
           onClose={onClose}
+          onToggleKeep={onToggleKeep}
         />
       )}
     </div>
