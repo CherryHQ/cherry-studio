@@ -44,7 +44,7 @@ const providerSettingsInputGroupFocusOverride =
 /** Connection and `ProviderSection`: 14px, deepest foreground, section-label line-height. */
 const sectionHeadingBase = 'm-0 text-base text-foreground leading-[var(--line-height-section-label)]'
 
-export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-[weight:var(--font-weight-medium)]')
+export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-medium')
 
 /**
  * Authentication card: bordered container + section title.
@@ -154,7 +154,7 @@ export const drawerClasses = {
   sectionDescription: 'text-xs text-foreground-muted',
   fieldList: 'space-y-3.5',
   field: 'space-y-1.5',
-  fieldTitle: 'font-[weight:var(--font-weight-medium)] text-sm text-foreground-secondary',
+  fieldTitle: 'font-medium text-sm text-foreground-secondary',
   input:
     'h-8 min-h-8 w-full rounded-[length:var(--radius-md)] border border-input bg-background px-3 py-1 text-sm text-foreground shadow-none outline-none transition-[border-color,box-shadow] placeholder:text-foreground-muted disabled:cursor-not-allowed disabled:opacity-60 focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring/35',
   inputDisabled: 'bg-muted text-foreground-muted',
@@ -203,7 +203,7 @@ export const modelListClasses = {
   /** Connected top-row model list actions; uses shared ButtonGroup + Button outline primitives. */
   toolbarButtonGroup: 'max-w-full shrink-0',
   /** Model-list section title: same size, line-height, and color; scoped weight `--font-weight-semibold` (600). */
-  sectionTitle: cn(sectionHeadingBase, 'font-[weight:var(--font-weight-semibold)]'),
+  sectionTitle: cn(sectionHeadingBase, 'font-semibold'),
   countMeta: 'text-xs text-foreground-muted tabular-nums',
   toolbarGhost:
     'h-auto rounded-3xs px-2.5 py-[5px] text-[length:var(--font-size-caption)] leading-[length:var(--line-height-caption)] text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground',
@@ -260,7 +260,7 @@ export const modelListClasses = {
    */
   manageListGroupShell: 'mb-1',
   manageListGroupHeader: 'flex items-center gap-1.5 px-1 py-[3px]',
-  manageListGroupTitle: 'font-[weight:var(--font-weight-medium)] text-xs text-foreground-muted',
+  manageListGroupTitle: 'font-medium text-xs text-foreground-muted',
   manageListGroupRule: 'h-px min-w-0 flex-1 bg-muted/50',
   manageListRow: 'group flex items-center gap-2 rounded-lg px-1.5 py-[5px] transition-colors hover:bg-accent/50',
   manageListRowLast: 'mb-0.5',
@@ -294,7 +294,7 @@ export const modelListClasses = {
     'flex min-w-0 flex-1 items-center bg-transparent text-left outline-none focus-visible:outline-none',
   groupHeaderActions: 'flex shrink-0 items-center gap-1',
   groupTitle:
-    'min-w-0 flex-1 truncate text-xs text-foreground-muted font-[weight:var(--font-weight-normal)] transition-colors group-hover/groupRow:text-foreground',
+    'min-w-0 flex-1 truncate text-xs text-foreground-muted font-normal transition-colors group-hover/groupRow:text-foreground',
   groupChevronButton:
     'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/65 shadow-none transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground focus-visible:outline-none disabled:opacity-40',
   groupChevron:
@@ -332,7 +332,7 @@ export const modelSyncClasses = {
   panel: 'provider-settings-default-scope flex min-h-0 flex-1 flex-col gap-4',
   summaryCard:
     'rounded-2xl border border-[color:var(--color-border-fg-muted)] bg-[var(--color-surface-fg-sunken)] px-4 py-3',
-  summaryTitle: 'text-base text-foreground/85 font-[weight:var(--font-weight-medium)]',
+  summaryTitle: 'text-base text-foreground/85 font-medium',
   summaryMeta: 'text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/75',
   summaryGrid: 'mt-3 grid gap-2 sm:grid-cols-3',
   summaryMetric:
@@ -342,7 +342,7 @@ export const modelSyncClasses = {
   section: 'rounded-2xl border border-[color:var(--color-border-fg-muted)] bg-background px-4 py-4 shadow-none',
   sectionHeader: 'flex flex-wrap items-center justify-between gap-3',
   sectionTitleWrap: 'min-w-0',
-  sectionTitle: 'text-base text-foreground/85 font-[weight:var(--font-weight-medium)]',
+  sectionTitle: 'text-base text-foreground/85 font-medium',
   sectionMeta: 'text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/75',
   sectionActions: 'flex flex-wrap items-center gap-2',
   toggleButton: cn(
@@ -372,14 +372,14 @@ export const modelSyncClasses = {
   fetchEmpty: 'flex flex-col items-center justify-center px-4 py-12 text-center',
   fetchEmptyIconWrap: 'mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-muted',
   fetchEmptyIcon: 'size-4 text-foreground-muted',
-  fetchEmptyTitle: 'font-[weight:var(--font-weight-medium)] text-xs text-foreground-secondary',
+  fetchEmptyTitle: 'font-medium text-xs text-foreground-secondary',
   fetchEmptyDescription: 'mt-1 text-xs text-foreground-muted',
   fetchSection: 'min-w-0',
   fetchSectionHeader: 'mb-2.5 flex items-center justify-between gap-3',
   fetchSectionTitleRow: 'flex items-center gap-1.5',
   fetchDotNew: 'h-[6px] w-[6px] shrink-0 rounded-full bg-primary',
   fetchDotRemoved: 'h-[6px] w-[6px] shrink-0 rounded-full bg-destructive',
-  fetchSectionTitle: 'text-sm font-[weight:var(--font-weight-medium)] text-foreground',
+  fetchSectionTitle: 'text-sm font-medium text-foreground',
   fetchSectionCount: 'text-xs text-foreground-muted tabular-nums',
   fetchGhostAll:
     'inline-flex !h-auto !min-h-0 items-center justify-center rounded-[length:var(--radius-control)] px-2 py-[3px] !text-xs !leading-none text-foreground-muted shadow-none hover:bg-accent hover:text-foreground',
@@ -394,9 +394,9 @@ export const modelSyncClasses = {
     'flex min-h-11 cursor-pointer items-center gap-2 rounded-[length:var(--radius-lg)] border border-transparent px-2.5 py-2 transition-colors hover:border-destructive/15 hover:bg-destructive/[0.03] focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/30 data-[checked=true]:border-destructive/15 data-[checked=true]:bg-background',
   fetchAvatar:
     'flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-muted font-medium text-xs leading-none text-foreground-muted',
-  fetchRowTitle: 'truncate text-sm font-[weight:var(--font-weight-medium)] leading-5 text-foreground',
+  fetchRowTitle: 'truncate text-sm font-medium leading-5 text-foreground',
   fetchRowTitleStrike:
-    'truncate text-sm font-[weight:var(--font-weight-medium)] leading-5 text-foreground-muted line-through decoration-foreground-muted',
+    'truncate text-sm font-medium leading-5 text-foreground-muted line-through decoration-foreground-muted',
   fetchRowId: 'mt-0.5 truncate font-mono text-xs text-foreground-muted',
   fetchRowIdStrike: 'mt-0.5 truncate font-mono text-xs text-foreground-muted/70',
   fetchContextValue: 'shrink-0 text-xs text-foreground-muted tabular-nums',
@@ -413,7 +413,7 @@ export const apiKeyListClasses = {
   keyRow: 'flex flex-col gap-2 border-b border-[color:var(--color-border-fg-hairline)] px-4 py-3 last:border-b-0',
   keyRowHeader: 'flex items-start justify-between gap-3',
   keyLabel:
-    'min-w-0 truncate text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-foreground font-[weight:var(--font-weight-medium)]',
+    'min-w-0 truncate text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-foreground font-medium',
   keyValue: 'min-w-0 flex-1 truncate font-mono text-xs text-foreground-muted',
   keyInputRow: 'grid gap-2 sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]',
   actionRow: 'flex items-center justify-between gap-3',
@@ -439,15 +439,15 @@ export const oauthCardClasses = {
   profileMeta: 'flex min-w-0 flex-1 items-center gap-3',
   /** Avatar: 32px round avatar, primary fill, initials (/ CherryIN row). */
   avatarSm:
-    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-[weight:var(--font-weight-semibold)] text-white',
+    'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white',
   nameBlock: 'min-w-0',
   nameRow: 'flex flex-wrap items-center gap-1.5',
   name: 'truncate text-[15px] leading-[1.2] font-semibold tracking-tight text-foreground',
   /** Logged-in title line — `text-xs` in structured. */
-  loggedInName: 'truncate text-xs font-[weight:var(--font-weight-medium)] leading-tight text-foreground',
+  loggedInName: 'truncate text-xs font-medium leading-tight text-foreground',
   loggedInEmail: 'mt-0.5 truncate text-xs leading-[1.35] text-muted-foreground/40',
   badge:
-    'inline-flex items-center rounded bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1 py-[0.5px] text-[10px] font-[weight:var(--font-weight-medium)] leading-tight text-[color:var(--warning)]',
+    'inline-flex items-center rounded bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1 py-[0.5px] text-[10px] font-medium leading-tight text-[color:var(--warning)]',
   loggedInActions: 'flex shrink-0 flex-wrap items-center justify-end gap-2',
   inlineBalanceBlock: 'text-right',
   inlineBalanceLabel: 'text-xs text-muted-foreground/40',
