@@ -36,6 +36,13 @@
       "when": 1780732250477,
       "tag": "0004_tough_mephisto",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1780796212083,
+      "tag": "0005_amazing_meltdown",
+      "breakpoints": true
     }
   ]
 }
