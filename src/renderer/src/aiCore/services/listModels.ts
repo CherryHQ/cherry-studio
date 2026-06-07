@@ -28,6 +28,7 @@ import {
 } from './listModels/vertex'
 import {
   AIHubMixModelsResponseSchema,
+  AnthropicModelsResponseSchema,
   GeminiModelsResponseSchema,
   GitHubModelsResponseSchema,
   NewApiModelsResponseSchema,
@@ -195,6 +196,42 @@ const geminiFetcher: ModelFetcher = {
       const id = m.name.startsWith('models/') ? m.name.slice(7) : m.name
       return toModel(id, provider, { name: m.displayName || id, description: m.description })
     })
+  }
+}
+
+const anthropicFetcher: ModelFetcher = {
+  match: (p) => p.id === SystemProviderIds.anthropic,
+  fetch: async (provider, signal) => {
+    const baseUrl = formatApiHost(provider.apiHost)
+    const apiKey = getApiKey(provider)
+    const headers = {
+      ...defaultAppHeaders(),
+      ...(apiKey ? { 'x-api-key': apiKey } : {}),
+      'anthropic-version': '2023-06-01',
+      ...provider.extra_headers
+    }
+    const models: z.infer<typeof AnthropicModelsResponseSchema>['data'] = []
+    let afterId: string | undefined
+
+    do {
+      const searchParams = new URLSearchParams({ limit: '1000' })
+      if (afterId) searchParams.set('after_id', afterId)
+      const response = await getFromApi({
+        url: `${baseUrl}/models?${searchParams.toString()}`,
+        headers,
+        responseSchema: AnthropicModelsResponseSchema,
+        abortSignal: signal
+      })
+      models.push(...response.data)
+      afterId = response.has_more && response.last_id ? response.last_id : undefined
+    } while (afterId)
+
+    return dedup(models, (m) => m.id).map((m) =>
+      toModel(m.id, provider, {
+        name: m.display_name || m.id,
+        owned_by: 'anthropic'
+      })
+    )
   }
 }
 
@@ -503,6 +540,7 @@ const fetchers: ModelFetcher[] = [
   aiHubMixFetcher,
   ollamaFetcher,
   geminiFetcher,
+  anthropicFetcher,
   vertexFetcher,
   githubFetcher,
   copilotFetcher,
@@ -517,7 +555,7 @@ const fetchers: ModelFetcher[] = [
 
 // === Unsupported providers (skip before registry lookup) ===
 
-const UNSUPPORTED_PROVIDERS = new Set<string>([SystemProviderIds['aws-bedrock'], SystemProviderIds.anthropic])
+const UNSUPPORTED_PROVIDERS = new Set<string>([SystemProviderIds['aws-bedrock']])
 
 function isUnsupported(provider: Provider): boolean {
   return UNSUPPORTED_PROVIDERS.has(provider.id) || provider.type === 'vertex-anthropic'
