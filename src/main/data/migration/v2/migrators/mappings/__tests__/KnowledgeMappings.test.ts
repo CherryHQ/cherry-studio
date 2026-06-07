@@ -57,6 +57,49 @@ describe('KnowledgeMappings', () => {
     })
   })
 
+  it('transformKnowledgeBase falls back to the v1 base id for an all-whitespace name', () => {
+    // Write-side guard only checked `name !== ''`, but the read path
+    // (KnowledgeBaseSchema `name: trim().min(1)`) rejects whitespace-only
+    // names — one such row used to poison the whole list query.
+    const warnings: string[] = []
+    expect(
+      transformKnowledgeBase(
+        {
+          id: 'kb-blank-name',
+          name: '   '
+        },
+        1024,
+        (msg) => warnings.push(msg)
+      )
+    ).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        name: 'kb-blank-name'
+      })
+    })
+    // The fallback leaves a diagnostic trail in the migration log.
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('kb-blank-name')
+    expect(warnings[0]).toContain('blank v1 name')
+  })
+
+  it('transformKnowledgeBase trims surrounding whitespace from a valid name', () => {
+    expect(
+      transformKnowledgeBase(
+        {
+          id: 'kb-padded-name',
+          name: '  My KB  '
+        },
+        1024
+      )
+    ).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        name: 'My KB'
+      })
+    })
+  })
+
   it('transformKnowledgeBase fills default chunk config when legacy values are missing', () => {
     expect(
       transformKnowledgeBase(
@@ -230,6 +273,102 @@ describe('KnowledgeMappings', () => {
         createdAt: expect.any(Number),
         updatedAt: expect.any(Number)
       }
+    })
+  })
+
+  it('transformKnowledgeItem skips a note with neither sourceUrl nor content', () => {
+    // Sibling branches (file/url/directory) all guard their source, but the
+    // note branch let `source: ''` through — the read path requires
+    // `source: trim().min(1)` and one such row breaks the item list query.
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'note-empty',
+        type: 'note',
+        content: ''
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({ ok: false, reason: 'invalid_note' })
+  })
+
+  it('transformKnowledgeItem skips a note whose content is whitespace-only', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'note-blank',
+        type: 'note',
+        content: '  \n  '
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({ ok: false, reason: 'invalid_note' })
+  })
+
+  it('transformKnowledgeItem keeps a note that has a sourceUrl but empty content', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'note-url-only',
+        type: 'note',
+        content: '',
+        sourceUrl: 'https://example.com/origin'
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        type: 'note',
+        data: {
+          source: 'https://example.com/origin',
+          content: '',
+          sourceUrl: 'https://example.com/origin'
+        }
+      })
+    })
+  })
+
+  it('transformKnowledgeItem keeps a note with an empty-string sourceUrl but non-empty content', () => {
+    // The source chain must use `||`, not `??`: an empty-string sourceUrl
+    // would short-circuit a nullish chain and get a recoverable note
+    // dropped as invalid_note despite its non-empty content.
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'note-blank-url',
+        type: 'note',
+        content: 'recoverable body',
+        sourceUrl: ''
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        type: 'note',
+        data: {
+          source: 'recoverable body',
+          content: 'recoverable body',
+          sourceUrl: ''
+        }
+      })
     })
   })
 
