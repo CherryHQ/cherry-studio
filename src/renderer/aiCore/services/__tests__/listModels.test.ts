@@ -128,6 +128,27 @@ const REAL_GEMINI = {
   ]
 }
 
+// From https://api.anthropic.com/v1/models
+const REAL_ANTHROPIC = {
+  data: [
+    {
+      id: 'claude-opus-4-8-20260101',
+      display_name: 'Claude Opus 4.8',
+      created_at: '2026-01-01T00:00:00Z',
+      type: 'model'
+    },
+    {
+      id: 'claude-sonnet-4-5-20250929',
+      display_name: 'Claude Sonnet 4.5',
+      created_at: '2025-09-29T00:00:00Z',
+      type: 'model'
+    }
+  ],
+  has_more: false,
+  first_id: 'claude-opus-4-8-20260101',
+  last_id: 'claude-sonnet-4-5-20250929'
+}
+
 // From https://api.together.xyz/v1/models
 const REAL_TOGETHER = [
   { id: 'hexgrad/Kokoro-82M', display_name: 'Kokoro 82M', organization: 'Hexgrad', description: null },
@@ -463,6 +484,61 @@ describe('listModels', () => {
       expect(models[0].name).toBe('Gemini 2.5 Flash')
       expect(models[0].id).toBe('gemini-2.5-flash')
       expect(models).toMatchSnapshot()
+    })
+  })
+
+  describe('Anthropic', () => {
+    it('should list Anthropic models from the native /v1/models endpoint', async () => {
+      mockGetFromApi.mockResolvedValue({ value: REAL_ANTHROPIC })
+
+      const models = await listModels(
+        makeProvider({ id: 'anthropic', type: 'anthropic' as any, apiHost: 'https://api.anthropic.com/v1' })
+      )
+
+      expect(mockGetFromApi).toHaveBeenCalledTimes(1)
+      const [request] = mockGetFromApi.mock.calls[0]
+      expect(request).toMatchObject({
+        url: 'https://api.anthropic.com/v1/models?limit=1000',
+        headers: expect.objectContaining({
+          'anthropic-version': '2023-06-01',
+          'x-api-key': 'sk-test'
+        })
+      })
+      assertValidModels(models)
+      expect(models.map((m) => m.id)).toEqual(['claude-opus-4-8-20260101', 'claude-sonnet-4-5-20250929'])
+      expect(models[0]).toMatchObject({
+        name: 'Claude Opus 4.8',
+        provider: 'anthropic',
+        group: 'anthropic',
+        owned_by: 'anthropic'
+      })
+    })
+
+    it('should paginate Anthropic model list results via after_id', async () => {
+      mockGetFromApi
+        .mockResolvedValueOnce({
+          value: {
+            data: [REAL_ANTHROPIC.data[0]],
+            has_more: true,
+            last_id: REAL_ANTHROPIC.data[0].id
+          }
+        })
+        .mockResolvedValueOnce({
+          value: {
+            data: [REAL_ANTHROPIC.data[1]],
+            has_more: false
+          }
+        })
+
+      const models = await listModels(
+        makeProvider({ id: 'anthropic', type: 'anthropic' as any, apiHost: 'https://api.anthropic.com/v1' })
+      )
+
+      expect(mockGetFromApi).toHaveBeenCalledTimes(2)
+      expect(mockGetFromApi.mock.calls[1][0].url).toBe(
+        'https://api.anthropic.com/v1/models?limit=1000&after_id=claude-opus-4-8-20260101'
+      )
+      expect(models.map((m) => m.id)).toEqual(['claude-opus-4-8-20260101', 'claude-sonnet-4-5-20250929'])
     })
   })
 
@@ -834,7 +910,6 @@ describe('listModels', () => {
   describe('Unsupported providers', () => {
     it.each([
       ['aws-bedrock', { id: 'aws-bedrock' }],
-      ['anthropic', { id: 'anthropic' }],
       ['vertex-anthropic', { id: 'vertex-anthro', type: 'vertex-anthropic' as any }]
     ])('should return empty for %s', async (_, overrides) => {
       const models = await listModels(makeProvider(overrides as any))
