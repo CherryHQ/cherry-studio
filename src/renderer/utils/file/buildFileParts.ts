@@ -24,13 +24,64 @@ import type { FileUIPart } from '@shared/data/types/message'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 import type { FilePath } from '@shared/file/types/common'
 
+const EXT_TO_MEDIA_TYPE: Record<string, string> = {
+  '.pdf': 'application/pdf',
+  '.txt': 'text/plain',
+  '.csv': 'text/csv',
+  '.json': 'application/json',
+  '.xml': 'application/xml',
+  '.md': 'text/markdown',
+  '.html': 'text/html',
+  '.htm': 'text/html',
+  '.css': 'text/css',
+  '.js': 'text/javascript',
+  '.ts': 'text/typescript',
+  '.py': 'text/x-python',
+  '.java': 'text/x-java',
+  '.c': 'text/x-c',
+  '.cpp': 'text/x-c++',
+  '.h': 'text/x-c',
+  '.rb': 'text/x-ruby',
+  '.go': 'text/x-go',
+  '.rs': 'text/x-rust',
+  '.sh': 'text/x-shellscript',
+  '.yaml': 'text/yaml',
+  '.yml': 'text/yaml',
+  '.toml': 'application/toml',
+  '.ini': 'text/plain',
+  '.log': 'text/plain',
+  '.doc': 'application/msword',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xls': 'application/vnd.ms-excel',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.ppt': 'application/vnd.ms-powerpoint',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.odt': 'application/vnd.oasis.opendocument.text',
+  '.ods': 'application/vnd.oasis.opendocument.spreadsheet',
+  '.odp': 'application/vnd.oasis.opendocument.presentation',
+  '.rtf': 'application/rtf',
+  '.epub': 'application/epub+zip',
+  '.zip': 'application/zip',
+  '.gz': 'application/gzip',
+  '.tar': 'application/x-tar',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.ogg': 'audio/ogg',
+  '.flac': 'audio/flac',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mov': 'video/quicktime',
+  '.avi': 'video/x-msvideo',
+  '.mkv': 'video/x-matroska'
+}
+
 function mediaTypeFor(file: FileMetadata, ext: string): string {
   if (file.type === FILE_TYPE.IMAGE) {
     const bare = ext.replace(/^\./, '')
     if (!bare) return 'image/png'
     return `image/${bare === 'jpg' ? 'jpeg' : bare === 'svg' ? 'svg+xml' : bare}`
   }
-  return 'application/octet-stream'
+  return EXT_TO_MEDIA_TYPE[ext.toLowerCase()] ?? 'application/octet-stream'
 }
 
 /**
