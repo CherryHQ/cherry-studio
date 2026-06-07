@@ -186,7 +186,15 @@ export const computePerformanceMetrics = (messages: Message[]): PerformanceMetri
   return {
     avgFirstTokenMs: firstTokenCount > 0 ? firstTokenSum / firstTokenCount : null,
     avgCompletionMs: completionCount > 0 ? completionSum / completionCount : null,
-    avgTokensPerSecond: speedCount > 0 ? speedSum / speedCount : null,
+    /**
+     * Aggregate throughput in tokens per second. Computed as the
+     * sum of each contributing message's per-message rate, NOT the
+     * average — so two messages that each sustained 50 tok/s
+     * contribute 100 tok/s to the total. This matches the existing
+     * "stats.popup.avg_speed" display semantics where the field is
+     * labelled as a single overall throughput number.
+     */
+    avgTokensPerSecond: speedCount > 0 ? speedSum : null,
     measuredMessages: measured
   }
 }
