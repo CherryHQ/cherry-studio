@@ -21,7 +21,7 @@ const meta: Meta<typeof Flex> = {
     docs: {
       description: {
         component:
-          'Gap-aware layout primitives built on `Box`. Axes are owned by typed props — `direction`/`align`/`justify`/`gap`/`wrap` — that compile to a closed Tailwind class lookup; padding/sizing/color stay in `className`. Use the intent presets (`HStack`, `VStack`, `Stack`, `Center`, `Grid`, `TruncatingRow`, `PageShell`, `Container`, `Spacer`) for the common shapes. The legacy `RowFlex`/`ColFlex`/`SpaceBetweenRowFlex` are deprecated in favor of `HStack`/`VStack`/`HStack justify="between"`.'
+          'Gap-aware layout primitives built on `Box`. Axes are owned by typed props — `direction`/`align`/`justify`/`gap`/`wrap` — that compile to a closed Tailwind class lookup; padding/sizing/color stay in `className`. Use the intent presets (`HStack`, `VStack`, `Stack`, `Center`, `Grid`, `TruncatingRow`, `PageShell`, `Container`, `Spacer`) for the common shapes.'
       }
     }
   },

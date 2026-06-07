@@ -4,22 +4,7 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import {
-  Box,
-  Center,
-  ColFlex,
-  Container,
-  Flex,
-  Grid,
-  HStack,
-  PageShell,
-  RowFlex,
-  SpaceBetweenRowFlex,
-  Spacer,
-  Stack,
-  TruncatingRow,
-  VStack
-} from '../index'
+import { Box, Center, Container, Flex, Grid, HStack, PageShell, Spacer, Stack, TruncatingRow, VStack } from '../index'
 
 afterEach(() => {
   cleanup()
@@ -178,20 +163,5 @@ describe('Spacer', () => {
   it('is a flex-1 filler', () => {
     const { container } = render(<Spacer />)
     expect(slot(container, 'spacer')!).toHaveClass('flex-1')
-  })
-})
-
-describe('deprecated presets stay back-compatible and inherit gap', () => {
-  it('RowFlex is a row, ColFlex a column, SpaceBetweenRowFlex a between-row', () => {
-    const { container } = render(
-      <>
-        <RowFlex gap={2} />
-        <ColFlex gap={2} />
-        <SpaceBetweenRowFlex gap={2} />
-      </>
-    )
-    expect(slot(container, 'row-flex')!).toHaveClass('flex', 'flex-row', 'gap-2')
-    expect(slot(container, 'col-flex')!).toHaveClass('flex', 'flex-col', 'gap-2')
-    expect(slot(container, 'space-between-row-flex')!).toHaveClass('flex', 'flex-row', 'justify-between', 'gap-2')
   })
 })

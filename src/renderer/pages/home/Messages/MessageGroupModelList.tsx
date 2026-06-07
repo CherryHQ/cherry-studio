@@ -1,5 +1,5 @@
 import { ArrowsAltOutlined, ShrinkOutlined } from '@ant-design/icons'
-import { Avatar, AvatarFallback, AvatarGroup, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, AvatarGroup, Flex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -128,7 +128,7 @@ const MessageGroupModelList: FC<MessageGroupModelListProps> = ({ messages, selec
   )
 }
 
-const Container = styled(RowFlex)`
+const Container = styled(Flex)`
   flex: 1;
   overflow: hidden;
   align-items: center;

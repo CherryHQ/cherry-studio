@@ -286,7 +286,7 @@ import { HStack, VStack, Center, Grid, TruncatingRow, PageShell, Container, Spac
 - **Use the prop, not a redundant className**: `<HStack gap={2}>`, not `<HStack className="gap-2">`. Re-spelling a primitive's own axis in `className` is the anti-pattern.
 - **Polymorphism via `asChild`** (Radix `Slot`), consistent with `Button`/`Badge`. Responsive via Tailwind variants in `className` (`sm:flex-row`), not bespoke props.
 - **Off-limits**: do not wrap DESIGN.md-governed shells (`Dialog`, `PageHeader`, `PageSidePanel`, `Drawer`, settings two-layer) — they keep their baked geometry.
-- `RowFlex` / `ColFlex` / `SpaceBetweenRowFlex` are **deprecated** → `HStack` / `VStack` / `HStack justify="between"`.
+- The legacy `RowFlex` / `ColFlex` / `SpaceBetweenRowFlex` presets have been **removed** → use `HStack` / `VStack` / `Flex` (or `HStack justify="between"`).
 
 See [`DESIGN.md` → Layout Primitives](../../DESIGN.md) for the gap-semantics table and the full off-limits list.
 

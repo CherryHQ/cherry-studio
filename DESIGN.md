@@ -701,7 +701,7 @@ Prefer the gap-aware layout primitives from `@cherrystudio/ui` over hand-rolled 
 | `Container` | settings two-layer / gallery width caps | `size="settings"` (`max-w-3xl`) / `"gallery"` (`max-w-5xl`), `fluid` when embedded |
 | `Spacer` | empty `<div className="flex-1" />`, ad-hoc `ml-auto` | self-documenting flex filler |
 
-`RowFlex`/`ColFlex`/`SpaceBetweenRowFlex` are **deprecated** — use `HStack`/`VStack`/`HStack justify="between"`.
+> The legacy `RowFlex`/`ColFlex`/`SpaceBetweenRowFlex` presets have been **removed** — use `HStack` / `VStack` / `Flex` (or `HStack justify="between"`).
 
 **`gap` binds to the numeric Tailwind scale** (`gap-N`), never `--cs-size-*` or `gap-md` (the semantic `--spacing-*` aliases are kept opt-in in `theme.css`, so `gap-md`/`p-md` do not resolve). The `gap` prop accepts a closed token union; **half-steps are excluded** so the scale converges — when migrating an off-scale value, round **down** to the nearest token by default (e.g. `gap-1.5 → gap={1}`, `gap-2.5 → gap={2}`), rounding up only where a dense row genuinely needs more breathing room. For a truly off-scale value, drop to `className` (`gap-[6px]`) as a visible opt-out — do not widen the union.
 
