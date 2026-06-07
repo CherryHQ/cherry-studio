@@ -36,14 +36,6 @@ const sectionHeadingBase = 'm-0 text-base text-foreground leading-[1.3]'
 export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-medium')
 
 /**
- * Authentication card: bordered container + section title.
- */
-export const authConnectionClasses = {
-  shell: 'rounded-xl border border-border px-3.5 py-3',
-  body: 'flex flex-col gap-2'
-} as const
-
-/**
  * Provider detail column (`ProviderSetting.tsx`) — padding + gap between Authentication + ModelList.
  */
 export const providerDetailColumnClasses = {
@@ -401,7 +393,7 @@ export const apiKeyListClasses = {
 export const oauthCardClasses = {
   /** Fills the auth column; no max-width so the card tracks the detail pane (fluid layout). */
   container: 'w-full min-w-0',
-  /** Aligned with `authConnectionClasses.shell`: `--section-border` hairline, `--radius-xl` (large card), no shadow / fill. */
+  /** OAuth card: `border-border` hairline, `rounded-xl` (large card), no shadow / fill. */
   shell: 'w-full min-w-0 overflow-hidden rounded-xl border border-border px-3.5 py-3',
   loginFooterRow: 'mt-2.5 flex items-center justify-center gap-4',
   loginFooterLink:
