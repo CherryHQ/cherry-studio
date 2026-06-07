@@ -50,7 +50,7 @@ export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-medium')
  * Authentication card: bordered container + section title.
  */
 export const authConnectionClasses = {
-  shell: 'rounded-[length:var(--radius-xl)] border border-[color:var(--section-border)] px-3.5 py-3',
+  shell: 'rounded-xl border border-[color:var(--section-border)] px-3.5 py-3',
   body: 'flex flex-col gap-2'
 } as const
 
@@ -71,7 +71,7 @@ export const actionClasses = {
   row: 'flex flex-wrap items-center gap-[length:var(--space-inline-md)]',
   icon: 'size-[length:var(--icon-size-caption)] shrink-0',
   btnBase:
-    'h-auto min-h-0 gap-2 rounded-[length:var(--radius-control)] px-[length:var(--padding-x-control)] py-[length:var(--padding-y-control)] text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] shadow-none',
+    'h-auto min-h-0 gap-2 rounded-lg px-[length:var(--padding-x-control)] py-[length:var(--padding-y-control)] text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] shadow-none',
   /** Neutral outline (design: action row — no brand fill on check / API-key-list actions). */
   btnNeutral:
     'border-[color:var(--color-border-default-soft)] bg-transparent text-[color:var(--color-fg-subtle)] hover:bg-[var(--accent)] hover:text-[color:var(--foreground)]'
@@ -83,7 +83,7 @@ export const providerListClasses = {
   headerIconButton:
     'flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
   searchInlineAddButton:
-    'flex size-6 shrink-0 items-center justify-center rounded-[8px] bg-muted text-foreground transition-colors hover:bg-[var(--color-surface-hover-soft)] disabled:pointer-events-none disabled:opacity-30',
+    'flex size-6 shrink-0 items-center justify-center rounded-md bg-muted text-foreground transition-colors hover:bg-[var(--color-surface-hover-soft)] disabled:pointer-events-none disabled:opacity-30',
   searchRow: 'flex items-center gap-1.5 px-3 pb-2.5',
   searchWrap:
     'flex h-8 items-center gap-1 rounded-xl border border-[color:var(--section-border)] bg-background py-1 pl-2.5 pr-1',
@@ -100,7 +100,7 @@ export const providerListClasses = {
   addWrap: 'shrink-0 border-t border-[color:var(--section-border)] px-2.5 py-2',
   addButton:
     'flex w-full items-center justify-center gap-1.5 rounded-lg border border-[color:var(--section-border)] border-dashed bg-transparent py-[5px] text-xs text-foreground-muted shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
-  item: 'relative flex h-8 w-full items-center justify-between rounded-[10px] border border-transparent px-2.5 text-left shadow-none outline-none transition-colors focus-visible:ring-0',
+  item: 'relative flex h-8 w-full items-center justify-between rounded-lg border border-transparent px-2.5 text-left shadow-none outline-none transition-colors focus-visible:ring-0',
   itemSelected: 'bg-muted',
   itemIdle: 'hover:bg-muted',
   itemAvatar: 'shrink-0 rounded-lg border border-border/30',
@@ -149,23 +149,22 @@ export const customHeaderDrawerClasses = {
 export const drawerClasses = {
   form: 'provider-settings-default-scope flex min-h-0 flex-col gap-4 py-0',
   section: 'space-y-3',
-  sectionCard:
-    'space-y-3.5 rounded-[length:var(--radius-lg)] border border-border bg-background px-3 py-3 text-foreground shadow-none',
+  sectionCard: 'space-y-3.5 rounded-lg border border-border bg-background px-3 py-3 text-foreground shadow-none',
   sectionDescription: 'text-xs text-foreground-muted',
   fieldList: 'space-y-3.5',
   field: 'space-y-1.5',
   fieldTitle: 'font-medium text-sm text-foreground-secondary',
   input:
-    'h-8 min-h-8 w-full rounded-[length:var(--radius-md)] border border-input bg-background px-3 py-1 text-sm text-foreground shadow-none outline-none transition-[border-color,box-shadow] placeholder:text-foreground-muted disabled:cursor-not-allowed disabled:opacity-60 focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring/35',
+    'h-8 min-h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm text-foreground shadow-none outline-none transition-[border-color,box-shadow] placeholder:text-foreground-muted disabled:cursor-not-allowed disabled:opacity-60 focus-visible:border-ring focus-visible:ring-[2px] focus-visible:ring-ring/35',
   inputDisabled: 'bg-muted text-foreground-muted',
   selectTrigger:
-    'h-auto w-full rounded-[length:var(--radius-md)] border-input bg-background px-3 py-2 text-sm text-foreground shadow-none data-[placeholder]:text-foreground-muted aria-expanded:border-ring aria-expanded:ring-[2px] aria-expanded:ring-ring/35',
+    'h-auto w-full rounded-md border-input bg-background px-3 py-2 text-sm text-foreground shadow-none data-[placeholder]:text-foreground-muted aria-expanded:border-ring aria-expanded:ring-[2px] aria-expanded:ring-ring/35',
   selectContent:
-    'provider-settings-default-scope rounded-[length:var(--radius-lg)] border-[0.5px] border-border bg-popover text-popover-foreground shadow-lg',
+    'provider-settings-default-scope rounded-lg border-[0.5px] border-border bg-popover text-popover-foreground shadow-lg',
   helpText: 'text-xs text-foreground-muted',
   errorText: 'text-xs text-destructive',
   emptyInline:
-    'rounded-[length:var(--radius-md)] border border-dashed border-[color:var(--color-border-fg-muted)] px-3 py-2 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/70',
+    'rounded-md border border-dashed border-[color:var(--color-border-fg-muted)] px-3 py-2 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/70',
   toggleButton: cn(
     actionClasses.btnBase,
     actionClasses.btnNeutral,
@@ -176,8 +175,7 @@ export const drawerClasses = {
   responsiveValueRow: 'flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center',
   valueSuffix: 'shrink-0 text-xs text-foreground-muted',
   divider: 'h-px bg-border-muted',
-  switchCard:
-    'rounded-[length:var(--radius-md)] border border-border bg-background px-3 py-3 [&_[data-slot=switch]]:mt-0.5',
+  switchCard: 'rounded-md border border-border bg-background px-3 py-3 [&_[data-slot=switch]]:mt-0.5',
   endpointChipRow: 'flex min-w-0 flex-wrap items-center gap-2',
   footer: 'flex items-center justify-end gap-2',
   /** Model health-check drawer: determinate progress (scoped neutral track + primary fill). */
@@ -209,25 +207,25 @@ export const modelListClasses = {
     'h-auto rounded-3xs px-2.5 py-[5px] text-[length:var(--font-size-caption)] leading-[length:var(--line-height-caption)] text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground',
   /** Model-list title-row ghost: one step tighter than `toolbarGhost` (padding + body-xs + small icon). */
   toolbarHeaderGhost:
-    'h-auto min-h-0 rounded-[length:var(--radius-4xs)] px-[length:var(--padding-x-control-compact)] py-[length:var(--padding-y-control-compact)] text-xs text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
+    'h-auto min-h-0 rounded-4xs px-[length:var(--padding-x-control-compact)] py-[length:var(--padding-y-control-compact)] text-xs text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
   toolbarHeaderIconButton:
-    'size-8 rounded-[length:var(--radius-4xs)] p-0 text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
+    'size-8 rounded-4xs p-0 text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
   toolbarIcon: 'size-[length:var(--icon-size-caption)] shrink-0',
   toolbarHeaderIcon: 'size-[length:var(--icon-size-body-xs)] shrink-0',
   searchExpandRow: 'flex min-w-0 w-full flex-wrap items-center gap-2',
   searchRow: 'flex min-w-0 w-full flex-wrap items-center gap-2',
   searchActions: 'flex max-w-full shrink-0 flex-wrap items-center gap-2',
   searchWrap:
-    'flex h-[26px] w-full min-w-[160px] max-w-[200px] items-center gap-1 rounded-[10px] border border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-1',
+    'flex h-[26px] w-full min-w-[160px] max-w-[200px] items-center gap-1 rounded-lg border border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-1',
   searchIcon: 'size-3 shrink-0 text-muted-foreground/65',
   searchInput:
     'min-w-0 flex-1 border-none bg-transparent text-xs leading-4 text-foreground/80 outline-none placeholder:text-muted-foreground/75 disabled:cursor-not-allowed disabled:opacity-60',
   searchClear:
     'flex h-[18px] w-[18px] items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground/65',
   fetchActionButton:
-    'h-[26px] min-h-0 gap-1.5 rounded-[length:var(--cs-radius-md)] border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-0 text-xs leading-4 text-foreground shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'h-[26px] min-h-0 gap-1.5 rounded-md border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-0 text-xs leading-4 text-foreground shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   addModelIconButton:
-    'size-[26px] min-h-0 rounded-[length:var(--cs-radius-md)] border-[color:var(--color-border-fg-muted)] bg-background p-0 text-foreground shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'size-[26px] min-h-0 rounded-md border-[color:var(--color-border-fg-muted)] bg-background p-0 text-foreground shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   addIconButton:
     'size-8 rounded-lg border-[color:var(--color-border-fg-muted)] bg-transparent text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
   capabilityTabsRoot: 'relative block min-w-0 w-full overflow-hidden',
@@ -275,9 +273,9 @@ export const modelListClasses = {
     'shrink-0 rounded-full bg-muted/50 px-1.5 py-[1px] text-xs text-muted-foreground/60 tabular-nums',
   /** Trailing close in manage drawer title row (paired with bulk actions); matches `hover:bg-accent`. */
   manageDrawerCloseInTitle:
-    "ml-1 !size-6 !min-h-6 shrink-0 gap-0 rounded-[length:var(--radius-control)] p-0 text-muted-foreground/60 shadow-none hover:bg-accent hover:text-foreground [&_svg:not([class*='size-'])]:size-[11px]",
+    "ml-1 !size-6 !min-h-6 shrink-0 gap-0 rounded-lg p-0 text-muted-foreground/60 shadow-none hover:bg-accent hover:text-foreground [&_svg:not([class*='size-'])]:size-[11px]",
   manageDrawerBulkGhost:
-    'inline-flex !h-auto !min-h-0 items-center justify-center gap-1 rounded-[length:var(--radius-control)] px-1.5 py-[2px] text-xs font-medium tracking-[-0.14px] text-muted-foreground/60 shadow-none transition-colors hover:bg-accent has-[>svg]:px-1.5',
+    'inline-flex !h-auto !min-h-0 items-center justify-center gap-1 rounded-lg px-1.5 py-[2px] text-xs font-medium tracking-[-0.14px] text-muted-foreground/60 shadow-none transition-colors hover:bg-accent has-[>svg]:px-1.5',
   /** Enable-all hover — brand `--primary` in this shell (design `hover:text-cherry-primary`). */
   manageDrawerBulkGhostEnableHover: 'hover:!text-primary',
   /** Disable-all hover — destructive (design draft). */
@@ -286,8 +284,7 @@ export const modelListClasses = {
    * Provider-grouped card (design: bordered shell with collapsible header — provider name + chevron at end).
    * Replaces the antd-coupled wrapper; rows render inside the same card on expand.
    */
-  groupCard:
-    'min-w-0 w-full rounded-[length:var(--radius-lg)] border border-[color:var(--color-border-fg-muted)] bg-transparent px-3 py-2',
+  groupCard: 'min-w-0 w-full rounded-lg border border-[color:var(--color-border-fg-muted)] bg-transparent px-3 py-2',
   groupHeader:
     'group/groupRow flex w-full items-center justify-between gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
   groupToggleButton:
@@ -382,16 +379,16 @@ export const modelSyncClasses = {
   fetchSectionTitle: 'text-sm font-medium text-foreground',
   fetchSectionCount: 'text-xs text-foreground-muted tabular-nums',
   fetchGhostAll:
-    'inline-flex !h-auto !min-h-0 items-center justify-center rounded-[length:var(--radius-control)] px-2 py-[3px] !text-xs !leading-none text-foreground-muted shadow-none hover:bg-accent hover:text-foreground',
+    'inline-flex !h-auto !min-h-0 items-center justify-center rounded-lg px-2 py-[3px] !text-xs !leading-none text-foreground-muted shadow-none hover:bg-accent hover:text-foreground',
   fetchGhostAllRemoved:
-    'inline-flex !h-auto !min-h-0 items-center justify-center rounded-[length:var(--radius-control)] px-2 py-[3px] !text-xs !leading-none text-foreground-muted shadow-none hover:bg-destructive/10 hover:text-destructive',
+    'inline-flex !h-auto !min-h-0 items-center justify-center rounded-lg px-2 py-[3px] !text-xs !leading-none text-foreground-muted shadow-none hover:bg-destructive/10 hover:text-destructive',
   fetchList: 'space-y-1',
   fetchWarning:
-    'my-2 gap-2 rounded-[length:var(--radius-lg)] border-[color:color-mix(in_srgb,var(--color-warning-base)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--color-warning-bg)_52%,transparent)] px-2.5 py-2 text-xs shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-3.5 [&_[data-slot=alert-message]]:font-normal',
+    'my-2 gap-2 rounded-lg border-[color:color-mix(in_srgb,var(--color-warning-base)_35%,transparent)] bg-[color:color-mix(in_srgb,var(--color-warning-bg)_52%,transparent)] px-2.5 py-2 text-xs shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-3.5 [&_[data-slot=alert-message]]:font-normal',
   fetchRowNew:
-    'flex min-h-11 cursor-pointer items-center gap-2 rounded-[length:var(--radius-lg)] border border-transparent px-2.5 py-2 transition-colors hover:border-border/60 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/30 data-[checked=true]:border-border/40 data-[checked=true]:bg-background',
+    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-border/60 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/30 data-[checked=true]:border-border/40 data-[checked=true]:bg-background',
   fetchRowRemoved:
-    'flex min-h-11 cursor-pointer items-center gap-2 rounded-[length:var(--radius-lg)] border border-transparent px-2.5 py-2 transition-colors hover:border-destructive/15 hover:bg-destructive/[0.03] focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/30 data-[checked=true]:border-destructive/15 data-[checked=true]:bg-background',
+    'flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2.5 py-2 transition-colors hover:border-destructive/15 hover:bg-destructive/[0.03] focus-visible:outline-none focus-visible:ring-[2px] focus-visible:ring-ring/30 data-[checked=true]:border-destructive/15 data-[checked=true]:bg-background',
   fetchAvatar:
     'flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-muted font-medium text-xs leading-none text-foreground-muted',
   fetchRowTitle: 'truncate text-sm font-medium leading-5 text-foreground',
@@ -424,8 +421,7 @@ export const oauthCardClasses = {
   /** Fills the auth column; no max-width so the card tracks the detail pane (fluid layout). */
   container: 'w-full min-w-0',
   /** Aligned with `authConnectionClasses.shell`: `--section-border` hairline, `--radius-xl` (large card), no shadow / fill. */
-  shell:
-    'w-full min-w-0 overflow-hidden rounded-[length:var(--radius-xl)] border border-[color:var(--section-border)] px-3.5 py-3',
+  shell: 'w-full min-w-0 overflow-hidden rounded-xl border border-[color:var(--section-border)] px-3.5 py-3',
   loginFooterRow: 'mt-2.5 flex items-center justify-center gap-4',
   loginFooterLink:
     'h-auto min-h-0 p-0 text-xs text-muted-foreground/60 shadow-none hover:bg-transparent hover:text-foreground',
@@ -433,8 +429,7 @@ export const oauthCardClasses = {
   /** CherryIN portal link — matches scoped caption + primary link treatment. */
   externalLink: 'mt-1 inline-block text-xs text-primary hover:underline',
   /** Logged-in CherryIN: mock CherryIN account section — one row, no stat grid. */
-  shellLoggedIn:
-    'w-full min-w-0 overflow-hidden rounded-[length:var(--radius-xl)] border border-[color:var(--section-border)] p-3.5',
+  shellLoggedIn: 'w-full min-w-0 overflow-hidden rounded-xl border border-[color:var(--section-border)] p-3.5',
   loggedInRow: 'flex w-full min-w-0 flex-wrap items-center justify-between gap-3',
   profileMeta: 'flex min-w-0 flex-1 items-center gap-3',
   /** Avatar: 32px round avatar, primary fill, initials (/ CherryIN row). */
