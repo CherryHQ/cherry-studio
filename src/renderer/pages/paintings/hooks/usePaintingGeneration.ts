@@ -1,10 +1,10 @@
 import { cacheService } from '@data/CacheService'
-import { presentPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { uuid } from '@renderer/utils'
 import type { PaintingMode } from '@shared/data/types/painting'
 import { useCallback, useEffect, useRef } from 'react'
 
+import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { paintingDataToCreateDto } from '../model/mappers/paintingDataToCreateDto'
 import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
 import {

@@ -1,18 +1,16 @@
 import fs, { createReadStream } from 'node:fs'
 
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { GB } from '@shared/config/constant'
 import { net } from 'electron'
 
-import { sanitizeFileProcessingRemoteUrl } from '../../utils/url'
-import {
-  type Doc2xExportStatusResponse,
-  Doc2xExportStatusResponseSchema,
-  type Doc2xParseStatusResponse,
-  Doc2xParseStatusResponseSchema,
-  Doc2xPreuploadResponseSchema,
-  type PreparedDoc2xQueryContext,
-  type PreparedDoc2xStartContext
+import type {
+  Doc2xExportStatusResponse,
+  Doc2xParseStatusResponse,
+  PreparedDoc2xQueryContext,
+  PreparedDoc2xStartContext
 } from './types'
+import { Doc2xExportStatusResponseSchema, Doc2xParseStatusResponseSchema, Doc2xPreuploadResponseSchema } from './types'
 
 const DOC2X_MAX_FILE_SIZE = GB
 
@@ -62,7 +60,7 @@ export async function uploadFile(
     throw new Error('Doc2x file is too large (must be smaller than 1GB)')
   }
 
-  const safeUploadUrl = sanitizeFileProcessingRemoteUrl(uploadUrl, configuredApiHost)
+  const safeUploadUrl = sanitizeRemoteUrl(uploadUrl, configuredApiHost)
   const fileStream = createReadStream(filePath)
 
   try {

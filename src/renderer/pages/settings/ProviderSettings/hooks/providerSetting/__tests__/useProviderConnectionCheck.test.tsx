@@ -27,11 +27,11 @@ vi.mock('react-i18next', async (importOriginal) => {
   }
 })
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args)
 }))
 
@@ -49,11 +49,6 @@ vi.mock('../useProviderEndpoints', () => ({
 
 vi.mock('@renderer/services/ApiService', () => ({
   checkApi: (...args: any[]) => checkApiMock(...args)
-}))
-
-vi.mock('@renderer/pages/settings/ProviderSettings/utils/v1ProviderShim', () => ({
-  toV1ModelForCheckApi: (model: any) => model,
-  toV1ProviderShim: (_provider: any, options: any) => options
 }))
 
 vi.mock('@renderer/components/ErrorDetailModal', () => ({
@@ -110,7 +105,7 @@ describe('useProviderConnectionCheck', () => {
     })
   })
 
-  it('opens the connection drawer for multi-key providers instead of silently redirecting elsewhere', () => {
+  it('opens the connection drawer with rerank models available for checking', () => {
     const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
 
     act(() => {
@@ -119,7 +114,10 @@ describe('useProviderConnectionCheck', () => {
 
     expect(result.current.connectionCheckOpen).toBe(true)
     expect(result.current.checkableApiKeys).toEqual(['sk-a', 'sk-b'])
-    expect(result.current.checkableModels).toHaveLength(1)
+    expect(result.current.checkableModels.map((model) => model.id)).toEqual([
+      'cherryin::claude-4-sonnet',
+      'cherryin::rerank-1'
+    ])
   })
 
   it('uses the anthropic host for anthropic endpoint models and closes the drawer after checking', async () => {
@@ -137,13 +135,8 @@ describe('useProviderConnectionCheck', () => {
     })
 
     expect(checkApiMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        apiKey: 'sk-b',
-        apiHost: 'https://anthropic.cherryin.cc'
-      }),
-      result.current.checkableModels[0],
-      undefined,
-      expect.any(AbortSignal)
+      result.current.checkableModels[0].id,
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
     expect(result.current.connectionCheckOpen).toBe(false)
     expect(setTimeoutTimer).toHaveBeenCalled()

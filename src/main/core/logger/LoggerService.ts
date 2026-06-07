@@ -1,4 +1,5 @@
 /* eslint-disable no-restricted-syntax */
+import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import { LOGS_DIR } from '@main/core/paths/constants'
 import { isDev } from '@main/core/platform'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/config/logger'
@@ -40,7 +41,14 @@ const SYSTEM_INFO = {
 }
 const APP_VERSION = `${app?.getVersion?.() || 'unknown'}`
 
-const DEFAULT_LEVEL = isDev ? LEVEL.SILLY : LEVEL.INFO
+/**
+ * CS_DIAGNOSTICS makes a packaged build behave like dev for logging: the verbose file
+ * level, console output, and the CSLOGGER_MAIN_* overrides all turn on together.
+ * Idempotent when already in dev (`isDev || x === isDev`). See docs/guides/diagnostics.md.
+ */
+const DEV_LOGGING = isDev || DIAGNOSTICS_ENABLED
+
+const DEFAULT_LEVEL = DEV_LOGGING ? LEVEL.SILLY : LEVEL.INFO
 
 /**
  * IMPORTANT: How to use LoggerService
@@ -51,7 +59,7 @@ const DEFAULT_LEVEL = isDev ? LEVEL.SILLY : LEVEL.INFO
 export class LoggerService {
   private logger: winston.Logger
 
-  // env variables, only used in dev mode
+  // env variables, only used in dev / diagnostics (CS_DIAGNOSTICS) mode
   private envLevel: LogLevel = LEVEL.NONE
   private envShowModules: string[] = []
 
@@ -70,9 +78,9 @@ export class LoggerService {
     // source of truth (see src/main/core/paths/constants.ts).
     this.logsDir = LOGS_DIR
 
-    // env variables, only used in dev mode
+    // env variables, only used in dev / diagnostics (CS_DIAGNOSTICS) mode
     // only affect console output, not affect file output
-    if (isDev) {
+    if (DEV_LOGGING) {
       // load env level if exists
       if (
         process.env.CSLOGGER_MAIN_LEVEL &&
@@ -178,7 +186,7 @@ export class LoggerService {
    * @param meta - Additional metadata to log
    */
   private processLog(source: LogSourceWithContext, level: LogLevel, message: string, meta: any[]): void {
-    if (isDev) {
+    if (DEV_LOGGING) {
       // skip if env level is set and current level is less than env level
       if (this.envLevel !== LEVEL.NONE && LEVEL_MAP[level] < LEVEL_MAP[this.envLevel]) {
         return

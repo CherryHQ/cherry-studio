@@ -113,6 +113,7 @@ const CitationsList: React.FC<CitationsListProps> = ({ citations }) => {
 
 const handleLinkClick = (url: string, event: React.MouseEvent) => {
   event.preventDefault()
+  if (!url) return
   if (url.startsWith('http')) window.open(url, '_blank', 'noopener,noreferrer')
   else void window.api.file.openPath(url)
 }
@@ -166,6 +167,7 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
   })
 
   const displayTitle = isXPost && oembedData?.author ? `@${oembedData.author}` : citation.title
+  const titleContent = displayTitle || citation.hostname || citation.content || citation.url
 
   return (
     <SelectionContextMenu>
@@ -174,9 +176,15 @@ const WebSearchCitation: React.FC<{ citation: Citation }> = ({ citation }) => {
           {citation.showFavicon && citation.url && (
             <Favicon hostname={new URL(citation.url).hostname} alt={citation.title || citation.hostname || ''} />
           )}
-          <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
-            {displayTitle || <span className="hostname">{citation.hostname}</span>}
-          </CitationLink>
+          {citation.url ? (
+            <CitationLink className="text-nowrap" href={citation.url} onClick={(e) => handleLinkClick(citation.url, e)}>
+              {displayTitle || <span className="hostname">{citation.hostname}</span>}
+            </CitationLink>
+          ) : (
+            <CitationLink as="span" className="text-nowrap">
+              {titleContent}
+            </CitationLink>
+          )}
 
           <CitationIndex>{citation.number}</CitationIndex>
           {fetchedContent && <CopyButton content={fetchedContent} />}

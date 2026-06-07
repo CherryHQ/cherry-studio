@@ -57,17 +57,6 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-vi.mock('@renderer/aiCore', () => ({
-  AiProvider: class {
-    getBaseURL() {
-      return ''
-    }
-    getApiKey() {
-      return ''
-    }
-  }
-}))
-
 vi.mock('@renderer/components/app/Navbar', () => ({
   Navbar: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   NavbarCenter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
@@ -80,12 +69,6 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
 vi.mock('@renderer/config/constant', () => ({
   isMac: false,
   isWin: false
-}))
-
-vi.mock('@renderer/config/models', () => ({
-  isEmbeddingModel: () => false,
-  isRerankModel: () => false,
-  isTextToImageModel: () => false
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
@@ -112,16 +95,16 @@ vi.mock('@renderer/hooks/useCodeCli', () => ({
 }))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
-  useProviders: () => ({ providers: [] })
+  useProviders: () => ({ providers: [] }),
+  getProviderDisplayName: (provider: { name?: string; id?: string }) => provider?.name ?? provider?.id ?? ''
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModels: () => ({ models: [] })
 }))
 
 vi.mock('@renderer/hooks/useTimer', () => ({
   useTimer: () => ({ setTimeoutTimer: testState.setTimeoutTimer })
-}))
-
-vi.mock('@renderer/services/AssistantService', () => ({
-  getAssistantSettings: () => ({}),
-  getProviderByModel: vi.fn()
 }))
 
 vi.mock('@renderer/services/LoggerService', () => ({
@@ -132,19 +115,6 @@ vi.mock('@renderer/services/LoggerService', () => ({
       warn: vi.fn()
     })
   }
-}))
-
-vi.mock('@renderer/services/ModelService', () => ({
-  getModelUniqId: (model: { id: string }) => model.id
-}))
-
-vi.mock('@renderer/store', () => ({
-  useAppSelector: () => null
-}))
-
-vi.mock('@renderer/utils/naming', () => ({
-  getFancyProviderName: (provider: { name?: string; id?: string }) => provider.name ?? provider.id ?? '',
-  sanitizeProviderName: (name: string) => name
 }))
 
 vi.mock('@shared/config/providers', () => ({

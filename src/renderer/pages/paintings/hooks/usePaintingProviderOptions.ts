@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { useModels } from '@renderer/hooks/useModels'
-import { useProviders } from '@renderer/hooks/useProviders'
+import { useModels } from '@renderer/hooks/useModel'
+import { useProviders } from '@renderer/hooks/useProvider'
 import type { Model } from '@shared/data/types/model'
 import { useEffect, useMemo, useState } from 'react'
 

@@ -285,9 +285,9 @@ export class KnowledgeItemService {
       })
     }
 
-    if (owner.type !== 'directory' && owner.type !== 'sitemap') {
+    if (owner.type !== 'directory') {
       throw DataApiErrorFactory.validation({
-        groupId: [`Knowledge item group owner must be a directory or sitemap: ${groupId}`]
+        groupId: [`Knowledge item group owner must be a directory: ${groupId}`]
       })
     }
 
@@ -642,7 +642,7 @@ export class KnowledgeItemService {
       return {
         item: rowToKnowledgeItem(updatedRow),
         startContainerIds:
-          status === 'failed' && (updatedRow.type === 'directory' || updatedRow.type === 'sitemap')
+          status === 'failed' && updatedRow.type === 'directory'
             ? [existingRow.groupId]
             : [updatedRow.id, existingRow.groupId]
       }
@@ -675,7 +675,7 @@ export class KnowledgeItemService {
           .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
           .limit(1)
 
-        if (!containerRow || (containerRow.type !== 'directory' && containerRow.type !== 'sitemap')) {
+        if (!containerRow || containerRow.type !== 'directory') {
           continue
         }
 

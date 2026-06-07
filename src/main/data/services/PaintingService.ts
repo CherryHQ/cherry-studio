@@ -13,7 +13,7 @@
 
 import { application } from '@application'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
-import { type NewPainting, type Painting as PaintingRow, paintingTable } from '@data/db/schemas/painting'
+import { type InsertPaintingRow, type PaintingRow, paintingTable } from '@data/db/schemas/painting'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -222,7 +222,7 @@ class PaintingService {
       throw DataApiErrorFactory.notFound('Painting', id)
     }
 
-    const updates: Partial<NewPainting> = {}
+    const updates: Partial<InsertPaintingRow> = {}
     for (const key of UPDATE_PAINTING_FIELD_MAP) {
       if (dto[key] !== undefined) {
         ;(updates as Record<string, unknown>)[key] = dto[key]

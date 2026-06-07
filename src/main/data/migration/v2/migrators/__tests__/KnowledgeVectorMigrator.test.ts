@@ -50,14 +50,14 @@ const LEGACY_KNOWLEDGE_BASE_ID = 'kb-1'
 const MIGRATED_KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const MIGRATED_FILE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 const MIGRATED_DIRECTORY_ITEM_ID = '0198f3f2-7d1b-7abc-8def-123456789abc'
-const MIGRATED_SITEMAP_ITEM_ID = '0198f3f2-7d1c-7abc-8def-123456789abc'
+const MIGRATED_SITEMAP_URL_ITEM_ID = '0198f3f2-7d1c-7abc-8def-123456789abc'
 const DEFAULT_KNOWLEDGE_BASE_ID_REMAP = new Map<string, string>([
   [LEGACY_KNOWLEDGE_BASE_ID, MIGRATED_KNOWLEDGE_BASE_ID]
 ])
 const DEFAULT_KNOWLEDGE_ITEM_ID_REMAP = new Map<string, string>([
   ['item-file', MIGRATED_FILE_ITEM_ID],
   ['item-directory', MIGRATED_DIRECTORY_ITEM_ID],
-  ['item-sitemap', MIGRATED_SITEMAP_ITEM_ID]
+  ['item-sitemap', MIGRATED_SITEMAP_URL_ITEM_ID]
 ])
 
 function createTempRoot() {
@@ -74,7 +74,7 @@ interface MigratedKnowledgeBaseRow {
 interface MigratedKnowledgeItemRow {
   id: string
   baseId: string
-  type: 'file' | 'url' | 'note' | 'sitemap' | 'directory'
+  type: 'file' | 'url' | 'note' | 'directory'
   data: { source?: string }
 }
 
@@ -467,7 +467,7 @@ describe('KnowledgeVectorMigrator', () => {
     ).toBe(true)
   })
 
-  it('prepare skips sitemap container vectors with a warning', async () => {
+  it('prepare migrates legacy sitemap vectors when their item migrated as url', async () => {
     await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
       {
         id: 'legacy-sitemap-0',
@@ -481,8 +481,8 @@ describe('KnowledgeVectorMigrator', () => {
     const migrationCtx = createMigrationCtx({
       migratedBases: [createMigratedBase()],
       migratedItems: [
-        createMigratedItem(MIGRATED_SITEMAP_ITEM_ID, {
-          type: 'sitemap',
+        createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
+          type: 'url',
           data: { source: 'https://example.com/sitemap.xml' }
         })
       ],
@@ -510,16 +510,21 @@ describe('KnowledgeVectorMigrator', () => {
 
     expect(result.success).toBe(true)
     expect(migrator.preparedBasePlans).toHaveLength(1)
-    expect(migrator.preparedBasePlans[0].rows).toEqual([])
-    expect(migrator.skippedCount).toBe(1)
-    expect(
-      result.warnings?.some(
-        (warning) =>
-          warning.includes('Skipped knowledge vector records (non_indexable_container): count=1') &&
-          warning.includes(`container item '${MIGRATED_SITEMAP_ITEM_ID}'`) &&
-          warning.includes("type 'sitemap' is not indexable")
-      )
-    ).toBe(true)
+    expect(migrator.preparedBasePlans[0].rows).toMatchObject([
+      {
+        document: 'sitemap page chunk',
+        externalId: MIGRATED_SITEMAP_URL_ITEM_ID,
+        itemType: 'url',
+        source: 'https://example.com/page',
+        chunkIndex: 0,
+        tokenCount: expect.any(Number),
+        embedding: [1, 2]
+      }
+    ])
+    expect(migrator.skippedCount).toBe(0)
+    expect(result.warnings ?? []).not.toEqual(
+      expect.arrayContaining([expect.stringContaining('non_indexable_container')])
+    )
   })
 
   it('prepare records unsupported vector encodings in a distinct warning bucket', async () => {

@@ -3,9 +3,9 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { skillService } from '@main/ai/skills/SkillService'
 import { app } from 'electron'
 
-import { skillService } from '../services/agents/skills/SkillService'
 import { toAsarUnpackedPath } from '.'
 
 const logger = loggerService.withContext('builtinSkills')

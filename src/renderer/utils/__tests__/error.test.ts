@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { formatErrorMessage, getErrorDetails, isAbortError, isTimeoutError } from '../error'
+import { formatErrorMessage, getErrorDetails, isAbortError, isTimeoutError, serializeHealthCheckError } from '../error'
 
 describe('error', () => {
   describe('getErrorDetails', () => {
@@ -103,6 +103,19 @@ describe('error', () => {
       expect(result).toContain('Error Details:')
       expect(result).toContain('"code": 500')
       expect(result).toContain('"status": "Internal Server Error"')
+    })
+  })
+
+  describe('serializeHealthCheckError', () => {
+    it('preserves plain Error message instead of stringifying to an empty object', () => {
+      const error = new Error('Health check failed')
+      const result = serializeHealthCheckError(error)
+
+      expect(result).toMatchObject({
+        name: 'Error',
+        message: 'Health check failed'
+      })
+      expect(result.message).not.toBe('{}')
     })
   })
 

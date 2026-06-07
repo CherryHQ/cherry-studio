@@ -425,37 +425,51 @@ const CommonSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('common.language')}</SettingRowTitle>
-          <Selector
-            size={14}
-            value={language || defaultLanguage}
-            onChange={onSelectLanguage}
-            options={languagesOptions.map((lang) => ({
-              label: (
-                <Flex className="items-center gap-2">
-                  <span role="img" aria-label={lang.flag}>
-                    {lang.flag}
-                  </span>
-                  {lang.label}
-                </Flex>
-              ),
-              value: lang.value
-            }))}
-          />
+          <SelectorRow>
+            <Selector
+              size={14}
+              style={{ width: '100%' }}
+              value={language || defaultLanguage}
+              onChange={onSelectLanguage}
+              options={languagesOptions.map((lang) => ({
+                label: (
+                  <Flex className="items-center gap-2">
+                    <span role="img" aria-label={lang.flag}>
+                      {lang.flag}
+                    </span>
+                    {lang.label}
+                  </Flex>
+                ),
+                value: lang.value
+              }))}
+            />
+          </SelectorRow>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.title')}</SettingRowTitle>
-          <Selector<ThemeMode> size={14} value={settedTheme} onChange={setTheme} options={themeOptions} />
+          <SelectorRow>
+            <Selector<ThemeMode>
+              size={14}
+              style={{ width: '100%' }}
+              value={settedTheme}
+              onChange={setTheme}
+              options={themeOptions}
+            />
+          </SelectorRow>
         </SettingRow>
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.theme.color_primary')}</SettingRowTitle>
-          <ThemeColorPicker
-            value={userTheme.colorPrimary}
-            presets={THEME_COLOR_PRESETS}
-            onChange={handleColorPrimaryChange}
-            ariaLabel={t('settings.theme.color_primary')}
-          />
+          <WideControlRow>
+            <ThemeColorPicker
+              value={userTheme.colorPrimary}
+              presets={THEME_COLOR_PRESETS}
+              onChange={handleColorPrimaryChange}
+              ariaLabel={t('settings.theme.color_primary')}
+              className="w-full justify-end"
+            />
+          </WideControlRow>
         </SettingRow>
         {isMac && (
           <>
@@ -501,19 +515,20 @@ const CommonSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.display.font.global')}</SettingRowTitle>
           <SelectRow>
-            <Combobox
-              width={280}
-              placeholder={t('settings.display.font.select')}
-              emptyText={t('common.no_results')}
-              options={fontOptions}
-              value={userTheme.userFontFamily || ''}
-              onChange={handleUserFontComboboxChange}
-              renderOption={renderFontOption}
-              searchPlacement="trigger"
-              triggerStyle={{ fontFamily: userTheme.userFontFamily || defaultFontPreviewFamily }}
-              popoverClassName="max-h-[320px] overflow-y-auto"
-            />
-            <Button onClick={() => handleUserFontChange('')} className="ml-2" variant="ghost" size="icon">
+            <div className="min-w-0 flex-1">
+              <Combobox
+                placeholder={t('settings.display.font.select')}
+                emptyText={t('common.no_results')}
+                options={fontOptions}
+                value={userTheme.userFontFamily || ''}
+                onChange={handleUserFontComboboxChange}
+                renderOption={renderFontOption}
+                searchPlacement="trigger"
+                triggerStyle={{ fontFamily: userTheme.userFontFamily || defaultFontPreviewFamily }}
+                popoverClassName="max-h-[320px] overflow-y-auto"
+              />
+            </div>
+            <Button onClick={() => handleUserFontChange('')} variant="ghost" size="icon">
               <ResetIcon size="14" />
             </Button>
           </SelectRow>
@@ -522,19 +537,20 @@ const CommonSettings: FC = () => {
         <SettingRow>
           <SettingRowTitle>{t('settings.display.font.code')}</SettingRowTitle>
           <SelectRow>
-            <Combobox
-              width={280}
-              placeholder={t('settings.display.font.select')}
-              emptyText={t('common.no_results')}
-              options={fontOptions}
-              value={userTheme.userCodeFontFamily || ''}
-              onChange={handleUserCodeFontComboboxChange}
-              renderOption={renderFontOption}
-              searchPlacement="trigger"
-              triggerStyle={{ fontFamily: userTheme.userCodeFontFamily || defaultFontPreviewFamily }}
-              popoverClassName="max-h-[320px] overflow-y-auto"
-            />
-            <Button onClick={() => handleUserCodeFontChange('')} className="ml-2" variant="ghost" size="icon">
+            <div className="min-w-0 flex-1">
+              <Combobox
+                placeholder={t('settings.display.font.select')}
+                emptyText={t('common.no_results')}
+                options={fontOptions}
+                value={userTheme.userCodeFontFamily || ''}
+                onChange={handleUserCodeFontComboboxChange}
+                renderOption={renderFontOption}
+                searchPlacement="trigger"
+                triggerStyle={{ fontFamily: userTheme.userCodeFontFamily || defaultFontPreviewFamily }}
+                popoverClassName="max-h-[320px] overflow-y-auto"
+              />
+            </div>
+            <Button onClick={() => handleUserCodeFontChange('')} variant="ghost" size="icon">
               <ResetIcon size="14" />
             </Button>
           </SelectRow>
@@ -546,15 +562,18 @@ const CommonSettings: FC = () => {
         <SettingDivider />
         <SettingRow>
           <SettingRowTitle>{t('settings.topic.position.label')}</SettingRowTitle>
-          <SegmentedControl
-            value={topicPosition || 'right'}
-            onValueChange={setTopicPosition}
-            options={[
-              { value: 'left', label: t('settings.topic.position.left') },
-              { value: 'right', label: t('settings.topic.position.right') }
-            ]}
-            size="sm"
-          />
+          <SelectorRow>
+            <SegmentedControl
+              value={topicPosition || 'right'}
+              onValueChange={setTopicPosition}
+              options={[
+                { value: 'left', label: t('settings.topic.position.left') },
+                { value: 'right', label: t('settings.topic.position.right') }
+              ]}
+              className="max-w-full"
+              size="sm"
+            />
+          </SelectorRow>
         </SettingRow>
         {topicPosition === 'left' && (
           <>
@@ -806,8 +825,8 @@ const CommonSettings: FC = () => {
   }
 
   return (
-    <div className="flex flex-1" data-theme-mode={theme}>
-      <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
+    <div className="flex min-w-0 flex-1" data-theme-mode={theme}>
+      <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full min-w-0 flex-1 flex-row overflow-hidden">
         <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
           <PageHeader title={t('settings.general.common.title')} />
           <Scrollbar className="min-h-0 flex-1">
@@ -840,7 +859,15 @@ const TitleExtra = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 )
 
 const ZoomButtonGroup = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-[210px] items-center justify-end', className)} {...props} />
+  <div className={cn('flex w-full min-w-0 max-w-[210px] items-center justify-end', className)} {...props} />
+)
+
+const SelectorRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex w-full min-w-0 max-w-[220px] items-center justify-end', className)} {...props} />
+)
+
+const WideControlRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
+  <div className={cn('flex w-full min-w-0 max-w-[380px] items-center justify-end', className)} {...props} />
 )
 
 const ZoomValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
@@ -848,7 +875,7 @@ const ZoomValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'span
 )
 
 const SelectRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-[380px] items-center justify-end', className)} {...props} />
+  <div className={cn('flex w-full min-w-0 max-w-[380px] items-center justify-end gap-2', className)} {...props} />
 )
 
 export default CommonSettings

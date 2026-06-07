@@ -1,10 +1,11 @@
-import { useAppSelector } from '@renderer/store'
-import { selectPendingPermission } from '@renderer/store/toolPermissions'
+import { usePartsMap } from '@renderer/pages/home/Messages/Blocks'
 import type { NormalToolResponse } from '@renderer/types'
 import type { CollapseProps } from 'antd'
 import { Collapse } from 'antd'
 import { parse as parsePartialJson } from 'partial-json'
-import { useMemo } from 'react'
+import { useDeferredValue, useMemo } from 'react'
+
+import { isToolPartAwaitingApproval } from '../toolResponse'
 
 // 导出所有类型
 export * from './types'
@@ -134,18 +135,18 @@ function ToolContent({
 export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolResponse }) {
   const { arguments: args, response, tool, status, partialArguments } = toolResponse
 
-  const pendingPermission = useAppSelector((state) =>
-    selectPendingPermission(state.toolPermissions, toolResponse.toolCallId)
-  )
+  const partsMap = usePartsMap()
+  const awaitingApproval = isToolPartAwaitingApproval(partsMap, toolResponse.toolCallId)
 
+  const deferredPartialArguments = useDeferredValue(partialArguments)
   const parsedPartialArgs = useMemo(() => {
-    if (!partialArguments) return undefined
+    if (!deferredPartialArguments) return undefined
     try {
-      return parsePartialJson(partialArguments)
+      return parsePartialJson(deferredPartialArguments)
     } catch {
       return undefined
     }
-  }, [partialArguments])
+  }, [deferredPartialArguments])
 
   // Navigate tool renders as a simple inline button, not a tool card
   if (tool?.name === 'mcp__assistant__navigate') {
@@ -167,7 +168,7 @@ export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolRe
     return null
   }
 
-  const effectiveStatus = getEffectiveStatus(status, !!pendingPermission)
+  const effectiveStatus = getEffectiveStatus(status, awaitingApproval)
 
   if (effectiveStatus === 'waiting') {
     return <ToolPermissionRequestCard toolResponse={toolResponse} />

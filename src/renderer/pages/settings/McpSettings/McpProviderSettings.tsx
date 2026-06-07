@@ -1,9 +1,8 @@
 import { Button, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import Scrollbar from '@renderer/components/Scrollbar'
 import db from '@renderer/databases'
-import { useMcpServers } from '@renderer/hooks/useMcpServers'
+import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import type { McpServer } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
 import { Check, Plus, SquareArrowOutUpRight } from 'lucide-react'
@@ -11,6 +10,7 @@ import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { SettingsContentColumn } from '..'
 import { getMcpProviderLogo, getProviderDisplayName, type ProviderConfig } from './providers/config'
 import { isSameMcpServerCandidate, toCreateMcpServerDto } from './utils'
 
@@ -232,12 +232,8 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
   )
 }
 
-const DetailContainer = ({ className, children, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
-  <Scrollbar className={cn('flex h-[calc(100vh-var(--navbar-height))] flex-col', className)} {...props}>
-    <div className="flex min-h-full w-full flex-col px-6 py-4">
-      <div className="mx-auto w-full max-w-3xl">{children}</div>
-    </div>
-  </Scrollbar>
+const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof SettingsContentColumn>) => (
+  <SettingsContentColumn className={cn('w-full min-w-0', className)} {...props} />
 )
 
 const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

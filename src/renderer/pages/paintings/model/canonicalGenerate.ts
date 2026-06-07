@@ -1,14 +1,23 @@
-import { createPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
 import type { FileMetadata, GenerateImageParams } from '@renderer/types'
+import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import type { CanonicalParamKey } from '@shared/data/types/model'
 
 import { checkProviderEnabled } from '../utils/checkProviderEnabled'
-import type { DownloadImagesOptions } from '../utils/downloadImages'
 import { generatePainting } from './generatePainting'
 import type { GenerateInput } from './types/generateInput'
 import type { PaintingData } from './types/paintingData'
 
 type AiSdkParams = Omit<GenerateImageParams, 'model' | 'prompt' | 'signal' | 'providerOptions'>
+
+/** Encode raw image bytes as a `data:` URL for the main-process image IPC. */
+function bytesToDataUrl(bytes: Uint8Array, mime: string): string {
+  let binary = ''
+  const chunkSize = 0x8000
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize))
+  }
+  return `data:${mime || 'image/png'};base64,${btoa(binary)}`
+}
 
 /**
  * Painting-state keys (registry-canonical) that map to a different AI SDK
@@ -69,11 +78,6 @@ export interface CanonicalGenerateOptions<T extends PaintingData> {
    * per-model rule when the standard check is skipped.
    */
   requirePrompt?: boolean | ((painting: T) => boolean)
-  /**
-   * Stamped on the `{ urls }` download branch — proxy warning toggle,
-   * mixed-url+data acceptance, etc.
-   */
-  downloadOptions?: DownloadImagesOptions
 }
 
 /**
@@ -103,7 +107,7 @@ export async function canonicalGenerate<T extends PaintingData>(
   // the generic MISSING_REQUIRED_FIELDS / PROMPT_REQUIRED throws below.
   options.preValidate?.(painting)
 
-  const apiKey = await checkProviderEnabled(provider)
+  await checkProviderEnabled(provider)
   const modelId = painting.model
   if (!modelId) throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
 
@@ -163,8 +167,8 @@ export async function canonicalGenerate<T extends PaintingData>(
     aiSdkParams.inputImages = await Promise.all(
       inputFiles.map(async (entry) => {
         const onDiskName = `${entry.id}${entry.ext ? `.${entry.ext}` : ''}`
-        const result = await window.api.file.binaryImage(onDiskName)
-        return new Uint8Array(result.data)
+        const { data, mime } = await window.api.file.binaryImage(onDiskName)
+        return bytesToDataUrl(new Uint8Array(data), mime)
       })
     )
   }
@@ -172,11 +176,9 @@ export async function canonicalGenerate<T extends PaintingData>(
   return generatePainting({
     provider,
     signal: abortController.signal,
-    apiKey,
     modelId,
     prompt,
     aiSdkParams: aiSdkParams as AiSdkParams,
-    ...(Object.keys(providerBag).length > 0 && { providerBag }),
-    ...(options.downloadOptions !== undefined && { downloadOptions: options.downloadOptions })
+    ...(Object.keys(providerBag).length > 0 && { providerBag })
   })
 }

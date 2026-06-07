@@ -31,7 +31,7 @@ import { Route as SettingsFileProcessingRouteImport } from './routes/settings/fi
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
 import { Route as SettingsComponentLabRouteImport } from './routes/settings/component-lab'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
-import { Route as SettingsApiServerRouteImport } from './routes/settings/api-server'
+import { Route as SettingsApiGatewayRouteImport } from './routes/settings/api-gateway'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 import { Route as AppTranslateRouteImport } from './routes/app/translate'
 import { Route as AppOpenclawRouteImport } from './routes/app/openclaw'
@@ -41,7 +41,6 @@ import { Route as AppKnowledgeRouteImport } from './routes/app/knowledge'
 import { Route as AppFilesRouteImport } from './routes/app/files'
 import { Route as AppCodeRouteImport } from './routes/app/code'
 import { Route as AppChatRouteImport } from './routes/app/chat'
-import { Route as AppAssistantRouteImport } from './routes/app/assistant'
 import { Route as AppAgentsRouteImport } from './routes/app/agents'
 import { Route as SettingsMcpIndexRouteImport } from './routes/settings/mcp/index'
 import { Route as AppPaintingsIndexRouteImport } from './routes/app/paintings/index'
@@ -167,9 +166,9 @@ const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
   path: '/channels',
   getParentRoute: () => SettingsRoute,
 } as any)
-const SettingsApiServerRoute = SettingsApiServerRouteImport.update({
-  id: '/api-server',
-  path: '/api-server',
+const SettingsApiGatewayRoute = SettingsApiGatewayRouteImport.update({
+  id: '/api-gateway',
+  path: '/api-gateway',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsAboutRoute = SettingsAboutRouteImport.update({
@@ -215,11 +214,6 @@ const AppCodeRoute = AppCodeRouteImport.update({
 const AppChatRoute = AppChatRouteImport.update({
   id: '/chat',
   path: '/chat',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppAssistantRoute = AppAssistantRouteImport.update({
-  id: '/assistant',
-  path: '/assistant',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAgentsRoute = AppAgentsRouteImport.update({
@@ -295,7 +289,6 @@ export interface FileRoutesByFullPath {
   '/home': typeof HomeRoute
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
-  '/app/assistant': typeof AppAssistantRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
   '/app/files': typeof AppFilesRoute
@@ -305,7 +298,7 @@ export interface FileRoutesByFullPath {
   '/app/openclaw': typeof AppOpenclawRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
-  '/settings/api-server': typeof SettingsApiServerRoute
+  '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
@@ -342,7 +335,6 @@ export interface FileRoutesByTo {
   '/app': typeof AppRouteWithChildren
   '/home': typeof HomeRoute
   '/app/agents': typeof AppAgentsRoute
-  '/app/assistant': typeof AppAssistantRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
   '/app/files': typeof AppFilesRoute
@@ -352,7 +344,7 @@ export interface FileRoutesByTo {
   '/app/openclaw': typeof AppOpenclawRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
-  '/settings/api-server': typeof SettingsApiServerRoute
+  '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
@@ -390,7 +382,6 @@ export interface FileRoutesById {
   '/home': typeof HomeRoute
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
-  '/app/assistant': typeof AppAssistantRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
   '/app/files': typeof AppFilesRoute
@@ -400,7 +391,7 @@ export interface FileRoutesById {
   '/app/openclaw': typeof AppOpenclawRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
-  '/settings/api-server': typeof SettingsApiServerRoute
+  '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
@@ -440,7 +431,6 @@ export interface FileRouteTypes {
     | '/home'
     | '/settings'
     | '/app/agents'
-    | '/app/assistant'
     | '/app/chat'
     | '/app/code'
     | '/app/files'
@@ -450,7 +440,7 @@ export interface FileRouteTypes {
     | '/app/openclaw'
     | '/app/translate'
     | '/settings/about'
-    | '/settings/api-server'
+    | '/settings/api-gateway'
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
@@ -487,7 +477,6 @@ export interface FileRouteTypes {
     | '/app'
     | '/home'
     | '/app/agents'
-    | '/app/assistant'
     | '/app/chat'
     | '/app/code'
     | '/app/files'
@@ -497,7 +486,7 @@ export interface FileRouteTypes {
     | '/app/openclaw'
     | '/app/translate'
     | '/settings/about'
-    | '/settings/api-server'
+    | '/settings/api-gateway'
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
@@ -534,7 +523,6 @@ export interface FileRouteTypes {
     | '/home'
     | '/settings'
     | '/app/agents'
-    | '/app/assistant'
     | '/app/chat'
     | '/app/code'
     | '/app/files'
@@ -544,7 +532,7 @@ export interface FileRouteTypes {
     | '/app/openclaw'
     | '/app/translate'
     | '/settings/about'
-    | '/settings/api-server'
+    | '/settings/api-gateway'
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
@@ -740,11 +728,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsChannelsRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/settings/api-server': {
-      id: '/settings/api-server'
-      path: '/api-server'
-      fullPath: '/settings/api-server'
-      preLoaderRoute: typeof SettingsApiServerRouteImport
+    '/settings/api-gateway': {
+      id: '/settings/api-gateway'
+      path: '/api-gateway'
+      fullPath: '/settings/api-gateway'
+      preLoaderRoute: typeof SettingsApiGatewayRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/about': {
@@ -808,13 +796,6 @@ declare module '@tanstack/react-router' {
       path: '/chat'
       fullPath: '/app/chat'
       preLoaderRoute: typeof AppChatRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/app/assistant': {
-      id: '/app/assistant'
-      path: '/assistant'
-      fullPath: '/app/assistant'
-      preLoaderRoute: typeof AppAssistantRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/agents': {
@@ -913,7 +894,6 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppAgentsRoute: typeof AppAgentsRoute
-  AppAssistantRoute: typeof AppAssistantRoute
   AppChatRoute: typeof AppChatRoute
   AppCodeRoute: typeof AppCodeRoute
   AppFilesRoute: typeof AppFilesRoute
@@ -930,7 +910,6 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppAgentsRoute: AppAgentsRoute,
-  AppAssistantRoute: AppAssistantRoute,
   AppChatRoute: AppChatRoute,
   AppCodeRoute: AppCodeRoute,
   AppFilesRoute: AppFilesRoute,
@@ -975,7 +954,7 @@ const SettingsMcpRouteWithChildren = SettingsMcpRoute._addFileChildren(
 
 interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
-  SettingsApiServerRoute: typeof SettingsApiServerRoute
+  SettingsApiGatewayRoute: typeof SettingsApiGatewayRoute
   SettingsChannelsRoute: typeof SettingsChannelsRoute
   SettingsComponentLabRoute: typeof SettingsComponentLabRoute
   SettingsDataRoute: typeof SettingsDataRoute
@@ -998,7 +977,7 @@ interface SettingsRouteChildren {
 
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAboutRoute: SettingsAboutRoute,
-  SettingsApiServerRoute: SettingsApiServerRoute,
+  SettingsApiGatewayRoute: SettingsApiGatewayRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
   SettingsComponentLabRoute: SettingsComponentLabRoute,
   SettingsDataRoute: SettingsDataRoute,

@@ -1,5 +1,5 @@
-import { getProviderHostTopology } from '@renderer/pages/settings/ProviderSettings/utils/providerTopology'
 import type { Provider } from '@shared/data/types/provider'
+import { getProviderHostTopology } from '@shared/utils/providerTopology'
 
 import type { ApiKeysData } from './types'
 

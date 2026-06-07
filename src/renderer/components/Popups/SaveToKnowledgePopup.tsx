@@ -14,7 +14,7 @@ import {
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { TopView } from '@renderer/components/TopView'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBases'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'

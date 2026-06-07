@@ -1,7 +1,6 @@
 import type { SerializedError } from '@renderer/types/error'
 import { HealthStatus } from '@renderer/types/healthCheck'
 import type { Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 
 export { HealthStatus }
 
@@ -43,6 +42,17 @@ export type ApiKeyWithStatus = ApiKeyConnectivity & {
   key: string
 }
 
+export type ModelHealthCheckGenerationOutput = 'image' | 'video' | 'audio'
+
+export type ModelHealthCheckSkipReason =
+  | {
+      kind: 'generation_cost'
+      output: ModelHealthCheckGenerationOutput
+    }
+  | {
+      kind: 'unsupported_probe'
+    }
+
 export type ModelWithStatus =
   | {
       kind: 'checking'
@@ -80,10 +90,19 @@ export type ModelWithStatus =
       latency?: number
       error?: SerializedError
     }
+  | {
+      kind: 'skipped'
+      model: Model
+      status: HealthStatus.NOT_CHECKED
+      keyResults: []
+      checking: false
+      latency?: never
+      error?: never
+      skipReason: ModelHealthCheckSkipReason
+    }
 
 export interface ModelCheckOptions {
-  provider: Provider
-  models: Model[]
+  models: readonly Model[]
   apiKeys: string[]
   isConcurrent: boolean
   timeout?: number

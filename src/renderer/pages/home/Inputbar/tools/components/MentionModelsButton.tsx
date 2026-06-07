@@ -1,6 +1,7 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
-import type { FileMetadata, Model } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
 import { Tooltip } from 'antd'
 import { AtSign } from 'lucide-react'
 import type { FC } from 'react'

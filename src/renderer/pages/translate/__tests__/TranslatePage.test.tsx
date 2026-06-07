@@ -21,7 +21,9 @@ const translateCoreMock = vi.hoisted(() => ({
   setTimeoutTimer: vi.fn(),
   translateText: vi.fn(),
   determineTargetLanguage: vi.fn(),
+  addAbortController: vi.fn(),
   abortCompletion: vi.fn(),
+  removeAbortController: vi.fn(),
   isAbortError: vi.fn(),
   formatErrorMessageWithPrefix: vi.fn((_: unknown, prefix: string) => prefix)
 }))
@@ -95,7 +97,7 @@ vi.mock('@renderer/hooks/useFiles', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: () => ({
     models: [
       {
@@ -144,7 +146,9 @@ vi.mock('@renderer/utils', () => ({
 }))
 
 vi.mock('@renderer/utils/abortController', () => ({
-  abortCompletion: translateCoreMock.abortCompletion
+  abortCompletion: translateCoreMock.abortCompletion,
+  addAbortController: translateCoreMock.addAbortController,
+  removeAbortController: translateCoreMock.removeAbortController
 }))
 
 vi.mock('@renderer/utils/error', () => ({

@@ -22,6 +22,8 @@
 import type { AssertValidSchemas } from '../apiTypes'
 import type { AgentChannelSchemas } from './agentChannels'
 import type { AgentSchemas } from './agents'
+import type { AgentSessionSchemas } from './agentSessions'
+import type { AgentWorkspaceSchemas } from './agentWorkspaces'
 import type { AssistantSchemas } from './assistants'
 import type { FileSchemas } from './files'
 import type { GroupSchemas } from './groups'
@@ -36,6 +38,7 @@ import type { PaintingsSchemas } from './paintings'
 import type { PinSchemas } from './pins'
 import type { PromptSchemas } from './prompts'
 import type { ProviderSchemas } from './providers'
+import type { SkillSchemas } from './skills'
 import type { TagSchemas } from './tags'
 import type { TemporaryChatSchemas } from './temporaryChats'
 import type { TopicSchemas } from './topics'
@@ -72,6 +75,9 @@ export type ApiSchemas = AssertValidSchemas<
     GroupSchemas &
     PinSchemas &
     AgentSchemas &
+    SkillSchemas &
+    AgentSessionSchemas &
+    AgentWorkspaceSchemas &
     AgentChannelSchemas &
     JobSchemas
 >
