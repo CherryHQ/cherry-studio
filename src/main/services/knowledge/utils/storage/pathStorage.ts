@@ -55,12 +55,19 @@ export function getProcessedMarkdownRelativePath(relativePath: string): string {
 }
 
 export async function copyFileIntoKnowledgeBase(baseId: string, sourcePath: string): Promise<string> {
-  const fileName = getKnowledgeSourceRelativePath(sourcePath)
-  const destPath = getKnowledgeBaseFilePath(baseId, fileName)
+  return copyFileIntoKnowledgeBaseAt(baseId, sourcePath, getKnowledgeSourceRelativePath(sourcePath))
+}
+
+export async function copyFileIntoKnowledgeBaseAt(
+  baseId: string,
+  sourcePath: string,
+  relativePath: string
+): Promise<string> {
+  const destPath = getKnowledgeBaseFilePath(baseId, relativePath)
   await assertTargetAvailable(destPath)
-  await ensureDir(getKnowledgeBaseDir(baseId))
+  await ensureDir(path.dirname(destPath) as FilePath)
   await copy(sourcePath as FilePath, destPath)
-  return fileName
+  return relativePath
 }
 
 export async function assertKnowledgeFileTargetAvailable(baseId: string, relativePath: string): Promise<void> {

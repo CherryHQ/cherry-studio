@@ -1,27 +1,21 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
+import type { DirectoryItemData, FileItemData, KnowledgeItem } from '@shared/data/types/knowledge'
 import type { NotesTreeNode } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
-import { copyFileIntoKnowledgeBase } from '../storage/pathStorage'
+import { copyFileIntoKnowledgeBaseAt } from '../storage/pathStorage'
 
 export type ExpandedDirectoryNode =
   | {
       type: 'directory'
-      data: {
-        source: string
-        path: string
-      }
+      data: Pick<DirectoryItemData, 'source' | 'path'>
       children: ExpandedDirectoryNode[]
     }
   | {
       type: 'file'
-      data: {
-        source: string
-        relativePath: string
-      }
+      data: Pick<FileItemData, 'source' | 'relativePath'>
     }
 
 async function readDirectoryTree(
@@ -79,11 +73,16 @@ async function readDirectoryTree(
 
 async function expandDirectoryNode(
   baseId: string,
+  ownerId: string,
   node: NotesTreeNode,
   signal: AbortSignal
 ): Promise<ExpandedDirectoryNode | null> {
   if (node.type === 'file') {
-    const relativePath = await copyFileIntoKnowledgeBase(baseId, node.externalPath)
+    // Namespace each file under the directory owner's item id and keep its
+    // subtree path (from `treePath`, already POSIX) so siblings sharing a
+    // basename across subdirectories don't collide and the hierarchy survives.
+    const subtreePath = node.treePath.replace(/^\/+/, '')
+    const relativePath = await copyFileIntoKnowledgeBaseAt(baseId, node.externalPath, `${ownerId}/${subtreePath}`)
     signal.throwIfAborted()
 
     return {
@@ -102,7 +101,7 @@ async function expandDirectoryNode(
   const children: ExpandedDirectoryNode[] = []
 
   for (const child of node.children ?? []) {
-    const expandedChild = await expandDirectoryNode(baseId, child, signal)
+    const expandedChild = await expandDirectoryNode(baseId, ownerId, child, signal)
     if (expandedChild) {
       children.push(expandedChild)
     }
@@ -136,7 +135,7 @@ export async function expandDirectoryOwnerToTree(
   const expandedChildren: ExpandedDirectoryNode[] = []
 
   for (const child of children) {
-    const expandedChild = await expandDirectoryNode(baseId, child, signal)
+    const expandedChild = await expandDirectoryNode(baseId, owner.id, child, signal)
     if (expandedChild) {
       expandedChildren.push(expandedChild)
     }

@@ -6,8 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type * as PathStorage from '../../storage/pathStorage'
 
-const copyFileIntoKnowledgeBaseMock = vi.hoisted(() =>
-  vi.fn(async (_baseId: string, externalPath: string) => path.basename(externalPath))
+const copyFileIntoKnowledgeBaseAtMock = vi.hoisted(() =>
+  vi.fn(async (_baseId: string, _externalPath: string, relativePath: string) => relativePath)
 )
 
 vi.mock('@application', async () => {
@@ -19,7 +19,7 @@ vi.mock('../../storage/pathStorage', async () => {
   const actual = await vi.importActual<typeof PathStorage>('../../storage/pathStorage')
   return {
     ...actual,
-    copyFileIntoKnowledgeBase: copyFileIntoKnowledgeBaseMock
+    copyFileIntoKnowledgeBaseAt: copyFileIntoKnowledgeBaseAtMock
   }
 })
 
@@ -85,7 +85,7 @@ describe('expandDirectoryOwnerToTree', () => {
                 type: 'file',
                 data: {
                   source: path.join(nestedDir, 'skill.md'),
-                  relativePath: 'skill.md'
+                  relativePath: 'dir-owner-1/agents/skills/skill.md'
                 }
               }
             ]
@@ -130,7 +130,7 @@ describe('expandDirectoryOwnerToTree', () => {
         type: 'file',
         data: expect.objectContaining({
           source: path.join(rootDir, 'readme.md'),
-          relativePath: 'readme.md'
+          relativePath: 'dir-owner-1/readme.md'
         })
       })
     )
@@ -147,7 +147,7 @@ describe('expandDirectoryOwnerToTree', () => {
                 type: 'file',
                 data: expect.objectContaining({
                   source: path.join(nestedDir, 'reference.md'),
-                  relativePath: 'reference.md'
+                  relativePath: 'dir-owner-1/guides/api/reference.md'
                 })
               })
             ]
@@ -155,6 +155,44 @@ describe('expandDirectoryOwnerToTree', () => {
         ]
       })
     )
+  })
+
+  it('gives same-basename files in different subdirectories distinct relative paths', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'project')
+    const dirA = path.join(rootDir, 'a')
+    const dirB = path.join(rootDir, 'b')
+    realFs.mkdirSync(dirA, { recursive: true })
+    realFs.mkdirSync(dirB, { recursive: true })
+    realFs.writeFileSync(path.join(dirA, 'notes.md'), '# a')
+    realFs.writeFileSync(path.join(dirB, 'notes.md'), '# b')
+
+    copyFileIntoKnowledgeBaseAtMock.mockClear()
+    const nodes = await expandDirectoryOwnerToTree(
+      {
+        id: 'dir-owner-1',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'directory',
+        data: {
+          source: rootDir,
+          path: rootDir
+        },
+        status: 'idle',
+        error: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z'
+      },
+      'kb-1',
+      createSignal()
+    )
+
+    const relativePaths = JSON.stringify(nodes)
+    expect(relativePaths).toContain('dir-owner-1/a/notes.md')
+    expect(relativePaths).toContain('dir-owner-1/b/notes.md')
+    // No collision: copy is invoked once per file with a unique target path.
+    const copiedTargets = copyFileIntoKnowledgeBaseAtMock.mock.calls.map((call) => call[2])
+    expect(new Set(copiedTargets).size).toBe(copiedTargets.length)
   })
 
   it('stops before reading when the runtime signal is already aborted', async () => {
