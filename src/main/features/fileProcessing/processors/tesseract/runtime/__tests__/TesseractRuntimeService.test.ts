@@ -23,7 +23,7 @@ vi.mock('@main/utils/ipService', () => ({
   getIpCountry: getIpCountryMock
 }))
 
-vi.mock('@main/services/fileProcessing/utils/ocr', () => ({
+vi.mock('@main/features/fileProcessing/utils/ocr', () => ({
   loadOcrImage: loadOcrImageMock
 }))
 

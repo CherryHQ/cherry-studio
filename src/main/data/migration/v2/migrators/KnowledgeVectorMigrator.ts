@@ -25,7 +25,7 @@ const VECTORSTORE_TABLE_NAME = 'libsql_vectorstores_embedding'
 const INSERT_BATCH_SIZE = 100
 const LEGACY_VECTOR_BACKUP_SUFFIX = '.embedjs.bak'
 // Runtime vector store layout — source of truth:
-// src/main/services/knowledge/utils/storage/pathStorage.ts (CHERRY_META_DIR / VECTOR_STORE_FILE).
+// src/main/features/knowledge/utils/storage/pathStorage.ts (CHERRY_META_DIR / VECTOR_STORE_FILE).
 // Runtime opens {knowledgeBaseDir}/{baseId}/.cherry/index.sqlite by the migrated (new) base id,
 // so the migrator must write the rebuilt store to that same nested path.
 const KNOWLEDGE_META_DIR = '.cherry'
