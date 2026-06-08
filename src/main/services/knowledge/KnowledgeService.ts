@@ -332,7 +332,7 @@ export class KnowledgeService extends BaseService {
       uniqueItemIds.map(async (itemId) => {
         try {
           const item = await knowledgeItemService.getById(itemId)
-          if (item.baseId === baseId && item.status !== 'deleting') {
+          if (item.baseId === baseId && item.status === 'completed') {
             visibleItemIds.add(itemId)
           }
         } catch (error) {

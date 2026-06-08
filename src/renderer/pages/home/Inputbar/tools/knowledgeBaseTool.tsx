@@ -1,7 +1,7 @@
 import { useAssistantMutations } from '@renderer/hooks/useAssistant'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
-import type { KnowledgeBase } from '@renderer/types'
 import { isSupportedToolUse } from '@renderer/utils/assistant'
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import { useCallback } from 'react'
 
 import KnowledgeBaseButton from './components/KnowledgeBaseButton'
@@ -28,7 +28,7 @@ const knowledgeBaseTool = defineTool({
     const { updateAssistant } = useAssistantMutations()
 
     const handleSelect = useCallback(
-      (bases: KnowledgeBase[]) => {
+      (bases: KnowledgeBaseListItem[]) => {
         void updateAssistant(assistant.id, { knowledgeBaseIds: bases.map((b) => b.id) })
         actions.setSelectedKnowledgeBases?.(bases)
       },

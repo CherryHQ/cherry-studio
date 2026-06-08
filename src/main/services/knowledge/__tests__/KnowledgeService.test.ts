@@ -153,6 +153,9 @@ const { KnowledgeService } = await import('../KnowledgeService')
 const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 const DELETING_NOTE_ITEM_ID = '0198f3f2-7d1b-7abc-8def-123456789abc'
 const MISSING_NOTE_ITEM_ID = '0198f3f2-7d1c-7abc-8def-123456789abc'
+const FAILED_NOTE_ITEM_ID = '0198f3f2-7d1d-7abc-8def-123456789abc'
+const PROCESSING_NOTE_ITEM_ID = '0198f3f2-7d1e-7abc-8def-123456789abc'
+const EMBEDDING_NOTE_ITEM_ID = '0198f3f2-7d1f-7abc-8def-123456789abc'
 const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000501'
 
 function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
@@ -1030,6 +1033,7 @@ describe('KnowledgeService', () => {
   it('searches vector store results and applies relevance threshold', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ threshold: 0.5 }))
+    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
     vectorQueryMock.mockResolvedValueOnce({
       nodes: [
         {
@@ -1060,6 +1064,7 @@ describe('KnowledgeService', () => {
     const service = new KnowledgeService()
     const base = createBase({ threshold: 0.5, rerankModelId: 'jina::jina-reranker-v2-base-multilingual' })
     knowledgeBaseGetByIdMock.mockResolvedValue(base)
+    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
     vectorQueryMock.mockResolvedValueOnce({
       nodes: [
         {
@@ -1093,7 +1098,7 @@ describe('KnowledgeService', () => {
     )
   })
 
-  it('filters search results for missing or deleting items', async () => {
+  it('filters search results for missing or non-completed items', async () => {
     const service = new KnowledgeService()
     knowledgeItemGetByIdMock.mockImplementation(async (id: string) => {
       if (id === MISSING_NOTE_ITEM_ID) {
@@ -1102,7 +1107,16 @@ describe('KnowledgeService', () => {
       if (id === DELETING_NOTE_ITEM_ID) {
         return createNoteItem(id, 'kb-1', null, 'deleting')
       }
-      return createNoteItem(id)
+      if (id === FAILED_NOTE_ITEM_ID) {
+        return createNoteItem(id, 'kb-1', null, 'failed')
+      }
+      if (id === PROCESSING_NOTE_ITEM_ID) {
+        return createNoteItem(id, 'kb-1', null, 'processing')
+      }
+      if (id === EMBEDDING_NOTE_ITEM_ID) {
+        return createNoteItem(id, 'kb-1', null, 'embedding')
+      }
+      return createNoteItem(id, 'kb-1', null, 'completed')
     })
     vectorQueryMock.mockResolvedValueOnce({
       nodes: [
@@ -1123,6 +1137,39 @@ describe('KnowledgeService', () => {
           getContent: () => 'deleting'
         },
         {
+          id_: 'chunk-failed',
+          metadata: {
+            itemId: FAILED_NOTE_ITEM_ID,
+            itemType: 'note',
+            source: 'failed-note',
+            chunkIndex: 0,
+            tokenCount: 3
+          },
+          getContent: () => 'failed'
+        },
+        {
+          id_: 'chunk-processing',
+          metadata: {
+            itemId: PROCESSING_NOTE_ITEM_ID,
+            itemType: 'note',
+            source: 'processing-note',
+            chunkIndex: 0,
+            tokenCount: 3
+          },
+          getContent: () => 'processing'
+        },
+        {
+          id_: 'chunk-embedding',
+          metadata: {
+            itemId: EMBEDDING_NOTE_ITEM_ID,
+            itemType: 'note',
+            source: 'embedding-note',
+            chunkIndex: 0,
+            tokenCount: 3
+          },
+          getContent: () => 'embedding'
+        },
+        {
           id_: 'chunk-missing',
           metadata: {
             itemId: MISSING_NOTE_ITEM_ID,
@@ -1134,7 +1181,7 @@ describe('KnowledgeService', () => {
           getContent: () => 'missing'
         }
       ],
-      similarities: [0.9, 0.8, 0.7]
+      similarities: [0.9, 0.8, 0.7, 0.6, 0.5, 0.4]
     })
 
     await expect(service.search('kb-1', 'hello')).resolves.toEqual([

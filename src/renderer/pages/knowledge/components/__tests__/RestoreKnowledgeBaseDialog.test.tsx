@@ -257,6 +257,47 @@ describe('RestoreKnowledgeBaseDialog', () => {
     expect(mockEmbedMany).not.toHaveBeenCalled()
   })
 
+  it('probes dimensions when the RAG config panel supplies a new embedding model without dimensions', async () => {
+    mockEmbedMany.mockResolvedValueOnce({ embeddings: [new Array(2048).fill(0)] })
+    const restoredBase = createKnowledgeBase({
+      id: 'restored-base',
+      status: 'completed',
+      error: null,
+      dimensions: 2048,
+      embeddingModelId: 'openai::text-embedding-3-small'
+    })
+    const restoreBase = vi.fn().mockResolvedValue(restoredBase)
+
+    render(
+      <RestoreKnowledgeBaseDialog
+        open
+        base={createKnowledgeBase({ dimensions: 1024 })}
+        initialEmbeddingModelId="openai::text-embedding-3-small"
+        isRestoring={false}
+        restoreBase={restoreBase}
+        onOpenChange={vi.fn()}
+        onRestored={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByLabelText('嵌入维度')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '重建' }))
+
+    await waitFor(() =>
+      expect(restoreBase).toHaveBeenCalledWith({
+        sourceBaseId: 'source-base',
+        name: 'Legacy KB_副本',
+        embeddingModelId: 'openai::text-embedding-3-small',
+        dimensions: 2048
+      })
+    )
+    expect(mockEmbedMany).toHaveBeenCalledWith({
+      uniqueModelId: 'openai::text-embedding-3-small',
+      values: ['test']
+    })
+  })
+
   it('shows submit error and keeps the dialog open when restoreBase rejects', async () => {
     const restoreBase = vi.fn().mockRejectedValue(new Error('restore failed'))
     const onOpenChange = vi.fn()

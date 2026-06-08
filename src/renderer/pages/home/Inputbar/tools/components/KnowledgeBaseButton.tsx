@@ -3,7 +3,7 @@ import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
-import type { KnowledgeBase } from '@renderer/types'
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import { useNavigate } from '@tanstack/react-router'
 import { CircleX, FileSearch, Plus } from 'lucide-react'
 import type { FC } from 'react'
@@ -12,9 +12,9 @@ import { useTranslation } from 'react-i18next'
 
 interface Props {
   quickPanel: ToolQuickPanelApi
-  bases: KnowledgeBase[]
-  selectedBases?: KnowledgeBase[]
-  onSelect: (bases: KnowledgeBase[]) => void
+  bases: KnowledgeBaseListItem[]
+  selectedBases?: KnowledgeBaseListItem[]
+  onSelect: (bases: KnowledgeBaseListItem[]) => void
   disabled?: boolean
 }
 
@@ -29,7 +29,7 @@ const KnowledgeBaseButton: FC<Props> = ({ quickPanel, bases, selectedBases, onSe
   }, [selectedBases])
 
   const handleBaseSelect = useCallback(
-    (base: KnowledgeBase) => {
+    (base: KnowledgeBaseListItem) => {
       const currentSelectedBases = selectedBasesRef.current
 
       if (currentSelectedBases?.some((selected) => selected.id === base.id)) {
@@ -44,7 +44,7 @@ const KnowledgeBaseButton: FC<Props> = ({ quickPanel, bases, selectedBases, onSe
   const baseItems = useMemo<QuickPanelListItem[]>(() => {
     const items: QuickPanelListItem[] = bases.map((base) => ({
       label: base.name,
-      description: `${base.items?.length ?? 0} ${t('files.count')}`,
+      description: `${base.itemCount} ${t('files.count')}`,
       icon: <FileSearch />,
       action: () => handleBaseSelect(base),
       isSelected: selectedBases?.some((selected) => selected.id === base.id)

@@ -1,6 +1,7 @@
 import type { QuickPanelListItem, QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
-import type { FileMetadata, KnowledgeBase } from '@renderer/types'
+import type { FileMetadata } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Model } from '@shared/data/types/model'
 import React, { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -16,9 +17,9 @@ export interface InputbarToolsState {
   /** Models mentioned in the input */
   mentionedModels: Model[]
   /** Selected knowledge base items */
-  selectedKnowledgeBases: KnowledgeBase[]
+  selectedKnowledgeBases: KnowledgeBaseListItem[]
   /** Available knowledge base items */
-  availableKnowledgeBases: KnowledgeBase[]
+  availableKnowledgeBases: KnowledgeBaseListItem[]
   /** Whether the inputbar is expanded */
   isExpanded: boolean
 
@@ -80,8 +81,8 @@ export interface InputbarToolsDispatch {
   /** State setters */
   setFiles: React.Dispatch<React.SetStateAction<FileMetadata[]>>
   setMentionedModels: React.Dispatch<React.SetStateAction<Model[]>>
-  setSelectedKnowledgeBases: React.Dispatch<React.SetStateAction<KnowledgeBase[]>>
-  setAvailableKnowledgeBases: React.Dispatch<React.SetStateAction<KnowledgeBase[]>>
+  setSelectedKnowledgeBases: React.Dispatch<React.SetStateAction<KnowledgeBaseListItem[]>>
+  setAvailableKnowledgeBases: React.Dispatch<React.SetStateAction<KnowledgeBaseListItem[]>>
   setIsExpanded: React.Dispatch<React.SetStateAction<boolean>>
 
   /** Parent component actions */
@@ -149,8 +150,8 @@ interface InputbarToolsProviderProps {
   initialState?: Partial<{
     files: FileMetadata[]
     mentionedModels: Model[]
-    selectedKnowledgeBases: KnowledgeBase[]
-    availableKnowledgeBases: KnowledgeBase[]
+    selectedKnowledgeBases: KnowledgeBaseListItem[]
+    availableKnowledgeBases: KnowledgeBaseListItem[]
     isExpanded: boolean
     couldAddImageFile: boolean
     extensions: string[]
@@ -169,10 +170,10 @@ export const InputbarToolsProvider: React.FC<InputbarToolsProviderProps> = ({ ch
   // Core state
   const [files, setFiles] = useState<FileMetadata[]>(initialState?.files || [])
   const [mentionedModels, setMentionedModels] = useState<Model[]>(initialState?.mentionedModels || [])
-  const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>(
+  const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBaseListItem[]>(
     initialState?.selectedKnowledgeBases || []
   )
-  const [availableKnowledgeBases, setAvailableKnowledgeBases] = useState<KnowledgeBase[]>(
+  const [availableKnowledgeBases, setAvailableKnowledgeBases] = useState<KnowledgeBaseListItem[]>(
     initialState?.availableKnowledgeBases || []
   )
   const [isExpanded, setIsExpanded] = useState(initialState?.isExpanded || false)

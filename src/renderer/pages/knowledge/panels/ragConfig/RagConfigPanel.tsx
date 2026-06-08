@@ -72,8 +72,18 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
     [embeddingModels, values.embeddingModelId]
   )
   const { fetchDimensions, isFetchingDimensions } = useEmbeddingDimensions()
-  const embeddingConfigChanged =
-    values.embeddingModelId !== initialValues.embeddingModelId || values.dimensions !== initialValues.dimensions
+  const embeddingModelChanged = values.embeddingModelId !== initialValues.embeddingModelId
+  const dimensionsChanged = values.dimensions !== initialValues.dimensions
+  const embeddingConfigChanged = embeddingModelChanged || dimensionsChanged
+  const canRestoreWithAutoDimensions =
+    embeddingModelChanged &&
+    values.dimensions === '' &&
+    !!values.embeddingModelId &&
+    values.chunkSize !== '' &&
+    values.chunkOverlap !== '' &&
+    !validationErrorCodes.chunkSize &&
+    !validationErrorCodes.chunkOverlap
+  const canSubmit = canSave || canRestoreWithAutoDimensions
 
   const handleRefreshDimensions = async () => {
     if (!selectedEmbeddingModel) {
@@ -90,15 +100,20 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
   }
 
   const handleSave = async () => {
-    if (!canSave) {
+    if (!canSubmit) {
       return
     }
 
     if (embeddingConfigChanged) {
-      onRestoreBase(base, {
-        embeddingModelId: values.embeddingModelId,
-        dimensions: parseRequiredInteger(values.dimensions)
-      })
+      const initialRestoreValues: KnowledgeRestoreBaseInitialValues = {
+        embeddingModelId: values.embeddingModelId
+      }
+
+      if (values.dimensions !== '') {
+        initialRestoreValues.dimensions = parseRequiredInteger(values.dimensions)
+      }
+
+      onRestoreBase(base, initialRestoreValues)
       return
     }
 
@@ -108,6 +123,14 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
     } catch (error) {
       window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
     }
+  }
+
+  const handleEmbeddingModelChange = (embeddingModelId: string) => {
+    setValues((currentValues) => ({
+      ...currentValues,
+      embeddingModelId,
+      dimensions: currentValues.embeddingModelId === embeddingModelId ? currentValues.dimensions : ''
+    }))
   }
 
   return (
@@ -142,9 +165,7 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
             dimensions={values.dimensions}
             dimensionsErrorCode={validationErrorCodes.dimensions}
             isFetchingDimensions={isFetchingDimensions}
-            onEmbeddingModelChange={(embeddingModelId) =>
-              setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
-            }
+            onEmbeddingModelChange={handleEmbeddingModelChange}
             onDimensionsChange={(dimensions) =>
               setValues((currentValues) => ({ ...currentValues, dimensions: dimensions.replace(/\D/g, '') }))
             }
@@ -181,7 +202,7 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
           <RotateCcw />
           {t('knowledge.rag.reset_action')}
         </Button>
-        <Button type="button" variant="emphasis" loading={isLoading} disabled={!canSave} onClick={handleSave}>
+        <Button type="button" variant="emphasis" loading={isLoading} disabled={!canSubmit} onClick={handleSave}>
           {embeddingConfigChanged ? t('knowledge.restore.submit') : t('knowledge.rag.save_action')}
         </Button>
       </KnowledgeDialogFooter>
