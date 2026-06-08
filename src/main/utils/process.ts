@@ -291,6 +291,41 @@ export function findExecutable(name: string, options?: FindExecutableOptions): s
   }
 }
 
+export interface StdioCommandParameters {
+  command: string
+  args: string[]
+}
+
+function quoteCmdArg(arg: string): string {
+  if (arg === '') return '""'
+  if (/^[a-zA-Z0-9_/@+=:,.;-]+$/.test(arg)) return arg
+  return `"${arg.replace(/(["^&|<>()%])/g, '^$1')}"`
+}
+
+function quoteCmdCommand(command: string): string {
+  return /\s/.test(command) ? quoteCmdArg(command) : command
+}
+
+/**
+ * Windows 的 .cmd/.bat shim 不能直接交给 spawn(shell:false) 执行。
+ * MCP SDK 的 StdioClientTransport 内部使用 spawn，所以这里提前包装为 cmd.exe。
+ */
+export function normalizeCommandForStdio(
+  command: string,
+  args: string[],
+  env?: Record<string, string>
+): StdioCommandParameters {
+  if (!isWin || !/\.(cmd|bat)$/i.test(command)) {
+    return { command, args }
+  }
+
+  const comSpec = env?.ComSpec || env?.COMSPEC || 'cmd.exe'
+  return {
+    command: comSpec,
+    args: ['/d', '/c', [quoteCmdCommand(command), ...args.map(quoteCmdArg)].join(' ')]
+  }
+}
+
 // ============================================================================
 // Unified Shell Environment Utilities
 // ============================================================================

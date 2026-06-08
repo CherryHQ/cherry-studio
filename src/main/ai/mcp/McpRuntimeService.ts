@@ -9,7 +9,14 @@ import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { makeSureDirExists, removeEnvProxy } from '@main/utils'
-import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
+import {
+  findCommandInShellEnv,
+  findExecutable,
+  getBinaryName,
+  getBinaryPath,
+  isBinaryExists,
+  normalizeCommandForStdio
+} from '@main/utils/process'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import { TraceMethod, withSpanFunc } from '@mcp-trace/trace-core'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -512,9 +519,16 @@ export class McpRuntimeService extends BaseService {
               }
             }
 
-            if (server.command === 'npx') {
+            if (cmd === 'npx') {
               // First, check if npx is available in user's shell environment
-              const npxPath = await findCommandInShellEnv('npx', loginShellEnv)
+              let npxPath = await findCommandInShellEnv('npx', loginShellEnv)
+
+              if (!npxPath) {
+                npxPath = findExecutable('npx', {
+                  extensions: ['.exe', '.cmd', '.bat'],
+                  env: loginShellEnv
+                })
+              }
 
               if (npxPath) {
                 // Use system npx
@@ -562,32 +576,33 @@ export class McpRuntimeService extends BaseService {
                   connectEnv.MCP_REGISTRY_PATH = path.join(binPath, '..', 'config', 'mcp-registry.json')
                 }
               }
-            } else if (server.command === 'uvx' || server.command === 'uv') {
+            } else if (cmd === 'uvx' || cmd === 'uv') {
+              const requestedCommand = cmd
               // First, check if uvx/uv is available in user's shell environment
-              const uvPath = await findCommandInShellEnv(server.command, loginShellEnv)
+              const uvPath = await findCommandInShellEnv(requestedCommand, loginShellEnv)
 
               if (uvPath) {
                 // Use system uvx/uv
                 cmd = uvPath
-                getServerLogger(server).debug(`Using system ${server.command}`, { command: cmd })
+                getServerLogger(server).debug(`Using system ${requestedCommand}`, { command: cmd })
               } else {
                 // System command not found, try bundled version as fallback
-                getServerLogger(server).debug(`System ${server.command} not found, checking for bundled version`)
+                getServerLogger(server).debug(`System ${requestedCommand} not found, checking for bundled version`)
 
-                if (await isBinaryExists(server.command)) {
+                if (await isBinaryExists(requestedCommand)) {
                   // Fall back to bundled version
-                  cmd = await getBinaryPath(server.command)
-                  getServerLogger(server).info(`Using bundled ${server.command} as fallback (not found in PATH)`, {
+                  cmd = await getBinaryPath(requestedCommand)
+                  getServerLogger(server).info(`Using bundled ${requestedCommand} as fallback (not found in PATH)`, {
                     command: cmd
                   })
                 } else {
                   // Neither system nor bundled available
                   throw new Error(
-                    `${server.command} not found in PATH and bundled version is not available. This may indicate an installation issue.\n` +
+                    `${requestedCommand} not found in PATH and bundled version is not available. This may indicate an installation issue.\n` +
                       'Please either:\n' +
                       '1. Install uv from https://github.com/astral-sh/uv\n' +
                       '2. Run the MCP dependencies installer from Settings\n' +
-                      `3. Restart the application if you recently installed ${server.command}`
+                      `3. Restart the application if you recently installed ${requestedCommand}`
                   )
                 }
               }
@@ -605,12 +620,17 @@ export class McpRuntimeService extends BaseService {
               removeEnvProxy(loginShellEnv)
             }
 
+            const transportEnv = {
+              ...loginShellEnv,
+              ...connectEnv
+            }
+            const stdioCommand = normalizeCommandForStdio(cmd, args, transportEnv)
+
             const transportOptions: StdioServerParameters = {
-              command: cmd,
-              args,
+              command: stdioCommand.command,
+              args: stdioCommand.args,
               env: {
-                ...loginShellEnv,
-                ...connectEnv
+                ...transportEnv
               },
               stderr: 'pipe'
             }
