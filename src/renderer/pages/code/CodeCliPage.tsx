@@ -142,6 +142,9 @@ const CodeCliPage: FC = () => {
         if (isAnthropicProvider(provider)) {
           return true
         }
+        if (provider.endpointConfigs?.['anthropic-messages']?.baseUrl) {
+          return true
+        }
         return id.includes('claude') || CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS.includes(m.providerId)
       }
 
