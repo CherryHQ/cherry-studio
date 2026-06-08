@@ -11,16 +11,9 @@ import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/messag
 import type { UniqueModelId } from '@shared/data/types/model'
 import { createContext, use } from 'react'
 
-/**
- * V2 chat overrides injected via React Context. Operations delegate to
- * DataApi + useChat.
- */
-/** Optional trace hints passed alongside `deleteMessage`. Used to evict
- *  the span-cache entries for a terminated assistant turn. Absent for
- *  user messages and for multi-select delete, in which case the
- *  override falls back to clearing the whole topic's active traces. */
+/** Chat write actions injected via React Context. Operations delegate to DataApi + useChat. */
+/** Optional hints passed alongside `deleteMessage`. */
 export interface DeleteMessageTraceOptions {
-  traceId?: string
   modelName?: string
 }
 

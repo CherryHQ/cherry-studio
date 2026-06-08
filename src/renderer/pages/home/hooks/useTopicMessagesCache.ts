@@ -30,6 +30,29 @@ function branchWithoutIds(items: BranchMessage[], removedIds: Set<string>): Bran
     )
 }
 
+function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMessage): BranchMessage {
+  const metadata = message.metadata ?? {}
+  const createdAt = metadata.createdAt ?? new Date().toISOString()
+  return {
+    message: {
+      id: message.id,
+      topicId,
+      parentId: metadata.parentId ?? null,
+      role: message.role,
+      data: { parts: (message.parts ?? []) as CherryMessagePart[] },
+      searchableText: '',
+      status:
+        metadata.status ?? (message.role === 'assistant' && (message.parts?.length ?? 0) === 0 ? 'pending' : 'success'),
+      siblingsGroupId: metadata.siblingsGroupId ?? 0,
+      modelId: metadata.modelId ?? null,
+      modelSnapshot: metadata.modelSnapshot ?? null,
+      stats: metadata.stats ?? null,
+      createdAt,
+      updatedAt: createdAt
+    }
+  }
+}
+
 export interface UseTopicMessagesCacheParams {
   topicId: string
   mutate: SWRInfiniteKeyedMutator<BranchMessagesResponse[]>

@@ -25,7 +25,6 @@ function toUIMessage(row: AgentSessionMessageEntity): CherryUIMessage | null {
   if (row.updatedAt) metadata.updatedAt = row.updatedAt
   if (row.modelId) metadata.modelId = row.modelId
   if (row.modelSnapshot) metadata.modelSnapshot = row.modelSnapshot
-  if (row.traceId) metadata.traceId = row.traceId
   if (row.stats) metadata.stats = row.stats
   if (VALID_STATUS.has(row.status)) {
     metadata.status = row.status
@@ -39,7 +38,33 @@ function toUIMessage(row: AgentSessionMessageEntity): CherryUIMessage | null {
   } as CherryUIMessage
 }
 
-export function useAgentSessionParts(_agentId: string, sessionId: string) {
+function reservedUIMessageToAgentSessionMessage(
+  sessionId: string,
+  message: CherryUIMessage
+): AgentSessionMessageEntity {
+  const metadata = message.metadata ?? {}
+  const createdAt = metadata.createdAt ?? new Date().toISOString()
+  return {
+    id: message.id,
+    sessionId,
+    role: message.role,
+    data: { parts: (message.parts ?? []) as CherryMessagePart[] },
+    searchableText: '',
+    status:
+      metadata.status ?? (message.role === 'assistant' && (message.parts?.length ?? 0) === 0 ? 'pending' : 'success'),
+    modelId: metadata.modelId ?? null,
+    modelSnapshot: metadata.modelSnapshot ?? null,
+    stats: metadata.stats ?? null,
+    runtimeResumeToken: null,
+    createdAt,
+    updatedAt: createdAt
+  }
+}
+
+export function useAgentSessionParts(sessionId: string, options: { enabled?: boolean; fetchOnMount?: boolean } = {}) {
+  const enabled = !!sessionId && options.enabled !== false
+  const fetchOnMount = options.fetchOnMount ?? enabled
+  const sessionMessagesCachePath = `/agent-sessions/${sessionId}/messages` as const
   const { pages, isLoading, hasNext, loadNext, mutate } = useInfiniteQuery('/agent-sessions/:sessionId/messages', {
     params: { sessionId },
     limit: PAGE_SIZE,
