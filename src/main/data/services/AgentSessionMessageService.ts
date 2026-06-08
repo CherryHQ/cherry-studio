@@ -21,17 +21,12 @@ import {
   AGENT_SESSION_MESSAGES_MAX_LIMIT
 } from '@shared/data/api/schemas/agentSessions'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
-import { AGENT_SESSION_MESSAGE_SEARCH_ROLES } from '@shared/data/types/message'
+import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
+import { buildSearchSnippet } from '@shared/utils/searchSnippet'
 import { and, desc, eq, inArray, isNotNull, lt, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
-import {
-  coerceSearchRole,
-  decodeMessageSearchCursor,
-  encodeMessageSearchCursor,
-  type MessageSearchFetchContext,
-  searchMessagesWithCursor
-} from './utils/messageSearch'
+import { decodeSearchCursor, encodeSearchCursor, type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 
 const logger = loggerService.withContext('AgentSessionMessageService')
 const MESSAGE_CURSOR_CONFIG = {
@@ -65,7 +60,7 @@ type SessionMessageContentSearchInput = {
 
 // Cursor wire format: `<createdAt-ms>:<id>` — opaque server-issued tokens.
 function decodeMessageCursor(raw: string): { createdAt: number; id: string } {
-  return decodeMessageSearchCursor(raw, MESSAGE_CURSOR_CONFIG)
+  return decodeSearchCursor(raw, MESSAGE_CURSOR_CONFIG)
 }
 
 export class AgentSessionMessageService {
@@ -73,7 +68,7 @@ export class AgentSessionMessageService {
     const db = application.get('DbService').getDb()
     const messageSessionCondition = query.sessionId ? sql`sm.session_id = ${query.sessionId}` : sql`1 = 1`
 
-    return await searchMessagesWithCursor<
+    return await searchWithCursor<
       SessionMessageSearchRow,
       InternalSessionSearchMessageResult,
       SessionMessageContentSearchItem
@@ -83,7 +78,7 @@ export class AgentSessionMessageService {
       cursor: query.cursor,
       createdAtFrom: query.createdAtFrom,
       cursorConfig: MESSAGE_CURSOR_CONFIG,
-      fetchRows: async ({ ftsConditions, cursor, createdAtFromMs, offset, chunkSize }: MessageSearchFetchContext) => {
+      fetchRows: async ({ ftsConditions, cursor, createdAtFromMs, offset, chunkSize }: SearchFetchContext) => {
         const createdAtCondition = createdAtFromMs !== undefined ? sql`sm.created_at >= ${createdAtFromMs}` : sql`1 = 1`
 
         return await db.all<SessionMessageSearchRow>(sql`
@@ -115,6 +110,7 @@ export class AgentSessionMessageService {
         `)
       },
       getSearchableText: (row) => row.searchableText,
+      buildSnippet: buildSearchSnippet,
       mapRow: (row, { snippet }) => ({
         messageId: row.rowId,
         sessionId: row.sessionId,
@@ -186,7 +182,7 @@ export class AgentSessionMessageService {
     const pageRows = hasNext ? rows.slice(0, limit) : rows
     const items = pageRows.map((row) => this.rowToEntity(row))
     const tail = pageRows[pageRows.length - 1]
-    const nextCursor = hasNext && tail ? encodeMessageSearchCursor(tail.createdAt, tail.id) : undefined
+    const nextCursor = hasNext && tail ? encodeSearchCursor(tail.createdAt, tail.id) : undefined
 
     return { items, nextCursor }
   }

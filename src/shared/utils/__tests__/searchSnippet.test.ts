@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildSearchSnippet, stripMarkdownFormatting } from '../messageSearch'
+import { buildSearchSnippet, stripMarkdownFormatting } from '../searchSnippet'
 
-describe('messageSearch', () => {
+describe('searchSnippet', () => {
   it('strips markdown before snippet matching', () => {
     const snippet = buildSearchSnippet(
       [

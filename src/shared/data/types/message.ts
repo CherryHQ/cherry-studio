@@ -398,6 +398,13 @@ export const AGENT_SESSION_MESSAGE_SEARCH_ROLES = [
 ] as const satisfies readonly MessageRole[]
 export type AgentSessionMessageSearchRole = (typeof AGENT_SESSION_MESSAGE_SEARCH_ROLES)[number]
 
+export function coerceSearchRole<TRole extends MessageRole>(
+  role: string,
+  allowedRoles: readonly TRole[]
+): TRole | undefined {
+  return allowedRoles.includes(role as TRole) ? (role as TRole) : undefined
+}
+
 /**
  * Message status
  * - pending: Placeholder created, streaming in progress

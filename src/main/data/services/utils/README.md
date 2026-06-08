@@ -101,22 +101,31 @@ Backs every Service's reorder write path and POST-create. Encapsulates the `frac
 - **External imports of `fractional-indexing` are forbidden**: always go through the three generator wrappers above.
 - **Character set is locked to base62** (library default); no `digits` parameter is exposed. Changing the alphabet requires a whole-database migration, and the source-of-truth constant lives at the top of `orderKey.ts`.
 
-### `messageSearch.ts` — Message-search cursor, filtering, and pagination core
+### `ftsSearch.ts` — FTS cursor, filtering, and pagination core
 
-Shared by topic-message and agent-session-message search. It owns the common
-opaque cursor codec, trigram-FTS candidate filtering, literal regex
-revalidation, snippet construction, offset scanning, and next-cursor assembly.
+Shared by full-text search services that use SQLite FTS5 trigram tables. It
+owns the common opaque cursor codec, trigram-FTS candidate filtering, literal
+regex revalidation, offset scanning, and next-cursor assembly.
+
+**FTS contract:**
+
+- The caller's SQL must join its FTS5 virtual table aliased as `fts`.
+- The FTS table must be created with `tokenize='trigram'` and expose a
+  `searchable_text` column.
+- The utility builds `fts.searchable_text LIKE ...` conditions and the caller
+  inserts those conditions into its own SQL shape.
 
 **Design boundaries:**
 
 - **SQL shape stays with the owning service**: callers provide the raw SQL
-  query and row mapper because topic messages and agent-session messages join
-  different domain tables.
+  query and row mapper because each domain joins different tables.
 - **Read-only search only**: this utility never writes, opens transactions, or
   applies domain ownership rules.
-- **Role subsets are explicit**: role lists live in `@shared/data/types/message`
-  and result DTOs derive from them so runtime filtering and API types cannot
-  drift.
+- **Snippet construction is injected**: callers decide how to build display
+  snippets from matched text and terms.
+- **Role coercion is caller-owned**: role subsets live with the message domain
+  in `@shared/data/types/message`; this generic utility does not know message
+  roles.
 
 ## Criteria for Adding a New Utility
 

@@ -1,26 +1,26 @@
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import { buildKeywordRegexes, type KeywordMatchMode, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
-import { buildSearchSnippet, stripMarkdownFormatting } from '@shared/utils/messageSearch'
+import { stripMarkdownFormatting } from '@shared/utils/searchSnippet'
 import { type SQL, sql } from 'drizzle-orm'
 
-const DEFAULT_MESSAGE_SEARCH_LIMIT = 500
-const MESSAGE_SEARCH_CHUNK_SIZE = 200
+const DEFAULT_FTS_SEARCH_LIMIT = 500
+const FTS_SEARCH_CHUNK_SIZE = 200
 
-export type MessageSearchCursor = {
+export type SearchCursor = {
   id: string
   createdAt: number
 }
 
-export type MessageSearchFetchContext = {
+export type SearchFetchContext = {
   ftsConditions: SQL[]
-  cursor: MessageSearchCursor | undefined
+  cursor: SearchCursor | undefined
   createdAtFromMs: number | undefined
   offset: number
   chunkSize: number
 }
 
-export type MessageSearchMapContext = {
+export type SearchMapContext = {
   terms: string[]
   matchMode: KeywordMatchMode
   snippet: string
@@ -31,15 +31,18 @@ type CursorConfig = {
   errorMessage: string
 }
 
-type SearchMessagesWithCursorOptions<Row, InternalItem, PublicItem> = {
+type BuildSnippet = (text: string, terms: string[], matchMode: KeywordMatchMode) => string
+
+type SearchWithCursorOptions<Row, InternalItem, PublicItem> = {
   q: string
   limit?: number
   cursor?: string
   createdAtFrom?: string
   cursorConfig: CursorConfig
-  fetchRows: (context: MessageSearchFetchContext) => Promise<Row[]>
+  fetchRows: (context: SearchFetchContext) => Promise<Row[]>
   getSearchableText: (row: Row) => string
-  mapRow: (row: Row, context: MessageSearchMapContext) => InternalItem
+  buildSnippet: BuildSnippet
+  mapRow: (row: Row, context: SearchMapContext) => InternalItem
   toPublicItem: (item: InternalItem) => PublicItem
   getCursorCreatedAt: (item: InternalItem) => number
   getCursorId: (item: InternalItem) => string
@@ -49,7 +52,7 @@ function invalidCursor(config: CursorConfig) {
   return DataApiErrorFactory.validation({ cursor: [config.fieldMessage] }, config.errorMessage)
 }
 
-export function decodeMessageSearchCursor(raw: string, config: CursorConfig): MessageSearchCursor {
+export function decodeSearchCursor(raw: string, config: CursorConfig): SearchCursor {
   const sep = raw.indexOf(':')
   if (sep < 0) {
     throw invalidCursor(config)
@@ -69,7 +72,7 @@ export function decodeMessageSearchCursor(raw: string, config: CursorConfig): Me
   return { createdAt, id }
 }
 
-export function encodeMessageSearchCursor(createdAt: number, id: string): string {
+export function encodeSearchCursor(createdAt: number, id: string): string {
   return `${createdAt}:${id}`
 }
 
@@ -85,26 +88,20 @@ export function getCreatedAtFromMs(createdAtFrom: string | undefined): number | 
   return Number.isFinite(value) ? value : undefined
 }
 
-export function coerceSearchRole<TRole extends string>(
-  role: string,
-  allowedRoles: readonly TRole[]
-): TRole | undefined {
-  return allowedRoles.includes(role as TRole) ? (role as TRole) : undefined
-}
-
-export async function searchMessagesWithCursor<Row, InternalItem, PublicItem>({
+export async function searchWithCursor<Row, InternalItem, PublicItem>({
   q,
-  limit = DEFAULT_MESSAGE_SEARCH_LIMIT,
+  limit = DEFAULT_FTS_SEARCH_LIMIT,
   cursor: rawCursor,
   createdAtFrom,
   cursorConfig,
   fetchRows,
   getSearchableText,
+  buildSnippet,
   mapRow,
   toPublicItem,
   getCursorCreatedAt,
   getCursorId
-}: SearchMessagesWithCursorOptions<Row, InternalItem, PublicItem>): Promise<CursorPaginationResponse<PublicItem>> {
+}: SearchWithCursorOptions<Row, InternalItem, PublicItem>): Promise<CursorPaginationResponse<PublicItem>> {
   const terms = splitKeywordsToTerms(q)
   if (terms.length === 0) return { items: [] }
 
@@ -112,7 +109,7 @@ export async function searchMessagesWithCursor<Row, InternalItem, PublicItem>({
   const fetchLimit = limit + 1
   const regexes = buildKeywordRegexes(terms, { matchMode, flags: 'i' })
   const ftsConditions = terms.map((term) => sql`fts.searchable_text LIKE ${buildFtsLikePattern(term)}`)
-  const cursor = rawCursor !== undefined ? decodeMessageSearchCursor(rawCursor, cursorConfig) : undefined
+  const cursor = rawCursor !== undefined ? decodeSearchCursor(rawCursor, cursorConfig) : undefined
   const createdAtFromMs = getCreatedAtFromMs(createdAtFrom)
   const results: InternalItem[] = []
   let offset = 0
@@ -123,7 +120,7 @@ export async function searchMessagesWithCursor<Row, InternalItem, PublicItem>({
       cursor,
       createdAtFromMs,
       offset,
-      chunkSize: MESSAGE_SEARCH_CHUNK_SIZE
+      chunkSize: FTS_SEARCH_CHUNK_SIZE
     })
 
     if (rows.length === 0) break
@@ -144,7 +141,7 @@ export async function searchMessagesWithCursor<Row, InternalItem, PublicItem>({
         mapRow(row, {
           terms,
           matchMode,
-          snippet: buildSearchSnippet(searchableText, terms, matchMode)
+          snippet: buildSnippet(searchableText, terms, matchMode)
         })
       )
 
@@ -157,7 +154,7 @@ export async function searchMessagesWithCursor<Row, InternalItem, PublicItem>({
   return {
     items: itemsWithCursor.map(toPublicItem),
     nextCursor: nextCursorBoundary
-      ? encodeMessageSearchCursor(getCursorCreatedAt(nextCursorBoundary), getCursorId(nextCursorBoundary))
+      ? encodeSearchCursor(getCursorCreatedAt(nextCursorBoundary), getCursorId(nextCursorBoundary))
       : undefined
   }
 }
