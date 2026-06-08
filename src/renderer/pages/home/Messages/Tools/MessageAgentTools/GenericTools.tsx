@@ -1,5 +1,6 @@
 // 通用工具组件 - 减少重复代码
 
+import { HStack } from '@cherrystudio/ui'
 import { LoadingIcon } from '@renderer/components/Icons'
 import { SkeletonSpan } from '@renderer/components/Skeleton/InlineSkeleton'
 import type { McpToolResponseStatus } from '@renderer/types'
@@ -210,11 +211,11 @@ export function TruncatedIndicator({ originalLength }: { originalLength: number 
   const sizeStr = formatFileSize(originalLength)
 
   return (
-    <div className="mt-2 flex items-center gap-1 text-muted-foreground text-xs">
+    <HStack gap={1} className="mt-2 text-muted-foreground text-xs">
       <Ellipsis size={14} />
       <span className="rounded bg-muted px-1.5 py-0.5 font-mono">
         {t('message.tools.truncated', { defaultValue: sizeStr, size: sizeStr })}
       </span>
-    </div>
+    </HStack>
   )
 }

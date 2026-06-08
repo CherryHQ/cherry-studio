@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback, AvatarImage, Checkbox, EmojiAvatar, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, AvatarImage, Checkbox, EmojiAvatar, Flex, HStack, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import UserPopup from '@renderer/components/Popups/UserPopup'
 import { getModelLogo } from '@renderer/config/models'
@@ -77,7 +77,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   }, [isBubbleStyle, isUserMessage, isMultiSelectMode])
 
   return (
-    <div className="message-header relative mb-2.5 flex items-center gap-2.5">
+    <HStack gap={2} className="message-header relative mb-2.5">
       {isAssistantMessage ? (
         ModelIcon ? (
           <div onClick={showMiniApp} className="cursor-pointer">
@@ -109,7 +109,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
         </>
       )}
       <div className="flex flex-1 flex-col justify-between">
-        <RowFlex className="items-center" style={{ justifyContent: userNameJustifyContent }}>
+        <Flex direction="row" align="center" style={{ justifyContent: userNameJustifyContent }}>
           <span
             className="font-semibold text-sm"
             style={{
@@ -122,8 +122,8 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
               <Sparkle fill="var(--color-primary)" strokeWidth={0} size={18} />
             </Tooltip>
           )}
-        </RowFlex>
-        <div className="message-header-info-wrap flex items-center gap-1 text-(--color-text-3) text-[10px]">
+        </Flex>
+        <HStack gap={1} className="message-header-info-wrap text-(--color-text-3) text-[10px]">
           <div>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</div>
           {isBubbleStyle && message.usage !== undefined && (
             <>
@@ -131,7 +131,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
               <MessageTokens message={message} />
             </>
           )}
-        </div>
+        </HStack>
       </div>
       {isMultiSelectMode && (
         <Checkbox
@@ -140,7 +140,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
           className="absolute top-0 right-0"
         />
       )}
-    </div>
+    </HStack>
   )
 })
 

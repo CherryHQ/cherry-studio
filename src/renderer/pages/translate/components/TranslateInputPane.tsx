@@ -1,3 +1,4 @@
+import { PageShell } from '@cherrystudio/ui'
 import uploadExcelIcon from '@renderer/assets/images/translate/upload-excel.svg'
 import uploadImageIcon from '@renderer/assets/images/translate/upload-image.svg'
 import uploadPdfIcon from '@renderer/assets/images/translate/upload-pdf.svg'
@@ -56,8 +57,8 @@ const TranslateInputPane = ({
   const uploadIcons = [uploadImageIcon, uploadPdfIcon, uploadWordIcon, uploadPptIcon, uploadTextIcon, uploadExcelIcon]
 
   return (
-    <div
-      className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background"
+    <PageShell
+      className="relative min-w-0 bg-background"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -114,8 +115,8 @@ const TranslateInputPane = ({
         <div className="fade-in-0 pointer-events-none absolute inset-0 z-10 flex animate-in items-center justify-center bg-background p-3 duration-150">
           <div className="flex h-full w-full items-center justify-center rounded-md border border-border-muted border-dashed">
             {/* Drawn as a single path so the translucent foreground token paints
-                evenly: lucide's Plus uses two crossing paths, which composites
-                the alpha twice and darkens the center. */}
+                      evenly: lucide's Plus uses two crossing paths, which composites
+                      the alpha twice and darkens the center. */}
             <svg
               width={40}
               height={40}
@@ -132,7 +133,7 @@ const TranslateInputPane = ({
           </div>
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }
 

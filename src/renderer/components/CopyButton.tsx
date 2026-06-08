@@ -1,4 +1,4 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { HStack, Tooltip } from '@cherrystudio/ui'
 import { Copy } from 'lucide-react'
 import type { CSSProperties, FC, KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -52,17 +52,18 @@ const CopyButton: FC<CopyButtonProps> = ({
   }
 
   const button = (
-    <div
-      className="group flex cursor-pointer flex-row items-center gap-1 text-[var(--copy-button-color)] transition-colors hover:text-[var(--copy-button-hover-color)]"
+    <HStack
       style={buttonStyle}
       onClick={handleCopy}
       onKeyDown={handleKeyDown}
       role="button"
       aria-label={ariaLabel}
-      tabIndex={0}>
+      tabIndex={0}
+      gap={1}
+      className="group cursor-pointer text-[var(--copy-button-color)] transition-colors hover:text-[var(--copy-button-hover-color)]">
       <Copy size={size} className="copy-icon shrink-0 transition-colors" />
       {label && <span style={{ fontSize: size }}>{label}</span>}
-    </div>
+    </HStack>
   )
 
   if (tooltip) {

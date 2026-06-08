@@ -1,5 +1,5 @@
 import { FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
-import { Button, InfoTooltip, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Flex, InfoTooltip, Input, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
 import { S3BackupModal, useS3BackupModal } from '@renderer/components/S3Modals'
@@ -75,7 +75,7 @@ const S3Settings: FC = () => {
     }
 
     return (
-      <RowFlex className="items-center gap-1.25">
+      <Flex direction="row" align="center" gap={1}>
         {s3Sync?.syncing && <SyncOutlined spin />}
         {!s3Sync?.syncing && s3Sync?.lastSyncError && (
           <WarnTooltip
@@ -88,7 +88,7 @@ const S3Settings: FC = () => {
             {t('settings.data.s3.syncStatus.lastSync', { time: dayjs(s3Sync.lastSyncTime).format('HH:mm:ss') })}
           </span>
         )}
-      </RowFlex>
+      </Flex>
     )
   }
 
@@ -186,7 +186,7 @@ const S3Settings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.s3.backup.operation')}</SettingRowTitle>
-        <RowFlex className="justify-between gap-1.25">
+        <Flex direction="row" justify="between" gap={1}>
           <Button
             onClick={showBackupModal}
             variant="outline"
@@ -201,7 +201,7 @@ const S3Settings: FC = () => {
             <FolderOpenOutlined />
             {t('settings.data.s3.backup.manager.button')}
           </Button>
-        </RowFlex>
+        </Flex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>

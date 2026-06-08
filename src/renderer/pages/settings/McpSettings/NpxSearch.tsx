@@ -1,4 +1,4 @@
-import { Badge, Button, Center, Flex, Input, RowFlex, Spinner } from '@cherrystudio/ui'
+import { Badge, Button, Center, Flex, Input, Spinner, VStack } from '@cherrystudio/ui'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import type { McpServer } from '@renderer/types'
@@ -96,7 +96,7 @@ const NpxSearch: FC = () => {
   }, [])
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-2 pt-5">
+    <VStack gap={2} className="min-w-0 flex-1 pt-5">
       <Center>
         <div className="mb-[25px] flex w-full max-w-[500px] flex-col px-4">
           <Center className="mb-3.75">
@@ -115,7 +115,7 @@ const NpxSearch: FC = () => {
               className="h-10 rounded-full"
             />
           </div>
-          <RowFlex className="items-center justify-center">
+          <Flex direction="row" align="center" justify="center">
             {npmScopes.map((scope) => (
               <Badge
                 key={scope}
@@ -128,7 +128,7 @@ const NpxSearch: FC = () => {
                 {scope}
               </Badge>
             ))}
-          </RowFlex>
+          </Flex>
         </div>
       </Center>
       {searchLoading && (
@@ -137,7 +137,7 @@ const NpxSearch: FC = () => {
         </Center>
       )}
       {!searchLoading && (
-        <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col gap-2 overflow-y-auto pr-1">
+        <VStack gap={2} className="mx-auto w-full max-w-[1200px] flex-1 overflow-y-auto pr-1">
           {searchResults?.map((record) => {
             const isInstalled = mcpServers.some((server) => server.name === record.name)
             return (
@@ -146,7 +146,7 @@ const NpxSearch: FC = () => {
                 className="rounded-lg border border-transparent bg-transparent px-3 py-2 transition-colors hover:bg-accent">
                 <div className="mb-1.5 flex items-start justify-between gap-3">
                   <h3 className="selectable m-0 min-w-0 truncate font-semibold text-sm leading-6">{record.name}</h3>
-                  <Flex className="shrink-0 items-center gap-1">
+                  <Flex align="center" gap={1} className="shrink-0">
                     <Badge className="border-success/30 bg-success/10 text-success">v{record.version}</Badge>
                     <Button
                       variant="ghost"
@@ -179,7 +179,7 @@ const NpxSearch: FC = () => {
                     </Button>
                   </Flex>
                 </div>
-                <div className="flex flex-col gap-1">
+                <VStack gap={1}>
                   <p className="selectable m-0 text-sm">{record.description}</p>
                   <p className="selectable m-0 text-muted-foreground text-sm">
                     {t('settings.mcp.npx_list.usage')}: {record.usage}
@@ -191,13 +191,13 @@ const NpxSearch: FC = () => {
                     className="selectable text-link text-sm hover:text-link-hover">
                     {record.npmLink}
                   </a>
-                </div>
+                </VStack>
               </div>
             )
           })}
-        </div>
+        </VStack>
       )}
-    </div>
+    </VStack>
   )
 }
 

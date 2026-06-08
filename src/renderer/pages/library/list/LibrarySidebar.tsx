@@ -1,4 +1,4 @@
-import { MenuItem } from '@cherrystudio/ui'
+import { MenuItem, VStack } from '@cherrystudio/ui'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -31,7 +31,7 @@ export const LibrarySidebar: FC<Props> = ({ filter, onFilterChange, typeCounts }
       {/* Scrollable */}
       <div className="flex-1 overflow-y-auto px-2.5 pb-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-sidebar-border/70 [&::-webkit-scrollbar]:w-[3px]">
         {/* Resource Types */}
-        <div className="mb-3 space-y-1">
+        <VStack gap={1} className="mb-3">
           {RESOURCE_TYPE_ORDER.map((resourceType) => {
             const meta = RESOURCE_TYPE_META[resourceType]
             const Icon = meta.icon
@@ -53,7 +53,7 @@ export const LibrarySidebar: FC<Props> = ({ filter, onFilterChange, typeCounts }
               />
             )
           })}
-        </div>
+        </VStack>
       </div>
     </div>
   )

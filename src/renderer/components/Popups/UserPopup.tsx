@@ -3,17 +3,16 @@ import {
   AvatarImage,
   Button,
   Center,
-  ColFlex,
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   EmojiAvatar,
+  Flex,
   Input,
   Popover,
   PopoverContent,
-  PopoverTrigger,
-  RowFlex
+  PopoverTrigger
 } from '@cherrystudio/ui'
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
@@ -105,7 +104,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
           <DialogTitle>{t('settings.general.user_name.label')}</DialogTitle>
         </DialogHeader>
         <Center className="mt-[30px]">
-          <ColFlex className="items-center gap-2.5">
+          <Flex direction="col" align="center" gap={2}>
             <Popover
               open={avatarPopoverOpen}
               onOpenChange={(visible) => {
@@ -135,7 +134,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                 {avatarPopoverView === 'emoji' ? (
                   <EmojiPicker onEmojiClick={handleEmojiClick} />
                 ) : (
-                  <ColFlex className="w-40 gap-1">
+                  <Flex direction="col" gap={1} className="w-40">
                     <input
                       ref={fileInputRef}
                       className="hidden"
@@ -164,13 +163,13 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                     <Button variant="ghost" className="w-full justify-center" onClick={() => void handleReset()}>
                       {t('settings.general.avatar.reset')}
                     </Button>
-                  </ColFlex>
+                  </Flex>
                 )}
               </PopoverContent>
             </Popover>
-          </ColFlex>
+          </Flex>
         </Center>
-        <RowFlex className="items-center gap-2.5 p-5">
+        <Flex direction="row" align="center" gap={2} className="p-5">
           <Input
             placeholder={t('settings.general.user_name.placeholder')}
             value={userName}
@@ -178,7 +177,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
             className="w-full flex-1 text-center"
             maxLength={30}
           />
-        </RowFlex>
+        </Flex>
       </DialogContent>
     </Dialog>
   )

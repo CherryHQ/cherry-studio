@@ -1,3 +1,4 @@
+import { VStack } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
 import type { KnowledgeRagChunkValidationErrorCode } from '../../utils'
@@ -35,8 +36,8 @@ const ChunkingSection = ({
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-col gap-4">
+    <VStack gap={2}>
+      <VStack gap={4}>
         <RagNumericField
           label={t('knowledge.rag.chunk_size')}
           hint={t('knowledge.rag.hints.chunk_size')}
@@ -51,7 +52,7 @@ const ChunkingSection = ({
           suffix={t('knowledge.rag.tokens_unit')}
           onChange={onChunkOverlapChange}
         />
-      </div>
+      </VStack>
 
       {chunkSizeErrorCode ? (
         <RagHintText tone="error">{getValidationErrorMessage(chunkSizeErrorCode)}</RagHintText>
@@ -60,7 +61,7 @@ const ChunkingSection = ({
         <RagHintText tone="error">{getValidationErrorMessage(chunkOverlapErrorCode)}</RagHintText>
       ) : null}
       <RagHintText tone="warning">{t('knowledge.rag.chunk_size_change_warning')}</RagHintText>
-    </div>
+    </VStack>
   )
 }
 

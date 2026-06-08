@@ -1,3 +1,4 @@
+import { VStack } from '@cherrystudio/ui'
 import { X } from 'lucide-react'
 import React from 'react'
 
@@ -32,7 +33,7 @@ function IconDockedTabs({
   onCloseDockedTab
 }: DockedTabsProps) {
   return (
-    <div className="mt-1 flex flex-col items-center gap-0.5 border-border/30 border-t px-1.5 pt-1 [-webkit-app-region:no-drag]">
+    <VStack gap={0} align="center" className="mt-1 border-border/30 border-t px-1.5 pt-1 [-webkit-app-region:no-drag]">
       {dockedTabs.map((dockedTab) => {
         const isActive = activeTabId === dockedTab.id
 
@@ -66,7 +67,7 @@ function IconDockedTabs({
           </div>
         )
       })}
-    </div>
+    </VStack>
   )
 }
 
@@ -78,7 +79,7 @@ function VerticalCardDockedTabs({
   onCloseDockedTab
 }: DockedTabsProps) {
   return (
-    <div className="mt-1 flex flex-col items-center gap-0 border-border/30 border-t px-1 pt-1 [-webkit-app-region:no-drag]">
+    <VStack gap={0} align="center" className="mt-1 border-border/30 border-t px-1 pt-1 [-webkit-app-region:no-drag]">
       {dockedTabs.map((dockedTab) => {
         const isActive = activeTabId === dockedTab.id
 
@@ -113,7 +114,7 @@ function VerticalCardDockedTabs({
           </div>
         )
       })}
-    </div>
+    </VStack>
   )
 }
 
@@ -125,7 +126,7 @@ function FullDockedTabs({
   onCloseDockedTab
 }: DockedTabsProps) {
   return (
-    <div className="mt-1 space-y-0.5 border-border/30 border-t px-2 pt-1 [-webkit-app-region:no-drag]">
+    <VStack className="mt-1 border-border/30 border-t px-2 pt-1 [-webkit-app-region:no-drag]" gap={0}>
       {dockedTabs.map((dockedTab) => {
         const isActive = activeTabId === dockedTab.id
 
@@ -157,6 +158,6 @@ function FullDockedTabs({
           </div>
         )
       })}
-    </div>
+    </VStack>
   )
 }

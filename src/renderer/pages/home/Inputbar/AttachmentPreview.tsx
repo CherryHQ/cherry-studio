@@ -1,11 +1,4 @@
-import {
-  ColFlex,
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-  Tooltip
-} from '@cherrystudio/ui'
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, Flex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ImageViewer from '@renderer/components/ImageViewer'
 import CustomTag from '@renderer/components/Tags/CustomTag'
@@ -114,7 +107,7 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
         content: 'p-1'
       }}
       content={
-        <ColFlex className="items-center gap-0.5">
+        <Flex direction="col" align="center" gap={0}>
           {isImage(file.ext) && (
             <ImageViewer
               className="max-h-[200px] w-20"
@@ -128,7 +121,7 @@ export const FileNameRender: FC<{ file: FileMetadata }> = ({ file }) => {
           )}
           <span className="break-all">{fullName}</span>
           {formatFileSize(file.size)}
-        </ColFlex>
+        </Flex>
       }>
       <span
         className="cursor-pointer hover:underline"

@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, HStack, TruncatingRow } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils'
 import { ChevronDown, ChevronUp, Copy, FileText } from 'lucide-react'
@@ -39,18 +39,20 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
 
   return (
     <div className="group/chunk rounded-md border border-border-subtle bg-background transition-all hover:border-border-hover">
-      <div className="flex items-center gap-2 px-3 py-2">
+      <HStack gap={2} className="px-3 py-2">
         <span className="flex size-5 shrink-0 items-center justify-center rounded bg-background-subtle text-foreground-muted text-xs leading-4">
           {index + 1}
         </span>
-        <div className="flex min-w-0 flex-1 items-center gap-1">
-          <FileText className="size-3.5 shrink-0 text-foreground-muted" />
+        <TruncatingRow
+          gap={1}
+          className="flex-1"
+          leading={<FileText className="size-3.5 text-foreground-muted" />}
+          trailing={<span className="text-foreground-muted text-xs leading-3">#{item.chunkIndex}</span>}>
           <span className="truncate text-foreground-muted text-xs leading-4">{item.sourceName}</span>
-          <span className="shrink-0 text-foreground-muted text-xs leading-3">#{item.chunkIndex}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
+        </TruncatingRow>
+        <HStack gap={1}>
           <span className="w-16 text-right text-foreground-muted text-xs tabular-nums leading-4">{scoreLabel}</span>
-        </div>
+        </HStack>
         <Button
           type="button"
           variant="ghost"
@@ -67,7 +69,7 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
           onClick={() => setIsExpanded((current) => !current)}>
           {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
         </Button>
-      </div>
+      </HStack>
       <div className="overflow-hidden px-3 pb-3">
         <p className={`text-foreground-secondary text-sm leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>
           {item.content}

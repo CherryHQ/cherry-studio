@@ -1,4 +1,4 @@
-import { Button, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
+import { Button, RadioGroup, RadioGroupItem, VStack } from '@cherrystudio/ui'
 import { AgentSelector, type AgentSelectorItem } from '@renderer/components/ResourceSelector'
 import { useQuery } from '@renderer/data/hooks/useDataApi'
 import type { FC } from 'react'
@@ -101,9 +101,9 @@ const ComponentLabAgentSelectorSettings: FC = () => {
     )
 
   return (
-    <div className="space-y-4">
+    <VStack gap={4}>
       <div className="grid gap-4 lg:grid-cols-[minmax(260px,320px)_1fr]">
-        <div className="space-y-3 rounded-[12px] border border-border bg-background p-4">
+        <VStack gap={3} className="rounded-[12px] border border-border bg-background p-4">
           <div>
             <div className="font-medium text-foreground text-sm">
               {t('settings.componentLab.agentSelector.configTitle')}
@@ -118,7 +118,7 @@ const ComponentLabAgentSelectorSettings: FC = () => {
             <div className="text-muted-foreground text-xs">false</div>
           </SettingRow>
 
-          <div className="space-y-1.5">
+          <VStack gap={1}>
             <div className="text-muted-foreground text-xs">selectionType</div>
             <RadioGroup
               className="grid grid-cols-2 gap-2"
@@ -137,10 +137,10 @@ const ComponentLabAgentSelectorSettings: FC = () => {
                 <span>item</span>
               </label>
             </RadioGroup>
-          </div>
-        </div>
+          </VStack>
+        </VStack>
 
-        <div className="flex flex-col gap-3 rounded-[12px] border border-border bg-background p-4">
+        <VStack gap={3} className="rounded-[12px] border border-border bg-background p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="font-medium text-foreground text-sm">
@@ -156,7 +156,7 @@ const ComponentLabAgentSelectorSettings: FC = () => {
           </div>
 
           {selectorNode}
-        </div>
+        </VStack>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-3">
@@ -170,7 +170,7 @@ const ComponentLabAgentSelectorSettings: FC = () => {
           value={hasLastChange ? formatSnapshot(lastChange) : undefined}
         />
       </div>
-    </div>
+    </VStack>
   )
 }
 

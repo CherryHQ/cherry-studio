@@ -114,7 +114,7 @@ const FilesPage: FC = () => {
       created_at: dayjs(file.created_at).format('MM-DD HH:mm'),
       created_at_unix: dayjs(file.created_at).unix(),
       actions: (
-        <Flex className="items-center gap-0 opacity-70">
+        <Flex align="center" gap={0} className="opacity-70">
           <Button variant="ghost" onClick={() => handleRename(file.id)}>
             <EditIcon size={14} />
           </Button>
@@ -168,7 +168,7 @@ const FilesPage: FC = () => {
         </SideNav>
         <MainContent>
           <SortContainer>
-            <Flex className="items-center gap-2">
+            <Flex align="center" gap={2}>
               {(['created_at', 'size', 'name'] as const).map((field) => (
                 <SortButton
                   key={field}

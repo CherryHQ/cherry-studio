@@ -13,7 +13,7 @@ import {
   LinkOutlined,
   VideoCameraFilled
 } from '@ant-design/icons'
-import { ColFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
 import { videoExts } from '@shared/config/constant'
 import React, { memo } from 'react'
 import styled from 'styled-components'
@@ -88,10 +88,10 @@ const FileItem: React.FC<FileItemProps> = ({ fileInfo, style }) => {
     <FileItemCard style={style}>
       <CardContent>
         <FileIcon>{icon || getFileIcon(ext)}</FileIcon>
-        <ColFlex className="w-0 flex-1 justify-center gap-0">
+        <Flex direction="col" justify="center" gap={0} className="w-0 flex-1">
           <FileName>{name}</FileName>
           {extra && <FileInfo>{extra}</FileInfo>}
-        </ColFlex>
+        </Flex>
         <FileActions>{actions}</FileActions>
       </CardContent>
     </FileItemCard>

@@ -1,4 +1,4 @@
-import { Button, Input, RadioGroup, RadioGroupItem, Slider, Switch, Textarea } from '@cherrystudio/ui'
+import { Button, HStack, Input, RadioGroup, RadioGroupItem, Slider, Switch, Textarea } from '@cherrystudio/ui'
 import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -77,7 +77,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
         return <Input className="w-20" type="number" value={String(numericValue)} readOnly disabled />
       }
       return (
-        <div className="flex items-center gap-3">
+        <HStack gap={3}>
           <Slider
             className="flex-1"
             min={min}
@@ -104,13 +104,13 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
               onChange({ [fieldKey]: Math.min(max, Math.max(min, parsed)) })
             }}
           />
-        </div>
+        </HStack>
       )
     }
 
     case 'input': {
       return (
-        <div className="flex items-center gap-2">
+        <HStack gap={2}>
           <Input
             disabled={disabled}
             className="flex-1"
@@ -122,7 +122,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
               <RotateCcw size={14} />
             </Button>
           ) : null}
-        </div>
+        </HStack>
       )
     }
 

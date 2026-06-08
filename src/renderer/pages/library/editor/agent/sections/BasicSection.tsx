@@ -7,12 +7,14 @@ import {
   FieldError,
   FieldSeparator,
   FieldSet,
+  HStack,
   Input,
   Popover,
   PopoverContent,
   PopoverTrigger,
   Switch,
-  Textarea
+  Textarea,
+  VStack
 } from '@cherrystudio/ui'
 import EmojiPicker from '@renderer/components/EmojiPicker'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
@@ -64,7 +66,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
   const [emojiOpen, setEmojiOpen] = useState(false)
 
   return (
-    <div className="flex flex-col gap-5">
+    <VStack gap={5}>
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.agent.section.basic.title')}</h3>
         <p className="text-muted-foreground/80 text-xs">{t('library.config.agent.section.basic.desc')}</p>
@@ -73,7 +75,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
       <Field className="gap-1.5">
         <FieldHeader label={t('common.avatar')} hint={t('library.config.agent.field.avatar.hint')} />
         <FieldContent>
-          <div className="flex items-center gap-2">
+          <HStack gap={2}>
             <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -112,7 +114,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
                 )
               })}
             </div>
-          </div>
+          </HStack>
         </FieldContent>
       </Field>
 
@@ -206,7 +208,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
           />
         </FieldContent>
       </Field>
-    </div>
+    </VStack>
   )
 }
 
@@ -263,10 +265,10 @@ function SwitchRow({
 }) {
   return (
     <div className="rounded-xs border border-border/30 bg-accent/15 px-3 py-2.5">
-      <div className="flex items-center justify-between gap-3">
+      <HStack gap={3} justify="between">
         <FieldHeader label={label} hint={hint} className="min-w-0 flex-1" />
         <Switch size="sm" checked={checked} onCheckedChange={onCheckedChange} aria-label={label} />
-      </div>
+      </HStack>
     </div>
   )
 }

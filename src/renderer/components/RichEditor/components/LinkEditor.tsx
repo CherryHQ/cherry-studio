@@ -147,7 +147,7 @@ const LinkEditor: React.FC<LinkEditorProps> = ({
         />
       </div>
 
-      <Flex className="items-center justify-between">
+      <Flex align="center" justify="between">
         <div>
           {showRemove && (
             <Button size="sm" color="danger" variant="ghost" onClick={onRemove} className="px-2">
@@ -155,7 +155,7 @@ const LinkEditor: React.FC<LinkEditorProps> = ({
             </Button>
           )}
         </div>
-        <Flex className="gap-1.5">
+        <Flex gap={1}>
           <Button size="sm" onClick={onCancel}>
             {t('common.cancel')}
           </Button>

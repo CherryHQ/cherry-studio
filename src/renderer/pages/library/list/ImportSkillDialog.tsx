@@ -1,4 +1,4 @@
-import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState } from '@cherrystudio/ui'
+import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState, HStack } from '@cherrystudio/ui'
 import type { InstalledSkill } from '@types'
 import { FolderOpen, Loader2, Upload, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -212,7 +212,7 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
             </DropzoneEmptyState>
           </Dropzone>
 
-          <div className="mt-4 flex items-center gap-2">
+          <HStack className="mt-4" gap={2}>
             <Button
               variant="ghost"
               onClick={() => void handleZipPick()}
@@ -229,7 +229,7 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
               {installing === 'directory' ? <Loader2 size={11} className="animate-spin" /> : <FolderOpen size={11} />}
               <span>{t('settings.skills.installFromDirectory')}</span>
             </Button>
-          </div>
+          </HStack>
 
           <StatusBanner status={status} />
         </div>

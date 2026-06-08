@@ -1,4 +1,4 @@
-import { Button, ColFlex } from '@cherrystudio/ui'
+import { Button, Flex, VStack } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react'
 import type { FC } from 'react'
@@ -111,7 +111,7 @@ const OvmsSettings: FC = () => {
   return (
     <>
       <div className={bannerClasses} role="status">
-        <ColFlex>
+        <Flex direction="col">
           <div className="flex min-h-6 w-full flex-row items-center justify-between">
             <div className="flex min-w-0 flex-1 items-start gap-2">
               <StatusIcon
@@ -146,14 +146,14 @@ const OvmsSettings: FC = () => {
               </Button>
             )}
           </div>
-        </ColFlex>
+        </Flex>
       </div>
 
       <div
         className="mt-1.5 flex gap-2 rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-foreground text-sm"
         role="status">
         <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
-        <div className="min-w-0 flex-1 space-y-1">
+        <VStack gap={1} className="min-w-0 flex-1">
           <p className="font-medium">{t('ovms.guide')}</p>
           <div>
             <Trans
@@ -173,7 +173,7 @@ const OvmsSettings: FC = () => {
               }}
             />
           </div>
-        </div>
+        </VStack>
       </div>
     </>
   )

@@ -4,7 +4,9 @@ import {
   Field,
   FieldDescription,
   FieldLabel,
+  Grid,
   HelpTooltip,
+  HStack,
   Input,
   InputGroup,
   InputGroupAddon,
@@ -18,7 +20,8 @@ import {
   PopoverTrigger,
   SegmentedControl,
   Switch,
-  Tooltip
+  Tooltip,
+  VStack
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -128,8 +131,8 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
       onClose={onClose}
       title={t('translate.settings.title')}
       closeLabel={t('translate.close')}>
-      <div className="flex flex-col gap-8">
-        <div className="flex flex-col gap-5">
+      <VStack gap={8}>
+        <VStack gap={5}>
           {toggleItems.map((item) => (
             <PageSidePanelItem
               key={item.key}
@@ -188,7 +191,7 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
               />
             }>
             {isBidirectional && (
-              <div className="flex items-center gap-2">
+              <HStack gap={2}>
                 <div className="flex-1">
                   <LanguagePicker
                     value={bidirectionalPair[0]}
@@ -202,25 +205,25 @@ const TranslateSettings: FC<Props> = ({ visible, onClose }) => {
                     onChange={(value) => updateBidirectionalPair([bidirectionalPair[0], value])}
                   />
                 </div>
-              </div>
+              </HStack>
             )}
           </PageSidePanelItem>
-        </div>
+        </VStack>
 
         <TranslatePromptField />
 
         <CustomLanguageList />
-      </div>
+      </VStack>
     </PageSidePanel>
   )
 }
 
 const TranslateSettingsCoreContent: FC = () => {
   return (
-    <div className="flex flex-col gap-8">
+    <VStack gap={8}>
       <TranslatePromptField />
       <CustomLanguageList />
-    </div>
+    </VStack>
   )
 }
 
@@ -340,7 +343,7 @@ const CustomLanguageList: FC = () => {
           <span className="text-foreground-muted text-xs">{t('code.count', { count: customLanguages.length })}</span>
         )
       }>
-      <div className="flex flex-col gap-1">
+      <VStack gap={1}>
         {customLanguages.map((language) => (
           <CustomLanguageRow key={language.langCode} language={language} />
         ))}
@@ -367,7 +370,7 @@ const CustomLanguageList: FC = () => {
             <span>{addLanguageLabel}</span>
           </Button>
         )}
-      </div>
+      </VStack>
     </PageSidePanelSection>
   )
 }
@@ -437,7 +440,7 @@ const AddCustomLanguageForm: FC<{ languages: TranslateLanguage[]; onAdded?: () =
   }
 
   return (
-    <div className="space-y-3 rounded-lg bg-muted/20 p-3" onKeyDown={handleKeyDown}>
+    <VStack gap={3} className="rounded-lg bg-muted/20 p-3" onKeyDown={handleKeyDown}>
       <Field>
         <FieldLabel htmlFor={nameId} className={customLanguageFieldSubtitleClassName}>
           {t('settings.translate.custom.value.label')}
@@ -491,7 +494,7 @@ const AddCustomLanguageForm: FC<{ languages: TranslateLanguage[]; onAdded?: () =
           {t('common.add')}
         </Button>
       </div>
-    </div>
+    </VStack>
   )
 }
 
@@ -543,7 +546,7 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
   if (!editing) {
     return (
       <>
-        <div className="group flex items-center gap-2 rounded-lg px-2 py-1.25 transition-colors hover:bg-muted/30">
+        <HStack gap={2} className="group rounded-lg px-2 py-1.25 transition-colors hover:bg-muted/30">
           <span className="min-w-0 flex-1 truncate text-foreground text-sm">{language.value}</span>
           <span className="shrink-0 font-mono text-foreground-muted text-xs">{language.langCode}</span>
           <IconButton
@@ -561,7 +564,7 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
             className="text-foreground-muted/70 opacity-0 transition-opacity hover:bg-transparent group-hover:opacity-100">
             <X size={10} />
           </IconButton>
-        </div>
+        </HStack>
         <ConfirmDialog
           open={confirmOpen}
           onOpenChange={setConfirmOpen}
@@ -577,7 +580,7 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
   }
 
   return (
-    <div className="space-y-3 rounded-lg bg-muted/20 p-3" onKeyDown={handleKeyDown}>
+    <VStack gap={3} className="rounded-lg bg-muted/20 p-3" onKeyDown={handleKeyDown}>
       <Field>
         <FieldLabel htmlFor={nameId} className={customLanguageFieldSubtitleClassName}>
           {t('settings.translate.custom.value.label')}
@@ -612,7 +615,7 @@ const CustomLanguageRow: FC<{ language: TranslateLanguage }> = ({ language }) =>
           {t('common.save')}
         </Button>
       </div>
-    </div>
+    </VStack>
   )
 }
 
@@ -636,7 +639,7 @@ const EmojiPicker: FC<{ value: string; onChange: (value: string) => void }> = ({
         align="start"
         sideOffset={4}
         className="w-36 rounded-md border border-border bg-popover p-1 shadow-xl">
-        <div className="grid grid-cols-4 gap-1">
+        <Grid columns={4} gap={1}>
           {EMOJI_OPTIONS.map((emoji) => (
             <button
               key={emoji}
@@ -652,7 +655,7 @@ const EmojiPicker: FC<{ value: string; onChange: (value: string) => void }> = ({
               {emoji}
             </button>
           ))}
-        </div>
+        </Grid>
       </PopoverContent>
     </Popover>
   )

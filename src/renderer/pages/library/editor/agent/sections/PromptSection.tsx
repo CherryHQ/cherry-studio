@@ -1,4 +1,4 @@
-import { Field, FieldContent, Textarea } from '@cherrystudio/ui'
+import { Field, FieldContent, HStack, Textarea, VStack } from '@cherrystudio/ui'
 import { FieldHeader } from '@renderer/pages/library/editor/FieldHeader'
 import { PromptVariablesTooltip } from '@renderer/pages/library/editor/PromptVariablesTooltip'
 import type { FC } from 'react'
@@ -19,17 +19,17 @@ interface Props {
 const PromptSection: FC<Props> = ({ form, onChange }) => {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-col gap-5">
+    <VStack gap={5}>
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.agent.section.prompt.title')}</h3>
         <p className="text-muted-foreground/80 text-xs">{t('library.config.agent.section.prompt.desc')}</p>
       </div>
 
       <Field className="gap-1.5">
-        <div className="flex min-w-0 items-center gap-1.5">
+        <HStack gap={1} className="min-w-0">
           <FieldHeader label={t('library.config.agent.field.instructions.label')} className="min-w-0" />
           <PromptVariablesTooltip />
-        </div>
+        </HStack>
         <FieldContent>
           <Textarea.Input
             value={form.instructions}
@@ -40,7 +40,7 @@ const PromptSection: FC<Props> = ({ form, onChange }) => {
           />
         </FieldContent>
       </Field>
-    </div>
+    </VStack>
   )
 }
 

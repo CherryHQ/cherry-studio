@@ -1,4 +1,4 @@
-import './assets/styles/provider-settings-scoped-theme.css'
+import './assets/styles/provider-settings.css'
 
 import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProvider'

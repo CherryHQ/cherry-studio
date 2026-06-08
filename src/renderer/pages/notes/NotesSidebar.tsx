@@ -4,7 +4,9 @@ import {
   ContextMenuItem,
   ContextMenuItemContent,
   ContextMenuSeparator,
-  ContextMenuTrigger
+  ContextMenuTrigger,
+  HStack,
+  PageShell
 } from '@cherrystudio/ui'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
@@ -366,7 +368,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                   onSelectSortType={handleSelectSortType}
                 />
 
-                <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <PageShell>
                   {!isShowStarred && !isShowSearch && (
                     <div className="px-2 pt-2">
                       <TreeNode
@@ -386,7 +388,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                     </div>
                   )}
                   {isShowSearch && isSearching && (
-                    <div className="flex items-center gap-2 border-border border-b bg-muted px-3 py-2 text-muted-foreground text-xs">
+                    <HStack gap={2} className="border-border border-b bg-muted px-3 py-2 text-muted-foreground text-xs">
                       <Loader2 size={14} className="animate-spin" />
                       <span>{t('notes.search.searching')}</span>
                       <button
@@ -396,10 +398,10 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                         title={t('common.cancel')}>
                         <X size={14} />
                       </button>
-                    </div>
+                    </HStack>
                   )}
                   {isShowSearch && !isSearching && hasSearchKeyword && searchStats.total > 0 && (
-                    <div className="flex items-center gap-2 border-border border-b bg-muted px-3 py-2 text-muted-foreground text-xs">
+                    <HStack gap={2} className="border-border border-b bg-muted px-3 py-2 text-muted-foreground text-xs">
                       <span>
                         {t('notes.search.found_results', {
                           count: searchStats.total,
@@ -407,7 +409,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                           contentCount: searchStats.contentMatches + searchStats.bothMatches
                         })}
                       </span>
-                    </div>
+                    </HStack>
                   )}
                   <ContextMenu>
                     <ContextMenuTrigger asChild>
@@ -424,7 +426,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                     </ContextMenuTrigger>
                     <ContextMenuContent>{renderEmptyAreaMenuItems()}</ContextMenuContent>
                   </ContextMenu>
-                </div>
+                </PageShell>
 
                 {isDragOverSidebar && (
                   <div className="pointer-events-none absolute inset-0 rounded border-2 border-primary border-dashed bg-primary/10" />

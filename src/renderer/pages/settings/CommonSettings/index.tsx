@@ -9,7 +9,6 @@ import {
   MenuItem,
   MenuList,
   PageHeader,
-  RowFlex,
   SegmentedControl,
   Switch,
   Tooltip
@@ -433,7 +432,7 @@ const CommonSettings: FC = () => {
               onChange={onSelectLanguage}
               options={languagesOptions.map((lang) => ({
                 label: (
-                  <Flex className="items-center gap-2">
+                  <Flex align="center" gap={2}>
                     <span role="img" aria-label={lang.flag}>
                       {lang.flag}
                     </span>
@@ -681,7 +680,7 @@ const CommonSettings: FC = () => {
         <SettingTitle>{t('settings.general.spell_check.label')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <RowFlex className="mr-4 flex-1 items-center justify-between">
+          <Flex direction="row" align="center" justify="between" className="mr-4 flex-1">
             <SettingRowTitle>{t('settings.general.spell_check.label')}</SettingRowTitle>
             {enableSpellCheck && !isMac && (
               <Selector<string>
@@ -693,7 +692,7 @@ const CommonSettings: FC = () => {
                 options={spellCheckLanguageOptions.map((lang) => ({
                   value: lang.value,
                   label: (
-                    <Flex className="items-center gap-2">
+                    <Flex align="center" gap={2}>
                       <span role="img" aria-label={lang.flag}>
                         {lang.flag}
                       </span>
@@ -703,7 +702,7 @@ const CommonSettings: FC = () => {
                 }))}
               />
             )}
-          </RowFlex>
+          </Flex>
           <Switch checked={enableSpellCheck} onCheckedChange={handleSpellCheckChange} />
         </SettingRow>
       </SettingGroup>
@@ -766,7 +765,7 @@ const CommonSettings: FC = () => {
         <SettingTitle>{t('settings.developer.title')}</SettingTitle>
         <SettingDivider />
         <SettingRow>
-          <Flex className="items-center gap-1">
+          <Flex align="center" gap={1}>
             <SettingRowTitle>{t('settings.developer.enable_developer_mode')}</SettingRowTitle>
             <InfoTooltip content={t('settings.developer.help')} />
           </Flex>

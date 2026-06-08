@@ -1,4 +1,4 @@
-import { Alert, Button } from '@cherrystudio/ui'
+import { Alert, Button, HStack } from '@cherrystudio/ui'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { ComponentType, ReactNode } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
@@ -21,14 +21,14 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
         description={formatErrorMessage(error)}
         type="error"
         action={
-          <div className="flex items-center gap-2">
+          <HStack gap={2}>
             <Button size="sm" onClick={debug}>
               {t('error.boundary.default.devtools')}
             </Button>
             <Button size="sm" onClick={reload}>
               {t('error.boundary.default.reload')}
             </Button>
-          </div>
+          </HStack>
         }
       />
     </div>

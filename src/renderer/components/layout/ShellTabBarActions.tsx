@@ -1,4 +1,4 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { HStack, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isLinux, isWin } from '@renderer/config/constant'
@@ -53,7 +53,7 @@ export function ShellTabBarActions({ isDetached = false }: { isDetached?: boolea
     <div className="absolute top-0 right-0 flex h-full items-stretch">
       {!isDetached && (
         <div className="mr-2 flex items-center [-webkit-app-region:no-drag]">
-          <div className="flex items-center gap-1 rounded-[10px] px-1 py-1">
+          <HStack className="rounded-[10px] px-1 py-1" gap={1}>
             <Tooltip placement="bottom" content={getThemeModeLabel(settedTheme)} delay={800}>
               <button
                 type="button"
@@ -70,7 +70,7 @@ export function ShellTabBarActions({ isDetached = false }: { isDetached?: boolea
               className="flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
               <Settings size={16} strokeWidth={1.8} />
             </button>
-          </div>
+          </HStack>
         </div>
       )}
 

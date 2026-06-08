@@ -1,13 +1,4 @@
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-  Badge,
-  ColFlex,
-  EmptyState,
-  Flex
-} from '@cherrystudio/ui'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Badge, EmptyState, Flex } from '@cherrystudio/ui'
 import type { McpResource } from '@renderer/types'
 import { useTranslation } from 'react-i18next'
 
@@ -75,8 +66,8 @@ const McpResourcesSection = ({ resources }: McpResourcesSectionProps) => {
             {resources.map((resource) => (
               <AccordionItem key={resource.uri} value={resource.uri}>
                 <AccordionTrigger className="py-3">
-                  <ColFlex className="w-full min-w-0 items-start">
-                    <Flex className="w-full min-w-0 items-center">
+                  <Flex direction="col" align="start" className="w-full min-w-0">
+                    <Flex align="center" className="w-full min-w-0">
                       <span className="truncate font-medium text-foreground text-sm">{`${resource.name} (${resource.uri})`}</span>
                     </Flex>
                     {resource.description && (
@@ -86,7 +77,7 @@ const McpResourcesSection = ({ resources }: McpResourcesSectionProps) => {
                           : resource.description}
                       </span>
                     )}
-                  </ColFlex>
+                  </Flex>
                 </AccordionTrigger>
                 <AccordionContent className="select-text px-3">{renderResourceProperties(resource)}</AccordionContent>
               </AccordionItem>

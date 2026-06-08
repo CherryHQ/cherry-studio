@@ -1,4 +1,4 @@
-import { Button, RadioGroup, RadioGroupItem, Switch } from '@cherrystudio/ui'
+import { Button, RadioGroup, RadioGroupItem, Switch, VStack } from '@cherrystudio/ui'
 import { ModelSelector, type ModelSelectorSelectionType } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
@@ -167,9 +167,9 @@ const ComponentLabModelSelectorSettings: FC = () => {
   }, [multiple, selectedIds, selectedModels, selectionType])
 
   return (
-    <div className="space-y-4">
+    <VStack gap={4}>
       <div className="grid gap-4 lg:grid-cols-[minmax(260px,320px)_1fr]">
-        <div className="space-y-3 rounded-[12px] border border-border bg-background p-4">
+        <VStack gap={3} className="rounded-[12px] border border-border bg-background p-4">
           <div>
             <div className="font-medium text-foreground text-sm">
               {t('settings.componentLab.modelSelector.configTitle')}
@@ -188,7 +188,7 @@ const ComponentLabModelSelectorSettings: FC = () => {
             />
           </SettingRow>
 
-          <div className="space-y-1.5">
+          <VStack gap={1}>
             <div className="text-muted-foreground text-xs">
               {t('settings.componentLab.modelSelector.selectionType')}
             </div>
@@ -211,7 +211,7 @@ const ComponentLabModelSelectorSettings: FC = () => {
                 <span>{t('settings.componentLab.modelSelector.selectionTypeId')}</span>
               </label>
             </RadioGroup>
-          </div>
+          </VStack>
 
           <SettingDivider className="my-2" />
 
@@ -232,9 +232,9 @@ const ComponentLabModelSelectorSettings: FC = () => {
               onCheckedChange={setShowTagFilter}
             />
           </SettingRow>
-        </div>
+        </VStack>
 
-        <div className="flex flex-col gap-3 rounded-[12px] border border-border bg-background p-4">
+        <VStack gap={3} className="rounded-[12px] border border-border bg-background p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="font-medium text-foreground text-sm">
@@ -258,7 +258,7 @@ const ComponentLabModelSelectorSettings: FC = () => {
                 : t('settings.componentLab.modelSelector.empty')}
             </div>
           )}
-        </div>
+        </VStack>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-3">
@@ -278,7 +278,7 @@ const ComponentLabModelSelectorSettings: FC = () => {
           value={hasLastReturn ? formatSnapshot(lastReturn) : undefined}
         />
       </div>
-    </div>
+    </VStack>
   )
 }
 

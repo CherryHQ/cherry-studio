@@ -1,4 +1,4 @@
-import { Button, EmptyState, SearchInput } from '@cherrystudio/ui'
+import { Button, EmptyState, HStack, PageShell, SearchInput, VStack } from '@cherrystudio/ui'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import App from '@renderer/components/MiniApp/MiniApp'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -40,10 +40,10 @@ const MiniAppsPage: FC = () => {
         <NavbarCenter className="border-r-0">{t('miniApp.title')}</NavbarCenter>
       </Navbar>
 
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+      <PageShell className="relative">
         {/* Top-right action buttons */}
         <div className="flex shrink-0 items-start justify-end p-3">
-          <div className="flex items-center gap-1">
+          <HStack gap={1}>
             <Button
               variant="ghost"
               size="icon-sm"
@@ -58,7 +58,7 @@ const MiniAppsPage: FC = () => {
               onClick={() => setSettingsOpen(true)}>
               <Menu size={14} />
             </Button>
-          </div>
+          </HStack>
         </div>
 
         {/* Search */}
@@ -104,13 +104,13 @@ const MiniAppsPage: FC = () => {
 
         <MiniAppSettingsPanel open={settingsOpen} onClose={() => setSettingsOpen(false)}>
           {/* Generous gap so the two groups read as distinct, not as one list. */}
-          <div className="flex flex-col gap-8">
+          <VStack gap={8}>
             <MiniAppListPair {...visibility} />
             <MiniAppDisplaySettings />
-          </div>
+          </VStack>
         </MiniAppSettingsPanel>
         <NewMiniAppPanel open={newAppOpen} onClose={() => setNewAppOpen(false)} />
-      </div>
+      </PageShell>
     </div>
   )
 }

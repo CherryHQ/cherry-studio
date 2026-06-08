@@ -1,3 +1,4 @@
+import { HStack, VStack } from '@cherrystudio/ui'
 import { Search, X } from 'lucide-react'
 import type React from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,17 +34,15 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
   const totalModelCount = capabilityModelCounts.all ?? 0
 
   return (
-    <div className={modelListClasses.headerToolStack}>
-      <div className={modelListClasses.titleRow}>
-        <div className="min-w-0">
-          <div className={modelListClasses.titleWrap}>
-            <h2 className={modelListClasses.sectionTitle}>{t('settings.models.list_title')}</h2>
-            <span className={modelListClasses.countMeta}>
-              {t('settings.models.available_count', { count: totalModelCount })}
-            </span>
-          </div>
-        </div>
-        <div className={modelListClasses.titleActions}>
+    <VStack gap={6} className="w-full min-w-0">
+      <HStack justify="between" wrap gap={3} className="w-full min-w-0">
+        <HStack align="baseline" gap={3} className="min-w-0">
+          <h2 className={modelListClasses.sectionTitle}>{t('settings.models.list_title')}</h2>
+          <span className={modelListClasses.countMeta}>
+            {t('settings.models.available_count', { count: totalModelCount })}
+          </span>
+        </HStack>
+        <HStack justify="end" wrap gap={2} className="max-w-full flex-1">
           <div className={modelListClasses.searchWrap}>
             <Search className={modelListClasses.searchIcon} />
             <input
@@ -65,8 +64,8 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
             ) : null}
           </div>
           {actions}
-        </div>
-      </div>
+        </HStack>
+      </HStack>
 
       {!hasNoModels ? (
         <ModelListCapabilityChips
@@ -76,7 +75,7 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
           onSelectCapabilityFilter={setSelectedCapabilityFilter}
         />
       ) : null}
-    </div>
+    </VStack>
   )
 }
 

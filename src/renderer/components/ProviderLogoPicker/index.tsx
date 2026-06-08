@@ -1,4 +1,4 @@
-import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
+import { Grid, InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
 import { PROVIDER_ICON_CATALOG } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { getProviderLabel } from '@renderer/i18n/label'
@@ -45,7 +45,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
           onChange={(event) => setSearchText(event.target.value)}
         />
       </InputGroup>
-      <div className="grid flex-1 grid-cols-5 gap-2 overflow-y-auto p-1">
+      <Grid className="flex-1 overflow-y-auto p-1" columns={5} gap={2}>
         {filteredProviders.map(({ id, name, icon }) => (
           <Tooltip key={id} content={name}>
             <button
@@ -62,7 +62,7 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
             </button>
           </Tooltip>
         ))}
-      </div>
+      </Grid>
     </div>
   )
 }

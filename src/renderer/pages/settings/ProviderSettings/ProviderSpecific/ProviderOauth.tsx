@@ -1,13 +1,8 @@
-import { Button, RowFlex } from '@cherrystudio/ui'
+import { Button, Flex, HStack, VStack } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import OauthButton from '@renderer/components/Oauth/OauthButton'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { getProviderLabel } from '@renderer/i18n/label'
-import {
-  oauthCardClasses,
-  sectionHeadingClasses
-} from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { providerBills, providerCharge } from '@renderer/utils/oauth'
 import { hasApiKeys } from '@shared/utils/provider'
 import { CircleDollarSign, ReceiptText } from 'lucide-react'
@@ -50,38 +45,29 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
     />
   )
 
-  // Logged-out: align with the CherryIN account card (section heading + bordered shell + one row:
-  // avatar/name/description on the left, login button on the right).
+  // Logged-out: simple centered call-to-action (avatar + login + service note), matching the logged-in layout.
   if (!hasApiKeys(provider)) {
     return (
-      <div className="flex flex-col gap-3">
-        <h3 className={sectionHeadingClasses}>{t('settings.provider.section.account')}</h3>
-        <div className={oauthCardClasses.shell}>
-          <div className={oauthCardClasses.loggedInRow}>
-            <div className={oauthCardClasses.profileMeta}>
-              {Icon ? (
-                <Icon.Avatar size={48} />
-              ) : (
-                <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-(--color-background-soft) font-bold text-[20px]">
-                  {provider.name[0]}
-                </div>
-              )}
-              <div className={oauthCardClasses.nameBlock}>
-                <div className={oauthCardClasses.loggedInName}>{getProviderLabel(provider.id)}</div>
-                <div className={oauthCardClasses.loggedInEmail}>{serviceDescription}</div>
-              </div>
-            </div>
-            {/* className="" clears OauthButton's hard-coded `rounded-full` so the emphasis variant's own radius/size matches the CherryIN login button */}
-            <OauthButton provider={{ id: provider.id }} onSuccess={setApiKey} variant="emphasis" className="" />
+      <VStack gap={3} align="center" justify="center" className="py-3 pb-2">
+        {Icon ? (
+          <Icon.Avatar size={60} />
+        ) : (
+          <div className="flex size-[60px] shrink-0 items-center justify-center rounded-full bg-(--color-background-soft) font-bold text-[24px]">
+            {provider.name[0]}
           </div>
-        </div>
-      </div>
+        )}
+        {/* className="" clears OauthButton's hard-coded `rounded-full` so the emphasis variant's own radius/size applies */}
+        <OauthButton provider={{ id: provider.id }} onSuccess={setApiKey} variant="emphasis" className="" />
+        <HStack gap={1} className="text-(--color-text-2) text-[13px] leading-[1.35]">
+          {serviceDescription}
+        </HStack>
+      </VStack>
     )
   }
 
   // Logged-in: charge / bills actions (original centered layout).
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-3 pb-2">
+    <VStack gap={3} align="center" justify="center" className="py-3 pb-2">
       {Icon ? (
         <Icon.Avatar size={60} />
       ) : (
@@ -89,7 +75,7 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
           {provider.name[0]}
         </div>
       )}
-      <RowFlex className="gap-2.5">
+      <Flex direction="row" gap={2}>
         <Button
           className="rounded-lg px-3 py-[6px] text-[13px] shadow-none"
           onClick={() => providerCharge(provider.id)}>
@@ -100,11 +86,11 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
           <ReceiptText aria-hidden className="size-4 shrink-0 text-white" />
           {t('settings.provider.bills')}
         </Button>
-      </RowFlex>
-      <div className="flex items-center gap-1.5 text-(--color-text-2) text-[13px] leading-[1.35]">
+      </Flex>
+      <HStack gap={1} className="text-(--color-text-2) text-[13px] leading-[1.35]">
         {serviceDescription}
-      </div>
-    </div>
+      </HStack>
+    </VStack>
   )
 }
 

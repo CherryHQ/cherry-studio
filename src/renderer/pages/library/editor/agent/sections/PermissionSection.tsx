@@ -1,4 +1,4 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, VStack } from '@cherrystudio/ui'
 import { FieldHeader } from '@renderer/pages/library/editor/FieldHeader'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,13 +19,13 @@ const PermissionSection: FC<Props> = ({ form, onChange }) => {
   const { t } = useTranslation()
 
   return (
-    <div className="flex flex-col gap-6">
+    <VStack gap={6}>
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.agent.section.permission.title')}</h3>
         <p className="text-muted-foreground/80 text-xs">{t('library.config.agent.section.permission.desc')}</p>
       </div>
 
-      <div className="flex flex-col gap-1.5">
+      <VStack gap={1}>
         <FieldHeader
           label={t('library.config.agent.field.permission_mode.label')}
           hint={t('library.config.agent.field.permission_mode.help')}
@@ -42,8 +42,8 @@ const PermissionSection: FC<Props> = ({ form, onChange }) => {
             ))}
           </SelectContent>
         </Select>
-      </div>
-    </div>
+      </VStack>
+    </VStack>
   )
 }
 

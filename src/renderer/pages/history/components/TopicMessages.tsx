@@ -1,5 +1,5 @@
 import { MessageOutlined } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
@@ -106,12 +106,12 @@ const TopicMessages: FC<Props> = ({ topic: _topic, ...props }) => {
             })}
             {isEmpty && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />}
             {!isEmpty && (
-              <RowFlex className="justify-center">
+              <Flex direction="row" justify="center">
                 <Button onClick={() => onContinueChat(topic)}>
                   <MessageOutlined />
                   {t('history.continue_chat')}
                 </Button>
-              </RowFlex>
+              </Flex>
             )}
           </ContainerWrapper>
         </MessagesContainer>

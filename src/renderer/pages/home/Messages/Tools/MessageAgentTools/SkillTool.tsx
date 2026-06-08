@@ -1,3 +1,4 @@
+import { VStack } from '@cherrystudio/ui'
 import type { CollapseProps } from 'antd'
 import { useTranslation } from 'react-i18next'
 
@@ -26,7 +27,7 @@ export function SkillTool({
       />
     ),
     children: (
-      <div className="flex flex-col gap-3">
+      <VStack gap={3}>
         {/* Args 输入区域 */}
         {input?.args && (
           <div>
@@ -49,7 +50,7 @@ export function SkillTool({
         ) : (
           <SkeletonValue value={null} width="100%" fallback={null} />
         )}
-      </div>
+      </VStack>
     )
   }
 }

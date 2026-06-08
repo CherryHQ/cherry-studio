@@ -1,4 +1,4 @@
-import { Button, Input, PageSidePanelItem, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Input, PageSidePanelItem, Switch, Tooltip, VStack } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { cn } from '@renderer/utils'
 import type { Provider, RuntimeApiFeatures } from '@shared/data/types/provider'
@@ -213,8 +213,8 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       onClose={onClose}
       title={t('settings.provider.api.options.label')}
       footer={footer}>
-      <div className="flex min-w-0 flex-col gap-5">
-        <div className="flex flex-col gap-5">
+      <VStack gap={5} className="min-w-0">
+        <VStack gap={5}>
           {options.map((item) => {
             const id = apiOptionId(providerId, item.key)
             return (
@@ -231,12 +231,12 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
               />
             )
           })}
-        </div>
+        </VStack>
 
         {isSupportAnthropicPromptCache ? (
           <>
             <div className={drawerClasses.divider} />
-            <div className="flex flex-col gap-5">
+            <VStack gap={5}>
               <PageSidePanelItem
                 title={
                   <OptionTitle
@@ -317,10 +317,10 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
                   />
                 </>
               ) : null}
-            </div>
+            </VStack>
           </>
         ) : null}
-      </div>
+      </VStack>
     </ProviderSettingsDrawer>
   )
 }

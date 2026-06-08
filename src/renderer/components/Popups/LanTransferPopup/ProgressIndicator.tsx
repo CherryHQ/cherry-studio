@@ -1,3 +1,4 @@
+import { VStack } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,7 +26,7 @@ export const ProgressIndicator: FC<ProgressIndicatorProps> = ({ transferState, h
   const isCompleted = transferState.status === 'completed'
 
   return (
-    <div className="flex min-w-[180px] flex-1 flex-col gap-1">
+    <VStack className="min-w-[180px] flex-1" gap={1}>
       {/* Label Row */}
       <div
         className={cn(
@@ -50,6 +51,6 @@ export const ProgressIndicator: FC<ProgressIndicatorProps> = ({ transferState, h
           style={{ width: `${progressPercent}%` }}
         />
       </div>
-    </div>
+    </VStack>
   )
 }

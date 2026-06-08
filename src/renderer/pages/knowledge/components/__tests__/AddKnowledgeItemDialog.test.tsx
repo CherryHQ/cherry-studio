@@ -46,6 +46,51 @@ vi.mock('@cherrystudio/ui', async () => {
   })
 
   return {
+    ...(() => {
+      const R = require('react')
+      const s =
+        (omit: string[] = []) =>
+        ({ children, ...p }: any) => {
+          for (const k of ['direction', 'align', 'justify', 'gap', 'wrap', 'inline', 'asChild', ...omit]) delete p[k]
+          return R.createElement('div', p, children)
+        }
+      return {
+        Box: s(),
+        Flex: s(),
+        HStack: s(),
+        VStack: s(),
+        Stack: s(),
+        Center: s(),
+        Grid: s(['columns', 'flow']),
+        PageShell: s(['scroll']),
+        Container: s(['size', 'padded', 'fluid']),
+        Spacer: s(),
+        TruncatingRow: ({ children, leading, trailing, ...p }: any) => {
+          for (const k of ['gap', 'align', 'justify', 'wrap', 'asChild']) delete p[k]
+          return R.createElement('div', p, leading, children, trailing)
+        }
+      }
+    })(),
+    VStack: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) => (
+      <div {...props}>{children}</div>
+    ),
+    TruncatingRow: ({
+      children,
+      leading,
+      trailing,
+      ...props
+    }: {
+      children?: React.ReactNode
+      leading?: React.ReactNode
+      trailing?: React.ReactNode
+      [key: string]: unknown
+    }) => (
+      <div {...props}>
+        {leading}
+        {children}
+        {trailing}
+      </div>
+    ),
     Button: ({
       children,
       type = 'button',

@@ -3,12 +3,15 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  Grid,
+  HStack,
   Input,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
+  VStack
 } from '@cherrystudio/ui'
 import type { FeishuChannelConfig, FeishuDomain, PermissionMode } from '@renderer/types'
 import { QRCodeSVG } from 'qrcode.react'
@@ -65,7 +68,7 @@ type ChannelFieldsFormProps = ChannelFormProps & {
 const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
   return (
-    <div className="flex flex-col gap-1">
+    <VStack gap={1}>
       <label className="font-medium text-xs">{t('agent.cherryClaw.channels.security.permissionMode')}</label>
       <Select
         value={channel.permissionMode ?? INHERIT_PERMISSION_MODE_VALUE}
@@ -85,7 +88,7 @@ const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }
           ))}
         </SelectContent>
       </Select>
-    </div>
+    </VStack>
   )
 }
 
@@ -132,8 +135,8 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
   }, [chatIds, cfg, idsKey, onConfigChange])
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-3">
+    <VStack gap={3}>
+      <Grid columns={2} gap={3}>
         {fields.map((field) => (
           <div key={field.key} className={field.span === 2 ? 'col-span-2' : ''}>
             <label className="mb-1 block font-medium text-xs">{field.label}</label>
@@ -177,9 +180,9 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
             <span className="mt-1 block text-blue-400 text-xs">{chatIdsConfig.extraHint}</span>
           )}
         </div>
-      </div>
+      </Grid>
       <ChannelPermissionMode channel={channel} onConfigChange={onConfigChange} />
-    </div>
+    </VStack>
   )
 }
 
@@ -258,9 +261,9 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
   }, [channel.id])
 
   return (
-    <div className="flex flex-col gap-3">
+    <VStack gap={3}>
       {!hasCredentials && (
-        <div className="flex items-center gap-2">
+        <HStack gap={2}>
           {status === 'pending' && (
             <span className="text-blue-400 text-xs">{t('agent.cherryClaw.channels.feishu.qrHint')}</span>
           )}
@@ -273,13 +276,13 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
           {status === 'idle' && (
             <span className="text-blue-400 text-xs">{t('agent.cherryClaw.channels.feishu.loginHint')}</span>
           )}
-        </div>
+        </HStack>
       )}
       {hasCredentials && (
-        <div className="flex items-center gap-2">
+        <HStack gap={2}>
           <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
           <span className="text-green-600 text-xs">{t('agent.cherryClaw.channels.feishu.connected')}</span>
-        </div>
+        </HStack>
       )}
       <ChannelFieldsForm
         channel={channel}
@@ -328,15 +331,15 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
           <DialogHeader>
             <DialogTitle>{t('agent.cherryClaw.channels.feishu.qrTitle')}</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col items-center gap-4 py-4">
+          <VStack gap={4} align="center" className="py-4">
             {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
             <span className="text-center text-muted-foreground text-xs">
               {t('agent.cherryClaw.channels.feishu.qrScanHint')}
             </span>
-          </div>
+          </VStack>
         </DialogContent>
       </Dialog>
-    </div>
+    </VStack>
   )
 }
 
@@ -435,9 +438,9 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
   }, [channel.id])
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center gap-2">
+    <VStack gap={3}>
+      <VStack gap={1}>
+        <HStack gap={2}>
           {status === 'confirmed' && (
             <>
               <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
@@ -453,13 +456,13 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
           {(status === 'idle' || status === 'pending') && (
             <span className="text-blue-400 text-xs">{t('agent.cherryClaw.channels.wechat.loginHint')}</span>
           )}
-        </div>
+        </HStack>
         {loginUserId && status === 'confirmed' && (
           <span className="text-gray-400 text-xs">
             User ID: <code className="select-all rounded bg-gray-100 px-1 dark:bg-gray-800">{loginUserId}</code>
           </span>
         )}
-      </div>
+      </VStack>
 
       <ChannelPermissionMode channel={channel} onConfigChange={onConfigChange} />
 
@@ -474,15 +477,15 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
           <DialogHeader>
             <DialogTitle>{t('agent.cherryClaw.channels.wechat.qrTitle')}</DialogTitle>
           </DialogHeader>
-          <div className="flex flex-col items-center gap-4 py-4">
+          <VStack gap={4} align="center" className="py-4">
             {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
             <span className="text-center text-muted-foreground text-xs">
               {t('agent.cherryClaw.channels.wechat.qrHint')}
             </span>
-          </div>
+          </VStack>
         </DialogContent>
       </Dialog>
-    </div>
+    </VStack>
   )
 }
 

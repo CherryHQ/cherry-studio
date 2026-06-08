@@ -3,7 +3,7 @@
  * Lives in ComponentLabSettings so the visual contract can be reviewed before the agent
  * execution todo/progress API is decided.
  */
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, HStack, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import {
   Atom,
@@ -395,7 +395,7 @@ const AgentTodoListTaskRow = ({ task }: { task: AgentTodoItem }) => {
   const { t } = useTranslation()
 
   return (
-    <div className="flex min-h-6 items-center gap-2 px-1 py-1.25">
+    <HStack gap={2} className="min-h-6 px-1 py-1.25">
       <AgentTodoListStatusIcon status={task.status} />
       <span
         className={cn(
@@ -406,7 +406,7 @@ const AgentTodoListTaskRow = ({ task }: { task: AgentTodoItem }) => {
         )}>
         {t(task.labelKey)}
       </span>
-    </div>
+    </HStack>
   )
 }
 
@@ -474,10 +474,10 @@ const AgentTodoListDetailGroup = ({ detail }: { detail: AgentTodoDetailGroup }) 
 
   return (
     <div className="mb-1.5">
-      <div className="mb-1 flex items-center gap-1.5 px-1">
+      <HStack gap={1} className="mb-1 px-1">
         <Icon size={10} className="text-primary" />
         <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">{t(detail.titleKey)}</span>
-      </div>
+      </HStack>
       <div className="mb-1 ml-6">
         {detail.summaryKey && (
           <div className="mb-1 rounded-md bg-muted/60 px-3 py-2">
@@ -488,10 +488,10 @@ const AgentTodoListDetailGroup = ({ detail }: { detail: AgentTodoDetailGroup }) 
           <div className="overflow-hidden rounded-md bg-muted/60">
             {detail.collectionTitleKey && (
               <div className="flex items-center justify-between border-border/40 border-b px-3 py-1.5">
-                <div className="flex min-w-0 items-center gap-1.5">
+                <HStack gap={1} className="min-w-0">
                   <span className="truncate text-[10px] text-muted-foreground">{t(detail.collectionTitleKey)}</span>
                   <span className="text-[9px] text-muted-foreground/60">{resourceCount}</span>
-                </div>
+                </HStack>
                 <Share2 size={9} className="shrink-0 text-muted-foreground/50" />
               </div>
             )}
@@ -512,13 +512,13 @@ const AgentTodoListDetailResource = ({ resource }: { resource: AgentTodoDetailRe
   const Icon = RESOURCE_ICONS[resource.icon]
 
   return (
-    <div className="flex items-center gap-2 px-3 py-1 transition-colors hover:bg-muted/80">
+    <HStack gap={2} className="px-3 py-1 transition-colors hover:bg-muted/80">
       <span className="flex size-4 shrink-0 items-center justify-center rounded bg-muted text-[10px]">
         <Icon size={10} className="text-muted-foreground/70" />
       </span>
       <span className="min-w-0 flex-1 truncate text-[10.5px] text-foreground/70">{t(resource.labelKey)}</span>
       {resource.metaKey && <span className="shrink-0 text-[9px] text-muted-foreground/60">{t(resource.metaKey)}</span>}
-    </div>
+    </HStack>
   )
 }
 
@@ -529,7 +529,7 @@ const AgentTodoListFooter = () => {
   } = useAgentTodoList()
 
   return (
-    <div className="flex items-center gap-2 border-border/40 border-t px-3.5 py-2">
+    <HStack gap={2} className="border-border/40 border-t px-3.5 py-2">
       <ListFilter size={11} className="shrink-0 text-muted-foreground/60" />
       <span className="min-w-0 flex-1 truncate text-[10px] text-muted-foreground">
         {t('agent.todo.mock.progress', { completed: completedCount, total: totalCount })}
@@ -556,7 +556,7 @@ const AgentTodoListFooter = () => {
           <Check size={11} />
         </Button>
       </Tooltip>
-    </div>
+    </HStack>
   )
 }
 

@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, HStack } from '@cherrystudio/ui'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types/file'
@@ -33,7 +33,9 @@ const MessageAttachments: FC<Props> = ({ file }) => {
 
   return (
     <div className="message-attachments mt-0.5 mb-2">
-      <div className="flex max-w-[520px] items-center gap-3 rounded-lg border border-(--color-border) bg-(--color-background-soft) px-3 py-2">
+      <HStack
+        gap={3}
+        className="max-w-[520px] rounded-lg border border-(--color-border) bg-(--color-background-soft) px-3 py-2">
         <div className="shrink-0 text-(--color-text-2)">
           <Paperclip size={16} />
         </div>
@@ -48,15 +50,15 @@ const MessageAttachments: FC<Props> = ({ file }) => {
             {formatFileSize(file.size)} · {fileSuffix}
           </div>
         </button>
-        <div className="flex shrink-0 items-center gap-2">
+        <HStack gap={2} className="shrink-0">
           <Button size="sm" variant="secondary" onClick={handlePreview}>
             {t('common.preview')}
           </Button>
           <Button size="sm" variant="outline" onClick={() => window.api.file.openPath(safePath)}>
             {t('files.open')}
           </Button>
-        </div>
-      </div>
+        </HStack>
+      </HStack>
     </div>
   )
 }

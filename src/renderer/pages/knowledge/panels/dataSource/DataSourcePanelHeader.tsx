@@ -1,4 +1,4 @@
-import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Button, HStack, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import type { KnowledgeItemType } from '@shared/data/types/knowledge'
 import { Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -62,16 +62,16 @@ const DataSourcePanelHeader = ({
 
   if (selectedCount > 0) {
     return (
-      <div className="flex min-w-0 items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
+      <HStack gap={3} justify="between" className="min-w-0">
+        <HStack gap={2} className="min-w-0">
           <span className="text-foreground text-sm">
             {t('knowledge.data_source.bulk.selected_count', { count: selectedCount })}
           </span>
           <Button type="button" variant="ghost" size="sm" onClick={onCancelBulk}>
             {t('knowledge.data_source.bulk.cancel')}
           </Button>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
+        </HStack>
+        <HStack gap={2} className="shrink-0">
           <Button type="button" variant="outline" size="sm" onClick={onBulkReindex}>
             <RefreshCw className="size-3.5" />
             {t('knowledge.data_source.bulk.reindex')}
@@ -80,14 +80,14 @@ const DataSourcePanelHeader = ({
             <Trash2 className="size-3.5" />
             {t('knowledge.data_source.bulk.delete')}
           </Button>
-        </div>
-      </div>
+        </HStack>
+      </HStack>
     )
   }
 
   return (
-    <div className="flex min-w-0 items-center justify-end gap-2">
-      <div className="flex shrink-0 items-center gap-2">
+    <HStack gap={2} justify="end" className="min-w-0">
+      <HStack gap={2} className="shrink-0">
         {totalCount > 0 ? (
           <span className="text-foreground-muted text-xs leading-4">
             {t('knowledge.data_source.ready_summary', { ready: readyCount, total: totalCount })}
@@ -135,8 +135,8 @@ const DataSourcePanelHeader = ({
             </MenuList>
           </PopoverContent>
         </Popover>
-      </div>
-    </div>
+      </HStack>
+    </HStack>
   )
 }
 

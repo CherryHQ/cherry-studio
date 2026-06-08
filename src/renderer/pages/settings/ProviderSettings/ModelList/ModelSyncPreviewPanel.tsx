@@ -1,4 +1,4 @@
-import { Alert, Button, Checkbox } from '@cherrystudio/ui'
+import { Alert, Button, Checkbox, HStack } from '@cherrystudio/ui'
 import { getModelLogo } from '@renderer/config/models'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -237,7 +237,7 @@ export function ModelSyncPreviewFooter({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-3 text-foreground-muted text-xs">
+      <HStack gap={3} wrap className="text-foreground-muted text-xs">
         {hasNew ? (
           <span className="inline-flex items-center gap-1">
             <Plus className="size-3 text-primary" aria-hidden />
@@ -256,15 +256,15 @@ export function ModelSyncPreviewFooter({
             })}
           </span>
         ) : null}
-      </div>
-      <div className="flex items-center justify-end gap-2">
+      </HStack>
+      <HStack gap={2} justify="end">
         <Button type="button" variant="outline" disabled={isApplying} onClick={onCancel}>
           {t('common.cancel')}
         </Button>
         <Button type="button" disabled={isApplying || totalSelected === 0} loading={isApplying} onClick={onApply}>
           {t('settings.models.manage.sync_apply_changes')}
         </Button>
-      </div>
+      </HStack>
     </>
   )
 }

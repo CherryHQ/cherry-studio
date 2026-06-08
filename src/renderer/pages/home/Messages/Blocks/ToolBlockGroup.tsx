@@ -1,4 +1,4 @@
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, HStack, VStack } from '@cherrystudio/ui'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { Wrench } from 'lucide-react'
@@ -61,10 +61,10 @@ const WaitingToolHeader = React.memo(({ item }: WaitingToolHeaderProps) => {
   const effectiveStatus = getEffectiveStatus(toolResponse?.status, approval.isWaiting)
 
   return (
-    <div className="flex w-full items-center justify-between gap-2">
+    <HStack gap={2} justify="between" className="w-full">
       <ToolHeader toolResponse={toolResponse} variant="collapse-label" status={effectiveStatus} />
       {(approval.isWaiting || approval.isExecuting) && <ToolApprovalActionsComponent {...approval} compact />}
-    </div>
+    </HStack>
   )
 })
 WaitingToolHeader.displayName = 'WaitingToolHeader'
@@ -80,10 +80,10 @@ const GroupHeaderContent = React.memo(({ items, allCompleted }: GroupHeaderConte
 
   if (allCompleted) {
     return (
-      <div className="flex items-center gap-2 font-medium text-[13px]">
+      <HStack gap={2} className="font-medium text-[13px]">
         <Wrench size={14} className="text-(--color-primary)" />
         <span className="text-(--color-text-1)">{t('message.tools.groupHeader', { count: items.length })}</span>
-      </div>
+      </HStack>
     )
   }
 
@@ -134,10 +134,10 @@ const GroupHeaderContent = React.memo(({ items, allCompleted }: GroupHeaderConte
 
   // Fallback
   return (
-    <div className="flex items-center gap-2 font-medium text-[13px]">
+    <HStack gap={2} className="font-medium text-[13px]">
       <Wrench size={14} className="text-(--color-primary)" />
       <span className="text-(--color-text-1)">{t('message.tools.groupHeader', { count: items.length })}</span>
-    </div>
+    </HStack>
   )
 })
 GroupHeaderContent.displayName = 'GroupHeaderContent'
@@ -149,7 +149,7 @@ interface ToolListContentProps {
 }
 
 const ToolListContent = React.memo(({ items, scrollRef }: ToolListContentProps) => (
-  <div ref={scrollRef} className="flex max-h-[300px] flex-col gap-1 overflow-y-auto">
+  <VStack gap={1} className="max-h-[300px] overflow-y-auto" ref={scrollRef}>
     {items.map((item) => {
       const status = item.toolResponse.status
       const isCompleted = isCompletedStatus(status)
@@ -164,7 +164,7 @@ const ToolListContent = React.memo(({ items, scrollRef }: ToolListContentProps) 
         </div>
       )
     })}
-  </div>
+  </VStack>
 ))
 ToolListContent.displayName = 'ToolListContent'
 

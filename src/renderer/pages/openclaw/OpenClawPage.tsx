@@ -1,4 +1,4 @@
-import { Alert, Button } from '@cherrystudio/ui'
+import { Alert, Button, HStack } from '@cherrystudio/ui'
 import { Openclaw } from '@cherrystudio/ui/icons'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
@@ -344,7 +344,7 @@ const OpenClawPage: FC = () => {
           <p className="mt-2 text-muted-foreground text-sm leading-relaxed">
             {t(needsMigration ? 'openclaw.migration.description' : 'openclaw.not_installed.description')}
           </p>
-          <div className="mt-6 flex items-center justify-center gap-2">
+          <HStack gap={2} justify="center" className="mt-6">
             <Button disabled={isInstalling} onClick={handleInstall} loading={isInstalling}>
               {!isInstalling && <Download size={16} />}
               {t(needsMigration ? 'openclaw.migration.install_button' : 'openclaw.not_installed.install_button')}
@@ -353,7 +353,7 @@ const OpenClawPage: FC = () => {
               <ExternalLink size={16} />
               {t('openclaw.quick_actions.view_docs')}
             </Button>
-          </div>
+          </HStack>
         </div>
         {installError && (
           <Alert
@@ -385,12 +385,14 @@ const OpenClawPage: FC = () => {
 
         {/* Install Path - hide when gateway is running */}
         {installPath && gatewayStatus !== 'running' && (
-          <div
-            className="mb-6 flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm"
-            style={{ background: 'var(--color-background-soft)', color: 'var(--color-text-3)' }}>
+          <HStack
+            gap={2}
+            style={{ background: 'var(--color-background-soft)', color: 'var(--color-text-3)' }}
+            justify="between"
+            className="mb-6 rounded-lg px-3 py-2 text-sm">
             <div className="min-w-0 shrink overflow-hidden">
               <div className="mb-1">{t('openclaw.installed_at')}</div>
-              <div className="flex items-center gap-2">
+              <HStack gap={2}>
                 <div className="truncate text-xs" title={installPath}>
                   {installPath}
                 </div>
@@ -411,7 +413,7 @@ const OpenClawPage: FC = () => {
                   <CopyIcon className="size-3!" />
                 </Button>
                 <UpdateButton onUpdateComplete={checkInstallation} onUpdatingChange={setIsOpenClawUpdating} />
-              </div>
+              </HStack>
             </div>
             <span
               className="cursor-pointer whitespace-nowrap text-xs transition-colors hover:text-(--color-error)!"
@@ -419,7 +421,7 @@ const OpenClawPage: FC = () => {
               onClick={handleUninstall}>
               {t('openclaw.quick_actions.uninstall')}
             </span>
-          </div>
+          </HStack>
         )}
 
         {/* Gateway Status Card - show when running */}
@@ -427,7 +429,7 @@ const OpenClawPage: FC = () => {
           <div
             className="mb-6 flex items-center justify-between rounded-lg p-3"
             style={{ background: 'var(--color-background-soft)' }}>
-            <div className="flex items-center gap-2">
+            <HStack gap={2}>
               <div className="h-2 w-2 rounded-full bg-green-500" />
               <span className="font-medium text-sm" style={{ color: 'var(--color-text-1)' }}>
                 {t('openclaw.status.running')}
@@ -435,7 +437,7 @@ const OpenClawPage: FC = () => {
               <span className="font-mono text-[13px]" style={{ color: 'var(--color-text-3)' }}>
                 :{gatewayPort}
               </span>
-            </div>
+            </HStack>
             <Button
               size="sm"
               variant="ghost"
@@ -460,7 +462,7 @@ const OpenClawPage: FC = () => {
               }
               type="error"
               action={
-                <div className="flex items-center gap-1">
+                <HStack gap={1}>
                   <Button
                     size="icon-sm"
                     variant="ghost"
@@ -485,7 +487,7 @@ const OpenClawPage: FC = () => {
                     onClick={() => setError(null)}>
                     <X size={14} />
                   </Button>
-                </div>
+                </HStack>
               }
               className="rounded-lg"
             />
@@ -495,9 +497,9 @@ const OpenClawPage: FC = () => {
         {/* Model Selector - only show when not running */}
         {gatewayStatus !== 'running' && (
           <div className="mb-6">
-            <div className="mb-2 flex items-center gap-2 font-medium text-sm" style={{ color: 'var(--color-text-1)' }}>
+            <HStack gap={2} className="mb-2 font-medium text-sm" style={{ color: 'var(--color-text-1)' }}>
               {t('openclaw.model_config.model')}
-            </div>
+            </HStack>
             <ModelSelector
               multiple={false}
               selectionType="id"

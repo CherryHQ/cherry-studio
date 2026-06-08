@@ -3,6 +3,7 @@ import {
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbSeparator,
+  HStack,
   Input,
   MenuDivider,
   MenuItem,
@@ -10,8 +11,8 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-  RowFlex,
-  Tooltip
+  Tooltip,
+  VStack
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
@@ -166,13 +167,13 @@ const HeaderNavbar = ({
 
     if (item.children) {
       return (
-        <div key={item.key} className="space-y-1">
-          <div className="flex items-center gap-2.5 px-2.5 py-1 font-medium text-muted-foreground text-xs">
+        <VStack gap={1} key={item.key}>
+          <HStack gap={2} className="px-2.5 py-1 font-medium text-muted-foreground text-xs">
             {IconComponent && <IconComponent size={14} />}
             <span>{t(item.labelKey)}</span>
-          </div>
+          </HStack>
           <div className="pl-3">{item.children.map(renderMenuItem)}</div>
-        </div>
+        </VStack>
       )
     }
 
@@ -232,7 +233,7 @@ const HeaderNavbar = ({
 
   return (
     <NavbarHeader className="home-navbar shrink-0 justify-start [border-bottom:1px_solid_var(--color-border)]">
-      <RowFlex className="flex-[0_0_auto] items-center">
+      <HStack className="flex-[0_0_auto]">
         {showWorkspace && (
           <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
             <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon" onClick={handleToggleShowWorkspace}>
@@ -247,7 +248,7 @@ const HeaderNavbar = ({
             </BaseNavbarIcon>
           </Tooltip>
         )}
-      </RowFlex>
+      </HStack>
       <NavbarCenter className="min-w-0 flex-1">
         <div className="w-full overflow-hidden">
           <Breadcrumb className="**:data-[slot=breadcrumb-list]:flex-nowrap **:data-[slot=breadcrumb-list]:overflow-hidden **:data-[slot=breadcrumb-list]:whitespace-nowrap [&_[data-slot=breadcrumb-item]:last-child]:min-w-0 [&_[data-slot=breadcrumb-item]:last-child]:flex-1">

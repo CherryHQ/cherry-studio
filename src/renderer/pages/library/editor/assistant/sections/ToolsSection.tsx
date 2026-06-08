@@ -1,4 +1,4 @@
-import { Alert, Button } from '@cherrystudio/ui'
+import { Alert, Button, VStack } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { type AssistantConfigMcpMode, MCP_MODE_OPTIONS } from '@renderer/pages/library/constants'
 import {
@@ -57,7 +57,7 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
   }
 
   return (
-    <div className="space-y-6">
+    <VStack gap={6}>
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.tools.title')}</h3>
         <p className="text-muted-foreground/80 text-xs">{t('library.config.tools.desc')}</p>
@@ -115,12 +115,12 @@ const ToolsSection: FC<Props> = ({ mcpMode, mcpServerIds, onModeChange, onServer
           <p className="mt-0.5 text-blue-600/80 text-xs dark:text-blue-400/80">{t('library.config.tools.info_sub')}</p>
         </div>
       </Alert>
-    </div>
+    </VStack>
   )
 }
 
 function ModeGroup({ children }: { children: ReactNode }) {
-  return <div className="flex flex-col gap-1.5">{children}</div>
+  return <VStack gap={1}>{children}</VStack>
 }
 
 function ModeRow({

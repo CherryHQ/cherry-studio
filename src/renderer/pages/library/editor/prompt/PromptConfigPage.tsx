@@ -1,4 +1,4 @@
-import { Button, Field, FieldContent, FieldError, Input, Textarea } from '@cherrystudio/ui'
+import { Button, Field, FieldContent, FieldError, HStack, Input, Textarea, VStack } from '@cherrystudio/ui'
 import { usePromptMutations, usePromptMutationsById } from '@renderer/pages/library/adapters/promptAdapter'
 import { type Prompt, PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '@shared/data/types/prompt'
 import { Braces } from 'lucide-react'
@@ -131,7 +131,7 @@ const PromptConfigPage: FC<Props> = ({ prompt, onBack, onCreated }) => {
       error={error}
       saveButton={{ canSave, saving, onSave: handleSave }}>
       <div className="flex min-h-0 flex-1 justify-center overflow-y-auto px-8 py-7 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]">
-        <div className="w-full max-w-[860px] space-y-8">
+        <VStack gap={8} className="w-full max-w-[860px]">
           <Field data-invalid={Boolean(titleError) || undefined} className="gap-1.5">
             <FieldHeader label={t('library.config.prompt.field.name.label')} />
             <FieldContent>
@@ -146,7 +146,7 @@ const PromptConfigPage: FC<Props> = ({ prompt, onBack, onCreated }) => {
           </Field>
 
           <Field data-invalid={Boolean(contentError) || undefined} className="gap-1.5">
-            <div className="mb-3 flex items-center justify-between gap-3">
+            <HStack gap={3} justify="between" className="mb-3">
               <FieldHeader label={t('library.config.prompt.field.content.label')} />
               <Button
                 type="button"
@@ -156,7 +156,7 @@ const PromptConfigPage: FC<Props> = ({ prompt, onBack, onCreated }) => {
                 <Braces size={13} />
                 <span>{t('library.config.prompt.insert_variable')}</span>
               </Button>
-            </div>
+            </HStack>
             <FieldContent>
               <Textarea.Input
                 id="library-prompt-content"
@@ -172,7 +172,7 @@ const PromptConfigPage: FC<Props> = ({ prompt, onBack, onCreated }) => {
               <FieldError className="text-xs" errors={contentError ? [{ message: contentError }] : undefined} />
             </FieldContent>
           </Field>
-        </div>
+        </VStack>
       </div>
     </ResourceEditorShell>
   )

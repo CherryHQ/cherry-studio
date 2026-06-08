@@ -1,4 +1,4 @@
-import { Button, InfoTooltip, Input, RowFlex, Switch } from '@cherrystudio/ui'
+import { Button, Flex, InfoTooltip, Input, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { Client } from '@notionhq/client'
@@ -81,7 +81,7 @@ const NotionSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.database_id')}</SettingRowTitle>
-        <RowFlex className="w-[315px] min-w-0 max-w-full items-center gap-1.25">
+        <Flex direction="row" align="center" gap={1} className="w-[315px] min-w-0 max-w-full">
           <Input
             type="text"
             value={notionDatabaseID || ''}
@@ -89,12 +89,12 @@ const NotionSettings: FC = () => {
             onBlur={handleNotionDatabaseIdChange}
             placeholder={t('settings.data.notion.database_id_placeholder')}
           />
-        </RowFlex>
+        </Flex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.page_name_key')}</SettingRowTitle>
-        <RowFlex className="w-[315px] min-w-0 max-w-full items-center gap-1.25">
+        <Flex direction="row" align="center" gap={1} className="w-[315px] min-w-0 max-w-full">
           <Input
             type="text"
             value={notionPageNameKey || ''}
@@ -102,13 +102,13 @@ const NotionSettings: FC = () => {
             onBlur={handleNotionPageNameKeyChange}
             placeholder={t('settings.data.notion.page_name_key_placeholder')}
           />
-        </RowFlex>
+        </Flex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.notion.api_key')}</SettingRowTitle>
-        <RowFlex className="w-[315px] min-w-0 max-w-full items-center gap-1.25">
-          <RowFlex className="w-full min-w-0 items-center gap-1.25">
+        <Flex direction="row" align="center" gap={1} className="w-[315px] min-w-0 max-w-full">
+          <Flex direction="row" align="center" gap={1} className="w-full min-w-0">
             <Input
               type="password"
               value={notionApiKey || ''}
@@ -120,8 +120,8 @@ const NotionSettings: FC = () => {
             <Button onClick={handleNotionConnectionCheck} variant="outline" className="h-9 shrink-0">
               {t('settings.data.notion.check.button')}
             </Button>
-          </RowFlex>
-        </RowFlex>
+          </Flex>
+        </Flex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>

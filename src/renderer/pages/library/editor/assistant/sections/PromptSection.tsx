@@ -1,4 +1,4 @@
-import { Button, CodeEditor, Field, FieldContent, FieldError, Tooltip } from '@cherrystudio/ui'
+import { Button, CodeEditor, Field, FieldContent, FieldError, HStack, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
@@ -108,12 +108,12 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
       )}
 
       <Field data-invalid={promptInvalid || undefined} className="gap-1.5">
-        <div className="flex items-center justify-between gap-3">
+        <HStack gap={3} justify="between">
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
             <FieldHeader label={t('library.config.prompt.label')} className="min-w-0" />
             <PromptVariablesTooltip />
           </div>
-          <div className="flex items-center gap-1.5">
+          <HStack gap={1}>
             {showUndoButton && (
               <Tooltip content={t('common.undo')}>
                 <Button
@@ -145,8 +145,8 @@ const PromptSection: FC<Props> = ({ assistant, assistantName, prompt, promptErro
               {effectiveShowPreview ? <Edit size={10} /> : <Eye size={10} />}
               <span>{t(effectiveShowPreview ? 'common.edit' : 'common.preview')}</span>
             </Button>
-          </div>
-        </div>
+          </HStack>
+        </HStack>
 
         <FieldContent>
           <div

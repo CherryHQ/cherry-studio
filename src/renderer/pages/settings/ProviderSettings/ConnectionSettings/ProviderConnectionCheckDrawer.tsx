@@ -1,4 +1,4 @@
-import { Button, RadioGroup, RadioGroupItem, SelectDropdown } from '@cherrystudio/ui'
+import { Button, RadioGroup, RadioGroupItem, SelectDropdown, VStack } from '@cherrystudio/ui'
 import { maskApiKey } from '@renderer/utils/api'
 import type { Model } from '@shared/data/types/model'
 import { sortBy } from 'lodash'
@@ -65,7 +65,7 @@ export default function ProviderConnectionCheckDrawer({
     <ProviderSettingsDrawer open={open} onClose={onClose} title={t('message.api.check.model.title')} footer={footer}>
       <div className={drawerClasses.section}>
         <div className={drawerClasses.fieldList}>
-          <div className="space-y-2">
+          <VStack gap={2}>
             <label className="font-medium text-[13px] text-foreground/85">{t('settings.models.list_title')}</label>
             {sortedModels.length > 0 ? (
               <SelectDropdown
@@ -81,10 +81,10 @@ export default function ProviderConnectionCheckDrawer({
             ) : (
               <div className={drawerClasses.emptyInline}>{t('settings.provider.no_models_for_check')}</div>
             )}
-          </div>
+          </VStack>
 
           {hasMultipleKeys ? (
-            <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
+            <VStack gap={3} className="rounded-xl border border-border/60 bg-muted/20 p-4">
               <div className="font-medium text-[13px] text-foreground/85">
                 {t('settings.models.check.select_api_key')}
               </div>
@@ -100,14 +100,14 @@ export default function ProviderConnectionCheckDrawer({
                   </label>
                 ))}
               </RadioGroup>
-            </div>
+            </VStack>
           ) : (
-            <div className="space-y-2">
+            <VStack gap={2}>
               <div className="font-medium text-[13px] text-foreground/85">{t('settings.provider.api_key.label')}</div>
               <div className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5 font-mono text-[12px] text-foreground/70">
                 {selectedApiKey ? maskApiKey(selectedApiKey) : '—'}
               </div>
-            </div>
+            </VStack>
           )}
         </div>
       </div>

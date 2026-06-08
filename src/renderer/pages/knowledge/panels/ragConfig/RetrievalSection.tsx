@@ -1,3 +1,4 @@
+import { VStack } from '@cherrystudio/ui'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 import type { KnowledgeSearchMode } from '@shared/data/types/knowledge'
 import { useTranslation } from 'react-i18next'
@@ -41,7 +42,7 @@ const RetrievalSection = ({
   const usesRelevanceThreshold = searchMode === 'default' || rerankModelId !== null
 
   return (
-    <div className="flex flex-col gap-4">
+    <VStack gap={4}>
       <RagSliderField
         label={t('knowledge.rag.document_count')}
         hint={t('knowledge.rag.hints.document_count')}
@@ -102,7 +103,7 @@ const RetrievalSection = ({
           onValueChange={(value) => onRerankModelChange(value === EMPTY_OPTION_VALUE ? null : value)}
         />
       </div>
-    </div>
+    </VStack>
   )
 }
 

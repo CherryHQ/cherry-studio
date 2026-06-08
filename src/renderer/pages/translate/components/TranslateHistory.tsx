@@ -1,4 +1,4 @@
-import { ConfirmDialog, EmptyState, PageSidePanel } from '@cherrystudio/ui'
+import { ConfirmDialog, EmptyState, HStack, PageShell, PageSidePanel, VStack } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useLanguages, useTranslateHistories, useTranslateHistory } from '@renderer/hooks/translate'
@@ -161,7 +161,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
         title={`${t('translate.history.title')} (${total})`}
         closeLabel={t('translate.close')}
         bodyClassName="flex min-h-0 flex-col">
-        <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <VStack gap={3} className="min-h-0 flex-1">
           {selectedItem ? (
             <HistoryDetail
               item={selectedItem}
@@ -173,7 +173,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
           ) : (
             <>
               {showHistoryActions && (
-                <div className="flex shrink-0 items-center justify-end gap-1">
+                <HStack gap={1} justify="end" className="shrink-0">
                   <IconButton
                     size="md"
                     tone="star"
@@ -192,7 +192,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
                       <Trash2 size={14} />
                     </IconButton>
                   )}
-                </div>
+                </HStack>
               )}
               {deferredHistory.length > 0 ? (
                 <div className="min-h-0 flex-1">
@@ -214,7 +214,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
               )}
             </>
           )}
-        </div>
+        </VStack>
       </PageSidePanel>
       <ConfirmDialog
         open={confirmClearOpen}
@@ -266,7 +266,9 @@ const HistoryRow: FC<{
   }
 
   return (
-    <div
+    <VStack
+      gap={1}
+      className="group relative w-full cursor-pointer rounded-md p-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       role="button"
       tabIndex={0}
       onClick={() => onSelect(item.id)}
@@ -275,8 +277,7 @@ const HistoryRow: FC<{
           e.preventDefault()
           onSelect(item.id)
         }
-      }}
-      className="group relative flex w-full cursor-pointer flex-col gap-1.5 rounded-md p-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+      }}>
       <IconButton
         size="sm"
         tone="star"
@@ -293,7 +294,7 @@ const HistoryRow: FC<{
         )}>
         <Star size={10} className={cn(item.star && 'fill-amber-500')} />
       </IconButton>
-      <div className="flex items-center gap-1.5 pr-5">
+      <HStack gap={1} className="pr-5">
         <span className="rounded bg-muted px-1 py-px text-muted-foreground text-xs">
           {item._sourceEmoji} {item._sourceLabel}
         </span>
@@ -302,10 +303,10 @@ const HistoryRow: FC<{
           {item._targetEmoji} {item._targetLabel}
         </span>
         <span className="ml-auto text-foreground-muted text-xs">{item._createdAtLabel}</span>
-      </div>
+      </HStack>
       <p className="line-clamp-1 text-muted-foreground text-xs">{item.sourceText}</p>
       <p className="line-clamp-1 text-foreground text-xs">{item.targetText}</p>
-    </div>
+    </VStack>
   )
 }
 
@@ -338,7 +339,7 @@ const HistoryDetail: FC<{
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
+    <PageShell scroll className="p-3">
       <button
         type="button"
         onClick={onBack}
@@ -346,8 +347,8 @@ const HistoryDetail: FC<{
         <ChevronRight size={11} className="rotate-180" />
         <span>{t('translate.history.back')}</span>
       </button>
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center gap-2">
+      <VStack gap={3}>
+        <HStack gap={2} wrap>
           <span className="rounded-sm bg-muted px-1.5 py-0.5 text-muted-foreground text-xs">
             {item._sourceEmoji} {item._sourceLabel}
           </span>
@@ -366,7 +367,7 @@ const HistoryDetail: FC<{
             <Star size={11} className={cn(item.star && 'fill-amber-500')} />
           </IconButton>
           <span className="text-foreground-muted text-xs">{item._createdAtLabel}</span>
-        </div>
+        </HStack>
         <div className="rounded-md bg-muted/40 p-3">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-foreground-muted text-xs">{t('translate.history.source')}</span>
@@ -389,7 +390,7 @@ const HistoryDetail: FC<{
             {item.targetText}
           </p>
         </div>
-        <div className="flex items-center gap-2 pt-1">
+        <HStack gap={2} className="pt-1">
           <button
             type="button"
             onClick={() => onReuse(item)}
@@ -411,8 +412,8 @@ const HistoryDetail: FC<{
             aria-label={t('translate.history.delete')}>
             <Trash2 size={12} />
           </IconButton>
-        </div>
-      </div>
+        </HStack>
+      </VStack>
       <ConfirmDialog
         open={confirmDeleteOpen}
         onOpenChange={setConfirmDeleteOpen}
@@ -423,7 +424,7 @@ const HistoryDetail: FC<{
         destructive
         onConfirm={handleDelete}
       />
-    </div>
+    </PageShell>
   )
 }
 

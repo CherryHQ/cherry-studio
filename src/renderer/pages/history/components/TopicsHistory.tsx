@@ -1,5 +1,5 @@
 import { SearchOutlined } from '@ant-design/icons'
-import { ColFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import useScrollPosition from '@renderer/hooks/useScrollPosition'
 import { mapApiTopicToRendererTopic, useAllTopics } from '@renderer/hooks/useTopic'
@@ -38,13 +38,13 @@ const TopicsHistory: React.FC<Props> = ({ keywords, onClick, onSearch, ...props 
   if (isEmpty(filteredTopics)) {
     return (
       <ListContainer {...props}>
-        <ColFlex className="items-center">
+        <Flex direction="col" align="center">
           <Empty description={t('history.search.topics.empty')} />
           <Button className="mt-5 w-[200px]" onClick={onSearch}>
             <SearchOutlined />
             {t('history.search.messages')}
           </Button>
-        </ColFlex>
+        </Flex>
       </ListContainer>
     )
   }

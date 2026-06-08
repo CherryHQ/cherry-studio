@@ -1,3 +1,4 @@
+import { HStack } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import NavbarIcon from '@renderer/components/NavbarIcon'
@@ -75,7 +76,7 @@ const AgentNavbar = () => {
           minWidth: 'auto'
         }}
         className="agent-navbar-right">
-        <div className="flex items-center gap-1.5">
+        <HStack gap={1}>
           <UpdateAppButton />
           <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
             <NarrowIcon onClick={() => SearchPopup.show()}>
@@ -94,7 +95,7 @@ const AgentNavbar = () => {
               </NavbarIcon>
             </Tooltip>
           )}
-        </div>
+        </HStack>
       </NavbarRight>
     </Navbar>
   )

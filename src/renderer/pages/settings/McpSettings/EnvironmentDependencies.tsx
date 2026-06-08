@@ -1,4 +1,4 @@
-import { Badge, Button } from '@cherrystudio/ui'
+import { Badge, Button, HStack, VStack } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { cn } from '@renderer/utils'
@@ -38,7 +38,9 @@ const EnvironmentDependencyItem: FC<EnvironmentDependencyItemProps> = ({
   onOpenPath,
   t
 }) => (
-  <div className="group flex min-h-13 w-full items-center gap-2.5 rounded-lg border border-border/60 bg-transparent px-2.5 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/55">
+  <HStack
+    gap={2}
+    className="group min-h-13 w-full rounded-lg border border-border/60 bg-transparent px-2.5 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/55">
     <div
       className={cn(
         'flex size-9 shrink-0 items-center justify-center rounded-xl',
@@ -52,7 +54,7 @@ const EnvironmentDependencyItem: FC<EnvironmentDependencyItemProps> = ({
         <div className="truncate font-medium text-foreground text-sm leading-5">{name}</div>
       </div>
 
-      <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs leading-4">
+      <HStack gap={1} className="mt-0.5 min-w-0 text-muted-foreground text-xs leading-4">
         <span className="truncate">{description}</span>
         <button
           type="button"
@@ -65,10 +67,10 @@ const EnvironmentDependencyItem: FC<EnvironmentDependencyItemProps> = ({
           )}>
           <FolderOpen className="size-3" />
         </button>
-      </div>
+      </HStack>
     </div>
 
-    <div className="flex min-w-[92px] shrink-0 items-center justify-end gap-2">
+    <HStack gap={2} justify="end" className="min-w-[92px] shrink-0">
       {installed ? (
         <Badge className="border-transparent bg-success/10 px-1.5 py-0 font-medium text-[11px] text-success leading-4">
           {t('settings.skills.installed')}
@@ -90,8 +92,8 @@ const EnvironmentDependencyItem: FC<EnvironmentDependencyItemProps> = ({
           </Button>
         </>
       )}
-    </div>
-  </div>
+    </HStack>
+  </HStack>
 )
 
 const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = false }) => {
@@ -194,16 +196,16 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const dependenciesCount = 2
 
   return (
-    <div className="flex flex-col gap-5">
+    <VStack gap={5}>
       <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-2">
+        <HStack gap={2} className="min-w-0">
           <h1 className="font-semibold text-[15px] text-foreground leading-6">{t('settings.plugins.title')}</h1>
           <span className="text-muted-foreground/50 text-xs">{dependenciesCount}</span>
-        </div>
+        </HStack>
         <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.plugins.description')}</p>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <VStack gap={2}>
         <EnvironmentDependencyItem
           actionLabel={t('settings.mcp.install')}
           description={t('settings.plugins.uvDescription')}
@@ -226,8 +228,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
           onOpenPath={openBinariesDir}
           t={t}
         />
-      </div>
-    </div>
+      </VStack>
+    </VStack>
   )
 }
 

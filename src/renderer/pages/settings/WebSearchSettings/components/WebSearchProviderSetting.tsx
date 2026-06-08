@@ -1,4 +1,4 @@
-import { Button, ButtonGroup, Flex, InfoTooltip, Input, Label, RowFlex, Tooltip } from '@cherrystudio/ui'
+import { Button, ButtonGroup, Flex, InfoTooltip, Input, Label, Tooltip, VStack } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import type { WebSearchBasicAuthPatch } from '@renderer/hooks/useWebSearch'
 import { formatApiKeys, splitApiKeyString, withoutTrailingSlash } from '@renderer/utils/api'
@@ -288,8 +288,8 @@ export const WebSearchProviderSetting: FC<Props> = ({
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle>
-          <Flex className="items-center justify-between" style={{ width: '100%' }}>
-            <Flex className="items-center gap-2">
+          <Flex style={{ width: '100%' }} align="center" justify="between">
+            <Flex align="center" gap={2}>
               <WebSearchProviderLogo providerId={provider.id} providerName={provider.name} size={20} />
               <span className="font-medium text-sm">{provider.name}</span>
               {officialWebsite && (
@@ -368,13 +368,13 @@ export const WebSearchProviderSetting: FC<Props> = ({
               </Button>
             </ButtonGroup>
             <SettingHelpTextRow style={{ justifyContent: 'space-between', marginTop: 5 }}>
-              <RowFlex>
+              <Flex direction="row">
                 {apiKeyWebsite && (
                   <SettingHelpLink target="_blank" href={apiKeyWebsite}>
                     {t('settings.provider.get_api_key')}
                   </SettingHelpLink>
                 )}
-              </RowFlex>
+              </Flex>
               <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
             </SettingHelpTextRow>
           </>
@@ -385,7 +385,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
             <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
               {t('settings.provider.api_host')}
             </SettingSubtitle>
-            <Flex className="min-w-0 gap-2">
+            <Flex gap={2} className="min-w-0">
               <Input
                 value={apiHostInput}
                 placeholder={t('settings.provider.api_host')}
@@ -422,8 +422,8 @@ export const WebSearchProviderSetting: FC<Props> = ({
                 }}
               />
             </SettingSubtitle>
-            <div className="flex w-full flex-col gap-4">
-              <div className="flex flex-col gap-2">
+            <VStack gap={4} className="w-full">
+              <VStack gap={2}>
                 <Label htmlFor="websearch-basic-auth-username">
                   {t('settings.provider.basic_auth.user_name.label')}
                 </Label>
@@ -434,9 +434,9 @@ export const WebSearchProviderSetting: FC<Props> = ({
                   onChange={(e) => setBasicAuthUsernameDraft(e.target.value)}
                   onBlur={() => void persist(commitBasicAuthDraft, 'Failed to save web search basic auth username')}
                 />
-              </div>
+              </VStack>
               {basicAuthUsernameInput && (
-                <div className="flex flex-col gap-2">
+                <VStack gap={2}>
                   <Label htmlFor="websearch-basic-auth-password">
                     {t('settings.provider.basic_auth.password.label')}
                   </Label>
@@ -448,9 +448,9 @@ export const WebSearchProviderSetting: FC<Props> = ({
                     onChange={(e) => setBasicAuthPasswordInput(e.target.value)}
                     onBlur={() => void persist(commitBasicAuthDraft, 'Failed to save web search basic auth password')}
                   />
-                </div>
+                </VStack>
               )}
-            </div>
+            </VStack>
           </>
         )}
       </SettingGroup>

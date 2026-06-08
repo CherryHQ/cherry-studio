@@ -11,6 +11,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  HStack,
   Input,
   Select,
   SelectContent,
@@ -231,10 +232,10 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
                       <SelectContent>
                         {DEFAULT_SEARCH_ENGINES.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
-                            <div className="flex items-center gap-2">
+                            <HStack gap={2}>
                               {option.icon}
                               <span>{option.label || t('selection.settings.search_modal.engine.custom')}</span>
-                            </div>
+                            </HStack>
                           </SelectItem>
                         ))}
                       </SelectContent>

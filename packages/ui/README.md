@@ -262,6 +262,34 @@ An input component with error handling and password visibility support.
 - `errorMessage`: string
 - `onChange`: (value: string) => void
 
+### Layout Primitives
+
+Gap-aware flex/grid primitives (in `components/composites/flex`) built on a thin `Box`. They own **layout only** — `direction` / `align` / `justify` / `gap` / `wrap` / `columns` / `width` — via typed props that compile to a **closed, statically-analyzable Tailwind class lookup** (never template-interpolated, so the JIT keeps the classes). Padding, color, sizing, and `min-w-0` stay in `className`, which always wins last via `cn`.
+
+```tsx
+import { HStack, VStack, Center, Grid, TruncatingRow, PageShell, Container, Spacer } from '@cherrystudio/ui'
+
+<HStack gap={2}>…</HStack>                          {/* flex items-center gap-2 */}
+<VStack gap={3}>…</VStack>                          {/* flex flex-col gap-3 — replaces space-y-3 */}
+<Center className="size-9 rounded-full">…</Center> {/* items-center justify-center */}
+<Grid columns={{ base: 1, sm: 2, lg: 3 }} gap={3}>…</Grid>
+<TruncatingRow gap={2} trailing={<Badge/>}>        {/* bakes min-w-0/flex-1 truncation chain */}
+  <span className="truncate">{name}</span>
+</TruncatingRow>
+<PageShell scroll className="bg-background">…</PageShell>   {/* flex min-h-0 flex-1 flex-col */}
+<Container size="settings">…</Container>            {/* mx-auto max-w-3xl, px-6 py-4 */}
+```
+
+**Conventions**
+
+- **`gap` binds to the numeric Tailwind scale** (`0 | 1 | 2 | 3 | 4 | 5 | 6 | 8` → `gap-N`). Not `--cs-size-*`, not `gap-md` (semantic spacing aliases are opt-in in `theme.css`). Half-steps are excluded — round down when migrating, or drop to `className` (`gap-[6px]`) for a one-off; never widen the union.
+- **Use the prop, not a redundant className**: `<HStack gap={2}>`, not `<HStack className="gap-2">`. Re-spelling a primitive's own axis in `className` is the anti-pattern.
+- **Polymorphism via `asChild`** (Radix `Slot`), consistent with `Button`/`Badge`. Responsive via Tailwind variants in `className` (`sm:flex-row`), not bespoke props.
+- **Off-limits**: do not wrap DESIGN.md-governed shells (`Dialog`, `PageHeader`, `PageSidePanel`, `Drawer`, settings two-layer) — they keep their baked geometry.
+- The legacy `RowFlex` / `ColFlex` / `SpaceBetweenRowFlex` presets have been **removed** → use `HStack` / `VStack` / `Flex` (or `HStack justify="between"`).
+
+See [`DESIGN.md` → Layout Primitives](../../DESIGN.md) for the gap-semantics table and the full off-limits list.
+
 ## Hooks
 
 ### useDebounce

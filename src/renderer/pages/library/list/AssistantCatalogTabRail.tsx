@@ -1,4 +1,4 @@
-import { Button, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import { Button, HStack, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,7 +20,7 @@ export function AssistantCatalogTabRail({ tabs, activeTab, onTabChange }: Assist
   }
 
   return (
-    <div className="flex items-center gap-1 px-5 pb-3">
+    <HStack className="px-5 pb-3" gap={1}>
       <Button
         variant="ghost"
         aria-label={t('library.assistant_catalog.scroll_left')}
@@ -56,6 +56,6 @@ export function AssistantCatalogTabRail({ tabs, activeTab, onTabChange }: Assist
         className="h-7 min-h-0 w-7 shrink-0 rounded-full p-0 text-muted-foreground/45 shadow-none hover:bg-accent/55 hover:text-foreground focus-visible:ring-0">
         <ChevronRight size={14} />
       </Button>
-    </div>
+    </HStack>
   )
 }

@@ -11,6 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
   EmptyState,
+  Grid,
+  HStack,
   Input as UIInput,
   Select,
   SelectContent,
@@ -19,7 +21,8 @@ import {
   SelectValue,
   Spinner,
   Textarea,
-  Tooltip
+  Tooltip,
+  VStack
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ListItem from '@renderer/components/ListItem'
@@ -248,11 +251,11 @@ const TaskDetail: FC<{
       {/* Header card */}
       <SettingGroup theme={theme}>
         <SettingTitle>
-          <div className="flex items-center gap-2">
+          <HStack gap={2}>
             <Badge className={badgeColorClass(task.status)}>{statusLabels[task.status] ?? task.status}</Badge>
             <span className="text-(--color-foreground-muted) text-xs">{agentName}</span>
-          </div>
-          <div className="flex items-center gap-1">
+          </HStack>
+          <HStack gap={1}>
             {!isCompleted && (
               <Button size="icon-sm" onClick={() => onRun(task.id)} title={t('agent.cherryClaw.tasks.run')}>
                 <Play size={14} />
@@ -271,10 +274,10 @@ const TaskDetail: FC<{
             <Button size="icon-sm" variant="destructive" onClick={() => setDeleteConfirmOpen(true)}>
               <Trash2 size={14} />
             </Button>
-          </div>
+          </HStack>
         </SettingTitle>
         <SettingDivider />
-        <div className="flex flex-wrap items-center gap-3 text-xs">
+        <HStack gap={3} wrap className="text-xs">
           <Badge className={badgeColorClass(task.trigger.kind)}>
             {scheduleTypeLabels[task.trigger.kind] ?? task.trigger.kind}
           </Badge>
@@ -294,14 +297,14 @@ const TaskDetail: FC<{
               {t('agent.cherryClaw.tasks.nextRun')}: {formatDateTime(task.nextRun)}
             </span>
           )}
-        </div>
+        </HStack>
       </SettingGroup>
 
       {/* Editable fields card */}
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.general.title')}</SettingTitle>
         <SettingDivider />
-        <div className="space-y-5">
+        <VStack gap={5}>
           <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
             <SettingRowTitle>{t('agent.cherryClaw.tasks.name.label')}</SettingRowTitle>
             <UIInput
@@ -312,8 +315,8 @@ const TaskDetail: FC<{
             />
           </SettingRow>
           {/* Agent reassignment was never supported by the IPC contract (strict
-              schema dropped the field). Owning-agent display lives in the
-              header card. */}
+                            schema dropped the field). Owning-agent display lives in the
+                            header card. */}
           <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
             <div className="flex items-center justify-between">
               <SettingRowTitle>{t('agent.cherryClaw.tasks.prompt.label')}</SettingRowTitle>
@@ -338,8 +341,8 @@ const TaskDetail: FC<{
               className="min-h-[88px] resize-y px-3 py-2"
             />
           </SettingRow>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
+          <Grid columns={3} gap={4}>
+            <VStack gap={2}>
               <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleType.label')}</SettingRowTitle>
               <Select
                 value={scheduleType}
@@ -358,8 +361,8 @@ const TaskDetail: FC<{
                   <SelectItem value="once">{t('agent.cherryClaw.tasks.scheduleType.once')}</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
+            </VStack>
+            <VStack gap={2}>
               <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleValue')}</SettingRowTitle>
               {scheduleType === 'cron' && (
                 <UIInput
@@ -412,8 +415,8 @@ const TaskDetail: FC<{
                   disabled={isCompleted}
                 />
               )}
-            </div>
-            <div className="space-y-2">
+            </VStack>
+            <VStack gap={2}>
               <SettingRowTitle>{t('agent.cherryClaw.tasks.timeout.label')}</SettingRowTitle>
               <div className="relative">
                 <UIInput
@@ -434,8 +437,8 @@ const TaskDetail: FC<{
                   {t('agent.cherryClaw.tasks.intervalUnit')}
                 </span>
               </div>
-            </div>
-          </div>
+            </VStack>
+          </Grid>
           <TaskChannelSelector
             channels={channels}
             channelIds={channelIds}
@@ -445,7 +448,7 @@ const TaskDetail: FC<{
             }}
             disabled={isCompleted}
           />
-        </div>
+        </VStack>
       </SettingGroup>
 
       {/* Logs card */}
@@ -572,7 +575,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
           const sessionId = record.sessionId
 
           return (
-            <div className="flex items-center gap-1">
+            <HStack gap={1}>
               <span
                 className={isErrorStatus ? 'text-red-500' : ''}
                 style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -589,7 +592,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
                   </Button>
                 </Tooltip>
               )}
-            </div>
+            </HStack>
           )
         }
       }
@@ -614,7 +617,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <VStack gap={2}>
       <div className="relative">
         <Search className="-translate-y-1/2 absolute top-1/2 left-2.5 size-3 text-muted-foreground" />
         <UIInput
@@ -640,7 +643,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         maxHeight={300}
         emptyText={t('agent.cherryClaw.tasks.logs.empty')}
       />
-    </div>
+    </VStack>
   )
 }
 
@@ -729,7 +732,7 @@ const CreateForm: FC<{
       <SettingGroup theme={theme}>
         <SettingTitle>{t('agent.cherryClaw.tasks.add')}</SettingTitle>
         <SettingDivider />
-        <div className="space-y-5">
+        <VStack gap={5}>
           {agents.length > 1 && (
             <>
               <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
@@ -792,8 +795,8 @@ const CreateForm: FC<{
             </DialogContent>
           </Dialog>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
+          <Grid columns={3} gap={4}>
+            <VStack gap={2}>
               <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleType.label')}</SettingRowTitle>
               <Select
                 value={scheduleType}
@@ -810,8 +813,8 @@ const CreateForm: FC<{
                   <SelectItem value="once">{t('agent.cherryClaw.tasks.scheduleType.once')}</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
+            </VStack>
+            <VStack gap={2}>
               <SettingRowTitle>{t('agent.cherryClaw.tasks.scheduleValue')}</SettingRowTitle>
               {scheduleType === 'cron' && (
                 <UIInput
@@ -847,8 +850,8 @@ const CreateForm: FC<{
                   }}
                 />
               )}
-            </div>
-            <div className="space-y-2">
+            </VStack>
+            <VStack gap={2}>
               <SettingRowTitle>{t('agent.cherryClaw.tasks.timeout.label')}</SettingRowTitle>
               <div className="relative">
                 <UIInput
@@ -863,8 +866,8 @@ const CreateForm: FC<{
                   {t('agent.cherryClaw.tasks.intervalUnit')}
                 </span>
               </div>
-            </div>
-          </div>
+            </VStack>
+          </Grid>
           <TaskChannelSelector channels={channels} channelIds={channelIds} onChange={setChannelIds} />
 
           <div className="flex gap-2">
@@ -875,7 +878,7 @@ const CreateForm: FC<{
               {t('agent.cherryClaw.tasks.save')}
             </Button>
           </div>
-        </div>
+        </VStack>
       </SettingGroup>
     </SettingsContentColumn>
   )
@@ -1049,7 +1052,7 @@ const TasksSettings: FC = () => {
               <Plus size={14} />
             </Button>
           </div>
-          <div className="flex flex-col gap-1">
+          <VStack gap={1}>
             {tasks.length === 0 && !creating ? (
               <EmptyState
                 compact
@@ -1078,7 +1081,7 @@ const TasksSettings: FC = () => {
                 />
               ))
             )}
-          </div>
+          </VStack>
         </Scrollbar>
 
         {/* Right panel */}

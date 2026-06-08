@@ -1,4 +1,4 @@
-import { Button, Textarea } from '@cherrystudio/ui'
+import { Button, HStack, Textarea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { useDrag } from '@renderer/hooks/useDrag'
@@ -196,7 +196,7 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
           onKeyDown={onKeyDown}
           onPaste={handlePaste}
         />
-        <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 px-3.5 pt-2 pb-3">
+        <HStack gap={2} wrap justify="between" className="min-h-11 px-3.5 pt-2 pb-3">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             {acceptsImageInput && (
               <>
@@ -215,10 +215,10 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
             )}
             {leadingActions}
           </div>
-          <div className="flex min-w-0 shrink-0 items-center gap-2">
+          <HStack gap={2} className="min-w-0 shrink-0">
             <SendMessageButton sendMessage={onGenerate} disabled={generating} />
-          </div>
-        </div>
+          </HStack>
+        </HStack>
       </div>
     </div>
   )

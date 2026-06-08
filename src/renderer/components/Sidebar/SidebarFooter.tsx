@@ -1,3 +1,4 @@
+import { HStack, VStack } from '@cherrystudio/ui'
 import { ChevronRight, Columns2 } from 'lucide-react'
 import React from 'react'
 
@@ -23,7 +24,7 @@ type FooterProps = Omit<SidebarFooterProps, 'layout'>
 
 function IconFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
   return (
-    <div className="flex flex-col items-center gap-1 px-1.5 pt-2 pb-5 [-webkit-app-region:no-drag]">
+    <VStack gap={1} align="center" className="px-1.5 pt-2 pb-5 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <SidebarTooltip content={extensionsLabel}>
           <button
@@ -40,13 +41,13 @@ function IconFooter({ user, actions, extensionsLabel, onExtensionsClick }: Foote
           <UserAvatar user={user} className="h-7 w-7" />
         </div>
       )}
-    </div>
+    </VStack>
   )
 }
 
 function VerticalCardFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
   return (
-    <div className="flex flex-col items-center gap-0 px-1 pt-1 pb-5 [-webkit-app-region:no-drag]">
+    <VStack gap={0} align="center" className="px-1 pt-1 pb-5 [-webkit-app-region:no-drag]">
       {extensionsLabel && (
         <button
           type="button"
@@ -62,13 +63,13 @@ function VerticalCardFooter({ user, actions, extensionsLabel, onExtensionsClick 
           <UserAvatar user={user} className="h-7 w-7" />
         </div>
       )}
-    </div>
+    </VStack>
   )
 }
 
 function FullFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
   return (
-    <div className="space-y-1 px-2 py-2 [-webkit-app-region:no-drag]">
+    <VStack className="px-2 py-2 [-webkit-app-region:no-drag]" gap={1}>
       {extensionsLabel && (
         <button
           type="button"
@@ -82,16 +83,17 @@ function FullFooter({ user, actions, extensionsLabel, onExtensionsClick }: Foote
       {actions}
 
       {user && (
-        <div
-          className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors hover:bg-accent/60"
-          onClick={user.onClick}>
+        <HStack
+          className="cursor-pointer rounded-lg px-2.5 py-1.5 transition-colors hover:bg-accent/60"
+          onClick={user.onClick}
+          gap={2}>
           <UserAvatar user={user} className="h-7 w-7 shrink-0" />
           <div className="min-w-0 flex-1">
             <div className="truncate text-[13px] text-sidebar-foreground">{user.name}</div>
           </div>
           <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
-        </div>
+        </HStack>
       )}
-    </div>
+    </VStack>
   )
 }

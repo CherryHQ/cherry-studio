@@ -1,0 +1,111 @@
+/*
+ * `provider-settings.css` — provider detail column (`.provider-settings-default-scope`)
+ *
+ * The surface inherits the global `:root` / Tailwind v2 theme — no forked palette, no `--color-*`
+ * bridge, no parallel type or radius scale. What remains is scope-local and not expressible as a
+ * global design token:
+ *  - a few local tokens (opaque drawer surface, provider-list row gap, model-list glyph size,
+ *    scroll max-height, and the two "soft" surfaces that mix over the page background),
+ *  - `@container` queries driving the model-list responsive layout (replaces a JS ResizeObserver).
+ *
+ * Cross-links: `ProviderSetting.tsx` (shell node); `ProviderSettingsPage.tsx` imports this file and sets
+ * the `provider-settings-layout-cq` + `ps-model-list-cq` containers used by the `@container` rules below.
+ */
+.provider-settings-default-scope {
+  /* Drawer surfaces stay opaque — the page background can be translucent in dark mode. */
+  --drawer-background: oklch(1 0 0);
+  /* Provider list — Sortable list uses inline `gap: var(--provider-list-row-gap)`. */
+  --provider-list-row-gap: 0.5rem;
+  /* Model list capability glyphs — match CustomTag `size` (e.g. 10px) for lucide SVG + iconfont. */
+  --icon-size-model-list-cap: 0.625rem;
+  /* Soft surfaces that mix over the page background — no `/N` opacity-utility equivalent. */
+  --color-surface-warning-soft: color-mix(in srgb, var(--color-destructive) 8%, var(--color-background));
+  --color-surface-info-soft: color-mix(in srgb, var(--color-foreground) 4%, var(--color-background));
+  /* Unify outer list scroller with virtual list max (was 380 vs 390). */
+  --max-height-scroll-sm: 390px;
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+/* Dark: only the opaque drawer surface flips; everything else inherits global. */
+.dark .provider-settings-default-scope {
+  --drawer-background: oklch(0 0 0);
+}
+
+/*
+ * PageSidePanel defaults to `bg-card`, while Provider Settings page background can be translucent in dark mode
+ * through `--cs-background`. Drawer surfaces must stay opaque because they sit above live settings content.
+ */
+.provider-settings-default-scope[data-slot='page-side-panel'] {
+  background-color: var(--drawer-background) !important;
+}
+
+/*
+ * Provider settings page — size context for in-page drawer widths (`cqw` in `ProviderSettingsDrawer`).
+ * Nested `ps-model-list-cq` is nearer for model-list drawers; auth-only drawers use this ancestor.
+ */
+.provider-settings-default-scope.provider-settings-layout-cq {
+  container-type: inline-size;
+  container-name: provider-settings;
+}
+
+/*
+ * Model list — inline-size container (replaces ResizeObserver + containerWidth in TS).
+ * Breakpoints match prior JS: meta/id/latency @ 760 / 920; chip max width bands @ 520 / 860.
+ */
+.provider-settings-default-scope .ps-model-list-cq {
+  container-type: inline-size;
+  container-name: model-list;
+}
+
+@container model-list (min-width: 860px) {
+  .provider-settings-default-scope .ps-model-list-cq .ps-model-list-cap-chip {
+    max-width: max(32cqi, 7.5rem);
+  }
+}
+
+@container model-list (max-width: 859px) and (min-width: 520px) {
+  .provider-settings-default-scope .ps-model-list-cq .ps-model-list-cap-chip {
+    max-width: max(calc((100cqi - 1.25rem) / 2), 6rem);
+  }
+}
+
+@container model-list (max-width: 519px) {
+  .provider-settings-default-scope .ps-model-list-cq .ps-model-list-cap-chip {
+    max-width: max(calc(100cqi - 0.75rem), 6rem);
+  }
+}
+
+@container model-list (max-width: 759px) {
+  .provider-settings-default-scope .ps-model-list-cq .ps-model-list-id {
+    display: none;
+  }
+
+  .provider-settings-default-scope .ps-model-list-cq .ps-model-list-meta {
+    display: none;
+  }
+}
+
+@container model-list (max-width: 919px) {
+  .provider-settings-default-scope .ps-model-list-cq .ps-model-list-health .ant-typography {
+    display: none !important;
+  }
+}
+
+/*
+ * Inline model row — one footprint for capability glyphs.
+ * ReasoningTag uses `i.iconfont`, not SVG; CustomTag wraps icons with inline `font-size`, so iconfont needs explicit override.
+ */
+.provider-settings-default-scope .ps-compact-cap-strip svg,
+.provider-settings-default-scope .ps-model-list-cap-strip svg {
+  flex-shrink: 0;
+  width: var(--icon-size-model-list-cap);
+  height: var(--icon-size-model-list-cap);
+}
+
+.provider-settings-default-scope .ps-compact-cap-strip i.iconfont,
+.provider-settings-default-scope .ps-model-list-cap-strip i.iconfont {
+  flex-shrink: 0;
+  font-size: var(--icon-size-model-list-cap) !important;
+  line-height: 1 !important;
+}

@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, VStack } from '@cherrystudio/ui'
 import AddButton from '@renderer/components/AddButton'
 import DraggableVirtualList, { type DraggableVirtualListRef } from '@renderer/components/DraggableList/VirtualList'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -130,7 +130,7 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
         role="alert"
         className="m-2.5 flex items-start gap-2 rounded-md border border-(--color-error) bg-(--color-error)/10 px-3 py-2 text-sm">
         <AlertTriangle className="mt-0.5 size-4 shrink-0 text-(--color-error)" />
-        <div className="flex flex-1 flex-col gap-1">
+        <VStack gap={1} className="flex-1">
           <div className="font-medium">{t('agent.session.get.error.failed')}</div>
           <div className="text-(--color-text-3) text-xs">{formatErrorMessage(error)}</div>
           <div>
@@ -138,7 +138,7 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
               {t('common.retry')}
             </Button>
           </div>
-        </div>
+        </VStack>
       </div>
     )
   }

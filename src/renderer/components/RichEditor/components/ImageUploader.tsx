@@ -5,11 +5,13 @@ import {
   DialogHeader,
   DialogTitle,
   Dropzone,
+  HStack,
   Input,
   Tabs,
   TabsContent,
   TabsList,
-  TabsTrigger
+  TabsTrigger,
+  VStack
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ImageUp, Link, LoaderCircle, UploadCloud } from 'lucide-react'
@@ -149,7 +151,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
                 window.toast.error(err.message || t('richEditor.imageUploader.invalidType'))
               }}
               className="min-h-44 border-dashed bg-muted/20 hover:bg-accent/40">
-              <div className="flex flex-col items-center justify-center gap-2 text-center">
+              <VStack gap={2} align="center" justify="center" className="text-center">
                 <div className="flex size-10 items-center justify-center rounded-md bg-muted text-muted-foreground">
                   {loading ? <LoaderCircle className="size-5 animate-spin" /> : <ImageUp className="size-5" />}
                 </div>
@@ -159,12 +161,12 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
                 <div className="text-muted-foreground text-xs">
                   {loading ? t('richEditor.imageUploader.processing') : t('richEditor.imageUploader.uploadHint')}
                 </div>
-              </div>
+              </VStack>
             </Dropzone>
           </TabsContent>
 
           <TabsContent value="url" className="pt-2">
-            <div className="flex items-center justify-center gap-3">
+            <HStack gap={3} justify="center">
               <div className="relative flex-1">
                 <Link className="-translate-y-1/2 absolute top-1/2 left-3 size-4 text-muted-foreground" />
                 <Input
@@ -185,7 +187,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageSelect, vis
               <Button onClick={handleUrlSubmit} disabled={!urlInput.trim()}>
                 {t('richEditor.imageUploader.embedImage')}
               </Button>
-            </div>
+            </HStack>
           </TabsContent>
         </Tabs>
       </DialogContent>

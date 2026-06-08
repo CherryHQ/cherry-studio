@@ -1,4 +1,4 @@
-import { EmptyState } from '@cherrystudio/ui'
+import { EmptyState, HStack, VStack } from '@cherrystudio/ui'
 import { Clock, LoaderCircle, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -13,8 +13,11 @@ const RecallResultSummary = () => {
   } = useRecallTest()
 
   return (
-    <div className="flex items-center justify-between gap-4 border-border-muted border-b px-4 py-3 text-foreground-muted text-xs leading-4">
-      <div className="flex items-center gap-2.5">
+    <HStack
+      gap={4}
+      justify="between"
+      className="border-border-muted border-b px-4 py-3 text-foreground-muted text-xs leading-4">
+      <HStack gap={2}>
         <span className="flex items-center gap-0.5">
           <Sparkles className="size-3" />
           {t('knowledge.recall.result_count', { count: results.length })}
@@ -30,8 +33,8 @@ const RecallResultSummary = () => {
                 score: results.length === 0 ? formatRecallScore(topScore) : formatRecallPercent(topScore)
               })}
         </span>
-      </div>
-    </div>
+      </HStack>
+    </HStack>
   )
 }
 
@@ -44,11 +47,11 @@ const RecallResults = () => {
     <div className="min-h-0 overflow-y-auto px-6 py-5 [&::-webkit-scrollbar]:hidden">
       <div className="mx-auto max-w-3xl overflow-hidden rounded-lg border border-border-subtle bg-card">
         <RecallResultSummary />
-        <div className="space-y-2 p-3">
+        <VStack gap={2} className="p-3">
           {results.map((item, index) => (
             <RecallResultCard key={item.id} item={item} index={index} />
           ))}
-        </div>
+        </VStack>
       </div>
     </div>
   )

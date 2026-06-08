@@ -5,6 +5,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  HStack,
   Input,
   RadioGroup,
   RadioGroupItem,
@@ -14,7 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
   Textarea,
-  Tooltip
+  Tooltip,
+  VStack
 } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import CopyButton from '@renderer/components/CopyButton'
@@ -117,7 +119,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               : t('selection.settings.user_modal.title.add')}
           </DialogTitle>
         </DialogHeader>
-        <div className="flex w-full flex-col gap-4">
+        <VStack gap={4} className="w-full">
           <ModalSection>
             <div className="flex flex-row">
               <div className="w-[70%] flex-auto pr-4">
@@ -248,13 +250,13 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                 <QuestionIcon size={14} />
               </Tooltip>
               <Spacer />
-              <div className="flex select-text items-center gap-1 text-(--color-foreground-secondary) text-xs">
+              <HStack gap={1} className="select-text text-(--color-foreground-secondary) text-xs">
                 {t('selection.settings.user_modal.prompt.placeholder_text')} {'{{text}}'}
                 <CopyButton
                   tooltip={t('selection.settings.user_modal.prompt.copy_placeholder')}
                   textToCopy="{{text}}"
                 />
-              </div>
+              </HStack>
             </ModalSectionTitle>
             <Textarea.Input
               placeholder={t('selection.settings.user_modal.prompt.placeholder')}
@@ -264,7 +266,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               className="resize-none"
             />
           </ModalSection>
-        </div>
+        </VStack>
         <DialogFooter>
           <Button variant="outline" onClick={onCancel}>
             {t('common.cancel')}

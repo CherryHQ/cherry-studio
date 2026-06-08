@@ -1,4 +1,4 @@
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, HStack, VStack } from '@cherrystudio/ui'
 import { MessageBlockStatus } from '@renderer/types/newMessage'
 import { ChevronDown } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
@@ -28,7 +28,7 @@ const CompactBlock: React.FC<Props> = ({ id, content, compactedContent }) => {
   )
 
   return (
-    <div className="my-2 flex flex-col gap-3">
+    <VStack gap={3} className="my-2">
       <Accordion
         ref={anchorRef}
         type="single"
@@ -37,10 +37,10 @@ const CompactBlock: React.FC<Props> = ({ id, content, compactedContent }) => {
         onValueChange={(value) => withScrollAnchor(() => setActiveKey(value))}>
         <AccordionItem value="summary" className="rounded-lg border-0">
           <AccordionTrigger className="[&>svg]:hidden">
-            <div className="flex items-center gap-2">
+            <HStack gap={2}>
               <span className="text-lg">📦</span>
               <span className="font-medium text-(--color-text-1) text-sm">{t('message.message.compact.title')}</span>
-            </div>
+            </HStack>
             <ChevronDown size={16} />
           </AccordionTrigger>
           <AccordionContent>
@@ -56,7 +56,7 @@ const CompactBlock: React.FC<Props> = ({ id, content, compactedContent }) => {
           <div className="whitespace-pre-wrap text-(--color-text-2) text-sm leading-relaxed">{compactedContent}</div>
         </div>
       )}
-    </div>
+    </VStack>
   )
 }
 

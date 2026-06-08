@@ -13,7 +13,8 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  Label
+  Label,
+  VStack
 } from '@cherrystudio/ui'
 import { dataApiService } from '@data/DataApiService'
 import { usePreference } from '@data/hooks/usePreference'
@@ -379,20 +380,20 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             </form>
           </Form>
         ) : (
-          <div className="flex flex-col gap-2">
+          <VStack gap={2}>
             <Label>{t('settings.mcp.addServer.importFrom.dxtFile')}</Label>
             <Dropzone
               accept={{ 'application/octet-stream': ['.dxt'] }}
               maxFiles={1}
               src={dxtFile ? [dxtFile] : undefined}
               onDrop={(files) => setDxtFile(files[0] ?? null)}>
-              <div className="flex flex-col items-center gap-1 text-sm">
+              <VStack gap={1} align="center" className="text-sm">
                 <UploadIcon className="size-5 text-muted-foreground" />
                 <span>{dxtFile?.name ?? t('settings.mcp.addServer.importFrom.selectDxtFile')}</span>
-              </div>
+              </VStack>
             </Dropzone>
             <p className="text-muted-foreground text-sm">{t('settings.mcp.addServer.importFrom.dxtHelp')}</p>
-          </div>
+          </VStack>
         )}
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>

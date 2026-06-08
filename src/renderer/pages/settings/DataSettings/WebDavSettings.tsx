@@ -1,5 +1,5 @@
 import { FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
-import { Button, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Flex, Input, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
@@ -66,7 +66,7 @@ const WebDavSettings: FC = () => {
     }
 
     return (
-      <RowFlex className="items-center gap-1.25">
+      <Flex direction="row" align="center" gap={1}>
         {webdavSync.syncing && <SyncOutlined spin />}
         {!webdavSync.syncing && webdavSync.lastSyncError && (
           <WarnTooltip
@@ -79,7 +79,7 @@ const WebDavSettings: FC = () => {
             {t('settings.data.webdav.lastSync')}: {dayjs(webdavSync.lastSyncTime).format('HH:mm:ss')}
           </span>
         )}
-      </RowFlex>
+      </Flex>
     )
   }
 
@@ -146,7 +146,7 @@ const WebDavSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-        <RowFlex className="justify-between gap-1.25">
+        <Flex direction="row" justify="between" gap={1}>
           <Button onClick={showBackupModal} disabled={backuping} variant="outline">
             <SaveOutlined />
             {t('settings.data.webdav.backup.button')}
@@ -155,7 +155,7 @@ const WebDavSettings: FC = () => {
             <FolderOpenOutlined />
             {t('settings.data.webdav.restore.button')}
           </Button>
-        </RowFlex>
+        </Flex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>

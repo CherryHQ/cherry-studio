@@ -1,4 +1,4 @@
-import { Combobox, type ComboboxOption } from '@cherrystudio/ui'
+import { Combobox, type ComboboxOption, HStack } from '@cherrystudio/ui'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -21,7 +21,7 @@ export function TesseractLanguagePacks({ options, selectedLanguages, onChange }:
       const firstOption = availableOptions.find((option) => option.value === firstValue)
 
       return (
-        <div className="flex min-w-0 items-center gap-1">
+        <HStack gap={1} className="min-w-0">
           <span className="truncate rounded bg-primary/10 px-2 py-0.5 text-primary text-xs">
             {firstOption?.label ?? firstValue}
           </span>
@@ -30,7 +30,7 @@ export function TesseractLanguagePacks({ options, selectedLanguages, onChange }:
               +{selectedValues.length - 1}
             </span>
           )}
-        </div>
+        </HStack>
       )
     },
     [t]

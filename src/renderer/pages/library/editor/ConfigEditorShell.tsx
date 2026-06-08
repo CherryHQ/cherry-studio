@@ -6,6 +6,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
   Button,
+  HStack,
   MenuItem
 } from '@cherrystudio/ui'
 import type { LucideIcon } from 'lucide-react'
@@ -69,7 +70,7 @@ export function ResourceEditorTopBar({
   const { t } = useTranslation()
 
   return (
-    <div className="flex shrink-0 items-center gap-3 border-border/50 border-b px-5 py-3">
+    <HStack gap={3} className="shrink-0 border-border/50 border-b px-5 py-3">
       <Button
         variant="ghost"
         size="icon-sm"
@@ -130,7 +131,7 @@ export function ResourceEditorTopBar({
           </Button>
         </>
       )}
-    </div>
+    </HStack>
   )
 }
 

@@ -51,7 +51,39 @@ export {
   type EntitySelectorSearch,
   type EntitySelectorSection
 } from './composites/entity-selector'
-export { Box, Center, ColFlex, Flex, RowFlex, SpaceBetweenRowFlex } from './composites/flex'
+export {
+  Box,
+  type BoxProps,
+  Center,
+  type CenterProps,
+  Container,
+  type ContainerProps,
+  type ContainerSize,
+  Flex,
+  type FlexAlign,
+  type FlexDirection,
+  type FlexJustify,
+  type FlexProps,
+  type GapProp,
+  type GapToken,
+  Grid,
+  type GridColumnCount,
+  type GridColumns,
+  type GridFlow,
+  type GridProps,
+  HStack,
+  type HStackProps,
+  PageShell,
+  type PageShellProps,
+  Spacer,
+  type SpacerProps,
+  Stack,
+  type StackProps,
+  TruncatingRow,
+  type TruncatingRowProps,
+  VStack,
+  type VStackProps
+} from './composites/flex'
 export { default as HorizontalScrollContainer } from './composites/horizontal-scroll-container'
 export {
   PageSidePanel,

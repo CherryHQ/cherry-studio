@@ -1,4 +1,4 @@
-import { Skeleton } from '@cherrystudio/ui'
+import { HStack, Skeleton, VStack } from '@cherrystudio/ui'
 import Favicon from '@renderer/components/Icons/FallbackFavicon'
 import { useMetaDataParser } from '@renderer/hooks/useMetaDataParser'
 import { type PropsWithChildren, useCallback, useEffect, useMemo } from 'react'
@@ -53,12 +53,12 @@ export const OgCard = ({ link, show }: Props) => {
       {!hasImage && <GeneratedGraph />}
 
       <div className="flex min-h-0 flex-col overflow-hidden p-2">
-        <div className="mb-2 flex items-center gap-2">
+        <HStack className="mb-2" gap={2}>
           {hostname && <Favicon hostname={hostname} alt={link} />}
           <MarqueeText>
             <span className="m-0 font-black text-sm leading-tight">{metadata['og:title'] || hostname}</span>
           </MarqueeText>
-        </div>
+        </HStack>
 
         <div
           title={metadata['og:description'] || link}
@@ -82,10 +82,10 @@ const CardSkeleton = () => {
   return (
     <Container>
       <Skeleton className="h-48 w-full rounded-none" />
-      <div className="flex flex-col gap-2 p-2">
+      <VStack className="p-2" gap={2}>
         <Skeleton className="h-4 w-3/5" />
         <Skeleton className="h-4 w-full" />
-      </div>
+      </VStack>
     </Container>
   )
 }

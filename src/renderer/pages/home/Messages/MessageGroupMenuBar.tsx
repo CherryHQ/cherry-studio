@@ -6,7 +6,7 @@ import {
   NumberOutlined,
   ReloadOutlined
 } from '@ant-design/icons'
-import { RowFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import type { Message } from '@renderer/types/newMessage'
@@ -102,7 +102,7 @@ const MessageGroupMenuBar: FC<Props> = ({
 
   return (
     <GroupMenuBar $layout={multiModelMessageStyle} className="group-menu-bar">
-      <RowFlex className="flex-1 items-center overflow-hidden">
+      <Flex direction="row" align="center" className="flex-1 overflow-hidden">
         <LayoutContainer>
           {(['fold', 'vertical', 'horizontal', 'grid'] as const).map((layout) => (
             <Tooltip
@@ -135,7 +135,7 @@ const MessageGroupMenuBar: FC<Props> = ({
           />
         )}
         {multiModelMessageStyle === 'grid' && <MessageGroupSettings />}
-      </RowFlex>
+      </Flex>
       {hasFailedMessages && (
         <Tooltip content={t('message.group.retry_failed')} delay={600}>
           <Button variant="ghost" size="sm" onClick={handleRetryAll} className="mr-1">

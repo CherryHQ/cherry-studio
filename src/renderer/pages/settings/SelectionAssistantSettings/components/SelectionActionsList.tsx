@@ -1,3 +1,4 @@
+import { VStack } from '@cherrystudio/ui'
 import { DragDropContext } from '@hello-pangea/dnd'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
@@ -66,7 +67,7 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
       </div>
 
       <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex flex-col gap-4">
+        <VStack gap={4}>
           <div className="w-full">
             <ActionsList
               droppableId="enabled"
@@ -88,7 +89,7 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
               getSearchEngineInfo={getSearchEngineInfo}
             />
           </div>
-        </div>
+        </VStack>
       </DragDropContext>
 
       <SelectionActionUserModal

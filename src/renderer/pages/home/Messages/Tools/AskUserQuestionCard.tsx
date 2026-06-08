@@ -1,3 +1,4 @@
+import { HStack, VStack } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useToolApprovalRespond } from '@renderer/hooks/ToolApprovalContext'
 import { usePartsMap } from '@renderer/pages/home/Messages/Blocks'
@@ -30,10 +31,10 @@ function CardHeader({ currentIndex, totalQuestions, extra }: CardHeaderProps) {
   const { t } = useTranslation()
   return (
     <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
+      <HStack gap={2}>
         <HelpCircle className="h-5 w-5 text-(--color-primary)" />
         <span className="font-semibold text-default-700">{t('agent.askUserQuestion.title')}</span>
-      </div>
+      </HStack>
       <span className="text-default-500 text-xs">
         <SkeletonValue value={totalQuestions > 0 ? `${currentIndex + 1} / ${totalQuestions}` : null} width="40px" />
         {extra}
@@ -136,7 +137,7 @@ function OptionsList({ options, selected, hasCustomInput, multiSelect, onSelect,
   )
 
   return (
-    <div className="max-h-64 space-y-2 overflow-y-auto">
+    <VStack gap={2} className="max-h-64 overflow-y-auto">
       {multiSelect ? (
         optionItems
       ) : (
@@ -144,10 +145,10 @@ function OptionsList({ options, selected, hasCustomInput, multiSelect, onSelect,
           value={hasCustomInput ? OTHER_OPTION_VALUE : selected[0]}
           onChange={(e) => onSelect(e.target.value)}
           className="w-full">
-          <div className="space-y-2">{optionItems}</div>
+          <VStack gap={2}>{optionItems}</VStack>
         </Radio.Group>
       )}
-    </div>
+    </VStack>
   )
 }
 
@@ -160,23 +161,23 @@ interface CompletedContentProps {
 
 function CompletedContent({ question, answer }: CompletedContentProps) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
+    <VStack gap={2}>
+      <HStack gap={2}>
         <Tag color={answer ? 'processing' : 'default'} className="m-0">
           <SkeletonValue value={question?.header} width="60px" />
         </Tag>
         {answer && <CheckCircle2 className="h-4 w-4 text-(--color-primary)" />}
-      </div>
+      </HStack>
       <div className="text-default-700 text-sm">
         <SkeletonValue value={question?.question} width="100%" />
       </div>
       {answer && (
-        <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 p-2">
+        <HStack gap={2} className="rounded-lg border border-primary/30 bg-primary/10 p-2">
           <CheckCircle2 className="h-4 w-4 shrink-0 text-(--color-primary)" />
           <span className="text-(--color-primary) text-sm">{answer}</span>
-        </div>
+        </HStack>
       )}
-    </div>
+    </VStack>
   )
 }
 
@@ -209,9 +210,9 @@ function PendingContent({
   const { t } = useTranslation()
 
   return (
-    <div className="space-y-3">
+    <VStack gap={3}>
       {/* Header Tag */}
-      <div className="flex items-center gap-2">
+      <HStack gap={2}>
         <Tag color="processing" className="m-0">
           <SkeletonValue value={question?.header} width="60px" />
         </Tag>
@@ -221,7 +222,7 @@ function PendingContent({
           </Tag>
         )}
         {isAnswered && <CheckCircle className="h-4 w-4 text-(--color-primary)" />}
-      </div>
+      </HStack>
 
       {/* Question */}
       <div className="font-medium text-default-700 text-sm">
@@ -239,10 +240,10 @@ function PendingContent({
           otherLabel={t('agent.askUserQuestion.other')}
         />
       ) : (
-        <div className="space-y-2">
+        <VStack gap={2}>
           <SkeletonValue value={null} width="100%" />
           <SkeletonValue value={null} width="100%" />
-        </div>
+        </VStack>
       )}
 
       {/* Custom input field */}
@@ -255,7 +256,7 @@ function PendingContent({
           autoFocus
         />
       )}
-    </div>
+    </VStack>
   )
 }
 
@@ -444,7 +445,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
 
   return (
     <div className="w-full max-w-xl rounded-xl border border-default-200 bg-default-100 px-4 py-3 shadow-sm">
-      <div className="flex flex-col gap-3">
+      <VStack gap={3}>
         <CardHeader
           currentIndex={currentIndex}
           totalQuestions={totalQuestions}
@@ -478,7 +479,7 @@ export function AskUserQuestionCard({ toolResponse }: { toolResponse: NormalTool
             rightButton={totalQuestions === 1 ? submitButton : renderRightButton()}
           />
         )}
-      </div>
+      </VStack>
     </div>
   )
 }

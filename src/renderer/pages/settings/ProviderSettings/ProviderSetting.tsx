@@ -1,3 +1,4 @@
+import { PageShell, VStack } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -33,22 +34,20 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
   return (
     <ProviderSettingsContainer theme={theme}>
       <div className="flex h-full min-h-0 w-full flex-col">
-        {/* Scoped mock alignment: tokens in `provider-settings-scoped-theme.css`, compositions in ProviderSettingsPrimitives. */}
-        <div
-          data-testid="provider-detail-shell"
-          className="provider-settings-default-scope flex min-h-0 flex-1 flex-col overflow-hidden">
+        {/* Scope hook for `provider-settings.css` (container queries + local tokens); compositions in ProviderSettingsPrimitives. */}
+        <PageShell className="provider-settings-default-scope" data-testid="provider-detail-shell">
           <div className={providerDetailColumnClasses.headerPad}>
             <div className={providerDetailColumnClasses.headerContentMaxWidth}>
               <ProviderHeader providerId={providerId} />
             </div>
           </div>
           <Scrollbar className={providerDetailColumnClasses.scrollStrip}>
-            <div className={providerDetailColumnClasses.sectionStack}>
+            <VStack gap={8} className={providerDetailColumnClasses.sectionStack}>
               <AuthenticationSection providerId={providerId} />
               <ModelList providerId={providerId} />
-            </div>
+            </VStack>
           </Scrollbar>
-        </div>
+        </PageShell>
       </div>
     </ProviderSettingsContainer>
   )

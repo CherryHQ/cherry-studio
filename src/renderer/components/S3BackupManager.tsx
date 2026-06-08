@@ -7,8 +7,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  HStack,
   Spinner,
-  Tooltip
+  Tooltip,
+  VStack
 } from '@cherrystudio/ui'
 import { restoreFromS3 } from '@renderer/services/BackupService'
 import type { S3Config } from '@renderer/types'
@@ -256,7 +258,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
       cell: ({ row }) => {
         const record = row.original
         return (
-          <div className="flex items-center gap-1">
+          <HStack gap={1}>
             <Button variant="ghost" onClick={() => handleRestore(record.fileName)} disabled={restoring || deleting}>
               {t('settings.data.s3.manager.restore')}
             </Button>
@@ -266,7 +268,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
               disabled={deleting || restoring}>
               {t('settings.data.s3.manager.delete.label')}
             </Button>
-          </div>
+          </HStack>
         )
       }
     }
@@ -278,7 +280,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
         <DialogHeader>
           <DialogTitle>{t('settings.data.s3.manager.title')}</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-2">
+        <VStack gap={2}>
           <div className="relative">
             <DataTable
               rowKey="fileName"
@@ -299,7 +301,7 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
             )}
           </div>
           {backupFiles.length > PAGE_SIZE && (
-            <div className="flex items-center justify-end gap-2 text-muted-foreground text-sm">
+            <HStack gap={2} justify="end" className="text-muted-foreground text-sm">
               <span>
                 {safeCurrentPage} / {totalPages}
               </span>
@@ -321,9 +323,9 @@ export function S3BackupManager({ visible, onClose, s3Config, restoreMethod }: S
                 onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}>
                 <ChevronRight className="size-4" />
               </Button>
-            </div>
+            </HStack>
           )}
-        </div>
+        </VStack>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={fetchBackupFiles} disabled={loading}>
             <RefreshCw className="size-4" />

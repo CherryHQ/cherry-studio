@@ -1,4 +1,4 @@
-import { RowFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { InputRef } from 'antd'
@@ -76,7 +76,7 @@ const HistoryPage: FC = () => {
 
   return (
     <Container>
-      <RowFlex className="mt-2 px-3">
+      <Flex direction="row" className="mt-2 px-3">
         <Input
           prefix={
             stack.length > 1 ? (
@@ -102,7 +102,7 @@ const HistoryPage: FC = () => {
           size="middle"
           onPressEnter={onSearch}
         />
-      </RowFlex>
+      </Flex>
       <Divider style={{ margin: 0, marginTop: 4, borderBlockStartWidth: 0.5 }} />
 
       <TopicsHistory

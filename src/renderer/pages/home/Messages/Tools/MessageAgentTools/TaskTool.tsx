@@ -1,3 +1,4 @@
+import { VStack } from '@cherrystudio/ui'
 import type { CollapseProps } from 'antd'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -40,7 +41,7 @@ export function TaskTool({
       />
     ),
     children: (
-      <div className="flex flex-col gap-3">
+      <VStack gap={3}>
         {/* Prompt 输入区域 */}
         {input?.prompt && (
           <div>
@@ -63,7 +64,7 @@ export function TaskTool({
         ) : (
           <SkeletonValue value={null} width="100%" fallback={null} />
         )}
-      </div>
+      </VStack>
     )
   }
 }

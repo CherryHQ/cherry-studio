@@ -5,7 +5,8 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
+  VStack
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
@@ -93,7 +94,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
         </DialogHeader>
         {!progressData && <div>{content}</div>}
         {progressData && (
-          <div className="flex flex-col items-center gap-4 py-5 text-center">
+          <VStack gap={4} align="center" className="py-5 text-center">
             <CircularProgress
               value={Math.floor(progressData.progress)}
               size={72}
@@ -102,7 +103,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
               renderLabel={(progress) => `${progress}%`}
             />
             <div>{getProgressText()}</div>
-          </div>
+          </VStack>
         )}
         <DialogFooter>
           <Button variant="outline" disabled={isDisabled} onClick={onCancel}>

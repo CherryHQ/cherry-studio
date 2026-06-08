@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, HStack } from '@cherrystudio/ui'
 import { History, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
@@ -25,9 +25,10 @@ const RecallHistoryList = () => {
       </div>
 
       {historyItems.map((item) => (
-        <div
+        <HStack
+          gap={2}
+          className="group/hist w-full cursor-pointer rounded-md px-2 py-1 text-left transition-colors hover:bg-accent"
           key={item.id}
-          className="group/hist flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-left transition-colors hover:bg-accent"
           onClick={() => selectHistory(item)}>
           <button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left">
             <History className="size-3.5 shrink-0 text-foreground-muted" />
@@ -43,7 +44,7 @@ const RecallHistoryList = () => {
             }}>
             <X className="size-3" />
           </button>
-        </div>
+        </HStack>
       ))}
     </div>
   )

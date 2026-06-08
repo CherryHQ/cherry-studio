@@ -1,4 +1,4 @@
-import { Button, Input, RowFlex } from '@cherrystudio/ui'
+import { Button, Flex, HStack, Input, VStack } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { FolderIcon as NutstoreFolderIcon } from '@renderer/components/Icons/NutstoreIcons'
 import { useCallback, useEffect, useState } from 'react'
@@ -40,12 +40,13 @@ interface FolderProps {
 
 function Folder(props: FolderProps) {
   return (
-    <div
-      className="flex max-w-full cursor-pointer items-center gap-2 px-1 transition-colors hover:bg-accent"
-      onClick={() => props.onClick(props.path)}>
+    <HStack
+      className="max-w-full cursor-pointer px-1 transition-colors hover:bg-accent"
+      onClick={() => props.onClick(props.path)}
+      gap={2}>
       <NutstoreFolderIcon className={folderIconClassName} />
       <span className="min-w-0 flex-1 truncate">{props.name}</span>
-    </div>
+    </HStack>
   )
 }
 
@@ -121,7 +122,7 @@ export function NutstorePathSelector(props: Props) {
 
   return (
     <>
-      <div className="flex flex-col gap-4">
+      <VStack gap={4}>
         <div className="h-[300px] overflow-hidden">
           <div className="flex h-full flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {showNewFolder && (
@@ -130,11 +131,11 @@ export function NutstorePathSelector(props: Props) {
             <FileList path={cwd ?? ''} fs={props.fs} onClick={(f) => enter(f.path)} />
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <HStack gap={2}>
           <span>{t('settings.data.nutstore.pathSelector.currentPath')}</span>
           <span className="break-all">{cwd ?? '/'}</span>
-        </div>
-      </div>
+        </HStack>
+      </VStack>
       <NustorePathSelectorFooter
         returnPrev={pop}
         mkdir={() => setShowNewFolder(true)}
@@ -155,21 +156,21 @@ interface FooterProps {
 export function NustorePathSelectorFooter(props: FooterProps) {
   const { t } = useTranslation()
   return (
-    <RowFlex className="mt-3 justify-between bg-transparent p-0">
-      <RowFlex className="items-center gap-2">
+    <Flex direction="row" justify="between" className="mt-3 bg-transparent p-0">
+      <Flex direction="row" align="center" gap={2}>
         <Button variant="outline" onClick={props.returnPrev}>
           {t('settings.data.nutstore.pathSelector.return')}
         </Button>
         <Button size="sm" variant="ghost" onClick={props.mkdir}>
           {t('settings.data.nutstore.new_folder.button.label')}
         </Button>
-      </RowFlex>
-      <RowFlex className="items-center gap-2">
+      </Flex>
+      <Flex direction="row" align="center" gap={2}>
         <Button variant="outline" onClick={props.cancel}>
           {t('settings.data.nutstore.new_folder.button.cancel')}
         </Button>
         <Button onClick={props.confirm}>{t('backup.confirm.button')}</Button>
-      </RowFlex>
-    </RowFlex>
+      </Flex>
+    </Flex>
   )
 }

@@ -1,3 +1,4 @@
+import { HStack } from '@cherrystudio/ui'
 import type { CollapseProps } from 'antd'
 import { Tag } from 'antd'
 import ReactMarkdown from 'react-markdown'
@@ -20,10 +21,10 @@ export function NotebookEditTool({
   return {
     key: AgentToolsType.NotebookEdit,
     label: (
-      <div className="flex items-center gap-2">
+      <HStack gap={2}>
         <ToolHeader toolName={AgentToolsType.NotebookEdit} variant="collapse-label" showStatus={false} />
         <Tag color="blue">{input?.notebook_path ? <ClickableFilePath path={input.notebook_path} /> : undefined}</Tag>
-      </div>
+      </HStack>
     ),
     children: (
       <div>

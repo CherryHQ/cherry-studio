@@ -1,3 +1,4 @@
+import { VStack } from '@cherrystudio/ui'
 import React from 'react'
 
 interface ProtocolInstallWarningContentProps {
@@ -16,15 +17,15 @@ const ProtocolInstallWarningContent: React.FC<ProtocolInstallWarningContentProps
   commandPreview
 }) => {
   return (
-    <div className="space-y-3 text-left">
+    <VStack gap={3} className="text-left">
       <p>{message}</p>
       {commandPreview && (
-        <div className="space-y-1">
+        <VStack gap={1}>
           <div className="font-semibold">{commandLabel}</div>
           <pre className="whitespace-pre-wrap break-all rounded-md bg-[var(--color-muted)] p-2">{commandPreview}</pre>
-        </div>
+        </VStack>
       )}
-    </div>
+    </VStack>
   )
 }
 

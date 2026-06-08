@@ -1,3 +1,4 @@
+import { VStack } from '@cherrystudio/ui'
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import type { CollapseProps } from 'antd'
 import { Wrench } from 'lucide-react'
@@ -84,13 +85,13 @@ export function UnknownToolRenderer({
       />
     ),
     children: (
-      <div className="space-y-1">
+      <VStack gap={1}>
         {normalizedInput && <ToolArgsTable args={normalizedInput} title={t('message.tools.sections.input')} />}
         {normalizedOutput && <ToolArgsTable args={normalizedOutput} title={t('message.tools.sections.output')} />}
         {!normalizedInput && !normalizedOutput && (
           <div className="p-3 text-foreground-500 text-xs">{t('message.tools.noData')}</div>
         )}
-      </div>
+      </VStack>
     )
   }
 }

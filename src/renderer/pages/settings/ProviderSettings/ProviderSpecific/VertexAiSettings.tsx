@@ -1,4 +1,4 @@
-import { Input, RowFlex, Textarea } from '@cherrystudio/ui'
+import { Flex, Input, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider, useProviderAuthConfig, useProviderMutations } from '@renderer/hooks/useProvider'
 import { Info } from 'lucide-react'
@@ -120,11 +120,11 @@ const VertexAiSettings: FC<Props> = ({ providerId }) => {
       />
       {apiKeyWebsite && (
         <ProviderHelpTextRow className="justify-between">
-          <RowFlex>
+          <Flex direction="row">
             <ProviderHelpLink target="_blank" href={apiKeyWebsite}>
               {t('settings.provider.get_api_key')}
             </ProviderHelpLink>
-          </RowFlex>
+          </Flex>
           <ProviderHelpText>{t('settings.provider.vertex_ai.service_account.private_key_help')}</ProviderHelpText>
         </ProviderHelpTextRow>
       )}

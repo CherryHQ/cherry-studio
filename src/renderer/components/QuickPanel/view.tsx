@@ -1,4 +1,4 @@
-import { Flex } from '@cherrystudio/ui'
+import { Flex, HStack } from '@cherrystudio/ui'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isMac } from '@renderer/config/constant'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -724,7 +724,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             </span>
           </div>
 
-          <div className="flex min-w-[20%] items-center justify-end gap-0.5 text-[11px] text-muted-foreground">
+          <HStack gap={0} justify="end" className="min-w-[20%] text-[11px] text-muted-foreground">
             {item.description && (
               <span className="overflow-hidden text-ellipsis whitespace-nowrap">{item.description}</span>
             )}
@@ -737,7 +737,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
                 item.isMenu && !item.disabled && <ChevronRight size={14} />
               )}
             </span>
-          </div>
+          </HStack>
         </div>
       )
     },
@@ -779,18 +779,20 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             {rowRenderer}
           </DynamicVirtualList>
         )}
-        <div ref={footerRef} className="flex w-full items-center justify-between gap-4 px-3 pt-2 pb-[5px]">
+        <HStack ref={footerRef} gap={4} justify="between" className="w-full px-3 pt-2 pb-[5px]">
           <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-muted-foreground">
             {ctx.title || ''}
           </div>
-          <div className="flex shrink-0 items-center justify-end gap-4 text-[12px] text-muted-foreground">
+          <HStack gap={4} justify="end" className="shrink-0 text-[12px] text-muted-foreground">
             <span>ESC {t('settings.quickPanel.close')}</span>
 
-            <Flex className="items-center gap-1">▲▼ {t('settings.quickPanel.select')}</Flex>
+            <Flex align="center" gap={1}>
+              ▲▼ {t('settings.quickPanel.select')}
+            </Flex>
 
             {footerWidth >= 500 && (
               <>
-                <Flex className="items-center gap-1">
+                <Flex align="center" gap={1}>
                   <span className={isAssistiveKeyPressed ? 'text-primary' : 'text-muted-foreground'}>
                     {ASSISTIVE_KEY}
                   </span>
@@ -798,7 +800,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
                 </Flex>
 
                 {canForwardAndBackward && (
-                  <Flex className="items-center gap-1">
+                  <Flex align="center" gap={1}>
                     <span className={isAssistiveKeyPressed ? 'text-primary' : 'text-muted-foreground'}>
                       {ASSISTIVE_KEY}
                     </span>
@@ -808,9 +810,11 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
               </>
             )}
 
-            <Flex className="items-center gap-1">↩︎ {t('settings.quickPanel.confirm')}</Flex>
-          </div>
-        </div>
+            <Flex align="center" gap={1}>
+              ↩︎ {t('settings.quickPanel.confirm')}
+            </Flex>
+          </HStack>
+        </HStack>
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-import { Scrollbar, Sortable, Tooltip } from '@cherrystudio/ui'
+import { HStack, Scrollbar, Sortable, Tooltip, VStack } from '@cherrystudio/ui'
 import { LogoAvatar } from '@renderer/components/Icons'
 import { getMiniAppsLogo } from '@renderer/config/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
@@ -27,13 +27,13 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
   const tooltip = toggleAction === 'hide' ? t('miniApp.sidebar.hide.title') : t('settings.miniApps.visible')
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-col gap-1">
+    <VStack gap={1} className="min-h-0 min-w-0">
       {/* Secondary label — the lists themselves are the focus. Count sits next
-          to its title so the relationship reads directly. */}
-      <div className="flex items-center gap-1.5 px-2 text-muted-foreground">
+                to its title so the relationship reads directly. */}
+      <HStack gap={1} className="px-2 text-muted-foreground">
         <span className="text-xs">{title}</span>
         <span className="text-xs tabular-nums">{count}</span>
-      </div>
+      </HStack>
       {apps.length === 0 ? (
         <div className="flex flex-1 items-center justify-center px-2 py-6 text-center text-muted-foreground text-xs">
           {emptyText}
@@ -47,8 +47,9 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
             gap={2}
             renderItem={(app) => (
               <Tooltip content={tooltip} placement="left" classNames={{ placeholder: 'block w-full' }}>
-                <div
-                  className="flex w-full items-center gap-1.5 rounded-md px-2 py-0.5 transition-colors hover:bg-accent/40 focus-visible:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                <HStack
+                  gap={1}
+                  className="w-full rounded-md px-2 py-0.5 transition-colors hover:bg-accent/40 focus-visible:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
@@ -77,13 +78,13 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
                     aria-hidden="true">
                     <Icon className="size-3.5" />
                   </span>
-                </div>
+                </HStack>
               </Tooltip>
             )}
           />
         </Scrollbar>
       )}
-    </div>
+    </VStack>
   )
 }
 

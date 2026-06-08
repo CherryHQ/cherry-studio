@@ -1,4 +1,4 @@
-import { AccordionContent, AccordionItem } from '@cherrystudio/ui'
+import { AccordionContent, AccordionItem, VStack } from '@cherrystudio/ui'
 
 import BaseNavigatorSectionTrigger from './BaseNavigatorSectionTrigger'
 import KnowledgeBaseRow from './KnowledgeBaseRow'
@@ -39,7 +39,7 @@ const BaseNavigatorGroupSection = ({
       <AccordionContent
         className="pt-1.5 pb-0"
         contentClassName="motion-safe:data-[state=open]:[animation-duration:180ms] motion-safe:data-[state=closed]:[animation-duration:120ms] motion-safe:[animation-timing-function:cubic-bezier(0.25,1,0.5,1)] motion-safe:data-[state=open]:[&>div]:animate-in motion-safe:data-[state=open]:[&>div]:fade-in-0 motion-safe:data-[state=open]:[&>div]:slide-in-from-top-1 motion-safe:data-[state=open]:[&>div]:delay-[16ms] motion-safe:data-[state=open]:[&>div]:duration-[120ms] motion-safe:data-[state=open]:[&>div]:ease-[cubic-bezier(0.25,1,0.5,1)] motion-safe:data-[state=closed]:[&>div]:animate-out motion-safe:data-[state=closed]:[&>div]:fade-out-0 motion-safe:data-[state=closed]:[&>div]:slide-out-to-top-1 motion-safe:data-[state=closed]:[&>div]:delay-0 motion-safe:data-[state=closed]:[&>div]:duration-[90ms] motion-safe:data-[state=closed]:[&>div]:ease-[cubic-bezier(0.25,1,0.5,1)] motion-reduce:animate-none motion-reduce:[&>div]:animate-none">
-        <div className="space-y-1">
+        <VStack gap={1}>
           {section.items.map((base) => (
             <KnowledgeBaseRow
               key={base.id}
@@ -52,7 +52,7 @@ const BaseNavigatorGroupSection = ({
               onDeleteBase={onDeleteBase}
             />
           ))}
-        </div>
+        </VStack>
       </AccordionContent>
     </AccordionItem>
   )

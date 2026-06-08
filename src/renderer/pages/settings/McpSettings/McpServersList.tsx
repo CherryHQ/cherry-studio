@@ -1,8 +1,10 @@
 import {
   Button,
   EmptyState,
+  HStack,
   MenuItem,
   MenuList,
+  PageShell,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -10,7 +12,8 @@ import {
   Tabs,
   TabsList,
   TabsTrigger,
-  useDndReorder
+  useDndReorder,
+  VStack
 } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { EditIcon } from '@renderer/components/Icons'
@@ -138,16 +141,16 @@ const McpServersList: FC = () => {
   }, [])
 
   return (
-    <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 py-4">
-      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-2">
-        <div className="flex w-full flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <div className="flex min-w-0 items-center gap-3">
+    <VStack gap={2} className="h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 overflow-hidden px-6 py-4">
+      <VStack gap={2} className="mx-auto min-h-0 w-full max-w-3xl flex-1">
+        <HStack gap={3} wrap justify="between" className="w-full">
+          <HStack gap={3} wrap className="min-w-0">
+            <HStack gap={3} className="min-w-0">
               <SettingTitle>{t('settings.mcp.allServers')}</SettingTitle>
               <span className="shrink-0 text-muted-foreground text-sm">
                 {activeServerCount}/{mcpServers.length}
               </span>
-            </div>
+            </HStack>
             <CollapsibleSearchBar
               onSearch={setSearchText}
               placeholder={t('settings.mcp.search.placeholder')}
@@ -156,8 +159,8 @@ const McpServersList: FC = () => {
               maxWidth={200}
               style={{ borderRadius: 16 }}
             />
-          </div>
-          <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+          </HStack>
+          <HStack gap={2} wrap justify="end" className="min-w-0">
             <EnvironmentDependencies mini />
             <Button
               variant="ghost"
@@ -181,9 +184,9 @@ const McpServersList: FC = () => {
                 </MenuList>
               </PopoverContent>
             </Popover>
-          </div>
-        </div>
-        <div className="flex w-full min-w-0 flex-wrap items-center gap-3">
+          </HStack>
+        </HStack>
+        <HStack gap={3} wrap className="w-full min-w-0">
           <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="hidden xl:block">
             <TabsList className="h-8 rounded-full bg-muted/70 p-0.5">
               <TabsTrigger value="all" className="h-7 rounded-[14px] px-2.5 text-xs">
@@ -206,9 +209,9 @@ const McpServersList: FC = () => {
               </TabsTrigger>
             </TabsList>
           </Tabs>
-        </div>
-        <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-border/70">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        </HStack>
+        <PageShell className="w-full rounded-xl border border-border/70">
+          <PageShell className="min-w-0">
             <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
               <Scrollbar ref={scrollRef} className="min-h-0 flex-1">
                 {filteredMcpServers.length > 0 ? (
@@ -242,9 +245,9 @@ const McpServersList: FC = () => {
                 )}
               </Scrollbar>
             </div>
-          </div>
-        </div>
-      </div>
+          </PageShell>
+        </PageShell>
+      </VStack>
 
       <AddMcpServerModal
         visible={isAddModalVisible}
@@ -253,7 +256,7 @@ const McpServersList: FC = () => {
         existingServers={mcpServers} // 傳遞現有的伺服器列表
         initialImportMethod={modalType}
       />
-    </div>
+    </VStack>
   )
 }
 

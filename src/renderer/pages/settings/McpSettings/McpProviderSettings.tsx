@@ -1,4 +1,4 @@
-import { Button, Input } from '@cherrystudio/ui'
+import { Button, HStack, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import db from '@renderer/databases'
@@ -123,10 +123,10 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
   return (
     <DetailContainer>
       <ProviderHeader>
-        <div className="flex min-w-0 items-center gap-3">
+        <HStack gap={3} className="min-w-0">
           {ProviderLogo && <ProviderLogo.Avatar size={36} shape="circle" />}
           <div className="min-w-0">
-            <div className="flex min-w-0 items-center gap-1.5">
+            <HStack gap={1} className="min-w-0">
               <ProviderName>{getProviderDisplayName(provider, t)}</ProviderName>
               {provider.discoverUrl && (
                 <Button
@@ -139,10 +139,10 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                   </a>
                 </Button>
               )}
-            </div>
+            </HStack>
             <ProviderDescription>{t(provider.descriptionKey)}</ProviderDescription>
           </div>
-        </div>
+        </HStack>
         <Button
           onClick={handleFetch}
           disabled={isFetching || isFetchDisabled}
@@ -152,9 +152,9 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
       </ProviderHeader>
 
       <SettingsPanel>
-        <div className="mb-2 flex items-center justify-between gap-3">
+        <HStack gap={3} justify="between" className="mb-2">
           <PanelTitle>{t('settings.provider.api_key.label')}</PanelTitle>
-        </div>
+        </HStack>
         <Input
           type="password"
           value={token}
@@ -190,7 +190,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
           <ServerList>
             {filteredServers.map((server) => (
               <ServerItem key={server.id}>
-                <div className="flex flex-1 flex-row items-center gap-3">
+                <HStack gap={3} className="flex-1">
                   {server.logoUrl && (
                     <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
                       <img src={server.logoUrl} alt={server.name} className="h-full w-full object-cover" />
@@ -200,7 +200,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                     <ServerName>{server.name}</ServerName>
                     <ServerDescription>{server.description}</ServerDescription>
                   </div>
-                </div>
+                </HStack>
                 {(() => {
                   const isAlreadyAdded = existingServers.some((existing) => isSameMcpServerCandidate(existing, server))
                   return (

@@ -1,4 +1,4 @@
-import { Input, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
+import { Input, Tabs, TabsList, TabsTrigger, VStack } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
 import { permissionModeCards } from '@renderer/config/agent'
 import {
@@ -201,7 +201,7 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
   ]
 
   return (
-    <div className="flex flex-col gap-5">
+    <VStack gap={5}>
       <div>
         <h3 className="mb-1 text-base text-foreground">{t('library.config.agent.section.tools.title')}</h3>
         <p className="text-muted-foreground/80 text-xs">{t('library.config.agent.section.tools.desc')}</p>
@@ -305,7 +305,7 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
           />
         )}
       </div>
-    </div>
+    </VStack>
   )
 }
 

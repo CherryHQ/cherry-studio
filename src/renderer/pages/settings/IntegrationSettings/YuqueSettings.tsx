@@ -1,4 +1,4 @@
-import { Button, InfoTooltip, Input, RowFlex } from '@cherrystudio/ui'
+import { Button, Flex, InfoTooltip, Input } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -87,14 +87,14 @@ const YuqueSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.yuque.repo_url')}</SettingRowTitle>
-        <RowFlex className="w-[315px] min-w-0 max-w-full items-center gap-1.25">
+        <Flex direction="row" align="center" gap={1} className="w-[315px] min-w-0 max-w-full">
           <Input
             type="text"
             value={yuqueUrl || ''}
             onChange={handleYuqueRepoUrlChange}
             placeholder={t('settings.data.yuque.repo_url_placeholder')}
           />
-        </RowFlex>
+        </Flex>
       </SettingRow>
       <SettingDivider />
       <SettingRow>
@@ -109,8 +109,8 @@ const YuqueSettings: FC = () => {
             onClick={handleYuqueHelpClick}
           />
         </SettingRowTitle>
-        <RowFlex className="w-[315px] min-w-0 max-w-full items-center gap-1.25">
-          <RowFlex className="w-full min-w-0 items-center gap-1.25">
+        <Flex direction="row" align="center" gap={1} className="w-[315px] min-w-0 max-w-full">
+          <Flex direction="row" align="center" gap={1} className="w-full min-w-0">
             <Input
               type="password"
               value={yuqueToken || ''}
@@ -122,8 +122,8 @@ const YuqueSettings: FC = () => {
             <Button onClick={handleYuqueConnectionCheck} variant="outline" className="h-9 shrink-0">
               {t('settings.data.yuque.check.button')}
             </Button>
-          </RowFlex>
-        </RowFlex>
+          </Flex>
+        </Flex>
       </SettingRow>
     </SettingGroup>
   )

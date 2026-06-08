@@ -1,4 +1,4 @@
-import { Button, Input, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, HStack, Input, Switch, Tooltip, VStack } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProvider'
@@ -177,22 +177,20 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
       title={t('settings.provider.api.key.list.title')}
       description={t('settings.provider.api_key.list_description')}
       footer={
-        <div className="flex items-center justify-between gap-3">
+        <HStack gap={3} justify="between">
           <div className={apiKeyListClasses.summaryMeta}>
             {enabledCount} / {apiKeys.length} {t('settings.provider.api_key.enabled_suffix')}
           </div>
           <Button variant="outline" onClick={onClose}>
             {t('common.close')}
           </Button>
-        </div>
+        </HStack>
       }>
       <div className={apiKeyListClasses.shell}>
         <div className={apiKeyListClasses.listWrap}>
           <Scrollbar className={apiKeyListClasses.listScroller}>
             {apiKeys.length === 0 && !draft ? (
-              <div className="px-4 py-6 text-center text-[length:var(--font-size-body-md)] text-muted-foreground">
-                {t('error.no_api_key')}
-              </div>
+              <div className="px-4 py-6 text-center text-base text-muted-foreground">{t('error.no_api_key')}</div>
             ) : null}
             {apiKeys.map((entry) => (
               <div key={entry.id} className={apiKeyListClasses.keyRow}>
@@ -253,7 +251,7 @@ function ApiKeyDraftRow({ draft, saving, onChange, onSave, onCancel }: ApiKeyDra
   const { t } = useTranslation()
 
   return (
-    <div className="space-y-2">
+    <VStack gap={2}>
       <div className={apiKeyListClasses.keyInputRow}>
         <Input
           value={draft.label}
@@ -281,7 +279,7 @@ function ApiKeyDraftRow({ draft, saving, onChange, onSave, onCancel }: ApiKeyDra
         />
       </div>
       <div className={apiKeyListClasses.actionRow}>
-        <label className="text-(length:--font-size-body-xs) flex items-center gap-2 text-foreground-muted">
+        <label className="flex items-center gap-2 text-foreground-muted text-xs">
           <Switch
             checked={draft.isEnabled}
             disabled={saving}
@@ -302,7 +300,7 @@ function ApiKeyDraftRow({ draft, saving, onChange, onSave, onCancel }: ApiKeyDra
           </Tooltip>
         </div>
       </div>
-    </div>
+    </VStack>
   )
 }
 
@@ -335,7 +333,7 @@ function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: 
         </div>
         <Switch checked={entry.isEnabled} disabled={saving} onCheckedChange={onToggleEnabled} />
       </div>
-      <div className="flex items-center justify-end gap-1">
+      <HStack gap={1} justify="end">
         <Tooltip content={t('settings.provider.api_key.copy')}>
           <Button
             variant="ghost"
@@ -356,7 +354,7 @@ function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: 
             <Minus size={14} />
           </Button>
         </Tooltip>
-      </div>
+      </HStack>
     </>
   )
 }

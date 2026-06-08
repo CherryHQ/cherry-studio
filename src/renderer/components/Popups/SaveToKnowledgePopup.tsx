@@ -1,6 +1,5 @@
 import {
   Button,
-  ColFlex,
   Combobox,
   Dialog,
   DialogContent,
@@ -9,7 +8,8 @@ import {
   DialogTitle,
   Flex,
   HelpTooltip,
-  Label
+  Label,
+  VStack
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
@@ -427,8 +427,8 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
   )
 
   const renderFormContent = () => (
-    <div className="space-y-4">
-      <div className="space-y-2">
+    <VStack gap={4}>
+      <VStack gap={2}>
         <Label>{t('chat.save.knowledge.select.base.title')}</Label>
         <Combobox
           className="w-full"
@@ -449,10 +449,10 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         {!formState.hasValidBase && selectedBaseId && (
           <p className="text-destructive text-xs">{t('chat.save.knowledge.error.invalid_base')}</p>
         )}
-      </div>
+      </VStack>
 
       {!isNoteMode && (
-        <div className="space-y-2">
+        <VStack gap={2}>
           <Label>
             {t(
               isTopicMode
@@ -460,14 +460,14 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
                 : 'chat.save.knowledge.select.content.title'
             )}
           </Label>
-          <ColFlex className="gap-2">
+          <Flex direction="col" gap={2}>
             {contentTypeOptions.map((option) => (
               <button
                 key={option.type}
                 type="button"
                 className="flex w-full cursor-pointer items-center justify-between rounded-md border border-border p-3 text-left transition-colors hover:border-primary"
                 onClick={() => handleContentTypeToggle(option.type)}>
-                <Flex className="items-center gap-2">
+                <Flex align="center" gap={2}>
                   <CustomTag
                     color={selectedTypes.includes(option.type) ? TAG_COLORS.SELECTED : TAG_COLORS.UNSELECTED}
                     size={12}>
@@ -479,8 +479,8 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
                 {selectedTypes.includes(option.type) && <Check size={16} color={TAG_COLORS.SELECTED} />}
               </button>
             ))}
-          </ColFlex>
-        </div>
+          </Flex>
+        </VStack>
       )}
 
       {!isNoteMode && (
@@ -506,7 +506,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
           )}
         </div>
       )}
-    </div>
+    </VStack>
   )
 
   return (

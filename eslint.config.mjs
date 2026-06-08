@@ -372,6 +372,116 @@ export default defineConfig([
       'renderer-styles/no-legacy-css-vars': process.env.NO_LEGACY_CSS_WARN ? 'off' : 'warn'
     }
   },
+  // layout primitive convention: a @cherrystudio/ui layout primitive must not re-spell
+  // its own axis (direction/align/justify/gap/wrap) in className — use the typed prop.
+  {
+    files: ['src/renderer/**/*.{ts,tsx,jsx}', 'packages/ui/src/**/*.{ts,tsx,jsx}'],
+    ignores: [
+      'src/renderer/**/*.test.*',
+      'src/renderer/**/__tests__/**',
+      'packages/ui/**/*.test.*',
+      'packages/ui/**/__tests__/**'
+    ],
+    plugins: {
+      'layout-primitives': {
+        rules: {
+          'no-redundant-class': {
+            meta: {
+              type: 'suggestion',
+              docs: {
+                description:
+                  'Warn when a @cherrystudio/ui layout primitive re-spells its own axis (direction/align/justify/gap/wrap) in className instead of using the typed prop.'
+              },
+              messages: {
+                redundant:
+                  'Layout primitive <{{component}}> re-spells layout class "{{token}}" in className. Use the `{{prop}}` prop instead (e.g. {{hint}}); keep only non-layout classes in className.'
+              }
+            },
+            create(context) {
+              const PRIMITIVES = new Set([
+                'Flex',
+                'HStack',
+                'VStack',
+                'Stack',
+                'Grid',
+                'TruncatingRow',
+                'PageShell',
+                'Center'
+              ])
+              // Tokens that duplicate a prop. The `(?<![\w:-])` lookbehind excludes
+              // variant-prefixed classes (md:flex-row, hover:gap-2) — those are
+              // responsive/state overrides that can't be expressed as props — and
+              // arbitrary values (gap-[6px]) are excluded by the trailing \d.
+              const REDUNDANT = [
+                { re: /(?<![\w:-])flex-row\b/, prop: 'direction', hint: 'direction="row"' },
+                { re: /(?<![\w:-])flex-col\b/, prop: 'direction', hint: 'direction="col"' },
+                { re: /(?<![\w:-])flex-wrap\b/, prop: 'wrap', hint: 'wrap' },
+                { re: /(?<![\w:-])items-(?:start|center|end|stretch|baseline)\b/, prop: 'align', hint: 'align="center"' },
+                {
+                  re: /(?<![\w:-])justify-(?:start|center|end|between|around|evenly)\b/,
+                  prop: 'justify',
+                  hint: 'justify="between"'
+                },
+                { re: /(?<![\w:-])gap-(?:x-|y-)?\d/, prop: 'gap', hint: 'gap={2}' },
+                { re: /(?<![\w:-])space-[xy]-\d/, prop: 'gap', hint: 'gap={2} via VStack/HStack' }
+              ]
+
+              function collectStrings(node, out) {
+                if (!node) return
+                if (node.type === 'Literal' && typeof node.value === 'string') {
+                  out.push(node.value)
+                } else if (node.type === 'TemplateLiteral') {
+                  for (const quasi of node.quasis) out.push(quasi.value.raw)
+                } else if (node.type === 'CallExpression') {
+                  const callee = node.callee && node.callee.name
+                  if (callee === 'cn' || callee === 'clsx' || callee === 'cx' || callee === 'twMerge') {
+                    for (const arg of node.arguments) collectStrings(arg, out)
+                  }
+                } else if (node.type === 'ConditionalExpression') {
+                  collectStrings(node.consequent, out)
+                  collectStrings(node.alternate, out)
+                } else if (node.type === 'LogicalExpression') {
+                  collectStrings(node.right, out)
+                }
+              }
+
+              return {
+                JSXOpeningElement(node) {
+                  const name = node.name && node.name.type === 'JSXIdentifier' ? node.name.name : null
+                  if (!name || !PRIMITIVES.has(name)) return
+                  const classAttr = node.attributes.find(
+                    (attr) => attr.type === 'JSXAttribute' && attr.name && attr.name.name === 'className'
+                  )
+                  if (!classAttr || !classAttr.value) return
+                  const strings = []
+                  if (classAttr.value.type === 'Literal') {
+                    collectStrings(classAttr.value, strings)
+                  } else if (classAttr.value.type === 'JSXExpressionContainer') {
+                    collectStrings(classAttr.value.expression, strings)
+                  }
+                  const text = strings.join(' ')
+                  if (!text) return
+                  for (const { re, prop, hint } of REDUNDANT) {
+                    const match = text.match(re)
+                    if (match) {
+                      context.report({
+                        node: classAttr,
+                        messageId: 'redundant',
+                        data: { component: name, token: match[0], prop, hint }
+                      })
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: {
+      'layout-primitives/no-redundant-class': 'warn'
+    }
+  },
   // Schema key naming convention (cache & preferences)
   // Supports both fixed keys and template keys:
   // - Fixed: 'app.user.avatar', 'chat.multi_select_mode'

@@ -145,7 +145,7 @@ const MathInputDialog: React.FC<MathInputDialogProps> = ({
         onKeyDown={handleKeyDown}
         className="mb-3 font-mono text-sm"
       />
-      <Flex className="justify-end gap-2">
+      <Flex justify="end" gap={2}>
         <Button size="sm" onClick={onCancel}>
           {t('common.cancel')}
         </Button>

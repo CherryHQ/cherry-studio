@@ -15,6 +15,31 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<object>()
 
   return {
+    ...(() => {
+      const R = require('react')
+      const s =
+        (omit: string[] = []) =>
+        ({ children, ...p }: any) => {
+          for (const k of ['direction', 'align', 'justify', 'gap', 'wrap', 'inline', 'asChild', ...omit]) delete p[k]
+          return R.createElement('div', p, children)
+        }
+      return {
+        Box: s(),
+        Flex: s(),
+        HStack: s(),
+        VStack: s(),
+        Stack: s(),
+        Center: s(),
+        Grid: s(['columns', 'flow']),
+        PageShell: s(['scroll']),
+        Container: s(['size', 'padded', 'fluid']),
+        Spacer: s(),
+        TruncatingRow: ({ children, leading, trailing, ...p }: any) => {
+          for (const k of ['gap', 'align', 'justify', 'wrap', 'asChild']) delete p[k]
+          return R.createElement('div', p, leading, children, trailing)
+        }
+      }
+    })(),
     ...actual,
     Button: ({ children, onClick, ...props }: any) => (
       <button type="button" onClick={onClick} {...props}>
@@ -173,7 +198,7 @@ describe('AuthenticationSection', () => {
 
     const { container } = render(<AuthenticationSection providerId="missing" />)
 
-    expect(container.querySelector('[aria-labelledby="provider-auth-connection-heading"]')).not.toBeNull()
+    expect(container.querySelector('section')).not.toBeNull()
     expect(apiKeyPropsSpy).toHaveBeenCalledWith(expect.objectContaining({ providerId: 'missing' }))
   })
 })

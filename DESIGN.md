@@ -127,20 +127,22 @@ Available primitive scales in `tokens/colors/primitive.css` (each has 11 shades,
 
 ### Size Scale
 
-| Role | Token | Approx. value |
-|------|-------|--------------|
-| Body XS | `var(--font-size-body-xs)` | 12px — tags, badges, timestamps, metadata |
-| Body SM | `var(--font-size-body-sm)` | 14px — navigation, secondary labels, captions |
-| Body MD | `var(--font-size-body-md)` | 16px — standard body text, form inputs, descriptions |
-| Body LG | `var(--font-size-body-lg)` | 18px — emphasized body, sub-headings |
-| Heading XS | `var(--font-size-heading-xs)` | 20px — minor section titles |
-| Heading SM | `var(--font-size-heading-sm)` | 24px — sub-section headings |
-| Heading MD | `var(--font-size-heading-md)` | 32px — section headings |
-| Heading LG | `var(--font-size-heading-lg)` | 40px — page titles |
-| Heading XL | `var(--font-size-heading-xl)` | 48px — hero headlines |
-| Heading 2XL | `var(--font-size-heading-2xl)` | 60px — display / landing |
+Each role maps to a **utility class that sets font-size + the paired line-height in one** — prefer these in component code over hand-pairing `text-* leading-*` or arbitrary `text-[Npx]`.
 
-The full Tailwind text scale is also exposed: `--text-xs` through `--text-9xl` (12px → 128px) for large display contexts.
+| Role | Utility class | Approx. value (size / line-height) |
+|------|---------------|------------------------------------|
+| Body XS | `text-xs` | 12 / 20px — tags, badges, timestamps, metadata |
+| Body SM | `text-sm` | 14 / 24px — navigation, secondary labels, captions |
+| Body MD | `text-base` | 16 / 24px — standard body text, form inputs, descriptions |
+| Body LG | `text-lg` | 18 / 28px — emphasized body, sub-headings |
+| Heading XS | `text-heading-xs` | 20 / 32px — minor section titles |
+| Heading SM | `text-heading-sm` | 24 / 40px — sub-section headings |
+| Heading MD | `text-heading-md` | 32 / 48px — section headings |
+| Heading LG | `text-heading-lg` | 40 / 60px — page titles |
+| Heading XL | `text-heading-xl` | 48 / 80px — hero headlines |
+| Heading 2XL | `text-heading-2xl` | 60px (no paired line-height token) — display / landing |
+
+The **body sizes (12/14/16/18px) are exactly Tailwind's built-in `text-xs/sm/base/lg`**, so those built-ins are overridden to carry the design line-height — existing `text-xs`/`text-sm` already get the right rhythm. Headings use semantic `text-heading-*` names (heading-md/lg are off Tailwind's default scale). The `--font-size-*` / `--line-height-*` CSS vars remain for raw `var(...)` references but are legacy — prefer the utility classes. The rest of the Tailwind text scale (`text-3xl/4xl/7xl…`) stays at its defaults for display contexts.
 
 ### Weight System
 
@@ -684,6 +686,40 @@ When embedded in a `PageSidePanel` drawer or onboarding context (e.g. `ModelSett
 | Card padding | `var(--cs-size-2xs)` – `var(--cs-size-xs)` | `p-4` to `p-6` |
 | Section gaps | `var(--cs-size-xs)` – `var(--cs-size-lg)` | `gap-6` to `gap-12` |
 | Page section spacing | `var(--cs-size-lg)` – `var(--cs-size-6xl)` | `py-12` to `py-24` |
+
+### Layout Primitives
+
+Prefer the gap-aware layout primitives from `@cherrystudio/ui` over hand-rolled `flex`/`grid` divs for any shape that makes 2+ axis decisions or repeats across files. They own **layout only** (`direction`/`align`/`justify`/`gap`/`wrap`/`columns`/`width`); padding, color, sizing, radius, `min-w-0`, etc. stay in `className`, which always wins last via `cn`.
+
+| Primitive | Replaces | Notes |
+|-----------|----------|-------|
+| `HStack` | `flex items-center gap-N` rows | vertically-centered row, default `gap={2}` |
+| `VStack` | `flex flex-col gap-N`, `space-y-N`, `gap-[var(--space-stack-*)]` | the single canonical vertical stack |
+| `Stack` | direction-configurable column/row | defaults to a column |
+| `Center` | `flex items-center justify-center` | both-axes centering; `inline` for chips |
+| `Grid` | `grid grid-cols-N gap-M` content grids | `columns` (number or responsive object) → static lookup |
+| `TruncatingRow` | `flex min-w-0 flex-1 items-center … truncate … shrink-0` | bakes the parent truncation chain; `leading`/`trailing` slots |
+| `PageShell` | `flex min-h-0 flex-1 flex-col [overflow-*]` page/panel fill | owns the easily-dropped `min-h-0` |
+| `Container` | settings two-layer / gallery width caps | `size="settings"` (`max-w-3xl`) / `"gallery"` (`max-w-5xl`), `fluid` when embedded |
+| `Spacer` | empty `<div className="flex-1" />`, ad-hoc `ml-auto` | self-documenting flex filler |
+
+> The legacy `RowFlex`/`ColFlex`/`SpaceBetweenRowFlex` presets have been **removed** — use `HStack` / `VStack` / `Flex` (or `HStack justify="between"`).
+
+**`gap` binds to the numeric Tailwind scale** (`gap-N`), never `--cs-size-*` or `gap-md` (the semantic `--spacing-*` aliases are kept opt-in in `theme.css`, so `gap-md`/`p-md` do not resolve). The `gap` prop accepts a closed token union; **half-steps are excluded** so the scale converges — when migrating an off-scale value, round **down** to the nearest token by default (e.g. `gap-1.5 → gap={1}`, `gap-2.5 → gap={2}`), rounding up only where a dense row genuinely needs more breathing room. For a truly off-scale value, drop to `className` (`gap-[6px]`) as a visible opt-out — do not widen the union.
+
+**gap semantics** (synthesized from the per-composite values DESIGN.md bakes elsewhere; guidance, not law):
+
+| `gap` | Pixels | Use |
+|-------|--------|-----|
+| `1` | 4px | dense icon↔text / meta rows |
+| `2` | 8px | default inline row, dialog-adjacent (most common) |
+| `3` | 12px | section rhythm, sidebar, `PageSidePanelSection` |
+| `4` | 16px | dialog body, grid default |
+| `5` | 20px | preference-row groups (rows "breathe") |
+| `6` | 24px | between mid-level sections |
+| `8` | 32px | between related sections |
+
+**Off-limits surfaces.** The primitives must **not** wrap or override the fixed geometry of DESIGN.md-governed shells: `Dialog` (`p-6 gap-4`), `PageHeader` (`mt-3 mb-2 h-8 pl-5 pr-3`), `PageSidePanel` (`px-6 pt-6 pb-3`, `space-y-4` body, `PageSidePanelSection`/`PageSidePanelItem`), `Drawer` (`p-4`), and the settings two-layer (`SettingsContentColumn`). `Container` is the only primitive that encodes a §5 width cap, and honors the embedding rule via `fluid`; `PageShell` covers the generic fill shell only.
 
 ### Grid & Container
 

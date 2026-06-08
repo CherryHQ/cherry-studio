@@ -1,4 +1,4 @@
-import { RowFlex } from '@cherrystudio/ui'
+import { Flex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { getTopicById } from '@renderer/hooks/useTopic'
@@ -51,12 +51,12 @@ const SearchMessage: FC<Props> = ({ message, ...props }) => {
             onClick={() => locateToMessage(navigate, message)}>
             <Forward size={16} />
           </Button>
-          <RowFlex className="mt-[10px] justify-center">
+          <Flex direction="row" justify="center" className="mt-[10px]">
             <Button onClick={() => locateToMessage(navigate, message)}>
               <Forward size={16} />
               {t('history.locate.message')}
             </Button>
-          </RowFlex>
+          </Flex>
         </ContainerWrapper>
       </MessagesContainer>
     </MessageEditingProvider>

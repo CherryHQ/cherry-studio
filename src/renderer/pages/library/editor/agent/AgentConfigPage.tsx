@@ -1,3 +1,4 @@
+import { HStack } from '@cherrystudio/ui'
 import { useAgentTools } from '@renderer/hooks/agents/useAgentTools'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
@@ -174,8 +175,10 @@ export default AgentConfigPage
 function CreateAgentBanner() {
   const { t } = useTranslation()
   return (
-    <div className="flex shrink-0 items-center gap-2 border-border/40 border-b bg-accent/20 px-5 py-2 text-muted-foreground/70 text-xs">
+    <HStack
+      gap={2}
+      className="shrink-0 border-border/40 border-b bg-accent/20 px-5 py-2 text-muted-foreground/70 text-xs">
       <span>{t('library.config.agent.section.tools.skills_require_save')}</span>
-    </div>
+    </HStack>
   )
 }

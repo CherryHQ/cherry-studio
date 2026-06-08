@@ -1,4 +1,4 @@
-import { Button, Field, FieldContent, FieldDescription, FieldError, Tooltip } from '@cherrystudio/ui'
+import { Button, Field, FieldContent, FieldDescription, FieldError, HStack, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useModels } from '@renderer/hooks/useModel'
@@ -46,7 +46,7 @@ export function ModelSelectorField({ label, hint, value, allowClear = false, err
             'rounded-md border bg-accent/15 transition-colors',
             invalid ? 'border-destructive/50' : 'border-border/20'
           )}>
-          <div className="flex items-center gap-1.5 px-2 py-1">
+          <HStack gap={1} className="px-2 py-1">
             <ModelSelector
               multiple={false}
               selectionType="id"
@@ -76,7 +76,7 @@ export function ModelSelectorField({ label, hint, value, allowClear = false, err
                 </Button>
               </Tooltip>
             ) : null}
-          </div>
+          </HStack>
         </div>
         <FieldError className="text-xs" errors={errorMessage ? [{ message: errorMessage }] : undefined} />
         {hasValue && !selectedModel ? (

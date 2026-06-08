@@ -1,4 +1,4 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { HStack, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
@@ -27,7 +27,7 @@ const Tools = ({ assistantId }: ToolsProps) => {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <HStack gap={2}>
       <SettingsButton assistantId={assistantId} />
       {isTopNavbar && (
         <Tooltip content={t('navbar.expand')} delay={800}>
@@ -50,7 +50,7 @@ const Tools = ({ assistantId }: ToolsProps) => {
           </NavbarIcon>
         </Tooltip>
       )}
-    </div>
+    </HStack>
   )
 }
 

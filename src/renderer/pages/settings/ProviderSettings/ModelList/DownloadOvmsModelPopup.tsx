@@ -1,4 +1,14 @@
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
+import {
+  Button,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tooltip,
+  VStack
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -247,7 +257,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       showHeaderCloseButton={!loading}
       footer={footer}>
       <div className={drawerClasses.fieldList}>
-        <div className="space-y-2">
+        <VStack gap={2}>
           <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_id.label')}</label>
           <Input
             className={drawerClasses.input}
@@ -273,8 +283,8 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
               </Tooltip>
             ))}
           </div>
-        </div>
-        <div className="space-y-2">
+        </VStack>
+        <VStack gap={2}>
           <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_name.label')}</label>
           <Input
             className={drawerClasses.input}
@@ -285,8 +295,8 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
             maxLength={200}
             disabled={loading}
           />
-        </div>
-        <div className="space-y-2">
+        </VStack>
+        <VStack gap={2}>
           <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_source')}</label>
           <Select
             value={formValues.modelSource}
@@ -301,8 +311,8 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
               <SelectItem value="https://www.modelscope.cn/models">ModelScope</SelectItem>
             </SelectContent>
           </Select>
-        </div>
-        <div className="space-y-2">
+        </VStack>
+        <VStack gap={2}>
           <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_task')}</label>
           <Select value={formValues.task} onValueChange={(value) => updateField('task', value)} disabled={loading}>
             <SelectTrigger className={drawerClasses.selectTrigger}>
@@ -315,16 +325,16 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
               <SelectItem value="image_generation">{t('ovms.download.task.image_generation')}</SelectItem>
             </SelectContent>
           </Select>
-        </div>
+        </VStack>
         {loading && (
-          <div className="space-y-2">
+          <VStack gap={2}>
             <div className={drawerClasses.healthProgressTrack}>
               <div className={drawerClasses.healthProgressFill} style={{ width: `${Math.round(progress)}%` }} />
             </div>
             <div className="text-center text-foreground-muted text-sm">
               {Math.round(progress)}% · {t('ovms.download.tip')}
             </div>
-          </div>
+          </VStack>
         )}
         {error ? <div className={drawerClasses.errorText}>{error}</div> : null}
       </div>

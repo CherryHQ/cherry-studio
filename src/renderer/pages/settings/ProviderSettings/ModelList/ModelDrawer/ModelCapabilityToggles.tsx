@@ -1,4 +1,4 @@
-import { Button, WarnTooltip } from '@cherrystudio/ui'
+import { Button, HStack, VStack, WarnTooltip } from '@cherrystudio/ui'
 import {
   EmbeddingTag,
   ReasoningTag,
@@ -32,19 +32,19 @@ export function ModelCapabilityToggles({
   const isOtherDisabled = selectedCaps.has(MODEL_CAPABILITY.RERANK) || selectedCaps.has(MODEL_CAPABILITY.EMBEDDING)
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1 font-[weight:var(--font-weight-semibold)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
+    <VStack gap={3}>
+      <HStack gap={3} justify="between">
+        <HStack gap={1} className="font-semibold text-base text-foreground/90">
           {t('models.type.select')}
           <WarnTooltip content={t('settings.moresetting.check.warn')} />
-        </div>
+        </HStack>
         {hasUserModified && (
           <Button variant="ghost" size="icon-sm" onClick={onReset}>
             <RotateCcw size={14} />
           </Button>
         )}
-      </div>
-      <div className="flex flex-wrap items-center gap-1.5" aria-label={t('models.type.select')}>
+      </HStack>
+      <HStack gap={1} aria-label={t('models.type.select')} wrap>
         <VisionTag
           showLabel
           inactive={isOtherDisabled || !selectedCaps.has(MODEL_CAPABILITY.IMAGE_RECOGNITION)}
@@ -79,7 +79,7 @@ export function ModelCapabilityToggles({
           inactive={isEmbeddingDisabled || !selectedCaps.has(MODEL_CAPABILITY.EMBEDDING)}
           onClick={() => onToggle(MODEL_CAPABILITY.EMBEDDING)}
         />
-      </div>
-    </div>
+      </HStack>
+    </VStack>
   )
 }

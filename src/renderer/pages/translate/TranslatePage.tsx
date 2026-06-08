@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback, Button } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Button, HStack, PageShell } from '@cherrystudio/ui'
 import { resolveIcon } from '@cherrystudio/ui/icons'
 import { useCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
@@ -589,8 +589,8 @@ const TranslatePage: FC = () => {
       onDrop={preventDrop}>
       <Navbar />
 
-      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-        <div className="flex shrink-0 items-center gap-3 border-border-muted border-b p-3">
+      <PageShell className="relative bg-background">
+        <HStack gap={3} className="shrink-0 border-border-muted border-b p-3">
           <TranslateLanguageBar
             className="px-0 py-0 lg:px-0"
             sourceLanguage={sourceLanguage}
@@ -627,7 +627,7 @@ const TranslatePage: FC = () => {
             </button>
           )}
           <span className="flex-1" />
-          <div className="flex items-center gap-1">
+          <HStack gap={1}>
             <ModelSelector
               multiple={false}
               selectionType="id"
@@ -695,8 +695,8 @@ const TranslatePage: FC = () => {
               aria-pressed={settingsOpen}>
               <SlidersHorizontal size={14} />
             </Button>
-          </div>
-        </div>
+          </HStack>
+        </HStack>
 
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 lg:grid-cols-2 lg:grid-rows-1">
           <section className="flex min-h-0 min-w-0 flex-col">
@@ -739,7 +739,7 @@ const TranslatePage: FC = () => {
           onHistoryItemClick={onHistoryItemClick}
         />
         <TranslateSettings visible={settingsOpen} onClose={() => setSettingsOpen(false)} />
-      </div>
+      </PageShell>
     </div>
   )
 }

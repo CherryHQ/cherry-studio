@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, HStack } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
@@ -51,7 +51,7 @@ const TopicContent = ({ assistantId, topicId }: TopicContentProps) => {
   return (
     <>
       <HorizontalScrollContainer className="ml-2 flex-initial">
-        <div className="flex flex-nowrap items-center gap-2">
+        <HStack gap={2} className="flex-nowrap">
           <AssistantSelector
             value={assistantId ?? null}
             onChange={handleAssistantChange}
@@ -81,7 +81,7 @@ const TopicContent = ({ assistantId, topicId }: TopicContentProps) => {
               </Button>
             }
           />
-        </div>
+        </HStack>
       </HorizontalScrollContainer>
       <Tools assistantId={assistantId} />
     </>

@@ -1,4 +1,4 @@
-import { Button, InputGroup, InputGroupInput, Tooltip } from '@cherrystudio/ui'
+import { Button, InputGroup, InputGroupInput, Tooltip, VStack } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils'
 import { Copy, RotateCcw, Settings } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -75,16 +75,16 @@ export function ApiHostField({
       title={t('settings.provider.api_host')}
       titleClassName="text-foreground"
       help={
-        <div className="space-y-1 pt-1">
+        <VStack gap={1} className="pt-1">
           {isVertexAI && (
             <div className="text-[12px] text-foreground/55 leading-[1.35]">
               {t('settings.provider.vertex_ai.api_host_help')}
             </div>
           )}
           {/* <div className="break-all text-[12px] text-foreground/55 leading-[1.35]">
-            {t('settings.provider.api_host_preview', { url: hostPreview })}
-          </div> */}
-        </div>
+                      {t('settings.provider.api_host_preview', { url: hostPreview })}
+                    </div> */}
+        </VStack>
       }>
       {isCherryIN && isChineseUser ? (
         <div className={cn(fieldClasses.inputRow, 'group')}>

@@ -21,6 +21,9 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  HStack: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) => (
+    <div {...props}>{children}</div>
+  ),
   Tooltip: ({ children }: { children: React.ReactNode }) => children
 }))
 

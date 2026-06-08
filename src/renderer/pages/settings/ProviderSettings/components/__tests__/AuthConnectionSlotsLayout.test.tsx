@@ -22,7 +22,7 @@ describe('AuthConnectionSlotsLayout', () => {
     expect(text.indexOf('core')).toBeLessThan(text.indexOf('afterAuth'))
   })
 
-  it('renders core content inside the shell card', () => {
+  it('renders core content directly, without a heading or card wrapper', () => {
     const { container } = render(
       <AuthConnectionSlotsLayout providerId="openai">
         <div>core-only</div>
@@ -31,17 +31,6 @@ describe('AuthConnectionSlotsLayout', () => {
 
     expect(container.textContent).toContain('core-only')
     expect(container.querySelector('section')).not.toBeNull()
-  })
-
-  it('renders the configuration section heading for every provider, not just CherryIN', () => {
-    const { container } = render(
-      <AuthConnectionSlotsLayout providerId="openai">
-        <div>core</div>
-      </AuthConnectionSlotsLayout>
-    )
-
-    const heading = container.querySelector('h3')
-    expect(heading).not.toBeNull()
-    expect(heading?.textContent?.trim()).not.toBe('')
+    expect(container.querySelector('h3')).toBeNull()
   })
 })

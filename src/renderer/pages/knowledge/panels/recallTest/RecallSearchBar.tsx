@@ -1,4 +1,4 @@
-import { Button, Input } from '@cherrystudio/ui'
+import { Button, HStack, Input } from '@cherrystudio/ui'
 import { History, Search, Zap } from 'lucide-react'
 import type { FocusEvent, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,8 +30,10 @@ const RecallSearchBar = () => {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl items-center gap-2">
-      <div className="relative flex flex-1 items-center gap-1.5 rounded-lg border border-border-subtle bg-background px-2.5 py-1.25 transition-all focus-within:border-border-active focus-within:ring-1 focus-within:ring-ring/50">
+    <HStack gap={2} className="mx-auto w-full max-w-3xl">
+      <HStack
+        gap={1}
+        className="relative flex-1 rounded-lg border border-border-subtle bg-background px-2.5 py-1.25 transition-all focus-within:border-border-active focus-within:ring-1 focus-within:ring-ring/50">
         <Search className="size-3.5 shrink-0 text-foreground-muted" />
         <Input
           value={query}
@@ -71,7 +73,7 @@ const RecallSearchBar = () => {
             <RecallHistoryList />
           </div>
         ) : null}
-      </div>
+      </HStack>
 
       <Button
         type="button"
@@ -85,7 +87,7 @@ const RecallSearchBar = () => {
         <Zap className="size-3.5" />
         {t('knowledge.recall.submit')}
       </Button>
-    </div>
+    </HStack>
   )
 }
 

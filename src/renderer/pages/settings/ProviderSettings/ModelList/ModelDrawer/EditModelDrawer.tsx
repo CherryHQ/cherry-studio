@@ -6,7 +6,8 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
+  SelectValue,
+  VStack
 } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { useModelMutations } from '@renderer/hooks/useModel'
@@ -361,7 +362,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
         {showMoreSettings && (
           <ProviderSection className={drawerClasses.section}>
-            <div data-testid="provider-settings-model-more-settings" className="space-y-4">
+            <VStack gap={4} data-testid="provider-settings-model-more-settings">
               <div className={drawerClasses.sectionCard}>
                 <ModelCapabilityToggles
                   selectedCaps={selectedCaps}
@@ -466,7 +467,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                   </div>
                 </ProviderField>
               </div>
-            </div>
+            </VStack>
           </ProviderSection>
         )}
       </form>

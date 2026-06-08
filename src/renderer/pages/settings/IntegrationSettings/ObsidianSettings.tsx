@@ -1,6 +1,6 @@
 import {
   EmptyState,
-  RowFlex,
+  Flex,
   Select,
   SelectContent,
   SelectItem,
@@ -66,7 +66,7 @@ const ObsidianSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.obsidian.default_vault')}</SettingRowTitle>
-        <RowFlex className="gap-1.25">
+        <Flex direction="row" gap={1}>
           {loading ? (
             <Spinner text={t('common.loading')} />
           ) : vaults.length > 0 ? (
@@ -89,7 +89,7 @@ const ObsidianSettings: FC = () => {
               description={error || t('settings.data.obsidian.default_vault_no_vaults')}
             />
           )}
-        </RowFlex>
+        </Flex>
       </SettingRow>
     </SettingGroup>
   )
