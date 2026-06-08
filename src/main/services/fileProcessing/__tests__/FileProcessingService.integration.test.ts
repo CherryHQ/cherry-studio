@@ -133,10 +133,18 @@ const FAKE_PDF_INFO = {
   modifiedAt: 1
 }
 
-const entryPayload = (feature: 'image_to_text' | 'document_to_markdown', entryId: string, processorId: string) => ({
+const MARKDOWN_OUTPUT = { kind: 'path' as const, path: '/tmp/out.md' }
+
+const entryPayload = (
+  feature: 'image_to_text' | 'document_to_markdown',
+  entryId: string,
+  processorId: string,
+  output?: typeof MARKDOWN_OUTPUT
+) => ({
   feature,
   file: { kind: 'entry' as const, entryId },
-  processorId
+  processorId,
+  ...(output ? { output } : {})
 })
 
 function setupFileInfo() {
@@ -263,12 +271,13 @@ describe('FileProcessingService.startJob — routing', () => {
     await svc.startJob({
       feature: 'document_to_markdown',
       file: { kind: 'entry' as const, entryId: PDF_ENTRY_ID },
-      processorId: 'doc2x'
+      processorId: 'doc2x',
+      output: MARKDOWN_OUTPUT
     })
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'file-processing.remote-poll',
-      entryPayload('document_to_markdown', PDF_ENTRY_ID, 'doc2x'),
+      entryPayload('document_to_markdown', PDF_ENTRY_ID, 'doc2x', MARKDOWN_OUTPUT),
       {}
     )
   })
@@ -329,9 +338,27 @@ describe('FileProcessingService.startJob — routing', () => {
       svc.startJob({
         feature: 'document_to_markdown',
         file: { kind: 'entry' as const, entryId: IMAGE_ENTRY_ID },
-        processorId: 'doc2x'
+        processorId: 'doc2x',
+        output: MARKDOWN_OUTPUT
       })
     ).rejects.toThrow(/does not support .* files/)
+    expect(enqueueMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a document_to_markdown job that has no output target before enqueueing', async () => {
+    resolveProcessorConfigByFeatureMock.mockReturnValue({
+      id: 'doc2x',
+      capabilities: [{ feature: 'document_to_markdown', inputs: ['document'] }]
+    })
+    const svc = makeSvc()
+
+    await expect(
+      svc.startJob({
+        feature: 'document_to_markdown',
+        file: { kind: 'entry' as const, entryId: PDF_ENTRY_ID },
+        processorId: 'doc2x'
+      })
+    ).rejects.toThrow('requires a path output target')
     expect(enqueueMock).not.toHaveBeenCalled()
   })
 
@@ -371,7 +398,8 @@ describe('FileProcessingService.startJob — routing', () => {
       svc.startJob({
         feature: 'document_to_markdown',
         file: { kind: 'entry' as const, entryId: PDF_ENTRY_ID },
-        processorId: 'tesseract'
+        processorId: 'tesseract',
+        output: MARKDOWN_OUTPUT
       })
     ).rejects.toThrow(/does not support document_to_markdown/)
     expect(enqueueMock).not.toHaveBeenCalled()

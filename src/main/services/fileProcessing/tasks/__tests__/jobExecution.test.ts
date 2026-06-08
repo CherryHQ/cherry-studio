@@ -10,7 +10,8 @@ const {
   toFileInfoMock,
   resolveProcessorConfigByFeatureMock,
   processorRegistryMock,
-  capabilityHandlerMock
+  capabilityHandlerMock,
+  fsStatMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   fileManagerGetByIdMock: vi.fn(),
@@ -21,7 +22,8 @@ const {
   capabilityHandlerMock: {
     mode: 'background' as 'background' | 'remote-poll',
     prepare: vi.fn()
-  }
+  },
+  fsStatMock: vi.fn()
 }))
 
 vi.mock('@application', () => ({
@@ -48,7 +50,11 @@ vi.mock('../../processors/registry', () => ({
   processorRegistry: processorRegistryMock
 }))
 
-const { prepareFileProcessingJob } = await import('../jobExecution')
+vi.mock('@main/utils/file/fs', () => ({
+  stat: fsStatMock
+}))
+
+const { prepareFileProcessingJob, resolveFileProcessingFileInfo } = await import('../jobExecution')
 
 const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000203'
 const FAKE_ENTRY = {
@@ -153,5 +159,56 @@ describe('prepareFileProcessingJob', () => {
     setupCapability({ mode: 'remote-poll', startRemote: vi.fn() }, 'background')
 
     await expect(prepareFileProcessingJob(createCtx(), 'background')).rejects.toThrow(/mode mismatch/i)
+  })
+})
+
+// The `{kind:'path'}` branch is what the knowledge workflow actually uses
+// (KnowledgeWorkflowService passes `{kind:'path', path}`), bypassing FileManager.
+describe('resolveFileProcessingFileInfo — kind:path', () => {
+  beforeEach(() => {
+    fsStatMock.mockReset()
+  })
+
+  it('builds FileInfo straight from the path via fs.stat', async () => {
+    fsStatMock.mockResolvedValue({ isDirectory: false, size: 2048, createdAt: 111, modifiedAt: 222 })
+
+    const info = await resolveFileProcessingFileInfo({ kind: 'path', path: '/tmp/report.pdf' as never })
+
+    expect(fsStatMock).toHaveBeenCalledWith('/tmp/report.pdf')
+    expect(info).toMatchObject({
+      path: '/tmp/report.pdf',
+      name: 'report',
+      ext: 'pdf',
+      size: 2048,
+      mime: 'application/pdf',
+      type: 'document',
+      createdAt: 111,
+      modifiedAt: 222
+    })
+  })
+
+  it('rejects a path that resolves to a directory', async () => {
+    fsStatMock.mockResolvedValue({ isDirectory: true, size: 0, createdAt: 1, modifiedAt: 1 })
+
+    await expect(resolveFileProcessingFileInfo({ kind: 'path', path: '/tmp/folder' as never })).rejects.toThrow(
+      'File processing does not support directories'
+    )
+  })
+
+  it('falls back to octet-stream and null ext for an extensionless file', async () => {
+    fsStatMock.mockResolvedValue({ isDirectory: false, size: 10, createdAt: 5, modifiedAt: 9 })
+
+    const info = await resolveFileProcessingFileInfo({ kind: 'path', path: '/tmp/LICENSE' as never })
+
+    expect(info.ext).toBeNull()
+    expect(info.mime).toBe('application/octet-stream')
+  })
+
+  it('falls back to modifiedAt when the stat has no creation time', async () => {
+    fsStatMock.mockResolvedValue({ isDirectory: false, size: 4, createdAt: 0, modifiedAt: 7777 })
+
+    const info = await resolveFileProcessingFileInfo({ kind: 'path', path: '/tmp/note.txt' as never })
+
+    expect(info.createdAt).toBe(7777)
   })
 })

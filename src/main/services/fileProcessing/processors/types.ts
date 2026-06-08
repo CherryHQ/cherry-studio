@@ -38,6 +38,12 @@ export interface FileProcessingExecutionContext {
 export type FileProcessingRemoteContext = object
 
 export interface FileProcessingPrepareContext {
+  /**
+   * Provider-specific task identifier (e.g. MinerU's `data_id`), supplied by the
+   * caller. Optional at this generic boundary because most processors do not use
+   * it; processors that require it assert during `prepare()` and throw when it is
+   * missing (see `mineru/document-to-markdown/handler.ts`'s `if (!dataId)` guard).
+   */
   dataId?: string
 }
 

@@ -59,9 +59,11 @@ export class FileProcessingService extends BaseService {
   /**
    * Enqueue a file-processing job.
    *
-   * Each call creates a fresh processing job. Do not use FileEntryId as an
-   * idempotency key: it is not a content-version identity. If we add reuse
-   * later, scope it to a contentHash plus processor/config/version.
+   * Each call creates a fresh processing job. Neither the `file` handle (a path
+   * or entry reference) nor `context.dataId` (a provider-specific task id, e.g.
+   * MinerU's data_id) is a content-version identity, so do not use either as an
+   * idempotency key. If we add reuse later, scope it to a contentHash plus
+   * processor/config/version.
    *
    * The handler.mode field on the capability handler determines the JobRegistry
    * type to enqueue under (background vs remote-poll). This is a synchronous
@@ -72,6 +74,12 @@ export class FileProcessingService extends BaseService {
     options: Pick<EnqueueOptions, 'parentId'> = {}
   ): Promise<JobSnapshot> {
     const { feature, file, output, context, processorId } = input
+    // `document_to_markdown` always produces a markdown/zip artifact that needs a
+    // path output target. Reject the illegal state here, before enqueueing (and
+    // before any remote API call), instead of failing late in artifact persistence.
+    if (feature === 'document_to_markdown' && output?.kind !== 'path') {
+      throw new Error("File processing feature 'document_to_markdown' requires a path output target")
+    }
     const config = resolveProcessorConfigByFeature(feature, processorId)
     const handler = getCapabilityHandler(config.id, feature)
     const fileInfo = await resolveFileProcessingFileInfo(file)
