@@ -75,7 +75,7 @@ describe('AgentSessionService', () => {
       }
     ])
 
-    const result = await agentSessionService.search({ search: 'Needle', limit: 5 })
+    const result = await agentSessionService.search({ q: 'Needle', limit: 5 })
 
     expect(result).toEqual([
       {

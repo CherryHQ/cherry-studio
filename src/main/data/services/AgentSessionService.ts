@@ -81,11 +81,11 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 }
 
 export class AgentSessionService {
-  async search(query: { search: string; limit: number; updatedAtFrom?: number }): Promise<SessionEntitySearchItem[]> {
+  async search(query: { q: string; limit: number; updatedAtFrom?: number }): Promise<SessionEntitySearchItem[]> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit, MAX_LIMIT)
     const filters: SQL[] = []
-    const search = buildSearchPredicate(query.search)
+    const search = buildSearchPredicate(query.q)
     if (search) filters.push(search)
     if (query.updatedAtFrom !== undefined) {
       filters.push(gte(sessionsTable.updatedAt, query.updatedAtFrom))

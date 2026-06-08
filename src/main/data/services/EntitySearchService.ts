@@ -55,7 +55,7 @@ export class EntitySearchService {
         items = await topicService.search(input)
         break
       case 'session':
-        items = await agentSessionService.search({ search: q, limit, updatedAtFrom: updatedAtFromMs })
+        items = await agentSessionService.search(input)
         break
       case 'knowledge-base':
         items = await knowledgeBaseService.search(input)
