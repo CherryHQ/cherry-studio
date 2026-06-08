@@ -46,10 +46,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
 
   const ModelIcon = useMemo(() => getModelLogo(message.model ?? model), [message.model, model])
 
-  const modelName = useMemo(
-    () => (model?.name || model?.id || getMessageModelId(message) || '') as string,
-    [model, message]
-  )
+  const modelName = useMemo(() => model?.name || model?.id || getMessageModelId(message) || '', [model, message])
 
   const getUserName = useCallback(() => {
     if (isAgentSessionAssistantMessage) {
