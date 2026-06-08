@@ -1,7 +1,8 @@
 import { codeCLI } from '@shared/config/constant'
+import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { CLI_TOOLS, generateToolEnvironment, type ToolEnvironmentConfig } from '../index'
+import { CLI_TOOL_PROVIDER_MAP, CLI_TOOLS, generateToolEnvironment, type ToolEnvironmentConfig } from '../index'
 
 // Mock CodeCliPage which is default export
 vi.mock('../CodeCliPage', () => ({ default: () => null }))
@@ -154,5 +155,117 @@ describe('CLI_TOOLS', () => {
     for (const tool of CLI_TOOLS) {
       expect(typeof tool.icon).toBe('function')
     }
+  })
+})
+
+describe('CLI_TOOL_PROVIDER_MAP', () => {
+  const enabledKey = { id: 'k1', isEnabled: true }
+  const disabledKey = { id: 'k2', isEnabled: false }
+
+  function makeProvider(overrides: Partial<Provider> & Pick<Provider, 'id'>): Provider {
+    return {
+      name: overrides.id,
+      authType: 'api-key',
+      apiKeys: [enabledKey],
+      apiFeatures: {},
+      settings: {},
+      isEnabled: true,
+      ...overrides
+    } as Provider
+  }
+
+  const toolIds = Object.keys(CLI_TOOL_PROVIDER_MAP).filter((id) => id !== codeCLI.githubCopilotCli)
+
+  describe('excludes providers without enabled API keys', () => {
+    it.each(toolIds)('for %s', (toolId) => {
+      const filter = CLI_TOOL_PROVIDER_MAP[toolId]
+      const provider = makeProvider({
+        id: 'test-provider',
+        apiKeys: [disabledKey],
+        defaultChatEndpoint: 'openai-chat-completions'
+      })
+
+      expect(filter([provider])).toHaveLength(0)
+    })
+  })
+
+  describe('excludes disabled providers', () => {
+    it.each(toolIds)('for %s', (toolId) => {
+      const filter = CLI_TOOL_PROVIDER_MAP[toolId]
+      const provider = makeProvider({
+        id: 'test-provider',
+        isEnabled: false,
+        defaultChatEndpoint: 'openai-chat-completions'
+      })
+
+      expect(filter([provider])).toHaveLength(0)
+    })
+  })
+
+  describe('excludes providers with empty apiKeys', () => {
+    it.each(toolIds)('for %s', (toolId) => {
+      const filter = CLI_TOOL_PROVIDER_MAP[toolId]
+      const provider = makeProvider({
+        id: 'test-provider',
+        apiKeys: [],
+        defaultChatEndpoint: 'openai-chat-completions'
+      })
+
+      expect(filter([provider])).toHaveLength(0)
+    })
+  })
+
+  describe('includes enabled providers with enabled API keys', () => {
+    it('claudeCode includes anthropic provider', () => {
+      const filter = CLI_TOOL_PROVIDER_MAP[codeCLI.claudeCode]
+      const provider = makeProvider({
+        id: 'anthropic',
+        presetProviderId: 'anthropic'
+      })
+
+      expect(filter([provider])).toHaveLength(1)
+    })
+
+    it('claudeCode includes provider with anthropic-messages endpoint', () => {
+      const filter = CLI_TOOL_PROVIDER_MAP[codeCLI.claudeCode]
+      const provider = makeProvider({
+        id: 'custom-provider',
+        endpointConfigs: {
+          'anthropic-messages': { baseUrl: 'https://example.com/anthropic' }
+        }
+      })
+
+      expect(filter([provider])).toHaveLength(1)
+    })
+
+    it('qwenCode includes openai-compatible provider', () => {
+      const filter = CLI_TOOL_PROVIDER_MAP[codeCLI.qwenCode]
+      const provider = makeProvider({
+        id: 'test-provider',
+        defaultChatEndpoint: 'openai-chat-completions'
+      })
+
+      expect(filter([provider])).toHaveLength(1)
+    })
+
+    it('openCode includes anthropic provider', () => {
+      const filter = CLI_TOOL_PROVIDER_MAP[codeCLI.openCode]
+      const provider = makeProvider({
+        id: 'anthropic',
+        presetProviderId: 'anthropic'
+      })
+
+      expect(filter([provider])).toHaveLength(1)
+    })
+
+    it('geminiCli includes gemini provider', () => {
+      const filter = CLI_TOOL_PROVIDER_MAP[codeCLI.geminiCli]
+      const provider = makeProvider({
+        id: 'gemini',
+        defaultChatEndpoint: 'google-generate-content'
+      })
+
+      expect(filter([provider])).toHaveLength(1)
+    })
   })
 })
