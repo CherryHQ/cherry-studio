@@ -170,10 +170,6 @@ type MessageSearchRow = {
   createdAt: number
 }
 
-type InternalSearchMessageResult = TopicMessageContentSearchItem & {
-  cursorCreatedAt: number
-}
-
 type MessageContentSearchInput = {
   q: string
   cursor?: string
@@ -624,7 +620,7 @@ export class MessageService {
     const db = application.get('DbService').getDb()
     const topicConditionForMessageAlias = query.topicId ? sql`message.topic_id = ${query.topicId}` : sql`1 = 1`
 
-    return await searchWithCursor<MessageSearchRow, InternalSearchMessageResult, TopicMessageContentSearchItem>({
+    return await searchWithCursor<MessageSearchRow, TopicMessageContentSearchItem>({
       q: query.q,
       limit: query.limit,
       cursor: query.cursor,
@@ -667,30 +663,22 @@ export class MessageService {
       getSearchableText: (row) => row.searchableText,
       buildSnippet: buildSearchSnippet,
       mapRow: (row, { snippet }) => ({
-        messageId: row.id,
-        topicId: row.topicId,
-        topicName: row.topicName,
-        topicAssistantId: row.topicAssistantId ?? undefined,
-        role: coerceSearchRole(row.role, TOPIC_MESSAGE_SEARCH_ROLES),
-        topicCreatedAt: timestampToISO(Number(row.topicCreatedAt)),
-        topicUpdatedAt: timestampToISO(Number(row.topicUpdatedAt)),
-        snippet,
-        createdAt: timestampToISO(Number(row.createdAt)),
-        cursorCreatedAt: Number(row.createdAt)
-      }),
-      toPublicItem: (item) => ({
-        messageId: item.messageId,
-        topicId: item.topicId,
-        topicName: item.topicName,
-        topicAssistantId: item.topicAssistantId,
-        role: item.role,
-        topicCreatedAt: item.topicCreatedAt,
-        topicUpdatedAt: item.topicUpdatedAt,
-        snippet: item.snippet,
-        createdAt: item.createdAt
-      }),
-      getCursorCreatedAt: (item) => item.cursorCreatedAt,
-      getCursorId: (item) => item.messageId
+        item: {
+          messageId: row.id,
+          topicId: row.topicId,
+          topicName: row.topicName,
+          topicAssistantId: row.topicAssistantId ?? undefined,
+          role: coerceSearchRole(row.role, TOPIC_MESSAGE_SEARCH_ROLES),
+          topicCreatedAt: timestampToISO(Number(row.topicCreatedAt)),
+          topicUpdatedAt: timestampToISO(Number(row.topicUpdatedAt)),
+          snippet,
+          createdAt: timestampToISO(Number(row.createdAt))
+        },
+        sort: {
+          createdAt: Number(row.createdAt),
+          id: row.id
+        }
+      })
     })
   }
 

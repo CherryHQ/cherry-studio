@@ -105,7 +105,7 @@ Backs every Service's reorder write path and POST-create. Encapsulates the `frac
 
 Shared by full-text search services that use SQLite FTS5 trigram tables. It
 owns the common opaque cursor codec, trigram-FTS candidate filtering, literal
-regex revalidation, offset scanning, and next-cursor assembly.
+regex revalidation, bounded offset scanning, and next-cursor assembly.
 
 **FTS contract:**
 
@@ -123,6 +123,11 @@ regex revalidation, offset scanning, and next-cursor assembly.
   applies domain ownership rules.
 - **Snippet construction is injected**: callers decide how to build display
   snippets from matched text and terms.
+- **Cursor sort keys are caller-owned**: `mapRow` returns the public item plus
+  the `(createdAt, id)` boundary used to assemble `nextCursor`.
+- **Candidate scans are bounded**: LIKE candidates that fail regex
+  revalidation stop at the configured ceiling and log a warning instead of
+  scanning an entire FTS table for one page.
 - **Role coercion is caller-owned**: role subsets live with the message domain
   in `@shared/data/types/message`; this generic utility does not know message
   roles.

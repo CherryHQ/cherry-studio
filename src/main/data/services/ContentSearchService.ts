@@ -1,6 +1,7 @@
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { messageService } from '@data/services/MessageService'
-import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
+import { loggerService } from '@logger'
+import { DataApiErrorFactory, ErrorCode, isDataApiError, toDataApiError } from '@shared/data/api'
 import type {
   ContentSearchFilters,
   ContentSearchGroup,
@@ -13,6 +14,8 @@ import {
   CONTENT_SEARCH_MAX_LIMIT_PER_SOURCE,
   contentSearchSourceTypes
 } from '@shared/data/api/schemas/search'
+
+const logger = loggerService.withContext('ContentSearchService')
 
 type ContentSearchAdapterInput<T extends ContentSearchSourceType> = {
   q: string
@@ -34,6 +37,25 @@ function toSourceCursorError(sourceType: ContentSearchSourceType, error: unknown
   if (!cursorErrors) return error
 
   return DataApiErrorFactory.validation({ [`cursors.${sourceType}`]: cursorErrors }, error.message)
+}
+
+function withSourceContext(sourceType: ContentSearchSourceType, error: unknown) {
+  const sourcedError = toSourceCursorError(sourceType, error)
+  if (!isDataApiError(sourcedError)) {
+    return toDataApiError(sourcedError, `content search source ${sourceType}`)
+  }
+
+  const details = sourcedError.details as { fieldErrors?: Record<string, string[]> } | undefined
+  if (sourcedError.code === ErrorCode.VALIDATION_ERROR && details?.fieldErrors?.[`cursors.${sourceType}`]) {
+    return sourcedError
+  }
+
+  return DataApiErrorFactory.create(
+    sourcedError.code,
+    `content search source ${sourceType} failed: ${sourcedError.message}`,
+    sourcedError.details,
+    sourcedError.requestContext
+  )
 }
 
 export const CONTENT_SEARCH_SOURCE_ADAPTERS = {
@@ -73,21 +95,38 @@ export const CONTENT_SEARCH_SOURCE_ADAPTERS = {
   }
 } satisfies { [K in ContentSearchSourceType]: ContentSearchSourceAdapter<K> }
 
-async function searchContentSource<T extends ContentSearchSourceType>(
-  sourceType: T,
+async function searchContentSource(
+  sourceType: ContentSearchSourceType,
   query: ContentSearchQuery,
   limit: number
 ): Promise<ContentSearchGroup> {
   try {
-    return await CONTENT_SEARCH_SOURCE_ADAPTERS[sourceType].search({
+    const input = {
       q: query.q,
       cursor: query.cursors?.[sourceType],
       limit,
-      createdAtFrom: query.createdAtFrom,
-      filter: query.filters?.[sourceType]
-    })
+      createdAtFrom: query.createdAtFrom
+    }
+
+    switch (sourceType) {
+      case 'topic-message':
+        return await CONTENT_SEARCH_SOURCE_ADAPTERS[sourceType].search({
+          ...input,
+          filter: query.filters?.[sourceType]
+        })
+      case 'session-message':
+        return await CONTENT_SEARCH_SOURCE_ADAPTERS[sourceType].search({
+          ...input,
+          filter: query.filters?.[sourceType]
+        })
+      default: {
+        const exhaustive: never = sourceType
+        throw new Error(`Unknown content search source: ${exhaustive}`)
+      }
+    }
   } catch (error) {
-    throw toSourceCursorError(sourceType, error)
+    logger.error('content search source failed', { sourceType, error })
+    throw withSourceContext(sourceType, error)
   }
 }
 
@@ -100,6 +139,8 @@ export class ContentSearchService {
       CONTENT_SEARCH_MAX_LIMIT_PER_SOURCE
     )
 
+    // Content search is all-or-nothing: one failed source fails the full query
+    // with source context instead of returning silently partial groups.
     const groups = await Promise.all(sources.map((sourceType) => searchContentSource(sourceType, query, limit)))
 
     return {

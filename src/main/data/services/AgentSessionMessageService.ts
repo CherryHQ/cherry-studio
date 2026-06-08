@@ -45,11 +45,6 @@ type SessionMessageSearchRow = {
   createdAt: number
 }
 
-type InternalSessionSearchMessageResult = SessionMessageContentSearchItem & {
-  cursorCreatedAt: number
-  cursorId: string
-}
-
 type SessionMessageContentSearchInput = {
   q: string
   cursor?: string
@@ -59,8 +54,13 @@ type SessionMessageContentSearchInput = {
 }
 
 // Cursor wire format: `<createdAt-ms>:<id>` — opaque server-issued tokens.
-function decodeMessageCursor(raw: string): { createdAt: number; id: string } {
-  return decodeSearchCursor(raw, MESSAGE_CURSOR_CONFIG)
+function decodeMessageCursor(raw: string): { createdAt: number; id: string } | null {
+  try {
+    return decodeSearchCursor(raw, MESSAGE_CURSOR_CONFIG)
+  } catch (error) {
+    logger.warn('Ignoring malformed session message list cursor', { cursor: raw, error })
+    return null
+  }
 }
 
 export class AgentSessionMessageService {
@@ -68,11 +68,7 @@ export class AgentSessionMessageService {
     const db = application.get('DbService').getDb()
     const messageSessionCondition = query.sessionId ? sql`sm.session_id = ${query.sessionId}` : sql`1 = 1`
 
-    return await searchWithCursor<
-      SessionMessageSearchRow,
-      InternalSessionSearchMessageResult,
-      SessionMessageContentSearchItem
-    >({
+    return await searchWithCursor<SessionMessageSearchRow, SessionMessageContentSearchItem>({
       q: query.q,
       limit: query.limit,
       cursor: query.cursor,
@@ -112,29 +108,21 @@ export class AgentSessionMessageService {
       getSearchableText: (row) => row.searchableText,
       buildSnippet: buildSearchSnippet,
       mapRow: (row, { snippet }) => ({
-        messageId: row.rowId,
-        sessionId: row.sessionId,
-        sessionName: row.sessionName,
-        agentId: row.agentId ?? undefined,
-        agentName: row.agentName ?? undefined,
-        role: coerceSearchRole(row.role, AGENT_SESSION_MESSAGE_SEARCH_ROLES),
-        snippet,
-        createdAt: timestampToISO(Number(row.createdAt)),
-        cursorCreatedAt: Number(row.createdAt),
-        cursorId: row.rowId
-      }),
-      toPublicItem: (item) => ({
-        messageId: item.messageId,
-        sessionId: item.sessionId,
-        sessionName: item.sessionName,
-        agentId: item.agentId,
-        agentName: item.agentName,
-        role: item.role,
-        snippet: item.snippet,
-        createdAt: item.createdAt
-      }),
-      getCursorCreatedAt: (item) => item.cursorCreatedAt,
-      getCursorId: (item) => item.cursorId
+        item: {
+          messageId: row.rowId,
+          sessionId: row.sessionId,
+          sessionName: row.sessionName,
+          agentId: row.agentId ?? undefined,
+          agentName: row.agentName ?? undefined,
+          role: coerceSearchRole(row.role, AGENT_SESSION_MESSAGE_SEARCH_ROLES),
+          snippet,
+          createdAt: timestampToISO(Number(row.createdAt))
+        },
+        sort: {
+          createdAt: Number(row.createdAt),
+          id: row.rowId
+        }
+      })
     })
   }
 

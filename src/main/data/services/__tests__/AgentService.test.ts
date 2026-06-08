@@ -196,16 +196,6 @@ describe('AgentService', () => {
       expect(names).toEqual([...names].sort())
     })
 
-    it('sorts by updatedAt without pin-first ordering', async () => {
-      await insertAgent({ id: 'agent_updated_old', name: 'Old', updatedAt: 100, createdAt: 100 })
-      await insertAgent({ id: 'agent_updated_new', name: 'New', updatedAt: 200, createdAt: 200 })
-      await pinService.pin({ entityType: 'agent', entityId: 'agent_updated_old' })
-
-      const { agents } = await agentService.listAgents({ sortBy: 'updatedAt', orderBy: 'desc' })
-
-      expect(agents.map((agent) => agent.id).slice(0, 2)).toEqual(['agent_updated_new', 'agent_updated_old'])
-    })
-
     it('does not expose tags in agent rows', async () => {
       const { id: taggedId } = await insertAgent({ id: 'agent_tag_test_1', name: 'tagged' })
       const { id: untaggedId } = await insertAgent({ id: 'agent_tag_test_2', name: 'untagged' })

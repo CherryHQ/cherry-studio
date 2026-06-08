@@ -44,9 +44,11 @@ export type EntitySearchItem = {
 } & EntitySearchTarget
 
 export type EntitySearchGroup = {
-  type: EntitySearchType
-  items: EntitySearchItem[]
-}
+  [T in EntitySearchType]: {
+    type: T
+    items: Extract<EntitySearchItem, { type: T }>[]
+  }
+}[EntitySearchType]
 
 export type EntitySearchResponse = {
   query: string
@@ -140,7 +142,7 @@ export type ContentSearchResponse = {
 }
 
 export type ContentSearchSchemas = {
-  '/search/content': {
+  '/search/contents': {
     GET: {
       query: ContentSearchQueryParams
       response: ContentSearchResponse

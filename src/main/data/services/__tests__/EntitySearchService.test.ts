@@ -5,13 +5,15 @@ import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { agentService } from '@data/services/AgentService'
+import { assistantDataService } from '@data/services/AssistantService'
 import { EntitySearchService } from '@data/services/EntitySearchService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { EntitySearchQuerySchema } from '@shared/data/api/schemas/search'
+import { ENTITY_SEARCH_MAX_LIMIT_PER_TYPE, EntitySearchQuerySchema } from '@shared/data/api/schemas/search'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 describe('EntitySearchService', () => {
   const dbh = setupTestDatabase()
@@ -20,6 +22,10 @@ describe('EntitySearchService', () => {
   beforeEach(async () => {
     service = new EntitySearchService()
     await seedModelRefs()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   async function seedModelRefs() {
@@ -178,6 +184,36 @@ describe('EntitySearchService', () => {
     expect(result.groups).toHaveLength(1)
     expect(result.groups[0].type).toBe('session')
     expect(result.groups[0].items).toHaveLength(1)
+  })
+
+  it('fails the full query with type context when one entity type fails', async () => {
+    vi.spyOn(assistantDataService, 'search').mockRejectedValueOnce(new Error('database is busy'))
+    const agentSearch = vi.spyOn(agentService, 'search').mockResolvedValueOnce([])
+
+    await expect(
+      service.search(EntitySearchQuerySchema.parse({ q: 'Needle', types: ['assistant', 'agent'], limitPerType: 5 }))
+    ).rejects.toMatchObject({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: expect.stringContaining('entity search type assistant')
+    })
+
+    expect(agentSearch).toHaveBeenCalled()
+  })
+
+  it('clamps direct service limitPerType above the maximum', async () => {
+    const assistantSearch = vi.spyOn(assistantDataService, 'search').mockResolvedValueOnce([])
+
+    await service.search({
+      q: 'Needle',
+      types: ['assistant'],
+      limitPerType: ENTITY_SEARCH_MAX_LIMIT_PER_TYPE + 1
+    })
+
+    expect(assistantSearch).toHaveBeenCalledWith({
+      q: 'Needle',
+      limit: ENTITY_SEARCH_MAX_LIMIT_PER_TYPE,
+      updatedAtFrom: undefined
+    })
   })
 
   it('orders assistant matches by updatedAt', async () => {

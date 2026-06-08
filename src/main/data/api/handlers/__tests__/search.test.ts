@@ -89,12 +89,12 @@ describe('searchHandlers', () => {
     })
   })
 
-  describe('/search/content', () => {
+  describe('/search/contents', () => {
     it('parses query defaults and delegates to ContentSearchService', async () => {
       const response = { query: 'needle', groups: [] }
       contentSearchMock.mockResolvedValueOnce(response)
 
-      const result = await searchHandlers['/search/content'].GET({
+      const result = await searchHandlers['/search/contents'].GET({
         query: {
           q: '  needle  '
         }
@@ -109,7 +109,7 @@ describe('searchHandlers', () => {
     it('forwards sources, source filters, per-source cursors, time, and explicit limit filters', async () => {
       contentSearchMock.mockResolvedValueOnce({ query: 'needle', groups: [] })
 
-      await searchHandlers['/search/content'].GET({
+      await searchHandlers['/search/contents'].GET({
         query: {
           q: 'needle',
           sources: ['topic-message'],
@@ -132,7 +132,7 @@ describe('searchHandlers', () => {
 
     it('rejects invalid source and datetime before calling the service', async () => {
       await expect(
-        searchHandlers['/search/content'].GET({
+        searchHandlers['/search/contents'].GET({
           query: {
             q: 'needle',
             sources: ['message']
@@ -141,7 +141,7 @@ describe('searchHandlers', () => {
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       await expect(
-        searchHandlers['/search/content'].GET({
+        searchHandlers['/search/contents'].GET({
           query: {
             q: 'needle',
             createdAtFrom: 'today'
@@ -150,7 +150,7 @@ describe('searchHandlers', () => {
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       await expect(
-        searchHandlers['/search/content'].GET({
+        searchHandlers['/search/contents'].GET({
           query: {
             q: 'needle',
             filters: { 'topic-message': { sessionId: 'session-1' } }
@@ -159,7 +159,7 @@ describe('searchHandlers', () => {
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       await expect(
-        searchHandlers['/search/content'].GET({
+        searchHandlers['/search/contents'].GET({
           query: {
             q: 'needle',
             cursors: { 'topic-message': '' }

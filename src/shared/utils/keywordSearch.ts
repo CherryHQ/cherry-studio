@@ -1,6 +1,6 @@
 export type KeywordMatchMode = 'whole-word' | 'substring'
 
-export function escapeRegex(text: string): string {
+function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
@@ -25,9 +25,12 @@ function containsCJK(text: string): boolean {
 }
 
 function buildWholeWordPattern(escapedTerm: string): string {
+  // CJK text has no word boundaries, so whole-word mode degrades to substring matching.
   if (containsCJK(escapedTerm)) {
     return escapedTerm
   }
+  // Whole word means "not inside a larger alphanumeric token"; this avoids
+  // false positives like API-key fragments and suffix-only matches.
   return `(?<![\\p{L}\\p{N}])${escapedTerm}(?![\\p{L}\\p{N}])`
 }
 
@@ -35,12 +38,12 @@ function addRegexFlag(flags: string, flag: string): string {
   return flags.includes(flag) ? flags : `${flags}${flag}`
 }
 
-export function buildKeywordPattern(term: string, matchMode: KeywordMatchMode): string {
+function buildKeywordPattern(term: string, matchMode: KeywordMatchMode): string {
   const escaped = escapeRegex(term)
   return matchMode === 'whole-word' ? buildWholeWordPattern(escaped) : escaped
 }
 
-export function buildKeywordRegex(term: string, options: { matchMode: KeywordMatchMode; flags?: string }): RegExp {
+function buildKeywordRegex(term: string, options: { matchMode: KeywordMatchMode; flags?: string }): RegExp {
   const flags = options.flags ?? 'i'
   const normalizedFlags = options.matchMode === 'whole-word' ? addRegexFlag(flags, 'u') : flags
   return new RegExp(buildKeywordPattern(term, options.matchMode), normalizedFlags)
@@ -51,20 +54,4 @@ export function buildKeywordRegexes(
   options: { matchMode: KeywordMatchMode; flags?: string }
 ): RegExp[] {
   return terms.filter((term) => term.length > 0).map((term) => buildKeywordRegex(term, options))
-}
-
-export function buildKeywordUnionRegex(
-  terms: string[],
-  options: { matchMode: KeywordMatchMode; flags?: string }
-): RegExp | null {
-  const uniqueTerms = Array.from(new Set(terms.filter((term) => term.length > 0)))
-  if (uniqueTerms.length === 0) return null
-
-  const patterns = uniqueTerms
-    .sort((a, b) => b.length - a.length)
-    .map((term) => buildKeywordPattern(term, options.matchMode))
-
-  const flags = options.flags ?? 'gi'
-  const normalizedFlags = options.matchMode === 'whole-word' ? addRegexFlag(flags, 'u') : flags
-  return new RegExp(patterns.join('|'), normalizedFlags)
 }

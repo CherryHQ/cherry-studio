@@ -135,6 +135,37 @@ describe('AgentSessionMessageService', () => {
     expect(session.updatedAt).toBe(1_700_000_001_000)
   })
 
+  it('falls back to the newest page when list pagination receives a malformed cursor', async () => {
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: USER_MESSAGE_ID,
+        sessionId: SESSION_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'older' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      },
+      {
+        id: ASSISTANT_MESSAGE_ID,
+        sessionId: SESSION_ID,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'newer' }] },
+        status: 'success',
+        createdAt: 200,
+        updatedAt: 200
+      }
+    ])
+
+    const result = await agentSessionMessageService.listSessionMessages(SESSION_ID, {
+      cursor: 'not-a-cursor',
+      limit: 1
+    })
+
+    expect(result.items.map((item) => item.id)).toEqual([ASSISTANT_MESSAGE_ID])
+    expect(result.nextCursor).toBe(`200:${ASSISTANT_MESSAGE_ID}`)
+  })
+
   it('keeps searchable_text and FTS index in sync from message data', async () => {
     await dbh.db.insert(agentSessionMessageTable).values({
       id: USER_MESSAGE_ID,

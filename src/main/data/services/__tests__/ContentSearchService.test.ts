@@ -1,6 +1,7 @@
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
   CONTENT_SEARCH_DEFAULT_LIMIT_PER_SOURCE,
+  CONTENT_SEARCH_MAX_LIMIT_PER_SOURCE,
   ContentSearchQuerySchema,
   contentSearchSourceTypes,
   type SessionMessageContentSearchItem,
@@ -173,6 +174,23 @@ describe('ContentSearchService', () => {
     })
   })
 
+  it('clamps direct service limitPerSource above the maximum', async () => {
+    topicSearchMock.mockResolvedValueOnce({ items: [topicItem], nextCursor: undefined })
+
+    await service.search({
+      q: 'needle',
+      sources: ['topic-message'],
+      limitPerSource: CONTENT_SEARCH_MAX_LIMIT_PER_SOURCE + 1
+    })
+
+    expect(topicSearchMock).toHaveBeenCalledWith({
+      q: 'needle',
+      cursor: undefined,
+      limit: CONTENT_SEARCH_MAX_LIMIT_PER_SOURCE,
+      createdAtFrom: undefined
+    })
+  })
+
   it('reports malformed cursors on the source-specific cursor field', async () => {
     topicSearchMock.mockRejectedValueOnce(
       DataApiErrorFactory.validation({ cursor: ['must be a valid message cursor'] }, 'Invalid message cursor')
@@ -195,5 +213,23 @@ describe('ContentSearchService', () => {
         }
       }
     })
+  })
+
+  it('fails the full query with source context when a source has a non-cursor error', async () => {
+    topicSearchMock.mockRejectedValueOnce(new Error('database is busy'))
+    sessionSearchMock.mockResolvedValueOnce({ items: [sessionItem], nextCursor: undefined })
+
+    await expect(
+      service.search(
+        ContentSearchQuerySchema.parse({
+          q: 'needle'
+        })
+      )
+    ).rejects.toMatchObject({
+      code: 'INTERNAL_SERVER_ERROR',
+      message: expect.stringContaining('content search source topic-message')
+    })
+
+    expect(sessionSearchMock).toHaveBeenCalled()
   })
 })

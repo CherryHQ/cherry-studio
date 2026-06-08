@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import { buildKeywordRegexes, type KeywordMatchMode, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
@@ -6,6 +7,9 @@ import { type SQL, sql } from 'drizzle-orm'
 
 const DEFAULT_FTS_SEARCH_LIMIT = 500
 const FTS_SEARCH_CHUNK_SIZE = 200
+const FTS_SEARCH_MAX_CANDIDATES = 5_000
+
+const logger = loggerService.withContext('FtsSearch')
 
 export type SearchCursor = {
   id: string
@@ -33,19 +37,22 @@ type CursorConfig = {
 
 type BuildSnippet = (text: string, terms: string[], matchMode: KeywordMatchMode) => string
 
-type SearchWithCursorOptions<Row, InternalItem, PublicItem> = {
+type SearchMappedItem<PublicItem> = {
+  item: PublicItem
+  sort: SearchCursor
+}
+
+type SearchWithCursorOptions<Row, PublicItem> = {
   q: string
   limit?: number
   cursor?: string
   createdAtFrom?: string
+  maxCandidates?: number
   cursorConfig: CursorConfig
   fetchRows: (context: SearchFetchContext) => Promise<Row[]>
   getSearchableText: (row: Row) => string
   buildSnippet: BuildSnippet
-  mapRow: (row: Row, context: SearchMapContext) => InternalItem
-  toPublicItem: (item: InternalItem) => PublicItem
-  getCursorCreatedAt: (item: InternalItem) => number
-  getCursorId: (item: InternalItem) => string
+  mapRow: (row: Row, context: SearchMapContext) => SearchMappedItem<PublicItem>
 }
 
 function invalidCursor(config: CursorConfig) {
@@ -88,20 +95,18 @@ export function getCreatedAtFromMs(createdAtFrom: string | undefined): number | 
   return Number.isFinite(value) ? value : undefined
 }
 
-export async function searchWithCursor<Row, InternalItem, PublicItem>({
+export async function searchWithCursor<Row, PublicItem>({
   q,
   limit = DEFAULT_FTS_SEARCH_LIMIT,
   cursor: rawCursor,
   createdAtFrom,
+  maxCandidates = FTS_SEARCH_MAX_CANDIDATES,
   cursorConfig,
   fetchRows,
   getSearchableText,
   buildSnippet,
-  mapRow,
-  toPublicItem,
-  getCursorCreatedAt,
-  getCursorId
-}: SearchWithCursorOptions<Row, InternalItem, PublicItem>): Promise<CursorPaginationResponse<PublicItem>> {
+  mapRow
+}: SearchWithCursorOptions<Row, PublicItem>): Promise<CursorPaginationResponse<PublicItem>> {
   const terms = splitKeywordsToTerms(q)
   if (terms.length === 0) return { items: [] }
 
@@ -111,8 +116,9 @@ export async function searchWithCursor<Row, InternalItem, PublicItem>({
   const ftsConditions = terms.map((term) => sql`fts.searchable_text LIKE ${buildFtsLikePattern(term)}`)
   const cursor = rawCursor !== undefined ? decodeSearchCursor(rawCursor, cursorConfig) : undefined
   const createdAtFromMs = getCreatedAtFromMs(createdAtFrom)
-  const results: InternalItem[] = []
+  const results: Array<SearchMappedItem<PublicItem>> = []
   let offset = 0
+  let scannedCandidates = 0
 
   while (results.length < fetchLimit) {
     const rows = await fetchRows({
@@ -124,6 +130,7 @@ export async function searchWithCursor<Row, InternalItem, PublicItem>({
     })
 
     if (rows.length === 0) break
+    scannedCandidates += rows.length
     offset += rows.length
 
     for (const row of rows) {
@@ -147,14 +154,19 @@ export async function searchWithCursor<Row, InternalItem, PublicItem>({
 
       if (results.length >= fetchLimit) break
     }
+
+    if (scannedCandidates >= maxCandidates && results.length < fetchLimit) {
+      logger.warn('FTS search candidate scan limit reached', { query: q, scannedCandidates, limit, maxCandidates })
+      break
+    }
   }
 
   const itemsWithCursor = results.slice(0, limit)
   const nextCursorBoundary = results.length > limit ? itemsWithCursor.at(-1) : undefined
   return {
-    items: itemsWithCursor.map(toPublicItem),
+    items: itemsWithCursor.map((result) => result.item),
     nextCursor: nextCursorBoundary
-      ? encodeSearchCursor(getCursorCreatedAt(nextCursorBoundary), getCursorId(nextCursorBoundary))
+      ? encodeSearchCursor(nextCursorBoundary.sort.createdAt, nextCursorBoundary.sort.id)
       : undefined
   }
 }

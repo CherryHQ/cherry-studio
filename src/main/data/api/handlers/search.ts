@@ -12,7 +12,7 @@ export const searchHandlers: HandlersFor<SearchSchemas> = {
       return await entitySearchService.search(parsed.data)
     }
   },
-  '/search/content': {
+  '/search/contents': {
     GET: async ({ query }) => {
       const parsed = ContentSearchQuerySchema.safeParse(query)
       if (!parsed.success) throw toDataApiError(parsed.error)
