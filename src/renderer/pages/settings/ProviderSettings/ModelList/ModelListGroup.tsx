@@ -1,4 +1,4 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, HStack, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils'
 import type { Model } from '@shared/data/types/model'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -78,11 +78,11 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
 
   return (
     <div className={modelListClasses.groupCard}>
-      <div className={modelListClasses.groupHeader}>
+      <HStack gap={2} className={modelListClasses.groupHeader}>
         <button type="button" className={modelListClasses.groupToggleButton} aria-expanded={open} onClick={toggleOpen}>
           <span className={modelListClasses.groupTitle}>{groupLabel}</span>
         </button>
-        <div className={modelListClasses.groupHeaderActions}>
+        <HStack gap={1} className={modelListClasses.groupHeaderActions}>
           {canToggleGroupModels ? (
             <Tooltip content={bulkToggleLabel} classNames={{ placeholder: modelListClasses.subsectionTooltipTrigger }}>
               <Button
@@ -105,8 +105,8 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
             onClick={toggleOpen}>
             <ChevronRight className={cn(modelListClasses.groupChevron, open && modelListClasses.groupChevronOpen)} />
           </button>
-        </div>
-      </div>
+        </HStack>
+      </HStack>
       {open && (
         <div className={modelListClasses.groupBody}>
           {shouldVirtualize ? (

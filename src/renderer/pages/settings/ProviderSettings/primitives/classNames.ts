@@ -216,9 +216,6 @@ export const modelListClasses = {
   capabilityTabLabel: 'min-w-0 truncate text-xs leading-4',
   capabilityTabsFadeMask:
     'pointer-events-none absolute inset-y-0 right-0 w-[100px] bg-[linear-gradient(to_right,transparent_0%,var(--color-background)_85%)]',
-  subsectionRow: 'flex min-w-0 items-center justify-between gap-2',
-  subsectionTitleWrap: 'flex min-w-0 items-center gap-2',
-  subsectionActions: 'flex shrink-0 items-center gap-2 pr-1',
   subsectionIconButton:
     'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-foreground/4 hover:text-foreground disabled:opacity-40',
   subsectionIcon: 'size-4 shrink-0',
@@ -262,11 +259,10 @@ export const modelListClasses = {
    * Replaces the antd-coupled wrapper; rows render inside the same card on expand.
    */
   groupCard: 'min-w-0 w-full rounded-lg border border-foreground/12 bg-transparent px-3 py-2',
-  groupHeader:
-    'group/groupRow flex w-full items-center justify-between gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
+  groupHeader: 'group/groupRow w-full bg-transparent text-left outline-none focus-visible:outline-none',
   groupToggleButton:
     'flex min-w-0 flex-1 items-center bg-transparent text-left outline-none focus-visible:outline-none',
-  groupHeaderActions: 'flex shrink-0 items-center gap-1',
+  groupHeaderActions: 'shrink-0',
   groupTitle:
     'min-w-0 flex-1 truncate text-xs text-foreground-muted font-normal transition-colors group-hover/groupRow:text-foreground',
   groupChevronButton:

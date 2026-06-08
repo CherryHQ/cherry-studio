@@ -1,4 +1,4 @@
-import { VStack } from '@cherrystudio/ui'
+import { HStack, VStack } from '@cherrystudio/ui'
 import { LoadingIcon } from '@renderer/components/Icons'
 import type { Model } from '@shared/data/types/model'
 import { isEmpty } from 'lodash'
@@ -67,15 +67,17 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
       <VStack gap={5} className="min-h-full w-full min-w-0">
         {!isEmpty(enabledSections) && (
           <VStack gap={5}>
-            <div className={modelListClasses.subsectionRow}>
-              <div className={modelListClasses.subsectionTitleWrap}>
+            <HStack justify="between" gap={2} className="min-w-0">
+              <HStack gap={2} className="min-w-0">
                 <p className={modelListClasses.subsectionTitleEnabled}>{t('settings.models.check.enabled')}</p>
                 <span className={modelListClasses.subsectionCountEnabled}>{displayEnabledModelCount}</span>
-              </div>
+              </HStack>
               {enabledSectionActions ? (
-                <div className={modelListClasses.subsectionActions}>{enabledSectionActions}</div>
+                <HStack gap={2} className="shrink-0 pr-1">
+                  {enabledSectionActions}
+                </HStack>
               ) : null}
-            </div>
+            </HStack>
             <VStack gap={3}>
               {enabledSections.map(({ groupName, items }, index) => (
                 <ModelListGroup
@@ -98,15 +100,17 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
         )}
         {!isEmpty(disabledSections) && (
           <VStack gap={5}>
-            <div className={modelListClasses.subsectionRow}>
-              <div className={modelListClasses.subsectionTitleWrap}>
+            <HStack justify="between" gap={2} className="min-w-0">
+              <HStack gap={2} className="min-w-0">
                 <p className={modelListClasses.subsectionTitleDisabled}>{t('settings.models.check.disabled')}</p>
                 <span className={modelListClasses.subsectionCountDisabled}>{displayDisabledModelCount}</span>
-              </div>
+              </HStack>
               {disabledSectionActions ? (
-                <div className={modelListClasses.subsectionActions}>{disabledSectionActions}</div>
+                <HStack gap={2} className="shrink-0 pr-1">
+                  {disabledSectionActions}
+                </HStack>
               ) : null}
-            </div>
+            </HStack>
             <VStack gap={3}>
               {disabledSections.map(({ groupName, items }, index) => (
                 <ModelListGroup
