@@ -21,6 +21,7 @@ const HeaderNavbar: FC<Props> = ({ assistantId, topicId }) => {
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { isTopNavbar } = useNavbarPosition()
+  const [topicPosition] = usePreference('topic.position')
 
   useCommandHandler('app.search', () => {
     void SearchPopup.show()
@@ -29,14 +30,14 @@ const HeaderNavbar: FC<Props> = ({ assistantId, topicId }) => {
   return (
     <NavbarHeader className="home-navbar" style={{ height: 'var(--navbar-height)' }}>
       <div className="flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
-        {isTopNavbar && showSidebar && (
+        {isTopNavbar && topicPosition === 'left' && showSidebar && (
           <Tooltip placement="bottom" content={t('navbar.hide_sidebar')} delay={800}>
             <NavbarIcon onClick={toggleShowSidebar}>
               <PanelLeftClose size={18} />
             </NavbarIcon>
           </Tooltip>
         )}
-        {isTopNavbar && !showSidebar && (
+        {isTopNavbar && topicPosition === 'left' && !showSidebar && (
           <Tooltip placement="bottom" content={t('navbar.show_sidebar')} delay={800}>
             <NavbarIcon onClick={toggleShowSidebar} style={{ marginRight: 8 }}>
               <PanelRightClose size={18} />

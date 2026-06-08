@@ -34,7 +34,7 @@ const HeaderNavbar: FC<Props> = () => {
   return (
     <Navbar className="home-navbar">
       <AnimatePresence initial={false}>
-        {showSidebar && (
+        {topicPosition === 'left' && showSidebar && (
           <motion.div
             initial={{ width: 0, opacity: 0 }}
             animate={{ width: 'auto', opacity: 1 }}
@@ -51,7 +51,7 @@ const HeaderNavbar: FC<Props> = () => {
           </motion.div>
         )}
       </AnimatePresence>
-      {!showSidebar && (
+      {topicPosition === 'left' && !showSidebar && (
         <NavbarLeft
           style={{
             justifyContent: 'flex-start',

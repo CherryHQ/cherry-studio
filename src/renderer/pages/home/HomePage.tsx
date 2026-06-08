@@ -147,7 +147,7 @@ const HomePage: FC = () => {
       {isLeftNavbar && <Navbar position="left" />}
       <ContentContainer id={isLeftNavbar ? 'content-container' : undefined}>
         <AnimatePresence initial={false}>
-          {showSidebar && (
+          {showSidebar && topicPosition === 'left' && (
             <ErrorBoundary>
               <motion.div
                 initial={{ width: 0, opacity: 0 }}
