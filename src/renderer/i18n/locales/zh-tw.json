@@ -1205,6 +1205,14 @@
       "file_error": "檔案處理錯誤",
       "file_not_supported": "模型不支援此檔案類型",
       "file_not_supported_count": "{{count}} 個檔案不被支援",
+      "followup_queue": {
+        "edit": "編輯",
+        "pause": "暫停自動傳送",
+        "remove": "移除",
+        "resume": "恢復自動傳送",
+        "steer": "插入目前回合",
+        "title": "排隊中 ({{count}})"
+      },
       "generate_image": "產生圖片",
       "generate_image_not_supported": "模型不支援產生圖片",
       "knowledge_base": "知識庫",

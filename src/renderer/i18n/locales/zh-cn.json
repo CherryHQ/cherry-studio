@@ -1205,6 +1205,14 @@
       "file_error": "文件处理出错",
       "file_not_supported": "模型不支持此文件类型",
       "file_not_supported_count": "{{count}} 个文件不被支持",
+      "followup_queue": {
+        "edit": "编辑",
+        "pause": "暂停自动发送",
+        "remove": "移除",
+        "resume": "恢复自动发送",
+        "steer": "插入当前回合",
+        "title": "排队中 ({{count}})"
+      },
       "generate_image": "生成图片",
       "generate_image_not_supported": "模型不支持生成图片",
       "knowledge_base": "知识库",

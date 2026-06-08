@@ -1205,6 +1205,14 @@
       "file_error": "Error processing file",
       "file_not_supported": "Model does not support this file type",
       "file_not_supported_count": "{{count}} files are not supported",
+      "followup_queue": {
+        "edit": "Edit",
+        "pause": "Pause auto-send",
+        "remove": "Remove",
+        "resume": "Resume auto-send",
+        "steer": "Send into current turn",
+        "title": "Queued ({{count}})"
+      },
       "generate_image": "Generate image",
       "generate_image_not_supported": "The model does not support generating images.",
       "knowledge_base": "Knowledge Base",

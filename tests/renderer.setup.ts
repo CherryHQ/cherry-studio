@@ -153,8 +153,17 @@ vi.mock('@cherrystudio/ui', () => {
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
   return {
-    Button: ({ children, onPress, disabled, isDisabled, startContent, asChild, ...props }) => {
-      const buttonProps = { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled }
+    ReorderableList: ({ items, renderItem, getId }) =>
+      React.createElement(
+        React.Fragment,
+        null,
+        items.map((item, index) =>
+          React.createElement('div', { key: getId(item) }, renderItem(item, index, { dragging: false }))
+        )
+      ),
+    NormalTooltip: ({ children }) => children,
+    Button: ({ children, onPress, disabled, isDisabled, loading, startContent, asChild, ...props }) => {
+      const buttonProps = { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled || loading }
       if (asChild && React.isValidElement(children)) {
         const childProps = children.props || {}
         return React.cloneElement(children, {

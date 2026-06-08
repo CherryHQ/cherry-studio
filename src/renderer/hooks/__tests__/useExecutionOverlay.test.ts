@@ -203,4 +203,27 @@ describe('useExecutionOverlay', () => {
     act(() => result.current.disposeOverlay('anchor-a'))
     await waitFor(() => expect(result.current.overlay['anchor-a']).toBeUndefined())
   })
+
+  it('does NOT fire onFinish when an execution leaves activeExecutions (why the status-driven handoff exists)', async () => {
+    // When the topic goes terminal, the execution drops out of `activeExecutions`
+    // and the teardown loop `cancel()`s the reader, which SUPPRESSES `onFinish`.
+    // So overlay disposal cannot ride `onFinish` — it must be driven off the
+    // terminal status (see `useTopicOverlayHandoffOnTerminal`). This locks that
+    // assumption: if someone "fixes" onFinish to fire here, the handoff design
+    // must be revisited.
+    const onFinish = vi.fn()
+    const ui = [asst('anchor-a')]
+    const { rerender } = renderHook(
+      ({ execs }: { execs: ActiveExecution[] }) => useExecutionOverlay(TOPIC, execs, ui, { onFinish }),
+      { initialProps: { execs: [exec(A, 'anchor-a')] } }
+    )
+
+    // Execution leaves activeExecutions WITHOUT the overlay's own terminal signal.
+    await act(async () => {
+      rerender({ execs: [] })
+      await Promise.resolve()
+    })
+
+    expect(onFinish).not.toHaveBeenCalled()
+  })
 })
