@@ -6,7 +6,8 @@ import path from 'node:path'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import { SafeExtSchema } from '@shared/data/types/file/essential'
+import { FileEntrySchema } from '@shared/data/types/file'
+import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import { sql } from 'drizzle-orm'
 
@@ -51,35 +52,61 @@ function parseTimestamp(dateStr: string | undefined | null, onInvalid?: (raw: st
   return ms
 }
 
-interface PreparedEntryBase {
+/**
+ * Last path segment, treating both '/' and '\' as separators. v1 rows can
+ * carry foreign-platform paths (#15733), so platform-default `path.basename`
+ * must never be applied to v1-persisted strings.
+ */
+function basenameAnySep(p: string): string {
+  return p.split(/[\\/]/).pop() || p
+}
+
+/** Strip a trailing `.ext`; leading-dot names (`.gitignore`) stay intact. */
+function stripExt(base: string): string {
+  const dot = base.lastIndexOf('.')
+  return dot > 0 ? base.slice(0, dot) : base
+}
+
+/**
+ * Derive a SafeNameSchema-conformant display name from the v1 name source.
+ *
+ * Degradation chain: raw → sanitized (last segment, trimmed) → row id.
+ * Never asks the caller to skip the row: a skipped internal row strands
+ * its physical file, which the user-triggered FS orphan sweep
+ * (`File_RunSweep`; no startup auto-run) then reclaims — real data loss.
+ * `name` does not participate in physical paths (`{id}.{ext}`), so
+ * degrading it is always safe.
+ */
+function deriveSafeName(nameSource: string, rowId: string, onWarning: (message: string) => void): string {
+  const raw = stripExt(nameSource)
+  if (SafeNameSchema.safeParse(raw).success) return raw
+
+  const sanitized = stripExt(basenameAnySep(nameSource)).trim()
+  if (SafeNameSchema.safeParse(sanitized).success) {
+    onWarning(`Sanitized name for file id=${rowId}: ${JSON.stringify(nameSource)} -> ${JSON.stringify(sanitized)}`)
+    return sanitized
+  }
+
+  onWarning(`Name for file id=${rowId} cannot be sanitized; falling back to row id. raw=${JSON.stringify(nameSource)}`)
+  return rowId
+}
+
+/**
+ * v1 semantically has no external entries — rows were only persisted after
+ * upload, so every migratable row is internal. Mirrors the DB CHECKs
+ * (`fe_origin_consistency`, `fe_size_internal_only`) in TS.
+ */
+interface PreparedFileEntry {
   id: string
+  origin: 'internal'
   name: string
   ext: string | null
+  size: number
+  externalPath: null
   deletedAt: null
   createdAt: number
   updatedAt: number
 }
-
-/**
- * Discriminated by `origin` so the DB CHECK constraints
- * (`fe_origin_consistency`, `fe_size_internal_only`) are mirrored in TS: a
- * `{origin: 'internal', size: null, externalPath: '/foo'}` literal is rejected
- * at compile time, and `validate()`'s `filter(e => e.origin === 'internal')`
- * narrows to `PreparedInternalEntry` naturally — no `as` casts.
- */
-interface PreparedInternalEntry extends PreparedEntryBase {
-  origin: 'internal'
-  size: number
-  externalPath: null
-}
-
-interface PreparedExternalEntry extends PreparedEntryBase {
-  origin: 'external'
-  size: null
-  externalPath: string
-}
-
-type PreparedFileEntry = PreparedInternalEntry | PreparedExternalEntry
 
 /**
  * Determine origin and derive v2 fields from a v1 FileMetadata row.
@@ -117,47 +144,84 @@ function toFileEntry(
     onWarning(`Invalid created_at for file id=${row.id}; falling back to migration time. raw=${JSON.stringify(raw)}`)
   })
 
-  // Origin discrimination: internal files live under userData/Data/Files/
+  // Origin discrimination. v1 has no external entries (rows persisted only
+  // after upload), and v1 runtime locates physical files by storage name
+  // (`row.name` = `{id}{ext}`), never via the `path` column — so a backup
+  // restored across platforms carries foreign-separator paths that fail the
+  // prefix check even though the file sits right here (#15733). Trust the
+  // filesystem over the stale path string before declaring a row orphaned.
   const internalPrefix = path.join(userData, 'Data', 'Files')
-  const isInternal = row.path.startsWith(internalPrefix)
+  const physicalPath = path.join(internalPrefix, row.name)
+  const isInternal = row.path.startsWith(internalPrefix) || fs.existsSync(physicalPath)
 
-  if (isInternal) {
-    const validSize = typeof row.size === 'number' && row.size >= 0
-    if (!validSize) {
-      // size column has a DB CHECK but accepts 0 (legitimate empty files),
-      // so a garbage v1 size would land indistinguishably as a 0-byte file in
-      // the v2 UI. Treat as malformed row instead — the caller skips it with
-      // a warning. Physical orphans are reclaimed by the startup FS sweep.
-      onWarning(`Invalid size for file id=${row.id}; treating row as malformed. raw=${JSON.stringify(row.size)}`)
+  if (!isInternal) {
+    // Neither under the internal dir nor physically present: dead metadata
+    // left by incomplete v1 deletes. Do not fabricate an external entry —
+    // downstream migrators (Chat/Painting) already resolve file_ref against
+    // file_entry, so skipping cannot create dangling FKs.
+    onWarning(
+      `Orphan file row id=${row.id}: no physical file and path is not internal; skipping. path=${JSON.stringify(row.path)}`
+    )
+    return null
+  }
+
+  // size column has a DB CHECK but accepts 0 (legitimate empty files), so a
+  // garbage v1 size cannot simply be coerced to 0 — it would land
+  // indistinguishably as an empty file in the v2 UI. Skipping outright is
+  // worse: every row reaching this point is internal, so a physically
+  // present file would be stranded and become eligible for the
+  // user-triggered FS orphan sweep (`File_RunSweep`) — real data loss for
+  // recoverable content. Recover the true size from disk instead; skip only
+  // when the disk holds nothing recoverable.
+  let size: number
+  if (typeof row.size === 'number' && row.size >= 0) {
+    size = row.size
+  } else {
+    try {
+      size = fs.statSync(physicalPath).size
+      onWarning(`Invalid size for file id=${row.id}; recovered size=${size} from disk. raw=${JSON.stringify(row.size)}`)
+    } catch {
+      onWarning(
+        `Invalid size for file id=${row.id} and physical file is unreadable; skipping row. raw=${JSON.stringify(row.size)}`
+      )
       return null
-    }
-    return {
-      id: row.id,
-      origin: 'internal',
-      name: row.origin_name
-        ? path.basename(row.origin_name, row.origin_name.includes('.') ? path.extname(row.origin_name) : '')
-        : row.name,
-      ext,
-      size: row.size,
-      externalPath: null,
-      deletedAt: null,
-      createdAt,
-      updatedAt: createdAt
     }
   }
 
-  // External file
-  return {
+  const entry: PreparedFileEntry = {
     id: row.id,
-    origin: 'external',
-    name: path.basename(row.path, path.extname(row.path)) || row.name,
+    origin: 'internal',
+    name: deriveSafeName(row.origin_name || row.name, row.id, onWarning),
     ext,
-    size: null,
-    externalPath: row.path,
+    size,
+    externalPath: null,
     deletedAt: null,
     createdAt,
     updatedAt: createdAt
   }
+
+  // Write-side validation must be >= read-side validation. Probe
+  // through the same schema the runtime read path applies (rowToFileEntry →
+  // FileEntrySchema.parse) so a malformed row can never reach SQLite and
+  // detonate at read time (#15733). Unreachable by construction today —
+  // this guards future field/schema drift.
+  const probe = FileEntrySchema.safeParse({
+    id: entry.id,
+    origin: 'internal',
+    name: entry.name,
+    ext: entry.ext,
+    size: entry.size,
+    createdAt: entry.createdAt,
+    updatedAt: entry.updatedAt
+  })
+  if (!probe.success) {
+    onWarning(
+      `Prepared entry for file id=${row.id} failed read-schema validation; skipping. issues=${JSON.stringify(probe.error.issues)}`
+    )
+    return null
+  }
+
+  return entry
 }
 
 export class FileMigrator extends BaseMigrator {
@@ -202,7 +266,7 @@ export class FileMigrator extends BaseMigrator {
           if (!entry) {
             this.skippedCount += 1
             const label = row?.id ?? '(unknown)'
-            this.recordWarning(`Skipped malformed file row (id=${label}): missing required fields`)
+            this.recordWarning(`Skipped unmigratable file row (id=${label})`)
             continue
           }
 
@@ -297,12 +361,11 @@ export class FileMigrator extends BaseMigrator {
       // a real condition on v1 installs — users delete `~/.../Data/Files/*`
       // outside Cherry, leaving dangling metadata. Surfacing it as a fatal
       // validation error aborts the whole migration over data that the
-      // runtime FS orphan sweep already cleans up. Record as a non-fatal
-      // warning so the migration log carries the diagnostic trail but the
-      // engine still proceeds to downstream migrators.
-      const internalEntries = this.preparedEntries
-        .filter((e): e is PreparedInternalEntry => e.origin === 'internal')
-        .slice(0, VALIDATE_SAMPLE_LIMIT)
+      // user-triggered FS orphan sweep (`File_RunSweep`) can clean up later.
+      // Record as a non-fatal warning so the migration log carries the
+      // diagnostic trail but the engine still proceeds to downstream
+      // migrators.
+      const internalEntries = this.preparedEntries.slice(0, VALIDATE_SAMPLE_LIMIT)
 
       let missingPhysical = 0
       for (const entry of internalEntries) {
