@@ -39,6 +39,7 @@ const {
   registerHandlerMock,
   rerankKnowledgeSearchResultsMock,
   copyFileIntoKnowledgeBaseMock,
+  deleteKnowledgeItemFilesMock,
   fsLstatMock,
   fsStatMock,
   vectorDeleteByIdAndExternalIdMock,
@@ -71,6 +72,7 @@ const {
   registerHandlerMock: vi.fn(),
   rerankKnowledgeSearchResultsMock: vi.fn(),
   copyFileIntoKnowledgeBaseMock: vi.fn(),
+  deleteKnowledgeItemFilesMock: vi.fn(),
   fsLstatMock: vi.fn(),
   fsStatMock: vi.fn(),
   vectorDeleteByIdAndExternalIdMock: vi.fn(),
@@ -167,7 +169,8 @@ vi.mock('../utils/storage/pathStorage', async () => {
   const actual = await vi.importActual<typeof PathStorage>('../utils/storage/pathStorage')
   return {
     ...actual,
-    copyFileIntoKnowledgeBase: copyFileIntoKnowledgeBaseMock
+    copyFileIntoKnowledgeBase: copyFileIntoKnowledgeBaseMock,
+    deleteKnowledgeItemFiles: deleteKnowledgeItemFilesMock
   }
 })
 
@@ -318,6 +321,7 @@ describe('KnowledgeService', () => {
       }
     )
     knowledgeItemDeleteMock.mockResolvedValue(undefined)
+    deleteKnowledgeItemFilesMock.mockResolvedValue(undefined)
     knowledgeItemGetDeletingRootGroupsMock.mockResolvedValue([])
     knowledgeItemGetByIdMock.mockImplementation(async (id: string) => {
       return createNoteItem(id, createdItemBaseIds.get(id) ?? 'kb-1')
@@ -990,6 +994,19 @@ describe('KnowledgeService', () => {
     expect(knowledgeItemDeleteMock).toHaveBeenCalledWith('note-1')
     expect(knowledgeItemDeleteMock).toHaveBeenCalledWith('note-2')
     expect(enqueueMock).not.toHaveBeenCalled()
+  })
+
+  it('preserves the original addItems error when copied-file cleanup fails', async () => {
+    const service = new KnowledgeService()
+    knowledgeItemCreateMock.mockRejectedValueOnce(new Error('create failed'))
+    deleteKnowledgeItemFilesMock.mockRejectedValueOnce(new Error('cleanup failed'))
+
+    await expect(
+      service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/x.pdf', path: '/docs/x.pdf' } }])
+    ).rejects.toThrow('create failed')
+
+    // The copied file was still cleaned up (attempted), but its failure must not mask the cause.
+    expect(deleteKnowledgeItemFilesMock).toHaveBeenCalledTimes(1)
   })
 
   it('keeps items deleting when delete cleanup enqueue fails', async () => {
