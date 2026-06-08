@@ -583,6 +583,52 @@
       }
     },
     "sidebar_title": "Agents",
+    "stats": {
+      "active_days": "days active",
+      "avg_completion": "Avg Completion",
+      "avg_first_token": "Avg First Token",
+      "avg_speed": "Avg Speed",
+      "conversation_info": "Conversation Info",
+      "daily_usage": "Daily Usage",
+      "duration": "Duration",
+      "limit": "Display limit",
+      "loading": "Loading statistics...",
+      "messages": "Messages",
+      "model_filter_all": "All Providers",
+      "model_sort_messages": "By Messages",
+      "model_sort_speed": "By Speed",
+      "model_sort_tokens": "By Tokens",
+      "model_usage": "Model Usage",
+      "no_data": "No statistics available",
+      "no_data_hint": "Start a conversation to see usage statistics here.",
+      "no_models_match": "No models match the current filters.",
+      "performance": "Performance",
+      "popup": {
+        "load_failed": "Failed to load topic statistics",
+        "title": "Topic Statistics",
+        "topic_not_found": "Topic not found"
+      },
+      "search_placeholder": "Search model or provider...",
+      "sort_by": "Sort by",
+      "thinking_tokens": "Thinking Tokens",
+      "title": "Usage Statistics",
+      "token_breakdown": "Token Breakdown",
+      "token_input": "Input {{count}}",
+      "token_output": "Output {{count}}",
+      "token_thinking": "Thinking {{count}}",
+      "topics": "Topics",
+      "total_characters": "Total Characters",
+      "total_messages": "Total Messages",
+      "total_tokens": "Total Tokens",
+      "total_words": "Total Words",
+      "unique_models": "Models Used",
+      "units": {
+        "d_h_m": "{{d}}d {{h}}h {{m}}m",
+        "tok": "tok",
+        "tok_per_sec": "{{value}} tok/s",
+        "ttft": "TTFT {{ms}}ms"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1600,6 +1646,7 @@
         "placeholder": "Search topics...",
         "title": "Search"
       },
+      "statistics": "Statistics",
       "title": "Topics",
       "unpin": "Unpin Topic"
     },
@@ -6800,6 +6847,9 @@
       "uninstallSuccess": "Skill uninstalled: {{name}}",
       "viewSource": "View Source",
       "zip": "ZIP"
+    },
+    "stats": {
+      "title": "Usage Statistics"
     },
     "theme": {
       "color_primary": "Primary Color",

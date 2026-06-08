@@ -583,6 +583,52 @@
       }
     },
     "sidebar_title": "Agents",
+    "stats": {
+      "active_days": "jours actifs",
+      "avg_completion": "Achèvement moyen",
+      "avg_first_token": "Premier token moyen",
+      "avg_speed": "Vitesse moyenne",
+      "conversation_info": "Informations de conversation",
+      "daily_usage": "Utilisation quotidienne",
+      "duration": "Durée",
+      "limit": "Limite d'affichage",
+      "loading": "Chargement des statistiques...",
+      "messages": "Messages",
+      "model_filter_all": "Tous les fournisseurs",
+      "model_sort_messages": "Par messages",
+      "model_sort_speed": "Par vitesse",
+      "model_sort_tokens": "Par tokens",
+      "model_usage": "Utilisation du modèle",
+      "no_data": "Aucune statistique disponible",
+      "no_data_hint": "Démarrez une conversation pour voir les statistiques d'utilisation ici.",
+      "no_models_match": "Aucun modèle ne correspond aux filtres actuels.",
+      "performance": "Performance",
+      "popup": {
+        "load_failed": "Échec du chargement des statistiques du sujet",
+        "title": "Statistiques du sujet",
+        "topic_not_found": "Sujet introuvable"
+      },
+      "search_placeholder": "Rechercher un modèle ou un fournisseur...",
+      "sort_by": "Trier par",
+      "thinking_tokens": "Tokens de réflexion",
+      "title": "Statistiques d'utilisation",
+      "token_breakdown": "Répartition des tokens",
+      "token_input": "Entrée {{count}}",
+      "token_output": "Sortie {{count}}",
+      "token_thinking": "Réflexion {{count}}",
+      "topics": "Sujets",
+      "total_characters": "Caractères totaux",
+      "total_messages": "Messages totaux",
+      "total_tokens": "Tokens totaux",
+      "total_words": "Mots totaux",
+      "unique_models": "Modèles utilisés",
+      "units": {
+        "d_h_m": "{{d}}j {{h}}h {{m}}m",
+        "tok": "tok",
+        "tok_per_sec": "{{value}} tok/s",
+        "ttft": "TTFT {{ms}}ms"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1600,6 +1646,7 @@
         "placeholder": "Rechercher des sujets...",
         "title": "Rechercher"
       },
+      "statistics": "Statistiques",
       "title": "Sujet",
       "unpin": "Annuler le fixage"
     },
@@ -2162,16 +2209,10 @@
           "supported_formats": "Prend en charge les formats PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Cliquez pour sélectionner des fichiers ou faites-les glisser ici"
         },
-        "sitemap": {
-          "description": "Entrez une URL de sitemap :",
-          "help": "Les pages répertoriées dans le plan du site seront lues et indexées",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
-        },
         "sources": {
           "directory": "Dossier",
           "file": "Fichier",
           "note": "Remarque",
-          "sitemap": "Site web",
           "url": "URL"
         },
         "submit": {
@@ -2209,9 +2250,6 @@
           "file": {
             "title": "Fichier"
           },
-          "sitemap": {
-            "title": "Synchronisation du site web"
-          },
           "url": {
             "title": "URL"
           }
@@ -2224,7 +2262,6 @@
         "directory": "Dossiers",
         "file": "Fichiers",
         "note": "Notes",
-        "sitemap": "Sites web",
         "url": "URL"
       },
       "preview": {
@@ -6147,6 +6184,9 @@
         "enabled": "Activé",
         "failed": "Échec",
         "failed_to_start": "Échec du démarrage de la vérification de santé",
+        "generation_output_audio": "[to be translated]:audio",
+        "generation_output_image": "[to be translated]:an image",
+        "generation_output_video": "[to be translated]:a video",
         "keys_status_count": "Passé : {{count_passed}} clés, échoué : {{count_failed}} clés",
         "model_status_failed": "{{count}} modèles sont totalement inaccessibles",
         "model_status_partial": "Parmi eux, {{count}} modèles sont inaccessibles avec certaines clés",
@@ -6155,6 +6195,7 @@
         "no_api_keys": "Aucune clé API trouvée, veuillez en ajouter une première.",
         "no_results": "Aucun résultat",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "[to be translated]:{{count}} skipped",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Passé",
@@ -6166,8 +6207,11 @@
         "retry": "Check again",
         "select_api_key": "Sélectionner la clé API à utiliser :",
         "single": "Unique",
+        "skip_reason_generation_cost": "[to be translated]:This model's health check would generate {{output}} and consume quota, so it is skipped by default.",
+        "skip_reason_unsupported_probe": "[to be translated]:This model type does not have a low-cost health check yet, so it is skipped by default.",
         "start": "Commencer",
         "status_checking": "Checking…",
+        "status_skipped": "[to be translated]:Skipped",
         "timeout": "Délai dépassé",
         "title": "Test de santé des modèles",
         "use_all_keys": "Utiliser toutes les clés"
@@ -6176,6 +6220,8 @@
       "default_assistant_model": "Modèle d'assistant par défaut",
       "default_assistant_model_description": "Utilisé lorsqu'un assistant n'a pas de modèle.",
       "empty": "Aucun modèle",
+      "group_disable": "[to be translated]:Close this group",
+      "group_enable": "[to be translated]:Enable this group",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",
@@ -6801,6 +6847,9 @@
       "uninstallSuccess": "Compétence désinstallée : {{name}}",
       "viewSource": "Afficher la source",
       "zip": "ZIP"
+    },
+    "stats": {
+      "title": "Statistiques d'utilisation"
     },
     "theme": {
       "color_primary": "Couleur principale",

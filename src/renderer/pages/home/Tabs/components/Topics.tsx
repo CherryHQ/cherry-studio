@@ -21,6 +21,7 @@ import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
+import TopicStatsPopup from '@renderer/components/Popups/TopicStatsPopup'
 import { isMac } from '@renderer/config/constant'
 import { prefetch } from '@renderer/data/hooks/useDataApi'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
@@ -55,6 +56,7 @@ import { findIndex } from 'lodash'
 import {
   BrushCleaning,
   CheckSquare,
+  LineChart,
   ListChecks,
   MenuIcon,
   NotebookPen,
@@ -395,6 +397,9 @@ export const Topics: React.FC<Props> = ({ activeTopic, setActiveTopic, position 
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => void runExport(() => exportTopicToNotes(topic, notesPath))}>
           <ContextMenuItemContent icon={<NotebookPen size={14} />}>{t('notes.save')}</ContextMenuItemContent>
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={() => void TopicStatsPopup.show({ topicId: topic.id })}>
+          <ContextMenuItemContent icon={<LineChart size={14} />}>{t('chat.topics.statistics')}</ContextMenuItemContent>
         </ContextMenuItem>
         <ContextMenuItem onSelect={() => onClearMessages(topic)}>
           <ContextMenuItemContent icon={<BrushCleaning size={14} />}>

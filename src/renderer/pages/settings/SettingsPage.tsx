@@ -14,6 +14,7 @@ import {
   FlaskConical,
   HardDrive,
   Info,
+  LineChart,
   Package,
   PackageCheck,
   PictureInPicture2,
@@ -143,6 +144,14 @@ const SettingsPage: FC = () => {
                 label={t('settings.data.title')}
                 active={isActive('/settings/data')}
                 onClick={() => go('/settings/data')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<LineChart />}
+                label={t('settings.stats.title')}
+                active={isActive('/settings/stats')}
+                onClick={() => go('/settings/stats')}
               />
               <MenuDivider className={settingsSubmenuDividerClassName} />
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.productivity')}</div>

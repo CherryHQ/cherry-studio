@@ -583,6 +583,52 @@
       }
     },
     "sidebar_title": "Agents",
+    "stats": {
+      "active_days": "活躍天數",
+      "avg_completion": "平均完成時間",
+      "avg_first_token": "平均首 Token",
+      "avg_speed": "平均速度",
+      "conversation_info": "對話資訊",
+      "daily_usage": "每日用量",
+      "duration": "持續時間",
+      "limit": "顯示數量",
+      "loading": "正在載入統計資料...",
+      "messages": "訊息數",
+      "model_filter_all": "全部提供商",
+      "model_sort_messages": "按訊息數",
+      "model_sort_speed": "按速度",
+      "model_sort_tokens": "按 Token",
+      "model_usage": "模型用量",
+      "no_data": "暫無統計資料",
+      "no_data_hint": "開始對話後即可在此查看用量統計。",
+      "no_models_match": "沒有符合目前篩選條件的模型。",
+      "performance": "效能指標",
+      "popup": {
+        "load_failed": "載入話題統計失敗",
+        "title": "話題統計",
+        "topic_not_found": "話題不存在"
+      },
+      "search_placeholder": "搜尋模型或提供商...",
+      "sort_by": "排序方式",
+      "thinking_tokens": "思考 Token",
+      "title": "使用統計",
+      "token_breakdown": "Token 分布",
+      "token_input": "輸入 {{count}}",
+      "token_output": "輸出 {{count}}",
+      "token_thinking": "思考 {{count}}",
+      "topics": "話題數",
+      "total_characters": "總字元數",
+      "total_messages": "總訊息數",
+      "total_tokens": "總 Token",
+      "total_words": "總詞數",
+      "unique_models": "使用模型數",
+      "units": {
+        "d_h_m": "{{d}}天 {{h}}時 {{m}}分",
+        "tok": "tok",
+        "tok_per_sec": "{{value}} tok/s",
+        "ttft": "首 Token {{ms}}ms"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1600,6 +1646,7 @@
         "placeholder": "搜尋話題...",
         "title": "搜尋"
       },
+      "statistics": "統計",
       "title": "話題",
       "unpin": "取消固定"
     },
@@ -6800,6 +6847,9 @@
       "uninstallSuccess": "技能已解除安裝：{{name}}",
       "viewSource": "查看原始碼",
       "zip": "ZIP"
+    },
+    "stats": {
+      "title": "使用統計"
     },
     "theme": {
       "color_primary": "主題顏色",

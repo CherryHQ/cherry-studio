@@ -583,6 +583,52 @@
       }
     },
     "sidebar_title": "Agenți",
+    "stats": {
+      "active_days": "zile active",
+      "avg_completion": "Finalizare medie",
+      "avg_first_token": "Primul Token mediu",
+      "avg_speed": "Viteză medie",
+      "conversation_info": "Informații conversație",
+      "daily_usage": "Utilizare zilnică",
+      "duration": "Durată",
+      "limit": "Limită afișare",
+      "loading": "Se încarcă statisticile...",
+      "messages": "Mesaje",
+      "model_filter_all": "Toți furnizorii",
+      "model_sort_messages": "După mesaje",
+      "model_sort_speed": "După viteză",
+      "model_sort_tokens": "După tokens",
+      "model_usage": "Utilizare model",
+      "no_data": "Nu există statistici disponibile",
+      "no_data_hint": "Începe o conversație pentru a vedea statisticile de utilizare aici.",
+      "no_models_match": "Niciun model nu se potrivește cu filtrele actuale.",
+      "performance": "Performanță",
+      "popup": {
+        "load_failed": "Eroare la încărcarea statisticilor subiectului",
+        "title": "Statistici subiect",
+        "topic_not_found": "Subiect negăsit"
+      },
+      "search_placeholder": "Caută model sau furnizor...",
+      "sort_by": "Sortează după",
+      "thinking_tokens": "Tokens de gândire",
+      "title": "Statistici de utilizare",
+      "token_breakdown": "Defalcare tokens",
+      "token_input": "Intrare {{count}}",
+      "token_output": "Ieșire {{count}}",
+      "token_thinking": "Gândire {{count}}",
+      "topics": "Subiecte",
+      "total_characters": "Caractere totale",
+      "total_messages": "Mesaje totale",
+      "total_tokens": "Tokens totali",
+      "total_words": "Cuvinte totale",
+      "unique_models": "Modele utilizate",
+      "units": {
+        "d_h_m": "{{d}}z {{h}}o {{m}}m",
+        "tok": "tok",
+        "tok_per_sec": "{{value}} tok/s",
+        "ttft": "TTFT {{ms}}ms"
+      }
+    },
     "todo": {
       "mock": {
         "actions": {
@@ -1600,6 +1646,7 @@
         "placeholder": "Caută subiecte...",
         "title": "Caută"
       },
+      "statistics": "Statistici",
       "title": "Subiecte",
       "unpin": "Detașează subiectul"
     },
@@ -2162,16 +2209,10 @@
           "supported_formats": "Acceptă PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Click pentru a selecta fișierele sau trageți-le aici"
         },
-        "sitemap": {
-          "description": "Introduceți un URL de hartă a site-ului:",
-          "help": "Paginile listate în harta site-ului vor fi citite și indexate",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
-        },
         "sources": {
           "directory": "Folder",
           "file": "Fișier",
           "note": "Notă",
-          "sitemap": "Site web",
           "url": "URL"
         },
         "submit": {
@@ -2209,9 +2250,6 @@
           "file": {
             "title": "Fișier"
           },
-          "sitemap": {
-            "title": "Sincronizare site web"
-          },
           "url": {
             "title": "URL"
           }
@@ -2224,7 +2262,6 @@
         "directory": "Foldere",
         "file": "Fișiere",
         "note": "Note",
-        "sitemap": "Site-uri web",
         "url": "URL-uri"
       },
       "preview": {
@@ -6147,6 +6184,9 @@
         "enabled": "Activat",
         "failed": "Eșuat",
         "failed_to_start": "Nu s-a reușit pornirea verificării stării de sănătate",
+        "generation_output_audio": "[to be translated]:audio",
+        "generation_output_image": "[to be translated]:an image",
+        "generation_output_video": "[to be translated]:a video",
         "keys_status_count": "Reușite: {{count_passed}} chei, eșuate: {{count_failed}} chei",
         "model_status_failed": "{{count}} modele complet inaccesibile",
         "model_status_partial": "{{count}} modele au avut chei inaccesibile",
@@ -6155,6 +6195,7 @@
         "no_api_keys": "Nu s-au găsit chei API, te rugăm să adaugi mai întâi chei API.",
         "no_results": "Niciun rezultat",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "[to be translated]:{{count}} skipped",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Reușit",
@@ -6166,8 +6207,11 @@
         "retry": "Check again",
         "select_api_key": "Selectează cheia API de utilizat:",
         "single": "Singur",
+        "skip_reason_generation_cost": "[to be translated]:This model's health check would generate {{output}} and consume quota, so it is skipped by default.",
+        "skip_reason_unsupported_probe": "[to be translated]:This model type does not have a low-cost health check yet, so it is skipped by default.",
         "start": "Start",
         "status_checking": "Checking…",
+        "status_skipped": "[to be translated]:Skipped",
         "timeout": "Expirare",
         "title": "Verificare sănătate model",
         "use_all_keys": "Cheie(i)"
@@ -6176,6 +6220,8 @@
       "default_assistant_model": "Model asistent implicit",
       "default_assistant_model_description": "Folosit când un asistent nu are model.",
       "empty": "Nu s-au găsit modele",
+      "group_disable": "[to be translated]:Close this group",
+      "group_enable": "[to be translated]:Enable this group",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",
@@ -6801,6 +6847,9 @@
       "uninstallSuccess": "Abilitate dezinstalată: {{name}}",
       "viewSource": "Vezi sursa",
       "zip": "ZIP"
+    },
+    "stats": {
+      "title": "Statistici de utilizare"
     },
     "theme": {
       "color_primary": "Culoare primară",
