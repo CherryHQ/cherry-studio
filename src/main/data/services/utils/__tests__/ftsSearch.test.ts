@@ -1,3 +1,4 @@
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { describe, expect, it, vi } from 'vitest'
 
 import { searchWithCursor } from '../ftsSearch'
@@ -180,6 +181,7 @@ describe('searchWithCursor', () => {
   })
 
   it('stops scanning when the candidate ceiling is reached without enough regex-confirmed results', async () => {
+    mockMainLoggerService.warn.mockClear()
     const fetchRows = vi.fn().mockResolvedValueOnce([
       { id: 'rejected-1', createdAt: 300, searchableText: 'haystack one' },
       { id: 'rejected-2', createdAt: 200, searchableText: 'haystack two' }
@@ -210,5 +212,12 @@ describe('searchWithCursor', () => {
 
     expect(fetchRows).toHaveBeenCalledTimes(1)
     expect(result).toEqual({ items: [], nextCursor: undefined })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('FTS search candidate scan limit reached', {
+      scannedCandidates: 2,
+      limit: 500,
+      maxCandidates: 2,
+      termCount: 1
+    })
+    expect(mockMainLoggerService.warn.mock.calls[0]?.[1]).not.toHaveProperty('query')
   })
 })

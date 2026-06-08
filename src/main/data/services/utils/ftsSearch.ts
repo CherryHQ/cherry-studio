@@ -156,7 +156,12 @@ export async function searchWithCursor<Row, PublicItem>({
     }
 
     if (scannedCandidates >= maxCandidates && results.length < fetchLimit) {
-      logger.warn('FTS search candidate scan limit reached', { query: q, scannedCandidates, limit, maxCandidates })
+      logger.warn('FTS search candidate scan limit reached', {
+        scannedCandidates,
+        limit,
+        maxCandidates,
+        termCount: terms.length
+      })
       break
     }
   }

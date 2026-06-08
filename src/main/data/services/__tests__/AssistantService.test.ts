@@ -1197,5 +1197,30 @@ describe('AssistantDataService', () => {
       expect(result[0]).not.toHaveProperty('mcpServerIds')
       expect(result[0]).not.toHaveProperty('tags')
     })
+
+    it('treats whitespace-only q as an absent search predicate', async () => {
+      await seedAssistantRow([
+        {
+          id: 'ast-blank-old',
+          name: 'Alpha',
+          updatedAt: 100
+        },
+        {
+          id: 'ast-blank-new',
+          name: 'Beta',
+          updatedAt: 200
+        },
+        {
+          id: 'ast-blank-deleted',
+          name: 'Deleted',
+          deletedAt: 300,
+          updatedAt: 300
+        }
+      ])
+
+      const result = await assistantDataService.search({ q: '   ', limit: 5 })
+
+      expect(result.map((item) => item.id)).toEqual(['ast-blank-new', 'ast-blank-old'])
+    })
   })
 })

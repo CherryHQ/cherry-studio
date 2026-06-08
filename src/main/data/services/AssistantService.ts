@@ -66,6 +66,17 @@ function rowToAssistant(
   }
 }
 
+function buildSearchPredicate(q: string | undefined): SQL | undefined {
+  const trimmed = q?.trim()
+  if (!trimmed) return undefined
+
+  const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
+  const nameMatch = sql`${assistantTable.name} LIKE ${pattern} ESCAPE '\\'`
+  const descMatch = sql`${assistantTable.description} LIKE ${pattern} ESCAPE '\\'`
+
+  return or(nameMatch, descMatch)
+}
+
 export class AssistantDataService {
   private get db() {
     return application.get('DbService').getDb()
@@ -200,11 +211,8 @@ export class AssistantDataService {
   }
 
   async search(query: { q: string; limit: number; updatedAtFrom?: number }): Promise<AssistantEntitySearchItem[]> {
-    const pattern = `%${query.q.replace(/[\\%_]/g, '\\$&')}%`
-    const nameMatch = sql`${assistantTable.name} LIKE ${pattern} ESCAPE '\\'`
-    const descMatch = sql`${assistantTable.description} LIKE ${pattern} ESCAPE '\\'`
-    const searchClause = or(nameMatch, descMatch)
     const conditions: SQL[] = [isNull(assistantTable.deletedAt)]
+    const searchClause = buildSearchPredicate(query.q)
     if (searchClause) conditions.push(searchClause)
     if (query.updatedAtFrom !== undefined) {
       conditions.push(gte(assistantTable.updatedAt, query.updatedAtFrom))
