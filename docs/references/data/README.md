@@ -207,6 +207,7 @@ See [App State Overview](./app-state-overview.md) for full rules and the key reg
 | Using DataApi for window/process control          | No database backing, pure side effects, retry is harmful | **IPC handler**          |
 | Using DataApi for external service calls          | Side effects, no CRUD semantics, timeout mismatch | **IPC handler**                |
 | Using DataApi to wrap existing IPC calls          | Adds indirection without value, confuses layering | **Keep as IPC**                |
+| Side effects bundled into a DataApi write         | Data business-logic layer only — side effects must not ride along, however deeply nested | **IPC handler** (+ Entity Service for DB part) |
 | Storing migration/seed state in Cache            | Lost on restart → user re-runs a one-time flow   | **`app_state` table**           |
 
 ## Edge Cases

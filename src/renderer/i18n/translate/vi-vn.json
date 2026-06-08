@@ -785,7 +785,7 @@
       "server_not_running_description": "Máy chủ API cần được chạy để các tác nhân hoạt động. Bạn có thể khởi động nó trực tiếp hoặc kiểm tra cài đặt."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "Kopi",
       "regenerate": "Tái tạo",
