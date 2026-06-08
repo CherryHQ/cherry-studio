@@ -10,6 +10,7 @@ import type {
   WebSearchProviderOverrides
 } from '@shared/data/preference/preferenceTypes'
 import { useNavigate } from '@tanstack/react-router'
+import { isEmpty } from 'lodash'
 import { ExternalLink, List } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -221,7 +222,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
       patch.basicAuthPassword = normalizedBasicAuthPasswordInput
     }
 
-    if (Object.keys(patch).length === 0) {
+    if (isEmpty(patch)) {
       return
     }
 

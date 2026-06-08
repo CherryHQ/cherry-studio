@@ -1,3 +1,5 @@
+import { compact, uniq } from 'lodash'
+
 export type ApiKeyValidity =
   | {
       isValid: true
@@ -9,7 +11,7 @@ export type ApiKeyValidity =
     }
 
 export function normalizeApiKeys(keys: string[]): string[] {
-  return Array.from(new Set(keys.map((key) => key.trim()).filter(Boolean)))
+  return uniq(compact(keys.map((key) => key.trim())))
 }
 
 export function validateApiKey(

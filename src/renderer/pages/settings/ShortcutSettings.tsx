@@ -24,6 +24,7 @@ import {
   type ShortcutToken
 } from '@shared/shortcuts/tokens'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
+import { isEmpty } from 'lodash'
 import { Keyboard, MessageSquareText, Search, Sparkles, Tags, Undo2 } from 'lucide-react'
 import type { FC, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -324,7 +325,7 @@ const ShortcutSettings: FC = () => {
       {} as Record<string, PreferenceShortcutType>
     )
 
-    if (Object.keys(updates).length === 0) return
+    if (isEmpty(updates)) return
 
     if (enabled) {
       for (const record of visibleShortcuts) {
