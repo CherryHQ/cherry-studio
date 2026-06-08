@@ -5021,7 +5021,7 @@
       "import_settings": {
         "button": "Import Json File",
         "chatgpt": "Import from ChatGPT",
-        "title": "Import Outside Application Data"
+        "title": "Import App Data"
       },
       "joplin": {
         "check": {
@@ -5364,7 +5364,7 @@
         },
         "title": {
           "help": "S3 compatible object storage services, such as AWS S3, Cloudflare R2, Aliyun OSS, Tencent COS, etc.",
-          "label": "S3 Compatible Storage",
+          "label": "S3 Storage",
           "tooltip": "S3 Compatible Storage Configuration Document"
         }
       },

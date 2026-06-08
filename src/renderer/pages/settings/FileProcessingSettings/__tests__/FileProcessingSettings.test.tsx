@@ -274,6 +274,16 @@ describe('FileProcessingSettings', () => {
     })
   })
 
+  it('shows feature group titles so processors shared by OCR and document parsing are not ambiguous', async () => {
+    render(<FileProcessingSettings />)
+
+    expect(await screen.findByText('settings.tool.file_processing.features.image_to_text.title')).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.features.document_to_markdown.title')).toBeInTheDocument()
+    expect(
+      screen.getAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    ).toHaveLength(2)
+  })
+
   it('shows the provider detail header with a default badge and hides the default button', async () => {
     preferencesMock.defaultImageProcessor = 'system'
 

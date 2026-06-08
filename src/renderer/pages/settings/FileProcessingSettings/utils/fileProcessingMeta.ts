@@ -23,11 +23,11 @@ const FILE_PROCESSING_FEATURE_SECTIONS: readonly {
 }[] = [
   {
     feature: 'image_to_text',
-    processors: ['system', 'tesseract', 'paddleocr', 'mistral', 'ovocr']
+    processors: ['system', 'tesseract', 'paddleocr', 'ovocr', 'mistral']
   },
   {
     feature: 'document_to_markdown',
-    processors: ['mistral', 'mineru', 'doc2x', 'open-mineru', 'paddleocr']
+    processors: ['mineru', 'doc2x', 'open-mineru', 'paddleocr', 'mistral']
   }
 ] as const
 
