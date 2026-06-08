@@ -187,7 +187,6 @@ export interface OldMessage {
   // Metadata
   usage?: OldUsage
   metrics?: OldMetrics
-  traceId?: string
 
   // Dropped: mentions are redundant in tree-based architecture
   // (derivable from sibling response messages' modelId + siblingsGroupId)
@@ -430,7 +429,6 @@ export interface NewMessage {
   siblingsGroupId: number
   modelId: string | null
   modelSnapshot: ModelSnapshot | null
-  traceId: string | null
   stats: MessageStats | null
   createdAt: number // timestamp
   updatedAt: number // timestamp
@@ -566,7 +564,6 @@ export async function transformMessage(
     modelId: legacyModelToUniqueId(oldMessage.model, oldMessage.modelId),
     // Snapshot of model at message creation time for historical display
     modelSnapshot: buildModelSnapshot(oldMessage.model),
-    traceId: null,
     stats: mergeStats(oldMessage.usage, oldMessage.metrics),
     createdAt: parseTimestamp(oldMessage.createdAt),
     updatedAt: parseTimestamp(oldMessage.updatedAt || oldMessage.createdAt)

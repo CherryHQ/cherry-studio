@@ -360,6 +360,7 @@ export enum IpcChannel {
 
   // TRACE
   TRACE_SAVE_DATA = 'trace:saveData',
+  TRACE_GET_DATA = 'trace:getData',
   TRACE_SAVE_ENTITY = 'trace:saveEntity',
   TRACE_GET_ENTITY = 'trace:getEntity',
   TRACE_BIND_TOPIC = 'trace:bindTopic',

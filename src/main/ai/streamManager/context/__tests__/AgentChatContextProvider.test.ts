@@ -5,6 +5,7 @@ import type { StreamListener } from '../../types'
 
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
+  ensureTraceId: vi.fn(),
   getAgent: vi.fn(),
   saveMessage: vi.fn(),
   saveMessages: vi.fn(),
@@ -17,7 +18,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { getById: mocks.getSession }
+  agentSessionService: { getById: mocks.getSession, ensureTraceId: mocks.ensureTraceId }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -78,9 +79,43 @@ describe('AgentChatContextProvider', () => {
       listAvailableTools: vi.fn().mockResolvedValue([])
     })
     mocks.getSession.mockResolvedValue({ id: 'session-1', agentId: 'agent-1', workspace: { path: '/tmp' } })
-    mocks.getAgent.mockResolvedValue({ id: 'agent-1', type: 'claude-code', model: 'anthropic::claude-sonnet' })
-    mocks.saveMessage.mockResolvedValue(undefined)
-    mocks.saveMessages.mockResolvedValue(undefined)
+    mocks.ensureTraceId.mockResolvedValue('a'.repeat(32))
+    mocks.getAgent.mockResolvedValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      modelName: 'Claude Sonnet'
+    })
+    mocks.saveMessage.mockImplementation(async ({ sessionId, message }) => ({
+      id: message.id,
+      sessionId,
+      role: message.role,
+      data: message.data,
+      searchableText: '',
+      status: message.status ?? 'success',
+      modelId: message.modelId ?? null,
+      modelSnapshot: message.modelSnapshot ?? null,
+      stats: message.stats ?? null,
+      runtimeResumeToken: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    }))
+    mocks.saveMessages.mockImplementation(async ({ sessionId, messages }) =>
+      messages.map((message) => ({
+        id: message.id,
+        sessionId,
+        role: message.role,
+        data: message.data,
+        searchableText: '',
+        status: message.status ?? 'success',
+        modelId: message.modelId ?? null,
+        modelSnapshot: message.modelSnapshot ?? null,
+        stats: message.stats ?? null,
+        runtimeResumeToken: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z'
+      }))
+    )
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'SpanCacheService') return { setTopicId: mocks.spanCacheSetTopicId }
       if (name === 'AgentSessionRuntimeService') {
@@ -110,10 +145,9 @@ describe('AgentChatContextProvider', () => {
     const savedMessages = mocks.saveMessages.mock.calls[0][0].messages
     expect(savedMessages[1]).toMatchObject({
       role: 'assistant',
-      modelId: 'anthropic::claude-sonnet',
-      traceId: expect.any(String)
+      modelId: 'anthropic::claude-sonnet'
     })
-    expect(mocks.spanCacheSetTopicId).toHaveBeenCalledWith(savedMessages[1].traceId, 'agent-session:session-1')
+    expect(mocks.spanCacheSetTopicId).toHaveBeenCalledWith(expect.any(String), 'agent-session:session-1')
 
     expect(prepared.models).toHaveLength(1)
     expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet')
@@ -135,8 +169,7 @@ describe('AgentChatContextProvider', () => {
       modelId: 'anthropic::claude-sonnet',
       assistantMessageId: prepared.models[0].request.messageId,
       userMessage: expect.objectContaining({ id: prepared.userMessageId, role: 'user', sessionId: 'session-1' }),
-      traceId: savedMessages[1].traceId,
-      rootSpanId: expect.any(String)
+      traceId: 'a'.repeat(32)
     })
     expect(prepared.listeners).toEqual([
       subscriber,

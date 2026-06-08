@@ -10,14 +10,31 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { application } from '@main/core/application'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 import { parseUniqueModelId } from '@shared/data/types/model'
+import type { UIMessage } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
-import { startAiTurnTrace } from '../../observability'
+import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime'
 import type { StreamListener } from '../types'
 import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
+
+function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessage {
+  return {
+    id: row.id,
+    role: row.role,
+    parts: row.data.parts ?? [],
+    metadata: {
+      status: row.status,
+      createdAt: row.createdAt,
+      modelId: row.modelId ?? undefined,
+      modelSnapshot: row.modelSnapshot ?? undefined,
+      stats: row.stats ?? undefined,
+      ...(row.stats?.totalTokens ? { totalTokens: row.stats.totalTokens } : {})
+    }
+  } as CherryUIMessage
+}
 
 export class AgentChatContextProvider implements ChatContextProvider {
   readonly name = 'agent-session'
@@ -64,7 +81,6 @@ export class AgentChatContextProvider implements ChatContextProvider {
       searchableText: '',
       modelId: null,
       modelSnapshot: null,
-      traceId: null,
       stats: null,
       runtimeResumeToken: null,
       createdAt,
@@ -102,9 +118,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const assistantMessageId = uuidv7()
 
-    // Application root span. Claude Code child spans join this trace through TRACEPARENT.
-    const turnTrace = startAiTurnTrace(
-      'chat.turn',
+    // Container trace: one trace tree per session. The turn's `ai.turn` span is a
+    // child under it; Claude Code child spans join via the connection's TRACEPARENT.
+    const traceId = await agentSessionService.ensureTraceId(sessionId)
+    const turnTrace = startAiChildTurnSpan(
+      'ai.turn',
       {
         attributes: {
           'cs.topic_id': req.topicId,
@@ -115,9 +133,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
           'cs.session_id': sessionId
         }
       },
-      { topicId: req.topicId, modelName: parseUniqueModelId(uniqueModelId).modelId }
+      { topicId: req.topicId, modelName: parseUniqueModelId(uniqueModelId).modelId },
+      { traceId, spanId: deriveRootSpanId(traceId) }
     )
-    const traceId = turnTrace.traceId
 
     // Atomic user + pending-assistant write so `useAgentSessionParts` observes both at once.
     await agentSessionMessageService.saveMessages({
@@ -135,9 +153,18 @@ export class AgentChatContextProvider implements ChatContextProvider {
           status: 'pending',
           data: { parts: [] },
           modelId: uniqueModelId,
-          traceId
+          modelSnapshot
         }
       ]
+    })
+
+    // Author the turn span's input/identity here (where the agent + user message live).
+    applyTurnInputAttributes(turnTrace.rootSpan, {
+      modelId: uniqueModelId,
+      topicId: req.topicId,
+      operation: 'invoke_agent',
+      messages: [{ id: userMessageId, role: 'user', parts: userMessageParts }] as UIMessage[],
+      agentName: agent.name
     })
 
     const runtime = application.get('AgentSessionRuntimeService').beginTurn({
@@ -148,8 +175,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       modelId: uniqueModelId,
       assistantMessageId,
       userMessage,
-      traceId,
-      rootSpanId: turnTrace.rootSpanId
+      traceId
     })
 
     return {

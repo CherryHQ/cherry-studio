@@ -693,18 +693,6 @@ describe('transformMessage', () => {
     expect(result.modelSnapshot).toBeNull()
   })
 
-  it('drops legacy traceId because span history is not migrated', async () => {
-    const result = await transformMessage(
-      { ...msg('m1', 'assistant'), traceId: 'legacy-trace-id' },
-      null,
-      0,
-      [mainTextBlock('b1', 'm1', 'x')],
-      't1'
-    )
-
-    expect(result.traceId).toBeNull()
-  })
-
   it('does not stamp block-level createdAt/updatedAt/metadata/error onto part.providerMetadata.cherry', async () => {
     const blocks: OldBlock[] = [
       {

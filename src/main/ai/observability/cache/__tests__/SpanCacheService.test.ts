@@ -115,4 +115,27 @@ describe('SpanCacheService', () => {
     expect(cappedStore.getSpan('live')).toBeUndefined()
     expect(cappedStore.getSpan('newer')).toBeDefined()
   })
+
+  // Container traces span many turns under ONE trace id, all flushing to the same file. Pre-fix,
+  // each flush overwrote the file + cleared memory and getSpans returned live-or-else-history, so the
+  // viewer only ever saw the turn in flight. Confirm the whole trace accumulates instead.
+  it('accumulates spans across turns sharing one container trace id (REGRESSION trace-container-merge)', async () => {
+    await service._doInit()
+
+    // Turn 1: a span flushed to the history file and cleared from memory.
+    service.saveEntity(span({ id: 's1', traceId: 'trace', topicId: 'topic', name: 'turn-1' }))
+    await service.saveSpans('topic')
+
+    // Turn 2: a fresh span in memory while turn 1 lives only on disk.
+    service.saveEntity(span({ id: 's2', traceId: 'trace', topicId: 'topic', name: 'turn-2' }))
+
+    // getSpans merges live (turn 2) + history (turn 1) — the whole trace, not just the turn in flight.
+    const live = await service.getSpans('topic', 'trace')
+    expect(live.map((s) => s.id).sort()).toEqual(['s1', 's2'])
+
+    // Flushing turn 2 ACCUMULATES onto the file instead of overwriting turn 1.
+    await service.saveSpans('topic')
+    const flushed = await service.getSpans('topic', 'trace')
+    expect(flushed.map((s) => s.id).sort()).toEqual(['s1', 's2'])
+  })
 })

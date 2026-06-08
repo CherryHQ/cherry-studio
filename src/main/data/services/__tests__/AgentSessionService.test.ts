@@ -50,52 +50,16 @@ describe('AgentSessionService', () => {
     })
   }
 
-  it('searches sessions as lean navigation items with agent names resolved inline', async () => {
-    await dbh.db.insert(agentSessionTable).values([
-      {
-        id: 'session-search-old',
-        agentId: 'agent-session-test',
-        name: 'Needle Old Session',
-        orderKey: 'a0',
-        updatedAt: 100
-      },
-      {
-        id: 'session-search-new',
-        agentId: 'agent-session-test',
-        name: 'Needle New Session',
-        orderKey: 'a1',
-        updatedAt: 200
-      },
-      {
-        id: 'session-search-miss',
-        agentId: 'agent-session-test',
-        name: 'Other Session',
-        orderKey: 'a2',
-        updatedAt: 300
-      }
-    ])
+  it('ensureTraceId mints a stable session trace id once and reuses it', async () => {
+    const session = await createSession('Traced')
+    expect(session.traceId ?? null).toBeNull()
 
-    const result = await agentSessionService.search({ q: 'Needle', limit: 5 })
+    const traceId = await agentSessionService.ensureTraceId(session.id)
+    expect(traceId).toMatch(/^[0-9a-f]{32}$/)
 
-    expect(result).toEqual([
-      {
-        type: 'session',
-        id: 'session-search-new',
-        title: 'Needle New Session',
-        subtitle: 'Session Test Agent',
-        updatedAt: '1970-01-01T00:00:00.200Z',
-        target: { sessionId: 'session-search-new', agentId: 'agent-session-test' }
-      },
-      {
-        type: 'session',
-        id: 'session-search-old',
-        title: 'Needle Old Session',
-        subtitle: 'Session Test Agent',
-        updatedAt: '1970-01-01T00:00:00.100Z',
-        target: { sessionId: 'session-search-old', agentId: 'agent-session-test' }
-      }
-    ])
-    expect(result[0]).not.toHaveProperty('workspace')
+    // A second call returns the persisted id (no re-mint) and the entity carries it.
+    expect(await agentSessionService.ensureTraceId(session.id)).toBe(traceId)
+    expect((await agentSessionService.getById(session.id)).traceId).toBe(traceId)
   })
 
   it('binds a session to an explicit workspace', async () => {

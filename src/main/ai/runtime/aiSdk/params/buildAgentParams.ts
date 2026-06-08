@@ -1,12 +1,14 @@
-import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import type { FetchFunction, ProviderOptions } from '@ai-sdk/provider-utils'
 import type { AiPlugin } from '@cherrystudio/ai-core'
+import { application } from '@main/core/application'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constant'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
-import { stepCountIs, type ToolSet } from 'ai'
+import { stepCountIs, type StopCondition, type ToolSet } from 'ai'
 
+import { createHttpTraceFetch } from '../../../observability'
 import { providerToAiSdkConfig } from '../../../provider/config'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
@@ -60,6 +62,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { request, signal, provider, model, assistant, extraFeatures } = input
 
   const sdkConfig = await resolveSdkConfig(provider, model)
+  applyHttpTrace(sdkConfig, request.chatId, model)
   const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model)
     ? await resolveTools(request, assistant, model)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
@@ -111,6 +114,21 @@ async function resolveSdkConfig(provider: Provider, model: Model): Promise<SdkCo
     ...(await providerToAiSdkConfig(provider, model)),
     modelId: model.apiModelId ?? model.id
   }
+}
+
+/**
+ * In developer mode, wrap the provider's `fetch` so every raw HTTP exchange
+ * (url, redacted headers, truncated bodies) lands as an `http.request` span
+ * in the trace viewer. Off when developer mode is disabled — the wrapper is
+ * never installed, so there's zero overhead on the normal path.
+ */
+function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
+  if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
+  const settings = sdkConfig.providerSettings as { fetch?: FetchFunction }
+  settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, {
+    topicId,
+    modelName: model.name ?? model.id
+  })
 }
 
 /**

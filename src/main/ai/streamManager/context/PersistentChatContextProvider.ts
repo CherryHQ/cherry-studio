@@ -13,30 +13,28 @@ import { applyApprovalDecisions } from '@shared/ai/transport'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
-import { startAiTurnTrace } from '../../observability'
+import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../../observability'
+import { wrapSteerReminder } from '../../steerReminder'
 import type { AiStreamRequest } from '../../types/requests'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TraceFlushListener } from '../listeners/TraceFlushListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
 import type { CherryUIMessage, StreamListener } from '../types'
-import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
-import type { MainContinueConversationRequest, MainDispatchRequest } from './dispatch'
+import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
+import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
-/**
- * One OTel root span per execution. Its `traceId` is the source of truth
- * for `Message.traceId`; stream-manager sets the span active around
- * `runExecutionLoop` so AI SDK spans become children.
- */
 function startTurnRootSpans(
   topicId: string,
   trigger: string,
-  models: Model[]
-): Array<{ model: Model; span: Span; traceId: string }> {
+  models: Model[],
+  containerTraceId: string
+): Array<{ model: Model; span: Span }> {
+  const parent = { traceId: containerTraceId, spanId: deriveRootSpanId(containerTraceId) }
   return models.map((model) => {
     const modelName = model.name ?? model.id
-    const turnTrace = startAiTurnTrace(
-      'chat.turn',
+    const turnTrace = startAiChildTurnSpan(
+      'ai.turn',
       {
         attributes: {
           'cs.topic_id': topicId,
@@ -45,9 +43,10 @@ function startTurnRootSpans(
           'cs.role': 'assistant'
         }
       },
-      { topicId, modelName }
+      { topicId, modelName },
+      parent
     )
-    return { model, span: turnTrace.rootSpan, traceId: turnTrace.traceId }
+    return { model, span: turnTrace.rootSpan }
   })
 }
 
@@ -68,6 +67,25 @@ function endTurnRootSpansWithError(spans: Array<{ span: Span }>, error: unknown)
       // Best-effort cleanup — a broken span must not mask the original error.
     }
   }
+}
+
+function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
+  return {
+    id: message.id,
+    role: message.role,
+    parts: message.data.parts ?? [],
+    metadata: {
+      parentId: message.parentId,
+      siblingsGroupId: message.siblingsGroupId || undefined,
+      modelId: message.modelId ?? undefined,
+      modelSnapshot: message.modelSnapshot ?? undefined,
+      status: message.status,
+      createdAt: message.createdAt,
+      stats: message.stats ?? undefined,
+      isActiveBranch: true,
+      ...(message.stats?.totalTokens ? { totalTokens: message.stats.totalTokens } : {})
+    }
+  } as CherryUIMessage
 }
 
 export class PersistentChatContextProvider implements ChatContextProvider {
@@ -120,17 +138,17 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           } as const)
         : ({ mode: 'existing' as const, id: req.parentAnchorId } as const)
 
-    // Span traceId == Message.traceId — the viewer keys on this. The spans are
-    // created before the DB write because the placeholder rows persist each
-    // span's traceId, so a failure between here and the handoff to `send()` must
-    // end them explicitly or they leak (never ended).
-    const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, models)
+    // Container trace: one trace tree per topic. Each model's `ai.turn` span is
+    // a child under it. Spans are created before the DB write, so a failure between
+    // here and the handoff to `send()` must end them explicitly or they leak.
+    const containerTraceId = await topicService.ensureTraceId(req.topicId)
+    const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, models, containerTraceId)
     try {
       const { userMessage, placeholders } = await messageService.createUserMessageWithPlaceholders({
         topicId: req.topicId,
         userMessage: userMessageInput,
         siblingsGroupId,
-        placeholders: turnRootSpans.map(({ model, traceId }) => ({
+        placeholders: turnRootSpans.map(({ model }) => ({
           role: 'assistant',
           data: { parts: [] },
           status: 'pending',
@@ -139,8 +157,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
             name: model.name,
             provider: model.providerId
-          },
-          traceId
+          }
         }))
       })
 
@@ -197,6 +214,17 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id),
         rootSpan
       }))
+      // Author the turn span's input here (where the request lives), not in the stream manager.
+      for (const { modelId, request, rootSpan } of models_) {
+        if (rootSpan) {
+          applyTurnInputAttributes(rootSpan, {
+            modelId,
+            topicId: req.topicId,
+            operation: 'chat',
+            messages: request.messages
+          })
+        }
+      }
 
       return {
         topicId: req.topicId,
@@ -240,15 +268,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const continueModelId = (anchor.modelId ?? defaultModelId) as UniqueModelId
     const [model] = await resolveModels([continueModelId], defaultModelId)
 
-    // Created before the DB write so the anchor row can persist the span's
-    // traceId; end it explicitly if anything below throws or it leaks.
-    const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model])
-    const [{ span: rootSpan, traceId }] = turnRootSpans
+    // `ai.turn` span under the topic's container trace; end it explicitly if
+    // anything below throws or it leaks.
+    const containerTraceId = await topicService.ensureTraceId(req.topicId)
+    const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model], containerTraceId)
+    const [{ span: rootSpan }] = turnRootSpans
     try {
       await messageService.update(req.parentAnchorId, {
         data: { parts: updatedParts },
-        status: 'pending',
-        traceId
+        status: 'pending'
       })
 
       const listeners: StreamListener[] = [

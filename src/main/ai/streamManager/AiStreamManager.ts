@@ -22,6 +22,7 @@ import { type SerializedError, serializeError } from '@shared/types/error'
 import { type UIMessageChunk } from 'ai'
 import * as z from 'zod'
 
+import { applyTurnOutputAttributes } from '../observability'
 import type { AiStreamRequest, CallOverrides } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context'
@@ -60,12 +61,17 @@ const StreamOpenRequestSchema = z.intersection(
   ])
 )
 
-/** Idempotent: subsequent calls no-op because `exec.rootSpan` is cleared. */
+/**
+ * Finalize the turn's `ai.turn` span: write the turn-boundary output (final answer + tool
+ * count, translation delegated to the obs module), set status, end. Idempotent — subsequent
+ * calls no-op because `exec.rootSpan` is cleared.
+ */
 function endRootSpan(exec: StreamExecution, outcome: 'ok' | 'aborted' | 'error', error?: SerializedError): void {
   const span = exec.rootSpan
   if (!span) return
   exec.rootSpan = undefined
   try {
+    if (exec.finalMessage) applyTurnOutputAttributes(span, exec.finalMessage)
     if (outcome === 'ok') {
       span.setStatus({ code: SpanStatusCode.OK })
     } else if (outcome === 'aborted') {

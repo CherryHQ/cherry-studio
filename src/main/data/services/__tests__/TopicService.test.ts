@@ -14,61 +14,17 @@ import { describe, expect, it } from 'vitest'
 describe('TopicService', () => {
   const dbh = setupTestDatabase()
 
-  describe('search', () => {
-    it('returns lean topic items with assistant names resolved inline', async () => {
+  describe('ensureTraceId', () => {
+    it('mints a stable topic trace id once and reuses it', async () => {
       const service = new TopicService()
-      await dbh.db.insert(assistantTable).values({
-        id: 'asst-search',
-        name: 'Needle Assistant',
-        emoji: '🌟',
-        settings: DEFAULT_ASSISTANT_SETTINGS,
-        orderKey: 'a0'
-      })
-      await dbh.db.insert(topicTable).values([
-        {
-          id: 'topic-search-old',
-          name: 'Needle Old Topic',
-          assistantId: 'asst-search',
-          orderKey: 'a0',
-          updatedAt: 100
-        },
-        {
-          id: 'topic-search-new',
-          name: 'Needle New Topic',
-          assistantId: 'asst-search',
-          orderKey: 'a1',
-          updatedAt: 200
-        },
-        {
-          id: 'topic-search-miss',
-          name: 'Other Topic',
-          assistantId: 'asst-search',
-          orderKey: 'a2',
-          updatedAt: 300
-        }
-      ])
+      await dbh.db.insert(topicTable).values({ id: 'topic-trace', orderKey: 'a0' })
 
-      const result = await service.search({ q: 'Needle', limit: 5 })
+      const traceId = await service.ensureTraceId('topic-trace')
+      expect(traceId).toMatch(/^[0-9a-f]{32}$/)
 
-      expect(result).toEqual([
-        {
-          type: 'topic',
-          id: 'topic-search-new',
-          title: 'Needle New Topic',
-          subtitle: 'Needle Assistant',
-          updatedAt: '1970-01-01T00:00:00.200Z',
-          target: { topicId: 'topic-search-new', assistantId: 'asst-search' }
-        },
-        {
-          type: 'topic',
-          id: 'topic-search-old',
-          title: 'Needle Old Topic',
-          subtitle: 'Needle Assistant',
-          updatedAt: '1970-01-01T00:00:00.100Z',
-          target: { topicId: 'topic-search-old', assistantId: 'asst-search' }
-        }
-      ])
-      expect(result[0]).not.toHaveProperty('orderKey')
+      // A second call returns the persisted id (no re-mint) and the entity carries it.
+      expect(await service.ensureTraceId('topic-trace')).toBe(traceId)
+      expect((await service.getById('topic-trace')).traceId).toBe(traceId)
     })
   })
 

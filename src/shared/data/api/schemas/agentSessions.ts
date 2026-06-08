@@ -40,7 +40,6 @@ const AgentSessionMessageBaseSchema = z.strictObject({
   status: MessageStatusSchema,
   modelId: z.string().nullable(),
   modelSnapshot: ModelSnapshotSchema.nullable(),
-  traceId: z.string().nullable(),
   stats: MessageStatsSchema.nullable()
 })
 
@@ -59,7 +58,6 @@ export type AgentSessionMessageEntity = z.infer<typeof AgentSessionMessageEntity
 export const CreateAgentSessionMessageSchema = AgentSessionMessageBaseSchema.pick({
   modelId: true,
   modelSnapshot: true,
-  traceId: true,
   stats: true
 })
   .partial()
@@ -85,6 +83,8 @@ export const AgentSessionEntitySchema = z.strictObject({
   description: z.string().optional(),
   workspaceId: z.string().nullable(),
   workspace: AgentWorkspaceEntitySchema.nullable(),
+  /** Container-level OTel trace id — one trace tree per session (see trace 重塑). */
+  traceId: z.string().nullable().optional(),
   orderKey: z.string(),
   createdAt: z.string(),
   updatedAt: z.string()

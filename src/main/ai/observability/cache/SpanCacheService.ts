@@ -15,6 +15,14 @@ import { TraceSpanStore } from './TraceSpanStore'
 
 const logger = loggerService.withContext('SpanCacheService')
 
+/** Union spans by id; `overrides` (e.g. the live, fresher copy) wins over `base` (e.g. the history file). */
+function mergeSpansById(base: SpanEntity[], overrides: SpanEntity[]): SpanEntity[] {
+  const byId = new Map<string, SpanEntity>()
+  for (const span of base) byId.set(span.id, span)
+  for (const span of overrides) byId.set(span.id, span)
+  return Array.from(byId.values())
+}
+
 @Injectable('SpanCacheService')
 @ServicePhase(Phase.WhenReady)
 export class SpanCacheService extends BaseService implements TraceCache, Activatable {
@@ -52,6 +60,9 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
 
   private registerIpcHandlers() {
     this.ipcHandle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => this.saveSpans(topicId))
+    this.ipcHandle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
+      this.getSpans(topicId, traceId, modelName)
+    )
     this.ipcHandle(IpcChannel.TRACE_SAVE_ENTITY, (_, entity: SpanEntity) => this.saveEntity(entity))
     this.ipcHandle(IpcChannel.TRACE_GET_ENTITY, (_, spanId: string) => this.getEntity(spanId))
     this.ipcHandle(IpcChannel.TRACE_BIND_TOPIC, (_, topicId: string, traceId: string) =>
@@ -144,6 +155,18 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
     const events = Array.isArray(span.events) ? [...span.events, event] : [event]
     span.events = events
     this.store.setSpan(span)
+  }
+
+  /**
+   * Spans for a trace, MERGING the flushed history file with the live in-memory store. A container
+   * trace spans many turns: earlier turns are flushed to the file and cleared from memory, while the
+   * in-flight turn lives in memory. Returning only one (the old "live-or-else-history") showed just the
+   * turn in flight; the viewer needs the whole tree, so union both (live wins on shared ids).
+   */
+  async getSpans(topicId: string, traceId: string, modelName?: string) {
+    const live = this.store.getSpans({ topicId, traceId, modelName })
+    const history = await this.getHistoryData(topicId, traceId, modelName)
+    return mergeSpansById(history, live)
   }
 
   async cleanHistoryTrace(topicId: string, traceId: string, modelName?: string) {
@@ -267,7 +290,10 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
   private async flushTrace(topicId: string, traceId: string) {
     const spans = this.store.getSpans({ topicId, traceId })
     if (spans.length === 0) return
-    await this.writeTraceFile(spans, topicId, traceId)
+    // A container trace flushes many turns to the SAME file across the session. Merge with what's
+    // already on disk so each flush ACCUMULATES instead of overwriting earlier turns' spans.
+    const existing = await this.getHistoryData(topicId, traceId)
+    await this.writeTraceFile(mergeSpansById(existing, spans), topicId, traceId)
     this.store.clearTrace(traceId)
   }
 

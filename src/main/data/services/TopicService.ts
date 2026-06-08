@@ -1,5 +1,7 @@
 // Topic CRUD, branch switching, ordering.
 
+import { randomBytes } from 'node:crypto'
+
 import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
@@ -39,6 +41,7 @@ function rowToTopic(row: TopicRow): Topic {
     assistantId: row.assistantId ?? undefined,
     activeNodeId: row.activeNodeId ?? undefined,
     groupId: row.groupId ?? undefined,
+    traceId: row.traceId ?? undefined,
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
@@ -124,6 +127,27 @@ export class TopicService {
     return rowToTopic(row)
   }
 
+  /**
+   * Lazily mint and persist the topic-level OTel trace id — one trace tree per
+   * topic (see trace 重塑). Returns the existing id, or generates a valid 32-hex
+   * traceId and persists it. Runs inside `withWriteTx` so concurrent first turns
+   * serialize and converge on a single trace.
+   */
+  async ensureTraceId(topicId: string): Promise<string> {
+    return application.get('DbService').withWriteTx(async (tx) => {
+      const [row] = await tx
+        .select({ traceId: topicTable.traceId })
+        .from(topicTable)
+        .where(eq(topicTable.id, topicId))
+        .limit(1)
+      if (!row) throw DataApiErrorFactory.notFound('Topic', topicId)
+      if (row.traceId) return row.traceId
+      const traceId = randomBytes(16).toString('hex')
+      await tx.update(topicTable).set({ traceId }).where(eq(topicTable.id, topicId))
+      return traceId
+    })
+  }
+
   async create(dto: CreateTopicDto): Promise<Topic> {
     const db = application.get('DbService').getDb()
     const groupId = dto.groupId ?? null
@@ -163,6 +187,115 @@ export class TopicService {
     }
 
     return rowToTopic(row)
+  }
+
+  async copyBranchToNewTopic(sourceTopicId: string, dto: CopyTopicBranchDto): Promise<Topic> {
+    const dbService = application.get('DbService')
+
+    const copiedTopic = await dbService.withWriteTx(async (tx) => {
+      const [sourceTopic] = await tx
+        .select()
+        .from(topicTable)
+        .where(and(eq(topicTable.id, sourceTopicId), isNull(topicTable.deletedAt)))
+        .limit(1)
+      if (!sourceTopic) throw DataApiErrorFactory.notFound('Topic', sourceTopicId)
+
+      const [sourceNode] = await tx
+        .select({ id: messageTable.id })
+        .from(messageTable)
+        .where(
+          and(eq(messageTable.id, dto.nodeId), eq(messageTable.topicId, sourceTopicId), isNull(messageTable.deletedAt))
+        )
+        .limit(1)
+      if (!sourceNode) throw DataApiErrorFactory.notFound('Message', dto.nodeId)
+
+      const pathIdRows = await tx.all<{ id: string }>(sql`
+        WITH RECURSIVE ancestors AS (
+          SELECT id, parent_id FROM message
+          WHERE id = ${dto.nodeId} AND topic_id = ${sourceTopicId} AND deleted_at IS NULL
+          UNION ALL
+          SELECT m.id, m.parent_id FROM message m
+          INNER JOIN ancestors a ON m.id = a.parent_id
+          WHERE m.topic_id = ${sourceTopicId} AND m.deleted_at IS NULL
+        )
+        SELECT id FROM ancestors
+      `)
+      const pathIds = pathIdRows.map((row) => row.id)
+      if (pathIds.length === 0) throw DataApiErrorFactory.notFound('Message', dto.nodeId)
+
+      const sourceMessageRows = await tx.select().from(messageTable).where(inArray(messageTable.id, pathIds))
+      const sourceMessageById = new Map(sourceMessageRows.map((row) => [row.id, row]))
+      const sourcePathRows = [...pathIds]
+        .reverse()
+        .map((id) => sourceMessageById.get(id))
+        .filter((row): row is typeof messageTable.$inferSelect => Boolean(row))
+
+      if (sourcePathRows.length === 0) {
+        throw DataApiErrorFactory.invalidOperation('copy topic branch', 'No messages to copy')
+      }
+
+      const newTopicRow = (await insertWithOrderKey(
+        tx,
+        topicTable,
+        {
+          name: dto.name ?? sourceTopic.name,
+          assistantId: sourceTopic.assistantId,
+          groupId: sourceTopic.groupId,
+          activeNodeId: null
+        },
+        {
+          pkColumn: topicTable.id,
+          position: 'first',
+          scope: isNull(topicTable.deletedAt)
+        }
+      )) as TopicRow
+
+      const copiedMessageIds = new Map<string, string>()
+      let copiedActiveNodeId: string | null = null
+
+      for (const sourceMessage of sourcePathRows) {
+        const copiedParentId = sourceMessage.parentId ? (copiedMessageIds.get(sourceMessage.parentId) ?? null) : null
+        const [copiedMessage] = await tx
+          .insert(messageTable)
+          .values({
+            topicId: newTopicRow.id,
+            parentId: copiedParentId,
+            role: sourceMessage.role,
+            data: sourceMessage.data,
+            status: sourceMessage.status,
+            siblingsGroupId: 0,
+            modelId: sourceMessage.modelId,
+            modelSnapshot: sourceMessage.modelSnapshot,
+            stats: sourceMessage.stats
+          })
+          .returning()
+
+        copiedMessageIds.set(sourceMessage.id, copiedMessage.id)
+        copiedActiveNodeId = copiedMessage.id
+      }
+
+      if (!copiedActiveNodeId) {
+        throw DataApiErrorFactory.invalidOperation('copy topic branch', 'No active node copied')
+      }
+
+      const [updatedTopicRow] = await tx
+        .update(topicTable)
+        .set({ activeNodeId: copiedActiveNodeId })
+        .where(eq(topicTable.id, newTopicRow.id))
+        .returning()
+      if (!updatedTopicRow) throw DataApiErrorFactory.notFound('Topic', newTopicRow.id)
+
+      return rowToTopic(updatedTopicRow)
+    })
+
+    logger.info('Copied topic branch into new topic', {
+      sourceTopicId,
+      nodeId: dto.nodeId,
+      newTopicId: copiedTopic.id,
+      activeNodeId: copiedTopic.activeNodeId
+    })
+
+    return copiedTopic
   }
 
   /** Pin state and ordering go through `/pins` and `/topics/:id/order` — not this DTO. */

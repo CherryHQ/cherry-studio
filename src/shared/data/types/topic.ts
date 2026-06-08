@@ -33,7 +33,9 @@ export const TopicSchema = z.strictObject({
   activeNodeId: z.string().optional(),
   /** Group ID for organization */
   groupId: z.string().optional(),
-  /** Fractional-indexing order key, partitioned by groupId. */
+  /** Container-level OTel trace id */
+  traceId: z.string().optional(),
+  /** Fractional-indexing order key for the global topic order. */
   orderKey: z.string(),
   /** Creation timestamp (ISO string) */
   createdAt: z.iso.datetime(),

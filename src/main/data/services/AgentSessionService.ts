@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto'
+
 import { application } from '@application'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
@@ -62,7 +64,8 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     name: row.session.name,
     description: row.session.description,
     workspaceId: row.session.workspaceId,
-    workspace: row.workspace ? rowToWorkspace(row.workspace) : null,
+    workspace: row.workspace ? rowToAgentWorkspace(row.workspace) : null,
+    traceId: row.session.traceId,
     orderKey: row.session.orderKey,
     createdAt: timestampToISO(row.session.createdAt),
     updatedAt: timestampToISO(row.session.updatedAt)
@@ -196,6 +199,27 @@ export class AgentSessionService {
       .limit(1)
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
     return rowToSession(row)
+  }
+
+  /**
+   * Lazily mint and persist the session-level OTel trace id — one trace tree per
+   * session (see trace 重塑). Returns the existing id, or generates a valid 32-hex
+   * traceId and persists it. Runs inside `withWriteTx` so concurrent first turns
+   * serialize and converge on a single trace.
+   */
+  async ensureTraceId(sessionId: string): Promise<string> {
+    return application.get('DbService').withWriteTx(async (tx) => {
+      const [row] = await tx
+        .select({ traceId: sessionsTable.traceId })
+        .from(sessionsTable)
+        .where(eq(sessionsTable.id, sessionId))
+        .limit(1)
+      if (!row) throw DataApiErrorFactory.notFound('Session', sessionId)
+      if (row.traceId) return row.traceId
+      const traceId = randomBytes(16).toString('hex')
+      await tx.update(sessionsTable).set({ traceId }).where(eq(sessionsTable.id, sessionId))
+      return traceId
+    })
   }
 
   /**
