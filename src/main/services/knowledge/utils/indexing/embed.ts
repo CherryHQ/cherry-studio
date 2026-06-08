@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import { isCompletedKnowledgeBase } from '@shared/data/types/knowledge'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { type Document as VectorStoreDocument, NodeRelationship, TextNode } from '@vectorstores/core'
 
@@ -61,7 +62,7 @@ function parseEmbeddingModelId(base: KnowledgeBase) {
 }
 
 function assertEmbeddingVectors(base: KnowledgeBase, expectedCount: number, embeddings: number[][]): number[][] {
-  if (typeof base.dimensions !== 'number' || base.dimensions <= 0) {
+  if (!isCompletedKnowledgeBase(base)) {
     throw DataApiErrorFactory.invalidOperation(
       'embed knowledge content',
       `Knowledge base '${base.id}' has no embedding dimensions configured`

@@ -171,6 +171,31 @@ export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value,
 })
 export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
 
+/**
+ * A knowledge base that has finished embedding and is ready for vector-store
+ * operations. Narrows away the states `KnowledgeBaseSchema.superRefine` already
+ * rejects for `status === 'completed'` (null dimensions / embedding model, or a
+ * lingering error), so consumers can read `dimensions` as a plain `number`
+ * instead of re-asserting at each call site.
+ */
+export type CompletedKnowledgeBase = KnowledgeBase & {
+  status: 'completed'
+  dimensions: number
+  embeddingModelId: string
+  error: null
+}
+
+export function isCompletedKnowledgeBase(base: KnowledgeBase): base is CompletedKnowledgeBase {
+  return (
+    base.status === 'completed' &&
+    typeof base.dimensions === 'number' &&
+    Number.isInteger(base.dimensions) &&
+    base.dimensions > 0 &&
+    base.embeddingModelId !== null &&
+    base.error === null
+  )
+}
+
 // ============================================================================
 // Knowledge Item Data
 // ============================================================================
@@ -204,6 +229,7 @@ export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
       'Knowledge-base-relative, POSIX-normalized path for the file actually indexed, such as a processed markdown artifact.'
     )
 })
+export type FileItemData = z.infer<typeof FileItemDataSchema>
 
 /**
  * URL item data.
@@ -226,6 +252,7 @@ export const NoteItemDataSchema = KnowledgeItemSharedSchema.extend({
 export const DirectoryItemDataSchema = KnowledgeItemSharedSchema.extend({
   path: z.string().trim().min(1).describe('Directory path to expand into child file or directory items.')
 })
+export type DirectoryItemData = z.infer<typeof DirectoryItemDataSchema>
 
 /**
  * JSON payload stored in `knowledge_item.data`.

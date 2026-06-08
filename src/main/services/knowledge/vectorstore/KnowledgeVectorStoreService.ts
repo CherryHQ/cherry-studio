@@ -1,7 +1,8 @@
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import type { CompletedKnowledgeBase, KnowledgeBase } from '@shared/data/types/knowledge'
+import { isCompletedKnowledgeBase } from '@shared/data/types/knowledge'
 import { LibSQLVectorStore } from '@vectorstores/libsql'
 
 import { libSqlVectorStoreProvider } from './providers/LibSqlVectorStoreProvider'
@@ -9,8 +10,8 @@ import type { KnowledgeVectorStore } from './types'
 
 const logger = loggerService.withContext('KnowledgeVectorStoreService')
 
-function assertVectorStoreReadyBase(base: KnowledgeBase): asserts base is KnowledgeBase & { dimensions: number } {
-  if (base.status === 'completed' && typeof base.dimensions === 'number' && base.dimensions > 0) {
+function assertVectorStoreReadyBase(base: KnowledgeBase): asserts base is CompletedKnowledgeBase {
+  if (isCompletedKnowledgeBase(base)) {
     return
   }
 

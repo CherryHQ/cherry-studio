@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import { isCompletedKnowledgeBase } from '@shared/data/types/knowledge'
 import type { BaseVectorStore } from '@vectorstores/core'
 import { LibSQLVectorStore } from '@vectorstores/libsql'
 
@@ -18,30 +19,31 @@ const logger = loggerService.withContext('LibSqlVectorStoreProvider')
 
 export class LibSqlVectorStoreProvider implements BaseVectorStoreProvider {
   async create(base: KnowledgeBase): Promise<BaseVectorStore> {
-    if (
-      base.status !== 'completed' ||
-      typeof base.dimensions !== 'number' ||
-      !Number.isInteger(base.dimensions) ||
-      base.dimensions <= 0
-    ) {
+    if (!isCompletedKnowledgeBase(base)) {
       throw DataApiErrorFactory.invalidOperation(
         'createLibSqlVectorStore',
         `Knowledge base '${base.id}' is not ready for vector store operations`
       )
     }
 
-    const dimensions = base.dimensions
     const dbPath = await getKnowledgeVectorStoreFilePath(base.id)
 
     return new LibSQLVectorStore({
       collection: base.id,
-      dimensions,
+      dimensions: base.dimensions,
       clientConfig: {
         url: pathToFileURL(dbPath).toString()
       }
     })
   }
 
+  /**
+   * Remove the knowledge base's on-disk footprint. This deletes the entire base
+   * directory (`feature.knowledgebase.data/{baseId}`) — the copied source files,
+   * processed artifacts, and the `.cherry/index.sqlite` vector store alike — so
+   * it is only safe as part of deleting the whole knowledge base, not for
+   * resetting the vector index while keeping its sources.
+   */
   async delete(baseId: string): Promise<void> {
     const dbPath = getKnowledgeVectorStoreFilePathSync(baseId)
 
