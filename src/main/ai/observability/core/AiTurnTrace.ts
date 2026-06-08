@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
 import type { Attributes, Span, SpanOptions, Tracer } from '@opentelemetry/api'
-import { SpanStatusCode, trace } from '@opentelemetry/api'
+import { ROOT_CONTEXT, SpanStatusCode, trace, TraceFlags } from '@opentelemetry/api'
 import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
 
 import { TRACER_NAME } from '../constants'

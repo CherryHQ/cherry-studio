@@ -50,6 +50,7 @@ export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.ext
   /** Session ID this message belongs to */
   sessionId: z.string(),
   searchableText: z.string(),
+  traceId: z.string().nullable().optional(),
   runtimeResumeToken: z.string().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
