@@ -3,22 +3,17 @@ import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { NormalToolResponse } from '@renderer/types'
 import { Collapse } from 'antd'
-import { Check, ChevronRight, CornerDownRight } from 'lucide-react'
+import { Check, ChevronRight } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { chooseTool } from './chooseTool'
 import { getEffectiveStatus, ToolStatusIndicator } from './MessageAgentTools/GenericTools'
+import type { MetaToolName } from './metaToolNames'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, formatArgValue } from './shared/ArgsTable'
 
-export const META_TOOL_NAMES = ['tool_search', 'tool_inspect', 'tool_invoke', 'tool_exec'] as const
-export type MetaToolName = (typeof META_TOOL_NAMES)[number]
-
-export function isMetaToolName(name: string): name is MetaToolName {
-  return (META_TOOL_NAMES as readonly string[]).includes(name)
-}
+export { isMetaToolName, META_TOOL_NAMES, type MetaToolName } from './metaToolNames'
 
 interface Props {
   toolResponse: NormalToolResponse
@@ -190,16 +185,16 @@ const ToolInspectBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolRespons
 // ── tool_invoke ────────────────────────────────────────────────────
 
 /**
- * Synthesise a NormalToolResponse for the inner tool the model called via
- * `tool_invoke`, then dispatch through `chooseTool` so the inner call gets
- * its proper card (MCP / kb / web / agent / generic-fallback). When the
- * inner tool has no registered card, fall back to a json args+response
- * block instead of leaving the row blank.
+ * `tool_invoke` wraps an inner tool call (`{ name, params }`). The outer card
+ * header already names the inner tool (`tool_invoke · <name>`), so the body
+ * shows the call's input + output flat — not a second nested collapsible card,
+ * which duplicated the name/status and buried the params an extra expand deep.
  */
 const ToolInvokeBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }) => {
   const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
   const innerName = typeof args?.name === 'string' ? args.name : undefined
   const innerParams = isRecord(args?.params) ? args.params : undefined
+  const response = toolResponse.response
 
   if (!innerName) {
     return (
@@ -209,38 +204,15 @@ const ToolInvokeBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse
     )
   }
 
-  const inner: NormalToolResponse = {
-    ...toolResponse,
-    id: `${toolResponse.id}::inner`,
-    tool: { ...toolResponse.tool, name: innerName },
-    arguments: innerParams,
-    response: toolResponse.response
-  }
-
-  const innerRendered = chooseTool(inner)
-
   return (
     <BodyContainer>
-      <InnerHint>
-        <CornerDownRight size={12} /> via <code>tool_invoke</code>
-      </InnerHint>
-      {innerRendered ?? <GenericInner toolResponse={inner} />}
-    </BodyContainer>
-  )
-}
-
-const GenericInner: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }) => {
-  const args = isRecord(toolResponse.arguments) ? toolResponse.arguments : undefined
-  const response = toolResponse.response
-  return (
-    <>
-      <ArgsBlock args={args} />
+      <ArgsBlock args={innerParams} />
       {response !== undefined && response !== null && (
         <ResponseBlock title="Response">
           <CodeBlock>{stringifyResponse(response)}</CodeBlock>
         </ResponseBlock>
       )}
-    </>
+    </BodyContainer>
   )
 }
 
@@ -479,17 +451,6 @@ const Highlighted = styled.div`
     overflow: auto;
     max-height: 300px;
     font-size: 12px;
-  }
-`
-
-const InnerHint = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  color: var(--color-text-3);
-  code {
-    font-family: var(--font-family-mono, monospace);
   }
 `
 

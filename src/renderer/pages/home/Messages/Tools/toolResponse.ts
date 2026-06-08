@@ -1,9 +1,9 @@
 import type { BaseTool, McpTool, McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import type { CherryToolMeta } from '@shared/data/types/uiParts'
-import { readCherryMeta } from '@shared/data/types/uiParts'
-import type { UIMessagePart } from 'ai'
+import type { ProviderMetadata, UIMessagePart } from 'ai'
 import { isToolUIPart } from 'ai'
+
+import { isMetaToolName } from './meta/metaToolNames'
 
 /** AI-SDK-v6 ToolUIPart approval-state string literals. */
 export const APPROVAL_REQUESTED = 'approval-requested'
@@ -99,7 +99,54 @@ function extractCherryToolMetadata(part: CherryMessagePart): ToolMetadata | unde
   return meta?.tool
 }
 
-function resolveToolType(part: ToolPart, toolName: string, metadata?: ToolMetadata): ToolType {
+function isLegacyAgentToolName(toolName: string): boolean {
+  return AGENT_TOOL_NAMES.has(toolName) || toolName.startsWith(AGENT_MCP_TOOLS_PREFIX)
+}
+
+function extractCherryToolMetadataFrom(metadata: ProviderMetadata | undefined): ToolMetadata | undefined {
+  if (!isRecord(metadata)) return undefined
+  const cherry = isRecord(metadata.cherry) ? metadata.cherry : undefined
+  const tool = cherry && isRecord(cherry.tool) ? cherry.tool : undefined
+  if (!tool) return undefined
+  return {
+    description: typeof tool.description === 'string' ? tool.description : undefined,
+    name: typeof tool.name === 'string' ? tool.name : undefined,
+    serverId: typeof tool.serverId === 'string' ? tool.serverId : undefined,
+    serverName: typeof tool.serverName === 'string' ? tool.serverName : undefined,
+    type: isToolType(tool.type) ? tool.type : undefined
+  }
+}
+
+function extractCherryToolMetadata(part: ToolResponsePart): ToolMetadata | undefined {
+  const resultProviderMetadata = 'resultProviderMetadata' in part ? part.resultProviderMetadata : undefined
+  return (
+    extractCherryToolMetadataFrom(part.callProviderMetadata) ?? extractCherryToolMetadataFrom(resultProviderMetadata)
+  )
+}
+
+function extractClaudeParentToolCallIdFrom(metadata: ProviderMetadata | undefined): string | undefined {
+  if (!isRecord(metadata)) return undefined
+  const claudeCode = isRecord(metadata['claude-code']) ? metadata['claude-code'] : undefined
+  const parentToolCallId = claudeCode?.parentToolCallId ?? claudeCode?.parentToolUseId
+  return typeof parentToolCallId === 'string' && parentToolCallId ? parentToolCallId : undefined
+}
+
+function extractParentToolUseId(part: ToolResponsePart): string | undefined {
+  const resultProviderMetadata = 'resultProviderMetadata' in part ? part.resultProviderMetadata : undefined
+  return (
+    extractClaudeParentToolCallIdFrom(part.callProviderMetadata) ??
+    extractClaudeParentToolCallIdFrom(resultProviderMetadata)
+  )
+}
+
+function hasCherryTransport(metadata: ProviderMetadata | undefined): boolean {
+  if (!isRecord(metadata)) return false
+  const cherry = isRecord(metadata.cherry) ? metadata.cherry : undefined
+  return cherry?.transport === CLAUDE_AGENT_TRANSPORT
+}
+
+function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: ToolMetadata): ToolType {
+  if (isMetaToolName(toolName)) return 'builtin'
   if (metadata?.type) return metadata.type
   if (part.type === 'dynamic-tool') return 'mcp'
   if (toolName.startsWith('builtin_')) return 'builtin'

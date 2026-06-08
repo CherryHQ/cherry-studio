@@ -15,6 +15,8 @@ import { MessageWebSearchToolTitle } from './MessageWebSearch'
 const builtinToolsPrefix = 'builtin_'
 const agentMcpToolsPrefix = 'mcp__'
 const agentTools = Object.values(AgentToolsType)
+/** cherry-tools that carry short wire names (no `mcp__` prefix) and lack a bespoke card. */
+const CHERRY_AGENT_TOOL_NAMES = new Set(['web_fetch', 'kb_list', 'memory'])
 
 const isAgentTool = (toolName: AgentToolsType) => {
   if (agentTools.includes(toolName) || toolName.startsWith(agentMcpToolsPrefix)) {
@@ -30,12 +32,17 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
     return <MessageMetaTool toolResponse={toolResponse} />
   }
 
-  // New agentic builtin names (`kb__search`, `web__search`, future `web__fetch`).
-  if (toolName === 'kb__search') {
+  // In-process cherry-tools (web/knowledge/memory) carry short wire names, not the `mcp__` prefix.
+  if (toolName === 'kb_search') {
     return <MessageKnowledgeSearchToolTitle toolResponse={toolResponse} />
   }
-  if (toolName === 'web__search') {
+  if (toolName === 'web_search') {
     return toolType === 'provider' ? null : <MessageWebSearchToolTitle toolResponse={toolResponse} />
+  }
+  // web_fetch / kb_list / memory have no bespoke card yet — render them through the standard
+  // agent tool-call card rather than dropping them.
+  if (CHERRY_AGENT_TOOL_NAMES.has(toolName)) {
+    return <AgentExecutionTimeline toolResponse={toolResponse} />
   }
 
   // Legacy `builtin_*` prefix — kept for historical messages still in DB.
