@@ -616,19 +616,19 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'apiServer.enabled',
-      targetKey: 'feature.csaas.enabled'
+      targetKey: 'feature.api_gateway.enabled'
     },
     {
       originalKey: 'apiServer.host',
-      targetKey: 'feature.csaas.host'
+      targetKey: 'feature.api_gateway.host'
     },
     {
       originalKey: 'apiServer.port',
-      targetKey: 'feature.csaas.port'
+      targetKey: 'feature.api_gateway.port'
     },
     {
       originalKey: 'apiServer.apiKey',
-      targetKey: 'feature.csaas.api_key'
+      targetKey: 'feature.api_gateway.api_key'
     },
     {
       originalKey: 'showMessageOutline',

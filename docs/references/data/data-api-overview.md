@@ -13,12 +13,13 @@ DataApiService handles data that:
 
 ## What DataApi is NOT For
 
-DataApi must not be used as a general-purpose RPC layer. The following categories of operations belong in traditional IPC handlers (`src/main/ipc.ts`) or lifecycle services:
+DataApi must not be used as a general-purpose RPC layer. It is the **data** business-logic layer (persisting and querying records), not the application's business-logic layer. The following categories of operations belong in traditional IPC handlers (`src/main/ipc.ts`) or lifecycle services:
 
 - **System control**: Window management, process control, app configuration changes
 - **External service integration**: OAuth flows, WebDAV/S3 operations, backup/restore workflows
 - **Imperative commands**: Sending notifications, opening URLs, launching external processes
 - **Stateless queries without database backing**: System info, font lists, disk space checks
+- **Side effects bundled into a data write**: fs/network/process/external-service work performed inside a handler or service that also writes the database — no matter how deeply nested (see [Hard Rule: No Non-Data Side Effects](./api-design-guidelines.md#hard-rule-no-non-data-side-effects))
 
 **Why?** DataApi's built-in retry, caching, and layered architecture (Handler → Service → SQLite) are designed for data persistence. These features become harmful or meaningless when applied to side-effectful operations. See [API Design Guidelines — Scope & Boundaries](./api-design-guidelines.md#dataapi-scope--boundaries) for detailed anti-patterns.
 

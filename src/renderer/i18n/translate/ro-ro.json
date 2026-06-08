@@ -785,7 +785,7 @@
       "server_not_running_description": "Serverul API trebuie să fie pornit pentru ca agenții să funcționeze. Îl poți porni direct sau verifica setările."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "Copiază",
       "regenerate": "Regenerează",

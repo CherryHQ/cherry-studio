@@ -342,7 +342,7 @@
     },
     "server": {
       "error": {
-        "not_running": "API 服务器已启用但未正常运行。"
+        "not_running": "API 网关已启用但未正常运行。"
       }
     },
     "session": {
@@ -779,19 +779,19 @@
     },
     "warning": {
       "enable_and_start": "启用并启动",
-      "enable_server": "请启用 API 服务器以使用智能体功能",
-      "enable_server_description": "智能体功能需要启用 API 服务器。你可以直接启用，或前往设置页面进行配置。",
-      "server_not_running": "API 服务器已启用但未运行，请检查服务器配置。",
-      "server_not_running_description": "智能体功能需要 API 服务器运行。你可以直接启动服务器，或前往设置页面检查配置。"
+      "enable_server": "请启用 API 网关以使用智能体功能",
+      "enable_server_description": "智能体功能需要启用 API 网关。你可以直接启用，或前往设置页面进行配置。",
+      "server_not_running": "API 网关已启用但未运行，请检查网关配置。",
+      "server_not_running_description": "智能体功能需要 API 网关运行。你可以直接启动网关，或前往设置页面检查配置。"
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "复制",
       "regenerate": "重新生成",
       "restart": {
         "button": "重启",
-        "tooltip": "重启服务器"
+        "tooltip": "重启网关"
       },
       "start": "启动",
       "stop": "停止"
@@ -801,7 +801,7 @@
     },
     "authHeaderText": "在授权标头中使用：",
     "configuration": "配置",
-    "description": "通过 OpenAI 兼容的 HTTP API 暴露 Cherry Studio 的 AI 功能",
+    "description": "通过 OpenAI 和 Anthropic 兼容的 HTTP API 暴露 Cherry Studio 的 AI 功能",
     "documentation": {
       "title": "API 文档"
     },
@@ -813,8 +813,8 @@
         "placeholder": "API 密钥将自动生成"
       },
       "port": {
-        "description": "HTTP 服务器的 TCP 端口号 (1000-65535)",
-        "helpText": "停止服务器以更改端口",
+        "description": "网关的 TCP 端口号 (1000-65535)",
+        "helpText": "停止网关以更改端口",
         "label": "端口"
       },
       "url": {
@@ -825,22 +825,22 @@
     "messages": {
       "apiKeyCopied": "API 密钥已复制到剪贴板",
       "apiKeyRegenerated": "API 密钥已重新生成",
-      "notEnabled": "API 服务器未启用。",
-      "operationFailed": "API 服务器操作失败：",
-      "restartError": "重启 API 服务器失败：",
-      "restartFailed": "API 服务器重启失败：",
-      "restartSuccess": "API 服务器重启成功",
-      "startError": "启动 API 服务器失败：",
-      "startSuccess": "API 服务器启动成功",
-      "stopError": "停止 API 服务器失败：",
-      "stopSuccess": "API 服务器停止成功",
-      "urlCopied": "服务器 URL 已复制到剪贴板"
+      "notEnabled": "API 网关未启用。",
+      "operationFailed": "API 网关操作失败：",
+      "restartError": "重启 API 网关失败：",
+      "restartFailed": "API 网关重启失败：",
+      "restartSuccess": "API 网关重启成功",
+      "startError": "启动 API 网关失败：",
+      "startSuccess": "API 网关启动成功",
+      "stopError": "停止 API 网关失败：",
+      "stopSuccess": "API 网关停止成功",
+      "urlCopied": "网关 URL 已复制到剪贴板"
     },
     "status": {
       "running": "运行中",
       "stopped": "已停止"
     },
-    "title": "API 服务器"
+    "title": "API 网关"
   },
   "appMenu": {
     "about": "关于",
