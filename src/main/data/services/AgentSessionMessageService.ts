@@ -20,7 +20,7 @@ import {
   AGENT_SESSION_MESSAGES_DEFAULT_LIMIT,
   AGENT_SESSION_MESSAGES_MAX_LIMIT
 } from '@shared/data/api/schemas/agentSessions'
-import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/contentSearch'
+import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import { and, desc, eq, inArray, isNotNull, lt, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 

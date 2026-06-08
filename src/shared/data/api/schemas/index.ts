@@ -25,9 +25,7 @@ import type { AgentSchemas } from './agents'
 import type { AgentSessionSchemas } from './agentSessions'
 import type { AgentWorkspaceSchemas } from './agentWorkspaces'
 import type { AssistantSchemas } from './assistants'
-import type { ContentSearchSchemas } from './contentSearch'
 import type { FileSchemas } from './files'
-import type { GlobalSearchSchemas } from './globalSearch'
 import type { GroupSchemas } from './groups'
 import type { JobSchemas } from './jobs'
 import type { KnowledgeSchemas } from './knowledges'
@@ -40,6 +38,7 @@ import type { PaintingsSchemas } from './paintings'
 import type { PinSchemas } from './pins'
 import type { PromptSchemas } from './prompts'
 import type { ProviderSchemas } from './providers'
+import type { SearchSchemas } from './search'
 import type { SkillSchemas } from './skills'
 import type { TagSchemas } from './tags'
 import type { TemporaryChatSchemas } from './temporaryChats'
@@ -82,6 +81,5 @@ export type ApiSchemas = AssertValidSchemas<
     AgentWorkspaceSchemas &
     AgentChannelSchemas &
     JobSchemas &
-    ContentSearchSchemas &
-    GlobalSearchSchemas
+    SearchSchemas
 >

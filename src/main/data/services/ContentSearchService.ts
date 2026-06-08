@@ -7,12 +7,12 @@ import type {
   ContentSearchQuery,
   ContentSearchResponse,
   ContentSearchSourceType
-} from '@shared/data/api/schemas/contentSearch'
+} from '@shared/data/api/schemas/search'
 import {
   CONTENT_SEARCH_DEFAULT_LIMIT_PER_SOURCE,
   CONTENT_SEARCH_MAX_LIMIT_PER_SOURCE,
   contentSearchSourceTypes
-} from '@shared/data/api/schemas/contentSearch'
+} from '@shared/data/api/schemas/search'
 
 type ContentSearchAdapterInput<T extends ContentSearchSourceType> = {
   q: string

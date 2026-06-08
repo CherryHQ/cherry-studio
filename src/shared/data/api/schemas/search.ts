@@ -1,13 +1,66 @@
 /**
- * Content search read-model API schema.
+ * Search read-model API schemas.
  *
- * This endpoint aggregates searchable content sources and returns grouped
- * results. Each source owns its own cursor so renderer tabs can load more for
- * one group without changing the other groups.
+ * Entity search is navigation-oriented and returns lightweight targets.
+ * Content search is full-text-oriented and keeps per-source cursor semantics.
  */
 
 import type { MessageRole } from '@shared/data/types/message'
 import * as z from 'zod'
+
+export type EntitySearchTarget =
+  | { type: 'assistant'; target: { assistantId: string } }
+  | { type: 'agent'; target: { agentId: string } }
+  | { type: 'topic'; target: { topicId: string; assistantId?: string } }
+  | { type: 'session'; target: { sessionId: string; agentId: string | null } }
+  | { type: 'knowledge-base'; target: { knowledgeBaseId: string } }
+
+export type EntitySearchType = EntitySearchTarget['type']
+export const entitySearchTypes = [
+  'assistant',
+  'agent',
+  'topic',
+  'session',
+  'knowledge-base'
+] as const satisfies readonly EntitySearchType[]
+export const EntitySearchTypeSchema = z.enum(entitySearchTypes)
+export const ENTITY_SEARCH_MAX_LIMIT_PER_TYPE = 200
+
+export const EntitySearchQuerySchema = z.strictObject({
+  q: z.string().trim().min(1),
+  types: z.array(EntitySearchTypeSchema).min(1).optional(),
+  updatedAtFrom: z.iso.datetime().optional(),
+  limitPerType: z.coerce.number().int().positive().max(ENTITY_SEARCH_MAX_LIMIT_PER_TYPE).optional()
+})
+export type EntitySearchQueryParams = z.input<typeof EntitySearchQuerySchema>
+export type EntitySearchQuery = z.output<typeof EntitySearchQuerySchema>
+
+export type EntitySearchItem = {
+  id: string
+  title: string
+  subtitle?: string
+  emoji?: string
+  updatedAt?: string
+} & EntitySearchTarget
+
+export type EntitySearchGroup = {
+  type: EntitySearchType
+  items: EntitySearchItem[]
+}
+
+export type EntitySearchResponse = {
+  query: string
+  groups: EntitySearchGroup[]
+}
+
+export type EntitySearchSchemas = {
+  '/search/entities': {
+    GET: {
+      query: EntitySearchQueryParams
+      response: EntitySearchResponse
+    }
+  }
+}
 
 export const contentSearchSourceTypes = ['topic-message', 'session-message'] as const satisfies readonly string[]
 export type ContentSearchSourceType = (typeof contentSearchSourceTypes)[number]
@@ -86,10 +139,12 @@ export type ContentSearchResponse = {
 }
 
 export type ContentSearchSchemas = {
-  '/content-search': {
+  '/search/content': {
     GET: {
       query: ContentSearchQueryParams
       response: ContentSearchResponse
     }
   }
 }
+
+export type SearchSchemas = EntitySearchSchemas & ContentSearchSchemas

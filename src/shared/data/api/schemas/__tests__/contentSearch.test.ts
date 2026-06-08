@@ -7,7 +7,7 @@ import {
   contentSearchSourceTypes,
   type SessionMessageContentSearchItem,
   type TopicMessageContentSearchItem
-} from '../contentSearch'
+} from '../search'
 
 describe('ContentSearchQuerySchema', () => {
   it('trims q without applying a default limit', () => {

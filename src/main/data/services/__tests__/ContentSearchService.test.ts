@@ -5,7 +5,7 @@ import {
   contentSearchSourceTypes,
   type SessionMessageContentSearchItem,
   type TopicMessageContentSearchItem
-} from '@shared/data/api/schemas/contentSearch'
+} from '@shared/data/api/schemas/search'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { topicSearchMock, sessionSearchMock } = vi.hoisted(() => ({

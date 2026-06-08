@@ -5,20 +5,20 @@ import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { GlobalSearchService } from '@data/services/GlobalSearchService'
+import { EntitySearchService } from '@data/services/EntitySearchService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { GlobalSearchQuerySchema } from '@shared/data/api/schemas/globalSearch'
+import { EntitySearchQuerySchema } from '@shared/data/api/schemas/search'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-describe('GlobalSearchService', () => {
+describe('EntitySearchService', () => {
   const dbh = setupTestDatabase()
-  let service: GlobalSearchService
+  let service: EntitySearchService
 
   beforeEach(async () => {
-    service = new GlobalSearchService()
+    service = new EntitySearchService()
     await seedModelRefs()
   })
 
@@ -39,7 +39,7 @@ describe('GlobalSearchService', () => {
     ])
   }
 
-  async function seedGlobalSearchRows() {
+  async function seedEntitySearchRows() {
     await dbh.db.insert(assistantTable).values({
       id: '11111111-1111-4111-8111-111111111111',
       name: 'Needle Assistant',
@@ -92,9 +92,9 @@ describe('GlobalSearchService', () => {
   }
 
   it('aggregates all supported entity types into read-model groups', async () => {
-    await seedGlobalSearchRows()
+    await seedEntitySearchRows()
 
-    const result = await service.search(GlobalSearchQuerySchema.parse({ q: 'Needle', limitPerType: 5 }))
+    const result = await service.search(EntitySearchQuerySchema.parse({ q: 'Needle', limitPerType: 5 }))
 
     expect(result.query).toBe('Needle')
     expect(result).not.toHaveProperty('messageItems')
@@ -162,7 +162,7 @@ describe('GlobalSearchService', () => {
   })
 
   it('honors type filters and limitPerType', async () => {
-    await seedGlobalSearchRows()
+    await seedEntitySearchRows()
     await dbh.db.insert(agentSessionTable).values({
       id: '66666666-6666-4666-8666-666666666666',
       agentId: '22222222-2222-4222-8222-222222222222',
@@ -172,7 +172,7 @@ describe('GlobalSearchService', () => {
     })
 
     const result = await service.search(
-      GlobalSearchQuerySchema.parse({ q: 'Needle', types: ['session'], limitPerType: 1 })
+      EntitySearchQuerySchema.parse({ q: 'Needle', types: ['session'], limitPerType: 1 })
     )
 
     expect(result.groups).toHaveLength(1)
@@ -181,7 +181,7 @@ describe('GlobalSearchService', () => {
   })
 
   it('orders assistant matches by updatedAt', async () => {
-    await seedGlobalSearchRows()
+    await seedEntitySearchRows()
     const oldUpdatedAt = Date.parse('2026-04-01T00:00:00.000Z')
     const freshUpdatedAt = Date.parse('2026-05-10T00:00:00.000Z')
 
@@ -199,7 +199,7 @@ describe('GlobalSearchService', () => {
     })
 
     const result = await service.search(
-      GlobalSearchQuerySchema.parse({ q: 'Needle', types: ['assistant'], limitPerType: 5 })
+      EntitySearchQuerySchema.parse({ q: 'Needle', types: ['assistant'], limitPerType: 5 })
     )
 
     expect(result.groups[0].items.map((item) => item.id)).toEqual([
@@ -209,7 +209,7 @@ describe('GlobalSearchService', () => {
   })
 
   it('filters matches by updatedAtFrom when provided', async () => {
-    await seedGlobalSearchRows()
+    await seedEntitySearchRows()
     const oldUpdatedAt = Date.parse('2026-04-01T00:00:00.000Z')
     const freshUpdatedAt = Date.parse('2026-05-10T00:00:00.000Z')
 
@@ -227,7 +227,7 @@ describe('GlobalSearchService', () => {
     })
 
     const result = await service.search(
-      GlobalSearchQuerySchema.parse({
+      EntitySearchQuerySchema.parse({
         q: 'Needle',
         types: ['assistant'],
         limitPerType: 5,
@@ -250,7 +250,7 @@ describe('GlobalSearchService', () => {
   })
 
   it('returns empty item groups when no entity matches', async () => {
-    const result = await service.search(GlobalSearchQuerySchema.parse({ q: 'missing', limitPerType: 2 }))
+    const result = await service.search(EntitySearchQuerySchema.parse({ q: 'missing', limitPerType: 2 }))
 
     expect(result.groups.map((group) => [group.type, group.items])).toEqual([
       ['assistant', []],

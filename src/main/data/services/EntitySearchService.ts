@@ -7,22 +7,22 @@ import { assistantDataService } from '@data/services/AssistantService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { topicService } from '@data/services/TopicService'
 import type {
-  GlobalSearchGroup,
-  GlobalSearchItem,
-  GlobalSearchQuery,
-  GlobalSearchResponse,
-  GlobalSearchType
-} from '@shared/data/api/schemas/globalSearch'
-import { GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE, globalSearchTypes } from '@shared/data/api/schemas/globalSearch'
+  EntitySearchGroup,
+  EntitySearchItem,
+  EntitySearchQuery,
+  EntitySearchResponse,
+  EntitySearchType
+} from '@shared/data/api/schemas/search'
+import { ENTITY_SEARCH_MAX_LIMIT_PER_TYPE, entitySearchTypes } from '@shared/data/api/schemas/search'
 import { and, inArray, isNull } from 'drizzle-orm'
 
-const GLOBAL_SEARCH_DEFAULT_LIMIT_PER_TYPE = 50
+const ENTITY_SEARCH_DEFAULT_LIMIT_PER_TYPE = 50
 
-type GlobalSearchSourceAdapter = (
+type EntitySearchSourceAdapter = (
   q: string,
   limit: number,
   updatedAtFromMs: number | undefined
-) => Promise<GlobalSearchItem[]>
+) => Promise<EntitySearchItem[]>
 
 function getUpdatedAtFromMs(updatedAtFrom: string | undefined): number | undefined {
   if (!updatedAtFrom) return undefined
@@ -36,28 +36,28 @@ function getAgentAvatar(configuration: unknown): string | undefined {
   return typeof avatar === 'string' ? avatar : undefined
 }
 
-export class GlobalSearchService {
+export class EntitySearchService {
   private readonly sourceAdapters = {
     assistant: (q, limit, updatedAtFromMs) => this.searchAssistants(q, limit, updatedAtFromMs),
     agent: (q, limit, updatedAtFromMs) => this.searchAgents(q, limit, updatedAtFromMs),
     topic: (q, limit, updatedAtFromMs) => this.searchTopics(q, limit, updatedAtFromMs),
     session: (q, limit, updatedAtFromMs) => this.searchSessions(q, limit, updatedAtFromMs),
     'knowledge-base': (q, limit, updatedAtFromMs) => this.searchKnowledgeBases(q, limit, updatedAtFromMs)
-  } satisfies Record<GlobalSearchType, GlobalSearchSourceAdapter>
+  } satisfies Record<EntitySearchType, EntitySearchSourceAdapter>
 
   private get db() {
     return application.get('DbService').getDb()
   }
 
-  async search(query: GlobalSearchQuery): Promise<GlobalSearchResponse> {
-    const requestedTypes = new Set(query.types ?? globalSearchTypes)
-    const types = globalSearchTypes.filter((type) => requestedTypes.has(type))
+  async search(query: EntitySearchQuery): Promise<EntitySearchResponse> {
+    const requestedTypes = new Set(query.types ?? entitySearchTypes)
+    const types = entitySearchTypes.filter((type) => requestedTypes.has(type))
     const updatedAtFromMs = getUpdatedAtFromMs(query.updatedAtFrom)
-    const limit = Math.min(query.limitPerType ?? GLOBAL_SEARCH_DEFAULT_LIMIT_PER_TYPE, GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE)
+    const limit = Math.min(query.limitPerType ?? ENTITY_SEARCH_DEFAULT_LIMIT_PER_TYPE, ENTITY_SEARCH_MAX_LIMIT_PER_TYPE)
 
     const groups = await Promise.all(
       types.map(
-        async (type): Promise<GlobalSearchGroup> => ({
+        async (type): Promise<EntitySearchGroup> => ({
           type,
           items: await this.sourceAdapters[type](query.q, limit, updatedAtFromMs)
         })
@@ -74,7 +74,7 @@ export class GlobalSearchService {
     q: string,
     limit: number,
     updatedAtFromMs: number | undefined
-  ): Promise<GlobalSearchItem[]> {
+  ): Promise<EntitySearchItem[]> {
     const { items } = await assistantDataService.list({
       search: q,
       page: 1,
@@ -99,7 +99,7 @@ export class GlobalSearchService {
     q: string,
     limit: number,
     updatedAtFromMs: number | undefined
-  ): Promise<GlobalSearchItem[]> {
+  ): Promise<EntitySearchItem[]> {
     const { agents } = await agentService.listAgents({
       search: q,
       limit,
@@ -124,7 +124,7 @@ export class GlobalSearchService {
     q: string,
     limit: number,
     updatedAtFromMs: number | undefined
-  ): Promise<GlobalSearchItem[]> {
+  ): Promise<EntitySearchItem[]> {
     const items = await topicService.listRecentSearchMatches({ q, limit, updatedAtFrom: updatedAtFromMs })
 
     const assistantNames = await this.getAssistantNameMap(items.map((item) => item.assistantId))
@@ -142,7 +142,7 @@ export class GlobalSearchService {
     q: string,
     limit: number,
     updatedAtFromMs: number | undefined
-  ): Promise<GlobalSearchItem[]> {
+  ): Promise<EntitySearchItem[]> {
     const items = await agentSessionService.listRecentSearchMatches({
       search: q,
       limit,
@@ -164,7 +164,7 @@ export class GlobalSearchService {
     q: string,
     limit: number,
     updatedAtFromMs: number | undefined
-  ): Promise<GlobalSearchItem[]> {
+  ): Promise<EntitySearchItem[]> {
     const { items } = await knowledgeBaseService.list({
       search: q,
       page: 1,
@@ -208,4 +208,4 @@ export class GlobalSearchService {
   }
 }
 
-export const globalSearchService = new GlobalSearchService()
+export const entitySearchService = new EntitySearchService()
