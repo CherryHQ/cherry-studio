@@ -4,7 +4,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useCommandHandler } from '@renderer/features/command'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
-import { useApiServer } from '@renderer/hooks/useApiServer'
+import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -26,7 +26,7 @@ const AgentPage = () => {
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { topicPosition } = useSettings()
   const { agents } = useAgents()
-  const { apiServerConfig, apiServerRunning, apiServerLoading } = useApiServer()
+  const { apiGatewayConfig, apiGatewayRunning, apiGatewayLoading } = useApiGateway()
   const { t } = useTranslation()
 
   // Seed `agent.active_session_id` to the most-recent session when nothing is set.
@@ -56,7 +56,7 @@ const AgentPage = () => {
     }
   }, [showSidebar])
 
-  if (!apiServerConfig.enabled) {
+  if (!apiGatewayConfig.enabled) {
     return (
       <Container>
         <Navbar>
@@ -67,7 +67,7 @@ const AgentPage = () => {
     )
   }
 
-  if (!apiServerLoading && !apiServerRunning) {
+  if (!apiGatewayLoading && !apiGatewayRunning) {
     return (
       <Container>
         <Navbar>
