@@ -1,4 +1,5 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -809,6 +810,33 @@ describe('AiStreamManager', () => {
       expect(listener.pausedResults[0].status).toBe('paused')
       expect(mgr.inspect('a')!.status).toBe('aborted')
     })
+
+    it('pauses the idle timer while a tool is awaiting approval — a long deliberation is not killed', async () => {
+      vi.useRealTimers()
+
+      const controlled = controlledStream()
+      mockStreamText.mockImplementationOnce(async () => controlled.stream)
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: { ...req('a'), requestOptions: { timeout: 30 } },
+        listeners: [listener]
+      })
+
+      // The approval-request chunk flows through the loop's onChunk callback,
+      // which calls `idle.cleanup()`. The stream then stays open with no further
+      // chunks (the human is deliberating).
+      controlled.enqueue({ type: 'start' } as UIMessageChunk)
+      controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' } as UIMessageChunk)
+
+      // Wait well past the 30ms idle timeout — with the timer paused, no abort.
+      await new Promise((resolve) => setTimeout(resolve, 90))
+
+      expect(listener.pausedResults).toHaveLength(0)
+      expect(mgr.inspect('a')!.status).not.toBe('aborted')
+    })
   })
 
   // ── live finalMessage accumulation ──────────────────────────────
@@ -1182,6 +1210,62 @@ describe('AiStreamManager', () => {
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
       expect(mgr.inspect('t')!.status).toBe('done')
       expect(mgr.inspect('t')!.status).not.toBe('awaiting-approval')
+    })
+
+    // ── Teardown clears the awaiting-approval flag (no manager-side settle) ──
+    //
+    // A turn torn down (paused/errored) while a tool is `approval-requested`
+    // gets no `tool-output-*` to clear it. The manager only clears the flag so
+    // the status resolves to plain aborted/error and the `awaitingApprovalAnchors`
+    // anchor drops; the dangling tool part is terminalized to `output-error` by
+    // `finalizeInterruptedParts` (persistence already, re-attach below) — NOT by
+    // the manager minting a chunk or rewriting `finalMessage`.
+
+    /** Drive a `tool-approval-request` so the exec is awaiting approval; return the private exec. */
+    const startAwaitingApproval = (topicId: string, modelId: UniqueModelId) => {
+      mgr.onChunk(topicId, modelId, { type: 'tool-approval-request' } as UIMessageChunk)
+      // biome-ignore lint/suspicious/noExplicitAny: reach the private exec to drive the abort path
+      return (mgr as any).activeStreams.get(topicId).executions.get(modelId)
+    }
+
+    const anchorsOf = (topicId: string) =>
+      (sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as { awaitingApprovalAnchors?: unknown[] } | undefined)
+        ?.awaitingApprovalAnchors ?? []
+
+    it('onExecutionPaused while awaiting approval clears the flag → status aborted, anchor dropped, no minted chunk', async () => {
+      const listener = new FakeListener('l:t')
+      startSingle(mgr, { topicId: 't', modelId: 'p::m', request: req('t'), listeners: [listener] })
+
+      const exec = startAwaitingApproval('t', 'p::m')
+      exec.status = 'aborted'
+      await mgr.onExecutionPaused('t', 'p::m')
+
+      expect(mgr.inspect('t')!.status).toBe('aborted')
+      expect(anchorsOf('t')).toEqual([])
+      // The manager does not fabricate a settle chunk — finalize owns that.
+      expect(listener.chunks.some((c) => c.type === 'tool-output-denied' || c.type === 'tool-output-error')).toBe(false)
+    })
+
+    it('onExecutionError while awaiting approval clears the flag → status error, anchor dropped', async () => {
+      const listener = new FakeListener('l:t')
+      startSingle(mgr, { topicId: 't', modelId: 'p::m', request: req('t'), listeners: [listener] })
+
+      startAwaitingApproval('t', 'p::m')
+      await mgr.onExecutionError('t', 'p::m', error('boom'))
+
+      expect(mgr.inspect('t')!.status).toBe('error')
+      expect(anchorsOf('t')).toEqual([])
+    })
+
+    it('onExecutionDone while awaiting approval keeps awaiting-approval (MCP continue)', async () => {
+      const listener = new FakeListener('l:t')
+      startSingle(mgr, { topicId: 't', modelId: 'p::m', request: req('t'), listeners: [listener] })
+
+      startAwaitingApproval('t', 'p::m')
+      await mgr.onExecutionDone('t', 'p::m')
+
+      expect(mgr.inspect('t')!.status).toBe('awaiting-approval')
+      expect(anchorsOf('t')).toHaveLength(1)
     })
 
     it('multi-model: flips on first chunk from any execution and stays pending if an execution errors before any chunks', async () => {
