@@ -1,5 +1,14 @@
 # Agent 06 Review: Workflow Jobs And Recovery
 
+> 状态(2026-06-08): 本评审写于实现之前。部分"当前状态"描述已被 baseline + 顺手改动改变(详见 ../../../drift-report-2026-06-08.md)。本篇仍作为待执行计划的依据阅读。
+>
+> baseline 现状校准(本篇相关):
+> - job payload 已去掉 `sourceFileEntryId`/`processedFileEntryId`,归属用 `context.dataId === itemId` 校验(`jobs/jobTypes.ts`);scheduleItem 已用 path-based 文件处理(`FileHandle`/path)。本篇关于移除这些字段的内容多数已具备地基。
+> - 删除 leaf/容器/base 顺序(向量→文件→最后删 row;删 base 前先 close store)、启动恢复 deleting items 均已落地。
+> - 但 `replaceByExternalId`/`deleteByIdAndExternalId` 等向量清理仍走旧 `external_id` API(`KnowledgeIndexStore` 的 `rebuildMaterial`/`deleteMaterial` 仍未实现);本篇把清理切换到 material 级的内容仍是未来工作。
+> - `deleteItemChunk` 仍全链路可用,本篇"移除/unsupported"为未来项。
+> - index 库已位于 `{baseId}/.cherry/index.sqlite`(baseline 已采用隐藏布局,移动已发生);本篇凡写 `{baseId}/index.sqlite` 的位置按 `.cherry` 嵌套布局理解。
+
 ## 1. Conclusion
 
 The workflow/job layer can survive the move from `FileEntry` / vector `external_id` facts to base-relative paths and material ids, but it must be changed as one coordinated slice. The most important rule is to preserve the current guard and recovery model while replacing the payload and storage facts underneath it:

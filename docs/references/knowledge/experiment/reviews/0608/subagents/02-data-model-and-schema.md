@@ -1,5 +1,13 @@
 # Agent 02 Review: Data Model And Schema
 
+> 状态(2026-06-08): 本评审写于实现之前。部分"当前状态"描述已被 baseline + 顺手改动改变(详见 ../../../drift-report-2026-06-08.md)。本篇仍作为待执行计划的依据阅读。
+>
+> baseline 现状校准(本篇相关):
+> - file leaf 数据模型已落地为 `{ source, relativePath, indexedRelativePath? }`,`fileEntryId` 已从 knowledge 移除(`knowledge.ts:210-232`);`KnowledgeItemService.create` 不再写 `file_ref`,`updateIndexedRelativePath` 已取代 `replaceFileRef`。本篇下文据此读"已具备地基"。
+> - `KnowledgeIndexStore` + material 模型 + 9 表 `index.sqlite` 仍待执行:运行时仍是单表 `libsql_vectorstores_embedding` + `external_id` API。本篇关于 material/material_id 的内容是计划目标,不是现状。
+> - 相对路径安全校验落在主进程 helper `assertSafeKnowledgeRelativePath`(`pathStorage.ts:98-111`),zod 仅做形状校验;本篇"central relative-path schema"应理解为 helper 层为权威边界。
+> - sitemap 已不再作为独立 item 类型(`KNOWLEDGE_ITEM_TYPES = ['file','url','note','directory']`);v1 sitemap 迁移为 `url`。本篇涉及 sitemap item / 其数据形态的内容按此校准。
+
 Date: 2026-06-07
 
 ## 1. Conclusion
@@ -206,7 +214,7 @@ Secondary high-volume modules:
 New knowledge index store module, likely replacing or wrapping `src/main/services/knowledge/vectorstore/*`
 
 - Initialize the 9 target tables from `index-sqlite-schema-design.md`: `index_meta`, `material`, `material_relation`, `content`, `search_unit`, `content_index_entry`, `search_text`, `embedding`, `search_text_fts`.
-- Current v2 should use `KnowledgeBase/{baseId}/index.sqlite`; v2.x later moves this to `.cherry/index.sqlite`.
+- The per-base index file already lives at `KnowledgeBase/{baseId}/.cherry/index.sqlite` (baseline adopted `.cherry` directly; no later move). The 9-table store is still future work, but its target path is this `.cherry` nested layout.
 - On open, verify `index_meta.base_id === baseId`.
 - For every current-v2 leaf `knowledge_item`, create/upsert `material.material_id = knowledge_item.id`.
 - `material.relative_path` should point to the actual file being indexed: `indexedRelativePath` when present, otherwise `relativePath`.

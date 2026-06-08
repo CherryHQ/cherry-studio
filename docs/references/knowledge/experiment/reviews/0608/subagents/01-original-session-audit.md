@@ -1,5 +1,7 @@
 # Agent 01 Original Session Audit
 
+> 状态(2026-06-08): 本评审写于实现之前。部分"当前状态"描述已被 baseline + 顺手改动改变(详见 ../../../drift-report-2026-06-08.md)。本篇仍作为待执行计划的依据阅读。
+
 Date: 2026-06-07
 
 ## 1. Conclusion
@@ -45,7 +47,7 @@ No product source files under `src/`, `packages/`, `migrations/`, or `tests/` we
 ## 3. Confirmed Decisions Represented Correctly
 
 - Current v2 keeps global `knowledge_base` and `knowledge_item`; v2.x later moves material truth toward the real folder plus per-base index.
-- Current v2 uses `KnowledgeBase/{baseId}/index.sqlite`; v2.x later moves it to `KnowledgeBase/{baseId}/.cherry/index.sqlite`.
+- Current v2 already stores the per-base index at `KnowledgeBase/{baseId}/.cherry/index.sqlite` (baseline adopted the hidden `.cherry` layout directly; the earlier "root now, move in v2.x" split no longer applies).
 - `knowledge_item.id = material.material_id` in current v2. v1 migration should preserve legal old `knowledge_item.id` values when possible.
 - `search_unit.material_id` is correct in the current docs. The session first considered content-only units, then later chose material-bound units for current-v2 feasibility and Agent locator clarity.
 - FileManager `file_entry` and knowledge `file_ref` should no longer be the material identity for knowledge items.

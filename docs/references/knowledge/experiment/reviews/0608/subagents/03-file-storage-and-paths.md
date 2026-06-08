@@ -1,5 +1,14 @@
 # Agent 03 Review: File Storage And Paths
 
+> 状态(2026-06-08): 本评审写于实现之前。部分"当前状态"描述已被 baseline + 顺手改动改变(详见 ../../../drift-report-2026-06-08.md)。本篇仍作为待执行计划的依据阅读。
+>
+> baseline 现状校准(本篇相关):
+> - 中心化路径模块已落地为 `src/main/services/knowledge/utils/storage/pathStorage.ts`(**是函数模块,不是 `KnowledgeBaseFileService` class**);本篇假设的 `resolveMaterialPath` 实际叫 `getKnowledgeBaseFilePath`。
+> - `index.sqlite` 已在 `{baseId}/.cherry/index.sqlite`(`pathStorage.ts:8-28`),不是 `{baseId}/index.sqlite`;"当前 v2 放根目录、v2.x 再移进 `.cherry/`"这一步已不存在,移动已经发生。本篇下文涉及 `{baseId}/index.sqlite` 与"未来移动"的描述按此校准。
+> - 冲突策略已落地为 **reject-on-conflict**("Knowledge file already exists",`pathStorage.ts:122-133`),不是 keep-both 自动生成 `_2/_3`;仅 v1 迁移器去重(用 `-N` 连字符)。本篇 keep-both 段落作为未来选项保留,但 baseline 现状是报错 + reservedPaths 预检。
+> - 文件拷入 base、create 不再 `ensureExternalEntry`/不写 `file_ref`、目录导入子树路径命名空间(跳过 dotfile)均已具备地基。
+> - sitemap 已不再作为独立 item 类型(`KNOWLEDGE_ITEM_TYPES = ['file','url','note','directory']`);v1 sitemap 迁移为 `url`,不再有 sitemap 专属的文件/快照存储路径。
+
 ## 1. Conclusion
 
 Conditionally feasible. The smallest safe boundary is a main-process, knowledge-owned file/path helper, not FileManager and not raw `application.getPath(..., filename)` calls at each consumer. It should be the single owner for:

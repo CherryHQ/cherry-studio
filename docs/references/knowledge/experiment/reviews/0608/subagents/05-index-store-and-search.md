@@ -1,5 +1,12 @@
 # Agent 05 Review: Index Store and Search
 
+> 状态(2026-06-08): 本评审写于实现之前。部分"当前状态"描述已被 baseline + 顺手改动改变(详见 ../../../drift-report-2026-06-08.md)。本篇仍作为待执行计划的依据阅读。
+>
+> baseline 现状校准(本篇相关):
+> - `KnowledgeIndexStore` + material 模型 + 9 表 `index.sqlite`(`rebuildMaterial`/`deleteMaterial`/`listMaterialUnits`/`index_meta`/`unit_id`/chunk offset/embedding GC 等)**尚未实现**,仍是本篇要执行的核心计划。运行时仍是单表 `libsql_vectorstores_embedding` + `external_id` API(`replaceByExternalId`/`listByExternalId`/`deleteByIdAndExternalId`,`packages/vectorstores/libsql`)。本篇关于这些 API 与表结构的"现状"描述准确(仍是旧形态);其余 material 化内容为目标,非现状。
+> - `index.sqlite` 路径已是 `{baseId}/.cherry/index.sqlite`(不是本篇多处写的 `{baseId}/index.sqlite`),后续 store 实现应直接以 `.cherry` 嵌套布局为目标。
+> - `deleteItemChunk` 仍全链路可用;本篇"移除/unsupported"是绑定 material 模型落地的未来项,baseline 当前仍可用。
+
 ## 1. Conclusion
 
 Add a knowledge-specific `KnowledgeIndexStore`; do not rewrite `packages/vectorstores/libsql` as the primary migration path.

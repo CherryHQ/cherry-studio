@@ -17,7 +17,9 @@ Date: 2026-06-08
 
 ## 2. 当前任务状态
 
-已完成：
+> 状态(2026-06-08): 原 handoff 写于「实现尚未开始」的前提，该前提已部分失效。baseline 在按 v2 原本计划正常实现、并为后续接入顺手做了一些改动后，**未来计划所需的不少地基已经具备**；但**核心索引层（material 模型 / `KnowledgeIndexStore`）仍未开始，仍是要执行的计划**。下面按 as-built 现状重列。
+
+文档与评审已完成：
 
 - 完整 `index.sqlite` schema 设计。
 - 当前 v2 改造技术方案。
@@ -25,18 +27,27 @@ Date: 2026-06-08
 - 10-subagent 评审协议 handoff。
 - 10 个 subagent 的评审报告和最终共识报告。
 
-尚未开始：
+已具备的地基（baseline / 顺手已实现，后续在其上继续）：
 
-- 没有开始产品代码实现。
-- 没有开始 POC。
-- 没有拆实现 PR。
-- 没有跑实现相关测试。
+- file leaf 数据模型 `{ source, relativePath, indexedRelativePath? }`，`fileEntryId` 已从 knowledge 移除。
+- 中心化路径模块 `pathStorage.ts`（函数模块，非 class）+ 相对路径安全校验 `assertSafeKnowledgeRelativePath`（主进程 helper 层）。
+- 用户上传文件已拷入 `KnowledgeBase/{baseId}/`，create 不再写 knowledge `file_ref`；`index.sqlite` 已在 `{baseId}/.cherry/index.sqlite`。
+- path-based 文件处理（`FileHandle` / `output.kind = path` / `context.dataId`）+ 持久化恢复 + 原子写 markdown + MinerU 仅 dataId；job payload 已去 FileEntry。
+- 编排服务 `KnowledgeService`（IPC + 恢复）+ `KnowledgeWorkflowService`（调度）；目录导入保留子树路径、跳过 dotfile；删除 / 启动恢复顺序正确。
+- v1 迁移把上传文件拷入 base 目录、写 relativePath、不写 knowledge file_ref；渲染层去 FileEntry。
+
+仍待执行（核心计划，尚未开始）：
+
+- 9 表 `index.sqlite` + material 模型 + `KnowledgeIndexStore`（`rebuildMaterial` / `deleteMaterial` / `listMaterialUnits`）+ `index_meta` + `unit_id` + chunk offset + embedding GC。当前运行时仍是旧单表 `libsql_vectorstores_embedding` + `external_id` API。
+- url / note 的 Markdown 快照（`captures/url`、`captures/note`）：当前 url 每次 reindex 联网抓取、note 读 inline `data.content`。
+- material scanner、Agent-first material result、`read(locator)`（不属于当前 v2 必做项）。
+- v1 迁移写新 `index.sqlite` 形态（向量孤立 bug 已修复 `a6128a6da9`；仍写旧单表格式，见第 8 节）。
+- 没有拆实现 PR；没有知识库 E2E（index 相关测试因模型未建而无法写）。
 
 当前边界：
 
-- 现在仍是方案规划和上下文对齐阶段。
-- 不要直接修改产品代码、测试代码、schema 或迁移。
-- 如果要继续推进，应先阅读本文第 3 节全部入口，再确认下一步是“评审”“拆 issue”还是“做 POC”。
+- 不要直接修改产品代码、测试代码、schema 或迁移，除非任务明确要求推进 material 层。
+- 如果要继续推进，应先阅读本文第 3 节全部入口，再确认下一步是「评审」「拆 issue」还是「做 POC A（material 层）」。
 
 ## 3. 必读材料
 
@@ -47,16 +58,16 @@ Date: 2026-06-08
 1. [当前 v2 知识库改造技术方案](./current-v2-knowledge-index-migration-plan.md)
 2. [知识库 index.sqlite 表结构设计](./index-sqlite-schema-design.md)
 3. [当前 v2 知识库改造可行性评审 handoff](./handoff-current-v2-knowledge-review-2026-06-06.md)
-4. [最终评审报告](./reviews/final.md)
-5. [Agent 10 总架构师评审](./reviews/subagents/10-chief-architect.md)
+4. [最终评审报告](./reviews/0608/final.md)
+5. [Agent 10 总架构师评审](./reviews/0608/subagents/10-chief-architect.md)
 
 产品和上下游背景：
 
 - [Agent 管理型知识库产品文档](./agent-managed-knowledge-product.md)
 - [Knowledge UI Presentation](./knowledge-ui-presentation-options.md)
-- [KnowledgeService](./knowledge-service.md)
-- [Knowledge Operation Guards](./operation-guards.md)
-- [Knowledge Workflow Architecture](./workflow-architecture.md)
+- [KnowledgeService](../knowledge-service.md)
+- [Knowledge Operation Guards](../operation-guards.md)
+- [Knowledge Workflow Architecture](../workflow-architecture.md)
 - [Knowledge Base Product Handoff](./handoff-knowledge-base-product-2026-06-06.md)
 
 ### 3.2 飞书文档
@@ -89,17 +100,17 @@ Date: 2026-06-08
 
 10-subagent 评审产物：
 
-- [01 原始会话审计](./reviews/subagents/01-original-session-audit.md)
-- [02 数据模型与 schema](./reviews/subagents/02-data-model-and-schema.md)
-- [03 文件存储与路径](./reviews/subagents/03-file-storage-and-paths.md)
-- [04 FileProcessing 与 MinerU](./reviews/subagents/04-file-processing-and-mineru.md)
-- [05 IndexStore 与搜索](./reviews/subagents/05-index-store-and-search.md)
-- [06 Workflow、Jobs 与恢复](./reviews/subagents/06-workflow-jobs-and-recovery.md)
-- [07 迁移、删除与恢复](./reviews/subagents/07-migration-delete-restore.md)
-- [08 UI、Preload 与 IPC](./reviews/subagents/08-ui-preload-ipc.md)
-- [09 测试与 rollout](./reviews/subagents/09-testing-and-rollout.md)
-- [10 总架构师](./reviews/subagents/10-chief-architect.md)
-- [最终共识报告](./reviews/final.md)
+- [01 原始会话审计](./reviews/0608/subagents/01-original-session-audit.md)
+- [02 数据模型与 schema](./reviews/0608/subagents/02-data-model-and-schema.md)
+- [03 文件存储与路径](./reviews/0608/subagents/03-file-storage-and-paths.md)
+- [04 FileProcessing 与 MinerU](./reviews/0608/subagents/04-file-processing-and-mineru.md)
+- [05 IndexStore 与搜索](./reviews/0608/subagents/05-index-store-and-search.md)
+- [06 Workflow、Jobs 与恢复](./reviews/0608/subagents/06-workflow-jobs-and-recovery.md)
+- [07 迁移、删除与恢复](./reviews/0608/subagents/07-migration-delete-restore.md)
+- [08 UI、Preload 与 IPC](./reviews/0608/subagents/08-ui-preload-ipc.md)
+- [09 测试与 rollout](./reviews/0608/subagents/09-testing-and-rollout.md)
+- [10 总架构师](./reviews/0608/subagents/10-chief-architect.md)
+- [最终共识报告](./reviews/0608/final.md)
 
 ## 4. 一句话背景
 
@@ -107,20 +118,9 @@ Date: 2026-06-08
 
 ## 5. 核心目标
 
-当前 v2 改造后的目录：
+> 状态(2026-06-08): baseline 已直接采用隐藏布局，`index.sqlite` 已在 `{baseId}/.cherry/index.sqlite`，原先「v2 放根目录、v2.x 再移动」的区分已作废。`captures/url`、`captures/note` 快照仍待实现（当前 url 每次联网抓取、note 读 inline）。
 
-```text
-KnowledgeBase/
-  {baseId}/
-    index.sqlite
-    user-file.pdf
-    user-file.md
-    captures/
-      url/
-      note/
-```
-
-未来 v2.x 目录：
+当前 v2 的目录（已采用 v2.x 隐藏布局）：
 
 ```text
 KnowledgeBase/
@@ -129,19 +129,12 @@ KnowledgeBase/
       index.sqlite
     user-file.pdf
     user-file.md
-    captures/
+    captures/          # 仍待实现
       url/
       note/
 ```
 
-期望 v2 -> v2.x 切换时尽量只移动：
-
-```text
-KnowledgeBase/{baseId}/index.sqlite
-  -> KnowledgeBase/{baseId}/.cherry/index.sqlite
-```
-
-不重新复制用户文件，不重新切 chunk，不重嵌入。
+索引库已在 `.cherry/` 下，v2 -> v2.x 切换无需再移动 `index.sqlite`。整体目标仍是：用户文件无需重复复制、chunk 无需重切、向量无需重嵌（material 层落地后由 `index_meta` snapshot 选择性重嵌保证）。
 
 ## 6. 已确认的关键决策
 
@@ -150,10 +143,11 @@ KnowledgeBase/{baseId}/index.sqlite
 - 保留全局 `knowledge_base`。
 - 保留全局 `knowledge_item`，当前 v2 UI 仍依赖它。
 - `knowledge_item.id = material.material_id`。
-- 用户上传文件直接复制到 `KnowledgeBase/{baseId}/`。
-- `index.sqlite` 位于 `KnowledgeBase/{baseId}/index.sqlite`。
-- FileManager `file_entry` 不再作为知识库材料身份。
-- URL 和 note 都保存成本地 Markdown 快照。
+- 用户上传文件直接复制到 `KnowledgeBase/{baseId}/`。（已具备）
+- `index.sqlite` 位于 `KnowledgeBase/{baseId}/.cherry/index.sqlite`。（已具备，baseline 已采用隐藏布局）
+- FileManager `file_entry` 不再作为知识库材料身份。（已具备）
+- URL 和 note 计划保存成本地 Markdown 快照。（仍待执行：当前 url 每次 reindex 联网抓取、note 读 inline `data.content`）
+- 同路径冲突采用 reject-on-conflict（报错），仅 v1 迁移器去重；sitemap 已不作为独立 item 类型，v1 sitemap 迁移为 `url`。（已具备）
 - MinerU 当前只保存最终 Markdown，不保存 artifacts、assets、页面缓存。
 - PDF 处理后，当前 v2 UI 仍显示 PDF item，但索引读取 Markdown。
 - 当前 v2 搜索结果仍保持旧 chunk-oriented shape。
@@ -164,7 +158,6 @@ KnowledgeBase/{baseId}/index.sqlite
 v2.x：
 
 - 真实文件夹逐步成为材料事实。
-- `index.sqlite` 移动到 `.cherry/index.sqlite`。
 - watcher / scan 自动发现文件。
 - embedding 可以成为增强项，FTS-only 可用。
 - Markdown 处理产物成为独立 visible material。
@@ -172,16 +165,17 @@ v2.x：
 
 ## 7. 最终评审结论摘要
 
-最终评审结论见 [reviews/final.md](./reviews/final.md)。
+最终评审结论见 [reviews/0608/final.md](./reviews/0608/final.md)。
 
 摘要：
 
 - 结论：有条件可行。
 - 这不是小型 schema 改动，而是跨数据契约、路径所有权、file processing、JobManager recovery、index/search、migration、UI/preload 的系统迁移。
-- 不建议直接进入完整实现。
-- 建议先做两个窄 POC：
-  - `KnowledgeIndexStore` over `KnowledgeBase/{baseId}/index.sqlite`
+- 当时建议先做两个窄 POC：
+  - `KnowledgeIndexStore` over `{baseId}/.cherry/index.sqlite`
   - path-based file processing with `FileHandle`、`output.kind = path`、`context.dataId`
+
+> 状态(2026-06-08): POC B（path-based file processing）的地基已在 baseline 落地（`FileHandle` / `output.kind = path` / `context.dataId` 已就绪），其验证目标基本由正常实现覆盖。POC A（`KnowledgeIndexStore` / material 模型）**仍未开始，仍是要执行的计划**——运行时仍是旧单表 `libsql_vectorstores_embedding` + `external_id`。
 
 估算：
 
@@ -200,16 +194,18 @@ v2.x：
 - “MinerU 产物要保存 artifacts/assets”。当前只保存最终 Markdown。
 - “v2 要做 watcher / FTS-only / content index UI”。这些是 v2.x 能力，不是当前 v2 必做。
 - “旧 v2 开发期数据必须兼容”。稳定目标是 v1 -> 最终当前 v2 的迁移终态。
+- “v1 向量迁移已写成 9 表 material 终态”。孤立路径 bug（写 legacy 扁平路径、运行时读 `{newBaseId}/.cherry/index.sqlite` 读不到）已在 `a6128a6da9` 修复，迁移后向量现在写到运行时读得到的位置；但迁移器**仍写旧单表 `libsql_vectorstores_embedding` 格式**，不要当作已写成 9 表 material 终态。
 
 ## 9. 如果下一步是继续推进
 
 建议先确认下一步是哪一种：
 
 1. 继续方案讨论：阅读第 3 节文档，围绕 open questions 继续问。
-2. 拆 issue / PR：从 [reviews/final.md](./reviews/final.md) 的 implementation phases 拆。
-3. 做 POC A：只验证 `KnowledgeIndexStore`，不要碰 UI 和 migration。
-4. 做 POC B：只验证 path-based file processing，不要改完整知识库 workflow。
-5. 做正式实现：必须等 POC A/B 的 stop/go criteria 通过后再开始。
+2. 拆 issue / PR：从 [reviews/0608/final.md](./reviews/0608/final.md) 的 implementation phases 拆。
+3. 做 POC A：只验证 `KnowledgeIndexStore` / material 模型，不要碰 UI 和 migration。这是当前仍未开始、最关键的未来工作。
+4. 做正式实现：material 层落地后接上索引 / 搜索 / 迁移写新形态。
+
+> 状态(2026-06-08): 原 POC B（path-based file processing）地基已在 baseline 落地，不再作为独立待验证项；剩余焦点是 POC A（material 层）。
 
 ## 10. 建议 skills
 

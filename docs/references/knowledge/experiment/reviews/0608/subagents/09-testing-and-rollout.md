@@ -1,5 +1,9 @@
 # Agent 09 Review: Testing And Rollout
 
+> 状态(2026-06-08): 本评审写于实现之前。部分"当前状态"描述已被 baseline + 顺手改动改变(详见 ../../../drift-report-2026-06-08.md)。本篇仍作为待执行计划的依据阅读。
+>
+> baseline 现状校准(本篇相关):本篇的 "先做 POC A/B 再开实现分支" 框架已过时:POC B(path-based 文件处理)对应能力已落地并有测试,POC A(`KnowledgeIndexStore`)仍未实现。至今仍**无知识库 E2E**;index/material 相关测试因模型未建仍写不了。本篇的 POC 门禁应理解为对仍待执行计划项的验收依据,而非未开工前提。index 库已位于 `{baseId}/.cherry/index.sqlite`(隐藏布局已落地),本篇凡写 `{baseId}/index.sqlite` 的初始化目标按 `.cherry` 嵌套布局理解。
+
 Date: 2026-06-07
 
 ## 1. Conclusion

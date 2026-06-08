@@ -1,5 +1,13 @@
 # Agent 08 Review: UI, Preload, and IPC
 
+> 状态(2026-06-08): 本评审写于实现之前。部分"当前状态"描述已被 baseline + 顺手改动改变(详见 ../../../drift-report-2026-06-08.md)。本篇仍作为待执行计划的依据阅读。
+>
+> baseline 现状校准(本篇相关):
+> - 渲染层去 FileEntry 已落地:无 `/files/entries/:id` 查询,add-items DTO 已拆分(`KnowledgeRuntimeAddItemInput` 用绝对路径作 command input),`fileProcessing.startJob` 已用 `FileHandle`。本篇关于这些拆分的内容多数已具备地基。
+> - `deleteItemChunk` 仍全链路可用(UI→preload→IPC→`deleteByIdAndExternalId`);本篇"移除单 chunk 删除 UI"仍是未来工作,绑定 material 模型落地,baseline 当前仍在。
+> - chat 附件按钮当前为直接删除(待 chat 管线迁移后再接 knowledge material handle),本篇 AttachmentButton 改造仍是未来项。
+> - sitemap 已不再作为独立 item 类型;add-source UI 不再提供 sitemap 入口,v1 sitemap 迁移为 `url`(`KNOWLEDGE_ITEM_TYPES = ['file','url','note','directory']`)。
+
 Date: 2026-06-07
 
 ## 1. Conclusion

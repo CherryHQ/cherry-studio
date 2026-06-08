@@ -4,26 +4,17 @@ Date: 2026-06-06
 
 本文从 [Knowledge index.sqlite Schema](./index-sqlite-schema-design.md) 中单独抽离当前 v2 必须落地的技术改造。它只描述当前 v2 的实现终态、改造步骤和验证范围；v2.x 文件夹型知识库的产品能力只作为兼容目标出现。
 
+> 状态(2026-06-08): 本文仍是当前 v2 知识库改造的**目标方案**,但 baseline 已经前进,部分地基已就绪、部分前提已调整。以下据 as-built 现状校准,各节内保留尚未执行的计划项。
+>
+> **已具备地基**(baseline 已实现,后续在其上继续):file leaf 数据模型 `{ source, relativePath, indexedRelativePath? }`(`fileEntryId` 已从 knowledge 移除);中心化路径模块 `pathStorage.ts`(含安全校验 `assertSafeKnowledgeRelativePath`);文件拷入 base 目录的导入流程(create 不再写 knowledge `file_ref`);path-based 文件处理 + 持久化恢复;MinerU 用 `context.dataId`;job payload 去 FileEntry;渲染层去 FileEntry + add-item DTO 拆分;删除 leaf/容器/base 的顺序;`index.sqlite` 已落在 `{baseId}/.cherry/index.sqlite`。
+>
+> **仍待执行**(核心计划,尚未开始或前提已变):`material` 模型 + 9 表 `index.sqlite` + `KnowledgeIndexStore`(当前运行时仍是旧单表 `libsql_vectorstores_embedding` + `external_id` API);url/note 的 Markdown 快照(当前 url 每次联网抓取、note 读 inline `data.content`);`knowledge_item.id == material.material_id`;v1 迁移写入新 index.sqlite 形态。
+
 ## 1. 背景与目标
 
 当前 v2 仍在开发阶段，向量库 schema、文件导入方式和知识库 item data 都可以调整。目标是在 v2 阶段把数据形态先对齐未来 v2.x，降低用户从 v2 切换到 v2.x 时的重建成本。
 
-当前 v2 改造后的核心事实：
-
-```text
-KnowledgeBase/
-  {baseId}/
-    index.sqlite
-    paper.pdf
-    paper.md
-    captures/
-      url/
-        example.md
-      note/
-        meeting-note.md
-```
-
-v2.x 切换到文件夹型知识库时：
+当前 v2 改造后的核心事实(`index.sqlite` 位置已统一为 `{baseId}/.cherry/index.sqlite`,见下文状态说明):
 
 ```text
 KnowledgeBase/
@@ -39,13 +30,15 @@ KnowledgeBase/
         meeting-note.md
 ```
 
+> 状态(2026-06-08): baseline 已直接采用 `.cherry/` 隐藏布局(`pathStorage.ts:8-28`,`CHERRY_META_DIR = '.cherry'`)。原先"当前 v2 放在根目录、v2.x 才移进 `.cherry/`、升级时再移动"的区分已作废 —— 移动已经发生,`.cherry` 同时是材料禁止前缀。下文凡涉及 index.sqlite 位置统一为 `{baseId}/.cherry/index.sqlite`。
+
 当前 v2 要达成的目标：
 
 - 保留全局 `knowledge_base`，继续作为知识库元数据、模型配置、UI 列表和 DataApi 数据源。
 - 保留全局 `knowledge_item`，继续作为当前 v2 UI 数据源、状态展示、任务编排和 chunk 详情入口。
 - 当前 v2 起，用户上传文件直接复制到 `KnowledgeBase/{baseId}/`，不再用 FileManager `file_entry` 作为知识库材料身份。
-- 当前 v2 起，每个知识库使用 `KnowledgeBase/{baseId}/index.sqlite`，表结构直接采用未来兼容 schema。
-- 当前 v2 的 `knowledge_item.id` 直接等于 `material.material_id`，避免以后 v2.x 迁移时重新建立材料身份。
+- 当前 v2 起，每个知识库使用 `KnowledgeBase/{baseId}/.cherry/index.sqlite`，表结构直接采用未来兼容 schema。
+- 当前 v2 的 `knowledge_item.id` 直接等于 `material.material_id`，避免以后 v2.x 迁移时重新建立材料身份。(仍待执行:当前 baseline 迁移会重新生成 id,该等式尚未成立。)
 - 当前 v2 搜索仍返回旧的 chunk-oriented `KnowledgeSearchResult`，但底层索引按 `material/content/search_unit/search_text/embedding` 写入。
 - 当前 v2 仍要求 embedding model 和 dimensions 有效，不开放 FTS-only 知识库。
 - 当前 v2 不启用 watcher，不自动索引用户在 App 外手动放入知识库目录的文件。
@@ -93,9 +86,11 @@ KnowledgeBase/
 
 ### 3.2 每个知识库的 `index.sqlite`
 
+> 状态(2026-06-08): 本节 9 表方案**已设计、尚未实现**,保留为要执行的计划。当前运行时仍是旧单表 `libsql_vectorstores_embedding` + `external_id` API(`packages/vectorstores/libsql`),material 模型与下列各表都还没建。下表的"是否使用"列描述的是计划终态,不是 baseline 现状。
+
 当前 v2 每个知识库创建 9 张表：
 
-| 表 | 当前 v2 是否使用 | 用途 |
+| 表 | 计划终态(尚未实现) | 用途 |
 | --- | --- | --- |
 | `index_meta` | 使用 | 保存 schema version、base_id、embedding contract 快照、chunker/normalization 版本。 |
 | `material` | 使用 | 保存当前 v2 leaf `knowledge_item` 对应的材料身份和实际索引路径。 |
@@ -167,6 +162,8 @@ type UrlItemData = {
 }
 ```
 
+> 状态(2026-06-08): url 的 Markdown 快照模型**仍待执行**。baseline 现状是 `UrlItemData = { source, url }`(无 `relativePath`),每次 reindex 都联网抓取(`KnowledgeUrlReader.ts:13` 调 `fetchKnowledgeWebPage`)。下列规则是计划目标。
+
 规则：
 
 - URL 导入时抓取正文并生成 Markdown 快照。
@@ -193,6 +190,8 @@ type NoteItemData = {
 }
 ```
 
+> 状态(2026-06-08): note 的 Markdown 快照模型**仍待执行**。baseline 现状是 `NoteItemData = { source, content, sourceUrl }`(inline),reindex 读 `data.content`(`KnowledgeNoteReader.ts`)。下列规则是计划目标。
+
 规则：
 
 - note 内容写成 Markdown 文件。
@@ -209,7 +208,7 @@ type NoteItemData = {
 }
 ```
 
-### 4.5 directory 和 sitemap container
+### 4.5 directory container
 
 当前 v2 仍可保留：
 
@@ -218,19 +217,15 @@ type DirectoryItemData = {
   source: string
   path: string
 }
-
-type SitemapItemData = {
-  source: string
-  url: string
-}
 ```
 
 规则：
 
-- directory / sitemap 是当前 v2 UI 和 Job 容器，不创建 `material`。
+- directory 是当前 v2 UI 和 Job 容器，不创建 `material`。
 - directory 展开出的 leaf file item 写 `relativePath`。
-- sitemap 展开出的 leaf URL snapshot 写 `relativePath`。
-- v2.x 中目录由真实文件夹表达，sitemap 更接近一次导入任务或 captured source group。
+- v2.x 中目录由真实文件夹表达。
+
+> 状态(2026-06-08): sitemap 已不作为独立 item 类型(`KNOWLEDGE_ITEM_TYPES = ['file','url','note','directory']`),v1 sitemap 迁移为 `url`。本节移除 `SitemapItemData` 及相关容器规则。
 
 ### 4.6 相对路径校验
 
@@ -245,31 +240,39 @@ type SitemapItemData = {
 
 当前 v2 可以先忽略隐藏文件和临时文件导入，或者在目录导入时跳过它们。实现必须保证任何 reader、delete、restore 都不能用未经校验的 relative path 直接拼接文件系统路径。
 
+> 状态(2026-06-08): 已具备。上述校验由主进程 helper `assertSafeKnowledgeRelativePath` 实现(`pathStorage.ts:98-111`,禁绝对路径/`..`/`.cherry`/`.cherry/**`/NUL),`getKnowledgeBaseFilePath` 等拼接入口在拼路径前调用它。zod schema 只做形状校验(`relativePath: z.string().min(1)`),不承担路径安全;安全校验在主进程 helper 层,不在 zod。
+
 ## 5. 知识库目录与路径服务
 
-新增或收敛到一个主进程路径服务，建议命名为 `KnowledgeBaseFileService` 或 `KnowledgeBasePathService`。
+> 状态(2026-06-08): 已具备。路径职责已收敛到主进程**函数模块** `src/main/services/knowledge/utils/storage/pathStorage.ts`(不是 `KnowledgeBaseFileService` / `KnowledgeBasePathService` class)。下文据真实导出函数描述。
 
-它负责：
+`pathStorage.ts` 的真实导出函数:
 
-- 返回知识库根目录：`KnowledgeBase/{baseId}/`
-- 返回当前 v2 索引库路径：`KnowledgeBase/{baseId}/index.sqlite`
-- 返回 v2.x 隐藏索引库路径：`KnowledgeBase/{baseId}/.cherry/index.sqlite`
-- 校验并解析 `relativePath` 到绝对路径。
-- 执行 keep-both 文件名冲突策略。
-- 复制文件和目录到知识库根目录。
-- 写入 URL / note Markdown 快照。
-- 删除 leaf item 关联文件。
-- 删除整库目录前关闭 index store handle。
+- `getKnowledgeBaseDir(baseId)`：返回知识库根目录 `KnowledgeBase/{baseId}/`。
+- `getKnowledgeBaseMetaDir(baseId)`：返回 `.cherry` 元数据目录。
+- `getKnowledgeVectorStoreFilePath(baseId)` / `getKnowledgeVectorStoreFilePathSync(baseId)`：返回索引库路径 `KnowledgeBase/{baseId}/.cherry/index.sqlite`(已统一,不再有"当前 v2 根目录 vs v2.x 隐藏目录"之分)。
+- `getKnowledgeBaseFilePath(baseId, relativePath)`：校验并解析 `relativePath` 到绝对路径(这是 plan 早期假设的 `resolveMaterialPath`,真实名称为此)。
+- `getKnowledgeSourceRelativePath` / `toKnowledgeRelativePath` / `getProcessedMarkdownRelativePath`：相对路径推导与处理产物路径推导。
+- `copyFileIntoKnowledgeBase[At]`：复制文件到知识库根目录。
+- `deleteKnowledgeItemFiles` / `deleteKnowledgeBaseDir`：删除 leaf item 关联文件 / 整库目录。
+- `assertSafeKnowledgeRelativePath`：相对路径安全校验(见 §4.6)。
 
-路径获取必须遵循项目规则：
+仍待执行的职责(尚未由 `pathStorage.ts` 承担):
+
+- 写入 URL / note Markdown 快照(url/note 快照模型整体未做,见 §4.3/§4.4)。
+- 删除整库目录前关闭 index store handle(由删除流程协调,见 §10.3)。
+
+> 状态(2026-06-08): 冲突策略**已调整**。`pathStorage.ts` 不执行 keep-both;实时 add 走 reject-on-conflict(`assertTargetAvailable` 在目标已存在时抛 "Knowledge file already exists",`pathStorage.ts:122-133`),只有 v1 迁移器去重。详见 §6.2。
+
+路径获取必须遵循项目规则,根目录由 `application.getPath` 提供,嵌套路径在模块内 `path.join` 维护:
 
 ```ts
 const root = application.getPath('feature.knowledgebase.data')
-const baseDir = path.join(root, sanitizeFilename(baseId, '_'))
-const indexPath = path.join(baseDir, 'index.sqlite')
+const baseDir = path.join(root, baseId)
+const indexPath = path.join(baseDir, '.cherry', 'index.sqlite')
 ```
 
-不要把 `baseId/index.sqlite` 作为 `application.getPath(namespace, filename?)` 的第二个参数传入。`application.getPath` 只负责 namespace 根路径或单文件名，嵌套路径由服务内 `path.join` 维护。
+不要把 `baseId/.cherry/index.sqlite` 作为 `application.getPath(namespace, filename?)` 的第二个参数传入。`application.getPath` 只负责 namespace 根路径或单文件名，嵌套路径由模块内 `path.join` 维护。
 
 ## 6. 导入与创建流程
 
@@ -279,9 +282,11 @@ const indexPath = path.join(baseDir, 'index.sqlite')
 
 1. 创建全局 `knowledge_base` 行。
 2. 创建 `KnowledgeBase/{baseId}/` 目录。
-3. 创建 `KnowledgeBase/{baseId}/index.sqlite`。
+3. 创建 `KnowledgeBase/{baseId}/.cherry/index.sqlite`。
 4. 初始化 9 张 `index.sqlite` 表。
 5. 写入 `index_meta(id = 1, base_id = baseId, embedding_model_id_snapshot, dimensions_snapshot, ...)`。
+
+> 状态(2026-06-08): step 3 的目录/路径地基已具备(`.cherry/index.sqlite`);step 4/5 的 9 表 + `index_meta` 仍待执行(见 §3.2),当前 baseline 在该路径上创建的是旧单表向量库。
 
 打开 `index.sqlite` 时必须校验 `index_meta.base_id === baseId`。如果不一致，拒绝打开或进入明确修复流程。
 
@@ -291,8 +296,10 @@ const indexPath = path.join(baseDir, 'index.sqlite')
 
 1. Renderer 传入外部文件路径或选择结果，不再先调用 `ensureExternalEntry` 创建 FileEntry。
 2. Main 进程复制文件到 `KnowledgeBase/{baseId}/`。
-3. 如果目标路径冲突，默认 keep-both，生成 `_2`、`_3` 等后缀。
+3. 如果目标路径已存在，直接 reject-on-conflict 报错 "Knowledge file already exists"(`assertTargetAvailable`,`pathStorage.ts:122-133`),不做 keep-both;落盘前还需对 reservedPaths 做预检,拒绝写入 `.cherry/**` 等保留前缀(由 `assertSafeKnowledgeRelativePath` 覆盖)。
 4. 创建 `knowledge_item(type = file)`，`data.relativePath` 为最终落盘路径。
+
+> 状态(2026-06-08): 冲突策略已从 keep-both 调整为 reject-on-conflict。只有 v1 迁移器会去重(用 `-N` 连字符后缀,`KnowledgeMigrator.ts:115-130`),实时 add 不生成 `_2`/`_3` 后缀。
 5. 创建或更新 `material(material_id = knowledge_item.id, relative_path = data.relativePath, origin = user, index_policy = index)`。
 6. 如果需要文件处理，进入文件处理流程；否则直接进入索引流程。
 
@@ -348,30 +355,18 @@ const indexPath = path.join(baseDir, 'index.sqlite')
 
 重新索引当前 v2 note item 时不读 `data.content`。
 
-### 6.6 添加 sitemap
-
-当前 v2 sitemap 仍是 container：
-
-1. 创建 `knowledge_item(type = sitemap)`。
-2. 展开 sitemap URL。
-3. 每个 URL 生成本地 Markdown 快照。
-4. 每个快照创建 child `knowledge_item(type = url, groupId = sitemapItem.id)`。
-5. child item 创建 `material` 并进入索引。
-
-sitemap item 本身不创建 `material`。
-
-现有 sitemap expansion 不能只生成 child URL item。每个 child URL 必须先生成本地 Markdown snapshot，再用 snapshot 的 `relativePath` 创建 child `knowledge_item` 和 `material`。普通 reindex 只读 snapshot；重新抓取 sitemap 或 URL 是显式 refresh。
+> 状态(2026-06-08): 原 §6.6"添加 sitemap"已移除。sitemap 不再作为独立 item 类型,v1 sitemap 迁移为 `url`。
 
 ## 7. 文件处理改造
 
 当前 v2 知识库不再要求材料先注册为 FileManager entry。文件处理服务应复用现有 `FileHandle`，并增加输出目标。
 
+> 状态(2026-06-08): 已具备,且收敛得比 plan 更激进。`FileProcessingOutputTarget` 已是**单臂** `{ kind: 'path' }`(无 union),`managed_artifact` 被整个删除;`document_to_markdown` 入队前**强制要求** path output(`FileProcessingService.ts:80-82`);MinerU 只认 `context.dataId`(无 `fileEntryId` 回退,`mineru/document-to-markdown/handler.ts:88-90`)。下文据此修正。
+
 目标接口：
 
 ```ts
-type FileProcessingOutputTarget =
-  | { kind: 'managed_artifact' }
-  | { kind: 'path'; path: FilePath }
+type FileProcessingOutputTarget = { kind: 'path'; path: FilePath }
 
 interface StartFileProcessingJobInput {
   feature: FileProcessorFeature
@@ -396,18 +391,7 @@ await fileProcessingService.startJob({
 })
 ```
 
-其他业务可以继续使用：
-
-```ts
-await fileProcessingService.startJob({
-  feature,
-  file: { kind: 'entry', entryId },
-  output: { kind: 'managed_artifact' },
-  processorId
-})
-```
-
-处理器内部统一接收 resolved `FileInfo`，不关心调用方使用 entry 还是 path。当前不新增 `knowledgebase` feature；知识库文档转 Markdown 继续使用现有 `document_to_markdown` feature。如果后续要新增 feature，必须同步扩展 preset、preference、IPC schema、job registry 和 processor registry。
+`document_to_markdown` 入队前必须携带 path output;没有 path output 的入队会被拒绝。处理器内部统一接收 resolved `FileInfo`，不关心调用方使用 entry 还是 path。当前不新增 `knowledgebase` feature；知识库文档转 Markdown 继续使用现有 `document_to_markdown` feature。如果后续要新增 feature，必须同步扩展 preset、preference、IPC schema、job registry 和 processor registry。
 
 path output 不能只存在于内存调用栈。file-processing job input / output schema、remote-poll payload 和 JobSnapshot rehydrate 都必须持久化：
 
@@ -493,6 +477,8 @@ interface KnowledgeIndexStore {
 
 `deleteItemChunk` UI/API 应移除或返回 unsupported。它不能继续删除单条派生 chunk。
 
+> 状态(2026-06-08): 当前 baseline 的 `deleteItemChunk` **仍全链路可用**(UI → preload → IPC → `deleteByIdAndExternalId`,`KnowledgeService.ts:295-309,543`)。其移除绑定 material 模型落地(material 模型下 chunk 是派生索引、不支持单 chunk 删),material 模型尚未实现,故此项保留为未来工作。
+
 当前 `planKnowledgeItemSource` 一类的调度判断也要改为基于知识库内路径：
 
 - 文件扩展名从 `data.indexedRelativePath ?? data.relativePath` 或 `data.relativePath` 推导，而不是从 `data.source` 推导。
@@ -563,6 +549,8 @@ unit_id = hash(material_id + content_hash + unit_type + unit_index + char_start 
 
 如果用户修改 embedding 模型或维度，当前 v2 必须清空旧 embedding 并重建所有 material。
 
+> 状态(2026-06-08): 本节 `index_meta` snapshot + 选择性重嵌的设计**保留为未来计划目标**(随 §3.2 的 9 表方案一起落地)。baseline 当前用过渡手段:embedding 配置每库不可变,改模型/维度会触发把整库 restore 进一个新库(`KnowledgeVectorStoreService.ts:37-39`),而不是 snapshot 比对 + 选择性重嵌。restore 只是过渡;未来计划目标仍是这里的 index_meta snapshot 机制。
+
 ### 8.5 搜索行为
 
 当前 v2 搜索仍以旧 UI 和旧调用方为目标：
@@ -588,25 +576,25 @@ FTS 实现注意：不要把 TEXT `search_text_id` 当作 FTS rowid。应使用 
 
 ```ts
 const relativePath = item.data.indexedRelativePath ?? item.data.relativePath
-const absolutePath = knowledgeBaseFileService.resolveMaterialPath(baseId, relativePath)
+const absolutePath = getKnowledgeBaseFilePath(baseId, relativePath)
 ```
 
-file item：
+file item(已具备):
 
 - 不调用 `FileManager.getPhysicalPath(fileEntryId)`。
 - 读取 `KnowledgeBase/{baseId}/{indexedRelativePath ?? relativePath}`。
 
-url item：
+url item(仍待执行,当前 baseline 仍联网):
 
 - 不在重新索引时 fetch 网络。
 - 读取 `relativePath` 指向的 Markdown 快照。
 
-note item：
+note item(仍待执行,当前 baseline 仍读 inline content):
 
 - 不读取 `data.content`。
 - 读取 `relativePath` 指向的 Markdown 快照。
 
-directory / sitemap：
+directory(sitemap 已不作为 item 类型,见 §4.5)：
 
 - 不直接读取。
 - 只负责展开 child item 或作为 UI 容器。
@@ -628,7 +616,7 @@ directory / sitemap：
 
 删除全局 row 必须最后执行。否则崩溃后会丢失需要清理的 relative path。
 
-### 10.2 删除 directory / sitemap container
+### 10.2 删除 directory container
 
 当前 v2 删除 container：
 
@@ -662,6 +650,8 @@ directory / sitemap：
 
 如果用户希望重新抓取 URL 或重新处理 PDF，那是 refresh / reprocess 动作，不是普通 reindex。
 
+> 状态(2026-06-08): file item 的 reindex 已从 base 目录读取(`indexedRelativePath ?? relativePath`),这部分地基已具备。
+
 实现上要避免旧 `indexDocuments` 的 completed 快路径吞掉用户触发的重建。普通重复 job 可以在 item 已 `completed` 时跳过，但 reindex flow 必须在 enqueue 前把目标 leaf 重置为 `processing` / `reading`，或携带明确的 force 标记，让索引 job 执行完整 rebuild。
 
 ### 10.5 恢复和复制 knowledge base
@@ -678,36 +668,44 @@ directory / sitemap：
 
 对已经处理过的 PDF，restore / duplicate 必须同时复制源文件和 Markdown 产物。新 base 里的 item 仍显示源 PDF，但索引读取复制后的 `indexedRelativePath`。
 
+> 状态(2026-06-08): 仍待执行。当前 baseline 的 restore 只复制源文件,**不复制 `indexedRelativePath` 指向的已处理 Markdown 产物**,而是重新处理(`KnowledgeService.ts:484-508`);`duplicateBase` 尚不存在。"复制源文件 + Markdown 产物 + duplicate base" 保留为待办。
+
 ## 11. v1 迁移到当前 v2
 
 v1 迁移到当前 v2 的稳定终态应直接写入新的目录和索引形态。
+
+> 状态(2026-06-08): 部分已具备 + 含已确认 bug。baseline 现状:已把 v1 上传文件拷入 `{newBaseId}/`、写 `relativePath`、不写 knowledge `file_ref`(`KnowledgeMigrator.ts:767`);但向量迁移仍写旧表(见下)、`knowledge_item.id` 当前全部重新生成(只留 legacy → new remap,`KnowledgeMappings.ts:253,400`)。下列步骤 3/6/7 的"新 index.sqlite 形态 + material"仍待执行。
 
 迁移步骤：
 
 1. 为每个 v1 knowledge base 创建当前 v2 `knowledge_base`。
 2. 创建 `KnowledgeBase/{baseId}/`。
-3. 初始化 `KnowledgeBase/{baseId}/index.sqlite`。
+3. 初始化 `KnowledgeBase/{baseId}/.cherry/index.sqlite`。
 4. 对每个 v1 文件材料，复制实际文件到 base 目录，创建 `knowledge_item(type = file)`，写 `relativePath`。
 5. 对每个 v1 URL / note，生成 Markdown 快照，创建 `knowledge_item(type = url | note)`，写 `relativePath`。
 6. 对每个 leaf item 创建 `material(material_id = knowledge_item.id)`。
 7. 重建索引，写入 `content/search_unit/search_text/embedding`。
 
-如果 v1 的旧 `knowledge_item.id` 合法且不冲突，迁移时应保留为当前 v2 的 `knowledge_item.id`，从而继续满足 `knowledge_item.id = material.material_id`。如果旧 id 不合法或冲突，必须记录新旧 id 映射，保证 container `groupId`、job 输入和 UI 引用一致。
+> ✅ 已修复(`a6128a6da9`): 此前 `KnowledgeVectorMigrator` 把重建的向量 DB 写到 **legacy 扁平路径** `{root}/{legacyBaseId}`,而运行时读的是 `{newBaseId}/.cherry/index.sqlite`(id 与布局两维度都不一致),中间无桥接、迁移后无 reindex,导致迁移后的向量被孤立、运行时读到一个自动新建的空库、迁移库搜索返回空。修复把**读源**(legacy,仅用于 `.embedjs.bak` 备份)与**写目标**(`getRuntimeVectorStorePath` = `{newBaseId}/.cherry/index.sqlite`,按新 base id)分离,`execute()` 先 `mkdir .cherry`、rename 前删掉运行时自建的空库(跨平台),`validate()` 改读运行时路径;回归测试断言运行时路径可读、legacy 扁平路径不再有 live 库。**残留(仍待执行)**:迁移器仍写旧单表 `libsql_vectorstores_embedding` 格式(只修了写入位置,未改表结构;9 表 material 终态仍是未来工作)。详见 drift-report §4。
+
+`knowledge_item.id == material.material_id` 等式与"保留合法旧 id 作 `material_id`"保留为**未来计划目标**:如果 v1 的旧 `knowledge_item.id` 合法且不冲突，迁移时应保留为当前 v2 的 `knowledge_item.id`，从而继续满足 `knowledge_item.id = material.material_id`。如果旧 id 不合法或冲突，必须记录新旧 id 映射，保证 container `groupId`、job 输入和 UI 引用一致。(当前 baseline 全部重新生成 id、只留 remap,该等式尚未成立。)
 
 如果 v1 已有旧向量库数据，不建议直接尝试迁移旧 chunk 行到新 schema，除非可以可靠恢复 content、offset、embedding contract 和 `unit_id`。当前更稳妥的 v1 -> v2 终态是复制材料文件后按新 schema 重建。
 
 当前开发中的 v2 旧 vectorstore 数据可以视为开发期数据；最终只需要保证 v1 迁移到当前 v2 的终态稳定。
 
-因此现有 v1 migration 代码也要同步改造：
+因此现有 v1 migration 代码也要同步改造(各项当前状态见括注)：
 
-- `KnowledgeMappings` 不能继续生成持久化 `fileEntryId` / inline `content` 形态。
-- `KnowledgeMigrator` 不能为 knowledge item 写 knowledge source 的 `file_ref`。
-- `KnowledgeVectorMigrator` 不能继续把旧 chunk 迁到 `libsql_vectorstores_embedding` 旧表。
+- `KnowledgeMappings` 不能继续生成持久化 `fileEntryId` / inline `content` 形态。(file 形态已具备;note 仍 inline,随 url/note 快照模型一起落地。)
+- `KnowledgeMigrator` 不能为 knowledge item 写 knowledge source 的 `file_ref`。(已具备。)
+- `KnowledgeVectorMigrator` 不能继续把旧 chunk 迁到 `libsql_vectorstores_embedding` 旧表。(仍待执行:当前仍写旧表;写到运行时读不到的 legacy 路径这一孤立 bug 已修复 `a6128a6da9` —— 见上文 ✅。)
 - 如果要复用旧 embedding，必须满足 `embedding_text_hash` 完全一致、模型一致、维度一致；否则按新 schema 重嵌入。
 
 ## 12. UI 与 API 改造点
 
 当前 v2 UI 继续展示 `knowledge_item`，但要移除 FileEntry 依赖。
+
+> 状态(2026-06-08): FileEntry 去除已具备(渲染层无 `/files/entries/:id`、add-items DTO 已拆分、`fileProcessing.startJob` 用 `FileHandle`)。仍待执行:删除单 chunk 的按钮/API(`deleteItemChunk` 仍全链路可用,绑定 material 模型落地,见 §8.1);note content 改为提交后写 Markdown snapshot(当前仍持久化为 `data.content`)。
 
 需要改：
 
@@ -741,41 +739,44 @@ preload / IPC 契约也要同步：
 
 ## 13. 代码改造清单
 
-建议按以下模块推进：
+建议按以下模块推进("状态"列为 2026-06-08 现状)：
 
-| 模块 | 当前 v2 改造 |
-| --- | --- |
-| `src/shared/data/types/knowledge.ts` | 修改 leaf item data schema，增加 `relativePath` / `indexedRelativePath`，移除 file item 必需 `fileEntryId`，note 不再以 `content` 作为索引事实。 |
-| `src/main/data/services/KnowledgeItemService.ts` | 移除知识库材料对 FileEntry / file_ref 的身份依赖，增加更新 `indexedRelativePath` 的方法。 |
-| `src/main/services/knowledge/KnowledgeWorkflowService.ts` | 添加文件时复制到 base 目录，调度 path-based file processing 或 indexing。 |
-| `src/main/services/knowledge/utils/sources/*` | directory / sitemap expansion 不再创建 FileEntry；目录 leaf 写 `relativePath`，sitemap child 先写 Markdown snapshot。 |
-| `src/main/services/knowledge/readers/*` | file/url/note reader 统一读取知识库目录内文件。 |
-| `src/main/services/fileProcessing/*` | `StartFileProcessingJobInput` 改成 `FileHandle` + output target + context。 |
-| `src/main/services/fileProcessing/processors/mineru/*` | 输出 Markdown 到指定 path，业务身份使用 `context.dataId`。 |
-| `src/main/services/knowledge/vectorstore/*` | 从 `BaseVectorStore` 迁移为 `KnowledgeIndexStore`，路径改为 `{baseId}/index.sqlite`。 |
-| `packages/vectorstores/libsql/*` | 如果继续复用 libSQL 包，需要把 schema 和方法改成 knowledge index 语义，或新增 knowledge 专用 libSQL store。 |
-| `src/main/services/knowledge/utils/indexing/chunk.ts` | chunk DTO 增加 offset，保证 body search_text 可由 `content.text.slice` 验证。 |
-| `src/main/services/knowledge/utils/indexing/embed.ts` | embedding 输入改为 `search_text.text`，不再依赖旧 `TextNode.sourceNode.nodeId` / external_id 语义。 |
-| `src/main/services/knowledge/jobs/indexDocumentsJobHandler.ts` | 读取本地 material，chunk 带 offset，调用 `rebuildMaterial`。 |
-| `src/main/services/knowledge/jobs/checkFileProcessingResultJobHandler.ts` | 处理 path output，回写 `indexedRelativePath`，不再保存 `processedFileEntryId`。 |
-| `src/main/services/knowledge/jobs/deleteSubtreeJobHandler.ts` | 清理 material/index/files，最后删除 `knowledge_item` row。 |
-| `src/main/services/knowledge/jobs/reindexSubtreeJobHandler.ts` | 不再用 `replaceByExternalId(itemId, [])`，改成 material 级 delete/rebuild。 |
-| `src/main/services/knowledge/KnowledgeService.ts` | delete base / restore base 改为操作 base 目录和新 `index.sqlite`，不能只删旧 vector store 或复用旧 root item data。 |
-| `src/main/data/migration/v2/*` | v1 -> v2 迁移直接生成 base 目录、材料文件、`index.sqlite` 终态。 |
-| `src/preload/index.ts` | 同步 knowledge、fileProcessing IPC 契约，移除或 unsupported 单 chunk 删除。 |
-| `src/renderer/pages/knowledge/*` | 移除 FileEntry 查询依赖，改用 `relativePath` 展示和预览。 |
-| `src/renderer/components/Popups/SaveToKnowledgePopup.tsx` | 保存到知识库入口不再创建 FileEntry；note content 只作为导入输入。 |
+| 模块 | 当前 v2 改造 | 状态 |
+| --- | --- | --- |
+| `src/shared/data/types/knowledge.ts` | 修改 leaf item data schema，增加 `relativePath` / `indexedRelativePath`，移除 file item 必需 `fileEntryId`，note 不再以 `content` 作为索引事实。 | file 部分已做(`fileEntryId` 已移除);note 仍 inline,未做 |
+| `src/main/services/knowledge/utils/storage/pathStorage.ts` | 中心化路径模块(取代 plan 早期假设的 `KnowledgeItemService` file_ref 路径职责),提供 base dir / `.cherry/index.sqlite` / 安全校验 / 拷入 / 删除等函数。 | 已做(函数模块,非 class) |
+| `src/main/data/services/KnowledgeItemService.ts` | 移除知识库材料对 FileEntry / file_ref 的身份依赖，增加更新 `indexedRelativePath` 的方法。 | 已做(`updateIndexedRelativePath` 取代 `replaceFileRef`,`KnowledgeItemService.ts:492`;create 不再 `ensureExternalEntry`/写 file_ref) |
+| `src/main/services/knowledge/KnowledgeWorkflowService.ts` | 添加文件时复制到 base 目录，调度 path-based file processing 或 indexing。 | 已做(rename 完成) |
+| `src/main/services/knowledge/utils/sources/*` | directory expansion 不再创建 FileEntry；目录 leaf 写 `relativePath`(子树路径 `{ownerId}/<subtreePath>` 防撞名、跳过 dotfile)。 | directory 已做;sitemap 已移除(不再作 item 类型) |
+| `src/main/services/knowledge/readers/*` | file/url/note reader 统一读取知识库目录内文件。 | file 已做;url 仍联网(`KnowledgeUrlReader.ts:13`)、note 仍读 inline,未做 |
+| `src/main/services/fileProcessing/*` | `StartFileProcessingJobInput` 改成 `FileHandle` + 单臂 `{kind:'path'}` output target + context。 | 已做 |
+| `src/main/services/fileProcessing/processors/mineru/*` | 输出 Markdown 到指定 path，业务身份使用 `context.dataId`(无 `fileEntryId` 回退)。 | 已做 |
+| `src/main/services/knowledge/vectorstore/*` | 从 `BaseVectorStore` 迁移为 `KnowledgeIndexStore`，路径已是 `{baseId}/.cherry/index.sqlite`。 | 未做(仍是旧 `external_id` 抽象);路径地基已具备 |
+| `packages/vectorstores/libsql/*` | 如果继续复用 libSQL 包，需要把 schema 和方法改成 knowledge index 语义，或新增 knowledge 专用 libSQL store。 | 未做(仍是单表 `libsql_vectorstores_embedding`) |
+| `src/main/services/knowledge/utils/indexing/chunk.ts` | chunk DTO 增加 offset，保证 body search_text 可由 `content.text.slice` 验证。 | 未做(绑定 material 模型) |
+| `src/main/services/knowledge/utils/indexing/embed.ts` | embedding 输入改为 `search_text.text`，不再依赖旧 `TextNode.sourceNode.nodeId` / external_id 语义。 | 未做(绑定 material 模型) |
+| `src/main/services/knowledge/jobs/indexDocumentsJobHandler.ts` | 读取本地 material，chunk 带 offset，调用 `rebuildMaterial`。 | 未做(仍走 external_id 路径) |
+| `src/main/services/knowledge/jobs/checkFileProcessingResultJobHandler.ts` | 处理 path output，回写 `indexedRelativePath`，不再保存 `processedFileEntryId`。 | 已做 |
+| `src/main/services/knowledge/jobs/deleteSubtreeJobHandler.ts` | 清理 material/index/files，最后删除 `knowledge_item` row。 | 顺序已做(index/files → row);material 维度待 material 模型落地 |
+| `src/main/services/knowledge/jobs/reindexSubtreeJobHandler.ts` | 不再用 `replaceByExternalId(itemId, [])`，改成 material 级 delete/rebuild。 | 未做(仍用 external_id) |
+| `src/main/services/knowledge/KnowledgeService.ts` | delete base / restore base 改为操作 base 目录和新 `index.sqlite`，不能只删旧 vector store 或复用旧 root item data。 | delete base 已做;restore 只复制源文件、不复制 indexed 产物,部分待办(§10.5) |
+| `src/main/data/migration/v2/*` | v1 -> v2 迁移直接生成 base 目录、材料文件、`index.sqlite` 终态。 | 文件/relativePath 已做;孤立向量 bug 已修复(`a6128a6da9`,§11);向量仍写旧单表格式,material 终态未做 |
+| `src/preload/index.ts` | 同步 knowledge、fileProcessing IPC 契约，移除或 unsupported 单 chunk 删除。 | fileProcessing/payload 已做;`deleteItemChunk` 仍在(`preload/index.ts:358`),未移除 |
+| `src/renderer/pages/knowledge/*` | 移除 FileEntry 查询依赖，改用 `relativePath` 展示和预览。 | 已做(无 `/files/entries/:id`) |
+| `src/renderer/components/Popups/SaveToKnowledgePopup.tsx` | 保存到知识库入口不再创建 FileEntry；note content 只作为导入输入。 | FileEntry 去除已做;note 写 snapshot 未做 |
 
 ## 14. 实施阶段
 
 ### 阶段 1：目录和 schema 基础
 
+> 状态(2026-06-08): 目录与路径地基已具备(`pathStorage.ts`,index.sqlite 已在 `.cherry/`);9 张表 + `index_meta` 仍待执行。
+
 目标：
 
-- 建立 `KnowledgeBaseFileService`。
-- 修改 vector store 路径为 `KnowledgeBase/{baseId}/index.sqlite`。
-- 初始化 9 张 `index.sqlite` 表。
-- 写入并校验 `index_meta`。
+- 建立中心化路径模块 `pathStorage.ts`(取代早期 `KnowledgeBaseFileService` 设想)。(已做)
+- vector store 路径为 `KnowledgeBase/{baseId}/.cherry/index.sqlite`。(已做)
+- 初始化 9 张 `index.sqlite` 表。(未做)
+- 写入并校验 `index_meta`。(未做)
 
 验证：
 
@@ -785,24 +786,28 @@ preload / IPC 契约也要同步：
 
 ### 阶段 2：`knowledge_item.data` 和导入落盘
 
+> 状态(2026-06-08): file/directory 部分多已具备(拷入 base 目录、写 relativePath、reject-on-conflict);url/note 快照与 `id == material_id` 仍待执行。
+
 目标：
 
-- 修改 shared schema。
-- 文件、目录、URL、note、sitemap 导入都生成知识库目录内材料文件。
-- leaf `knowledge_item.id = material.material_id`。
+- 修改 shared schema。(file 已做;note 仍 inline 未做)
+- 文件、目录、URL、note 导入都生成知识库目录内材料文件。(file/directory 已做;url/note 未做。sitemap 已不作为 item 类型,移出本阶段)
+- leaf `knowledge_item.id = material.material_id`。(未做,当前重新生成 id)
 
 验证：
 
 - 添加文件不会创建 FileEntry。
 - URL / note 重新索引不访问网络或 inline content。
-- keep-both 冲突策略会写最终 `relativePath`。
+- 文件名冲突走 reject-on-conflict 报错,不做 keep-both;只有 v1 迁移器去重(`-N`)。
 
 ### 阶段 3：file processing path mode
 
+> 状态(2026-06-08): 已具备。
+
 目标：
 
-- `StartFileProcessingJobInput` 支持 `FileHandle` 和 output target。
-- MinerU 输出 Markdown 到知识库目录。
+- `StartFileProcessingJobInput` 支持 `FileHandle` 和单臂 `{kind:'path'}` output target。
+- MinerU 输出 Markdown 到知识库目录(业务身份用 `context.dataId`)。
 - 当前 v2 写回 `indexedRelativePath`，但不创建 Markdown item。
 
 验证：
@@ -812,6 +817,8 @@ preload / IPC 契约也要同步：
 - 删除 item 同时删除 PDF 和 Markdown。
 
 ### 阶段 4：KnowledgeIndexStore
+
+> 状态(2026-06-08): 未开始。这是核心未来工作 —— 当前运行时仍是旧单表 `libsql_vectorstores_embedding` + `external_id` API。
 
 目标：
 
@@ -827,11 +834,13 @@ preload / IPC 契约也要同步：
 
 ### 阶段 5：删除、恢复、迁移
 
+> 状态(2026-06-08): 删除顺序已具备;restore 只复制源文件(不复制 indexed 产物、无 duplicate),部分待办;v1 迁移文件部分已做,向量迁移的孤立 bug 已修复(`a6128a6da9`,§11),但仍写旧单表格式。
+
 目标：
 
-- item 删除、container 删除、base 删除清理文件和索引。
-- restore / duplicate 复制知识库目录材料。
-- v1 迁移写入当前 v2 终态。
+- item 删除、container 删除、base 删除清理文件和索引。(顺序已做)
+- restore / duplicate 复制知识库目录材料。(restore 部分待办;duplicate 未做)
+- v1 迁移写入当前 v2 终态。(文件已做;向量孤立 bug 已修复 `a6128a6da9`;向量仍写旧单表格式,material 终态未做)
 
 验证：
 
@@ -844,7 +853,7 @@ preload / IPC 契约也要同步：
 最低测试覆盖：
 
 - shared schema：接受 `relativePath` / `indexedRelativePath`，拒绝绝对路径、`..`、`.cherry/**`。
-- path service：base dir、index path、resolve relative path、keep-both 命名、路径逃逸保护。
+- path service：base dir、index path(`.cherry/index.sqlite`)、resolve relative path、reject-on-conflict(目标已存在报 "Knowledge file already exists")、路径逃逸保护(`assertSafeKnowledgeRelativePath` 在主进程 helper 层,zod 仅形状)。
 - file import：文件复制到 base 目录，不创建 FileEntry。
 - directory import：递归复制、跳过隐藏文件、child item 写正确 `relativePath`。
 - URL import：生成 Markdown 快照，reindex 不 fetch。
@@ -873,7 +882,7 @@ preload / IPC 契约也要同步：
 
 | 风险 | 处理 |
 | --- | --- |
-| `KnowledgeBase/{baseId}` 旧向量库文件与新目录冲突 | 第一阶段先改路径。新索引库固定为 `{baseId}/index.sqlite`。开发期旧 v2 数据可重建。 |
+| `KnowledgeBase/{baseId}` 旧向量库文件与新目录冲突 | 第一阶段先改路径。新索引库固定为 `{baseId}/.cherry/index.sqlite`。开发期旧 v2 数据可重建。 |
 | FileEntry 依赖散落在 UI、service、workflow | 以 `knowledge_item.data.relativePath` 为唯一读取路径，逐个移除 `/files/entries/:id` 和 file_ref 依赖。 |
 | URL / note 仍用旧来源重建 | 导入时必须写 Markdown 快照；普通 reindex 只读快照。 |
 | chunk offset 错配 | chunker 保留 offset 或 cursor-based 匹配，禁止 naive 从头 `indexOf`。 |
@@ -889,9 +898,9 @@ preload / IPC 契约也要同步：
 | 全局 `knowledge_base` | 保留 | 保留或作为元数据入口继续存在 |
 | 全局 `knowledge_item` | 保留，UI 依赖 | 不作为材料唯一事实，目录和 `index.sqlite` 管理材料 |
 | 用户文件位置 | `KnowledgeBase/{baseId}/` | `KnowledgeBase/{baseId}/` |
-| index.sqlite 位置 | `KnowledgeBase/{baseId}/index.sqlite` | `KnowledgeBase/{baseId}/.cherry/index.sqlite` |
+| index.sqlite 位置 | `KnowledgeBase/{baseId}/.cherry/index.sqlite` | `KnowledgeBase/{baseId}/.cherry/index.sqlite` |
 | FileManager FileEntry | 不作为材料身份 | 不作为材料身份 |
-| URL / note | Markdown 快照文件 | 普通 captured material |
+| URL / note | Markdown 快照文件(计划目标;baseline 当前 url 联网抓取、note inline) | 普通 captured material |
 | PDF 处理产物 | `indexedRelativePath`，不创建新 item | Markdown 是独立 visible material |
 | watcher / scan | 不启用 | 启用 |
 | FTS-only | 不启用 | 可启用 |

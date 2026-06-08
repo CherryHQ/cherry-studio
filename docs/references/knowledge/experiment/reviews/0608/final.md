@@ -2,6 +2,8 @@
 
 Date: 2026-06-07
 
+> 状态(2026-06-08): 本报告的 POC-gated 结论已部分校准。baseline 已推进:中心化 path helper(`pathStorage.ts` 函数模块)、path 化文件处理、base 目录化文件存储、迁移写 `relativePath`、渲染层去 FileEntry 均已具备地基。其中 POC B(path-based FileProcessing)对应的基础工作已落地;POC A(material 模型 + `KnowledgeIndexStore` + 9 表 `index.sqlite`)仍未开始,运行时仍是旧单表 `libsql_vectorstores_embedding` + `external_id` API,故 POC A 仍是要执行的计划。本报告作为路线图继续有效。详见 `../../drift-report-2026-06-08.md`。
+
 ## 1. Executive Summary
 
 Final conclusion: conditionally feasible.
@@ -23,14 +25,16 @@ Recommended first POCs:
 
 No full implementation branch should start before both POCs pass their stop/go tests.
 
+> 状态(2026-06-08): POC 2(path-based file processing)对应的基础已在 baseline 落地(path 化文件处理 + `FileHandle` + `context.dataId`,index.sqlite 已位于 `KnowledgeBase/{baseId}/.cherry/index.sqlite`)。POC 1(`KnowledgeIndexStore` + 9 表 + material 模型)仍未开始,仍是要先验证再实现的计划项;运行时当前仍走旧向量库。
+
 ## 2. Consensus Decisions
 
 - Current v2 keeps global `knowledge_base` and `knowledge_item`.
 - Current v2 stores user files and snapshots under `KnowledgeBase/{baseId}/`.
-- Current v2 index path is `KnowledgeBase/{baseId}/index.sqlite`; v2.x later moves it to `.cherry/index.sqlite`.
+- Current v2 stores the per-base index at `KnowledgeBase/{baseId}/.cherry/index.sqlite` (baseline already uses the hidden `.cherry` layout; no later move).
 - Leaf `knowledge_item.id` equals `material.material_id`.
 - Persisted leaf data uses `relativePath`; processed files can also use `indexedRelativePath`.
-- External paths, URLs, sitemap URLs, and note content are runtime command inputs, not persisted indexing facts.
+- External paths, URLs, and note content are runtime command inputs, not persisted indexing facts. (sitemap is no longer a standalone item type; v1 sitemap migrates to `url`.)
 - FileEntry and `file_ref` stop being knowledge material identity.
 - Knowledge path service owns base paths, containment checks, keep-both names, snapshot writes, and idempotent file deletes.
 - FileProcessing supports path mode additively. Non-knowledge callers keep FileEntry + managed artifact behavior.
@@ -66,7 +70,7 @@ Cross-module dependency summary:
 
 Uncovered or still needs confirmation:
 
-- Final URL/sitemap migration policy for unavailable source content.
+- Final URL migration policy for unavailable source content (v1 sitemap folds into this as `url`).
 - Final attachment/preview IPC shape.
 - Final class/service naming for `KnowledgeIndexStoreService`.
 
@@ -104,7 +108,7 @@ Files: review docs only.
 Acceptance:
 
 - `final.md` accepted.
-- URL/sitemap migration policy decided.
+- URL migration policy decided (sitemap folded into `url`).
 - attachment/preview IPC decided.
 - `deleteItemChunk` transition behavior decided.
 
@@ -260,7 +264,7 @@ Can be separate PR: yes, after backend contracts exist.
 
 Must resolve before implementation:
 
-- URL/sitemap migration policy when source content is not available.
+- URL migration policy when source content is not available (sitemap folds into `url`).
 - attachment/preview IPC shape for base-owned files.
 - final `deleteItemChunk` transition behavior.
 - legacy id preservation/remapping rule.
@@ -273,6 +277,10 @@ Implementation blockers:
 - FileProcessing start payload/output still FileEntry-centered.
 - current vectorstore path uses `KnowledgeBase/{baseId}` as a file, blocking `{baseId}/` directory ownership.
 - current renderer and migration still create/use FileEntries for knowledge.
+
+> 状态(2026-06-08): 上列实现 blocker 多数已在 baseline 解除 —— 中心化 path helper 已具备(`pathStorage.ts` 函数模块);FileProcessing 已 path 化(`output.kind = path` + `context.dataId`);index.sqlite 已是目录布局下的 `{baseId}/.cherry/index.sqlite`,不再把 `KnowledgeBase/{baseId}` 当文件,`{baseId}/` 目录归属已就绪;渲染层已去 FileEntry,迁移把上传文件拷入 base 目录并写 `relativePath`、不写 knowledge `file_ref`。仍待执行的 blocker 是 POC A(`KnowledgeIndexStore` + material 模型),其尚未开始,运行时仍走旧 `external_id` 向量库。
+>
+> ✅ 已修复 baseline bug(`../../drift-report-2026-06-08.md` §4):此前 v1 向量迁移把重建库写到 legacy 扁平路径 `{root}/{legacyBaseId}`,而运行时读 `{newBaseId}/.cherry/index.sqlite`,id 与布局两维度都不一致 → 迁移后的向量被孤立、运行时读到空库。已在 `a6128a6da9` 修复(读源/写目标分离 + 运行时路径回归测试);但迁移器仍写旧单表 `libsql_vectorstores_embedding` 格式,9 表 material 终态仍是未来工作。
 
 ## 7. Risk Register
 
@@ -352,6 +360,8 @@ Required gates:
 - [10 Chief Architect](./subagents/10-chief-architect.md)
 
 ## 10. Execution Plan
+
+> 状态(2026-06-08): 下列 issue/PR 序列仍是有效路线图,但起点已前移。POC B(item 3,path-based FileProcessing)及 item 4(path/data foundation)、item 9(渲染去 FileEntry)对应的基础已在 baseline 落地;item 8(v1 迁移)已部分落地,其孤立向量 bug 已修复(`a6128a6da9`,见 §6 状态注 / `../../drift-report-2026-06-08.md` §4),但迁移器仍写旧单表格式。仍未开始的核心是 item 2(POC A: `KnowledgeIndexStore` + material 模型)与依赖它的 item 5(index runtime integration)。
 
 Recommended issues or PRs:
 

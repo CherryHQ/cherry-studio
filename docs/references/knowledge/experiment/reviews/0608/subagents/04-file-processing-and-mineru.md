@@ -1,5 +1,12 @@
 # Agent 04 Review: File Processing and MinerU
 
+> 状态(2026-06-08): 本评审写于实现之前。部分"当前状态"描述已被 baseline + 顺手改动改变(详见 ../../../drift-report-2026-06-08.md)。本篇仍作为待执行计划的依据阅读。
+>
+> baseline 现状校准(本篇相关):
+> - 文件处理已收敛为单一 `{kind:'path'}` 输出;`managed_artifact` 已被**整个删除**(不是本篇设想的"保留作默认/附加模式")。本篇下文凡以 `managed_artifact` 为默认、双臂 `FileProcessingOutputTarget` union、保留 FileEntry artifact 的描述,均已被 baseline 取代为单臂 path 模型;`document_to_markdown` 入队前强制要求 path output。
+> - `StartFileProcessingJobInput` 已落地为 `{ feature, file: FileHandle, output?, context?:{dataId?}, processorId? }`;MinerU 仅用 `context.dataId`(无 `fileEntryId` 回退)。job payload 已去掉 `sourceFileEntryId`/`processedFileEntryId`,归属用 `context.dataId === itemId` 校验。
+> - 持久化恢复(remote-poll/重启/snapshot rehydrate)与原子写 markdown 已具备地基。
+
 Date: 2026-06-07
 
 ## 1. Conclusion

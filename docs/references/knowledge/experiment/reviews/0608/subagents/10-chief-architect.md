@@ -1,5 +1,9 @@
 # Agent 10 Chief Architect Review
 
+> 状态(2026-06-08): 本评审写于实现之前。部分"当前状态"描述已被 baseline + 顺手改动改变(详见 ../../../drift-report-2026-06-08.md)。本篇仍作为待执行计划的依据阅读。
+>
+> baseline 现状校准:index 库已位于 `{baseId}/.cherry/index.sqlite`(隐藏布局已落地,移动已发生);`KnowledgeIndexStore` + material 模型仍未实现,本篇 `{baseId}/index.sqlite` 指其未来目标(按 `.cherry` 布局)。
+
 Date: 2026-06-07
 
 ## 1. Review Process

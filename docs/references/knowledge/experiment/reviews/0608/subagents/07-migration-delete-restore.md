@@ -1,5 +1,13 @@
 # Agent 07 Review: Migration, Delete, Restore
 
+> 状态(2026-06-08): 本评审写于实现之前。部分"当前状态"描述已被 baseline + 顺手改动改变(详见 ../../../drift-report-2026-06-08.md)。本篇仍作为待执行计划的依据阅读。
+>
+> baseline 现状校准(本篇相关):
+> - v1 迁移已把上传文件拷入 `{newBaseId}/`、写 relativePath、不写 knowledge `file_ref`(`KnowledgeMigrator.ts:767`)。本篇关于停写 `file_ref`/拷文件的内容已具备地基。
+> - `KnowledgeVectorMigrator` 此前把重建向量写到 legacy 扁平路径,与运行时读取的 `{newBaseId}/.cherry/index.sqlite` 不一致(迁移后向量被孤立、搜索返回空);已在 `a6128a6da9` 修复(读源/写目标分离 + 运行时路径回归测试)。但迁移器**仍写旧 `libsql_vectorstores_embedding` 单表格式**,本篇关于"迁进新 index.sqlite(9 表 material)形态"的内容仍是未来工作。
+> - `knowledge_item.id == material.material_id`:当前迁移重新生成 id(moot),本篇"保留合法旧 id"仍是未来目标。
+> - note 迁移仍读 inline `data.content`(快照模型未做);本篇 note 快照内容为未来计划。
+
 ## 1. Conclusion
 
 Directly migrating v1 knowledge data into the final v2 layout is feasible and is the right direction. The migration should create the final per-base directory and `index.sqlite` shape instead of carrying old vector artifacts forward:
