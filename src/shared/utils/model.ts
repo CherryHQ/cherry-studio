@@ -1115,7 +1115,7 @@ export const isMiniMaxReasoningModel = (model: Model): boolean => isMiniMaxModel
 // MiniMax-M3 only accepts thinking.type 'adaptive' | 'disabled' on the OpenAI-compatible
 // endpoint, unlike M1/M2.x which use 'enabled'.
 export const isMiniMaxM3Model = (model: Model): boolean =>
-  /minimax-m3(?:\.\d+)?(?:-[\w-]+)?/i.test(getLowerBaseModelName(getRawModelId(model), '/'))
+  /^minimax-m3(?:\.\d+)?(?:-[\w-]+)?$/i.test(getLowerBaseModelName(getRawModelId(model), '/'))
 
 export const isStepReasoningModel = (model: Model): boolean => isStepModel(model) && isReasoningModel(model)
 

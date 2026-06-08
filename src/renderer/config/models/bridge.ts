@@ -143,6 +143,6 @@ function inferSupportedEfforts(lowerId: string, lowerName: string): string[] | u
   // MiniMax M3: thinking is controllable (adaptive/disabled per official docs).
   // M2.x is excluded — thinking cannot be turned off.
   // https://platform.minimaxi.com/docs/api-reference/text-openai-api
-  if (/minimax-m3(?:\.\d+)?(?:-[\w-]+)?/.test(id)) return ['none', 'auto']
+  if (/minimax-m3(?:\.\d+)?(?:-[\w-]+)?$/.test(id)) return ['none', 'auto']
   return undefined
 }

@@ -789,10 +789,8 @@ export function getAnthropicReasoningParams(
   } else {
     // MiniMax M3 via Anthropic endpoint: adaptive / disabled, no budgetTokens
     // https://platform.minimaxi.com/docs/api-reference/text-anthropic-api
+    // reasoningEffort === 'none' is already handled by the early return above.
     if (isMiniMaxM3Model(model)) {
-      if (reasoningEffort === 'none') {
-        return { thinking: { type: 'disabled' } }
-      }
       return { thinking: { type: 'adaptive' }, sendReasoning: true }
     }
     if (isMiniMaxReasoningModel(model)) {
