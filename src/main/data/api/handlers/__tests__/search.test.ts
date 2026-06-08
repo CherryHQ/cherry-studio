@@ -158,6 +158,15 @@ describe('searchHandlers', () => {
         } as never)
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
+      await expect(
+        searchHandlers['/search/content'].GET({
+          query: {
+            q: 'needle',
+            cursors: { 'topic-message': '' }
+          }
+        } as never)
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+
       expect(contentSearchMock).not.toHaveBeenCalled()
     })
   })

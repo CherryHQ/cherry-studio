@@ -52,6 +52,7 @@ describe('ContentSearchQuerySchema', () => {
     expect(() => ContentSearchQuerySchema.parse({ q: '   ' })).toThrow()
     expect(() => ContentSearchQuerySchema.parse({ q: 'message', sources: ['topic'] })).toThrow()
     expect(() => ContentSearchQuerySchema.parse({ q: 'message', cursors: { topic: '1:m1' } })).toThrow()
+    expect(() => ContentSearchQuerySchema.parse({ q: 'message', cursors: { 'topic-message': '' } })).toThrow()
     expect(() =>
       ContentSearchQuerySchema.parse({ q: 'message', filters: { 'topic-message': { sessionId: 'session-1' } } })
     ).toThrow()

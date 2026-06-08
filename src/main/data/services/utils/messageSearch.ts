@@ -112,7 +112,7 @@ export async function searchMessagesWithCursor<Row, InternalItem, PublicItem>({
   const fetchLimit = limit + 1
   const regexes = buildKeywordRegexes(terms, { matchMode, flags: 'i' })
   const ftsConditions = terms.map((term) => sql`fts.searchable_text LIKE ${buildFtsLikePattern(term)}`)
-  const cursor = rawCursor ? decodeMessageSearchCursor(rawCursor, cursorConfig) : undefined
+  const cursor = rawCursor !== undefined ? decodeMessageSearchCursor(rawCursor, cursorConfig) : undefined
   const createdAtFromMs = getCreatedAtFromMs(createdAtFrom)
   const results: InternalItem[] = []
   let offset = 0

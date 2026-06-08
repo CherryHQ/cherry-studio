@@ -68,6 +68,7 @@ export const ContentSearchSourceTypeSchema = z.enum(contentSearchSourceTypes)
 
 export const CONTENT_SEARCH_DEFAULT_LIMIT_PER_SOURCE = 50
 export const CONTENT_SEARCH_MAX_LIMIT_PER_SOURCE = 1000
+const ContentSearchCursorSchema = z.string().min(1)
 
 export const TopicMessageContentSearchFilterSchema = z.strictObject({
   topicId: z.string().min(1).optional()
@@ -88,7 +89,7 @@ export type ContentSearchFilters = z.output<typeof ContentSearchFiltersSchema>
 export const ContentSearchQuerySchema = z.strictObject({
   q: z.string().trim().min(1),
   sources: z.array(ContentSearchSourceTypeSchema).min(1).optional(),
-  cursors: z.partialRecord(ContentSearchSourceTypeSchema, z.string()).optional(),
+  cursors: z.partialRecord(ContentSearchSourceTypeSchema, ContentSearchCursorSchema).optional(),
   filters: ContentSearchFiltersSchema.optional(),
   limitPerSource: z.coerce.number().int().positive().max(CONTENT_SEARCH_MAX_LIMIT_PER_SOURCE).optional(),
   createdAtFrom: z.iso.datetime().optional()
