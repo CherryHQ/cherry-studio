@@ -85,6 +85,35 @@ describe('tool_search meta-tool', () => {
     expect(result.matchedNamespaces[0].namespace).toBe('mcp:s1')
   })
 
+  it('toModelOutput renders a compact text listing with verbatim tool names', async () => {
+    const reg = setup()
+    const deferred = new Set(['mcp__s1__a', 'mcp__s1__b', 'mcp__s2__c'])
+    const tool = createToolSearchTool(reg, deferred)
+    const output = await callExecute(tool, {})
+    const out = tool.toModelOutput!({ toolCallId: 'tc-1', input: {}, output }) as { type: string; value: string }
+    expect(out.type).toBe('text')
+    expect(out.value).toContain('mcp:s1')
+    expect(out.value).toContain('mcp__s1__a')
+    expect(out.value).toContain('mcp__s2__c')
+  })
+
+  it('toModelOutput reports no matches when nothing is deferred', () => {
+    const reg = setup()
+    const tool = createToolSearchTool(reg, new Set())
+    const out = tool.toModelOutput!({ toolCallId: 'tc-1', input: {}, output: { matchedNamespaces: [] } }) as {
+      type: string
+      value: string
+    }
+    expect(out.type).toBe('text')
+    expect(out.value).toMatch(/No tools matched/)
+  })
+
+  it('advertises inputExamples', () => {
+    const reg = setup()
+    const tool = createToolSearchTool(reg, new Set(['mcp__s1__a']))
+    expect(tool.inputExamples?.length).toBeGreaterThan(0)
+  })
+
   it('verbose mode includes inputSchema; default mode omits it', async () => {
     const reg = setup()
     const deferred = new Set(['mcp__s1__a'])

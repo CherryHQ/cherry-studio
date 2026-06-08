@@ -1,5 +1,5 @@
-import type { Tool, ToolSet } from 'ai'
-import { describe, expect, it } from 'vitest'
+import { jsonSchema, type Tool, type ToolSet } from 'ai'
+import { describe, expect, it, vi } from 'vitest'
 
 import { TOOL_INSPECT_TOOL_NAME } from '../../meta/toolInspect'
 import { TOOL_INVOKE_TOOL_NAME } from '../../meta/toolInvoke'
@@ -82,6 +82,45 @@ describe('applyDeferExposition', () => {
     expect(result).toBe(tools)
     expect(result![TOOL_SEARCH_TOOL_NAME]).toBeUndefined()
     expect(deferredEntries).toEqual([])
+  })
+
+  function exposeDeferredTool() {
+    const execute = vi.fn().mockResolvedValue('ok')
+    const registry = new ToolRegistry()
+    const entry: ToolEntry = {
+      name: 'mcp__s1__t',
+      namespace: 'mcp:s1',
+      description: 'd',
+      defer: 'always',
+      tool: {
+        type: 'function',
+        description: 'inner',
+        inputSchema: jsonSchema({ type: 'object' }),
+        execute
+      } as unknown as Tool
+    }
+    registry.register(entry)
+    const { tools } = applyDeferExposition({ mcp__s1__t: entry.tool }, registry, 32_000)
+    const opts = {
+      toolCallId: 'tc-1',
+      messages: [],
+      experimental_context: { requestId: 'req-1', abortSignal: new AbortController().signal }
+    } as Parameters<NonNullable<Tool['execute']>>[1]
+    return { execute, inspect: tools![TOOL_INSPECT_TOOL_NAME], invoke: tools![TOOL_INVOKE_TOOL_NAME], opts }
+  }
+
+  it('gates the injected tool_invoke on inspection — a deferred tool never runs blind', async () => {
+    const { execute, invoke, opts } = exposeDeferredTool()
+    await expect(invoke.execute!({ name: 'mcp__s1__t', params: {} }, opts)).rejects.toThrow(/hasn't been inspected/)
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('shares one inspect ledger: inspecting via the injected tool_inspect unlocks tool_invoke', async () => {
+    const { execute, inspect, invoke, opts } = exposeDeferredTool()
+    await inspect.execute!({ name: 'mcp__s1__t' }, opts)
+    const result = await invoke.execute!({ name: 'mcp__s1__t', params: {} }, opts)
+    expect(result).toBe('ok')
+    expect(execute).toHaveBeenCalledTimes(1)
   })
 
   it('skips entries that have a tool but no registry entry', () => {
