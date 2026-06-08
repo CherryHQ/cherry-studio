@@ -244,7 +244,11 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
       // Assistants section
       if (filteredAssistants.length > 0) {
         result.push({
-          label: <SectionLabel>{t('chat.input.mention_assistant.section_label')}</SectionLabel>,
+          label: (
+            <span className="pointer-events-none text-[11px] font-semibold uppercase tracking-[0.05em] opacity-50">
+              {t('chat.input.mention_assistant.section_label')}
+            </span>
+          ),
           icon: null,
           filterText: '',
           disabled: true,
@@ -285,7 +289,11 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
       // Models section
       if (modelItems.length > 0) {
         result.push({
-          label: <SectionLabel>{t('chat.input.mention_assistant.section_models_label')}</SectionLabel>,
+          label: (
+            <span className="pointer-events-none text-[11px] font-semibold uppercase tracking-[0.05em] opacity-50">
+              {t('chat.input.mention_assistant.section_models_label')}
+            </span>
+          ),
           icon: null,
           filterText: '',
           disabled: true,
@@ -413,13 +421,4 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
 
 const ProviderName = styled.span`
   font-weight: 500;
-`
-
-const SectionLabel = styled.span`
-  font-size: 11px;
-  font-weight: 600;
-  opacity: 0.5;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  pointer-events: none;
 `

@@ -125,6 +125,7 @@ export type AiStreamOpenRequest = {
       parentAnchorId: string
       userMessageParts?: never
       temporarySystemPrompt?: never
+      temporaryAssistantName?: never
     }
 )
 

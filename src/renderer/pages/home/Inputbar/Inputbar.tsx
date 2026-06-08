@@ -55,7 +55,12 @@ interface Props {
   topic: Topic
   onSend: (
     text: string,
-    options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[]; temporarySystemPrompt?: string }
+    options?: {
+      files?: FileMetadata[]
+      mentionedModels?: UniqueModelId[]
+      temporarySystemPrompt?: string
+      temporaryAssistantName?: string
+    }
   ) => void | Promise<void>
 }
 
@@ -250,6 +255,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
       logger.warn('send failed', { error })
       setText(text_)
       setFiles(files)
+      setMentionedAssistant(mentionedAssistant)
       window.toast.error(t('chat.input.send_failed'))
     } finally {
       setIsSending(false)
@@ -426,7 +432,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
       leftToolbar={leftToolbar}
       primaryActionMode={loading ? 'pause' : 'send'}
       topContent={topContent}
-      forceEnableQuickPanelTriggers={true}
+      forceEnableQuickPanelTriggers={enableQuickPanelTriggers}
     />
   )
 }

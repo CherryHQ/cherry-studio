@@ -361,6 +361,7 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
+  if (v.temporaryAssistantName !== undefined && typeof v.temporaryAssistantName !== 'string') return false
   return true
 })
 

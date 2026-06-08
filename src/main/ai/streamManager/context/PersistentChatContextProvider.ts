@@ -134,9 +134,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           role: 'assistant',
           data: {
             parts: [],
-            ...(req.temporaryAssistantName !== undefined && {
-              temporaryAssistantName: req.temporaryAssistantName
-            })
+            ...(req.trigger === 'submit-message' &&
+              req.temporaryAssistantName !== undefined && {
+                temporaryAssistantName: req.temporaryAssistantName
+              })
           },
           status: 'pending',
           modelId: model.id,
