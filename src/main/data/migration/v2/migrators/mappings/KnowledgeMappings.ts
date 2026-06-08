@@ -1,6 +1,5 @@
-import path from 'node:path'
-
 import type { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { sanitizeFilename } from '@main/utils/file'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
@@ -83,8 +82,16 @@ export interface LegacyKnowledgeNote {
 
 export type KnowledgeBaseTransformResult = { ok: true; value: NewKnowledgeBase }
 
+/**
+ * Side-channel emitted for migrated `file` items so the migrator can copy the
+ * legacy upload into the v2 knowledge base directory during `execute`. The
+ * physical file lives at `<filesDataDir>/<storageName>` (v1 storage name =
+ * `{id}{ext}`), never at the stale `path` column (#15733).
+ */
+export type KnowledgeItemFileCopy = { storageName: string }
+
 export type KnowledgeItemTransformResult =
-  | { ok: true; value: NewKnowledgeItem }
+  | { ok: true; value: NewKnowledgeItem; fileCopy?: KnowledgeItemFileCopy }
   | {
       ok: false
       reason:
@@ -273,7 +280,8 @@ export const transformKnowledgeItem = (
   deps: {
     noteById: Map<string, LegacyKnowledgeNote>
     filesById: Map<string, FileMetadata>
-  }
+  },
+  onWarning?: (message: string) => void
 ): KnowledgeItemTransformResult => {
   if (!item?.id || !item?.type) {
     return {
@@ -284,6 +292,7 @@ export const transformKnowledgeItem = (
 
   let type: NewKnowledgeItem['type']
   let data: KnowledgeItemData
+  let fileCopy: KnowledgeItemFileCopy | undefined
 
   if (item.type === 'file') {
     const file = resolveLegacyFileMetadata(item.content, deps.filesById)
@@ -295,7 +304,23 @@ export const transformKnowledgeItem = (
     }
 
     type = 'file'
-    data = { source: file.path, relativePath: path.basename(file.path) }
+    // `origin_name` is the user-facing filename, but a blank one short-circuits
+    // sanitizeFilename to '' (before its 'untitled' guard) and a blank
+    // relativePath fails the read path (FileItemDataSchema `.min(1)`), poisoning
+    // the whole base's item-list query — and resolves the copy destination to
+    // the base dir itself. Degrade like FileMigrator.deriveSafeName: storage
+    // name (keeps the extension) then the item id. The stale `path` column may
+    // carry foreign separators after a cross-platform restore, so the migrator
+    // dedupes and copies the file (located via `storageName`) in `execute`.
+    const sanitizedName = sanitizeFilename(file.origin_name)
+    const relativePath = sanitizedName || sanitizeFilename(file.name) || item.id
+    if (!sanitizedName) {
+      onWarning?.(
+        `Knowledge file item ${item.id} has a blank v1 filename; falling back to ${JSON.stringify(relativePath)}`
+      )
+    }
+    data = { source: file.path, relativePath }
+    fileCopy = { storageName: file.name }
   } else if (item.type === 'url') {
     if (typeof item.content !== 'string' || item.content.trim() === '') {
       return {
@@ -383,6 +408,7 @@ export const transformKnowledgeItem = (
       error: normalizeKnowledgeItemError(status, item.processingStatus, item.processingError),
       createdAt: toTimestamp(item.created_at),
       updatedAt: toTimestamp(item.updated_at)
-    }
+    },
+    ...(fileCopy ? { fileCopy } : {})
   }
 }

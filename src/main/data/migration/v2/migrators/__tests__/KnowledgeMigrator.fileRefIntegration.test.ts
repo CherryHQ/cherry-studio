@@ -45,7 +45,9 @@ function dexieFileRow(overrides: Partial<FileMetadata> & Pick<FileMetadata, 'id'
   return {
     id: overrides.id,
     name: overrides.name ?? 'doc',
-    origin_name: overrides.origin_name ?? 'doc.pdf',
+    // Unique per file so migrated relativePaths (now derived from origin_name)
+    // stay distinct and need no dedup suffix.
+    origin_name: overrides.origin_name ?? `${overrides.id}.pdf`,
     path: overrides.path ?? `${MOCK_USER_DATA}/Data/Files/${overrides.id}.pdf`,
     size: overrides.size ?? 1024,
     ext: overrides.ext ?? '.pdf',
@@ -81,7 +83,8 @@ function makeCtx(dbh: ReturnType<typeof setupTestDatabase>, dexieFiles: FileMeta
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     paths: {
       userData: MOCK_USER_DATA,
-      knowledgeBaseDir: `${MOCK_USER_DATA}/Data/KnowledgeBase`
+      knowledgeBaseDir: `${MOCK_USER_DATA}/Data/KnowledgeBase`,
+      filesDataDir: `${MOCK_USER_DATA}/Data/Files`
     }
   } as never
 }

@@ -10,9 +10,11 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { createClient, type Value as LibsqlValue } from '@libsql/client'
 import { loggerService } from '@logger'
 import { sanitizeFilename } from '@main/utils/file'
+import { copy, ensureDir } from '@main/utils/file/fs'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
+import type { FilePath } from '@shared/file/types'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -110,6 +112,23 @@ const resolveLegacyKnowledgeBaseDimensions = (base: LegacyKnowledgeBaseWithIdent
     : null
 }
 
+/** Make `name` unique within `used`, inserting a numeric suffix before the extension on collision. */
+function dedupeKnowledgeRelativePath(name: string, used: Set<string>): string {
+  let candidate = name
+  if (used.has(candidate)) {
+    const ext = path.extname(name)
+    const stem = name.slice(0, name.length - ext.length)
+    let suffix = 1
+    candidate = `${stem}-${suffix}${ext}`
+    while (used.has(candidate)) {
+      suffix += 1
+      candidate = `${stem}-${suffix}${ext}`
+    }
+  }
+  used.add(candidate)
+  return candidate
+}
+
 export class KnowledgeMigrator extends BaseMigrator {
   readonly id = 'knowledge'
   readonly name = 'KnowledgeBase'
@@ -127,6 +146,8 @@ export class KnowledgeMigrator extends BaseMigrator {
   private seenLegacyItemIds = new Set<string>()
   private legacyBaseIdRemap = new Map<string, string>()
   private legacyItemIdRemap = new Map<string, string>()
+  // New item id → v1 storage filename, so `execute` can copy the upload into the v2 KB dir.
+  private fileStorageNameByItemId = new Map<string, string>()
 
   override reset(): void {
     this.sourceCount = 0
@@ -140,6 +161,7 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.seenLegacyItemIds = new Set<string>()
     this.legacyBaseIdRemap = new Map<string, string>()
     this.legacyItemIdRemap = new Map<string, string>()
+    this.fileStorageNameByItemId = new Map<string, string>()
   }
 
   private recordWarning(message: string): void {
@@ -519,10 +541,15 @@ export class KnowledgeMigrator extends BaseMigrator {
         for (const item of items) {
           this.sourceCount += 1
 
-          const itemResult = transformKnowledgeItem(preparedBase.id!, item, {
-            noteById,
-            filesById
-          })
+          const itemResult = transformKnowledgeItem(
+            preparedBase.id!,
+            item,
+            {
+              noteById,
+              filesById
+            },
+            (msg) => this.recordWarning(msg)
+          )
 
           if (!itemResult.ok) {
             this.skippedCount += 1
@@ -541,6 +568,9 @@ export class KnowledgeMigrator extends BaseMigrator {
           this.seenLegacyItemIds.add(item.id!)
           this.legacyItemIdRemap.set(item.id!, itemResult.value.id!)
           this.preparedItems.push(itemResult.value)
+          if (itemResult.fileCopy) {
+            this.fileStorageNameByItemId.set(itemResult.value.id!, itemResult.fileCopy.storageName)
+          }
         }
       }
 
@@ -627,6 +657,9 @@ export class KnowledgeMigrator extends BaseMigrator {
         }
 
         const baseItems = itemsByBaseId.get(base.id) ?? []
+        // Finalize relativePath + copy uploads before opening the write tx so no
+        // file I/O happens while the transaction is held.
+        await this.copyKnowledgeFilesForBase(ctx, base.id, baseItems)
         let transactionProcessed = 0
 
         const legacyKnowledgeBaseId = legacyBaseIdByMigratedId.get(base.id)
@@ -685,6 +718,62 @@ export class KnowledgeMigrator extends BaseMigrator {
         success: false,
         processedCount: processed,
         error: error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+
+  /**
+   * Copy each migrated `file` item's upload into the v2 knowledge base directory
+   * and finalize its `relativePath` (deduped within the base) so the item behaves
+   * like a native v2 item — reindex/restore re-read the file from
+   * `<knowledgeBaseDir>/<baseId>/<relativePath>`. Mutates `items` in place before
+   * insertion so the persisted row matches what is on disk.
+   *
+   * The physical source is located by v1 storage name (`<filesDataDir>/<name>`),
+   * never the stale `path` column (#15733). A missing or unreadable source
+   * degrades gracefully: the item is kept (still searchable via migrated vectors)
+   * but not copied, so it just cannot be reindexed until re-added.
+   */
+  private async copyKnowledgeFilesForBase(
+    ctx: MigrationContext,
+    baseId: string,
+    items: NewKnowledgeItem[]
+  ): Promise<void> {
+    const usedRelativePaths = new Set<string>()
+
+    for (const item of items) {
+      if (item.type !== 'file' || !item.id) {
+        continue
+      }
+
+      const data = item.data as { relativePath: string }
+      const relativePath = dedupeKnowledgeRelativePath(data.relativePath, usedRelativePaths)
+      data.relativePath = relativePath
+
+      const storageName = this.fileStorageNameByItemId.get(item.id)
+      if (!storageName) {
+        this.recordWarning(`Knowledge file item ${item.id} is missing a storage name; skipping file copy`)
+        continue
+      }
+
+      const sourcePath = path.join(ctx.paths.filesDataDir, storageName)
+      if (!fs.existsSync(sourcePath)) {
+        this.recordWarning(
+          `Knowledge file source missing for item ${item.id}; item kept but not reindexable: ${sourcePath}`
+        )
+        continue
+      }
+
+      const destPath = path.join(ctx.paths.knowledgeBaseDir, baseId, relativePath)
+      try {
+        await ensureDir(path.dirname(destPath) as FilePath)
+        await copy(sourcePath as FilePath, destPath as FilePath)
+      } catch (error) {
+        this.recordWarning(
+          `Failed to copy knowledge file for item ${item.id} (${sourcePath} → ${destPath}): ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
       }
     }
   }
