@@ -1,4 +1,4 @@
-import { PageShell } from '@cherrystudio/ui'
+import { PageShell, VStack } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProvider'
@@ -42,10 +42,10 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
             </div>
           </div>
           <Scrollbar className={providerDetailColumnClasses.scrollStrip}>
-            <div className={providerDetailColumnClasses.sectionStack}>
+            <VStack gap={8} className={providerDetailColumnClasses.sectionStack}>
               <AuthenticationSection providerId={providerId} />
               <ModelList providerId={providerId} />
-            </div>
+            </VStack>
           </Scrollbar>
         </PageShell>
       </div>

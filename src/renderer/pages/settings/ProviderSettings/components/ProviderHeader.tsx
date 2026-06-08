@@ -1,4 +1,4 @@
-import { Button, HStack, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, HStack, Switch, Tooltip, TruncatingRow } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { Bolt, BookOpen, ExternalLink } from 'lucide-react'
@@ -44,72 +44,71 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
 
   return (
     <>
-      <HStack gap={3}>
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <ProviderAvatar provider={provider} size={32} className="shrink-0 rounded-xl" />
-          <div className="min-w-0 self-center">
-            <HStack gap={1} wrap className="min-w-0">
-              <h1 className="truncate font-semibold text-(--color-foreground) text-[16px] leading-[1.25]">
-                {meta.fancyProviderName}
-              </h1>
-              {meta.docsWebsite && (
-                <Tooltip content={t('common.docs')}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    asChild
-                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-foreground/4 hover:text-foreground">
-                    <a
-                      href={meta.docsWebsite}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label={`${meta.fancyProviderName} · ${t('common.docs')}`}>
-                      <ExternalLink className="size-3.5" aria-hidden />
-                    </a>
-                  </Button>
-                </Tooltip>
-              )}
-              {meta.modelsWebsite && (
-                <Tooltip content={t('settings.models.list_title')}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    asChild
-                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-foreground/4 hover:text-foreground">
-                    <a
-                      href={meta.modelsWebsite}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label={`${meta.fancyProviderName} · ${t('settings.models.list_title')}`}>
-                      <BookOpen className="size-3.5" aria-hidden />
-                    </a>
-                  </Button>
-                </Tooltip>
-              )}
-              {meta.showApiOptionsButton && (
-                <Tooltip content={t('settings.provider.api.options.label')}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-foreground/4 hover:text-foreground"
-                    aria-label={t('settings.provider.api.options.label')}
-                    onClick={() => setApiOptionsOpen(true)}>
-                    <Bolt className="size-3.5" aria-hidden />
-                  </Button>
-                </Tooltip>
-              )}
-            </HStack>
-          </div>
-        </div>
-        <Switch
-          checked={provider.isEnabled}
-          disabled={isTogglingEnabled}
-          onCheckedChange={(enabled) => void handleToggleEnabled(enabled)}
-        />
-      </HStack>
+      <TruncatingRow
+        gap={2}
+        leading={<ProviderAvatar provider={provider} size={32} className="rounded-xl" />}
+        trailing={
+          <Switch
+            checked={provider.isEnabled}
+            disabled={isTogglingEnabled}
+            onCheckedChange={(enabled) => void handleToggleEnabled(enabled)}
+          />
+        }>
+        <HStack gap={1} wrap className="min-w-0">
+          <h1 className="truncate font-semibold text-(--color-foreground) text-[16px] leading-[1.25]">
+            {meta.fancyProviderName}
+          </h1>
+          {meta.docsWebsite && (
+            <Tooltip content={t('common.docs')}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                asChild
+                className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-foreground/4 hover:text-foreground">
+                <a
+                  href={meta.docsWebsite}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`${meta.fancyProviderName} · ${t('common.docs')}`}>
+                  <ExternalLink className="size-3.5" aria-hidden />
+                </a>
+              </Button>
+            </Tooltip>
+          )}
+          {meta.modelsWebsite && (
+            <Tooltip content={t('settings.models.list_title')}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                asChild
+                className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-foreground/4 hover:text-foreground">
+                <a
+                  href={meta.modelsWebsite}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`${meta.fancyProviderName} · ${t('settings.models.list_title')}`}>
+                  <BookOpen className="size-3.5" aria-hidden />
+                </a>
+              </Button>
+            </Tooltip>
+          )}
+          {meta.showApiOptionsButton && (
+            <Tooltip content={t('settings.provider.api.options.label')}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-foreground/4 hover:text-foreground"
+                aria-label={t('settings.provider.api.options.label')}
+                onClick={() => setApiOptionsOpen(true)}>
+                <Bolt className="size-3.5" aria-hidden />
+              </Button>
+            </Tooltip>
+          )}
+        </HStack>
+      </TruncatingRow>
       <ProviderApiOptionsDrawer
         providerId={providerId}
         open={apiOptionsOpen}

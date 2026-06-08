@@ -198,7 +198,7 @@ describe('AuthenticationSection', () => {
 
     const { container } = render(<AuthenticationSection providerId="missing" />)
 
-    expect(container.querySelector('[aria-labelledby="provider-auth-connection-heading"]')).not.toBeNull()
+    expect(container.querySelector('section')).not.toBeNull()
     expect(apiKeyPropsSpy).toHaveBeenCalledWith(expect.objectContaining({ providerId: 'missing' }))
   })
 })

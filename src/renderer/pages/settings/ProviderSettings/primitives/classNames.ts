@@ -41,10 +41,10 @@ export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-medium')
 export const providerDetailColumnClasses = {
   headerPad: 'shrink-0 px-6 pt-3',
   scrollStrip: 'min-h-0 flex-1 overflow-x-hidden px-6 pt-8 pb-4',
-  contentMaxWidth: 'mx-auto w-full max-w-3xl',
   /** Header inner wrapper: same max-width as body content + bottom divider aligned to content edges. */
   headerContentMaxWidth: 'mx-auto w-full max-w-3xl border-b border-border pb-2',
-  sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-8'
+  /** Width-cap for the scrolled section column; flex/gap come from the wrapping `VStack`. */
+  sectionStack: 'mx-auto min-h-full w-full min-w-0 max-w-3xl'
 } as const
 
 /** Connection-field actions (neutral outline buttons + caption-size labels). */
