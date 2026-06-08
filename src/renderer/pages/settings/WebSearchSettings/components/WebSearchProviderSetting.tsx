@@ -35,7 +35,6 @@ import {
   type WebSearchProviderMenuEntry
 } from '../utils/webSearchProviderMeta'
 import { WebSearchApiKeyListPopup } from './WebSearchApiKeyList'
-import WebSearchProviderLogo from './WebSearchProviderLogo'
 
 const providerFormClassName = 'flex w-full flex-col gap-4'
 const providerFieldClassName = 'flex flex-col gap-2'
@@ -295,7 +294,6 @@ export const WebSearchProviderSetting: FC<Props> = ({
         <SettingTitle>
           <Flex className="items-center justify-between" style={{ width: '100%' }}>
             <Flex className="min-w-0 items-center gap-2.5">
-              <WebSearchProviderLogo providerId={provider.id} providerName={provider.name} size={28} />
               <span className="truncate font-semibold text-[17px] text-foreground">{provider.name}</span>
               {officialWebsite && (
                 <SettingTitleExternalLink href={officialWebsite}>

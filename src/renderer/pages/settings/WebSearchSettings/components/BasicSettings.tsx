@@ -23,8 +23,8 @@ import { useWebSearchProviderLists } from '../hooks/useWebSearchProviderLists'
 import CompressionSettings from './CompressionSettings'
 import { WebSearchProviderOption } from './WebSearchProviderOption'
 
-const settingRowClassName = 'justify-start gap-6 py-2.5'
-const settingLabelClassName = 'w-36 shrink-0'
+const settingRowClassName = 'justify-between gap-6 py-2.5'
+const settingLabelClassName = 'min-w-0 flex-1'
 const selectTriggerClassName = 'w-[260px]'
 const DEFAULT_MAX_RESULTS = 5
 
@@ -142,7 +142,7 @@ const BasicSettings: FC = () => {
       <SettingGroup theme={theme} style={{ paddingBottom: 8 }}>
         <SettingTitle>{t('settings.general.label')}</SettingTitle>
         <SettingDivider />
-        <SettingRow className="items-center justify-start gap-6 py-2.5">
+        <SettingRow className="items-center justify-between gap-6 py-2.5">
           <SettingRowTitle className={settingLabelClassName}>
             {t('settings.tool.websearch.search_max_result.label')}
             {maxResults > 20 && compressionConfig?.method === 'none' && (
@@ -152,23 +152,7 @@ const BasicSettings: FC = () => {
               />
             )}
           </SettingRowTitle>
-          <div className="flex items-center gap-2">
-            <Input
-              aria-label={t('settings.tool.websearch.search_max_result.label')}
-              type="number"
-              min={1}
-              max={100}
-              step={1}
-              value={draftMaxResultsInput}
-              className="h-8 w-24"
-              onChange={(e) => setDraftMaxResultsInput(e.target.value)}
-              onBlur={commitMaxResultsDraft}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.currentTarget.blur()
-                }
-              }}
-            />
+          <div className="flex w-[260px] shrink-0 items-center justify-end gap-2">
             {!isMaxResultsDefault && (
               <Tooltip content={t('common.reset')}>
                 <Button
@@ -183,6 +167,22 @@ const BasicSettings: FC = () => {
                 </Button>
               </Tooltip>
             )}
+            <Input
+              aria-label={t('settings.tool.websearch.search_max_result.label')}
+              type="number"
+              min={1}
+              max={100}
+              step={1}
+              value={draftMaxResultsInput}
+              className="h-8 w-20 text-center"
+              onChange={(e) => setDraftMaxResultsInput(e.target.value)}
+              onBlur={commitMaxResultsDraft}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur()
+                }
+              }}
+            />
           </div>
         </SettingRow>
         <CompressionSettings />

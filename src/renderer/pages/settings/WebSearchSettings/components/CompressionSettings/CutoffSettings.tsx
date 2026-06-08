@@ -5,8 +5,8 @@ import { useWebSearchPersist } from '@renderer/pages/settings/WebSearchSettings/
 import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT } from '@shared/data/types/webSearch'
 import { useTranslation } from 'react-i18next'
 
-const settingRowClassName = 'justify-start gap-6 py-2.5'
-const settingLabelClassName = 'w-36 shrink-0'
+const settingRowClassName = 'justify-between gap-6 py-2.5'
+const settingLabelClassName = 'min-w-0 flex-1'
 
 const CutoffSettings = () => {
   const { t } = useTranslation()
@@ -34,7 +34,7 @@ const CutoffSettings = () => {
           }}
         />
       </SettingRowTitle>
-      <div className="flex w-65">
+      <div className="flex w-65 shrink-0">
         <Input
           placeholder={t('settings.tool.websearch.compression.cutoff.limit.placeholder')}
           value={compressionConfig?.cutoffLimit === undefined ? '' : compressionConfig.cutoffLimit}
