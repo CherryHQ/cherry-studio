@@ -31,6 +31,7 @@ import { loggerService } from '@logger'
 import { isProvisioned, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/ai/agents/cherryclaw/prompt'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
+import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import ClawServer from '@main/ai/mcp/servers/claw'
 import WorkspaceMemoryServer from '@main/ai/mcp/servers/workspaceMemory'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
@@ -425,6 +426,8 @@ async function buildToolPermissions(
   const isAssistant = agentConfig?.builtin_role === 'assistant'
   const toolPolicySnapshot = await createClaudeAgentToolPolicySnapshot(agent, {
     autoAllowRuntimeNamePrefixes: [
+      // cherry-tools (web + knowledge) is injected for every session and is read-only.
+      'mcp__cherry-tools__',
       ...(soulEnabled ? ['mcp__claw__'] : []),
       ...(isAssistant ? ['mcp__assistant__'] : [])
     ]
@@ -570,8 +573,12 @@ export async function buildMcpServers(
     }
   }
 
-  // 3. Exa — structured web search via HTTP (free tier, no API key)
-  mcpList.exa = { type: 'http', url: 'https://mcp.exa.ai/mcp' }
+  // 3. Cherry tools
+  mcpList['cherry-tools'] = {
+    type: 'sdk',
+    name: 'cherry-tools',
+    instance: new CherryBuiltinToolsServer().mcpServer
+  }
 
   // 4. Claw — agent autonomy tools (soul mode only). Use `agent.id` instead of
   // `session.agentId` so TS can see the value is non-null after the upstream
@@ -624,20 +631,25 @@ export function adjustAllowedToolsForMcp(
   soulEnabled: boolean,
   isAssistant: boolean
 ): string[] | undefined {
-  if (!soulEnabled && !isAssistant) return allowedTools
+  // No explicit allowlist and no built-in server forcing one: leave it undefined
+  // so Claude Code permits all tools. cherry-tools is still usable because its
+  // canUseTool gate is satisfied by the auto-allow prefix in buildToolPermissions.
+  if (allowedTools === undefined && !soulEnabled && !isAssistant) return undefined
 
   const result = allowedTools ? [...allowedTools] : []
-
-  if (soulEnabled && !result.includes('mcp__claw__*')) {
-    result.push('mcp__claw__*')
+  const ensure = (name: string) => {
+    if (!result.includes(name)) result.push(name)
   }
 
-  if (soulEnabled && !result.includes('mcp__agent-memory__*')) {
-    result.push('mcp__agent-memory__*')
-  }
+  // cherry-tools is injected for every session — keep it usable under an explicit allowlist.
+  ensure('mcp__cherry-tools__*')
 
-  if (isAssistant && !result.includes('mcp__assistant__*')) {
-    result.push('mcp__assistant__*')
+  if (soulEnabled) {
+    ensure('mcp__claw__*')
+    ensure('mcp__agent-memory__*')
+  }
+  if (isAssistant) {
+    ensure('mcp__assistant__*')
   }
 
   return result.length > 0 ? result : undefined

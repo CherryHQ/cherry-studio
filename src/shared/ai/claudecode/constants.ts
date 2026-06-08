@@ -1,4 +1,8 @@
-/** Tools disabled for ALL agents — replaced by Exa MCP (`mcp__exa__web_search_exa`) */
+/**
+ * Tools disabled for ALL agents — replaced by the in-process `cherry-tools` MCP
+ * server (`mcp__cherry-tools__web__search` / `__web__fetch`), which routes through
+ * the user's configured WebSearchService provider.
+ */
 export const GLOBALLY_DISALLOWED_TOOLS = ['WebSearch', 'WebFetch'] as const
 
 /**

@@ -15,12 +15,8 @@ vi.mock('@main/core/application', () => ({
   }
 }))
 
-import {
-  createWebFetchToolEntry,
-  createWebSearchToolEntry,
-  WEB_FETCH_TOOL_NAME,
-  WEB_SEARCH_TOOL_NAME
-} from '../WebSearchTool'
+import { createWebFetchToolEntry } from '../WebFetchTool'
+import { createWebSearchToolEntry, WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME } from '../WebSearchTool'
 
 const searchEntry = createWebSearchToolEntry()
 const fetchEntry = createWebFetchToolEntry()
