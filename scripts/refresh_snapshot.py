@@ -1,169 +1,276 @@
 #!/usr/bin/env python3
 """
-refresh_snapshot.py — Cherry Studio Daily Data Refresh
-Reads GitHub JSON exports from /tmp/gh_*.json and writes .context/latest_snapshot_summary.json
-
-Usage:
-    python3 scripts/refresh_snapshot.py
-
-Prerequisites:
-    gh issue list  ... > /tmp/gh_open_issues.json
-    gh issue list  ... > /tmp/gh_closed_issues_30d.json
-    gh pr list     ... > /tmp/gh_open_prs.json
-    gh pr list     ... > /tmp/gh_closed_prs_30d.json
+refresh_snapshot.py
+Reads gh CLI JSON output files and produces a consolidated snapshot summary.
+Input files (from /tmp/):
+  gh_open_issues.json, gh_closed_issues_30d.json,
+  gh_open_prs.json, gh_closed_prs_30d.json
+Output: /home/user/cherry-studio/.context/latest_snapshot_summary.json
 """
 
 import json
 import os
 import sys
+from collections import Counter, defaultdict
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
 
-CONTEXT_DIR = Path(__file__).parent.parent / ".context"
-TODAY = datetime.now(tz=timezone.utc)
-CUTOFF_7D = TODAY - timedelta(days=7)
-CUTOFF_30D = TODAY - timedelta(days=30)
-CUTOFF_90D = TODAY - timedelta(days=90)
+OUTPUT_PATH = "/home/user/cherry-studio/.context/latest_snapshot_summary.json"
 
-
-def load_json(path: str) -> list | dict:
-    with open(path) as f:
-        return json.load(f)
+INPUT_FILES = {
+    "open_issues":       "/tmp/gh_open_issues.json",
+    "closed_issues_30d": "/tmp/gh_closed_issues_30d.json",
+    "open_prs":          "/tmp/gh_open_prs.json",
+    "closed_prs_30d":    "/tmp/gh_closed_prs_30d.json",
+}
 
 
-def parse_dt(s: str | None) -> datetime | None:
+def load_json(path):
+    """Load a JSON file, returning an empty list on any error."""
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            return data
+        # Some gh responses wrap results in a key
+        if isinstance(data, dict):
+            for key in ("nodes", "items", "data"):
+                if isinstance(data.get(key), list):
+                    return data[key]
+        return []
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return []
+
+
+def parse_dt(s):
+    """Parse an ISO 8601 datetime string; return None on failure."""
     if not s:
         return None
-    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    try:
+        # Python 3.11+ handles 'Z'; older versions need replacement
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
 
 
-def classify_age(updated_at: str | None) -> str:
-    dt = parse_dt(updated_at)
+def now_utc():
+    return datetime.now(timezone.utc)
+
+
+def get_labels(item):
+    """Return a flat list of label name strings from an issue/PR object."""
+    raw = item.get("labels", [])
+    if not raw:
+        return []
+    names = []
+    for lbl in raw:
+        if isinstance(lbl, str):
+            names.append(lbl)
+        elif isinstance(lbl, dict):
+            name = lbl.get("name") or lbl.get("id") or ""
+            if name:
+                names.append(name)
+    return names
+
+
+def age_bucket(created_at_str, now):
+    """Classify an issue by age: active (<7d), aging (7-30d), stale (30-90d), zombie (>90d)."""
+    dt = parse_dt(created_at_str)
     if dt is None:
-        return "unknown"
-    if dt >= CUTOFF_7D:
-        return "Active"
-    if dt >= CUTOFF_30D:
-        return "Aging"
-    if dt >= CUTOFF_90D:
-        return "Stale"
-    return "Zombie"
+        return "stale"
+    age_days = (now - dt).days
+    if age_days < 7:
+        return "active"
+    if age_days < 30:
+        return "aging"
+    if age_days < 90:
+        return "stale"
+    return "zombie"
 
 
-def extract_labels(issue: dict) -> list[str]:
-    labels = issue.get("labels", [])
-    if isinstance(labels, list):
-        return [
-            (lb["name"] if isinstance(lb, dict) else lb)
-            for lb in labels
-        ]
-    return []
+def analyze_issues(open_issues, closed_issues_30d):
+    now = now_utc()
+    cutoff_7d  = now - timedelta(days=7)
+    cutoff_30d = now - timedelta(days=30)
 
+    # Opened counts
+    opened_7d  = sum(1 for i in open_issues if parse_dt(i.get("createdAt")) and parse_dt(i.get("createdAt")) >= cutoff_7d)
+    opened_30d = sum(1 for i in open_issues if parse_dt(i.get("createdAt")) and parse_dt(i.get("createdAt")) >= cutoff_30d)
 
-def analyze_open_issues(issues: list) -> dict:
-    label_counts: dict[str, int] = {}
-    age_counts = {"Active": 0, "Aging": 0, "Stale": 0, "Zombie": 0}
-    unlabeled = 0
+    # Label distribution (open issues)
+    label_counter = Counter()
+    unlabeled_count = 0
+    for issue in open_issues:
+        lbls = get_labels(issue)
+        if lbls:
+            label_counter.update(lbls)
+        else:
+            unlabeled_count += 1
+
+    # Age buckets
+    buckets = Counter(age_bucket(i.get("createdAt"), now) for i in open_issues)
+    age_buckets = {
+        "active":  buckets.get("active", 0),
+        "aging":   buckets.get("aging", 0),
+        "stale":   buckets.get("stale", 0),
+        "zombie":  buckets.get("zombie", 0),
+    }
+
+    # P1 issues: any issue whose labels contain something matching "p1" (case-insensitive)
     p1_issues = []
+    for issue in open_issues:
+        lbls = get_labels(issue)
+        if any("p1" in lbl.lower() or "priority" in lbl.lower() for lbl in lbls):
+            p1_issues.append({
+                "number":    issue.get("number"),
+                "title":     issue.get("title", ""),
+                "createdAt": issue.get("createdAt", ""),
+                "updatedAt": issue.get("updatedAt", ""),
+            })
 
-    for issue in issues:
-        labels = extract_labels(issue)
-        if not labels:
-            unlabeled += 1
-        for lbl in labels:
-            label_counts[lbl] = label_counts.get(lbl, 0) + 1
-            if lbl.lower() in ("p1", "critical", "urgent", "high-priority"):
-                p1_issues.append({
-                    "number": issue.get("number"),
-                    "title": issue.get("title"),
-                    "label": lbl,
-                })
-        age = classify_age(issue.get("updatedAt"))
-        if age in age_counts:
-            age_counts[age] += 1
+    # Top commented (top 10)
+    def comment_count(i):
+        c = i.get("comments", 0)
+        if isinstance(c, dict):
+            return c.get("totalCount", 0)
+        return int(c) if c else 0
 
-    total = len(issues)
+    top_commented = sorted(open_issues, key=comment_count, reverse=True)[:10]
+    top_commented_out = [
+        {"number": i.get("number"), "title": i.get("title", ""), "comments": comment_count(i)}
+        for i in top_commented
+    ]
+
     return {
-        "total": total,
-        "by_label": dict(sorted(label_counts.items(), key=lambda x: -x[1])[:20]),
-        "unlabeled": {"count": unlabeled, "percentage": round(unlabeled / total * 100, 1) if total else 0},
-        "age_distribution": age_counts,
-        "p1_critical_issues": p1_issues,
+        "open_total":       len(open_issues),
+        "opened_last_7d":   opened_7d,
+        "opened_last_30d":  opened_30d,
+        "closed_last_30d":  len(closed_issues_30d),
+        "label_distribution": dict(label_counter.most_common()),
+        "unlabeled_count":  unlabeled_count,
+        "age_buckets":      age_buckets,
+        "p1_issues":        p1_issues,
+        "top_commented":    top_commented_out,
     }
 
 
-def analyze_closed_issues(issues: list) -> dict:
-    times_to_close: list[float] = []
-    weekly: dict[str, int] = {}
+def analyze_prs(open_prs, closed_prs_30d):
+    now = now_utc()
+    cutoff_7d  = now - timedelta(days=7)
+    cutoff_30d = now - timedelta(days=30)
 
-    for issue in issues:
-        created = parse_dt(issue.get("createdAt"))
-        closed = parse_dt(issue.get("closedAt"))
-        if created and closed:
-            hours = (closed - created).total_seconds() / 3600
-            times_to_close.append(hours)
-        if closed:
-            week_key = closed.strftime("W%W_%b%d")
-            weekly[week_key] = weekly.get(week_key, 0) + 1
+    opened_7d  = sum(1 for p in open_prs if parse_dt(p.get("createdAt")) and parse_dt(p.get("createdAt")) >= cutoff_7d)
+    opened_30d = sum(1 for p in open_prs if parse_dt(p.get("createdAt")) and parse_dt(p.get("createdAt")) >= cutoff_30d)
 
-    avg = round(sum(times_to_close) / len(times_to_close) / 24, 1) if times_to_close else 0
-    return {
-        "total": len(issues),
-        "average_close_time_days": avg,
-        "closed_per_week": weekly,
+    merged_30d = sum(
+        1 for p in closed_prs_30d
+        if p.get("mergedAt") and parse_dt(p.get("mergedAt")) and parse_dt(p.get("mergedAt")) >= cutoff_30d
+    )
+    closed_no_merge_30d = len(closed_prs_30d) - merged_30d
+
+    draft_count = sum(1 for p in open_prs if p.get("draft", False))
+
+    # Base branch distribution
+    base_counter = Counter()
+    for pr in open_prs:
+        base = pr.get("baseRefName", "")
+        if base == "main":
+            base_counter["main"] += 1
+        elif base == "v1":
+            base_counter["v1"] += 1
+        else:
+            base_counter["other"] += 1
+    base_dist = {
+        "main":  base_counter.get("main", 0),
+        "v1":    base_counter.get("v1", 0),
+        "other": base_counter.get("other", 0),
     }
 
+    # Label distribution (open PRs)
+    label_counter = Counter()
+    for pr in open_prs:
+        label_counter.update(get_labels(pr))
 
-def analyze_open_prs(prs: list) -> dict:
-    by_base: dict[str, int] = {}
-    age_counts = {"Active": 0, "Aging": 0, "Stale": 0, "Zombie": 0}
+    # V2-labeled open PRs
+    v2_labeled = []
+    for pr in open_prs:
+        lbls = get_labels(pr)
+        if any("v2" in lbl.lower() for lbl in lbls):
+            author = pr.get("author", {})
+            if isinstance(author, dict):
+                author_login = author.get("login", "")
+            else:
+                author_login = str(author)
+            v2_labeled.append({
+                "number": pr.get("number"),
+                "title":  pr.get("title", ""),
+                "author": author_login,
+            })
 
-    for pr in prs:
-        base = pr.get("baseRefName") or pr.get("base", {}).get("ref", "unknown")
-        by_base[base] = by_base.get(base, 0) + 1
-        age = classify_age(pr.get("updatedAt"))
-        if age in age_counts:
-            age_counts[age] += 1
+    # Stale PRs: open PRs not updated in >30 days
+    stale_prs = []
+    for pr in open_prs:
+        updated = parse_dt(pr.get("updatedAt"))
+        created = parse_dt(pr.get("createdAt"))
+        ref_dt = updated or created
+        if ref_dt and (now - ref_dt).days > 30:
+            days_old = (now - (created or now)).days
+            stale_prs.append({
+                "number":   pr.get("number"),
+                "title":    pr.get("title", ""),
+                "days_old": days_old,
+            })
+    stale_prs.sort(key=lambda x: x["days_old"], reverse=True)
+
+    # Top contributors for merged PRs in last 30d
+    author_counter = Counter()
+    for pr in closed_prs_30d:
+        if pr.get("mergedAt") and parse_dt(pr.get("mergedAt")) and parse_dt(pr.get("mergedAt")) >= cutoff_30d:
+            author = pr.get("author", {})
+            if isinstance(author, dict):
+                login = author.get("login", "unknown")
+            else:
+                login = str(author) if author else "unknown"
+            author_counter[login] += 1
+
+    top_contributors = [
+        {"author": a, "count": c}
+        for a, c in author_counter.most_common(10)
+    ]
 
     return {
-        "total": len(prs),
-        "by_base_branch": by_base,
-        "age_distribution": age_counts,
+        "open_total":                    len(open_prs),
+        "opened_last_7d":                opened_7d,
+        "opened_last_30d":               opened_30d,
+        "merged_last_30d":               merged_30d,
+        "closed_without_merge_last_30d": closed_no_merge_30d,
+        "draft_count":                   draft_count,
+        "base_branch_distribution":      base_dist,
+        "label_distribution":            dict(label_counter.most_common()),
+        "v2_labeled_open":               v2_labeled,
+        "stale_prs":                     stale_prs,
+        "top_contributors_merged":       top_contributors,
     }
 
 
 def main():
-    CONTEXT_DIR.mkdir(parents=True, exist_ok=True)
+    open_issues       = load_json(INPUT_FILES["open_issues"])
+    closed_issues_30d = load_json(INPUT_FILES["closed_issues_30d"])
+    open_prs          = load_json(INPUT_FILES["open_prs"])
+    closed_prs_30d    = load_json(INPUT_FILES["closed_prs_30d"])
 
-    open_issues_path = "/tmp/gh_open_issues.json"
-    closed_issues_path = "/tmp/gh_closed_issues_30d.json"
-    open_prs_path = "/tmp/gh_open_prs.json"
-
-    if not os.path.exists(open_issues_path):
-        print(f"ERROR: {open_issues_path} not found. Run gh data fetch first.", file=sys.stderr)
-        sys.exit(1)
-
-    open_issues = load_json(open_issues_path)
-    closed_issues = load_json(closed_issues_path) if os.path.exists(closed_issues_path) else []
-    open_prs = load_json(open_prs_path) if os.path.exists(open_prs_path) else []
-
-    snapshot = {
-        "generated_at": TODAY.isoformat(),
-        "snapshot_date": TODAY.strftime("%Y-%m-%d"),
-        "data_source": "gh CLI export (CherryHQ/cherry-studio)",
-        "open_issues": analyze_open_issues(open_issues),
-        "closed_issues_30d": analyze_closed_issues(closed_issues),
-        "open_prs": analyze_open_prs(open_prs),
+    now = now_utc()
+    result = {
+        "generated_at": now.isoformat(),
+        "date":         now.strftime("%Y-%m-%d"),
+        "issues":       analyze_issues(open_issues, closed_issues_30d),
+        "prs":          analyze_prs(open_prs, closed_prs_30d),
     }
 
-    out_path = CONTEXT_DIR / "latest_snapshot_summary.json"
-    with open(out_path, "w") as f:
-        json.dump(snapshot, f, indent=2, ensure_ascii=False)
+    os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
+    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
 
-    print(f"✅ Snapshot written to {out_path}")
-    print(f"   Open Issues: {snapshot['open_issues']['total']}")
-    print(f"   Closed (30d): {snapshot['closed_issues_30d']['total']}")
-    print(f"   Open PRs: {snapshot['open_prs']['total']}")
+    print(f"Done: wrote {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

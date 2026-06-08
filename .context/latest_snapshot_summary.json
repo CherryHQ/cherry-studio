@@ -1,102 +1,46 @@
 {
-  "generated_at": "2026-06-01T17:00:00.000000+00:00",
-  "snapshot_date": "2026-06-01",
-  "data_source": "GitHub MCP API (CherryHQ/cherry-studio)",
-  "release": {
-    "latest": "v1.9.8",
-    "released_at": "2026-05-31T16:30:06Z",
-    "branch": "v1",
-    "changes": [
-      "fix(ci): add v1 branch to workflow triggers (#15446)",
-      "refactor: update tool components for improved styling and functionality"
-    ],
-    "note": "Released 2026-05-31 from v1 branch. Security fix PR #15388 (OAuth CSRF) still not included — still open."
-  },
-  "open_issues": {
-    "total": 893,
-    "total_delta": 5,
-    "sample_size": 100,
-    "sample_note": "Statistics from 100 most-recently-updated issues; API reports 893 total open issues",
-    "by_label": {
-      "UI/UX": 39,
-      "inactive": 29,
-      "Models": 16,
-      "Assistant": 15,
-      "needs-repro": 12,
-      "discussion": 6,
-      "MCP": 6,
-      "help wanted": 5,
-      "BUG": 3,
+  "generated_at": "2026-06-08T00:00:00Z",
+  "date": "2026-06-08",
+  "data_notes": "Fetched via GitHub MCP API. Issue label/age stats from 100 most-recently-updated sample (of 912 total). PR stats from 100-item sample (of 231 total). Closed-30d from 100-item samples of 436 closed PRs.",
+  "issues": {
+    "open_total": 912,
+    "opened_last_7d": 60,
+    "opened_last_30d": 74,
+    "closed_last_30d": 100,
+    "closed_last_30d_breakdown": {
+      "not_planned": 82,
+      "completed": 17,
+      "duplicate": 1
+    },
+    "label_distribution": {
+      "UI/UX": 36,
+      "inactive": 34,
+      "Models": 25,
+      "Assistant": 18,
+      "help wanted": 8,
+      "discussion": 8,
+      "needs-repro": 7,
+      "internal_team": 7,
+      "MCP": 5,
+      "Data": 4,
+      "RAG": 4,
+      "Connectivity": 3,
       "Performance": 2,
-      "Data": 2,
-      "RAG": 2,
-      "P2": 2,
-      "Connectivity": 2,
-      "needs-more-info": 1,
-      "v2": 1,
-      "P3": 1,
-      "feature": 1,
-      "Planned": 1
+      "feature": 2,
+      "needs-more-info": 2,
+      "Planned": 1,
+      "P1": 1,
+      "Dev Team": 1
     },
-    "unlabeled": {
-      "count": 10,
-      "sample_size": 100,
-      "percentage_of_sample": 10.0,
-      "estimated_total": 89,
-      "note": "10% of 100-issue sample have no labels (up from 5.5% yesterday); estimated ~89 total unlabeled"
+    "unlabeled_count": 13,
+    "unlabeled_ratio_sample": 0.13,
+    "age_buckets": {
+      "active": 100,
+      "aging": 0,
+      "stale": 0,
+      "zombie": 0
     },
-    "age_distribution": {
-      "Active_lt30d": 100,
-      "Aging_30_90d": 0,
-      "Stale_gt90d_created": 0,
-      "Zombie_not_updated_90d": 5,
-      "note": "All 100 sampled issues updated within the last 30 days (API returns recently-updated first). 5 zombie issues carried over from exhaustive historical search."
-    },
-    "issues_by_created_month": {
-      "2026-06": 17,
-      "2026-05": 52,
-      "2026-04": 26,
-      "2026-03": 3,
-      "2026-02": 1,
-      "2025-11": 1
-    },
-    "zombie_issues": [
-      {
-        "number": 5712,
-        "title": "【需求汇总】Agents with Workflows / 工作流&协同",
-        "last_updated": "2025-10-23",
-        "days_stale": 220,
-        "labels": ["invalid", "inactive"]
-      },
-      {
-        "number": 10844,
-        "title": "[Feature]: Backup feature enhance",
-        "last_updated": "2025-11-01",
-        "days_stale": 211,
-        "labels": ["Dev Team", "Data"]
-      },
-      {
-        "number": 11578,
-        "title": "Upgrade to the MCP protocol by November 25, 2025",
-        "last_updated": "2025-11-30",
-        "days_stale": 182,
-        "labels": ["MCP"]
-      },
-      {
-        "number": 5640,
-        "title": "Cherry Studio as a Service (CSaaS)",
-        "last_updated": "2026-01-31",
-        "days_stale": 120,
-        "labels": ["Dev Team"]
-      },
-      {
-        "number": 12023,
-        "title": "Migrate to AI sdk v6",
-        "last_updated": "2026-02-27",
-        "days_stale": 93,
-        "labels": ["AI-SDK"]
-      }
-    ],
+    "age_buckets_note": "All 100 from most-recently-updated page; older pages contain stale/zombie items estimated ~400-500",
     "p1_issues": [
       {
         "number": 14899,
@@ -104,242 +48,123 @@
         "labels": ["Planned", "P1", "feature", "UI/UX"],
         "milestone": "v2.4.0",
         "author": "SiinXu",
-        "created_at": "2026-05-07",
-        "updated_at": "2026-05-07",
-        "severity": "HIGH",
-        "note": "Planned feature in v2.4.0 milestone — persistent notification center with OS-level alerts"
+        "createdAt": "2026-05-07T05:01:00Z",
+        "updatedAt": "2026-05-07T05:52:49Z",
+        "age_days": 32,
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
       },
       {
         "number": 13608,
         "title": "[Bug]: xiaomi mimo response only displays the last line",
         "labels": ["P1", "Models"],
+        "milestone": "v1.8.1 (closed milestone)",
         "author": "lsy08",
-        "created_at": "2026-03-18",
-        "updated_at": "2026-03-19",
-        "comments": 8,
-        "severity": "HIGH",
-        "note": "P1 bug stale 74 days; mimo-v2-flash streaming shows only last line. Milestone v1.8.1 (closed)."
+        "createdAt": "2026-03-18T14:34:38Z",
+        "updatedAt": "2026-03-19T14:22:09Z",
+        "age_days": 82,
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
       },
       {
         "number": 13193,
-        "title": "[Bug]: Azure OpenAI defaults to responses API instead of chat/completions (Resource not found)",
+        "title": "[Bug]: Azure OpenAI defaults to responses API causing Resource not found (404)",
         "labels": ["P1", "Models"],
+        "milestone": null,
         "author": "simplezhao",
-        "created_at": "2026-03-04",
-        "updated_at": "2026-03-05",
-        "comments": 1,
-        "severity": "HIGH",
-        "note": "P1 bug stale 88 days; regression v1.7.19→v1.7.22 — Azure uses wrong endpoint. Assignee: DeJeune. No update.",
-        "assignee": "DeJeune"
+        "assignee": "DeJeune",
+        "createdAt": "2026-03-04T05:07:40Z",
+        "updatedAt": "2026-03-05T08:47:59Z",
+        "age_days": 96,
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
       }
     ],
-    "security_issues": [
+    "top_commented": [
+      {"number": 6505, "title": "[FAQ & Feedback]: 划词助手 / Selection Assistant", "comments": 359},
+      {"number": 14362, "title": "[Bug]: The model list displays grouped garbled text", "comments": 15},
+      {"number": 14499, "title": "Agents (Cherry Claw) currently cannot use Mimo Token Plan", "comments": 6},
+      {"number": 15586, "title": "[Bug]: Error invoking remote method 'knowledge-base:search': 400 invalid", "comments": 6},
+      {"number": 13418, "title": "[Feature]: Smart Model Auto-Discovery & Auto-Add on Provider Setup", "comments": 5},
+      {"number": 14080, "title": "[Bug]: cannot scroll to search result", "comments": 4},
+      {"number": 11953, "title": "[Recruitment] Cherry Studio, Welcoming Fellow Travelers", "comments": 3},
+      {"number": 15751, "title": "[Feature]: Some UI display improvement suggestions under new architecture 1.9.10", "comments": 3},
+      {"number": 15740, "title": "Standardize pre-insert BO-schema validation across migrators and data services", "comments": 3},
+      {"number": 14020, "title": "[Bug]: Historical reasoning content cross-provider contamination", "comments": 2}
+    ]
+  },
+  "prs": {
+    "open_total": 231,
+    "opened_last_7d": 64,
+    "opened_last_30d": 88,
+    "merged_last_30d": 42,
+    "closed_without_merge_last_30d": 58,
+    "draft_count": 6,
+    "ready_count": 94,
+    "unique_authors_sample": 37,
+    "base_branch_distribution": {
+      "main": 85,
+      "v1": 14,
+      "other": 1
+    },
+    "label_distribution": {
+      "(no label)": 92,
+      "v2": 4,
+      "dependencies": 2,
+      "github_actions": 2,
+      "ready-to-merge": 1,
+      "Blocked: v2": 1
+    },
+    "v2_labeled_open": [
       {
-        "number": 15372,
-        "title": "[Bug]: MCP OAuth callback accepts first code without state validation",
-        "severity": "HIGH",
-        "created_at": "2026-05-28",
-        "fix_pr": 15388,
-        "fix_status": "open",
-        "fix_age_days": 4,
-        "note": "OAuth CSRF attack vector; state param not validated before token exchange. Fix PR #15388 open 4 days — needs merge urgently."
+        "number": 15184,
+        "title": "refactor(binary-manager): unify CLI binary acquisition behind mise-backed BinaryManager",
+        "author": "vaayne",
+        "draft": false,
+        "createdAt": "2026-05-19",
+        "base": "main"
+      },
+      {
+        "number": 15045,
+        "title": "feat(agent): AI SDK Agent Runtime",
+        "author": "DeJeune",
+        "draft": true,
+        "createdAt": "2026-05-12",
+        "base": "main"
+      },
+      {
+        "number": 14997,
+        "title": "chore(chat-page): scaffold chat component tree",
+        "author": "DeJeune",
+        "draft": true,
+        "createdAt": "2026-05-11",
+        "base": "main"
+      },
+      {
+        "number": 14160,
+        "title": "feat: migrate agents data access to data api",
+        "author": "vaayne",
+        "draft": true,
+        "createdAt": "2026-04-10",
+        "base": "main"
       }
     ],
-    "top_10_most_commented_sample": [
-      {
-        "number": 13608,
-        "title": "[Bug]: xiaomi mimo response only displays the last line",
-        "comments": 8
-      },
-      {
-        "number": 11101,
-        "title": "[Feature]: Keep Tool Calling Context",
-        "comments": 11
-      },
-      {
-        "number": 15400,
-        "title": "Add content-based dedup for v2 internal file entries",
-        "comments": 7
-      },
-      {
-        "number": 15405,
-        "title": "[Bug]: Minified React error #185",
-        "comments": 6
-      },
-      {
-        "number": 13876,
-        "title": "[Feature]: Grant Cherry Studio agent full privileges on Linux",
-        "comments": 5
-      },
-      {
-        "number": 15293,
-        "title": "[Bug]: deepseek-v4-pro only displays the last token",
-        "comments": 4
-      },
-      {
-        "number": 15416,
-        "title": "[Bug]: Taskbar icon becomes blank after merging",
-        "comments": 4
-      },
-      {
-        "number": 13710,
-        "title": "[Bug]: The MCP server requires administrator privileges to start",
-        "comments": 4
-      },
-      {
-        "number": 14691,
-        "title": "[Discussion]: Enabling MCP service may affect DeepSeek's response",
-        "comments": 4
-      },
-      {
-        "number": 15443,
-        "title": "[Bug]: Multiple window error",
-        "comments": 3
-      }
-    ]
-  },
-  "closed_issues_30d": {
-    "total": 377,
-    "total_delta": 13,
-    "sample_size": 100,
-    "top_label_in_closed": "inactive (79/100 — automated stale-issue sweep)",
-    "avg_time_to_close_days": 43.92,
-    "close_reasons": {
-      "not_planned": 78,
-      "completed": 21,
-      "other_unknown": 1,
-      "note": "78% not_planned — dominated by inactive-label batch closures; 21% completed"
-    },
-    "notable_closed_today": [
-      {
-        "number": 15537,
-        "title": "[Bug] Multimodal model not showing in Agent model selection dropdown",
-        "closed_at": "2026-06-01T12:58:44Z",
-        "labels": ["UI/UX"]
-      },
-      {
-        "number": 15449,
-        "title": "[Bug]: Version 1.9.7 has a runtime conflict with the embedded open claw",
-        "closed_at": "2026-06-01T08:19:31Z",
-        "labels": ["needs-repro"]
-      },
-      {
-        "number": 15528,
-        "title": "Frequent errors in version V1.9.8",
-        "closed_at": "2026-06-01T08:10:30Z",
-        "labels": ["needs-repro"]
-      }
-    ]
-  },
-  "open_prs": {
-    "total": 274,
-    "total_note": "API search reports 274 total open PRs",
-    "by_base_branch_sample100": {
-      "main": 84,
-      "v1": 12,
-      "DeJeune/ai-service": 2,
-      "stack/ai-service/02-main-ai-backend": 1,
-      "stack/ai-service/01-provider-core": 1
-    },
-    "label_coverage": {
-      "unlabeled_count_sample100": 91,
-      "unlabeled_pct_sample100": 91.0,
-      "note": "Only 9% of sampled open PRs carry any label — extremely low label coverage"
-    },
-    "draft_count_sample": 4,
-    "v2_labeled_prs": {
-      "total_from_yesterday": 22,
-      "note": "22+ open PRs carry the v2 label targeting main branch; v2 branch fully merged into main on 2026-05-29 via #10162",
-      "new_today": [
-        {
-          "number": 15154,
-          "title": "refactor(paintings): migrate to v2 data layer and UI",
-          "author": "kangfenmao",
-          "labels": ["v2"],
-          "createdAt": "2026-05-18T03:52:59Z"
-        },
-        {
-          "number": 15335,
-          "title": "feat(file-ipc): wire v2 File IPC — full preload surface",
-          "author": "EurFelux",
-          "labels": [],
-          "createdAt": "2026-05-26T09:45:01Z"
-        },
-        {
-          "number": 15333,
-          "title": "docs(ai): document v2 AI architecture",
-          "author": "DeJeune",
-          "labels": [],
-          "createdAt": "2026-05-26T08:40:23Z"
-        }
-      ]
-    },
-    "top_contributors_sample100": {
-      "HUQIANTAO": 32,
-      "LWWZH": 9,
-      "ousugo": 6,
-      "DeJeune": 6,
-      "Love-JourneY": 6,
-      "Cherry-Yiran": 5,
-      "kangfenmao": 4,
-      "github-actions[bot]": 4,
-      "angri450": 4,
-      "dependabot[bot]": 3,
-      "kovsu": 3,
-      "Raymond8196": 3,
-      "EurFelux": 3,
-      "GeorgeDong32": 3
-    }
-  },
-  "merged_prs_today": {
-    "count": 4,
-    "items": [
-      {
-        "number": 15424,
-        "title": "ci(preview-build): select latest preview branch",
-        "author": "kangfenmao",
-        "base": "main",
-        "merged_at": "2026-06-01T13:15:46Z"
-      },
-      {
-        "number": 15543,
-        "title": "feat(models): add MiniMax M3 to the system model registry",
-        "author": "kapelame",
-        "base": "v1",
-        "merged_at": "2026-06-01T12:35:01Z",
-        "note": "Adds MiniMax-M3 with tool use, vision, and reasoning support"
-      },
-      {
-        "number": 15533,
-        "title": "fix: respect topic naming setting for agent sessions",
-        "author": "kangfenmao",
-        "base": "main",
-        "merged_at": "2026-06-01T10:39:01Z",
-        "fixes": 15457
-      },
-      {
-        "number": 15538,
-        "title": "fix: guard OV OCR availability CPU detection",
-        "author": "kangfenmao",
-        "base": "main",
-        "merged_at": "2026-06-01T09:55:17Z",
-        "note": "Fixes Windows startup crash when os.cpus() returns empty array",
-        "fixes": 15315
-      }
-    ]
-  },
-  "notable_events": {
-    "v2_merged_to_main": {
-      "pr_number": 10162,
-      "title": "🍒 Cherry Studio v2: Data & UI Refactoring",
-      "merged_at": "2026-05-29T02:54:10Z",
-      "author": "0xfullex",
-      "significance": "MAJOR MILESTONE: v2 branch fully merged into main. main is now the single active development branch for all v2 work."
-    },
-    "v1_9_8_released": {
-      "tag": "v1.9.8",
-      "released_at": "2026-05-31T16:30:06Z",
-      "significance": "Minor v1 maintenance release — CI fix and tool component styling update"
+    "stale_prs": [
+      {"number": 11495, "title": "feat: Implement shared provider utilities and Proxy Api Server", "author": "DeJeune", "age_days": 192},
+      {"number": 12032, "title": "Fix trace problems", "author": "alickreborn0", "age_days": 170},
+      {"number": 12774, "title": "fix: restore textarea resize handle visibility", "author": "EurFelux", "age_days": 120}
+    ],
+    "top_contributors_merged": [
+      {"author": "DeJeune", "count": 7},
+      {"author": "ousugo", "count": 6},
+      {"author": "eeee0717", "count": 5},
+      {"author": "zhangjiadi225", "count": 3},
+      {"author": "LWWZH", "count": 3},
+      {"author": "AtomsH4", "count": 3},
+      {"author": "EurFelux", "count": 2},
+      {"author": "kangfenmao", "count": 2}
+    ],
+    "merge_time_stats": {
+      "avg_days": 6.83,
+      "median_days": 1.40,
+      "pct_merged_within_3d": 78
     }
   }
 }

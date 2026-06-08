@@ -1,122 +1,178 @@
 #!/usr/bin/env python3
 """
-analyze_discussions.py — Cherry Studio Discussions Analyzer
-Reads /tmp/gh_discussions.json (GitHub Discussions GraphQL export) and writes
-.context/discussion_analysis.json
-
-Usage:
-    python3 scripts/analyze_discussions.py
-
-Prerequisites:
-    gh api graphql -f query='...' > /tmp/gh_discussions.json
+analyze_discussions.py
+Reads GraphQL discussions JSON and produces a discussion analysis summary.
+Input: /tmp/gh_discussions.json
+Output: /home/user/cherry-studio/.context/discussion_analysis.json
 """
 
 import json
 import os
-import sys
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-from collections import defaultdict
+from collections import Counter
+from datetime import datetime, timezone
 
-CONTEXT_DIR = Path(__file__).parent.parent / ".context"
-TODAY = datetime.now(tz=timezone.utc)
-DISCUSSIONS_PATH = "/tmp/gh_discussions.json"
+OUTPUT_PATH = "/home/user/cherry-studio/.context/discussion_analysis.json"
+INPUT_PATH  = "/tmp/gh_discussions.json"
 
 
-def parse_dt(s: str | None) -> datetime | None:
+def load_discussions(path):
+    """
+    Load discussions from the GraphQL response.
+    Handles several common shapes:
+      - Top-level list
+      - {"nodes": [...]}
+      - {"data": {"repository": {"discussions": {"nodes": [...]}}}}
+      - {"data": {"repository": {"discussions": {"edges": [{"node": {...}}]}}}}
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return []
+
+    if isinstance(raw, list):
+        return raw
+
+    if isinstance(raw, dict):
+        # Direct nodes key
+        if isinstance(raw.get("nodes"), list):
+            return raw["nodes"]
+
+        # Unwrap GraphQL envelope
+        data = raw.get("data", raw)
+        repo = data.get("repository", data) if isinstance(data, dict) else {}
+        discussions = repo.get("discussions", {}) if isinstance(repo, dict) else {}
+        if isinstance(discussions, list):
+            return discussions
+        if isinstance(discussions, dict):
+            if isinstance(discussions.get("nodes"), list):
+                return discussions["nodes"]
+            edges = discussions.get("edges", [])
+            if isinstance(edges, list):
+                return [e["node"] for e in edges if isinstance(e, dict) and "node" in e]
+
+    return []
+
+
+def parse_dt(s):
     if not s:
         return None
-    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+
+
+def get_category(discussion):
+    cat = discussion.get("category", {})
+    if isinstance(cat, dict):
+        return cat.get("name") or cat.get("slug") or "unknown"
+    return str(cat) if cat else "unknown"
+
+
+def get_labels(discussion):
+    raw = discussion.get("labels", {})
+    # GraphQL returns {"nodes": [...]} or a plain list
+    if isinstance(raw, dict):
+        raw = raw.get("nodes", [])
+    if not isinstance(raw, list):
+        return []
+    names = []
+    for lbl in raw:
+        if isinstance(lbl, str):
+            names.append(lbl)
+        elif isinstance(lbl, dict):
+            name = lbl.get("name") or lbl.get("id") or ""
+            if name:
+                names.append(name)
+    return names
+
+
+def get_upvotes(discussion):
+    # GraphQL field is usually "upvoteCount" or "reactionGroups"
+    v = discussion.get("upvoteCount")
+    if v is not None:
+        return int(v)
+    # Fallback: reactions count
+    reactions = discussion.get("reactions", {})
+    if isinstance(reactions, dict):
+        return int(reactions.get("totalCount", 0))
+    return 0
+
+
+def get_comment_count(discussion):
+    comments = discussion.get("comments", {})
+    if isinstance(comments, dict):
+        return int(comments.get("totalCount", 0))
+    if isinstance(comments, int):
+        return comments
+    return 0
+
+
+def is_answered(discussion):
+    # GraphQL field "answer" is non-null when answered; "isAnswered" boolean also present
+    if discussion.get("isAnswered") is True:
+        return True
+    if discussion.get("answer") is not None:
+        return True
+    return False
 
 
 def main():
-    CONTEXT_DIR.mkdir(parents=True, exist_ok=True)
+    discussions = load_discussions(INPUT_PATH)
+    now = datetime.now(timezone.utc)
 
-    if not os.path.exists(DISCUSSIONS_PATH):
-        print(f"ERROR: {DISCUSSIONS_PATH} not found. Run gh discussions fetch first.", file=sys.stderr)
-        # Write empty placeholder
-        out = {
-            "generated_at": TODAY.isoformat(),
-            "snapshot_date": TODAY.strftime("%Y-%m-%d"),
-            "fetch_status": "missing",
-            "fetch_note": f"Source file {DISCUSSIONS_PATH} not found. Run gh api graphql fetch.",
+    total = len(discussions)
+    unanswered = [d for d in discussions if not is_answered(d)]
+
+    category_counter = Counter(get_category(d) for d in discussions)
+    label_counter    = Counter()
+    for d in discussions:
+        label_counter.update(get_labels(d))
+
+    # Top upvoted (top 10)
+    top_upvoted = sorted(discussions, key=get_upvotes, reverse=True)[:10]
+    top_upvoted_out = [
+        {
+            "number":   d.get("number"),
+            "title":    d.get("title", ""),
+            "upvotes":  get_upvotes(d),
+            "category": get_category(d),
         }
-        out_path = CONTEXT_DIR / "discussion_analysis.json"
-        with open(out_path, "w") as f:
-            json.dump(out, f, indent=2, ensure_ascii=False)
-        print(f"⚠️  Placeholder written to {out_path}")
-        sys.exit(0)
+        for d in top_upvoted
+    ]
 
-    raw = json.loads(open(DISCUSSIONS_PATH).read())
-    nodes = raw.get("data", {}).get("repository", {}).get("discussions", {}).get("nodes", [])
+    # Recent unanswered: sort by createdAt descending, take top 10
+    def sort_key(d):
+        dt = parse_dt(d.get("createdAt"))
+        return dt if dt is not None else datetime.min.replace(tzinfo=timezone.utc)
 
-    by_category: dict[str, int] = defaultdict(int)
-    unanswered = []
-    answered = []
-    high_vote = []
-    recent = []
-
-    cutoff_7d = TODAY - timedelta(days=7)
-
-    for disc in nodes:
-        cat = disc.get("category", {}).get("name", "Unknown")
-        by_category[cat] += 1
-
-        upvotes = disc.get("upvoteCount", 0)
-        comment_count = disc.get("comments", {}).get("totalCount", 0)
-        answer = disc.get("answer")
-        updated_at = parse_dt(disc.get("updatedAt"))
-
-        entry = {
-            "number": disc.get("number"),
-            "title": disc.get("title"),
-            "category": cat,
-            "author": (disc.get("author") or {}).get("login"),
-            "createdAt": disc.get("createdAt"),
-            "updatedAt": disc.get("updatedAt"),
-            "upvotes": upvotes,
-            "comments": comment_count,
-            "answered": answer is not None,
+    recent_unanswered = sorted(unanswered, key=sort_key, reverse=True)[:10]
+    recent_unanswered_out = [
+        {
+            "number":    d.get("number"),
+            "title":     d.get("title", ""),
+            "createdAt": d.get("createdAt", ""),
+            "comments":  get_comment_count(d),
         }
+        for d in recent_unanswered
+    ]
 
-        if answer is None:
-            unanswered.append(entry)
-        else:
-            answered.append(entry)
-
-        if upvotes >= 5:
-            high_vote.append(entry)
-
-        if updated_at and updated_at >= cutoff_7d:
-            recent.append(entry)
-
-    # Sort by upvotes
-    high_vote.sort(key=lambda x: -x["upvotes"])
-    unanswered.sort(key=lambda x: -x["upvotes"])
-
-    total = len(nodes)
     result = {
-        "generated_at": TODAY.isoformat(),
-        "snapshot_date": TODAY.strftime("%Y-%m-%d"),
-        "data_source": "GitHub Discussions API (CherryHQ/cherry-studio)",
-        "fetch_status": "ok",
-        "total_discussions": total,
-        "answered": len(answered),
-        "unanswered": len(unanswered),
-        "answer_rate_pct": round(len(answered) / total * 100, 1) if total else 0,
-        "by_category": dict(by_category),
-        "active_7d_count": len(recent),
-        "high_upvote_discussions": high_vote[:10],
-        "top_unanswered": unanswered[:10],
+        "generated_at":        now.isoformat(),
+        "total_discussions":   total,
+        "unanswered_count":    len(unanswered),
+        "category_distribution": dict(category_counter.most_common()),
+        "top_upvoted":         top_upvoted_out,
+        "recent_unanswered":   recent_unanswered_out,
+        "label_distribution":  dict(label_counter.most_common()),
     }
 
-    out_path = CONTEXT_DIR / "discussion_analysis.json"
-    with open(out_path, "w") as f:
+    os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
+    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
 
-    print(f"✅ Discussion analysis written to {out_path}")
-    print(f"   Total: {total} | Answered: {len(answered)} | Unanswered: {len(unanswered)}")
-    print(f"   Answer rate: {result['answer_rate_pct']}%")
+    print(f"Done: wrote {OUTPUT_PATH}")
 
 
 if __name__ == "__main__":

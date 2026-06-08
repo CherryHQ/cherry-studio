@@ -1,220 +1,70 @@
 {
-  "generated_at": "2026-06-01T17:00:00.000000+00:00",
-  "snapshot_date": "2026-06-01",
-  "v2_branch_status": "MERGED_INTO_MAIN",
-  "v2_branch_note": "v2 branch FULLY MERGED INTO main on 2026-05-29 via PR #10162 (🍒 Cherry Studio v2: Data & UI Refactoring). All v2 work continues on main with v2 label or without.",
-  "merged_30d": {
-    "total_all_prs": 130,
-    "total_all_prs_note": "130 PRs merged in 30-day window (2026-05-02 to 2026-06-01); avg merge time 8.17 days",
-    "v2_labeled_count": 33,
-    "v2_labeled_note": "33 PRs carrying v2 label merged in 30 days",
-    "by_category_all": {
-      "feat": 46,
-      "fix": 22,
-      "refactor": 25,
-      "chore": 3,
-      "docs": 2,
-      "test": 0,
-      "other": 2
-    },
-    "merged_by_date": {
-      "2026-06-01": 4,
-      "2026-05": 126
-    },
-    "top_contributors": {
-      "kangfenmao": 12,
-      "zhangjiadi225": 11,
-      "eeee0717": 9,
-      "EurFelux": 8,
-      "DeJeune": 7,
-      "Cherry-Yiran": 7,
-      "kovsu": 5,
-      "zhibisora": 4,
-      "ousugo": 4,
-      "GeorgeDong32": 3,
-      "0xfullex": 3,
-      "mturac": 3,
-      "LWWZH": 3,
-      "404-Page-Found": 3,
-      "Raymond8196": 3,
-      "xxiaoxiong": 2
-    },
-    "active_areas_this_week": [
-      "MiniMax M3 model support (feat #15543 → v1)",
-      "Windows startup crash fixes (OV OCR cpu detection #15538)",
-      "Agent session naming fix (respect topic setting #15533)",
-      "CI preview build workflow (#15424)",
-      "Knowledge file processing integration (#15470)",
-      "Paintings migration to v2 data layer (PR #15154 open)"
-    ],
-    "recently_merged_10": [
-      {
-        "number": 15424,
-        "title": "ci(preview-build): select latest preview branch",
-        "author": "kangfenmao",
-        "merged_at": "2026-06-01T13:15:46Z"
-      },
-      {
-        "number": 15543,
-        "title": "feat(models): add MiniMax M3 to the system model registry",
-        "author": "kapelame",
-        "merged_at": "2026-06-01T12:35:01Z"
-      },
-      {
-        "number": 15533,
-        "title": "fix: respect topic naming setting for agent sessions",
-        "author": "kangfenmao",
-        "merged_at": "2026-06-01T10:39:01Z"
-      },
-      {
-        "number": 15538,
-        "title": "fix: guard OV OCR availability CPU detection",
-        "author": "kangfenmao",
-        "merged_at": "2026-06-01T09:55:17Z"
-      },
-      {
-        "number": 15464,
-        "title": "fix: remove duplicate ESLint ignore entry for nutstore sso lib",
-        "author": "HUQIANTAO",
-        "merged_at": "2026-05-31T15:12:06Z"
-      },
-      {
-        "number": 15470,
-        "title": "feat(knowledge): integrate file processing for document ingestion",
-        "author": "eeee0717",
-        "merged_at": "2026-05-31T15:10:36Z"
-      },
-      {
-        "number": 15461,
-        "title": "docs(branch-strategy): align with #13984 (forward-port, drop v2-line framing)",
-        "author": "EurFelux",
-        "merged_at": "2026-05-31T07:34:31Z"
-      },
-      {
-        "number": 15446,
-        "title": "fix(ci): add v1 branch to workflow triggers",
-        "author": "GeorgeDong32",
-        "merged_at": "2026-05-30T14:34:24Z"
-      },
-      {
-        "number": 15440,
-        "title": "fix(db-migrations): resolve snapshot chain collision and gate against recurrence",
-        "author": "EurFelux",
-        "merged_at": "2026-05-30T07:30:49Z"
-      },
-      {
-        "number": 10162,
-        "title": "🍒 Cherry Studio v2: Data & UI Refactoring",
-        "author": "0xfullex",
-        "merged_at": "2026-05-29T02:54:10Z",
-        "significance": "MAJOR MILESTONE: v2 branch merged into main"
-      }
-    ]
+  "generated_at": "2026-06-08T00:00:00Z",
+  "date": "2026-06-08",
+  "data_notes": "v2 roadmap inferred from: (a) open/closed PRs with 'v2' label, (b) v2.4.0 milestone issues, (c) 'Planned' label issues. No dedicated v2 branch exists — all v2 work targets main branch.",
+  "summary": {
+    "milestone_v2_4_0_open_issues": 12,
+    "milestone_v2_4_0_closed_issues": 0,
+    "planned_label_issues_total": 16,
+    "v2_labeled_prs_open": 4,
+    "v2_labeled_prs_closed_30d": 6,
+    "merged_to_main_last_30d": 42,
+    "merged_v2_labeled_last_30d": 6
   },
-  "v2_legacy_branch_prs": {
-    "note": "PRs that targeted the old v2 branch (before it merged into main on 2026-05-29)",
-    "sample_analyzed": 100,
-    "merged_count": 37,
-    "closed_not_merged": 63,
-    "top_contributors": {
-      "eeee0717": 8,
-      "Cherry-Yiran": 7,
-      "EurFelux": 5,
-      "kangfenmao": 5,
-      "DeJeune": 4,
-      "zhangjiadi225": 3,
-      "0xfullex": 2
-    },
-    "area_coverage": {
-      "feat": 46,
-      "fix": 22,
-      "refactor": 25,
-      "chore": 3,
-      "docs": 2,
-      "test": 0,
-      "other": 2
+  "milestone_v2_4_0_issues": [
+    {"number": 15672, "title": "[Feature]: Skill Suite — Bundle Related Skills with Shared Setup, Auth, and Composition", "labels": ["internal_team"], "state": "open", "updatedAt": "2026-06-04T11:58:16Z"},
+    {"number": 15664, "title": "[Feature]: Unified @ and / Command System — Codex-Style Discoverable Mentions and Slash Actions", "labels": ["UI/UX", "internal_team"], "state": "open", "updatedAt": "2026-06-04T11:34:56Z"},
+    {"number": 15663, "title": "[Feature]: Support Anthropic Computer Use — OS-Level Mouse/Keyboard Automation", "labels": ["Assistant", "internal_team"], "state": "open", "updatedAt": "2026-06-04T11:58:12Z"},
+    {"number": 15634, "title": "[Feature]: Goal Mode — Long-Running Autonomous Agent Execution", "labels": ["Assistant", "internal_team"], "state": "open", "updatedAt": "2026-06-04T12:02:52Z"},
+    {"number": 15626, "title": "[Feature]: Quick Assistant Inline Assistant Picker", "labels": ["Assistant", "UI/UX", "internal_team"], "state": "open", "updatedAt": "2026-06-04T11:34:02Z"},
+    {"number": 15383, "title": "[Feature]: Real-Time Meeting Transcription and Smart Meeting Notes", "labels": [], "state": "open", "updatedAt": "2026-05-28T05:24:40Z"},
+    {"number": 15381, "title": "[Feature]: Knowledge Base Image Ingestion and Multimodal Retrieval", "labels": ["RAG", "Data"], "state": "open", "updatedAt": "2026-05-28T05:26:38Z"},
+    {"number": 15377, "title": "[Feature]: Multi-Window / Split-Screen for Agents and Assistants", "labels": ["UI/UX"], "state": "open", "updatedAt": "2026-05-28T06:02:38Z"},
+    {"number": 15340, "title": "[Feature]: Marketplace Connectors — Third-Party Integrations via OAuth or MCP", "labels": ["MCP", "Assistant"], "state": "open", "updatedAt": "2026-05-28T04:18:51Z"},
+    {"number": 15253, "title": "[Feature]: Add a Recycle Bin for all deletable content", "labels": ["UI/UX"], "state": "open", "updatedAt": "2026-06-04T04:16:41Z"},
+    {"number": 14899, "title": "[Feature]: Unified Notification Center", "labels": ["Planned", "P1", "feature", "UI/UX"], "state": "open", "updatedAt": "2026-05-07T05:52:49Z"},
+    {"number": 14896, "title": "[Feature]: Agent-Native Knowledge Library & File Manager", "labels": ["RAG", "Assistant", "Data"], "state": "open", "updatedAt": "2026-05-13T02:39:55Z"}
+  ],
+  "v2_milestone_progress": {
+    "milestone": "v2.4.0",
+    "open": 12,
+    "closed": 0,
+    "completion_pct": 0.0,
+    "feature_categories": {
+      "Agent/Assistant": [15663, 15634, 15626, 15340, 14896],
+      "UI/UX": [15664, 15377, 15253, 14899],
+      "Knowledge/Data": [15381, 15383],
+      "Platform/Dev": [15672]
     }
   },
-  "open_v2_prs": {
-    "total_v2_labeled": 22,
-    "note": "22+ open PRs with v2 label targeting main branch. v2 branch fully merged — all new v2 work on main.",
-    "newly_seen_today": [
-      {
-        "number": 15335,
-        "title": "feat(file-ipc): wire v2 File IPC — full preload surface",
-        "author": "EurFelux",
-        "labels": [],
-        "created_at": "2026-05-26T09:45:01Z"
-      },
-      {
-        "number": 15333,
-        "title": "docs(ai): document v2 AI architecture",
-        "author": "DeJeune",
-        "labels": [],
-        "created_at": "2026-05-26T08:40:23Z"
-      },
-      {
-        "number": 15239,
-        "title": "Feature/expand branch chat v2",
-        "author": "ssgzy",
-        "labels": [],
-        "created_at": "2026-05-21T10:52:12Z"
-      }
-    ],
-    "all_open_v2_labeled_prs": [
-      { "number": 15361, "title": "refactor(paintings): migrate paintings to v2 data and ui", "author": "kangfenmao", "created": "2026-05-27", "labels": ["v2"] },
-      { "number": 15325, "title": "feat(ai-provider): separate provider runtime core", "author": "DeJeune", "created": "2026-05-26", "labels": ["v2"] },
-      { "number": 15215, "title": "refactor(agent-task): migrate to JobManager", "author": "0xfullex", "created": "2026-05-20", "labels": ["v2"] },
-      { "number": 15184, "title": "refactor(binary-manager): unify CLI binary acquisition", "author": "vaayne", "created": "2026-05-19", "labels": ["v2"] },
-      { "number": 15154, "title": "refactor(paintings): migrate to v2 data layer and UI", "author": "kangfenmao", "created": "2026-05-18", "labels": ["v2"] },
-      { "number": 15045, "title": "feat(agent): AI SDK Agent Runtime", "author": "DeJeune", "created": "2026-05-12", "labels": ["v2"] },
-      { "number": 14997, "title": "chore(chat-page): scaffold chat component tree", "author": "DeJeune", "created": "2026-05-11", "labels": ["v2"] },
-      { "number": 14911, "title": "refactor(ai-service): consolidate AI runtime to main process", "author": "DeJeune", "created": "2026-05-07", "labels": ["v2"] },
-      { "number": 14858, "title": "feat(i18n): add unused key cleaner", "author": "kangfenmao", "created": "2026-05-06", "labels": ["v2"] },
-      { "number": 14178, "title": "refactor(copilot): separate business logic from IPC handler", "author": "DeJeune", "created": "2026-04-11", "labels": ["v2"] },
-      { "number": 14160, "title": "feat: migrate agents data access to data api", "author": "vaayne", "created": "2026-04-10", "labels": ["v2"] },
-      { "number": 14146, "title": "feat(layout): add split-view infrastructure for multi-pane tabs", "author": "DeJeune", "created": "2026-04-09", "labels": ["v2"] },
-      { "number": 14064, "title": "feat: add Task template, gh-cherry-usage skill", "author": "EurFelux", "created": "2026-04-05", "labels": ["v2"] },
-      { "number": 13856, "title": "feat(process-manager): add ProcessManager with unified lifecycle", "author": "DeJeune", "created": "2026-03-27", "labels": ["v2"] },
-      { "number": 13687, "title": "chore: migrate to vite 8", "author": "EurFelux", "created": "2026-03-21", "labels": ["Pending", "v2"], "flag": "Pending" },
-      { "number": 13561, "title": "refactor(ui): replace CustomTag with Tag component", "author": "DeJeune", "created": "2026-03-17", "labels": ["v2"] },
-      { "number": 13517, "title": "feat: integrate json-render for interactive UI in chat", "author": "DeJeune", "created": "2026-03-16", "labels": ["v2"] },
-      { "number": 13238, "title": "feat(data): add provider/model data API and catalog core", "author": "DeJeune", "created": "2026-03-05", "labels": ["v2"], "age_days": 87 },
-      { "number": 12659, "title": "feat(backup): add v2 backup system refactor plan document", "author": "GeorgeDong32", "created": "2026-01-30", "labels": ["v2"], "age_days": 121 },
-      { "number": 12150, "title": "refactor(files): File Management System Architecture", "author": "EurFelux", "created": "2025-12-26", "labels": ["v2"], "age_days": 156, "draft": true },
-      { "number": 11878, "title": "feat(ui): toast", "author": "EurFelux", "created": "2025-12-12", "labels": ["v2"], "age_days": 170 },
-      { "number": 11420, "title": "feat: Model & Provider Catalog", "author": "DeJeune", "created": "2025-11-23", "labels": ["v2"], "age_days": 189, "draft": true }
-    ],
-    "special_flags": [
-      { "number": 13173, "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown", "flag": "ready-to-merge", "author": "DeJeune", "age_days": 89 },
-      { "number": 10912, "title": "refactor: i18n", "flag": "Blocked: v2", "author": "EurFelux", "age_days": 220 },
-      { "number": 13687, "title": "chore: migrate to vite 8", "flag": "Pending", "author": "EurFelux", "age_days": 71 }
-    ],
-    "long_running_wip": [
-      { "number": 10090, "title": "[WIP] feat: terminal", "author": "EurFelux", "age_days": 263, "draft": true },
-      { "number": 10699, "title": "feat: video generation", "author": "EurFelux", "age_days": 230, "draft": true },
-      { "number": 10912, "title": "refactor: i18n", "author": "EurFelux", "age_days": 220, "draft": true, "flag": "Blocked: v2" },
-      { "number": 11420, "title": "feat: Model & Provider Catalog", "author": "DeJeune", "age_days": 189, "draft": true },
-      { "number": 11878, "title": "feat(ui): toast", "author": "EurFelux", "age_days": 170 },
-      { "number": 12150, "title": "refactor(files): File Management System Architecture", "author": "EurFelux", "age_days": 156, "draft": true },
-      { "number": 13173, "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown", "author": "DeJeune", "age_days": 89, "flag": "ready-to-merge" },
-      { "number": 13687, "title": "chore: migrate to vite 8", "author": "EurFelux", "age_days": 71, "flag": "Pending" }
-    ]
-  },
-  "milestone_v2_4_0": {
-    "name": "v2.4.0",
-    "open_issues": 9,
-    "closed_issues": 0,
-    "notable_p1": [
-      { "number": 14899, "title": "[Feature]: Unified Notification Center", "labels": ["Planned", "P1", "feature", "UI/UX"] }
-    ]
-  },
-  "milestone_events": [
-    {
-      "event": "v2 branch merged into main",
-      "pr_number": 10162,
-      "date": "2026-05-29",
-      "significance": "MAJOR — v2 is no longer a separate branch. main IS v2. All future v2 PRs target main directly."
-    }
-  ]
+  "v2_labeled_open_prs": [
+    {"number": 15184, "title": "refactor(binary-manager): unify CLI binary acquisition behind mise-backed BinaryManager", "author": "vaayne", "draft": false, "createdAt": "2026-05-19", "base": "main", "url": "https://github.com/CherryHQ/cherry-studio/pull/15184"},
+    {"number": 15045, "title": "feat(agent): AI SDK Agent Runtime", "author": "DeJeune", "draft": true, "createdAt": "2026-05-12", "base": "main", "url": "https://github.com/CherryHQ/cherry-studio/pull/15045"},
+    {"number": 14997, "title": "chore(chat-page): scaffold chat component tree", "author": "DeJeune", "draft": true, "createdAt": "2026-05-11", "base": "main", "url": "https://github.com/CherryHQ/cherry-studio/pull/14997"},
+    {"number": 14160, "title": "feat: migrate agents data access to data api", "author": "vaayne", "draft": true, "createdAt": "2026-04-10", "base": "main", "url": "https://github.com/CherryHQ/cherry-studio/pull/14160"}
+  ],
+  "planned_label_issues": [
+    {"number": 14899, "title": "[Feature]: Unified Notification Center", "labels": ["Planned","P1","feature","UI/UX"], "milestone": "v2.4.0"},
+    {"number": 11906, "title": "[Feature]: Add video upload support", "labels": ["Planned","feature","Blocked: v2"], "milestone": "temp-siin"},
+    {"number": 6696, "title": "功能请求：重新生成回答时可保留以前信息并允许随时切换", "labels": ["Planned","Dev Team","UI/UX"], "milestone": "temp-siin"},
+    {"number": 12786, "title": "[Feature]: Add context progress indicator showing token usage", "labels": ["Planned","feature","Assistant","UI/UX","v2"], "milestone": "temp-siin"},
+    {"number": 12789, "title": "[Feature]: Open a topic in a separate window, allowing cross-reference", "labels": ["Planned","feature","UI/UX","v2"], "milestone": "temp-siin"},
+    {"number": 12718, "title": "[Feature]: Implement Tabbed Interface for Managing Multiple Assistants or Topics", "labels": ["Planned","feature","UI/UX","v2"], "milestone": "temp-siin"},
+    {"number": 11411, "title": "[Bug]: Multi-API rotation bug", "labels": ["BUG","Planned"], "milestone": "temp-siin"},
+    {"number": 12303, "title": "[Feature]: Add a shortcut key for 'quick switch reasoning effort'", "labels": ["Planned","feature","UI/UX","Models"], "milestone": "temp-siin"},
+    {"number": 11694, "title": "[Feature]: Prioritize providers with 'on' status in model service list", "labels": ["Planned","feature","UI/UX","Models"], "milestone": "temp-siin"},
+    {"number": 12085, "title": "[Feature]: Add 'Plugin Marketplace' feature for custom functionality", "labels": ["Planned","feature","Blocked: v2"], "milestone": "temp-siin"},
+    {"number": 13072, "title": "Proposal: Optional BoxLite sandbox backend (experimental)", "labels": ["Planned","P3"], "milestone": "temp-siin"},
+    {"number": 12784, "title": "Refactor: move mcpTrace and shared into src dir", "labels": ["Planned"], "milestone": null},
+    {"number": 14561, "title": "[Feature]: Preserve original message and its context when editing sent messages", "labels": ["Planned","UI/UX"], "milestone": null},
+    {"number": 13082, "title": "[Bug]: Frequent lag during normal operations", "labels": ["BUG","Planned","Performance","v2"], "milestone": null},
+    {"number": 13496, "title": "[Feature]: Cross-device session consistency", "labels": ["Planned"], "milestone": null},
+    {"number": 11376, "title": "[Feature]: Native backend tool support for large models", "labels": ["Planned","feature","Models"], "milestone": null}
+  ],
+  "velocity": {
+    "v2_labeled_prs_merged_last_30d": 6,
+    "total_prs_merged_to_main_last_30d": 42,
+    "v2_share_of_merges_pct": 14.3,
+    "prs_per_week_last_4w": 1.5
+  }
 }
