@@ -13,13 +13,13 @@ vi.mock('@renderer/utils/api', () => ({
   isWithTrailingSharp: (host: string) => host.endsWith('#')
 }))
 
-const providerMocks = {
+const providerMocks = vi.hoisted(() => ({
   isAzureOpenAIProvider: vi.fn(() => false),
   isCherryAIProvider: vi.fn(() => false),
   isNewApiProvider: vi.fn(() => false),
   isPerplexityProvider: vi.fn(() => false),
   isVertexProvider: vi.fn(() => false)
-}
+}))
 
 vi.mock('@shared/utils/provider', () => providerMocks)
 
