@@ -1,16 +1,18 @@
-import { Button, MenuDivider, MenuItem, MenuList, Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
+import {
+  MenuDivider,
+  MenuItem,
+  MenuList,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger
+} from '@cherrystudio/ui'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils'
-import { ArrowRightLeft, MoreHorizontal, PencilLine, Plus, Trash2 } from 'lucide-react'
+import { ArrowRightLeft, PencilLine, Plus, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type {
-  KnowledgeBaseRowMenuProps,
-  KnowledgeGroupRowMenuProps,
-  NavigatorMoreButtonProps,
-  NavigatorRowMenuProps
-} from './types'
+import type { KnowledgeBaseRowMenuProps, KnowledgeGroupRowMenuProps, NavigatorRowMenuProps } from './types'
 
 const NavigatorRowMenuItem = ({ icon, label, onClick }: { icon?: ReactNode; label: string; onClick: () => void }) => {
   return (
@@ -38,31 +40,11 @@ const NavigatorRowDeleteMenuItem = ({
   )
 }
 
-export const NavigatorMoreButton = ({ visible, className, onClick }: NavigatorMoreButtonProps) => {
-  const { t } = useTranslation()
-
+export const NavigatorRowMenu = ({ open, menuPosition, trigger, onOpenChange, children }: NavigatorRowMenuProps) => {
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      aria-label={t('common.more')}
-      className={cn(visible ? 'opacity-100' : 'opacity-0', className)}
-      onClick={onClick}>
-      <MoreHorizontal />
-    </Button>
-  )
-}
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>{trigger}</PopoverTrigger>
 
-export const NavigatorRowMenu = ({ menuPosition, onClose, children }: NavigatorRowMenuProps) => {
-  return (
-    <Popover
-      open={Boolean(menuPosition)}
-      onOpenChange={(open) => {
-        if (!open) {
-          onClose()
-        }
-      }}>
       {menuPosition ? (
         <PopoverAnchor
           className="fixed size-0"
@@ -74,7 +56,7 @@ export const NavigatorRowMenu = ({ menuPosition, onClose, children }: NavigatorR
       ) : null}
 
       <PopoverContent
-        align="start"
+        align={menuPosition ? 'start' : 'end'}
         side="bottom"
         sideOffset={8}
         collisionPadding={8}
@@ -88,10 +70,12 @@ export const NavigatorRowMenu = ({ menuPosition, onClose, children }: NavigatorR
 }
 
 export const KnowledgeBaseRowMenu = ({
+  open,
   menuPosition,
+  trigger,
+  onOpenChange,
   availableGroups,
   canMoveToUngrouped,
-  onClose,
   onRename,
   onMove,
   onRequestDelete
@@ -99,7 +83,7 @@ export const KnowledgeBaseRowMenu = ({
   const { t } = useTranslation()
 
   return (
-    <NavigatorRowMenu menuPosition={menuPosition} onClose={onClose}>
+    <NavigatorRowMenu open={open} menuPosition={menuPosition} trigger={trigger} onOpenChange={onOpenChange}>
       <MenuList className="gap-1">
         <NavigatorRowMenuItem
           icon={<PencilLine className="size-3.5" />}
@@ -145,8 +129,10 @@ export const KnowledgeBaseRowMenu = ({
 }
 
 export const KnowledgeGroupRowMenu = ({
+  open,
   menuPosition,
-  onClose,
+  trigger,
+  onOpenChange,
   onRename,
   onCreateBase,
   onRequestDelete
@@ -154,7 +140,7 @@ export const KnowledgeGroupRowMenu = ({
   const { t } = useTranslation()
 
   return (
-    <NavigatorRowMenu menuPosition={menuPosition} onClose={onClose}>
+    <NavigatorRowMenu open={open} menuPosition={menuPosition} trigger={trigger} onOpenChange={onOpenChange}>
       <MenuList className="gap-1">
         <NavigatorRowMenuItem
           icon={<PencilLine className="size-3.5" />}
