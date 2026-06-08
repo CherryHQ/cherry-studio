@@ -239,3 +239,27 @@ describe('WINDOW_TYPE_REGISTRY Main window — frame contract', () => {
     expect(result.titleBarStyle).toBe('hidden')
   })
 })
+
+// The Settings window mirrors Main's frameless contract: no native title bar on
+// macOS (hidden title bar + traffic lights) and frameless on Windows. The renderer
+// draws its own top region (SettingsPage's top bar + WindowControls). Linux frame is
+// injected at open() time from `app.use_system_title_bar` (SettingsWindowService), so
+// it is intentionally absent from the registry here.
+describe('WINDOW_TYPE_REGISTRY Settings window — frame contract', () => {
+  beforeEach(() => {
+    resetPlatform()
+  })
+
+  it('is frameless on Windows (frame:false sourced from the registry)', () => {
+    platform.isWin = true
+    expect(mergeWindowOptions(WindowType.Settings).frame).toBe(false)
+  })
+
+  it('uses a hidden native title bar with traffic lights on macOS', () => {
+    platform.isMac = true
+    const result = mergeWindowOptions(WindowType.Settings)
+    expect(result.frame).toBeUndefined()
+    expect(result.titleBarStyle).toBe('hidden')
+    expect(result.trafficLightPosition).toEqual({ x: 13, y: 16 })
+  })
+})

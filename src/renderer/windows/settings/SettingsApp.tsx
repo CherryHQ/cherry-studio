@@ -1,5 +1,7 @@
 import { Alert, Button } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import TopViewContainer from '@renderer/components/TopView'
+import { isLinux } from '@renderer/config/constant'
 import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
 import { NotificationProvider } from '@renderer/context/NotificationProvider'
@@ -68,8 +70,16 @@ function SettingsWindowRouter({ initialPath }: { initialPath: string }) {
 }
 
 function SettingsApp({ initialPath }: { initialPath: string }): React.ReactElement {
-  const shellStyle = { '--navbar-height': '0px', '--settings-width': '200px' } as CSSProperties
   const isMacTransparentWindow = useMacTransparentWindow()
+  const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
+  // Frameless on macOS/Windows always, and on Linux unless the user opted into the system
+  // title bar. Frameless windows reserve `--navbar-height` for the top region (traffic lights
+  // / WindowControls) drawn by SettingsPage; a native title bar reserves nothing.
+  const hasCustomTitleBar = !isLinux || !useSystemTitleBar
+  const shellStyle = {
+    '--navbar-height': hasCustomTitleBar ? '42px' : '0px',
+    '--settings-width': '200px'
+  } as CSSProperties
 
   return (
     <Provider store={store}>
