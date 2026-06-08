@@ -19,16 +19,27 @@ const getMenuPosition = (event: ReactMouseEvent<HTMLElement>): MenuPosition => {
 }
 
 const useContextMenuPosition = () => {
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [contextMenuPosition, setContextMenuPosition] = useState<MenuPosition | null>(null)
 
   const closeContextMenu = useCallback(() => {
+    setIsMenuOpen(false)
     setContextMenuPosition(null)
+  }, [])
+
+  const handleMenuOpenChange = useCallback((open: boolean) => {
+    setIsMenuOpen(open)
+
+    if (!open) {
+      setContextMenuPosition(null)
+    }
   }, [])
 
   const openContextMenu = useCallback((event: ReactMouseEvent<HTMLElement>) => {
     event.preventDefault()
     event.stopPropagation()
 
+    setIsMenuOpen(true)
     setContextMenuPosition(getMenuPosition(event))
   }, [])
 
@@ -39,17 +50,17 @@ const useContextMenuPosition = () => {
     [openContextMenu]
   )
 
-  const handleMoreButtonClick = useCallback(
-    (event: ReactMouseEvent<HTMLButtonElement>) => {
-      openContextMenu(event)
-    },
-    [openContextMenu]
-  )
+  const handleMoreButtonClick = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    setContextMenuPosition(null)
+  }, [])
 
   return {
+    isMenuOpen,
     contextMenuPosition,
     closeContextMenu,
     handleContextMenu,
+    handleMenuOpenChange,
     handleMoreButtonClick
   }
 }

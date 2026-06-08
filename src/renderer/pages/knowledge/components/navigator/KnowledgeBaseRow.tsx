@@ -1,11 +1,12 @@
 import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { MoreHorizontal } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import KnowledgeBaseIcon from '../KnowledgeBaseIcon'
 import { statusDotClassNames } from '../statusStyles'
-import { KnowledgeBaseRowMenu, NavigatorMoreButton } from './NavigatorMenu'
+import { KnowledgeBaseRowMenu } from './NavigatorMenu'
 import type { KnowledgeBaseRowProps } from './types'
 import useContextMenuPosition from './useContextMenuPosition'
 
@@ -19,7 +20,14 @@ const KnowledgeBaseRow = ({
   onDeleteBase
 }: KnowledgeBaseRowProps) => {
   const { t } = useTranslation()
-  const { contextMenuPosition, closeContextMenu, handleContextMenu, handleMoreButtonClick } = useContextMenuPosition()
+  const {
+    isMenuOpen,
+    contextMenuPosition,
+    closeContextMenu,
+    handleContextMenu,
+    handleMenuOpenChange,
+    handleMoreButtonClick
+  } = useContextMenuPosition()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const availableGroups = useMemo(() => groups.filter((group) => group.id !== base.groupId), [base.groupId, groups])
   const statusLabelKey = `knowledge.status.${base.status}` as const
@@ -58,46 +66,57 @@ const KnowledgeBaseRow = ({
   return (
     <>
       <div className="group/kb group relative w-full" onContextMenu={handleContextMenu}>
-        {/* TODO(knowledge): Button is used as a row container here; consider switching to the Item primitive so the size/gap/radius overrides go away. */}
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => onSelectBase(base.id)}
+        <div
           className={cn(
-            'min-h-11 w-full justify-start gap-2.5 rounded-xl px-2.5 py-1.5 text-left shadow-none',
-            selected ? 'bg-secondary hover:bg-secondary' : 'hover:bg-accent'
+            'grid min-h-11 w-full grid-cols-[minmax(0,1fr)_1.75rem] items-center gap-2.5 rounded-xl px-2.5 py-1.5 transition-colors',
+            selected ? 'bg-secondary' : 'hover:bg-accent'
           )}>
-          <KnowledgeBaseIcon />
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onSelectBase(base.id)}
+            className="grid min-h-0 min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center justify-start gap-2.5 rounded-lg p-0 text-left shadow-none hover:bg-transparent">
+            <KnowledgeBaseIcon />
 
-          <div className="min-w-0 flex-1 pr-5">
-            <div className="truncate font-medium text-foreground text-sm leading-5">{base.name}</div>
-            <div className="flex min-w-0 items-center gap-1.5 text-foreground-muted text-xs leading-4">
-              <span className="truncate">{t('knowledge.meta.documents_count', { count: base.itemCount })}</span>
-              <span
-                className={cn('size-1.5 shrink-0 rounded-full', statusDotClassNames[base.status])}
-                aria-label={statusLabel}
-                title={statusLabel}
-              />
+            <div className="min-w-0">
+              <div className="truncate font-medium text-foreground text-sm leading-5">{base.name}</div>
+              <div className="flex min-w-0 items-center gap-1.5 text-foreground-muted text-xs leading-4">
+                <span className="truncate">{t('knowledge.meta.documents_count', { count: base.itemCount })}</span>
+                <span
+                  className={cn('size-1.5 shrink-0 rounded-full', statusDotClassNames[base.status])}
+                  aria-label={statusLabel}
+                  title={statusLabel}
+                />
+              </div>
             </div>
-          </div>
-        </Button>
+          </Button>
 
-        <NavigatorMoreButton
-          visible={Boolean(contextMenuPosition)}
-          className="-translate-y-1/2 absolute top-1/2 right-2 text-foreground-muted hover:bg-accent group-focus-within/kb:opacity-100 group-focus-within:opacity-100 group-hover/kb:opacity-100 group-hover:opacity-100"
-          onClick={handleMoreButtonClick}
-        />
+          <KnowledgeBaseRowMenu
+            open={isMenuOpen}
+            menuPosition={contextMenuPosition}
+            trigger={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('common.more')}
+                className={cn(
+                  'size-7 min-h-7 min-w-7 justify-self-end text-foreground-muted hover:bg-accent group-focus-within/kb:opacity-100 group-hover/kb:opacity-100',
+                  isMenuOpen ? 'opacity-100' : 'opacity-0'
+                )}
+                onClick={handleMoreButtonClick}>
+                <MoreHorizontal />
+              </Button>
+            }
+            onOpenChange={handleMenuOpenChange}
+            availableGroups={availableGroups}
+            canMoveToUngrouped={base.groupId !== null}
+            onRename={handleRenameBase}
+            onMove={handleMoveBase}
+            onRequestDelete={handleRequestDelete}
+          />
+        </div>
       </div>
-
-      <KnowledgeBaseRowMenu
-        menuPosition={contextMenuPosition}
-        availableGroups={availableGroups}
-        canMoveToUngrouped={base.groupId !== null}
-        onClose={closeContextMenu}
-        onRename={handleRenameBase}
-        onMove={handleMoveBase}
-        onRequestDelete={handleRequestDelete}
-      />
 
       <ConfirmDialog
         open={isDeleteDialogOpen}
