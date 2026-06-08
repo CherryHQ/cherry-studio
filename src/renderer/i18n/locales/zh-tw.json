@@ -5390,7 +5390,7 @@
         },
         "token_placeholder": "請輸入思源筆記權杖"
       },
-      "title": "資料設定",
+      "title": "資料",
       "webdav": {
         "autoSync": {
           "label": "自動備份",
@@ -5550,7 +5550,7 @@
         },
         "visible": "顯示的圖示"
       },
-      "title": "顯示設定",
+      "title": "顯示",
       "topic": {
         "title": "話題設定"
       },
@@ -5580,10 +5580,10 @@
           "privacy_advanced": "隱私與進階",
           "system_startup": "系統與啟動"
         },
-        "title": "通用設定"
+        "title": "通用"
       },
       "display": {
-        "title": "顯示設定"
+        "title": "顯示"
       },
       "emoji_picker": "表情選擇器",
       "image_upload": "圖片上傳",
@@ -5859,8 +5859,7 @@
           "bailian": "阿里雲百鍊平台 MCP 服務",
           "lanyun": "藍雲科技雲平台 MCP 服務",
           "mcprouter": "MCP 路由器平台 MCP 服務",
-          "modelscope": "ModelScope平台MCP服務",
-          "tokenflux": "TokenFlux 平台 MCP 服務"
+          "modelscope": "ModelScope平台MCP服務"
         },
         "selectProvider": "選擇提供者：",
         "setToken": "輸入權杖",
@@ -6845,8 +6844,8 @@
           }
         },
         "fields": {
-          "api_base_url": "API 位址 (Base URL)",
-          "api_key": "API 金鑰 (API Key)",
+          "api_base_url": "API 位址",
+          "api_key": "API 金鑰",
           "api_keys_placeholder": "多個金鑰可用逗號分隔",
           "languages": "語言"
         },

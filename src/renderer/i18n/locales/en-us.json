@@ -5859,8 +5859,7 @@
           "bailian": "Alibaba Cloud Bailian Platform MCP Service",
           "lanyun": "Lanyun Technology Cloud Platform MCP Service",
           "mcprouter": "MCP Router Platform MCP Service",
-          "modelscope": "ModelScope Platform MCP Service",
-          "tokenflux": "TokenFlux Platform MCP Service"
+          "modelscope": "ModelScope Platform MCP Service"
         },
         "selectProvider": "Select Provider:",
         "setToken": "Enter Your Token",

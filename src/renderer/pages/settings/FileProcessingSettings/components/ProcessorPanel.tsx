@@ -188,7 +188,7 @@ export function ProcessorPanel({
       {supportsApiSettings(processor) ? (
         <div className="flex flex-col gap-3 border-border/60 border-t pt-4">
           <SettingRow className="items-start gap-4 py-0">
-            <SettingRowTitle className="w-30 shrink-0 pt-2">
+            <SettingRowTitle className="w-24 shrink-0 pt-2">
               {t('settings.tool.file_processing.fields.api_key')}
             </SettingRowTitle>
             <div className="min-w-0 flex-1">
@@ -226,7 +226,7 @@ export function ProcessorPanel({
           {entry.capability.apiHost !== undefined ? (
             <div className="border-border/60 border-t pt-3">
               <SettingRow className="items-center gap-4 py-0">
-                <SettingRowTitle className="w-30 shrink-0">
+                <SettingRowTitle className="w-24 shrink-0">
                   {t('settings.tool.file_processing.fields.api_base_url')}
                 </SettingRowTitle>
                 <div className="min-w-0 flex-1">

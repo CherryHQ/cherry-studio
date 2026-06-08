@@ -39,7 +39,7 @@ export function TesseractLanguagePacks({ options, selectedLanguages, onChange }:
   return (
     <div className="flex flex-col gap-3 border-border/60 border-t pt-4">
       <SettingRow className="items-center gap-4 py-0">
-        <SettingRowTitle className="w-30 shrink-0">
+        <SettingRowTitle className="w-24 shrink-0">
           {t('settings.tool.file_processing.fields.languages')}
         </SettingRowTitle>
         <div className="min-w-0 flex-1">

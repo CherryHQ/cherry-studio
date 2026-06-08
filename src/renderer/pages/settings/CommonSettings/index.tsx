@@ -33,7 +33,7 @@ import { cn } from '@renderer/utils/style'
 import { defaultByPassRules, defaultLanguage } from '@shared/config/constant'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { Code, Minus, Monitor, Moon, Plus, Shield, Sun } from 'lucide-react'
+import { Code, Minus, Monitor, Moon, Palette, Plus, Shield, Sun } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -56,11 +56,10 @@ import {
 import ThemeColorPicker from './components/ThemeColorPicker'
 
 type SpellCheckOption = { readonly value: string; readonly label: string; readonly flag: string }
-type CommonSettingsSection = 'system-startup' | 'privacy-advanced' | 'custom-css'
+type CommonSettingsSection = 'display-language' | 'system-startup' | 'privacy-advanced' | 'custom-css'
 
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
 const logger = loggerService.withContext('CommonSettings')
-type CommonSettingsView = 'general' | 'display'
 
 const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
   { value: 'en-US', label: 'English (US)', flag: '🇺🇸' },
@@ -76,14 +75,14 @@ const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
   { value: 'el', label: 'Ελληνικά', flag: '🇬🇷' }
 ]
 
-const CommonSettings: FC<{ view?: CommonSettingsView }> = ({ view = 'general' }) => {
+const CommonSettings: FC = () => {
   const { t } = useTranslation()
   const { theme, settedTheme, setTheme } = useTheme()
   const { setTimeoutTimer } = useTimer()
   const { userTheme, setUserTheme } = useUserTheme()
   const { activeCmTheme } = useCodeStyle()
 
-  const [activeSection, setActiveSection] = useState<CommonSettingsSection>('system-startup')
+  const [activeSection, setActiveSection] = useState<CommonSettingsSection>('display-language')
   const [language, setLanguage] = usePreference('app.language')
   const [disableHardwareAcceleration, setDisableHardwareAcceleration] = usePreference(
     'BootConfig.app.disable_hardware_acceleration'
@@ -120,6 +119,11 @@ const CommonSettings: FC<{ view?: CommonSettingsView }> = ({ view = 'general' })
 
   const sectionItems = useMemo(
     () => [
+      {
+        key: 'display-language' as const,
+        label: t('settings.general.common.sections.display_language'),
+        icon: <Palette />
+      },
       {
         key: 'system-startup' as const,
         label: t('settings.general.common.sections.system_startup'),
@@ -807,6 +811,8 @@ const CommonSettings: FC<{ view?: CommonSettingsView }> = ({ view = 'general' })
 
   const renderSectionContent = () => {
     switch (activeSection) {
+      case 'display-language':
+        return renderDisplayLanguageSection()
       case 'system-startup':
         return renderSystemStartupSection()
       case 'privacy-advanced':
@@ -816,16 +822,6 @@ const CommonSettings: FC<{ view?: CommonSettingsView }> = ({ view = 'general' })
       default:
         return null
     }
-  }
-
-  if (view === 'display') {
-    return (
-      <div className="flex min-w-0 flex-1" data-theme-mode={theme}>
-        <Scrollbar className={settingsContentScrollClassName}>
-          <SettingsContentBody>{renderDisplayLanguageSection()}</SettingsContentBody>
-        </Scrollbar>
-      </div>
-    )
   }
 
   return (
@@ -857,8 +853,6 @@ const CommonSettings: FC<{ view?: CommonSettingsView }> = ({ view = 'general' })
     </div>
   )
 }
-
-export const DisplaySettings: FC = () => <CommonSettings view="display" />
 
 const TitleExtra = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('cursor-pointer text-xs underline opacity-70', className)} {...props} />

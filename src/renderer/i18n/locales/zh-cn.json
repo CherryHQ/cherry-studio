@@ -5390,7 +5390,7 @@
         },
         "token_placeholder": "请输入思源笔记令牌"
       },
-      "title": "数据设置",
+      "title": "数据",
       "webdav": {
         "autoSync": {
           "label": "自动备份",
@@ -5550,7 +5550,7 @@
         },
         "visible": "显示的图标"
       },
-      "title": "显示设置",
+      "title": "显示",
       "topic": {
         "title": "话题设置"
       },
@@ -5580,10 +5580,10 @@
           "privacy_advanced": "隐私与高级",
           "system_startup": "系统与启动"
         },
-        "title": "通用设置"
+        "title": "通用"
       },
       "display": {
-        "title": "显示设置"
+        "title": "显示"
       },
       "emoji_picker": "表情选择器",
       "image_upload": "图片上传",
@@ -5859,8 +5859,7 @@
           "bailian": "百炼平台服务",
           "lanyun": "蓝耘科技云平台 MCP 服务",
           "mcprouter": "MCP Router 平台 MCP 服务",
-          "modelscope": "ModelScope 平台 MCP 服务",
-          "tokenflux": "TokenFlux 平台 MCP 服务"
+          "modelscope": "ModelScope 平台 MCP 服务"
         },
         "selectProvider": "选择提供商：",
         "setToken": "输入您的令牌",
@@ -6845,8 +6844,8 @@
           }
         },
         "fields": {
-          "api_base_url": "API 地址 (Base URL)",
-          "api_key": "API 密钥 (API Key)",
+          "api_base_url": "API 地址",
+          "api_key": "API 密钥",
           "api_keys_placeholder": "多个密钥可用逗号分隔",
           "languages": "语言"
         },

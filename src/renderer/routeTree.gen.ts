@@ -28,7 +28,6 @@ import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
 import { Route as SettingsIntegrationsRouteImport } from './routes/settings/integrations'
 import { Route as SettingsGeneralRouteImport } from './routes/settings/general'
 import { Route as SettingsFileProcessingRouteImport } from './routes/settings/file-processing'
-import { Route as SettingsDisplayRouteImport } from './routes/settings/display'
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
 import { Route as SettingsComponentLabRouteImport } from './routes/settings/component-lab'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
@@ -150,11 +149,6 @@ const SettingsGeneralRoute = SettingsGeneralRouteImport.update({
 const SettingsFileProcessingRoute = SettingsFileProcessingRouteImport.update({
   id: '/file-processing',
   path: '/file-processing',
-  getParentRoute: () => SettingsRoute,
-} as any)
-const SettingsDisplayRoute = SettingsDisplayRouteImport.update({
-  id: '/display',
-  path: '/display',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsDataRoute = SettingsDataRouteImport.update({
@@ -308,7 +302,6 @@ export interface FileRoutesByFullPath {
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
-  '/settings/display': typeof SettingsDisplayRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
@@ -355,7 +348,6 @@ export interface FileRoutesByTo {
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
-  '/settings/display': typeof SettingsDisplayRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
@@ -403,7 +395,6 @@ export interface FileRoutesById {
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
-  '/settings/display': typeof SettingsDisplayRoute
   '/settings/file-processing': typeof SettingsFileProcessingRoute
   '/settings/general': typeof SettingsGeneralRoute
   '/settings/integrations': typeof SettingsIntegrationsRoute
@@ -453,7 +444,6 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
-    | '/settings/display'
     | '/settings/file-processing'
     | '/settings/general'
     | '/settings/integrations'
@@ -500,7 +490,6 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
-    | '/settings/display'
     | '/settings/file-processing'
     | '/settings/general'
     | '/settings/integrations'
@@ -547,7 +536,6 @@ export interface FileRouteTypes {
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
-    | '/settings/display'
     | '/settings/file-processing'
     | '/settings/general'
     | '/settings/integrations'
@@ -717,13 +705,6 @@ declare module '@tanstack/react-router' {
       path: '/file-processing'
       fullPath: '/settings/file-processing'
       preLoaderRoute: typeof SettingsFileProcessingRouteImport
-      parentRoute: typeof SettingsRoute
-    }
-    '/settings/display': {
-      id: '/settings/display'
-      path: '/display'
-      fullPath: '/settings/display'
-      preLoaderRoute: typeof SettingsDisplayRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/data': {
@@ -977,7 +958,6 @@ interface SettingsRouteChildren {
   SettingsChannelsRoute: typeof SettingsChannelsRoute
   SettingsComponentLabRoute: typeof SettingsComponentLabRoute
   SettingsDataRoute: typeof SettingsDataRoute
-  SettingsDisplayRoute: typeof SettingsDisplayRoute
   SettingsFileProcessingRoute: typeof SettingsFileProcessingRoute
   SettingsGeneralRoute: typeof SettingsGeneralRoute
   SettingsIntegrationsRoute: typeof SettingsIntegrationsRoute
@@ -1001,7 +981,6 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsChannelsRoute: SettingsChannelsRoute,
   SettingsComponentLabRoute: SettingsComponentLabRoute,
   SettingsDataRoute: SettingsDataRoute,
-  SettingsDisplayRoute: SettingsDisplayRoute,
   SettingsFileProcessingRoute: SettingsFileProcessingRoute,
   SettingsGeneralRoute: SettingsGeneralRoute,
   SettingsIntegrationsRoute: SettingsIntegrationsRoute,

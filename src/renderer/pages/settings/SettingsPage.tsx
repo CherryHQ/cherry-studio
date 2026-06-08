@@ -16,7 +16,6 @@ import {
   Info,
   Package,
   PackageCheck,
-  Palette,
   PictureInPicture2,
   Radio,
   Search,
@@ -135,14 +134,6 @@ const SettingsPage: FC = () => {
                 label={t('settings.general.common.title')}
                 active={isActive('/settings/general')}
                 onClick={() => go('/settings/general')}
-              />
-              <MenuItem
-                className={settingsSubmenuItemClassName}
-                labelClassName={settingsSubmenuItemLabelClassName}
-                icon={<Palette />}
-                label={t('settings.general.display.title')}
-                active={isActive('/settings/display')}
-                onClick={() => go('/settings/display')}
               />
               <MenuItem
                 className={settingsSubmenuItemClassName}

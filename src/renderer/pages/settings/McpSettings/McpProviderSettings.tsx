@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingsContentColumn } from '..'
-import { getMcpProviderLogo, getProviderDisplayName, type ProviderConfig } from './providers/config'
+import { getProviderDisplayName, type ProviderConfig } from './providers/config'
 import { isSameMcpServerCandidate, toCreateMcpServerDto } from './utils'
 
 const logger = loggerService.withContext('McpProviderSettings')
@@ -118,13 +118,10 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
   }, [provider, t, token])
 
   const isFetchDisabled = !token
-  const ProviderLogo = getMcpProviderLogo(provider.key)
-
   return (
     <DetailContainer>
       <ProviderHeader>
         <div className="flex min-w-0 items-center gap-3">
-          {ProviderLogo && <ProviderLogo.Avatar size={36} shape="circle" />}
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-1.5">
               <ProviderName>{getProviderDisplayName(provider, t)}</ProviderName>
