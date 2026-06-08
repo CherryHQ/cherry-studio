@@ -189,7 +189,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
               <ServerItem key={server.id}>
                 <div className="flex flex-1 flex-row items-center gap-3">
                   {server.logoUrl && (
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
                       <img src={server.logoUrl} alt={server.name} className="h-full w-full object-cover" />
                     </div>
                   )}

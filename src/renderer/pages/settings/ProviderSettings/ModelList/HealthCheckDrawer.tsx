@@ -309,14 +309,14 @@ export default function HealthCheckDrawer({
                   <li
                     key={model.id}
                     className={cn(
-                      'flex min-h-[44px] min-w-0 items-center gap-3 rounded-lg px-2 py-2.5',
+                      'flex min-h-11 min-w-0 items-center gap-3 rounded-lg px-2 py-2.5',
                       status === HealthStatus.FAILED ? 'bg-destructive/[0.03]' : ''
                     )}>
                     <div className="flex w-5 shrink-0 justify-center">{statusCell}</div>
                     {Icon ? (
                       <Icon.Avatar size={22} />
                     ) : (
-                      <Avatar className="size-[22px] shrink-0 rounded-md text-[10px]">
+                      <Avatar className="size-5.5 shrink-0 rounded-md text-[10px]">
                         <AvatarFallback className="rounded-md">{model.name?.[0]?.toUpperCase()}</AvatarFallback>
                       </Avatar>
                     )}
@@ -373,7 +373,7 @@ export default function HealthCheckDrawer({
 
             <div className="flex items-center justify-between gap-3">
               <span className="font-medium text-foreground text-sm">{t('settings.models.check.timeout')}</span>
-              <div className="flex w-[112px] items-center gap-2">
+              <div className="flex w-28 items-center gap-2">
                 <Input
                   type="number"
                   min={5}

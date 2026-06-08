@@ -188,7 +188,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
           showIcon
           type="error"
           style={{ height: 125, alignItems: 'flex-start', padding: 12, borderRadius: 'var(--radius-lg)' }}
-          description={<div className="line-clamp-3 text-(--color-error-base) text-xs leading-5">{errorDetails}</div>}
+          description={<div className="line-clamp-3 text-error-base text-xs leading-5">{errorDetails}</div>}
           onClick={onClickDetails}
           action={
             <div className="flex items-center gap-1">

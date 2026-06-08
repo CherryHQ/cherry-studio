@@ -400,7 +400,7 @@ function AvatarSection({
   return (
     <div className="flex flex-col items-center gap-3">
       <div
-        className="flex h-[76px] w-[76px] items-center justify-center overflow-hidden rounded-full border border-border/70 bg-muted/50"
+        className="flex h-19 w-19 items-center justify-center overflow-hidden rounded-full border border-border/70 bg-muted/50"
         style={
           avatarBackgroundColor && avatarForegroundColor
             ? { backgroundColor: avatarBackgroundColor, color: avatarForegroundColor }

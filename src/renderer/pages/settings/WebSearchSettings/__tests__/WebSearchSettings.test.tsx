@@ -184,31 +184,35 @@ describe('WebSearchSettings', () => {
   it('syncs clean max-result drafts from external preference changes', () => {
     const { rerender } = render(<WebSearchSettings />)
 
-    expect(screen.getByTestId('slider')).toHaveTextContent('5')
+    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(5)
 
     MockUsePreferenceUtils.simulateExternalPreferenceChange('chat.web_search.max_results', 20)
     rerender(<WebSearchSettings />)
 
-    expect(screen.getByTestId('slider')).toHaveTextContent('20')
+    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(20)
   })
 
   it('keeps dirty max-result drafts when maxResults changes externally', () => {
     const { rerender } = render(<WebSearchSettings />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'slider-change-10' }))
-    expect(screen.getByTestId('slider')).toHaveTextContent('10')
+    fireEvent.change(screen.getByLabelText('settings.tool.websearch.search_max_result.label'), {
+      target: { value: '10' }
+    })
+    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(10)
 
     MockUsePreferenceUtils.simulateExternalPreferenceChange('chat.web_search.max_results', 20)
     rerender(<WebSearchSettings />)
 
-    expect(screen.getByTestId('slider')).toHaveTextContent('10')
+    expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(10)
   })
 
   it('marks max-result drafts clean after a successful commit', async () => {
     const { rerender } = render(<WebSearchSettings />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'slider-change-10' }))
-    fireEvent.click(screen.getByRole('button', { name: 'slider-commit-10' }))
+    fireEvent.change(screen.getByLabelText('settings.tool.websearch.search_max_result.label'), {
+      target: { value: '10' }
+    })
+    fireEvent.blur(screen.getByLabelText('settings.tool.websearch.search_max_result.label'))
 
     await waitFor(() => {
       expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(10)
@@ -218,7 +222,29 @@ describe('WebSearchSettings', () => {
     rerender(<WebSearchSettings />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('slider')).toHaveTextContent('20')
+      expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(20)
+    })
+  })
+
+  it('resets max results to the default value when customized', async () => {
+    render(<WebSearchSettings />)
+
+    expect(screen.queryByRole('button', { name: 'common.reset' })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('settings.tool.websearch.search_max_result.label'), {
+      target: { value: '10' }
+    })
+    fireEvent.blur(screen.getByLabelText('settings.tool.websearch.search_max_result.label'))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(10)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.reset' }))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(5)
+      expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(5)
     })
   })
 

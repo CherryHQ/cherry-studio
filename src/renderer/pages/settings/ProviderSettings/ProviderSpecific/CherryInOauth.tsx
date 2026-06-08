@@ -170,7 +170,7 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
     return (
       <div className={oauthCardClasses.container}>
         <div className={oauthCardClasses.shell}>
-          <Skeleton className="h-5 w-[220px]" />
+          <Skeleton className="h-5 w-55" />
           <Skeleton className="mt-2 h-4 w-full" />
           <Skeleton className="mt-2 h-4 w-[82%]" />
         </div>

@@ -80,8 +80,8 @@ const DmxapiSettings: FC<DmxapiSettingsProps> = ({ providerId }) => {
   )
 
   return (
-    <div className="mt-4 mb-[30px]">
-      <div className="mb-[30px] flex flex-col items-center justify-center">
+    <div className="mt-4 mb-7.5">
+      <div className="mb-7.5 flex flex-col items-center justify-center">
         <Dmxapi height={70} width="auto" />
       </div>
 

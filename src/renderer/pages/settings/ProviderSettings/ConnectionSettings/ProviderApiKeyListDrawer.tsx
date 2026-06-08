@@ -190,7 +190,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
         <div className={apiKeyListClasses.listWrap}>
           <Scrollbar className={apiKeyListClasses.listScroller}>
             {apiKeys.length === 0 && !draft ? (
-              <div className="px-4 py-6 text-center text-[length:var(--font-size-body-md)] text-muted-foreground">
+              <div className="text-(length:--font-size-body-md) px-4 py-6 text-center text-muted-foreground">
                 {t('error.no_api_key')}
               </div>
             ) : null}

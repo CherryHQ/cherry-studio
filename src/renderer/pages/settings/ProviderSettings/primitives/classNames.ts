@@ -45,7 +45,7 @@ const providerSettingsInputGroupFocusOverride =
 const sectionHeadingBase =
   'm-0 text-[length:var(--font-size-body-md)] text-foreground leading-[var(--line-height-section-label)]'
 
-export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-[weight:var(--font-weight-medium)]')
+export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-medium')
 
 /**
  * Authentication card: bordered container + section title.
@@ -179,7 +179,7 @@ export const drawerClasses = {
   toggleButton: cn(
     actionClasses.btnBase,
     actionClasses.btnNeutral,
-    'justify-center gap-1.5 rounded-lg border-[color:var(--color-border-fg-muted)] px-3 py-2 text-foreground/75 hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground'
+    'justify-center gap-1.5 rounded-lg border-(--color-border-fg-muted) px-3 py-2 text-foreground/75 hover:bg-(--color-surface-fg-subtle) hover:text-foreground'
   ),
   inlineRow: 'flex flex-wrap items-center gap-2',
   valueRow: 'flex min-w-0 items-center gap-2',
@@ -220,7 +220,7 @@ export const modelListClasses = {
   toolbarButtonGroup: 'max-w-full shrink-0',
   /** Model-list section title: same size, line-height, and color; scoped weight `--font-weight-semibold` (600). */
   sectionTitleLine: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1',
-  sectionTitle: cn(sectionHeadingBase, 'shrink-0 whitespace-nowrap font-[weight:var(--font-weight-semibold)]'),
+  sectionTitle: cn(sectionHeadingBase, 'shrink-0 whitespace-nowrap font-semibold'),
   titleHelpRow: 'flex min-w-0 flex-wrap items-center gap-x-1 self-center text-foreground-muted',
   titleHelpText: 'shrink-0 opacity-60',
   titleHelpLink:
@@ -385,7 +385,7 @@ export const modelSyncClasses = {
   toggleButton: cn(
     actionClasses.btnBase,
     actionClasses.btnNeutral,
-    'rounded-lg border-[color:var(--color-border-fg-muted)] px-3 py-[5px] text-foreground/70 hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground'
+    'rounded-lg border-(--color-border-fg-muted) px-3 py-1.25 text-foreground/70 hover:bg-(--color-surface-fg-subtle) hover:text-foreground'
   ),
   list: 'mt-4 space-y-2',
   row: 'flex items-start gap-3 rounded-xl border border-[color:var(--color-border-fg-hairline)] bg-[var(--color-surface-fg-sunken)] px-3 py-3',
