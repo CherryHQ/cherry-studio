@@ -1,19 +1,11 @@
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
-import type { MessageRole } from '@shared/data/types/message'
 import { buildKeywordRegexes, type KeywordMatchMode, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
 import { buildSearchSnippet, stripMarkdownFormatting } from '@shared/utils/messageSearch'
 import { type SQL, sql } from 'drizzle-orm'
 
 const DEFAULT_MESSAGE_SEARCH_LIMIT = 500
 const MESSAGE_SEARCH_CHUNK_SIZE = 200
-
-export const TOPIC_MESSAGE_SEARCH_ROLES = ['user', 'assistant'] as const satisfies readonly MessageRole[]
-export const AGENT_SESSION_MESSAGE_SEARCH_ROLES = [
-  'user',
-  'assistant',
-  'system'
-] as const satisfies readonly MessageRole[]
 
 export type MessageSearchCursor = {
   id: string
@@ -77,7 +69,7 @@ export function decodeMessageSearchCursor(raw: string, config: CursorConfig): Me
   return { createdAt, id }
 }
 
-export function encodeMessageSearchCursor(createdAt: number | string, id: string): string {
+export function encodeMessageSearchCursor(createdAt: number, id: string): string {
   return `${createdAt}:${id}`
 }
 

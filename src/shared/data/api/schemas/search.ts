@@ -5,7 +5,7 @@
  * Content search is full-text-oriented and keeps per-source cursor semantics.
  */
 
-import type { MessageRole } from '@shared/data/types/message'
+import type { AgentSessionMessageSearchRole, TopicMessageSearchRole } from '@shared/data/types/message'
 import * as z from 'zod'
 
 export type EntitySearchTarget =
@@ -101,7 +101,7 @@ export interface TopicMessageContentSearchItem {
   topicId: string
   topicName: string
   topicAssistantId?: string
-  role?: Extract<MessageRole, 'user' | 'assistant'>
+  role?: TopicMessageSearchRole
   topicCreatedAt: string
   topicUpdatedAt: string
   snippet: string
@@ -114,7 +114,7 @@ export interface SessionMessageContentSearchItem {
   sessionName: string
   agentId?: string
   agentName?: string
-  role?: MessageRole
+  role?: AgentSessionMessageSearchRole
   snippet: string
   createdAt: string
 }

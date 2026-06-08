@@ -1,3 +1,9 @@
+import {
+  AGENT_SESSION_MESSAGE_SEARCH_ROLES,
+  type AgentSessionMessageSearchRole,
+  TOPIC_MESSAGE_SEARCH_ROLES,
+  type TopicMessageSearchRole
+} from '@shared/data/types/message'
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import {
@@ -75,5 +81,12 @@ describe('ContentSearchQuerySchema', () => {
     }
 
     expect(assertNarrowing).toBeTypeOf('function')
+  })
+
+  it('derives result role types from shared search role allowlists', () => {
+    expect(TOPIC_MESSAGE_SEARCH_ROLES).toEqual(['user', 'assistant'])
+    expect(AGENT_SESSION_MESSAGE_SEARCH_ROLES).toEqual(['user', 'assistant', 'system'])
+    expectTypeOf<TopicMessageContentSearchItem['role']>().toEqualTypeOf<TopicMessageSearchRole | undefined>()
+    expectTypeOf<SessionMessageContentSearchItem['role']>().toEqualTypeOf<AgentSessionMessageSearchRole | undefined>()
   })
 })

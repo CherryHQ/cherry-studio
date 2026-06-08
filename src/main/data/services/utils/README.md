@@ -114,8 +114,9 @@ revalidation, snippet construction, offset scanning, and next-cursor assembly.
   different domain tables.
 - **Read-only search only**: this utility never writes, opens transactions, or
   applies domain ownership rules.
-- **Role subsets are explicit**: exported role lists are constrained by
-  `MessageRole` so result DTOs cannot drift from the canonical role schema.
+- **Role subsets are explicit**: role lists live in `@shared/data/types/message`
+  and result DTOs derive from them so runtime filtering and API types cannot
+  drift.
 
 ## Criteria for Adding a New Utility
 

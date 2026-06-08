@@ -21,11 +21,11 @@ import {
   AGENT_SESSION_MESSAGES_MAX_LIMIT
 } from '@shared/data/api/schemas/agentSessions'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
+import { AGENT_SESSION_MESSAGE_SEARCH_ROLES } from '@shared/data/types/message'
 import { and, desc, eq, inArray, isNotNull, lt, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import {
-  AGENT_SESSION_MESSAGE_SEARCH_ROLES,
   coerceSearchRole,
   decodeMessageSearchCursor,
   encodeMessageSearchCursor,

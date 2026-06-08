@@ -20,25 +20,21 @@ import type {
   UpdateMessageDto
 } from '@shared/data/api/schemas/messages'
 import type { TopicMessageContentSearchItem } from '@shared/data/api/schemas/search'
-import type {
-  BranchMessage,
-  BranchMessagesResponse,
-  Message,
-  MessageData,
-  SiblingsGroup,
-  TreeNode,
-  TreeResponse
+import {
+  type BranchMessage,
+  type BranchMessagesResponse,
+  type Message,
+  type MessageData,
+  type SiblingsGroup,
+  TOPIC_MESSAGE_SEARCH_ROLES,
+  type TreeNode,
+  type TreeResponse
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 
 import { topicService } from './TopicService'
-import {
-  coerceSearchRole,
-  type MessageSearchFetchContext,
-  searchMessagesWithCursor,
-  TOPIC_MESSAGE_SEARCH_ROLES
-} from './utils/messageSearch'
+import { coerceSearchRole, type MessageSearchFetchContext, searchMessagesWithCursor } from './utils/messageSearch'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MessageService')
