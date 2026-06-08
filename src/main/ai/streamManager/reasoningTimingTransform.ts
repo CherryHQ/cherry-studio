@@ -16,14 +16,16 @@
  */
 
 import { loggerService } from '@logger'
+import { CherryReasoningMetaSchema, type CherryReasoningMeta } from '@shared/data/types/uiParts'
 import type { ProviderMetadata, UIMessageChunk } from 'ai'
 
 const logger = loggerService.withContext('reasoningTimingTransform')
 
-type ReasoningEndChunk = Extract<UIMessageChunk, { type: 'reasoning-end' }>
-
 export function withReasoningTimingMetadata(stream: ReadableStream<UIMessageChunk>): ReadableStream<UIMessageChunk> {
-  const reasoningById = new Map<string, { startedAt: number; providerMetadata?: ProviderMetadata }>()
+  const reasoningById = new Map<
+    string,
+    { startedAt: number; epochStartedAt: number; providerMetadata?: ProviderMetadata }
+  >()
 
   return stream.pipeThrough(
     new TransformStream<UIMessageChunk, UIMessageChunk>({
@@ -34,11 +36,13 @@ export function withReasoningTimingMetadata(stream: ReadableStream<UIMessageChun
               id: chunk.id
             })
           }
+          const epochNow = Date.now()
           reasoningById.set(chunk.id, {
             startedAt: performance.now(),
+            epochStartedAt: epochNow,
             providerMetadata: toProviderMetadata(chunk.providerMetadata)
           })
-          controller.enqueue(chunk)
+          controller.enqueue(withChunkCherryMeta(chunk, { startedAt: epochNow }))
           return
         }
 
@@ -46,8 +50,17 @@ export function withReasoningTimingMetadata(stream: ReadableStream<UIMessageChun
           const reasoning = reasoningById.get(chunk.id)
           if (reasoning) {
             reasoningById.delete(chunk.id)
+            const thinkingMs = Math.round(performance.now() - reasoning.startedAt)
+
             controller.enqueue(
-              withThinkingMs(chunk, Math.round(performance.now() - reasoning.startedAt), reasoning.providerMetadata)
+              withChunkCherryMeta(
+                chunk,
+                {
+                  startedAt: reasoning.epochStartedAt,
+                  thinkingMs
+                },
+                reasoning.providerMetadata
+              )
             )
             return
           }
@@ -60,24 +73,32 @@ export function withReasoningTimingMetadata(stream: ReadableStream<UIMessageChun
   )
 }
 
-function withThinkingMs(
-  chunk: ReasoningEndChunk,
-  thinkingMs: number,
-  startProviderMetadata: ProviderMetadata | undefined
-): ReasoningEndChunk {
-  const endProviderMetadata = toProviderMetadata(chunk.providerMetadata)
+function withChunkCherryMeta<C extends UIMessageChunk>(
+  chunk: C,
+  patch: CherryReasoningMeta,
+  startProviderMetadata?: ProviderMetadata
+): C {
+  const parsed = CherryReasoningMetaSchema.safeParse(patch)
+  if (!parsed.success) {
+    logger.warn('Failed to parse reasoning timing metadata chunk, falling back to empty patch', {
+      issues: parsed.error.issues.length
+    })
+  }
+  const cleanPatch = parsed.success ? parsed.data : {}
+
+  const endMeta = 'providerMetadata' in chunk ? toProviderMetadata(chunk.providerMetadata) : undefined
   const startCherry = isRecord(startProviderMetadata?.cherry) ? startProviderMetadata.cherry : {}
-  const endCherry = isRecord(endProviderMetadata?.cherry) ? endProviderMetadata.cherry : {}
+  const endCherry = isRecord(endMeta?.cherry) ? endMeta.cherry : {}
 
   return {
     ...chunk,
     providerMetadata: {
       ...startProviderMetadata,
-      ...endProviderMetadata,
+      ...endMeta,
       cherry: {
         ...startCherry,
         ...endCherry,
-        thinkingMs
+        ...cleanPatch
       }
     }
   }

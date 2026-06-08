@@ -18,6 +18,7 @@
  * - data-code (code blocks)
  */
 
+
 import type { FileType } from '@shared/file/types'
 import * as z from 'zod'
 
@@ -94,6 +95,8 @@ export interface CherryTextMeta {
 export interface CherryReasoningMeta {
   /** Thinking duration in ms. */
   thinkingMs?: number
+  /** Thinking start timestamp in epoch ms. */
+  startedAt?: number
 }
 
 /** Cherry metadata on a ToolUIPart / DynamicToolUIPart. */
@@ -152,7 +155,8 @@ export const CherryTextMetaSchema: z.ZodType<CherryTextMeta> = z.object({
 })
 
 export const CherryReasoningMetaSchema: z.ZodType<CherryReasoningMeta> = z.object({
-  thinkingMs: z.number().optional()
+  thinkingMs: z.number().optional(),
+  startedAt: z.number().optional()
 })
 
 export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
@@ -285,3 +289,4 @@ export function withoutCherryMeta<P extends CherryMessagePart>(
   if (Object.keys(nextProviderMetadata).length === 0) return nextPart
   return { ...nextPart, providerMetadata: nextProviderMetadata } as P
 }
+

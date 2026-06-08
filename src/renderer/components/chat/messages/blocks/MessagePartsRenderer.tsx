@@ -324,6 +324,7 @@ function renderPart(
       const thinkingMs =
         cherryMeta?.thinkingMs ??
         (typeof metadataBlock?.thinking_millsec === 'number' ? metadataBlock.thinking_millsec : 0)
+      const startedAt = cherryMeta?.startedAt
       return (
         <ThinkingBlock
           key={partId}
@@ -331,6 +332,7 @@ function renderPart(
           content={reasoningPart.text || ''}
           isStreaming={reasoningPart.state === 'streaming'}
           thinkingMs={thinkingMs}
+          startedAt={startedAt}
         />
       )
     }

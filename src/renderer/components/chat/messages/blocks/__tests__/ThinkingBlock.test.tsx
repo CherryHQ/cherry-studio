@@ -22,6 +22,7 @@ type ThinkingBlockFixture = {
   content: string
   status: 'success' | 'streaming'
   thinkingMs: number
+  startedAt?: number
 }
 
 vi.mock('../../MessageListProvider', () => ({
@@ -84,6 +85,7 @@ describe('ThinkingBlock', () => {
         if (key === 'chat.deeply_thought' && params?.seconds) {
           return `Thought for ${params.seconds}s`
         }
+        if (key === 'common.reasoning_content') return 'Deep reasoning'
         if (key === 'common.copy') return 'Copy'
         if (key === 'message.copied') return 'Copied'
         if (key === 'common.copy_failed') return 'Copy failed'
@@ -107,6 +109,7 @@ describe('ThinkingBlock', () => {
     status: 'success',
     content: 'I need to think about this carefully...',
     thinkingMs: 5000,
+    startedAt: undefined,
     ...overrides
   })
 
@@ -117,6 +120,7 @@ describe('ThinkingBlock', () => {
         content={block.content}
         isStreaming={block.status === 'streaming'}
         thinkingMs={block.thinkingMs}
+        startedAt={block.startedAt}
       />
     )
   }
@@ -201,7 +205,7 @@ describe('ThinkingBlock', () => {
 
     it('should handle extreme thinking times correctly', () => {
       const testCases = [
-        { thinkingMs: 0, expectedTime: '0.1s' },
+        { thinkingMs: 0, expectedTime: 'Deep reasoning' },
         { thinkingMs: 86400000, expectedTime: '86400.0s' },
         { thinkingMs: 259200000, expectedTime: '259200.0s' }
       ]
@@ -226,9 +230,68 @@ describe('ThinkingBlock', () => {
           status: 'success'
         })
         const { unmount } = renderThinkingBlock(block)
-        expect(getThinkingTimeText()).toHaveTextContent('0.1s')
+        expect(getThinkingTimeText()).toHaveTextContent('Deep reasoning')
         unmount()
       })
+    })
+
+    it('should calculate active thinking time dynamically using startedAt if provided', () => {
+      const baseTime = 1780913860106
+      const dateSpy = vi.spyOn(Date, 'now').mockReturnValue(baseTime)
+      const startedAt = baseTime - 4500 // 4.5 seconds ago
+
+      // 1. Initial mount with isStreaming=true
+      const block = createThinkingBlock({
+        thinkingMs: 0,
+        status: 'streaming',
+        startedAt
+      })
+      const { unmount } = renderThinkingBlock(block)
+
+      // Time should be calculated as Date.now() - startedAt = 4500ms -> 4.5s
+      expect(getThinkingTimeText()).toHaveTextContent('Thinking... 4.5s')
+
+      // 2. Advance clock by 1.2 seconds, verify it updates correctly
+      dateSpy.mockReturnValue(baseTime + 1200)
+      act(() => {
+        vi.advanceTimersByTime(1200)
+      })
+      expect(getThinkingTimeText()).toHaveTextContent('Thinking... 5.7s')
+
+      // 3. Remount (simulate changing session / component remount)
+      unmount()
+      const { unmount: unmount2 } = renderThinkingBlock(block)
+      expect(getThinkingTimeText()).toHaveTextContent('Thinking... 5.7s')
+      unmount2()
+    })
+
+    it('should keep a static time when stream is finished, even if startedAt is provided', () => {
+      const baseTime = 1780913860106
+      const dateSpy = vi.spyOn(Date, 'now').mockReturnValue(baseTime)
+      const startedAt = baseTime - 5000
+
+      // 1. Mount with status: 'success' and a fixed thinkingMs: 5000 (5.0s)
+      const block = createThinkingBlock({
+        thinkingMs: 5000,
+        status: 'success',
+        startedAt
+      })
+      const { unmount } = renderThinkingBlock(block)
+
+      expect(getThinkingTimeText()).toHaveTextContent('Thought for 5.0s')
+
+      // 2. Advance clock by 10 seconds, verify it stays at 5.0s (does not tick)
+      dateSpy.mockReturnValue(baseTime + 10000)
+      act(() => {
+        vi.advanceTimersByTime(10000)
+      })
+      expect(getThinkingTimeText()).toHaveTextContent('Thought for 5.0s')
+
+      // 3. Remount (simulate switching session back), verify it still renders 5.0s
+      unmount()
+      const { unmount: unmount2 } = renderThinkingBlock(block)
+      expect(getThinkingTimeText()).toHaveTextContent('Thought for 5.0s')
+      unmount2()
     })
   })
 

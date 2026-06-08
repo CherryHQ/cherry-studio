@@ -15,6 +15,7 @@ import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import { defaultLanguage } from '@shared/config/constant'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
+import { readCherryMeta, withCherryMeta, type CherryReasoningMeta } from '@shared/data/types/uiParts'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
 import { isEmpty } from 'lodash'
@@ -37,6 +38,37 @@ const logger = loggerService.withContext('HomeWindow')
 const EMPTY_UI_MESSAGES: CherryUIMessage[] = []
 
 type MiniRoute = 'home' | 'chat' | 'translate' | 'summary' | 'explanation'
+
+/**
+ * Finalize a list of live assistant messages: turn any still-streaming
+ * reasoning part into `state: 'done'`, deriving `thinkingMs` from
+ * `startedAt` if the upstream hasn't set it yet. Called when the execution
+ * transitions from active to inactive.
+ */
+const finalizeLiveMessages = (messages: CherryUIMessage[]): CherryUIMessage[] => {
+  return messages.map((msg) => {
+    if (!msg.parts) return msg
+    let changed = false
+    const newParts = msg.parts.map((part) => {
+      if (part.type !== 'reasoning' || part.state !== 'streaming') return part
+      const cherry = readCherryMeta(part)
+      const startedAt = cherry?.startedAt
+      const thinkingMs = cherry?.thinkingMs
+
+      let patch: Partial<CherryReasoningMeta> = {}
+      if (typeof startedAt === 'number' && Number.isFinite(startedAt) && typeof thinkingMs !== 'number') {
+        patch = { thinkingMs: Math.round(Math.max(0, Date.now() - startedAt)) }
+      }
+
+      changed = true
+      return withCherryMeta(
+        { ...part, state: 'done' },
+        patch
+      )
+    })
+    return changed ? { ...msg, parts: newParts } : msg
+  })
+}
 
 const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [readClipboardAtStartup] = usePreference('feature.quick_assistant.read_clipboard_at_startup')
@@ -127,7 +159,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       // Snapshots are retained after a reader tears down, so the final
       // frames are still in `liveAssistants` at this →0 transition.
       if (liveAssistants.length) {
-        setCompletedAssistants((done) => [...done, ...liveAssistants])
+        setCompletedAssistants((done) => [...done, ...finalizeLiveMessages(liveAssistants)])
         resetExecutionMessages()
       }
     }

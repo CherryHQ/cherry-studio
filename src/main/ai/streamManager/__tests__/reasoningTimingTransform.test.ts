@@ -85,7 +85,11 @@ describe('withReasoningTimingMetadata', () => {
       providerMetadata: { openai: Record<string, unknown>; cherry: Record<string, unknown> }
     }
     expect(reasoningEnd.providerMetadata.openai).toEqual({ itemId: 'provider-item' })
-    expect(reasoningEnd.providerMetadata.cherry).toEqual({ existing: true, thinkingMs: 25 })
+    expect(reasoningEnd.providerMetadata.cherry).toEqual({
+      existing: true,
+      thinkingMs: 25,
+      startedAt: expect.any(Number)
+    })
   })
 
   it('merges reasoning-start provider metadata into the reasoning-end chunk', async () => {
@@ -126,7 +130,8 @@ describe('withReasoningTimingMetadata', () => {
     expect(reasoningEnd.providerMetadata.cherry).toEqual({
       transport: 'claude-agent',
       existing: true,
-      thinkingMs: 25
+      thinkingMs: 25,
+      startedAt: expect.any(Number)
     })
   })
 
@@ -216,7 +221,8 @@ describe('withReasoningTimingMetadata', () => {
     expect(finalReasoningPart?.providerMetadata?.['claude-code']).toEqual({ parentToolCallId: 'parent-tool' })
     expect(finalReasoningPart?.providerMetadata?.cherry).toEqual({
       transport: 'claude-agent',
-      thinkingMs: 350
+      thinkingMs: 350,
+      startedAt: expect.any(Number)
     })
   })
 
@@ -255,5 +261,34 @@ describe('withReasoningTimingMetadata', () => {
       expect.stringContaining('reasoning-start received for an id that was never ended'),
       expect.objectContaining({ id: 'r1' })
     )
+  })
+
+  it('injects startedAt in start chunk and preserves it in reasoning-end chunk and final accumulated message', async () => {
+    const baseTime = 1780913860106
+    vi.spyOn(Date, 'now').mockReturnValue(baseTime)
+    vi.spyOn(performance, 'now').mockReturnValueOnce(100).mockReturnValueOnce(450).mockReturnValueOnce(1000)
+
+    const result = await pipeStreamLoop(
+      withReasoningTimingMetadata(
+        streamFrom([
+          { type: 'start' } as UIMessageChunk,
+          { type: 'reasoning-start', id: 'r1' } as UIMessageChunk,
+          { type: 'reasoning-delta', id: 'r1', delta: 'steady thought' } as UIMessageChunk,
+          { type: 'reasoning-end', id: 'r1' } as UIMessageChunk,
+          { type: 'finish' } as UIMessageChunk
+        ])
+      ),
+      new AbortController().signal,
+      { onChunk: () => {} }
+    )
+
+    const finalReasoningPart = result.finalMessage?.parts.find((part) => part.type === 'reasoning') as
+      | { providerMetadata?: Record<string, unknown> }
+      | undefined
+
+    expect(finalReasoningPart?.providerMetadata?.cherry).toEqual({
+      startedAt: baseTime,
+      thinkingMs: 350
+    })
   })
 })
