@@ -376,8 +376,8 @@ export class PreferenceService extends BaseService {
    * ```typescript
    * const preferenceService = application.get('PreferenceService')
    * const { host, port } = preferenceService.getMultiple({
-   *   host: 'feature.csaas.host',
-   *   port: 'feature.csaas.port'
+   *   host: 'feature.api_gateway.host',
+   *   port: 'feature.api_gateway.port'
    * })
    * ```
    */

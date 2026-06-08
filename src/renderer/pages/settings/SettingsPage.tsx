@@ -80,9 +80,9 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Server />}
-                label={t('apiServer.title')}
-                active={isActive('/settings/api-server')}
-                onClick={() => go('/settings/api-server')}
+                label={t('apiGateway.title')}
+                active={isActive('/settings/api-gateway')}
+                onClick={() => go('/settings/api-gateway')}
               />
               <MenuDivider className={settingsSubmenuDividerClassName} />
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.services')}</div>

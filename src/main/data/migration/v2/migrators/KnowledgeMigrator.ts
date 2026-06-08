@@ -353,6 +353,10 @@ export class KnowledgeMigrator extends BaseMigrator {
       return `Skipped directory item with invalid content (itemId=${item.id})`
     }
 
+    if (reason === 'invalid_note') {
+      return `Skipped note item with neither sourceUrl nor content (itemId=${item.id})`
+    }
+
     return `Skipped invalid knowledge item in base ${baseId} (itemId=${item.id})`
   }
 
@@ -521,7 +525,9 @@ export class KnowledgeMigrator extends BaseMigrator {
           continue
         }
 
-        const baseResult = transformKnowledgeBase(validBase, resolvedDimensions.dimensions)
+        const baseResult = transformKnowledgeBase(validBase, resolvedDimensions.dimensions, (msg) =>
+          this.recordWarning(msg)
+        )
         const preparedBase = { ...baseResult.value }
 
         if (embeddingResolution.kind === 'resolved') {
