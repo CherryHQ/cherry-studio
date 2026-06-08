@@ -36,6 +36,20 @@
       "when": 1780732250477,
       "tag": "0004_tough_mephisto",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1780890054639,
+      "tag": "0005_woozy_madrox",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1780944885487,
+      "tag": "0006_watery_blockbuster",
+      "breakpoints": true
     }
   ]
 }

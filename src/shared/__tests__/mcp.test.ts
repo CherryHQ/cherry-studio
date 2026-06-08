@@ -80,7 +80,7 @@ describe('isFunctionCallToolNameForServer', () => {
   })
 
   it('does not match a non-mcp tool id', () => {
-    expect(isFunctionCallToolNameForServer('github', 'web__search')).toBe(false)
+    expect(isFunctionCallToolNameForServer('github', 'web_search')).toBe(false)
   })
 })
 

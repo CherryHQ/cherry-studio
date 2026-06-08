@@ -30,7 +30,7 @@ function buildRegistryWith(entries: ToolEntry[]): { registry: ToolRegistry; tool
 
 describe('applyDeferExposition', () => {
   it('returns ToolSet unchanged when no entries are deferred', () => {
-    const { registry, tools } = buildRegistryWith([makeEntry('web__search', 'never'), makeEntry('mcp__a__t', 'auto')])
+    const { registry, tools } = buildRegistryWith([makeEntry('web_search', 'never'), makeEntry('mcp__a__t', 'auto')])
     const result = applyDeferExposition(tools, registry, 32_000)
     expect(result.tools).toBe(tools)
     expect(result.deferredEntries).toEqual([])
@@ -44,12 +44,12 @@ describe('applyDeferExposition', () => {
 
   it('strips always-deferred entries and injects meta-tools', () => {
     const { registry, tools } = buildRegistryWith([
-      makeEntry('web__search', 'never'),
+      makeEntry('web_search', 'never'),
       makeEntry('experimental', 'always')
     ])
     const { tools: result, deferredEntries } = applyDeferExposition(tools, registry, 32_000)
     expect(Object.keys(result!).sort()).toEqual(
-      [TOOL_INSPECT_TOOL_NAME, TOOL_INVOKE_TOOL_NAME, TOOL_SEARCH_TOOL_NAME, 'web__search'].sort()
+      [TOOL_INSPECT_TOOL_NAME, TOOL_INVOKE_TOOL_NAME, TOOL_SEARCH_TOOL_NAME, 'web_search'].sort()
     )
     expect(result!['experimental']).toBeUndefined()
     expect(deferredEntries.map((e) => e.name)).toEqual(['experimental'])
@@ -59,13 +59,13 @@ describe('applyDeferExposition', () => {
     // 5 fat auto entries — pool count >= MIN_AUTO_DEFER_COUNT, total cost
     // overflows 10% of 32k, and savings exceed META_TOOLS_OVERHEAD_TOKENS.
     const heavyAuto = Array.from({ length: 5 }, (_, i) => makeEntry(`mcp__big${i}__t`, 'auto', 8_000))
-    const small = makeEntry('web__search', 'never')
+    const small = makeEntry('web_search', 'never')
     const { registry, tools } = buildRegistryWith([...heavyAuto, small])
     const { tools: result, deferredEntries } = applyDeferExposition(tools, registry, 32_000)
     for (const e of heavyAuto) {
       expect(result![e.name]).toBeUndefined()
     }
-    expect(result!['web__search']).toBeDefined()
+    expect(result!['web_search']).toBeDefined()
     expect(result![TOOL_SEARCH_TOOL_NAME]).toBeDefined()
     expect(result![TOOL_INSPECT_TOOL_NAME]).toBeDefined()
     expect(result![TOOL_INVOKE_TOOL_NAME]).toBeDefined()
@@ -76,7 +76,7 @@ describe('applyDeferExposition', () => {
     // One huge entry blows the cost threshold but the pool is too small for
     // search-then-invoke to be a net win — must stay inline.
     const huge = makeEntry('mcp__big__t', 'auto', 50_000)
-    const small = makeEntry('web__search', 'never')
+    const small = makeEntry('web_search', 'never')
     const { registry, tools } = buildRegistryWith([huge, small])
     const { tools: result, deferredEntries } = applyDeferExposition(tools, registry, 32_000)
     expect(result).toBe(tools)

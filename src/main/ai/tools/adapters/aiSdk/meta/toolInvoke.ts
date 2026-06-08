@@ -31,6 +31,7 @@ export function createToolInvokeTool(registry: ToolRegistry, allowedNames: Reado
       name: z.string().describe('Tool name as returned by tool_search'),
       params: z.record(z.string(), z.unknown()).optional().describe('Tool input arguments')
     }),
+    inputExamples: [{ input: { name: 'web_search', params: { query: 'cherry studio latest release' } } }],
     execute: async ({ name, params }, options) => {
       if (!allowedNames.has(name)) throw new Error(`Tool not available in this request: ${name}`)
       const entry = registry.getByName(name)

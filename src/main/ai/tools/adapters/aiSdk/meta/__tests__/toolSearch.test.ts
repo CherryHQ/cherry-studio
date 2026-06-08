@@ -20,7 +20,7 @@ function setup() {
   reg.register(makeEntry({ name: 'mcp__s1__a', namespace: 'mcp:s1' }))
   reg.register(makeEntry({ name: 'mcp__s1__b', namespace: 'mcp:s1' }))
   reg.register(makeEntry({ name: 'mcp__s2__c', namespace: 'mcp:s2' }))
-  reg.register(makeEntry({ name: 'web__search', namespace: 'web', defer: 'never' }))
+  reg.register(makeEntry({ name: 'web_search', namespace: 'web', defer: 'never' }))
   return reg
 }
 

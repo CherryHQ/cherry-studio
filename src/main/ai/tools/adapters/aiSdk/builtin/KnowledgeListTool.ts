@@ -1,10 +1,11 @@
 /**
- * Knowledge base discovery tool — companion to `kb__search`.
+ * Knowledge base discovery tool — companion to `kb_search`.
  *
  * Returns metadata for the knowledge bases reachable from the current request,
- * with up to 8 sample item sources per base derived from item titles, URLs,
- * paths, or note first-lines. The model uses this to pick which `baseIds` to
- * pass to `kb__search` instead of fanning out blindly.
+ * with up to 8 sample item sources per base. The model uses this to pick which
+ * `baseIds` to pass to `kb_search` instead of fanning out blindly. The listing
+ * itself lives in the shared `kbLookup` core so the Claude Code MCP bridge runs
+ * identical logic; this file is just the AI-SDK `tool()` wrapper.
  *
  * Scope: when `assistant.knowledgeBaseIds` is non-empty, only those bases are
  * returned. When empty (future toggle path), all user bases are returned.

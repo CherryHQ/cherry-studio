@@ -1,11 +1,11 @@
 /**
  * Knowledge base search tool — agentic.
  *
- * The model picks the query and the target `baseIds` (typically after calling
- * `kb__list` to discover which bases are relevant). Per-request
- * `assistant.knowledgeBaseIds` flows in via RequestContext: when non-empty it
- * scopes which base IDs the tool will accept. The tool itself is stateless;
- * registered once during AiService startup via `registerBuiltinTools(...)`.
+ * The model picks the query and target `baseIds` (typically after `kb_list`).
+ * Per-request `assistant.knowledgeBaseIds` flows in via RequestContext and
+ * scopes which base IDs are accepted. The search itself lives in the shared
+ * `kbLookup` core so the Claude Code MCP bridge runs identical logic; this
+ * file is just the AI-SDK `tool()` wrapper.
  */
 
 import { loggerService } from '@logger'

@@ -24,6 +24,7 @@ export function createToolInspectTool(registry: ToolRegistry, allowedNames: Read
     inputSchema: z.object({
       name: z.string().describe('Tool name as returned by tool_search')
     }),
+    inputExamples: [{ input: { name: 'web_search' } }],
     execute: async ({ name }) => {
       if (!allowedNames.has(name)) throw new Error(`Tool not available in this request: ${name}`)
       const entry = registry.getByName(name)

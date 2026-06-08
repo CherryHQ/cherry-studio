@@ -122,7 +122,7 @@ describe('syncMcpToolsToRegistry', () => {
   it('does not touch non-MCP entries', async () => {
     const reg = new ToolRegistry()
     reg.register({
-      name: 'web__search',
+      name: 'web_search',
       namespace: 'web',
       description: 'builtin',
       defer: 'never',
@@ -134,7 +134,7 @@ describe('syncMcpToolsToRegistry', () => {
 
     await syncMcpToolsToRegistry(reg)
 
-    expect(reg.getByName('web__search')).toBeDefined()
+    expect(reg.getByName('web_search')).toBeDefined()
   })
 
   it('continues when a single server throws on listTools', async () => {
