@@ -2162,16 +2162,10 @@
           "supported_formats": "PDF、DOCX、MD、XLSX、TXT、CSVに対応",
           "title": "ファイルを選択するにはクリックするか、ここにドラッグしてください"
         },
-        "sitemap": {
-          "description": "サイトマップのURLを入力してください:",
-          "help": "サイトマップに記載されているページは読み込まれ、インデックスされます。",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
-        },
         "sources": {
           "directory": "フォルダ",
           "file": "ファイル",
           "note": "注",
-          "sitemap": "ウェブサイト",
           "url": "URL"
         },
         "submit": {
@@ -2209,9 +2203,6 @@
           "file": {
             "title": "ファイル"
           },
-          "sitemap": {
-            "title": "ウェブサイト同期"
-          },
           "url": {
             "title": "URL"
           }
@@ -2224,7 +2215,6 @@
         "directory": "フォルダ",
         "file": "ファイル",
         "note": "メモ",
-        "sitemap": "ウェブサイト",
         "url": "URL"
       },
       "preview": {
@@ -5869,8 +5859,7 @@
           "bailian": "Alibaba Cloud Bailian Platform MCP Service",
           "lanyun": "Lanyun Technology Cloud Platform MCP Service",
           "mcprouter": "MCPルータープラットフォーム MCPサービス",
-          "modelscope": "ModelScopeプラットフォームMCPサービス",
-          "tokenflux": "TokenFlux Platform MCP Service"
+          "modelscope": "ModelScopeプラットフォームMCPサービス"
         },
         "selectProvider": "プロバイダーを選択：",
         "setToken": "トークンを入力してください",
@@ -6147,7 +6136,11 @@
         "enabled": "開く",
         "failed": "失敗",
         "failed_to_start": "ヘルスチェックの開始に失敗しました",
+        "generation_output_audio": "音声",
+        "generation_output_image": "画像",
+        "generation_output_video": "動画",
         "keys_status_count": "合格：{{count_passed}}個のキー、不合格：{{count_failed}}個のキー",
+        "model_button_caption": "すべてのモデルをチェック",
         "model_status_failed": "{{count}} 個のモデルが完全にアクセスできません",
         "model_status_partial": "{{count}} 個のモデルが一部のキーでアクセスできません",
         "model_status_passed": "{{count}} 個のモデルが健康チェックを通過しました",
@@ -6155,6 +6148,7 @@
         "no_api_keys": "APIキーが見つかりません。まずAPIキーを追加してください。",
         "no_results": "結果なし",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "{{count}} 件スキップ",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "成功",
@@ -6166,16 +6160,28 @@
         "retry": "Check again",
         "select_api_key": "使用するAPIキーを選択：",
         "single": "単一",
+        "skip_reason_generation_cost": "このモデルのヘルスチェックは {{output}} を生成してクォータを消費するため、既定ではスキップされます。",
+        "skip_reason_unsupported_probe": "このモデルタイプには低コストのヘルスチェックがまだないため、既定ではスキップされます。",
         "start": "開始",
         "status_checking": "Checking…",
+        "status_skipped": "スキップ済み",
         "timeout": "タイムアウト",
         "title": "モデル健康チェック",
         "use_all_keys": "キー"
       },
+      "collapse_all": "すべて折りたたむ",
       "copy_model_id_tooltip": "モデルIDをコピーするにはクリック: {{id}}",
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
       "empty": "モデルが見つかりません",
+      "enabled_models": "有効",
+      "expand_all": "すべて展開",
+      "filter": {
+        "clear": "モデルフィルターをクリア",
+        "label": "モデルをフィルター"
+      },
+      "group_disable": "このグループを閉じる",
+      "group_enable": "このグループを有効化",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",
@@ -6241,6 +6247,8 @@
         "sync_switch_to_deprecate": "Mark deprecated instead",
         "sync_will_deprecate": "Will be marked deprecated"
       },
+      "more_actions": "モデル一覧のその他の操作",
+      "not_enabled_models": "無効",
       "provider_id": "プロバイダー ID",
       "provider_key_add_confirm": "{{provider}} の API キーを追加しますか？",
       "provider_key_add_failed_by_empty_data": "{{provider}} の API キーを追加できませんでした。データが空です。",

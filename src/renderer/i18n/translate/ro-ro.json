@@ -2162,16 +2162,10 @@
           "supported_formats": "Acceptă PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Click pentru a selecta fișierele sau trageți-le aici"
         },
-        "sitemap": {
-          "description": "Introduceți un URL de hartă a site-ului:",
-          "help": "Paginile listate în harta site-ului vor fi citite și indexate",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
-        },
         "sources": {
           "directory": "Folder",
           "file": "Fișier",
           "note": "Notă",
-          "sitemap": "Site web",
           "url": "URL"
         },
         "submit": {
@@ -2209,9 +2203,6 @@
           "file": {
             "title": "Fișier"
           },
-          "sitemap": {
-            "title": "Sincronizare site web"
-          },
           "url": {
             "title": "URL"
           }
@@ -2224,7 +2215,6 @@
         "directory": "Foldere",
         "file": "Fișiere",
         "note": "Note",
-        "sitemap": "Site-uri web",
         "url": "URL-uri"
       },
       "preview": {
@@ -5869,8 +5859,7 @@
           "bailian": "Serviciul MCP al Platformei Bailian Alibaba Cloud",
           "lanyun": "Platforma Cloud Lanyun Technology - Serviciul MCP",
           "mcprouter": "Platformă Router MCP Serviciu MCP",
-          "modelscope": "Serviciul MCP al Platformei ModelScope",
-          "tokenflux": "Serviciul MCP al Platformei TokenFlux"
+          "modelscope": "Serviciul MCP al Platformei ModelScope"
         },
         "selectProvider": "Selectează furnizor:",
         "setToken": "Introdu tokenul tău",
@@ -6147,7 +6136,11 @@
         "enabled": "Activat",
         "failed": "Eșuat",
         "failed_to_start": "Nu s-a reușit pornirea verificării stării de sănătate",
+        "generation_output_audio": "audio",
+        "generation_output_image": "o imagine",
+        "generation_output_video": "un videoclip",
         "keys_status_count": "Reușite: {{count_passed}} chei, eșuate: {{count_failed}} chei",
+        "model_button_caption": "Verifică toate modelele",
         "model_status_failed": "{{count}} modele complet inaccesibile",
         "model_status_partial": "{{count}} modele au avut chei inaccesibile",
         "model_status_passed": "{{count}} modele au trecut verificările de sănătate",
@@ -6155,6 +6148,7 @@
         "no_api_keys": "Nu s-au găsit chei API, te rugăm să adaugi mai întâi chei API.",
         "no_results": "Niciun rezultat",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "{{count}} omise",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Reușit",
@@ -6166,16 +6160,28 @@
         "retry": "Check again",
         "select_api_key": "Selectează cheia API de utilizat:",
         "single": "Singur",
+        "skip_reason_generation_cost": "Verificarea stării acestui model ar genera {{output}} și ar consuma cotă, de aceea este omisă implicit.",
+        "skip_reason_unsupported_probe": "Acest tip de model nu are încă o verificare a stării cu cost redus, de aceea este omis implicit.",
         "start": "Start",
         "status_checking": "Checking…",
+        "status_skipped": "Omis",
         "timeout": "Expirare",
         "title": "Verificare sănătate model",
         "use_all_keys": "Cheie(i)"
       },
+      "collapse_all": "Restrânge tot",
       "copy_model_id_tooltip": "Click pentru a copia ID-ul modelului: {{id}}",
       "default_assistant_model": "Model asistent implicit",
       "default_assistant_model_description": "Folosit când un asistent nu are model.",
       "empty": "Nu s-au găsit modele",
+      "enabled_models": "Activate",
+      "expand_all": "Extinde tot",
+      "filter": {
+        "clear": "Șterge filtrul de modele",
+        "label": "Filtrează modelele"
+      },
+      "group_disable": "Închide acest grup",
+      "group_enable": "Activează acest grup",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",
@@ -6241,6 +6247,8 @@
         "sync_switch_to_deprecate": "Mark deprecated instead",
         "sync_will_deprecate": "Will be marked deprecated"
       },
+      "more_actions": "Mai multe acțiuni pentru lista de modele",
+      "not_enabled_models": "Dezactivate",
       "provider_id": "ID furnizor",
       "provider_key_add_confirm": "Vrei să adaugi cheia API pentru {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Adăugarea cheii API a furnizorului a eșuat, datele sunt goale",
