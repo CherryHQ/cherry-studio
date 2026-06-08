@@ -767,6 +767,15 @@ export const isMiniMaxReasoningModel = (model?: Model): boolean => {
   )
 }
 
+// MiniMax-M3 only accepts thinking.type 'adaptive' | 'disabled' on the OpenAI-compatible
+// endpoint, unlike M1/M2.x which use 'enabled'.
+export const isMiniMaxM3Model = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+  return getLowerBaseModelName(model.id, '/').includes('minimax-m3')
+}
+
 export const isBaichuanReasoningModel = (model?: Model): boolean => {
   if (!model) {
     return false

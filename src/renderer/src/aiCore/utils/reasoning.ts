@@ -19,6 +19,7 @@ import {
   isGemini3ThinkingTokenModel,
   isGrok4FastReasoningModel,
   isHostedGemma4ThinkingModel,
+  isMiniMaxM3Model,
   isMiniMaxReasoningModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
@@ -56,7 +57,7 @@ import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 const logger = loggerService.withContext('reasoning')
 
 type ReasoningEffortOptionalParams = {
-  thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
+  thinking?: { type: 'disabled' | 'enabled' | 'auto' | 'adaptive'; budget_tokens?: number }
   reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string; enabled?: boolean } | OpenAI.Reasoning
   reasoningEffort?: OpenAIReasoningEffort
   // WARN: This field will be overwrite to undefined by aisdk if the provider is openai-compatible. Use reasoningEffort instead.
@@ -107,6 +108,10 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     const reasoningEffort = assistant?.settings?.reasoning_effort
     if (reasoningEffort === 'none') {
       return { thinking: { type: 'disabled' } }
+    }
+    // M3 only accepts 'adaptive' | 'disabled'; M1/M2.x use 'enabled'
+    if (isMiniMaxM3Model(model)) {
+      return { thinking: { type: 'adaptive' } }
     }
     return { thinking: { type: 'enabled' } }
   }

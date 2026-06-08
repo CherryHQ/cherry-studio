@@ -150,6 +150,63 @@ describe('reasoning utils', () => {
       expect(result).toEqual({})
     })
 
+    it('should send thinking.type adaptive for MiniMax-M3 (enabled is rejected by API)', async () => {
+      const { isReasoningModel } = await import('@renderer/config/models')
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'MiniMax-M3',
+        name: 'MiniMax-M3',
+        provider: 'minimax'
+      } as Model
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'high' }
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      expect(result).toEqual({ thinking: { type: 'adaptive' } })
+    })
+
+    it('should send thinking.type enabled for MiniMax M2.x', async () => {
+      const { isReasoningModel } = await import('@renderer/config/models')
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'MiniMax-M2.1',
+        name: 'MiniMax-M2.1',
+        provider: 'minimax'
+      } as Model
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'high' }
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      expect(result).toEqual({ thinking: { type: 'enabled' } })
+    })
+
+    it('should disable thinking for MiniMax-M3 when reasoning effort is none', async () => {
+      const { isReasoningModel } = await import('@renderer/config/models')
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'MiniMax-M3',
+        name: 'MiniMax-M3',
+        provider: 'minimax'
+      } as Model
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'none' }
+      } as Assistant
+
+      const result = getReasoningEffort(assistant, model)
+      expect(result).toEqual({ thinking: { type: 'disabled' } })
+    })
+
     it('should not override reasoning for OpenRouter when reasoning effort undefined', async () => {
       const { isReasoningModel } = await import('@renderer/config/models')
 
