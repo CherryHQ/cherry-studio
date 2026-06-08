@@ -1,3 +1,5 @@
+import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
+import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
@@ -40,26 +42,30 @@ export type AgentRuntimeEvent =
   | { type: 'chunk'; chunk: UIMessageChunk }
   | { type: 'resume-token'; token: string }
   | { type: 'turn-complete' }
+  /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
+   *  as the next turn (the `steer_undelivered` fallback). */
+  | { type: 'steer-undelivered'; inputs: AgentRuntimeUserInput[] }
+  /** A steer was injected mid-turn (PreToolUse hook) and the model is about to emit its post-steer
+   *  assistant message. Marks where the host should roll the assistant message: finalise the
+   *  pre-steer parts as one row (A1a) and stream the continuation into a fresh row (A2), so the
+   *  steer user message sorts between them instead of dangling after the whole turn. */
+  | { type: 'steer-boundary'; inputs: AgentRuntimeUserInput[] }
+  | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
+  | { type: 'compaction-complete'; anchor: AgentSessionCompactionAnchorData }
+  | { type: 'compaction-error'; error: string }
+  | { type: 'context-usage'; usage: AgentSessionContextUsage }
   | { type: 'error'; error: unknown }
 
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
   send(input: AgentRuntimeUserInput): void | Promise<void>
   applyPolicyUpdate?(update: AgentRuntimePolicyUpdate): Promise<boolean> | boolean
-  interrupt?(): Promise<void>
   /**
-   * Runtime-specific predicate: is it safe to interrupt the current turn right
-   * now? The host falls back to "no tool is mid-execution" when a connection
-   * omits it, so existing runtimes keep their behaviour; lets a runtime that
-   * tracks its own tool state self-manage interruptibility.
+   * Read the live context-window usage for this connection's session. Returns null when the
+   * underlying runtime can't report it (no query yet, or a driver that doesn't support it).
+   * Optional ⇒ the host treats the runtime as unable to report usage.
    */
-  canInterruptNow?(): boolean
-  /**
-   * Runtime-specific policy: should the host tear this connection down once the
-   * current turn ends? Lets a driver (e.g. Claude trace mode) own the decision
-   * instead of the host reaching into driver internals. Omitted ⇒ keep open.
-   */
-  shouldCloseAfterTurn?(): boolean
+  getContextUsage?(): Promise<AgentSessionContextUsage | null>
   close(): void | Promise<void>
 }
 

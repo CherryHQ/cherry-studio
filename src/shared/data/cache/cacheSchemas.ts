@@ -261,6 +261,7 @@ export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
   'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
   'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
+  'agent.session.compaction.${sessionId}': CacheValueTypes.CacheAgentSessionCompactionState
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
@@ -282,6 +283,7 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'chat.web_search.active_searches': {},
   'mcp.tools.${serverId}': [],
   'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
+  'agent.session.compaction.${sessionId}': null,
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',
@@ -306,9 +308,8 @@ export type RendererPersistCacheSchema = {
   'settings.provider.openai.alert.dismissed': boolean
   'feature.mcp.is_uv_installed': boolean
   'feature.mcp.is_bun_installed': boolean
-  // Multi-model list for @mention parallel answering, keyed by assistantId
-  // This is UI-level state, not core assistant config (default model is assistant.modelId)
-  'ui.assistant.multi_model_ids': Record<string, string[]>
+  'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
+  'agent.session.context_usage.by_session': CacheValueTypes.CacheAgentSessionContextUsageBySession
   // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
   'ui.emoji.recently_used': string[]
 }
@@ -321,7 +322,8 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'settings.provider.openai.alert.dismissed': false,
   'feature.mcp.is_uv_installed': false,
   'feature.mcp.is_bun_installed': false,
-  'ui.assistant.multi_model_ids': {},
+  'agent.open_external_app.last_used_target': null,
+  'agent.session.context_usage.by_session': {},
   'ui.emoji.recently_used': []
 }
 

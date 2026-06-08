@@ -1,13 +1,24 @@
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const loggerMocks = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn()
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
+    withContext: vi.fn(() => loggerMocks)
   }
 }))
 
 const { ClaudeCodeStreamAdapter } = await import('../streamAdapter')
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 function createAdapter(overrides: Partial<ConstructorParameters<typeof ClaudeCodeStreamAdapter>[0]> = {}) {
   const parts: CherryUIMessageChunk[] = []
@@ -104,6 +115,28 @@ describe('ClaudeCodeStreamAdapter', () => {
 
     expect(result).toEqual({ type: 'continue' })
     expect(parts).toEqual([])
+  })
+
+  it('acknowledges known control system messages without unhandled debug logs', () => {
+    const { adapter, parts } = createAdapter()
+
+    for (const subtype of ['status', 'thinking_tokens', 'thinking_token']) {
+      const result = adapter.handleMessage({
+        type: 'system',
+        subtype,
+        session_id: 'sdk-control',
+        uuid: crypto.randomUUID(),
+        status: subtype === 'status' ? 'requesting' : undefined,
+        estimated_tokens: 100,
+        estimated_tokens_delta: 5
+      } as any)
+      expect(result).toEqual({ type: 'continue' })
+    }
+
+    expect(parts).toEqual([])
+    expect(loggerMocks.debug).not.toHaveBeenCalledWith(
+      expect.stringContaining('Unhandled claude system message subtype')
+    )
   })
 
   it('maps text content block deltas', () => {

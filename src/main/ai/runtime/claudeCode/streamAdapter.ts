@@ -37,6 +37,7 @@ const UNKNOWN_TOOL_NAME = 'unknown-tool'
 const MAX_TOOL_INPUT_SIZE = 1_048_576
 const MAX_TOOL_INPUT_WARN = 102_400
 const MAX_DELTA_CALC_SIZE = 10_000
+const KNOWN_CONTROL_SYSTEM_SUBTYPES = new Set(['compact_boundary', 'status', 'thinking_token', 'thinking_tokens'])
 
 // ── Internal types ──────────────────────────────────────────────────
 
@@ -756,8 +757,10 @@ export class ClaudeCodeStreamAdapter {
       return
     }
 
-    // Every other system subtype (compact_boundary, status, api_retry, hook_*,
-    // task_*, notification, permission_denied, memory_recall, …) is a control
+    if (KNOWN_CONTROL_SYSTEM_SUBTYPES.has(message.subtype)) return
+
+    // Every other system subtype (api_retry, hook_*, task_*, notification,
+    // permission_denied, memory_recall, …) is a control
     // signal with no consumer in Cherry yet. Acknowledged at debug so it is not
     // silently swallowed; dedicated UI is planned in a follow-up PR.
     logger.debug(`Unhandled claude system message subtype: ${message.subtype}`)

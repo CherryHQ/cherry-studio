@@ -2,12 +2,17 @@ import {
   type Options,
   type Query,
   query as createClaudeQuery,
+  type SDKCompactBoundaryMessage,
+  type SDKMessage,
   type SDKResultMessage,
+  type SDKStatusMessage,
   type SDKSystemMessage,
   type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 
 type BetaUsage = SDKResultMessage['usage']
+type SDKRuntimeSystemMessage = Extract<SDKMessage, { type: 'system' }>
+type SDKCompactionSystemMessage = SDKCompactBoundaryMessage | SDKStatusMessage
 import { loggerService } from '@logger'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
@@ -16,6 +21,8 @@ import {
   listClaudeAgentToolDescriptors
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { application } from '@main/core/application'
+import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
+import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 
@@ -203,6 +210,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return true
   }
 
+  async getContextUsage(): Promise<AgentSessionContextUsage | null> {
+    if (!this.query) return null
+    try {
+      return await this.query.getContextUsage()
+    } catch (error) {
+      logger.warn('getContextUsage failed', { sessionId: this.input.sessionId, error })
+      return null
+    }
+  }
+
   close(): void {
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
@@ -220,6 +237,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             this.pendingInitMessage = message
             continue
           }
+        }
+
+        if (
+          message.type === 'system' &&
+          isCompactionSystemMessage(message) &&
+          this.handleSystemControlMessage(message)
+        ) {
+          continue
         }
 
         if (!this.adapter) {
@@ -240,6 +265,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           // we project the SDK BetaUsage onto a UIMessageChunk here — keeping
           // the chunk shape identical to `attachUsageObserver` (AI SDK runtime).
           this.emitUsageMetadata(result.message.usage)
+          await this.emitContextUsage()
           this.adapter = undefined
           this.disposeApprovalEmitter()
           this.eventQueue.push({ type: 'turn-complete' })
@@ -307,6 +333,50 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
     })
   }
+
+  private async emitContextUsage(): Promise<void> {
+    if (!this.query) return
+    try {
+      const usage = await this.query.getContextUsage()
+      this.eventQueue.push({ type: 'context-usage', usage })
+    } catch (error) {
+      logger.warn('getContextUsage failed after result', { sessionId: this.input.sessionId, error })
+    }
+  }
+
+  private handleSystemControlMessage(message: SDKCompactionSystemMessage): boolean {
+    if (message.subtype === 'status') {
+      if (message.status === 'compacting') {
+        this.eventQueue.push({ type: 'compaction-start' })
+        return true
+      }
+      if (message.compact_result === 'failed' || message.compact_error) {
+        this.eventQueue.push({ type: 'compaction-error', error: message.compact_error ?? 'Compaction failed' })
+        return true
+      }
+      return true
+    }
+
+    if (message.subtype === 'compact_boundary') {
+      const metadata = message.compact_metadata
+      const anchor: AgentSessionCompactionAnchorData = {
+        trigger: metadata.trigger,
+        completedAt: new Date().toISOString()
+      }
+      anchor.preTokens = metadata.pre_tokens
+      if (metadata.post_tokens !== undefined) anchor.postTokens = metadata.post_tokens
+      if (metadata.duration_ms !== undefined) anchor.durationMs = metadata.duration_ms
+
+      this.eventQueue.push({ type: 'compaction-complete', anchor })
+      return true
+    }
+
+    return false
+  }
+}
+
+function isCompactionSystemMessage(message: SDKRuntimeSystemMessage): message is SDKCompactionSystemMessage {
+  return message.subtype === 'status' || message.subtype === 'compact_boundary'
 }
 
 function toSdkUserMessage(message: AgentSessionMessageEntity, resumeToken?: string): SDKUserMessage {

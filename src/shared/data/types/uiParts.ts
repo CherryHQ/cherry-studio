@@ -15,9 +15,11 @@
  * - data-translation (translation blocks)
  * - data-video (video blocks)
  * - data-compact (compact/summary blocks)
+ * - data-compaction-anchor (timeline anchor for completed runtime compaction)
  * - data-code (code blocks)
  */
 
+import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
 import * as z from 'zod'
 
 import type { SerializedError } from '../../types/error'
@@ -55,6 +57,9 @@ export interface CompactPartData {
   compactedContent: string
 }
 
+/** Compaction anchor data — marks where a runtime context compaction completed. */
+export type CompactionAnchorPartData = AgentSessionCompactionAnchorData
+
 /** Code data — replaces CodeBlock */
 export interface CodePartData {
   content: string
@@ -74,6 +79,7 @@ export type CherryDataPartTypes = {
   translation: TranslationPartData
   video: VideoPartData
   compact: CompactPartData
+  'compaction-anchor': CompactionAnchorPartData
   code: CodePartData
 }
 

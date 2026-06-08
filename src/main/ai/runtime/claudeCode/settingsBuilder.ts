@@ -230,6 +230,7 @@ export async function buildClaudeCodeSessionSettings(
     pathToClaudeCodeExecutable: resolveClaudeExecutablePath(),
     systemPrompt,
     settingSources: getSettingSources(agent),
+    settings: { autoCompactEnabled: true },
     includePartialMessages: true,
     permissionMode: agentConfig?.permission_mode,
     maxTurns: agentConfig?.max_turns,

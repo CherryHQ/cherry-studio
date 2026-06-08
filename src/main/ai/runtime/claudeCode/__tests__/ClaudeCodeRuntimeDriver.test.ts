@@ -167,7 +167,26 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
   it('emits resume token, chunks, and turn-complete events', async () => {
     const queryQueue = createAsyncQueue<any>()
-    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const contextUsage = {
+      categories: [],
+      totalTokens: 42,
+      maxTokens: 100,
+      rawMaxTokens: 100,
+      percentage: 42,
+      gridRows: [],
+      model: 'sonnet',
+      memoryFiles: [],
+      mcpTools: [],
+      agents: [],
+      isAutoCompactEnabled: true,
+      apiUsage: null
+    }
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(),
+      close: vi.fn(),
+      getContextUsage: vi.fn().mockResolvedValue(contextUsage)
+    }
     mocks.createClaudeQuery.mockReturnValue(query)
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
@@ -218,8 +237,86 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
     })
     await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'context-usage', usage: contextUsage }
+    })
+    await expect(events.next()).resolves.toMatchObject({
       value: { type: 'turn-complete' }
     })
+    void connection.close()
+  })
+
+  it('maps SDK compaction status and boundary messages to runtime compaction events', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    queryQueue.push({
+      type: 'system',
+      subtype: 'status',
+      status: 'compacting',
+      session_id: 'resume-1'
+    })
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'compaction-start' }
+    })
+
+    queryQueue.push({
+      type: 'system',
+      subtype: 'compact_boundary',
+      session_id: 'resume-1',
+      compact_metadata: {
+        trigger: 'auto',
+        pre_tokens: 52_000,
+        post_tokens: 14_000,
+        duration_ms: 1234
+      }
+    })
+    await expect(events.next()).resolves.toMatchObject({
+      value: {
+        type: 'compaction-complete',
+        anchor: {
+          trigger: 'auto',
+          completedAt: expect.any(String),
+          preTokens: 52_000,
+          postTokens: 14_000,
+          durationMs: 1234
+        }
+      }
+    })
+
+    void connection.close()
+  })
+
+  it('maps SDK compact failures to runtime compaction-error events', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    queryQueue.push({
+      type: 'system',
+      subtype: 'status',
+      status: null,
+      compact_result: 'failed',
+      compact_error: 'context too large',
+      session_id: 'resume-1'
+    })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'compaction-error', error: 'context too large' }
+    })
+
     void connection.close()
   })
 

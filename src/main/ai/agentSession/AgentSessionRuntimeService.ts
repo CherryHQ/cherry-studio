@@ -5,6 +5,15 @@ import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import type { Span } from '@opentelemetry/api'
+import {
+  AGENT_SESSION_COMPACTION_CACHE_KEY,
+  type AgentSessionCompactionAnchorData,
+  type AgentSessionCompactionTrigger
+} from '@shared/ai/agentSessionCompaction'
+import {
+  AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
+  type AgentSessionContextUsage
+} from '@shared/ai/agentSessionContextUsage'
 import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -126,6 +135,17 @@ type AgentSessionRuntimeEntry = {
   lastTerminalStatus?: AgentSessionRuntimeTerminalStatus
   idleTimer?: ReturnType<typeof setTimeout>
   startingNextTurn?: boolean
+  /** Ids of pending messages that arrived mid-turn (steers) — drives the system-reminder wrap. */
+  steerMessageIds?: Set<string>
+  /** Roll in progress: a steer was injected mid-turn (`steer-boundary`), the current row was finalised
+   *  as A1a, and the post-steer chunks are buffered until the continuation row (A2) opens its stream. */
+  rolling?: boolean
+  /** Post-steer chunks captured between A1a closing and A2's controller being ready; flushed into A2. */
+  rollBuffer?: UIMessageChunk[]
+  /** The injected steer(s) carried to the continuation turn for its rename/seed context (U2 is already
+   *  persisted by the provider — these do NOT create a new user row). */
+  rollSteerInputs?: AgentRuntimeUserInput[]
+  compacting?: boolean
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -383,8 +403,31 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!entry) return false
     return (
       entry.startingNextTurn === true ||
+      entry.rolling === true ||
+      entry.compacting === true ||
       entry.pendingTurns.length > 0 ||
       (entry.currentTurn !== undefined && entry.currentTurn.terminalStatus === undefined)
+    )
+  }
+
+  /**
+   * Whether the agent runtime will open another turn for this topic once the current one ends — a
+   * queued steer/follow-up, or a next-turn drain already in progress. `AiStreamManager.onExecutionDone`
+   * uses this to KEEP the topic's stream alive across the inter-turn gap (broadcasting `isTopicDone=false`,
+   * skipping the terminal lifecycle) so the follow-up turn can carry the renderer listeners — without it
+   * the stream is evicted and the follow-up's response reaches no one.
+   */
+  willContinueTopic(topicId: string): boolean {
+    if (!isAgentSessionTopic(topicId)) return false
+    const entry = this.entries.get(extractAgentSessionId(topicId))
+    if (!entry) return false
+    // `rolling`: A1a just closed at a steer boundary and the continuation (A2) is coming — keep the
+    // stream alive so A2 carries the renderer listeners.
+    return (
+      entry.pendingTurns.length > 0 ||
+      entry.startingNextTurn === true ||
+      entry.rolling === true ||
+      entry.compacting === true
     )
   }
 
@@ -465,6 +508,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     entry.connection = connection
+    this.refreshContextUsage(entry, connection)
     entry.connectionLoop = this.runConnectionLoop(entry, connection).finally(() => {
       if (entry.connection === connection) entry.connection = undefined
       if (entry.connectionLoop) entry.connectionLoop = undefined
@@ -492,19 +536,113 @@ export class AgentSessionRuntimeService extends BaseService {
     switch (event.type) {
       case 'resume-token':
         entry.lastResumeToken = event.token
+        this.refreshContextUsage(entry)
         break
       case 'chunk': {
         const turn = entry.currentTurn
         if (turn?.controller && !turn.terminalStatus) this.enqueueTurnChunk(entry, turn, event.chunk)
         break
       }
+      case 'steer-boundary':
+        // The model is about to emit its post-steer assistant message. Finalise the pre-steer parts as
+        // A1a (`closeCurrentTurn` 'success'), then buffer the continuation until `startContinuationTurn`
+        // opens A2. `rolling` keeps the topic stream alive (willContinueTopic) across the gap.
+        entry.rolling = true
+        entry.rollBuffer = []
+        entry.rollSteerInputs = event.inputs
+        this.closeCurrentTurn(entry, 'success')
+        break
+      case 'steer-undelivered':
+        // Steers stashed via redirect() that this turn ended before injecting → queue them as the
+        // next turn (with a steer system-reminder). The following `turn-complete` → markTurnTerminal
+        // drains pendingTurns via scheduleNextTurn.
+        for (const input of event.inputs) {
+          entry.pendingTurns.push(input.message)
+          ;(entry.steerMessageIds ??= new Set()).add(input.message.id)
+        }
+        break
+      case 'compaction-start':
+        this.handleCompactionStart(entry, event.trigger)
+        break
+      case 'compaction-complete':
+        this.handleCompactionComplete(entry, event.anchor)
+        break
+      case 'compaction-error':
+        this.handleCompactionError(entry, event.error)
+        break
+      case 'context-usage':
+        this.persistContextUsage(entry, event.usage)
+        break
       case 'turn-complete':
         this.closeCurrentTurn(entry, 'success')
+        this.refreshContextUsage(entry)
         break
       case 'error':
         this.handleRuntimeError(entry, event.error)
         break
     }
+  }
+
+  private handleCompactionStart(
+    entry: AgentSessionRuntimeEntry,
+    trigger: AgentSessionCompactionTrigger | undefined
+  ): void {
+    entry.compacting = true
+    application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
+      status: 'compacting',
+      startedAt: new Date().toISOString(),
+      ...(trigger ? { trigger } : {})
+    })
+  }
+
+  private handleCompactionComplete(entry: AgentSessionRuntimeEntry, anchor: AgentSessionCompactionAnchorData): void {
+    entry.compacting = false
+
+    const turn = entry.currentTurn
+    if (turn?.controller && !turn.terminalStatus) {
+      this.enqueueTurnChunk(turn, {
+        type: 'data-compaction-anchor',
+        id: crypto.randomUUID(),
+        data: anchor
+      } as UIMessageChunk)
+    }
+
+    application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
+      status: 'idle',
+      lastCompletedAt: anchor.completedAt,
+      ...(anchor.preTokens !== undefined ? { preTokens: anchor.preTokens } : {}),
+      ...(anchor.postTokens !== undefined ? { postTokens: anchor.postTokens } : {}),
+      ...(anchor.durationMs !== undefined ? { durationMs: anchor.durationMs } : {})
+    })
+    this.refreshContextUsage(entry)
+  }
+
+  private handleCompactionError(entry: AgentSessionRuntimeEntry, error: string): void {
+    entry.compacting = false
+    application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
+      status: 'idle',
+      lastError: error
+    })
+  }
+
+  private refreshContextUsage(entry: AgentSessionRuntimeEntry, connection = entry.connection): void {
+    if (!connection?.getContextUsage) return
+
+    void (async () => {
+      const usage = await connection.getContextUsage?.()
+      if (!usage) return
+      if (!this.isCurrentEntry(entry) || entry.connection !== connection) return
+      this.persistContextUsage(entry, usage)
+    })().catch((error) => {
+      logger.warn('Failed to refresh agent session context usage', { sessionId: entry.sessionId, error })
+    })
+  }
+
+  private persistContextUsage(entry: AgentSessionRuntimeEntry, usage: AgentSessionContextUsage): void {
+    if (!this.isCurrentEntry(entry)) return
+    application.get('CacheService').mergePersist(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY, {
+      [entry.sessionId]: usage
+    })
   }
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
@@ -778,6 +916,16 @@ export class AgentSessionRuntimeService extends BaseService {
     this.clearIdleTimer(entry)
     this.closeCurrentTurn(entry, 'paused')
     entry.pendingTurns = []
+    entry.rolling = false
+    entry.rollBuffer = undefined
+    entry.rollSteerInputs = undefined
+    if (entry.compacting) {
+      application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
+        status: 'idle',
+        lastError: 'Session closed during compaction'
+      })
+    }
+    entry.compacting = false
 
     const connection = this.closeConnection(entry)
     entry.currentTurn = undefined

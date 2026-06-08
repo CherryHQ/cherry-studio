@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   startRuntimeTurn: vi.fn(),
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
+  cacheSetShared: vi.fn(),
+  cacheMergePersist: vi.fn(),
   spanCacheSetTopicId: vi.fn()
 }))
 
@@ -126,6 +128,7 @@ describe('AgentSessionRuntimeService', () => {
           broadcastTopicError: mocks.broadcastTopicError
         }
       }
+      if (name === 'CacheService') return { mergePersist: mocks.cacheMergePersist, setShared: mocks.cacheSetShared }
       if (name === 'SpanCacheService') return { setTopicId: mocks.spanCacheSetTopicId }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -455,6 +458,184 @@ describe('AgentSessionRuntimeService', () => {
       value: { type: 'text-delta', id: 'text-1', delta: 'hello' },
       done: false
     })
+
+    events.push({ type: 'turn-complete' })
+    await expect(reader.read()).resolves.toMatchObject({ done: true })
+  })
+
+  it('publishes runtime context usage through persist cache', async () => {
+    const events = createAsyncQueue<any>()
+    const usage = {
+      categories: [],
+      totalTokens: 42,
+      maxTokens: 100,
+      rawMaxTokens: 100,
+      percentage: 42,
+      gridRows: [],
+      model: 'claude-sonnet-4-5',
+      memoryFiles: [],
+      mcpTools: [],
+      agents: [],
+      isAutoCompactEnabled: false,
+      apiUsage: null
+    }
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      getContextUsage: vi.fn().mockResolvedValue(usage)
+    }
+    const connect = vi.fn().mockResolvedValue(connection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: new AbortController().signal
+    })
+    const reader = stream.getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+
+    await vi.waitFor(() =>
+      expect(mocks.cacheMergePersist).toHaveBeenCalledWith('agent.session.context_usage.by_session', {
+        'session-1': usage
+      })
+    )
+
+    events.push({ type: 'turn-complete' })
+    await expect(reader.read()).resolves.toMatchObject({ done: true })
+    await vi.waitFor(() => expect(connection.getContextUsage).toHaveBeenCalledTimes(2))
+  })
+
+  it('publishes compaction state through shared cache and treats compaction as busy', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    service.markTurnTerminal('session-1', 'success')
+    expect(service.isSessionBusy('session-1')).toBe(false)
+
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-start' })
+
+    expect(service.isSessionBusy('session-1')).toBe(true)
+    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.compaction.session-1', {
+      status: 'compacting',
+      startedAt: expect.any(String)
+    })
+  })
+
+  it('persists context usage events from the runtime', () => {
+    const usage = {
+      categories: [],
+      totalTokens: 64,
+      maxTokens: 100,
+      rawMaxTokens: 100,
+      percentage: 64,
+      gridRows: [],
+      model: 'claude-sonnet-4-5',
+      memoryFiles: [],
+      mcpTools: [],
+      agents: [],
+      isAutoCompactEnabled: true,
+      apiUsage: null
+    }
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'context-usage', usage })
+
+    expect(mocks.cacheMergePersist).toHaveBeenCalledWith('agent.session.context_usage.by_session', {
+      'session-1': usage
+    })
+  })
+
+  it('enqueues a compaction anchor into the current turn and refreshes context usage on completion', async () => {
+    const events = createAsyncQueue<any>()
+    const usage = {
+      categories: [],
+      totalTokens: 24,
+      maxTokens: 100,
+      rawMaxTokens: 100,
+      percentage: 24,
+      gridRows: [],
+      model: 'claude-sonnet-4-5',
+      memoryFiles: [],
+      mcpTools: [],
+      agents: [],
+      isAutoCompactEnabled: true,
+      apiUsage: null
+    }
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      getContextUsage: vi.fn().mockResolvedValue(usage)
+    }
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: new AbortController().signal
+    })
+    const reader = stream.getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() =>
+      expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: false })
+    )
+    mocks.cacheMergePersist.mockClear()
+    connection.getContextUsage.mockClear()
+
+    events.push({
+      type: 'compaction-complete',
+      anchor: {
+        trigger: 'auto',
+        completedAt: '2026-06-09T12:00:00.000Z',
+        preTokens: 52_000,
+        postTokens: 14_000,
+        durationMs: 1234
+      }
+    })
+
+    await expect(reader.read()).resolves.toMatchObject({
+      value: {
+        type: 'data-compaction-anchor',
+        data: {
+          trigger: 'auto',
+          completedAt: '2026-06-09T12:00:00.000Z',
+          preTokens: 52_000,
+          postTokens: 14_000,
+          durationMs: 1234
+        }
+      },
+      done: false
+    })
+    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.compaction.session-1', {
+      status: 'idle',
+      lastCompletedAt: '2026-06-09T12:00:00.000Z',
+      preTokens: 52_000,
+      postTokens: 14_000,
+      durationMs: 1234
+    })
+    await vi.waitFor(() =>
+      expect(mocks.cacheMergePersist).toHaveBeenCalledWith('agent.session.context_usage.by_session', {
+        'session-1': usage
+      })
+    )
 
     events.push({ type: 'turn-complete' })
     await expect(reader.read()).resolves.toMatchObject({ done: true })
