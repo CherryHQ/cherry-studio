@@ -4,16 +4,16 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { agentWorkspaceDirectoryService } from '@main/ai/agentWorkspace/AgentWorkspaceDirectoryService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { mkdtemp, readdir, stat } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-import { agentSessionWorkflowService } from '../AgentSessionWorkflowService'
-import { agentWorkspaceDirectoryService } from '../AgentWorkspaceDirectoryService'
+import { agentSessionCreationService } from '../AgentSessionCreationService'
 
-describe('AgentSessionWorkflowService', () => {
+describe('AgentSessionCreationService', () => {
   const dbh = setupTestDatabase()
   let root: string
   let writeQueue: Promise<void>
@@ -58,7 +58,7 @@ describe('AgentSessionWorkflowService', () => {
   it('binds a session to an explicit workspace', async () => {
     const workspace = await createWorkspace(path.join(root, 'explicit'))
 
-    const session = await agentSessionWorkflowService.createSession({
+    const session = await agentSessionCreationService.createSession({
       agentId: 'agent-session-flow-test',
       name: 'Explicit',
       workspaceId: workspace.id
@@ -72,18 +72,18 @@ describe('AgentSessionWorkflowService', () => {
     const firstWorkspace = await createWorkspace(path.join(root, 'first'))
     const secondWorkspace = await createWorkspace(path.join(root, 'second'))
 
-    await agentSessionWorkflowService.createSession({
+    await agentSessionCreationService.createSession({
       agentId: 'agent-session-flow-test',
       name: 'First',
       workspaceId: firstWorkspace.id
     })
-    await agentSessionWorkflowService.createSession({
+    await agentSessionCreationService.createSession({
       agentId: 'agent-session-flow-test',
       name: 'Second',
       workspaceId: secondWorkspace.id
     })
 
-    const inherited = await agentSessionWorkflowService.createSession({
+    const inherited = await agentSessionCreationService.createSession({
       agentId: 'agent-session-flow-test',
       name: 'Inherited'
     })
@@ -94,7 +94,7 @@ describe('AgentSessionWorkflowService', () => {
   })
 
   it('creates and binds a default workspace when none can be inherited', async () => {
-    const session = await agentSessionWorkflowService.createSession({
+    const session = await agentSessionCreationService.createSession({
       agentId: 'agent-session-flow-test',
       name: 'Default'
     })
@@ -110,11 +110,11 @@ describe('AgentSessionWorkflowService', () => {
 
   it('converges concurrent same-agent default sessions to one workspace and cleans the unused directory', async () => {
     const [first, second] = await Promise.all([
-      agentSessionWorkflowService.createSession({
+      agentSessionCreationService.createSession({
         agentId: 'agent-session-flow-test',
         name: 'Concurrent first'
       }),
-      agentSessionWorkflowService.createSession({
+      agentSessionCreationService.createSession({
         agentId: 'agent-session-flow-test',
         name: 'Concurrent second'
       })
@@ -135,7 +135,7 @@ describe('AgentSessionWorkflowService', () => {
     vi.spyOn(agentSessionService, 'getById').mockRejectedValueOnce(new Error('hydrate failed'))
 
     await expect(
-      agentSessionWorkflowService.createSession({
+      agentSessionCreationService.createSession({
         agentId: 'agent-session-flow-test',
         name: 'Hydrate failure'
       })
@@ -151,7 +151,7 @@ describe('AgentSessionWorkflowService', () => {
 
   it('cleans a prepared default directory when session creation fails', async () => {
     await expect(
-      agentSessionWorkflowService.createSession({
+      agentSessionCreationService.createSession({
         agentId: 'agent-session-flow-test',
         name: null as never
       })
@@ -163,7 +163,7 @@ describe('AgentSessionWorkflowService', () => {
   })
 
   it('keeps session deletion in the data service because no directory cleanup is needed on main', async () => {
-    const session = await agentSessionWorkflowService.createSession({
+    const session = await agentSessionCreationService.createSession({
       agentId: 'agent-session-flow-test',
       name: 'Delete me'
     })

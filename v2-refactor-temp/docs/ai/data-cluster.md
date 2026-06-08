@@ -185,8 +185,9 @@ treat the two as complementary, not as a replacement.
   a default workspace path. Workspace binding remains insert-only.
 - **`AgentWorkspaceService.ts`**. DB-only workspace row access, path
   normalization, and reorder. Directory creation/cleanup is owned by
-  `AgentWorkspaceDirectoryService` and orchestrated by
-  `AgentSessionWorkflowService`.
+  `src/main/ai/agentWorkspace/AgentWorkspaceDirectoryService.ts` and
+  orchestrated by
+  `src/main/ai/agentSession/AgentSessionCreationService.ts`.
 
 ### Heavy rewrites
 

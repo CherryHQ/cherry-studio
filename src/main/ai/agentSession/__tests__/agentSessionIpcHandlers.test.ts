@@ -3,11 +3,11 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { agentSessionCreationService } from '../AgentSessionCreationService'
 import { registerAgentSessionIpcHandlers } from '../agentSessionIpcHandlers'
-import { agentSessionWorkflowService } from '../AgentSessionWorkflowService'
 
-vi.mock('../AgentSessionWorkflowService', () => ({
-  agentSessionWorkflowService: {
+vi.mock('../AgentSessionCreationService', () => ({
+  agentSessionCreationService: {
     createSession: vi.fn()
   }
 }))
@@ -24,19 +24,19 @@ function getCreateHandler() {
 describe('agent session IPC handlers', () => {
   beforeEach(() => {
     vi.mocked(ipcMain.handle).mockClear()
-    vi.mocked(agentSessionWorkflowService.createSession).mockReset()
+    vi.mocked(agentSessionCreationService.createSession).mockReset()
   })
 
-  it('rejects invalid create payloads before calling the workflow service', async () => {
+  it('rejects invalid create payloads before calling the creation service', async () => {
     const handler = getCreateHandler()
 
     await expect(handler({} as never, { agentId: '', name: '' })).rejects.toMatchObject({
       code: ErrorCode.VALIDATION_ERROR
     })
-    expect(agentSessionWorkflowService.createSession).not.toHaveBeenCalled()
+    expect(agentSessionCreationService.createSession).not.toHaveBeenCalled()
   })
 
-  it('validates and forwards create payloads to the workflow service', async () => {
+  it('validates and forwards create payloads to the creation service', async () => {
     const session = {
       id: 'session-1',
       agentId: 'agent-1',
@@ -47,7 +47,7 @@ describe('agent session IPC handlers', () => {
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
     }
-    vi.mocked(agentSessionWorkflowService.createSession).mockResolvedValueOnce(session as never)
+    vi.mocked(agentSessionCreationService.createSession).mockResolvedValueOnce(session as never)
     const handler = getCreateHandler()
 
     await expect(
@@ -57,7 +57,7 @@ describe('agent session IPC handlers', () => {
         workspaceId: 'workspace-1'
       })
     ).resolves.toBe(session)
-    expect(agentSessionWorkflowService.createSession).toHaveBeenCalledWith({
+    expect(agentSessionCreationService.createSession).toHaveBeenCalledWith({
       agentId: 'agent-1',
       name: 'Session',
       workspaceId: 'workspace-1'

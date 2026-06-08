@@ -4,9 +4,9 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { registerAgentSessionIpcHandlers } from '@main/ai/agentSession/agentSessionIpcHandlers'
 import { isMac, isWin } from '@main/core/platform'
 import { generateSignature } from '@main/integration/cherryai'
-import { registerAgentSessionIpcHandlers } from '@main/services/agentWorkspace/agentSessionIpcHandlers'
 import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
 import { getIpCountry } from '@main/utils/ipService'
 import {

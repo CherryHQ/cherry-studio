@@ -1,11 +1,10 @@
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentWorkspaceDirectoryService } from '@main/ai/agentWorkspace/AgentWorkspaceDirectoryService'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { AgentSessionEntity, CreateAgentSessionDto } from '@shared/data/api/schemas/agentSessions'
 import { v4 as uuidv4 } from 'uuid'
 
-import { agentWorkspaceDirectoryService } from './AgentWorkspaceDirectoryService'
-
-export class AgentSessionWorkflowService {
+export class AgentSessionCreationService {
   async createSession(dto: CreateAgentSessionDto): Promise<AgentSessionEntity> {
     const id = uuidv4()
     let defaultWorkspacePath: string | null = null
@@ -32,4 +31,4 @@ export class AgentSessionWorkflowService {
   }
 }
 
-export const agentSessionWorkflowService = new AgentSessionWorkflowService()
+export const agentSessionCreationService = new AgentSessionCreationService()

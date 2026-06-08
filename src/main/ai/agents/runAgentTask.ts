@@ -17,12 +17,12 @@ import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import { readHeartbeat } from '@main/ai/agents/cherryclaw/heartbeat'
+import { agentSessionCreationService } from '@main/ai/agentSession/AgentSessionCreationService'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import { application } from '@main/core/application'
 import type { JobContext } from '@main/core/job/types'
-import { agentSessionWorkflowService } from '@main/services/agentWorkspace/AgentSessionWorkflowService'
 
 const logger = loggerService.withContext('runAgentTask')
 
@@ -115,7 +115,10 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   // Always create a fresh session per fire. Scheduled tasks are discrete
   // invocations; cross-fire session reuse would only carry stale model
   // context. Persistent state lives in workspace files (heartbeat.md, etc.).
-  const session = await agentSessionWorkflowService.createSession({ agentId, name: taskName ?? 'Scheduled task' })
+  const session = await agentSessionCreationService.createSession({
+    agentId,
+    name: taskName ?? 'Scheduled task'
+  })
 
   const subscribedChannels = scheduleId ? await agentChannelService.getSubscribedChannels(scheduleId) : []
 
