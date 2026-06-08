@@ -3,3 +3,4 @@ export { default as ComponentLabAssistantSelectorSettings } from './ComponentLab
 export { default as ComponentLabFileProcessingSettings } from './ComponentLabFileProcessingSettings'
 export { default as ComponentLabModelSelectorSettings } from './ComponentLabModelSelectorSettings'
 export { default } from './ComponentLabSettings'
+export { default as ComponentLabWebSpeechSettings } from './ComponentLabWebSpeechSettings'

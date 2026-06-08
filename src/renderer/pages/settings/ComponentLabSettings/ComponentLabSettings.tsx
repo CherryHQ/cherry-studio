@@ -9,6 +9,7 @@ import ComponentLabAgentSelectorSettings from './ComponentLabAgentSelectorSettin
 import ComponentLabAssistantSelectorSettings from './ComponentLabAssistantSelectorSettings'
 import ComponentLabFileProcessingSettings from './ComponentLabFileProcessingSettings'
 import ComponentLabModelSelectorSettings from './ComponentLabModelSelectorSettings'
+import ComponentLabWebSpeechSettings from './ComponentLabWebSpeechSettings'
 
 const ComponentLabSettings: FC = () => {
   const { t } = useTranslation()
@@ -28,6 +29,7 @@ const ComponentLabSettings: FC = () => {
             <TabsTrigger value="model-selector">{t('settings.componentLab.modelSelector.title')}</TabsTrigger>
             <TabsTrigger value="agent-todo-list">{t('settings.componentLab.agentTodoList.title')}</TabsTrigger>
             <TabsTrigger value="file-processing">{t('settings.componentLab.fileProcessing.title')}</TabsTrigger>
+            <TabsTrigger value="web-speech">{t('settings.componentLab.webSpeech.title')}</TabsTrigger>
           </TabsList>
 
           <TabsContent value="assistant-selector" className="mt-0">
@@ -44,6 +46,9 @@ const ComponentLabSettings: FC = () => {
           </TabsContent>
           <TabsContent value="file-processing" className="mt-0">
             <ComponentLabFileProcessingSettings />
+          </TabsContent>
+          <TabsContent value="web-speech" className="mt-0">
+            <ComponentLabWebSpeechSettings />
           </TabsContent>
         </Tabs>
       </SettingGroup>

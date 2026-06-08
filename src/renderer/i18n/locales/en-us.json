@@ -4878,7 +4878,24 @@
         "triggerSelectedCount": "{{count}} models selected",
         "valueProp": "Current Value Prop"
       },
-      "title": "Development Component Lab"
+      "title": "Development Component Lab",
+      "webSpeech": {
+        "description": "Test the browser's native Web Speech API (speechSynthesis). Pick a voice and language, enter text, then synthesize speech.",
+        "langLabel": "Language",
+        "langPlaceholder": "Select a language",
+        "noVoices": "No voices available in this environment.",
+        "speak": "Speak",
+        "status": {
+          "idle": "Idle",
+          "speaking": "Speaking"
+        },
+        "textLabel": "Text",
+        "textPlaceholder": "Enter the text to synthesize",
+        "title": "Web Speech",
+        "unsupported": "The Web Speech API (speechSynthesis) is not available in this environment.",
+        "voiceLabel": "Voice",
+        "voicePlaceholder": "Select a voice"
+      }
     },
     "data": {
       "app_data": {

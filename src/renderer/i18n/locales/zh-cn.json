@@ -4878,7 +4878,24 @@
         "triggerSelectedCount": "已选 {{count}} 个模型",
         "valueProp": "当前传入 value"
       },
-      "title": "开发环境组件测试"
+      "title": "开发环境组件测试",
+      "webSpeech": {
+        "description": "测试浏览器原生的 Web Speech API（speechSynthesis）。选择语音和语言，输入文字，然后合成语音。",
+        "langLabel": "语言",
+        "langPlaceholder": "选择语言",
+        "noVoices": "当前环境没有可用的语音。",
+        "speak": "朗读",
+        "status": {
+          "idle": "空闲",
+          "speaking": "朗读中"
+        },
+        "textLabel": "文字",
+        "textPlaceholder": "输入需要合成的文字",
+        "title": "Web Speech",
+        "unsupported": "当前环境不支持 Web Speech API（speechSynthesis）。",
+        "voiceLabel": "语音",
+        "voicePlaceholder": "选择语音"
+      }
     },
     "data": {
       "app_data": {
