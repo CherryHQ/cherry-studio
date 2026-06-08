@@ -6732,11 +6732,11 @@
       "all_enable": "Enable All",
       "bind_first_to_enable": "Bind a shortcut first to change its enabled state",
       "categories": {
-        "assistant": "AI Assistant Tools",
-        "chat": "Message Interaction",
-        "general": "Global and Window",
+        "assistant": "AI Tools",
+        "chat": "Messages",
+        "general": "General",
         "title": "Shortcut Groups",
-        "topic": "Conversation and Topics"
+        "topic": "Conversations"
       },
       "clear_shortcut": "Clear Shortcut",
       "clear_topic": "Clear Messages",
