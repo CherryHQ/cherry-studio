@@ -32,6 +32,8 @@ import {
   isGemini3ThinkingTokenModel,
   isGrok4FastReasoningModel,
   isHostedGemma4ThinkingModel,
+  isMiniMaxM3Model,
+  isMiniMaxReasoningModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
@@ -62,7 +64,7 @@ import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 const logger = loggerService.withContext('reasoning')
 
 type ReasoningEffortOptionalParams = {
-  thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
+  thinking?: { type: 'disabled' | 'enabled' | 'auto' | 'adaptive'; budget_tokens?: number }
   reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string; enabled?: boolean } | OpenAI.Reasoning
   reasoningEffort?: ReasoningEffortOption
   // WARN: This field will be overwrite to undefined by aisdk if the provider is openai-compatible. Use reasoningEffort instead.
@@ -116,6 +118,19 @@ export function getReasoningEffort(
     }
   }
   const reasoningEffort = assistant?.settings?.reasoning_effort as ReasoningEffortOption | undefined
+
+  // MiniMax models need explicit thinking control. M3 only accepts 'adaptive' | 'disabled'
+  // on the OpenAI-compatible endpoint; M1/M2.x use 'enabled'. Without this, M3 falls through
+  // to an empty param and cannot be turned off.
+  if (isMiniMaxReasoningModel(model)) {
+    if (reasoningEffort === 'none') {
+      return { thinking: { type: 'disabled' } }
+    }
+    if (isMiniMaxM3Model(model)) {
+      return { thinking: { type: 'adaptive' } }
+    }
+    return { thinking: { type: 'enabled' } }
+  }
 
   // reasoningEffort is not set, no extra reasoning setting
   // Generally, for every model which supports reasoning control, the reasoning effort won't be undefined.
