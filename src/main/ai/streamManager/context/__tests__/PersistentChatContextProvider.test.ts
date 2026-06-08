@@ -436,3 +436,84 @@ describe('PersistentChatContextProvider — temporarySystemPrompt', () => {
     expect(prepared.models[0].request.temporarySystemPrompt).toBeUndefined()
   })
 })
+
+describe('PersistentChatContextProvider — temporaryAssistantName', () => {
+  const dbh = setupTestDatabase()
+  const provider = new PersistentChatContextProvider()
+
+  beforeEach(async () => {
+    const [providerKey, modelKey] = generateOrderKeySequence(2)
+    await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: providerKey })
+    await dbh.db.insert(userModelTable).values({
+      id: MODEL_ID,
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      presetModelId: 'gpt-4o',
+      name: 'GPT-4o',
+      isEnabled: true,
+      isHidden: false,
+      orderKey: modelKey
+    })
+    await dbh.db.insert(topicTable).values({ id: 'topic-asst', activeNodeId: null, orderKey: 'c0' })
+  })
+
+  it('writes temporaryAssistantName into assistant placeholder, not user message data', async () => {
+    const prepared = await provider.prepareDispatch(makeSubscriber(), {
+      trigger: 'submit-message',
+      topicId: 'topic-asst',
+      userMessageParts: [{ type: 'text', text: 'hello' }],
+      temporaryAssistantName: '审计员'
+    } as AiStreamOpenRequest)
+
+    // User message does NOT carry the field
+    const userMsg = await messageService.getById(prepared.userMessageId!)
+    expect(userMsg.data.temporaryAssistantName).toBeUndefined()
+
+    // Assistant placeholder DOES carry the field
+    const placeholders = await messageService.getChildrenByParentId(prepared.userMessageId!)
+    expect(placeholders).toHaveLength(1)
+    expect(placeholders[0].data.temporaryAssistantName).toBe('审计员')
+  })
+
+  it('does not set temporaryAssistantName on ordinary submit (no @assistant)', async () => {
+    const prepared = await provider.prepareDispatch(makeSubscriber(), {
+      trigger: 'submit-message',
+      topicId: 'topic-asst',
+      userMessageParts: [{ type: 'text', text: 'hello' }]
+    } as AiStreamOpenRequest)
+
+    const userMsg = await messageService.getById(prepared.userMessageId!)
+    expect(userMsg.data.temporaryAssistantName).toBeUndefined()
+
+    const placeholders = await messageService.getChildrenByParentId(prepared.userMessageId!)
+    expect(placeholders).toHaveLength(1)
+    expect(placeholders[0].data.temporaryAssistantName).toBeUndefined()
+  })
+
+  it('does not set temporaryAssistantName on regenerate-message', async () => {
+    await dbh.db.insert(messageTable).values([
+      {
+        id: 'u-regen2',
+        parentId: null,
+        topicId: 'topic-asst',
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'regen me' }] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 100,
+        updatedAt: 100
+      }
+    ])
+    const prepared = await provider.prepareDispatch(makeSubscriber(), {
+      trigger: 'regenerate-message',
+      topicId: 'topic-asst',
+      parentAnchorId: 'u-regen2'
+    } as AiStreamOpenRequest)
+
+    // regenerate reuses the existing user message row — userMessageId is the anchor row's id
+    expect(prepared.userMessageId).toBe('u-regen2')
+
+    const userMsg = await messageService.getById('u-regen2')
+    expect(userMsg.data.temporaryAssistantName).toBeUndefined()
+  })
+})

@@ -74,7 +74,7 @@ export function uiToMessage(uiMsg: CherryUIMessage, ctx: UiToMessageContext): Me
   const createdAt = meta.createdAt ?? ctx.createdAtFallback ?? ''
   const askId = uiMsg.role === 'assistant' ? (meta.parentId ?? ctx.askIdFallback) : undefined
 
-  return {
+  const result: Message = {
     id: uiMsg.id,
     role: uiMsg.role,
     assistantId: ctx.assistantId,
@@ -88,6 +88,8 @@ export function uiToMessage(uiMsg: CherryUIMessage, ctx: UiToMessageContext): Me
     status: projectStatus(uiMsg.role, meta.status),
     ...(meta.stats && { usage: statsToUsage(meta.stats), metrics: statsToMetrics(meta.stats) }),
     blocks: [],
-    parts: uiMsg.parts ?? []
+    parts: uiMsg.parts ?? [],
+    temporaryAssistantName: meta.temporaryAssistantName
   }
+  return result
 }

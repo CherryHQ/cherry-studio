@@ -1326,6 +1326,9 @@
       "regenerate": {
         "model": "切换模型"
       },
+      "temporary_assistant": {
+        "label": "助手 · {{name}}"
+      },
       "useful": {
         "label": "设置为上下文",
         "tip": "在这组消息中，该消息将被选择加入上下文"

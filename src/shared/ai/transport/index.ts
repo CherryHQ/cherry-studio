@@ -15,6 +15,8 @@ export interface AiChatRequestBody {
    * Empty string is valid. Check with `!== undefined`, not truthiness.
    */
   temporarySystemPrompt?: string
+  /** Name snapshot of the @-mentioned assistant, for display in message history. */
+  temporaryAssistantName?: string
 }
 
 export { applyApprovalDecisions } from './applyApprovalDecisions'

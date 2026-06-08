@@ -51,6 +51,9 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             mentionedModelIds: mergedBody.mentionedModels,
             ...(mergedBody.temporarySystemPrompt !== undefined && {
               temporarySystemPrompt: mergedBody.temporarySystemPrompt
+            }),
+            ...(mergedBody.temporaryAssistantName !== undefined && {
+              temporaryAssistantName: mergedBody.temporaryAssistantName
             })
           }
 

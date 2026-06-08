@@ -1326,6 +1326,9 @@
       "regenerate": {
         "model": "Switch Model"
       },
+      "temporary_assistant": {
+        "label": "Assistant · {{name}}"
+      },
       "useful": {
         "label": "Set as context",
         "tip": "In this group of messages, this message will be selected to join the context"

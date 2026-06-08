@@ -115,6 +115,8 @@ export type AiStreamOpenRequest = {
        * Empty string is valid (overrides to blank). Check with `!== undefined`, not truthiness.
        */
       temporarySystemPrompt?: string
+      /** Name snapshot of the @-mentioned assistant, persisted into assistant message data. */
+      temporaryAssistantName?: string
     }
   | {
       /** Re-run the assistant under an existing user msg. */

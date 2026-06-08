@@ -235,6 +235,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
     // Snapshot before clearing so the request carries the right prompt even
     // if the state update races with the async send path.
     const temporarySystemPrompt = mentionedAssistant?.prompt
+    const temporaryAssistantName = mentionedAssistant?.name
     setMentionedAssistant(null)
     setTimeoutTimer('sendMessage', () => resizeTextArea(), 0)
     focusTextarea()
@@ -242,7 +243,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
       await onSendProp(text_, {
         files: files.length > 0 ? files : undefined,
         mentionedModels: mentionedModels.length > 0 ? mentionedModels.map((model) => model.id) : undefined,
-        ...(temporarySystemPrompt !== undefined && { temporarySystemPrompt })
+        ...(temporarySystemPrompt !== undefined && { temporarySystemPrompt }),
+        ...(temporaryAssistantName !== undefined && { temporaryAssistantName })
       })
     } catch (error) {
       logger.warn('send failed', { error })

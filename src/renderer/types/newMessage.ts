@@ -218,6 +218,9 @@ export type Message = {
   // 跟踪Id
   traceId?: string
 
+  // @-mentioned assistant snapshot for this turn (assistant messages only)
+  temporaryAssistantName?: string
+
   // Agent session identifier used to resume Claude Code runs
   agentSessionId?: string
 

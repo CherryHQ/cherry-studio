@@ -132,7 +132,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         siblingsGroupId,
         placeholders: turnRootSpans.map(({ model, traceId }) => ({
           role: 'assistant',
-          data: { parts: [] },
+          data: {
+            parts: [],
+            ...(req.temporaryAssistantName !== undefined && {
+              temporaryAssistantName: req.temporaryAssistantName
+            })
+          },
           status: 'pending',
           modelId: model.id,
           modelSnapshot: {
@@ -143,7 +148,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           traceId
         }))
       })
-
       const shouldAutoNameInitialTurn = !isRegenerate && !req.parentAnchorId
       if (shouldAutoNameInitialTurn) {
         void topicNamingService.maybeRenameFromFirstUserMessage(req.topicId, userMessage.id)

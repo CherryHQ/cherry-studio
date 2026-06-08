@@ -242,7 +242,12 @@ const V2ChatContentInner: FC<InnerProps> = ({
   const handleSendV2 = useCallback(
     async (
       text: string,
-      options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[]; temporarySystemPrompt?: string }
+      options?: {
+        files?: FileMetadata[]
+        mentionedModels?: UniqueModelId[]
+        temporarySystemPrompt?: string
+        temporaryAssistantName?: string
+      }
     ) => {
       if (isFreshTemporaryTopic && onPersistTemporaryTopic) {
         try {
@@ -277,6 +282,9 @@ const V2ChatContentInner: FC<InnerProps> = ({
             mentionedModels: options?.mentionedModels,
             ...(options?.temporarySystemPrompt !== undefined && {
               temporarySystemPrompt: options.temporarySystemPrompt
+            }),
+            ...(options?.temporaryAssistantName !== undefined && {
+              temporaryAssistantName: options.temporaryAssistantName
             }),
             ...capabilityBody
           }

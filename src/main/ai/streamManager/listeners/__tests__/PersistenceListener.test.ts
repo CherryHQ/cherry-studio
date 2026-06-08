@@ -15,6 +15,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const appendMessageMock = vi.fn()
 const messageUpdateMock = vi.fn()
+const messageGetByIdMock = vi.fn()
 
 vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: {
@@ -24,6 +25,7 @@ vi.mock('@main/data/services/TemporaryChatService', () => ({
 
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
+    getById: messageGetByIdMock,
     update: messageUpdateMock
   }
 }))
@@ -347,6 +349,8 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 
 describe('PersistenceListener + MessageServiceBackend — failed persist recovery', () => {
   beforeEach(() => {
+    messageGetByIdMock.mockReset()
+    messageGetByIdMock.mockResolvedValue({ id: 'assistant-1', data: { parts: [] } })
     messageUpdateMock.mockReset()
   })
 
@@ -392,6 +396,28 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(onPersistFailed).toHaveBeenCalledTimes(1)
     expect(onPersistFailed).toHaveBeenCalledWith(
       expect.objectContaining({ message: expect.stringContaining('write failed') })
+    )
+  })
+
+  it('preserves assistant placeholder data when finalizing the streamed message', async () => {
+    messageGetByIdMock.mockResolvedValueOnce({
+      id: 'assistant-1',
+      data: { parts: [], temporaryAssistantName: '审计员' }
+    })
+    messageUpdateMock.mockResolvedValueOnce({ id: 'assistant-1' })
+    const listener = makeMessageServiceListener()
+
+    await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })
+
+    expect(messageUpdateMock).toHaveBeenCalledTimes(1)
+    expect(messageUpdateMock).toHaveBeenCalledWith(
+      'assistant-1',
+      expect.objectContaining({
+        data: expect.objectContaining({
+          temporaryAssistantName: '审计员',
+          parts: [{ type: 'text', text: 'hello' }]
+        })
+      })
     )
   })
 })

@@ -113,6 +113,8 @@ export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
  */
 export interface MessageData {
   parts?: CherryMessagePart[]
+  /** Name snapshot of the @-mentioned assistant at send time. Undefined for ordinary messages. */
+  temporaryAssistantName?: string
 }
 
 // ── Cherry-specific UI message types ────────────────────────────────
@@ -168,6 +170,8 @@ export interface CherryUIMessageMetadata {
   thoughtsTokens?: number
   /** Full persisted stats (tokens + durations) when available. */
   stats?: MessageStats
+  /** Name snapshot of the @-mentioned assistant at send time. Only set on assistant messages. */
+  temporaryAssistantName?: string
 }
 
 /** Cherry Studio's UIMessage with custom metadata and data part types. */
