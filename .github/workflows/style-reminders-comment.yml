@@ -49,7 +49,7 @@ jobs:
         run: pnpm exec tsx scripts/check-pr-style-reminders.ts --base "${{ github.event.pull_request.base.sha }}" --head "${{ github.event.pull_request.head.sha }}" --markdown-output .tmp/style-reminders-pr-comment.md
 
       - name: Upsert PR comment
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('node:fs');
