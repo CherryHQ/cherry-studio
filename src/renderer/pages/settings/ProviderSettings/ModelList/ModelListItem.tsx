@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback, Button, Flex, HStack, Switch, Tooltip } from '@cherrystudio/ui'
+import { Avatar, AvatarFallback, Button, HStack, Switch, Tooltip, TruncatingRow } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getModelLogo } from '@renderer/config/models'
 import { getModelClipboardId } from '@renderer/pages/settings/ProviderSettings/ModelList/utils'
@@ -50,45 +50,22 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
     [model, onToggleEnabled, t]
   )
 
+  const Icon = getModelLogo(model)
+  const avatar = Icon ? (
+    <Icon.Avatar size={26} />
+  ) : (
+    <Avatar className={modelListClasses.rowAvatar}>
+      <AvatarFallback>{model.name?.[0]?.toUpperCase()}</AvatarFallback>
+    </Avatar>
+  )
+
   return (
-    <div ref={ref} className={cn(modelListClasses.row, !model.isEnabled && 'opacity-60')}>
-      <Flex direction="row" className={modelListClasses.rowMain}>
-        {(() => {
-          const Icon = getModelLogo(model)
-          return Icon ? (
-            <Icon.Avatar size={26} />
-          ) : (
-            <Avatar className={modelListClasses.rowAvatar}>
-              <AvatarFallback>{model.name?.[0]?.toUpperCase()}</AvatarFallback>
-            </Avatar>
-          )
-        })()}
-        <div className={modelListClasses.rowBody}>
-          <HStack gap={1} className="min-w-0">
-            <button
-              type="button"
-              className={cn(
-                'block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap text-left font-normal text-base text-foreground/90',
-                modelListClasses.rowNameCopyable
-              )}
-              onClick={handleEdit}>
-              {model.name}
-            </button>
-            <Tooltip content={t('settings.models.copy_model_id_tooltip', { id: copyId })} placement="top">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="size-5 shrink-0 rounded-md p-0 text-muted-foreground/35 opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
-                aria-label={t('settings.models.copy_model_id_tooltip', { id: copyId })}
-                onClick={handleCopyName}>
-                <Copy className="size-2.5" />
-              </Button>
-            </Tooltip>
-          </HStack>
-        </div>
-      </Flex>
-      <Flex direction="row" className={modelListClasses.rowActions}>
+    <TruncatingRow
+      ref={ref}
+      gap={3}
+      className={cn(modelListClasses.row, !model.isEnabled && 'opacity-60')}
+      leading={avatar}
+      trailing={
         <div className={modelListClasses.rowActionsCluster}>
           <div className={modelListClasses.rowCapabilityStrip}>
             <div className={modelListClasses.rowCapabilityTagCluster}>
@@ -106,8 +83,30 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
             />
           </div>
         </div>
-      </Flex>
-    </div>
+      }>
+      <HStack gap={1} className="min-w-0">
+        <button
+          type="button"
+          className={cn(
+            'block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap text-left font-normal text-base text-foreground/90',
+            modelListClasses.rowNameCopyable
+          )}
+          onClick={handleEdit}>
+          {model.name}
+        </button>
+        <Tooltip content={t('settings.models.copy_model_id_tooltip', { id: copyId })} placement="top">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="size-5 shrink-0 rounded-md p-0 text-muted-foreground/35 opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+            aria-label={t('settings.models.copy_model_id_tooltip', { id: copyId })}
+            onClick={handleCopyName}>
+            <Copy className="size-2.5" />
+          </Button>
+        </Tooltip>
+      </HStack>
+    </TruncatingRow>
   )
 }
 

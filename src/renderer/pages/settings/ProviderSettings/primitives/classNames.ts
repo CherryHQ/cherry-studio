@@ -277,10 +277,8 @@ export const modelListClasses = {
   groupBody: 'mt-1.5 flex flex-col gap-0.5',
   groupOverflowHint:
     'mt-1 rounded-lg px-3 py-2 text-left text-[13px] leading-[1.25] text-muted-foreground/70 transition-colors hover:bg-foreground/4 hover:text-foreground',
-  row: 'group flex items-center gap-3 rounded-xl px-3 py-[10px] text-foreground leading-none transition-colors hover:bg-foreground/4',
-  rowMain: 'min-w-0 flex-1 items-center gap-3',
+  row: 'group rounded-xl px-3 py-[10px] text-foreground leading-none transition-colors hover:bg-foreground/4',
   rowAvatar: 'h-[26px] w-[26px] shrink-0 rounded-lg',
-  rowBody: 'min-w-0 max-w-full flex-1 overflow-hidden',
   /** Model name opens the edit drawer; copy stays on explicit trailing controls. */
   rowNameCopyable: 'cursor-pointer transition-colors hover:text-primary',
   /** Shown when model id !== name; hidden in narrow container via `.ps-model-list-id` rule. */
@@ -297,7 +295,6 @@ export const modelListClasses = {
   healthStatusSlot: 'ps-model-list-health shrink-0',
   /** Trailing column: health + (capability strip + enable) on one row. */
   rowActionsCluster: 'flex min-w-0 items-center gap-2',
-  rowActions: 'min-w-0 shrink-0 items-center gap-1.5 self-center',
   rowIconButton:
     'size-7 rounded-lg border border-foreground/12 bg-transparent text-muted-foreground/70 shadow-none hover:bg-foreground/4 hover:text-foreground'
 } as const
