@@ -1,5 +1,5 @@
 /**
- * Orchestration-layer tests for FileProcessingOrchestrationService.
+ * Orchestration-layer tests for FileProcessingService.
  *
  * Verifies (1) handler registration on onInit, (2) mode → JobRegistry type
  * routing on startJob, (3) fresh job creation, and (4) listAvailableProcessors
@@ -87,7 +87,7 @@ processorRegistryMock.system = {
   isAvailable: isAvailableSystemMock
 }
 
-const { FileProcessingOrchestrationService } = await import('../FileProcessingOrchestrationService')
+const { FileProcessingService } = await import('../FileProcessingService')
 
 const IMAGE_ENTRY_ID = '019606a0-0000-7000-8000-000000000101'
 const PDF_ENTRY_ID = '019606a0-0000-7000-8000-000000000102'
@@ -174,16 +174,16 @@ beforeEach(() => {
   isAvailableSystemMock.mockReturnValue(false)
 })
 
-describe('FileProcessingOrchestrationService — lifecycle metadata', () => {
+describe('FileProcessingService — lifecycle metadata', () => {
   it('runs in WhenReady phase and depends on FileManager and JobManager', () => {
-    expect(getPhase(FileProcessingOrchestrationService)).toBe(Phase.WhenReady)
-    expect(getDependencies(FileProcessingOrchestrationService)).toEqual(['FileManager', 'JobManager'])
+    expect(getPhase(FileProcessingService)).toBe(Phase.WhenReady)
+    expect(getDependencies(FileProcessingService)).toEqual(['FileManager', 'JobManager'])
   })
 })
 
-describe('FileProcessingOrchestrationService.onInit', () => {
+describe('FileProcessingService.onInit', () => {
   it('registers both job handlers on JobManager', () => {
-    const svc = new FileProcessingOrchestrationService()
+    const svc = new FileProcessingService()
     ;(svc as unknown as { onInit(): void }).onInit()
 
     expect(registerHandlerMock).toHaveBeenCalledTimes(2)
@@ -193,7 +193,7 @@ describe('FileProcessingOrchestrationService.onInit', () => {
   })
 
   it('registers IPC handlers for start + listAvailableProcessors only', () => {
-    const svc = new FileProcessingOrchestrationService()
+    const svc = new FileProcessingService()
     ;(svc as unknown as { onInit(): void }).onInit()
 
     const ipcHandle = (svc as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle
@@ -205,9 +205,9 @@ describe('FileProcessingOrchestrationService.onInit', () => {
   })
 })
 
-describe('FileProcessingOrchestrationService.startJob — routing', () => {
+describe('FileProcessingService.startJob — routing', () => {
   function makeSvc() {
-    const svc = new FileProcessingOrchestrationService()
+    const svc = new FileProcessingService()
     ;(svc as unknown as { onInit(): void }).onInit()
     enqueueMock.mockResolvedValue({
       id: 'job-test-1',
@@ -352,9 +352,9 @@ describe('FileProcessingOrchestrationService.startJob — routing', () => {
   })
 })
 
-describe('FileProcessingOrchestrationService.listAvailableProcessors', () => {
+describe('FileProcessingService.listAvailableProcessors', () => {
   it('returns only processors whose isAvailable() returns true', () => {
-    const svc = new FileProcessingOrchestrationService()
+    const svc = new FileProcessingService()
     const result = svc.listAvailableProcessors()
 
     expect(result.processorIds).toContain('tesseract')
@@ -363,7 +363,7 @@ describe('FileProcessingOrchestrationService.listAvailableProcessors', () => {
   })
 
   it('re-evaluates isAvailable on each call', () => {
-    const svc = new FileProcessingOrchestrationService()
+    const svc = new FileProcessingService()
     isAvailableSystemMock.mockReturnValue(true)
     const result = svc.listAvailableProcessors()
     expect(result.processorIds).toContain('system')

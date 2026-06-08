@@ -154,7 +154,7 @@ export class KnowledgeWorkflowService {
         throw new Error(`File processing source plan produced for non-file item: ${item.id}`)
       }
       const processorId = FileProcessorIdSchema.parse(base.fileProcessorId)
-      const fileProcessing = application.get('FileProcessingOrchestrationService')
+      const fileProcessing = application.get('FileProcessingService')
       const fileProcessingJob = await fileProcessing.startJob(
         {
           feature: 'document_to_markdown',

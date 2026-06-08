@@ -62,7 +62,7 @@ const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
 
 @Injectable('KnowledgeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['KnowledgeVectorStoreService', 'FileManager', 'JobManager', 'FileProcessingOrchestrationService'])
+@DependsOn(['KnowledgeVectorStoreService', 'FileManager', 'JobManager', 'FileProcessingService'])
 export class KnowledgeService extends BaseService {
   private readonly knowledgeLockManager = new KnowledgeLockManager()
   private readonly workflowService = new KnowledgeWorkflowService(this.knowledgeLockManager)

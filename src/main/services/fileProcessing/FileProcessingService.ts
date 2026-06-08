@@ -17,7 +17,7 @@ import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFil
 import { remotePollJobHandler } from './tasks/remotePollJobHandler'
 import type { ListAvailableFileProcessorsResult, StartFileProcessingJobInput } from './types'
 
-const logger = loggerService.withContext('FileProcessingOrchestrationService')
+const logger = loggerService.withContext('FileProcessingService')
 
 const FileProcessorFeatureSchema = z.enum(FILE_PROCESSOR_FEATURES)
 const FileProcessorIdSchema = z.enum(FILE_PROCESSOR_IDS)
@@ -30,10 +30,10 @@ const StartJobPayloadSchema = z
   })
   .strict()
 
-@Injectable('FileProcessingOrchestrationService')
+@Injectable('FileProcessingService')
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['FileManager', 'JobManager'])
-export class FileProcessingOrchestrationService extends BaseService {
+export class FileProcessingService extends BaseService {
   protected onInit(): void {
     // Register handlers in onInit (NOT onReady) so JobManager.onAllReady's
     // startup recovery sweep sees them when re-dispatching non-terminal jobs.
@@ -41,7 +41,7 @@ export class FileProcessingOrchestrationService extends BaseService {
     jobManager.registerHandler('file-processing.background', backgroundJobHandler)
     jobManager.registerHandler('file-processing.remote-poll', remotePollJobHandler)
     this.registerIpcHandlers()
-    logger.info('File processing orchestration service initialized')
+    logger.info('File processing service initialized')
   }
 
   /**

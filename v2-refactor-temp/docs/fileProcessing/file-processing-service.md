@@ -212,7 +212,7 @@ type FileProcessingArtifact =
 
 目标分层：
 
-1. `FileProcessingOrchestrationService`
+1. `FileProcessingService`
    - 生命周期 service
    - 注册 IPC handler 和 JobManager handler
    - 做 payload Zod 校验
@@ -236,7 +236,7 @@ type FileProcessingArtifact =
 
 `JobManager` / SQLite job table 是 job 状态的 source of truth。
 
-`FileProcessingOrchestrationService` 只是对外入口，不应该重复维护 job 状态或实现 provider 细节。
+`FileProcessingService` 只是对外入口，不应该重复维护 job 状态或实现 provider 细节。
 
 ### 7.1 Processor-first 目录结构
 
@@ -319,7 +319,7 @@ processorRegistry[processorId].capabilities[feature]
 4. 测试必须校验 `PRESETS_FILE_PROCESSORS` 声明的 capability 与 registry handler 一致：
    - preset 有 capability，registry 必须有 handler
    - registry 不应声明 preset 不支持的 capability
-5. `FileProcessingOrchestrationService` / job execution helper 解析 processor config 后，通过 registry 找到目标 capability handler。
+5. `FileProcessingService` / job execution helper 解析 processor config 后，通过 registry 找到目标 capability handler。
 
 ### 7.3 Capability Handler Contract
 
@@ -427,7 +427,7 @@ File-processing 不维护自己的 job event bus。
 
 1. job snapshot 由统一 Job API 查询。
 2. job progress 由 JobManager 写入 `jobs.progress.${jobId}` cache。
-3. `FileProcessingOrchestrationService` 不广播 Renderer IPC。
+3. `FileProcessingService` 不广播 Renderer IPC。
 4. 本轮不设计 Renderer 订阅协议、多窗口广播或 UI job center。
 
 如果后续需要实时 UI 推送，应复用统一 JobManager progress 机制或建立通用 job bridge，而不是为 file-processing 增加独立事件接口。
@@ -489,7 +489,7 @@ file-processing job 使用统一 JobManager 的保留和恢复语义。
 
 ## 12. Input Validation
 
-`FileProcessingOrchestrationService` / job service 必须做基础准入校验。
+`FileProcessingService` / job service 必须做基础准入校验。
 
 基础校验包括：
 
@@ -627,21 +627,21 @@ OCR text artifact 不落盘，直接以内联文本返回。
 
 服务选择：
 
-1. `FileProcessingOrchestrationService`：生命周期 service，因为它注册 IPC handler。
+1. `FileProcessingService`：生命周期 service，因为它注册 IPC handler。
 2. `processors/tesseract/runtime/TesseractRuntimeService`：继续作为生命周期 service，因为它管理长寿命 worker、队列和 idle release。
 3. file-processing task handlers：普通 JobManager handler，不是 lifecycle service。
 4. processor helper / pure utility：保持普通函数或 direct-import singleton，不引入无意义 lifecycle 层。
 
 依赖关系：
 
-1. `FileProcessingOrchestrationService` 依赖 `FileManager` 和 `JobManager`。
-2. `FileProcessingOrchestrationService.onInit` 注册 file-processing JobManager handlers。
+1. `FileProcessingService` 依赖 `FileManager` 和 `JobManager`。
+2. `FileProcessingService.onInit` 注册 file-processing JobManager handlers。
 3. Tesseract image-to-text handler 在执行时通过 `application.get('TesseractRuntimeService')` 获取 runtime。
 4. 不需要声明对 BeforeReady 服务的 cross-phase `@DependsOn`；Preference 等 BeforeReady 初始化顺序由 lifecycle 系统保证。
 
 清理要求：
 
-1. `FileProcessingOrchestrationService` 停止时由 lifecycle 自动清理 IPC handler。
+1. `FileProcessingService` 停止时由 lifecycle 自动清理 IPC handler。
 2. Job cancel / retry / timeout 由 JobManager 驱动。
 3. 长寿命 processor runtime 在自己的 lifecycle service 中清理资源。
 

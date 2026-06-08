@@ -73,7 +73,7 @@ const {
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    FileProcessingOrchestrationService: {
+    FileProcessingService: {
       startJob: fileProcessingStartJobMock
     },
     JobManager: {
@@ -323,7 +323,7 @@ describe('KnowledgeService', () => {
       'KnowledgeVectorStoreService',
       'FileManager',
       'JobManager',
-      'FileProcessingOrchestrationService'
+      'FileProcessingService'
     ])
   })
 
