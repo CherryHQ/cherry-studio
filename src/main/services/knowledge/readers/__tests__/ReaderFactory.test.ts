@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.hoisted(() => vi.fn())
 const loggerWarnMock = vi.hoisted(() => vi.fn())
-const getPhysicalPathMock = vi.hoisted(() => vi.fn())
 const customReaderSpies = vi.hoisted(() => ({
   drafts: vi.fn(async (filePath: string) => [{ metadata: { reader: 'drafts', filePath } }]),
   epub: vi.fn(async (filePath: string) => [{ metadata: { reader: 'epub', filePath } }])
@@ -30,11 +29,7 @@ vi.mock('@logger', () => ({
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
-    FileManager: {
-      getPhysicalPath: getPhysicalPathMock
-    }
-  } as Parameters<typeof mockApplicationFactory>[0])
+  return mockApplicationFactory()
 })
 
 vi.mock('electron', () => ({
@@ -93,9 +88,6 @@ vi.mock('../files/EpubReader', () => ({
 
 const { loadKnowledgeItemDocuments } = await import('../KnowledgeReader')
 
-const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000501'
-const PROCESSED_FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000502'
-
 function createFileItem(ext: string, sourcePath?: string): KnowledgeItemOf<'file'> {
   return {
     id: 'item-1',
@@ -108,7 +100,7 @@ function createFileItem(ext: string, sourcePath?: string): KnowledgeItemOf<'file
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
       source: sourcePath ?? `/tmp/sample${ext}`,
-      fileEntryId: FILE_ENTRY_ID
+      relativePath: `sample${ext}`
     }
   }
 }
@@ -169,8 +161,6 @@ describe('loadKnowledgeItemDocuments', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     loggerWarnMock.mockReset()
-    getPhysicalPathMock.mockReset()
-    getPhysicalPathMock.mockImplementation(async () => '/tmp/sample.txt')
   })
 
   it.each([
@@ -181,11 +171,11 @@ describe('loadKnowledgeItemDocuments', () => {
     ['.md', 'markdown']
   ])('maps %s files to the %s reader', async (ext, expectedReader) => {
     const item = createFileItem(ext)
-    getPhysicalPathMock.mockResolvedValueOnce(`/resolved/sample${ext}`)
     const docs = await loadKnowledgeItemDocuments(item)
 
-    expect(getPhysicalPathMock).toHaveBeenCalledWith(FILE_ENTRY_ID)
-    expect(readerSpies[expectedReader as keyof typeof readerSpies]).toHaveBeenCalledWith(`/resolved/sample${ext}`)
+    expect(readerSpies[expectedReader as keyof typeof readerSpies]).toHaveBeenCalledWith(
+      `/mock/feature.knowledgebase.data/base-1/sample${ext}`
+    )
     expect(docs[0]).toMatchObject({
       metadata: {
         source: `/tmp/sample${ext}`
@@ -195,11 +185,9 @@ describe('loadKnowledgeItemDocuments', () => {
 
   it('falls back to TextFileReader for unmatched file extensions', async () => {
     const item = createFileItem('.log')
-    getPhysicalPathMock.mockResolvedValueOnce('/resolved/sample.log')
     const docs = await loadKnowledgeItemDocuments(item)
 
-    expect(getPhysicalPathMock).toHaveBeenCalledWith(FILE_ENTRY_ID)
-    expect(readerSpies.text).toHaveBeenCalledWith('/resolved/sample.log')
+    expect(readerSpies.text).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/sample.log')
     expect(docs[0]).toMatchObject({
       metadata: {
         source: '/tmp/sample.log'
@@ -207,14 +195,19 @@ describe('loadKnowledgeItemDocuments', () => {
     })
   })
 
-  it('can read a processed artifact file entry while preserving source metadata', async () => {
-    const item = createFileItem('.pdf', '/tmp/source.pdf')
-    getPhysicalPathMock.mockResolvedValueOnce('/resolved/processed.md')
+  it('can read a processed artifact path while preserving source metadata', async () => {
+    const item = {
+      ...createFileItem('.pdf', '/tmp/source.pdf'),
+      data: {
+        source: '/tmp/source.pdf',
+        relativePath: 'source.pdf',
+        indexedRelativePath: 'source.md'
+      }
+    }
 
-    const docs = await loadKnowledgeItemDocuments(item, undefined, { fileEntryId: PROCESSED_FILE_ENTRY_ID })
+    const docs = await loadKnowledgeItemDocuments(item)
 
-    expect(getPhysicalPathMock).toHaveBeenCalledWith(PROCESSED_FILE_ENTRY_ID)
-    expect(readerSpies.markdown).toHaveBeenCalledWith('/resolved/processed.md')
+    expect(readerSpies.markdown).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/source.md')
     expect(docs[0]).toMatchObject({
       metadata: {
         source: '/tmp/source.pdf'
@@ -222,24 +215,12 @@ describe('loadKnowledgeItemDocuments', () => {
     })
   })
 
-  it('rejects fileEntryId overrides for non-file items', async () => {
-    const item = createNoteItem('hello world', 'https://example.com/note')
-
-    await expect(loadKnowledgeItemDocuments(item, undefined, { fileEntryId: PROCESSED_FILE_ENTRY_ID })).rejects.toThrow(
-      'fileEntryId override is only supported for file knowledge items: note'
-    )
-
-    expect(getPhysicalPathMock).not.toHaveBeenCalled()
-  })
-
   it('uses the drafts export reader for .draftsexport files', async () => {
     const item = createFileItem('.draftsexport')
-    getPhysicalPathMock.mockResolvedValueOnce('/resolved/sample.draftsexport')
 
     const docs = await loadKnowledgeItemDocuments(item)
 
-    expect(getPhysicalPathMock).toHaveBeenCalledWith(FILE_ENTRY_ID)
-    expect(customReaderSpies.drafts).toHaveBeenCalledWith('/resolved/sample.draftsexport')
+    expect(customReaderSpies.drafts).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/sample.draftsexport')
     expect(docs[0]).toMatchObject({
       metadata: {
         source: '/tmp/sample.draftsexport'
@@ -249,25 +230,15 @@ describe('loadKnowledgeItemDocuments', () => {
 
   it('uses the epub reader for .epub files', async () => {
     const item = createFileItem('.epub')
-    getPhysicalPathMock.mockResolvedValueOnce('/resolved/sample.epub')
 
     const docs = await loadKnowledgeItemDocuments(item)
 
-    expect(getPhysicalPathMock).toHaveBeenCalledWith(FILE_ENTRY_ID)
-    expect(customReaderSpies.epub).toHaveBeenCalledWith('/resolved/sample.epub')
+    expect(customReaderSpies.epub).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/sample.epub')
     expect(docs[0]).toMatchObject({
       metadata: {
         source: '/tmp/sample.epub'
       }
     })
-  })
-
-  it('throws when a file item cannot resolve a physical path at load time', async () => {
-    const resolveError = new Error('File path is required')
-    getPhysicalPathMock.mockRejectedValueOnce(resolveError)
-    const item = createFileItem('.txt')
-
-    await expect(loadKnowledgeItemDocuments(item)).rejects.toBe(resolveError)
   })
 
   it('creates a note reader that returns a single Document', async () => {

@@ -19,7 +19,7 @@ function createItem(type: KnowledgeItem['type']): KnowledgeItem {
       return {
         ...base,
         type,
-        data: { source: '/docs/file.md', fileEntryId: '019606a0-0000-7000-8000-000000000001' }
+        data: { source: '/docs/file.md', relativePath: 'file.md' }
       }
     case 'url':
       return { ...base, type, data: { source: 'https://example.com', url: 'https://example.com' } }

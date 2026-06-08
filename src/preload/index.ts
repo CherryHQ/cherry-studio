@@ -40,8 +40,8 @@ import type {
   UnifiedPreferenceType,
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
-import type { FileEntry, FileEntryId } from '@shared/data/types/file'
-import type { ListAvailableFileProcessorsResult } from '@shared/data/types/fileProcessing'
+import type { FileEntry } from '@shared/data/types/file'
+import type { FileProcessingOutputTarget, ListAvailableFileProcessorsResult } from '@shared/data/types/fileProcessing'
 import type {
   CreateKnowledgeBaseDto,
   KnowledgeBase,
@@ -723,7 +723,11 @@ const api = {
   fileProcessing: {
     startJob: (payload: {
       feature: FileProcessorFeature
-      fileEntryId: FileEntryId
+      file: FileHandle
+      output?: FileProcessingOutputTarget
+      context?: {
+        dataId?: string
+      }
       processorId?: FileProcessorId
     }): Promise<JobSnapshot> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartJob, payload),
     listAvailableProcessors: (): Promise<ListAvailableFileProcessorsResult> =>

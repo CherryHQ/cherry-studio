@@ -13,6 +13,7 @@ import { markUnscheduledKnowledgeItemsFailed } from '../utils/cleanup/statusClea
 import { deleteKnowledgeItemVectors } from '../utils/cleanup/vectorCleanup'
 import { isIndexableKnowledgeItem } from '../utils/items'
 import { prepareKnowledgeItem } from '../utils/sources/prepare'
+import { deleteKnowledgeItemFiles } from '../utils/storage/pathStorage'
 import type { KnowledgePrepareRootPayload } from './jobTypes'
 import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
 
@@ -99,6 +100,7 @@ async function deletePreviousLeafExpansion(
     const removableLeafIds = removableDescendants.filter(isIndexableKnowledgeItem).map((item) => item.id)
 
     await deleteKnowledgeItemVectors(base, removableLeafIds)
+    await deleteKnowledgeItemFiles(baseId, removableDescendants)
     await knowledgeItemService.deleteItemsByIds(baseId, removableDescendantIds)
   })
 }

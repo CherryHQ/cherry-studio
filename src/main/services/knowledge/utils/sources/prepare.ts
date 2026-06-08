@@ -45,7 +45,7 @@ async function prepareDirectoryForRuntime(
   runMutation: <T>(task: () => Promise<T>) => Promise<T>,
   signal: AbortSignal
 ): Promise<IndexableKnowledgeItem[]> {
-  const expandedChildren = await expandDirectoryOwnerToTree(item, signal)
+  const expandedChildren = await expandDirectoryOwnerToTree(item, baseId, signal)
   signal.throwIfAborted()
 
   if (expandedChildren.length === 0) {

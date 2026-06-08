@@ -53,6 +53,7 @@ import { mapChunkDocument } from './utils/indexing/chunk'
 import { embedKnowledgeQuery } from './utils/indexing/embed'
 import { rerankKnowledgeSearchResults } from './utils/indexing/rerank'
 import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './utils/search'
+import { getKnowledgeBaseFilePath } from './utils/storage/pathStorage'
 
 const logger = loggerService.withContext('KnowledgeService')
 const SEARCH_TOKEN_PATTERN = /[\p{L}\p{N}_]+/u
@@ -62,7 +63,7 @@ const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
 
 @Injectable('KnowledgeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['KnowledgeVectorStoreService', 'FileManager', 'JobManager', 'FileProcessingService'])
+@DependsOn(['KnowledgeVectorStoreService', 'JobManager', 'FileProcessingService'])
 export class KnowledgeService extends BaseService {
   private readonly knowledgeLockManager = new KnowledgeLockManager()
   private readonly workflowService = new KnowledgeWorkflowService(this.knowledgeLockManager)
@@ -151,21 +152,7 @@ export class KnowledgeService extends BaseService {
     }
 
     const rootItems = await knowledgeItemService.getRootItemsByBaseId(sourceBase.id)
-    const inputs = rootItems.map((item) => {
-      try {
-        return KnowledgeRuntimeAddItemInputSchema.parse({
-          type: item.type,
-          data: item.data
-        })
-      } catch (error) {
-        throw DataApiErrorFactory.invalidOperation(
-          'restoreBase',
-          `Cannot restore knowledge item '${item.id}' (${item.type}): ${
-            error instanceof Error ? error.message : String(error)
-          }`
-        )
-      }
-    })
+    const inputs = rootItems.map((item) => this.toRestoreRuntimeInput(sourceBase.id, item))
     const restoredBase = await this.createBase(createDto)
     try {
       await this.addItems(restoredBase.id, inputs)
@@ -492,6 +479,32 @@ export class KnowledgeService extends BaseService {
       },
       'Cannot reindex knowledge item until the entire subtree is completed or failed'
     )
+  }
+
+  private toRestoreRuntimeInput(sourceBaseId: string, item: KnowledgeItem): KnowledgeRuntimeAddItemInput {
+    try {
+      if (item.type === 'file') {
+        return KnowledgeRuntimeAddItemInputSchema.parse({
+          type: 'file',
+          data: {
+            source: item.data.source,
+            path: getKnowledgeBaseFilePath(sourceBaseId, item.data.relativePath)
+          }
+        })
+      }
+
+      return KnowledgeRuntimeAddItemInputSchema.parse({
+        type: item.type,
+        data: item.data
+      })
+    } catch (error) {
+      throw DataApiErrorFactory.invalidOperation(
+        'restoreBase',
+        `Cannot restore knowledge item '${item.id}' (${item.type}): ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    }
   }
 
   private registerIpcHandlers(): void {

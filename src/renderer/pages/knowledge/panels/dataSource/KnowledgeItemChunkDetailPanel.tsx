@@ -124,11 +124,7 @@ const KnowledgeItemChunkDetailPanel = ({
   const [pendingDeleteChunk, setPendingDeleteChunk] = useState<KnowledgeItemChunk | null>(null)
   const keepDeleteDialogOpenRef = useRef(false)
   const item = fetchedItem ?? initialItem
-  const { data: fileEntry } = useQuery('/files/entries/:id', {
-    params: { id: item?.type === 'file' ? item.data.fileEntryId : '' },
-    enabled: item?.type === 'file'
-  })
-  const viewModel = item ? toKnowledgeItemRowViewModel(item, language, fileEntry) : null
+  const viewModel = item ? toKnowledgeItemRowViewModel(item, language) : null
   const Icon = viewModel?.icon.icon
   const typeMeta = item && viewModel ? viewModel.suffix || t(`knowledge.data_source.filters.${item.type}`) : ''
   const chunksCountMeta = t('knowledge.data_source.chunks_count', { count: chunks.length })

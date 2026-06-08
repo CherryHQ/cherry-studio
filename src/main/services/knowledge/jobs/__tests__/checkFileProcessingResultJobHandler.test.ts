@@ -9,16 +9,14 @@ import {
   createCheckFileProcessingResultJobHandler,
   createCtx,
   createFileItem,
-  createInternalEntryMock,
   createJobSnapshot,
-  FILE_ENTRY_ID,
   FILE_ITEM_ID,
   getJobMock,
   knowledgeItemGetByIdMock,
-  knowledgeItemReplaceFileRefMock,
+  knowledgeItemUpdateIndexedRelativePathMock,
   knowledgeItemUpdateStatusMock,
   knowledgeLockManager,
-  PROCESSED_FILE_ENTRY_ID,
+  PROCESSED_RELATIVE_PATH,
   workflowService
 } from './jobHandlerTestUtils'
 
@@ -28,7 +26,9 @@ function createFileProcessingJobSnapshot(overrides: Partial<ReturnType<typeof cr
     type: 'file-processing.remote-poll',
     input: {
       feature: 'document_to_markdown',
-      fileEntryId: FILE_ENTRY_ID,
+      file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/source.pdf' },
+      output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/source.md' },
+      context: { dataId: FILE_ITEM_ID },
       processorId: 'doc2x'
     }
   })
@@ -45,7 +45,6 @@ function createCheckPayload(
     baseId: 'kb-1',
     itemId: FILE_ITEM_ID,
     fileProcessingJobId: 'fp-job-1',
-    sourceFileEntryId: FILE_ENTRY_ID,
     pollRound: 0,
     firstScheduledAt: Date.now(),
     parentJobId: null,
@@ -82,18 +81,11 @@ describe('check-file-processing-result job handler', () => {
     )
     await handler.execute(ctx)
 
-    expect(workflowService.scheduleFileProcessingCheck).toHaveBeenCalledWith(
-      'kb-1',
-      FILE_ITEM_ID,
-      'fp-job-1',
-      FILE_ENTRY_ID,
-      {
-        pollRound: 3,
-        firstScheduledAt,
-        parentJobId: 'job-1'
-      }
-    )
-    expect(createInternalEntryMock).not.toHaveBeenCalled()
+    expect(workflowService.scheduleFileProcessingCheck).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'fp-job-1', {
+      pollRound: 3,
+      firstScheduledAt,
+      parentJobId: 'job-1'
+    })
     expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
     expect(ctx.reportProgress).toHaveBeenCalledWith(0, { stage: 'waiting', pollRound: 3 })
   })
@@ -115,17 +107,11 @@ describe('check-file-processing-result job handler', () => {
       )
     )
 
-    expect(workflowService.scheduleFileProcessingCheck).toHaveBeenCalledWith(
-      'kb-1',
-      FILE_ITEM_ID,
-      'fp-job-1',
-      FILE_ENTRY_ID,
-      {
-        pollRound: 3,
-        firstScheduledAt,
-        parentJobId: 'reindex-job'
-      }
-    )
+    expect(workflowService.scheduleFileProcessingCheck).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'fp-job-1', {
+      pollRound: 3,
+      firstScheduledAt,
+      parentJobId: 'reindex-job'
+    })
   })
 
   it('mirrors file-processing progress while polling', async () => {
@@ -178,14 +164,14 @@ describe('check-file-processing-result job handler', () => {
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'failed' })
   })
 
-  it('creates a processed artifact ref and schedules indexing on completion', async () => {
+  it('stores the processed artifact relative path and schedules indexing on completion', async () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
     knowledgeItemGetByIdMock.mockResolvedValue(createFileItem())
     getJobMock.mockResolvedValue(
       createFileProcessingJobSnapshot({
         status: 'completed',
         output: {
-          artifact: { kind: 'file', format: 'markdown', fileEntryId: PROCESSED_FILE_ENTRY_ID }
+          artifact: { kind: 'file', format: 'markdown', path: '/mock/feature.knowledgebase.data/kb-1/source.md' }
         }
       })
     )
@@ -193,17 +179,8 @@ describe('check-file-processing-result job handler', () => {
     const ctx = createCtx(createCheckPayload())
     await handler.execute(ctx)
 
-    expect(knowledgeItemReplaceFileRefMock).toHaveBeenCalledWith(
-      FILE_ITEM_ID,
-      PROCESSED_FILE_ENTRY_ID,
-      'processed_artifact'
-    )
-    expect(workflowService.scheduleIndexing).toHaveBeenCalledWith(
-      'kb-1',
-      FILE_ITEM_ID,
-      PROCESSED_FILE_ENTRY_ID,
-      'job-1'
-    )
+    expect(knowledgeItemUpdateIndexedRelativePathMock).toHaveBeenCalledWith(FILE_ITEM_ID, PROCESSED_RELATIVE_PATH)
+    expect(workflowService.scheduleIndexing).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'job-1')
     expect(workflowService.scheduleFileProcessingCheck).not.toHaveBeenCalled()
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done' })
   })
@@ -215,7 +192,7 @@ describe('check-file-processing-result job handler', () => {
       createFileProcessingJobSnapshot({
         status: 'completed',
         output: {
-          artifact: { kind: 'file', format: 'markdown', fileEntryId: PROCESSED_FILE_ENTRY_ID }
+          artifact: { kind: 'file', format: 'markdown', path: '/mock/feature.knowledgebase.data/kb-1/source.md' }
         }
       })
     )
@@ -228,12 +205,7 @@ describe('check-file-processing-result job handler', () => {
       )
     )
 
-    expect(workflowService.scheduleIndexing).toHaveBeenCalledWith(
-      'kb-1',
-      FILE_ITEM_ID,
-      PROCESSED_FILE_ENTRY_ID,
-      'reindex-job'
-    )
+    expect(workflowService.scheduleIndexing).toHaveBeenCalledWith('kb-1', FILE_ITEM_ID, 'reindex-job')
   })
 
   it('marks the item failed when the linked job is not the expected file-processing job', async () => {
@@ -243,7 +215,9 @@ describe('check-file-processing-result job handler', () => {
       createFileProcessingJobSnapshot({
         input: {
           feature: 'document_to_markdown',
-          fileEntryId: '019606a0-0000-7000-8000-000000000999',
+          file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/source.pdf' },
+          output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/source.md' },
+          context: { dataId: 'other-item' },
           processorId: 'doc2x'
         }
       })
@@ -255,7 +229,6 @@ describe('check-file-processing-result job handler', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
       error: 'Invalid file processing job for knowledge item: fp-job-1'
     })
-    expect(createInternalEntryMock).not.toHaveBeenCalled()
     expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'failed' })
   })
@@ -269,7 +242,7 @@ describe('check-file-processing-result job handler', () => {
       createFileProcessingJobSnapshot({
         status: 'completed',
         output: {
-          artifact: { kind: 'file', format: 'markdown', fileEntryId: PROCESSED_FILE_ENTRY_ID }
+          artifact: { kind: 'file', format: 'markdown', path: '/mock/feature.knowledgebase.data/kb-1/source.md' }
         }
       })
     )
@@ -277,8 +250,7 @@ describe('check-file-processing-result job handler', () => {
     const ctx = createCtx(createCheckPayload())
     await handler.execute(ctx)
 
-    expect(createInternalEntryMock).not.toHaveBeenCalled()
-    expect(knowledgeItemReplaceFileRefMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateIndexedRelativePathMock).not.toHaveBeenCalled()
     expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
     expect(ctx.reportProgress).not.toHaveBeenCalledWith(100, { stage: 'done' })
   })
@@ -299,7 +271,6 @@ describe('check-file-processing-result job handler', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
       error: 'File processing job fp-job-1 failed: processor failed'
     })
-    expect(createInternalEntryMock).not.toHaveBeenCalled()
     expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'failed' })
   })
@@ -322,7 +293,6 @@ describe('check-file-processing-result job handler', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
       error: 'Invalid file processing result for job fp-job-1'
     })
-    expect(createInternalEntryMock).not.toHaveBeenCalled()
     expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
   })
 

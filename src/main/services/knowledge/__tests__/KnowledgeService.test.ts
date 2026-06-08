@@ -10,6 +10,8 @@ import {
 import { IpcChannel } from '@shared/IpcChannel'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type * as PathStorage from '../utils/storage/pathStorage'
+
 const {
   cancelManyMock,
   cancelMock,
@@ -36,6 +38,9 @@ const {
   listMock,
   registerHandlerMock,
   rerankKnowledgeSearchResultsMock,
+  copyFileIntoKnowledgeBaseMock,
+  fsLstatMock,
+  fsStatMock,
   vectorDeleteByIdAndExternalIdMock,
   vectorListByExternalIdMock,
   vectorQueryMock
@@ -65,6 +70,9 @@ const {
   listMock: vi.fn(),
   registerHandlerMock: vi.fn(),
   rerankKnowledgeSearchResultsMock: vi.fn(),
+  copyFileIntoKnowledgeBaseMock: vi.fn(),
+  fsLstatMock: vi.fn(),
+  fsStatMock: vi.fn(),
   vectorDeleteByIdAndExternalIdMock: vi.fn(),
   vectorListByExternalIdMock: vi.fn(),
   vectorQueryMock: vi.fn()
@@ -102,6 +110,13 @@ vi.mock('@logger', () => ({
       info: vi.fn(),
       warn: vi.fn()
     })
+  }
+}))
+
+vi.mock('node:fs/promises', () => ({
+  default: {
+    lstat: fsLstatMock,
+    stat: fsStatMock
   }
 }))
 
@@ -148,6 +163,14 @@ vi.mock('../utils/indexing/rerank', () => ({
   rerankKnowledgeSearchResults: rerankKnowledgeSearchResultsMock
 }))
 
+vi.mock('../utils/storage/pathStorage', async () => {
+  const actual = await vi.importActual<typeof PathStorage>('../utils/storage/pathStorage')
+  return {
+    ...actual,
+    copyFileIntoKnowledgeBase: copyFileIntoKnowledgeBaseMock
+  }
+})
+
 const { KnowledgeService } = await import('../KnowledgeService')
 
 const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
@@ -156,8 +179,6 @@ const MISSING_NOTE_ITEM_ID = '0198f3f2-7d1c-7abc-8def-123456789abc'
 const FAILED_NOTE_ITEM_ID = '0198f3f2-7d1d-7abc-8def-123456789abc'
 const PROCESSING_NOTE_ITEM_ID = '0198f3f2-7d1e-7abc-8def-123456789abc'
 const EMBEDDING_NOTE_ITEM_ID = '0198f3f2-7d1f-7abc-8def-123456789abc'
-const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000501'
-
 function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   return {
     id: 'kb-1',
@@ -236,7 +257,7 @@ function createFileItem(
     baseId,
     groupId: null,
     type: 'file',
-    data: { source, fileEntryId: FILE_ENTRY_ID },
+    data: { source, relativePath: source.split('/').pop() ?? source },
     ...lifecycle,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -278,10 +299,24 @@ describe('KnowledgeService', () => {
     knowledgeBaseCreateMock.mockResolvedValue(createBase())
     knowledgeBaseDeleteMock.mockResolvedValue(undefined)
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase())
-    knowledgeItemCreateMock.mockImplementation(async (baseId: string, input: { data: { source: string } }) => {
-      createdItemBaseIds.set(input.data.source, baseId)
-      return createNoteItem(input.data.source, baseId)
+    fsStatMock.mockResolvedValue({
+      isFile: () => true,
+      size: 1024,
+      birthtime: new Date('2026-04-08T00:00:00.000Z')
     })
+    fsLstatMock.mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' }))
+    copyFileIntoKnowledgeBaseMock.mockImplementation(async (_baseId: string, sourcePath: string) => {
+      return sourcePath.split('/').pop() ?? sourcePath
+    })
+    knowledgeItemCreateMock.mockImplementation(
+      async (baseId: string, input: { type?: string; data: { source: string } }) => {
+        createdItemBaseIds.set(input.data.source, baseId)
+        if (input.type === 'file') {
+          return createFileItem(input.data.source, baseId, input.data.source)
+        }
+        return createNoteItem(input.data.source, baseId)
+      }
+    )
     knowledgeItemDeleteMock.mockResolvedValue(undefined)
     knowledgeItemGetDeletingRootGroupsMock.mockResolvedValue([])
     knowledgeItemGetByIdMock.mockImplementation(async (id: string) => {
@@ -324,7 +359,6 @@ describe('KnowledgeService', () => {
     expect(getPhase(KnowledgeService)).toBe(Phase.WhenReady)
     expect(getDependencies(KnowledgeService)).toEqual([
       'KnowledgeVectorStoreService',
-      'FileManager',
       'JobManager',
       'FileProcessingService'
     ])
@@ -494,7 +528,6 @@ describe('KnowledgeService', () => {
           baseId: 'kb-1',
           itemId: 'file-1',
           fileProcessingJobId: 'fp-job-1',
-          sourceFileEntryId: FILE_ENTRY_ID,
           pollRound: 0,
           firstScheduledAt: 1779811200000,
           parentJobId: null
@@ -653,12 +686,14 @@ describe('KnowledgeService', () => {
     knowledgeItemUpdateStatusMock.mockResolvedValueOnce(processingFile)
     knowledgeItemGetByIdMock.mockResolvedValueOnce(processingFile)
 
-    await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.pdf', fileEntryId: FILE_ENTRY_ID } }])
+    await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.pdf', path: '/docs/source.pdf' } }])
 
     expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
       {
         feature: 'document_to_markdown',
-        fileEntryId: FILE_ENTRY_ID,
+        file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/source.pdf' },
+        output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/source.md' },
+        context: { dataId: 'file-1' },
         processorId: 'doc2x'
       },
       {
@@ -671,7 +706,6 @@ describe('KnowledgeService', () => {
         baseId: 'kb-1',
         itemId: 'file-1',
         fileProcessingJobId: 'fp-job-1',
-        sourceFileEntryId: FILE_ENTRY_ID,
         pollRound: 0,
         firstScheduledAt: expect.any(Number),
         parentJobId: 'fp-job-1'
@@ -684,6 +718,38 @@ describe('KnowledgeService', () => {
       })
     )
     expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.index-documents', expect.anything(), expect.anything())
+  })
+
+  it('rejects duplicate uploaded file names before creating knowledge items', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: null }))
+
+    await expect(
+      service.addItems('kb-1', [
+        { type: 'file', data: { source: '/Users/me/a/notes.md', path: '/Users/me/a/notes.md' } },
+        { type: 'file', data: { source: '/Users/me/b/notes.md', path: '/Users/me/b/notes.md' } }
+      ])
+    ).rejects.toThrow('Knowledge file already exists: notes.md')
+
+    expect(knowledgeItemCreateMock).not.toHaveBeenCalled()
+    expect(copyFileIntoKnowledgeBaseMock).not.toHaveBeenCalled()
+    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects duplicate processed markdown names before creating knowledge items', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: 'doc2x' }))
+
+    await expect(
+      service.addItems('kb-1', [
+        { type: 'file', data: { source: '/Users/me/a/brief.pdf', path: '/Users/me/a/brief.pdf' } },
+        { type: 'file', data: { source: '/Users/me/b/brief.docx', path: '/Users/me/b/brief.docx' } }
+      ])
+    ).rejects.toThrow('Knowledge file already exists: brief.md')
+
+    expect(knowledgeItemCreateMock).not.toHaveBeenCalled()
+    expect(copyFileIntoKnowledgeBaseMock).not.toHaveBeenCalled()
+    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
   })
 
   it('passes the parent job when starting file processing during reindex', async () => {
@@ -704,7 +770,9 @@ describe('KnowledgeService', () => {
     expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
       {
         feature: 'document_to_markdown',
-        fileEntryId: FILE_ENTRY_ID,
+        file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/source.pdf' },
+        output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/source.md' },
+        context: { dataId: 'file-1' },
         processorId: 'doc2x'
       },
       {
@@ -717,7 +785,6 @@ describe('KnowledgeService', () => {
         baseId: 'kb-1',
         itemId: 'file-1',
         fileProcessingJobId: 'fp-job-1',
-        sourceFileEntryId: FILE_ENTRY_ID,
         pollRound: 0,
         firstScheduledAt: expect.any(Number),
         parentJobId: 'reindex-job'
@@ -809,14 +876,13 @@ describe('KnowledgeService', () => {
             baseId: string,
             itemId: string,
             fileProcessingJobId: string,
-            sourceFileEntryId: string,
             options: { pollRound: number; firstScheduledAt: number; parentJobId: string | null }
           ): Promise<void>
         }
       }
     ).workflowService
 
-    await workflowService.scheduleFileProcessingCheck('kb-1', 'file-1', 'fp-job-1', FILE_ENTRY_ID, {
+    await workflowService.scheduleFileProcessingCheck('kb-1', 'file-1', 'fp-job-1', {
       pollRound: 1,
       firstScheduledAt: Date.parse('2026-04-08T00:00:00.000Z'),
       parentJobId: 'check-job-0'
@@ -828,7 +894,6 @@ describe('KnowledgeService', () => {
         baseId: 'kb-1',
         itemId: 'file-1',
         fileProcessingJobId: 'fp-job-1',
-        sourceFileEntryId: FILE_ENTRY_ID,
         pollRound: 1,
         firstScheduledAt: Date.parse('2026-04-08T00:00:00.000Z'),
         parentJobId: 'check-job-0'
@@ -851,7 +916,7 @@ describe('KnowledgeService', () => {
     knowledgeItemUpdateStatusMock.mockResolvedValueOnce(processingFile)
     knowledgeItemGetByIdMock.mockResolvedValueOnce(processingFile)
 
-    await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.md', fileEntryId: FILE_ENTRY_ID } }])
+    await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.md', path: '/docs/source.md' } }])
 
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
     expect(enqueueMock).toHaveBeenCalledWith(
@@ -874,7 +939,7 @@ describe('KnowledgeService', () => {
     knowledgeItemUpdateStatusMock.mockResolvedValueOnce(processingFile)
     knowledgeItemGetByIdMock.mockResolvedValueOnce(processingFile)
 
-    await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.pdf', fileEntryId: FILE_ENTRY_ID } }])
+    await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.pdf', path: '/docs/source.pdf' } }])
 
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
     expect(enqueueMock).toHaveBeenCalledWith(

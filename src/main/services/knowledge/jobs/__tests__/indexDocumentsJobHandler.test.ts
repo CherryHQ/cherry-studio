@@ -15,8 +15,6 @@ import {
   knowledgeLockManager,
   loadKnowledgeItemDocumentsMock,
   NOTE_ITEM_ID,
-  PROCESSED_FILE_ENTRY_ID,
-  rebuildFileRefsForItemsMock,
   replaceByExternalIdMock
 } from './jobHandlerTestUtils'
 
@@ -28,7 +26,6 @@ describe('index-documents job handler', () => {
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
 
-    expect(rebuildFileRefsForItemsMock).toHaveBeenCalledWith([NOTE_ITEM_ID])
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'reading')
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'embedding')
     expect(replaceByExternalIdMock).toHaveBeenCalledWith(NOTE_ITEM_ID, expect.any(Array))
@@ -36,7 +33,7 @@ describe('index-documents job handler', () => {
     expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null })).toBe('base.kb-1')
   })
 
-  it('passes processed artifact file entries to the reader', async () => {
+  it('passes file items to the reader without a fileEntry override', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock.mockResolvedValue(createFileItem(FILE_ITEM_ID))
 
@@ -44,15 +41,13 @@ describe('index-documents job handler', () => {
       createCtx({
         baseId: 'kb-1',
         itemId: FILE_ITEM_ID,
-        parentJobId: null,
-        processedFileEntryId: PROCESSED_FILE_ENTRY_ID
+        parentJobId: null
       })
     )
 
     expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(
       expect.objectContaining({ id: FILE_ITEM_ID }),
-      expect.any(AbortSignal),
-      { fileEntryId: PROCESSED_FILE_ENTRY_ID }
+      expect.any(AbortSignal)
     )
   })
 
@@ -64,7 +59,6 @@ describe('index-documents job handler', () => {
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
 
-    expect(rebuildFileRefsForItemsMock).toHaveBeenCalledWith([NOTE_ITEM_ID])
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'reading')
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'embedding')
     expect(replaceByExternalIdMock).toHaveBeenCalledWith(NOTE_ITEM_ID, [])

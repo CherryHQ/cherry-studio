@@ -89,7 +89,7 @@ describe('KnowledgeBaseService', () => {
       type: 'file',
       data: {
         source: '/docs/source-file.md',
-        fileEntryId: FILE_ENTRY_ID
+        relativePath: 'source-file.md'
       },
       status: 'completed',
       error: null,

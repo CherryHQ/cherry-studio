@@ -7,22 +7,13 @@ import { loadUrlDocuments } from './KnowledgeUrlReader'
 
 export type ReadableKnowledgeItem = KnowledgeItemOf<'file'> | KnowledgeItemOf<'url'> | KnowledgeItemOf<'note'>
 
-export interface LoadKnowledgeItemDocumentsOptions {
-  fileEntryId?: KnowledgeItemOf<'file'>['data']['fileEntryId']
-}
-
 export async function loadKnowledgeItemDocuments(
   item: ReadableKnowledgeItem,
-  signal?: AbortSignal,
-  options: LoadKnowledgeItemDocumentsOptions = {}
+  signal?: AbortSignal
 ): Promise<Document[]> {
-  if (item.type !== 'file' && options.fileEntryId !== undefined) {
-    throw new Error(`fileEntryId override is only supported for file knowledge items: ${item.type}`)
-  }
-
   switch (item.type) {
     case 'file':
-      return await loadFileDocuments(item, options.fileEntryId ?? item.data.fileEntryId)
+      return await loadFileDocuments(item)
     case 'url':
       return await loadUrlDocuments(item, signal)
     case 'note':

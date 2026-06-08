@@ -10,7 +10,6 @@ const mockUseKnowledgePage = vi.fn()
 const mockUseAddKnowledgeItems = vi.fn()
 const mockSelectFolder = vi.fn()
 const mockGetPathForFile = vi.fn()
-const mockEnsureExternalEntry = vi.fn()
 
 const setMockAcceptedFiles = (files: File[]) => {
   mockAcceptedFiles = files
@@ -18,16 +17,6 @@ const setMockAcceptedFiles = (files: File[]) => {
 
 const createMockFile = (name: string, size: number) =>
   new File([new Uint8Array(size)], name, { type: 'application/octet-stream' })
-
-const createExternalFileEntry = ({ id, name, path }: { id: string; name: string; path: string }) => ({
-  id,
-  name: name.replace(/\.pdf$/i, ''),
-  ext: 'pdf',
-  origin: 'external' as const,
-  externalPath: path,
-  createdAt: 1776948000000,
-  updatedAt: 1776948000000
-})
 
 vi.mock('../../KnowledgePageProvider', () => ({
   useKnowledgePage: () => mockUseKnowledgePage()
@@ -199,7 +188,6 @@ describe('AddKnowledgeItemDialog', () => {
     mockGetPathForFile.mockImplementation((file: File) => `/external/${file.name}`)
     ;(window as any).api = {
       file: {
-        ensureExternalEntry: mockEnsureExternalEntry,
         getPathForFile: mockGetPathForFile,
         selectFolder: mockSelectFolder
       }
@@ -419,12 +407,6 @@ describe('AddKnowledgeItemDialog', () => {
 
   it('submits file source through generic hook with real file paths', async () => {
     const onOpenChange = vi.fn()
-    const fileEntry = createExternalFileEntry({
-      id: '019606a0-0000-7000-8000-000000000001',
-      name: 'alpha.pdf',
-      path: '/external/alpha.pdf'
-    })
-    mockEnsureExternalEntry.mockResolvedValueOnce(fileEntry)
     mockSubmitKnowledgeItems.mockResolvedValueOnce(undefined)
     renderControlledDialog(onOpenChange)
 
@@ -439,31 +421,25 @@ describe('AddKnowledgeItemDialog', () => {
           type: 'file',
           data: {
             source: '/external/alpha.pdf',
-            fileEntryId: fileEntry.id
+            path: '/external/alpha.pdf'
           }
         }
       ])
     })
     expect(mockGetPathForFile).toHaveBeenCalledWith(selectedFile)
-    expect(mockEnsureExternalEntry).toHaveBeenCalledWith({ externalPath: '/external/alpha.pdf' })
     expect(window.toast.success).not.toHaveBeenCalled()
     expect(window.toast.error).not.toHaveBeenCalled()
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('disables submit while file entry resolution is pending', async () => {
-    let resolveEntry: (value: ReturnType<typeof createExternalFileEntry>) => void = () => undefined
-    const fileEntryPromise = new Promise<ReturnType<typeof createExternalFileEntry>>((resolve) => {
-      resolveEntry = resolve
+  it('disables submit while file path resolution is pending', async () => {
+    const onOpenChange = vi.fn()
+    let resolveSubmit: () => void = () => undefined
+    const submitPromise = new Promise<void>((resolve) => {
+      resolveSubmit = resolve
     })
-    const fileEntry = createExternalFileEntry({
-      id: '019606a0-0000-7000-8000-000000000001',
-      name: 'alpha.pdf',
-      path: '/external/alpha.pdf'
-    })
-    mockEnsureExternalEntry.mockReturnValueOnce(fileEntryPromise)
-    mockSubmitKnowledgeItems.mockResolvedValueOnce(undefined)
-    renderControlledDialog()
+    mockSubmitKnowledgeItems.mockReturnValueOnce(submitPromise)
+    renderControlledDialog(onOpenChange)
 
     setMockAcceptedFiles([createMockFile('alpha.pdf', 1024)])
     fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
@@ -472,24 +448,21 @@ describe('AddKnowledgeItemDialog', () => {
     fireEvent.click(addButton)
     fireEvent.click(addButton)
 
-    expect(addButton).toBeDisabled()
-    expect(mockEnsureExternalEntry).toHaveBeenCalledTimes(1)
-
-    resolveEntry(fileEntry)
-
     await waitFor(() => {
       expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1)
     })
+    expect(addButton).toBeDisabled()
+    expect(mockGetPathForFile).toHaveBeenCalledTimes(1)
+
+    resolveSubmit()
+
+    await waitFor(() => {
+      expect(onOpenChange).toHaveBeenCalledWith(false)
+    })
   })
+
   it('shows inline error and keeps selected files when create submit fails', async () => {
     const onOpenChange = vi.fn()
-    mockEnsureExternalEntry.mockResolvedValueOnce(
-      createExternalFileEntry({
-        id: '019606a0-0000-7000-8000-000000000001',
-        name: 'alpha.pdf',
-        path: '/external/alpha.pdf'
-      })
-    )
     mockSubmitKnowledgeItems.mockRejectedValueOnce(new Error('create failed'))
     renderControlledDialog(onOpenChange)
 
@@ -518,13 +491,6 @@ describe('AddKnowledgeItemDialog', () => {
         }
       ]
     })}`
-    mockEnsureExternalEntry.mockResolvedValueOnce(
-      createExternalFileEntry({
-        id: '019606a0-0000-7000-8000-000000000001',
-        name: 'alpha.pdf',
-        path: '/external/alpha.pdf'
-      })
-    )
     mockSubmitKnowledgeItems.mockRejectedValueOnce(new Error(longErrorMessage))
     renderControlledDialog(onOpenChange)
 
@@ -550,12 +516,6 @@ describe('AddKnowledgeItemDialog', () => {
 
   it('closes without toast when runtime fails after creating items', async () => {
     const onOpenChange = vi.fn()
-    const fileEntry = createExternalFileEntry({
-      id: '019606a0-0000-7000-8000-000000000001',
-      name: 'alpha.pdf',
-      path: '/external/alpha.pdf'
-    })
-    mockEnsureExternalEntry.mockResolvedValueOnce(fileEntry)
     mockSubmitKnowledgeItems.mockResolvedValueOnce(undefined)
     renderControlledDialog(onOpenChange)
 

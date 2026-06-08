@@ -81,7 +81,7 @@ function createFileItem(id = 'file-1', groupId: string | null = null): Knowledge
     type: 'file',
     data: {
       source: `/docs/${id}.md`,
-      fileEntryId: '019606a0-0000-7000-8000-000000000001'
+      relativePath: `${id}.md`
     },
     status: 'processing',
     error: null,
@@ -152,7 +152,7 @@ describe('prepareKnowledgeItem', () => {
     const options = createPrepareOptions(root)
     await expect(prepareKnowledgeItem(options)).resolves.toEqual([childFile])
 
-    expect(expandDirectoryOwnerToTreeMock).toHaveBeenCalledWith(root, options.signal)
+    expect(expandDirectoryOwnerToTreeMock).toHaveBeenCalledWith(root, baseId, options.signal)
     expect(knowledgeItemCreateMock).toHaveBeenNthCalledWith(1, baseId, {
       groupId: root.id,
       type: 'directory',
@@ -193,7 +193,7 @@ describe('prepareKnowledgeItem', () => {
       type: 'file',
       data: {
         source: '/docs/file-child.md',
-        fileEntryId: '019606a0-0000-7000-8000-000000000001'
+        relativePath: 'file-child.md'
       },
       status: 'idle',
       error: null,
@@ -221,7 +221,7 @@ describe('prepareKnowledgeItem', () => {
           type: 'file',
           data: {
             source: '/docs/file-child.md',
-            fileEntryId: '019606a0-0000-7000-8000-000000000001'
+            relativePath: 'file-child.md'
           }
         }
       ]

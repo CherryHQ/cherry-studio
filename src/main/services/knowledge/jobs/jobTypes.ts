@@ -16,13 +16,11 @@ declare module '@main/core/job/jobRegistry' {
       baseId: string
       itemId: string
       parentJobId: string | null
-      processedFileEntryId?: string
     }
     'knowledge.check-file-processing-result': {
       baseId: string
       itemId: string
       fileProcessingJobId: string
-      sourceFileEntryId: string
       pollRound: number
       firstScheduledAt: number
       parentJobId: string | null

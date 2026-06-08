@@ -1,14 +1,17 @@
 import fs from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
-import { application } from '@application'
 import { loggerService } from '@logger'
-import { sanitizeFilename } from '@main/utils/file'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { BaseVectorStore } from '@vectorstores/core'
 import { LibSQLVectorStore } from '@vectorstores/libsql'
 
+import {
+  deleteKnowledgeBaseDir,
+  getKnowledgeVectorStoreFilePath,
+  getKnowledgeVectorStoreFilePathSync
+} from '../../utils/storage/pathStorage'
 import type { BaseVectorStoreProvider } from './BaseVectorStoreProvider'
 
 const logger = loggerService.withContext('LibSqlVectorStoreProvider')
@@ -28,7 +31,7 @@ export class LibSqlVectorStoreProvider implements BaseVectorStoreProvider {
     }
 
     const dimensions = base.dimensions
-    const dbPath = await this.getKnowledgeBaseFilePath(base.id)
+    const dbPath = await getKnowledgeVectorStoreFilePath(base.id)
 
     return new LibSQLVectorStore({
       collection: base.id,
@@ -40,12 +43,12 @@ export class LibSqlVectorStoreProvider implements BaseVectorStoreProvider {
   }
 
   async delete(baseId: string): Promise<void> {
-    const dbPath = await this.getKnowledgeBaseFilePath(baseId)
+    const dbPath = getKnowledgeVectorStoreFilePathSync(baseId)
 
     try {
-      await fs.promises.rm(dbPath, { force: true })
+      await deleteKnowledgeBaseDir(baseId)
     } catch (error) {
-      logger.error('Failed to delete knowledge base vector store file', error as Error, {
+      logger.error('Failed to delete knowledge base directory', error as Error, {
         baseId,
         dbPath
       })
@@ -54,7 +57,7 @@ export class LibSqlVectorStoreProvider implements BaseVectorStoreProvider {
   }
 
   async exists(baseId: string): Promise<boolean> {
-    const dbPath = await this.getKnowledgeBaseFilePath(baseId)
+    const dbPath = getKnowledgeVectorStoreFilePathSync(baseId)
 
     try {
       const stat = await fs.promises.stat(dbPath)
@@ -66,10 +69,6 @@ export class LibSqlVectorStoreProvider implements BaseVectorStoreProvider {
 
       throw error
     }
-  }
-
-  private async getKnowledgeBaseFilePath(baseId: string): Promise<string> {
-    return application.getPath('feature.knowledgebase.data', sanitizeFilename(baseId, '_'))
   }
 }
 

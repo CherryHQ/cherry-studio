@@ -5,8 +5,6 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
-import type { FileEntryId } from '@shared/data/types/file'
-import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
@@ -56,16 +54,11 @@ export function createIndexDocumentsJobHandler(
       // Mark reading before file/network IO so the UI reflects the current long-running phase.
       reportKnowledgeProgress(ctx, 0, { stage: 'reading', currentFile: 0, totalFiles: 1 })
       await knowledgeLockManager.withBaseMutationLock(ctx.input.baseId, async () => {
-        await knowledgeItemService.rebuildFileRefsForItems([ctx.input.itemId])
         await knowledgeItemService.updateStatus(ctx.input.itemId, 'reading')
       })
 
       // Read and chunk outside the base lock; these phases can be slow and do not mutate shared state.
-      const processedFileEntryId =
-        ctx.input.processedFileEntryId === undefined
-          ? undefined
-          : FileEntryIdSchema.parse(ctx.input.processedFileEntryId)
-      const documents = await readItemDocuments(ctx, item, processedFileEntryId)
+      const documents = await readItemDocuments(ctx, item)
       const chunks = chunkItemDocuments(base, item, documents)
 
       // Mark embedding separately so the UI reflects the current long-running phase.
@@ -126,11 +119,10 @@ async function loadIndexDocumentsInputOrSkip(
 
 async function readItemDocuments(
   ctx: JobContext<KnowledgeIndexDocumentsPayload>,
-  item: IndexableKnowledgeItem,
-  fileEntryId?: FileEntryId
+  item: IndexableKnowledgeItem
 ): Promise<LoadedDocuments> {
   ctx.signal.throwIfAborted()
-  return await loadKnowledgeItemDocuments(item, ctx.signal, { fileEntryId })
+  return await loadKnowledgeItemDocuments(item, ctx.signal)
 }
 
 function chunkItemDocuments(

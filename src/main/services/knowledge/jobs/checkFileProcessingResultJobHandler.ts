@@ -6,16 +6,16 @@ import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { JOB_PROGRESS_KEY_PREFIX } from '@main/core/job/types'
 import { isTerminalStatus, type JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { FileEntryId } from '@shared/data/types/file'
-import { FileEntryIdSchema } from '@shared/data/types/file'
 
 import {
   getFileProcessingFailureMessage,
-  getFileProcessingMarkdownArtifactFileEntryId
+  getFileProcessingMarkdownArtifactPath
 } from '../../fileProcessing/persistence/artifacts'
+import type { FileProcessingJobPayload } from '../../fileProcessing/tasks/shared'
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import type { KnowledgeWorkflowService } from '../KnowledgeWorkflowService'
 import { knowledgeQueueName, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
+import { toKnowledgeRelativePath } from '../utils/storage/pathStorage'
 import type { KnowledgeCheckFileProcessingResultPayload } from './jobTypes'
 import { cancelJobOrThrow } from './utils/cancel'
 import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
@@ -43,7 +43,6 @@ export function createCheckFileProcessingResultJobHandler(
 
     async execute(ctx) {
       const { baseId, itemId, fileProcessingJobId } = ctx.input
-      const sourceFileEntryId = FileEntryIdSchema.parse(ctx.input.sourceFileEntryId)
       const firstScheduledAt = ctx.input.firstScheduledAt
       const workflowParentJobId = ctx.input.parentJobId ?? ctx.jobId
       ctx.signal.throwIfAborted()
@@ -62,7 +61,7 @@ export function createCheckFileProcessingResultJobHandler(
         return
       }
 
-      if (!isExpectedFileProcessingJob(snapshot, sourceFileEntryId)) {
+      if (!isExpectedFileProcessingJob(snapshot, itemId)) {
         await markItemFailed(itemId, `Invalid file processing job for knowledge item: ${fileProcessingJobId}`)
         ctx.reportProgress(100, { stage: 'failed' })
         return
@@ -81,7 +80,6 @@ export function createCheckFileProcessingResultJobHandler(
           toKnowledgeBaseId(baseId),
           toKnowledgeItemId(itemId),
           fileProcessingJobId,
-          sourceFileEntryId,
           {
             pollRound: nextPollRound,
             firstScheduledAt,
@@ -101,8 +99,8 @@ export function createCheckFileProcessingResultJobHandler(
         return
       }
 
-      const processedFileEntryId = parseMarkdownArtifactFileEntryIdOrNull(snapshot)
-      if (!processedFileEntryId) {
+      const indexedRelativePath = parseMarkdownArtifactRelativePathOrNull(baseId, snapshot)
+      if (!indexedRelativePath) {
         await markItemFailed(itemId, `Invalid file processing result for job ${fileProcessingJobId}`)
         ctx.reportProgress(100, { stage: 'failed' })
         return
@@ -113,11 +111,10 @@ export function createCheckFileProcessingResultJobHandler(
           return false
         }
 
-        await knowledgeItemService.replaceFileRef(itemId, processedFileEntryId, 'processed_artifact')
+        await knowledgeItemService.updateIndexedRelativePath(itemId, indexedRelativePath)
         await workflowService.scheduleIndexing(
           toKnowledgeBaseId(baseId),
           toKnowledgeItemId(itemId),
-          processedFileEntryId,
           workflowParentJobId
         )
         return true
@@ -157,19 +154,15 @@ function reportWaitingProgress(
   })
 }
 
-function isExpectedFileProcessingJob(snapshot: JobSnapshot, sourceFileEntryId: FileEntryId): boolean {
+function isExpectedFileProcessingJob(snapshot: JobSnapshot, itemId: string): boolean {
   if (snapshot.type !== 'file-processing.background' && snapshot.type !== 'file-processing.remote-poll') {
     return false
   }
   if (!snapshot.input || typeof snapshot.input !== 'object') {
     return false
   }
-  return (
-    'feature' in snapshot.input &&
-    snapshot.input.feature === 'document_to_markdown' &&
-    'fileEntryId' in snapshot.input &&
-    snapshot.input.fileEntryId === sourceFileEntryId
-  )
+  const input = snapshot.input as FileProcessingJobPayload
+  return input.feature === 'document_to_markdown' && input.context?.dataId === itemId && input.output?.kind === 'path'
 }
 
 async function shouldSkipMissingOrDeletingItem(baseId: string, itemId: string, jobId: string): Promise<boolean> {
@@ -209,9 +202,9 @@ async function markItemFailed(itemId: string, error: string): Promise<void> {
   }
 }
 
-function parseMarkdownArtifactFileEntryIdOrNull(snapshot: JobSnapshot): FileEntryId | null {
+function parseMarkdownArtifactRelativePathOrNull(baseId: string, snapshot: JobSnapshot): string | null {
   try {
-    return getFileProcessingMarkdownArtifactFileEntryId(snapshot)
+    return toKnowledgeRelativePath(baseId, getFileProcessingMarkdownArtifactPath(snapshot))
   } catch (error) {
     logger.warn('Invalid file-processing result for knowledge item', {
       jobId: snapshot.id,

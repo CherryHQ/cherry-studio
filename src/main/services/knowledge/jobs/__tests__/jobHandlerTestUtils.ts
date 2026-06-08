@@ -1,13 +1,13 @@
 import type { JobContext } from '@main/core/job/types'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { FileEntryId } from '@shared/data/types/file'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { beforeEach, vi } from 'vitest'
 
+import type * as PathStorage from '../../utils/storage/pathStorage'
+
 const mocks = vi.hoisted(() => ({
   cancelMock: vi.fn(),
-  createInternalEntryMock: vi.fn(),
   createStoreMock: vi.fn(),
   enqueueMock: vi.fn(),
   getJobMock: vi.fn(),
@@ -18,8 +18,7 @@ const mocks = vi.hoisted(() => ({
   knowledgeItemGetSubtreeItemsMock: vi.fn(),
   knowledgeItemSetSubtreeStatusMock: vi.fn(),
   knowledgeItemUpdateStatusMock: vi.fn(),
-  knowledgeItemReplaceFileRefMock: vi.fn(),
-  rebuildFileRefsForItemsMock: vi.fn(),
+  knowledgeItemUpdateIndexedRelativePathMock: vi.fn(),
   listMock: vi.fn(),
   loadKnowledgeItemDocumentsMock: vi.fn(),
   prepareKnowledgeItemMock: vi.fn(),
@@ -29,7 +28,6 @@ const mocks = vi.hoisted(() => ({
 
 export const {
   cancelMock,
-  createInternalEntryMock,
   createStoreMock,
   enqueueMock,
   getJobMock,
@@ -40,8 +38,7 @@ export const {
   knowledgeItemGetSubtreeItemsMock,
   knowledgeItemSetSubtreeStatusMock,
   knowledgeItemUpdateStatusMock,
-  knowledgeItemReplaceFileRefMock,
-  rebuildFileRefsForItemsMock,
+  knowledgeItemUpdateIndexedRelativePathMock,
   listMock,
   loadKnowledgeItemDocumentsMock,
   prepareKnowledgeItemMock,
@@ -57,9 +54,6 @@ vi.mock('@application', async () => {
       enqueue: enqueueMock,
       get: getJobMock,
       list: listMock
-    },
-    FileManager: {
-      createInternalEntry: createInternalEntryMock
     },
     KnowledgeVectorStoreService: {
       createStore: createStoreMock,
@@ -89,9 +83,8 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
     getById: knowledgeItemGetByIdMock,
     getSubtreeItems: knowledgeItemGetSubtreeItemsMock,
     deleteItemsByIds: deleteItemsByIdsMock,
-    rebuildFileRefsForItems: rebuildFileRefsForItemsMock,
-    replaceFileRef: knowledgeItemReplaceFileRefMock,
     setSubtreeStatus: knowledgeItemSetSubtreeStatusMock,
+    updateIndexedRelativePath: knowledgeItemUpdateIndexedRelativePathMock,
     updateStatus: knowledgeItemUpdateStatusMock
   }
 }))
@@ -103,6 +96,14 @@ vi.mock('../../readers/KnowledgeReader', () => ({
 vi.mock('../../utils/sources/prepare', () => ({
   prepareKnowledgeItem: prepareKnowledgeItemMock
 }))
+
+vi.mock('../../utils/storage/pathStorage', async () => {
+  const actual = await vi.importActual<typeof PathStorage>('../../utils/storage/pathStorage')
+  return {
+    ...actual,
+    deleteKnowledgeItemFiles: vi.fn()
+  }
+})
 
 vi.mock('../../utils/indexing/embed', () => ({
   embedKnowledgeDocuments: vi.fn(async (_base, documents: unknown[]) =>
@@ -118,8 +119,8 @@ export const { createReindexSubtreeJobHandler } = await import('../reindexSubtre
 
 export const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 export const FILE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abd'
-export const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000501' as FileEntryId
-export const PROCESSED_FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000502' as FileEntryId
+export const FILE_RELATIVE_PATH = 'source.pdf'
+export const PROCESSED_RELATIVE_PATH = 'source.md'
 type KnowledgeJobSnapshotInput = Pick<JobSnapshot, 'type' | 'input'> & Partial<JobSnapshot>
 
 export function createBase(): KnowledgeBase {
@@ -171,7 +172,7 @@ export function createFileItem(
     baseId: 'kb-1',
     groupId: null,
     type: 'file',
-    data: { source: '/docs/source.pdf', fileEntryId: FILE_ENTRY_ID },
+    data: { source: '/docs/source.pdf', relativePath: FILE_RELATIVE_PATH },
     status,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
@@ -281,10 +282,8 @@ beforeEach(() => {
   listMock.mockResolvedValue([])
   getJobMock.mockResolvedValue(null)
   enqueueMock.mockResolvedValue({ id: 'job-index', snapshot: {}, finished: Promise.resolve({}) })
-  createInternalEntryMock.mockResolvedValue({ id: PROCESSED_FILE_ENTRY_ID })
-  knowledgeItemReplaceFileRefMock.mockResolvedValue(undefined)
+  knowledgeItemUpdateIndexedRelativePathMock.mockResolvedValue(createFileItem())
   deleteItemsByIdsMock.mockResolvedValue(undefined)
-  rebuildFileRefsForItemsMock.mockResolvedValue(undefined)
   cancelMock.mockResolvedValue({ outcome: 'cancelled' })
   workflowService.scheduleFileProcessingCheck.mockResolvedValue(undefined)
   workflowService.scheduleIndexing.mockResolvedValue(undefined)

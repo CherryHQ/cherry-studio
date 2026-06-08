@@ -32,6 +32,6 @@ function needsFileProcessing(base: KnowledgeBase, item: KnowledgeItem): boolean 
     return false
   }
 
-  const ext = getFileExt(item.data.source).toLowerCase()
+  const ext = getFileExt(item.data.relativePath).toLowerCase()
   return documentExts.includes(ext)
 }

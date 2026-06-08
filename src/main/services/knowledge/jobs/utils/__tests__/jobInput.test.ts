@@ -26,8 +26,7 @@ describe('narrowKnowledgeJobInput', () => {
         input: {
           baseId: 'kb-1',
           itemId: 'file-1',
-          parentJobId: 'reindex-job',
-          processedFileEntryId: '019606a0-0000-7000-8000-000000000001'
+          parentJobId: 'reindex-job'
         }
       })
     ).toEqual({
@@ -35,8 +34,7 @@ describe('narrowKnowledgeJobInput', () => {
       input: {
         baseId: 'kb-1',
         itemId: 'file-1',
-        parentJobId: 'reindex-job',
-        processedFileEntryId: '019606a0-0000-7000-8000-000000000001'
+        parentJobId: 'reindex-job'
       }
     })
   })
@@ -49,7 +47,6 @@ describe('narrowKnowledgeJobInput', () => {
           baseId: 'kb-1',
           itemId: 'file-1',
           fileProcessingJobId: 'fp-job-1',
-          sourceFileEntryId: '019606a0-0000-7000-8000-000000000001',
           pollRound: 2,
           firstScheduledAt: 1779811200000,
           parentJobId: 'reindex-job'
@@ -61,7 +58,6 @@ describe('narrowKnowledgeJobInput', () => {
         baseId: 'kb-1',
         itemId: 'file-1',
         fileProcessingJobId: 'fp-job-1',
-        sourceFileEntryId: '019606a0-0000-7000-8000-000000000001',
         pollRound: 2,
         firstScheduledAt: 1779811200000,
         parentJobId: 'reindex-job'
@@ -94,7 +90,7 @@ describe('narrowKnowledgeJobInput', () => {
         input: {
           baseId: 'kb-1',
           itemId: 'file-1',
-          sourceFileEntryId: '019606a0-0000-7000-8000-000000000001'
+          fileProcessingJobId: 'fp-job-1'
         }
       })
     ).toBeNull()
@@ -111,12 +107,6 @@ describe('narrowKnowledgeJobInput', () => {
       narrowKnowledgeJobInput({
         type: 'knowledge.index-documents',
         input: { baseId: 'kb-1', itemId: 'file-1', parentJobId: 1 }
-      })
-    ).toBeNull()
-    expect(
-      narrowKnowledgeJobInput({
-        type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'file-1', parentJobId: null, processedFileEntryId: null }
       })
     ).toBeNull()
   })

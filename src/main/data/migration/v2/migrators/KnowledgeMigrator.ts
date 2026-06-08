@@ -5,7 +5,6 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { assistantKnowledgeBaseTable } from '@data/db/schemas/assistantRelations'
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { createClient, type Value as LibsqlValue } from '@libsql/client'
@@ -13,10 +12,8 @@ import { loggerService } from '@logger'
 import { sanitizeFilename } from '@main/utils/file'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
-import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
-import { inArray, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
+import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -168,20 +165,9 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.skippedWarnings.clear()
   }
 
-  private removeLegacyItemRemapByMigratedId(migratedItemId: string): void {
-    for (const [legacyItemId, mappedItemId] of this.legacyItemIdRemap) {
-      if (mappedItemId === migratedItemId) {
-        this.legacyItemIdRemap.delete(legacyItemId)
-        return
-      }
-    }
-  }
-
   private getEffectiveSkippedCount(): number {
     return this.skippedCount + this.skippedPreparedItemIds.size
   }
-
-  private static readonly INARRAY_CHUNK = 500
 
   private async dropDanglingAssistantKnowledgeBaseRefs(ctx: MigrationContext): Promise<void> {
     await ctx.db
@@ -189,35 +175,6 @@ export class KnowledgeMigrator extends BaseMigrator {
       .where(
         sql`${assistantKnowledgeBaseTable.knowledgeBaseId} NOT IN (SELECT ${knowledgeBaseTable.id} FROM ${knowledgeBaseTable})`
       )
-  }
-
-  // Queries `file_entry` for the subset of legacyFileIds we plan to reference,
-  // so the `fileRefRows` loop can drop dangling refs *before* the engine's
-  // post-migration `PRAGMA foreign_key_check` runs and aborts the whole user.
-  private async loadMigratedFileEntryIds(ctx: MigrationContext): Promise<Set<string>> {
-    const legacyFileIds = new Set<string>()
-    for (const item of this.preparedItems) {
-      if (item.type !== 'file') continue
-      const fileData = item.data as { fileEntryId?: string } | undefined
-      const id = fileData?.fileEntryId
-      if (id) legacyFileIds.add(id)
-    }
-
-    if (legacyFileIds.size === 0) {
-      return new Set<string>()
-    }
-
-    const allIds = [...legacyFileIds]
-    const result = new Set<string>()
-    for (let i = 0; i < allIds.length; i += KnowledgeMigrator.INARRAY_CHUNK) {
-      const chunk = allIds.slice(i, i + KnowledgeMigrator.INARRAY_CHUNK)
-      const rows = await ctx.db
-        .select({ id: fileEntryTable.id })
-        .from(fileEntryTable)
-        .where(inArray(fileEntryTable.id, chunk))
-      for (const row of rows) result.add(row.id)
-    }
-    return result
   }
 
   private getLegacyKnowledgeDbPath(baseId: string, knowledgeBaseDir: string): string | null {
@@ -659,26 +616,10 @@ export class KnowledgeMigrator extends BaseMigrator {
         }
       }
 
-      // file_ref construction is folded into the per-base transaction so that
-      // base + items + refs commit atomically. The v1 file id is preserved
-      // verbatim by FileMigrator (per migration-plan §2.9), so each
-      // legacyFileId is already the v2 fileEntryId. Items without a fileId,
-      // or whose fileId points at a v1 row FileMigrator dropped (invalid ext
-      // / size / required fields / duplicate id), are bucketed via
-      // `recordSkippedWarning`. Emitting a dangling `file_ref` would crash
-      // the whole user migration at `MigrationEngine.verifyForeignKeys()` —
-      // the engine runs with foreign_keys=OFF during migration, so the
-      // dangling insert lands silently, but the post-migration
-      // `PRAGMA foreign_key_check` then throws on it.
-      // (Pure orphan refs — items pointing at fileIds not in v1 db.files at
-      // all — are filtered earlier in `prepare()` via the `invalid_file`
-      // path, so they never reach this loop.)
       // Cross-run idempotency lives at the engine level (verifyAndClearNewTables) — no onConflict guard needed here.
-      const migratedFileEntryIds = await this.loadMigratedFileEntryIds(ctx)
       const legacyBaseIdByMigratedId = new Map(
         [...this.legacyBaseIdRemap.entries()].map(([legacyBaseId, migratedBaseId]) => [migratedBaseId, legacyBaseId])
       )
-      const now = Date.now()
 
       for (const base of this.preparedBases) {
         if (!base.id) {
@@ -688,65 +629,16 @@ export class KnowledgeMigrator extends BaseMigrator {
         const baseItems = itemsByBaseId.get(base.id) ?? []
         let transactionProcessed = 0
 
-        const fileRefRows: Array<typeof fileRefTable.$inferInsert> = []
-        const invalidFileItemIds = new Set<string>()
-        for (const item of baseItems) {
-          if (item.type !== 'file') continue
-          const fileData = item.data as { fileEntryId?: string } | undefined
-          const legacyFileId = fileData?.fileEntryId
-          if (!legacyFileId) {
-            if (item.id) {
-              invalidFileItemIds.add(item.id)
-              this.skippedPreparedItemIds.add(item.id)
-              this.removeLegacyItemRemapByMigratedId(item.id)
-            }
-            this.recordSkippedWarning(
-              'knowledge_item_missing_file_id',
-              `Knowledge item id=${item.id} (type=file) has no data.fileEntryId; item will not be created`
-            )
-            continue
-          }
-          if (!migratedFileEntryIds.has(legacyFileId)) {
-            if (item.id) {
-              invalidFileItemIds.add(item.id)
-              this.skippedPreparedItemIds.add(item.id)
-              this.removeLegacyItemRemapByMigratedId(item.id)
-            }
-            this.recordSkippedWarning(
-              'knowledge_item_dangling_file_entry',
-              `Knowledge item id=${item.id} references file_entry id=${legacyFileId} which is absent from v2 file_entry (FileMigrator dropped the v1 row); item will not be created`
-            )
-            continue
-          }
-          fileRefRows.push({
-            id: uuidv4(),
-            fileEntryId: legacyFileId,
-            sourceType: knowledgeItemSourceType,
-            sourceId: item.id!,
-            role: 'source',
-            createdAt: now,
-            updatedAt: now
-          })
-        }
-        const validBaseItems =
-          invalidFileItemIds.size > 0
-            ? baseItems.filter((item) => !item.id || !invalidFileItemIds.has(item.id))
-            : baseItems
-
         const legacyKnowledgeBaseId = legacyBaseIdByMigratedId.get(base.id)
 
         await ctx.db.transaction(async (tx) => {
           await tx.insert(knowledgeBaseTable).values(base)
           transactionProcessed += 1
 
-          for (let i = 0; i < validBaseItems.length; i += ITEM_INSERT_BATCH_SIZE) {
-            const batch = validBaseItems.slice(i, i + ITEM_INSERT_BATCH_SIZE)
+          for (let i = 0; i < baseItems.length; i += ITEM_INSERT_BATCH_SIZE) {
+            const batch = baseItems.slice(i, i + ITEM_INSERT_BATCH_SIZE)
             await tx.insert(knowledgeItemTable).values(batch)
             transactionProcessed += batch.length
-          }
-
-          if (fileRefRows.length > 0) {
-            await tx.insert(fileRefTable).values(fileRefRows)
           }
 
           if (legacyKnowledgeBaseId !== undefined) {
@@ -770,8 +662,7 @@ export class KnowledgeMigrator extends BaseMigrator {
       // Self-check the knowledge domain. assistant_knowledge_base is verified HERE (not in
       // AssistantMigrator): AssistantMigrator writes those rows with legacy KB ids, and this
       // migrator remaps them to the new base ids + drops any that stay dangling — so they are
-      // referentially consistent only now. file_ref is excluded as a shared polymorphic table,
-      // covered by the engine's final verifyForeignKeys().
+      // referentially consistent only now.
       await this.assertOwnedForeignKeys(ctx.db, [knowledgeBaseTable, knowledgeItemTable, assistantKnowledgeBaseTable])
 
       this.flushSkippedWarnings()

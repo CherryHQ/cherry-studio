@@ -45,6 +45,11 @@
 
 ## 3. UI 交互补齐
 
+- 重新接通「知识库文件附加到聊天输入」。
+  - 该入口此前在 `AttachmentButton` 通过 v2→v1 的 `KnowledgeRuntime.getFileMetadata` 桥（main 侧产出 legacy `FileMetadata`）实现；为避免在 v2 新增 `FileMetadata` 生产者，当前已先断开，仅保留本地文件上传。
+  - 重新接通依赖聊天附件管线整体迁出 `FileMetadata`（迁到 `FileEntry` / `FileHandle`），属跨域改动。
+  - 参考：`src/renderer/pages/home/Inputbar/tools/components/AttachmentButton.tsx`、`v2-refactor-temp/docs/file-manager/filemetadata-consumer-audit.md`
+
 - 补齐数据源列表的大数据量能力。
   - 当前列表按 root items 查询，缺少完整分页、排序、子分组筛选和批量操作。
   - 非终态 item 目前靠轮询刷新。

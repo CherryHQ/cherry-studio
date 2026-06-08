@@ -4,35 +4,23 @@ import path from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const ensureExternalEntryMock = vi.hoisted(() => {
-  function hashPathForId(value: string): number {
-    let hash = 0
-    for (const char of value) {
-      hash = (hash * 31 + char.charCodeAt(0)) % 1_000_000_000_000
-    }
-    return hash
-  }
+import type * as PathStorage from '../../storage/pathStorage'
 
-  return vi.fn(async ({ externalPath }: { externalPath: string }) => ({
-    id: `019606a0-0000-7000-8000-${String(Math.abs(hashPathForId(externalPath)))
-      .padStart(12, '0')
-      .slice(0, 12)}`,
-    name: path.basename(externalPath),
-    ext: path.extname(externalPath).slice(1),
-    origin: 'external',
-    externalPath,
-    createdAt: 1776948000000,
-    updatedAt: 1776948000000
-  }))
-})
+const copyFileIntoKnowledgeBaseMock = vi.hoisted(() =>
+  vi.fn(async (_baseId: string, externalPath: string) => path.basename(externalPath))
+)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
-    FileManager: {
-      ensureExternalEntry: ensureExternalEntryMock
-    }
-  } as Parameters<typeof mockApplicationFactory>[0])
+  return mockApplicationFactory()
+})
+
+vi.mock('../../storage/pathStorage', async () => {
+  const actual = await vi.importActual<typeof PathStorage>('../../storage/pathStorage')
+  return {
+    ...actual,
+    copyFileIntoKnowledgeBase: copyFileIntoKnowledgeBaseMock
+  }
 })
 
 const { expandDirectoryOwnerToTree } = await import('../directory')
@@ -80,6 +68,7 @@ describe('expandDirectoryOwnerToTree', () => {
         createdAt: '2026-04-08T00:00:00.000Z',
         updatedAt: '2026-04-08T00:00:00.000Z'
       },
+      'kb-1',
       createSignal()
     )
 
@@ -96,7 +85,7 @@ describe('expandDirectoryOwnerToTree', () => {
                 type: 'file',
                 data: {
                   source: path.join(nestedDir, 'skill.md'),
-                  fileEntryId: expect.stringMatching(/^019606a0-0000-7000-8000-\d{12}$/)
+                  relativePath: 'skill.md'
                 }
               }
             ]
@@ -131,6 +120,7 @@ describe('expandDirectoryOwnerToTree', () => {
         createdAt: '2026-04-08T00:00:00.000Z',
         updatedAt: '2026-04-08T00:00:00.000Z'
       },
+      'kb-1',
       createSignal()
     )
 
@@ -140,7 +130,7 @@ describe('expandDirectoryOwnerToTree', () => {
         type: 'file',
         data: expect.objectContaining({
           source: path.join(rootDir, 'readme.md'),
-          fileEntryId: expect.stringMatching(/^019606a0-0000-7000-8000-\d{12}$/)
+          relativePath: 'readme.md'
         })
       })
     )
@@ -157,7 +147,7 @@ describe('expandDirectoryOwnerToTree', () => {
                 type: 'file',
                 data: expect.objectContaining({
                   source: path.join(nestedDir, 'reference.md'),
-                  fileEntryId: expect.stringMatching(/^019606a0-0000-7000-8000-\d{12}$/)
+                  relativePath: 'reference.md'
                 })
               })
             ]
@@ -189,6 +179,7 @@ describe('expandDirectoryOwnerToTree', () => {
           createdAt: '2026-04-08T00:00:00.000Z',
           updatedAt: '2026-04-08T00:00:00.000Z'
         },
+        'kb-1',
         controller.signal
       )
     ).rejects.toBe(abortError)

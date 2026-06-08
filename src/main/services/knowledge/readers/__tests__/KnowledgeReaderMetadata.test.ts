@@ -1,15 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const loadDataMock = vi.hoisted(() => vi.fn())
-const getPhysicalPathMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
-    FileManager: {
-      getPhysicalPath: getPhysicalPathMock
-    }
-  } as Parameters<typeof mockApplicationFactory>[0])
+  return mockApplicationFactory()
 })
 
 vi.mock('@main/utils/file', () => ({
@@ -51,13 +46,9 @@ const { loadUrlDocuments } = await import('../KnowledgeUrlReader')
 describe('knowledge reader metadata', () => {
   beforeEach(() => {
     loadDataMock.mockClear()
-    getPhysicalPathMock.mockReset()
   })
 
   it('normalizes file source metadata', async () => {
-    const fileEntryId = '019606a0-0000-7000-8000-000000000502'
-    getPhysicalPathMock.mockResolvedValueOnce('/resolved/original.txt')
-
     const documents = await loadFileDocuments({
       id: 'file-item-1',
       baseId: 'kb-1',
@@ -65,7 +56,7 @@ describe('knowledge reader metadata', () => {
       type: 'file',
       data: {
         source: '/tmp/original.txt',
-        fileEntryId
+        relativePath: 'original.txt'
       },
       status: 'idle',
       error: null,
@@ -73,8 +64,7 @@ describe('knowledge reader metadata', () => {
       updatedAt: '2026-04-08T00:00:00.000Z'
     })
 
-    expect(getPhysicalPathMock).toHaveBeenCalledWith(fileEntryId)
-    expect(loadDataMock).toHaveBeenCalledWith('/resolved/original.txt')
+    expect(loadDataMock).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/kb-1/original.txt')
     expect(documents[0]?.metadata).toEqual({
       source: '/tmp/original.txt'
     })

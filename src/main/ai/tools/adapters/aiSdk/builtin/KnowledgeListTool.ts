@@ -116,7 +116,7 @@ function deriveSampleSource(item: KnowledgeItem): string | null {
         legacyFile?.origin_name?.trim() ||
         legacyFile?.name?.trim() ||
         item.data.source.trim() ||
-        item.data.fileEntryId.trim()
+        item.data.relativePath.trim()
       return value ? value : null
     }
     case 'url':

@@ -164,7 +164,7 @@ describe('Knowledge base schemas', () => {
         type: 'file',
         data: {
           source: '/docs/guide.md',
-          fileEntryId: '019606a0-0000-7000-8000-000000000001'
+          path: '/docs/guide.md'
         }
       }).success
     ).toBe(true)
@@ -174,7 +174,7 @@ describe('Knowledge base schemas', () => {
         type: 'file',
         data: {
           source: '/docs/guide.md',
-          fileEntryId: '/docs/guide.md'
+          path: '/docs/guide.md'
         }
       }).success
     ).toBe(false)
@@ -184,7 +184,7 @@ describe('Knowledge base schemas', () => {
         type: 'file',
         data: {
           source: '/docs/guide.md',
-          fileEntryId: '/docs/guide.md'
+          path: 'docs/guide.md'
         }
       }).success
     ).toBe(false)

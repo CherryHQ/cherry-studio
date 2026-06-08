@@ -3,8 +3,6 @@ import { describe, expect, it } from 'vitest'
 
 import { planKnowledgeItemSource } from '../sourcePlanning'
 
-const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000501'
-
 function createBase(fileProcessorId: string | null = 'doc2x'): KnowledgeBase {
   return {
     id: 'kb-1',
@@ -33,7 +31,7 @@ function createFileItem(source: string): KnowledgeItemOf<'file'> {
     baseId: 'kb-1',
     groupId: null,
     type: 'file',
-    data: { source, fileEntryId: FILE_ENTRY_ID },
+    data: { source, relativePath: source.split('/').pop() ?? source },
     status: 'processing',
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',

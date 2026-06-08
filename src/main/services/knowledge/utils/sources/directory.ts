@@ -1,12 +1,11 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { application } from '@application'
-import type { FileEntryId } from '@shared/data/types/file'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
-import type { FilePath } from '@shared/file/types'
 import type { NotesTreeNode } from '@types'
 import { v4 as uuidv4 } from 'uuid'
+
+import { copyFileIntoKnowledgeBase } from '../storage/pathStorage'
 
 export type ExpandedDirectoryNode =
   | {
@@ -21,7 +20,7 @@ export type ExpandedDirectoryNode =
       type: 'file'
       data: {
         source: string
-        fileEntryId: FileEntryId
+        relativePath: string
       }
     }
 
@@ -78,17 +77,20 @@ async function readDirectoryTree(
   return nodes
 }
 
-async function expandDirectoryNode(node: NotesTreeNode, signal: AbortSignal): Promise<ExpandedDirectoryNode | null> {
+async function expandDirectoryNode(
+  baseId: string,
+  node: NotesTreeNode,
+  signal: AbortSignal
+): Promise<ExpandedDirectoryNode | null> {
   if (node.type === 'file') {
-    const fileManager = application.get('FileManager')
-    const entry = await fileManager.ensureExternalEntry({ externalPath: node.externalPath as FilePath })
+    const relativePath = await copyFileIntoKnowledgeBase(baseId, node.externalPath)
     signal.throwIfAborted()
 
     return {
       type: 'file',
       data: {
         source: node.externalPath,
-        fileEntryId: entry.id
+        relativePath
       }
     }
   }
@@ -100,7 +102,7 @@ async function expandDirectoryNode(node: NotesTreeNode, signal: AbortSignal): Pr
   const children: ExpandedDirectoryNode[] = []
 
   for (const child of node.children ?? []) {
-    const expandedChild = await expandDirectoryNode(child, signal)
+    const expandedChild = await expandDirectoryNode(baseId, child, signal)
     if (expandedChild) {
       children.push(expandedChild)
     }
@@ -122,6 +124,7 @@ async function expandDirectoryNode(node: NotesTreeNode, signal: AbortSignal): Pr
 
 export async function expandDirectoryOwnerToTree(
   owner: KnowledgeItem,
+  baseId: string,
   signal: AbortSignal
 ): Promise<ExpandedDirectoryNode[]> {
   if (owner.type !== 'directory') {
@@ -133,7 +136,7 @@ export async function expandDirectoryOwnerToTree(
   const expandedChildren: ExpandedDirectoryNode[] = []
 
   for (const child of children) {
-    const expandedChild = await expandDirectoryNode(child, signal)
+    const expandedChild = await expandDirectoryNode(baseId, child, signal)
     if (expandedChild) {
       expandedChildren.push(expandedChild)
     }

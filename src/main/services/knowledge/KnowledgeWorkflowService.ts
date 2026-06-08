@@ -4,9 +4,10 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import { getFileExt } from '@main/utils/file'
+import { documentExts } from '@shared/config/constant'
 import { FileProcessorIdSchema } from '@shared/data/presets/file-processing'
-import type { FileEntryId } from '@shared/data/types/file'
-import type { KnowledgeItem, KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
+import type { CreateKnowledgeItemDto, KnowledgeItem, KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
 
 import { cancelJobOrThrow } from './jobs/utils/cancel'
 import type { KnowledgeLockManager } from './KnowledgeLockManager'
@@ -26,6 +27,14 @@ import {
 import { markUnscheduledKnowledgeItemsFailed } from './utils/cleanup/statusCleanup'
 import { isContainerKnowledgeItem } from './utils/items'
 import { planKnowledgeItemSource } from './utils/sources/sourcePlanning'
+import {
+  assertKnowledgeFileTargetAvailable,
+  copyFileIntoKnowledgeBase,
+  deleteKnowledgeItemFiles,
+  getKnowledgeBaseFilePath,
+  getKnowledgeSourceRelativePath,
+  getProcessedMarkdownRelativePath
+} from './utils/storage/pathStorage'
 
 const logger = loggerService.withContext('Knowledge:WorkflowService')
 // Keep poll jobs delayed enough to avoid hot-looping while remote processors are still working.
@@ -41,11 +50,20 @@ export class KnowledgeWorkflowService {
 
     const base = await knowledgeBaseService.getById(baseId)
     const acceptedItems: KnowledgeItem[] = []
+    const copiedFileItems: Array<Pick<CreateKnowledgeItemDto, 'type' | 'data'>> = []
 
     await this.knowledgeLockManager.withBaseMutationLock(base.id, async () => {
       try {
+        const reservedPaths = await this.loadReservedKnowledgeFilePaths(base.id, base.fileProcessorId)
         for (const input of inputs) {
-          const createdItem = await knowledgeItemService.create(base.id, input)
+          this.reserveRuntimeAddItemInputPaths(base.fileProcessorId, input, reservedPaths)
+        }
+        for (const input of inputs) {
+          const createInput = await this.prepareRuntimeAddItemInput(base.id, input)
+          if (createInput.type === 'file') {
+            copiedFileItems.push(createInput)
+          }
+          const createdItem = await knowledgeItemService.create(base.id, createInput)
           acceptedItems.push(createdItem)
           const activeItem = await knowledgeItemService.updateStatus(
             createdItem.id,
@@ -55,6 +73,7 @@ export class KnowledgeWorkflowService {
         }
       } catch (error) {
         await this.rollbackAcceptedItems(base.id, acceptedItems, error)
+        await deleteKnowledgeItemFiles(base.id, copiedFileItems)
         throw error
       }
     })
@@ -155,10 +174,19 @@ export class KnowledgeWorkflowService {
       }
       const processorId = FileProcessorIdSchema.parse(base.fileProcessorId)
       const fileProcessing = application.get('FileProcessingService')
+      const sourcePath = getKnowledgeBaseFilePath(baseId, item.data.relativePath)
+      const processedRelativePath = getProcessedMarkdownRelativePath(item.data.relativePath)
+      if (item.data.indexedRelativePath !== processedRelativePath) {
+        await this.assertKnowledgeRelativePathNotReserved(baseId, base.fileProcessorId, item.id, processedRelativePath)
+        await assertKnowledgeFileTargetAvailable(baseId, processedRelativePath)
+      }
+      const processedPath = getKnowledgeBaseFilePath(baseId, processedRelativePath)
       const fileProcessingJob = await fileProcessing.startJob(
         {
           feature: 'document_to_markdown',
-          fileEntryId: item.data.fileEntryId,
+          file: { kind: 'path', path: sourcePath },
+          output: { kind: 'path', path: processedPath },
+          context: { dataId: item.id },
           processorId
         },
         {
@@ -166,7 +194,7 @@ export class KnowledgeWorkflowService {
         }
       )
       try {
-        await this.scheduleFileProcessingCheck(baseId, itemId, fileProcessingJob.id, item.data.fileEntryId, {
+        await this.scheduleFileProcessingCheck(baseId, itemId, fileProcessingJob.id, {
           pollRound: 0,
           firstScheduledAt: Date.now(),
           // Use the file-processing job as workflow parent when this is a direct add flow,
@@ -202,7 +230,6 @@ export class KnowledgeWorkflowService {
     baseId: KnowledgeBaseId,
     itemId: KnowledgeItemId,
     fileProcessingJobId: string,
-    sourceFileEntryId: FileEntryId,
     options: { pollRound: number; firstScheduledAt: number; parentJobId: string | null }
   ): Promise<void> {
     const { pollRound, firstScheduledAt, parentJobId } = options
@@ -213,7 +240,6 @@ export class KnowledgeWorkflowService {
         baseId,
         itemId,
         fileProcessingJobId,
-        sourceFileEntryId,
         pollRound,
         firstScheduledAt,
         parentJobId
@@ -230,13 +256,12 @@ export class KnowledgeWorkflowService {
   async scheduleIndexing(
     baseId: KnowledgeBaseId,
     itemId: KnowledgeItemId,
-    processedFileEntryId: FileEntryId,
     parentJobId: string | null = null
   ): Promise<void> {
     const jobManager = application.get('JobManager')
     await jobManager.enqueue(
       'knowledge.index-documents',
-      { baseId, itemId, parentJobId, processedFileEntryId },
+      { baseId, itemId, parentJobId },
       {
         idempotencyKey: knowledgeIndexIdempotencyKey(baseId, itemId, parentJobId),
         queue: knowledgeQueueName(baseId),
@@ -263,6 +288,97 @@ export class KnowledgeWorkflowService {
     }
   }
 
+  private async prepareRuntimeAddItemInput(
+    baseId: string,
+    input: KnowledgeRuntimeAddItemInput
+  ): Promise<CreateKnowledgeItemDto> {
+    if (input.type !== 'file') {
+      return input
+    }
+
+    const relativePath = await copyFileIntoKnowledgeBase(baseId, input.data.path)
+    return {
+      groupId: input.groupId,
+      type: 'file',
+      data: {
+        source: input.data.source,
+        relativePath
+      }
+    }
+  }
+
+  private reserveRuntimeAddItemInputPaths(
+    fileProcessorId: string | null | undefined,
+    input: KnowledgeRuntimeAddItemInput,
+    reservedPaths: Set<string>
+  ): void {
+    if (input.type !== 'file') {
+      return
+    }
+
+    const relativePath = getKnowledgeSourceRelativePath(input.data.path)
+    this.reserveKnowledgeFilePath(reservedPaths, relativePath)
+    if (needsProcessedArtifactReservation(fileProcessorId, relativePath)) {
+      this.reserveKnowledgeFilePath(reservedPaths, getProcessedMarkdownRelativePath(relativePath))
+    }
+  }
+
+  private async loadReservedKnowledgeFilePaths(
+    baseId: string,
+    fileProcessorId: string | null | undefined
+  ): Promise<Set<string>> {
+    const reservedPaths = new Set<string>()
+    const items = await knowledgeItemService.getItemsByBaseId(baseId)
+
+    for (const item of items) {
+      if (item.type !== 'file') {
+        continue
+      }
+
+      reservedPaths.add(item.data.relativePath)
+      if (item.data.indexedRelativePath) {
+        reservedPaths.add(item.data.indexedRelativePath)
+      } else if (needsProcessedArtifactReservation(fileProcessorId, item.data.relativePath)) {
+        reservedPaths.add(getProcessedMarkdownRelativePath(item.data.relativePath))
+      }
+    }
+
+    return reservedPaths
+  }
+
+  private reserveKnowledgeFilePath(reservedPaths: Set<string>, relativePath: string): void {
+    if (reservedPaths.has(relativePath)) {
+      throw new Error(`Knowledge file already exists: ${relativePath}`)
+    }
+
+    reservedPaths.add(relativePath)
+  }
+
+  private async assertKnowledgeRelativePathNotReserved(
+    baseId: string,
+    fileProcessorId: string | null | undefined,
+    itemId: string,
+    relativePath: string
+  ): Promise<void> {
+    const items = await knowledgeItemService.getItemsByBaseId(baseId)
+    const conflictingItem = items.find((item) => {
+      if (item.id === itemId || item.type !== 'file') {
+        return false
+      }
+
+      return (
+        item.data.relativePath === relativePath ||
+        item.data.indexedRelativePath === relativePath ||
+        (needsProcessedArtifactReservation(fileProcessorId, item.data.relativePath) &&
+          getProcessedMarkdownRelativePath(item.data.relativePath) === relativePath)
+      )
+    })
+
+    if (conflictingItem) {
+      throw new Error(`Knowledge file already exists: ${relativePath}`)
+    }
+  }
+
   private async markUnscheduledAcceptedItemsFailed(
     baseId: string,
     items: KnowledgeItem[],
@@ -281,4 +397,12 @@ export class KnowledgeWorkflowService {
       logContextKey: 'scheduleError'
     })
   }
+}
+
+function needsProcessedArtifactReservation(fileProcessorId: string | null | undefined, relativePath: string): boolean {
+  if (!fileProcessorId) {
+    return false
+  }
+
+  return documentExts.includes(getFileExt(relativePath).toLowerCase())
 }

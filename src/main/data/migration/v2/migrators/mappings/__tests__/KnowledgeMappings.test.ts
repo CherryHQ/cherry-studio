@@ -396,7 +396,7 @@ describe('KnowledgeMappings', () => {
         type: 'file',
         data: {
           source: '/tmp/report.pdf',
-          fileEntryId: LEGACY_FILE_ID
+          relativePath: 'report.pdf'
         },
         status: 'completed',
         error: null,

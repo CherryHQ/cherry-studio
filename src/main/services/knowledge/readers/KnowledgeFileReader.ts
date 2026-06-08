@@ -1,6 +1,4 @@
-import { application } from '@application'
 import { getFileExt } from '@main/utils/file'
-import type { FileEntryId } from '@shared/data/types/file'
 import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
 import type { FilePath } from '@shared/file/types'
 import { Document, type FileReader as VectorStoreFileReader } from '@vectorstores/core'
@@ -11,6 +9,7 @@ import { MarkdownReader } from '@vectorstores/readers/markdown'
 import { PDFReader } from '@vectorstores/readers/pdf'
 import { TextFileReader } from '@vectorstores/readers/text'
 
+import { getKnowledgeBaseFilePath } from '../utils/storage/pathStorage'
 import { DraftsExportReader } from './files/DraftsExportReader'
 import { EpubReader } from './files/EpubReader'
 
@@ -37,12 +36,8 @@ export function createSupportedFileReader(filePath: FilePath): VectorStoreFileRe
   }
 }
 
-export async function loadFileDocuments(
-  item: KnowledgeItemOf<'file'>,
-  fileEntryId: FileEntryId = item.data.fileEntryId
-): Promise<Document[]> {
-  const fileManager = application.get('FileManager')
-  const filePath = await fileManager.getPhysicalPath(fileEntryId)
+export async function loadFileDocuments(item: KnowledgeItemOf<'file'>): Promise<Document[]> {
+  const filePath = getKnowledgeBaseFilePath(item.baseId, item.data.indexedRelativePath ?? item.data.relativePath)
 
   const reader = createSupportedFileReader(filePath)
   const documents = await reader.loadData(filePath)
