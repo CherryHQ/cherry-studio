@@ -40,7 +40,9 @@ const baseTurnInput = {
   agentId: 'agent-1',
   agentType: 'test-runtime',
   modelId: 'claude-code::claude-sonnet-4-5' as any,
-  assistantMessageId: 'assistant-1'
+  assistantMessageId: 'assistant-1',
+  // Container-level session trace id (cached on the entry, drives the connection traceparent).
+  traceId: 'a'.repeat(32)
 }
 
 function userMessage(id: string) {
@@ -248,8 +250,7 @@ describe('AgentSessionRuntimeService', () => {
       status: 'active',
       pendingMessageCount: 1,
       lastTerminalStatus: undefined,
-      activeToolCount: 0,
-      interruptRequested: false
+      activeToolCount: 0
     })
   })
 
@@ -445,7 +446,9 @@ describe('AgentSessionRuntimeService', () => {
     const reader = stream.getReader()
 
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
-    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1') }))
+    await vi.waitFor(() =>
+      expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: false })
+    )
 
     events.push({ type: 'resume-token', token: 'resume-1' })
     await vi.waitFor(() => expect(service.inspect('session-1')).toMatchObject({ resumeToken: 'resume-1' }))
@@ -500,12 +503,11 @@ describe('AgentSessionRuntimeService', () => {
     expect(getEntry(service).currentTurn?.terminalStatus).toBe('error')
   })
 
-  it('passes trace context to the runtime driver and closes the connection after trace turns', async () => {
+  it('passes trace context to the runtime driver and keeps the connection warm across turns', async () => {
     const events = createAsyncQueue<any>()
     const connection = {
       events: events.iterable,
       send: vi.fn(),
-      shouldCloseAfterTurn: () => true,
       close: vi.fn()
     }
     const connect = vi.fn().mockResolvedValue(connection)
@@ -520,8 +522,7 @@ describe('AgentSessionRuntimeService', () => {
     const handle = service.beginTurn({
       ...baseTurnInput,
       userMessage: userMessage('user-1'),
-      traceId: '0'.repeat(32),
-      rootSpanId: '1'.repeat(16)
+      traceId: 'a'.repeat(32)
     })
     const stream = service.openTurnStream({
       sessionId: 'session-1',
@@ -539,8 +540,8 @@ describe('AgentSessionRuntimeService', () => {
         resumeToken: undefined,
         trace: {
           topicId: 'agent-session:session-1',
-          traceId: '0'.repeat(32),
-          rootSpanId: '1'.repeat(16),
+          traceId: 'a'.repeat(32),
+          rootSpanId: 'a'.repeat(16),
           sessionId: 'session-1',
           turnId: handle.turnId,
           modelName: 'claude-sonnet-4-5'
@@ -550,8 +551,10 @@ describe('AgentSessionRuntimeService', () => {
 
     void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
 
-    expect(connection.close).toHaveBeenCalledOnce()
-    expect(getEntry(service).connection).toBeUndefined()
+    // Warm: a turn ending does NOT tear the connection down — only closeSession / idle TTL does.
+    expect(connection.close).not.toHaveBeenCalled()
+    expect(getEntry(service).connection).toBe(connection)
+    service.closeSession('session-1')
     await reader.cancel().catch(() => undefined)
   })
 
@@ -587,7 +590,14 @@ describe('AgentSessionRuntimeService', () => {
         agentId: 'agent-1',
         modelId: 'claude-code::claude-sonnet-4-5',
         resumeToken: 'resume-db',
-        trace: undefined
+        trace: {
+          topicId: 'agent-session:session-1',
+          traceId: 'a'.repeat(32),
+          rootSpanId: 'a'.repeat(16),
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          modelName: 'claude-sonnet-4-5'
+        }
       })
     )
 
@@ -622,7 +632,9 @@ describe('AgentSessionRuntimeService', () => {
     const reader = stream.getReader()
 
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
-    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1') }))
+    await vi.waitFor(() =>
+      expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: false })
+    )
 
     controller.abort('user-requested')
 
@@ -670,19 +682,19 @@ describe('AgentSessionRuntimeService', () => {
     await reader.cancel().catch(() => undefined)
   })
 
-  describe('interrupt-when-safe — live follow-up', () => {
-    it('defers the interrupt while a tool is mid-flight, then fires once the tool settles', async () => {
+  describe('steer soft-queue — live follow-up (pure streaming-input, no interrupt)', () => {
+    it('does not interrupt a live turn; soft-queues the steer and pushes it into the SAME warm connection on the next turn', async () => {
       const events = createAsyncQueue<any>()
       const connection = {
         events: events.iterable,
         send: vi.fn(),
-        interrupt: vi.fn().mockResolvedValue(undefined),
         close: vi.fn()
       }
+      const connect = vi.fn().mockResolvedValue(connection)
       runtimeDriverRegistry.register({
         type: 'test-runtime',
         capabilities: ['agent-session'],
-        connect: vi.fn().mockResolvedValue(connection),
+        connect,
         validateSession: vi.fn(),
         listAvailableTools: vi.fn().mockResolvedValue([])
       })
@@ -696,74 +708,187 @@ describe('AgentSessionRuntimeService', () => {
       const reader = stream.getReader()
 
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
-      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1') }))
+      await vi.waitFor(() =>
+        expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: false })
+      )
 
-      // A tool is now in flight — the turn is not safe to interrupt.
+      // A tool is in flight, then a steer arrives. It must NOT interrupt — just soft-queue.
       events.push({ type: 'chunk', chunk: { type: 'tool-input-start', toolCallId: 'tool-1' } })
       await vi.waitFor(() => expect(getEntry(service).currentTurn.activeToolIds.has('tool-1')).toBe(true))
-
-      // The follow-up queues but must NOT interrupt while the tool runs.
       service.enqueueUserMessage('session-1', userMessage('user-2'))
       await new Promise((resolve) => setTimeout(resolve, 0))
-      expect(connection.interrupt).not.toHaveBeenCalled()
       expect(mocks.pauseRuntimeTurn).not.toHaveBeenCalled()
+      expect(getEntry(service).pendingTurns).toHaveLength(1)
 
-      // Tool settles → now safe → interrupt fires and the runtime turn is paused.
-      events.push({ type: 'chunk', chunk: { type: 'tool-output-available', toolCallId: 'tool-1' } })
-      await vi.waitFor(() => expect(connection.interrupt).toHaveBeenCalledOnce())
-      expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1', 'agent-runtime-interrupt')
-
-      service.closeSession('session-1')
-      await reader.cancel().catch(() => undefined)
-    })
-
-    it('interrupts immediately on the next microtask when no tool is active', async () => {
-      const events = createAsyncQueue<any>()
-      const connection = {
-        events: events.iterable,
-        send: vi.fn(),
-        interrupt: vi.fn().mockResolvedValue(undefined),
-        close: vi.fn()
-      }
-      runtimeDriverRegistry.register({
-        type: 'test-runtime',
-        capabilities: ['agent-session'],
-        connect: vi.fn().mockResolvedValue(connection),
-        validateSession: vi.fn(),
-        listAvailableTools: vi.fn().mockResolvedValue([])
-      })
-      const service = new AgentSessionRuntimeService()
-      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
-      const stream = service.openTurnStream({
+      // The current turn completes naturally → the steer drains into the SAME warm connection,
+      // wrapped in a system-reminder. No reconnect: connect once, close never.
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+      await vi.waitFor(() => expect(getEntry(service).currentTurn?.userMessage.id).toBe('user-2'))
+      const nextTurnId = getEntry(service).currentTurn.turnId
+      const stream2 = service.openTurnStream({
         sessionId: 'session-1',
-        turnId: handle.turnId,
+        turnId: nextTurnId,
         signal: new AbortController().signal
       })
-      const reader = stream.getReader()
+      const reader2 = stream2.getReader()
+      await reader2.read()
 
-      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
-      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1') }))
-
-      // No tool in flight (activeToolIds empty) → the queued follow-up interrupts on the next microtask.
-      expect(getEntry(service).currentTurn.activeToolIds.size).toBe(0)
-      service.enqueueUserMessage('session-1', userMessage('user-2'))
-      expect(connection.interrupt).not.toHaveBeenCalled()
-
-      await vi.waitFor(() => expect(connection.interrupt).toHaveBeenCalledOnce())
-      expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1', 'agent-runtime-interrupt')
+      await vi.waitFor(() =>
+        expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-2'), systemReminder: true })
+      )
+      expect(connect).toHaveBeenCalledOnce()
+      expect(connection.close).not.toHaveBeenCalled()
 
       service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)
+      await reader2.cancel().catch(() => undefined)
     })
   })
 
-  it('keeps the runtime session alive when a steer interrupt pauses the turn', async () => {
+  describe('steer redirect — real mid-turn injection (claude PreToolUse hook)', () => {
+    it('folds a live steer into the current turn via connection.redirect (not queued, no new turn)', async () => {
+      const events = createAsyncQueue<any>()
+      const redirect = vi.fn().mockReturnValue(true)
+      const connection = { events: events.iterable, send: vi.fn(), redirect, close: vi.fn() }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: vi.fn().mockResolvedValue(connection),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const stream = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() =>
+        expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: false })
+      )
+
+      // Steer on a live turn → redirect injects it into the running turn: not queued, no new turn.
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      expect(redirect).toHaveBeenCalledWith({ message: userMessage('user-2'), systemReminder: true })
+      expect(getEntry(service).pendingTurns).toHaveLength(0)
+      expect(getEntry(service).steerMessageIds?.has('user-2') ?? false).toBe(false)
+
+      service.closeSession('session-1')
+      await reader.cancel().catch(() => undefined)
+    })
+
+    it('queues a steer the turn ended before injecting (steer-undelivered → next turn, system-reminder)', async () => {
+      const events = createAsyncQueue<any>()
+      const redirect = vi.fn().mockReturnValue(true)
+      const connection = { events: events.iterable, send: vi.fn(), redirect, close: vi.fn() }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: vi.fn().mockResolvedValue(connection),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const stream = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+
+      // Steer redirected (stashed), but the turn calls no tool → the connection hands it back.
+      service.enqueueUserMessage('session-1', userMessage('user-2'))
+      expect(getEntry(service).pendingTurns).toHaveLength(0)
+
+      events.push({ type: 'steer-undelivered', inputs: [{ message: userMessage('user-2'), systemReminder: true }] })
+      await vi.waitFor(() => expect(getEntry(service).pendingTurns).toHaveLength(1))
+      // The undelivered steer is flagged so its next turn wraps it in a system-reminder.
+      expect(getEntry(service).steerMessageIds?.has('user-2')).toBe(true)
+
+      service.closeSession('session-1')
+      await reader.cancel().catch(() => undefined)
+    })
+
+    it('rolls the turn at a steer-boundary: finalises A1a, opens A2 without re-sending, replays buffered chunks', async () => {
+      const events = createAsyncQueue<any>()
+      const connection = {
+        events: events.iterable,
+        send: vi.fn(),
+        redirect: vi.fn().mockReturnValue(true),
+        close: vi.fn()
+      }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: vi.fn().mockResolvedValue(connection),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const stream = service.openTurnStream({
+        sessionId: 'session-1',
+        turnId: handle.turnId,
+        signal: new AbortController().signal
+      })
+      const reader = stream.getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+
+      // Pre-steer chunk → routed to A1a (the original turn's stream).
+      events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 'p1', delta: 'pre' } })
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'text-delta', delta: 'pre' }, done: false })
+
+      // The driver signals the post-steer assistant message → roll: A1a closes, the topic stays busy.
+      events.push({ type: 'steer-boundary', inputs: [{ message: userMessage('user-2'), systemReminder: true }] })
+      await vi.waitFor(() => expect(getEntry(service).rolling).toBe(true))
+      await expect(reader.read()).resolves.toMatchObject({ done: true })
+      expect(getEntry(service).currentTurn.terminalStatus).toBe('success')
+
+      // Post-steer chunk arrives before A2's stream is open → buffered, not dropped.
+      events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 'p2', delta: 'post' } })
+      await vi.waitFor(() => expect(getEntry(service).rollBuffer).toHaveLength(1))
+
+      // A1a's execution settles (terminal listener) → the continuation A2 opens. `isTopicDone=false`
+      // (the stream-manager keeps the topic alive across the boundary), and onDone always advances.
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: false })
+      await vi.waitFor(() => expect(getEntry(service).currentTurn.userMessage.id).toBe('user-2'))
+      const a2 = getEntry(service).currentTurn
+      expect(a2.turnId).not.toBe(handle.turnId)
+      expect(a2.admitted).toBe(true) // continuation: the steer was already injected via the hook — never re-sent
+      expect(connection.send).toHaveBeenCalledOnce() // user-1 only; A2 sends nothing to the connection
+      expect(mocks.saveMessage).toHaveBeenLastCalledWith({
+        sessionId: 'session-1',
+        message: { role: 'assistant', status: 'pending', data: { parts: [] }, modelId: baseTurnInput.modelId }
+      })
+      expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
+
+      // Opening A2's stream replays the buffered post-steer chunk in order, then routes live chunks.
+      const reader2 = service
+        .openTurnStream({ sessionId: 'session-1', turnId: a2.turnId, signal: new AbortController().signal })
+        .getReader()
+      await expect(reader2.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await expect(reader2.read()).resolves.toMatchObject({ value: { type: 'text-delta', delta: 'post' }, done: false })
+      expect(getEntry(service).rolling).toBe(false)
+
+      events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 'p3', delta: 'live' } })
+      await expect(reader2.read()).resolves.toMatchObject({ value: { type: 'text-delta', delta: 'live' }, done: false })
+
+      service.closeSession('session-1')
+      await reader.cancel().catch(() => undefined)
+      await reader2.cancel().catch(() => undefined)
+    })
+  })
+
+  it('admits a steer-flagged turn with a system-reminder and consumes the flag (invariant 7)', async () => {
     const events = createAsyncQueue<any>()
-    const connection = {
-      events: events.iterable,
-      send: vi.fn(),
-      close: vi.fn()
-    }
+    const connection = { events: events.iterable, send: vi.fn(), close: vi.fn() }
     runtimeDriverRegistry.register({
       type: 'test-runtime',
       capabilities: ['agent-session'],
@@ -773,31 +898,53 @@ describe('AgentSessionRuntimeService', () => {
     })
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
-    const controller = new AbortController()
+    // Mark this turn's message as a steer, as `enqueueUserMessage` does for a mid-turn arrival.
+    getEntry(service).steerMessageIds = new Set(['user-1'])
     const stream = service.openTurnStream({
       sessionId: 'session-1',
       turnId: handle.turnId,
-      signal: controller.signal
+      signal: new AbortController().signal
     })
     const reader = stream.getReader()
 
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
-    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1') }))
-
-    // The steer path marks the turn before aborting; the abort reason is irrelevant.
-    getEntry(service).currentTurn.interruptRequested = true
-    controller.abort()
-
-    await expect(reader.read()).resolves.toMatchObject({ done: true })
-    expect(connection.close).not.toHaveBeenCalled()
-    expect(service.inspect('session-1')).toMatchObject({
-      sessionId: 'session-1',
-      status: 'active'
-    })
+    await vi.waitFor(() =>
+      expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: true })
+    )
+    // The flag is consumed as the turn is admitted.
+    expect(getEntry(service).steerMessageIds.has('user-1')).toBe(false)
     service.closeSession('session-1')
   })
 
-  it('tears the session down on abort with an interrupt-looking reason when none was requested', async () => {
+  it('flags a mid-turn follow-up as a steer (system-reminder) while a turn is live', async () => {
+    const events = createAsyncQueue<any>()
+    const connection = { events: events.iterable, send: vi.fn(), interrupt: vi.fn(), close: vi.fn() }
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: new AbortController().signal
+    })
+    const reader = stream.getReader()
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalled())
+
+    // Arrives while the first turn is live → flagged as a steer.
+    service.enqueueUserMessage('session-1', userMessage('user-2'))
+    expect(getEntry(service).steerMessageIds?.has('user-2')).toBe(true)
+    service.closeSession('session-1')
+    await reader.cancel().catch(() => undefined)
+  })
+
+  it('tears the session down on any turn abort (steer no longer interrupts — abort is always a user Stop)', async () => {
     const events = createAsyncQueue<any>()
     const connection = {
       events: events.iterable,
@@ -822,10 +969,12 @@ describe('AgentSessionRuntimeService', () => {
     const reader = stream.getReader()
 
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
-    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1') }))
+    await vi.waitFor(() =>
+      expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: false })
+    )
 
-    // Reason matches the old interrupt sentinel, but no interrupt was requested —
-    // teardown is driven by `interruptRequested`, not the signal reason.
+    // Steer no longer interrupts, so the only abort source is a user Stop — which always tears the
+    // session down (closeSession → connection.close), regardless of the signal reason.
     controller.abort('agent-runtime-interrupt')
 
     await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
@@ -868,18 +1017,16 @@ describe('AgentSessionRuntimeService', () => {
 
     await (service as any).startNextTurn(entry)
 
-    const savedMessage = mocks.saveMessage.mock.calls[0][0].message
     expect(mocks.saveMessage).toHaveBeenCalledWith({
       sessionId: 'session-1',
       message: {
         role: 'assistant',
         status: 'pending',
         data: { parts: [] },
-        modelId: 'claude-code::claude-sonnet-4-5',
-        traceId: expect.any(String)
+        modelId: 'claude-code::claude-sonnet-4-5'
       }
     })
-    expect(mocks.spanCacheSetTopicId).toHaveBeenCalledWith(savedMessage.traceId, 'agent-session:session-1')
+    expect(mocks.spanCacheSetTopicId).toHaveBeenCalledWith(expect.any(String), 'agent-session:session-1')
     expect(mocks.startRuntimeTurn).toHaveBeenCalledWith({
       topicId: 'agent-session:session-1',
       modelId: 'claude-code::claude-sonnet-4-5',
@@ -902,14 +1049,8 @@ describe('AgentSessionRuntimeService', () => {
     })
     const request = mocks.startRuntimeTurn.mock.calls[0][0].request
     expect(request.messageId).toBe(request.messages[1].id)
-    expect(getEntry(service).currentTurn.trace).toMatchObject({
-      topicId: 'agent-session:session-1',
-      traceId: savedMessage.traceId,
-      rootSpanId: expect.any(String),
-      sessionId: 'session-1',
-      turnId: request.runtime.turnId,
-      modelName: 'claude-sonnet-4-5'
-    })
+    // The session trace id is cached on the entry and reused for every turn (container-scoped trace).
+    expect(getEntry(service).sessionTraceId).toBe('a'.repeat(32))
   })
 
   it('surfaces the error and settles the turn when the next-turn placeholder save rejects (R3)', async () => {

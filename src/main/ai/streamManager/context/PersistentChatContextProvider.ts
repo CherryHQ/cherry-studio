@@ -70,6 +70,43 @@ function endTurnRootSpansWithError(spans: Array<{ span: Span }>, error: unknown)
   }
 }
 
+/**
+ * Wrap the trailing user message's text parts in a steer system-reminder, for the model-facing
+ * history copy only — the persisted user row is untouched.
+ */
+function withSteerReminder(history: CherryUIMessage[]): CherryUIMessage[] {
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role !== 'user') continue
+    const message = history[i]
+    const parts = message.parts.map((part) =>
+      part.type === 'text' && part.text.trim() ? { ...part, text: wrapSteerReminder(part.text) } : part
+    )
+    const next = history.slice()
+    next[i] = { ...message, parts }
+    return next
+  }
+  return history
+}
+
+function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
+  return {
+    id: message.id,
+    role: message.role,
+    parts: message.data.parts ?? [],
+    metadata: {
+      parentId: message.parentId,
+      siblingsGroupId: message.siblingsGroupId || undefined,
+      modelId: message.modelId ?? undefined,
+      modelSnapshot: message.modelSnapshot ?? undefined,
+      status: message.status,
+      createdAt: message.createdAt,
+      stats: message.stats ?? undefined,
+      isActiveBranch: true,
+      ...(message.stats?.totalTokens ? { totalTokens: message.stats.totalTokens } : {})
+    }
+  } as CherryUIMessage
+}
+
 export class PersistentChatContextProvider implements ChatContextProvider {
   readonly name = 'persistent'
 
@@ -86,6 +123,36 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // continue-conversation reuses the existing assistant anchor — no new placeholder, no multi-model.
     if (req.trigger === 'continue-conversation') {
       return this.prepareContinueDispatch(subscriber, req, assistantId, defaultModelId)
+    }
+
+    // steer-continuation answers a steer user message persisted while a turn was live — a fresh
+    // assistant placeholder under that user row (no new user row), single model.
+    if (req.trigger === 'steer-continuation') {
+      return this.prepareSteerContinuation(subscriber, req, assistantId, defaultModelId)
+    }
+
+    if (ctx.hasLiveStream && req.trigger === 'submit-message') {
+      const userMessage = await messageService.create(req.topicId, {
+        role: 'user',
+        parentId: req.parentAnchorId,
+        data: { parts: req.userMessageParts },
+        status: 'success',
+        modelId: defaultModelId,
+        modelSnapshot: (() => {
+          const { providerId, modelId: rawModelId } = parseUniqueModelId(defaultModelId)
+          return { id: rawModelId, name: rawModelId, provider: providerId }
+        })()
+      })
+
+      return {
+        topicId: req.topicId,
+        models: [],
+        listeners: [subscriber],
+        userMessage,
+        userMessageId: userMessage.id,
+        reservedMessages: [toReservedUIMessage(userMessage)],
+        isMultiModel: false
+      }
     }
 
     // 3. Models (single or multi)
@@ -282,6 +349,76 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         ],
         listeners,
         siblingsGroupId: undefined,
+        isMultiModel: false
+      }
+    } catch (error) {
+      endTurnRootSpansWithError(turnRootSpans, error)
+      throw error
+    }
+  }
+
+  /**
+   * Answer a steer message persisted while a turn was live (`AiStreamManager.startNextChatTurn`).
+   * Creates a fresh assistant placeholder under the steer user row (no new user row) and wraps that
+   * trailing user message with a steer system-reminder in the model-facing history only.
+   */
+  private async prepareSteerContinuation(
+    subscriber: StreamListener,
+    req: MainSteerContinuationRequest,
+    assistantId: string | undefined,
+    defaultModelId: UniqueModelId
+  ): Promise<PreparedDispatch> {
+    const userMessage = await messageService.getById(req.userMessageId)
+    if (userMessage.role !== 'user') {
+      throw new Error(`'steer-continuation' anchor must be a user message (got '${userMessage.role}')`)
+    }
+    if (userMessage.topicId !== req.topicId) {
+      throw new Error(`'steer-continuation' anchor does not belong to topic ${req.topicId}`)
+    }
+
+    const steerModelId = (userMessage.modelId ?? defaultModelId) as UniqueModelId
+    const [model] = await resolveModels([steerModelId], defaultModelId)
+    const modelSnapshot = {
+      id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
+      name: model.name,
+      provider: model.providerId
+    }
+
+    const containerTraceId = await topicService.ensureTraceId(req.topicId)
+    const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model], containerTraceId)
+    const [{ span: rootSpan }] = turnRootSpans
+    try {
+      const { placeholders } = await messageService.createUserMessageWithPlaceholders({
+        topicId: req.topicId,
+        userMessage: { mode: 'existing', id: req.userMessageId },
+        placeholders: [{ role: 'assistant', data: { parts: [] }, status: 'pending', modelId: model.id, modelSnapshot }]
+      })
+      const placeholder = placeholders[0]
+
+      const listeners: StreamListener[] = [
+        subscriber,
+        new PersistenceListener({
+          topicId: req.topicId,
+          modelId: model.id,
+          backend: new MessageServiceBackend({ assistantMessageId: placeholder.id, modelSnapshot }),
+          onPersistFailed: (error) =>
+            void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
+        }),
+        new TraceFlushListener(req.topicId)
+      ]
+
+      const history = withSteerReminder(await this.buildHistory(req.userMessageId))
+      return {
+        topicId: req.topicId,
+        models: [
+          {
+            modelId: model.id,
+            request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id),
+            rootSpan
+          }
+        ],
+        listeners,
+        reservedMessages: [toReservedUIMessage(placeholder)],
         isMultiModel: false
       }
     } catch (error) {

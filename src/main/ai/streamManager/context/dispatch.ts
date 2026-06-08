@@ -7,7 +7,6 @@
 import { loggerService } from '@logger'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 
-import { isAgentSessionTopic } from '../../agentSession/topic'
 import { isAgentSessionWorkspaceError } from '../../runtime/claudeCode/settingsBuilder'
 import type { AiStreamManager } from '../AiStreamManager'
 import type { StreamListener } from '../types'
@@ -28,7 +27,20 @@ export interface MainContinueConversationRequest {
   approvalDecisions: ApprovalDecision[]
 }
 
-export type MainDispatchRequest = AiStreamOpenRequest | MainContinueConversationRequest
+/**
+ * Answer a steer message that was persisted while a turn was live. Synthesised
+ * by `AiStreamManager.startNextChatTurn` when a finished chat turn has a pending
+ * steer queued — it opens a fresh assistant turn anchored on the steer user
+ * message (no new user row). Not on the renderer↔main IPC contract.
+ */
+export interface MainSteerContinuationRequest {
+  trigger: 'steer-continuation'
+  topicId: string
+  /** The already-persisted steer user message to answer. */
+  userMessageId: string
+}
+
+export type MainDispatchRequest = AiStreamOpenRequest | MainContinueConversationRequest | MainSteerContinuationRequest
 
 const logger = loggerService.withContext('chatContextDispatch')
 
@@ -55,17 +67,11 @@ export async function dispatchStreamRequest(
 
   logger.debug('Dispatching stream request', { topicId: req.topicId, provider: provider.name })
 
-  // Steer a live chat turn by abort+restart. This MUST run before `prepareDispatch`:
-  // `abortAndAwait` settles the running turn and persists its partial as `paused`, so the
-  // history `prepareDispatch` reads from the DB includes the text the model was mid-producing.
-  // Agent sessions are not aborted (they enqueue a follow-up onto `pendingTurns`), so their
-  // liveness must still be observed by `prepareDispatch` below.
-  if (manager.hasLiveStream(req.topicId) && !isAgentSessionTopic(req.topicId)) {
-    await manager.abortAndAwait(req.topicId, 'steer-restart')
-  }
-
-  // Re-snapshot after the abort: chat is now evicted (false → fresh start); an agent-session
-  // stream is untouched (still true → enqueue/inject path).
+  // A busy chat submit no longer aborts the live turn. Both chat and agent sessions now absorb a
+  // mid-flight user message by persisting it and enqueuing a follow-up: chat persists the steer
+  // user row (PersistentChatContextProvider's `hasLiveStream` branch) and we enqueue it below so
+  // the running turn yields at the next step boundary and the terminal hook chains a continuation;
+  // agent sessions enqueue onto `pendingTurns`. Either way `prepareDispatch` must observe liveness.
   const hasLiveStream = manager.hasLiveStream(req.topicId)
   const prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream }).catch((error: unknown) => {
     if (isAgentSessionWorkspaceError(error)) {
@@ -80,6 +86,13 @@ export async function dispatchStreamRequest(
   })
   if ('blocked' in prepared) {
     return { mode: 'blocked', ...prepared.blocked }
+  }
+
+  // Inject-steer: a live persistent-chat submit took the `hasLiveStream` branch (persisted the
+  // user row, no models → `send` will only attach the subscriber). Enqueue it so the running turn
+  // yields (`hasPendingSteer`) and `onExecutionDone` chains a `steer-continuation` to answer it.
+  if (provider.name === persistentChatContextProvider.name && prepared.models.length === 0 && prepared.userMessage) {
+    manager.enqueuePendingSteer(req.topicId, prepared.userMessage.id)
   }
 
   const result = manager.send({
