@@ -1,7 +1,7 @@
 # Naming Conventions
 
-> Version: 1.0
-> Last Updated: 2026-05
+> Version: 1.1
+> Last Updated: 2026-06
 > **This document is the authoritative source. `CLAUDE.md` only links here.**
 
 This document defines naming rules for files, directories, and identifiers across the Cherry Studio monorepo. It encodes both industry consensus (React/TypeScript, Node.js, shadcn/Next.js) and project-specific conventions.
@@ -41,6 +41,7 @@ The 90% case. See later sections for full rules and edge cases.
 | Business React component directory | `PascalCase` | `CodeEditor/` |
 | Bucket directory (categorical container) | lowercase **plural** noun | `services/`, `utils/`, `hooks/` |
 | Business / domain module directory | `camelCase` | `apiServer/`, `fileProcessing/` |
+| Feature module directory (large, multi-file domain) | `features/<camelCase>/` | `features/apiGateway/` |
 | `packages/ui/` directory | `kebab-case` | `primitives/`, `button-group/` |
 | TanStack route file under `src/renderer/routes/` | `kebab-case.tsx` | `api-server.tsx`, `quick-assistant.tsx` |
 
@@ -139,7 +140,7 @@ A `*Utils` suffix is used only when the file lives outside any `utils/` director
 
 ## 4. Directory Naming
 
-Directory naming splits into category rules (§4.1–§4.3, §4.5–§4.7) and cross-cutting rules: §4.4 (file vs subdirectory), §4.8 (top-level closed), §4.9 (singular vs plural).
+Directory naming splits into category rules (§4.1–§4.3, §4.5–§4.7, §4.10) and cross-cutting rules: §4.4 (file vs subdirectory), §4.8 (top-level closed), §4.9 (singular vs plural).
 
 ### 4.1 npm Package Directories — `kebab-case`
 
@@ -193,6 +194,8 @@ src/main/ai/streamManager           ✅
 src/main/services/fileProcessing/   ✅
 ```
 
+Placement — whether a domain module lives as a top-level `features/<domain>/` or as a subdirectory inside a bucket like `services/` — is governed by §4.10; this section governs only its name.
+
 ### 4.6 shadcn / `packages/ui` Directories — `kebab-case`
 
 Everything inside `packages/ui/` (both files and directories) follows shadcn conventions:
@@ -243,6 +246,35 @@ Choose number based on what the directory **conceptually contains**, not on whic
 | **Component directory** (dir = component) | follows the **component name** | `Avatar/`, `CodeEditor/` (singular component); `SearchResults/` (component representing a group) |
 
 Decision rule: ask "does this directory hold **many of X**?" — yes → plural; no → singular. When two readings both make sense, pick the one that matches the directory's **default import name** (e.g. `import { ... } from './config'` reads naturally with `config/` singular).
+
+### 4.10 Feature Modules — `features/` vs Type Buckets
+
+A **feature module** is a self-contained domain directory under `src/main/features/` that co-locates *everything* one domain owns — its service(s), domain-local utils, and any adapters, routes, or other domain-specific helpers — in one tree.
+`features/` is itself a bucket (lowercase plural, §4.3); each module inside is a `camelCase` domain directory (§4.5).
+
+**A domain earns a `features/<domain>/` home only when it is large, complex, and multi-file** — cohesion alone is not enough.
+
+| The domain is… | Home | Layout |
+|---|---|---|
+| Large / complex — spans more than one concern (e.g. a service plus its own adapters, routes, utils) | `features/<domain>/` | self-contained tree; the service class lives inside it (§5.2) |
+| One cohesive service, even if domain-specific | `services/<Domain>Service.ts` | a single file; its lone helper util → `utils/<topic>.ts` |
+| A small cross-domain / standalone helper | `services/` or `utils/` | a single file |
+
+This is the §4.4 promotion rule applied at the top level: a domain graduates from "a file (plus maybe one util) in a bucket" to "its own `features/` module" only once the additional files actually arrive and span more than one concern.
+Do not pre-create a `features/<domain>/` for an anticipated module.
+`features/` holds high-cohesion domain code; `services/` and `utils/` stay type-buckets for small, independent, cross-domain pieces.
+A large, multi-file domain left scattered across the `services/` and `utils/` buckets instead of gathered into one `features/<domain>/` is the §6.7 scattered/impure anti-pattern.
+
+**Canonical example** — `src/main/features/apiGateway/`:
+
+```
+features/apiGateway/
+├── ApiGatewayService.ts   # the domain service (§5.2)
+├── adapters/              # domain-specific sub-modules
+├── middleware/
+├── routes/
+└── utils/                 # domain-local utils, not the global src/main/utils/ bucket
+```
 
 ---
 
@@ -412,6 +444,7 @@ Naming a new DIRECTORY
 ├─ Under packages/ui/?            → kebab-case      (primitives, button-group)
 ├─ Is itself a React component?   → PascalCase      (CodeEditor)
 ├─ Bucket / categorical container? → lowercase plural noun  (services, utils)
+├─ Large/complex multi-file domain? → features/<camelCase>/  (apiGateway, §4.10)
 ├─ Business domain module?        → camelCase       (apiServer, fileProcessing)
 └─ Unsure singular vs plural?     → see §4.9
 ```

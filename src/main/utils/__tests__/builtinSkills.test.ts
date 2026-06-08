@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { installBuiltinSkills } from '../utils/builtinSkills'
+import { installBuiltinSkills } from '../builtinSkills'
 
 vi.mock('node:fs/promises', () => ({
   default: {
@@ -27,7 +27,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('../utils', () => ({
+vi.mock('..', () => ({
   toAsarUnpackedPath: vi.fn((filePath: string) => filePath)
 }))
 
