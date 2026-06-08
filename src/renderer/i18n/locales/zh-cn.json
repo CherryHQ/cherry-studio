@@ -6173,6 +6173,7 @@
       "copy_model_id_tooltip": "点击复制模型 ID：{{id}}",
       "default_assistant_model": "默认助手模型",
       "default_assistant_model_description": "助手没有模型时使用这个模型",
+      "docs": "模型文档",
       "empty": "没有模型",
       "enabled_models": "已启用",
       "expand_all": "全部展开",
@@ -6579,7 +6580,7 @@
         "label": "筛选服务商"
       },
       "filter_agent": "筛选支持 Agent 的服务商",
-      "get_api_key": "点击这里获取密钥",
+      "get_api_key": "获取密钥",
       "logo_upload_failed": "无法处理所选图片",
       "misc": "其他",
       "more_endpoints": {
@@ -6768,7 +6769,9 @@
       "show_app": "显示 / 隐藏应用",
       "show_settings": "打开设置",
       "title": "快捷键",
+      "toggle_left_sidebar": "切换左侧边栏",
       "toggle_new_context": "清除上下文",
+      "toggle_right_sidebar": "切换右侧边栏",
       "toggle_show_topics": "切换话题显示",
       "toggle_sidebar": "切换侧边栏",
       "zoom_in": "放大界面",

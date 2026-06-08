@@ -23,9 +23,9 @@ import { useWebSearchProviderLists } from '../hooks/useWebSearchProviderLists'
 import CompressionSettings from './CompressionSettings'
 import { WebSearchProviderOption } from './WebSearchProviderOption'
 
-const settingRowClassName = 'justify-between gap-6 py-2.5'
+const settingRowClassName = 'items-center justify-between gap-6 py-1'
 const settingLabelClassName = 'min-w-0 flex-1'
-const selectTriggerClassName = 'w-[260px]'
+const selectTriggerClassName = 'h-8 w-56 text-sm'
 const DEFAULT_MAX_RESULTS = 5
 
 const BasicSettings: FC = () => {
@@ -142,7 +142,7 @@ const BasicSettings: FC = () => {
       <SettingGroup theme={theme} style={{ paddingBottom: 8 }}>
         <SettingTitle>{t('settings.general.label')}</SettingTitle>
         <SettingDivider />
-        <SettingRow className="items-center justify-between gap-6 py-2.5">
+        <SettingRow className={settingRowClassName}>
           <SettingRowTitle className={settingLabelClassName}>
             {t('settings.tool.websearch.search_max_result.label')}
             {maxResults > 20 && compressionConfig?.method === 'none' && (
@@ -152,7 +152,7 @@ const BasicSettings: FC = () => {
               />
             )}
           </SettingRowTitle>
-          <div className="flex w-[260px] shrink-0 items-center justify-end gap-2">
+          <div className="flex w-56 shrink-0 items-center justify-end gap-2">
             {!isMaxResultsDefault && (
               <Tooltip content={t('common.reset')}>
                 <Button
@@ -174,7 +174,7 @@ const BasicSettings: FC = () => {
               max={100}
               step={1}
               value={draftMaxResultsInput}
-              className="h-8 w-20 text-center"
+              className="h-8 w-20 text-center text-sm"
               onChange={(e) => setDraftMaxResultsInput(e.target.value)}
               onBlur={commitMaxResultsDraft}
               onKeyDown={(e) => {

@@ -1082,7 +1082,7 @@ const McpSettings: React.FC = () => {
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    className="shrink-0 rounded-full"
+                    className="-ml-2 shrink-0 rounded-full"
                     aria-label={t('common.back')}
                     title={t('common.back')}
                     onClick={() => void navigate({ to: '/settings/mcp/servers' })}>
@@ -1205,7 +1205,7 @@ const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'spa
 )
 
 const McpFormSection = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('border-border/60 border-t pt-5 first:border-t-0 first:pt-0', className)} {...props} />
+  <div className={cn(className)} {...props} />
 )
 
 const McpFormGrid = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

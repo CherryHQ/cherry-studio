@@ -292,31 +292,34 @@ export const WebSearchProviderSetting: FC<Props> = ({
   return (
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
-        <SettingTitle>
-          <Flex className="items-center justify-between" style={{ width: '100%' }}>
-            <Flex className="min-w-0 items-center gap-2.5">
-              <span className="truncate font-semibold text-[17px] text-foreground">{provider.name}</span>
-              {officialWebsite && (
-                <SettingTitleExternalLink href={officialWebsite}>
-                  <ExternalLink size={13} />
-                </SettingTitleExternalLink>
-              )}
-            </Flex>
-            <Button
-              variant="outline"
-              disabled={isDefault}
-              onClick={() =>
-                void persist(async () => {
-                  if (!isDefault) {
-                    await onSetDefaultProvider(provider)
-                  }
-                }, 'Failed to set default web search provider')
-              }>
-              {isDefault ? t('settings.tool.websearch.is_default') : t('settings.tool.websearch.set_as_default')}
-            </Button>
-          </Flex>
-        </SettingTitle>
-        <SettingHelpText className="mt-1.5">{t(descriptionKey)}</SettingHelpText>
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <SettingTitle>
+              <Flex className="min-w-0 items-center gap-2.5">
+                <span className="truncate font-semibold text-[17px] text-foreground">{provider.name}</span>
+                {officialWebsite && (
+                  <SettingTitleExternalLink href={officialWebsite}>
+                    <ExternalLink size={13} />
+                  </SettingTitleExternalLink>
+                )}
+              </Flex>
+            </SettingTitle>
+            <SettingHelpText className="mt-1.5">{t(descriptionKey)}</SettingHelpText>
+          </div>
+          <Button
+            variant="outline"
+            className="shrink-0"
+            disabled={isDefault}
+            onClick={() =>
+              void persist(async () => {
+                if (!isDefault) {
+                  await onSetDefaultProvider(provider)
+                }
+              }, 'Failed to set default web search provider')
+            }>
+            {isDefault ? t('settings.tool.websearch.is_default') : t('settings.tool.websearch.set_as_default')}
+          </Button>
+        </div>
         <SettingDivider style={{ width: '100%', margin: '8px 0 12px' }} />
 
         <div className={providerFormClassName}>

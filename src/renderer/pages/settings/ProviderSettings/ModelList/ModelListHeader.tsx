@@ -47,7 +47,7 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
               rel="noreferrer"
               href={docsLink}
               className={modelListClasses.titleHelpLink}>
-              {t('common.docs')}
+              {t('settings.models.docs')}
             </ProviderHelpLink>
           </div>
         ) : null}

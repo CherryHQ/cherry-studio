@@ -112,7 +112,8 @@ export const providerListClasses = {
   itemDragHandle:
     'flex w-2.5 shrink-0 items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[dragging=true]:opacity-100',
   itemDragHandleSpacer: 'flex w-2.5 shrink-0',
-  itemAvatar: 'shrink-0 rounded-lg border border-border/30',
+  itemAvatar:
+    'shrink-0 rounded-md border border-border/30 [&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]',
   itemLabel: 'truncate text-sm leading-[1.35] text-foreground font-[weight:500]',
   itemMenuContent: 'w-fit min-w-32 rounded-xl p-1.5',
   itemMenuEntry: 'h-8 rounded-lg px-2.5 text-sm',
@@ -242,7 +243,7 @@ export const modelListClasses = {
   searchRow: 'flex min-w-0 w-full flex-wrap items-center gap-2',
   searchActions: 'flex max-w-full shrink-0 flex-wrap items-center gap-2',
   searchWrap:
-    'flex h-8 min-w-[260px] flex-1 items-center gap-1 rounded-[10px] border border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-1',
+    'flex h-8 min-w-0 flex-1 items-center gap-1 rounded-[10px] border border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-1',
   searchIcon: 'size-3 shrink-0 text-muted-foreground/65',
   searchInput:
     'min-w-0 flex-1 border-none bg-transparent text-sm leading-5 text-foreground/80 outline-none placeholder:text-muted-foreground/75 disabled:cursor-not-allowed disabled:opacity-60',

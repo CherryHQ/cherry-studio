@@ -89,7 +89,7 @@ describe('ModelListHeader', () => {
       />
     )
 
-    expect(screen.getByRole('link', { name: 'common.docs' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'settings.models.docs' })).toHaveAttribute(
       'href',
       'https://github.com/marketplace/models'
     )

@@ -7,9 +7,9 @@ import { useTranslation } from 'react-i18next'
 
 import CutoffSettings from './CutoffSettings'
 
-const settingRowClassName = 'justify-between gap-6 py-2.5'
+const settingRowClassName = 'items-center justify-between gap-6 py-1'
 const settingLabelClassName = 'min-w-0 flex-1'
-const selectTriggerClassName = 'w-[260px]'
+const selectTriggerClassName = 'h-8 w-56 text-sm'
 
 const CompressionSettings = () => {
   const { t } = useTranslation()
