@@ -1,5 +1,4 @@
 import { usePreference } from '@data/hooks/usePreference'
-import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useAgent, useAgents } from '@renderer/hooks/agents/useAgent'
 import { useActiveSession } from '@renderer/hooks/agents/useSession'
@@ -15,20 +14,12 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, ModelSnapshot } from '@shared/data/types/message'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
-import { Loader2 } from 'lucide-react'
-import { AnimatePresence, motion } from 'motion/react'
 import type { PropsWithChildren } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
-import ChatNavigation from '../home/Messages/ChatNavigation'
-import NarrowLayout from '../home/Messages/NarrowLayout'
 import { uiToMessage } from '../home/uiToMessage'
 import AgentChatNavbar from './components/AgentChatNavbar'
-import AgentSessionInputbar from './components/AgentSessionInputbar'
-import AgentSessionMessages from './components/AgentSessionMessages'
-import Sessions from './components/Sessions'
 
 const AgentChat = () => {
   const { t } = useTranslation()
@@ -46,9 +37,21 @@ const AgentChat = () => {
 
   if (isInitializing) {
     return (
-      <Container className="flex flex-1 flex-col items-center justify-center">
-        <Loader2 className="size-6 animate-spin text-(--color-text-3)" />
-      </Container>
+      <AgentRightPane
+        workspacePath={temporaryAgentConversation?.session.workspace?.path}
+        traceId={temporaryAgentConversation?.session.traceId ?? undefined}
+        messages={EMPTY_MESSAGES}
+        partsByMessageId={EMPTY_PARTS}>
+        <ConversationShell
+          className={messageStyle}
+          pane={pane}
+          paneOpen={paneOpen}
+          panePosition={panePosition}
+          onPaneCollapse={onPaneCollapse}
+          center={<ConversationCenterState state="loading" />}
+          rightPane={<AgentRightPane.Host />}
+        />
+      </AgentRightPane>
     )
   }
 
@@ -150,57 +153,54 @@ const AgentChatInner = ({
   const { isPending } = useTopicStreamStatus(sessionTopicId)
 
   return (
-    <Container className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}>
-      <QuickPanelProvider>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex h-fit w-full min-w-0">
-            {activeAgent && <AgentChatNavbar className="min-w-0" activeAgent={activeAgent} />}
-          </div>
-
-          <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
-            <AgentSessionMessages
-              agentId={agentId}
-              sessionId={sessionId}
-              adaptedMessages={projectedMessages}
-              partsMap={mergedPartsMap}
-              isLoading={isLoading}
-              hasOlder={hasOlder}
-              loadOlder={loadOlder}
-            />
-            <div className="mt-auto px-4.5 pb-2">
-              <NarrowLayout>
-                <PinnedTodoPanel messages={projectedMessages} partsMap={mergedPartsMap} />
-              </NarrowLayout>
-            </div>
-            {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-          </div>
-
-          <AgentSessionInputbar
-            agentId={agentId}
-            sessionId={sessionId}
-            sendMessage={chat.sendMessage}
-            stop={chat.stop}
-            isStreaming={isPending}
+    <AgentRightPane
+      workspacePath={session.workspace?.path}
+      messages={runtime.uiMessages}
+      partsByMessageId={runtime.partsByMessageId}
+      sessionId={runtime.sessionId}
+      sessionName={session.name}
+      traceId={session.traceId ?? undefined}
+      agentId={agentId ?? session.agentId ?? undefined}
+      agentName={activeAgent?.name}
+      agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+      modelFallback={runtime.fallbackSnapshot}>
+      <AgentRightPaneDisabledReset disabled={rightPaneDisabled} />
+      <ConversationShell
+        className={className}
+        pane={pane}
+        paneOpen={paneOpen}
+        panePosition={panePosition}
+        onPaneCollapse={onPaneCollapse}
+        topBar={
+          <AgentChatNavbar
+            className="min-w-0"
+            activeAgent={activeAgent ?? null}
+            showSidebarControls={showResourceListControls}
+            sidebarOpen={sidebarOpen}
+            onSidebarToggle={onSidebarToggle}
           />
-        </div>
-      </QuickPanelProvider>
-
-      <AnimatePresence initial={false}>
-        {showRightSessions && (
-          <motion.div
-            key="right-sessions"
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 'var(--assistants-width)', opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className="overflow-hidden">
-            <div className="flex h-full w-(--assistants-width) flex-col overflow-hidden">
-              <Sessions />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </Container>
+        }
+        topRightTool={
+          <>
+            <AgentRightPane.InfoCard disabled={rightPaneDisabled} />
+            <AgentRightPane.FilesToggle disabled={rightPaneDisabled} />
+          </>
+        }
+        topRightToolReserve="double"
+        center={
+          <ConversationStageCenter
+            placement={placement}
+            main={main}
+            composer={composer}
+            homeWelcomeText={homeWelcomeText}
+          />
+        }
+        sidePanel={sidePanel}
+        centerOverlay={rightPaneDisabled ? undefined : <AgentRightPane.MaximizedOverlay />}
+        rightPane={rightPaneDisabled ? undefined : <AgentRightPane.Host />}
+        centerClassName="transform-[translateZ(0)] relative justify-between"
+      />
+    </AgentRightPane>
   )
 }
 

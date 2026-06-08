@@ -160,6 +160,19 @@ describe('Tooltip', () => {
       expect(screen.getByRole('tooltip')).toBeInTheDocument()
     })
 
+    it('keeps the same tooltip color direction in dark mode', () => {
+      render(
+        <Tooltip content="dark-safe" isOpen={true}>
+          <button type="button">Trigger</button>
+        </Tooltip>
+      )
+
+      const content = getTooltipContentElement('dark-safe')
+      expect(content).toHaveClass('bg-neutral-900', 'text-neutral-50')
+      expect(content.className).not.toContain('dark:bg-neutral-100')
+      expect(content.className).not.toContain('dark:text-neutral-900')
+    })
+
     it('does not render tooltip content when isOpen is false', () => {
       render(
         <Tooltip content="forced closed" isOpen={false}>

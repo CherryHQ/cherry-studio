@@ -340,6 +340,47 @@
         "failed": "智能体排序失败"
       }
     },
+    "right_pane": {
+      "close": "关闭",
+      "flow": {
+        "empty": {
+          "description": "选择一个 Agent 工具调用来查看它的子消息流。",
+          "title": "未选择工具"
+        },
+        "no_messages": {
+          "description": "这个工具调用没有捕获到子消息流。",
+          "title": "暂无消息"
+        }
+      },
+      "info": {
+        "artifacts": "产物",
+        "context_usage": "上下文用量",
+        "label": "任务信息",
+        "more": "还有 {{count}} 项",
+        "no_artifacts": "暂无声明产物",
+        "no_subagents": "暂无子智能体",
+        "subagents": "子智能体"
+      },
+      "status": {
+        "activity": "活动",
+        "agent": "智能体",
+        "context": "上下文",
+        "no_tasks": "暂无活动任务",
+        "selected_tool": "选中工具",
+        "task_count": "{{completed}} / {{total}} 已完成",
+        "tasks": "任务",
+        "tools_active": "活跃",
+        "tools_done": "完成",
+        "tools_failed": "失败",
+        "tools_total": "总数",
+        "workspace": "工作区"
+      },
+      "tabs": {
+        "files": "文件",
+        "flow": "消息流",
+        "status": "状态"
+      }
+    },
     "server": {
       "error": {
         "not_running": "API 网关已启用但未正常运行。"
@@ -675,9 +716,6 @@
           "writePages": "编写页面"
         },
         "title": "任务"
-      },
-      "panel": {
-        "title": "已完成 {{completed}}/{{total}} 个任务"
       },
       "status": {
         "completed": "已完成",

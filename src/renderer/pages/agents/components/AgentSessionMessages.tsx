@@ -11,7 +11,6 @@ import MessageAnchorLine from '@renderer/pages/home/Messages/MessageAnchorLine'
 import MessageGroup from '@renderer/pages/home/Messages/MessageGroup'
 import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
 import { MessagesContainer } from '@renderer/pages/home/Messages/shared'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getGroupedMessages } from '@renderer/services/MessagesService'
 import type { Topic, TopicType as TopicTypeEnum } from '@renderer/types'
 import { TopicType } from '@renderer/types'
@@ -34,6 +33,11 @@ type Props = {
   hasOlder?: boolean
   /** Trigger fetching the next older page. */
   loadOlder?: () => void
+  onOpenCitationsPanel?: MessageListActions['openCitationsPanel']
+  openAgentToolFlow?: MessageListActions['openAgentToolFlow']
+  openArtifactFile?: MessageListActions['openArtifactFile']
+  deleteMessage?: MessageListActions['deleteMessage']
+  respondToolApproval?: MessageListActions['respondToolApproval']
 }
 
 const AgentSessionMessages = ({
@@ -43,7 +47,12 @@ const AgentSessionMessages = ({
   partsMap,
   isLoading,
   hasOlder = false,
-  loadOlder
+  loadOlder,
+  onOpenCitationsPanel,
+  openAgentToolFlow,
+  openArtifactFile,
+  deleteMessage,
+  respondToolApproval
 }: Props) => {
   const { session } = useSession(sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
@@ -83,16 +92,29 @@ const AgentSessionMessages = ({
     [sessionTopicId, sessionAssistantId, sessionName, sessionCreatedAt, sessionUpdatedAt]
   )
 
-  // ── Scroll to bottom on send ──
-
-  const scrollToBottom = useCallback(() => {
-    chatListRef.current?.scrollToBottom('instant')
-  }, [])
-
-  useEffect(() => {
-    const unsubscribes = [EventEmitter.on(EVENT_NAMES.SEND_MESSAGE, scrollToBottom)]
-    return () => unsubscribes.forEach((unsub) => unsub())
-  }, [scrollToBottom])
+  const messageList = useAgentMessageListProviderValue({
+    topic: derivedTopic,
+    messages,
+    partsByMessageId,
+    assistantProfile: activeAgent
+      ? {
+          name: activeAgent.name,
+          avatar: getAgentAvatarFromConfiguration(activeAgent.configuration)
+        }
+      : undefined,
+    assistantId: agentId,
+    modelFallback,
+    isLoading,
+    hasOlder,
+    loadOlder,
+    openCitationsPanel: onOpenCitationsPanel,
+    openAgentToolFlow,
+    openArtifactFile,
+    deleteMessage,
+    respondToolApproval,
+    messageNavigation,
+    workspacePath: session?.workspace?.path
+  })
 
   useEffect(() => {
     void window.api.ai.prewarmAgentSession({ sessionId }).catch((error) => {

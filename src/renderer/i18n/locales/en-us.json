@@ -340,6 +340,47 @@
         "failed": "Failed to reorder agents"
       }
     },
+    "right_pane": {
+      "close": "Close",
+      "flow": {
+        "empty": {
+          "description": "Select an agent tool call to inspect its child message flow.",
+          "title": "No tool selected"
+        },
+        "no_messages": {
+          "description": "This tool call has no captured child message flow.",
+          "title": "No messages"
+        }
+      },
+      "info": {
+        "artifacts": "Deliverables",
+        "context_usage": "Context usage",
+        "label": "Session information",
+        "more": "+{{count}} more",
+        "no_artifacts": "No declared deliverables",
+        "no_subagents": "No sub-agents",
+        "subagents": "Sub-agents"
+      },
+      "status": {
+        "activity": "Activity",
+        "agent": "Agent",
+        "context": "Context",
+        "no_tasks": "No active tasks",
+        "selected_tool": "Selected tool",
+        "task_count": "{{completed}} / {{total}} complete",
+        "tasks": "Tasks",
+        "tools_active": "Active",
+        "tools_done": "Done",
+        "tools_failed": "Failed",
+        "tools_total": "Total",
+        "workspace": "Workspace"
+      },
+      "tabs": {
+        "files": "Files",
+        "flow": "Flow",
+        "status": "Status"
+      }
+    },
     "server": {
       "error": {
         "not_running": "The API server is enabled but not running properly."
@@ -675,9 +716,6 @@
           "writePages": "Write pages"
         },
         "title": "Tasks"
-      },
-      "panel": {
-        "title": "{{completed}}/{{total}} tasks completed"
       },
       "status": {
         "completed": "Completed",

@@ -340,6 +340,47 @@
         "failed": "Agent 排序失敗"
       }
     },
+    "right_pane": {
+      "close": "[to be translated]:Close",
+      "flow": {
+        "empty": {
+          "description": "[to be translated]:Select an agent tool call to inspect its child message flow.",
+          "title": "[to be translated]:No tool selected"
+        },
+        "no_messages": {
+          "description": "[to be translated]:This tool call has no captured child message flow.",
+          "title": "[to be translated]:No messages"
+        }
+      },
+      "info": {
+        "artifacts": "產物",
+        "context_usage": "上下文用量",
+        "label": "任務資訊",
+        "more": "還有 {{count}} 項",
+        "no_artifacts": "暫無宣告產物",
+        "no_subagents": "暫無子智能體",
+        "subagents": "子智能體"
+      },
+      "status": {
+        "activity": "[to be translated]:Activity",
+        "agent": "[to be translated]:Agent",
+        "context": "[to be translated]:Context",
+        "no_tasks": "[to be translated]:No active tasks",
+        "selected_tool": "[to be translated]:Selected tool",
+        "task_count": "[to be translated]:{{completed}} / {{total}} complete",
+        "tasks": "[to be translated]:Tasks",
+        "tools_active": "[to be translated]:Active",
+        "tools_done": "[to be translated]:Done",
+        "tools_failed": "[to be translated]:Failed",
+        "tools_total": "[to be translated]:Total",
+        "workspace": "[to be translated]:Workspace"
+      },
+      "tabs": {
+        "files": "[to be translated]:Files",
+        "flow": "[to be translated]:Flow",
+        "status": "[to be translated]:Status"
+      }
+    },
     "server": {
       "error": {
         "not_running": "API 閘道已啟用，但運作不正常。"
@@ -675,9 +716,6 @@
           "writePages": "編寫頁面"
         },
         "title": "任務"
-      },
-      "panel": {
-        "title": "已完成 {{completed}}/{{total}} 個任務"
       },
       "status": {
         "completed": "已完成",
