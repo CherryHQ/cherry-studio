@@ -787,7 +787,19 @@ export function getAnthropicReasoningParams(
       }
     }
   } else {
-    // 其他使用claude端點的模型，比如Kimi,Minimax等等
+    // MiniMax M3 via Anthropic endpoint: adaptive / disabled, no budgetTokens
+    // https://platform.minimaxi.com/docs/api-reference/text-anthropic-api
+    if (isMiniMaxM3Model(model)) {
+      if (reasoningEffort === 'none') {
+        return { thinking: { type: 'disabled' } }
+      }
+      return { thinking: { type: 'adaptive' }, sendReasoning: true }
+    }
+    if (isMiniMaxReasoningModel(model)) {
+      // M2.x: thinking cannot be turned off per official docs.
+      return {}
+    }
+    // 其他使用claude端點的模型，比如Kimi等等
     const maxTokens = assistant.settings?.maxTokens
     const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
     const params: Partial<ReturnType<typeof getAnthropicReasoningParams>> = {
