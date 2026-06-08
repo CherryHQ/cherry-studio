@@ -391,8 +391,8 @@ export const oauthCardClasses = {
   externalLink: 'mt-1 inline-block text-xs text-primary hover:underline',
   /** Logged-in CherryIN: mock CherryIN account section — one row, no stat grid. */
   shellLoggedIn: 'w-full min-w-0 overflow-hidden rounded-xl border border-border p-3.5',
-  loggedInRow: 'flex w-full min-w-0 flex-wrap items-center justify-between gap-3',
-  profileMeta: 'flex min-w-0 flex-1 items-center gap-3',
+  loggedInRow: 'w-full min-w-0',
+  profileMeta: 'min-w-0 flex-1',
   /** Avatar: 32px round avatar, primary fill, initials (/ CherryIN row). */
   avatarSm:
     'flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-white',
@@ -404,7 +404,7 @@ export const oauthCardClasses = {
   loggedInEmail: 'mt-0.5 truncate text-xs leading-[1.35] text-muted-foreground/40',
   badge:
     'inline-flex items-center rounded bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1 py-[0.5px] text-[10px] font-medium leading-tight text-[color:var(--warning)]',
-  loggedInActions: 'flex shrink-0 flex-wrap items-center justify-end gap-2',
+  loggedInActions: 'shrink-0',
   inlineBalanceBlock: 'text-right',
   inlineBalanceLabel: 'text-xs text-muted-foreground/40',
   inlineBalanceValue: 'text-sm font-semibold leading-tight text-foreground tabular-nums',

@@ -1,4 +1,4 @@
-import { Button, Skeleton, VStack } from '@cherrystudio/ui'
+import { Button, HStack, Skeleton, VStack } from '@cherrystudio/ui'
 import { Cherryin } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProvider'
@@ -186,8 +186,8 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
       <VStack gap={3}>
         <h3 className={sectionHeadingClasses}>{t('settings.provider.section.account')}</h3>
         <div className={oauthCardClasses.shell}>
-          <div className={oauthCardClasses.loggedInRow}>
-            <div className={oauthCardClasses.profileMeta}>
+          <HStack justify="between" wrap gap={3} className={oauthCardClasses.loggedInRow}>
+            <HStack gap={3} className={oauthCardClasses.profileMeta}>
               <Cherryin.Avatar shape="circle" size={48} />
               <div className={oauthCardClasses.nameBlock}>
                 <div className={oauthCardClasses.loggedInName}>
@@ -195,11 +195,11 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
                 </div>
                 <div className={oauthCardClasses.loggedInEmail}>{t('settings.provider.oauth.cherryIn.tagline')}</div>
               </div>
-            </div>
+            </HStack>
             <Button variant="emphasis" onClick={handleOAuthLogin}>
               {t('settings.provider.oauth.cherryIn.login_button')}
             </Button>
-          </div>
+          </HStack>
         </div>
       </VStack>
     )
@@ -214,8 +214,8 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
   return (
     <div className={oauthCardClasses.container}>
       <div className={oauthCardClasses.shellLoggedIn}>
-        <div className={oauthCardClasses.loggedInRow}>
-          <div className={oauthCardClasses.profileMeta}>
+        <HStack justify="between" wrap gap={3} className={oauthCardClasses.loggedInRow}>
+          <HStack gap={3} className={oauthCardClasses.profileMeta}>
             <div className={oauthCardClasses.avatarSm}>
               <span>{getAvatarInitials(profileName)}</span>
             </div>
@@ -226,8 +226,8 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
               </div>
               <div className={oauthCardClasses.loggedInEmail}>{profileEmail}</div>
             </div>
-          </div>
-          <div className={oauthCardClasses.loggedInActions}>
+          </HStack>
+          <HStack justify="end" wrap gap={2} className={oauthCardClasses.loggedInActions}>
             <div className={oauthCardClasses.inlineBalanceBlock}>
               <p className={oauthCardClasses.inlineBalanceLabel}>{t('settings.provider.oauth.balance')}</p>
               <div className={oauthCardClasses.inlineBalanceValue}>
@@ -248,8 +248,8 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
               variant="ghost">
               {t('settings.provider.oauth.logout')}
             </Button>
-          </div>
-        </div>
+          </HStack>
+        </HStack>
         <p className={oauthCardClasses.serviceAttribution}>
           <Trans
             i18nKey="settings.provider.oauth.cherryIn.service_attribution"
