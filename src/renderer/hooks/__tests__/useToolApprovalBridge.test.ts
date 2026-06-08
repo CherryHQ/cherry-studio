@@ -10,11 +10,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useToolApprovalBridge } from '../useToolApprovalBridge'
 
-vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() }) }
+const mocks = vi.hoisted(() => ({
+  respondToolApproval: vi.fn()
 }))
-
-const respond = vi.fn()
 
 beforeEach(() => {
   respond.mockReset()
@@ -28,8 +26,25 @@ afterEach(() => {
 const match = { messageId: 'a1', approvalId: 'ap-1', transport: 'mcp' } as ToolApprovalMatch
 
 describe('useToolApprovalBridge', () => {
-  it('resolves when main returns { ok: true }', async () => {
-    respond.mockResolvedValueOnce({ ok: true })
+  beforeEach(() => {
+    mocks.respondToolApproval.mockReset()
+    mocks.respondToolApproval.mockResolvedValue({ ok: true })
+
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        ai: {
+          toolApproval: {
+            respond: mocks.respondToolApproval
+          }
+        }
+      }
+    })
+  })
+
+  it('delivers approval decisions to main with anchor context', async () => {
+    const match = makeApprovalMatch()
+
     const { result } = renderHook(() => useToolApprovalBridge('topic-1'))
 
     await expect(result.current({ match, approved: true })).resolves.toBeUndefined()
@@ -50,14 +65,5 @@ describe('useToolApprovalBridge', () => {
     const { result } = renderHook(() => useToolApprovalBridge('topic-1'))
 
     await expect(result.current({ match, approved: false })).rejects.toThrow('ipc boom')
-  })
-
-  it('no-ops without an approvalId', async () => {
-    const { result } = renderHook(() => useToolApprovalBridge('topic-1'))
-
-    await expect(
-      result.current({ match: { messageId: 'a1' } as ToolApprovalMatch, approved: true })
-    ).resolves.toBeUndefined()
-    expect(respond).not.toHaveBeenCalled()
   })
 })

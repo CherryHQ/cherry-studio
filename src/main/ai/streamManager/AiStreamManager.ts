@@ -582,6 +582,15 @@ export class AiStreamManager extends BaseService {
     const exec = stream.executions.get(modelId)
     if (!exec || exec.status !== 'aborted') return
 
+    // A turn torn down while a tool is still `approval-requested` (or any
+    // in-flight tool) gets no `tool-output-*` to clear it. Clear the flag so the
+    // status resolves to plain `aborted` (not `awaiting-approval`) and the
+    // status-cache anchor drops; the dangling tool part itself is terminalized
+    // to `output-error` by `finalizeInterruptedParts` at every projection
+    // (persistence already, re-attach below). Must run before
+    // `resolveTerminalStatus`.
+    exec.awaitingApproval = false
+
     endRootSpan(exec, 'aborted')
     stream.status = this.resolveTerminalStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
@@ -602,6 +611,10 @@ export class AiStreamManager extends BaseService {
     exec.status = 'error'
     exec.error = error
     endRootSpan(exec, 'error', error)
+
+    // Mirror of onExecutionPaused: clear the flag so the status anchor drops;
+    // the in-flight tool part is terminalized by `finalizeInterruptedParts`.
+    exec.awaitingApproval = false
 
     stream.status = this.computeTopicStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
@@ -822,7 +835,10 @@ export class AiStreamManager extends BaseService {
     // upstream AI SDK request is already wired to. Caller override via
     // `requestOptions.timeout`; otherwise `DEFAULT_TIMEOUT`.
     const timeoutMs = request.requestOptions?.timeout ?? DEFAULT_TIMEOUT
-    const stream = withIdleTimeout(rawStream, exec.abortController, timeoutMs)
+    const { stream: idleStream, idle } = withIdleTimeout(rawStream, exec.abortController, timeoutMs)
+    // Wrap before pipeStreamLoop's tee() so broadcast + accumulator share one
+    // thinkingMs measurement (see reasoningTimingTransform).
+    const stream = withReasoningTimingMetadata(idleStream)
 
     // `continue-conversation` chunks reference toolCallIds on the anchor
     // assistant message; without seeding, `readUIMessageStream`'s
@@ -832,7 +848,10 @@ export class AiStreamManager extends BaseService {
       lastIncoming?.role === 'assistant' ? (lastIncoming as CherryUIMessage) : undefined
 
     const result = await pipeStreamLoop(stream, signal, {
-      onChunk: (chunk) => this.onChunk(topicId, modelId, chunk),
+      onChunk: (chunk) => {
+        this.onChunk(topicId, modelId, chunk)
+        if (chunk.type === 'tool-approval-request') idle.cleanup()
+      },
       accumulatorSeed,
       onAccumulatedSnapshot: (msg) => {
         exec.finalMessage = msg

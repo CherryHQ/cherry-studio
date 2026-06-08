@@ -129,6 +129,16 @@ export interface ApprovalDecision {
   approvalId: string
   approved: boolean
   reason?: string
+  updatedInput?: Record<string, unknown>
+}
+
+export interface AiToolApprovalRespondRequest extends ApprovalDecision {
+  topicId?: string
+  anchorId?: string
+}
+
+export interface AiToolApprovalRespondResponse {
+  ok: boolean
 }
 
 /** Subscribe to a topic's stream state. */

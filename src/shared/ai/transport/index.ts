@@ -22,6 +22,8 @@ export type {
   AiStreamDetachRequest,
   AiStreamOpenRequest,
   AiStreamOpenResponse,
+  AiToolApprovalRespondRequest,
+  AiToolApprovalRespondResponse,
   ApprovalDecision,
   StreamChunkPayload,
   StreamDonePayload,

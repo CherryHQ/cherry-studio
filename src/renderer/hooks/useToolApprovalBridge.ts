@@ -1,8 +1,6 @@
 import { loggerService } from '@logger'
 import { useCallback } from 'react'
 
-import type { ToolApprovalRespondFn } from './ToolApprovalContext'
-
 const logger = loggerService.withContext('useToolApprovalBridge')
 
 /**

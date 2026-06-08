@@ -8,6 +8,8 @@ const mockGenerateImage = vi.fn()
 const mockRerank = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
 const mockApplicationGet = vi.fn()
+const mockMessageGetById = vi.fn()
+const mockMessageUpdate = vi.fn()
 const mockProviderGetByProviderId = vi.fn()
 const mockProviderGetRotatedApiKey = vi.fn()
 const mockModelGetByKey = vi.fn()
@@ -33,6 +35,13 @@ vi.mock('@main/data/services/ModelService', () => ({
 
 vi.mock('@main/utils/downloadAsBase64', () => ({
   downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
+}))
+
+vi.mock('@main/data/services/MessageService', () => ({
+  messageService: {
+    getById: mockMessageGetById,
+    update: mockMessageUpdate
+  }
 }))
 
 vi.mock('@cherrystudio/ai-core', () => ({
