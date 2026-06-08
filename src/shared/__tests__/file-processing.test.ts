@@ -164,12 +164,12 @@ describe('FileProcessingArtifactSchema', () => {
       FileProcessingArtifactSchema.parse({
         kind: 'file',
         format: 'markdown',
-        fileEntryId: '019606a0-0000-7000-8000-000000000601'
+        path: '/tmp/out.md'
       })
     ).toEqual({
       kind: 'file',
       format: 'markdown',
-      fileEntryId: '019606a0-0000-7000-8000-000000000601'
+      path: '/tmp/out.md'
     })
   })
 })
@@ -178,10 +178,10 @@ describe('FileProcessingJobOutputSchema', () => {
   it('accepts a job output artifact', () => {
     expect(
       FileProcessingJobOutputSchema.parse({
-        artifact: { kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000601' }
+        artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
       })
     ).toEqual({
-      artifact: { kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000601' }
+      artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
     })
   })
 
@@ -198,7 +198,7 @@ describe('FileProcessingJobOutputSchema', () => {
       taskId: 'task-1',
       status: 'completed',
       progress: 100,
-      artifact: { kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000601' }
+      artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
     })
 
     expect(result.success).toBe(false)

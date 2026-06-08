@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
 
-const { fetchMock, readMarkdownFromResponseZipMock, createInternalEntryMock } = vi.hoisted(() => ({
+const { fetchMock, readMarkdownFromResponseZipMock, atomicWriteFileMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
   readMarkdownFromResponseZipMock: vi.fn(),
-  createInternalEntryMock: vi.fn()
+  atomicWriteFileMock: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -19,43 +19,37 @@ vi.mock('../resultPersistence', () => ({
   readMarkdownFromResponseZip: readMarkdownFromResponseZipMock
 }))
 
+vi.mock('@main/utils/file/fs', () => ({
+  atomicWriteFile: atomicWriteFileMock
+}))
+
+import type { FilePath } from '@shared/file/types'
+
 import { markdownResultStore } from '../MarkdownResultStore'
 
-const PROCESSED_FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000501'
+const OUTPUT_PATH = '/mock/out.md' as FilePath
 
 describe('MarkdownResultStore', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(vi.mocked(application.get) as unknown as ReturnType<typeof vi.fn>).mockImplementation((name: string) => {
-      if (name === 'FileManager') {
-        return {
-          createInternalEntry: createInternalEntryMock
-        }
-      }
-      throw new Error(`Unexpected application.get(${name})`)
-    })
     vi.mocked(application.getPath).mockImplementation((key: string) => `/mock/${key}`)
-    createInternalEntryMock.mockResolvedValue({ id: PROCESSED_FILE_ENTRY_ID })
+    atomicWriteFileMock.mockResolvedValue(undefined)
     readMarkdownFromResponseZipMock.mockResolvedValue(new TextEncoder().encode('# zip'))
   })
 
-  it('persists inline markdown content as an internal markdown file entry', async () => {
+  it('writes inline markdown content to the path output target', async () => {
     await expect(
-      markdownResultStore.persistResult({
+      markdownResultStore.persistResultToPath({
         jobId: 'job-1',
+        path: OUTPUT_PATH,
         result: {
           kind: 'markdown',
           markdownContent: '# hello'
         }
       })
-    ).resolves.toBe(PROCESSED_FILE_ENTRY_ID)
+    ).resolves.toBe(OUTPUT_PATH)
 
-    expect(createInternalEntryMock).toHaveBeenCalledWith({
-      source: 'bytes',
-      data: new TextEncoder().encode('# hello'),
-      name: 'file-processing-job-1',
-      ext: 'md'
-    })
+    expect(atomicWriteFileMock).toHaveBeenCalledWith(OUTPUT_PATH, new TextEncoder().encode('# hello'))
   })
 
   it('rejects remote zip downloads whose content-type is not application/zip', async () => {
@@ -70,8 +64,9 @@ describe('MarkdownResultStore', () => {
     )
 
     await expect(
-      markdownResultStore.persistResult({
+      markdownResultStore.persistResultToPath({
         jobId: 'job-1',
+        path: OUTPUT_PATH,
         result: {
           kind: 'remote-zip-url',
           downloadUrl:
@@ -82,7 +77,7 @@ describe('MarkdownResultStore', () => {
     ).rejects.toThrow('Markdown result download returned unexpected content-type: application/json')
 
     expect(readMarkdownFromResponseZipMock).not.toHaveBeenCalled()
-    expect(createInternalEntryMock).not.toHaveBeenCalled()
+    expect(atomicWriteFileMock).not.toHaveBeenCalled()
   })
 
   it('logs remote zip persistence failures with job context and redacted download urls', async () => {
@@ -99,8 +94,9 @@ describe('MarkdownResultStore', () => {
     )
 
     await expect(
-      markdownResultStore.persistResult({
+      markdownResultStore.persistResultToPath({
         jobId: 'job-1',
+        path: OUTPUT_PATH,
         result: {
           kind: 'remote-zip-url',
           downloadUrl: 'https://cdn.example.com/results/task-1.zip?Signature=secret&Expires=1',
@@ -110,7 +106,7 @@ describe('MarkdownResultStore', () => {
     ).rejects.toThrow('Markdown result download failed: 500 Internal Server Error')
 
     expect(warnSpy).toHaveBeenCalledWith(
-      'Markdown result persistence failed',
+      'Markdown result path persistence failed',
       expect.objectContaining({
         message: 'Markdown result download failed'
       }),
@@ -137,8 +133,9 @@ describe('MarkdownResultStore', () => {
     )
 
     await expect(
-      markdownResultStore.persistResult({
+      markdownResultStore.persistResultToPath({
         jobId: 'job-1',
+        path: OUTPUT_PATH,
         result: {
           kind: 'remote-zip-url',
           downloadUrl: 'https://cdn.example.com/results/task-1.zip',
@@ -160,15 +157,16 @@ describe('MarkdownResultStore', () => {
     )
 
     await expect(
-      markdownResultStore.persistResult({
+      markdownResultStore.persistResultToPath({
         jobId: 'job-1',
+        path: OUTPUT_PATH,
         result: {
           kind: 'remote-zip-url',
           downloadUrl: 'https://cdn-mineru.openxlab.org.cn/pdf/task-1.zip',
           configuredApiHost: 'https://mineru.net'
         }
       })
-    ).resolves.toBe(PROCESSED_FILE_ENTRY_ID)
+    ).resolves.toBe(OUTPUT_PATH)
 
     expect(fetchMock).toHaveBeenCalledWith('https://cdn-mineru.openxlab.org.cn/pdf/task-1.zip', {
       method: 'GET',
@@ -180,7 +178,7 @@ describe('MarkdownResultStore', () => {
       tempDir: '/mock/feature.file_processing.temp',
       signal: undefined
     })
-    expect(createInternalEntryMock).toHaveBeenCalledOnce()
+    expect(atomicWriteFileMock).toHaveBeenCalledOnce()
   })
 
   it('allows remote zip downloads from a trusted local apiHost', async () => {
@@ -195,15 +193,16 @@ describe('MarkdownResultStore', () => {
     )
 
     await expect(
-      markdownResultStore.persistResult({
+      markdownResultStore.persistResultToPath({
         jobId: 'job-1',
+        path: OUTPUT_PATH,
         result: {
           kind: 'remote-zip-url',
           downloadUrl: 'http://localhost:8000/result.zip',
           configuredApiHost: 'http://127.0.0.1:8000'
         }
       })
-    ).resolves.toBe(PROCESSED_FILE_ENTRY_ID)
+    ).resolves.toBe(OUTPUT_PATH)
 
     expect(fetchMock).toHaveBeenCalledWith('http://localhost:8000/result.zip', {
       method: 'GET',

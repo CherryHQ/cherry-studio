@@ -1,5 +1,6 @@
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import type { FileEntryId } from '@shared/data/types/file'
+import type { FileProcessingOutputTarget } from '@shared/data/types/fileProcessing'
+import type { FileHandle } from '@shared/file/types'
 export type {
   FileProcessingArtifact,
   FileProcessingJobOutput,
@@ -8,6 +9,10 @@ export type {
 
 export interface StartFileProcessingJobInput {
   feature: FileProcessorFeature
-  fileEntryId: FileEntryId
+  file: FileHandle
+  output?: FileProcessingOutputTarget
+  context?: {
+    dataId?: string
+  }
   processorId?: FileProcessorId
 }

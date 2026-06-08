@@ -60,7 +60,7 @@ vi.mock('../../processors/registry', () => ({
 }))
 
 vi.mock('../../persistence/MarkdownResultStore', () => ({
-  markdownResultStore: { persistResult: persistResultMock }
+  markdownResultStore: { persistResultToPath: persistResultMock }
 }))
 
 const { remotePollJobHandler } = await import('../remotePollJobHandler')
@@ -111,7 +111,12 @@ function createCtx(
   const controller = new AbortController()
   return {
     jobId: 'job-2',
-    input: { feature: 'document_to_markdown', fileEntryId: FILE_ENTRY_ID, processorId: 'doc2x' },
+    input: {
+      feature: 'document_to_markdown',
+      file: { kind: 'entry', entryId: FILE_ENTRY_ID },
+      output: { kind: 'path', path: '/tmp/out.md' },
+      processorId: 'doc2x'
+    },
     attempt: 0,
     signal: controller.signal,
     metadata: {},
@@ -156,7 +161,7 @@ describe('remotePollJobHandler.execute', () => {
     expect(
       remotePollJobHandler.defaultQueue?.({
         feature: 'document_to_markdown',
-        fileEntryId: FILE_ENTRY_ID,
+        file: { kind: 'entry', entryId: FILE_ENTRY_ID },
         processorId: 'doc2x'
       })
     ).toBe('file-processing.doc2x')
@@ -188,7 +193,7 @@ describe('remotePollJobHandler.execute', () => {
       status: 'completed',
       output: { kind: 'remote-zip-url', downloadUrl: 'https://example.com/x.zip', configuredApiHost: remoteCtx.apiHost }
     })
-    persistResultMock.mockResolvedValue('019606a0-0000-7000-8000-000000000302')
+    persistResultMock.mockResolvedValue('/tmp/out.md')
 
     const ctx = createCtx()
     const result = (await remotePollJobHandler.execute(ctx)) as { artifact: unknown }
@@ -196,11 +201,9 @@ describe('remotePollJobHandler.execute', () => {
     expect(result.artifact).toEqual({
       kind: 'file',
       format: 'markdown',
-      fileEntryId: '019606a0-0000-7000-8000-000000000302'
+      path: '/tmp/out.md'
     })
-    expect(capabilityHandlerMock.prepare).toHaveBeenCalledWith(FAKE_FILE_INFO, expect.any(Object), ctx.signal, {
-      fileEntryId: FILE_ENTRY_ID
-    })
+    expect(capabilityHandlerMock.prepare).toHaveBeenCalledWith(FAKE_FILE_INFO, expect.any(Object), ctx.signal, {})
     expect(toPersistableMock).toHaveBeenCalledWith(remoteCtx, 'provider-task-xyz')
 
     const patchCalls = (ctx.patchMetadata as ReturnType<typeof vi.fn>).mock.calls
@@ -227,7 +230,7 @@ describe('remotePollJobHandler.execute', () => {
       status: 'completed',
       output: { kind: 'remote-zip-url', downloadUrl: 'https://x.zip', configuredApiHost: remoteCtx.apiHost }
     })
-    persistResultMock.mockResolvedValue('019606a0-0000-7000-8000-000000000302')
+    persistResultMock.mockResolvedValue('/tmp/out.md')
 
     const ctx = createCtx()
     await remotePollJobHandler.execute(ctx)
@@ -246,7 +249,7 @@ describe('remotePollJobHandler.execute', () => {
       status: 'completed',
       output: { kind: 'remote-zip-url', downloadUrl: 'https://x.zip', configuredApiHost: restoredCtx.apiHost }
     })
-    persistResultMock.mockResolvedValue('019606a0-0000-7000-8000-000000000302')
+    persistResultMock.mockResolvedValue('/tmp/out.md')
 
     const ctx = createCtx({
       metadata: { remoteState: { providerTaskId: 'recovered-task', stage: 'exporting', apiHost: restoredCtx.apiHost } }
@@ -285,7 +288,7 @@ describe('remotePollJobHandler.execute', () => {
         status: 'completed',
         output: { kind: 'remote-zip-url', downloadUrl: 'https://x.zip', configuredApiHost: 'https://h' }
       })
-    persistResultMock.mockResolvedValue('019606a0-0000-7000-8000-000000000302')
+    persistResultMock.mockResolvedValue('/tmp/out.md')
 
     const ctx = createCtx()
     const exec = remotePollJobHandler.execute(ctx)

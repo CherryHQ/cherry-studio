@@ -53,7 +53,7 @@ vi.mock('../../processors/registry', () => ({
 }))
 
 vi.mock('../../persistence/MarkdownResultStore', () => ({
-  markdownResultStore: { persistResult: persistResultMock }
+  markdownResultStore: { persistResultToPath: persistResultMock }
 }))
 
 const { backgroundJobHandler } = await import('../backgroundJobHandler')
@@ -85,7 +85,7 @@ function createCtx(
   const controller = new AbortController()
   return {
     jobId: 'job-1',
-    input: { feature: 'image_to_text', fileEntryId: FILE_ENTRY_ID, processorId: 'tesseract' },
+    input: { feature: 'image_to_text', file: { kind: 'entry', entryId: FILE_ENTRY_ID }, processorId: 'tesseract' },
     attempt: 0,
     signal: controller.signal,
     metadata: {},
@@ -138,7 +138,7 @@ describe('backgroundJobHandler.execute', () => {
     expect(
       backgroundJobHandler.defaultQueue?.({
         feature: 'image_to_text',
-        fileEntryId: FILE_ENTRY_ID,
+        file: { kind: 'entry', entryId: FILE_ENTRY_ID },
         processorId: 'tesseract'
       })
     ).toBe('file-processing.tesseract')
@@ -160,28 +160,36 @@ describe('backgroundJobHandler.execute', () => {
     const result = (await backgroundJobHandler.execute(ctx)) as { artifact: unknown }
 
     expect(result.artifact).toEqual({ kind: 'text', format: 'plain', text: 'recognized text' })
-    expect(capabilityHandlerMock.prepare).toHaveBeenCalledWith(FAKE_FILE_INFO, expect.any(Object), ctx.signal, {
-      fileEntryId: FILE_ENTRY_ID
-    })
+    expect(capabilityHandlerMock.prepare).toHaveBeenCalledWith(FAKE_FILE_INFO, expect.any(Object), ctx.signal, {})
     expect(persistResultMock).not.toHaveBeenCalled()
   })
 
-  it('persists markdown output to an internal file entry and returns file artifact', async () => {
+  it('persists markdown output to the path output target and returns file artifact', async () => {
     preparedExecuteMock.mockResolvedValue({ kind: 'markdown', markdownContent: '# hello' })
-    persistResultMock.mockResolvedValue('019606a0-0000-7000-8000-000000000301')
+    persistResultMock.mockResolvedValue('/tmp/out.md')
     setupCapability({ mode: 'background', execute: preparedExecuteMock })
 
-    const result = (await backgroundJobHandler.execute(createCtx())) as { artifact: unknown }
+    const result = (await backgroundJobHandler.execute(
+      createCtx({
+        input: {
+          feature: 'image_to_text',
+          file: { kind: 'entry', entryId: FILE_ENTRY_ID },
+          output: { kind: 'path', path: '/tmp/out.md' },
+          processorId: 'tesseract'
+        }
+      })
+    )) as { artifact: unknown }
 
     expect(persistResultMock).toHaveBeenCalledWith({
       jobId: 'job-1',
       result: { kind: 'markdown', markdownContent: '# hello' },
+      path: '/tmp/out.md',
       signal: expect.any(AbortSignal)
     })
     expect(result.artifact).toEqual({
       kind: 'file',
       format: 'markdown',
-      fileEntryId: '019606a0-0000-7000-8000-000000000301'
+      path: '/tmp/out.md'
     })
   })
 
@@ -197,7 +205,18 @@ describe('backgroundJobHandler.execute', () => {
     persistResultMock.mockRejectedValue(new Error('disk full'))
     setupCapability({ mode: 'background', execute: preparedExecuteMock })
 
-    await expect(backgroundJobHandler.execute(createCtx())).rejects.toThrow('disk full')
+    await expect(
+      backgroundJobHandler.execute(
+        createCtx({
+          input: {
+            feature: 'image_to_text',
+            file: { kind: 'entry', entryId: FILE_ENTRY_ID },
+            output: { kind: 'path', path: '/tmp/out.md' },
+            processorId: 'tesseract'
+          }
+        })
+      )
+    ).rejects.toThrow('disk full')
   })
 
   it('throws AbortError when ctx.signal is aborted between execute() and createArtifacts()', async () => {

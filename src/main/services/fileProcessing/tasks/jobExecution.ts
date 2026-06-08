@@ -1,10 +1,13 @@
+import path from 'node:path'
+
 import { application } from '@application'
 import type { JobContext } from '@main/core/job/types'
 import { toFileInfo } from '@main/services/file/toFileInfo'
+import { stat as fsStat } from '@main/utils/file/fs'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessorInput, FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileEntryId } from '@shared/data/types/file'
-import type { FileInfo } from '@shared/file/types'
+import { type FileHandle, type FileInfo, FileInfoSchema, type FilePath, getFileTypeByExt } from '@shared/file/types'
+import mime from 'mime'
 
 import { resolveProcessorConfigByFeature } from '../config/resolveProcessorConfig'
 import { processorRegistry } from '../processors/registry'
@@ -21,7 +24,7 @@ export type FileProcessingJobMode = 'background' | 'remote-poll'
 
 interface PreparedFileProcessingJobBase {
   feature: FileProcessorFeature
-  fileEntryId: FileEntryId
+  file: FileHandle
   processorId: FileProcessorId
   config: FileProcessorMerged
 }
@@ -50,19 +53,22 @@ export async function prepareFileProcessingJob(
   ctx: JobContext<FileProcessingJobPayload>,
   expectedMode: FileProcessingJobMode
 ): Promise<PreparedBackgroundFileProcessingJob | PreparedRemotePollFileProcessingJob> {
-  const { feature, fileEntryId, processorId } = ctx.input
+  const input = ctx.input
+  const { feature, file, processorId } = input
   const config = resolveProcessorConfigByFeature(feature, processorId)
   const handler = getCapabilityHandler(config.id, feature)
   assertModeMatches(handler, expectedMode)
-  const file = await resolveFileProcessingFileInfo(fileEntryId)
-  assertFileTypeSupported(file, feature, config)
+  const fileInfo = await resolveFileProcessingFileInfo(file)
+  assertFileTypeSupported(fileInfo, feature, config)
 
-  const prepared = await handler.prepare(file, config, ctx.signal, { fileEntryId })
+  const prepared = await handler.prepare(fileInfo, config, ctx.signal, {
+    ...(input.context?.dataId ? { dataId: input.context.dataId } : {})
+  })
   assertModeMatches(prepared, expectedMode)
 
   return createPreparedFileProcessingJobResult(expectedMode, {
     feature,
-    fileEntryId,
+    file,
     processorId: config.id,
     config,
     prepared
@@ -126,13 +132,49 @@ export function assertFileTypeSupported(
   }
 }
 
-export async function resolveFileProcessingFileInfo(fileEntryId: FileEntryId): Promise<FileInfo> {
+export async function resolveFileProcessingFileInfo(file: FileHandle): Promise<FileInfo> {
+  if (file.kind === 'path') {
+    return await resolveFileProcessingPathInfo(file.path)
+  }
+
   const fileManager = application.get('FileManager')
-  const metadata = await fileManager.getMetadata(fileEntryId)
+  const metadata = await fileManager.getMetadata(file.entryId)
   if (metadata.kind === 'directory') {
     throw new Error('File processing does not support directories')
   }
 
-  const entry = await fileManager.getById(fileEntryId)
+  const entry = await fileManager.getById(file.entryId)
   return toFileInfo(entry)
+}
+
+/**
+ * Path-form sibling of `toFileInfo`: build a live `FileInfo` straight from a raw
+ * filesystem path — name/ext via `path.parse`, size/time via `fsStat` —
+ * bypassing the entry/FileManager system. That bypass is the whole point of the
+ * `{kind:'path'}` handle: no DanglingCache or version-cache side effects.
+ *
+ * The stat → mime → type → `FileInfoSchema.parse` tail intentionally mirrors
+ * `toFileInfo`. It is left inline rather than hoisted into a shared file-service
+ * helper to keep this change within the file-processing domain; the only real
+ * difference is that path/name/ext come from the raw path instead of FileEntry
+ * metadata.
+ */
+async function resolveFileProcessingPathInfo(filePath: FilePath): Promise<FileInfo> {
+  const stats = await fsStat(filePath)
+  if (stats.isDirectory) {
+    throw new Error('File processing does not support directories')
+  }
+
+  const parsed = path.parse(filePath)
+  const ext = parsed.ext.length > 0 ? parsed.ext.slice(1) : null
+  return FileInfoSchema.parse({
+    path: filePath,
+    name: parsed.name,
+    ext,
+    size: stats.size,
+    mime: ext ? (mime.getType(ext) ?? 'application/octet-stream') : 'application/octet-stream',
+    type: getFileTypeByExt(ext ?? ''),
+    createdAt: stats.createdAt || stats.modifiedAt,
+    modifiedAt: stats.modifiedAt
+  }) as FileInfo
 }

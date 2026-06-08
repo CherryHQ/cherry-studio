@@ -1,5 +1,6 @@
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import type { FileEntryId } from '@shared/data/types/file'
+import type { FileProcessingOutputTarget } from '@shared/data/types/fileProcessing'
+import type { FileHandle } from '@shared/file/types'
 
 /**
  * JobRegistry declaration merging for file-processing job types.
@@ -18,6 +19,10 @@ declare module '@main/core/job/jobRegistry' {
 
 export interface FileProcessingJobPayload {
   feature: FileProcessorFeature
-  fileEntryId: FileEntryId
+  file: FileHandle
+  output?: FileProcessingOutputTarget
+  context?: {
+    dataId?: string
+  }
   processorId: FileProcessorId
 }

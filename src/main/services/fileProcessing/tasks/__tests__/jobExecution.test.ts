@@ -77,7 +77,7 @@ function createCtx(
   const controller = new AbortController()
   return {
     jobId: 'job-execution-1',
-    input: { feature: 'image_to_text', fileEntryId: FILE_ENTRY_ID, processorId: 'tesseract' },
+    input: { feature: 'image_to_text', file: { kind: 'entry', entryId: FILE_ENTRY_ID }, processorId: 'tesseract' },
     attempt: 0,
     signal: controller.signal,
     metadata: {},
@@ -134,15 +134,12 @@ describe('prepareFileProcessingJob', () => {
 
     expect(result).toMatchObject({
       feature: 'image_to_text',
-      fileEntryId: FILE_ENTRY_ID,
       processorId: 'tesseract',
       config: expect.objectContaining({ id: 'tesseract' }),
       prepared
     })
     expect(resolveProcessorConfigByFeatureMock).toHaveBeenCalledWith('image_to_text', 'tesseract')
-    expect(capabilityHandlerMock.prepare).toHaveBeenCalledWith(FAKE_FILE_INFO, expect.any(Object), ctx.signal, {
-      fileEntryId: FILE_ENTRY_ID
-    })
+    expect(capabilityHandlerMock.prepare).toHaveBeenCalledWith(FAKE_FILE_INFO, expect.any(Object), ctx.signal, {})
   })
 
   it('rejects handler mode drift before prepare', async () => {

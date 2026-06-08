@@ -5,8 +5,12 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { FILE_PROCESSOR_FEATURES, FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
-import { FileEntryIdSchema } from '@shared/data/types/file'
-import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
+import {
+  FileProcessingOutputTargetSchema,
+  ListAvailableFileProcessorsResultSchema
+} from '@shared/data/types/fileProcessing'
+import type { FileHandle } from '@shared/file/types'
+import { FileHandleSchema } from '@shared/file/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import * as z from 'zod'
 
@@ -15,6 +19,7 @@ import { processorRegistry } from './processors/registry'
 import { backgroundJobHandler } from './tasks/backgroundJobHandler'
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
 import { remotePollJobHandler } from './tasks/remotePollJobHandler'
+import type { FileProcessingJobPayload } from './tasks/shared'
 import type { ListAvailableFileProcessorsResult, StartFileProcessingJobInput } from './types'
 
 const logger = loggerService.withContext('FileProcessingService')
@@ -25,7 +30,14 @@ const FileProcessorIdSchema = z.enum(FILE_PROCESSOR_IDS)
 const StartJobPayloadSchema = z
   .object({
     feature: FileProcessorFeatureSchema,
-    fileEntryId: FileEntryIdSchema,
+    file: FileHandleSchema,
+    output: FileProcessingOutputTargetSchema.optional(),
+    context: z
+      .object({
+        dataId: z.string().trim().min(1).optional()
+      })
+      .strict()
+      .optional(),
     processorId: FileProcessorIdSchema.optional()
   })
   .strict()
@@ -59,26 +71,31 @@ export class FileProcessingService extends BaseService {
     input: StartFileProcessingJobInput,
     options: Pick<EnqueueOptions, 'parentId'> = {}
   ): Promise<JobSnapshot> {
-    const { feature, fileEntryId, processorId } = input
+    const { feature, file, output, context, processorId } = input
     const config = resolveProcessorConfigByFeature(feature, processorId)
     const handler = getCapabilityHandler(config.id, feature)
-    const file = await resolveFileProcessingFileInfo(fileEntryId)
-    assertFileTypeSupported(file, feature, config)
+    const fileInfo = await resolveFileProcessingFileInfo(file)
+    assertFileTypeSupported(fileInfo, feature, config)
+
+    const payload: FileProcessingJobPayload = {
+      feature,
+      file,
+      processorId: config.id,
+      ...(output ? { output } : {}),
+      ...(context ? { context } : {})
+    }
 
     const type = handler.mode === 'background' ? 'file-processing.background' : 'file-processing.remote-poll'
     const jobManager = application.get('JobManager')
-    const handle = await jobManager.enqueue(
-      type,
-      { feature, fileEntryId, processorId: config.id },
-      options.parentId ? { parentId: options.parentId } : {}
-    )
+    const handle = await jobManager.enqueue(type, payload, options.parentId ? { parentId: options.parentId } : {})
 
     logger.debug('Enqueued file processing job', {
       jobId: handle.id,
       type,
       feature,
       processorId: config.id,
-      fileEntryId
+      file,
+      output
     })
 
     return handle.snapshot
@@ -93,7 +110,8 @@ export class FileProcessingService extends BaseService {
 
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.FileProcessing_StartJob, async (_, payload: unknown) => {
-      return await this.startJob(StartJobPayloadSchema.parse(payload))
+      const parsed = StartJobPayloadSchema.parse(payload)
+      return await this.startJob({ ...parsed, file: parsed.file as FileHandle })
     })
     this.ipcHandle(IpcChannel.FileProcessing_ListAvailableProcessors, () => {
       return this.listAvailableProcessors()

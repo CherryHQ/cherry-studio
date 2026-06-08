@@ -133,6 +133,12 @@ const FAKE_PDF_INFO = {
   modifiedAt: 1
 }
 
+const entryPayload = (feature: 'image_to_text' | 'document_to_markdown', entryId: string, processorId: string) => ({
+  feature,
+  file: { kind: 'entry' as const, entryId },
+  processorId
+})
+
 function setupFileInfo() {
   fileManagerGetMetadataMock.mockResolvedValue({
     kind: 'file',
@@ -215,7 +221,7 @@ describe('FileProcessingService.startJob — routing', () => {
         id: 'job-test-1',
         type: 'file-processing.background',
         status: 'pending',
-        input: { feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' }
+        input: entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract')
       }
     })
     return svc
@@ -230,20 +236,20 @@ describe('FileProcessingService.startJob — routing', () => {
 
     const result = await svc.startJob({
       feature: 'image_to_text',
-      fileEntryId: IMAGE_ENTRY_ID,
+      file: { kind: 'entry' as const, entryId: IMAGE_ENTRY_ID },
       processorId: 'tesseract'
     })
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'file-processing.background',
-      { feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' },
+      entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract'),
       {}
     )
     expect(result).toEqual({
       id: 'job-test-1',
       type: 'file-processing.background',
       status: 'pending',
-      input: { feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' }
+      input: entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract')
     })
   })
 
@@ -256,13 +262,13 @@ describe('FileProcessingService.startJob — routing', () => {
 
     await svc.startJob({
       feature: 'document_to_markdown',
-      fileEntryId: PDF_ENTRY_ID,
+      file: { kind: 'entry' as const, entryId: PDF_ENTRY_ID },
       processorId: 'doc2x'
     })
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'file-processing.remote-poll',
-      { feature: 'document_to_markdown', fileEntryId: PDF_ENTRY_ID, processorId: 'doc2x' },
+      entryPayload('document_to_markdown', PDF_ENTRY_ID, 'doc2x'),
       {}
     )
   })
@@ -277,7 +283,7 @@ describe('FileProcessingService.startJob — routing', () => {
     await svc.startJob(
       {
         feature: 'image_to_text',
-        fileEntryId: IMAGE_ENTRY_ID,
+        file: { kind: 'entry' as const, entryId: IMAGE_ENTRY_ID },
         processorId: 'tesseract'
       },
       { parentId: 'parent-job-1' }
@@ -285,7 +291,7 @@ describe('FileProcessingService.startJob — routing', () => {
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'file-processing.background',
-      { feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' },
+      entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract'),
       { parentId: 'parent-job-1' }
     )
   })
@@ -297,8 +303,16 @@ describe('FileProcessingService.startJob — routing', () => {
     })
     const svc = makeSvc()
 
-    await svc.startJob({ feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' })
-    await svc.startJob({ feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' })
+    await svc.startJob({
+      feature: 'image_to_text',
+      file: { kind: 'entry' as const, entryId: IMAGE_ENTRY_ID },
+      processorId: 'tesseract'
+    })
+    await svc.startJob({
+      feature: 'image_to_text',
+      file: { kind: 'entry' as const, entryId: IMAGE_ENTRY_ID },
+      processorId: 'tesseract'
+    })
 
     expect(enqueueMock).toHaveBeenCalledTimes(2)
     expect(enqueueMock.mock.calls.map((call) => call[2])).toEqual([{}, {}])
@@ -312,7 +326,11 @@ describe('FileProcessingService.startJob — routing', () => {
     const svc = makeSvc()
 
     await expect(
-      svc.startJob({ feature: 'document_to_markdown', fileEntryId: IMAGE_ENTRY_ID, processorId: 'doc2x' })
+      svc.startJob({
+        feature: 'document_to_markdown',
+        file: { kind: 'entry' as const, entryId: IMAGE_ENTRY_ID },
+        processorId: 'doc2x'
+      })
     ).rejects.toThrow(/does not support .* files/)
     expect(enqueueMock).not.toHaveBeenCalled()
   })
@@ -331,7 +349,11 @@ describe('FileProcessingService.startJob — routing', () => {
     const svc = makeSvc()
 
     await expect(
-      svc.startJob({ feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' })
+      svc.startJob({
+        feature: 'image_to_text',
+        file: { kind: 'entry' as const, entryId: IMAGE_ENTRY_ID },
+        processorId: 'tesseract'
+      })
     ).rejects.toThrow('File processing does not support directories')
     expect(enqueueMock).not.toHaveBeenCalled()
     expect(fileManagerGetByIdMock).not.toHaveBeenCalled()
@@ -346,7 +368,11 @@ describe('FileProcessingService.startJob — routing', () => {
     const svc = makeSvc()
 
     await expect(
-      svc.startJob({ feature: 'document_to_markdown', fileEntryId: PDF_ENTRY_ID, processorId: 'tesseract' })
+      svc.startJob({
+        feature: 'document_to_markdown',
+        file: { kind: 'entry' as const, entryId: PDF_ENTRY_ID },
+        processorId: 'tesseract'
+      })
     ).rejects.toThrow(/does not support document_to_markdown/)
     expect(enqueueMock).not.toHaveBeenCalled()
   })

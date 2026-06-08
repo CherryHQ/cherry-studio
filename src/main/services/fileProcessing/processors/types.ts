@@ -1,6 +1,5 @@
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileEntryId } from '@shared/data/types/file'
 import type { FileInfo } from '@shared/file/types'
 
 export type ImageToTextHandlerOutput = {
@@ -39,7 +38,7 @@ export interface FileProcessingExecutionContext {
 export type FileProcessingRemoteContext = object
 
 export interface FileProcessingPrepareContext {
-  fileEntryId: FileEntryId
+  dataId?: string
 }
 
 /**

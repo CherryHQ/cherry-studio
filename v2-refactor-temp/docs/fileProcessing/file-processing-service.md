@@ -176,7 +176,7 @@ type FileProcessingJobCancelledResult = FileProcessingJobBase & {
 
 job 结果统一通过 `artifact` 表达，而不是为每个 feature 增加专用字段。
 
-当前最小 artifact 类型：
+当前最小 artifact 类型（当前实现）：
 
 ```ts
 type FileProcessingArtifact =
@@ -188,7 +188,7 @@ type FileProcessingArtifact =
   | {
       kind: 'file'
       format: 'markdown'
-      fileEntryId: FileEntryId
+      path: FilePath
     }
 ```
 
@@ -197,12 +197,17 @@ type FileProcessingArtifact =
 | Feature | Artifact |
 | --- | --- |
 | `image_to_text` | `{ kind: 'text', format: 'plain', text }` |
-| `document_to_markdown` | `{ kind: 'file', format: 'markdown', fileEntryId }` |
+| `document_to_markdown` | `{ kind: 'file', format: 'markdown', path }` |
+
+> **当前实现（supersedes 旧 FileEntry 落盘描述）**：file-processing 不再产出 managed / FileEntry artifact。
+> 产出只有两种：caller 指定路径的 markdown（`output: { kind: 'path', path }`，写到 caller 给的库内路径）或 inline text（OCR）。
+> caller `startJob` 传 `file: FileHandle`（`{ kind: 'path' }` 或 `{ kind: 'entry' }`）+ 可选 `output`；产 markdown 的 feature 必须给 path output，产 text 的 feature 忽略 output。
+> 不要为了"有 FileEntry 库"就把 markdown 再塞回 internal FileEntry——下游（知识库 / agent tool）要的是独立 path 产物。下文 §落盘语义里关于 `FileManager.createInternalEntry` 写 internal FileEntry 的描述已不适用。
 
 设计取向：
 
 1. OCR 文本以内联 text artifact 返回，避免翻译场景还要额外读文件。
-2. Markdown 文档以 file artifact 返回，因为大文档、图片资源和 zip 解包结果更适合落盘。
+2. Markdown 文档以 path artifact 返回，写到 caller 指定路径，由 caller 拥有该产物的生命周期。
 3. artifact 是统一结果容器，不等于所有结果都用同一种存储方式。
 4. 未来如果需要结构化 OCR、表格、图片资源或多文件输出，应扩展 artifact union，而不是把 provider-specific 字段塞进 job 顶层。
 

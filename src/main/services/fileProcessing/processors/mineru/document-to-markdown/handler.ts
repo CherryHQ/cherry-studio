@@ -1,5 +1,4 @@
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileEntryId } from '@shared/data/types/file'
 import type { FileInfo } from '@shared/file/types'
 
 import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
@@ -16,7 +15,7 @@ export const mineruDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
   mode: 'remote-poll',
   prepare(file, config, signal, context) {
     signal?.throwIfAborted()
-    const startContext = prepareStartContext(file, config, context?.fileEntryId, signal)
+    const startContext = prepareStartContext(file, config, context?.dataId, signal)
 
     return {
       mode: 'remote-poll',
@@ -82,12 +81,12 @@ export const mineruDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
 function prepareStartContext(
   file: FileInfo,
   config: FileProcessorMerged,
-  fileEntryId: FileEntryId | undefined,
+  dataId: string | undefined,
   signal?: AbortSignal
 ): PreparedMineruStartContext {
   signal?.throwIfAborted()
-  if (!fileEntryId) {
-    throw new Error('mineru prepare: missing fileEntryId')
+  if (!dataId) {
+    throw new Error('mineru prepare: missing dataId')
   }
 
   const capability = getRequiredCapability(config, 'document_to_markdown', 'mineru')
@@ -95,7 +94,7 @@ function prepareStartContext(
   return {
     apiHost: getRequiredApiHost(capability),
     apiKey: getRequiredApiKey(config, 'mineru'),
-    fileEntryId,
+    dataId,
     file,
     modelVersion: capability.modelId
   }

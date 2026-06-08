@@ -1,8 +1,8 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { atomicWriteFile } from '@main/utils/file/fs'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
-import type { FileEntryId } from '@shared/data/types/file'
-import { FileEntryIdSchema } from '@shared/data/types/file'
+import type { FilePath } from '@shared/file/types'
 import { net } from 'electron'
 
 import { readMarkdownFromResponseZip } from './resultPersistence'
@@ -25,23 +25,19 @@ export type MarkdownPersistencePayload =
     }
 
 class MarkdownResultStore {
-  async persistResult(options: {
+  async persistResultToPath(options: {
     jobId: string
     result: MarkdownPersistencePayload
+    path: FilePath
     signal?: AbortSignal
-  }): Promise<FileEntryId> {
+  }): Promise<FilePath> {
     try {
       const data = await this.resolveMarkdownBytes(options)
-      const file = await application.get('FileManager').createInternalEntry({
-        source: 'bytes',
-        data,
-        name: `file-processing-${options.jobId}`,
-        ext: 'md'
-      })
-      return FileEntryIdSchema.parse(file.id)
+      await atomicWriteFile(options.path, data)
+      return options.path
     } catch (error) {
       logger.warn(
-        'Markdown result persistence failed',
+        'Markdown result path persistence failed',
         getSafeMarkdownPersistenceErrorForLog(error),
         getMarkdownPersistenceLogContext(options)
       )

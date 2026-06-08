@@ -36,7 +36,7 @@ export async function createUploadTask(context: PreparedMineruStartContext): Pro
       files: [
         {
           name: context.file.ext ? `${context.file.name}.${context.file.ext}` : context.file.name,
-          data_id: context.fileEntryId
+          data_id: context.dataId
         }
       ],
       model_version: context.modelVersion

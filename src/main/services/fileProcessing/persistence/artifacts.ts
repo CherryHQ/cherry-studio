@@ -1,30 +1,32 @@
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { FileEntryId } from '@shared/data/types/file'
 import type { FileProcessingArtifact, FileProcessingJobOutput } from '@shared/data/types/fileProcessing'
 import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
+import type { FilePath } from '@shared/file/types'
 
 import type { FileProcessingHandlerOutput } from '../processors/types'
+import type { FileProcessingJobPayload } from '../tasks/shared'
 import { markdownResultStore } from './MarkdownResultStore'
 
 interface FileProcessingJobOutputContext {
   jobId: string
   signal: AbortSignal
+  input: FileProcessingJobPayload
 }
 
 export async function createFileProcessingJobOutput(
   ctx: FileProcessingJobOutputContext,
   output: FileProcessingHandlerOutput
 ): Promise<FileProcessingJobOutput> {
-  const artifact = await createFileProcessingArtifact(ctx.jobId, output, ctx.signal)
+  const artifact = await createFileProcessingArtifact(ctx.jobId, ctx.input, output, ctx.signal)
   return { artifact }
 }
 
-export function getFileProcessingMarkdownArtifactFileEntryId(snapshot: JobSnapshot): FileEntryId {
+export function getFileProcessingMarkdownArtifactPath(snapshot: JobSnapshot): FilePath {
   const output = FileProcessingJobOutputSchema.parse(snapshot.output)
   if (!isMarkdownFileArtifact(output.artifact)) {
-    throw new Error(`File processing job ${snapshot.id} completed without a markdown file artifact`)
+    throw new Error(`File processing job ${snapshot.id} completed without a markdown path artifact`)
   }
-  return output.artifact.fileEntryId
+  return output.artifact.path as FilePath
 }
 
 export function isMarkdownFileArtifact(
@@ -39,10 +41,12 @@ export function getFileProcessingFailureMessage(snapshot: JobSnapshot): string {
 
 /**
  * Project a capability output into a persistable artifact. Text outputs become
- * inline artifacts; markdown / zip outputs become internal FileManager entries.
+ * inline artifacts; markdown / zip outputs are written to the caller-provided
+ * path output target.
  */
 async function createFileProcessingArtifact(
   jobId: string,
+  input: FileProcessingJobPayload,
   output: FileProcessingHandlerOutput,
   signal: AbortSignal
 ): Promise<FileProcessingArtifact> {
@@ -56,15 +60,23 @@ async function createFileProcessingArtifact(
 
     case 'markdown':
     case 'remote-zip-url':
-    case 'response-zip':
+    case 'response-zip': {
+      if (input.output?.kind !== 'path') {
+        throw new Error(
+          `File processing job ${jobId} produced a ${output.kind} result but no path output target was provided`
+        )
+      }
+
       return {
         kind: 'file',
         format: 'markdown',
-        fileEntryId: await markdownResultStore.persistResult({
+        path: await markdownResultStore.persistResultToPath({
           jobId,
           result: output,
+          path: input.output.path as FilePath,
           signal
         })
       }
+    }
   }
 }

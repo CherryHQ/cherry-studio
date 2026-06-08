@@ -1,4 +1,5 @@
 import type { JobContext } from '@main/core/job/types'
+import type { FilePath } from '@shared/file/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FileProcessingJobPayload } from '../../tasks/shared'
@@ -8,13 +9,13 @@ const { persistResultMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('../MarkdownResultStore', () => ({
-  markdownResultStore: { persistResult: persistResultMock }
+  markdownResultStore: { persistResultToPath: persistResultMock }
 }))
 
 const {
   createFileProcessingJobOutput,
   getFileProcessingFailureMessage,
-  getFileProcessingMarkdownArtifactFileEntryId,
+  getFileProcessingMarkdownArtifactPath,
   isMarkdownFileArtifact
 } = await import('../artifacts')
 
@@ -26,7 +27,7 @@ function createCtx(
     jobId: 'job-artifacts-1',
     input: {
       feature: 'image_to_text',
-      fileEntryId: '019606a0-0000-7000-8000-000000000204',
+      file: { kind: 'entry', entryId: '019606a0-0000-7000-8000-000000000204' },
       processorId: 'tesseract'
     },
     attempt: 0,
@@ -37,6 +38,17 @@ function createCtx(
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() } as never,
     ...overrides
   } as JobContext<FileProcessingJobPayload>
+}
+
+function createMarkdownCtx(): JobContext<FileProcessingJobPayload> {
+  return createCtx({
+    input: {
+      feature: 'document_to_markdown',
+      file: { kind: 'entry', entryId: '019606a0-0000-7000-8000-000000000204' },
+      output: { kind: 'path', path: '/tmp/out.md' as FilePath },
+      processorId: 'doc2x'
+    }
+  })
 }
 
 beforeEach(() => {
@@ -51,48 +63,59 @@ describe('createFileProcessingJobOutput', () => {
     expect(persistResultMock).not.toHaveBeenCalled()
   })
 
-  it('persists a markdown artifact', async () => {
-    persistResultMock.mockResolvedValue('019606a0-0000-7000-8000-000000000401')
+  it('persists a markdown artifact to the path output target', async () => {
+    persistResultMock.mockResolvedValue('/tmp/out.md')
 
-    const result = await createFileProcessingJobOutput(createCtx(), { kind: 'markdown', markdownContent: '# hello' })
+    const result = await createFileProcessingJobOutput(createMarkdownCtx(), {
+      kind: 'markdown',
+      markdownContent: '# hello'
+    })
 
     expect(result).toEqual({
-      artifact: { kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000401' }
+      artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
     })
     expect(persistResultMock).toHaveBeenCalledWith({
       jobId: 'job-artifacts-1',
       result: { kind: 'markdown', markdownContent: '# hello' },
+      path: '/tmp/out.md',
       signal: expect.any(AbortSignal)
     })
+  })
+
+  it('rejects a markdown output when no path output target was provided', async () => {
+    await expect(
+      createFileProcessingJobOutput(createCtx(), { kind: 'markdown', markdownContent: '# hello' })
+    ).rejects.toThrow(/no path output target/i)
+    expect(persistResultMock).not.toHaveBeenCalled()
   })
 
   it('propagates markdown artifact persistence failures', async () => {
     persistResultMock.mockRejectedValue(new Error('disk full'))
 
     await expect(
-      createFileProcessingJobOutput(createCtx(), { kind: 'markdown', markdownContent: '# hello' })
+      createFileProcessingJobOutput(createMarkdownCtx(), { kind: 'markdown', markdownContent: '# hello' })
     ).rejects.toThrow('disk full')
   })
 })
 
-describe('getFileProcessingMarkdownArtifactFileEntryId', () => {
-  it('returns the validated markdown artifact file entry id from a completed job snapshot', () => {
+describe('getFileProcessingMarkdownArtifactPath', () => {
+  it('returns the validated markdown artifact path from a completed job snapshot', () => {
     expect(
-      getFileProcessingMarkdownArtifactFileEntryId({
+      getFileProcessingMarkdownArtifactPath({
         id: 'fp-job-1',
         type: 'file-processing.remote-poll',
         status: 'completed',
         input: {},
         output: {
-          artifact: { kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000401' }
+          artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
         }
       } as never)
-    ).toBe('019606a0-0000-7000-8000-000000000401')
+    ).toBe('/tmp/out.md')
   })
 
   it('rejects completed output without a markdown file artifact', () => {
     expect(() =>
-      getFileProcessingMarkdownArtifactFileEntryId({
+      getFileProcessingMarkdownArtifactPath({
         id: 'fp-job-1',
         type: 'file-processing.remote-poll',
         status: 'completed',
@@ -101,18 +124,18 @@ describe('getFileProcessingMarkdownArtifactFileEntryId', () => {
           artifact: { kind: 'text', format: 'plain', text: 'hello' }
         }
       } as never)
-    ).toThrow(/without a markdown file artifact/i)
+    ).toThrow(/without a markdown path artifact/i)
   })
 
-  it('rejects invalid markdown artifact file entry ids', () => {
+  it('rejects markdown artifacts with a non-absolute path', () => {
     expect(() =>
-      getFileProcessingMarkdownArtifactFileEntryId({
+      getFileProcessingMarkdownArtifactPath({
         id: 'fp-job-1',
         type: 'file-processing.remote-poll',
         status: 'completed',
         input: {},
         output: {
-          artifact: { kind: 'file', format: 'markdown', fileEntryId: 'not-a-file-entry-id' }
+          artifact: { kind: 'file', format: 'markdown', path: 'not-an-absolute-path' }
         }
       } as never)
     ).toThrow()
@@ -125,7 +148,7 @@ describe('isMarkdownFileArtifact', () => {
       isMarkdownFileArtifact({
         kind: 'file',
         format: 'markdown',
-        fileEntryId: '019606a0-0000-7000-8000-000000000401'
+        path: '/tmp/out.md' as FilePath
       })
     ).toBe(true)
     expect(isMarkdownFileArtifact({ kind: 'text', format: 'plain', text: 'hello' })).toBe(false)

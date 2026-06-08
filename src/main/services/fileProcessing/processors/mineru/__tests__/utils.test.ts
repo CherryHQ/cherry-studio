@@ -86,7 +86,7 @@ describe('mineru utils', () => {
     expect(destroyMock).toHaveBeenCalled()
   })
 
-  it('creates upload tasks with the full filename and file entry id', async () => {
+  it('creates upload tasks with the full filename and data id', async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
@@ -108,7 +108,7 @@ describe('mineru utils', () => {
       createUploadTask({
         apiHost: 'https://mineru.net',
         apiKey: 'secret',
-        fileEntryId: '019606a0-0000-7000-8000-000000000001',
+        dataId: '019606a0-0000-7000-8000-000000000001',
         file: {
           path: '/tmp/file.pdf',
           name: 'file',
