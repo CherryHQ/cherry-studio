@@ -98,7 +98,7 @@ export class AgentService {
       planModel: req.planModel,
       smallModel: req.smallModel,
       mcps: req.mcps,
-      allowedTools: req.allowedTools,
+      disabledTools: req.disabledTools,
       configuration: req.configuration
     }
 

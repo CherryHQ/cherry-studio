@@ -1,6 +1,3 @@
-/** Tools disabled for ALL agents — replaced by Exa MCP (`mcp__exa__web_search_exa`) */
-export const GLOBALLY_DISALLOWED_TOOLS = ['WebSearch', 'WebFetch'] as const
-
 /**
  * System prompt section injected when the session receives messages from an
  * external messaging channel (Telegram, Feishu, QQ, WeChat, etc.).

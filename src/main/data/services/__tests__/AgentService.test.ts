@@ -141,6 +141,34 @@ describe('AgentService', () => {
       // desc(createdAt), desc(id) -> 'agent_zzz' must come before 'agent_aaa'.
       expect(ids.indexOf('agent_zzz')).toBeLessThan(ids.indexOf('agent_aaa'))
     })
+
+    it('defaults disabledTools to an empty array (opt-out, backward-safe)', async () => {
+      const agent = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'Disabled Tools Default',
+        model: TEST_MODEL_ID
+      })
+      const reloaded = await agentService.getAgent(agent.id)
+      expect(reloaded?.disabledTools).toEqual([])
+    })
+  })
+
+  describe('disabledTools round-trip', () => {
+    it('persists disabledTools on create and update', async () => {
+      const created = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'Disabled Tools',
+        model: TEST_MODEL_ID,
+        disabledTools: ['Bash']
+      })
+      expect(created.disabledTools).toEqual(['Bash'])
+
+      const updated = await agentService.updateAgent(created.id, { disabledTools: ['Bash', 'Workflow'] })
+      expect(updated?.disabledTools).toEqual(['Bash', 'Workflow'])
+
+      const reloaded = await agentService.getAgent(created.id)
+      expect(reloaded?.disabledTools).toEqual(['Bash', 'Workflow'])
+    })
   })
 
   describe('deleteAgent', () => {

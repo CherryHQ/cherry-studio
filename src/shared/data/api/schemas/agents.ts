@@ -96,7 +96,8 @@ export const AgentBaseSchema = z.strictObject({
   planModel: z.string().optional(),
   smallModel: z.string().optional(),
   mcps: z.array(z.string()).optional(),
-  allowedTools: z.array(z.string()).optional(),
+  /** Opt-out list of disabled tool names (empty = all enabled). Drives SDK disallowedTools. */
+  disabledTools: z.array(z.string()).optional(),
   configuration: AgentConfigurationSchema.optional()
 })
 export type AgentBase = z.infer<typeof AgentBaseSchema>
@@ -110,7 +111,7 @@ export const AGENT_MUTABLE_FIELDS = {
   planModel: true,
   smallModel: true,
   mcps: true,
-  allowedTools: true,
+  disabledTools: true,
   configuration: true
 } as const
 

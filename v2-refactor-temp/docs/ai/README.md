@@ -59,6 +59,10 @@ docs above reference them:
   model + gaps for externally-triggered (inbound IM) agent runs (review D1).
 - [`stream-ipc-validation.md`](./stream-ipc-validation.md) — scheme to validate
   the untrusted-renderer AI stream IPC payloads (review D2).
+- [`declarative-tool-registry.md`](./declarative-tool-registry.md) — one
+  declarative registry for Claude Code agent tools (policy + catalog UI +
+  chat rendering): `exposure`/`category`/`pairGroup`, opt-out `disabledTools`,
+  SDK 0.3.168 upgrade, 7-PR sequence.
 
 ## Suggested review order
 
