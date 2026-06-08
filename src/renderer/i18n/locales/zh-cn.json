@@ -724,17 +724,41 @@
     },
     "tools": {
       "builtin": {
+        "AgentMemory": {
+          "description": "跨会话存储和回忆记忆",
+          "label": "记忆"
+        },
         "Bash": {
-          "description": "在你的环境中执行 Shell 命令"
+          "description": "在你的环境中执行 Shell 命令",
+          "label": "Bash"
+        },
+        "CherryKbSearch": {
+          "description": "搜索你的知识库",
+          "label": "知识库搜索"
+        },
+        "CherryWebFetch": {
+          "description": "抓取并读取网页",
+          "label": "网页抓取"
+        },
+        "CherryWebSearch": {
+          "description": "通过你配置的提供方搜索网页",
+          "label": "网页搜索"
+        },
+        "ClawCron": {
+          "description": "管理应用内的定时调度",
+          "label": "定时任务"
         },
         "Edit": {
-          "description": "对特定文件进行精确编辑"
+          "description": "对特定文件进行精确编辑",
+          "label": "编辑文件"
         },
         "Glob": {
-          "description": "根据模式匹配查找文件"
+          "description": "根据模式匹配查找文件",
+          "label": "查找文件"
         },
         "Grep": {
-          "description": "在文件内容中搜索模式"
+          "description": "在文件内容中搜索模式",
+          "label": "搜索内容"
         },
         "MultiEdit": {
           "description": "在单个文件上原子性地执行多次编辑"
@@ -746,7 +770,8 @@
           "description": "读取并显示 Jupyter notebook 内容"
         },
         "Read": {
-          "description": "读取文件内容"
+          "description": "读取文件内容",
+          "label": "读取文件"
         },
         "Task": {
           "description": "运行子代理来处理复杂的多步骤任务"
@@ -763,8 +788,13 @@
         "WebSearch": {
           "description": "执行带有域名过滤的网络搜索"
         },
+        "Workflow": {
+          "description": "运行编排子智能体的多步工作流",
+          "label": "工作流"
+        },
         "Write": {
-          "description": "创建或覆盖文件"
+          "description": "创建或覆盖文件",
+          "label": "写入文件"
         }
       }
     },
@@ -2549,6 +2579,14 @@
           },
           "tools": {
             "add": "添加",
+            "category": {
+              "context": "上下文",
+              "file": "文件",
+              "media": "多媒体",
+              "orchestration": "编排",
+              "search": "搜索",
+              "shell": "终端"
+            },
             "desc": "配置智能体可使用的工具和 MCP Server",
             "label": "工具",
             "no_builtin_enabled": "未启用任何内置工具",

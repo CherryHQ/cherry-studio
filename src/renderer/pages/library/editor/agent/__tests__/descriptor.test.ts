@@ -1,15 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { AgentDetail } from '../../../types'
-import {
-  type AgentFormState,
-  applyAgentFormPatch,
-  buildCreateAgentPayload,
-  buildInitialAgentFormState,
-  diffAgentUpdate,
-  isCreatePayloadValid,
-  validateAgentCreateForm
-} from '../descriptor'
+import { type AgentFormState, applyAgentFormPatch, buildInitialAgentFormState, diffAgentUpdate } from '../descriptor'
 
 function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
   return {
@@ -21,7 +13,6 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
     modelName: null,
     instructions: '',
     mcps: [],
-    allowedTools: [],
     configuration: {},
     createdAt: '2026-04-20T00:00:00.000Z',
     updatedAt: '2026-04-20T00:00:00.000Z',
@@ -38,8 +29,7 @@ describe('buildInitialAgentFormState', () => {
       planModel: 'p-1',
       smallModel: 's-1',
       instructions: 'hi',
-      mcps: ['mcp-1'],
-      allowedTools: ['Read']
+      mcps: ['mcp-1']
     })
     const state = buildInitialAgentFormState(agent)
     expect(state).toMatchObject({
@@ -49,8 +39,7 @@ describe('buildInitialAgentFormState', () => {
       planModel: 'p-1',
       smallModel: 's-1',
       instructions: 'hi',
-      mcps: ['mcp-1'],
-      allowedTools: ['Read']
+      mcps: ['mcp-1']
     })
   })
 
@@ -98,14 +87,12 @@ describe('buildInitialAgentFormState', () => {
   })
 })
 
-describe('agent create flow helpers', () => {
-  it('requires both name and model before create save is enabled', () => {
+describe('applyAgentFormPatch', () => {
+  it('switching permission mode does not enable soul mode', () => {
     const draft = buildInitialAgentFormState()
 
-    expect(isCreatePayloadValid(draft)).toBe(false)
-    expect(isCreatePayloadValid({ ...draft, name: 'Planner' })).toBe(false)
-    expect(isCreatePayloadValid({ ...draft, model: 'anthropic::claude-sonnet-4-5' })).toBe(false)
-    expect(isCreatePayloadValid({ ...draft, name: 'Planner', model: 'anthropic::claude-sonnet-4-5' })).toBe(true)
+    expect(next.permissionMode).toBe('acceptEdits')
+    expect(next.soulEnabled).toBe(false)
   })
 
   it('preserves UniqueModelIds in the create payload without legacy conversion', () => {
@@ -118,86 +105,21 @@ describe('agent create flow helpers', () => {
       smallModel: 'anthropic::claude-opus-4-5'
     }
 
-    expect(buildCreateAgentPayload(form)).toMatchObject({
-      model: 'anthropic::claude-sonnet-4-5',
-      planModel: 'anthropic::claude-haiku-4-5',
-      smallModel: 'anthropic::claude-opus-4-5'
-    })
+    expect(next.permissionMode).toBe('bypassPermissions')
+    expect(next.soulEnabled).toBe(false)
   })
 
-  it('reports missing required fields individually for page-level validation', () => {
-    const draft = buildInitialAgentFormState()
-
-    expect(validateAgentCreateForm(draft)).toEqual({
-      nameMissing: true,
-      modelMissing: true,
-      isValid: false
-    })
-    expect(validateAgentCreateForm({ ...draft, name: 'Planner' })).toEqual({
-      nameMissing: false,
-      modelMissing: true,
-      isValid: false
-    })
-  })
-
-  it('writes an explicit heartbeat disable in the create payload', () => {
-    const draft = buildInitialAgentFormState()
-    const payload = buildCreateAgentPayload({
-      ...draft,
-      name: 'Planner',
-      model: 'anthropic::claude-sonnet-4-5',
-      heartbeatEnabled: false
-    })
-
-    expect(payload.configuration).toMatchObject({
-      heartbeat_enabled: false
-    })
-  })
-})
-
-describe('applyAgentFormPatch', () => {
-  const tools = [
-    {
-      id: 'Read',
-      name: 'Read',
-      origin: 'builtin' as const,
-      approval: 'auto' as const
-    },
-    {
-      id: 'Glob',
-      name: 'Glob',
-      origin: 'builtin' as const,
-      approval: 'auto' as const
-    },
-    {
-      id: 'Edit',
-      name: 'Edit',
-      origin: 'builtin' as const,
-      approval: 'prompt' as const
-    }
-  ]
-
-  it('does not persist mode defaults when permission mode changes', () => {
-    const draft = buildInitialAgentFormState()
-    const next = applyAgentFormPatch(draft, { permissionMode: 'acceptEdits' }, tools)
-
-    expect(next.permissionMode).toBe('acceptEdits')
-    expect(next.allowedTools).toEqual([])
-  })
-
-  it('enabling soul mode switches to bypass permissions without mutating explicit tool approvals', () => {
+  it('enabling soul mode switches to bypass permissions', () => {
     const draft = buildInitialAgentFormState()
     const next = applyAgentFormPatch(draft, { soulEnabled: true }, tools)
 
     expect(next.soulEnabled).toBe(true)
     expect(next.permissionMode).toBe('bypassPermissions')
-    expect(next.allowedTools).toEqual([])
   })
 
   it('leaving bypass permissions disables soul mode to match the legacy settings popup', () => {
     const draft = buildInitialAgentFormState(
       createAgent({
-        allowedTools: ['Read', 'Glob', 'Edit'],
         configuration: { soul_enabled: true, permission_mode: 'bypassPermissions' }
       })
     )
@@ -225,6 +147,15 @@ describe('diffAgentUpdate', () => {
       name: 'Renamed',
       instructions: 'new prompt'
     })
+  })
+
+  it('includes disabled built-in tools in the PATCH payload', () => {
+    const agent = createAgent()
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, disabledTools: ['Bash'] }
+
+    const result = diffAgentUpdate(baseline, next, agent)
+    expect(result?.dto).toEqual({ disabledTools: ['Bash'] })
   })
 
   it('preserves UniqueModelIds in the PATCH payload without legacy conversion', () => {

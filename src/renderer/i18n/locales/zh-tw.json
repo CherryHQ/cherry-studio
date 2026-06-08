@@ -724,17 +724,41 @@
     },
     "tools": {
       "builtin": {
+        "AgentMemory": {
+          "description": "跨工作階段儲存和回憶記憶",
+          "label": "記憶"
+        },
         "Bash": {
-          "description": "在你的環境中執行 Shell 命令"
+          "description": "在你的環境中執行 Shell 命令",
+          "label": "Bash"
+        },
+        "CherryKbSearch": {
+          "description": "搜尋你的知識庫",
+          "label": "知識庫搜尋"
+        },
+        "CherryWebFetch": {
+          "description": "擷取並讀取網頁",
+          "label": "網頁擷取"
+        },
+        "CherryWebSearch": {
+          "description": "透過你設定的提供方搜尋網頁",
+          "label": "網頁搜尋"
+        },
+        "ClawCron": {
+          "description": "管理應用內的定時排程",
+          "label": "定時任務"
         },
         "Edit": {
-          "description": "對特定檔案進行精確編輯"
+          "description": "對特定檔案進行精確編輯",
+          "label": "編輯檔案"
         },
         "Glob": {
-          "description": "根據模式匹配尋找檔案"
+          "description": "根據模式匹配尋找檔案",
+          "label": "尋找檔案"
         },
         "Grep": {
-          "description": "在檔案內容中搜尋模式"
+          "description": "在檔案內容中搜尋模式",
+          "label": "搜尋內容"
         },
         "MultiEdit": {
           "description": "在單一檔案上原子性地執行多次編輯"
@@ -746,7 +770,8 @@
           "description": "讀取並顯示 Jupyter notebook 內容"
         },
         "Read": {
-          "description": "讀取檔案內容"
+          "description": "讀取檔案內容",
+          "label": "讀取檔案"
         },
         "Task": {
           "description": "執行子代理來處理複雜的多步驟任務"
@@ -763,8 +788,13 @@
         "WebSearch": {
           "description": "執行帶有網域過濾的網路搜尋"
         },
+        "Workflow": {
+          "description": "執行編排子智能體的多步工作流",
+          "label": "工作流"
+        },
         "Write": {
-          "description": "建立或覆寫檔案"
+          "description": "建立或覆寫檔案",
+          "label": "寫入檔案"
         }
       }
     },
@@ -2549,6 +2579,14 @@
           },
           "tools": {
             "add": "新增",
+            "category": {
+              "context": "上下文",
+              "file": "檔案",
+              "media": "多媒體",
+              "orchestration": "編排",
+              "search": "搜尋",
+              "shell": "終端"
+            },
             "desc": "MCP 伺服器、允許的工具與執行階段設定",
             "label": "工具與執行階段",
             "no_builtin_enabled": "未啟用任何內建工具",

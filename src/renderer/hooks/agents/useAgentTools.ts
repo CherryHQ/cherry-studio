@@ -1,7 +1,6 @@
 import { cacheService } from '@renderer/data/CacheService'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
-import type { AgentType } from '@renderer/types'
-import { claudeCodeBuiltinToolDescriptors } from '@shared/ai/claudecode/builtinTools'
+import { claudeRegistrySdkDescriptors } from '@shared/ai/claudecode/toolRegistry'
 import {
   buildClaudeMcpToolName,
   type ClaudeToolDescriptor,
@@ -22,7 +21,6 @@ const mcpToolsCacheKey = (serverId: string): McpToolsCacheKey => `mcp.tools.${se
 export type AgentToolSource = {
   type?: AgentType
   mcps?: string[]
-  allowedTools?: string[]
   configuration?: Pick<AgentConfiguration, 'permission_mode'> | null
   permissionMode?: AgentPermissionMode | string | null
 }
@@ -52,8 +50,7 @@ function useMcpToolsCache(serverIds: readonly string[]): Record<string, McpTool[
 
 function toTool(descriptor: ClaudeToolDescriptor, source: AgentToolSource): Tool {
   const decision = resolveClaudeToolAccess(descriptor, {
-    permissionMode: source.configuration?.permission_mode ?? (source.permissionMode as AgentPermissionMode | undefined),
-    allowedTools: source.allowedTools ?? []
+    permissionMode: source.configuration?.permission_mode ?? (source.permissionMode as AgentPermissionMode | undefined)
   })
   return {
     id: descriptor.id,
@@ -109,7 +106,7 @@ export const useAgentTools = (source: AgentToolSource | null | undefined) => {
     if ((source?.type ?? 'claude-code') !== 'claude-code') return []
 
     const selectedServers = new Map(mcpServers.map((server) => [server.id, server]))
-    const descriptors: ClaudeToolDescriptor[] = [...claudeCodeBuiltinToolDescriptors()]
+    const descriptors: ClaudeToolDescriptor[] = [...claudeRegistrySdkDescriptors()]
     for (const id of mcpIds) {
       const server = selectedServers.get(id)
       if (!server) continue

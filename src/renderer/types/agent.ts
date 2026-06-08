@@ -201,8 +201,9 @@ export type BaseAgentForm = {
   name: string
   description?: string
   instructions?: string
-  model: string
-  allowedTools: string[]
+  model: UniqueModelId
+  planModel?: UniqueModelId
+  smallModel?: UniqueModelId
   mcps?: string[]
   configuration?: AgentConfiguration
 }
