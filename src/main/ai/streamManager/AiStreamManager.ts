@@ -22,7 +22,7 @@ import { type SerializedError, serializeError } from '@shared/types/error'
 import { type UIMessageChunk } from 'ai'
 import * as z from 'zod'
 
-import type { AiStreamRequest } from '../types/requests'
+import type { AiStreamRequest, CallOverrides } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context'
 import { KeyedMutex } from './KeyedMutex'
@@ -377,6 +377,10 @@ export class AiStreamManager extends BaseService {
     prompt?: string
     messages?: CherryUIMessage[]
     listener: StreamListener | StreamListener[]
+    /** Per-request overrides (sampling/tools/providerOptions) for assistant-less callers (API gateway). */
+    callOverrides?: CallOverrides
+    /** Idle-chunk timeout (ms) for the upstream stream; resets per chunk. Defaults to `DEFAULT_TIMEOUT`. */
+    idleTimeoutMs?: number
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
@@ -387,7 +391,9 @@ export class AiStreamManager extends BaseService {
       chatId: input.streamId,
       trigger: 'submit-message',
       uniqueModelId: input.uniqueModelId,
-      messages
+      messages,
+      callOverrides: input.callOverrides,
+      ...(input.idleTimeoutMs !== undefined ? { requestOptions: { timeout: input.idleTimeoutMs } } : {})
     }
     return this.send({
       topicId: input.streamId,

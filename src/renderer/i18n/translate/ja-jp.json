@@ -785,7 +785,7 @@
       "server_not_running_description": "エージェントを動作させるには、APIサーバーが稼働している必要があります。直接起動するか、設定を確認してください。"
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "コピー",
       "regenerate": "再生成",
