@@ -15,6 +15,7 @@ import type {
   ListKnowledgeBasesQuery,
   UpdateKnowledgeBaseDto
 } from '@shared/data/api/schemas/knowledges'
+import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import {
   type CreateKnowledgeBaseDto,
@@ -37,6 +38,7 @@ type ListKnowledgeBasesServiceQuery = ListKnowledgeBasesQuery & {
   sortBy?: 'updatedAt'
   orderBy?: 'asc' | 'desc'
 }
+type KnowledgeBaseEntitySearchItem = Extract<EntitySearchItem, { type: 'knowledge-base' }>
 
 function validateKnowledgeBaseConfig(config: {
   chunkSize: number
@@ -83,6 +85,34 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 export class KnowledgeBaseService {
   private get db() {
     return application.get('DbService').getDb()
+  }
+
+  async search(query: { q: string; limit: number; updatedAtFrom?: number }): Promise<KnowledgeBaseEntitySearchItem[]> {
+    const conditions: SQL[] = []
+    const search = buildSearchPredicate(query.q)
+    if (search) conditions.push(search)
+    if (query.updatedAtFrom !== undefined) {
+      conditions.push(gte(knowledgeBaseTable.updatedAt, query.updatedAtFrom))
+    }
+
+    const rows = await this.db
+      .select({
+        id: knowledgeBaseTable.id,
+        name: knowledgeBaseTable.name,
+        updatedAt: knowledgeBaseTable.updatedAt
+      })
+      .from(knowledgeBaseTable)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(knowledgeBaseTable.updatedAt), asc(knowledgeBaseTable.id))
+      .limit(query.limit)
+
+    return rows.map((row) => ({
+      type: 'knowledge-base',
+      id: row.id,
+      title: row.name,
+      updatedAt: timestampToISO(row.updatedAt),
+      target: { knowledgeBaseId: row.id }
+    }))
   }
 
   async list(query: ListKnowledgeBasesServiceQuery): Promise<OffsetPaginationResponse<KnowledgeBaseListItem>> {

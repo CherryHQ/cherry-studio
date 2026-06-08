@@ -20,6 +20,7 @@ import {
   sanitizeAgentConfiguration,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
+import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { and, asc, count, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
@@ -45,6 +46,7 @@ export interface AgentDeletedEvent {
 type AgentListOptions = ListOptions & {
   updatedAtFrom?: number
 }
+type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
 
 function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
@@ -52,6 +54,12 @@ function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
     logger.warn('Agent configuration drift detected; dropping invalid keys', { invalidKeys })
   }
   return data
+}
+
+function getAgentAvatar(configuration: unknown): string | undefined {
+  if (!configuration || typeof configuration !== 'object') return undefined
+  const avatar = (configuration as { avatar?: unknown }).avatar
+  return typeof avatar === 'string' ? avatar : undefined
 }
 
 function rowToAgent(row: AgentRow, modelName: string | null = null): AgentEntity {
@@ -216,6 +224,42 @@ export class AgentService {
     const agents = result.map((row) => rowToAgent(row.agent, row.modelName || null))
 
     return { agents, total: totalResult[0].count }
+  }
+
+  async search(options: { q: string; limit: number; updatedAtFrom?: number }): Promise<AgentEntitySearchItem[]> {
+    const database = application.get('DbService').getDb()
+    const pattern = `%${options.q.replace(/[\\%_]/g, '\\$&')}%`
+    const nameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
+    const descMatch = sql`${agentsTable.description} LIKE ${pattern} ESCAPE '\\'`
+    const searchClause = or(nameMatch, descMatch)
+    const conditions: SQL[] = [isNull(agentsTable.deletedAt)]
+    if (searchClause) conditions.push(searchClause)
+    if (options.updatedAtFrom !== undefined) {
+      conditions.push(gte(agentsTable.updatedAt, options.updatedAtFrom))
+    }
+
+    const rows = await database
+      .select({
+        id: agentsTable.id,
+        name: agentsTable.name,
+        description: agentsTable.description,
+        configuration: agentsTable.configuration,
+        updatedAt: agentsTable.updatedAt
+      })
+      .from(agentsTable)
+      .where(and(...conditions))
+      .orderBy(desc(agentsTable.updatedAt), asc(agentsTable.id))
+      .limit(options.limit)
+
+    return rows.map((row) => ({
+      type: 'agent',
+      id: row.id,
+      title: row.name,
+      subtitle: row.description || undefined,
+      emoji: getAgentAvatar(row.configuration),
+      updatedAt: timestampToISO(row.updatedAt),
+      target: { agentId: row.id }
+    }))
   }
 
   async updateAgent(id: string, updates: UpdateAgentDto): Promise<AgentEntity | null> {

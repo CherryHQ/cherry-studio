@@ -262,4 +262,48 @@ describe('AgentService', () => {
       expect(agents.map((agent) => agent.id).sort()).toEqual(['agent_search_1', 'agent_search_2'])
     })
   })
+
+  describe('search', () => {
+    it('returns lean navigation items ordered by updatedAt', async () => {
+      await insertAgent({
+        id: 'agent_search_old',
+        name: 'Needle Old Agent',
+        description: 'old agent',
+        configuration: { avatar: 'A' },
+        updatedAt: 100
+      })
+      await insertAgent({
+        id: 'agent_search_new',
+        name: 'Needle New Agent',
+        description: 'new agent',
+        configuration: { avatar: 'B' },
+        updatedAt: 200
+      })
+      await insertAgent({ id: 'agent_search_miss', name: 'Other', updatedAt: 300 })
+
+      const result = await agentService.search({ q: 'Needle', limit: 5 })
+
+      expect(result).toEqual([
+        {
+          type: 'agent',
+          id: 'agent_search_new',
+          title: 'Needle New Agent',
+          subtitle: 'new agent',
+          emoji: 'B',
+          updatedAt: '1970-01-01T00:00:00.200Z',
+          target: { agentId: 'agent_search_new' }
+        },
+        {
+          type: 'agent',
+          id: 'agent_search_old',
+          title: 'Needle Old Agent',
+          subtitle: 'old agent',
+          emoji: 'A',
+          updatedAt: '1970-01-01T00:00:00.100Z',
+          target: { agentId: 'agent_search_old' }
+        }
+      ])
+      expect(result[0]).not.toHaveProperty('modelName')
+    })
+  })
 })
