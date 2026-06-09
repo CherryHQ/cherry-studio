@@ -6,12 +6,13 @@ export default defineConfig({
     'components/index': 'src/components/index.ts',
     'icons/index': 'src/components/icons/index.ts',
     'hooks/index': 'src/hooks/index.ts',
-    'utils/index': 'src/utils/index.ts'
+    'utils/index': 'src/utils/index.ts',
+    'composites/markdown/index': 'src/components/composites/markdown/index.ts'
   },
   outDir: 'dist',
   format: ['esm', 'cjs'],
   clean: true,
   dts: true,
   tsconfig: 'tsconfig.json',
-  external: ['react', 'react-dom', 'framer-motion', 'tailwindcss']
+  external: ['react', 'react-dom', 'framer-motion', 'tailwindcss', 'unist-util-visit']
 })
