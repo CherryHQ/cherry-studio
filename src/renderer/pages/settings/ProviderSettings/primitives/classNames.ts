@@ -225,7 +225,7 @@ export const modelListClasses = {
   titleHelpRow: 'flex min-w-0 flex-wrap items-center gap-x-1 self-center text-foreground-muted',
   titleHelpText: 'shrink-0 opacity-60',
   titleHelpLink:
-    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] text-[#1677ff] hover:text-[#1677ff] hover:underline dark:text-[#1668dc] dark:hover:text-[#1668dc]',
+    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] text-primary hover:underline',
   titleHelpSeparator:
     'inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] text-foreground-muted/50',
   countMeta:
@@ -561,5 +561,5 @@ export const fieldClasses = {
     'flex size-5 shrink-0 items-center justify-center text-[var(--cherry-text-muted)] transition-colors hover:text-[var(--cherry-primary-hover)] disabled:pointer-events-none disabled:opacity-40',
   titleWithHelp: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1',
   titleHelpLink:
-    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-body-sm)] text-[#1677ff] hover:text-[#1677ff] hover:underline dark:text-[#1668dc] dark:hover:text-[#1668dc]'
+    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-body-sm)] text-primary hover:underline'
 } as const

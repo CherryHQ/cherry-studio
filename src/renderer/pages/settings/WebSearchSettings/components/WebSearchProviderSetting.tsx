@@ -369,10 +369,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
               </ButtonGroup>
               {apiKeyWebsite && (
                 <SettingHelpTextRow className={providerHelpRowClassName}>
-                  <SettingHelpLink
-                    target="_blank"
-                    href={apiKeyWebsite}
-                    className="text-[#1677ff] hover:text-[#1677ff] dark:text-[#1668dc] dark:hover:text-[#1668dc]">
+                  <SettingHelpLink target="_blank" href={apiKeyWebsite}>
                     {t('settings.provider.get_api_key')}
                   </SettingHelpLink>
                 </SettingHelpTextRow>
