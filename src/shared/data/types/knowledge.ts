@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import { FileEntryIdSchema } from './file'
+import { AbsolutePathSchema } from './file'
 import { GroupIdSchema } from './group'
 
 /**
@@ -15,7 +15,7 @@ import { GroupIdSchema } from './group'
 // Constants and Field Schemas
 // ============================================================================
 
-export const KNOWLEDGE_ITEM_TYPES = ['file', 'url', 'note', 'sitemap', 'directory'] as const
+export const KNOWLEDGE_ITEM_TYPES = ['file', 'url', 'note', 'directory'] as const
 export const KnowledgeItemTypeSchema = z.enum(KNOWLEDGE_ITEM_TYPES)
 export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
 
@@ -31,7 +31,7 @@ export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
  *       +--------------------+-------------+-----------> failed
  *      \---------------------------------------------> deleting
  *
- * directory/sitemap:
+ * directory:
  *   idle -> preparing -> processing -> completed
  *      \        \             \          \
  *       +--------+-------------+-----------> failed
@@ -39,7 +39,7 @@ export type KnowledgeItemType = z.infer<typeof KnowledgeItemTypeSchema>
  * ```
  *
  * - `idle`: item row exists but indexing has not started.
- * - `preparing`: container expansion is running; only `directory` / `sitemap` items may use it.
+ * - `preparing`: container expansion is running; only `directory` items may use it.
  * - `processing`: work has been queued or is running before a more specific phase is known.
  * - `reading`: leaf source documents are being read; only `file` / `url` / `note` items may use it.
  * - `embedding`: leaf chunks are being embedded and written to the vector store; only `file` / `url` / `note`.
@@ -171,6 +171,31 @@ export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value,
 })
 export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
 
+/**
+ * A knowledge base that has finished embedding and is ready for vector-store
+ * operations. Narrows away the states `KnowledgeBaseSchema.superRefine` already
+ * rejects for `status === 'completed'` (null dimensions / embedding model, or a
+ * lingering error), so consumers can read `dimensions` as a plain `number`
+ * instead of re-asserting at each call site.
+ */
+export type CompletedKnowledgeBase = KnowledgeBase & {
+  status: 'completed'
+  dimensions: number
+  embeddingModelId: string
+  error: null
+}
+
+export function isCompletedKnowledgeBase(base: KnowledgeBase): base is CompletedKnowledgeBase {
+  return (
+    base.status === 'completed' &&
+    typeof base.dimensions === 'number' &&
+    Number.isInteger(base.dimensions) &&
+    base.dimensions > 0 &&
+    base.embeddingModelId !== null &&
+    base.error === null
+  )
+}
+
 // ============================================================================
 // Knowledge Item Data
 // ============================================================================
@@ -183,8 +208,28 @@ const KnowledgeItemSharedSchema = z.strictObject({
  * File item data.
  */
 export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
-  fileEntryId: FileEntryIdSchema.describe('FileEntry identifier for the source file.')
+  // relativePath / indexedRelativePath are always produced by main-side helpers
+  // (copyFileIntoKnowledgeBase, toKnowledgeRelativePath, ...), never raw caller
+  // input. The base-relative, POSIX-normalized, no-traversal invariant is
+  // enforced imperatively by assertSafeKnowledgeRelativePath at the filesystem
+  // boundary (getKnowledgeBaseFilePath). This schema only validates shape, so a
+  // refined path schema here would duplicate that check — and cannot use
+  // node:path since this module also runs in the renderer.
+  relativePath: z
+    .string()
+    .trim()
+    .min(1)
+    .describe('Knowledge-base-relative, POSIX-normalized path for the copied source file.'),
+  indexedRelativePath: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'Knowledge-base-relative, POSIX-normalized path for the file actually indexed, such as a processed markdown artifact.'
+    )
 })
+export type FileItemData = z.infer<typeof FileItemDataSchema>
 
 /**
  * URL item data.
@@ -202,18 +247,12 @@ export const NoteItemDataSchema = KnowledgeItemSharedSchema.extend({
 })
 
 /**
- * Sitemap item data.
- */
-export const SitemapItemDataSchema = KnowledgeItemSharedSchema.extend({
-  url: z.string().trim().min(1).describe('Sitemap URL to expand into child URL items.')
-})
-
-/**
  * Directory item data.
  */
 export const DirectoryItemDataSchema = KnowledgeItemSharedSchema.extend({
   path: z.string().trim().min(1).describe('Directory path to expand into child file or directory items.')
 })
+export type DirectoryItemData = z.infer<typeof DirectoryItemDataSchema>
 
 /**
  * JSON payload stored in `knowledge_item.data`.
@@ -222,7 +261,6 @@ export const KnowledgeItemDataSchema = z.union([
   FileItemDataSchema,
   UrlItemDataSchema,
   NoteItemDataSchema,
-  SitemapItemDataSchema,
   DirectoryItemDataSchema
 ])
 export type KnowledgeItemData = z.infer<typeof KnowledgeItemDataSchema>
@@ -247,7 +285,7 @@ const IdleKnowledgeItemLifecycleSchema = {
 } as const
 
 const PreparingKnowledgeItemLifecycleSchema = {
-  status: z.literal('preparing').describe('Container expansion is running; only directory and sitemap items use it.'),
+  status: z.literal('preparing').describe('Container expansion is running; only directory items use it.'),
   error: z.null().describe('No error is stored for non-failed lifecycle states.')
 } as const
 
@@ -374,10 +412,6 @@ const NoteKnowledgeItemSchema = z.discriminatedUnion(
   'status',
   createLeafKnowledgeItemEntitySchemas('note', NoteItemDataSchema)
 )
-const SitemapKnowledgeItemSchema = z.discriminatedUnion(
-  'status',
-  createContainerKnowledgeItemEntitySchemas('sitemap', SitemapItemDataSchema)
-)
 const DirectoryKnowledgeItemSchema = z.discriminatedUnion(
   'status',
   createContainerKnowledgeItemEntitySchemas('directory', DirectoryItemDataSchema)
@@ -390,7 +424,6 @@ export const KnowledgeItemSchema = z.union([
   FileKnowledgeItemSchema,
   UrlKnowledgeItemSchema,
   NoteKnowledgeItemSchema,
-  SitemapKnowledgeItemSchema,
   DirectoryKnowledgeItemSchema
 ])
 export type KnowledgeItem = z.infer<typeof KnowledgeItemSchema>
@@ -493,29 +526,44 @@ const CreateKnowledgeItemBaseSchema = z.strictObject({
   groupId: KnowledgeItemIdSchema.nullable().optional()
 })
 
+// Members shared verbatim by the persisted-create and runtime-add unions. Only
+// the `file` member differs between the two (persisted relativePath vs runtime
+// absolute path), so the non-file members are declared once and reused.
+const UrlItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
+  type: z.literal('url'),
+  data: UrlItemDataSchema
+})
+const NoteItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
+  type: z.literal('note'),
+  data: NoteItemDataSchema
+})
+const DirectoryItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
+  type: z.literal('directory'),
+  data: DirectoryItemDataSchema
+})
+
 export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
   CreateKnowledgeItemBaseSchema.extend({
     type: z.literal('file'),
     data: FileItemDataSchema
   }),
-  CreateKnowledgeItemBaseSchema.extend({
-    type: z.literal('url'),
-    data: UrlItemDataSchema
-  }),
-  CreateKnowledgeItemBaseSchema.extend({
-    type: z.literal('note'),
-    data: NoteItemDataSchema
-  }),
-  CreateKnowledgeItemBaseSchema.extend({
-    type: z.literal('sitemap'),
-    data: SitemapItemDataSchema
-  }),
-  CreateKnowledgeItemBaseSchema.extend({
-    type: z.literal('directory'),
-    data: DirectoryItemDataSchema
-  })
+  UrlItemMemberSchema,
+  NoteItemMemberSchema,
+  DirectoryItemMemberSchema
 ])
 export type CreateKnowledgeItemDto = z.infer<typeof CreateKnowledgeItemSchema>
 
-export const KnowledgeRuntimeAddItemInputSchema = CreateKnowledgeItemSchema
-export type KnowledgeRuntimeAddItemInput = CreateKnowledgeItemDto
+const RuntimeFileItemDataSchema = KnowledgeItemSharedSchema.extend({
+  path: AbsolutePathSchema.describe('Absolute source path selected by the user before Knowledge copies it.')
+})
+
+export const KnowledgeAddItemInputSchema = z.discriminatedUnion('type', [
+  CreateKnowledgeItemBaseSchema.extend({
+    type: z.literal('file'),
+    data: RuntimeFileItemDataSchema
+  }),
+  UrlItemMemberSchema,
+  NoteItemMemberSchema,
+  DirectoryItemMemberSchema
+])
+export type KnowledgeAddItemInput = z.infer<typeof KnowledgeAddItemInputSchema>

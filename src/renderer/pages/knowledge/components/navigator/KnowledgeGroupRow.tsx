@@ -1,9 +1,11 @@
-import { ConfirmDialog } from '@cherrystudio/ui'
+import { Button, ConfirmDialog } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { MoreHorizontal } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BaseNavigatorSectionTrigger from './BaseNavigatorSectionTrigger'
-import { KnowledgeGroupRowMenu, NavigatorMoreButton } from './NavigatorMenu'
+import { KnowledgeGroupRowMenu } from './NavigatorMenu'
 import type { KnowledgeGroupRowProps } from './types'
 import useContextMenuPosition from './useContextMenuPosition'
 
@@ -15,7 +17,14 @@ const KnowledgeGroupRow = ({
   onDeleteGroup
 }: KnowledgeGroupRowProps) => {
   const { t } = useTranslation()
-  const { contextMenuPosition, closeContextMenu, handleContextMenu, handleMoreButtonClick } = useContextMenuPosition()
+  const {
+    isMenuOpen,
+    contextMenuPosition,
+    closeContextMenu,
+    handleContextMenu,
+    handleMenuOpenChange,
+    handleMoreButtonClick
+  } = useContextMenuPosition()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
   const handleRenameGroup = useCallback(() => {
@@ -46,21 +55,30 @@ const KnowledgeGroupRow = ({
         label={group.name}
         itemCount={itemCount}
         actionSlot={
-          <NavigatorMoreButton
-            visible={Boolean(contextMenuPosition)}
-            className="size-6 min-h-6 min-w-6 rounded-md p-0 text-foreground-muted hover:bg-accent hover:text-foreground group-focus-within/grp:opacity-100 group-hover/grp:opacity-100 [&_svg]:size-3.5"
-            onClick={handleMoreButtonClick}
+          <KnowledgeGroupRowMenu
+            open={isMenuOpen}
+            menuPosition={contextMenuPosition}
+            trigger={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t('common.more')}
+                className={cn(
+                  'size-6 min-h-6 min-w-6 rounded-md p-0 text-foreground-muted hover:bg-accent hover:text-foreground group-focus-within/grp:opacity-100 group-hover/grp:opacity-100 [&_svg]:size-3.5',
+                  isMenuOpen ? 'opacity-100' : 'opacity-0'
+                )}
+                onClick={handleMoreButtonClick}>
+                <MoreHorizontal />
+              </Button>
+            }
+            onOpenChange={handleMenuOpenChange}
+            onRename={handleRenameGroup}
+            onCreateBase={handleCreateBase}
+            onRequestDelete={handleRequestDelete}
           />
         }
         onContextMenu={handleContextMenu}
-      />
-
-      <KnowledgeGroupRowMenu
-        menuPosition={contextMenuPosition}
-        onClose={closeContextMenu}
-        onRename={handleRenameGroup}
-        onCreateBase={handleCreateBase}
-        onRequestDelete={handleRequestDelete}
       />
 
       <ConfirmDialog

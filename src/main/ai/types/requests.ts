@@ -1,5 +1,6 @@
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { UniqueModelId } from '@shared/data/types/model'
-import type { ChatTransport, UIMessage } from 'ai'
+import type { ChatTransport, ToolChoice, ToolSet, UIMessage } from 'ai'
 
 /**
  * IPC-safe per-request transport config. Every field here survives
@@ -15,12 +16,35 @@ export interface AiTransportOptions {
   maxRetries?: number
 }
 
+/**
+ * First-class per-request overrides for callers that have no assistant to derive
+ * settings from (the API gateway). Merged at highest precedence inside
+ * `buildAgentParams` — NOT applied as a post-hoc plugin mutation.
+ *
+ * IN-PROCESS ONLY: `tools` carries an AI SDK `ToolSet` (functions / zod schemas)
+ * which is not structured-clone-safe, so `callOverrides` must never be set on the
+ * renderer/IPC path — same constraint as `AbortSignal` (see `AsInProcess`).
+ */
+export interface CallOverrides {
+  temperature?: number
+  maxOutputTokens?: number
+  topP?: number
+  topK?: number
+  stopSequences?: string[]
+  /** Client tool definitions WITHOUT `execute` — the model emits the call and the gateway forwards it. */
+  tools?: ToolSet
+  toolChoice?: ToolChoice<ToolSet>
+  providerOptions?: ProviderOptions
+}
+
 export interface AiBaseRequest {
   assistantId?: string
   /** "providerId::modelId" */
   uniqueModelId?: UniqueModelId
   mcpToolIds?: string[]
   requestOptions?: AiTransportOptions
+  /** Per-request overrides (in-process only; assistant-less callers like the API gateway). */
+  callOverrides?: CallOverrides
 }
 
 /**

@@ -51,6 +51,7 @@ const makeChannel = (overrides: Record<string, unknown> = {}) => ({
   name: 'My Bot',
   agentId: 'agent-1',
   sessionId: 'sess-1',
+  workspace: { type: 'system' },
   config: { bot_token: 'token-abc' },
   isActive: true,
   activeChatIds: ['chat-1'],
@@ -74,6 +75,7 @@ describe('AgentChannelWorkflowService', () => {
       const result = await agentChannelWorkflowService.createChannel({
         type: 'telegram',
         name: 'My Bot',
+        workspace: { type: 'system' },
         config: { bot_token: 'token-abc' }
       })
 
@@ -92,6 +94,7 @@ describe('AgentChannelWorkflowService', () => {
         agentChannelWorkflowService.createChannel({
           type: 'telegram',
           name: 'My Bot',
+          workspace: { type: 'system' },
           config: { bot_token: 'token-abc' }
         })
       ).rejects.toThrow('sync failed')
@@ -111,6 +114,7 @@ describe('AgentChannelWorkflowService', () => {
         agentChannelWorkflowService.createChannel({
           type: 'telegram',
           name: 'My Bot',
+          workspace: { type: 'system' },
           config: { bot_token: 'token-abc' }
         })
       ).rejects.toThrow('sync failed')

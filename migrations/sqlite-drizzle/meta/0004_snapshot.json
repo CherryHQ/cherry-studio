@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a90a0bc6-283a-45d9-b3d3-7cf7d5086b10",
+  "id": "42474ea0-ee52-400c-830d-844399281ff1",
   "prevId": "7d3a1018-0a36-43dd-a9a0-3aea2909de02",
   "tables": {
     "agent": {
@@ -671,6 +671,11 @@
           "name": "agent_session_message_session_created_id_idx",
           "columns": ["session_id", "created_at", "id"],
           "isUnique": false
+        },
+        "agent_session_message_status_idx": {
+          "name": "agent_session_message_status_idx",
+          "columns": ["status"],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -784,6 +789,69 @@
           "name": "agent_skill_agent_id_skill_id_pk"
         }
       },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "agent_workspace": {
+      "name": "agent_workspace",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "path": {
+          "name": "path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "order_key": {
+          "name": "order_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "agent_workspace_path_unique_idx": {
+          "name": "agent_workspace_path_unique_idx",
+          "columns": ["path"],
+          "isUnique": true
+        },
+        "agent_workspace_order_key_idx": {
+          "name": "agent_workspace_order_key_idx",
+          "columns": ["order_key"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -1925,7 +1993,7 @@
       "checkConstraints": {
         "knowledge_item_type_check": {
           "name": "knowledge_item_type_check",
-          "value": "\"knowledge_item\".\"type\" IN ('file', 'url', 'note', 'sitemap', 'directory')"
+          "value": "\"knowledge_item\".\"type\" IN ('file', 'url', 'note', 'directory')"
         },
         "knowledge_item_status_check": {
           "name": "knowledge_item_status_check",
@@ -1933,7 +2001,7 @@
         },
         "knowledge_item_type_status_check": {
           "name": "knowledge_item_type_status_check",
-          "value": "\n        (\"knowledge_item\".\"type\" IN ('file', 'url', 'note') AND \"knowledge_item\".\"status\" IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))\n        OR (\"knowledge_item\".\"type\" IN ('directory', 'sitemap') AND \"knowledge_item\".\"status\" IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'deleting'))\n      "
+          "value": "\n        (\"knowledge_item\".\"type\" IN ('file', 'url', 'note') AND \"knowledge_item\".\"status\" IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))\n        OR (\"knowledge_item\".\"type\" = 'directory' AND \"knowledge_item\".\"status\" IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'deleting'))\n      "
         },
         "knowledge_item_status_error_check": {
           "name": "knowledge_item_status_error_check",
@@ -2327,6 +2395,11 @@
         "message_trace_id_idx": {
           "name": "message_trace_id_idx",
           "columns": ["trace_id"],
+          "isUnique": false
+        },
+        "message_status_idx": {
+          "name": "message_status_idx",
+          "columns": ["status"],
           "isUnique": false
         }
       },
@@ -3495,7 +3568,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": false
+          "default": true
         },
         "order_key": {
           "name": "order_key",
@@ -3532,69 +3605,6 @@
         },
         "user_provider_order_key_idx": {
           "name": "user_provider_order_key_idx",
-          "columns": ["order_key"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "agent_workspace": {
-      "name": "agent_workspace",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "path": {
-          "name": "path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "agent_workspace_path_unique_idx": {
-          "name": "agent_workspace_path_unique_idx",
-          "columns": ["path"],
-          "isUnique": true
-        },
-        "agent_workspace_order_key_idx": {
-          "name": "agent_workspace_order_key_idx",
           "columns": ["order_key"],
           "isUnique": false
         }

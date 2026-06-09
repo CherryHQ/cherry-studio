@@ -10,11 +10,15 @@ const UUIDV4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-
 
 const LEGACY_FILE_ID = '019606a0-0000-7000-8000-000000000101'
 
+// Keep the three filename-bearing fields distinct so each assertion below can
+// independently tell where a value came from: `name` (v1 storage name) feeds
+// `fileCopy.storageName`, `origin_name` (user-facing) feeds `relativePath`, and
+// `path` (stale column) feeds `data.source`. A crossed wiring fails the asserts.
 const fileMetadata = {
   id: LEGACY_FILE_ID,
-  name: 'report.pdf',
+  name: 'stored-019606a0.pdf',
   origin_name: 'report.pdf',
-  path: '/tmp/report.pdf',
+  path: '/tmp/source-on-disk.pdf',
   size: 128,
   ext: '.pdf',
   type: FILE_TYPE.DOCUMENT,
@@ -53,6 +57,49 @@ describe('KnowledgeMappings', () => {
         embeddingModelId: null,
         status: 'failed',
         error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
+      })
+    })
+  })
+
+  it('transformKnowledgeBase falls back to the v1 base id for an all-whitespace name', () => {
+    // Write-side guard only checked `name !== ''`, but the read path
+    // (KnowledgeBaseSchema `name: trim().min(1)`) rejects whitespace-only
+    // names — one such row used to poison the whole list query.
+    const warnings: string[] = []
+    expect(
+      transformKnowledgeBase(
+        {
+          id: 'kb-blank-name',
+          name: '   '
+        },
+        1024,
+        (msg) => warnings.push(msg)
+      )
+    ).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        name: 'kb-blank-name'
+      })
+    })
+    // The fallback leaves a diagnostic trail in the migration log.
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('kb-blank-name')
+    expect(warnings[0]).toContain('blank v1 name')
+  })
+
+  it('transformKnowledgeBase trims surrounding whitespace from a valid name', () => {
+    expect(
+      transformKnowledgeBase(
+        {
+          id: 'kb-padded-name',
+          name: '  My KB  '
+        },
+        1024
+      )
+    ).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        name: 'My KB'
       })
     })
   })
@@ -233,6 +280,102 @@ describe('KnowledgeMappings', () => {
     })
   })
 
+  it('transformKnowledgeItem skips a note with neither sourceUrl nor content', () => {
+    // Sibling branches (file/url/directory) all guard their source, but the
+    // note branch let `source: ''` through — the read path requires
+    // `source: trim().min(1)` and one such row breaks the item list query.
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'note-empty',
+        type: 'note',
+        content: ''
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({ ok: false, reason: 'invalid_note' })
+  })
+
+  it('transformKnowledgeItem skips a note whose content is whitespace-only', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'note-blank',
+        type: 'note',
+        content: '  \n  '
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({ ok: false, reason: 'invalid_note' })
+  })
+
+  it('transformKnowledgeItem keeps a note that has a sourceUrl but empty content', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'note-url-only',
+        type: 'note',
+        content: '',
+        sourceUrl: 'https://example.com/origin'
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        type: 'note',
+        data: {
+          source: 'https://example.com/origin',
+          content: '',
+          sourceUrl: 'https://example.com/origin'
+        }
+      })
+    })
+  })
+
+  it('transformKnowledgeItem keeps a note with an empty-string sourceUrl but non-empty content', () => {
+    // The source chain must use `||`, not `??`: an empty-string sourceUrl
+    // would short-circuit a nullish chain and get a recoverable note
+    // dropped as invalid_note despite its non-empty content.
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'note-blank-url',
+        type: 'note',
+        content: 'recoverable body',
+        sourceUrl: ''
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        type: 'note',
+        data: {
+          source: 'recoverable body',
+          content: 'recoverable body',
+          sourceUrl: ''
+        }
+      })
+    })
+  })
+
   it('transformKnowledgeItem resolves file metadata by file id fallback', () => {
     const result = transformKnowledgeItem(
       'kb-1',
@@ -256,15 +399,58 @@ describe('KnowledgeMappings', () => {
         groupId: null,
         type: 'file',
         data: {
-          source: '/tmp/report.pdf',
-          fileEntryId: LEGACY_FILE_ID
+          source: '/tmp/source-on-disk.pdf',
+          relativePath: 'report.pdf'
         },
         status: 'completed',
         error: null,
         createdAt: expect.any(Number),
         updatedAt: expect.any(Number)
-      }
+      },
+      fileCopy: { storageName: 'stored-019606a0.pdf' }
     })
+  })
+
+  it('transformKnowledgeItem falls back to the storage name when origin_name is blank', () => {
+    // A blank origin_name short-circuits sanitizeFilename to '' (before its
+    // 'untitled' guard). A blank relativePath fails the read path
+    // (FileItemDataSchema `.min(1)`) and poisons the whole base's item list —
+    // degrade to the storage name (keeps the extension) like FileMigrator does.
+    const warnings: string[] = []
+    const blankOriginFile = {
+      ...fileMetadata,
+      name: 'stored-019606a0.pdf',
+      origin_name: ''
+    }
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'file-blank-name',
+        type: 'file',
+        content: LEGACY_FILE_ID
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map([[LEGACY_FILE_ID, blankOriginFile]])
+      },
+      (msg) => warnings.push(msg)
+    )
+
+    expect(result).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        type: 'file',
+        data: {
+          source: '/tmp/source-on-disk.pdf',
+          relativePath: 'stored-019606a0.pdf'
+        }
+      }),
+      fileCopy: { storageName: 'stored-019606a0.pdf' }
+    })
+    // The fallback leaves a diagnostic trail in the migration log.
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('file-blank-name')
+    expect(warnings[0]).toContain('blank v1 filename')
   })
 
   it('transformKnowledgeItem clears blank legacy processing errors for idle and completed items', () => {
@@ -308,7 +494,8 @@ describe('KnowledgeMappings', () => {
       value: expect.objectContaining({
         status: 'completed',
         error: null
-      })
+      }),
+      fileCopy: { storageName: 'stored-019606a0.pdf' }
     })
   })
 

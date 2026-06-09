@@ -31,7 +31,6 @@ import { ExportService } from './services/ExportService'
 import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
-import { knowledgeService } from './services/KnowledgeService'
 import LegacyBackupManager from './services/LegacyBackupManager'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/nutstore/NutstoreService'
@@ -443,10 +442,6 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.Open_Path, async (_, path: string) => {
     await shell.openPath(path)
   })
-
-  // v1 renderer knowledge IPC retired (T4.2); only base deletion remains,
-  // used by the v1 Redux store/knowledge slice until it is removed.
-  ipcMain.handle(IpcChannel.KnowledgeBase_Delete, knowledgeService.delete.bind(knowledgeService))
 
   // memory
   // VertexAI

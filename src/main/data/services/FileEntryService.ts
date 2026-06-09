@@ -20,11 +20,15 @@
 
 import { application } from '@application'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntrySchema, SafeNameSchema } from '@shared/data/types/file'
 import { and, asc, count, desc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
+import { ZodError } from 'zod'
+
+const logger = loggerService.withContext('FileEntryService')
 
 /** Columns a caller may provide on insert (id defaults to a fresh UUID v7 when omitted). */
 export interface CreateFileEntryRow {
@@ -116,10 +120,15 @@ export interface FileEntryService {
    * lives in `ensureExternalEntry` (`fs.realpath` resolves whether the two
    * case-different paths are the same FS entity); see
    * `file-manager-architecture.md §1.2 Duplicate-entry detection on insert`.
+   *
+   * Un-parseable rows are skipped with a warning (see `rowToFileEntrySafe`).
    */
   findCaseInsensitivePeers(canonicalPath: CanonicalExternalPath): Promise<FileEntry[]>
 
-  /** Flat listing. Trashed filter defaults to "active only" when `inTrash` is omitted. */
+  /**
+   * Flat listing. Trashed filter defaults to "active only" when `inTrash` is omitted.
+   * Un-parseable rows are skipped with a warning (see `rowToFileEntrySafe`).
+   */
   findMany(query?: FindEntriesQuery): Promise<FileEntry[]>
 
   /**
@@ -134,6 +143,10 @@ export interface FileEntryService {
    * `sortBy: 'size'` is only meaningful within an `origin='internal'` filter
    * (external rows have `size IS NULL`); see the schema-level JSDoc for the
    * mixed-origin caveat.
+   *
+   * Un-parseable rows are skipped with a warning (see `rowToFileEntrySafe`).
+   * `total` is a SQL count and may exceed `items.length` when corrupted
+   * rows were skipped.
    */
   listPaged(query?: ListPagedQuery): Promise<ListPagedResult>
 
@@ -141,6 +154,8 @@ export interface FileEntryService {
    * Active (non-trashed) entries with zero `file_ref` rows pointing at them.
    * Used by Phase 1b.4 OrphanRefScanner's report-only entry pass — see
    * file-manager-architecture §7.1 (default policy is "preserve").
+   *
+   * Un-parseable rows are skipped with a warning (see `rowToFileEntrySafe`).
    */
   findUnreferenced(query?: { origin?: FileEntryOrigin }): Promise<FileEntry[]>
 
@@ -220,6 +235,37 @@ function rowToFileEntry(row: FileEntryRow): FileEntry {
   })
 }
 
+/**
+ * Fault-isolating variant of `rowToFileEntry` for BULK reads only.
+ *
+ * One legacy-corrupted row must not take down a whole collection query —
+ * and with it `danglingCache.initFromDb` → `FileManager.onInit` → the
+ * entire File IPC surface for the session (#15733). Point reads
+ * (`findById` / `getById` / `findByExternalPath`) and write-read-backs
+ * (`create` / `update` / `setExternalPathAndName`) deliberately keep
+ * throwing: there the caller named a specific row or just validated the
+ * payload pre-write, so a silent null would mask a real bug.
+ *
+ * Contract change for bulk reads: they return every PARSEABLE row, not
+ * every physically existing row. Excluded rows are warned with their id.
+ *
+ * Only validation failures (`ZodError`) are isolated — anything else
+ * rethrows, so a programming error inside `rowToFileEntry` cannot
+ * masquerade as a corrupt row and vanish from bulk reads.
+ */
+function rowToFileEntrySafe(row: FileEntryRow): FileEntry | null {
+  try {
+    return rowToFileEntry(row)
+  } catch (error) {
+    if (!(error instanceof ZodError)) throw error
+    logger.warn('Skipping un-parseable file_entry row in bulk read', {
+      id: row.id,
+      issues: error.issues
+    })
+    return null
+  }
+}
+
 class FileEntryServiceImpl implements FileEntryService {
   private getDb() {
     return application.get('DbService').getDb()
@@ -262,7 +308,7 @@ class FileEntryServiceImpl implements FileEntryService {
       // tests and for the surviving-row selection in any future FileMigrator
       // dedupe pass).
       .orderBy(asc(fileEntryTable.createdAt), asc(fileEntryTable.id))
-    return rows.map(rowToFileEntry)
+    return rows.map(rowToFileEntrySafe).filter((e): e is FileEntry => e !== null)
   }
 
   async findMany(query: FindEntriesQuery = {}): Promise<FileEntry[]> {
@@ -291,7 +337,7 @@ class FileEntryServiceImpl implements FileEntryService {
     }
 
     const rows = await queryBuilder
-    return rows.map(rowToFileEntry)
+    return rows.map(rowToFileEntrySafe).filter((e): e is FileEntry => e !== null)
   }
 
   async listPaged(query: ListPagedQuery = {}): Promise<ListPagedResult> {
@@ -336,7 +382,7 @@ class FileEntryServiceImpl implements FileEntryService {
     ])
 
     return {
-      items: rows.map(rowToFileEntry),
+      items: rows.map(rowToFileEntrySafe).filter((e): e is FileEntry => e !== null),
       total: totalRow[0]?.value ?? 0,
       page
     }
@@ -351,7 +397,7 @@ class FileEntryServiceImpl implements FileEntryService {
       .leftJoin(fileRefTable, eq(fileRefTable.fileEntryId, fileEntryTable.id))
       .where(and(...conditions))
       .orderBy(asc(fileEntryTable.createdAt))
-    return rows.map((r) => rowToFileEntry(r.entry))
+    return rows.map((r) => rowToFileEntrySafe(r.entry)).filter((e): e is FileEntry => e !== null)
   }
 
   async listAllIds(): Promise<Set<FileEntryId>> {

@@ -3,14 +3,14 @@ import type { Assistant } from '@shared/data/types/assistant'
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const orchestratorListBases = vi.fn<() => Promise<KnowledgeBase[]>>()
-const orchestratorListRootItems = vi.fn<(baseId: string) => Promise<KnowledgeItem[]>>()
+const knowledgeServiceListBases = vi.fn<() => Promise<KnowledgeBase[]>>()
+const knowledgeServiceListRootItems = vi.fn<(baseId: string) => Promise<KnowledgeItem[]>>()
 
 vi.mock('@main/core/application', () => ({
   application: {
     get: (name: string) => {
-      if (name === 'KnowledgeOrchestrationService') {
-        return { listBases: orchestratorListBases, listRootItems: orchestratorListRootItems }
+      if (name === 'KnowledgeService') {
+        return { listBases: knowledgeServiceListBases, listRootItems: knowledgeServiceListRootItems }
       }
       throw new Error(`unexpected service: ${name}`)
     }
@@ -169,8 +169,8 @@ function callExecute(
 
 describe('kb__list', () => {
   beforeEach(() => {
-    orchestratorListBases.mockReset()
-    orchestratorListRootItems.mockReset()
+    knowledgeServiceListBases.mockReset()
+    knowledgeServiceListRootItems.mockReset()
   })
 
   it('builds an entry with the agreed namespace + defer policy', () => {
@@ -180,23 +180,23 @@ describe('kb__list', () => {
   })
 
   it('returns only bases in the assistant scope when knowledgeBaseIds is non-empty', async () => {
-    orchestratorListBases.mockResolvedValue([
+    knowledgeServiceListBases.mockResolvedValue([
       makeBase({ id: 'kb-1', name: 'Allowed' }),
       makeBase({ id: 'kb-other', name: 'Other' })
     ])
-    orchestratorListRootItems.mockResolvedValue([])
+    knowledgeServiceListRootItems.mockResolvedValue([])
 
     const result = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
       id: string
     }>
     expect(result.map((b) => b.id)).toEqual(['kb-1'])
-    expect(orchestratorListRootItems).toHaveBeenCalledWith('kb-1')
-    expect(orchestratorListRootItems).not.toHaveBeenCalledWith('kb-other')
+    expect(knowledgeServiceListRootItems).toHaveBeenCalledWith('kb-1')
+    expect(knowledgeServiceListRootItems).not.toHaveBeenCalledWith('kb-other')
   })
 
   it('returns all bases when assistant scope is empty (future toggle path)', async () => {
-    orchestratorListBases.mockResolvedValue([makeBase({ id: 'kb-1' }), makeBase({ id: 'kb-2' })])
-    orchestratorListRootItems.mockResolvedValue([])
+    knowledgeServiceListBases.mockResolvedValue([makeBase({ id: 'kb-1' }), makeBase({ id: 'kb-2' })])
+    knowledgeServiceListRootItems.mockResolvedValue([])
 
     const result = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: [] }) })) as Array<{
       id: string
@@ -205,11 +205,11 @@ describe('kb__list', () => {
   })
 
   it('filters by groupId', async () => {
-    orchestratorListBases.mockResolvedValue([
+    knowledgeServiceListBases.mockResolvedValue([
       makeBase({ id: 'kb-1', groupId: 'g1' }),
       makeBase({ id: 'kb-2', groupId: 'g2' })
     ])
-    orchestratorListRootItems.mockResolvedValue([])
+    knowledgeServiceListRootItems.mockResolvedValue([])
 
     const result = (await callExecute(
       { groupId: 'g1' },
@@ -219,12 +219,12 @@ describe('kb__list', () => {
   })
 
   it('filters by case-insensitive query against name and sampleSources', async () => {
-    orchestratorListBases.mockResolvedValue([
+    knowledgeServiceListBases.mockResolvedValue([
       makeBase({ id: 'kb-1', name: 'Rust Notes' }),
       makeBase({ id: 'kb-2', name: 'Recipes' }),
       makeBase({ id: 'kb-3', name: 'Other' })
     ])
-    orchestratorListRootItems.mockImplementation(async (baseId) => {
+    knowledgeServiceListRootItems.mockImplementation(async (baseId) => {
       if (baseId === 'kb-3') return [makeNoteItem('n1', 'Some rust tutorial intro')]
       return []
     })
@@ -237,8 +237,8 @@ describe('kb__list', () => {
   })
 
   it('derives sampleSources per item type and skips non-completed items', async () => {
-    orchestratorListBases.mockResolvedValue([makeBase({ id: 'kb-1' })])
-    orchestratorListRootItems.mockResolvedValue([
+    knowledgeServiceListBases.mockResolvedValue([makeBase({ id: 'kb-1' })])
+    knowledgeServiceListRootItems.mockResolvedValue([
       makeFileItem('i1', 'design-doc.pdf'),
       makeUrlItem('i2', 'https://example.com/post'),
       makeNoteItem('i3', '\n\nFirst real line of the note\nsecond line'),
@@ -260,8 +260,8 @@ describe('kb__list', () => {
   })
 
   it('truncates long note first lines to fit the snippet limit', async () => {
-    orchestratorListBases.mockResolvedValue([makeBase({ id: 'kb-1' })])
-    orchestratorListRootItems.mockResolvedValue([makeNoteItem('n1', 'a'.repeat(200))])
+    knowledgeServiceListBases.mockResolvedValue([makeBase({ id: 'kb-1' })])
+    knowledgeServiceListRootItems.mockResolvedValue([makeNoteItem('n1', 'a'.repeat(200))])
 
     const [base] = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
       sampleSources: string[]
@@ -273,9 +273,9 @@ describe('kb__list', () => {
   })
 
   it('caps sampleSources at 8 entries', async () => {
-    orchestratorListBases.mockResolvedValue([makeBase({ id: 'kb-1' })])
+    knowledgeServiceListBases.mockResolvedValue([makeBase({ id: 'kb-1' })])
     const items = Array.from({ length: 12 }, (_, idx) => makeFileItem(`i${idx}`, `file-${idx}.md`))
-    orchestratorListRootItems.mockResolvedValue(items)
+    knowledgeServiceListRootItems.mockResolvedValue(items)
 
     const [base] = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
       sampleSources: string[]
@@ -284,7 +284,7 @@ describe('kb__list', () => {
   })
 
   it('lists failed bases with empty sampleSources and does not call listRootItems', async () => {
-    orchestratorListBases.mockResolvedValue([
+    knowledgeServiceListBases.mockResolvedValue([
       makeBase({ id: 'kb-1', status: 'failed', error: 'missing_embedding_model' })
     ])
 
@@ -298,12 +298,12 @@ describe('kb__list', () => {
     expect(base.status).toBe('failed')
     expect(base.sampleSources).toEqual([])
     expect(base.itemCount).toBe(0)
-    expect(orchestratorListRootItems).not.toHaveBeenCalled()
+    expect(knowledgeServiceListRootItems).not.toHaveBeenCalled()
   })
 
   it('still lists a base when listRootItems throws (degrades to empty sampleSources)', async () => {
-    orchestratorListBases.mockResolvedValue([makeBase({ id: 'kb-1' })])
-    orchestratorListRootItems.mockRejectedValue(new Error('boom'))
+    knowledgeServiceListBases.mockResolvedValue([makeBase({ id: 'kb-1' })])
+    knowledgeServiceListRootItems.mockRejectedValue(new Error('boom'))
 
     const [base] = (await callExecute({}, { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) })) as Array<{
       id: string

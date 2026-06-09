@@ -19,10 +19,11 @@ import {
   useInputbarToolsState
 } from '@renderer/pages/home/Inputbar/context/InputbarToolsProvider'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { type FileMetadata, type KnowledgeBase, type Topic, TopicType } from '@renderer/types'
+import { type FileMetadata, type Topic, TopicType } from '@renderer/types'
 import { delay } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
@@ -87,7 +88,7 @@ const Inputbar: FC<Props> = ({ setActiveTopic, topic, onSend: onSendProp }) => {
     () => ({
       files: [] as FileMetadata[],
       mentionedModels: initialMentionedModels,
-      selectedKnowledgeBases: [] as KnowledgeBase[],
+      selectedKnowledgeBases: [] as KnowledgeBaseListItem[],
       isExpanded: false,
       couldAddImageFile: false,
       extensions: [] as string[]
@@ -118,7 +119,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
   const config = getInputbarConfig(scope)
 
   const { files, mentionedModels, selectedKnowledgeBases } = useInputbarToolsState()
-  const { setFiles, setMentionedModels, setSelectedKnowledgeBases } = useInputbarToolsDispatch()
+  const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setAvailableKnowledgeBases } =
+    useInputbarToolsDispatch()
   const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
 
   const { text, setText } = useInputText({
@@ -306,10 +308,10 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
   )
 
   const handleRemoveKnowledgeBase = useCallback(
-    (knowledgeBase: KnowledgeBase) => {
+    (knowledgeBase: KnowledgeBaseListItem) => {
       const nextIds = (assistant?.knowledgeBaseIds ?? []).filter((id) => id !== knowledgeBase.id)
       void updateAssistant({ knowledgeBaseIds: nextIds })
-      setSelectedKnowledgeBases(allKnowledgeBases.filter((kb) => nextIds.includes(kb.id)) as unknown as KnowledgeBase[])
+      setSelectedKnowledgeBases(allKnowledgeBases.filter((kb) => nextIds.includes(kb.id)))
     },
     [assistant?.knowledgeBaseIds, allKnowledgeBases, setSelectedKnowledgeBases, updateAssistant]
   )
@@ -366,8 +368,12 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
       setSelectedKnowledgeBases([])
       return
     }
-    setSelectedKnowledgeBases(allKnowledgeBases.filter((kb) => ids.includes(kb.id)) as unknown as KnowledgeBase[])
+    setSelectedKnowledgeBases(allKnowledgeBases.filter((kb) => ids.includes(kb.id)))
   }, [assistant?.knowledgeBaseIds, allKnowledgeBases, setSelectedKnowledgeBases])
+
+  useEffect(() => {
+    setAvailableKnowledgeBases(allKnowledgeBases)
+  }, [allKnowledgeBases, setAvailableKnowledgeBases])
 
   if (isMultiSelectMode) {
     return null

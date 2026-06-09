@@ -41,14 +41,12 @@ const RecallResults = () => {
   } = useRecallTest()
 
   return (
-    <div className="min-h-0 overflow-y-auto px-6 py-5 [&::-webkit-scrollbar]:hidden">
-      <div className="mx-auto max-w-3xl overflow-hidden rounded-lg border border-border-subtle bg-card">
-        <RecallResultSummary />
-        <div className="space-y-2 p-3">
-          {results.map((item, index) => (
-            <RecallResultCard key={item.id} item={item} index={index} />
-          ))}
-        </div>
+    <div className="mx-auto h-full w-full min-w-0 max-w-3xl overflow-y-auto overflow-x-hidden rounded-lg border border-border-subtle bg-card [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <RecallResultSummary />
+      <div className="min-w-0 space-y-2 p-3">
+        {results.map((item, index) => (
+          <RecallResultCard key={item.id} item={item} index={index} />
+        ))}
       </div>
     </div>
   )
@@ -58,7 +56,7 @@ const RecallEmptyState = () => {
   const { t } = useTranslation()
 
   return (
-    <div className="h-full min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+    <div className="h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden">
       <EmptyState
         preset="no-result"
         title={t('knowledge.recall.empty_title')}
@@ -87,7 +85,7 @@ const RecallTestBody = () => {
 
   if (isSearching) {
     return (
-      <div className="h-full min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+      <div className="h-full min-h-0 min-w-0 overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden">
         <RecallSearchingState />
       </div>
     )
