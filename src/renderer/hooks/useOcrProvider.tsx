@@ -61,7 +61,7 @@ export const useOcrProviders = () => {
     [dispatch]
   )
 
-  const getOcrProviderName = (p: OcrProvider) => {
+  const getOcrProviderName = (p: OcrProvider): string => {
     if (!isBuiltinOcrProvider(p)) return p.name
     switch (p.id) {
       case 'tesseract':
