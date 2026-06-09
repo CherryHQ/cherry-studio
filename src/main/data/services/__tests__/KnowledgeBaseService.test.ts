@@ -207,6 +207,42 @@ describe('KnowledgeBaseService', () => {
     })
   })
 
+  describe('search', () => {
+    it('returns lean navigation items without item counts', async () => {
+      await seedKnowledgeBase({
+        id: KNOWLEDGE_BASE_ID,
+        name: 'Needle Old Knowledge',
+        updatedAt: 100
+      })
+      await seedKnowledgeBase({
+        id: SECOND_KNOWLEDGE_BASE_ID,
+        name: 'Needle New Knowledge',
+        updatedAt: 200
+      })
+      await seedFileKnowledgeItem()
+
+      const result = await service.search({ q: 'Needle', limit: 5 })
+
+      expect(result).toEqual([
+        {
+          type: 'knowledge-base',
+          id: SECOND_KNOWLEDGE_BASE_ID,
+          title: 'Needle New Knowledge',
+          updatedAt: '1970-01-01T00:00:00.200Z',
+          target: { knowledgeBaseId: SECOND_KNOWLEDGE_BASE_ID }
+        },
+        {
+          type: 'knowledge-base',
+          id: KNOWLEDGE_BASE_ID,
+          title: 'Needle Old Knowledge',
+          updatedAt: '1970-01-01T00:00:00.100Z',
+          target: { knowledgeBaseId: KNOWLEDGE_BASE_ID }
+        }
+      ])
+      expect(result[0]).not.toHaveProperty('itemCount')
+    })
+  })
+
   describe('getById', () => {
     it('should return a knowledge base by id', async () => {
       await seedKnowledgeBase()
