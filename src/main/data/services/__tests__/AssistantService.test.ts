@@ -1145,4 +1145,82 @@ describe('AssistantDataService', () => {
       ).rejects.toThrow()
     })
   })
+
+  describe('search', () => {
+    it('returns lean navigation items ordered by updatedAt', async () => {
+      await seedAssistantRow([
+        {
+          id: 'ast-search-old',
+          name: 'Needle Old',
+          description: 'old assistant',
+          emoji: 'A',
+          updatedAt: 100
+        },
+        {
+          id: 'ast-search-new',
+          name: 'Needle New',
+          description: 'new assistant',
+          emoji: 'B',
+          updatedAt: 200
+        },
+        {
+          id: 'ast-search-miss',
+          name: 'Other',
+          description: 'not included',
+          emoji: 'C',
+          updatedAt: 300
+        }
+      ])
+
+      const result = await assistantDataService.search({ q: 'Needle', limit: 5 })
+
+      expect(result).toEqual([
+        {
+          type: 'assistant',
+          id: 'ast-search-new',
+          title: 'Needle New',
+          subtitle: 'new assistant',
+          emoji: 'B',
+          updatedAt: '1970-01-01T00:00:00.200Z',
+          target: { assistantId: 'ast-search-new' }
+        },
+        {
+          type: 'assistant',
+          id: 'ast-search-old',
+          title: 'Needle Old',
+          subtitle: 'old assistant',
+          emoji: 'A',
+          updatedAt: '1970-01-01T00:00:00.100Z',
+          target: { assistantId: 'ast-search-old' }
+        }
+      ])
+      expect(result[0]).not.toHaveProperty('mcpServerIds')
+      expect(result[0]).not.toHaveProperty('tags')
+    })
+
+    it('treats whitespace-only q as an absent search predicate', async () => {
+      await seedAssistantRow([
+        {
+          id: 'ast-blank-old',
+          name: 'Alpha',
+          updatedAt: 100
+        },
+        {
+          id: 'ast-blank-new',
+          name: 'Beta',
+          updatedAt: 200
+        },
+        {
+          id: 'ast-blank-deleted',
+          name: 'Deleted',
+          deletedAt: 300,
+          updatedAt: 300
+        }
+      ])
+
+      const result = await assistantDataService.search({ q: '   ', limit: 5 })
+
+      expect(result.map((item) => item.id)).toEqual(['ast-blank-new', 'ast-blank-old'])
+    })
+  })
 })

@@ -128,6 +128,9 @@ describe('KnowledgeMigrator legacy file copy (integration)', () => {
 
     const execute = await migrator.execute(ctx)
     expect(execute.success).toBe(true)
+    // Execute-phase warnings are returned on the result (not just logged), so the engine
+    // can surface "kept but not reindexable" diagnostics in the migration report.
+    expect(execute.warnings?.some((w) => w.includes('source missing') && w.includes('c.bin'))).toBe(true)
 
     const rows = await dbh.db.select({ data: knowledgeItemTable.data }).from(knowledgeItemTable)
     const relativePaths = rows.map((row) => (row.data as { relativePath: string }).relativePath).sort()

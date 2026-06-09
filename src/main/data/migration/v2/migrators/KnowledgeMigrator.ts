@@ -710,14 +710,16 @@ export class KnowledgeMigrator extends BaseMigrator {
 
       return {
         success: true,
-        processedCount: processed
+        processedCount: processed,
+        warnings: this.warnings.length > 0 ? this.warnings : undefined
       }
     } catch (error) {
       logger.error('KnowledgeMigrator.execute failed', error as Error)
       return {
         success: false,
         processedCount: processed,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
+        warnings: this.warnings.length > 0 ? this.warnings : undefined
       }
     }
   }

@@ -2162,16 +2162,10 @@
           "supported_formats": "Υποστηρίζει PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Κάντε κλικ για να επιλέξετε αρχεία ή σύρετε τα εδώ"
         },
-        "sitemap": {
-          "description": "Εισαγάγετε ένα URL χάρτη ιστότοπου:",
-          "help": "Οι σελίδες που περιλαμβάνονται στον χάρτη ιστότοπου θα διαβαστούν και θα ευρετηριαστούν",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
-        },
         "sources": {
           "directory": "Φάκελος",
           "file": "Αρχείο",
           "note": "Σημείωση",
-          "sitemap": "Ιστοσελίδα",
           "url": "URL"
         },
         "submit": {
@@ -2209,9 +2203,6 @@
           "file": {
             "title": "Αρχείο"
           },
-          "sitemap": {
-            "title": "Συγχρονισμός Ιστοσελίδας"
-          },
           "url": {
             "title": "URL"
           }
@@ -2224,7 +2215,6 @@
         "directory": "Φάκελοι",
         "file": "Αρχεία",
         "note": "Σημειώσεις",
-        "sitemap": "Ιστοσελίδες",
         "url": "Διευθύνσεις URL"
       },
       "preview": {
@@ -6147,6 +6137,9 @@
         "enabled": "Ενεργοποίηση",
         "failed": "Αποτυχία",
         "failed_to_start": "Αποτυχία έναρξης ελέγχου υγείας",
+        "generation_output_audio": "ήχος",
+        "generation_output_image": "μια εικόνα",
+        "generation_output_video": "ένα βίντεο",
         "keys_status_count": "Επιτυχημένοι: {{count_passed}} κλειδιά, αποτυχημένοι: {{count_failed}} κλειδιά",
         "model_status_failed": "{{count}} μοντέλα είναι εντελώς απρόσιτα",
         "model_status_partial": "Από αυτά, {{count}} μοντέλα είναι απρόσιτα με ορισμένα κλειδιά",
@@ -6155,6 +6148,7 @@
         "no_api_keys": "Δεν βρέθηκαν API κλειδιά. Παρακαλούμε πρώτα προσθέστε κλειδιά API.",
         "no_results": "χωρίς αποτελέσματα",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "{{count}} παραλείφθηκαν",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Επιτυχία",
@@ -6166,8 +6160,11 @@
         "retry": "Check again",
         "select_api_key": "Επιλέξτε το API key που θέλετε να χρησιμοποιήσετε:",
         "single": "Μόνο",
+        "skip_reason_generation_cost": "Ο έλεγχος υγείας αυτού του μοντέλου θα δημιουργούσε {{output}} και θα κατανάλωνε quota, επομένως παραλείπεται από προεπιλογή.",
+        "skip_reason_unsupported_probe": "Αυτός ο τύπος μοντέλου δεν διαθέτει ακόμη έλεγχο υγείας χαμηλού κόστους, επομένως παραλείπεται από προεπιλογή.",
         "start": "Έναρξη",
         "status_checking": "Checking…",
+        "status_skipped": "Παραλείφθηκε",
         "timeout": "Χρονική καθυστέρηση",
         "title": "Ελεγχος υγείας μοντέλου",
         "use_all_keys": "Χρήση όλων των κλειδιών"
@@ -6176,6 +6173,8 @@
       "default_assistant_model": "Πρόεδρος Υπηρεσίας προεπιλεγμένου μοντέλου",
       "default_assistant_model_description": "Χρησιμοποιείται όταν ένας βοηθός δεν έχει μοντέλο.",
       "empty": "Δεν υπάρχουν μοντέλα",
+      "group_disable": "Κλείσε αυτήν την ομάδα",
+      "group_enable": "Ενεργοποίηση αυτής της ομάδας",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",

@@ -38,6 +38,7 @@ import type { PaintingsSchemas } from './paintings'
 import type { PinSchemas } from './pins'
 import type { PromptSchemas } from './prompts'
 import type { ProviderSchemas } from './providers'
+import type { SearchSchemas } from './search'
 import type { SkillSchemas } from './skills'
 import type { TagSchemas } from './tags'
 import type { TemporaryChatSchemas } from './temporaryChats'
@@ -79,5 +80,6 @@ export type ApiSchemas = AssertValidSchemas<
     AgentSessionSchemas &
     AgentWorkspaceSchemas &
     AgentChannelSchemas &
-    JobSchemas
+    JobSchemas &
+    SearchSchemas
 >
