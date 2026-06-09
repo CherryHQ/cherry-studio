@@ -270,7 +270,7 @@ export class ChatMigrator extends BaseMigrator {
       // Also extract topic metadata from assistants (Redux stores topic metadata in assistants.topics[]).
       // `state.defaultAssistant` is a sibling slot (not inside `assistants[]`) and
       // can also carry topics — must be visited too, otherwise its topics show
-      // up post-migration as "Unnamed Topic" with no timestamp source.
+      // up post-migration with empty name and no timestamp source.
       const assistantState = ctx.sources.reduxState.getCategory<AssistantState>('assistants')
       const allAssistants: OldAssistant[] = []
       if (assistantState?.assistants) allAssistants.push(...assistantState.assistants)
@@ -775,8 +775,7 @@ export class ChatMigrator extends BaseMigrator {
     }
 
     if (!oldTopic.name) {
-      // TODO: i18n
-      oldTopic.name = 'Unnamed Topic'
+      oldTopic.name = ''
     }
 
     // Without this, parseTimestamp() falls back to Date.now() and stamps every
