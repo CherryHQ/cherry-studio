@@ -6,6 +6,7 @@ import { AgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/settings
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { ChannelMessageEvent } from '../ChannelAdapter'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 import { sanitizeChannelOutput } from '../security'
 
@@ -136,17 +137,7 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
  * Helper: call handleIncoming and advance fake timers so the debounce fires,
  * then await the returned promise to wait for processing to complete.
  */
-async function handleIncomingAndFlush(
-  adapter: ReturnType<typeof createMockAdapter>,
-  message: {
-    chatId: string
-    userId: string
-    userName: string
-    text: string
-    images?: Array<{ media_type: string; data: string }>
-    files?: Array<{ filename: string; data: string }>
-  }
-) {
+async function handleIncomingAndFlush(adapter: ReturnType<typeof createMockAdapter>, message: ChannelMessageEvent) {
   const promise = channelMessageHandler.handleIncoming(adapter, message)
   // Advance past the MESSAGE_BATCH_DELAY_MS debounce (10 000 ms)
   await vi.advanceTimersByTimeAsync(10500)
