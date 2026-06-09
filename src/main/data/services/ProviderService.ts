@@ -237,7 +237,20 @@ class ProviderService {
   async update(providerId: string, dto: UpdateProviderDto): Promise<Provider> {
     const db = application.get('DbService').getDb()
 
-    // Build update object
+    // Read the raw row's providerSettings, not the merged entity. PATCH
+    // semantics require merging with the stored partial, not with runtime
+    // defaults — otherwise DEFAULT_PROVIDER_SETTINGS would be persisted
+    // into the row and break the "row stores only overrides" contract.
+    const [current] = await db
+      .select({ providerSettings: userProviderTable.providerSettings })
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, providerId))
+      .limit(1)
+
+    if (!current) {
+      throw DataApiErrorFactory.notFound('Provider', providerId)
+    }
+
     const updates: Partial<InsertUserProviderRow> = {}
 
     if (dto.name !== undefined) updates.name = dto.name
@@ -245,7 +258,12 @@ class ProviderService {
     if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
     if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
     if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
-    if (dto.providerSettings !== undefined) updates.providerSettings = dto.providerSettings
+    if (dto.providerSettings !== undefined) {
+      updates.providerSettings = {
+        ...(current.providerSettings as Partial<ProviderSettings> | null),
+        ...dto.providerSettings
+      }
+    }
     if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
 
     const [row] = await db
