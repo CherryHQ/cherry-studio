@@ -31,7 +31,7 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     POST: async ({ body }) => {
       const parsed = CreateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await agentSessionService.createSession(parsed.data)
+      return await agentSessionService.create(parsed.data)
     }
   },
 

@@ -53,6 +53,7 @@ import {
 import { languageEnglishNameMap } from '@shared/config/languages'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
@@ -186,11 +187,8 @@ export async function buildClaudeCodeSessionSettings(
   }
 
   // 1. Working directory (session-bound)
-  const cwd = session.workspace?.path
-  if (!cwd) {
-    throw new AgentSessionWorkspaceError(`Agent session ${session.id} has no workspace configured`)
-  }
-  await assertClaudeCodeWorkspaceDirectory(session.id, cwd)
+  const cwd = session.workspace.path
+  await prepareClaudeCodeWorkspaceDirectory(session)
   await skillService.reconcileAgentSkills(session.agentId, cwd)
 
   // 2. Environment variables
@@ -284,6 +282,76 @@ export class AgentSessionWorkspaceError extends Error {
 
 export function isAgentSessionWorkspaceError(error: unknown): error is AgentSessionWorkspaceError {
   return error instanceof AgentSessionWorkspaceError
+}
+
+export async function prepareClaudeCodeWorkspaceDirectory(session: AgentSessionEntity): Promise<void> {
+  const workspace = session.workspace
+  switch (workspace.type) {
+    case AGENT_WORKSPACE_TYPE.SYSTEM:
+      // System workspaces are app-owned session directories; user workspaces
+      // must already exist, so auto-creating them would mask a bad user path.
+      await ensureSystemWorkspaceDirectory(workspace.path)
+      break
+    case AGENT_WORKSPACE_TYPE.USER:
+      break
+    default: {
+      const exhaustive: never = workspace.type
+      throw new AgentSessionWorkspaceError(`Unsupported workspace type: ${String(exhaustive)}`)
+    }
+  }
+  await assertClaudeCodeWorkspaceDirectory(session.id, workspace.path)
+}
+
+async function ensureSystemWorkspaceDirectory(cwd: string): Promise<void> {
+  await assertSystemWorkspacePath(cwd)
+  const status = await getPathStatus(cwd)
+  if (status.ok && status.kind === 'directory') return
+  if (status.ok) {
+    throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, status))
+  }
+  if (status.reason === 'inaccessible') {
+    throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, status))
+  }
+
+  try {
+    await fs.promises.mkdir(cwd, { recursive: true })
+  } catch (error) {
+    logger.warn(`Failed to create system workspace directory: ${cwd}`, { error })
+    throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, { ok: false, reason: 'inaccessible' }))
+  }
+}
+
+async function assertSystemWorkspacePath(cwd: string): Promise<void> {
+  // Resolve symlinks through the nearest existing ancestor before containment
+  // checks, so a symlink under the managed root cannot escape it.
+  const root = await resolveRealOrNearestExistingPath(path.resolve(application.getPath('feature.agents.workspaces')))
+  const target = await resolveRealOrNearestExistingPath(path.resolve(cwd))
+  const relative = path.relative(root, target)
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new AgentSessionWorkspaceError(`System workspace path is outside the managed workspace root: ${cwd}`)
+  }
+}
+
+async function resolveRealOrNearestExistingPath(targetPath: string): Promise<string> {
+  try {
+    return path.normalize(await fs.promises.realpath(targetPath))
+  } catch {
+    let currentPath = path.dirname(targetPath)
+
+    while (true) {
+      try {
+        const realCurrentPath = await fs.promises.realpath(currentPath)
+        const relativeSuffix = path.relative(currentPath, targetPath)
+        return path.normalize(path.join(realCurrentPath, relativeSuffix))
+      } catch {
+        const parentPath = path.dirname(currentPath)
+        if (parentPath === currentPath) {
+          return path.normalize(targetPath)
+        }
+        currentPath = parentPath
+      }
+    }
+  }
 }
 
 export async function assertClaudeCodeWorkspaceDirectory(sessionId: string, cwd: string): Promise<void> {
@@ -578,13 +646,26 @@ export async function buildMcpServers(
   // orphan check in buildClaudeCodeSessionSettings.
   if (soulEnabled) {
     const sourceChannelId = await resolveSourceChannel(agent.id, session.id)
-    const clawServer = new ClawServer(agent.id, sourceChannelId)
+    let workspaceSource: AgentSessionWorkspaceSource
+    switch (session.workspace.type) {
+      case AGENT_WORKSPACE_TYPE.USER:
+        workspaceSource = { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: session.workspaceId }
+        break
+      case AGENT_WORKSPACE_TYPE.SYSTEM:
+        workspaceSource = { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        break
+      default: {
+        const exhaustive: never = session.workspace.type
+        throw new Error(`Unsupported workspace type: ${String(exhaustive)}`)
+      }
+    }
+    const clawServer = new ClawServer(agent.id, workspaceSource, sourceChannelId)
     mcpList.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
 
     // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the CherryClaw prompt and the
     // workspace bootstrap drive via `mcp__agent-memory__memory`. Without it the documented
     // "log completion" step (and all memory writes) have no backing server.
-    const memoryServer = new WorkspaceMemoryServer(agent.id)
+    const memoryServer = new WorkspaceMemoryServer(agent.id, session.workspace.path)
     mcpList['agent-memory'] = { type: 'sdk', name: 'agent-memory', instance: memoryServer.mcpServer }
 
     logger.debug('Soul Mode: injected claw + agent-memory MCP servers', {

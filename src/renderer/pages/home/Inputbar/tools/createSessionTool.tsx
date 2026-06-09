@@ -22,9 +22,11 @@ const createSessionTool = defineTool({
     const sessionAgentId = session?.agentId
 
     const agentId = sessionAgentId || assistant.id
-    const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId)
+    // TODO(agent-workspace-picker): wire the workspace picker before re-enabling this create entry.
+    const workspaceSource = null
+    const { createDefaultSession, creatingSession } = useCreateDefaultSession(agentId, workspaceSource)
 
-    const createSessionDisabled = creatingSession || !apiServer.enabled
+    const createSessionDisabled = creatingSession || !apiServer.enabled || !workspaceSource
 
     const handleCreateSession = useCallback(async () => {
       if (createSessionDisabled) {
