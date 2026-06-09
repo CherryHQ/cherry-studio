@@ -2,13 +2,19 @@ import {
   type Options,
   type Query,
   query as createClaudeQuery,
+  type SDKCompactBoundaryMessage,
+  type SDKMessage,
   type SDKResultMessage,
+  type SDKStatusMessage,
   type SDKSystemMessage,
   type SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 
 type BetaUsage = SDKResultMessage['usage']
+type SDKRuntimeSystemMessage = Extract<SDKMessage, { type: 'system' }>
+type SDKCompactionSystemMessage = SDKCompactBoundaryMessage | SDKStatusMessage
 import { loggerService } from '@logger'
+import { wrapSteerReminder } from '@main/ai/steerReminder'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
   buildClaudeToolPolicy,
@@ -16,6 +22,8 @@ import {
   listClaudeAgentToolDescriptors
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { application } from '@main/core/application'
+import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
+import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 
@@ -30,7 +38,7 @@ import type {
 import { buildClaudeCodeQueryRequestForAgentSession } from './agentSessionWarmup'
 import { AgentSessionWorkspaceError, prepareClaudeCodeWorkspaceDirectory } from './settingsBuilder'
 import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage } from './streamAdapter'
-import type { McpToolDisplayMetadata, ToolApprovalEmitterHolder } from './types'
+import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 
@@ -122,6 +130,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private pendingInitMessage?: SDKSystemMessage
   private resumeToken?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
+  private steerHolder?: SteerHolder
+  /** Set when the PreToolUse hook injects a steer; the next top-level assistant `message_start`
+   *  emits a `steer-boundary` (rolls A1a + A2) and clears this. */
+  private steerBoundaryPending?: AgentRuntimeUserInput[]
 
   readonly events = this.eventQueue
 
@@ -163,6 +175,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.approvalEmitter = request.settings.approvalEmitter
     this.mcpToolMetadata = request.settings.mcpToolMetadata
     this.toolPolicySnapshot = request.settings.toolPolicySnapshot
+    this.steerHolder = request.settings.steerHolder
+    // Arm a `steer-boundary` when the PreToolUse hook injects a steer this turn. Bound on the live
+    // connection (not the warm prewarm) so the boundary is observed by this connection's query loop.
+    if (this.steerHolder) {
+      this.steerHolder.onInjected = (inputs) => {
+        this.steerBoundaryPending = inputs
+      }
+    }
     void this.runQueryLoop()
     return this
   }
@@ -180,16 +200,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       this.pendingInitMessage = undefined
     }
 
-    this.sdkInputQueue.push(toSdkUserMessage(input.message, this.resumeToken))
+    this.sdkInputQueue.push(toSdkUserMessage(input.message, this.resumeToken, input.systemReminder))
   }
 
-  async interrupt(): Promise<void> {
-    this.adapter?.finalizeOpenParts()
-    await this.query?.interrupt()
-  }
-
-  shouldCloseAfterTurn(): boolean {
-    return Boolean(this.input.trace) && application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled()
+  redirect(input: AgentRuntimeUserInput): boolean {
+    // No active turn (no live adapter) → can't steer; the host queues this as the next turn.
+    if (!this.adapter || !this.steerHolder) return false
+    // Stash for the PreToolUse steer hook to inject as `additionalContext` before the next tool runs.
+    // If the turn ends with no tool call, runQueryLoop emits `steer-undelivered` and the host queues it.
+    this.steerHolder.pending.push(input)
+    return true
   }
 
   async applyPolicyUpdate(update: AgentRuntimePolicyUpdate): Promise<boolean> {
@@ -203,10 +223,22 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     return true
   }
 
+  async getContextUsage(): Promise<AgentSessionContextUsage | null> {
+    if (!this.query) return null
+    try {
+      return await this.query.getContextUsage()
+    } catch (error) {
+      logger.warn('getContextUsage failed', { sessionId: this.input.sessionId, error })
+      return null
+    }
+  }
+
   close(): void {
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
     this.disposeApprovalEmitter()
+    this.steerBoundaryPending = undefined
+    this.steerHolder?.dispose()
     this.query?.close()
     this.eventQueue.close()
   }
@@ -222,6 +254,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           }
         }
 
+        if (
+          message.type === 'system' &&
+          isCompactionSystemMessage(message) &&
+          this.handleSystemControlMessage(message)
+        ) {
+          continue
+        }
+
         if (!this.adapter) {
           if (message.type === 'result') {
             this.updateResumeToken(message.session_id)
@@ -232,16 +272,38 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           continue
         }
 
+        // A steer was injected this turn → the first TOP-LEVEL assistant message after it (the model's
+        // post-steer response; subagent/nested messages carry a parent_tool_use_id and are skipped) is
+        // where the host rolls A1a + A2. Emit the boundary BEFORE the adapter handles this message so it
+        // lands ahead of A2's content chunks in the event stream. (message_start is a no-op in the adapter.)
+        if (
+          this.steerBoundaryPending &&
+          message.type === 'stream_event' &&
+          message.event.type === 'message_start' &&
+          message.parent_tool_use_id == null
+        ) {
+          this.eventQueue.push({ type: 'steer-boundary', inputs: this.steerBoundaryPending })
+          this.steerBoundaryPending = undefined
+        }
+
         const result = this.adapter.handleMessage(message)
         if (result.type === 'result') {
           this.updateResumeToken(result.sessionId)
+          // The steer was injected but no post-steer top-level assistant message followed (rare; the
+          // turn ended right after the gated tool). Drop the arm — no boundary, no empty A2.
+          this.steerBoundaryPending = undefined
           // `readUIMessageStream` only reads token counts from `message-metadata`
           // chunks. The streamAdapter's V3-shaped `finish.usage` is ignored, so
           // we project the SDK BetaUsage onto a UIMessageChunk here — keeping
           // the chunk shape identical to `attachUsageObserver` (AI SDK runtime).
           this.emitUsageMetadata(result.message.usage)
+          await this.emitContextUsage()
           this.adapter = undefined
           this.disposeApprovalEmitter()
+          // Steers not injected by the hook this turn (the turn called no tool after they arrived) →
+          // hand them back so the host queues them as the next turn (the steer_undelivered fallback).
+          const undelivered = this.steerHolder?.pending.splice(0) ?? []
+          if (undelivered.length > 0) this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
           this.eventQueue.push({ type: 'turn-complete' })
         }
       }
@@ -307,12 +369,61 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
     })
   }
+
+  private async emitContextUsage(): Promise<void> {
+    if (!this.query) return
+    try {
+      const usage = await this.query.getContextUsage()
+      this.eventQueue.push({ type: 'context-usage', usage })
+    } catch (error) {
+      logger.warn('getContextUsage failed after result', { sessionId: this.input.sessionId, error })
+    }
+  }
+
+  private handleSystemControlMessage(message: SDKCompactionSystemMessage): boolean {
+    if (message.subtype === 'status') {
+      if (message.status === 'compacting') {
+        this.eventQueue.push({ type: 'compaction-start' })
+        return true
+      }
+      if (message.compact_result === 'failed' || message.compact_error) {
+        this.eventQueue.push({ type: 'compaction-error', error: message.compact_error ?? 'Compaction failed' })
+        return true
+      }
+      return true
+    }
+
+    if (message.subtype === 'compact_boundary') {
+      const metadata = message.compact_metadata
+      const anchor: AgentSessionCompactionAnchorData = {
+        trigger: metadata.trigger,
+        completedAt: new Date().toISOString()
+      }
+      anchor.preTokens = metadata.pre_tokens
+      if (metadata.post_tokens !== undefined) anchor.postTokens = metadata.post_tokens
+      if (metadata.duration_ms !== undefined) anchor.durationMs = metadata.duration_ms
+
+      this.eventQueue.push({ type: 'compaction-complete', anchor })
+      return true
+    }
+
+    return false
+  }
 }
 
-function toSdkUserMessage(message: AgentSessionMessageEntity, resumeToken?: string): SDKUserMessage {
+function isCompactionSystemMessage(message: SDKRuntimeSystemMessage): message is SDKCompactionSystemMessage {
+  return message.subtype === 'status' || message.subtype === 'compact_boundary'
+}
+
+function toSdkUserMessage(
+  message: AgentSessionMessageEntity,
+  resumeToken?: string,
+  systemReminder = false
+): SDKUserMessage {
+  const text = extractMessageText(message)
   return {
     type: 'user',
-    message: { role: 'user', content: extractMessageText(message) },
+    message: { role: 'user', content: systemReminder && text.trim() ? wrapSteerReminder(text) : text },
     parent_tool_use_id: null,
     session_id: resumeToken ?? ''
   }

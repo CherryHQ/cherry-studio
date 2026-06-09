@@ -115,6 +115,7 @@ const fakeCacheService = {
   })
 }
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
+const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -126,7 +127,8 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({
     AiService: { streamText: mockStreamText },
     CacheService: fakeCacheService,
-    SpanCacheService: { saveSpans: mockSaveSpans }
+    SpanCacheService: { saveSpans: mockSaveSpans },
+    AgentSessionRuntimeService: { willContinueTopic: mockWillContinueTopic }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
@@ -198,6 +200,7 @@ describe('AiStreamManager', () => {
       pendingStream((request.requestOptions as { signal?: AbortSignal } | undefined)?.signal)
     )
     mockSaveSpans.mockResolvedValue(undefined)
+    mockWillContinueTopic.mockReturnValue(false)
     sharedCacheStore.clear()
   })
 
@@ -545,6 +548,24 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionDone('agent-session:session-1', 'provider-a::model-a')
 
       expect(mockSaveSpans).toHaveBeenCalledWith('agent-session:session-1')
+    })
+
+    it('keeps an agent-session stream alive when the runtime will continue', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:session-1'
+      const listener = new FakeListener(`l:${topicId}`)
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [listener]
+      })
+
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+
+      expect(listener.doneResults).toHaveLength(1)
+      expect(listener.doneResults[0].isTopicDone).toBe(false)
+      expect(mgr.inspect(topicId)).toBeDefined()
     })
 
     it('does not let trace flush failure block terminal completion', async () => {

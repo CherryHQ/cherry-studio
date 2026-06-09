@@ -6,7 +6,7 @@
  */
 
 import type { Span } from '@opentelemetry/api'
-import type { Message } from '@shared/data/types/message'
+import type { CherryUIMessage, Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { AiStreamRequest } from '../../types/requests'
@@ -26,6 +26,8 @@ export interface PreparedDispatch {
   userMessage?: Message
   /** DB id of the user message row this dispatch created, surfaced back to renderer for optimistic join. */
   userMessageId?: string
+  /** Persisted message skeletons reserved before the stream starts. */
+  reservedMessages?: CherryUIMessage[]
   /** Shared sibling group for multi-model parallel responses. */
   siblingsGroupId?: number
   /** True when the response should surface `executionIds` (multi-model UI). */
