@@ -1,3 +1,7 @@
+import {
+  COMPOSER_CLIPBOARD_FRAGMENT_MIME,
+  readComposerClipboardFragment
+} from '@renderer/utils/messageUtils/composerClipboard'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
@@ -5,7 +9,8 @@ import type { MessageListItem } from '../../types'
 import {
   createSelectedMessageExportViews,
   getOrderedSelectedMessageIds,
-  getSelectedMessagesPlainText
+  getSelectedMessagesPlainText,
+  getSelectedMessagesRichClipboardContent
 } from '../messageSelection'
 
 const createMessage = (id: string, role: MessageListItem['role'] = 'assistant'): MessageListItem => ({
@@ -140,5 +145,62 @@ describe('messageSelection', () => {
     }
 
     expect(getSelectedMessagesPlainText(['a'], messages, partsByMessageId)).toBe(`${quotedPromptText} Reply`)
+  })
+
+  it('creates rich clipboard content for selected composer token messages in visible order', () => {
+    const messages = [createMessage('a', 'user'), createMessage('b', 'user')]
+    const partsByMessageId: Record<string, CherryMessagePart[]> = {
+      a: [
+        {
+          type: 'text',
+          text: 'Use the pdf skill. first',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'skill:pdf',
+                    kind: 'skill',
+                    label: 'PDF',
+                    index: 0,
+                    textOffset: 0,
+                    promptText: 'Use the pdf skill.'
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      b: [{ type: 'text', text: 'second' }]
+    }
+
+    const content = getSelectedMessagesRichClipboardContent(['b', 'a'], messages, partsByMessageId)
+
+    expect(content?.plainText).toBe('/pdf/ first\n\n---\n\nsecond')
+    expect(content?.html).not.toContain('data-composer-token')
+    expect(readComposerClipboardFragment(content!.customFormats![COMPOSER_CLIPBOARD_FRAGMENT_MIME])?.segments).toEqual([
+      {
+        type: 'token',
+        fallbackText: '/pdf/',
+        token: {
+          id: 'skill:pdf',
+          kind: 'skill',
+          label: 'PDF',
+          promptText: 'Use the pdf skill.'
+        }
+      },
+      { type: 'text', text: ' first\n\n---\n\nsecond' }
+    ])
+  })
+
+  it('does not create rich clipboard content when selected messages have no composer tokens', () => {
+    const messages = [createMessage('a', 'user')]
+    const partsByMessageId: Record<string, CherryMessagePart[]> = {
+      a: [{ type: 'text', text: 'plain' }]
+    }
+
+    expect(getSelectedMessagesRichClipboardContent(['a'], messages, partsByMessageId)).toBeNull()
   })
 })

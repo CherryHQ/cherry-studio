@@ -134,7 +134,8 @@ export function useAgentMessageListProviderValue({
     messages: messageItems,
     partsByMessageId,
     deleteMessage,
-    saveTextFile: exportActions.saveTextFile
+    saveTextFile: exportActions.saveTextFile,
+    copyRichContent: leafCapabilities.copyRichContent
   })
 
   const openPath = useCallback(

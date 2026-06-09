@@ -43,6 +43,7 @@ import { translateText } from '@renderer/services/TranslateService'
 import type { Topic, TranslateLangCode } from '@renderer/types'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { updateCodeBlock } from '@renderer/utils/markdown'
+import { createComposerRichClipboardContentFromParts } from '@renderer/utils/messageUtils/composerClipboard'
 import { getComposerTextFromParts } from '@renderer/utils/messageUtils/composerTokens'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
 import {
@@ -187,10 +188,15 @@ export function useHomeMessageListProviderValue({
     const lastMessage = last(messageItems)
     if (lastMessage) {
       const parts = partsByMessageIdRef.current[lastMessage.id] ?? []
+      const richContent = leafCapabilities.copyRichContent ? createComposerRichClipboardContentFromParts(parts) : null
       const text = getComposerTextFromParts(parts)
-      void navigator.clipboard
-        .writeText(text)
-        .then(() => window.toast.success(t('message.copy.success')))
+      const copyTask = richContent
+        ? leafCapabilities.copyRichContent?.(richContent, { successMessage: t('message.copy.success') })
+        : navigator.clipboard.writeText(text)
+      void Promise.resolve(copyTask)
+        .then(() => {
+          if (!richContent) window.toast.success(t('message.copy.success'))
+        })
         .catch((error) => {
           logger.error('Failed to copy last message:', error as Error)
           window.toast.error(formatErrorMessageWithPrefix(error, t('common.copy_failed')))
@@ -596,7 +602,8 @@ export function useHomeMessageListProviderValue({
     messages: messageItems,
     partsByMessageId,
     deleteMessage,
-    saveTextFile: exportActions.saveTextFile
+    saveTextFile: exportActions.saveTextFile,
+    copyRichContent: leafCapabilities.copyRichContent
   })
 
   const state = useMemo<MessageListState>(

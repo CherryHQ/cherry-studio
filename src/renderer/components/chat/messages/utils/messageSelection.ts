@@ -1,4 +1,6 @@
 import type { MessageExportView } from '@renderer/types/messageExport'
+import type { ComposerRichClipboardContent } from '@renderer/utils/messageUtils/composerClipboard'
+import { createComposerRichClipboardContentFromPartGroups } from '@renderer/utils/messageUtils/composerClipboard'
 import { getComposerTextFromParts } from '@renderer/utils/messageUtils/composerTokens'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
@@ -43,4 +45,16 @@ export function getSelectedMessagesPlainText(
     .map((messageId) => getComposerTextFromParts(partsByMessageId[messageId] ?? []))
     .filter(Boolean)
     .join('\n\n---\n\n')
+}
+
+export function getSelectedMessagesRichClipboardContent(
+  messageIds: readonly string[],
+  orderedMessages: readonly MessageListItem[],
+  partsByMessageId: Record<string, CherryMessagePart[]>
+): ComposerRichClipboardContent | null {
+  const partGroups = getOrderedSelectedMessageIds(messageIds, orderedMessages).map(
+    (messageId) => partsByMessageId[messageId] ?? []
+  )
+
+  return createComposerRichClipboardContentFromPartGroups(partGroups, '\n\n---\n\n')
 }

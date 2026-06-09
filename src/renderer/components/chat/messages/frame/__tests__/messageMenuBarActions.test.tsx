@@ -1,6 +1,7 @@
 import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
 import { DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS, getMessageMenuBarConfig } from '@renderer/config/registry/messageMenuBar'
 import { TopicType } from '@renderer/types'
+import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/messageUtils/composerClipboard'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, MouseEvent, ReactElement, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -614,6 +615,63 @@ describe('messageMenuBarActions', () => {
     await executeMessageMenuBarAction('copy', context)
 
     expect(copyText).toHaveBeenCalledWith('hello', { successMessage: 'message.copied' })
+    expect(setCopied).toHaveBeenCalledWith(true)
+  })
+
+  it('copies user composer tokens through rich clipboard when available', async () => {
+    const copyText = vi.fn()
+    const copyRichContent = vi.fn()
+    const setCopied = vi.fn()
+    const context = createContext({
+      actions: { copyText, copyRichContent } as unknown as MessageListActions,
+      message: {
+        id: 'message-1',
+        role: 'user',
+        topicId: 'topic-1',
+        parentId: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        status: 'success'
+      },
+      messageParts: [
+        {
+          type: 'text',
+          text: 'Use the pdf skill. hello',
+          providerMetadata: {
+            cherry: {
+              composer: {
+                version: 1,
+                tokens: [
+                  {
+                    id: 'skill:pdf',
+                    kind: 'skill',
+                    label: 'PDF',
+                    index: 0,
+                    textOffset: 0,
+                    promptText: 'Use the pdf skill.'
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ] as any,
+      isAssistantMessage: false,
+      isUserMessage: true,
+      setCopied
+    })
+
+    await executeMessageMenuBarAction('copy', context)
+
+    expect(copyText).not.toHaveBeenCalled()
+    expect(copyRichContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        plainText: '/pdf/ hello',
+        customFormats: expect.objectContaining({
+          [COMPOSER_CLIPBOARD_FRAGMENT_MIME]: expect.stringContaining('"kind":"skill"')
+        })
+      }),
+      { successMessage: 'message.copied' }
+    )
     expect(setCopied).toHaveBeenCalledWith(true)
   })
 

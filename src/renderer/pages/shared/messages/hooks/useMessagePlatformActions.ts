@@ -1,5 +1,6 @@
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { exportTableToExcel } from '@renderer/utils/exportExcel'
+import { writeComposerRichClipboardContent } from '@renderer/utils/messageUtils/composerClipboard'
 import { useCallback, useMemo } from 'react'
 
 export type MessagePlatformActions = Pick<
@@ -34,24 +35,12 @@ export function useMessagePlatformActions(): MessagePlatformActions {
     }
   }, [])
 
-  const copyRichContent = useCallback<NonNullable<MessageListActions['copyRichContent']>>(
-    async ({ plainText, html }, options) => {
-      if (navigator.clipboard && window.ClipboardItem) {
-        const clipboardItem = new ClipboardItem({
-          'text/plain': new Blob([plainText], { type: 'text/plain' }),
-          'text/html': new Blob([html], { type: 'text/html' })
-        })
-        await navigator.clipboard.write([clipboardItem])
-      } else {
-        await navigator.clipboard.writeText(plainText)
-      }
-
-      if (options?.successMessage) {
-        window.toast.success(options.successMessage)
-      }
-    },
-    []
-  )
+  const copyRichContent = useCallback<NonNullable<MessageListActions['copyRichContent']>>(async (content, options) => {
+    await writeComposerRichClipboardContent(content)
+    if (options?.successMessage) {
+      window.toast.success(options.successMessage)
+    }
+  }, [])
 
   const exportTableAsExcel = useCallback<NonNullable<MessageListActions['exportTableAsExcel']>>((markdown) => {
     return exportTableToExcel(markdown)

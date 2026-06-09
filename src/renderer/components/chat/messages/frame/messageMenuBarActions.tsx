@@ -13,6 +13,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { messageToMarkdown, messageToPlainText } from '@renderer/utils/export'
 import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
 import { removeTrailingDoubleSpaces } from '@renderer/utils/markdown'
+import { createComposerRichClipboardContentFromParts } from '@renderer/utils/messageUtils/composerClipboard'
 import { getTranslationFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import dayjs from 'dayjs'
@@ -152,10 +153,17 @@ function registerToolbarAction(
   })
 }
 
-registerCommand('message.copy', async ({ actions, mainTextContent, setCopied, t }) => {
-  await actions.copyText?.(removeTrailingDoubleSpaces(mainTextContent.trimStart()), {
-    successMessage: t('message.copied')
-  })
+registerCommand('message.copy', async ({ actions, mainTextContent, messageParts, setCopied, t }) => {
+  const richContent = actions.copyRichContent ? createComposerRichClipboardContentFromParts(messageParts) : null
+  if (richContent) {
+    await actions.copyRichContent?.(richContent, {
+      successMessage: t('message.copied')
+    })
+  } else {
+    await actions.copyText?.(removeTrailingDoubleSpaces(mainTextContent.trimStart()), {
+      successMessage: t('message.copied')
+    })
+  }
   setCopied(true)
 })
 
