@@ -15,6 +15,7 @@ import { FILE_TYPE } from '../data/types/file'
 import {
   FileProcessingArtifactSchema,
   FileProcessingJobOutputSchema,
+  FileProcessingOutputTargetSchema,
   ListAvailableFileProcessorsResultSchema
 } from '../data/types/fileProcessing'
 
@@ -164,12 +165,12 @@ describe('FileProcessingArtifactSchema', () => {
       FileProcessingArtifactSchema.parse({
         kind: 'file',
         format: 'markdown',
-        fileEntryId: '019606a0-0000-7000-8000-000000000601'
+        path: '/tmp/out.md'
       })
     ).toEqual({
       kind: 'file',
       format: 'markdown',
-      fileEntryId: '019606a0-0000-7000-8000-000000000601'
+      path: '/tmp/out.md'
     })
   })
 })
@@ -178,10 +179,10 @@ describe('FileProcessingJobOutputSchema', () => {
   it('accepts a job output artifact', () => {
     expect(
       FileProcessingJobOutputSchema.parse({
-        artifact: { kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000601' }
+        artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
       })
     ).toEqual({
-      artifact: { kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000601' }
+      artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
     })
   })
 
@@ -198,9 +199,40 @@ describe('FileProcessingJobOutputSchema', () => {
       taskId: 'task-1',
       status: 'completed',
       progress: 100,
-      artifact: { kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000601' }
+      artifact: { kind: 'file', format: 'markdown', path: '/tmp/out.md' }
     })
 
     expect(result.success).toBe(false)
+  })
+})
+
+describe('FileProcessingOutputTargetSchema', () => {
+  it('accepts absolute posix and windows paths', () => {
+    expect(FileProcessingOutputTargetSchema.parse({ kind: 'path', path: '/tmp/out.md' })).toEqual({
+      kind: 'path',
+      path: '/tmp/out.md'
+    })
+
+    expect(FileProcessingOutputTargetSchema.safeParse({ kind: 'path', path: 'C:\\tmp\\out.md' }).success).toBe(true)
+  })
+
+  it('rejects relative, empty, and null-byte paths', () => {
+    expect(FileProcessingOutputTargetSchema.safeParse({ kind: 'path', path: './out.md' }).success).toBe(false)
+    expect(FileProcessingOutputTargetSchema.safeParse({ kind: 'path', path: '' }).success).toBe(false)
+    expect(FileProcessingOutputTargetSchema.safeParse({ kind: 'path', path: '/tmp/o\0ut.md' }).success).toBe(false)
+  })
+
+  it('rejects a missing path', () => {
+    expect(FileProcessingOutputTargetSchema.safeParse({ kind: 'path' }).success).toBe(false)
+  })
+
+  it('rejects a wrong kind discriminant', () => {
+    expect(FileProcessingOutputTargetSchema.safeParse({ kind: 'text', path: '/tmp/out.md' }).success).toBe(false)
+  })
+
+  it('rejects unknown keys', () => {
+    expect(FileProcessingOutputTargetSchema.safeParse({ kind: 'path', path: '/tmp/out.md', extra: true }).success).toBe(
+      false
+    )
   })
 })

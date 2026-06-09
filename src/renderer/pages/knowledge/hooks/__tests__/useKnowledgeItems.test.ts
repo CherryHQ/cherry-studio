@@ -61,7 +61,7 @@ describe('useKnowledgeItems', () => {
         type: 'file',
         data: {
           source: '/tmp/report.pdf',
-          fileEntryId: '019606a0-0000-7000-8000-000000000001'
+          relativePath: 'report.pdf'
         },
         status: 'completed',
         error: null,
@@ -177,7 +177,7 @@ describe('useKnowledgeItems', () => {
             type: 'file',
             data: {
               source: '/docs/grouped.md',
-              fileEntryId: '019606a0-0000-7000-8000-000000000002'
+              relativePath: 'grouped.md'
             },
             status: 'embedding',
             error: null,

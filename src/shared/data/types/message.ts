@@ -388,6 +388,23 @@ export type ModelSnapshot = z.infer<typeof ModelSnapshotSchema>
 export const MessageRoleSchema = z.enum(['user', 'assistant', 'system'])
 export type MessageRole = z.infer<typeof MessageRoleSchema>
 
+export const TOPIC_MESSAGE_SEARCH_ROLES = ['user', 'assistant'] as const satisfies readonly MessageRole[]
+export type TopicMessageSearchRole = (typeof TOPIC_MESSAGE_SEARCH_ROLES)[number]
+
+export const AGENT_SESSION_MESSAGE_SEARCH_ROLES = [
+  'user',
+  'assistant',
+  'system'
+] as const satisfies readonly MessageRole[]
+export type AgentSessionMessageSearchRole = (typeof AGENT_SESSION_MESSAGE_SEARCH_ROLES)[number]
+
+export function coerceSearchRole<TRole extends MessageRole>(
+  role: string,
+  allowedRoles: readonly TRole[]
+): TRole | undefined {
+  return allowedRoles.includes(role as TRole) ? (role as TRole) : undefined
+}
+
 /**
  * Message status
  * - pending: Placeholder created, streaming in progress

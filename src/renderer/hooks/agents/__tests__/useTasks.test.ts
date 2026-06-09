@@ -55,11 +55,12 @@ describe('useCreateTask', () => {
     MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agents/:agentId/tasks', mockTrigger)
 
     const { result } = renderHook(() => useCreateTask())
-    const created = await act(async () => result.current.createTask('agent-1', { name: 'New Task' } as any))
+    const taskData = { name: 'New Task', workspace: { type: 'system' as const } } as any
+    const created = await act(async () => result.current.createTask('agent-1', taskData))
 
     expect(mockTrigger).toHaveBeenCalledWith({
       params: { agentId: 'agent-1' },
-      body: { name: 'New Task' }
+      body: taskData
     })
     expect(created).toEqual(newTask)
     expect(mockToast.success).toHaveBeenCalled()
@@ -70,7 +71,9 @@ describe('useCreateTask', () => {
     MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agents/:agentId/tasks', mockTrigger)
 
     const { result } = renderHook(() => useCreateTask())
-    const created = await act(async () => result.current.createTask('agent-1', { name: 'Fail' } as any))
+    const created = await act(async () =>
+      result.current.createTask('agent-1', { name: 'Fail', workspace: { type: 'system' } } as any)
+    )
 
     expect(created).toBeUndefined()
     expect(mockToast.error).toHaveBeenCalled()
