@@ -1,26 +1,18 @@
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useEnableProviderWhenModelsAvailable } from '../useEnableProviderWhenModelsAvailable'
 
-const { loggerErrorMock } = vi.hoisted(() => ({
-  loggerErrorMock: vi.fn()
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      error: loggerErrorMock
-    })
-  }
-}))
-
 const disabledProvider = { id: 'cherryin', isEnabled: false }
 const enabledProvider = { id: 'cherryin', isEnabled: true }
 
 describe('useEnableProviderWhenModelsAvailable', () => {
+  let loggerErrorSpy: ReturnType<typeof vi.spyOn>
+
   beforeEach(() => {
     vi.clearAllMocks()
+    loggerErrorSpy = vi.spyOn(mockRendererLoggerService, 'error').mockImplementation(() => {})
   })
 
   it('enables a disabled provider when at least one model is available', async () => {
@@ -193,7 +185,7 @@ describe('useEnableProviderWhenModelsAvailable', () => {
 
     expect(enabled).toBe(false)
     expect(updateProvider).toHaveBeenCalledWith({ isEnabled: true })
-    expect(loggerErrorMock).toHaveBeenCalledWith(
+    expect(loggerErrorSpy).toHaveBeenCalledWith(
       'Failed to enable provider when models are available',
       expect.objectContaining({ providerId: 'cherryin', modelCount: 2, source: 'test', error: updateError })
     )
