@@ -31,11 +31,13 @@ import { loggerService } from '@logger'
 import { isProvisioned, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/ai/agents/cherryclaw/prompt'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
+import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import ClawServer from '@main/ai/mcp/servers/claw'
 import WorkspaceMemoryServer from '@main/ai/mcp/servers/workspaceMemory'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
 import { skillService } from '@main/ai/skills/SkillService'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { application } from '@main/core/application'
 import { isLinux, isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/nodeProxy'
@@ -47,20 +49,23 @@ import { rtkRewrite } from '@main/utils/rtk'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import {
   CHANNEL_SECURITY_PROMPT,
-  GLOBALLY_DISALLOWED_TOOLS,
+  REPORT_ARTIFACTS_PROMPT,
   SOUL_MODE_DISALLOWED_TOOLS
 } from '@shared/ai/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
+import { toCamelCase } from '@shared/mcp'
+import type { McpTool } from '@types'
 import { app } from 'electron'
 
 import { toolApprovalRegistry } from './ToolApprovalRegistry'
-import type { ClaudeCodeSettings, ToolApprovalEmitterHolder } from './types'
+import type { ClaudeCodeSettings, McpToolDisplayMetadata, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 const require_ = createRequire(import.meta.url)
@@ -203,7 +208,7 @@ export async function buildClaudeCodeSessionSettings(
   // `dispose` drops any approval still pending for this session when the
   // stream exits abnormally.
   const approvalEmitter = getToolApprovalEmitterHolder(session.id)
-  const { canUseTool, hooks, allowedTools, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
+  const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
     session,
     agent,
     approvalEmitter
@@ -217,9 +222,10 @@ export async function buildClaudeCodeSessionSettings(
   const soulEnabled = agentConfig?.soul_enabled === true
   const isAssistant = agentConfig?.builtin_role === 'assistant'
   const mcpServers = await buildMcpServers(session, agent, soulEnabled, isAssistant)
+  const mcpToolMetadata = await buildMcpToolMetadata(agent)
 
-  // 8. Adjust allowedTools for injected MCP servers
-  const finalAllowedTools = adjustAllowedToolsForMcp(allowedTools, soulEnabled, isAssistant)
+  // 8. Auto-approve allowlist for injected built-in MCP servers (soul/assistant only)
+  const finalAllowedTools = adjustAllowedToolsForMcp(soulEnabled, isAssistant)
 
   // 9. Build settings
   const settings: ClaudeCodeSettings = {
@@ -239,6 +245,7 @@ export async function buildClaudeCodeSessionSettings(
     approvalEmitter,
     toolPolicySnapshot,
     warmQueryKey: session.id,
+    ...(mcpToolMetadata ? { mcpToolMetadata } : {}),
     ...(mcpServers ? { mcpServers, strictMcpConfig: true } : {}),
     ...(options?.thinkingOptions?.effort ? { effort: options.thinkingOptions.effort } : {}),
     ...(options?.thinkingOptions?.thinking ? { thinking: options.thinkingOptions.thinking } : {}),
@@ -484,15 +491,22 @@ async function buildToolPermissions(
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
-  allowedTools: string[] | undefined
   disallowedTools: string[]
   toolPolicySnapshot: Awaited<ReturnType<typeof createClaudeAgentToolPolicySnapshot>>
 }> {
   const agentConfig = agent.configuration
   const soulEnabled = agentConfig?.soul_enabled === true
   const isAssistant = agentConfig?.builtin_role === 'assistant'
+
+  const cwd = session.workspace?.path
+  const conditionContext: ClaudeToolContext | undefined = cwd
+    ? { cwd, channels: await channelService.listChannels({ agentId: agent.id }).catch(() => []) }
+    : undefined
+
   const toolPolicySnapshot = await createClaudeAgentToolPolicySnapshot(agent, {
     autoAllowRuntimeNamePrefixes: [
+      // cherry-tools (web + knowledge) is injected for every session and is read-only.
+      'mcp__cherry-tools__',
       ...(soulEnabled ? ['mcp__claw__'] : []),
       ...(isAssistant ? ['mcp__assistant__'] : [])
     ]
@@ -550,11 +564,12 @@ async function buildToolPermissions(
   return {
     canUseTool,
     hooks: { PreToolUse: [{ hooks: [rtkRewriteHook] }] },
-    allowedTools: agent.allowedTools,
     disallowedTools: [
-      ...GLOBALLY_DISALLOWED_TOOLS,
-      ...(soulEnabled ? SOUL_MODE_DISALLOWED_TOOLS : []),
-      ...(isAssistant ? ['AskUserQuestion'] : [])
+      ...new Set([
+        ...resolveDisallowedTools({ disabledTools: [] }, conditionContext),
+        ...(soulEnabled ? SOUL_MODE_DISALLOWED_TOOLS : []),
+        ...(isAssistant ? ['AskUserQuestion'] : [])
+      ])
     ],
     toolPolicySnapshot
   }
@@ -583,6 +598,7 @@ async function buildSystemPrompt(
   // Channel security (still scoped per session — channels link to a session)
   const linkedChannel = await channelService.findBySessionId(session.id)
   const channelSecurityBlock = linkedChannel ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
+  const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
   const langInstruction = getLanguageInstruction()
 
   // Assistant mode
@@ -599,7 +615,7 @@ async function buildSystemPrompt(
   if (soulEnabled) {
     const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig)
     const userInstructions = instructions ? `\n\n${instructions}` : ''
-    return `${soulPrompt}${userInstructions}${channelSecurityBlock}\n\n${langInstruction}`
+    return `${soulPrompt}${userInstructions}${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
   }
 
   // Standard mode
@@ -607,13 +623,13 @@ async function buildSystemPrompt(
     return {
       type: 'preset',
       preset: 'claude_code',
-      append: `${instructions}${channelSecurityBlock}\n\n${langInstruction}`
+      append: `${instructions}${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
     }
   }
   return {
     type: 'preset',
     preset: 'claude_code',
-    append: `${channelSecurityBlock}\n\n${langInstruction}`
+    append: `${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
   }
 }
 
@@ -638,8 +654,12 @@ export async function buildMcpServers(
     }
   }
 
-  // 3. Exa — structured web search via HTTP (free tier, no API key)
-  mcpList.exa = { type: 'http', url: 'https://mcp.exa.ai/mcp' }
+  // 3. Cherry tools
+  mcpList['cherry-tools'] = {
+    type: 'sdk',
+    name: 'cherry-tools',
+    instance: new CherryBuiltinToolsServer().mcpServer
+  }
 
   // 4. Claw — agent autonomy tools (soul mode only). Use `agent.id` instead of
   // `session.agentId` so TS can see the value is non-null after the upstream
@@ -687,6 +707,59 @@ export async function buildMcpServers(
   return Object.keys(mcpList).length > 0 ? mcpList : undefined
 }
 
+function addMcpToolMetadataAlias(
+  metadataByName: Record<string, McpToolDisplayMetadata>,
+  key: string | undefined,
+  metadata: McpToolDisplayMetadata
+): void {
+  if (!key) return
+  metadataByName[key] = metadata
+}
+
+function addMcpToolMetadataAliases(
+  metadataByName: Record<string, McpToolDisplayMetadata>,
+  server: McpServer,
+  tool: McpTool
+): void {
+  const metadata: McpToolDisplayMetadata = {
+    type: 'mcp',
+    serverId: server.id,
+    serverName: server.name,
+    name: tool.name,
+    description: tool.description
+  }
+
+  addMcpToolMetadataAlias(metadataByName, tool.id, metadata)
+  addMcpToolMetadataAlias(metadataByName, `mcp__${server.id}__${tool.name}`, metadata)
+  addMcpToolMetadataAlias(metadataByName, `mcp__${server.id}__${toCamelCase(tool.name)}`, metadata)
+  addMcpToolMetadataAlias(metadataByName, `mcp__${server.name}__${tool.name}`, metadata)
+  addMcpToolMetadataAlias(metadataByName, `mcp__${toCamelCase(server.name)}__${tool.name}`, metadata)
+}
+
+async function buildMcpToolMetadata(agent: AgentEntity): Promise<Record<string, McpToolDisplayMetadata> | undefined> {
+  const mcpIds = agent.mcps
+  if (!mcpIds?.length) return undefined
+
+  const metadataByName: Record<string, McpToolDisplayMetadata> = {}
+  const mcpService = application.get('McpCatalogService')
+
+  for (const mcpId of mcpIds) {
+    try {
+      const server = await mcpServerService.findByIdOrName(mcpId)
+      if (!server) continue
+
+      const tools = await mcpService.listTools(server.id)
+      for (const tool of tools) {
+        addMcpToolMetadataAliases(metadataByName, server, tool)
+      }
+    } catch (error) {
+      logger.warn('Failed to build MCP tool display metadata', { mcpId, error })
+    }
+  }
+
+  return Object.keys(metadataByName).length > 0 ? metadataByName : undefined
+}
+
 async function resolveSourceChannel(agentId: string, sessionId: string): Promise<string | undefined> {
   try {
     const channels = await channelService.listChannels({ agentId })
@@ -697,31 +770,17 @@ async function resolveSourceChannel(agentId: string, sessionId: string): Promise
 }
 
 /**
- * Auto-approve MCP tools for injected built-in servers.
- * Claw and assistant tools must be in allowedTools for canUseTool to pass them.
+ * Auto-approve allowlist for injected built-in MCP servers. Returns `undefined` for a plain agent
+ * (Claude Code then permits all tools; cherry-tools is auto-approved via the canUseTool prefix).
+ * Soul/assistant agents force an explicit allowlist so their claw/agent-memory/assistant tools pass.
  */
-export function adjustAllowedToolsForMcp(
-  allowedTools: string[] | undefined,
-  soulEnabled: boolean,
-  isAssistant: boolean
-): string[] | undefined {
-  if (!soulEnabled && !isAssistant) return allowedTools
+export function adjustAllowedToolsForMcp(soulEnabled: boolean, isAssistant: boolean): string[] | undefined {
+  if (!soulEnabled && !isAssistant) return undefined
 
-  const result = allowedTools ? [...allowedTools] : []
-
-  if (soulEnabled && !result.includes('mcp__claw__*')) {
-    result.push('mcp__claw__*')
-  }
-
-  if (soulEnabled && !result.includes('mcp__agent-memory__*')) {
-    result.push('mcp__agent-memory__*')
-  }
-
-  if (isAssistant && !result.includes('mcp__assistant__*')) {
-    result.push('mcp__assistant__*')
-  }
-
-  return result.length > 0 ? result : undefined
+  const result = ['mcp__cherry-tools__*']
+  if (soulEnabled) result.push('mcp__claw__*', 'mcp__agent-memory__*')
+  if (isAssistant) result.push('mcp__assistant__*')
+  return result
 }
 
 function getSettingSources(agent: AgentEntity): Array<'user' | 'project' | 'local'> {

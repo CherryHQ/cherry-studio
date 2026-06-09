@@ -9,9 +9,9 @@ import * as z from 'zod'
  * place is a compile error in the other.
  */
 
-// ── kb__list ──────────────────────────────────────────────────────
+// ── kb_list ──────────────────────────────────────────────────────
 
-export const KB_LIST_TOOL_NAME = 'kb__list'
+export const KB_LIST_TOOL_NAME = 'kb_list'
 
 export const kbListInputSchema = z.object({
   query: z
@@ -40,9 +40,9 @@ export type KbListInput = z.infer<typeof kbListInputSchema>
 export type KbListOutputItem = z.infer<typeof kbListOutputItemSchema>
 export type KbListOutput = z.infer<typeof kbListOutputSchema>
 
-// ── kb__search ────────────────────────────────────────────────────
+// ── kb_search ────────────────────────────────────────────────────
 
-export const KB_SEARCH_TOOL_NAME = 'kb__search'
+export const KB_SEARCH_TOOL_NAME = 'kb_search'
 
 export const kbSearchInputSchema = z.object({
   query: z
@@ -59,7 +59,7 @@ export const kbSearchInputSchema = z.object({
     .array(z.string().trim().min(1))
     .min(1)
     .describe(
-      'IDs of the knowledge bases to search, picked from the result of kb__list. ' +
+      'IDs of the knowledge bases to search, picked from the result of kb_list. ' +
         'At least one is required; pass multiple to fan out across related bases.'
     )
 })
@@ -76,10 +76,10 @@ export type KbSearchInput = z.infer<typeof kbSearchInputSchema>
 export type KbSearchOutputItem = z.infer<typeof kbSearchOutputItemSchema>
 export type KbSearchOutput = z.infer<typeof kbSearchOutputSchema>
 
-// ── web__search ───────────────────────────────────────────────────
+// ── web_search ───────────────────────────────────────────────────
 
-export const WEB_SEARCH_TOOL_NAME = 'web__search'
-export const WEB_FETCH_TOOL_NAME = 'web__fetch'
+export const WEB_SEARCH_TOOL_NAME = 'web_search'
+export const WEB_FETCH_TOOL_NAME = 'web_fetch'
 
 export const webSearchInputSchema = z.object({
   query: z
@@ -108,7 +108,7 @@ export const webFetchInputSchema = z.object({
     .array(z.string().trim().url('URL must be valid'))
     .min(1)
     .max(20, 'Fetch at most 20 URLs per call')
-    .describe('Absolute web page URLs to fetch and summarize. Use web__search first when you do not know the URL.')
+    .describe('Absolute web page URLs to fetch and summarize. Use web_search first when you do not know the URL.')
 })
 
 export const webFetchOutputSchema = webSearchOutputSchema
@@ -118,3 +118,31 @@ export type WebSearchOutputItem = z.infer<typeof webSearchOutputItemSchema>
 export type WebSearchOutput = z.infer<typeof webSearchOutputSchema>
 export type WebFetchInput = z.infer<typeof webFetchInputSchema>
 export type WebFetchOutput = z.infer<typeof webFetchOutputSchema>
+
+// ── report_artifacts ─────────────────────────────────────────────
+
+export const REPORT_ARTIFACTS_TOOL_NAME = 'report_artifacts'
+
+export const reportArtifactsInputSchema = z.object({
+  artifacts: z
+    .array(
+      z.object({
+        path: z.string().trim().min(1).describe('Absolute or workspace-relative path to a final deliverable file.'),
+        description: z.string().trim().min(1).optional().describe('One-line description of what this file is.')
+      })
+    )
+    .min(1)
+    .describe(
+      'The final deliverable file(s) produced for the user. List only finished outputs — never ' +
+        'intermediate, scratch, or temporary files.'
+    ),
+  summary: z.string().trim().min(1).optional().describe('One-line summary of what was produced.')
+})
+
+export const REPORT_ARTIFACTS_DESCRIPTION =
+  'Declare the final deliverable file(s) produced for the user. Call this once, at the end of the task, ' +
+  'after the requested file(s) are finished — pass the final path(s) and an optional one-line summary. ' +
+  'List only final deliverables; omit intermediate, scratch, or temporary files. Skip the call entirely ' +
+  'if the task produced no files.'
+
+export type ReportArtifactsInput = z.infer<typeof reportArtifactsInputSchema>
