@@ -2162,16 +2162,10 @@
           "supported_formats": "Acceptă PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Click pentru a selecta fișierele sau trageți-le aici"
         },
-        "sitemap": {
-          "description": "Introduceți un URL de hartă a site-ului:",
-          "help": "Paginile listate în harta site-ului vor fi citite și indexate",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
-        },
         "sources": {
           "directory": "Folder",
           "file": "Fișier",
           "note": "Notă",
-          "sitemap": "Site web",
           "url": "URL"
         },
         "submit": {
@@ -2209,9 +2203,6 @@
           "file": {
             "title": "Fișier"
           },
-          "sitemap": {
-            "title": "Sincronizare site web"
-          },
           "url": {
             "title": "URL"
           }
@@ -2224,7 +2215,6 @@
         "directory": "Foldere",
         "file": "Fișiere",
         "note": "Note",
-        "sitemap": "Site-uri web",
         "url": "URL-uri"
       },
       "preview": {
@@ -6147,6 +6137,9 @@
         "enabled": "Activat",
         "failed": "Eșuat",
         "failed_to_start": "Nu s-a reușit pornirea verificării stării de sănătate",
+        "generation_output_audio": "audio",
+        "generation_output_image": "o imagine",
+        "generation_output_video": "un videoclip",
         "keys_status_count": "Reușite: {{count_passed}} chei, eșuate: {{count_failed}} chei",
         "model_status_failed": "{{count}} modele complet inaccesibile",
         "model_status_partial": "{{count}} modele au avut chei inaccesibile",
@@ -6155,6 +6148,7 @@
         "no_api_keys": "Nu s-au găsit chei API, te rugăm să adaugi mai întâi chei API.",
         "no_results": "Niciun rezultat",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "{{count}} omise",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Reușit",
@@ -6166,8 +6160,11 @@
         "retry": "Check again",
         "select_api_key": "Selectează cheia API de utilizat:",
         "single": "Singur",
+        "skip_reason_generation_cost": "Verificarea stării de sănătate a acestui model ar genera {{output}} și ar consuma din cotă, așa că este omisă în mod implicit.",
+        "skip_reason_unsupported_probe": "Acest tip de model nu are încă o verificare de sănătate cu cost redus, așa că este omis în mod implicit.",
         "start": "Start",
         "status_checking": "Checking…",
+        "status_skipped": "Omis",
         "timeout": "Expirare",
         "title": "Verificare sănătate model",
         "use_all_keys": "Cheie(i)"
@@ -6176,6 +6173,8 @@
       "default_assistant_model": "Model asistent implicit",
       "default_assistant_model_description": "Folosit când un asistent nu are model.",
       "empty": "Nu s-au găsit modele",
+      "group_disable": "Închide acest grup",
+      "group_enable": "Activează acest grup",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",

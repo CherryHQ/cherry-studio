@@ -85,10 +85,10 @@ Cherry Studio uses four data systems, each optimized for different data characte
 
 | System | Storage | Timing | Use Case |
 |--------|---------|--------|----------|
-| **BootConfig** | JSON file | Pre-lifecycle (sync) | Chromium flags, hardware accel |
-| **Cache** | Memory (per-process) / Shared (Main-relayed) / Persist (renderer localStorage) | Runtime | Temp data, UI state, cross-window coordination |
-| **Preference** | SQLite | Post-lifecycle | User settings (theme, language) |
-| **DataApi** | SQLite (Drizzle) | Post-lifecycle | Business data (topics, messages) |
+| [**BootConfig**](./data/boot-config-overview.md) | JSON file | Pre-lifecycle (sync) | Chromium flags, hardware accel |
+| [**Cache**](./data/cache-overview.md) | Memory (per-process) / Shared (Main-relayed) / Persist (renderer localStorage) | Runtime | Temp data, UI state, cross-window coordination |
+| [**Preference**](./data/preference-overview.md) | SQLite | Post-lifecycle | User settings (theme, language) |
+| [**DataApi**](./data/data-api-overview.md) | SQLite (Drizzle) | Post-lifecycle | Business data (topics, messages) |
 
 See [Data System Reference](./data/README.md) for detailed architecture, decision flowcharts, and usage patterns.
 
@@ -138,27 +138,25 @@ See [AI Reference](./ai/README.md) for the complete data flow.
 cherry-studio
 ├── src/
 │   ├── main/                    # Main process (Node.js)
-│   │   ├── core/                #   Lifecycle, Application, paths
-│   │   ├── data/                #   Data layer (DB, Cache, Preference, DataApi)
-│   │   ├── services/            #   27 lifecycle-managed services
-│   │   ├── knowledge/           #   RAG / knowledge base
-│   │   ├── ai/mcp/servers/      #   Built-in MCP servers
-│   │   ├── apiServer/           #   Local REST API (Express)
-│   │   └── integration/         #   External integrations
+│   │   ├── core/                #   App runtime infra, business-agnostic (lifecycle, paths)
+│   │   ├── data/                #   Data infra + data-related business config (DB, Cache, Preference, DataApi)
+│   │   ├── ai/                  #   All AI-related code (providers, middleware, MCP)
+│   │   ├── features/            #   Large, multi-file domain modules (apiGateway, ...)
+│   │   ├── services/            #   Small, independent / cross-domain services
+│   │   └── utils/               #   Small, independent / cross-domain utilities
 │   │
 │   ├── renderer/                # Renderer process (React)
-│   │   └── src/
-│   │       ├── pages/           #   Route pages (Chat, Settings, Agent, ...)
-│   │       ├── components/      #   Shared UI components
-│   │       ├── store/           #   Redux state (messages, assistants, ...)
-│   │       ├── data/            #   Data hooks and services
-│   │       ├── aiCore/          #   AI provider middleware
-│   │       └── windows/         #   Multi-window entry points
+│   │   ├── pages/               #   Route pages (Chat, Settings, Agent, ...)
+│   │   ├── components/          #   Shared UI components
+│   │   ├── features/            #   Large, multi-file domain modules
+│   │   ├── data/                #   Data hooks and services
+│   │   └── windows/             #   Multi-window entry points
 │   │
-│   └── preload/                 # Preload scripts (IPC bridge)
+│   ├── preload/                 # Preload scripts (IPC bridge)
+│   │
+│   └── shared/                  # Shared types, schemas, constants
 │
 ├── packages/
-│   ├── shared/                  #   Shared types, schemas, constants
 │   ├── ui/                      #   @cherrystudio/ui (Shadcn + Tailwind)
 │   ├── aiCore/                  #   @cherrystudio/ai-core
 │   ├── ai-sdk-provider/         #   Custom AI SDK providers
@@ -173,18 +171,20 @@ cherry-studio
 └── scripts/                     # Build, lint, i18n, and CI scripts
 ```
 
+Main-process and renderer code is organized by **feature** (`features/` — high-cohesion domain modules) versus **type-bucket** (`services/`, `utils/`, `components/`, `hooks/` — small, independent pieces). See [Naming Conventions §4.10](./naming-conventions.md) for the placement rule.
+
 ## Key Subsystems
+
+`core/` holds the application runtime (business-agnostic):
 
 | Subsystem | Location | Documentation |
 |-----------|----------|---------------|
-| Service Lifecycle | `src/main/core/lifecycle/` | [Lifecycle Reference](./lifecycle/README.md) |
-| Data Layer | `src/main/data/` | [Data Reference](./data/README.md) |
-| AI Core | `src/main/ai/` | [AI Reference](./ai/README.md) |
-| MCP (Tool Use) | `src/main/ai/mcp/` | — |
-| Knowledge (RAG) | `src/main/knowledge/` | [KnowledgeService](./knowledge/knowledge-service.md) |
-| Message System | `src/renderer/store/` | [Message System](./messaging/message-system.md) |
-| CherryClaw (Agent) | `src/main/services/agents/` | [CherryClaw Overview](./cherryclaw/overview.md) |
-| API Server | `src/main/apiServer/` | [App Upgrade Config](./app-upgrade.md) |
+| Service Lifecycle (IoC container) | `src/main/core/lifecycle/`, `src/main/core/application/` | [Lifecycle Reference](./lifecycle/README.md) |
+| Window Manager | `src/main/core/window/` | [Window Manager Reference](./window-manager/README.md) |
+| Scheduler & Jobs | `src/main/core/scheduler/`, `src/main/core/job/` | [Job & Scheduler Reference](./job-and-scheduler/README.md) |
+| Paths | `src/main/core/paths/` | [Paths README](../../src/main/core/paths/README.md) |
+
+Data infrastructure (`data/`) is detailed in [Four Data Systems](#four-data-systems); AI in [AI Core Architecture](#ai-core-architecture).
 
 ## Window Architecture
 
@@ -196,4 +196,4 @@ Cherry Studio runs multiple windows, each with its own renderer entry point:
 | Quick Assistant | Quick-access floating panel |
 | Selection Toolbar | Text selection actions overlay |
 
-Windows are managed by `MainWindowService` and communicate through IPC and shared state (CacheService, PreferenceService).
+All windows are managed by `WindowManager` (`src/main/core/window/`) and communicate through IPC and shared state (CacheService, PreferenceService). See [Window Manager Reference](./window-manager/README.md).
