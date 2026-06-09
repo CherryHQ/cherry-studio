@@ -297,7 +297,7 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 
 **How to obtain dangling state / absolute path / live size**: these are FS-IO or main-side computation, so they live in File IPC — never DataApi. Dangling state via `getDanglingState` / `batchGetDanglingStates`, path via `getPhysicalPath` / `batchGetPhysicalPaths`, live `size` / `mtime` via `getMetadata` / `batchGetMetadata`. Any flow iterating over >1 entry MUST reach for the batch form to avoid N+1 IPC. DataApi's SQL-only boundary is documented in §4.1.1.
 
-**How to obtain a `file://` URL for rendering**: compose it in-process from the `FilePath` returned by `getPhysicalPath`, using the shared pure helper `toSafeFileUrl(path, ext)` in `@shared/file/urlUtil` — no dedicated IPC needed. The helper applies the danger-file wrap (`.sh` / `.bat` / `.ps1` / `.exe` / `.app` etc. → containing directory URL) and does cross-platform `file://` encoding.
+**How to obtain a `file://` URL for rendering**: compose it in-process from the `FilePath` returned by `getPhysicalPath`, using the shared pure helper `toSafeFileUrl(path, ext)` in `@shared/file/urlUtil` — no dedicated IPC needed. The helper applies the danger-file wrap (`.sh` / `.bat` / `.ps1` / `.exe` / `.app` etc. → containing directory URL) and does cross-platform `file://` encoding. When renderer/shared code must decode an existing `file://` URL from external input (clipboard, mini-app config, etc.), use `fileUrlToPath(url)` from the same module; main-process Node-only code should use `node:url`'s `fileURLToPath`.
 
 **Operations accepting only FilePath**:
 
@@ -505,6 +505,7 @@ The only allowed "derivation" inside DataApi is **SQL aggregation** (JOIN / GROU
 | Dangling / presence state                    | File IPC `getDanglingState` / `batchGetDanglingStates`                  | FS-backed (DanglingCache + cold-path `fs.stat`)         |
 | Absolute physical path                       | File IPC `getPhysicalPath` / `batchGetPhysicalPaths`                    | Main-side path resolution                               |
 | `file://` URL for HTML rendering             | Shared pure helper `toSafeFileUrl(path, ext)` (`@shared/file/urlUtil`), composed in-process from the `FilePath` returned by `getPhysicalPath` | Pure formatting + danger-file wrap (no IPC of its own)  |
+| Existing `file://` URL decoding              | Shared pure helper `fileUrlToPath(url)` (`@shared/file/urlUtil`) for renderer/shared code; `node:url`'s `fileURLToPath` for main-process Node-only code | Pure URL-to-path formatting (no IPC of its own)          |
 | Live `size` / `mtime` for external           | File IPC `getMetadata(id)` (single) / `batchGetMetadata({ ids })` (list-page flows) | FS-backed (`fs.stat`) — external rows have `size: null` in DB by design; batch variant is mandatory when iterating (§3.3) |
 
 **Why this split**: DataApi's value is a predictable, cache-friendly, SQL-level surface. Once a handler can reach past the DB, every consumer inherits hidden IO costs whether they asked for them or not, and React Query cache keys stop being a reliable freshness boundary. Keeping FS / compute side effects on File IPC makes the cost visible at the call site and keeps DataApi endpoints cache-safe.
