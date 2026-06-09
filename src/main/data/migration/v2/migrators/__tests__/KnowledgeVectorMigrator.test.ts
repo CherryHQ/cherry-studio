@@ -803,6 +803,48 @@ describe('KnowledgeVectorMigrator', () => {
     expect(fs.existsSync(`${dbPath}.vectorstore.tmp`)).toBe(false)
   })
 
+  it('removes the target store with EBUSY-survivable retry options before renaming', async () => {
+    const migrator = new KnowledgeVectorMigrator() as any
+    const dbPath = path.join(knowledgeBaseDir, 'kb-ebusy')
+
+    migrator.preparedBasePlans = [
+      {
+        baseId: 'kb-ebusy',
+        targetDbPath: dbPath,
+        dimensions: 2,
+        rows: [
+          {
+            document: 'doc',
+            externalId: 'item-0',
+            itemType: 'file',
+            source: '/tmp/doc.md',
+            chunkIndex: 0,
+            tokenCount: 2,
+            embedding: [1, 2]
+          }
+        ],
+        sourceRowCount: 1
+      }
+    ]
+
+    const rmSpy = vi.spyOn(fs.promises, 'rm')
+
+    await expect(migrator.execute()).resolves.toMatchObject({ success: true })
+
+    // The target unlink must carry the EBUSY retry options (recursive is required for fs.rm to honor
+    // maxRetries/retryDelay) so a transient Windows file lock cannot abort the migration.
+    const targetRmCall = rmSpy.mock.calls.find(([target]) => target === dbPath)
+    expect(targetRmCall).toBeDefined()
+    expect(targetRmCall?.[1]).toMatchObject({
+      recursive: true,
+      force: true,
+      maxRetries: expect.any(Number),
+      retryDelay: expect.any(Number)
+    })
+
+    rmSpy.mockRestore()
+  })
+
   it('falls back to migrated item source when legacy source is missing', async () => {
     const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
     await createLegacyVectorDb(dbPath, [
