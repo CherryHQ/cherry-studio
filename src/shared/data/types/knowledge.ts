@@ -557,7 +557,7 @@ const RuntimeFileItemDataSchema = KnowledgeItemSharedSchema.extend({
   path: AbsolutePathSchema.describe('Absolute source path selected by the user before Knowledge copies it.')
 })
 
-export const KnowledgeRuntimeAddItemInputSchema = z.discriminatedUnion('type', [
+export const KnowledgeAddItemInputSchema = z.discriminatedUnion('type', [
   CreateKnowledgeItemBaseSchema.extend({
     type: z.literal('file'),
     data: RuntimeFileItemDataSchema
@@ -566,4 +566,4 @@ export const KnowledgeRuntimeAddItemInputSchema = z.discriminatedUnion('type', [
   NoteItemMemberSchema,
   DirectoryItemMemberSchema
 ])
-export type KnowledgeRuntimeAddItemInput = z.infer<typeof KnowledgeRuntimeAddItemInputSchema>
+export type KnowledgeAddItemInput = z.infer<typeof KnowledgeAddItemInputSchema>

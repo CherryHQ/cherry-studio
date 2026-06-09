@@ -37,7 +37,7 @@ caller
      -> KnowledgeBaseService / KnowledgeItemService
 
 caller
-  -> preload knowledgeRuntime IPC
+  -> preload knowledge IPC
      -> KnowledgeService
         -> KnowledgeWorkflowService
         -> JobManager
@@ -91,9 +91,7 @@ caller
     -> workflow service schedules each child
 ```
 
-Callers should not create item records through Data API and then call runtime IPC with item ids. `add-items` accepts `KnowledgeRuntimeAddItemInput[]` and returns after root items are accepted and first jobs are queued, not after indexing completes.
-
-Before accepting new `file` inputs, the workflow runs a reservedPaths pre-check (`KnowledgeWorkflowService.loadReservedKnowledgeFilePaths` / `reserveRuntimeAddItemInputPaths`): it loads the base directory's already-reserved relative paths plus each input's projected source/processed-markdown path, and rejects on collision (reject-on-conflict, "Knowledge file already exists") rather than silently deduplicating. Only the v1 migrator deduplicates conflicting paths.
+Callers should not create item records through Data API and then call runtime IPC with item ids. `add-items` accepts `KnowledgeAddItemInput[]` and returns after root items are accepted and first jobs are queued, not after indexing completes.
 
 Delete and reindex remain id-based because they operate on existing persisted items:
 
@@ -108,17 +106,19 @@ reindex-items(baseId, itemIds)
 
 `KnowledgeService` currently owns these public IPC entrypoints:
 
-- `knowledge-runtime:create-base`
-- `knowledge-runtime:restore-base`
-- `knowledge-runtime:delete-base`
-- `knowledge-runtime:add-items`
-- `knowledge-runtime:delete-items`
-- `knowledge-runtime:reindex-items`
-- `knowledge-runtime:search`
-- `knowledge-runtime:list-item-chunks`
-- `knowledge-runtime:delete-item-chunk`
+- `knowledge:create-base`
+- `knowledge:restore-base`
+- `knowledge:delete-base`
+- `knowledge:add-items`
+- `knowledge:delete-items`
+- `knowledge:reindex-items`
+- `knowledge:search`
+- `knowledge:list-item-chunks`
+- `knowledge:delete-item-chunk`
 
 These IPC handlers are workflow-oriented. They validate payloads, call data services, and enqueue or execute runtime work internally.
+
+`KnowledgeService` also owns one v1 bridge entrypoint, `knowledge-base:delete`, still invoked by the legacy Redux `store/knowledge` slice until that slice is removed in the unified step. It routes to the same `delete-base` path.
 
 Chunk IPC entrypoints are runtime inspection/mutation helpers:
 
@@ -177,9 +177,9 @@ Current persisted `knowledge_base` columns include:
 2. Workflow service marks selected root subtrees `deleting` under the base mutation lock.
 3. Workflow service enqueues `knowledge.delete-subtree`.
 4. The delete job cancels active jobs touching the subtree.
-5. Under the base mutation lock, the delete job deletes leaf vectors, deletes leaf files, and hard-deletes item rows (`deleteItemsByIds`).
+5. Under the base mutation lock, the delete job deletes leaf vectors, clears Knowledge file refs, and hard-deletes item rows.
 
-> 状态(2026-06-08): baseline 现状已修正。item 级删除路径(`deleteSubtreeJobHandler` -> `KnowledgeItemService.deleteItemsByIds`)**不再清理 Knowledge `file_ref` 行**:create/index 路径已不向 knowledge 写 `file_ref`(`KnowledgeItemService.create` 不再 `ensureExternalEntry`),所以 item 删除没有 file ref 可清。只有 base 级删除(`KnowledgeBaseService.delete`)仍会 `DELETE FROM file_ref`,这是针对历史遗留行的清理。
+The item row delete path clears Knowledge `file_ref` rows for the full deletion subtree before deleting rows. This is required because `file_ref.sourceId` is polymorphic and cannot cascade from `knowledge_item`.
 
 If enqueueing `knowledge.delete-subtree` fails after rows are marked `deleting`, rows remain `deleting`. Startup recovery scans deleting roots and re-enqueues cleanup jobs best-effort.
 
@@ -205,7 +205,7 @@ delete-base(baseId)
 
 If vector artifact deletion fails, the SQLite base row is preserved so the user can retry deletion. If SQLite deletion fails after vector artifacts were deleted, orchestration throws an `invalidOperation` because the cross-store cleanup cannot be rolled back.
 
-Knowledge delete/reindex workflows operate on item rows and base-directory files; they do not write or detach Knowledge-owned `FileRef` rows, because the create/index path no longer registers knowledge `file_ref`. Any historical `FileEntry` rows are left to the file module's orphan handling policy.
+Knowledge delete/reindex workflows detach Knowledge-owned `FileRef` rows but do not actively remove detached `FileEntry` rows. Unreferenced file entries are left to the file module's orphan handling policy.
 
 ## Base Restore
 
@@ -242,7 +242,7 @@ In that case, migration must preserve the user-created knowledge data instead of
 
 This means the migrated base is visible as recoverable data, but it is not usable for search/index operations until the user chooses a valid embedding model.
 
-The failed-base recovery path is `knowledge-runtime:restore-base`, not an in-place rebuild:
+The failed-base recovery path is `knowledge:restore-base`, not an in-place rebuild:
 
 ```text
 user selects a valid embedding model for the failed base

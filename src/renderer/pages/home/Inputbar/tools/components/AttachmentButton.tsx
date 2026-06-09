@@ -64,7 +64,7 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
 
   // NOTE: Attaching a knowledge-base file to the chat input is temporarily
   // disconnected. It previously bridged a v2 knowledge item into the legacy
-  // `FileMetadata` shape (via KnowledgeRuntime.getFileMetadata) that the chat
+  // `FileMetadata` shape (via Knowledge.getFileMetadata) that the chat
   // attachment pipeline still consumes. Reconnecting it cleanly depends on
   // migrating that pipeline off `FileMetadata` onto FileEntry/FileHandle — a
   // cross-domain change tracked in knowledge-todo.md and

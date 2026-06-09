@@ -8,13 +8,13 @@ import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
+  type KnowledgeAddItemInput,
+  KnowledgeAddItemInputSchema,
   type KnowledgeBase,
   KnowledgeChunkMetadataSchema,
   type KnowledgeItem,
   type KnowledgeItemChunk,
   type KnowledgeItemStatus,
-  type KnowledgeRuntimeAddItemInput,
-  KnowledgeRuntimeAddItemInputSchema,
   type KnowledgeSearchResult,
   type RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
@@ -40,14 +40,14 @@ import {
   toKnowledgeItemIds
 } from './types'
 import {
-  KnowledgeRuntimeAddItemsPayloadSchema,
-  KnowledgeRuntimeBasePayloadSchema,
-  KnowledgeRuntimeCreateBasePayloadSchema,
-  KnowledgeRuntimeDeleteItemChunkPayloadSchema,
-  KnowledgeRuntimeItemChunksPayloadSchema,
-  KnowledgeRuntimeItemsPayloadSchema,
-  KnowledgeRuntimeRestoreBasePayloadSchema,
-  KnowledgeRuntimeSearchPayloadSchema
+  KnowledgeAddItemsPayloadSchema,
+  KnowledgeBasePayloadSchema,
+  KnowledgeCreateBasePayloadSchema,
+  KnowledgeDeleteItemChunkPayloadSchema,
+  KnowledgeItemChunksPayloadSchema,
+  KnowledgeItemsPayloadSchema,
+  KnowledgeRestoreBasePayloadSchema,
+  KnowledgeSearchPayloadSchema
 } from './types/ipc'
 import { mapChunkDocument } from './utils/indexing/chunk'
 import { embedKnowledgeQuery } from './utils/indexing/embed'
@@ -185,7 +185,7 @@ export class KnowledgeService extends BaseService {
     return restoredBase
   }
 
-  async addItems(baseId: string, items: KnowledgeRuntimeAddItemInput[]): Promise<void> {
+  async addItems(baseId: string, items: KnowledgeAddItemInput[]): Promise<void> {
     await this.assertBaseCanRunRuntimeOperation(baseId, 'addItems')
     await this.workflowService.addItems(baseId, items)
   }
@@ -481,10 +481,10 @@ export class KnowledgeService extends BaseService {
     )
   }
 
-  private toRestoreRuntimeInput(sourceBaseId: string, item: KnowledgeItem): KnowledgeRuntimeAddItemInput {
+  private toRestoreRuntimeInput(sourceBaseId: string, item: KnowledgeItem): KnowledgeAddItemInput {
     try {
       if (item.type === 'file') {
-        return KnowledgeRuntimeAddItemInputSchema.parse({
+        return KnowledgeAddItemInputSchema.parse({
           type: 'file',
           data: {
             source: item.data.source,
@@ -493,7 +493,7 @@ export class KnowledgeService extends BaseService {
         })
       }
 
-      return KnowledgeRuntimeAddItemInputSchema.parse({
+      return KnowledgeAddItemInputSchema.parse({
         type: item.type,
         data: item.data
       })
@@ -508,41 +508,50 @@ export class KnowledgeService extends BaseService {
   }
 
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.KnowledgeRuntime_CreateBase, async (_, payload: unknown) => {
-      const { base } = KnowledgeRuntimeCreateBasePayloadSchema.parse(payload)
+    this.ipcHandle(IpcChannel.Knowledge_CreateBase, async (_, payload: unknown) => {
+      const { base } = KnowledgeCreateBasePayloadSchema.parse(payload)
       return await this.createBase(base)
     })
-    this.ipcHandle(IpcChannel.KnowledgeRuntime_RestoreBase, async (_, payload: unknown) => {
-      const dto = KnowledgeRuntimeRestoreBasePayloadSchema.parse(payload)
+    this.ipcHandle(IpcChannel.Knowledge_RestoreBase, async (_, payload: unknown) => {
+      const dto = KnowledgeRestoreBasePayloadSchema.parse(payload)
       return await this.restoreBase(dto)
     })
-    this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteBase, async (_, payload: unknown) => {
-      const { baseId } = KnowledgeRuntimeBasePayloadSchema.parse(payload)
+    this.ipcHandle(IpcChannel.Knowledge_DeleteBase, async (_, payload: unknown) => {
+      const { baseId } = KnowledgeBasePayloadSchema.parse(payload)
       return await this.deleteBase(baseId)
     })
-    this.ipcHandle(IpcChannel.KnowledgeRuntime_AddItems, async (_, payload: unknown) => {
-      const { baseId, items } = KnowledgeRuntimeAddItemsPayloadSchema.parse(payload)
+    this.ipcHandle(IpcChannel.Knowledge_AddItems, async (_, payload: unknown) => {
+      const { baseId, items } = KnowledgeAddItemsPayloadSchema.parse(payload)
       return await this.addItems(baseId, items)
     })
-    this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteItems, async (_, payload: unknown) => {
-      const { baseId, itemIds } = KnowledgeRuntimeItemsPayloadSchema.parse(payload)
+    this.ipcHandle(IpcChannel.Knowledge_DeleteItems, async (_, payload: unknown) => {
+      const { baseId, itemIds } = KnowledgeItemsPayloadSchema.parse(payload)
       return await this.deleteItems(baseId, itemIds)
     })
-    this.ipcHandle(IpcChannel.KnowledgeRuntime_ReindexItems, async (_, payload: unknown) => {
-      const { baseId, itemIds } = KnowledgeRuntimeItemsPayloadSchema.parse(payload)
+    this.ipcHandle(IpcChannel.Knowledge_ReindexItems, async (_, payload: unknown) => {
+      const { baseId, itemIds } = KnowledgeItemsPayloadSchema.parse(payload)
       return await this.reindexItems(baseId, itemIds)
     })
-    this.ipcHandle(IpcChannel.KnowledgeRuntime_Search, async (_, payload: unknown) => {
-      const { baseId, query } = KnowledgeRuntimeSearchPayloadSchema.parse(payload)
+    this.ipcHandle(IpcChannel.Knowledge_Search, async (_, payload: unknown) => {
+      const { baseId, query } = KnowledgeSearchPayloadSchema.parse(payload)
       return await this.search(baseId, query)
     })
-    this.ipcHandle(IpcChannel.KnowledgeRuntime_ListItemChunks, async (_, payload: unknown) => {
-      const { baseId, itemId } = KnowledgeRuntimeItemChunksPayloadSchema.parse(payload)
+    this.ipcHandle(IpcChannel.Knowledge_ListItemChunks, async (_, payload: unknown) => {
+      const { baseId, itemId } = KnowledgeItemChunksPayloadSchema.parse(payload)
       return await this.listItemChunks(baseId, itemId)
     })
-    this.ipcHandle(IpcChannel.KnowledgeRuntime_DeleteItemChunk, async (_, payload: unknown) => {
-      const { baseId, itemId, chunkId } = KnowledgeRuntimeDeleteItemChunkPayloadSchema.parse(payload)
+    this.ipcHandle(IpcChannel.Knowledge_DeleteItemChunk, async (_, payload: unknown) => {
+      const { baseId, itemId, chunkId } = KnowledgeDeleteItemChunkPayloadSchema.parse(payload)
       return await this.deleteItemChunk(baseId, itemId, chunkId)
+    })
+    // v1 bridge: the legacy Redux store/knowledge slice still calls
+    // window.api.knowledgeBase.delete(id) (a raw base id) until that slice is
+    // removed in the unified step. Route it to the v2 deletion path.
+    this.ipcHandle(IpcChannel.KnowledgeBase_Delete, async (_, id: unknown) => {
+      if (typeof id !== 'string' || id.trim().length === 0) {
+        throw new Error('KnowledgeBase_Delete requires a non-empty base id')
+      }
+      return await this.deleteBase(id)
     })
   }
 }

@@ -2,14 +2,14 @@ import { KNOWLEDGE_NOTE_CONTENT_MAX, KNOWLEDGE_RUNTIME_ITEMS_MAX } from '@shared
 import { describe, expect, it } from 'vitest'
 
 import {
-  KnowledgeRuntimeAddItemsPayloadSchema,
-  KnowledgeRuntimeBasePayloadSchema,
-  KnowledgeRuntimeCreateBasePayloadSchema,
-  KnowledgeRuntimeDeleteItemChunkPayloadSchema,
-  KnowledgeRuntimeItemChunksPayloadSchema,
-  KnowledgeRuntimeItemsPayloadSchema,
-  KnowledgeRuntimeRestoreBasePayloadSchema,
-  KnowledgeRuntimeSearchPayloadSchema
+  KnowledgeAddItemsPayloadSchema,
+  KnowledgeBasePayloadSchema,
+  KnowledgeCreateBasePayloadSchema,
+  KnowledgeDeleteItemChunkPayloadSchema,
+  KnowledgeItemChunksPayloadSchema,
+  KnowledgeItemsPayloadSchema,
+  KnowledgeRestoreBasePayloadSchema,
+  KnowledgeSearchPayloadSchema
 } from '../ipc'
 
 const BASE_ID = '11111111-1111-4111-8111-111111111111'
@@ -41,10 +41,10 @@ const createAddItemsPayload = (count: number) => ({
 describe('knowledge runtime payload schemas', () => {
   it('accepts valid payloads for every runtime operation', () => {
     const cases = [
-      { name: 'create base', schema: KnowledgeRuntimeCreateBasePayloadSchema, payload: { base: createBaseInput() } },
+      { name: 'create base', schema: KnowledgeCreateBasePayloadSchema, payload: { base: createBaseInput() } },
       {
         name: 'restore base',
-        schema: KnowledgeRuntimeRestoreBasePayloadSchema,
+        schema: KnowledgeRestoreBasePayloadSchema,
         payload: {
           sourceBaseId: BASE_ID,
           name: 'Base 1_bak',
@@ -52,18 +52,18 @@ describe('knowledge runtime payload schemas', () => {
           embeddingModelId: 'openai::text-embedding-3-large'
         }
       },
-      { name: 'base', schema: KnowledgeRuntimeBasePayloadSchema, payload: { baseId: 'base-1' } },
-      { name: 'add items', schema: KnowledgeRuntimeAddItemsPayloadSchema, payload: createAddItemsPayload(1) },
-      { name: 'items', schema: KnowledgeRuntimeItemsPayloadSchema, payload: createPayload(1) },
-      { name: 'search', schema: KnowledgeRuntimeSearchPayloadSchema, payload: { baseId: 'base-1', query: 'hello' } },
+      { name: 'base', schema: KnowledgeBasePayloadSchema, payload: { baseId: 'base-1' } },
+      { name: 'add items', schema: KnowledgeAddItemsPayloadSchema, payload: createAddItemsPayload(1) },
+      { name: 'items', schema: KnowledgeItemsPayloadSchema, payload: createPayload(1) },
+      { name: 'search', schema: KnowledgeSearchPayloadSchema, payload: { baseId: 'base-1', query: 'hello' } },
       {
         name: 'item chunks',
-        schema: KnowledgeRuntimeItemChunksPayloadSchema,
+        schema: KnowledgeItemChunksPayloadSchema,
         payload: { baseId: 'base-1', itemId: 'item-1' }
       },
       {
         name: 'delete item chunk',
-        schema: KnowledgeRuntimeDeleteItemChunkPayloadSchema,
+        schema: KnowledgeDeleteItemChunkPayloadSchema,
         payload: { baseId: 'base-1', itemId: 'item-1', chunkId: 'chunk-1' }
       }
     ]
@@ -77,26 +77,26 @@ describe('knowledge runtime payload schemas', () => {
     const cases = [
       {
         name: 'create base',
-        schema: KnowledgeRuntimeCreateBasePayloadSchema,
+        schema: KnowledgeCreateBasePayloadSchema,
         payload: { base: { ...createBaseInput(), name: '' } }
       },
       {
         name: 'restore base',
-        schema: KnowledgeRuntimeRestoreBasePayloadSchema,
+        schema: KnowledgeRestoreBasePayloadSchema,
         payload: { sourceBaseId: 'base-1', dimensions: 3072, embeddingModelId: '', chunkOverlap: 120 }
       },
-      { name: 'base', schema: KnowledgeRuntimeBasePayloadSchema, payload: { baseId: '' } },
-      { name: 'add items', schema: KnowledgeRuntimeAddItemsPayloadSchema, payload: createAddItemsPayload(0) },
-      { name: 'items', schema: KnowledgeRuntimeItemsPayloadSchema, payload: createPayload(0) },
-      { name: 'search', schema: KnowledgeRuntimeSearchPayloadSchema, payload: { baseId: 'base-1', query: '' } },
+      { name: 'base', schema: KnowledgeBasePayloadSchema, payload: { baseId: '' } },
+      { name: 'add items', schema: KnowledgeAddItemsPayloadSchema, payload: createAddItemsPayload(0) },
+      { name: 'items', schema: KnowledgeItemsPayloadSchema, payload: createPayload(0) },
+      { name: 'search', schema: KnowledgeSearchPayloadSchema, payload: { baseId: 'base-1', query: '' } },
       {
         name: 'item chunks',
-        schema: KnowledgeRuntimeItemChunksPayloadSchema,
+        schema: KnowledgeItemChunksPayloadSchema,
         payload: { baseId: 'base-1', itemId: '' }
       },
       {
         name: 'delete item chunk',
-        schema: KnowledgeRuntimeDeleteItemChunkPayloadSchema,
+        schema: KnowledgeDeleteItemChunkPayloadSchema,
         payload: { baseId: 'base-1', itemId: 'item-1', chunkId: '' }
       }
     ]
@@ -107,30 +107,30 @@ describe('knowledge runtime payload schemas', () => {
   })
 })
 
-describe('KnowledgeRuntimeAddItemsPayloadSchema', () => {
+describe('KnowledgeAddItemsPayloadSchema', () => {
   it('accepts one runtime item', () => {
-    expect(KnowledgeRuntimeAddItemsPayloadSchema.safeParse(createAddItemsPayload(1)).success).toBe(true)
+    expect(KnowledgeAddItemsPayloadSchema.safeParse(createAddItemsPayload(1)).success).toBe(true)
   })
 
   it('accepts runtime items at the runtime batch limit', () => {
-    expect(
-      KnowledgeRuntimeAddItemsPayloadSchema.safeParse(createAddItemsPayload(KNOWLEDGE_RUNTIME_ITEMS_MAX)).success
-    ).toBe(true)
+    expect(KnowledgeAddItemsPayloadSchema.safeParse(createAddItemsPayload(KNOWLEDGE_RUNTIME_ITEMS_MAX)).success).toBe(
+      true
+    )
   })
 
   it('rejects empty runtime item lists', () => {
-    expect(KnowledgeRuntimeAddItemsPayloadSchema.safeParse(createAddItemsPayload(0)).success).toBe(false)
+    expect(KnowledgeAddItemsPayloadSchema.safeParse(createAddItemsPayload(0)).success).toBe(false)
   })
 
   it('rejects runtime items above the runtime batch limit', () => {
     expect(
-      KnowledgeRuntimeAddItemsPayloadSchema.safeParse(createAddItemsPayload(KNOWLEDGE_RUNTIME_ITEMS_MAX + 1)).success
+      KnowledgeAddItemsPayloadSchema.safeParse(createAddItemsPayload(KNOWLEDGE_RUNTIME_ITEMS_MAX + 1)).success
     ).toBe(false)
   })
 
   it('rejects note content above the runtime note content limit', () => {
     expect(
-      KnowledgeRuntimeAddItemsPayloadSchema.safeParse({
+      KnowledgeAddItemsPayloadSchema.safeParse({
         baseId: 'base-1',
         items: [
           {
@@ -144,7 +144,7 @@ describe('KnowledgeRuntimeAddItemsPayloadSchema', () => {
 
   it('rejects blank group owner ids', () => {
     expect(
-      KnowledgeRuntimeAddItemsPayloadSchema.safeParse({
+      KnowledgeAddItemsPayloadSchema.safeParse({
         baseId: 'base-1',
         items: [{ type: 'note', groupId: '   ', data: { source: 'note-1', content: 'note' } }]
       }).success
@@ -152,30 +152,28 @@ describe('KnowledgeRuntimeAddItemsPayloadSchema', () => {
   })
 })
 
-describe('KnowledgeRuntimeItemsPayloadSchema', () => {
+describe('KnowledgeItemsPayloadSchema', () => {
   it('accepts one item id', () => {
-    expect(KnowledgeRuntimeItemsPayloadSchema.safeParse(createPayload(1)).success).toBe(true)
+    expect(KnowledgeItemsPayloadSchema.safeParse(createPayload(1)).success).toBe(true)
   })
 
   it('accepts item ids at the runtime batch limit', () => {
-    expect(KnowledgeRuntimeItemsPayloadSchema.safeParse(createPayload(KNOWLEDGE_RUNTIME_ITEMS_MAX)).success).toBe(true)
+    expect(KnowledgeItemsPayloadSchema.safeParse(createPayload(KNOWLEDGE_RUNTIME_ITEMS_MAX)).success).toBe(true)
   })
 
   it('rejects empty item id lists', () => {
-    expect(KnowledgeRuntimeItemsPayloadSchema.safeParse(createPayload(0)).success).toBe(false)
+    expect(KnowledgeItemsPayloadSchema.safeParse(createPayload(0)).success).toBe(false)
   })
 
   it('rejects item ids above the runtime batch limit', () => {
-    expect(KnowledgeRuntimeItemsPayloadSchema.safeParse(createPayload(KNOWLEDGE_RUNTIME_ITEMS_MAX + 1)).success).toBe(
-      false
-    )
+    expect(KnowledgeItemsPayloadSchema.safeParse(createPayload(KNOWLEDGE_RUNTIME_ITEMS_MAX + 1)).success).toBe(false)
   })
 })
 
-describe('KnowledgeRuntimeSearchPayloadSchema', () => {
+describe('KnowledgeSearchPayloadSchema', () => {
   it('accepts queries at the runtime query length limit', () => {
     expect(
-      KnowledgeRuntimeSearchPayloadSchema.safeParse({
+      KnowledgeSearchPayloadSchema.safeParse({
         baseId: 'base-1',
         query: 'a'.repeat(1000)
       }).success
@@ -184,7 +182,7 @@ describe('KnowledgeRuntimeSearchPayloadSchema', () => {
 
   it('rejects queries above the runtime query length limit', () => {
     expect(
-      KnowledgeRuntimeSearchPayloadSchema.safeParse({
+      KnowledgeSearchPayloadSchema.safeParse({
         baseId: 'base-1',
         query: 'a'.repeat(1001)
       }).success
