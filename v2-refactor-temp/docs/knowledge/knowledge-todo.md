@@ -91,8 +91,8 @@
 
 - 向量迁移仍按“保留可映射旧向量”策略执行。
   - 不重新切块、不重新 embedding、不重新生成业务 item，也不校正旧知识库业务配置。
-  - `.embedjs.bak` 主要用于迁移 retry，成功后当前不会自动清理。
-  - 后续如果要释放磁盘，需要单独增加 cleanup 策略、实现和测试。
+  - v1 legacy 向量 DB 原地保留不动；迁移成功后作为孤儿文件留在磁盘上，当前不会自动清理。
+  - 后续如果要释放磁盘，需要在用户确认放弃 v1 后单独增加 cleanup 策略、实现和测试。
   - 参考：`v2-refactor-temp/docs/knowledge/knowledge-vector-migrator.md`
 
 - 拆分临时镜像的文件类型。
