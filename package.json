@@ -108,6 +108,7 @@
     "jsdom": "26.1.0",
     "node-stream-zip": "1.15.0",
     "officeparser": "4.2.0",
+    "og-crd": "^0.0.2",
     "os-proxy-config": "1.1.2",
     "pdf-parse": "^2.4.5",
     "selection-hook": "2.0.1",

@@ -154,6 +154,9 @@ importers:
       officeparser:
         specifier: 4.2.0
         version: 4.2.0
+      og-crd:
+        specifier: ^0.0.2
+        version: 0.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       os-proxy-config:
         specifier: 1.1.2
         version: 1.1.2
@@ -11893,6 +11896,13 @@ packages:
   officeparser@4.2.0:
     resolution: {integrity: sha512-LXSfaET8ZOBNjmSev4K1N6AiKTaY7m9NkddeCaMUdEe5D/HUuv2byB8VoPIaiLldtKun0I92tbhO+VGDUr/aXQ==}
     hasBin: true
+
+  og-crd@0.0.2:
+    resolution: {integrity: sha512-P3FnKI6+loqWjAyBzQ3Z+8ebmsPvHFJJ2BBPJOIiqOnurl92dlJlsEYR6qVbnkoij89QmKNsPbOsL9KAFoBXog==}
+    hasBin: true
+    peerDependencies:
+      react: '>=18'
+      react-dom: '>=18'
 
   ollama-ai-provider-v2@3.3.1:
     resolution: {integrity: sha512-j4BBqqQnvf/uDz+aPYcgU4/MQZERw087Fn1DMGtViA/PgahBq36jHKHVoZfx8mxj+w8cxsKd3eYaDgyZPhE6YA==}
@@ -26824,6 +26834,11 @@ snapshots:
       file-type: 16.5.4
       node-ensure: 0.0.0
       rimraf: 5.0.10
+
+  og-crd@0.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+    dependencies:
+      react: 19.2.3
+      react-dom: 19.2.3(react@19.2.3)
 
   ollama-ai-provider-v2@3.3.1(patch_hash=8aceca32b8ea722ca9955177622f35735676b9c573fa7347f7d9b28e6210d3bb)(ai@6.0.143(patch_hash=a6fc1788c6b23da25d4d91aee1fa72564041e79e3cb20811d7d9e61a2c53878e)(zod@4.3.4))(zod@4.3.4):
     dependencies:
