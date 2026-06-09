@@ -161,13 +161,13 @@ const getRoleText = async (role: string, modelName?: string, providerId?: string
     if (showModelNameInMarkdown && modelName) {
       assistantText += `${modelName}`
       if (showModelProviderInMarkdown && providerId) {
-        const providerDisplayName = i18n.t(getProviderLabelKey(providerId)) ?? providerId
+        const providerDisplayName = i18n.t(getProviderLabelKey(providerId))
         assistantText += ` | ${providerDisplayName}`
         return assistantText
       }
       return assistantText
     } else if (showModelProviderInMarkdown && providerId) {
-      const providerDisplayName = i18n.t(getProviderLabelKey(providerId)) ?? providerId
+      const providerDisplayName = i18n.t(getProviderLabelKey(providerId))
       assistantText += `Assistant | ${providerDisplayName}`
       return assistantText
     }
