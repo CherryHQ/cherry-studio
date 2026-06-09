@@ -6,7 +6,7 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { languageState, sidebarLabel } = vi.hoisted(() => {
+const { languageState, translate } = vi.hoisted(() => {
   const labels: Record<string, Record<string, string>> = {
     'en-US': {
       assistants: 'Assistants'
@@ -18,7 +18,7 @@ const { languageState, sidebarLabel } = vi.hoisted(() => {
 
   return {
     languageState: { language: 'en-US' },
-    sidebarLabel: (key: string) => labels[languageState.language]?.[key] ?? key
+    translate: (key: string) => labels[languageState.language]?.[key] ?? key
   }
 })
 
@@ -27,12 +27,12 @@ vi.mock('react-i18next', () => ({
     i18n: {
       language: languageState.language
     },
-    t: (key: string) => key
+    t: (key: string) => translate(key)
   })
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getSidebarIconLabelKey: sidebarLabel
+  getSidebarIconLabelKey: (key: string) => key
 }))
 
 vi.mock('@renderer/i18n', () => ({
