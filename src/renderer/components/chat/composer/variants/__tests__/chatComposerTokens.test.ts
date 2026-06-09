@@ -13,6 +13,7 @@ describe('chat composer token mapping', () => {
   it('maps files and knowledge bases to stable composer token ids', () => {
     const file = {
       id: 'file-1',
+      fileTokenSourceId: 'source-file-1',
       name: 'chat.ts',
       origin_name: 'chat.ts',
       path: '/tmp/chat.ts'
@@ -20,7 +21,7 @@ describe('chat composer token mapping', () => {
     const knowledgeBase = { id: 'kb-1', name: 'Docs' } as KnowledgeBase
 
     expect(fileToComposerToken(file)).toMatchObject({
-      id: 'file:file-1',
+      id: 'file:source-file-1',
       kind: 'file',
       label: 'chat.ts',
       payload: file
@@ -33,10 +34,35 @@ describe('chat composer token mapping', () => {
     })
   })
 
-  it('falls back to file path when file id is missing', () => {
-    const file = { id: '', path: '/tmp/fallback.txt' } as FileMetadata
+  it('uses the unguessable file token source id instead of the file path', () => {
+    const file = { id: '', fileTokenSourceId: 'source-fallback', path: '/tmp/fallback.txt' } as FileMetadata
 
-    expect(chatComposerTokenId.file(file)).toBe('file:/tmp/fallback.txt')
+    expect(chatComposerTokenId.file(file)).toBe('file:source-fallback')
+  })
+
+  it('does not create a fixed fallback token id for files without a source id', () => {
+    const file = { id: 'file-1', path: '/tmp/chat.ts' } as FileMetadata
+
+    expect(() => chatComposerTokenId.file(file)).toThrow('fileTokenSourceId')
+  })
+
+  it('creates a file token source id instead of reusing the file id', () => {
+    const file = {
+      id: 'file-1',
+      name: 'chat.ts',
+      origin_name: 'chat.ts',
+      path: '/tmp/chat.ts'
+    } as FileMetadata
+
+    const token = fileToComposerToken(file)
+
+    expect(token.id).toMatch(/^file:.+/)
+    expect(token.id).not.toBe('file:file-1')
+    expect(token.payload).toMatchObject({
+      id: 'file-1',
+      fileTokenSourceId: expect.any(String)
+    })
+    expect((token.payload as FileMetadata).fileTokenSourceId).not.toBe(file.id)
   })
 
   it('extracts token ids by kind', () => {

@@ -3,6 +3,7 @@ import { useDrag } from '@renderer/hooks/useDrag'
 import type { FileMetadata } from '@renderer/types'
 import { filterSupportedFiles } from '@renderer/utils'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
+import { withComposerFileTokenSourceIds } from '@renderer/utils/messageUtils/composerFileTokenSource'
 import type { TFunction } from 'i18next'
 import { useCallback } from 'react'
 
@@ -67,7 +68,7 @@ export function useFileDragDrop(options: UseFileDragDropOptions) {
       if (droppedFiles) {
         const supportedFiles = await filterSupportedFiles(droppedFiles, options.supportedExts)
         if (supportedFiles.length > 0) {
-          options.setFiles((prevFiles) => [...prevFiles, ...supportedFiles])
+          options.setFiles((prevFiles) => [...prevFiles, ...withComposerFileTokenSourceIds(supportedFiles)])
         }
 
         // 如果有不支持的文件，显示提示

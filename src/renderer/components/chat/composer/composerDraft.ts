@@ -5,6 +5,7 @@ import type {
   ComposerMessageToken,
   ComposerMessageTokenPayload
 } from '@shared/data/types/uiParts'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 import { FileTypeSchema } from '@shared/file/types'
 import type { Editor, JSONContent } from '@tiptap/core'
 
@@ -33,6 +34,7 @@ type RestoredComposerToken = Omit<ComposerMessageToken, 'index' | 'textOffset'> 
 }
 
 interface ComposerFilePartSource {
+  fileTokenSourceId?: string
   path?: string
   url?: string
   ext?: string
@@ -256,13 +258,15 @@ function createComposerFilePart(file: ComposerFilePartSource): CherryMessagePart
   const url = file.path ?? file.url
   if (!url) return undefined
 
-  return {
+  const part = {
     type: 'file',
     url,
     mediaType: file.ext ?? 'application/octet-stream',
     filename: file.origin_name ?? file.name,
     ...(file.providerMetadata && { providerMetadata: file.providerMetadata })
   } as CherryMessagePart
+
+  return file.fileTokenSourceId ? withCherryMeta(part, { fileTokenSourceId: file.fileTokenSourceId }) : part
 }
 
 export function createComposerUserMessageParts(

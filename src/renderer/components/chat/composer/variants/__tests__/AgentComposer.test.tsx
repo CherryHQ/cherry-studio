@@ -63,6 +63,7 @@ const model = {
 
 const file = {
   id: 'file-1',
+  fileTokenSourceId: 'source-file-1',
   name: 'notes.md',
   origin_name: 'notes.md',
   path: '/tmp/notes.md'
@@ -125,7 +126,7 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
               tokens:
                 mocks.draftTokens ??
                 mocks.files.map((currentFile, index) => ({
-                  id: `file:${currentFile.id}`,
+                  id: `file:${currentFile.fileTokenSourceId}`,
                   kind: 'file',
                   label: currentFile.name,
                   payload: currentFile,
@@ -571,14 +572,16 @@ describe('AgentComposer', () => {
       })
     )
     expect(items).toHaveLength(1)
+    const item = items?.[0]
     expect(items?.[0]).toEqual(
       expect.objectContaining({
-        id: 'file:/workspace/docs/notes.md',
+        id: expect.stringMatching(/^file:.+/),
         label: 'docs/notes.md',
         description: '/workspace/docs/notes.md',
         disabled: false
       })
     )
+    expect(item?.id).not.toContain('/workspace/docs/notes.md')
 
     const run = vi.fn()
     const insertContent = vi.fn(() => ({ run }))
@@ -596,9 +599,13 @@ describe('AgentComposer', () => {
 
     expect(insertComposerToken).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'file:/workspace/docs/notes.md',
+        id: item?.id,
         kind: 'file',
-        label: 'notes.md'
+        label: 'notes.md',
+        payload: expect.objectContaining({
+          fileTokenSourceId: item?.id.slice('file:'.length),
+          path: '/workspace/docs/notes.md'
+        })
       })
     )
     expect(insertContent).toHaveBeenCalledWith(' ')
@@ -607,7 +614,12 @@ describe('AgentComposer', () => {
     const setFilesUpdater = mocks.setFiles.mock.calls.at(-1)?.[0]
     expect(typeof setFilesUpdater).toBe('function')
     const selectedFile = { id: '/workspace/docs/notes.md', path: '/workspace/docs/notes.md' } as FileMetadata
-    expect(setFilesUpdater([])).toEqual([expect.objectContaining({ path: '/workspace/docs/notes.md' })])
+    expect(setFilesUpdater([])).toEqual([
+      expect.objectContaining({
+        fileTokenSourceId: item?.id.slice('file:'.length),
+        path: '/workspace/docs/notes.md'
+      })
+    ])
     expect(setFilesUpdater([selectedFile])).toBeInstanceOf(Array)
     expect(setFilesUpdater([selectedFile])).toHaveLength(1)
   })
@@ -636,10 +648,11 @@ describe('AgentComposer', () => {
     const items = await mocks.surfaceProps?.suggestionSources?.[0]?.items({ query: 'notes', editor: {} as any })
     expect(items?.[0]).toEqual(
       expect.objectContaining({
-        id: 'file:/workspace/docs/notes.md',
+        id: expect.stringMatching(/^file:.+/),
         disabled: true
       })
     )
+    expect(items?.[0]?.id).not.toContain('/workspace/docs/notes.md')
   })
 
   it('passes available skills as additional slash panel rows', () => {
@@ -923,7 +936,7 @@ describe('AgentComposer', () => {
 
     await waitFor(() => {
       expect(mocks.surfaceProps?.tokens).toEqual(
-        expect.arrayContaining([expect.objectContaining({ id: 'file:file-1', kind: 'file' }), pdfSkillToken])
+        expect.arrayContaining([expect.objectContaining({ id: 'file:source-file-1', kind: 'file' }), pdfSkillToken])
       )
     })
 
@@ -1031,7 +1044,7 @@ describe('AgentComposer', () => {
                     version: 1,
                     tokens: [
                       {
-                        id: 'file:file-1',
+                        id: 'file:source-file-1',
                         kind: 'file',
                         label: 'notes.md',
                         index: 0,
@@ -1047,7 +1060,12 @@ describe('AgentComposer', () => {
               type: 'file',
               url: '/tmp/notes.md',
               mediaType: 'application/octet-stream',
-              filename: 'notes.md'
+              filename: 'notes.md',
+              providerMetadata: {
+                cherry: {
+                  fileTokenSourceId: 'source-file-1'
+                }
+              }
             }
           ]
         }

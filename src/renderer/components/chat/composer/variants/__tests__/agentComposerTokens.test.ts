@@ -12,23 +12,49 @@ describe('agent composer token mapping', () => {
   it('maps files to stable composer token ids', () => {
     const file = {
       id: 'file-1',
+      fileTokenSourceId: 'source-file-1',
       name: 'agent.ts',
       origin_name: 'agent.ts',
       path: '/tmp/agent.ts'
     } as FileMetadata
 
     expect(agentFileToComposerToken(file)).toMatchObject({
-      id: 'file:file-1',
+      id: 'file:source-file-1',
       kind: 'file',
       label: 'agent.ts',
       payload: file
     })
   })
 
-  it('falls back to file path when file id is missing', () => {
-    const file = { id: '', path: '/tmp/fallback.txt' } as FileMetadata
+  it('uses the unguessable file token source id instead of the file path', () => {
+    const file = { id: '', fileTokenSourceId: 'source-fallback', path: '/tmp/fallback.txt' } as FileMetadata
 
-    expect(agentComposerTokenId.file(file)).toBe('file:/tmp/fallback.txt')
+    expect(agentComposerTokenId.file(file)).toBe('file:source-fallback')
+  })
+
+  it('does not create a fixed fallback token id for files without a source id', () => {
+    const file = { id: 'file-1', path: '/tmp/agent.ts' } as FileMetadata
+
+    expect(() => agentComposerTokenId.file(file)).toThrow('fileTokenSourceId')
+  })
+
+  it('creates a file token source id instead of reusing the file id', () => {
+    const file = {
+      id: 'file-1',
+      name: 'agent.ts',
+      origin_name: 'agent.ts',
+      path: '/tmp/agent.ts'
+    } as FileMetadata
+
+    const token = agentFileToComposerToken(file)
+
+    expect(token.id).toMatch(/^file:.+/)
+    expect(token.id).not.toBe('file:file-1')
+    expect(token.payload).toMatchObject({
+      id: 'file-1',
+      fileTokenSourceId: expect.any(String)
+    })
+    expect((token.payload as FileMetadata).fileTokenSourceId).not.toBe(file.id)
   })
 
   it('maps skills to prompt-bearing composer tokens', () => {

@@ -72,8 +72,10 @@ describe('PasteService', () => {
       {
         ...selectedFile,
         origin_name: '已粘贴的文本.txt',
-        composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+        composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT,
+        fileTokenSourceId: expect.any(String)
       }
     ])
+    expect(files[0]?.fileTokenSourceId).not.toBe(selectedFile.id)
   })
 })

@@ -1,4 +1,5 @@
 import { FILE_TYPE, type FileMetadata } from '@renderer/types'
+import { withComposerFileTokenSourceId } from '@renderer/utils/messageUtils/composerFileTokenSource'
 import { getFileTypeByExt } from '@shared/file/types'
 import { Folder } from 'lucide-react'
 import { useMemo, useRef } from 'react'
@@ -128,8 +129,12 @@ export function useAgentResourceSuggestion({
         return [...collected].slice(0, 50).map((filePath) => {
           const relativePath = getRelativePath(filePath, accessiblePaths)
           const file = files.find((currentFile) => currentFile.path === filePath || currentFile.id === filePath)
-          const tokenFile = file ?? createFileMetadataFromPath(filePath)
+          const tokenFile = withComposerFileTokenSourceId(file ?? createFileMetadataFromPath(filePath))
           const token = agentFileToComposerToken(tokenFile)
+          const isSelectedFile = (currentFile: FileMetadata) =>
+            currentFile.path === filePath ||
+            currentFile.id === filePath ||
+            agentComposerTokenId.file(currentFile) === token.id
 
           return {
             id: token.id,
@@ -137,7 +142,7 @@ export function useAgentResourceSuggestion({
             description: filePath,
             icon: <Folder size={16} />,
             filterText: `${relativePath} ${filePath}`,
-            disabled: files.some((currentFile) => agentComposerTokenId.file(currentFile) === token.id),
+            disabled: files.some(isSelectedFile),
             command: ({ editor }) => {
               const exists = serializeComposerDocument(editor).tokens.some(
                 (currentToken) => currentToken.id === token.id
@@ -145,11 +150,7 @@ export function useAgentResourceSuggestion({
               if (!exists) {
                 editor.chain().focus().insertComposerToken(token).insertContent(' ').run()
               }
-              setFiles((prevFiles) =>
-                prevFiles.some((currentFile) => agentComposerTokenId.file(currentFile) === token.id)
-                  ? prevFiles
-                  : [...prevFiles, tokenFile]
-              )
+              setFiles((prevFiles) => (prevFiles.some(isSelectedFile) ? prevFiles : [...prevFiles, tokenFile]))
             }
           }
         })
