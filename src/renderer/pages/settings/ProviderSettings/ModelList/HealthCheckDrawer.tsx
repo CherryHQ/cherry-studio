@@ -191,7 +191,7 @@ export default function HealthCheckDrawer({
           ) : null}
 
           {!isChecking && showPipeline ? (
-            <div className="mx-4 mt-3 mb-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border/60 bg-muted/50 px-3.5 py-2.5">
+            <div className="mx-4 mt-3 mb-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border-muted bg-muted/50 px-3.5 py-2.5">
               <div className="flex shrink-0 items-center gap-1.5">
                 <div className="flex size-3.5 items-center justify-center rounded-full bg-muted">
                   <CheckCircle2 size={9} className="text-foreground-muted" />
@@ -227,7 +227,7 @@ export default function HealthCheckDrawer({
           ) : null}
 
           <Scrollbar className="min-h-0 flex-1 px-2 pb-0">
-            <ul className="divide-y divide-border/50 pt-1 pb-0">
+            <ul className="divide-y divide-border-muted pt-1 pb-0">
               {modelStatuses.map((row) => {
                 const { model, checking, status, latency, error } = row
                 const Icon = getModelLogo(model)
@@ -387,7 +387,7 @@ export default function HealthCheckDrawer({
           </div>
 
           {keyCheckMode === 'single' && hasMultipleKeys ? (
-            <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
+            <div className="space-y-3 rounded-xl border border-border-muted bg-muted/20 p-4">
               <div className="font-medium text-[13px] text-foreground/85">
                 {t('settings.models.check.select_api_key')}
               </div>

@@ -232,7 +232,7 @@ export default function AddModelFormPanel({
       <ProviderActions>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           className={drawerClasses.toggleButton}
           onClick={() => setShowMoreSettings((current) => !current)}>
           {t('settings.moresetting.label')}

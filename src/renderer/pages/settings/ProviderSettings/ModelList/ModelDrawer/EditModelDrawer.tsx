@@ -351,7 +351,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         <ProviderActions>
           <Button
             type="button"
-            variant="outline"
+            variant="ghost"
             className={drawerClasses.toggleButton}
             onClick={() => setShowMoreSettings((current) => !current)}>
             {t('settings.moresetting.label')}

@@ -99,7 +99,7 @@ export default function ProviderConnectionCheckDrawer({
           </div>
 
           {hasMultipleKeys ? (
-            <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
+            <div className="space-y-3 rounded-xl border border-border-muted bg-muted/20 p-4">
               <div className="font-medium text-[13px] text-foreground/85">
                 {t('settings.models.check.select_api_key')}
               </div>
@@ -119,7 +119,7 @@ export default function ProviderConnectionCheckDrawer({
           ) : (
             <div className="space-y-2">
               <div className="font-medium text-[13px] text-foreground/85">{t('settings.provider.api_key.label')}</div>
-              <div className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5 font-mono text-[12px] text-foreground/70">
+              <div className="rounded-xl border border-border-muted bg-muted/20 px-3 py-2.5 font-mono text-[12px] text-foreground/70">
                 {selectedApiKey ? maskApiKey(selectedApiKey) : '—'}
               </div>
             </div>

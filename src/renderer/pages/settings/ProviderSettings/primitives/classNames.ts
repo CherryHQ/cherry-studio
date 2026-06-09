@@ -141,7 +141,7 @@ export const providerListClasses = {
  * — custom request headers side panel: one compact key/value row per header.
  */
 export const customHeaderDrawerClasses = {
-  bodyScroll: 'flex flex-col gap-4 py-3',
+  bodyScroll: 'flex flex-col gap-4',
   /** JSON mode — matches structured monospace block for custom headers. */
   headersJsonEditor:
     'min-h-[120px] w-full resize-y rounded-xl border border-[color:var(--section-border)] bg-muted/50 px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground shadow-none outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35 placeholder:text-muted-foreground/45',
@@ -177,11 +177,8 @@ export const drawerClasses = {
   errorText: 'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-destructive',
   emptyInline:
     'rounded-[length:var(--radius-md)] border border-dashed border-[color:var(--color-border-fg-muted)] px-3 py-2 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/70',
-  toggleButton: cn(
-    actionClasses.btnBase,
-    actionClasses.btnNeutral,
-    'justify-center gap-1.5 rounded-lg border-(--color-border-fg-muted) px-3 py-2 text-foreground/75 hover:bg-(--color-surface-fg-subtle) hover:text-foreground'
-  ),
+  toggleButton:
+    'h-auto justify-start gap-1.5 px-0 py-0 text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground-muted shadow-none hover:bg-transparent hover:text-foreground',
   inlineRow: 'flex flex-wrap items-center gap-2',
   valueRow: 'flex min-w-0 items-center gap-2',
   responsiveValueRow: 'flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center',
