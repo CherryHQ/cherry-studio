@@ -108,6 +108,9 @@ export async function dispatchStreamRequest(
     mode: result.mode,
     executionIds: prepared.isMultiModel ? result.executionIds : undefined,
     userMessageId: prepared.userMessageId ?? prepared.userMessage?.id,
-    reservedMessages: prepared.reservedMessages
+    reservedMessages: prepared.reservedMessages,
+    placeholderIds: prepared.reservedMessages
+      ?.filter((message) => message.role === 'assistant')
+      .map((message) => message.id)
   }
 }

@@ -116,7 +116,6 @@ const fakeCacheService = {
   })
 }
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
-const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -128,8 +127,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({
     AiService: { streamText: mockStreamText },
     CacheService: fakeCacheService,
-    TraceStorageService: { saveSpans: mockSaveSpans },
-    AgentSessionRuntimeService: { willContinueTopic: mockWillContinueTopic }
+    SpanCacheService: { saveSpans: mockSaveSpans }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
@@ -201,7 +199,6 @@ describe('AiStreamManager', () => {
       pendingStream((request.requestOptions as { signal?: AbortSignal } | undefined)?.signal)
     )
     mockSaveSpans.mockResolvedValue(undefined)
-    mockWillContinueTopic.mockReturnValue(false)
     sharedCacheStore.clear()
   })
 
@@ -249,9 +246,9 @@ describe('AiStreamManager', () => {
     })
 
     it('no-ops an enqueue-only send (empty models, not live) instead of throwing', () => {
-      // An agent-session follow-up / steer landing in the inter-turn drain window reaches send with
-      // no models and no live stream: the message is already in the runtime's pendingTurns, so send
-      // must not require a model nor start a stream — just return without effect.
+      // A steer landing in the inter-turn drain window reaches send with no models and no live
+      // stream: the user message is already persisted, so send must not require a model nor start
+      // a stream — just return without effect.
       const result = mgr.send({ topicId: 'a', models: [], listeners: [new FakeListener('l:a')] })
 
       expect(result).toEqual({ mode: 'injected', executionIds: [] })
@@ -861,37 +858,6 @@ describe('AiStreamManager', () => {
       await flush()
       expect(dispatchSpy).not.toHaveBeenCalled()
       expect(mgr.hasPendingSteer('a')).toBe(false)
-    })
-
-    // Agent sessions drive their own continuation (terminal listener → markTurnTerminal → startNextTurn),
-    // so AiStreamManager doesn't dispatch here — it only KEEPS the stream alive (isTopicDone=false, no
-    // terminal lifecycle) when `willContinueTopic` is true, so the runtime's next turn can carry the
-    // renderer listeners. Without this the stream is evicted and the follow-up reaches no renderer.
-    it('keeps an agent-session stream alive when the runtime will continue (no terminal lifecycle)', async () => {
-      mockWillContinueTopic.mockReturnValue(true)
-      const topicId = 'agent-session:s1'
-      const listener = new FakeListener(`l:${topicId}`)
-      startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [listener] })
-
-      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
-
-      // The bubble finalises but the topic stays busy and the terminal lifecycle is skipped (no idle
-      // flicker), so the stream object survives for the runtime's follow-up turn to carry listeners.
-      expect(listener.doneResults).toHaveLength(1)
-      expect(listener.doneResults[0].isTopicDone).toBe(false)
-      expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).not.toBe('done')
-    })
-
-    it('tears down an agent-session stream when the runtime will not continue', async () => {
-      mockWillContinueTopic.mockReturnValue(false)
-      const topicId = 'agent-session:s2'
-      const listener = new FakeListener(`l:${topicId}`)
-      startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [listener] })
-
-      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
-
-      expect(listener.doneResults[0].isTopicDone).toBe(true)
-      expect(mgr.hasLiveStream(topicId)).toBe(false)
     })
   })
 

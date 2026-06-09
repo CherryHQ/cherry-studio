@@ -22,8 +22,6 @@ import { type SerializedError, serializeError } from '@shared/types/error'
 import { type UIMessageChunk } from 'ai'
 import * as z from 'zod'
 
-import { isAgentSessionTopic } from '../agentSession/topic'
-import { applyTurnOutputAttributes } from '../observability'
 import type { AiStreamRequest, CallOverrides } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context'
@@ -64,16 +62,14 @@ const StreamOpenRequestSchema = z.intersection(
 )
 
 /**
- * Finalize the turn's `ai.turn` span: write the turn-boundary output (final answer + tool
- * count, translation delegated to the obs module), set status, end. Idempotent — subsequent
- * calls no-op because `exec.rootSpan` is cleared.
+ * Finalize the turn's root span. Idempotent — subsequent calls no-op because
+ * `exec.rootSpan` is cleared.
  */
 function endRootSpan(exec: StreamExecution, outcome: 'ok' | 'aborted' | 'error', error?: SerializedError): void {
   const span = exec.rootSpan
   if (!span) return
   exec.rootSpan = undefined
   try {
-    if (exec.finalMessage) applyTurnOutputAttributes(span, exec.finalMessage)
     if (outcome === 'ok') {
       span.setStatus({ code: SpanStatusCode.OK })
     } else if (outcome === 'aborted') {
@@ -468,6 +464,21 @@ export class AiStreamManager extends BaseService {
     return Boolean(stream && isLiveStatus(stream.status))
   }
 
+  pauseRuntimeTurn(topicId: string, reason: string): boolean {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream || !isLiveStatus(stream.status)) return false
+
+    logger.info('Pausing runtime stream turn', { topicId, reason })
+    for (const exec of stream.executions.values()) {
+      if (exec.status === 'streaming') {
+        exec.status = 'aborted'
+        exec.abortController.abort(reason)
+      }
+    }
+    stream.status = 'aborted'
+    return true
+  }
+
   // ── Public: steer (mid-flight follow-up on chat topics) ───────────
   // Chat mirrors the agent runtime's enqueue + chain-next-turn: a busy submit
   // persists the user message and enqueues it here; the running turn yields at
@@ -616,24 +627,15 @@ export class AiStreamManager extends BaseService {
     stream.status = this.resolveTerminalStatus(stream)
     const topicDone = !isLiveStatus(stream.status)
 
-    // Chain the next turn instead of finishing: broadcast this exec's done with isTopicDone=false
+    // Chain the next chat turn instead of finishing: broadcast this exec's done with isTopicDone=false
     // (the bubble finalises, the topic stays busy — reusing multi-model semantics), skip the terminal
-    // lifecycle (no idle flicker AND the stream stays alive so the next turn can carry the renderer
-    // listeners), and start the continuation. Chat drives the continuation here (scheduleNextChatTurn);
-    // the agent runtime drives its own (terminal listener → markTurnTerminal → startNextTurn), so for
-    // agent we just keep the stream alive — without this its follow-up turn reaches no renderer.
+    // lifecycle, and start the continuation with the carried renderer listeners.
     const chatChaining = topicDone && this.hasPendingSteer(topicId)
-    const agentChaining =
-      topicDone &&
-      !chatChaining &&
-      isAgentSessionTopic(topicId) &&
-      application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
-    const chaining = chatChaining || agentChaining
 
-    await this.broadcastExecutionDone(stream, exec, topicDone && !chaining)
+    await this.broadcastExecutionDone(stream, exec, topicDone && !chatChaining)
 
     if (chatChaining) this.scheduleNextChatTurn(topicId)
-    else if (topicDone && !chaining) this.runTerminalLifecycle(stream)
+    else if (topicDone) this.runTerminalLifecycle(stream)
   }
 
   async onExecutionPaused(topicId: string, modelId: UniqueModelId): Promise<void> {

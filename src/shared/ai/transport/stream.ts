@@ -221,6 +221,8 @@ export type AiStreamOpenResponse =
        * DB refresh reconcile final content/status.
        */
       reservedMessages?: CherryUIMessage[]
+      /** Backward-compatible assistant placeholder ids derived from reservedMessages. */
+      placeholderIds?: string[]
     }
   | {
       mode: 'blocked'
