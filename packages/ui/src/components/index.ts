@@ -10,6 +10,7 @@ export { default as EmojiIcon } from './primitives/emoji-icon'
 export type { CustomFallbackProps, ErrorBoundaryCustomizedProps } from './primitives/error-boundary'
 export { ErrorBoundary } from './primitives/error-boundary'
 export { default as IndicatorLight } from './primitives/indicator-light'
+export { type PortalContainer, PortalContainerProvider, usePortalContainer } from './primitives/portal-container'
 export { default as Spinner } from './primitives/spinner'
 export { DescriptionSwitch, Switch } from './primitives/switch'
 export {
