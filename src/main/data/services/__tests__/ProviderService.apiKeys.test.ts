@@ -165,6 +165,48 @@ describe('ProviderService API keys', () => {
     expect(row.apiKeys).toEqual([])
   })
 
+  it('filters provider lists by enabled API key readiness', async () => {
+    await dbh.db.insert(userProviderTable).values([
+      {
+        providerId: 'ready-provider',
+        name: 'Ready Provider',
+        orderKey: generateOrderKeyBetween(null, null),
+        isEnabled: true,
+        apiKeys: [{ id: 'ready-key', key: 'sk-ready', isEnabled: true }]
+      },
+      {
+        providerId: 'disabled-key-provider',
+        name: 'Disabled Key Provider',
+        orderKey: generateOrderKeyBetween(null, null),
+        isEnabled: true,
+        apiKeys: [{ id: 'disabled-key', key: 'sk-disabled', isEnabled: false }]
+      },
+      {
+        providerId: 'empty-key-provider',
+        name: 'Empty Key Provider',
+        orderKey: generateOrderKeyBetween(null, null),
+        isEnabled: true,
+        apiKeys: []
+      },
+      {
+        providerId: 'disabled-provider',
+        name: 'Disabled Provider',
+        orderKey: generateOrderKeyBetween(null, null),
+        isEnabled: false,
+        apiKeys: [{ id: 'disabled-provider-key', key: 'sk-disabled-provider', isEnabled: true }]
+      }
+    ])
+
+    const readyProviders = await providerService.list({ enabled: true, hasEnabledApiKey: true })
+    expect(readyProviders.map((provider) => provider.id)).toEqual(['ready-provider'])
+
+    const providersWithoutEnabledKeys = await providerService.list({ enabled: true, hasEnabledApiKey: false })
+    expect(providersWithoutEnabledKeys.map((provider) => provider.id)).toEqual([
+      'disabled-key-provider',
+      'empty-key-provider'
+    ])
+  })
+
   it('throws NOT_FOUND when deleting a missing API key id', async () => {
     await seedProvider()
 

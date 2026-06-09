@@ -160,7 +160,6 @@ describe('CLI_TOOLS', () => {
 
 describe('CLI_TOOL_PROVIDER_MAP', () => {
   const enabledKey = { id: 'k1', isEnabled: true }
-  const disabledKey = { id: 'k2', isEnabled: false }
 
   function makeProvider(overrides: Partial<Provider> & Pick<Provider, 'id'>): Provider {
     return {
@@ -174,48 +173,7 @@ describe('CLI_TOOL_PROVIDER_MAP', () => {
     } as Provider
   }
 
-  const toolIds = Object.keys(CLI_TOOL_PROVIDER_MAP).filter((id) => id !== codeCLI.githubCopilotCli)
-
-  describe('excludes providers without enabled API keys', () => {
-    it.each(toolIds)('for %s', (toolId) => {
-      const filter = CLI_TOOL_PROVIDER_MAP[toolId]
-      const provider = makeProvider({
-        id: 'test-provider',
-        apiKeys: [disabledKey],
-        defaultChatEndpoint: 'openai-chat-completions'
-      })
-
-      expect(filter([provider])).toHaveLength(0)
-    })
-  })
-
-  describe('excludes disabled providers', () => {
-    it.each(toolIds)('for %s', (toolId) => {
-      const filter = CLI_TOOL_PROVIDER_MAP[toolId]
-      const provider = makeProvider({
-        id: 'test-provider',
-        isEnabled: false,
-        defaultChatEndpoint: 'openai-chat-completions'
-      })
-
-      expect(filter([provider])).toHaveLength(0)
-    })
-  })
-
-  describe('excludes providers with empty apiKeys', () => {
-    it.each(toolIds)('for %s', (toolId) => {
-      const filter = CLI_TOOL_PROVIDER_MAP[toolId]
-      const provider = makeProvider({
-        id: 'test-provider',
-        apiKeys: [],
-        defaultChatEndpoint: 'openai-chat-completions'
-      })
-
-      expect(filter([provider])).toHaveLength(0)
-    })
-  })
-
-  describe('includes enabled providers with enabled API keys', () => {
+  describe('includes compatible providers', () => {
     it('claudeCode includes anthropic provider', () => {
       const filter = CLI_TOOL_PROVIDER_MAP[codeCLI.claudeCode]
       const provider = makeProvider({
@@ -243,6 +201,16 @@ describe('CLI_TOOL_PROVIDER_MAP', () => {
       const provider = makeProvider({
         id: 'test-provider',
         defaultChatEndpoint: 'openai-chat-completions'
+      })
+
+      expect(filter([provider])).toHaveLength(1)
+    })
+
+    it('openaiCodex includes openai provider', () => {
+      const filter = CLI_TOOL_PROVIDER_MAP[codeCLI.openaiCodex]
+      const provider = makeProvider({
+        id: 'openai',
+        defaultChatEndpoint: 'openai-responses'
       })
 
       expect(filter([provider])).toHaveLength(1)

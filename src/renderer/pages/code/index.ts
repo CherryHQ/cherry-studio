@@ -79,29 +79,22 @@ const ANTHROPIC_MESSAGES_ENDPOINT = 'anthropic-messages'
 const hasAnthropicEndpoint = (p: Provider): boolean =>
   Boolean(p.endpointConfigs?.[ANTHROPIC_MESSAGES_ENDPOINT]?.baseUrl)
 const isOpenAILikeProvider = (p: Provider): boolean => isOpenAICompatibleProvider(p) || isOpenAIProvider(p)
-const isReadyProvider = (p: Provider): boolean => p.isEnabled && p.apiKeys.some((k) => k.isEnabled)
 
 export const CLI_TOOL_PROVIDER_MAP: Record<string, (providers: Provider[]) => Provider[]> = {
   [codeCLI.claudeCode]: (providers) =>
     providers.filter(
-      (p) =>
-        isReadyProvider(p) &&
-        (isAnthropicProvider(p) || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id) || hasAnthropicEndpoint(p))
+      (p) => isAnthropicProvider(p) || CLAUDE_SUPPORTED_PROVIDERS.includes(p.id) || hasAnthropicEndpoint(p)
     ),
   [codeCLI.geminiCli]: (providers) =>
-    providers.filter((p) => isReadyProvider(p) && (isGeminiProvider(p) || GEMINI_SUPPORTED_PROVIDERS.includes(p.id))),
-  [codeCLI.qwenCode]: (providers) => providers.filter((p) => isReadyProvider(p) && isOpenAILikeProvider(p)),
+    providers.filter((p) => isGeminiProvider(p) || GEMINI_SUPPORTED_PROVIDERS.includes(p.id)),
+  [codeCLI.qwenCode]: (providers) => providers.filter(isOpenAILikeProvider),
   [codeCLI.openaiCodex]: (providers) =>
-    providers.filter(
-      (p) => isReadyProvider(p) && (isOpenAIProvider(p) || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id))
-    ),
-  [codeCLI.iFlowCli]: (providers) => providers.filter((p) => isReadyProvider(p) && isOpenAILikeProvider(p)),
+    providers.filter((p) => isOpenAIProvider(p) || OPENAI_CODEX_SUPPORTED_PROVIDERS.includes(p.id)),
+  [codeCLI.iFlowCli]: (providers) => providers.filter(isOpenAILikeProvider),
   [codeCLI.githubCopilotCli]: () => [],
-  [codeCLI.kimiCli]: (providers) => providers.filter((p) => isReadyProvider(p) && isOpenAILikeProvider(p)),
+  [codeCLI.kimiCli]: (providers) => providers.filter(isOpenAILikeProvider),
   [codeCLI.openCode]: (providers) =>
-    providers.filter(
-      (p) => isReadyProvider(p) && (isOpenAILikeProvider(p) || isAnthropicProvider(p) || isAIGatewayProvider(p))
-    )
+    providers.filter((p) => isOpenAILikeProvider(p) || isAnthropicProvider(p) || isAIGatewayProvider(p))
 }
 
 export const getCodeCliApiBaseUrl = (providerId: string, type: 'anthropic' | 'gemini') => {
