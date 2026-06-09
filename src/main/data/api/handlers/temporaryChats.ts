@@ -19,8 +19,8 @@
  * parse request shapes when needed, then forward to the owning service.
  */
 
-import { temporarySessionService } from '@main/ai/agentSession/TemporaryAgentSessionDraftService'
-import { temporaryChatService } from '@main/ai/temporaryChat/TemporaryChatService'
+import { temporarySessionService } from '@data/services/TemporaryAgentSessionDraftService'
+import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {

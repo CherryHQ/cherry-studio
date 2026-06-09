@@ -27,7 +27,7 @@ const {
   persistSessionMock: vi.fn()
 }))
 
-vi.mock('@main/ai/temporaryChat/TemporaryChatService', () => ({
+vi.mock('@data/services/TemporaryChatService', () => ({
   temporaryChatService: {
     createTopic: createTopicMock,
     updateTopic: updateTopicMock,
@@ -38,7 +38,7 @@ vi.mock('@main/ai/temporaryChat/TemporaryChatService', () => ({
   }
 }))
 
-vi.mock('@main/ai/agentSession/TemporaryAgentSessionDraftService', () => ({
+vi.mock('@data/services/TemporaryAgentSessionDraftService', () => ({
   temporarySessionService: {
     createSession: createSessionMock,
     updateSession: updateSessionMock,

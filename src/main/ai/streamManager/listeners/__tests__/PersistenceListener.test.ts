@@ -16,7 +16,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const appendMessageMock = vi.fn()
 const messageUpdateMock = vi.fn()
 
-vi.mock('@main/ai/temporaryChat/TemporaryChatService', () => ({
+vi.mock('@data/services/TemporaryChatService', () => ({
   temporaryChatService: {
     appendMessage: appendMessageMock
   }

@@ -4,9 +4,9 @@
  * moves out of the in-memory map and the persistent provider takes over.
  */
 
+import { temporaryChatService } from '@data/services/TemporaryChatService'
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
-import { temporaryChatService } from '@main/ai/temporaryChat/TemporaryChatService'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import type { AiStreamRequest } from '../../types/requests'

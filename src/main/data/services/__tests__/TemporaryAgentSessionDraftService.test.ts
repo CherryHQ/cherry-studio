@@ -1,5 +1,6 @@
-import { TemporaryAgentSessionDraftService } from '@main/ai/agentSession/TemporaryAgentSessionDraftService'
 import { describe, expect, it } from 'vitest'
+
+import { TemporaryAgentSessionDraftService } from '../TemporaryAgentSessionDraftService'
 
 describe('TemporaryAgentSessionDraftService', () => {
   it('leases a user-workspace draft without validating the ids', async () => {
