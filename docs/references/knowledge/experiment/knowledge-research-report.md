@@ -11,6 +11,7 @@
 - 《企业内网 Remote File Mode 知识库调研》
 - 《本地 Embedding 与 Rerank 方案调研报告：Qwen3 + Transformers.js + AI SDK》
 - 《Cherry Studio 知识库产品说明：Agent 管理型知识库》第 13 章（面向未来的知识库工具与检索调研）
+- 《消费级 / 外部云源接入：能力声明式 Connector》（2026-06-09 本仓库内多代理无倾向头脑风暴 + 飞书开放平台 / WebDAV 官方文档事实核验，见 §6）
 
 本报告是[产品文档](./knowledge-product-spec.md)与[技术方案](./knowledge-technical-design.md)引用的**单一调研来源**。两篇文档需要展开调研论证（为什么这样选、对比了什么、论文依据）时，统一链接回本报告对应小节，不在自身重复展开。
 
@@ -20,12 +21,13 @@
 
 ### 0.1 调研问题清单
 
-本报告回答四组面向 v2.x 终态的调研问题：
+本报告回答五组面向 v2.x 终态的调研问题：
 
 1. **File Mode + RAG 整体方案**：未来知识库本质是文件夹，但产品如何超越「普通文件夹」、让检索越用越懂用户？
 2. **企业内网 Remote File Mode**：企业内网 20GB+ 共享知识库场景下，Agent 如何在不整库同步、不本地挂载的前提下读取与检索？
 3. **本地 Embedding / Rerank 选型**：如何把「选模型、配模型」降级为「一键下载默认模型」，跨平台、TS 友好地在本地完成两阶段检索？
 4. **Agent 工具面与自适应检索**：给 Agent 暴露几个、哪些专用工具？知识库为什么要做成独立子系统？检索能否「越用越准」？
+5. **消费级 / 外部云源接入**：飞书知识库、WebDAV 网盘等个人云源如何接入知识库且不整库下载？是否存在一个让所有源（含未来 Notion / Drive）都成为「适配器」的共性抽象？
 
 ### 0.2 方法论
 
@@ -336,7 +338,117 @@ type KbReadPageRequest = { baseId; relativePath; pageStart; pageLimit };
 
 ---
 
-## 6. 论文与外部依据汇编（去重合并）
+## 6. 子调研六 · 消费级 / 外部云源接入（能力声明式 Connector · 以飞书、WebDAV 为例）
+
+> 来源：2026-06-09 本仓库内多代理无倾向头脑风暴 —— 两轮工作流（① 整个飞书知识库接入：4 设计者各持一维度独立提案 → 交叉批判 → 共识；② 共性 Connector 抽象：同结构）+ 对飞书开放平台、WebDAV（RFC 4918/5323/6578）、坚果云 / Nextcloud 官方文档的事实核验。本节是 §5（企业内网 Remote File Mode）的兄弟主题，回答：**消费级 / 个人云源（飞书知识库、WebDAV 网盘，及未来 Notion / Google Drive / S3）如何接入知识库，且不违背用户「不整库下载、访问即可」的信号。**
+
+### 6.1 背景与问题
+
+用户原始信号（某真实用户）：信息天然多形态、多平台、多源；希望多个来源进同一个知识库；「理想不是导入，而是访问即可」（全下载占空间太大），但「访问取决于网速」是矛盾；核心是「让知识库真正发挥作用，且真的是知识库」；并希望电脑 / 手机端同步。
+
+两个把问题逼出来的事实：
+
+- **飞书文档不是「文件」**：它是云端 block + 内嵌对象（表格 / 多维表格 / 画板）的图，没有一个可下载的文件实体——「复制原文件到本地」在飞书上不成立，只能「抽文本投影 + 留 token + 按需回源」。
+- **WebDAV 几乎没有可委托的服务端搜索**：协议级 SEARCH（RFC 5323）绝大多数服务器不实现，Nextcloud 实现的也只搜文件名元数据、非全文——接 WebDAV **必须**客户端自建索引。
+
+这两个源恰好站在能力光谱两端，逼出「一个共性抽象能否同时兜住两端、还能接未来源」的问题。
+
+### 6.2 飞书 / WebDAV 能力事实（论证输入，已核验）
+
+**飞书知识库（wiki）—— 结构化 API 源**
+
+| 维度 | 事实 |
+| --- | --- |
+| 枚举 | 无整树接口；`GET /wiki/v2/spaces`（列空间）→ `GET /wiki/v2/spaces/:id/nodes`（按 `has_child` 递归 BFS，≤50/页，约 100/分） |
+| 节点身份 | `node_token`（库内移动稳定）、`obj_token`（内容句柄 / 跨库去重）、`obj_type`、`node_type`(origin/shortcut)、`obj_edit_time` |
+| 读取 | docx → `GET /docx/v1/documents/:id/raw_content`（整篇纯文本，5/秒）；`/blocks`（结构化，block_id 稳定，分页更贵）；export_tasks 仅 docx/pdf/xlsx/csv（**无 Markdown**） |
+| 内嵌对象 | docx block 只给 sheet/bitable 的 token 引用，要内容须切 sheets/v3、bitable/v1；mindnote / 画板**无结构化读取接口**（仅导 pdf / 截图） |
+| 搜索 | **自带关键词搜**（`search/v2/doc_wiki/search` 文档级 + 一段高亮摘要；`wiki/v2/nodes/search` 只给标题）；**均无语义 / 向量、均只到文档级（非 chunk）** |
+| 变更 | `revision_id`（每次编辑递增，一次廉价 GET 比对）；webhook 须逐文件 subscribe、粗粒度、**桌面 / 移动端无常驻公网回调端点** |
+| 鉴权 | OAuth v2 授权码；`user_access_token` 2h、`refresh_token` 7 天单次轮换（须原子覆盖 + 刷新加锁）、365 天重授权、需 `offline_access`；可见范围 = 用户本人可见；无权限 403 / 91403 |
+| 配额 | 单接口频控（枚举 / 搜索约 100/分、raw_content 5/秒）+ **月度调用总量上限**（单租户共享、不可自助提额、历史 1 万/月、2026-06 限时 100 万/月、超量 99991403）；**个人免费版能否自助授权第三方应用并大规模索引——官方未明确** |
+
+**WebDAV 网盘（坚果云 / Nextcloud / ownCloud / 自建）—— 远程文件源**
+
+| 维度 | 事实 |
+| --- | --- |
+| 枚举 | `PROPFIND` + `Depth`；`Depth:infinity` 广泛禁用 → 逐层 `Depth:1` BFS（RFC 4918） |
+| 元数据 | `getlastmodified`、`getetag`、`getcontentlength`、`getcontenttype`、`resourcetype`(空=文件 / collection=目录) |
+| 读取 | HTTP `GET` 读二进制；HTTP Range 部分读「可选」、实现参差，需探测 `Accept-Ranges` |
+| 搜索 | **协议级 SEARCH（RFC 5323）绝大多数不实现**；Nextcloud 仅搜文件名元数据、非全文；坚果云未确认 → **基本无可委托搜索，必须本地建索引** |
+| 变更 | **无任何推送，只能轮询**：ETag（首选）+ Last-Modified（兜底）；增量标准 RFC 6578 sync-collection 仅 Nextcloud / SabreDAV 等部分支持 |
+| 鉴权 | HTTP Basic（账号 + 应用专用密码，over HTTPS）；密码可撤销 / 改主密码即失效；少数支持 OAuth |
+| 配额 | 协议无配额；服务商各设（坚果云免费版每 30 分钟 ≤600 次、单次 PROPFIND ≤750 条分页、每月 1G 上传 /3G 下载流量）；**无飞书式月度 API 调用总数上限** |
+| 内容 | 原始文件（PDF/docx/md/…），须 app 侧解析抽文本；**无结构化文档 / 内嵌对象复杂性** |
+
+### 6.3 调研结论一 · 共性抽象 = 能力声明式 Connector（置信度：高）
+
+四个独立方案在顶层形状上完全收敛：把每个外部源建模成一个**薄 Connector**，它只回答「我能做什么（能力声明）」与「做这件具体的事」；其余全在**唯一一份公共层**（9 表 index.sqlite、切块、embedding、hybrid RRF / BM25、locator 不透明契约、kb__* 工具、同步循环、OAuth 刷新框架、状态机）只写一次，Connector 一行不碰。
+
+**反原则（四份共守）：抽象绝不替源补它没有的能力。** 差异收进**数据（能力位）**，不收进**代码（接口方法）**——WebDAV 没有服务端搜索就声明 `searchKind='none'`，公共层据此知道必须本地建索引，而**不是逼 WebDAV 实现一个永远 throw 或撒谎的空壳 `search()`**。
+
+**Connector 概念职责（最小集；形态未定——可能是内部接口实现，也可能是 plugin / 扩展点，不锁类型）**：必备 = 逐层枚举材料（带稳定身份 + 版本标记）+ 凭不透明 locator 取内容（含「仅片段 / 无权限 / 失效」等如实状态）+ 声明自身能力 + 源错误码归一；可选（由能力声明 gate）= 原生搜索 / 变更检测 / 鉴权。概念职责与能力维度见[技术方案 §14](./knowledge-technical-design.md)。
+
+**能力位表（把源间差异显式化）**：
+
+| 能力位 | 取值 | 本地 / WebDAV / 飞书 |
+| --- | --- | --- |
+| `searchKind` | none / keyword / semantic / hybrid | none / **none** / **keyword（文档级）** |
+| `searchGranularity` | document / chunk | chunk（本地索引后）/ chunk / **document** |
+| `scoreKind` | relevance / rank / none | relevance / relevance / **rank** |
+| `changeFeed` | push / poll / none | push(fs-watch) / **poll(ETag)** / **poll(revision)** |
+| `contentShape` | file / structured | file / file / **structured** |
+| `authKind` | none / basic / oauth | none / **basic** / **oauth** |
+| `quotaModel` | none / rate / rate+monthly | none / rate / **rate+monthly** |
+| `localityDefault` | mirror / remote | mirror / 可配 / **remote→mirror** |
+
+**重要纠正：`storageKind = local \| remote` 单轴是错的。** 它把四件正交的事（内容放哪 / 检索在哪 / 有没有原生搜索 / 推送还是轮询）压成一维——WebDAV 与飞书同为 remote 但检索路径相反（WebDAV 必本地建索引、飞书可委托）。应把 `storageKind` 降为 `localityDefault` 一个位（内容位置轴），搜索 / 变更 / 鉴权 / 配额各自成正交位。
+
+**三源 + 未来源映射**（验证抽象成立）：本地 = 全能力位关闭的零特例；WebDAV = `searchKind=none`（强制本地索引）+ poll + basic + rate；飞书 = keyword+document + poll + oauth + rate+monthly + remote→mirror（§5 的企业 Gateway 则是 `searchKind=semantic/hybrid` 的另一组取值）；未来 Notion = structured+keyword+oauth+poll+无月配额，公共层零改、仅新 adapter。
+
+**被否的抽象路线**：
+
+| 路线 | 否决理由 |
+| --- | --- |
+| 每源各写一套（不抽象） | hybrid / RRF / OAuth 刷新在每源重复 N 遍，加源必返工；独立表 / 独立 kb__* 工具撞红线①（泄露后端形态） |
+| 胖统一接口 / 大插件框架 | 违反 YAGNI；逼 WebDAV 写永远 throw 的搜索空壳，差异藏进运行时异常而非显式声明，无法做 kb__list 能力协商 |
+| 抹平差异（VFS / 瘦最大公约数） | VFS 撞三条红线；「全部本地建索引」逼飞书全量镜像撞月配额、剥夺有搜索源的优势 |
+| 实时代理做主路径 | 对 `searchKind=none` 的 WebDAV 结构性坍塌（无可代理搜索）；仅可作飞书轻骨架降级态 |
+| 用 storageKind 单轴当总开关 / 把检索做进 Connector | 单轴抹平四个正交维度逼出源特判；检索做进 Connector 等于每个 none 源各抄一遍 BM25 |
+| 声明式 DSL 配置驱动 adapter | 过度设计；OAuth 轮换、Range 探测、配额预算是命令式逻辑 |
+
+### 6.4 调研结论二 · 飞书具体落地 = 骨架先行 → 知情升级（置信度：中）
+
+把「调用飞书次数」与「库规模」解耦的分阶段方案：
+
+- **① 骨架形态（默认，所有用户）**：OAuth → BFS 枚举节点目录（标题 / 路径 / token）存成 MB 级骨架，**零正文 / 零 embedding**；检索委托飞书 `doc_wiki/search`（关键词 + 高亮摘要）。几分钟接入、不撞月配额；代价：只有关键词搜、无语义。
+- **② 语义升级（用户对某库 / 子树知情同意后）**：抽 raw_content → 本地切块嵌入 → 升级本地 hybrid；开启前展示「预计调用数 + 占月额比例 + embedding provider 账单」，后台可断点续传；稳态用 revision 轮询只重抽脏节点（content_hash 不变复用向量）。
+
+目录爬取即上面的逐层 BFS（无整树接口、≤50/页翻页、100/分限速退避、shortcut 去重）；调用次数 ≈「有子节点目录数」+「节点数 /50」，与「要不要抽正文做语义索引」完全分开。
+
+**被否方案**：全量复制 / 整库导出（违背「不下载」、export 无 Markdown、撞配额、脱钩失版本与权限）；纯实时调飞书搜索做主路径（无语义、撞限流、弱网即废，仅作降级）；同步飞书向量索引（能力不存在）；逐文件 webhook 主轨（桌面 / 移动端无公网回调）；tenant_token 统一索引（权限模型错，表达不了按用户本人可见裁剪）；第一版全量下钻内嵌对象 OCR（复杂度爆炸 + 放大配额）；给飞书建独立表 / 工具（过度设计）。
+
+**残余分歧**：默认偏「骨架」还是「语义镜像」——工作流 3 票偏语义镜像、1 票偏轻骨架，共识用分阶段弥合，但「默认偏哪边、超大库是否禁全量升级」是产品判断、工程定不了（这正是用户两条矛盾信号「不下载占空间」vs「访问受网速」的系统投影）。
+
+### 6.5 待拍板的产品 / 架构决策
+
+1. **检索地板设在哪**（唯一真正对立点，须产品拍板）：本地索引永远是地板（对 WebDAV `searchKind=none` 唯一可行、score 语义统一）↔ remote 纯委托轻骨架也是合法常驻态（省配额、不下载，但受网速、质量劣）。共识折中：本地索引为 v2 默认地板，纯委托轻骨架作为知情同意的显式降级态（`fidelity=skeleton-only`）。
+2. **material 身份改造的时机**：经核实 `material.relative_path` 为 NOT NULL UNIQUE + CHECK、`origin` 枚举无 `connector` 值、`search_unit.unit_type` 无 `document` 值、远端源无合法本地路径、飞书轻骨架要求 material 行在无路径 / 无 content_hash 时存在并被检索委托——**「零改 schema」对远端源不成立**，真实代价至少是加源身份列 + 扩 origin 枚举 + read 校验分两路（mirror 走 content_hash、remote 走 versionTag）。落地与对 PR A 的影响见[技术方案 §14.5](./knowledge-technical-design.md)。
+3. **能力位静态 vs 运行时可变**：与「能力协商前移到 kb__list 一次性快照」（§2 / §4）相关；倾向静态 + 注册期探测写死，运行态变化走 forbidden / unsupported / stale 兜底。
+4. **飞书个人版可行性（前置阻断）**：个人免费用户能否自助授权第三方应用并大规模索引官方未明确，须先用真实账号 / 自建测试企业实测 OAuth + doc_wiki/search 走通，作为发布前阻断项；若只能落地「有管理员审核的企业（可能买付费版）」，则「月度配额」这一最大风险可能消失，成本论证改写。
+5. **跨设备同步**：用户明确要电脑 / 手机同步，但「含向量的 index.sqlite + OAuth 凭据（refresh_token 单次轮换的多端竞态）如何跨设备」四份共识判为与 Connector 正交、留存储层另解（先只同步「接了哪些源 + 接入配置」）。
+
+### 6.6 对 Cherry 的建议
+
+- 把外部源统一抽象为**能力声明式 Connector**，公共层只写一次，飞书 / WebDAV / 企业 Gateway / 未来源都是 adapter；差异用能力位表达，不用接口方法。
+- `storageKind` 降为 `localityDefault` 一个位，与 `searchKind` / `changeFeed` / `authKind` / `quotaModel` 各自正交。
+- 飞书先做「骨架先行」MVP（不撞配额、立即可用），语义镜像作知情同意的可选升级；首发更轻的云源可优先 WebDAV（真文件、无月配额，更接近现有「导入即复制」管线）。
+- 在 PR A 冻结 store 契约前，评估是否把 material 身份模型对远端源的需求一次性纳入（见 §6.5#2、[技术方案 §14.5](./knowledge-technical-design.md)）。
+- 落地形态（Connector 概念职责与能力维度、飞书 / WebDAV 适配映射、material 身份改造；接口 / plugin 形态待定）见[技术方案 §14](./knowledge-technical-design.md)，本节负责架构论证与方案评估。
+
+---
+
+## 7. 论文与外部依据汇编（去重合并）
 
 > 合并各子调研引用并去重。外部检索可用性说明：File Mode+RAG 调研中 arXiv 查询 2 次分别遇 429 / 503、Gemini 综述查询超时，故部分 arXiv 未作有效外部结论来源，最终以 Web / 官方文档 + 论文 + 多角色辩论为准；工具面调研的 39 篇论文经对抗式存在性核验后纳入。
 
@@ -396,7 +508,7 @@ type KbReadPageRequest = { baseId; relativePath; pageStart; pageLimit };
 
 ---
 
-## 7. 调研结论与对落地的输入
+## 8. 调研结论与对落地的输入
 
 > 汇总各子调研被采纳的裁决与对产品 / 技术的输入锚点（被两篇文档链接引用的结论）。
 
@@ -409,6 +521,7 @@ type KbReadPageRequest = { baseId; relativePath; pageStart; pageLimit };
 - 越用越准：三轨 P0~P1，唯一新增一张轻量 `usage_event` 表，配位置纠偏 + 探索配额护栏，数据不出设备。
 - embedding / rerank（as-built 修正）：统一走 `AiService` → 用户配置 provider 的 API（与 Chat 共用凭证，`#15796`），**非**本地 ONNX；§3 的本地 Qwen3 选型未被采纳，保留为未来全离线可选路线。Qwen3-Reranker-0.6B 本地过慢已 Pass。
 - 企业场景：Remote File Mode + Knowledge Gateway，保留文件语义但放弃本地 fs 唯一内容源假设，服务端强制 ACL，默认只读。
+- 消费级 / 外部云源（高置信）：统一为**能力声明式 Connector**（2 必选端口 + 能力位 gate 的可选端口），公共层只写一次，差异收进能力位；`storageKind` 降为 `localityDefault` 一个位。飞书走「骨架先行 → 知情升级」（中置信）、WebDAV 必本地建索引。检索地板与 material 身份改造待拍板（见 §6.5）。
 
 **各子调研的实施 / 阶段建议（落地路线由技术方案统一）**
 
@@ -418,5 +531,6 @@ type KbReadPageRequest = { baseId; relativePath; pageStart; pageLimit };
 | Remote File Mode | MVP1 只读 → MVP2 工具接入 → MVP3 权限审计 → MVP4 上传与增量索引 → 后续受控写入 |
 | 本地 Embedding/Rerank | as-built 已改走 AiService→provider（非本地 ONNX）；本节本地路线留作未来全离线可选项，Qwen3-VL 多模态路线中期保留 |
 | 工具面与自适应检索 | 越用越准三轨均 P0~P1，前两轨前几项优先且几乎全复用已规划表 |
+| 消费级 / 外部云源 Connector | 共性抽象（高置信，v2.x+）；飞书骨架先行 → 知情升级（中置信）；首发云源建议先 WebDAV 后飞书；material 身份改造须在 PR A 冻结前评估 |
 
 这些建议是方向性输入；v2 当前阶段的 PR 拆分（2026-06-09 重规划为 3 个 PR）与 as-built 状态以[技术方案 §15](./knowledge-technical-design.md)为准，产品可感知口径以[产品文档](./knowledge-product-spec.md)为准。
