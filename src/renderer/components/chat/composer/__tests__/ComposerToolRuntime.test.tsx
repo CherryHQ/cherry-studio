@@ -135,8 +135,10 @@ import {
   ComposerToolMenu,
   ComposerToolRuntimeHost,
   ComposerToolRuntimeProvider,
+  useComposerToolDispatch,
   useComposerToolLauncherActions,
-  useComposerToolLauncherController
+  useComposerToolLauncherController,
+  useComposerToolState
 } from '../ComposerToolRuntime'
 import { TopicType } from '../tools/types'
 
@@ -197,6 +199,26 @@ const LauncherActionReader = ({
   return null
 }
 
+const FileStateObserver = ({ onSnapshot }: { onSnapshot: (files: any[]) => void }) => {
+  const { files } = useComposerToolState()
+
+  useEffect(() => {
+    onSnapshot(files)
+  }, [files, onSnapshot])
+
+  return null
+}
+
+const FileStateWriter = ({ nextFiles }: { nextFiles: any[] }) => {
+  const { setFiles } = useComposerToolDispatch()
+
+  useEffect(() => {
+    setFiles(nextFiles)
+  }, [nextFiles, setFiles])
+
+  return null
+}
+
 beforeEach(() => {
   mockDropdownMenuSelectEvents.length = 0
   mockGetToolsForScope.mockReset()
@@ -222,6 +244,71 @@ const renderRuntime = (tools: any[], node: ReactNode) => {
 }
 
 describe('ComposerToolRuntimeHost', () => {
+  it('normalizes initial composer files with file token source ids', async () => {
+    const onSnapshot = vi.fn()
+
+    render(
+      <ComposerToolRuntimeProvider
+        initialState={{
+          files: [
+            {
+              id: 'file-entry-1',
+              path: '/tmp/report.pdf',
+              fileTokenSourceId: '/tmp/report.pdf'
+            } as any
+          ]
+        }}
+        actions={{
+          addNewTopic: vi.fn(),
+          onTextChange: vi.fn()
+        }}>
+        <FileStateObserver onSnapshot={onSnapshot} />
+      </ComposerToolRuntimeProvider>
+    )
+
+    await waitFor(() => {
+      expect(onSnapshot).toHaveBeenCalledWith([
+        expect.objectContaining({
+          id: 'file-entry-1',
+          path: '/tmp/report.pdf',
+          fileTokenSourceId: expect.any(String)
+        })
+      ])
+    })
+    const file = onSnapshot.mock.lastCall?.[0]?.[0]
+    expect(file.fileTokenSourceId).not.toBe('file-entry-1')
+    expect(file.fileTokenSourceId).not.toBe('/tmp/report.pdf')
+  })
+
+  it('normalizes files written through setFiles', async () => {
+    const onSnapshot = vi.fn()
+    const nextFiles = [{ id: 'file-entry-2', path: '/tmp/notes.md' }]
+
+    render(
+      <ComposerToolRuntimeProvider
+        actions={{
+          addNewTopic: vi.fn(),
+          onTextChange: vi.fn()
+        }}>
+        <FileStateWriter nextFiles={nextFiles} />
+        <FileStateObserver onSnapshot={onSnapshot} />
+      </ComposerToolRuntimeProvider>
+    )
+
+    await waitFor(() => {
+      expect(onSnapshot).toHaveBeenLastCalledWith([
+        expect.objectContaining({
+          id: 'file-entry-2',
+          path: '/tmp/notes.md',
+          fileTokenSourceId: expect.any(String)
+        })
+      ])
+    })
+    const file = onSnapshot.mock.lastCall?.[0]?.[0]
+    expect(file.fileTokenSourceId).not.toBe('file-entry-2')
+    expect(file.fileTokenSourceId).not.toBe('/tmp/notes.md')
+  })
+
   it('does not re-register tools when launcher registry updates its version', async () => {
     const createItems = vi.fn(() => [menuLauncher])
     let runtimeRegisterCount = 0

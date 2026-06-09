@@ -1,5 +1,9 @@
 import type { ComposerToolLauncher } from '@renderer/components/chat/composer/toolLauncher'
 import type { FileMetadata } from '@renderer/types'
+import {
+  type ComposerFileMetadata,
+  withComposerFileTokenSourceIds
+} from '@renderer/utils/messageUtils/composerFileTokenSource'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 import React, { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -10,7 +14,7 @@ import React, { createContext, use, useCallback, useEffect, useMemo, useRef, use
  */
 export interface ComposerToolState {
   /** Attached files */
-  files: FileMetadata[]
+  files: ComposerFileMetadata[]
   /** Models selected by the composer model selector for the current send */
   mentionedModels: Model[]
   /** Selected knowledge base items */
@@ -139,7 +143,9 @@ interface ComposerToolProviderProps {
 
 export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ children, initialState, actions }) => {
   // Core state
-  const [files, setFiles] = useState<FileMetadata[]>(initialState?.files || [])
+  const [files, setComposerFiles] = useState<ComposerFileMetadata[]>(() =>
+    withComposerFileTokenSourceIds(initialState?.files || [])
+  )
   const [mentionedModels, setMentionedModels] = useState<Model[]>(initialState?.mentionedModels || [])
   const [selectedKnowledgeBases, setSelectedKnowledgeBases] = useState<KnowledgeBase[]>(
     initialState?.selectedKnowledgeBases || []
@@ -186,6 +192,12 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
     }),
     []
   )
+
+  const setFiles = useCallback<React.Dispatch<React.SetStateAction<FileMetadata[]>>>((nextFiles) => {
+    setComposerFiles((previousFiles) =>
+      withComposerFileTokenSourceIds(typeof nextFiles === 'function' ? nextFiles(previousFiles) : nextFiles)
+    )
+  }, [])
 
   // State Context Value (updates when state changes)
   const stateValue = useMemo<ComposerToolState>(
@@ -252,7 +264,7 @@ export const ComposerToolProvider: React.FC<ComposerToolProviderProps> = ({ chil
       toolsRegistry: toolsRegistryAPI,
       triggers: stableTriggersAPI
     }),
-    [stableActions, toolsRegistryAPI, stableTriggersAPI]
+    [setFiles, stableActions, toolsRegistryAPI, stableTriggersAPI]
   )
 
   return (

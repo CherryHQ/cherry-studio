@@ -4,9 +4,10 @@ import { describe, expect, it } from 'vitest'
 import type { ComposerSerializedToken } from '../../../tokens'
 import attachmentTool from '../attachmentTool'
 
-const file = (id: string): FileMetadata => ({ id, path: `/tmp/${id}` }) as FileMetadata
+const file = (id: string): FileMetadata =>
+  ({ id: `entry-${id}`, fileTokenSourceId: `source-${id}`, path: `/tmp/${id}` }) as FileMetadata
 const fileToken = (id: string): ComposerSerializedToken => ({
-  id: `file:${id}`,
+  id: `file:source-${id}`,
   kind: 'file',
   label: id,
   index: 0,

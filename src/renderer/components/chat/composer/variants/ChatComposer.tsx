@@ -38,6 +38,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { withCherryMeta } from '@shared/data/types/uiParts'
 import { isNonChatModel } from '@shared/utils/model'
 import { Bot } from 'lucide-react'
 import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
@@ -118,6 +119,8 @@ interface SavedComposerDraft {
   files: FileMetadata[]
   selectedKnowledgeBases: KnowledgeBase[]
 }
+
+type ComposerFilePart = Extract<CherryMessagePart, { type: 'file' }>
 
 interface ChatComposerContextControlsProps {
   assistantId: string | null
@@ -431,6 +434,7 @@ const ChatComposerInner = ({
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
+  const editingOriginalFilePartsByTokenIdRef = useRef(new Map<string, ComposerFilePart>())
   const restoredEditingSessionIdRef = useRef<number | null>(null)
   const selectAssistantMessage = t('button.select_assistant')
   const displayAssistant = assistant
@@ -552,6 +556,15 @@ const ChatComposerInner = ({
 
   const restoreEditableMessageDraft = useEffectEvent((nextEditingMessage: NonNullable<typeof editingMessage>) => {
     const editableDraft = createEditableMessageDraft(nextEditingMessage.parts)
+    const originalFilePartsByTokenId = new Map<string, ComposerFilePart>()
+    const originalFileParts = nextEditingMessage.parts.filter(
+      (part): part is ComposerFilePart => part.type === 'file' && !!part.url
+    )
+    originalFileParts.forEach((part, index) => {
+      const file = editableDraft.files[index]
+      if (file) originalFilePartsByTokenId.set(chatComposerTokenId.file(file), part)
+    })
+    editingOriginalFilePartsByTokenIdRef.current = originalFilePartsByTokenId
     setTextState(editableDraft.text)
     setDraftTokens(editableDraft.draftTokens)
     setFiles(editableDraft.files)
@@ -561,6 +574,7 @@ const ChatComposerInner = ({
   useEffect(() => {
     if (!editingMessageForCurrentTopic) {
       restoredEditingSessionIdRef.current = null
+      editingOriginalFilePartsByTokenIdRef.current = new Map()
       return
     }
     if (restoredEditingSessionIdRef.current === editingMessageForCurrentTopic.editingSessionId) return
@@ -734,21 +748,7 @@ const ChatComposerInner = ({
     (draft: ComposerSerializedDraft) => {
       const tokenIds = getComposerTokenIds(draft.tokens)
       const payloadFiles = files.filter((file) => tokenIds.has(chatComposerTokenId.file(file)))
-      const originalFilePartsByTokenId = new Map<string, Extract<CherryMessagePart, { type: 'file' }>>()
-
-      if (editingMessageForCurrentTopic) {
-        const editableDraft = createEditableMessageDraft(editingMessageForCurrentTopic.parts)
-        // Keep this filter aligned with editableDraft.files: createEditableFileMetadata only drops
-        // parts without a url, so excluding url-less file parts keeps the two arrays index-aligned.
-        const originalFileParts = editingMessageForCurrentTopic.parts.filter(
-          (part): part is Extract<CherryMessagePart, { type: 'file' }> => part.type === 'file' && !!part.url
-        )
-
-        originalFileParts.forEach((part, index) => {
-          const file = editableDraft.files[index]
-          if (file) originalFilePartsByTokenId.set(chatComposerTokenId.file(file), part)
-        })
-      }
+      const originalFilePartsByTokenId = editingOriginalFilePartsByTokenIdRef.current
 
       const newFiles = payloadFiles.filter((file) => !originalFilePartsByTokenId.has(chatComposerTokenId.file(file)))
       const rebuiltParts = createComposerUserMessageParts(draft, { files: newFiles })
@@ -764,12 +764,15 @@ const ChatComposerInner = ({
         textPart,
         ...payloadFiles.flatMap((file) => {
           const tokenId = chatComposerTokenId.file(file)
-          const filePart = originalFilePartsByTokenId.get(tokenId) ?? rebuiltFileParts.get(tokenId)
+          const originalFilePart = originalFilePartsByTokenId.get(tokenId)
+          const filePart = originalFilePart
+            ? withCherryMeta(originalFilePart, { fileTokenSourceId: file.fileTokenSourceId })
+            : rebuiltFileParts.get(tokenId)
           return filePart ? [filePart] : []
         })
       ]
     },
-    [editingMessageForCurrentTopic, files]
+    [files]
   )
 
   const handleSendDraft = useCallback(

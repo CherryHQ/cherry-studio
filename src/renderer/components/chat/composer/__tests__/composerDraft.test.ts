@@ -370,7 +370,15 @@ describe('composer draft serialization', () => {
 
     expect(
       createComposerUserMessageParts(draft, {
-        files: [{ path: '/tmp/notes.md', name: 'notes.md', origin_name: 'notes.md', ext: '.md' }]
+        files: [
+          {
+            path: '/tmp/notes.md',
+            name: 'notes.md',
+            origin_name: 'notes.md',
+            ext: '.md',
+            fileTokenSourceId: 'source-notes'
+          }
+        ]
       })
     ).toEqual([
       {
@@ -389,7 +397,56 @@ describe('composer draft serialization', () => {
         type: 'file',
         url: '/tmp/notes.md',
         mediaType: '.md',
-        filename: 'notes.md'
+        filename: 'notes.md',
+        providerMetadata: {
+          cherry: {
+            fileTokenSourceId: 'source-notes'
+          }
+        }
+      }
+    ])
+  })
+
+  it('preserves existing Cherry file metadata when adding the file token source id', () => {
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [{ type: 'text', text: 'Read report' }]
+        }
+      ]
+    })
+
+    expect(
+      createComposerUserMessageParts(draft, {
+        files: [
+          {
+            path: '/tmp/report.pdf',
+            name: 'report.pdf',
+            origin_name: 'report.pdf',
+            ext: '.pdf',
+            fileTokenSourceId: 'source-report',
+            providerMetadata: { cherry: { fileEntryId: 'entry-report' } }
+          }
+        ]
+      })
+    ).toEqual([
+      {
+        type: 'text',
+        text: 'Read report'
+      },
+      {
+        type: 'file',
+        url: '/tmp/report.pdf',
+        mediaType: '.pdf',
+        filename: 'report.pdf',
+        providerMetadata: {
+          cherry: {
+            fileEntryId: 'entry-report',
+            fileTokenSourceId: 'source-report'
+          }
+        }
       }
     ])
   })

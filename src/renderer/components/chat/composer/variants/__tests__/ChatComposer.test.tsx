@@ -1468,6 +1468,10 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
     const fileToken = mocks.surfaceProps?.tokens.find((token) => token.kind === 'file')
     expect(fileToken).toBeDefined()
+    expect(fileToken?.id).toMatch(/^file:.+/)
+    expect(fileToken?.id).not.toBe('file:file-entry-1')
+    expect((fileToken?.payload as any)?.id).toBe('file-entry-1')
+    expect((fileToken?.payload as any)?.fileTokenSourceId).not.toBe('file-entry-1')
 
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({
@@ -1477,7 +1481,15 @@ describe('ChatComposer', () => {
     })
 
     const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, unknown>>
-    expect(editedParts.find((part) => part.type === 'file')).toEqual(filePart)
+    expect(editedParts.find((part) => part.type === 'file')).toEqual({
+      ...filePart,
+      providerMetadata: {
+        cherry: {
+          fileEntryId: 'file-entry-1',
+          fileTokenSourceId: fileToken?.id.slice('file:'.length)
+        }
+      }
+    })
     expect(forkAndResend).toHaveBeenCalledWith('message-1', expect.any(Array))
     expect(editMessage).not.toHaveBeenCalled()
     expect(resend).not.toHaveBeenCalled()
@@ -1548,13 +1560,22 @@ describe('ChatComposer', () => {
     )
 
     await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
-    expect(mocks.surfaceProps?.draftTokens).toEqual([expect.objectContaining(fileToken)])
-    expect(mocks.surfaceProps?.tokens).toEqual([expect.objectContaining({ id: fileToken.id, kind: 'file' })])
+    const rewrittenToken = mocks.surfaceProps?.draftTokens?.[0]
+    expect(rewrittenToken).toEqual(
+      expect.objectContaining({
+        kind: 'file',
+        label: 'test.pdf',
+        textOffset: 0
+      })
+    )
+    expect(rewrittenToken?.id).toMatch(/^file:.+/)
+    expect(rewrittenToken?.id).not.toBe(fileToken.id)
+    expect(mocks.surfaceProps?.tokens).toEqual([expect.objectContaining({ id: rewrittenToken?.id, kind: 'file' })])
 
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({
         text: 'test.pdf 你好',
-        tokens: [fileToken]
+        tokens: [rewrittenToken!]
       })
     })
 
@@ -1565,12 +1586,20 @@ describe('ChatComposer', () => {
       providerMetadata: {
         cherry: {
           composer: {
-            tokens: [expect.objectContaining({ id: fileToken.id, kind: 'file', textOffset: 0 })]
+            tokens: [expect.objectContaining({ id: rewrittenToken?.id, kind: 'file', textOffset: 0 })]
           }
         }
       }
     })
-    expect(editedParts.find((part) => part.type === 'file')).toEqual(filePart)
+    expect(editedParts.find((part) => part.type === 'file')).toEqual({
+      ...filePart,
+      providerMetadata: {
+        cherry: {
+          fileEntryId: 'file-entry-1',
+          fileTokenSourceId: rewrittenToken?.id.slice('file:'.length)
+        }
+      }
+    })
     expect(editMessage).not.toHaveBeenCalled()
     expect(resend).not.toHaveBeenCalled()
   })
@@ -1643,16 +1672,41 @@ describe('ChatComposer', () => {
     )
 
     await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    const rewrittenPdfToken = mocks.surfaceProps?.draftTokens?.find((token) => token.label === 'a.pdf')
+    const rewrittenPngToken = mocks.surfaceProps?.draftTokens?.find((token) => token.label === 'b.png')
+    expect(rewrittenPdfToken?.id).toMatch(/^file:.+/)
+    expect(rewrittenPngToken?.id).toMatch(/^file:.+/)
+    expect(rewrittenPdfToken?.id).not.toBe(pdfToken.id)
+    expect(rewrittenPngToken?.id).not.toBe(pngToken.id)
 
     await act(async () => {
-      await mocks.surfaceProps?.onSendDraft({ text: 'a.pdf b.png', tokens: [pdfToken, pngToken] })
+      await mocks.surfaceProps?.onSendDraft({ text: 'a.pdf b.png', tokens: [rewrittenPdfToken!, rewrittenPngToken!] })
     })
 
     const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, any>>
     const fileParts = editedParts.filter((part) => part.type === 'file')
-    // Both originals are reused verbatim (no re-attachment as new files), each linked to the
-    // correct part by fileEntryId despite the reversed token order.
-    expect(fileParts).toEqual([pngPart, pdfPart])
+    // Both originals are reused by file fields, each linked through legacy hints while the
+    // editable draft and resent parts use fresh file token sources.
+    expect(fileParts).toEqual([
+      {
+        ...pngPart,
+        providerMetadata: {
+          cherry: {
+            fileEntryId: 'entry-png',
+            fileTokenSourceId: rewrittenPngToken?.id.slice('file:'.length)
+          }
+        }
+      },
+      {
+        ...pdfPart,
+        providerMetadata: {
+          cherry: {
+            fileEntryId: 'entry-pdf',
+            fileTokenSourceId: rewrittenPdfToken?.id.slice('file:'.length)
+          }
+        }
+      }
+    ])
     expect(editMessage).not.toHaveBeenCalled()
     expect(resend).not.toHaveBeenCalled()
   })
@@ -1708,14 +1762,26 @@ describe('ChatComposer', () => {
     )
 
     await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    const rewrittenToken = mocks.surfaceProps?.draftTokens?.[0]
+    expect(rewrittenToken?.id).toMatch(/^file:.+/)
+    expect(rewrittenToken?.id).not.toBe(ghostToken.id)
 
     await act(async () => {
-      await mocks.surfaceProps?.onSendDraft({ text: 'x.pdf 你好', tokens: [ghostToken] })
+      await mocks.surfaceProps?.onSendDraft({ text: 'x.pdf 你好', tokens: [rewrittenToken!] })
     })
 
     const editedParts = forkAndResend.mock.calls[0]?.[1] as Array<Record<string, any>>
-    // The attachment is preserved (reused verbatim), not dropped, via the unambiguous fallback.
-    expect(editedParts.find((part) => part.type === 'file')).toEqual(filePart)
+    // The attachment is preserved, not dropped, via the unambiguous fallback while the
+    // resent part records the canonical file token source.
+    expect(editedParts.find((part) => part.type === 'file')).toEqual({
+      ...filePart,
+      providerMetadata: {
+        cherry: {
+          fileEntryId: 'real-1',
+          fileTokenSourceId: rewrittenToken?.id.slice('file:'.length)
+        }
+      }
+    })
     expect(editMessage).not.toHaveBeenCalled()
     expect(resend).not.toHaveBeenCalled()
   })
