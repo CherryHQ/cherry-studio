@@ -16,10 +16,11 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateAssistantDto, ListAssistantsQuery, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
+import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Tag } from '@shared/data/types/tag'
-import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 
 import { modelService } from './ModelService'
 import { pinService } from './PinService'
@@ -32,6 +33,7 @@ const logger = loggerService.withContext('DataApi:AssistantService')
 type AssistantRow = typeof assistantTable.$inferSelect
 
 type AssistantRelationIds = Pick<Assistant, 'mcpServerIds' | 'knowledgeBaseIds'>
+type AssistantEntitySearchItem = Extract<EntitySearchItem, { type: 'assistant' }>
 type AssistantRowWithModelName = {
   assistant: AssistantRow
   modelName: string | null
@@ -62,6 +64,17 @@ function rowToAssistant(
     tags,
     modelName
   }
+}
+
+function buildSearchPredicate(q: string | undefined): SQL | undefined {
+  const trimmed = q?.trim()
+  if (!trimmed) return undefined
+
+  const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
+  const nameMatch = sql`${assistantTable.name} LIKE ${pattern} ESCAPE '\\'`
+  const descMatch = sql`${assistantTable.description} LIKE ${pattern} ESCAPE '\\'`
+
+  return or(nameMatch, descMatch)
 }
 
 export class AssistantDataService {
@@ -195,6 +208,38 @@ export class AssistantDataService {
       tagService.getTagsByEntitiesTx(this.db, 'assistant', [id])
     ])
     return rowToAssistant(row.assistant, relations.get(id), tags.get(id), row.modelName || null)
+  }
+
+  async search(query: { q: string; limit: number; updatedAtFrom?: number }): Promise<AssistantEntitySearchItem[]> {
+    const conditions: SQL[] = [isNull(assistantTable.deletedAt)]
+    const searchClause = buildSearchPredicate(query.q)
+    if (searchClause) conditions.push(searchClause)
+    if (query.updatedAtFrom !== undefined) {
+      conditions.push(gte(assistantTable.updatedAt, query.updatedAtFrom))
+    }
+
+    const rows = await this.db
+      .select({
+        id: assistantTable.id,
+        name: assistantTable.name,
+        description: assistantTable.description,
+        emoji: assistantTable.emoji,
+        updatedAt: assistantTable.updatedAt
+      })
+      .from(assistantTable)
+      .where(and(...conditions))
+      .orderBy(desc(assistantTable.updatedAt), asc(assistantTable.id))
+      .limit(query.limit)
+
+    return rows.map((row) => ({
+      type: 'assistant',
+      id: row.id,
+      title: row.name,
+      subtitle: row.description || undefined,
+      emoji: row.emoji,
+      updatedAt: timestampToISO(row.updatedAt),
+      target: { assistantId: row.id }
+    }))
   }
 
   /**

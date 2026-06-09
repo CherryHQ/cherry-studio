@@ -86,9 +86,9 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
       {showToolsCalling && isFunctionCallingModel(model) && (
         <ToolsCallingTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />
       )}
-      {isEmbeddingModel(model) && <EmbeddingTag size={size} />}
-      {showFree && isFreeModel(model) && <FreeTag size={size} />}
-      {isRerankModel(model) && <RerankerTag size={size} />}
+      {isEmbeddingModel(model) && <EmbeddingTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
+      {showFree && isFreeModel(model) && <FreeTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
+      {isRerankModel(model) && <RerankerTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
     </div>
   )
 }

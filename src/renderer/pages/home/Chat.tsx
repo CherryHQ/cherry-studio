@@ -5,7 +5,7 @@ import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
+import { useCommandHandler } from '@renderer/features/command'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -51,7 +51,7 @@ const Chat: FC<Props> = (props) => {
     contentSearchRef.current?.disable()
   })
 
-  useShortcut('chat.search_message', () => {
+  useCommandHandler('chat.message.search', () => {
     try {
       const selectedText = window.getSelection()?.toString().trim()
       contentSearchRef.current?.enable(selectedText)
@@ -60,7 +60,7 @@ const Chat: FC<Props> = (props) => {
     }
   })
 
-  useShortcut('topic.rename', async () => {
+  useCommandHandler('topic.rename', async () => {
     const topic = props.activeTopic
     if (!topic) return
 

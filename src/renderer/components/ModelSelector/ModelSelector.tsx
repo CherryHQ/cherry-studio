@@ -15,7 +15,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isDev } from '@renderer/config/constant'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
+import { useCommandHandler } from '@renderer/features/command'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
 import { first } from 'lodash'
@@ -751,6 +751,6 @@ function ShortcutBinding({
   shortcut: NonNullable<ModelSelectorProps['shortcut']>
   onTrigger: () => void
 }) {
-  useShortcut(shortcut, onTrigger)
+  useCommandHandler(shortcut, onTrigger)
   return null
 }

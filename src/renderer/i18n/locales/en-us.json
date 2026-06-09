@@ -779,19 +779,19 @@
     },
     "warning": {
       "enable_and_start": "Enable & Start",
-      "enable_server": "Enable API Server to use agents.",
-      "enable_server_description": "The API server must be enabled for agents to work. You can enable it directly or configure it in settings.",
-      "server_not_running": "API Server is enabled but not running. Please check the server configuration.",
-      "server_not_running_description": "The API server needs to be running for agents to work. You can start it directly or check the settings."
+      "enable_server": "Enable API Gateway to use agents.",
+      "enable_server_description": "The API Gateway must be enabled for agents to work. You can enable it directly or configure it in settings.",
+      "server_not_running": "API Gateway is enabled but not running. Please check the server configuration.",
+      "server_not_running_description": "The API Gateway needs to be running for agents to work. You can start it directly or check the settings."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "Copy",
       "regenerate": "Regenerate",
       "restart": {
         "button": "Restart",
-        "tooltip": "Restart Server"
+        "tooltip": "Restart Gateway"
       },
       "start": "Start",
       "stop": "Stop"
@@ -801,7 +801,7 @@
     },
     "authHeaderText": "Use in Authorization header:",
     "configuration": "Configuration",
-    "description": "Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
+    "description": "Expose Cherry Studio's AI capabilities through OpenAI- and Anthropic-compatible HTTP APIs",
     "documentation": {
       "title": "API Documentation"
     },
@@ -813,8 +813,8 @@
         "placeholder": "API key will be auto-generated"
       },
       "port": {
-        "description": "TCP port number for the HTTP server (1000-65535)",
-        "helpText": "Stop server to change port",
+        "description": "TCP port number for the gateway (1000-65535)",
+        "helpText": "Stop the gateway to change port",
         "label": "Port"
       },
       "url": {
@@ -825,22 +825,22 @@
     "messages": {
       "apiKeyCopied": "API Key copied to clipboard",
       "apiKeyRegenerated": "API Key regenerated",
-      "notEnabled": "The API Server is not enabled.",
-      "operationFailed": "API Server operation failed: ",
-      "restartError": "Failed to restart API Server: ",
-      "restartFailed": "API Server restart failed: ",
-      "restartSuccess": "API Server restarted successfully",
-      "startError": "Failed to start API Server: ",
-      "startSuccess": "API Server started successfully",
-      "stopError": "Failed to stop API Server: ",
-      "stopSuccess": "API Server stopped successfully",
-      "urlCopied": "Server URL copied to clipboard"
+      "notEnabled": "The API Gateway is not enabled.",
+      "operationFailed": "API Gateway operation failed: ",
+      "restartError": "Failed to restart API Gateway: ",
+      "restartFailed": "API Gateway restart failed: ",
+      "restartSuccess": "API Gateway restarted successfully",
+      "startError": "Failed to start API Gateway: ",
+      "startSuccess": "API Gateway started successfully",
+      "stopError": "Failed to stop API Gateway: ",
+      "stopSuccess": "API Gateway stopped successfully",
+      "urlCopied": "Gateway URL copied to clipboard"
     },
     "status": {
       "running": "Running",
       "stopped": "Stopped"
     },
-    "title": "API Server"
+    "title": "API Gateway"
   },
   "appMenu": {
     "about": "About",
@@ -1191,7 +1191,7 @@
       "auto_resize": "Auto resize height",
       "clear": {
         "content": "Do you want to clear all messages of the current topic?",
-        "label": "Clear {{Command}}",
+        "label": "Clear",
         "title": "Clear all messages?"
       },
       "collapse": "Collapse",
@@ -1209,7 +1209,7 @@
       "generate_image_not_supported": "The model does not support generating images.",
       "knowledge_base": "Knowledge Base",
       "new": {
-        "context": "Clear Context {{Command}}"
+        "context": "Clear Context"
       },
       "new_session": "New Session {{Command}}",
       "new_topic": "New Topic {{Command}}",
@@ -2155,23 +2155,17 @@
         },
         "note": {
           "description": "Select existing notes as knowledge base sources",
-          "empty_description": "Selectable notes will appear here after the real notes list is connected. For now, use files, folders, URLs, or sitemaps.",
+          "empty_description": "Selectable notes will appear here after the real notes list is connected. For now, use files, folders, or URLs.",
           "empty_title": "Notes are not connected yet"
         },
         "placeholder": {
           "supported_formats": "Supports PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Click to select files or drag them here"
         },
-        "sitemap": {
-          "description": "Enter a sitemap URL:",
-          "help": "Pages listed in the sitemap will be read and indexed",
-          "placeholder": "https://example.com/sitemap.xml"
-        },
         "sources": {
           "directory": "Folder",
           "file": "File",
           "note": "Note",
-          "sitemap": "Website",
           "url": "URL"
         },
         "submit": {
@@ -2209,9 +2203,6 @@
           "file": {
             "title": "File"
           },
-          "sitemap": {
-            "title": "Website Sync"
-          },
           "url": {
             "title": "URL"
           }
@@ -2224,7 +2215,6 @@
         "directory": "Folders",
         "file": "Files",
         "note": "Notes",
-        "sitemap": "Websites",
         "url": "URLs"
       },
       "preview": {
@@ -6147,6 +6137,9 @@
         "enabled": "Enabled",
         "failed": "Failed",
         "failed_to_start": "Failed to start health check",
+        "generation_output_audio": "audio",
+        "generation_output_image": "an image",
+        "generation_output_video": "a video",
         "keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
         "model_status_failed": "{{count}} models completely inaccessible",
         "model_status_partial": "{{count}} models had inaccessible keys",
@@ -6155,6 +6148,7 @@
         "no_api_keys": "No API keys found, please add API keys first.",
         "no_results": "No results",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "{{count}} skipped",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Passed",
@@ -6166,8 +6160,11 @@
         "retry": "Check again",
         "select_api_key": "Select the API key to use:",
         "single": "Single",
+        "skip_reason_generation_cost": "This model's health check would generate {{output}} and consume quota, so it is skipped by default.",
+        "skip_reason_unsupported_probe": "This model type does not have a low-cost health check yet, so it is skipped by default.",
         "start": "Start",
         "status_checking": "Checking…",
+        "status_skipped": "Skipped",
         "timeout": "Timeout",
         "title": "Model health check",
         "use_all_keys": "Key(s)"
@@ -6176,6 +6173,8 @@
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "empty": "No models found",
+      "group_disable": "Close this group",
+      "group_enable": "Enable this group",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",

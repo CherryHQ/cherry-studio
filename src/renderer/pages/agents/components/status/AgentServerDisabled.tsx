@@ -1,4 +1,4 @@
-import { useApiServer } from '@renderer/hooks/useApiServer'
+import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useNavigate } from '@tanstack/react-router'
 import { Button } from 'antd'
 import { ServerOff, Settings } from 'lucide-react'
@@ -9,11 +9,11 @@ import AgentStatusScreen from './AgentStatusScreen'
 
 const AgentServerDisabled = () => {
   const { t } = useTranslation()
-  const { startApiServer } = useApiServer()
+  const { startApiGateway } = useApiGateway()
   const navigate = useNavigate()
 
   const handleGoToSettings = useCallback(() => {
-    void navigate({ to: '/settings/api-server' })
+    void navigate({ to: '/settings/api-gateway' })
   }, [navigate])
 
   return (
@@ -24,7 +24,7 @@ const AgentServerDisabled = () => {
       description={t('agent.warning.enable_server_description')}
       actions={
         <>
-          <Button type="primary" onClick={startApiServer}>
+          <Button type="primary" onClick={startApiGateway}>
             {t('agent.warning.enable_and_start')}
           </Button>
           <Button type="default" icon={<Settings size={16} />} onClick={handleGoToSettings}>

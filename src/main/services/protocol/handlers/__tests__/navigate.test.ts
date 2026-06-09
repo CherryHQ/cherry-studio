@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { applicationMock, loggerMock, mainWindowServiceMock, settingsWindowServiceMock } = vi.hoisted(() => {
+const { applicationMock, loggerMock, settingsWindowServiceMock, windowManagerMock } = vi.hoisted(() => {
   const mainWindowServiceMock = {
-    getMainWindow: vi.fn(),
     showMainWindow: vi.fn()
+  }
+  const windowManagerMock = {
+    getWindowsByType: vi.fn<(type: string) => unknown[]>(() => [])
   }
   const settingsWindowServiceMock = {
     open: vi.fn()
@@ -15,12 +17,13 @@ const { applicationMock, loggerMock, mainWindowServiceMock, settingsWindowServic
   }
   const applicationMock = {
     get: vi.fn((name: string) => {
+      if (name === 'WindowManager') return windowManagerMock
       if (name === 'MainWindowService') return mainWindowServiceMock
       if (name === 'SettingsWindowService') return settingsWindowServiceMock
       throw new Error(`unexpected service: ${name}`)
     })
   }
-  return { applicationMock, loggerMock, mainWindowServiceMock, settingsWindowServiceMock }
+  return { applicationMock, loggerMock, settingsWindowServiceMock, windowManagerMock }
 })
 
 vi.mock('@application', () => ({ application: applicationMock }))
@@ -47,22 +50,19 @@ describe('navigate protocol handler', () => {
     handleNavigateProtocolUrl(new URL('cherrystudio://navigate/agents-legacy'))
 
     expect(loggerMock.warn).toHaveBeenCalledWith('Blocked navigation to disallowed route: /agents-legacy')
-    expect(mainWindowServiceMock.getMainWindow).not.toHaveBeenCalled()
+    expect(windowManagerMock.getWindowsByType).not.toHaveBeenCalled()
   })
 
   it('opens settings routes through SettingsWindowService', () => {
     handleNavigateProtocolUrl(new URL('cherrystudio://navigate/settings/provider?id=openai'))
 
     expect(settingsWindowServiceMock.open).toHaveBeenCalledWith('/settings/provider?id=openai')
-    expect(mainWindowServiceMock.getMainWindow).not.toHaveBeenCalled()
+    expect(windowManagerMock.getWindowsByType).not.toHaveBeenCalled()
   })
 
   it('passes query strings to window.navigate without string interpolation injection', async () => {
     const executeJavaScript = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(undefined)
-    mainWindowServiceMock.getMainWindow.mockReturnValue({
-      isDestroyed: () => false,
-      webContents: { executeJavaScript }
-    })
+    windowManagerMock.getWindowsByType.mockReturnValue([{ webContents: { executeJavaScript } }])
 
     handleNavigateProtocolUrl(new URL("cherrystudio://navigate/agents?x=');attackerCode();//"))
     await vi.waitFor(() => {
@@ -78,36 +78,36 @@ describe('navigate protocol handler', () => {
 
   it('retries when the main window is not available yet', () => {
     vi.useFakeTimers()
-    mainWindowServiceMock.getMainWindow.mockReturnValue(null)
+    windowManagerMock.getWindowsByType.mockReturnValue([])
 
     handleNavigateProtocolUrl(new URL('cherrystudio://navigate/agents'))
 
-    expect(mainWindowServiceMock.getMainWindow).toHaveBeenCalledTimes(1)
+    expect(windowManagerMock.getWindowsByType).toHaveBeenCalledTimes(1)
 
     vi.advanceTimersByTime(1000)
 
-    expect(mainWindowServiceMock.getMainWindow).toHaveBeenCalledTimes(2)
+    expect(windowManagerMock.getWindowsByType).toHaveBeenCalledTimes(2)
   })
 
   it('drops the navigation after MAX_NAVIGATE_RETRY_ATTEMPTS retries when the main window never appears', async () => {
-    // T7: pin the retry cap. Initial call + 30 retries = 31 getMainWindow
+    // T7: pin the retry cap. Initial call + 30 retries = 31 getWindowsByType
     // calls, then the cap fires the warn-drop. A regression that lost the
     // cap (infinite retry) would never trigger the dropping warn.
     vi.useFakeTimers()
-    mainWindowServiceMock.getMainWindow.mockReturnValue(null)
+    windowManagerMock.getWindowsByType.mockReturnValue([])
 
     handleNavigateProtocolUrl(new URL('cherrystudio://navigate/agents'))
-    expect(mainWindowServiceMock.getMainWindow).toHaveBeenCalledTimes(1)
+    expect(windowManagerMock.getWindowsByType).toHaveBeenCalledTimes(1)
 
     for (let attempt = 0; attempt < 30; attempt++) {
       await vi.advanceTimersByTimeAsync(1000)
     }
 
-    expect(mainWindowServiceMock.getMainWindow).toHaveBeenCalledTimes(31)
+    expect(windowManagerMock.getWindowsByType).toHaveBeenCalledTimes(31)
 
     // One more tick beyond the cap must NOT schedule another retry.
     await vi.advanceTimersByTimeAsync(1000)
-    expect(mainWindowServiceMock.getMainWindow).toHaveBeenCalledTimes(31)
+    expect(windowManagerMock.getWindowsByType).toHaveBeenCalledTimes(31)
 
     expect(loggerMock.warn).toHaveBeenCalledWith(
       'Main window not available, dropping navigation URL after retry limit',
@@ -119,10 +119,7 @@ describe('navigate protocol handler', () => {
     // T7: the hasNavigate=false path has its own retry leg. Same cap applies.
     vi.useFakeTimers()
     const executeJavaScript = vi.fn().mockResolvedValue(false)
-    mainWindowServiceMock.getMainWindow.mockReturnValue({
-      isDestroyed: () => false,
-      webContents: { executeJavaScript }
-    })
+    windowManagerMock.getWindowsByType.mockReturnValue([{ webContents: { executeJavaScript } }])
 
     handleNavigateProtocolUrl(new URL('cherrystudio://navigate/agents'))
 

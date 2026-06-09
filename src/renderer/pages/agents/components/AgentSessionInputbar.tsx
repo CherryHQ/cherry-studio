@@ -7,7 +7,7 @@ import { isGenerateImageModel, isVisionModel } from '@renderer/config/models'
 import { isSoulModeEnabled } from '@renderer/hooks/agents/agentConfiguration'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
-import { useApiServer } from '@renderer/hooks/useApiServer'
+import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useInputText } from '@renderer/hooks/useInputText'
 import { useModels } from '@renderer/hooks/useModel'
 import { useTextareaResize } from '@renderer/hooks/useTextareaResize'
@@ -213,7 +213,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({
     setCustomHeight
   } = useTextareaResize({ maxHeight: 500, minHeight: 30 })
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
-  const { apiServerConfig, apiServerRunning } = useApiServer()
+  const { apiGatewayConfig, apiGatewayRunning } = useApiGateway()
 
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -369,7 +369,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({
     }
   }, [config.enableQuickPanel, toolsRegistry])
 
-  const sendDisabled = (inputEmpty && files.length === 0) || !apiServerConfig.enabled || !apiServerRunning
+  const sendDisabled = (inputEmpty && files.length === 0) || !apiGatewayConfig.enabled || !apiGatewayRunning
 
   const isStreaming = isStreamingFromProp
 

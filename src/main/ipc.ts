@@ -20,7 +20,6 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { extractPdfText } from '@shared/utils/pdf'
 import type { Notification } from '@types'
-import checkDiskSpace from 'check-disk-space'
 import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
@@ -32,7 +31,6 @@ import { ExportService } from './services/ExportService'
 import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
-import { knowledgeService } from './services/KnowledgeService'
 import LegacyBackupManager from './services/LegacyBackupManager'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/nutstore/NutstoreService'
@@ -445,10 +443,6 @@ export async function registerIpc() {
     await shell.openPath(path)
   })
 
-  // v1 renderer knowledge IPC retired (T4.2); only base deletion remains,
-  // used by the v1 Redux store/knowledge slice until it is removed.
-  ipcMain.handle(IpcChannel.KnowledgeBase_Delete, knowledgeService.delete.bind(knowledgeService))
-
   // memory
   // VertexAI
   ipcMain.handle(IpcChannel.VertexAI_GetAuthHeaders, async (_, params) => {
@@ -514,21 +508,6 @@ export async function registerIpc() {
   // ipcMain.handle(IpcChannel.App_SetUseSystemTitleBar, (_, isActive: boolean) => {
   //   configManager.setUseSystemTitleBar(isActive)
   // })
-  ipcMain.handle(IpcChannel.App_GetDiskInfo, async (_, directoryPath: string) => {
-    try {
-      const diskSpace = await checkDiskSpace(directoryPath) // { free, size } in bytes
-      logger.debug('disk space', diskSpace)
-      const { free, size } = diskSpace
-      return {
-        free,
-        size
-      }
-    } catch (error) {
-      logger.error('check disk space error', error as Error)
-      return null
-    }
-  })
-
   // ExternalApps
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
 

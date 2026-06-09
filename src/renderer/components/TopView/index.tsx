@@ -37,7 +37,7 @@ const TopViewContent: React.FC<Props> = ({ children }) => {
   const elementsRef = useRef<ElementItem[]>([])
   elementsRef.current = elements
 
-  const [exitFullscreenPref] = usePreference('shortcut.general.exit_fullscreen')
+  const [exitFullscreenPref] = usePreference('shortcut.app.fullscreen.exit')
   const enableQuitFullScreen = exitFullscreenPref?.enabled !== false
 
   useAppInit()

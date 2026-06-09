@@ -112,8 +112,10 @@ describe('AgentService', () => {
     })
 
     it('places newly created agents first under default sort (createdAt desc)', async () => {
-      await insertAgent({ id: 'agent_existing_a' })
-      await insertAgent({ id: 'agent_existing_b' })
+      // Explicit, distinct, older timestamps so the newly created agent is
+      // unambiguously first without relying on wall-clock spacing.
+      await insertAgent({ id: 'agent_existing_a', createdAt: 100, updatedAt: 100 })
+      await insertAgent({ id: 'agent_existing_b', createdAt: 200, updatedAt: 200 })
 
       const created = await agentService.createAgent({
         type: 'claude-code',
@@ -123,6 +125,21 @@ describe('AgentService', () => {
 
       const { agents } = await agentService.listAgents()
       expect(agents[0]?.id).toBe(created.id)
+    })
+
+    it('orders rows with equal createdAt deterministically by id (tiebreaker)', async () => {
+      // createdAt is Date.now() (ms) and can collide across rapid inserts. Without a
+      // deterministic tiebreaker, equal-createdAt rows fall back to query-plan order,
+      // making the default `createdAt desc` listing unstable. Pin both rows to the
+      // same createdAt and assert the id-desc tiebreaker decides the order.
+      await insertAgent({ id: 'agent_aaa', createdAt: 5000 })
+      await insertAgent({ id: 'agent_zzz', createdAt: 5000 })
+
+      const { agents } = await agentService.listAgents()
+      const ids = agents.map((a) => a.id)
+
+      // desc(createdAt), desc(id) -> 'agent_zzz' must come before 'agent_aaa'.
+      expect(ids.indexOf('agent_zzz')).toBeLessThan(ids.indexOf('agent_aaa'))
     })
   })
 
@@ -233,6 +250,50 @@ describe('AgentService', () => {
       const { agents } = await agentService.listAgents({ search: 'research' })
 
       expect(agents.map((agent) => agent.id).sort()).toEqual(['agent_search_1', 'agent_search_2'])
+    })
+  })
+
+  describe('search', () => {
+    it('returns lean navigation items ordered by updatedAt', async () => {
+      await insertAgent({
+        id: 'agent_search_old',
+        name: 'Needle Old Agent',
+        description: 'old agent',
+        configuration: { avatar: 'A' },
+        updatedAt: 100
+      })
+      await insertAgent({
+        id: 'agent_search_new',
+        name: 'Needle New Agent',
+        description: 'new agent',
+        configuration: { avatar: 'B' },
+        updatedAt: 200
+      })
+      await insertAgent({ id: 'agent_search_miss', name: 'Other', updatedAt: 300 })
+
+      const result = await agentService.search({ q: 'Needle', limit: 5 })
+
+      expect(result).toEqual([
+        {
+          type: 'agent',
+          id: 'agent_search_new',
+          title: 'Needle New Agent',
+          subtitle: 'new agent',
+          emoji: 'B',
+          updatedAt: '1970-01-01T00:00:00.200Z',
+          target: { agentId: 'agent_search_new' }
+        },
+        {
+          type: 'agent',
+          id: 'agent_search_old',
+          title: 'Needle Old Agent',
+          subtitle: 'old agent',
+          emoji: 'A',
+          updatedAt: '1970-01-01T00:00:00.100Z',
+          target: { agentId: 'agent_search_old' }
+        }
+      ])
+      expect(result[0]).not.toHaveProperty('modelName')
     })
   })
 })

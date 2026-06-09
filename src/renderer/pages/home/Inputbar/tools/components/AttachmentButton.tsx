@@ -1,20 +1,13 @@
 import { Tooltip } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
-import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
-import { useKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { FileMetadata } from '@renderer/types'
 import { filterSupportedFiles } from '@renderer/utils/file'
-import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
-import { FileSearch, FileText, Paperclip, Upload } from 'lucide-react'
+import { Paperclip, Upload } from 'lucide-react'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-const logger = loggerService.withContext('AttachmentButton')
 
 interface Props {
   quickPanel: ToolQuickPanelApi
@@ -27,18 +20,8 @@ interface Props {
 
 const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions, files, setFiles, disabled }) => {
   const { t } = useTranslation()
-  const {
-    open: openQuickPanelPanel,
-    updateList: updateQuickPanelList,
-    isVisible: isQuickPanelVisible,
-    symbol: quickPanelSymbol,
-    multiple: quickPanelMultiple
-  } = useQuickPanel()
-  const { bases: knowledgeBases } = useKnowledgeBases()
+  const { open: openQuickPanelPanel } = useQuickPanel()
   const [selecting, setSelecting] = useState<boolean>(false)
-  const [selectedKnowledgeBaseId, setSelectedKnowledgeBaseId] = useState('')
-  const { items: selectedKnowledgeItems, isLoading: isKnowledgeItemsLoading } =
-    useKnowledgeItems(selectedKnowledgeBaseId)
 
   const openFileSelectDialog = useCallback(async () => {
     if (selecting) {
@@ -79,134 +62,13 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
     }
   }, [extensions, files, selecting, setFiles, t])
 
-  const createKnowledgeFileItems = useCallback(
-    (items: KnowledgeItemOf<'file'>[]) =>
-      items.map<QuickPanelListItem>((item) => {
-        const source = item.data.source
-        const fileEntryId = item.data.fileEntryId
-        const fileName =
-          source
-            .replace(/[/\\]+$/, '')
-            .split(/[/\\]/)
-            .pop() || source
-
-        return {
-          label: fileName,
-          description: source,
-          icon: <FileText />,
-          isSelected: files.some((file) => file.id === fileEntryId),
-          action: async ({ context, item }) => {
-            const fileExists = files.some((file) => file.id === fileEntryId)
-
-            if (fileExists) {
-              setFiles((prevFiles) => prevFiles.filter((file) => file.id !== fileEntryId))
-              return
-            }
-
-            let filePath = source
-
-            try {
-              filePath = await window.api.file.getPhysicalPath({ id: fileEntryId })
-              const fileContent = await window.api.file.get(filePath)
-              if (!fileContent) {
-                context.updateItemSelection(item, false)
-                window.toast.warning(t('chat.input.tools.file_not_found', { path: source }))
-                return
-              }
-
-              setFiles((prevFiles) => {
-                if (prevFiles.some((file) => file.id === fileEntryId)) {
-                  return prevFiles.filter((file) => file.id !== fileEntryId)
-                }
-
-                return [...prevFiles, { ...fileContent, id: fileEntryId }]
-              })
-            } catch (error) {
-              logger.error('Failed to resolve knowledge file attachment', error as Error, {
-                fileEntryId,
-                source,
-                filePath
-              })
-              context.updateItemSelection(item, false)
-              window.toast.warning(t('chat.input.tools.file_not_found', { path: source }))
-              return
-            }
-          }
-        }
-      }),
-    [files, setFiles, t]
-  )
-
-  const openKnowledgeFileList = useCallback(
-    (base: KnowledgeBase) => {
-      setSelectedKnowledgeBaseId(base.id)
-      openQuickPanelPanel({
-        title: base.name,
-        list: [
-          {
-            label: t('common.loading'),
-            description: '',
-            icon: <FileText />,
-            disabled: true
-          }
-        ],
-        symbol: QuickPanelReservedSymbol.File,
-        multiple: true
-      })
-    },
-    [openQuickPanelPanel, t]
-  )
-
-  useEffect(() => {
-    if (
-      !selectedKnowledgeBaseId ||
-      !isQuickPanelVisible ||
-      quickPanelSymbol !== QuickPanelReservedSymbol.File ||
-      !quickPanelMultiple
-    ) {
-      return
-    }
-
-    const fileItems = selectedKnowledgeItems.filter(
-      (item): item is KnowledgeItemOf<'file'> => item.type === 'file' && item.status === 'completed'
-    )
-
-    if (isKnowledgeItemsLoading) {
-      updateQuickPanelList([
-        {
-          label: t('common.loading'),
-          description: '',
-          icon: <FileText />,
-          disabled: true
-        }
-      ])
-      return
-    }
-
-    updateQuickPanelList(
-      fileItems.length > 0
-        ? createKnowledgeFileItems(fileItems)
-        : [
-            {
-              label: t('common.no_results'),
-              description: '',
-              icon: <FileText />,
-              disabled: true
-            }
-          ]
-    )
-  }, [
-    createKnowledgeFileItems,
-    isKnowledgeItemsLoading,
-    isQuickPanelVisible,
-    quickPanelMultiple,
-    quickPanelSymbol,
-    selectedKnowledgeBaseId,
-    selectedKnowledgeItems,
-    t,
-    updateQuickPanelList
-  ])
-
+  // NOTE: Attaching a knowledge-base file to the chat input is temporarily
+  // disconnected. It previously bridged a v2 knowledge item into the legacy
+  // `FileMetadata` shape (via Knowledge.getFileMetadata) that the chat
+  // attachment pipeline still consumes. Reconnecting it cleanly depends on
+  // migrating that pipeline off `FileMetadata` onto FileEntry/FileHandle — a
+  // cross-domain change tracked in knowledge-todo.md and
+  // v2-refactor-temp/docs/file-manager/filemetadata-consumer-audit.md.
   const items = useMemo(() => {
     return [
       {
@@ -214,19 +76,9 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
         description: '',
         icon: <Upload />,
         action: () => openFileSelectDialog()
-      },
-      ...knowledgeBases.map((base) => {
-        return {
-          label: base.name,
-          description: '',
-          icon: <FileSearch />,
-          disabled: base.status !== 'completed',
-          isMenu: true,
-          action: () => openKnowledgeFileList(base)
-        }
-      })
+      }
     ]
-  }, [knowledgeBases, openFileSelectDialog, openKnowledgeFileList, t])
+  }, [openFileSelectDialog, t])
 
   const openQuickPanel = useCallback(() => {
     openQuickPanelPanel({

@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DataSourcePanel from '../DataSourcePanel'
-import { createDirectoryItem, createFileItem, createNoteItem, createSitemapItem, createUrlItem } from './testUtils'
+import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
 
 const mockUseQuery = vi.fn()
 
@@ -149,8 +149,7 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.toolbar.no_search_results': '未找到匹配的数据源',
             'knowledge.data_source.empty.title': '上传第一个数据源',
             'knowledge.data_source.empty.shortcuts.file.title': '文件',
-            'knowledge.data_source.empty.shortcuts.url.title': '网址',
-            'knowledge.data_source.empty.shortcuts.sitemap.title': '网站同步',
+            'knowledge.data_source.empty.shortcuts.url.title': '链接',
             'knowledge.data_source.empty.shortcuts.directory.title': '目录导入',
             'knowledge.data_source.bulk.cancel': '取消',
             'knowledge.data_source.bulk.delete': '删除',
@@ -182,13 +181,11 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.filters.file': '文件',
             'knowledge.data_source.filters.note': '笔记',
             'knowledge.data_source.filters.directory': '目录',
-            'knowledge.data_source.filters.url': '网址',
-            'knowledge.data_source.filters.sitemap': '网站',
+            'knowledge.data_source.filters.url': '链接',
             'knowledge.data_source.add_dialog.sources.directory': '目录',
             'knowledge.data_source.add_dialog.sources.file': '文件',
             'knowledge.data_source.add_dialog.sources.note': '笔记',
-            'knowledge.data_source.add_dialog.sources.sitemap': '网站',
-            'knowledge.data_source.add_dialog.sources.url': '网址',
+            'knowledge.data_source.add_dialog.sources.url': '链接',
             'knowledge.data_source.status.ready': '就绪',
             'knowledge.data_source.status.error': '失败',
             'knowledge.data_source.status.embedding': '向量化中',
@@ -232,8 +229,8 @@ describe('DataSourcePanel', () => {
     expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '笔记' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '目录' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '网址' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '网站' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '链接' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '网站' })).not.toBeInTheDocument()
   })
 
   it('guides users from the empty data source state into file or URL add flows', () => {
@@ -248,8 +245,8 @@ describe('DataSourcePanel', () => {
     expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '笔记' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '目录' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '网址' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '网站' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '链接' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '网站' })).not.toBeInTheDocument()
 
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
     const filePickerClick = vi.spyOn(fileInput, 'click')
@@ -260,7 +257,7 @@ describe('DataSourcePanel', () => {
     expect(filePickerClick).toHaveBeenCalledTimes(1)
 
     rerender(<DataSourcePanel items={[]} isLoading={false} onAdd={onAdd} onDelete={vi.fn()} onReindex={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: '网址' }))
+    fireEvent.click(screen.getByRole('button', { name: '链接' }))
 
     expect(onAdd).toHaveBeenCalledWith('url')
   })
@@ -284,16 +281,11 @@ describe('DataSourcePanel', () => {
     expect(screen.getByText('已就绪 2/2')).toBeInTheDocument()
   })
 
-  it('renders url, sitemap, and directory items from their required source fields and keeps the ready count correct', () => {
+  it('renders url and directory items from their required source fields and keeps the ready count correct', () => {
     render(
       <DataSourcePanel
         items={[
           createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' }),
-          createSitemapItem({
-            id: 'sitemap-1',
-            source: 'https://example.com/sitemap.xml',
-            status: 'preparing'
-          }),
           createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })
         ]}
         isLoading={false}
@@ -304,25 +296,16 @@ describe('DataSourcePanel', () => {
     )
 
     expect(screen.getByText('https://example.com/product-docs')).toBeInTheDocument()
-    expect(screen.getByText('https://example.com/sitemap.xml')).toBeInTheDocument()
     const directoryTitle = screen.getByText('本地资料夹')
     expect(directoryTitle).toBeInTheDocument()
     expect(directoryTitle).toHaveAttribute('title', '/Users/eeee/本地资料夹')
-    expect(screen.getByText('已就绪 2/3')).toBeInTheDocument()
-    expect(screen.getByText('等待中')).toBeInTheDocument()
+    expect(screen.getByText('已就绪 2/2')).toBeInTheDocument()
   })
 
-  it('renders processing directory and sitemap rows as processing when no phase is available', () => {
+  it('renders processing directory rows as processing when no phase is available', () => {
     render(
       <DataSourcePanel
-        items={[
-          createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹', status: 'processing' }),
-          createSitemapItem({
-            id: 'sitemap-1',
-            source: 'https://example.com/sitemap.xml',
-            status: 'processing'
-          })
-        ]}
+        items={[createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹', status: 'processing' })]}
         isLoading={false}
         onAdd={vi.fn()}
         onDelete={vi.fn()}
@@ -333,8 +316,7 @@ describe('DataSourcePanel', () => {
     const directoryTitle = screen.getByText('本地资料夹')
     expect(directoryTitle).toBeInTheDocument()
     expect(directoryTitle).toHaveAttribute('title', '/Users/eeee/本地资料夹')
-    expect(screen.getByText('https://example.com/sitemap.xml')).toBeInTheDocument()
-    expect(screen.getAllByText('处理中')).toHaveLength(2)
+    expect(screen.getByText('处理中')).toBeInTheDocument()
     expect(screen.queryByText('等待中')).not.toBeInTheDocument()
   })
 

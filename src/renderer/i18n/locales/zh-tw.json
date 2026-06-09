@@ -342,7 +342,7 @@
     },
     "server": {
       "error": {
-        "not_running": "API 伺服器已啟用，但運作不正常。"
+        "not_running": "API 閘道已啟用，但運作不正常。"
       }
     },
     "session": {
@@ -779,19 +779,19 @@
     },
     "warning": {
       "enable_and_start": "啟用並啟動",
-      "enable_server": "啟用 API 伺服器以使用 Agent。",
-      "enable_server_description": "智能體功能需要啟用 API 伺服器。你可以直接啟用，或前往設定頁面進行配置。",
-      "server_not_running": "API 伺服器已啟用但未執行。請檢查伺服器設定。",
-      "server_not_running_description": "智能體功能需要 API 伺服器運行。你可以直接啟動伺服器，或前往設定頁面檢查配置。"
+      "enable_server": "啟用 API 閘道以使用 Agent。",
+      "enable_server_description": "智能體功能需要啟用 API 閘道。你可以直接啟用，或前往設定頁面進行配置。",
+      "server_not_running": "API 閘道已啟用但未執行。請檢查閘道設定。",
+      "server_not_running_description": "智能體功能需要 API 閘道運行。你可以直接啟動閘道，或前往設定頁面檢查配置。"
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "複製",
       "regenerate": "重新產生",
       "restart": {
         "button": "重新啟動",
-        "tooltip": "重新啟動伺服器"
+        "tooltip": "重新啟動閘道"
       },
       "start": "啟動",
       "stop": "停止"
@@ -801,7 +801,7 @@
     },
     "authHeaderText": "在授權標頭中使用：",
     "configuration": "設定",
-    "description": "透過 OpenAI 相容的 HTTP API 公開 Cherry Studio 的 AI 功能",
+    "description": "透過 OpenAI 和 Anthropic 相容的 HTTP API 公開 Cherry Studio 的 AI 功能",
     "documentation": {
       "title": "API 文件"
     },
@@ -813,8 +813,8 @@
         "placeholder": "API 金鑰會自動產生"
       },
       "port": {
-        "description": "HTTP 伺服器的 TCP 連接埠 (1000-65535)",
-        "helpText": "停止伺服器以變更連接埠",
+        "description": "閘道的 TCP 連接埠 (1000-65535)",
+        "helpText": "停止閘道以變更連接埠",
         "label": "連接埠"
       },
       "url": {
@@ -825,22 +825,22 @@
     "messages": {
       "apiKeyCopied": "API 金鑰已複製到剪貼簿",
       "apiKeyRegenerated": "API 金鑰已重新產生",
-      "notEnabled": "API 伺服器未啟用。",
-      "operationFailed": "API 伺服器操作失敗：",
-      "restartError": "重新啟動 API 伺服器失敗：",
-      "restartFailed": "API 伺服器重新啟動失敗：",
-      "restartSuccess": "API 伺服器重新啟動成功",
-      "startError": "啟動 API 伺服器失敗：",
-      "startSuccess": "API 伺服器啟動成功",
-      "stopError": "停止 API 伺服器失敗：",
-      "stopSuccess": "API 伺服器停止成功",
-      "urlCopied": "伺服器 URL 已複製到剪貼簿"
+      "notEnabled": "API 閘道未啟用。",
+      "operationFailed": "API 閘道操作失敗：",
+      "restartError": "重新啟動 API 閘道失敗：",
+      "restartFailed": "API 閘道重新啟動失敗：",
+      "restartSuccess": "API 閘道重新啟動成功",
+      "startError": "啟動 API 閘道失敗：",
+      "startSuccess": "API 閘道啟動成功",
+      "stopError": "停止 API 閘道失敗：",
+      "stopSuccess": "API 閘道停止成功",
+      "urlCopied": "閘道 URL 已複製到剪貼簿"
     },
     "status": {
       "running": "執行中",
       "stopped": "已停止"
     },
-    "title": "API 伺服器"
+    "title": "API 閘道"
   },
   "appMenu": {
     "about": "關於",
@@ -1191,7 +1191,7 @@
       "auto_resize": "自動調整高度",
       "clear": {
         "content": "您想要清除目前話題的所有訊息嗎？",
-        "label": "清除 {{Command}}",
+        "label": "清除",
         "title": "清除所有訊息？"
       },
       "collapse": "折疊",
@@ -1209,7 +1209,7 @@
       "generate_image_not_supported": "模型不支援產生圖片",
       "knowledge_base": "知識庫",
       "new": {
-        "context": "清除上下文 {{Command}}"
+        "context": "清除上下文"
       },
       "new_session": "新工作階段 {{Command}}",
       "new_topic": "新話題 {{Command}}",
@@ -2155,24 +2155,18 @@
         },
         "note": {
           "description": "选择已有笔记作为知识库数据源",
-          "empty_description": "真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录、网址或站点地图。",
+          "empty_description": "真實筆記清單接入後，將在這裡展示可多選的筆記。當前可先使用檔案、目錄或連結。",
           "empty_title": "暂未接入笔记数据源"
         },
         "placeholder": {
           "supported_formats": "支持 PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "点击选择文件或拖拽到此处"
         },
-        "sitemap": {
-          "description": "输入 Sitemap 地址：",
-          "help": "将读取 Sitemap 中包含的页面并建立索引",
-          "placeholder": "https://example.com/sitemap.xml"
-        },
         "sources": {
           "directory": "目录",
           "file": "文件",
           "note": "笔记",
-          "sitemap": "网站",
-          "url": "网址"
+          "url": "連結"
         },
         "submit": {
           "error": "添加数据源失败",
@@ -2209,11 +2203,8 @@
           "file": {
             "title": "檔案"
           },
-          "sitemap": {
-            "title": "網站同步"
-          },
           "url": {
-            "title": "網址"
+            "title": "連結"
           }
         },
         "title": "上傳第一個資料來源"
@@ -2224,8 +2215,7 @@
         "directory": "目录",
         "file": "文件",
         "note": "笔记",
-        "sitemap": "网站",
-        "url": "网址"
+        "url": "連結"
       },
       "preview": {
         "failed": "預覽原文失敗",
@@ -6147,6 +6137,9 @@
         "enabled": "已啟用",
         "failed": "失敗",
         "failed_to_start": "健康檢查啟動失敗",
+        "generation_output_audio": "音訊",
+        "generation_output_image": "圖片",
+        "generation_output_video": "影片",
         "keys_status_count": "成功：{{count_passed}} 個金鑰，失敗：{{count_failed}} 個金鑰",
         "model_status_failed": "{{count}} 個模型完全無法存取",
         "model_status_partial": "其中 {{count}} 個模型用某些金鑰無法存取",
@@ -6155,6 +6148,7 @@
         "no_api_keys": "未找到 API 金鑰，請先新增 API 金鑰",
         "no_results": "無結果",
         "outcome_fail_short": "{{count}} 失敗",
+        "outcome_skipped_short": "{{count}} 跳過",
         "outcome_success_short": "{{count}} 成功",
         "outcome_total": "共 {{count}} 項",
         "passed": "成功",
@@ -6166,8 +6160,11 @@
         "retry": "重新檢測",
         "select_api_key": "選擇要使用的 API 金鑰：",
         "single": "單個",
+        "skip_reason_generation_cost": "此模型檢測會實際生成{{output}}並消耗額度，預設跳過。",
+        "skip_reason_unsupported_probe": "此類模型暫無低成本健康檢測方式，預設跳過。",
         "start": "開始",
         "status_checking": "檢查中…",
+        "status_skipped": "已跳過",
         "timeout": "逾時",
         "title": "模型健康檢查",
         "use_all_keys": "使用金鑰"
@@ -6176,6 +6173,8 @@
       "default_assistant_model": "預設助手模型",
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "empty": "找不到模型",
+      "group_disable": "關閉此分組",
+      "group_enable": "開啟此分組",
       "list_title": "模型列表",
       "manage": {
         "add_custom_model": "添加自訂模型",

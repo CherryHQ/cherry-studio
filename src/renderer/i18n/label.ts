@@ -7,7 +7,6 @@
 import { loggerService } from '@logger'
 import type { BuiltinMcpServerName } from '@renderer/types'
 import { BuiltinMcpServerNames } from '@renderer/types'
-import { SHORTCUT_DEFINITIONS, type ShortcutLabelKey } from '@shared/shortcuts/definitions'
 
 import i18n from './index'
 
@@ -203,14 +202,6 @@ const sidebarIconKeyMap = {
 
 export const getSidebarIconLabelKey = (key: string): string => {
   return getLabelKey(sidebarIconKeyMap, key)
-}
-
-const shortcutLabelKeyMap = Object.fromEntries(
-  SHORTCUT_DEFINITIONS.map((definition) => [definition.labelKey, `settings.shortcuts.${definition.labelKey}`])
-) as Record<ShortcutLabelKey, string>
-
-export const getShortcutLabelKey = (key: ShortcutLabelKey): string => {
-  return getLabelKey(shortcutLabelKeyMap, key)
 }
 
 const selectionDescriptionKeyMap = {

@@ -50,6 +50,54 @@ describe('AgentSessionService', () => {
     })
   }
 
+  it('searches sessions as lean navigation items with agent names resolved inline', async () => {
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-search-old',
+        agentId: 'agent-session-test',
+        name: 'Needle Old Session',
+        orderKey: 'a0',
+        updatedAt: 100
+      },
+      {
+        id: 'session-search-new',
+        agentId: 'agent-session-test',
+        name: 'Needle New Session',
+        orderKey: 'a1',
+        updatedAt: 200
+      },
+      {
+        id: 'session-search-miss',
+        agentId: 'agent-session-test',
+        name: 'Other Session',
+        orderKey: 'a2',
+        updatedAt: 300
+      }
+    ])
+
+    const result = await agentSessionService.search({ q: 'Needle', limit: 5 })
+
+    expect(result).toEqual([
+      {
+        type: 'session',
+        id: 'session-search-new',
+        title: 'Needle New Session',
+        subtitle: 'Session Test Agent',
+        updatedAt: '1970-01-01T00:00:00.200Z',
+        target: { sessionId: 'session-search-new', agentId: 'agent-session-test' }
+      },
+      {
+        type: 'session',
+        id: 'session-search-old',
+        title: 'Needle Old Session',
+        subtitle: 'Session Test Agent',
+        updatedAt: '1970-01-01T00:00:00.100Z',
+        target: { sessionId: 'session-search-old', agentId: 'agent-session-test' }
+      }
+    ])
+    expect(result[0]).not.toHaveProperty('workspace')
+  })
+
   it('binds a session to an explicit workspace', async () => {
     const workspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'explicit'))
 

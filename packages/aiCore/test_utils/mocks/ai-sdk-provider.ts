@@ -8,6 +8,29 @@ export type CherryInProviderSettings = {
   baseURL?: string
 }
 
+export class OpenAICompatibleRerankingModel {
+  readonly specificationVersion = 'v3'
+
+  constructor(
+    readonly modelId: string,
+    private readonly config: {
+      provider: string
+    }
+  ) {}
+
+  get provider(): string {
+    return this.config.provider
+  }
+}
+
+export const createOpenAICompatibleRerankingModel = (
+  modelId: string,
+  settings: {
+    name: string
+    baseURL: string
+  }
+) => new OpenAICompatibleRerankingModel(modelId, { provider: `${settings.name}.rerank` })
+
 // oxlint-disable-next-line no-unused-vars
 export const createCherryIn = (_options?: CherryInProviderSettings) => ({
   // oxlint-disable-next-line no-unused-vars
@@ -33,5 +56,10 @@ export const createCherryIn = (_options?: CherryInProviderSettings) => ({
     specificationVersion: 'v3',
     provider: 'cherryin',
     modelId: 'mock-embedding-model'
+  }),
+  rerankingModel: (modelId: string) => ({
+    specificationVersion: 'v3',
+    provider: 'cherryin.rerank',
+    modelId
   })
 })
