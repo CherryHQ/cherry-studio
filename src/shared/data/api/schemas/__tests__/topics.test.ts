@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { SetActiveNodeSchema, UpdateTopicSchema } from '../topics'
+import { CopyTopicBranchSchema, SetActiveNodeSchema, UpdateTopicSchema } from '../topics'
 
 describe('UpdateTopicSchema', () => {
   // Pin state and ordering must NOT be mutable through PATCH /topics/:id —
@@ -33,5 +33,18 @@ describe('SetActiveNodeSchema', () => {
 
   it('accepts nodeId only', () => {
     expect(SetActiveNodeSchema.parse({ nodeId: 'n1' })).toEqual({ nodeId: 'n1' })
+  })
+})
+
+describe('CopyTopicBranchSchema', () => {
+  it('accepts nodeId with optional name', () => {
+    expect(CopyTopicBranchSchema.parse({ nodeId: 'n1', name: 'Copied branch' })).toEqual({
+      nodeId: 'n1',
+      name: 'Copied branch'
+    })
+  })
+
+  it('rejects unknown keys', () => {
+    expect(() => CopyTopicBranchSchema.parse({ nodeId: 'n1', includeDescendants: true })).toThrow()
   })
 })

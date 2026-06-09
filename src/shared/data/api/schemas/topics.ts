@@ -7,7 +7,7 @@
 
 import * as z from 'zod'
 
-import { type Topic, TopicSchema } from '../../types/topic'
+import { type Topic, TopicNameEntitySchema, TopicSchema } from '../../types/topic'
 import type { CursorPaginationResponse } from '../apiTypes'
 import type { OrderEndpoints } from './_endpointHelpers'
 
@@ -19,8 +19,9 @@ import type { OrderEndpoints } from './_endpointHelpers'
  * DTO for creating a new topic.
  *
  * `sourceNodeId` is a transient request-only field (not a Topic column): when
- * present, the service copies the path from root to this node into the new
- * topic — so it lives outside the entity pick set.
+ * present, the service initializes the new topic's active node from an
+ * existing message. Use `/topics/:id/branch-copies` when the message path
+ * itself must be copied into a new topic.
  */
 export const CreateTopicSchema = TopicSchema.pick({
   name: true,
@@ -77,6 +78,20 @@ export const SetActiveNodeSchema = z.strictObject({
   nodeId: z.string().min(1)
 })
 export type SetActiveNodeDto = z.infer<typeof SetActiveNodeSchema>
+
+/**
+ * DTO for copying a pruned branch into a new topic.
+ *
+ * `nodeId` is the pruning point: the service copies only the root → node path
+ * into the new topic and drops siblings / descendants outside that path.
+ */
+export const CopyTopicBranchSchema = z.strictObject({
+  /** Message node to copy up to. Must belong to the source topic. */
+  nodeId: z.string().min(1),
+  /** Optional explicit name for the copied topic. Defaults to the source topic name. */
+  name: TopicNameEntitySchema.optional()
+})
+export type CopyTopicBranchDto = z.infer<typeof CopyTopicBranchSchema>
 
 /**
  * Response for active node update
@@ -161,6 +176,22 @@ export type TopicSchemas = {
       params: { id: string }
       body: SetActiveNodeDto
       response: ActiveNodeResponse
+    }
+  }
+
+  /**
+   * Branch-copy sub-resource.
+   *
+   * Creates a new topic by copying the source topic's root → `nodeId` message
+   * path. The copied topic's active node is the copied `nodeId`.
+   *
+   * @example POST /topics/abc123/branch-copies { "nodeId": "msg456" }
+   */
+  '/topics/:id/branch-copies': {
+    POST: {
+      params: { id: string }
+      body: CopyTopicBranchDto
+      response: Topic
     }
   }
 } & OrderEndpoints<'/topics'>
