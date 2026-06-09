@@ -133,6 +133,27 @@ describe('useResourceLibrary model display names', () => {
     expect(result.current.allResources.find((resource) => resource.type === 'agent')?.model).toBeUndefined()
   })
 
+  it('uses the default agent avatar for blank stored agent avatars', () => {
+    mocks.useAgentList.mockReturnValue(
+      listResult([
+        {
+          id: 'agent-1',
+          name: 'Agent',
+          description: '',
+          configuration: { avatar: '   ' },
+          model: 'anthropic::claude-sonnet-4-5',
+          modelName: 'Claude Sonnet 4.5',
+          createdAt: '2026-04-27T00:00:00.000Z',
+          updatedAt: '2026-04-27T00:00:00.000Z'
+        }
+      ])
+    )
+
+    const { result } = renderResourceLibrary()
+
+    expect(result.current.allResources.find((resource) => resource.type === 'agent')?.avatar).toBe('🤖')
+  })
+
   it('does not use skill source metadata tags for resource cards', () => {
     mocks.useSkillList.mockReturnValue(
       listResult([

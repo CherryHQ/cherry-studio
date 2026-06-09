@@ -3,7 +3,7 @@ import type { Tag } from '@shared/data/types/tag'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAssistantMutations } from '../assistantAdapter'
+import { useAssistantMutations, useAssistantMutationsById } from '../assistantAdapter'
 
 const createTriggerMock = vi.hoisted(() => vi.fn())
 const useMutationMock = vi.hoisted(() => vi.fn())
@@ -107,6 +107,28 @@ describe('useAssistantMutations', () => {
         knowledgeBaseIds: ['kb-1'],
         tagIds: ['tag-1', 'tag-2']
       }
+    })
+  })
+})
+
+describe('useAssistantMutationsById', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useMutationMock.mockReturnValue({
+      trigger: createTriggerMock,
+      isLoading: false,
+      error: undefined
+    })
+  })
+
+  it('refreshes assistant list and details after scoped mutations', () => {
+    renderHook(() => useAssistantMutationsById('assistant-1'))
+
+    expect(useMutationMock).toHaveBeenCalledWith('PATCH', '/assistants/assistant-1', {
+      refresh: ['/assistants', '/assistants/*']
+    })
+    expect(useMutationMock).toHaveBeenCalledWith('DELETE', '/assistants/assistant-1', {
+      refresh: ['/assistants', '/assistants/*']
     })
   })
 })
