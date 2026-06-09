@@ -543,7 +543,7 @@ workspaceMode?: 'user' | 'system'
 
 它也不应该直接跨 domain 写正式 topic/message 表。promotion 阶段应委托 topic/message owning service，或放到一个明确的 promotion/orchestration 层里，但写表 ownership 仍然要清楚。
 
-调整前旧实现文件在 `src/main/data/services/TemporaryChatService.ts`。它不是 DB table owner，不应该继续放在 `data/services`。
+当前实现文件在 `src/main/data/services/TemporaryChatService.ts`。虽然它的状态是 main-process in-memory map，不是 SQLite table owner，但它承载 `/temporary/topics*` 的 data contract 和 business service 入口；AI runtime 只通过 stream manager 适配层消费它。
 
 ### 8.2 TemporaryChatContextProvider
 
@@ -598,7 +598,7 @@ type TemporarySessionRow = {
 - runtime settings builder
 - 任何真实 filesystem 操作
 
-调整前旧实现文件在 `src/main/services/agentWorkspace/TemporarySessionService.ts`。它不是 workspace filesystem workflow，也不应该继续挂在 `agentWorkspace` 目录下。
+当前实现文件在 `src/main/data/services/TemporaryAgentSessionDraftService.ts`。它不是 workspace filesystem workflow，也不应该继续挂在 `agentWorkspace` 目录下；同时不要放到 `src/main/ai/agentSession`，agent runtime 只消费 handoff 后的 draft 参数。
 
 ### 8.5 Runtime handoff
 
@@ -606,33 +606,23 @@ type TemporarySessionRow = {
 
 ### 8.6 目录 / 命名规划
 
-调整前 temporary topic / session 涉及的目录比较分散：
+temporary topic / session 相关目录按当前 ownership 收束为：
 
-| 当前路径 | 当前内容 | 判断 |
+| 路径 | 内容 | 判断 |
 | --- | --- | --- |
-| `src/main/data/services/TemporaryChatService.ts` | temporary topic/message 的 main 内存状态 | 位置不对；不是 SQLite-backed data service |
+| `src/main/data/services/TemporaryChatService.ts` | temporary topic/message 的 main 内存状态、lease/update/delete、snapshot/promotion orchestration | 位置正确；它是 `/temporary/topics*` 的 business service |
+| `src/main/data/services/__tests__/TemporaryChatService.test.ts` | temporary topic service tests | 测试跟随 data service |
+| `src/main/data/services/TemporaryAgentSessionDraftService.ts` | temporary agent session draft 的内存状态、agent/workspace source update、persist handoff | 位置正确；它是 `/temporary/sessions*` 的 business service |
+| `src/main/data/services/__tests__/TemporaryAgentSessionDraftService.test.ts` | temporary session draft tests | 测试跟随 data service |
 | `src/main/data/api/handlers/temporaryChats.ts` | temporary topic/session 的 DataApi handler | 位置可保留；它是当前 PR 的 route contract 入口 |
 | `src/shared/data/api/schemas/temporaryChats.ts` | temporary topic/session 的 shared route schema | 位置可保留；它定义当前 DataApi contract |
 | `src/main/ai/streamManager/context/TemporaryChatContextProvider.ts` | temporary topic 的 stream dispatch context | 位置正确；属于 stream manager 接入 |
 | `src/main/ai/streamManager/persistence/backends/TemporaryChatBackend.ts` | temporary topic 的 stream persistence backend | 位置正确；属于 stream manager persistence backend |
-| `src/main/services/agentWorkspace/TemporarySessionService.ts` | temporary agent session draft 的 main 内存状态 | 位置不对；不是 workspace directory workflow |
-| `src/main/services/agentWorkspace/AgentSessionWorkflowService.ts` | session/workspace 创建 workflow | 当前 PR 不应继续依赖它 |
-
-目录建议重新收束为：
-
-| 目标路径 | 放什么 | 理由 |
-| --- | --- | --- |
-| `src/main/ai/temporaryChat/TemporaryChatService.ts` | temporary topic/message 的内存状态、lease/update/delete、snapshot/promotion orchestration | temporary chat 是 AI runtime 临时资源，不是 DB table owner |
-| `src/main/ai/temporaryChat/__tests__/TemporaryChatService.test.ts` | temporary topic service tests | 测试跟随 domain module |
-| `src/main/ai/agentSession/TemporaryAgentSessionDraftService.ts` | temporary agent session draft 的内存状态、agent/workspace source update、persist handoff | temporary session 属于 agent session draft，不属于 workspace filesystem |
-| `src/main/ai/agentSession/__tests__/TemporaryAgentSessionDraftService.test.ts` | temporary session draft tests | 复用现有 `agentSession` domain |
-| `src/main/ai/streamManager/context/TemporaryChatContextProvider.ts` | scratch temporary topic dispatch context | 保持在 stream manager；它是 dispatch routing 接入点 |
-| `src/main/ai/streamManager/persistence/backends/TemporaryChatBackend.ts` | scratch temporary topic stream persistence backend | 保持在 stream manager persistence backend |
 | `src/main/data/services/MessageService.ts` / topic owning service | 正式 chat topic/message 写入 | 保持 data service；temporary promotion 只能委托它们 |
 
 命名规则：
 
-- domain directory 用 camelCase，例如 `temporaryChat`、`agentSession`、`streamManager`。
+- runtime/domain directory 用 camelCase，例如 `streamManager`；temporary data services 不单独新增 `temporaryChat` / `agentSession` runtime 目录。
 - service class 文件用 PascalCase，并与 class 名称一致。
 - `TemporaryChatService` 可以保留这个名字，因为它只管理 temporary chat topic/message。
 - `TemporarySessionService` 应改名为 `TemporaryAgentSessionDraftService`，避免和 chat session、正式 session runtime 混淆。
@@ -723,12 +713,12 @@ PATCH /temporary/sessions/:id
 
 当前分支需要按 ownership 调整目录：
 
-- `src/main/data/services/TemporaryChatService.ts` 移到 `src/main/ai/temporaryChat/TemporaryChatService.ts`。
-- `src/main/data/services/__tests__/TemporaryChatService.test.ts` 移到 `src/main/ai/temporaryChat/__tests__/TemporaryChatService.test.ts`。
-- `src/main/services/agentWorkspace/TemporarySessionService.ts` 改为 `src/main/ai/agentSession/TemporaryAgentSessionDraftService.ts`。
-- `src/main/services/agentWorkspace/__tests__/TemporarySessionService.test.ts` 改为 `src/main/ai/agentSession/__tests__/TemporaryAgentSessionDraftService.test.ts`。
+- `TemporaryChatService` 放在 `src/main/data/services/TemporaryChatService.ts`。
+- `TemporaryChatService` 测试放在 `src/main/data/services/__tests__/TemporaryChatService.test.ts`。
+- `TemporarySessionService` 改名为 `TemporaryAgentSessionDraftService`，放在 `src/main/data/services/TemporaryAgentSessionDraftService.ts`。
+- `TemporaryAgentSessionDraftService` 测试放在 `src/main/data/services/__tests__/TemporaryAgentSessionDraftService.test.ts`。
 - 所有 import 和 test mock 跟随新路径更新。
-- 如果 `src/main/services/temporaryChat/` 没有实际文件，应删除这个空目录，不作为目标路径。
+- 如果 `src/main/ai/temporaryChat/` 或 `src/main/services/temporaryChat/` 没有实际文件，应删除空目录，不作为目标路径。
 
 命名上不要继续使用过泛的 `TemporarySessionService`。这里的 session 是 agent session draft，推荐 `TemporaryAgentSessionDraftService`。
 
@@ -764,8 +754,8 @@ temporary session persist 不适用这个原则，因为它不写正式 session/
 
 - `src/shared/data/api/schemas/__tests__/temporaryChats.test.ts`
 - `src/main/data/api/handlers/__tests__/temporaryChats.test.ts`
-- `src/main/ai/temporaryChat/__tests__/TemporaryChatService.test.ts`
-- `src/main/ai/agentSession/__tests__/TemporaryAgentSessionDraftService.test.ts`
+- `src/main/data/services/__tests__/TemporaryChatService.test.ts`
+- `src/main/data/services/__tests__/TemporaryAgentSessionDraftService.test.ts`
 - agent session workspace source 相关 tests
 
 renderer hook / page tests 不属于当前 PR，后续 chat-page 接入时再补。
