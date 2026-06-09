@@ -6181,7 +6181,7 @@
         "clear": "Borrar filtro de modelos",
         "label": "Filtrar modelos"
       },
-      "group_disable": "Cerrar este grupo",
+      "group_disable": "Deshabilitar este grupo",
       "group_enable": "Habilitar este grupo",
       "list_title": "Model list",
       "manage": {

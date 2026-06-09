@@ -6181,7 +6181,7 @@
         "clear": "Очистить фильтр моделей",
         "label": "Фильтровать модели"
       },
-      "group_disable": "Закрыть эту группу",
+      "group_disable": "Отключить эту группу",
       "group_enable": "Включить эту группу",
       "list_title": "Model list",
       "manage": {

@@ -6181,7 +6181,7 @@
         "clear": "モデルフィルターをクリア",
         "label": "モデルをフィルター"
       },
-      "group_disable": "このグループを閉じる",
+      "group_disable": "このグループを無効化",
       "group_enable": "このグループを有効化",
       "list_title": "Model list",
       "manage": {

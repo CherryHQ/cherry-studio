@@ -6181,7 +6181,7 @@
         "clear": "Clear model filter",
         "label": "Filter models"
       },
-      "group_disable": "Close this group",
+      "group_disable": "Disable this group",
       "group_enable": "Enable this group",
       "list_title": "Model list",
       "manage": {

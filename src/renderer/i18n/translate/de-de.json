@@ -6181,7 +6181,7 @@
         "clear": "Modellfilter löschen",
         "label": "Modelle filtern"
       },
-      "group_disable": "Diese Gruppe schließen",
+      "group_disable": "Diese Gruppe deaktivieren",
       "group_enable": "Diese Gruppe aktivieren",
       "list_title": "Model list",
       "manage": {

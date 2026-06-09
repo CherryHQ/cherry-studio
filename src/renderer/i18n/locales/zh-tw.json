@@ -6181,7 +6181,7 @@
         "clear": "清除模型篩選",
         "label": "篩選模型"
       },
-      "group_disable": "關閉此分組",
+      "group_disable": "停用此分組",
       "group_enable": "開啟此分組",
       "list_title": "模型列表",
       "manage": {

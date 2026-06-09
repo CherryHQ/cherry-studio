@@ -6181,7 +6181,7 @@
         "clear": "Xóa bộ lọc mô hình",
         "label": "Lọc mô hình"
       },
-      "group_disable": "Đóng nhóm này",
+      "group_disable": "Tắt nhóm này",
       "group_enable": "Bật nhóm này",
       "list_title": "Model list",
       "manage": {

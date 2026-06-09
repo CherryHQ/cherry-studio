@@ -6181,7 +6181,7 @@
         "clear": "Șterge filtrul de modele",
         "label": "Filtrează modelele"
       },
-      "group_disable": "Închide acest grup",
+      "group_disable": "Dezactivează acest grup",
       "group_enable": "Activează acest grup",
       "list_title": "Model list",
       "manage": {

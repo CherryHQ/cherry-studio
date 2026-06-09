@@ -6136,7 +6136,7 @@
         "enabled": "Ενεργοποίηση",
         "failed": "Αποτυχία",
         "failed_to_start": "Αποτυχία έναρξης ελέγχου υγείας",
-        "generation_output_audio": "ήχος",
+        "generation_output_audio": "έναν ήχο",
         "generation_output_image": "μια εικόνα",
         "generation_output_video": "ένα βίντεο",
         "keys_status_count": "Επιτυχημένοι: {{count_passed}} κλειδιά, αποτυχημένοι: {{count_failed}} κλειδιά",
@@ -6181,7 +6181,7 @@
         "clear": "Εκκαθάριση φίλτρου μοντέλων",
         "label": "Φιλτράρισμα μοντέλων"
       },
-      "group_disable": "Κλείσιμο αυτής της ομάδας",
+      "group_disable": "Απενεργοποίηση αυτής της ομάδας",
       "group_enable": "Ενεργοποίηση αυτής της ομάδας",
       "list_title": "Model list",
       "manage": {
