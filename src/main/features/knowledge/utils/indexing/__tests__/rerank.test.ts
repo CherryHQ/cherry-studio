@@ -5,12 +5,18 @@ import {
   type KnowledgeBase,
   type KnowledgeSearchResult
 } from '@shared/data/types/knowledge'
+import { APICallError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   aiRerankMock: vi.fn(),
-  warnMock: vi.fn()
+  warnMock: vi.fn(),
+  errorMock: vi.fn()
 }))
+
+function apiCallError(statusCode: number, message: string): APICallError {
+  return new APICallError({ message, url: 'https://api.example/rerank', requestBodyValues: {}, statusCode })
+}
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -27,7 +33,7 @@ vi.mock('@logger', () => ({
       debug: vi.fn(),
       info: vi.fn(),
       warn: mocks.warnMock,
-      error: vi.fn()
+      error: mocks.errorMock
     })
   }
 }))
@@ -189,13 +195,13 @@ describe('knowledge rerank runtime', () => {
       rerankKnowledgeSearchResults(createKnowledgeBase({ rerankModelId: 'invalid-model' }), 'hello', searchResults)
     ).resolves.toBe(searchResults)
     expect(mocks.aiRerankMock).not.toHaveBeenCalled()
-    expect(mocks.warnMock).toHaveBeenCalledWith('Skipping knowledge rerank because rerank model id is invalid', {
+    expect(mocks.errorMock).toHaveBeenCalledWith('Skipping knowledge rerank because rerank model id is invalid', {
       baseId: '11111111-1111-4111-8111-111111111111',
       rerankModelId: 'invalid-model'
     })
   })
 
-  it('returns vector search results when AiService.rerank fails', async () => {
+  it('keeps a transient rerank failure at warn level and returns vector search results', async () => {
     const searchResults = createSearchResults()
     mocks.aiRerankMock.mockRejectedValueOnce(new Error('upstream unavailable'))
 
@@ -208,5 +214,37 @@ describe('knowledge rerank runtime', () => {
       error: 'upstream unavailable',
       topN: 2
     })
+    expect(mocks.errorMock).not.toHaveBeenCalled()
+  })
+
+  it('keeps a transient 5xx rerank failure at warn level', async () => {
+    const searchResults = createSearchResults()
+    mocks.aiRerankMock.mockRejectedValueOnce(apiCallError(503, 'Service Unavailable'))
+
+    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toBe(
+      searchResults
+    )
+    expect(mocks.warnMock).toHaveBeenCalledTimes(1)
+    expect(mocks.errorMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [401, 'Unauthorized'],
+    [403, 'Forbidden'],
+    [404, 'Model not found']
+  ])('escalates a persistent %i rerank misconfiguration to error', async (statusCode, message) => {
+    const searchResults = createSearchResults()
+    mocks.aiRerankMock.mockRejectedValueOnce(apiCallError(statusCode, message))
+
+    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toBe(
+      searchResults
+    )
+    expect(mocks.errorMock).toHaveBeenCalledWith('Knowledge rerank failed, returning vector search results', {
+      baseId: '11111111-1111-4111-8111-111111111111',
+      rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
+      error: message,
+      topN: 2
+    })
+    expect(mocks.warnMock).not.toHaveBeenCalled()
   })
 })

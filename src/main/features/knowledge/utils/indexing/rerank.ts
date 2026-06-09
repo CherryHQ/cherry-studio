@@ -3,8 +3,17 @@ import { loggerService } from '@logger'
 import { DEFAULT_DOCUMENT_COUNT, DEFAULT_RELEVANT_SCORE } from '@main/utils/knowledge'
 import type { KnowledgeBase, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
+import { APICallError } from 'ai'
 
 const logger = loggerService.withContext('KnowledgeRerank')
+
+// HTTP statuses that signal a persistent rerank misconfiguration (bad key / no access /
+// wrong model) rather than a transient blip — these will keep failing every search.
+const PERSISTENT_RERANK_STATUS_CODES = new Set([401, 403, 404])
+
+function isPersistentRerankMisconfig(error: unknown): boolean {
+  return APICallError.isInstance(error) && PERSISTENT_RERANK_STATUS_CODES.has(error.statusCode ?? 0)
+}
 
 function mergeRerankResults(
   searchResults: KnowledgeSearchResult[],
@@ -36,7 +45,9 @@ async function rerankWithAiService(
 ): Promise<KnowledgeSearchResult[]> {
   const parsed = UniqueModelIdSchema.safeParse(base.rerankModelId)
   if (!parsed.success) {
-    logger.warn('Skipping knowledge rerank because rerank model id is invalid', {
+    // A malformed model id fails identically on every search, so search is silently
+    // degraded indefinitely — log at error level so the misconfiguration is visible.
+    logger.error('Skipping knowledge rerank because rerank model id is invalid', {
       baseId: base.id,
       rerankModelId: base.rerankModelId
     })
@@ -54,12 +65,19 @@ async function rerankWithAiService(
     return mergeRerankResults(searchResults, result.ranking)
   } catch (error) {
     const normalizedError = error instanceof Error ? error : new Error(String(error))
-    logger.warn('Knowledge rerank failed, returning vector search results', {
+    const context = {
       baseId: base.id,
       rerankModelId: base.rerankModelId,
       error: normalizedError.message,
       topN
-    })
+    }
+    // Persistent misconfiguration (401/403/404) degrades every search forever, so escalate
+    // to error; transient failures (network/timeout/429/5xx) stay at warn.
+    if (isPersistentRerankMisconfig(error)) {
+      logger.error('Knowledge rerank failed, returning vector search results', context)
+    } else {
+      logger.warn('Knowledge rerank failed, returning vector search results', context)
+    }
     return searchResults
   }
 }
