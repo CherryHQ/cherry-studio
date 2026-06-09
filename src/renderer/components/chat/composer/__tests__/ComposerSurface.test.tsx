@@ -1,8 +1,13 @@
 import { COMPOSER_FILE_KIND } from '@renderer/types'
+import {
+  COMPOSER_CLIPBOARD_FRAGMENT_MIME,
+  createComposerClipboardFragment,
+  readComposerClipboardFragment
+} from '@renderer/utils/messageUtils/composerClipboard'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { useState } from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ComposerSurface, { type ComposerSurfaceActions, type ComposerSurfaceProps } from '../ComposerSurface'
 
@@ -24,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   dispatch: vi.fn(),
   pasteHandler: vi.fn(),
   setTimeoutTimer: vi.fn(),
+  timeoutCleanups: [] as Array<() => void>,
   preferences: {
     'chat.input.send_message_shortcut': 'Enter'
   } as Record<string, unknown>,
@@ -37,6 +43,10 @@ const mocks = vi.hoisted(() => ({
   selection: { from: 1 } as any,
   transaction: undefined as any
 }))
+
+function clearMockTimers() {
+  mocks.timeoutCleanups.splice(0).forEach((cleanup) => cleanup())
+}
 
 vi.mock('@cherrystudio/ui', () => ({
   Button: ({
@@ -256,8 +266,36 @@ const Harness = () => {
   )
 }
 
+function createClipboardDataMock() {
+  const data = new Map<string, string>()
+
+  return {
+    clearData: vi.fn(() => data.clear()),
+    getData: vi.fn((type: string) => data.get(type) ?? ''),
+    setData: vi.fn((type: string, value: string) => {
+      data.set(type, value)
+    })
+  }
+}
+
+function createComposerCopyView(content: unknown[], options: { empty?: boolean } = {}) {
+  return {
+    state: {
+      selection: {
+        empty: options.empty ?? false,
+        content: () => ({
+          content: {
+            toJSON: () => content
+          }
+        })
+      }
+    }
+  }
+}
+
 describe('ComposerSurface', () => {
   beforeEach(() => {
+    clearMockTimers()
     mocks.editorOptions = undefined
     mocks.actions = undefined
     mocks.editorViewComposing = false
@@ -280,7 +318,9 @@ describe('ComposerSurface', () => {
     mocks.setTimeoutTimer.mockReset()
     mocks.setTimeoutTimer.mockImplementation((_key: string, callback: () => void, delay?: number) => {
       const timer = setTimeout(callback, delay)
-      return () => clearTimeout(timer)
+      const cleanup = () => clearTimeout(timer)
+      mocks.timeoutCleanups.push(cleanup)
+      return cleanup
     })
     mocks.preferences = {
       'chat.input.send_message_shortcut': 'Enter'
@@ -313,6 +353,10 @@ describe('ComposerSurface', () => {
         error: vi.fn()
       }
     })
+  })
+
+  afterEach(() => {
+    clearMockTimers()
   })
 
   it('uses state-specific viewport-relative max heights and only fixes height when expanded', async () => {
@@ -1285,17 +1329,337 @@ describe('ComposerSurface', () => {
 
     expect(handled).toBe(true)
     expect(preventDefault).toHaveBeenCalled()
+    await waitFor(() =>
+      expect(mocks.insertContent).toHaveBeenCalledWith([
+        {
+          type: 'composerToken',
+          attrs: {
+            id: 'skill:find-skills',
+            kind: 'skill',
+            label: 'Find Skills',
+            promptText: 'Use the Find Skills skill.'
+          }
+        },
+        { type: 'text', text: ' ' },
+        {
+          type: 'composerToken',
+          attrs: {
+            id: 'skill:pdf',
+            kind: 'skill',
+            label: 'PDF',
+            promptText: 'Use the PDF skill.'
+          }
+        },
+        { type: 'text', text: ' 你好' }
+      ])
+    )
+    expect(resolveSkillMarker).toHaveBeenCalledWith('find-skills')
+    expect(resolveSkillMarker).toHaveBeenCalledWith('pdf')
+  })
+
+  it('writes rich composer clipboard data when copying selected skill tokens', async () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const clipboardData = createClipboardDataMock()
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData
+    }
+    const view = createComposerCopyView([
+      {
+        type: 'paragraph',
+        content: [
+          {
+            type: 'composerToken',
+            attrs: {
+              id: 'skill:pdf',
+              kind: 'skill',
+              label: 'PDF',
+              promptText: 'Use PDF'
+            }
+          },
+          { type: 'text', text: ' now' }
+        ]
+      }
+    ])
+
+    const handled = mocks.editorOptions.editorProps.handleDOMEvents.copy(view, event)
+
+    expect(handled).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(clipboardData.clearData).toHaveBeenCalled()
+    expect(clipboardData.getData('text/plain')).toBe('/pdf/ now')
+    expect(clipboardData.getData('text/html')).not.toContain('data-composer-token')
+    expect(readComposerClipboardFragment(clipboardData.getData(COMPOSER_CLIPBOARD_FRAGMENT_MIME))?.segments).toEqual([
+      {
+        type: 'token',
+        fallbackText: '/pdf/',
+        token: {
+          id: 'skill:pdf',
+          kind: 'skill',
+          label: 'PDF',
+          promptText: 'Use PDF'
+        }
+      },
+      { type: 'text', text: ' now' }
+    ])
+  })
+
+  it('lets ProseMirror handle plain text composer copy selections', async () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const clipboardData = createClipboardDataMock()
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData
+    }
+    const view = createComposerCopyView([
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: 'plain text' }]
+      }
+    ])
+
+    const handled = mocks.editorOptions.editorProps.handleDOMEvents.copy(view, event)
+
+    expect(handled).toBe(false)
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(clipboardData.clearData).not.toHaveBeenCalled()
+    expect(clipboardData.setData).not.toHaveBeenCalled()
+  })
+
+  it('keeps copied composer file paths private while preserving attachment restore data', async () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const clipboardData = createClipboardDataMock()
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData
+    }
+    const view = createComposerCopyView([
+      {
+        type: 'paragraph',
+        content: [
+          {
+            type: 'composerToken',
+            attrs: {
+              id: 'file:file-1',
+              kind: 'file',
+              label: 'report.pdf',
+              payload: {
+                type: 'document',
+                ext: '.pdf',
+                name: 'report.pdf',
+                origin_name: 'report.pdf',
+                size: 4096,
+                path: '/Users/example/private/report.pdf'
+              }
+            }
+          },
+          { type: 'text', text: ' after' }
+        ]
+      }
+    ])
+
+    const handled = mocks.editorOptions.editorProps.handleDOMEvents.copy(view, event)
+
+    const fragmentText = clipboardData.getData(COMPOSER_CLIPBOARD_FRAGMENT_MIME)
+    expect(handled).toBe(true)
+    expect(clipboardData.getData('text/plain')).toBe('report.pdf after')
+    expect(clipboardData.getData('text/html')).not.toContain('/Users/example/private/report.pdf')
+    expect(fragmentText).toContain('/Users/example/private/report.pdf')
+    expect(readComposerClipboardFragment(fragmentText)?.segments[0]).toMatchObject({
+      type: 'token',
+      token: {
+        id: 'file:file-1',
+        kind: 'file',
+        label: 'report.pdf',
+        payload: {
+          path: '/Users/example/private/report.pdf'
+        }
+      }
+    })
+  })
+
+  it('uses live file token payload when copying restored edited-message file tokens', async () => {
+    render(
+      <ComposerSurface
+        {...baseProps}
+        tokens={[
+          {
+            id: 'file:file-1',
+            kind: 'file',
+            label: 'report.pdf',
+            payload: {
+              id: 'file-1',
+              name: 'report.pdf',
+              origin_name: 'report.pdf',
+              path: '/Users/example/private/report.pdf',
+              size: 4096,
+              ext: '.pdf',
+              type: 'document',
+              created_at: '',
+              count: 1
+            }
+          }
+        ]}
+      />
+    )
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const clipboardData = createClipboardDataMock()
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData
+    }
+    const view = createComposerCopyView([
+      {
+        type: 'paragraph',
+        content: [
+          {
+            type: 'composerToken',
+            attrs: {
+              id: 'file:file-1',
+              kind: 'file',
+              label: 'report.pdf',
+              payload: {
+                type: 'document',
+                ext: '.pdf',
+                name: 'report.pdf',
+                origin_name: 'report.pdf',
+                size: 4096
+              }
+            }
+          }
+        ]
+      }
+    ])
+
+    const handled = mocks.editorOptions.editorProps.handleDOMEvents.copy(view, event)
+    const fragmentText = clipboardData.getData(COMPOSER_CLIPBOARD_FRAGMENT_MIME)
+
+    expect(handled).toBe(true)
+    expect(clipboardData.getData('text/plain')).toBe('report.pdf')
+    expect(clipboardData.getData('text/html')).not.toContain('/Users/example/private/report.pdf')
+    expect(readComposerClipboardFragment(fragmentText)?.segments[0]).toMatchObject({
+      type: 'token',
+      token: {
+        id: 'file:file-1',
+        kind: 'file',
+        label: 'report.pdf',
+        payload: {
+          path: '/Users/example/private/report.pdf'
+        }
+      }
+    })
+  })
+
+  it('restores tokens from composer copy data pasted into another composer surface', async () => {
+    const resolveSkillMarker = vi.fn((marker: string) =>
+      marker === 'pdf'
+        ? {
+            id: 'skill:pdf',
+            kind: 'skill' as const,
+            label: 'PDF',
+            promptText: 'Use PDF'
+          }
+        : null
+    )
+    render(<ComposerSurface {...baseProps} resolveSkillMarker={resolveSkillMarker} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const clipboardData = createClipboardDataMock()
+    const copyEvent = {
+      preventDefault: vi.fn(),
+      clipboardData
+    }
+    const copyView = createComposerCopyView([
+      {
+        type: 'paragraph',
+        content: [
+          {
+            type: 'composerToken',
+            attrs: {
+              id: 'skill:pdf',
+              kind: 'skill',
+              label: 'PDF',
+              promptText: 'Use PDF'
+            }
+          }
+        ]
+      }
+    ])
+
+    expect(mocks.editorOptions.editorProps.handleDOMEvents.copy(copyView, copyEvent)).toBe(true)
+
+    const pasteEvent = {
+      preventDefault: vi.fn(),
+      clipboardData
+    }
+    const handled = mocks.editorOptions.handlePaste(null, pasteEvent)
+
+    expect(handled).toBe(true)
+    expect(pasteEvent.preventDefault).toHaveBeenCalled()
     expect(mocks.insertContent).toHaveBeenCalledWith([
       {
         type: 'composerToken',
         attrs: {
-          id: 'skill:find-skills',
+          id: 'skill:pdf',
           kind: 'skill',
-          label: 'Find Skills',
-          promptText: 'Use the Find Skills skill.'
+          label: 'PDF',
+          promptText: 'Use PDF'
         }
+      }
+    ])
+  })
+
+  it('restores private clipboard skill fragments before parsing plain text markers', async () => {
+    const resolveSkillMarker = vi.fn((marker: string) =>
+      marker === 'pdf'
+        ? {
+            id: 'skill:pdf',
+            kind: 'skill' as const,
+            label: 'PDF',
+            promptText: 'Use the PDF skill.'
+          }
+        : null
+    )
+    render(<ComposerSurface {...baseProps} resolveSkillMarker={resolveSkillMarker} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const preventDefault = vi.fn()
+    const fragment = createComposerClipboardFragment([
+      {
+        type: 'token',
+        token: {
+          id: 'skill:pdf',
+          kind: 'skill',
+          label: 'PDF',
+          promptText: 'Use the PDF skill.'
+        },
+        fallbackText: '/pdf/'
       },
-      { type: 'text', text: ' ' },
+      { type: 'text', text: ' private' }
+    ])
+    const event = {
+      preventDefault,
+      clipboardData: {
+        getData: vi.fn((type: string) => {
+          if (type === COMPOSER_CLIPBOARD_FRAGMENT_MIME) return fragment
+          if (type === 'text/plain') return '/missing/ plain'
+          return ''
+        })
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(true)
+    expect(preventDefault).toHaveBeenCalled()
+    expect(mocks.insertContent).toHaveBeenCalledWith([
       {
         type: 'composerToken',
         attrs: {
@@ -1305,10 +1669,291 @@ describe('ComposerSurface', () => {
           promptText: 'Use the PDF skill.'
         }
       },
-      { type: 'text', text: ' 你好' }
+      { type: 'text', text: ' private' }
     ])
-    expect(resolveSkillMarker).toHaveBeenCalledWith('find-skills')
     expect(resolveSkillMarker).toHaveBeenCalledWith('pdf')
+  })
+
+  it('restores private clipboard fragments from async clipboard when paste data omits custom formats', async () => {
+    const resolveSkillMarker = vi.fn((marker: string) =>
+      marker === 'pdf'
+        ? {
+            id: 'skill:pdf',
+            kind: 'skill' as const,
+            label: 'PDF',
+            promptText: 'Use the PDF skill.'
+          }
+        : null
+    )
+    const fragment = createComposerClipboardFragment([
+      {
+        type: 'token',
+        token: {
+          id: 'skill:pdf',
+          kind: 'skill',
+          label: 'PDF',
+          promptText: 'Use the PDF skill.'
+        },
+        fallbackText: '/plain-only/'
+      }
+    ])
+    const getType = vi.fn(async () => ({ text: async () => fragment }))
+    const clipboard = {
+      read: vi.fn(async () => [
+        {
+          types: [COMPOSER_CLIPBOARD_FRAGMENT_MIME],
+          getType
+        }
+      ])
+    }
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: clipboard
+    })
+
+    render(<ComposerSurface {...baseProps} resolveSkillMarker={resolveSkillMarker} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const preventDefault = vi.fn()
+    const event = {
+      preventDefault,
+      clipboardData: {
+        getData: vi.fn((type: string) => (type === 'text/plain' ? '/plain-only/' : ''))
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(true)
+    expect(preventDefault).toHaveBeenCalled()
+    await waitFor(() => expect(clipboard.read).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(mocks.insertContent).toHaveBeenCalledWith([
+        {
+          type: 'composerToken',
+          attrs: {
+            id: 'skill:pdf',
+            kind: 'skill',
+            label: 'PDF',
+            promptText: 'Use the PDF skill.'
+          }
+        }
+      ])
+    )
+    expect(resolveSkillMarker).toHaveBeenCalledWith('pdf')
+  })
+
+  it('falls back to inserting plain text once when async clipboard has no private fragment', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        read: vi.fn(async () => [])
+      }
+    })
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const preventDefault = vi.fn()
+    const event = {
+      preventDefault,
+      clipboardData: {
+        getData: vi.fn((type: string) => (type === 'text/plain' ? 'plain paste' : ''))
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(true)
+    expect(preventDefault).toHaveBeenCalled()
+    await waitFor(() => expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: 'plain paste' }]))
+    expect(mocks.insertContent).toHaveBeenCalledTimes(1)
+  })
+
+  it('prefers paste event private fragments over async clipboard fragments', async () => {
+    const resolveSkillMarker = vi.fn((marker: string) =>
+      marker === 'event'
+        ? {
+            id: 'skill:event',
+            kind: 'skill' as const,
+            label: 'Event Skill',
+            promptText: 'Use event skill.'
+          }
+        : marker === 'async'
+          ? {
+              id: 'skill:async',
+              kind: 'skill' as const,
+              label: 'Async Skill',
+              promptText: 'Use async skill.'
+            }
+          : null
+    )
+    const eventFragment = createComposerClipboardFragment([
+      {
+        type: 'token',
+        token: {
+          id: 'skill:event',
+          kind: 'skill',
+          label: 'Event Skill',
+          promptText: 'Use event skill.'
+        },
+        fallbackText: '/event/'
+      }
+    ])
+    const asyncFragment = createComposerClipboardFragment([
+      {
+        type: 'token',
+        token: {
+          id: 'skill:async',
+          kind: 'skill',
+          label: 'Async Skill',
+          promptText: 'Use async skill.'
+        },
+        fallbackText: '/async/'
+      }
+    ])
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        read: vi.fn(async () => [
+          {
+            types: [COMPOSER_CLIPBOARD_FRAGMENT_MIME],
+            getType: vi.fn(async () => new Blob([asyncFragment]))
+          }
+        ])
+      }
+    })
+    render(<ComposerSurface {...baseProps} resolveSkillMarker={resolveSkillMarker} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => {
+          if (type === COMPOSER_CLIPBOARD_FRAGMENT_MIME) return eventFragment
+          if (type === 'text/plain') return '/event/'
+          return ''
+        })
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(true)
+    expect(mocks.insertContent).toHaveBeenCalledWith([
+      {
+        type: 'composerToken',
+        attrs: {
+          id: 'skill:event',
+          kind: 'skill',
+          label: 'Event Skill',
+          promptText: 'Use event skill.'
+        }
+      }
+    ])
+    expect(navigator.clipboard.read).not.toHaveBeenCalled()
+    expect(resolveSkillMarker).toHaveBeenCalledWith('event')
+    expect(resolveSkillMarker).not.toHaveBeenCalledWith('async')
+  })
+
+  it('restores private clipboard file fragments with paths into file tokens and file state', async () => {
+    const setFiles = vi.fn()
+    render(<ComposerSurface {...baseProps} managedTokenKinds={['file']} setFiles={setFiles} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const fragment = createComposerClipboardFragment([
+      {
+        type: 'token',
+        token: {
+          id: 'file:file-1',
+          kind: 'file',
+          label: 'report.pdf',
+          payload: {
+            type: 'document',
+            ext: '.pdf',
+            name: 'report.pdf',
+            origin_name: 'report.pdf',
+            size: 4096,
+            path: '/Users/example/private/report.pdf'
+          }
+        },
+        fallbackText: 'report.pdf'
+      }
+    ])
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => {
+          if (type === COMPOSER_CLIPBOARD_FRAGMENT_MIME) return fragment
+          if (type === 'text/plain') return 'report.pdf'
+          return ''
+        })
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(true)
+    expect(mocks.insertContent).toHaveBeenCalledWith([
+      {
+        type: 'composerToken',
+        attrs: {
+          id: 'file:file-1',
+          kind: 'file',
+          label: 'report.pdf',
+          payload: expect.objectContaining({
+            id: 'file-1',
+            path: '/Users/example/private/report.pdf',
+            type: 'document'
+          })
+        }
+      }
+    ])
+    const updater = setFiles.mock.calls[0]?.[0] as (files: unknown[]) => unknown[]
+    expect(updater([])).toEqual([
+      expect.objectContaining({
+        id: 'file-1',
+        path: '/Users/example/private/report.pdf',
+        type: 'document'
+      })
+    ])
+  })
+
+  it('downgrades private clipboard file fragments without paths to fallback text', async () => {
+    render(<ComposerSurface {...baseProps} managedTokenKinds={['file']} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const fragment = createComposerClipboardFragment([
+      {
+        type: 'token',
+        token: {
+          id: 'file:file-1',
+          kind: 'file',
+          label: 'report.pdf',
+          payload: {
+            type: 'document',
+            ext: '.pdf',
+            name: 'report.pdf'
+          }
+        },
+        fallbackText: 'report.pdf'
+      }
+    ])
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => {
+          if (type === COMPOSER_CLIPBOARD_FRAGMENT_MIME) return fragment
+          if (type === 'text/plain') return 'report.pdf'
+          return ''
+        })
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(true)
+    expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: 'report.pdf' }])
+    expect(baseProps.setFiles).not.toHaveBeenCalled()
   })
 
   it('restores serialized skill tokens when initializing draft content', async () => {

@@ -292,7 +292,7 @@ export interface MessageListActions {
   openUserProfile?: () => void | Promise<void>
   copyText?: (text: string, options?: { successMessage?: string; emptyMessage?: string }) => void | Promise<void>
   copyRichContent?: (
-    content: { plainText: string; html: string },
+    content: { plainText: string; html: string; customFormats?: Record<string, string> },
     options?: { successMessage?: string }
   ) => void | Promise<void>
   copyImage?: (blob: Blob, options?: { successMessage?: string }) => void | Promise<void>

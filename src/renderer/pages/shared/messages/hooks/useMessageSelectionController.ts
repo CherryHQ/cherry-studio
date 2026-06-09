@@ -7,7 +7,8 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import {
   createSelectedMessageExportViews,
-  getSelectedMessagesPlainText
+  getSelectedMessagesPlainText,
+  getSelectedMessagesRichClipboardContent
 } from '@renderer/components/chat/messages/utils/messageSelection'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { messagesToMarkdown } from '@renderer/utils/export'
@@ -23,6 +24,7 @@ interface UseMessageSelectionControllerParams {
   partsByMessageId: Record<string, CherryMessagePart[]>
   deleteMessage?: MessageListActions['deleteMessage']
   saveTextFile?: MessageListActions['saveTextFile']
+  copyRichContent?: MessageListActions['copyRichContent']
 }
 
 interface MessageSelectionController {
@@ -42,13 +44,14 @@ export function useMessageSelectionController({
   messages,
   partsByMessageId,
   deleteMessage,
-  saveTextFile
+  saveTextFile,
+  copyRichContent
 }: UseMessageSelectionControllerParams): MessageSelectionController {
   const { t } = useTranslation()
   const [isMultiSelectMode, setIsMultiSelectMode] = useCache('chat.multi_select_mode')
   const [selectedMessageIds, setSelectedMessageIds] = useCache('chat.selected_message_ids')
 
-  const selectedIds = selectedMessageIds ?? []
+  const selectedIds = useMemo(() => selectedMessageIds ?? [], [selectedMessageIds])
 
   const toggleMultiSelectMode = useCallback(
     (enabled: boolean) => {
@@ -101,19 +104,26 @@ export function useMessageSelectionController({
       const ids = ensureSelection(messageIds)
       if (!ids) return
 
-      const contentToCopy = getSelectedMessagesPlainText(ids, messages, partsByMessageId)
+      const richContent = copyRichContent
+        ? getSelectedMessagesRichClipboardContent(ids, messages, partsByMessageId)
+        : null
+      const contentToCopy = richContent?.plainText ?? getSelectedMessagesPlainText(ids, messages, partsByMessageId)
       if (!contentToCopy) return
 
       try {
-        await navigator.clipboard.writeText(contentToCopy)
-        window.toast.success(t('message.copied'))
+        if (richContent && copyRichContent) {
+          await copyRichContent(richContent, { successMessage: t('message.copied') })
+        } else {
+          await navigator.clipboard.writeText(contentToCopy)
+          window.toast.success(t('message.copied'))
+        }
         toggleMultiSelectMode(false)
       } catch (error) {
         logger.error('Failed to copy selected messages:', error as Error)
         window.toast.error(formatErrorMessageWithPrefix(error, t('common.copy_failed')))
       }
     },
-    [ensureSelection, messages, partsByMessageId, t, toggleMultiSelectMode]
+    [copyRichContent, ensureSelection, messages, partsByMessageId, t, toggleMultiSelectMode]
   )
 
   const saveSelectedMessages = useCallback(

@@ -1,9 +1,13 @@
 import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
+import type { FileMetadata } from '@renderer/types'
+import type { ComposerClipboardFragment, ComposerClipboardToken } from '@renderer/utils/messageUtils/composerClipboard'
+import { createFileMetadataFromComposerClipboardToken } from '@renderer/utils/messageUtils/composerClipboard'
 import type { JSONContent } from '@tiptap/core'
 
 import {
   type ComposerTokenMarkerRule,
   createComposerPlainTextContent,
+  createComposerTokenContent,
   createComposerTokenMarkerInlineContent
 } from './composerTokenMarkers'
 import { createPromptVariableMarkerRule } from './promptVariables'
@@ -13,6 +17,11 @@ interface ComposerPlainTextPasteOptions {
   promptVariableStartIndex?: number
   resolveSkillMarker?: (marker: string) => ComposerDraftToken | null | undefined
   resolveKnowledgeBaseMarker?: (marker: string) => ComposerDraftToken | null | undefined
+}
+
+interface ComposerClipboardPasteOverride {
+  content: JSONContent[]
+  files: FileMetadata[]
 }
 
 const SKILL_TOKEN_MARKER_PATTERN = /(^|\s)\/([^/\s]+)\/(?=$|\s)/g
@@ -62,6 +71,82 @@ function createKnowledgeBaseMarkerRule(
 
 export function createComposerPlainTextPasteContent(text: string): JSONContent[] {
   return createComposerPlainTextContent(text)
+}
+
+function getPrivateTokenMarker(token: ComposerClipboardToken, prefix: string) {
+  return token.id.startsWith(prefix) ? token.id.slice(prefix.length) : token.label
+}
+
+function resolvePrivateClipboardToken(
+  token: ComposerClipboardToken,
+  options: ComposerPlainTextPasteOptions
+): { token: ComposerDraftToken; file?: FileMetadata } | null {
+  if (token.kind === 'skill') {
+    const resolvedToken = options.resolveSkillMarker?.(getPrivateTokenMarker(token, 'skill:'))
+    return resolvedToken ? { token: resolvedToken } : null
+  }
+
+  if (token.kind === 'knowledge') {
+    const resolvedToken = options.resolveKnowledgeBaseMarker?.(getPrivateTokenMarker(token, 'knowledge:'))
+    return resolvedToken ? { token: resolvedToken } : null
+  }
+
+  if (token.kind === 'file') {
+    const file = createFileMetadataFromComposerClipboardToken(token)
+    if (!file) return null
+
+    return {
+      token: {
+        id: token.id,
+        kind: 'file',
+        label: token.label,
+        payload: file
+      },
+      file
+    }
+  }
+
+  if (token.kind === 'quote' || token.kind === 'promptVariable') {
+    return {
+      token: {
+        id: token.id,
+        kind: token.kind,
+        label: token.label,
+        ...(token.description && { description: token.description }),
+        ...(token.promptText && { promptText: token.promptText })
+      }
+    }
+  }
+
+  return null
+}
+
+export function getComposerClipboardPasteOverride(
+  fragment: ComposerClipboardFragment | null,
+  options: ComposerPlainTextPasteOptions
+): ComposerClipboardPasteOverride | null {
+  if (!fragment?.segments.length) return null
+
+  const content: JSONContent[] = []
+  const files: FileMetadata[] = []
+
+  for (const segment of fragment.segments) {
+    if (segment.type === 'text') {
+      content.push(...createComposerPlainTextContent(segment.text))
+      continue
+    }
+
+    const resolved = resolvePrivateClipboardToken(segment.token, options)
+    if (!resolved) {
+      content.push(...createComposerPlainTextContent(segment.fallbackText))
+      continue
+    }
+
+    content.push(createComposerTokenContent(resolved.token))
+    if (resolved.file) files.push(resolved.file)
+  }
+
+  return content.length ? { content, files } : null
 }
 
 export function createComposerMarkedTextPasteContent(

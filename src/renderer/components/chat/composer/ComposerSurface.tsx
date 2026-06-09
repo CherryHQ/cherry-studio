@@ -13,9 +13,15 @@ import { usePasteHandler } from '@renderer/pages/home/Inputbar/hooks/usePasteHan
 import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
 import PasteService from '@renderer/services/PasteService'
 import { type FileMetadata, isPastedTextFileMetadata } from '@renderer/types'
+import {
+  createComposerRichClipboardContentFromDraft,
+  readComposerClipboardFragmentFromDataTransfer,
+  readComposerClipboardFragmentFromSystemClipboard,
+  writeComposerClipboardData
+} from '@renderer/utils/messageUtils/composerClipboard'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import type { ComposerMessageToken } from '@shared/data/types/uiParts'
-import type { EditorOptions } from '@tiptap/core'
+import type { EditorOptions, JSONContent } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, type NodeViewProps } from '@tiptap/react'
 import { CirclePause, LocateFixed, Maximize2, Minimize2, X } from 'lucide-react'
@@ -24,7 +30,7 @@ import { useTranslation } from 'react-i18next'
 
 import { FileComposerToken } from '../tokens'
 import { createComposerDocumentContent, serializeComposerDocument } from './composerDraft'
-import { getComposerPlainTextPasteOverride } from './composerPaste'
+import { getComposerClipboardPasteOverride, getComposerPlainTextPasteOverride } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
 import {
@@ -54,6 +60,18 @@ import type { ComposerToolLauncher } from './toolLauncher'
 
 const COMPOSER_INPUT_MAX_LENGTH = 40000
 type ComposerTextInputView = Parameters<NonNullable<NonNullable<EditorOptions['editorProps']>['handleTextInput']>>[0]
+interface ComposerClipboardCopyView {
+  state: {
+    selection: {
+      empty: boolean
+      content: () => {
+        content: {
+          toJSON: () => unknown
+        }
+      }
+    }
+  }
+}
 
 export interface ComposerSurfaceActions {
   focus: () => void
@@ -252,6 +270,90 @@ function getComposerSelectedText(editor: Editor) {
   const { from, to } = editor.state.selection
   if (from >= to) return ''
   return editor.state.doc.textBetween(from, to, '\n', getComposerInputLeafText)
+}
+
+function readComposerPayloadObject(payload: unknown): Record<string, unknown> | null {
+  return typeof payload === 'object' && payload !== null && !Array.isArray(payload)
+    ? (payload as Record<string, unknown>)
+    : null
+}
+
+function readComposerPayloadPath(payload: unknown): string | undefined {
+  const payloadObject = readComposerPayloadObject(payload)
+  const path = payloadObject?.path
+  return typeof path === 'string' ? path : undefined
+}
+
+function mergeLiveFileTokenPayload(
+  token: ComposerSerializedToken,
+  liveTokenById: ReadonlyMap<string, ComposerDraftToken>
+): ComposerSerializedToken {
+  if (token.kind !== 'file' || readComposerPayloadPath(token.payload)) return token
+
+  const liveToken = liveTokenById.get(token.id)
+  if (liveToken?.kind !== 'file') return token
+
+  const livePath = readComposerPayloadPath(liveToken.payload)
+  if (!livePath) return token
+
+  return {
+    ...token,
+    payload: {
+      ...readComposerPayloadObject(liveToken.payload),
+      ...readComposerPayloadObject(token.payload),
+      path: livePath
+    }
+  }
+}
+
+function createComposerDraftFromSelectedContent(view: ComposerClipboardCopyView): ComposerSerializedDraft | null {
+  const { selection } = view.state
+  if (selection.empty) return null
+
+  const content = selection.content().content.toJSON()
+  if (!Array.isArray(content) || content.length === 0) return null
+
+  return serializeComposerDocument({ type: 'doc', content: content as JSONContent[] })
+}
+
+function handleComposerCopy(
+  view: ComposerClipboardCopyView,
+  event: ClipboardEvent,
+  liveTokenById: ReadonlyMap<string, ComposerDraftToken>
+) {
+  if (!event.clipboardData) return false
+
+  const draft = createComposerDraftFromSelectedContent(view)
+  const richContent = draft
+    ? createComposerRichClipboardContentFromDraft({
+        ...draft,
+        tokens: draft.tokens.map((token) => mergeLiveFileTokenPayload(token, liveTokenById))
+      })
+    : null
+  if (!richContent) return false
+
+  event.preventDefault()
+  event.clipboardData.clearData()
+  writeComposerClipboardData(event.clipboardData, richContent)
+  return true
+}
+
+function mergeComposerClipboardFiles(prev: FileMetadata[], files: readonly FileMetadata[]) {
+  if (!files.length) return prev
+
+  const existing = new Set(prev.map((file) => `${file.id}:${file.path}`))
+  const next = [...prev]
+  let changed = false
+
+  for (const file of files) {
+    const key = `${file.id}:${file.path}`
+    if (existing.has(key)) continue
+    existing.add(key)
+    next.push(file)
+    changed = true
+  }
+
+  return changed ? next : prev
 }
 
 function isRestorableDraftToken(
@@ -948,6 +1050,7 @@ export default function ComposerSurface({
         return true
       },
       handleDOMEvents: {
+        copy: (view, event) => handleComposerCopy(view, event, tokenByIdRef.current),
         compositionstart: () => {
           const editor = editorRef.current
           if (!editor || editor.isDestroyed) return false
@@ -997,6 +1100,7 @@ export default function ComposerSurface({
     },
     handlePaste: (_view, event) => {
       const pastedText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
+      const pastedHtml = event.clipboardData?.getData('text/html') || ''
       const editor = editorRef.current
       const selectedPromptVariable = editor ? getSelectedPromptVariableToken(editor) : null
       if (editor && selectedPromptVariable && pastedText) {
@@ -1028,6 +1132,57 @@ export default function ComposerSurface({
         }
       }
 
+      if (editor && textToInsert === pastedText) {
+        const pasteOptions = {
+          promptVariableStartIndex: getNextPromptVariableIndex(editor),
+          resolveSkillMarker,
+          resolveKnowledgeBaseMarker
+        }
+        const applyClipboardPasteOverride = (
+          clipboardPasteOverride: NonNullable<ReturnType<typeof getComposerClipboardPasteOverride>>
+        ) => {
+          const currentEditor = editorRef.current
+          if (!currentEditor || currentEditor.isDestroyed) return
+          currentEditor.chain().focus().insertContent(clipboardPasteOverride.content).run()
+          if (clipboardPasteOverride.files.length > 0) {
+            setFiles((prev) => mergeComposerClipboardFiles(prev, clipboardPasteOverride.files))
+          }
+        }
+
+        const clipboardPasteOverride = getComposerClipboardPasteOverride(
+          readComposerClipboardFragmentFromDataTransfer(event.clipboardData),
+          pasteOptions
+        )
+
+        if (clipboardPasteOverride !== null) {
+          event.preventDefault()
+          applyClipboardPasteOverride(clipboardPasteOverride)
+          return true
+        }
+
+        if (pastedText) {
+          event.preventDefault()
+          void (async () => {
+            const systemClipboardPasteOverride = getComposerClipboardPasteOverride(
+              await readComposerClipboardFragmentFromSystemClipboard(),
+              pasteOptions
+            )
+            if (systemClipboardPasteOverride !== null) {
+              applyClipboardPasteOverride(systemClipboardPasteOverride)
+              return
+            }
+
+            const fallbackPlainTextOverride = getComposerPlainTextPasteOverride(textToInsert, pasteOptions)
+            if (fallbackPlainTextOverride !== null) {
+              const currentEditor = editorRef.current
+              if (!currentEditor || currentEditor.isDestroyed) return
+              currentEditor.chain().focus().insertContent(fallbackPlainTextOverride).run()
+            }
+          })()
+          return true
+        }
+      }
+
       const plainTextOverride = getComposerPlainTextPasteOverride(textToInsert, {
         promptVariableStartIndex: editor ? getNextPromptVariableIndex(editor) : 0,
         resolveSkillMarker,
@@ -1037,6 +1192,11 @@ export default function ComposerSurface({
       if (plainTextOverride !== null) {
         event.preventDefault()
         editorRef.current?.chain().focus().insertContent(plainTextOverride).run()
+        return true
+      }
+
+      if (!pastedText && pastedHtml.includes('data-composer-token')) {
+        event.preventDefault()
         return true
       }
 
