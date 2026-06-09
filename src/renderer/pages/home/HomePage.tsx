@@ -4,7 +4,7 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useCommandHandler } from '@renderer/features/command'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
-import { useActiveTopic, useTopicMutations } from '@renderer/hooks/useTopic'
+import { useActiveTopic, useAllTopics, useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import NavigationService from '@renderer/services/NavigationService'
 import type { Topic } from '@renderer/types'
@@ -45,17 +45,30 @@ const HomePage: FC = () => {
   const location = useLocation()
   const state = location.state as { topic?: Topic } | undefined
 
-  const [shouldUseTemporary] = useState(() => {
+  // Fresh-conversation UX: on the first HomePage mount of the session, open a
+  // temporary topic instead of resuming the last one. One-shot (memory-tier
+  // cache flag), unless the caller pre-selected a topic via router state.
+  const [firstMount] = useState(() => {
     if (state?.topic) return false
     if (cacheService.get('topic.home.first_launch_temp_used')) return false
     cacheService.set('topic.home.first_launch_temp_used', true)
     return true
   })
 
-  // Lease a temporary topic only when this is the app's first HomePage mount
-  // and the caller didn't pre-select a topic via router state. The temp topic
-  // has no assistant attached — message capabilities / model fall back to the
-  // `chat.default_model_id` preference.
+  // Once `/topics` has loaded and turned out empty, there's no persisted topic
+  // for `autoPickFirst` to fall back to.
+  const { topics: persistedTopics, isLoading: topicsLoading } = useAllTopics()
+  const noPersistedTopic = !topicsLoading && persistedTopics.length === 0
+
+  // Lease a temporary topic whenever there's nothing to show:
+  //  - the first HomePage mount of the session (fresh-conversation UX), or
+  //  - the topic list is empty (fresh install, or navigating away from the
+  //    one-shot first-mount temp and back — its cleanup released the temp and
+  //    cleared `topic.active`, leaving the page with no topic to render).
+  // The temp topic has no assistant attached — capabilities / model fall back
+  // to the `chat.default_model_id` preference.
+  const shouldUseTemporary = !state?.topic && (firstMount || noPersistedTopic)
+
   const { topicId: tempTopicId, persist: persistTemporaryTopic } = useTemporaryTopic({
     enabled: shouldUseTemporary
   })
@@ -71,9 +84,9 @@ const HomePage: FC = () => {
   }, [state?.topic, shouldUseTemporary, tempTopicId])
 
   const { activeTopic, setActiveTopic } = useActiveTopic(initialTopic, {
-    // While we're waiting for the temporary topic to lease, suppress the
-    // auto-pick-first-topic effect so the UI doesn't flash a stale topic
-    // before our blank one shows up.
+    // While we're leasing a temporary topic, suppress the auto-pick-first-topic
+    // effect so the UI doesn't flash a stale topic before the blank one shows
+    // up. When not leasing (the user has persisted topics), auto-pick resumes.
     autoPickFirst: !shouldUseTemporary
   })
 
