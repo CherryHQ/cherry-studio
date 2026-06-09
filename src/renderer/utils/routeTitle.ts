@@ -23,6 +23,12 @@ const routeTitleKeys: Record<string, string> = {
   '/settings': 'title.settings'
 }
 
+// Sub-routes of these base paths inherit the section's default title and
+// refresh on language change. Paintings qualifies because its splat route
+// ignores the URL segment (the provider comes from preference), so a
+// paintings sub-path tab has no per-entity title — the section title is the
+// only meaningful label. Contrast /app/mini-app, which is deliberately left
+// out so caller-supplied per-entity titles survive.
 const autoLocalizableBasePaths = new Set(['/app/paintings'])
 
 /**
