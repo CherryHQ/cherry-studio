@@ -162,7 +162,7 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
-        knowledgeRuntime: {
+        knowledge: {
           listItemChunks: listItemChunksMock,
           deleteItemChunk: deleteItemChunkMock
         }

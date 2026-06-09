@@ -20,7 +20,7 @@ describe('useAddKnowledgeItems', () => {
     mockInvalidateCache.mockResolvedValue(undefined)
     mockAddItems.mockResolvedValue(undefined)
     ;(window as any).api = {
-      knowledgeRuntime: {
+      knowledge: {
         addItems: mockAddItems
       }
     }

@@ -1,51 +1,51 @@
 import {
   CreateKnowledgeBaseSchema,
   KNOWLEDGE_RUNTIME_ITEMS_MAX,
-  KnowledgeRuntimeAddItemInputSchema,
+  KnowledgeAddItemInputSchema,
   RestoreKnowledgeBaseSchema
 } from '@shared/data/types/knowledge'
 import * as z from 'zod'
 
-export const KnowledgeRuntimeCreateBasePayloadSchema = z.strictObject({
+export const KnowledgeCreateBasePayloadSchema = z.strictObject({
   base: CreateKnowledgeBaseSchema
 })
-export type KnowledgeRuntimeCreateBasePayload = z.infer<typeof KnowledgeRuntimeCreateBasePayloadSchema>
+export type KnowledgeCreateBasePayload = z.infer<typeof KnowledgeCreateBasePayloadSchema>
 
-export const KnowledgeRuntimeRestoreBasePayloadSchema = RestoreKnowledgeBaseSchema
-export type KnowledgeRuntimeRestoreBasePayload = z.infer<typeof KnowledgeRuntimeRestoreBasePayloadSchema>
+export const KnowledgeRestoreBasePayloadSchema = RestoreKnowledgeBaseSchema
+export type KnowledgeRestoreBasePayload = z.infer<typeof KnowledgeRestoreBasePayloadSchema>
 
-export const KnowledgeRuntimeBasePayloadSchema = z.strictObject({
+export const KnowledgeBasePayloadSchema = z.strictObject({
   baseId: z.string().trim().min(1)
 })
-export type KnowledgeRuntimeBasePayload = z.infer<typeof KnowledgeRuntimeBasePayloadSchema>
+export type KnowledgeBasePayload = z.infer<typeof KnowledgeBasePayloadSchema>
 
-export const KnowledgeRuntimeAddItemsPayloadSchema = z.strictObject({
+export const KnowledgeAddItemsPayloadSchema = z.strictObject({
   baseId: z.string().trim().min(1),
-  items: z.array(KnowledgeRuntimeAddItemInputSchema).min(1).max(KNOWLEDGE_RUNTIME_ITEMS_MAX)
+  items: z.array(KnowledgeAddItemInputSchema).min(1).max(KNOWLEDGE_RUNTIME_ITEMS_MAX)
 })
-export type KnowledgeRuntimeAddItemsPayload = z.infer<typeof KnowledgeRuntimeAddItemsPayloadSchema>
+export type KnowledgeAddItemsPayload = z.infer<typeof KnowledgeAddItemsPayloadSchema>
 
-export const KnowledgeRuntimeItemsPayloadSchema = z.strictObject({
+export const KnowledgeItemsPayloadSchema = z.strictObject({
   baseId: z.string().trim().min(1),
   itemIds: z.array(z.string().trim().min(1)).min(1).max(KNOWLEDGE_RUNTIME_ITEMS_MAX)
 })
-export type KnowledgeRuntimeItemsPayload = z.infer<typeof KnowledgeRuntimeItemsPayloadSchema>
+export type KnowledgeItemsPayload = z.infer<typeof KnowledgeItemsPayloadSchema>
 
-export const KnowledgeRuntimeSearchPayloadSchema = z.strictObject({
+export const KnowledgeSearchPayloadSchema = z.strictObject({
   baseId: z.string().trim().min(1),
   query: z.string().trim().min(1).max(1000)
 })
-export type KnowledgeRuntimeSearchPayload = z.infer<typeof KnowledgeRuntimeSearchPayloadSchema>
+export type KnowledgeSearchPayload = z.infer<typeof KnowledgeSearchPayloadSchema>
 
-export const KnowledgeRuntimeItemChunksPayloadSchema = z.strictObject({
+export const KnowledgeItemChunksPayloadSchema = z.strictObject({
   baseId: z.string().trim().min(1),
   itemId: z.string().trim().min(1)
 })
-export type KnowledgeRuntimeItemChunksPayload = z.infer<typeof KnowledgeRuntimeItemChunksPayloadSchema>
+export type KnowledgeItemChunksPayload = z.infer<typeof KnowledgeItemChunksPayloadSchema>
 
-export const KnowledgeRuntimeDeleteItemChunkPayloadSchema = z.strictObject({
+export const KnowledgeDeleteItemChunkPayloadSchema = z.strictObject({
   baseId: z.string().trim().min(1),
   itemId: z.string().trim().min(1),
   chunkId: z.string().trim().min(1)
 })
-export type KnowledgeRuntimeDeleteItemChunkPayload = z.infer<typeof KnowledgeRuntimeDeleteItemChunkPayloadSchema>
+export type KnowledgeDeleteItemChunkPayload = z.infer<typeof KnowledgeDeleteItemChunkPayloadSchema>

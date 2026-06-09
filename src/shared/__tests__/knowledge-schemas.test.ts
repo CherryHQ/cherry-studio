@@ -12,10 +12,10 @@ import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
   isCompletedKnowledgeBase,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KnowledgeAddItemInputSchema,
   type KnowledgeBase,
   KnowledgeBaseSchema,
   KnowledgeItemSchema,
-  KnowledgeRuntimeAddItemInputSchema,
   RestoreKnowledgeBaseSchema
 } from '../data/types/knowledge'
 
@@ -154,7 +154,7 @@ describe('Knowledge base schemas', () => {
 
   it('uses create-item DTO shapes for runtime add-item inputs', () => {
     expect(
-      KnowledgeRuntimeAddItemInputSchema.safeParse({
+      KnowledgeAddItemInputSchema.safeParse({
         type: 'url',
         data: { source: 'https://example.com/docs', url: 'https://example.com/docs' },
         groupId: null
@@ -162,7 +162,7 @@ describe('Knowledge base schemas', () => {
     ).toBe(true)
 
     expect(
-      KnowledgeRuntimeAddItemInputSchema.safeParse({
+      KnowledgeAddItemInputSchema.safeParse({
         type: 'file',
         data: {
           source: '/docs/guide.md',
@@ -182,7 +182,7 @@ describe('Knowledge base schemas', () => {
     ).toBe(false)
 
     expect(
-      KnowledgeRuntimeAddItemInputSchema.safeParse({
+      KnowledgeAddItemInputSchema.safeParse({
         type: 'file',
         data: {
           source: '/docs/guide.md',
@@ -192,7 +192,7 @@ describe('Knowledge base schemas', () => {
     ).toBe(false)
 
     expect(
-      KnowledgeRuntimeAddItemInputSchema.safeParse({
+      KnowledgeAddItemInputSchema.safeParse({
         type: 'url',
         url: 'https://example.com/docs',
         name: 'Docs'
@@ -200,14 +200,14 @@ describe('Knowledge base schemas', () => {
     ).toBe(false)
 
     expect(
-      KnowledgeRuntimeAddItemInputSchema.safeParse({
+      KnowledgeAddItemInputSchema.safeParse({
         type: 'note',
         data: { source: 'hello', content: 'hello' }
       }).success
     ).toBe(true)
 
     expect(
-      KnowledgeRuntimeAddItemInputSchema.safeParse({
+      KnowledgeAddItemInputSchema.safeParse({
         type: 'note',
         content: 'hello',
         source: 'note-1'

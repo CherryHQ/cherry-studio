@@ -482,7 +482,7 @@ describe('AddKnowledgeItemDialog', () => {
 
   it('wraps long submit errors inside a bounded inline alert', async () => {
     const onOpenChange = vi.fn()
-    const longErrorMessage = `Error invoking remote method 'knowledge-runtime:add-items': ${JSON.stringify({
+    const longErrorMessage = `Error invoking remote method 'knowledge:add-items': ${JSON.stringify({
       issues: [
         {
           code: 'invalid_union',
@@ -501,8 +501,8 @@ describe('AddKnowledgeItemDialog', () => {
     const alert = await screen.findByRole('alert')
 
     expect(alert).toHaveTextContent('添加数据源失败')
-    expect(alert).toHaveTextContent('knowledge-runtime:add-items')
-    expect(alert).toHaveAttribute('title', expect.stringContaining('knowledge-runtime:add-items'))
+    expect(alert).toHaveTextContent('knowledge:add-items')
+    expect(alert).toHaveAttribute('title', expect.stringContaining('knowledge:add-items'))
     expect(alert).toHaveClass('max-h-16')
     expect(alert).toHaveClass('w-full')
     expect(alert).toHaveClass('min-w-0')

@@ -138,7 +138,7 @@ const KnowledgeItemChunkDetailPanel = ({
       setError(null)
 
       try {
-        const itemChunks = await window.api.knowledgeRuntime.listItemChunks(baseId, itemId)
+        const itemChunks = await window.api.knowledge.listItemChunks(baseId, itemId)
         if (isActive) {
           setChunks(itemChunks)
         }
@@ -183,7 +183,7 @@ const KnowledgeItemChunkDetailPanel = ({
     keepDeleteDialogOpenRef.current = false
 
     try {
-      await window.api.knowledgeRuntime.deleteItemChunk(baseId, chunk.itemId, chunk.id)
+      await window.api.knowledge.deleteItemChunk(baseId, chunk.itemId, chunk.id)
       setChunks((currentChunks) => currentChunks.filter((currentChunk) => currentChunk.id !== chunk.id))
       setPendingDeleteChunk(null)
     } catch (chunkError) {

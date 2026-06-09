@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import { getFileExt } from '@main/utils/file'
 import { documentExts } from '@shared/config/constant'
 import { FileProcessorIdSchema } from '@shared/data/presets/file-processing'
-import type { CreateKnowledgeItemDto, KnowledgeItem, KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
+import type { CreateKnowledgeItemDto, KnowledgeAddItemInput, KnowledgeItem } from '@shared/data/types/knowledge'
 
 import { cancelJobOrThrow } from './jobs/utils/cancel'
 import type { KnowledgeLockManager } from './KnowledgeLockManager'
@@ -43,7 +43,7 @@ const FILE_PROCESSING_CHECK_DELAY_MS = 5_000
 export class KnowledgeWorkflowService {
   constructor(private readonly knowledgeLockManager: KnowledgeLockManager) {}
 
-  async addItems(baseId: string, inputs: KnowledgeRuntimeAddItemInput[]): Promise<void> {
+  async addItems(baseId: string, inputs: KnowledgeAddItemInput[]): Promise<void> {
     if (inputs.length === 0) {
       return
     }
@@ -295,7 +295,7 @@ export class KnowledgeWorkflowService {
 
   private async prepareRuntimeAddItemInput(
     baseId: string,
-    input: KnowledgeRuntimeAddItemInput
+    input: KnowledgeAddItemInput
   ): Promise<CreateKnowledgeItemDto> {
     if (input.type !== 'file') {
       return input
@@ -314,7 +314,7 @@ export class KnowledgeWorkflowService {
 
   private reserveRuntimeAddItemInputPaths(
     fileProcessorId: string | null | undefined,
-    input: KnowledgeRuntimeAddItemInput,
+    input: KnowledgeAddItemInput,
     reservedPaths: Set<string>
   ): void {
     if (input.type !== 'file') {

@@ -37,7 +37,7 @@ caller
      -> KnowledgeBaseService / KnowledgeItemService
 
 caller
-  -> preload knowledgeRuntime IPC
+  -> preload knowledge IPC
      -> KnowledgeService
         -> KnowledgeWorkflowService
         -> JobManager
@@ -91,7 +91,7 @@ caller
     -> workflow service schedules each child
 ```
 
-Callers should not create item records through Data API and then call runtime IPC with item ids. `add-items` accepts `KnowledgeRuntimeAddItemInput[]` and returns after root items are accepted and first jobs are queued, not after indexing completes.
+Callers should not create item records through Data API and then call runtime IPC with item ids. `add-items` accepts `KnowledgeAddItemInput[]` and returns after root items are accepted and first jobs are queued, not after indexing completes.
 
 Delete and reindex remain id-based because they operate on existing persisted items:
 
@@ -106,17 +106,19 @@ reindex-items(baseId, itemIds)
 
 `KnowledgeService` currently owns these public IPC entrypoints:
 
-- `knowledge-runtime:create-base`
-- `knowledge-runtime:restore-base`
-- `knowledge-runtime:delete-base`
-- `knowledge-runtime:add-items`
-- `knowledge-runtime:delete-items`
-- `knowledge-runtime:reindex-items`
-- `knowledge-runtime:search`
-- `knowledge-runtime:list-item-chunks`
-- `knowledge-runtime:delete-item-chunk`
+- `knowledge:create-base`
+- `knowledge:restore-base`
+- `knowledge:delete-base`
+- `knowledge:add-items`
+- `knowledge:delete-items`
+- `knowledge:reindex-items`
+- `knowledge:search`
+- `knowledge:list-item-chunks`
+- `knowledge:delete-item-chunk`
 
 These IPC handlers are workflow-oriented. They validate payloads, call data services, and enqueue or execute runtime work internally.
+
+`KnowledgeService` also owns one v1 bridge entrypoint, `knowledge-base:delete`, still invoked by the legacy Redux `store/knowledge` slice until that slice is removed in the unified step. It routes to the same `delete-base` path.
 
 Chunk IPC entrypoints are runtime inspection/mutation helpers:
 
@@ -240,7 +242,7 @@ In that case, migration must preserve the user-created knowledge data instead of
 
 This means the migrated base is visible as recoverable data, but it is not usable for search/index operations until the user chooses a valid embedding model.
 
-The failed-base recovery path is `knowledge-runtime:restore-base`, not an in-place rebuild:
+The failed-base recovery path is `knowledge:restore-base`, not an in-place rebuild:
 
 ```text
 user selects a valid embedding model for the failed base
