@@ -23,7 +23,8 @@ import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamMana
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import { application } from '@main/core/application'
 import type { JobContext } from '@main/core/job/types'
-import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+import { ErrorCode, isDataApiError } from '@shared/data/api'
+import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')
 
@@ -90,12 +91,32 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       logger.debug('Heartbeat skipped (disabled)', { agentId, scheduleId })
       return { sessionId: null, result: 'Skipped (disabled)' }
     }
-    if (workspace.type === 'system') {
-      logger.debug('Heartbeat skipped (no workspace)', { agentId, scheduleId })
-      return { sessionId: null, result: 'Skipped (no file)' }
+    switch (workspace.type) {
+      case AGENT_WORKSPACE_TYPE.SYSTEM:
+        logger.debug('Heartbeat skipped (no file)', { agentId, scheduleId })
+        return { sessionId: null, result: 'Skipped (no file)' }
+      case AGENT_WORKSPACE_TYPE.USER:
+        break
+      default: {
+        const exhaustive: never = workspace
+        throw new Error(`Unsupported heartbeat workspace source: ${String(exhaustive)}`)
+      }
     }
-    const workspaceRow = await agentWorkspaceService.getById(workspace.workspaceId)
-    if (workspaceRow.type !== 'user') {
+    let workspaceRow: Awaited<ReturnType<typeof agentWorkspaceService.getById>>
+    try {
+      workspaceRow = await agentWorkspaceService.getById(workspace.workspaceId)
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        logger.debug('Heartbeat skipped (workspace deleted)', {
+          agentId,
+          scheduleId,
+          workspaceId: workspace.workspaceId
+        })
+        return { sessionId: null, result: 'Skipped (workspace deleted)' }
+      }
+      throw error
+    }
+    if (workspaceRow.type !== AGENT_WORKSPACE_TYPE.USER) {
       throw new Error(`Heartbeat workspace must be user-owned: ${workspace.workspaceId}`)
     }
     const workspacePath = workspaceRow.path

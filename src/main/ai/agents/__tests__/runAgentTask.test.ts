@@ -7,6 +7,7 @@
  */
 
 import type { JobContext } from '@main/core/job/types'
+import { DataApiErrorFactory } from '@shared/data/api'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
@@ -235,6 +236,34 @@ describe('runAgentTask', () => {
     expect(out).toEqual({ sessionId: null, result: 'Skipped (no file)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
     expect(agentWorkspaceService.getById).not.toHaveBeenCalled()
+    expect(readHeartbeat).not.toHaveBeenCalled()
+  })
+
+  it('skips an enabled heartbeat when its user workspace was deleted WITHOUT creating a session', async () => {
+    vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('heartbeat'))
+    vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent({ heartbeat_enabled: true }))
+    vi.mocked(agentWorkspaceService.getById).mockRejectedValueOnce(DataApiErrorFactory.notFound('Workspace', 'ws-1'))
+
+    const out = await runAgentTask(makeCtx())
+
+    expect(out).toEqual({ sessionId: null, result: 'Skipped (workspace deleted)' })
+    expect(agentSessionService.create).not.toHaveBeenCalled()
+    expect(readHeartbeat).not.toHaveBeenCalled()
+  })
+
+  it('rejects an enabled heartbeat whose user source resolves to a system workspace', async () => {
+    vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('heartbeat'))
+    vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent({ heartbeat_enabled: true }))
+    vi.mocked(agentWorkspaceService.getById).mockResolvedValueOnce({
+      id: 'ws-1',
+      type: 'system',
+      path: '/ws/system'
+    } as never)
+
+    await expect(runAgentTask(makeCtx())).rejects.toThrow('Heartbeat workspace must be user-owned: ws-1')
+    expect(agentSessionService.create).not.toHaveBeenCalled()
     expect(readHeartbeat).not.toHaveBeenCalled()
   })
 

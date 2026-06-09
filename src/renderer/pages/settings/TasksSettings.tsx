@@ -701,6 +701,7 @@ const CreateForm: FC<{
   const [scheduleValue, setScheduleValue] = useState('')
   const [timeoutMinutes, setTimeoutMinutes] = useState('')
   const [channelIds, setChannelIds] = useState<string[]>([])
+  // TODO(agent-workspace-picker): wire the workspace picker before re-enabling task creation.
   const [workspaceSource] = useState<CreateTaskRequest['workspace'] | null>(null)
   const [saving, setSaving] = useState(false)
 

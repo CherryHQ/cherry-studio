@@ -7,7 +7,11 @@ import { timestampToISO } from '@data/services/utils/rowMappers'
 import { normalizeWorkspacePath } from '@main/utils/agentWorkspacePath'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
+import {
+  AGENT_WORKSPACE_TYPE,
+  type AgentWorkspaceEntity,
+  AgentWorkspaceTypeSchema
+} from '@shared/data/api/schemas/agentWorkspaces'
 import { asc, eq } from 'drizzle-orm'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
@@ -17,7 +21,7 @@ export function rowToWorkspace(row: AgentWorkspaceRow): AgentWorkspaceEntity {
     id: row.id,
     name: row.name,
     path: row.path,
-    type: row.type as AgentWorkspaceEntity['type'],
+    type: AgentWorkspaceTypeSchema.parse(row.type),
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
@@ -79,7 +83,7 @@ export class AgentWorkspaceService {
       .where(eq(agentWorkspaceTable.path, workspacePath))
       .limit(1)
     if (existing) {
-      if (existing.type === 'user') return existing
+      if (AgentWorkspaceTypeSchema.parse(existing.type) === AGENT_WORKSPACE_TYPE.USER) return existing
       throw DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
     }
 
@@ -88,7 +92,7 @@ export class AgentWorkspaceService {
     return (await insertWithOrderKey(
       tx,
       agentWorkspaceTable,
-      { id, name, path: workspacePath, type: 'user' },
+      { id, name, path: workspacePath, type: AGENT_WORKSPACE_TYPE.USER },
       { pkColumn: agentWorkspaceTable.id, position: 'first' }
     )) as AgentWorkspaceRow
   }
@@ -106,7 +110,7 @@ export class AgentWorkspaceService {
             id: uuidv4(),
             name: defaultWorkspaceName(workspacePath),
             path: workspacePath,
-            type: 'system'
+            type: AGENT_WORKSPACE_TYPE.SYSTEM
           },
           { pkColumn: agentWorkspaceTable.id, position: 'first' }
         ) as Promise<AgentWorkspaceRow>,

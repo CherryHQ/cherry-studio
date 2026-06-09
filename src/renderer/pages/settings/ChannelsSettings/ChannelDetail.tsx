@@ -416,6 +416,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
 
   // Log modal
   const [logChannel, setLogChannel] = useState<{ id: string; name: string } | null>(null)
+  // TODO(agent-workspace-picker): wire the workspace picker before re-enabling channel creation.
   const [workspaceSource] = useState<CreateAgentChannelDto['workspace'] | null>(null)
 
   // Fetch initial statuses + subscribe to real-time changes

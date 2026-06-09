@@ -157,6 +157,7 @@ class WorkspaceMemoryServer {
   }
 
   private async getWorkspacePath(): Promise<string> {
+    // Deliberate existence check: memory writes must stop once the owning agent is gone.
     const agent = await agentService.getAgent(this.agentId)
     if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
     return this.workspacePath

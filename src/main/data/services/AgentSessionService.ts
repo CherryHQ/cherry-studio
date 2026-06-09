@@ -17,6 +17,7 @@ import type {
   ListAgentSessionsQuery,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
+import { AGENT_WORKSPACE_TYPE, AgentWorkspaceTypeSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { and, asc, desc, eq, gt, gte, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
@@ -48,14 +49,10 @@ function decodeSessionCursor(raw: string): { key: string; id: string } | null {
 
 type JoinedSessionRow = {
   session: SessionRow
-  workspace: AgentWorkspaceRow | null
+  workspace: AgentWorkspaceRow
 }
 
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
-  if (!row.workspace) {
-    throw DataApiErrorFactory.notFound('Workspace', row.session.workspaceId)
-  }
-
   return {
     id: row.session.id,
     agentId: row.session.agentId,
@@ -128,14 +125,29 @@ export class AgentSessionService {
     await this.assertAgentExistsTx(tx, dto.agentId)
 
     let workspaceId: string
-    if (dto.workspace.type === 'user') {
-      const workspace = await agentWorkspaceService.getByIdTx(tx, dto.workspace.workspaceId)
-      if (workspace.type !== 'user') {
-        throw DataApiErrorFactory.invalidOperation('create session', 'workspace source must reference a user workspace')
+    switch (dto.workspace.type) {
+      case AGENT_WORKSPACE_TYPE.USER: {
+        const workspace = await agentWorkspaceService.getByIdTx(tx, dto.workspace.workspaceId)
+        if (workspace.type !== AGENT_WORKSPACE_TYPE.USER) {
+          throw DataApiErrorFactory.invalidOperation(
+            'create session',
+            'workspace source must reference a user workspace'
+          )
+        }
+        workspaceId = workspace.id
+        break
       }
-      workspaceId = workspace.id
-    } else {
-      workspaceId = (await agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id })).id
+      case AGENT_WORKSPACE_TYPE.SYSTEM: {
+        workspaceId = (await agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id })).id
+        break
+      }
+      default: {
+        const exhaustive: never = dto.workspace
+        throw DataApiErrorFactory.invalidOperation(
+          'create session',
+          `unsupported workspace source: ${String(exhaustive)}`
+        )
+      }
     }
 
     await this.insertTx(tx, {
@@ -161,7 +173,7 @@ export class AgentSessionService {
     const [row] = await db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
-      .leftJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(eq(sessionsTable.id, id))
       .limit(1)
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
@@ -188,7 +200,7 @@ export class AgentSessionService {
     const rows = await db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
-      .leftJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(filters.length > 0 ? and(...filters) : undefined)
       .orderBy(asc(sessionsTable.orderKey), asc(sessionsTable.id))
       .limit(limit + 1)
@@ -250,7 +262,7 @@ export class AgentSessionService {
     const [row] = await tx.delete(sessionsTable).where(eq(sessionsTable.id, id)).returning({ id: sessionsTable.id })
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
     await pinService.purgeForEntityTx(tx, 'session', id)
-    if (session.workspaceType === 'system') {
+    if (AgentWorkspaceTypeSchema.parse(session.workspaceType) === AGENT_WORKSPACE_TYPE.SYSTEM) {
       await tx.delete(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, session.workspaceId))
     }
   }

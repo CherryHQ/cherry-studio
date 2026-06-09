@@ -53,6 +53,7 @@ import {
 import { languageEnglishNameMap } from '@shared/config/languages'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
@@ -186,10 +187,7 @@ export async function buildClaudeCodeSessionSettings(
   }
 
   // 1. Working directory (session-bound)
-  const cwd = session.workspace?.path
-  if (!cwd) {
-    throw new AgentSessionWorkspaceError(`Agent session ${session.id} has no workspace configured`)
-  }
+  const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
   await skillService.reconcileAgentSkills(session.agentId, cwd)
 
@@ -288,8 +286,18 @@ export function isAgentSessionWorkspaceError(error: unknown): error is AgentSess
 
 export async function prepareClaudeCodeWorkspaceDirectory(session: AgentSessionEntity): Promise<void> {
   const workspace = session.workspace
-  if (workspace.type === 'system') {
-    await ensureSystemWorkspaceDirectory(workspace.path)
+  switch (workspace.type) {
+    case AGENT_WORKSPACE_TYPE.SYSTEM:
+      // System workspaces are app-owned session directories; user workspaces
+      // must already exist, so auto-creating them would mask a bad user path.
+      await ensureSystemWorkspaceDirectory(workspace.path)
+      break
+    case AGENT_WORKSPACE_TYPE.USER:
+      break
+    default: {
+      const exhaustive: never = workspace.type
+      throw new AgentSessionWorkspaceError(`Unsupported workspace type: ${String(exhaustive)}`)
+    }
   }
   await assertClaudeCodeWorkspaceDirectory(session.id, workspace.path)
 }
@@ -314,6 +322,8 @@ async function ensureSystemWorkspaceDirectory(cwd: string): Promise<void> {
 }
 
 async function assertSystemWorkspacePath(cwd: string): Promise<void> {
+  // Resolve symlinks through the nearest existing ancestor before containment
+  // checks, so a symlink under the managed root cannot escape it.
   const root = await resolveRealOrNearestExistingPath(path.resolve(application.getPath('feature.agents.workspaces')))
   const target = await resolveRealOrNearestExistingPath(path.resolve(cwd))
   const relative = path.relative(root, target)
@@ -636,10 +646,19 @@ export async function buildMcpServers(
   // orphan check in buildClaudeCodeSessionSettings.
   if (soulEnabled) {
     const sourceChannelId = await resolveSourceChannel(agent.id, session.id)
-    const workspaceSource =
-      session.workspace.type === 'user'
-        ? ({ type: 'user', workspaceId: session.workspaceId } as const)
-        : ({ type: 'system' } as const)
+    let workspaceSource: AgentSessionWorkspaceSource
+    switch (session.workspace.type) {
+      case AGENT_WORKSPACE_TYPE.USER:
+        workspaceSource = { type: AGENT_WORKSPACE_TYPE.USER, workspaceId: session.workspaceId }
+        break
+      case AGENT_WORKSPACE_TYPE.SYSTEM:
+        workspaceSource = { type: AGENT_WORKSPACE_TYPE.SYSTEM }
+        break
+      default: {
+        const exhaustive: never = session.workspace.type
+        throw new Error(`Unsupported workspace type: ${String(exhaustive)}`)
+      }
+    }
     const clawServer = new ClawServer(agent.id, workspaceSource, sourceChannelId)
     mcpList.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
 

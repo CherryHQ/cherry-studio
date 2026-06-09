@@ -45,6 +45,7 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
     const activeAgentId = sessions.find((s) => s.id === activeSessionId)?.agentId
     return activeAgentId ?? sessions[0]?.agentId ?? null
   }, [sessions, activeSessionId])
+  // TODO(agent-workspace-picker): wire the workspace picker before re-enabling this create entry.
   const workspaceSource = null
   const { createDefaultSession, creatingSession } = useCreateDefaultSession(fallbackAgentId, workspaceSource)
 

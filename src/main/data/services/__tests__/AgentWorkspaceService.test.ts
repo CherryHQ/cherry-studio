@@ -120,6 +120,35 @@ describe('AgentWorkspaceService', () => {
     })
   })
 
+  it('rejects findOrCreateByPathTx when the existing path belongs to a system workspace', async () => {
+    const workspace = await dbh.db.transaction((tx) =>
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'session-system-collision' })
+    )
+
+    await expect(
+      dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, workspace.path))
+    ).rejects.toMatchObject({
+      code: ErrorCode.CONFLICT
+    })
+  })
+
+  it('rejects workspace rows whose type violates the database CHECK constraint', async () => {
+    const invalidPath = workspacePath('invalid-type')
+
+    await expect(
+      dbh.db.insert(agentWorkspaceTable).values({
+        id: 'workspace-invalid-type',
+        name: 'Invalid Type',
+        path: invalidPath,
+        type: 'invalid' as never,
+        orderKey: 'a0'
+      })
+    ).rejects.toThrow(/Failed query/)
+
+    const rows = await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.path, invalidPath))
+    expect(rows).toHaveLength(0)
+  })
+
   it('reorders workspaces with single and batch moves', async () => {
     const first = await findOrCreateWorkspace(workspacePath('first'))
     const second = await findOrCreateWorkspace(workspacePath('second'))
