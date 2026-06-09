@@ -181,6 +181,10 @@ export default function ProviderListContent({
         onDragCancel={handleDragEnd}
         onSortEnd={handleSortEnd}
         collisionDetection={closestCenter}
+        // The drag overlay renders a collapsed (header-only) group, which is a
+        // different size than the in-list card, so the overlay must NOT scale to
+        // the source rect — otherwise dnd-kit stretches the compact header.
+        adjustScale={false}
         className="w-full"
         gap="var(--provider-list-row-gap)"
         restrictions={{ scrollableAncestor: true }}
@@ -189,9 +193,12 @@ export default function ProviderListContent({
             return renderItem(item.provider, visibleIndexById.get(item.provider.id) ?? -1, state)
           }
 
+          // In the drag overlay, render the group collapsed (header-only) so the
+          // floating copy is a compact chip; the in-list placeholder still
+          // renders expanded and reserves the full height.
           // Force-expand while searching: the user is actively looking for
           // matches and shouldn't have to click through a chevron to see them.
-          const expanded = searchActive || (expandedGroups[item.presetProviderId] ?? false)
+          const expanded = !state.overlay && (searchActive || (expandedGroups[item.presetProviderId] ?? false))
           const containsSelected = !!selectedProviderId && item.members.some((m) => m.id === selectedProviderId)
 
           return (

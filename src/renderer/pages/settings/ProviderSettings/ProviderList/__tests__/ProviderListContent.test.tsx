@@ -6,9 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // Capture every <ReorderableList> mount's `items` prop so we can assert the
 // grouped path feeds the full cache (C1 regression).
 const reorderableItemsCalls: Provider[][] = []
+const groupExpandedCalls: Array<{ presetProviderId: string; expanded: boolean }> = []
 const sortableCalls: Array<{
   items: Array<{ id: string }>
   collisionDetection?: unknown
+  adjustScale?: boolean
+  renderItem: (item: any, state: { dragging: boolean; overlay: boolean }) => React.ReactNode
   onDragStart: (event: { active: { id: string } }) => void
   onDragEnd: () => void
   onDragCancel: () => void
@@ -28,13 +31,31 @@ vi.mock('@cherrystudio/ui', async () => {
       reorderableItemsCalls.push(items)
       return null
     },
-    Sortable: ({ items, renderItem, collisionDetection, onDragStart, onDragEnd, onDragCancel, onSortEnd }: any) => {
-      sortableCalls.push({ items, collisionDetection, onDragStart, onDragEnd, onDragCancel, onSortEnd })
+    Sortable: ({
+      items,
+      renderItem,
+      collisionDetection,
+      adjustScale,
+      onDragStart,
+      onDragEnd,
+      onDragCancel,
+      onSortEnd
+    }: any) => {
+      sortableCalls.push({
+        items,
+        renderItem,
+        collisionDetection,
+        adjustScale,
+        onDragStart,
+        onDragEnd,
+        onDragCancel,
+        onSortEnd
+      })
       return (
         <div>
           {items.map((item: any) => (
             <div key={item.id} data-testid={`sortable-item-${item.id}`}>
-              {renderItem(item, { dragging: false })}
+              {renderItem(item, { dragging: false, overlay: false })}
             </div>
           ))}
         </div>
@@ -46,6 +67,7 @@ vi.mock('@cherrystudio/ui', async () => {
 vi.mock('../ProviderListGroup', () => ({
   default: (props: any) => {
     reorderableItemsCalls.push(props.items)
+    groupExpandedCalls.push({ presetProviderId: props.presetProviderId, expanded: props.expanded })
     return <div data-testid={`provider-list-group-${props.presetProviderId}`} />
   }
 }))
@@ -86,6 +108,7 @@ describe('ProviderListContent — C1 grouped reorder', () => {
   beforeEach(() => {
     reorderableItemsCalls.length = 0
     sortableCalls.length = 0
+    groupExpandedCalls.length = 0
   })
 
   // Standard block-reorder fixture: an expanded 2-member group flanked by two
@@ -351,6 +374,29 @@ describe('ProviderListContent — C1 grouped reorder', () => {
     )
 
     expect(sortableCalls[0].collisionDetection).toBe(closestCenter)
+  })
+
+  it('disables drag-overlay scaling so the header-only overlay is not stretched', () => {
+    renderBlockFixture(() => {})
+
+    expect(sortableCalls[0].adjustScale).toBe(false)
+  })
+
+  it('renders the dragged group collapsed (header-only) in the drag overlay', () => {
+    renderBlockFixture(() => {})
+
+    const groupItem = sortableCalls[0].items.find((item) => item.id === 'group:zhipu')!
+
+    // Overlay copy: collapsed header-only, regardless of expandedGroups.
+    groupExpandedCalls.length = 0
+    render(<div>{sortableCalls[0].renderItem(groupItem, { dragging: false, overlay: true })}</div>)
+    expect(groupExpandedCalls.at(-1)).toMatchObject({ presetProviderId: 'zhipu', expanded: false })
+
+    // In-list placeholder: still expanded (expandedGroups.zhipu === true) so it
+    // reserves the full height.
+    groupExpandedCalls.length = 0
+    render(<div>{sortableCalls[0].renderItem(groupItem, { dragging: false, overlay: false })}</div>)
+    expect(groupExpandedCalls.at(-1)).toMatchObject({ presetProviderId: 'zhipu', expanded: true })
   })
 
   it('reports the outer drag state to the parent while the Sortable is active', () => {
