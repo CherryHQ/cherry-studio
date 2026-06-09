@@ -109,7 +109,22 @@ export const fileEntryTable = sqliteTable(
     check(
       'fe_size_internal_only',
       sql`(${t.origin} = 'internal' AND ${t.size} IS NOT NULL AND ${t.size} >= 0) OR (${t.origin} = 'external' AND ${t.size} IS NULL)`
-    )
+    ),
+    // `name` is a single path segment by architecture: external names are
+    // basename(externalPath) projections, and names flow into FS path
+    // composition (external rename, temp copies). A separator in `name` is
+    // the #15733 corruption shape (a full Windows path stored as name).
+    // Coarse net only — the finer rules (`..`, null bytes, length cap) live
+    // in `SafeNameSchema` and are enforced at the service layer.
+    check('fe_name_no_separators', sql`instr(${t.name}, '/') = 0 AND instr(${t.name}, char(92)) = 0`),
+    // Blank names produce invisible entries and are rejected by the strict
+    // read path. SQLite trim() only strips ASCII spaces — Unicode whitespace
+    // remains the Zod layer's job (coarse net, same as trim() checks on
+    // other tables).
+    check('fe_name_not_blank', sql`length(trim(${t.name})) > 0`),
+    // `ext` composes the physical storage path `{id}.{ext}` for internal
+    // entries — a separator here would escape the managed directory.
+    check('fe_ext_no_separators', sql`${t.ext} IS NULL OR (instr(${t.ext}, '/') = 0 AND instr(${t.ext}, char(92)) = 0)`)
   ]
 )
 

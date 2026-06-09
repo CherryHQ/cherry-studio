@@ -23,7 +23,13 @@ import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
-import { AbsolutePathSchema, FileEntrySchema, SafeNameSchema } from '@shared/data/types/file'
+import {
+  AbsolutePathSchema,
+  FileEntrySchema,
+  SafeExtSchema,
+  SafeNameSchema,
+  TimestampSchema
+} from '@shared/data/types/file'
 import { and, asc, count, desc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import { ZodError } from 'zod'
@@ -408,30 +414,43 @@ class FileEntryServiceImpl implements FileEntryService {
   async create(values: CreateFileEntryRow): Promise<FileEntry> {
     const now = Date.now()
     const id = values.id ?? uuidv7()
-    const rows = await this.getDb()
-      .insert(fileEntryTable)
-      .values({
-        id,
-        origin: values.origin,
-        name: values.name,
-        ext: values.ext,
-        size: values.size,
-        externalPath: values.externalPath,
-        deletedAt: values.deletedAt ?? null,
-        createdAt: now,
-        updatedAt: now
-      })
-      .returning()
+    const row: FileEntryRow = {
+      id,
+      origin: values.origin,
+      name: values.name,
+      ext: values.ext,
+      size: values.size,
+      externalPath: values.externalPath,
+      deletedAt: values.deletedAt ?? null,
+      createdAt: now,
+      updatedAt: now
+    }
+    // Probe the BO projection BEFORE the INSERT so a rejected value never
+    // persists (write/read symmetry, #15740). Same rationale as `update`'s
+    // pre-SQL validation: without this, garbage that passes the coarse DB
+    // CHECKs (e.g. name '..', ext '.pdf', a relative externalPath) commits
+    // first and only fails at the read-back parse — leaving the row
+    // permanently un-parseable for strict point reads.
+    rowToFileEntry(row)
+    const rows = await this.getDb().insert(fileEntryTable).values(row).returning()
     return rowToFileEntry(rows[0])
   }
 
   async update(id: FileEntryId, values: UpdateFileEntryRow): Promise<FileEntry> {
-    // Validate user-controlled string columns BEFORE the SQL UPDATE so a
-    // rejected value never persists. Without this, a name failing
-    // `SafeNameSchema` (path separators, `..`, null bytes, > 255 chars)
-    // commits to SQLite first and only fails at `rowToFileEntry`'s
-    // schema parse — leaving the row permanently un-parseable.
+    // Validate caller-controlled columns against their field atoms BEFORE
+    // the SQL UPDATE so a rejected value never persists. Without this, a
+    // value the strict read path rejects — a name with separators / `..` /
+    // null bytes / > 255 chars (`SafeNameSchema`), an ext with a leading dot
+    // or separators (`SafeExtSchema`), a negative or non-integer deletedAt
+    // (`TimestampSchema`) — commits to SQLite first and only fails at
+    // `rowToFileEntry`'s parse, leaving the row permanently un-parseable.
+    // `size` needs no guard here: `fe_size_internal_only` rejects bad values
+    // at the SQL layer. deletedAt is optional on the BO — undefined leaves
+    // it untouched and null restores from trash; only a concrete timestamp
+    // is validated.
     if (values.name !== undefined) SafeNameSchema.parse(values.name)
+    if (values.ext !== undefined && values.ext !== null) SafeExtSchema.parse(values.ext)
+    if (values.deletedAt !== undefined && values.deletedAt !== null) TimestampSchema.parse(values.deletedAt)
     const updates: Partial<typeof fileEntryTable.$inferInsert> = {
       updatedAt: Date.now()
     }

@@ -23,9 +23,15 @@ import {
   DEFAULT_KNOWLEDGE_BASE_STATUS,
   DEFAULT_KNOWLEDGE_SEARCH_MODE,
   type KnowledgeBase,
-  KnowledgeBaseSchema
+  KnowledgeBaseSchema,
+  KnowledgeChunkOverlapSchema,
+  KnowledgeChunkSizeSchema,
+  KnowledgeDocumentCountSchema,
+  KnowledgeHybridAlphaSchema,
+  KnowledgeThresholdSchema
 } from '@shared/data/types/knowledge'
 import { and, count as sqlCount, desc, eq, ne, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
@@ -126,7 +132,9 @@ export class KnowledgeBaseService {
       throw DataApiErrorFactory.validation(createFieldErrors)
     }
 
-    const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'createdAt' | 'updatedAt'> = {
+    const now = Date.now()
+    const createValues: KnowledgeBaseRow = {
+      id: uuidv4(),
       name: dto.name.trim(),
       groupId: dto.groupId ?? null,
       dimensions: dto.dimensions,
@@ -140,8 +148,17 @@ export class KnowledgeBaseService {
       threshold: dto.threshold ?? null,
       documentCount: dto.documentCount ?? null,
       searchMode: createConfig.searchMode,
-      hybridAlpha: createConfig.hybridAlpha ?? null
+      hybridAlpha: createConfig.hybridAlpha ?? null,
+      createdAt: now,
+      updatedAt: now
     }
+
+    // Probe the BO projection BEFORE the INSERT so a rejected value never
+    // persists (write/read symmetry, #15740). Direct main-process callers
+    // bypass the handler's DTO parse, and business-tunable rules (threshold,
+    // documentCount, chunk bounds, hybridAlpha range) deliberately have no
+    // DB CHECK — this probe is their only non-bypassable write-side guard.
+    rowToKnowledgeBase(createValues)
 
     const dbService = application.get('DbService')
     const row = await dbService.withWriteTx(async (tx) => {
@@ -154,6 +171,16 @@ export class KnowledgeBaseService {
   }
 
   async update(id: string, dto: UpdateKnowledgeBaseDto): Promise<KnowledgeBase> {
+    // Validate the delta against the shared field atoms BEFORE any SQL so a
+    // rejected value never persists (write/read symmetry, #15740). Partial
+    // updates can't be whole-object probed cheaply; the atoms carry the same
+    // truth the strict read path enforces.
+    if (dto.chunkSize !== undefined) KnowledgeChunkSizeSchema.parse(dto.chunkSize)
+    if (dto.chunkOverlap !== undefined) KnowledgeChunkOverlapSchema.parse(dto.chunkOverlap)
+    if (dto.threshold !== undefined) KnowledgeThresholdSchema.parse(dto.threshold)
+    if (dto.documentCount !== undefined) KnowledgeDocumentCountSchema.parse(dto.documentCount)
+    if (dto.hybridAlpha !== undefined) KnowledgeHybridAlphaSchema.parse(dto.hybridAlpha)
+
     const existing = await this.getById(id)
 
     const nextConfig: {

@@ -4,7 +4,7 @@ import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // `@logger` is mocked globally by tests/main.setup.ts with the unified
@@ -960,9 +960,25 @@ describe('FileEntryService', () => {
     const goodId = '019606a0-0000-7000-8000-00000000aa01' as FileEntryId
     const badId = '019606a0-0000-7000-8000-00000000aa02' as FileEntryId
 
+    /**
+     * Seed rows that violate the schema CHECK constraints — simulating legacy
+     * corrupt data written before the CHECKs existed, or writes that bypassed
+     * them. The read-path isolation under test is the defense-in-depth layer
+     * for exactly those rows. `ignore_check_constraints` is connection-scoped
+     * and restored before any assertion runs.
+     */
+    async function insertBypassingChecks(values: (typeof fileEntryTable.$inferInsert)[]) {
+      await dbh.db.run(sql`PRAGMA ignore_check_constraints = ON`)
+      try {
+        await dbh.db.insert(fileEntryTable).values(values)
+      } finally {
+        await dbh.db.run(sql`PRAGMA ignore_check_constraints = OFF`)
+      }
+    }
+
     async function seedOneGoodOneBad() {
       const now = Date.now()
-      await dbh.db.insert(fileEntryTable).values([
+      await insertBypassingChecks([
         {
           id: goodId,
           origin: 'internal',
@@ -976,8 +992,9 @@ describe('FileEntryService', () => {
         },
         {
           // Simulates pre-fix FileMigrator output: a name carrying path
-          // separators. No DB CHECK guards `name`, so it inserts cleanly
-          // and only SafeNameSchema rejects it at read time.
+          // separators. `fe_name_no_separators` now rejects this at write
+          // time, so the seed bypasses CHECKs to model rows that predate
+          // the constraint; SafeNameSchema still rejects it at read time.
           id: badId,
           origin: 'internal',
           name: 'C:\\Users\\x\\bad',
@@ -1032,7 +1049,7 @@ describe('FileEntryService', () => {
       const badExternalId = '019606a0-0000-7000-8000-00000000aa03' as FileEntryId
       const goodExternalId = '019606a0-0000-7000-8000-00000000aa04' as FileEntryId
       const now = Date.now()
-      await dbh.db.insert(fileEntryTable).values([
+      await insertBypassingChecks([
         {
           id: badExternalId,
           origin: 'external',

@@ -6,8 +6,13 @@ import {
   DEFAULT_KNOWLEDGE_BASE_STATUS,
   DEFAULT_KNOWLEDGE_SEARCH_MODE,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KnowledgeBaseNameSchema,
+  KnowledgeDirectoryPathSchema,
   type KnowledgeItemData,
-  type KnowledgeItemStatus
+  KnowledgeItemErrorSchema,
+  KnowledgeItemSourceSchema,
+  type KnowledgeItemStatus,
+  KnowledgeItemUrlSchema
 } from '@shared/data/types/knowledge'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
@@ -140,9 +145,12 @@ const normalizeKnowledgeItemError = (
     return null
   }
 
-  const normalizedError = processingError?.trim()
-  if (normalizedError) {
-    return normalizedError
+  // The read path requires a non-blank error for failed items — validate
+  // with the same field atom (`KnowledgeItemErrorSchema`) instead of a
+  // hand-copied trim check.
+  const parsedError = KnowledgeItemErrorSchema.safeParse(processingError)
+  if (parsedError.success) {
+    return parsedError.data
   }
 
   if (processingStatus === 'pending' || processingStatus === 'processing') {
@@ -238,18 +246,18 @@ export const transformKnowledgeBase = (
   const rerankModelId = legacyModelToUniqueId(base.rerankModel ?? null)
 
   // The identity guard only checks `name !== ''`, so an all-whitespace v1
-  // name reaches here — but the read path (KnowledgeBaseSchema) requires
-  // `trim().min(1)` and one such row poisons the whole list query.
-  // Write-side validation must be >= read-side: trim, and fall back to
-  // the v1 base id when nothing remains.
-  const trimmedName = base.name.trim()
-  if (trimmedName === '') {
+  // name reaches here — but the read path (KnowledgeBaseSchema) rejects it
+  // and one such row poisons the whole list query. Guard with the SAME
+  // field atom the read path is assembled from (no hand-copied rule to
+  // drift), falling back to the v1 base id when the name is unusable.
+  const parsedName = KnowledgeBaseNameSchema.safeParse(base.name)
+  if (!parsedName.success) {
     onWarning?.(`Knowledge base ${base.id} has a blank v1 name; falling back to the base id`)
   }
 
   const transformedBase: NewKnowledgeBase = {
     id: uuidv4(),
-    name: trimmedName || base.id,
+    name: parsedName.success ? parsedName.data : base.id,
     groupId: null,
     dimensions,
     embeddingModelId,
@@ -303,7 +311,9 @@ export const transformKnowledgeItem = (
     type = 'file'
     data = { source: file.path, fileEntryId }
   } else if (item.type === 'url') {
-    if (typeof item.content !== 'string' || item.content.trim() === '') {
+    // `typeof` narrows the legacy content union for TS; the field atom
+    // carries the actual read-path rule (here and in the branches below).
+    if (typeof item.content !== 'string' || !KnowledgeItemUrlSchema.safeParse(item.content).success) {
       return {
         ok: false,
         reason: 'invalid_url'
@@ -316,8 +326,8 @@ export const transformKnowledgeItem = (
       url: item.content
     }
   } else if (item.type === 'sitemap') {
-    const content = typeof item.content === 'string' ? item.content.trim() : ''
-    if (content === '') {
+    const parsedSitemap = KnowledgeItemUrlSchema.safeParse(item.content)
+    if (!parsedSitemap.success) {
       return {
         ok: false,
         reason: 'invalid_sitemap'
@@ -326,11 +336,11 @@ export const transformKnowledgeItem = (
 
     type = 'url'
     data = {
-      source: content,
-      url: content
+      source: parsedSitemap.data,
+      url: parsedSitemap.data
     }
   } else if (item.type === 'directory') {
-    if (typeof item.content !== 'string' || item.content.trim() === '') {
+    if (typeof item.content !== 'string' || !KnowledgeDirectoryPathSchema.safeParse(item.content).success) {
       return {
         ok: false,
         reason: 'invalid_directory'
@@ -351,9 +361,9 @@ export const transformKnowledgeItem = (
     const source = note?.sourceUrl || item.sourceUrl || content
 
     // Sibling branches all guard their source against blank values because
-    // the read path requires `source: trim().min(1)`; a note with neither
-    // sourceUrl nor content has nothing to recover — skip it.
-    if (source.trim() === '') {
+    // the read path rejects them (`KnowledgeItemSourceSchema`); a note with
+    // neither sourceUrl nor content has nothing to recover — skip it.
+    if (!KnowledgeItemSourceSchema.safeParse(source).success) {
       return {
         ok: false,
         reason: 'invalid_note'

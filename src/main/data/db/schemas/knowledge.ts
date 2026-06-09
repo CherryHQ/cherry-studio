@@ -60,7 +60,12 @@ export const knowledgeBaseTable = sqliteTable(
           AND length(trim(${t.error})) > 0
         )
       `
-    )
+    ),
+    // `name` is the base's only identity field; a blank name poisons the
+    // strict-parsing list query (read path requires trim().min(1)). SQLite
+    // trim() only strips ASCII spaces — Unicode whitespace remains the Zod
+    // layer's job (coarse net).
+    check('knowledge_base_name_not_blank', sql`length(trim(${t.name})) > 0`)
   ]
 )
 

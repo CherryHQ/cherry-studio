@@ -15,22 +15,41 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import type { ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { KnowledgeItemFileRefRole } from '@shared/data/types/file/ref'
-import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
+import { knowledgeItemRoleSchema, knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import {
   type CreateKnowledgeItemDto,
+  DirectoryItemDataSchema,
+  FileItemDataSchema,
   type KnowledgeItem,
   type KnowledgeItemData,
   KnowledgeItemSchema,
-  type KnowledgeItemStatus
+  type KnowledgeItemStatus,
+  type KnowledgeItemType,
+  KnowledgeItemTypeSchema,
+  NoteItemDataSchema,
+  UrlItemDataSchema
 } from '@shared/data/types/knowledge'
 import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
+import type * as z from 'zod'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeItemService')
 const CONTAINER_CHILD_FAILURE_ERROR = 'One or more child items failed'
+
+/**
+ * Persisted `data` payload truth per item type — the same domain atoms
+ * `KnowledgeItemSchema`'s read-path variants are assembled from. Used by
+ * `create` as the DO-level write guard for the free-form JSON column.
+ */
+const knowledgeItemDataSchemaByType: Record<KnowledgeItemType, z.ZodType<KnowledgeItemData>> = {
+  file: FileItemDataSchema,
+  url: UrlItemDataSchema,
+  note: NoteItemDataSchema,
+  directory: DirectoryItemDataSchema
+}
 
 type KnowledgeItemRow = typeof knowledgeItemTable.$inferSelect
 type KnowledgeItemRowLike = Omit<KnowledgeItemRow, 'data'> & {
@@ -184,6 +203,15 @@ export class KnowledgeItemService {
   }
 
   async create(baseId: string, item: CreateKnowledgeItemDto): Promise<KnowledgeItem> {
+    // DO-level guard BEFORE any SQL (write/read symmetry, #15740): whatever
+    // goes into the free-form `data` JSON column must satisfy the persisted
+    // payload truth for its item type — the same domain data schemas the
+    // strict read path (`KnowledgeItemSchema`) is assembled from, so there
+    // is no second source of truth. DTO-shape validation stays at the API
+    // boundary (handlers); `groupId` is owned by `validateGroupOwnerTx`'s
+    // referential pre-check below. The parsed result is used for the INSERT
+    // so schema normalizations (e.g. trimmed source) persist.
+    const data = knowledgeItemDataSchemaByType[KnowledgeItemTypeSchema.parse(item.type)].parse(item.data)
     const dbService = application.get('DbService')
     const row = await dbService.withWriteTx(async (tx) => {
       await this.validateGroupOwnerTx(tx, baseId, item.groupId)
@@ -208,7 +236,7 @@ export class KnowledgeItemService {
               baseId,
               groupId: item.groupId ?? null,
               type: item.type,
-              data: item.data,
+              data,
               status: 'idle',
               error: null
             })
@@ -434,6 +462,10 @@ export class KnowledgeItemService {
   }
 
   async replaceFileRef(itemId: string, fileEntryId: FileEntryId, role: KnowledgeItemFileRefRole): Promise<void> {
+    // The role brand is TS-only; validate at runtime BEFORE any SQL so an
+    // illegal role never persists into the free-form file_ref columns
+    // (write/read symmetry, #15740).
+    knowledgeItemRoleSchema.parse(role)
     const dbService = application.get('DbService')
     await dbService.withWriteTx(async (tx) => {
       const [item] = await tx

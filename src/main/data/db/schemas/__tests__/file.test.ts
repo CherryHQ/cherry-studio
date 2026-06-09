@@ -147,6 +147,48 @@ describe('fileEntryTable — fe_size_internal_only check', () => {
   })
 })
 
+describe('fileEntryTable — fe_name_no_separators check', () => {
+  const dbh = setupTestDatabase()
+
+  it('rejects a name containing a forward slash', async () => {
+    await expect(dbh.db.insert(fileEntryTable).values(baseInternal({ name: 'dir/doc' }))).rejects.toThrow()
+  })
+
+  it('rejects a name containing a backslash (the #15733 corruption shape: a full Windows path stored as name)', async () => {
+    await expect(
+      dbh.db.insert(fileEntryTable).values(baseExternal('/Users/me/from-windows.pdf', { name: 'C:\\Users\\x\\doc' }))
+    ).rejects.toThrow()
+  })
+})
+
+describe('fileEntryTable — fe_name_not_blank check', () => {
+  const dbh = setupTestDatabase()
+
+  it('rejects an empty name', async () => {
+    await expect(dbh.db.insert(fileEntryTable).values(baseInternal({ name: '' }))).rejects.toThrow()
+  })
+
+  it('rejects an all-whitespace name', async () => {
+    await expect(dbh.db.insert(fileEntryTable).values(baseInternal({ name: '   ' }))).rejects.toThrow()
+  })
+})
+
+describe('fileEntryTable — fe_ext_no_separators check', () => {
+  const dbh = setupTestDatabase()
+
+  it('rejects an ext containing a forward slash (ext composes the physical storage path `{id}.{ext}`)', async () => {
+    await expect(dbh.db.insert(fileEntryTable).values(baseInternal({ ext: 'pdf/../evil' }))).rejects.toThrow()
+  })
+
+  it('rejects an ext containing a backslash', async () => {
+    await expect(dbh.db.insert(fileEntryTable).values(baseInternal({ ext: 'pdf\\evil' }))).rejects.toThrow()
+  })
+
+  it('accepts a null ext (extensionless file)', async () => {
+    await expect(dbh.db.insert(fileEntryTable).values(baseInternal({ ext: null }))).resolves.not.toThrow()
+  })
+})
+
 describe('fileRefTable — CASCADE FK', () => {
   const dbh = setupTestDatabase()
 
