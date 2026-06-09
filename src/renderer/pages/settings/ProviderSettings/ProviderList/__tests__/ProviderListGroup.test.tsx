@@ -1,5 +1,5 @@
 import type { Provider } from '@shared/data/types/provider'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const reorderableItemsCalls: Provider[][] = []
@@ -86,5 +86,41 @@ describe('ProviderListGroup', () => {
 
     expect(screen.queryByTestId('provider-list-group-inner-list')).not.toBeInTheDocument()
     expect(screen.getByTestId('provider-list-group-zhipu')).toBeInTheDocument()
+  })
+
+  it('stops pointer/key events in the expanded body from reaching the outer drag surface', () => {
+    // The expanded body must swallow propagation so in-group row drag coexists
+    // with group-block drag — without it, every inner pointerdown would also
+    // start an outer (group-level) drag.
+    const onParentPointerDown = vi.fn()
+    const onParentKeyDown = vi.fn()
+
+    render(
+      <div onPointerDown={onParentPointerDown} onKeyDown={onParentKeyDown}>
+        <ProviderListGroup
+          presetProviderId="zhipu"
+          members={providers}
+          items={providers}
+          expanded
+          containsSelected={false}
+          onToggle={() => {}}
+          onDragStateChange={() => {}}
+          onReorder={() => {}}
+          renderItem={() => null}
+        />
+      </div>
+    )
+
+    const header = screen.getByTestId('provider-list-group-zhipu')
+    const bodyId = header.getAttribute('aria-controls')!
+    const body = document.getElementById(bodyId)!
+    const innerList = screen.getByTestId('provider-list-group-inner-list')
+
+    fireEvent.pointerDown(innerList)
+    fireEvent.keyDown(innerList, { key: 'ArrowDown' })
+
+    expect(body).toContainElement(innerList)
+    expect(onParentPointerDown).not.toHaveBeenCalled()
+    expect(onParentKeyDown).not.toHaveBeenCalled()
   })
 })

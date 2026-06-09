@@ -244,6 +244,42 @@ describe('ProviderListContent — C1 grouped reorder', () => {
     expect(onReorderError).toHaveBeenCalledWith(error)
   })
 
+  it('routes rejected async reorder promises to onReorderError', async () => {
+    // Production onReorder (applyReorderedList) is async, so the `.catch()` branch
+    // is the one that actually runs — the sync test above can't exercise it.
+    const error = new Error('async reorder failed')
+    const onReorder = vi.fn(() => Promise.reject(error))
+    const onReorderError = vi.fn()
+    const all = [
+      provider('solo-a', 'solo-a', true),
+      provider('zhipu-a', 'zhipu', true),
+      provider('zhipu-b', 'zhipu', true),
+      provider('solo-b', 'solo-b', true)
+    ]
+
+    render(
+      <ProviderListContent
+        providers={all}
+        visibleProviders={all}
+        searchActive={false}
+        expandedGroups={{ zhipu: true }}
+        onToggleGroup={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={onReorder}
+        onReorderError={onReorderError}
+        renderItem={() => null}
+      />
+    )
+
+    await act(async () => {
+      sortableCalls[0].onSortEnd({ oldIndex: 1, newIndex: 2 })
+      await Promise.resolve()
+    })
+
+    expect(onReorder).toHaveBeenCalledTimes(1)
+    expect(onReorderError).toHaveBeenCalledWith(error)
+  })
+
   it('uses center collision detection for grouped sorting', () => {
     const all = [
       provider('solo-a', 'solo-a', true),
