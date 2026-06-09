@@ -152,11 +152,9 @@ describe('ProviderModelList', () => {
   it('collapses and expands all groups from the action menu', () => {
     render(<ProviderModelList providerId="openai" disabled={false} />)
 
-    // Groups render expanded by default, so the action starts as "collapse all".
-    fireEvent.click(screen.getAllByRole('button', { name: 'settings.models.collapse_all' })[0])
-    expect(screen.getAllByText(/:false:1/).length).toBeGreaterThan(0)
-
     fireEvent.click(screen.getAllByRole('button', { name: 'settings.models.expand_all' })[0])
-    expect(screen.getAllByText(/:true:2/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/:true:1/).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getAllByRole('button', { name: 'settings.models.collapse_all' })[0])
+    expect(screen.getAllByText(/:false:2/).length).toBeGreaterThan(0)
   })
 })

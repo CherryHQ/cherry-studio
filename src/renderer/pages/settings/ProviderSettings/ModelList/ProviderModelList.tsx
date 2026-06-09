@@ -37,7 +37,7 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
   const collapseAllLabel = t('settings.models.collapse_all')
   const [openMenu, setOpenMenu] = useState<'enabled' | 'disabled' | null>(null)
   const [expansionCommand, setExpansionCommand] = useState<{ expanded: boolean; version: number }>()
-  const [groupsExpanded, setGroupsExpanded] = useState(true)
+  const [groupsExpanded, setGroupsExpanded] = useState(false)
   const expandToggleLabel = groupsExpanded ? collapseAllLabel : expandAllLabel
 
   const handleCloseVisibleModels = useCallback(() => {

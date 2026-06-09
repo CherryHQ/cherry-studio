@@ -99,22 +99,6 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => ({
     </button>
   ),
   SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
-  Slider: ({
-    value,
-    onValueChange,
-    onValueCommit
-  }: {
-    value?: number[]
-    onValueChange?: (value: number[]) => void
-    onValueCommit?: (value: number[]) => void
-  }) => (
-    <div>
-      <div data-testid="slider">{value?.[0]}</div>
-      <button type="button" aria-label="slider-change-10" onClick={() => onValueChange?.([10])} />
-      <button type="button" aria-label="slider-change-20" onClick={() => onValueChange?.([20])} />
-      <button type="button" aria-label="slider-commit-10" onClick={() => onValueCommit?.([10])} />
-    </div>
-  ),
   Textarea: {
     Input: (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...props} />
   },
@@ -223,6 +207,25 @@ describe('WebSearchSettings', () => {
 
     await waitFor(() => {
       expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(20)
+    })
+  })
+
+  it.each([
+    ['1000', 100],
+    ['-3', 1],
+    ['abc', 1],
+    ['3.9', 3]
+  ])('clamps max-result draft %s to %s on commit', async (value, expected) => {
+    render(<WebSearchSettings />)
+
+    fireEvent.change(screen.getByLabelText('settings.tool.websearch.search_max_result.label'), {
+      target: { value }
+    })
+    fireEvent.blur(screen.getByLabelText('settings.tool.websearch.search_max_result.label'))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('chat.web_search.max_results')).toBe(expected)
+      expect(screen.getByLabelText('settings.tool.websearch.search_max_result.label')).toHaveValue(expected)
     })
   })
 
