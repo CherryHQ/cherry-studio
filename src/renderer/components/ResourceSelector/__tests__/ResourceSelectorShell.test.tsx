@@ -171,6 +171,67 @@ describe('ResourceSelectorShell', () => {
     })
   })
 
+  describe('onOpen', () => {
+    it('does not fire while the popover is closed', () => {
+      const onOpen = vi.fn()
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          labels={LABELS}
+          value={null}
+          onChange={vi.fn()}
+          onOpen={onOpen}
+        />
+      )
+      expect(onOpen).not.toHaveBeenCalled()
+    })
+
+    it('fires once on open and does not re-fire when the parent re-renders while open', () => {
+      const onOpen = vi.fn()
+      function Wrapper() {
+        const [tick, setTick] = useState(0)
+        return (
+          <div>
+            <button type="button" data-testid="bump" onClick={() => setTick((n) => n + 1)}>
+              bump
+            </button>
+            <ResourceSelectorShell
+              trigger={<button type="button">Open</button>}
+              items={ITEMS}
+              pinnedIds={[]}
+              onTogglePin={vi.fn()}
+              labels={LABELS}
+              // Unrelated prop that changes every parent render — proves a plain
+              // re-render does not re-fire onOpen.
+              width={320 + tick}
+              value={null}
+              onChange={vi.fn()}
+              onOpen={onOpen}
+            />
+          </div>
+        )
+      }
+      render(<Wrapper />)
+      openPopover()
+      expect(onOpen).toHaveBeenCalledTimes(1)
+
+      // Regression guard for the infinite refetch loop (frozen UI, GET /pins flood):
+      // useEffectEvent returns a fresh function reference on every render, so listing
+      // the open handler in the effect deps would re-run the effect — and thus onOpen
+      // — on every re-render while the popover stays open.
+      act(() => {
+        fireEvent.click(screen.getByTestId('bump'))
+      })
+      act(() => {
+        fireEvent.click(screen.getByTestId('bump'))
+      })
+      expect(onOpen).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe('multiEnabled sync', () => {
     it('turns multi ON when the controlled value grows to >= 2 after mount', () => {
       function Wrapper() {

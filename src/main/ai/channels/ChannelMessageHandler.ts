@@ -7,7 +7,10 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { isAgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/settingsBuilder'
+import {
+  isAgentSessionWorkspaceError,
+  prepareClaudeCodeWorkspaceDirectory
+} from '@main/ai/runtime/claudeCode/settingsBuilder'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import { application } from '@main/core/application'
@@ -205,6 +208,17 @@ export class ChannelMessageHandler {
       // override needs to flow as a per-dispatch option instead. Tracked separately.
 
       const workDir = session.workspace?.path
+      const hasAttachments = !!(message.images?.length || message.files?.length)
+      if (hasAttachments) {
+        try {
+          await prepareClaudeCodeWorkspaceDirectory(session)
+        } catch (error) {
+          if (isAgentSessionWorkspaceError(error)) {
+            await adapter.sendMessage(message.chatId, error.message).catch(() => {})
+          }
+          throw error
+        }
+      }
 
       // Save images to agent workspace so the agent can read them via the Read tool
       let imagePaths: string[] = []
@@ -307,7 +321,7 @@ export class ChannelMessageHandler {
         case 'new': {
           // TODO(channel-perm-override): channel.permissionMode no longer
           // applied here — config lives on agent now. Tracked separately.
-          const newSession = await agentSessionService.createSession({ agentId, name: 'Channel session' })
+          const newSession = await this.createSessionForChannel(agentId, adapter.channelId)
           await channelService.updateChannel(adapter.channelId, { sessionId: newSession.id })
           const trackerKey = `${agentId}:${adapter.channelId}:${command.chatId}`
           this.sessionTracker.set(trackerKey, newSession.id)
@@ -518,11 +532,27 @@ export class ChannelMessageHandler {
       trackerKey
     })
 
-    const newSession = await agentSessionService.createSession({ agentId, name: 'Channel session' })
+    const newSession = await this.createSessionForChannel(agentId, channelId, channelRow ?? undefined)
     await channelService.updateChannel(channelId, { sessionId: newSession.id })
     this.sessionTracker.set(trackerKey, newSession.id)
     this.evictSessionTracker()
     return newSession
+  }
+
+  private async createSessionForChannel(
+    agentId: string,
+    channelId: string,
+    channel?: NonNullable<Awaited<ReturnType<typeof channelService.getChannel>>>
+  ): Promise<AgentSessionEntity> {
+    const channelRow = channel ?? (await channelService.getChannel(channelId))
+    if (!channelRow) {
+      throw new Error(`Channel not found: ${channelId}`)
+    }
+    return await agentSessionService.create({
+      agentId,
+      name: 'Channel session',
+      workspace: channelRow.workspace
+    })
   }
 
   private async collectStreamResponse(

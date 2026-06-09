@@ -1,8 +1,8 @@
 import { Badge, MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { type FC, Fragment } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import type { FC } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {

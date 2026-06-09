@@ -1,3 +1,4 @@
+export { useEmbeddingDimensions } from './useEmbeddingDimensions'
 export { useKnowledgeGroups } from './useKnowledgeGroups'
 export { useCreateKnowledgeGroup } from './useKnowledgeGroups'
 export { useDeleteKnowledgeGroup } from './useKnowledgeGroups'

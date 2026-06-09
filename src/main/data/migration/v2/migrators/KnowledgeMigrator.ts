@@ -5,18 +5,17 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { assistantKnowledgeBaseTable } from '@data/db/schemas/assistantRelations'
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { createClient, type Value as LibsqlValue } from '@libsql/client'
 import { loggerService } from '@logger'
 import { sanitizeFilename } from '@main/utils/file'
+import { copy, ensureDir } from '@main/utils/file/fs'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
-import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
-import { inArray, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
+import type { FilePath } from '@shared/file/types'
+import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
@@ -113,6 +112,23 @@ const resolveLegacyKnowledgeBaseDimensions = (base: LegacyKnowledgeBaseWithIdent
     : null
 }
 
+/** Make `name` unique within `used`, inserting a numeric suffix before the extension on collision. */
+function dedupeKnowledgeRelativePath(name: string, used: Set<string>): string {
+  let candidate = name
+  if (used.has(candidate)) {
+    const ext = path.extname(name)
+    const stem = name.slice(0, name.length - ext.length)
+    let suffix = 1
+    candidate = `${stem}-${suffix}${ext}`
+    while (used.has(candidate)) {
+      suffix += 1
+      candidate = `${stem}-${suffix}${ext}`
+    }
+  }
+  used.add(candidate)
+  return candidate
+}
+
 export class KnowledgeMigrator extends BaseMigrator {
   readonly id = 'knowledge'
   readonly name = 'KnowledgeBase'
@@ -130,6 +146,8 @@ export class KnowledgeMigrator extends BaseMigrator {
   private seenLegacyItemIds = new Set<string>()
   private legacyBaseIdRemap = new Map<string, string>()
   private legacyItemIdRemap = new Map<string, string>()
+  // New item id → v1 storage filename, so `execute` can copy the upload into the v2 KB dir.
+  private fileStorageNameByItemId = new Map<string, string>()
 
   override reset(): void {
     this.sourceCount = 0
@@ -143,6 +161,7 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.seenLegacyItemIds = new Set<string>()
     this.legacyBaseIdRemap = new Map<string, string>()
     this.legacyItemIdRemap = new Map<string, string>()
+    this.fileStorageNameByItemId = new Map<string, string>()
   }
 
   private recordWarning(message: string): void {
@@ -168,20 +187,9 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.skippedWarnings.clear()
   }
 
-  private removeLegacyItemRemapByMigratedId(migratedItemId: string): void {
-    for (const [legacyItemId, mappedItemId] of this.legacyItemIdRemap) {
-      if (mappedItemId === migratedItemId) {
-        this.legacyItemIdRemap.delete(legacyItemId)
-        return
-      }
-    }
-  }
-
   private getEffectiveSkippedCount(): number {
     return this.skippedCount + this.skippedPreparedItemIds.size
   }
-
-  private static readonly INARRAY_CHUNK = 500
 
   private async dropDanglingAssistantKnowledgeBaseRefs(ctx: MigrationContext): Promise<void> {
     await ctx.db
@@ -189,35 +197,6 @@ export class KnowledgeMigrator extends BaseMigrator {
       .where(
         sql`${assistantKnowledgeBaseTable.knowledgeBaseId} NOT IN (SELECT ${knowledgeBaseTable.id} FROM ${knowledgeBaseTable})`
       )
-  }
-
-  // Queries `file_entry` for the subset of legacyFileIds we plan to reference,
-  // so the `fileRefRows` loop can drop dangling refs *before* the engine's
-  // post-migration `PRAGMA foreign_key_check` runs and aborts the whole user.
-  private async loadMigratedFileEntryIds(ctx: MigrationContext): Promise<Set<string>> {
-    const legacyFileIds = new Set<string>()
-    for (const item of this.preparedItems) {
-      if (item.type !== 'file') continue
-      const fileData = item.data as { fileEntryId?: string } | undefined
-      const id = fileData?.fileEntryId
-      if (id) legacyFileIds.add(id)
-    }
-
-    if (legacyFileIds.size === 0) {
-      return new Set<string>()
-    }
-
-    const allIds = [...legacyFileIds]
-    const result = new Set<string>()
-    for (let i = 0; i < allIds.length; i += KnowledgeMigrator.INARRAY_CHUNK) {
-      const chunk = allIds.slice(i, i + KnowledgeMigrator.INARRAY_CHUNK)
-      const rows = await ctx.db
-        .select({ id: fileEntryTable.id })
-        .from(fileEntryTable)
-        .where(inArray(fileEntryTable.id, chunk))
-      for (const row of rows) result.add(row.id)
-    }
-    return result
   }
 
   private getLegacyKnowledgeDbPath(baseId: string, knowledgeBaseDir: string): string | null {
@@ -562,10 +541,15 @@ export class KnowledgeMigrator extends BaseMigrator {
         for (const item of items) {
           this.sourceCount += 1
 
-          const itemResult = transformKnowledgeItem(preparedBase.id!, item, {
-            noteById,
-            filesById
-          })
+          const itemResult = transformKnowledgeItem(
+            preparedBase.id!,
+            item,
+            {
+              noteById,
+              filesById
+            },
+            (msg) => this.recordWarning(msg)
+          )
 
           if (!itemResult.ok) {
             this.skippedCount += 1
@@ -584,6 +568,9 @@ export class KnowledgeMigrator extends BaseMigrator {
           this.seenLegacyItemIds.add(item.id!)
           this.legacyItemIdRemap.set(item.id!, itemResult.value.id!)
           this.preparedItems.push(itemResult.value)
+          if (itemResult.fileCopy) {
+            this.fileStorageNameByItemId.set(itemResult.value.id!, itemResult.fileCopy.storageName)
+          }
         }
       }
 
@@ -659,26 +646,10 @@ export class KnowledgeMigrator extends BaseMigrator {
         }
       }
 
-      // file_ref construction is folded into the per-base transaction so that
-      // base + items + refs commit atomically. The v1 file id is preserved
-      // verbatim by FileMigrator (per migration-plan §2.9), so each
-      // legacyFileId is already the v2 fileEntryId. Items without a fileId,
-      // or whose fileId points at a v1 row FileMigrator dropped (invalid ext
-      // / size / required fields / duplicate id), are bucketed via
-      // `recordSkippedWarning`. Emitting a dangling `file_ref` would crash
-      // the whole user migration at `MigrationEngine.verifyForeignKeys()` —
-      // the engine runs with foreign_keys=OFF during migration, so the
-      // dangling insert lands silently, but the post-migration
-      // `PRAGMA foreign_key_check` then throws on it.
-      // (Pure orphan refs — items pointing at fileIds not in v1 db.files at
-      // all — are filtered earlier in `prepare()` via the `invalid_file`
-      // path, so they never reach this loop.)
       // Cross-run idempotency lives at the engine level (verifyAndClearNewTables) — no onConflict guard needed here.
-      const migratedFileEntryIds = await this.loadMigratedFileEntryIds(ctx)
       const legacyBaseIdByMigratedId = new Map(
         [...this.legacyBaseIdRemap.entries()].map(([legacyBaseId, migratedBaseId]) => [migratedBaseId, legacyBaseId])
       )
-      const now = Date.now()
 
       for (const base of this.preparedBases) {
         if (!base.id) {
@@ -686,52 +657,10 @@ export class KnowledgeMigrator extends BaseMigrator {
         }
 
         const baseItems = itemsByBaseId.get(base.id) ?? []
+        // Finalize relativePath + copy uploads before opening the write tx so no
+        // file I/O happens while the transaction is held.
+        await this.copyKnowledgeFilesForBase(ctx, base.id, baseItems)
         let transactionProcessed = 0
-
-        const fileRefRows: Array<typeof fileRefTable.$inferInsert> = []
-        const invalidFileItemIds = new Set<string>()
-        for (const item of baseItems) {
-          if (item.type !== 'file') continue
-          const fileData = item.data as { fileEntryId?: string } | undefined
-          const legacyFileId = fileData?.fileEntryId
-          if (!legacyFileId) {
-            if (item.id) {
-              invalidFileItemIds.add(item.id)
-              this.skippedPreparedItemIds.add(item.id)
-              this.removeLegacyItemRemapByMigratedId(item.id)
-            }
-            this.recordSkippedWarning(
-              'knowledge_item_missing_file_id',
-              `Knowledge item id=${item.id} (type=file) has no data.fileEntryId; item will not be created`
-            )
-            continue
-          }
-          if (!migratedFileEntryIds.has(legacyFileId)) {
-            if (item.id) {
-              invalidFileItemIds.add(item.id)
-              this.skippedPreparedItemIds.add(item.id)
-              this.removeLegacyItemRemapByMigratedId(item.id)
-            }
-            this.recordSkippedWarning(
-              'knowledge_item_dangling_file_entry',
-              `Knowledge item id=${item.id} references file_entry id=${legacyFileId} which is absent from v2 file_entry (FileMigrator dropped the v1 row); item will not be created`
-            )
-            continue
-          }
-          fileRefRows.push({
-            id: uuidv4(),
-            fileEntryId: legacyFileId,
-            sourceType: knowledgeItemSourceType,
-            sourceId: item.id!,
-            role: 'source',
-            createdAt: now,
-            updatedAt: now
-          })
-        }
-        const validBaseItems =
-          invalidFileItemIds.size > 0
-            ? baseItems.filter((item) => !item.id || !invalidFileItemIds.has(item.id))
-            : baseItems
 
         const legacyKnowledgeBaseId = legacyBaseIdByMigratedId.get(base.id)
 
@@ -739,14 +668,10 @@ export class KnowledgeMigrator extends BaseMigrator {
           await tx.insert(knowledgeBaseTable).values(base)
           transactionProcessed += 1
 
-          for (let i = 0; i < validBaseItems.length; i += ITEM_INSERT_BATCH_SIZE) {
-            const batch = validBaseItems.slice(i, i + ITEM_INSERT_BATCH_SIZE)
+          for (let i = 0; i < baseItems.length; i += ITEM_INSERT_BATCH_SIZE) {
+            const batch = baseItems.slice(i, i + ITEM_INSERT_BATCH_SIZE)
             await tx.insert(knowledgeItemTable).values(batch)
             transactionProcessed += batch.length
-          }
-
-          if (fileRefRows.length > 0) {
-            await tx.insert(fileRefTable).values(fileRefRows)
           }
 
           if (legacyKnowledgeBaseId !== undefined) {
@@ -770,8 +695,7 @@ export class KnowledgeMigrator extends BaseMigrator {
       // Self-check the knowledge domain. assistant_knowledge_base is verified HERE (not in
       // AssistantMigrator): AssistantMigrator writes those rows with legacy KB ids, and this
       // migrator remaps them to the new base ids + drops any that stay dangling — so they are
-      // referentially consistent only now. file_ref is excluded as a shared polymorphic table,
-      // covered by the engine's final verifyForeignKeys().
+      // referentially consistent only now.
       await this.assertOwnedForeignKeys(ctx.db, [knowledgeBaseTable, knowledgeItemTable, assistantKnowledgeBaseTable])
 
       this.flushSkippedWarnings()
@@ -786,14 +710,72 @@ export class KnowledgeMigrator extends BaseMigrator {
 
       return {
         success: true,
-        processedCount: processed
+        processedCount: processed,
+        warnings: this.warnings.length > 0 ? this.warnings : undefined
       }
     } catch (error) {
       logger.error('KnowledgeMigrator.execute failed', error as Error)
       return {
         success: false,
         processedCount: processed,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
+        warnings: this.warnings.length > 0 ? this.warnings : undefined
+      }
+    }
+  }
+
+  /**
+   * Copy each migrated `file` item's upload into the v2 knowledge base directory
+   * and finalize its `relativePath` (deduped within the base) so the item behaves
+   * like a native v2 item — reindex/restore re-read the file from
+   * `<knowledgeBaseDir>/<baseId>/<relativePath>`. Mutates `items` in place before
+   * insertion so the persisted row matches what is on disk.
+   *
+   * The physical source is located by v1 storage name (`<filesDataDir>/<name>`),
+   * never the stale `path` column (#15733). A missing or unreadable source
+   * degrades gracefully: the item is kept (still searchable via migrated vectors)
+   * but not copied, so it just cannot be reindexed until re-added.
+   */
+  private async copyKnowledgeFilesForBase(
+    ctx: MigrationContext,
+    baseId: string,
+    items: NewKnowledgeItem[]
+  ): Promise<void> {
+    const usedRelativePaths = new Set<string>()
+
+    for (const item of items) {
+      if (item.type !== 'file' || !item.id) {
+        continue
+      }
+
+      const data = item.data as { relativePath: string }
+      const relativePath = dedupeKnowledgeRelativePath(data.relativePath, usedRelativePaths)
+      data.relativePath = relativePath
+
+      const storageName = this.fileStorageNameByItemId.get(item.id)
+      if (!storageName) {
+        this.recordWarning(`Knowledge file item ${item.id} is missing a storage name; skipping file copy`)
+        continue
+      }
+
+      const sourcePath = path.join(ctx.paths.filesDataDir, storageName)
+      if (!fs.existsSync(sourcePath)) {
+        this.recordWarning(
+          `Knowledge file source missing for item ${item.id}; item kept but not reindexable: ${sourcePath}`
+        )
+        continue
+      }
+
+      const destPath = path.join(ctx.paths.knowledgeBaseDir, baseId, relativePath)
+      try {
+        await ensureDir(path.dirname(destPath) as FilePath)
+        await copy(sourcePath as FilePath, destPath as FilePath)
+      } catch (error) {
+        this.recordWarning(
+          `Failed to copy knowledge file for item ${item.id} (${sourcePath} → ${destPath}): ${
+            error instanceof Error ? error.message : String(error)
+          }`
+        )
       }
     }
   }

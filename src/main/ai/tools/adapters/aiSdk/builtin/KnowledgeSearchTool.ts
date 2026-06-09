@@ -50,13 +50,13 @@ Workflow: call kb__list first to discover available bases and their contents, th
       logger.warn('Dropped baseIds outside the assistant scope', { rejected, allowedIds })
     }
 
-    const orchestrator = application.get('KnowledgeOrchestrationService')
+    const knowledgeService = application.get('KnowledgeService')
     const perBaseResults = await Promise.all(
       targetIds.map(async (baseId) => {
         try {
-          return await orchestrator.search(baseId, query)
+          return await knowledgeService.search(baseId, query)
         } catch (error) {
-          logger.warn('KnowledgeOrchestrationService.search failed', {
+          logger.warn('KnowledgeService.search failed', {
             baseId,
             query,
             error: error instanceof Error ? error.message : String(error)

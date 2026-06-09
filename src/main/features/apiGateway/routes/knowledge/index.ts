@@ -17,7 +17,7 @@ const logger = loggerService.withContext('KnowledgeRoutes')
 
 /**
  * Knowledge base routes (Elysia plugin, mounted under `/v1`). Backed by the v2
- * data layer (`knowledgeBaseService`) + `KnowledgeOrchestrationService` — no
+ * data layer (`knowledgeBaseService`) + `KnowledgeService` — no
  * Redux, no renderer required. Handlers return success values (validated by the
  * `response` schemas) and throw for failures; the global `onError` shapes errors
  * (including `DataApiError` → the matching HTTP status).
@@ -84,7 +84,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
         }
       }
 
-      const orchestrator = application.get('KnowledgeOrchestrationService')
+      const orchestrator = application.get('KnowledgeService')
       const resultsPerBase = await Promise.all(
         targetBases.map(async (base) => {
           try {

@@ -6136,7 +6136,7 @@
         "enabled": "Ενεργοποίηση",
         "failed": "Αποτυχία",
         "failed_to_start": "Αποτυχία έναρξης ελέγχου υγείας",
-        "generation_output_audio": "έναν ήχο",
+        "generation_output_audio": "ήχος",
         "generation_output_image": "μια εικόνα",
         "generation_output_video": "ένα βίντεο",
         "keys_status_count": "Επιτυχημένοι: {{count_passed}} κλειδιά, αποτυχημένοι: {{count_failed}} κλειδιά",

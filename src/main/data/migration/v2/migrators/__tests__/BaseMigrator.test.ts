@@ -1,5 +1,6 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { sql } from 'drizzle-orm'
@@ -39,7 +40,15 @@ async function insertAgent(db: ReturnType<typeof setupTestDatabase>['db'], id: s
 }
 
 async function insertSession(db: ReturnType<typeof setupTestDatabase>['db'], id: string, agentId: string) {
-  await db.insert(agentSessionTable).values({ id, agentId, name: 'S', orderKey: 'a0' })
+  const workspaceId = `workspace-${id}`
+  await db.insert(agentWorkspaceTable).values({
+    id: workspaceId,
+    name: workspaceId,
+    path: `/tmp/${workspaceId}`,
+    type: 'user',
+    orderKey: 'a0'
+  })
+  await db.insert(agentSessionTable).values({ id, agentId, name: 'S', workspaceId, orderKey: 'a0' })
 }
 
 describe('BaseMigrator.assertOwnedForeignKeys', () => {

@@ -129,6 +129,7 @@ describe('agentChannelHandlers', () => {
           type: 'telegram',
           name: 'Test Channel',
           agentId: AGENT_ID,
+          workspace: { type: 'system' },
           config: { bot_token: 'abc123', allowed_chat_ids: [] },
           isActive: true
         }
