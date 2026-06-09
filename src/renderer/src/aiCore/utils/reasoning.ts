@@ -369,12 +369,31 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     return {}
   }
 
-  // DeepSeek V4+ models support reasoning_effort: "high" | "max" alongside thinking control
-  // UI uses "xhigh" which maps to API's "max"; all other effort levels map to "high"
+  // DeepSeek V4+ models support reasoning_effort: "high" | "max" alongside thinking control.
+  // UI uses "xhigh" which maps to API's "max"; all other effort levels map to "high".
+  //
+  // Emit BOTH casings so the value survives whichever AI SDK serializes the request:
+  //   - Official @ai-sdk/deepseek (patched) reads snake_case `reasoning_effort` and ignores camelCase.
+  //   - @ai-sdk/openai-compatible drops snake_case (overwrites it to undefined) and only honors
+  //     camelCase `reasoningEffort`, which it re-serializes back to `reasoning_effort` in the request body.
+  // The two keys never conflict: deepseek strips the camelCase one, openai-compatible's camelCase value
+  // overwrites the snake_case one with the same value. See https://github.com/CherryHQ/cherry-studio/issues/15824
+  //
+  // ARCHITECTURAL DEBT: this dual-emit only exists because this function is reused by a provider it
+  // was never meant to serve. Per the header comment, getReasoningEffort is the *generic*
+  // (openai-compatible) builder, so on its own this branch should return camelCase `reasoningEffort`
+  // ONLY. The snake_case requirement leaks in from the official `deepseek` provider, which uses the
+  // dedicated @ai-sdk/deepseek serializer (snake_case) rather than openai-compatible, yet still routes
+  // through this generic builder (buildProviderOptions' 'deepseek' case falls to buildGenericProviderOptions).
+  // The right fix is a provider-specific getDeepSeekReasoningParams — mirroring the existing
+  // getOpenAIReasoningParams / getAnthropicReasoningParams / getGeminiReasoningParams split — after which
+  // this branch can drop snake_case. Tracked for the v2 provider-dispatch refactor.
   if (isDeepSeekV4PlusModel(model)) {
+    const effort = (reasoningEffort === 'xhigh' ? 'max' : 'high') as OpenAIReasoningEffort
     return {
       thinking: { type: 'enabled' as const },
-      reasoning_effort: reasoningEffort === 'xhigh' ? ('max' as OpenAIReasoningEffort) : 'high'
+      reasoning_effort: effort,
+      reasoningEffort: effort
     }
   }
 
