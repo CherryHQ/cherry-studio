@@ -255,7 +255,11 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const handleOpen = useEffectEvent(() => onOpen?.())
   useEffect(() => {
     if (open) handleOpen()
-  }, [open, handleOpen])
+    // `handleOpen` is an Effect Event — useEffectEvent returns a fresh reference
+    // every render, so it MUST be excluded from deps. Listing it re-runs this
+    // effect on every render and, while open, refetches in a tight loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   // Normalize caller's value to an id list for both the EntitySelector contract (string/string[])
   // and the toolbar's initial seed.
