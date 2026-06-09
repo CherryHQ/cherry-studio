@@ -2,7 +2,7 @@
  * Agent session domain API handlers.
  *
  * Sessions are pure agent instances. Cognitive config (model / instructions /
- * mcps / allowedTools / configuration) lives on the parent agent and is
+ * mcps / disabledTools / configuration) lives on the parent agent and is
  * fetched separately; the selected workspace is exposed as a normalized
  * session relation.
  */

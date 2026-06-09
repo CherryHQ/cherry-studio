@@ -190,7 +190,7 @@ export class ChannelMessageHandler {
         return
       }
 
-      // Resolve agent for cognitive config (model / configuration / mcps / allowedTools).
+      // Resolve agent for cognitive config (model / configuration / mcps / disabledTools).
       // Workspace is read from the session itself (CMA Environment binding).
       // An orphan session (`agentId === null`) cannot run; skip it.
       if (!session.agentId) {

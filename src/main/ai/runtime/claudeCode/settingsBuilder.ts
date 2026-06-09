@@ -175,7 +175,7 @@ export async function buildClaudeCodeSessionSettings(
   provider: Provider,
   options?: ClaudeCodeSessionOptions
 ): Promise<ClaudeCodeSettings> {
-  // Agent owns cognitive config (model, instructions, mcps, allowedTools,
+  // Agent owns cognitive config (model, instructions, mcps, disabledTools,
   // configuration); workspace lives on the session (CMA Environment binding).
   // An orphan session (`agentId === null`, agent was deleted) cannot run.
   if (!session.agentId) {
@@ -203,7 +203,7 @@ export async function buildClaudeCodeSessionSettings(
   // `dispose` drops any approval still pending for this session when the
   // stream exits abnormally.
   const approvalEmitter = getToolApprovalEmitterHolder(session.id)
-  const { canUseTool, hooks, allowedTools, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
+  const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
     session,
     agent,
     approvalEmitter
@@ -218,8 +218,8 @@ export async function buildClaudeCodeSessionSettings(
   const isAssistant = agentConfig?.builtin_role === 'assistant'
   const mcpServers = await buildMcpServers(session, agent, soulEnabled, isAssistant)
 
-  // 8. Adjust allowedTools for injected MCP servers
-  const finalAllowedTools = adjustAllowedToolsForMcp(allowedTools, soulEnabled, isAssistant)
+  // 8. Auto-approve injected MCP server tools
+  const finalAllowedTools = buildInjectedMcpAllowedTools(soulEnabled, isAssistant)
 
   // 9. Build settings
   const settings: ClaudeCodeSettings = {
@@ -484,7 +484,6 @@ async function buildToolPermissions(
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
-  allowedTools: string[] | undefined
   disallowedTools: string[]
   toolPolicySnapshot: Awaited<ReturnType<typeof createClaudeAgentToolPolicySnapshot>>
 }> {
@@ -550,8 +549,8 @@ async function buildToolPermissions(
   return {
     canUseTool,
     hooks: { PreToolUse: [{ hooks: [rtkRewriteHook] }] },
-    allowedTools: agent.allowedTools,
     disallowedTools: [
+      ...(agent.disabledTools ?? []),
       ...GLOBALLY_DISALLOWED_TOOLS,
       ...(soulEnabled ? SOUL_MODE_DISALLOWED_TOOLS : []),
       ...(isAssistant ? ['AskUserQuestion'] : [])
@@ -700,14 +699,8 @@ async function resolveSourceChannel(agentId: string, sessionId: string): Promise
  * Auto-approve MCP tools for injected built-in servers.
  * Claw and assistant tools must be in allowedTools for canUseTool to pass them.
  */
-export function adjustAllowedToolsForMcp(
-  allowedTools: string[] | undefined,
-  soulEnabled: boolean,
-  isAssistant: boolean
-): string[] | undefined {
-  if (!soulEnabled && !isAssistant) return allowedTools
-
-  const result = allowedTools ? [...allowedTools] : []
+export function buildInjectedMcpAllowedTools(soulEnabled: boolean, isAssistant: boolean): string[] | undefined {
+  const result: string[] = []
 
   if (soulEnabled && !result.includes('mcp__claw__*')) {
     result.push('mcp__claw__*')

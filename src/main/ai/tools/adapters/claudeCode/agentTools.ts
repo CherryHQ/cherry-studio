@@ -34,12 +34,9 @@ function descriptorToToolWithAccess(descriptor: ClaudeToolDescriptor, access: Cl
   }
 }
 
-export function buildClaudeToolPolicy(
-  agent: Partial<Pick<AgentEntity, 'configuration' | 'allowedTools'>>
-): ClaudeToolPolicy {
+export function buildClaudeToolPolicy(agent: Partial<Pick<AgentEntity, 'configuration'>>): ClaudeToolPolicy {
   return {
-    permissionMode: agent.configuration?.permission_mode,
-    allowedTools: agent.allowedTools ?? []
+    permissionMode: agent.configuration?.permission_mode
   }
 }
 

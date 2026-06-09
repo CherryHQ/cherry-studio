@@ -111,11 +111,25 @@ describe('AgentService', () => {
       expect(agent.id).toMatch(uuidV4Pattern)
     })
 
-    it('places newly created agents first under default sort (createdAt desc)', async () => {
-      // Explicit, distinct, older timestamps so the newly created agent is
-      // unambiguously first without relying on wall-clock spacing.
-      await insertAgent({ id: 'agent_existing_a', createdAt: 100, updatedAt: 100 })
-      await insertAgent({ id: 'agent_existing_b', createdAt: 200, updatedAt: 200 })
+    it('persists plan and small models when provided', async () => {
+      const agent = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'Model Roles Test',
+        model: TEST_MODEL_ID,
+        planModel: TEST_MODEL_ID,
+        smallModel: TEST_MODEL_ID
+      })
+
+      expect(agent).toMatchObject({
+        model: TEST_MODEL_ID,
+        planModel: TEST_MODEL_ID,
+        smallModel: TEST_MODEL_ID
+      })
+    })
+
+    it('places newly created agents by default orderKey sort', async () => {
+      await insertAgent({ id: 'agent_existing_a' })
+      await insertAgent({ id: 'agent_existing_b' })
 
       const created = await agentService.createAgent({
         type: 'claude-code',
@@ -124,22 +138,35 @@ describe('AgentService', () => {
       })
 
       const { agents } = await agentService.listAgents()
-      expect(agents[0]?.id).toBe(created.id)
+      expect(agents.at(-1)?.id).toBe(created.id)
     })
 
-    it('orders rows with equal createdAt deterministically by id (tiebreaker)', async () => {
-      // createdAt is Date.now() (ms) and can collide across rapid inserts. Without a
-      // deterministic tiebreaker, equal-createdAt rows fall back to query-plan order,
-      // making the default `createdAt desc` listing unstable. Pin both rows to the
-      // same createdAt and assert the id-desc tiebreaker decides the order.
-      await insertAgent({ id: 'agent_aaa', createdAt: 5000 })
-      await insertAgent({ id: 'agent_zzz', createdAt: 5000 })
+    it('defaults disabledTools to an empty array (opt-out, backward-safe)', async () => {
+      const agent = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'Disabled Tools Default',
+        model: TEST_MODEL_ID
+      })
+      const reloaded = await agentService.getAgent(agent.id)
+      expect(reloaded?.disabledTools).toEqual([])
+    })
+  })
 
-      const { agents } = await agentService.listAgents()
-      const ids = agents.map((a) => a.id)
+  describe('disabledTools round-trip', () => {
+    it('persists disabledTools on create and update', async () => {
+      const created = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'Disabled Tools',
+        model: TEST_MODEL_ID,
+        disabledTools: ['Bash']
+      })
+      expect(created.disabledTools).toEqual(['Bash'])
 
-      // desc(createdAt), desc(id) -> 'agent_zzz' must come before 'agent_aaa'.
-      expect(ids.indexOf('agent_zzz')).toBeLessThan(ids.indexOf('agent_aaa'))
+      const updated = await agentService.updateAgent(created.id, { disabledTools: ['Bash', 'Workflow'] })
+      expect(updated?.disabledTools).toEqual(['Bash', 'Workflow'])
+
+      const reloaded = await agentService.getAgent(created.id)
+      expect(reloaded?.disabledTools).toEqual(['Bash', 'Workflow'])
     })
   })
 
@@ -196,6 +223,26 @@ describe('AgentService', () => {
       expect(names).toEqual([...names].sort())
     })
 
+    it('sorts unpinned agents by orderKey by default', async () => {
+      await insertAgent({ id: 'agent_order_c', name: 'C', orderKey: 'c' })
+      await insertAgent({ id: 'agent_order_a', name: 'A', orderKey: 'a' })
+      await insertAgent({ id: 'agent_order_b', name: 'B', orderKey: 'b' })
+
+      const { agents } = await agentService.listAgents()
+
+      expect(agents.map((agent) => agent.id)).toEqual(['agent_order_a', 'agent_order_b', 'agent_order_c'])
+    })
+
+    it('sorts by updatedAt without pin-first ordering', async () => {
+      await insertAgent({ id: 'agent_updated_old', name: 'Old', updatedAt: 100, createdAt: 100 })
+      await insertAgent({ id: 'agent_updated_new', name: 'New', updatedAt: 200, createdAt: 200 })
+      await pinService.pin({ entityType: 'agent', entityId: 'agent_updated_old' })
+
+      const { agents } = await agentService.listAgents({ sortBy: 'updatedAt', orderBy: 'desc' })
+
+      expect(agents.map((agent) => agent.id).slice(0, 2)).toEqual(['agent_updated_new', 'agent_updated_old'])
+    })
+
     it('does not expose tags in agent rows', async () => {
       const { id: taggedId } = await insertAgent({ id: 'agent_tag_test_1', name: 'tagged' })
       const { id: untaggedId } = await insertAgent({ id: 'agent_tag_test_2', name: 'untagged' })
@@ -226,7 +273,7 @@ describe('AgentService', () => {
         name: 'bound',
         model: 'anthropic::claude-sonnet-4-5'
       })
-      const missing = await insertAgent({
+      const unbound = await insertAgent({
         id: 'agent_model_test_2',
         name: 'missing',
         model: deletedModelId
@@ -239,7 +286,7 @@ describe('AgentService', () => {
       const byId = new Map(agents.map((agent) => [agent.id, agent]))
 
       expect(byId.get(bound.id)?.modelName).toBe('Claude Sonnet 4.5')
-      expect(byId.get(missing.id)?.modelName).toBeNull()
+      expect(byId.get(unbound.id)?.modelName).toBeNull()
     })
 
     it('filters by search against name OR description', async () => {
@@ -250,6 +297,25 @@ describe('AgentService', () => {
       const { agents } = await agentService.listAgents({ search: 'research' })
 
       expect(agents.map((agent) => agent.id).sort()).toEqual(['agent_search_1', 'agent_search_2'])
+    })
+
+    it('filters by updatedAtFrom while preserving service-owned search and sorting', async () => {
+      const cutoff = Date.parse('2026-05-01T00:00:00.000Z')
+      await insertAgent({ id: 'agent_old', name: 'Research old', updatedAt: cutoff - 1 })
+      await insertAgent({ id: 'agent_newer', name: 'Research newer', updatedAt: cutoff + 2000 })
+      await insertAgent({ id: 'agent_newest', name: 'Research newest', updatedAt: cutoff + 3000 })
+      await insertAgent({ id: 'agent_other', name: 'Other', updatedAt: cutoff + 4000 })
+
+      const { agents, total } = await agentService.listAgents({
+        search: 'research',
+        limit: 10,
+        updatedAtFrom: cutoff,
+        sortBy: 'updatedAt',
+        orderBy: 'desc'
+      })
+
+      expect(agents.map((agent) => agent.id)).toEqual(['agent_newest', 'agent_newer'])
+      expect(total).toBe(2)
     })
   })
 
