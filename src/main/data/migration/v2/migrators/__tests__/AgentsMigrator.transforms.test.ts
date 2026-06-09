@@ -50,6 +50,7 @@ describe('importLegacySessionMessages', () => {
       id: workspaceId,
       name: workspaceId,
       path: `/tmp/${workspaceId}`,
+      type: 'user',
       orderKey: 'a0'
     })
     await dbh.db.insert(agentSessionTable).values({

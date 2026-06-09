@@ -14,7 +14,7 @@
 
 ```text
 UI / preload IPC / main-side workflow
-  -> KnowledgeOrchestrationService
+  -> KnowledgeService
      -> KnowledgeWorkflowService
         -> JobManager
            -> knowledge.prepare-root
@@ -47,7 +47,7 @@ Data API knowledge handlers：
 1. 只暴露数据库可直接满足的读和 base metadata/config 更新。
 2. 不负责 runtime mutation，不创建或删除 vector store artifacts。
 
-`KnowledgeOrchestrationService`：
+`KnowledgeService`：
 
 1. 负责 caller-facing `knowledge-runtime:*` IPC。
 2. 负责 create/delete/restore base workflow。

@@ -14,7 +14,7 @@ import * as z from 'zod'
 import type { CursorPaginationResponse } from '../apiTypes'
 import type { OrderEndpoints } from './_endpointHelpers'
 import { AgentNameAtomSchema } from './agents'
-import { AgentWorkspaceEntitySchema } from './agentWorkspaces'
+import { AgentSessionWorkspaceSourceSchema, AgentWorkspaceEntitySchema } from './agentWorkspaces'
 
 /** Cursor-paginated query for `/agent-sessions/:sessionId/messages`. Walks history
  *  newest-first; an absent `cursor` returns the most recent page, then each
@@ -83,8 +83,8 @@ export const AgentSessionEntitySchema = z.strictObject({
   agentId: z.string().nullable(),
   name: AgentNameAtomSchema,
   description: z.string().optional(),
-  workspaceId: z.string().nullable(),
-  workspace: AgentWorkspaceEntitySchema.nullable(),
+  workspaceId: z.string(),
+  workspace: AgentWorkspaceEntitySchema,
   orderKey: z.string(),
   createdAt: z.string(),
   updatedAt: z.string()
@@ -92,23 +92,12 @@ export const AgentSessionEntitySchema = z.strictObject({
 export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
 
 // Create requires a real `agentId` — orphans only happen via cascade, never on insert.
-export const AgentWorkspaceModeSchema = z.literal('system')
-export type AgentWorkspaceMode = z.infer<typeof AgentWorkspaceModeSchema>
-
-// `workspaceId` is optional at create time — when omitted, the service inherits
-// from the latest user workspace sibling session of the same agent, or creates a default workspace.
-export const CreateAgentSessionSchema = z
-  .strictObject({
-    agentId: z.string().min(1),
-    name: AgentNameAtomSchema,
-    description: z.string().optional(),
-    workspaceId: z.string().min(1).optional(),
-    workspaceMode: AgentWorkspaceModeSchema.optional()
-  })
-  .refine((dto) => !(dto.workspaceMode === 'system' && dto.workspaceId), {
-    path: ['workspaceId'],
-    message: 'workspaceId must be omitted when workspaceMode is system'
-  })
+export const CreateAgentSessionSchema = z.strictObject({
+  agentId: z.string().min(1),
+  name: AgentNameAtomSchema,
+  description: z.string().optional(),
+  workspace: AgentSessionWorkspaceSourceSchema
+})
 export type CreateAgentSessionDto = z.infer<typeof CreateAgentSessionSchema>
 
 export const UpdateAgentSessionSchema = z.strictObject({

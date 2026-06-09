@@ -14,6 +14,64 @@ import { describe, expect, it } from 'vitest'
 describe('TopicService', () => {
   const dbh = setupTestDatabase()
 
+  describe('search', () => {
+    it('returns lean topic items with assistant names resolved inline', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(assistantTable).values({
+        id: 'asst-search',
+        name: 'Needle Assistant',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(topicTable).values([
+        {
+          id: 'topic-search-old',
+          name: 'Needle Old Topic',
+          assistantId: 'asst-search',
+          orderKey: 'a0',
+          updatedAt: 100
+        },
+        {
+          id: 'topic-search-new',
+          name: 'Needle New Topic',
+          assistantId: 'asst-search',
+          orderKey: 'a1',
+          updatedAt: 200
+        },
+        {
+          id: 'topic-search-miss',
+          name: 'Other Topic',
+          assistantId: 'asst-search',
+          orderKey: 'a2',
+          updatedAt: 300
+        }
+      ])
+
+      const result = await service.search({ q: 'Needle', limit: 5 })
+
+      expect(result).toEqual([
+        {
+          type: 'topic',
+          id: 'topic-search-new',
+          title: 'Needle New Topic',
+          subtitle: 'Needle Assistant',
+          updatedAt: '1970-01-01T00:00:00.200Z',
+          target: { topicId: 'topic-search-new', assistantId: 'asst-search' }
+        },
+        {
+          type: 'topic',
+          id: 'topic-search-old',
+          title: 'Needle Old Topic',
+          subtitle: 'Needle Assistant',
+          updatedAt: '1970-01-01T00:00:00.100Z',
+          target: { topicId: 'topic-search-old', assistantId: 'asst-search' }
+        }
+      ])
+      expect(result[0]).not.toHaveProperty('orderKey')
+    })
+  })
+
   describe('listByCursor', () => {
     it('returns all non-deleted topics across assistants ordered by orderKey', async () => {
       const service = new TopicService()

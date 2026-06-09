@@ -1,12 +1,13 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import RecallTestPanel from '../RecallTestPanel'
 
-const mockKnowledgeRuntimeSearch = vi.fn()
+const mockKnowledgeSearch = vi.fn()
 const mockPerformanceNow = vi.spyOn(performance, 'now')
 const mockToastError = vi.fn()
+const mockClipboardWriteText = vi.fn()
 const mockLogger = vi.hoisted(() => ({
   info: vi.fn(),
   error: vi.fn()
@@ -64,7 +65,9 @@ vi.mock('@logger', () => ({
 vi.mock('@cherrystudio/ui', async () => {
   return {
     Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-      <button {...props}>{children}</button>
+      <button type="button" {...props}>
+        {children}
+      </button>
     ),
     EmptyState: ({
       title,
@@ -132,18 +135,19 @@ vi.mock('react-i18next', () => ({
 
 describe('RecallTestPanel', () => {
   beforeEach(() => {
+    vi.useRealTimers()
     vi.clearAllMocks()
     mockCache.initial = {
       'base-1': ['RAG 检索增强生成原理', '向量数据库选型对比'],
       'base-2': ['其他知识库查询']
     }
     mockPerformanceNow.mockReturnValue(100)
-    mockKnowledgeRuntimeSearch.mockResolvedValue(realSearchResults)
+    mockKnowledgeSearch.mockResolvedValue(realSearchResults)
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
-        knowledgeRuntime: {
-          search: mockKnowledgeRuntimeSearch
+        knowledge: {
+          search: mockKnowledgeSearch
         }
       }
     })
@@ -152,6 +156,13 @@ describe('RecallTestPanel', () => {
         error: mockToastError
       }
     })
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: mockClipboardWriteText
+      }
+    })
+    mockClipboardWriteText.mockResolvedValue(undefined)
   })
 
   it('renders the empty state with a disabled search button initially', () => {
@@ -196,7 +207,7 @@ describe('RecallTestPanel', () => {
 
     expect(screen.getByText('搜索历史')).toBeInTheDocument()
     expect(screen.getByText('RAG 检索增强生成原理')).toBeInTheDocument()
-    expect(mockKnowledgeRuntimeSearch).not.toHaveBeenCalled()
+    expect(mockKnowledgeSearch).not.toHaveBeenCalled()
   })
 
   it('closes search history when input loses focus outside the history popover', async () => {
@@ -229,7 +240,7 @@ describe('RecallTestPanel', () => {
   })
 
   it('calls runtime IPC, logs the returned data, and renders real result cards after searching', async () => {
-    mockKnowledgeRuntimeSearch.mockImplementation(async () => {
+    mockKnowledgeSearch.mockImplementation(async () => {
       mockPerformanceNow.mockReturnValue(223)
       return realSearchResults
     })
@@ -242,7 +253,7 @@ describe('RecallTestPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '检索' }))
 
     await waitFor(() => {
-      expect(mockKnowledgeRuntimeSearch).toHaveBeenCalledWith('base-1', 'RAG 检索增强生成原理')
+      expect(mockKnowledgeSearch).toHaveBeenCalledWith('base-1', 'RAG 检索增强生成原理')
     })
     expect(mockLogger.info).toHaveBeenCalledWith('Knowledge recall search IPC result', {
       baseId: 'base-1',
@@ -265,9 +276,71 @@ describe('RecallTestPanel', () => {
     expect(screen.queryByText('知识库最佳实践.md')).not.toBeInTheDocument()
   })
 
+  it('keeps recall results from causing outer horizontal overflow', async () => {
+    const longContent = 'x'.repeat(400)
+    mockKnowledgeSearch.mockResolvedValueOnce([
+      {
+        ...realSearchResults[0],
+        pageContent: longContent
+      }
+    ])
+
+    const { container } = render(<RecallTestPanel baseId="base-1" />)
+
+    fireEvent.change(screen.getByPlaceholderText('输入测试 Query...'), {
+      target: { value: 'long content' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: '检索' }))
+
+    await waitFor(() => {
+      expect(screen.getByText(longContent)).toBeInTheDocument()
+    })
+
+    expect(container.firstElementChild).toHaveClass('min-w-0', 'overflow-x-hidden')
+    expect(screen.getByRole('button', { name: '检索' }).parentElement).toHaveClass('w-full', 'max-w-3xl')
+    expect(screen.getByText('1 个结果').closest('.overflow-y-auto')).toHaveClass('[scrollbar-width:none]')
+    expect(screen.getByText('1 个结果').closest('.max-w-3xl')).toHaveClass('w-full', 'max-w-3xl')
+    expect(screen.getByText(longContent)).toHaveClass('wrap-anywhere', 'whitespace-normal')
+  })
+
+  it('shows temporary icon-only copy feedback after copying a recall result', async () => {
+    render(<RecallTestPanel baseId="base-1" />)
+
+    fireEvent.change(screen.getByPlaceholderText('输入测试 Query...'), {
+      target: { value: 'RAG 检索增强生成原理' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: '检索' }))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('button', { name: '复制片段' })).toHaveLength(2)
+    })
+
+    const copyButton = screen.getAllByRole('button', { name: '复制片段' })[0]
+    expect(copyButton.querySelector('.lucide-copy')).toBeInTheDocument()
+
+    vi.useFakeTimers()
+
+    await act(async () => {
+      fireEvent.click(copyButton)
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(mockClipboardWriteText).toHaveBeenCalledWith('real result from file name')
+    expect(copyButton.querySelector('.lucide-check')).toBeInTheDocument()
+    expect(copyButton).toHaveClass('text-success', 'opacity-100')
+    expect(mockToastError).not.toHaveBeenCalledWith('message.copied')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+
+    expect(copyButton.querySelector('.lucide-copy')).toBeInTheDocument()
+  })
+
   it('shows a searching state while runtime IPC is pending', async () => {
     let resolveSearch: (value: typeof realSearchResults) => void = () => undefined
-    mockKnowledgeRuntimeSearch.mockReturnValue(
+    mockKnowledgeSearch.mockReturnValue(
       new Promise((resolve) => {
         resolveSearch = resolve
       })
@@ -294,7 +367,7 @@ describe('RecallTestPanel', () => {
 
   it('does not apply pending search results after switching selected bases', async () => {
     let resolveSearch: (value: typeof realSearchResults) => void = () => undefined
-    mockKnowledgeRuntimeSearch.mockReturnValue(
+    mockKnowledgeSearch.mockReturnValue(
       new Promise((resolve) => {
         resolveSearch = resolve
       })
@@ -389,7 +462,7 @@ describe('RecallTestPanel', () => {
 
   it('logs runtime IPC failures without throwing', async () => {
     const error = new Error('search failed')
-    mockKnowledgeRuntimeSearch.mockRejectedValue(error)
+    mockKnowledgeSearch.mockRejectedValue(error)
 
     render(<RecallTestPanel baseId="base-1" />)
 
@@ -412,7 +485,7 @@ describe('RecallTestPanel', () => {
   })
 
   it('renders ranking-only recall results without percentage scores', async () => {
-    mockKnowledgeRuntimeSearch.mockResolvedValueOnce([
+    mockKnowledgeSearch.mockResolvedValueOnce([
       {
         ...realSearchResults[0],
         score: 12.345,

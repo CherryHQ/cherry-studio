@@ -1,5 +1,4 @@
 import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
-import type { FileEntry } from '@shared/data/types/file'
 import type { KnowledgeItemOf, KnowledgeItemStatus, KnowledgeItemType } from '@shared/data/types/knowledge'
 import type { LucideIcon } from 'lucide-react'
 import { FileText, Folder, Link2, StickyNote } from 'lucide-react'
@@ -8,7 +7,6 @@ export type DataSourceStatus = 'completed' | 'processing' | 'failed'
 export type DataSourceStatusIcon = 'check' | 'loader' | 'alert'
 
 export interface DataSourceDisplayContext {
-  fileEntry?: FileEntry
   language: string
 }
 
@@ -64,20 +62,13 @@ const getPathName = (source: string) => {
   return name || normalizedSource || source
 }
 
-const getFileTitle = (item: KnowledgeItemOf<'file'>, fileEntry?: FileEntry) => {
-  if (!fileEntry) {
-    return getPathName(item.data.source)
-  }
+const getFileTitle = (item: KnowledgeItemOf<'file'>) => getPathName(item.data.source || item.data.relativePath)
 
-  return fileEntry.ext ? `${fileEntry.name}.${fileEntry.ext}` : fileEntry.name
-}
-
-const getFileSuffix = (item: KnowledgeItemOf<'file'>, fileEntry?: FileEntry) => {
+const getFileSuffix = (item: KnowledgeItemOf<'file'>) => {
   const fallbackName = getPathName(item.data.source)
   const fallbackExt = fallbackName.includes('.') ? fallbackName.split('.').pop() : undefined
-  const ext = fileEntry?.ext ?? fallbackExt
 
-  return (ext || 'FILE').toLowerCase()
+  return (fallbackExt || 'FILE').toLowerCase()
 }
 
 export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): DataSourceStatusViewModel => {
@@ -150,8 +141,8 @@ export const dataSourceTypeDisplayConfig: DataSourceTypeDisplayConfigMap = {
       icon: FileText,
       iconClassName: 'text-blue-500'
     },
-    getTitle: (item, { fileEntry }) => getFileTitle(item, fileEntry),
-    getSuffix: (item, { fileEntry }) => getFileSuffix(item, fileEntry),
+    getTitle: (item) => getFileTitle(item),
+    getSuffix: (item) => getFileSuffix(item),
     getMetaParts: (item, { language }) => getRelativeMetaParts(item.updatedAt, language),
     getStatus: resolveDataSourceStatusViewModel
   },

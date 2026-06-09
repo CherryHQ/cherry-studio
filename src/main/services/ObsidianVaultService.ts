@@ -31,8 +31,7 @@ interface FileInfo {
  * into `registerIpc()` so construction happens after the registry is initialized.
  * Either approach enables a clean switch to `application.getPath(...)`.
  *
- * Until that refactor, keep `app.getPath(...)` here. See `KnowledgeService.ts` for
- * a similar exemption.
+ * Until that refactor, keep `app.getPath(...)` here.
  */
 class ObsidianVaultService {
   private obsidianConfigPath: string

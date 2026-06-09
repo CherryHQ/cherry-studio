@@ -15,6 +15,10 @@ function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
 }
 
+function partsText(content: string): MessageData {
+  return { parts: [{ type: 'text', text: content }] as MessageData['parts'] }
+}
+
 describe('MessageService', () => {
   const dbh = setupTestDatabase()
 
@@ -278,6 +282,447 @@ describe('MessageService', () => {
           expect(item.message.parentId).toEqual(expect.any(String))
         }
       }
+    })
+  })
+
+  describe('search', () => {
+    it('searches v2 parts text and returns message snippets', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-search', activeNodeId: 'm-search-1', orderKey: 's0' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-search-1',
+          parentId: null,
+          topicId: 'topic-search',
+          role: 'assistant',
+          data: partsText('The v2 parts payload contains a unique needle.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'm-search-2',
+          parentId: 'm-search-1',
+          topicId: 'topic-search',
+          role: 'assistant',
+          data: partsText('No matching term here.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ])
+
+      const result = await messageService.search({ q: 'needle' })
+
+      expect(result.items).toHaveLength(1)
+      expect(result.nextCursor).toBeUndefined()
+      expect(result.items[0]).toMatchObject({
+        messageId: 'm-search-1',
+        topicId: 'topic-search',
+        topicName: '',
+        topicAssistantId: undefined,
+        role: 'assistant',
+        topicCreatedAt: expect.any(String),
+        topicUpdatedAt: expect.any(String)
+      })
+      expect(result.items[0].snippet).toContain('unique needle')
+      expect(result.items[0].createdAt).toBe('1970-01-01T00:00:00.100Z')
+
+      const stored = await dbh.db
+        .select({ searchableText: messageTable.searchableText })
+        .from(messageTable)
+        .where(eq(messageTable.id, 'm-search-1'))
+      expect(stored[0].searchableText).toContain('unique needle')
+    })
+
+    it('uses substring matching for terms that FTS would treat as whole tokens', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-substring', activeNodeId: 'm-substring-2', orderKey: 's5' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-substring-1',
+          parentId: null,
+          topicId: 'topic-substring',
+          role: 'assistant',
+          data: partsText('abcneedledef is embedded in a larger token.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'm-substring-2',
+          parentId: 'm-substring-1',
+          topicId: 'topic-substring',
+          role: 'assistant',
+          data: partsText('needle appears as a separate token too.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ])
+
+      const result = await messageService.search({ q: 'needle' })
+
+      expect(result.items.map((item) => item.messageId)).toEqual(['m-substring-2', 'm-substring-1'])
+    })
+
+    it('requires all search terms to match a message', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-search-and', activeNodeId: 'm-search-and-2', orderKey: 'sa0' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-search-and-1',
+          parentId: null,
+          topicId: 'topic-search-and',
+          role: 'assistant',
+          data: partsText('alpha needle appear together.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'm-search-and-2',
+          parentId: 'm-search-and-1',
+          topicId: 'topic-search-and',
+          role: 'assistant',
+          data: partsText('needle appears without the other term.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ])
+
+      const result = await messageService.search({ q: 'alpha needle' })
+
+      expect(result.items.map((item) => item.messageId)).toEqual(['m-search-and-1'])
+    })
+
+    it('treats LIKE wildcards as literal search text after FTS prefiltering', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-search-literal', activeNodeId: 'm-search-literal-2', orderKey: 'sl0' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-search-literal-1',
+          parentId: null,
+          topicId: 'topic-search-literal',
+          role: 'assistant',
+          data: partsText('Save 50% off today.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'm-search-literal-2',
+          parentId: 'm-search-literal-1',
+          topicId: 'topic-search-literal',
+          role: 'assistant',
+          data: partsText('Save 50X off today.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'm-search-literal-3',
+          parentId: 'm-search-literal-2',
+          topicId: 'topic-search-literal',
+          role: 'assistant',
+          data: partsText('Save 50_ off today.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
+        }
+      ])
+
+      const percentResult = await messageService.search({ q: '50%' })
+      const underscoreResult = await messageService.search({ q: '50_' })
+
+      expect(percentResult.items.map((item) => item.messageId)).toEqual(['m-search-literal-1'])
+      expect(underscoreResult.items.map((item) => item.messageId)).toEqual(['m-search-literal-3'])
+    })
+
+    it('uses the message FTS index as the search candidate source', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-fts-candidate', activeNodeId: 'm-fts-candidate', orderKey: 'sf0' })
+      await dbh.db.insert(messageTable).values({
+        id: 'm-fts-candidate',
+        parentId: null,
+        topicId: 'topic-fts-candidate',
+        role: 'assistant',
+        data: partsText('needle exists in the base message text.'),
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 100,
+        updatedAt: 100
+      })
+
+      const ftsRow = await dbh.client.execute({
+        sql: 'SELECT rowid, searchable_text FROM message WHERE id = ?',
+        args: ['m-fts-candidate']
+      })
+      await dbh.client.execute({
+        sql: `INSERT INTO message_fts(message_fts, rowid, searchable_text)
+              VALUES ('delete', ?, ?)`,
+        args: [ftsRow.rows[0][0], ftsRow.rows[0][1]]
+      })
+
+      let result: Awaited<ReturnType<typeof messageService.search>>
+      try {
+        result = await messageService.search({ q: 'needle' })
+      } finally {
+        await dbh.client.execute(`INSERT INTO message_fts(message_fts) VALUES ('rebuild')`)
+      }
+
+      expect(result.items).toEqual([])
+    })
+
+    it('defaults message search to substring matching', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-substring-default', activeNodeId: 'm-substring-default', orderKey: 'sd0' })
+      await dbh.db.insert(messageTable).values({
+        id: 'm-substring-default',
+        parentId: null,
+        topicId: 'topic-substring-default',
+        role: 'assistant',
+        data: partsText('abcneedledef is embedded in a larger token.'),
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 100,
+        updatedAt: 100
+      })
+
+      const result = await messageService.search({ q: 'needle' })
+
+      expect(result.items.map((item) => item.messageId)).toEqual(['m-substring-default'])
+    })
+
+    it('filters substring search by topic id', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-substring-filter', activeNodeId: 'm-substring-filter-target', orderKey: 'sf0' },
+        { id: 'topic-substring-other', activeNodeId: 'm-substring-filter-other', orderKey: 'sf1' }
+      ])
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-substring-filter-target',
+          parentId: null,
+          topicId: 'topic-substring-filter',
+          role: 'assistant',
+          data: partsText('needle appears in the target topic.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'm-substring-filter-other',
+          parentId: null,
+          topicId: 'topic-substring-other',
+          role: 'assistant',
+          data: partsText('needle appears in another topic too.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
+        }
+      ])
+
+      const result = await messageService.search({
+        q: 'needle',
+        topicId: 'topic-substring-filter'
+      })
+
+      expect(result.items.map((item) => item.messageId)).toEqual(['m-substring-filter-target'])
+    })
+
+    it('filters substring search by createdAtFrom', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'topic-created-substring', activeNodeId: 'm-created-new', orderKey: 'cf0' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-created-old',
+          parentId: null,
+          topicId: 'topic-created-substring',
+          role: 'assistant',
+          data: partsText('needle in an older answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 500
+        },
+        {
+          id: 'm-created-new',
+          parentId: null,
+          topicId: 'topic-created-substring',
+          role: 'assistant',
+          data: partsText('needle in a newer answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
+        }
+      ])
+
+      const result = await messageService.search({
+        q: 'needle',
+        createdAtFrom: '1970-01-01T00:00:00.250Z'
+      })
+
+      expect(result.items.map((item) => item.messageId)).toEqual(['m-created-new'])
+    })
+
+    it('orders matches by newest message before applying limit', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-order', activeNodeId: 'm-order-new', orderKey: 's2' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-order-old',
+          parentId: null,
+          topicId: 'topic-order',
+          role: 'assistant',
+          data: partsText('needle in an older answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'm-order-new',
+          parentId: null,
+          topicId: 'topic-order',
+          role: 'assistant',
+          data: partsText('needle in a newer answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
+        }
+      ])
+
+      const result = await messageService.search({ q: 'needle', limit: 1 })
+
+      expect(result.items.map((item) => item.messageId)).toEqual(['m-order-new'])
+    })
+
+    it('uses message id as the cursor tiebreaker when createdAt values match', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-page-tie', activeNodeId: 'm-page-tie-3', orderKey: 'st0' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-page-tie-1',
+          parentId: null,
+          topicId: 'topic-page-tie',
+          role: 'assistant',
+          data: partsText('needle tie one'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'm-page-tie-2',
+          parentId: 'm-page-tie-1',
+          topicId: 'topic-page-tie',
+          role: 'assistant',
+          data: partsText('needle tie two'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'm-page-tie-3',
+          parentId: 'm-page-tie-2',
+          topicId: 'topic-page-tie',
+          role: 'assistant',
+          data: partsText('needle tie three'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        }
+      ])
+
+      const firstPage = await messageService.search({ q: 'needle', limit: 2 })
+      const secondPage = await messageService.search({
+        q: 'needle',
+        limit: 2,
+        cursor: firstPage.nextCursor
+      })
+
+      expect(firstPage.items.map((item) => item.messageId)).toEqual(['m-page-tie-3', 'm-page-tie-2'])
+      expect(firstPage.nextCursor).toBe('100:m-page-tie-2')
+      expect(secondPage.items.map((item) => item.messageId)).toEqual(['m-page-tie-1'])
+      expect(secondPage.nextCursor).toBeUndefined()
+    })
+
+    it('returns a cursor for the next search result page', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-page', activeNodeId: 'm-page-3', orderKey: 's6' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-page-1',
+          parentId: null,
+          topicId: 'topic-page',
+          role: 'assistant',
+          data: partsText('needle page one'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'm-page-2',
+          parentId: 'm-page-1',
+          topicId: 'topic-page',
+          role: 'assistant',
+          data: partsText('needle page two'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'm-page-3',
+          parentId: 'm-page-2',
+          topicId: 'topic-page',
+          role: 'assistant',
+          data: partsText('needle page three'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
+        }
+      ])
+
+      const firstPage = await messageService.search({ q: 'needle', limit: 2 })
+      await dbh.db.update(messageTable).set({ deletedAt: 400 }).where(eq(messageTable.id, 'm-page-2'))
+      const secondPage = await messageService.search({
+        q: 'needle',
+        limit: 2,
+        cursor: firstPage.nextCursor
+      })
+
+      expect(firstPage.items.map((item) => item.messageId)).toEqual(['m-page-3', 'm-page-2'])
+      expect(firstPage.nextCursor).toBeDefined()
+      expect(secondPage.items.map((item) => item.messageId)).toEqual(['m-page-1'])
+      expect(secondPage.nextCursor).toBeUndefined()
+    })
+
+    it('rejects malformed search cursors', async () => {
+      await expect(messageService.search({ q: 'needle', cursor: 'not-a-cursor' })).rejects.toMatchObject({
+        code: 'VALIDATION_ERROR'
+      })
+      await expect(messageService.search({ q: 'needle', cursor: 'abc:m-search-1' })).rejects.toMatchObject({
+        code: 'VALIDATION_ERROR'
+      })
     })
   })
 

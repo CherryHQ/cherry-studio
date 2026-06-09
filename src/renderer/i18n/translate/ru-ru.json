@@ -2162,16 +2162,10 @@
           "supported_formats": "Поддерживает PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Нажмите, чтобы выбрать файлы, или перетащите их сюда"
         },
-        "sitemap": {
-          "description": "Введите URL карты сайта:",
-          "help": "Страницы, перечисленные в карте сайта, будут прочитаны и проиндексированы",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
-        },
         "sources": {
           "directory": "Папка",
           "file": "Файл",
           "note": "Примечание",
-          "sitemap": "Веб-сайт",
           "url": "URL"
         },
         "submit": {
@@ -2209,9 +2203,6 @@
           "file": {
             "title": "Файл"
           },
-          "sitemap": {
-            "title": "Синхронизация веб-сайта"
-          },
           "url": {
             "title": "URL"
           }
@@ -2224,7 +2215,6 @@
         "directory": "Папки",
         "file": "Файлы",
         "note": "Заметки",
-        "sitemap": "Веб-сайты",
         "url": "URL-адреса"
       },
       "preview": {
@@ -6147,6 +6137,9 @@
         "enabled": "Включено",
         "failed": "Не прошло",
         "failed_to_start": "Не удалось запустить проверку работоспособности",
+        "generation_output_audio": "аудио",
+        "generation_output_image": "изображение",
+        "generation_output_video": "видео",
         "keys_status_count": "Прошло: {{count_passed}} ключей, Не прошло: {{count_failed}} ключей",
         "model_status_failed": "{{count}} моделей полностью недоступны",
         "model_status_partial": "{{count}} моделей недоступны с некоторыми ключами",
@@ -6155,6 +6148,7 @@
         "no_api_keys": "API ключи не найдены, пожалуйста, добавьте API ключи.",
         "no_results": "нет результатов",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "{{count}} пропущено",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Прошло",
@@ -6166,8 +6160,11 @@
         "retry": "Check again",
         "select_api_key": "Выберите API ключ для использования:",
         "single": "Один",
+        "skip_reason_generation_cost": "Проверка работоспособности этой модели сгенерирует {{output}} и потратит квоту, поэтому по умолчанию она пропускается.",
+        "skip_reason_unsupported_probe": "У этой модели пока нет недорогой проверки состояния, поэтому она по умолчанию пропускается.",
         "start": "Начать",
         "status_checking": "Checking…",
+        "status_skipped": "Пропущено",
         "timeout": "Тайм-аут",
         "title": "Проверка состояния моделей",
         "use_all_keys": "Использовать все ключи"
@@ -6176,6 +6173,8 @@
       "default_assistant_model": "Модель ассистента по умолчанию",
       "default_assistant_model_description": "Используется, если у ассистента нет модели.",
       "empty": "Модели не найдены",
+      "group_disable": "Закрыть эту группу",
+      "group_enable": "Включить эту группу",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",

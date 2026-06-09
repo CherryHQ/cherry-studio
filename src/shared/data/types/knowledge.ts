@@ -1,6 +1,6 @@
 import * as z from 'zod'
 
-import { FileEntryIdSchema } from './file'
+import { AbsolutePathSchema } from './file'
 import { GroupIdSchema } from './group'
 
 /**
@@ -171,6 +171,31 @@ export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value,
 })
 export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
 
+/**
+ * A knowledge base that has finished embedding and is ready for vector-store
+ * operations. Narrows away the states `KnowledgeBaseSchema.superRefine` already
+ * rejects for `status === 'completed'` (null dimensions / embedding model, or a
+ * lingering error), so consumers can read `dimensions` as a plain `number`
+ * instead of re-asserting at each call site.
+ */
+export type CompletedKnowledgeBase = KnowledgeBase & {
+  status: 'completed'
+  dimensions: number
+  embeddingModelId: string
+  error: null
+}
+
+export function isCompletedKnowledgeBase(base: KnowledgeBase): base is CompletedKnowledgeBase {
+  return (
+    base.status === 'completed' &&
+    typeof base.dimensions === 'number' &&
+    Number.isInteger(base.dimensions) &&
+    base.dimensions > 0 &&
+    base.embeddingModelId !== null &&
+    base.error === null
+  )
+}
+
 // ============================================================================
 // Knowledge Item Data
 // ============================================================================
@@ -183,8 +208,28 @@ const KnowledgeItemSharedSchema = z.strictObject({
  * File item data.
  */
 export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
-  fileEntryId: FileEntryIdSchema.describe('FileEntry identifier for the source file.')
+  // relativePath / indexedRelativePath are always produced by main-side helpers
+  // (copyFileIntoKnowledgeBase, toKnowledgeRelativePath, ...), never raw caller
+  // input. The base-relative, POSIX-normalized, no-traversal invariant is
+  // enforced imperatively by assertSafeKnowledgeRelativePath at the filesystem
+  // boundary (getKnowledgeBaseFilePath). This schema only validates shape, so a
+  // refined path schema here would duplicate that check — and cannot use
+  // node:path since this module also runs in the renderer.
+  relativePath: z
+    .string()
+    .trim()
+    .min(1)
+    .describe('Knowledge-base-relative, POSIX-normalized path for the copied source file.'),
+  indexedRelativePath: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe(
+      'Knowledge-base-relative, POSIX-normalized path for the file actually indexed, such as a processed markdown artifact.'
+    )
 })
+export type FileItemData = z.infer<typeof FileItemDataSchema>
 
 /**
  * URL item data.
@@ -207,6 +252,7 @@ export const NoteItemDataSchema = KnowledgeItemSharedSchema.extend({
 export const DirectoryItemDataSchema = KnowledgeItemSharedSchema.extend({
   path: z.string().trim().min(1).describe('Directory path to expand into child file or directory items.')
 })
+export type DirectoryItemData = z.infer<typeof DirectoryItemDataSchema>
 
 /**
  * JSON payload stored in `knowledge_item.data`.
@@ -480,25 +526,44 @@ const CreateKnowledgeItemBaseSchema = z.strictObject({
   groupId: KnowledgeItemIdSchema.nullable().optional()
 })
 
+// Members shared verbatim by the persisted-create and runtime-add unions. Only
+// the `file` member differs between the two (persisted relativePath vs runtime
+// absolute path), so the non-file members are declared once and reused.
+const UrlItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
+  type: z.literal('url'),
+  data: UrlItemDataSchema
+})
+const NoteItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
+  type: z.literal('note'),
+  data: NoteItemDataSchema
+})
+const DirectoryItemMemberSchema = CreateKnowledgeItemBaseSchema.extend({
+  type: z.literal('directory'),
+  data: DirectoryItemDataSchema
+})
+
 export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
   CreateKnowledgeItemBaseSchema.extend({
     type: z.literal('file'),
     data: FileItemDataSchema
   }),
-  CreateKnowledgeItemBaseSchema.extend({
-    type: z.literal('url'),
-    data: UrlItemDataSchema
-  }),
-  CreateKnowledgeItemBaseSchema.extend({
-    type: z.literal('note'),
-    data: NoteItemDataSchema
-  }),
-  CreateKnowledgeItemBaseSchema.extend({
-    type: z.literal('directory'),
-    data: DirectoryItemDataSchema
-  })
+  UrlItemMemberSchema,
+  NoteItemMemberSchema,
+  DirectoryItemMemberSchema
 ])
 export type CreateKnowledgeItemDto = z.infer<typeof CreateKnowledgeItemSchema>
 
-export const KnowledgeRuntimeAddItemInputSchema = CreateKnowledgeItemSchema
-export type KnowledgeRuntimeAddItemInput = CreateKnowledgeItemDto
+const RuntimeFileItemDataSchema = KnowledgeItemSharedSchema.extend({
+  path: AbsolutePathSchema.describe('Absolute source path selected by the user before Knowledge copies it.')
+})
+
+export const KnowledgeAddItemInputSchema = z.discriminatedUnion('type', [
+  CreateKnowledgeItemBaseSchema.extend({
+    type: z.literal('file'),
+    data: RuntimeFileItemDataSchema
+  }),
+  UrlItemMemberSchema,
+  NoteItemMemberSchema,
+  DirectoryItemMemberSchema
+])
+export type KnowledgeAddItemInput = z.infer<typeof KnowledgeAddItemInputSchema>

@@ -61,10 +61,6 @@ prepare-root(container)
 
 If a child is another `directory`, `scheduleItem` queues another `knowledge.prepare-root`. If a child is `file`, `note`, or `url`, `scheduleItem` routes it to source planning and indexing. Recursive processing therefore lives in the workflow service loop, not inside a reader-specific branch.
 
-## Future Rename
-
-After the legacy v1 `src/main/services/KnowledgeService.ts` is removed, rename `KnowledgeOrchestrationService` to `KnowledgeService`. Update the `@Injectable('KnowledgeOrchestrationService')` key, service registry entry, and downstream callers in the same change.
-
 ## Job Types
 
 Round 1 job types:

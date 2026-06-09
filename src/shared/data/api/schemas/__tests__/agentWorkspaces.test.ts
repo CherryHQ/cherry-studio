@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { AgentSessionEntitySchema, CreateAgentSessionSchema, UpdateAgentSessionSchema } from '../agentSessions'
-import { AgentWorkspaceEntitySchema } from '../agentWorkspaces'
+import { AgentSessionWorkspaceSourceSchema, AgentWorkspaceEntitySchema } from '../agentWorkspaces'
 
 describe('AgentWorkspaceEntitySchema', () => {
   const workspace = {
@@ -35,9 +35,9 @@ describe('AgentWorkspaceEntitySchema', () => {
     expect(AgentSessionEntitySchema.safeParse({ ...session, accessiblePaths: ['/tmp/workspace'] }).success).toBe(false)
   })
 
-  it('allows migrated sessions without a workspace binding', () => {
+  it('rejects sessions without a workspace binding', () => {
     expect(
-      AgentSessionEntitySchema.parse({
+      AgentSessionEntitySchema.safeParse({
         id: 'session-1',
         agentId: 'agent-1',
         name: 'Session',
@@ -47,28 +47,37 @@ describe('AgentWorkspaceEntitySchema', () => {
         orderKey: 'a0',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z'
-      }).workspaceId
-    ).toBeNull()
+      }).success
+    ).toBe(false)
   })
 
   it('allows workspace selection on session create only', () => {
     expect(
-      CreateAgentSessionSchema.parse({ agentId: 'agent-1', name: 'Session', workspaceId: workspace.id }).workspaceId
-    ).toBe(workspace.id)
-    expect(
-      CreateAgentSessionSchema.parse({ agentId: 'agent-1', name: 'Session', workspaceMode: 'system' }).workspaceMode
-    ).toBe('system')
-    expect(
-      CreateAgentSessionSchema.safeParse({ agentId: 'agent-1', name: 'Session', workspaceMode: 'user' }).success
-    ).toBe(false)
-    expect(
-      CreateAgentSessionSchema.safeParse({
+      CreateAgentSessionSchema.parse({
         agentId: 'agent-1',
         name: 'Session',
-        workspaceId: workspace.id,
-        workspaceMode: 'system'
-      }).success
-    ).toBe(false)
-    expect(UpdateAgentSessionSchema.safeParse({ workspaceId: workspace.id }).success).toBe(false)
+        workspace: { type: 'user', workspaceId: workspace.id }
+      }).workspace
+    ).toEqual({ type: 'user', workspaceId: workspace.id })
+    expect(
+      CreateAgentSessionSchema.parse({
+        agentId: 'agent-1',
+        name: 'Session',
+        workspace: { type: 'system' }
+      }).workspace
+    ).toEqual({ type: 'system' })
+    expect(CreateAgentSessionSchema.safeParse({ agentId: 'agent-1', name: 'Session' }).success).toBe(false)
+    expect(UpdateAgentSessionSchema.safeParse({ workspace: { type: 'system' } }).success).toBe(false)
+  })
+
+  it('rejects malformed workspace source shapes', () => {
+    expect(AgentSessionWorkspaceSourceSchema.safeParse({ type: 'user' }).success).toBe(false)
+    expect(AgentSessionWorkspaceSourceSchema.safeParse({ type: 'user', workspaceId: '' }).success).toBe(false)
+    expect(AgentSessionWorkspaceSourceSchema.safeParse({ type: 'external', workspaceId: workspace.id }).success).toBe(
+      false
+    )
+    expect(AgentSessionWorkspaceSourceSchema.safeParse({ type: 'system', workspaceId: workspace.id }).success).toBe(
+      false
+    )
   })
 })

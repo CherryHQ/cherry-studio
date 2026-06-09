@@ -40,6 +40,8 @@ export interface MigrationProgress {
   i18nMessage?: I18nMessage
   migrators: MigratorProgress[]
   error?: string
+  /** Non-fatal diagnostics aggregated across migrators, surfaced on the completion screen */
+  warnings?: string[]
 }
 
 // Prepare phase result
@@ -56,6 +58,8 @@ export interface ExecuteResult {
   success: boolean
   processedCount: number
   error?: string
+  /** Non-fatal diagnostics recorded during execute (e.g. files kept but not reindexable) */
+  warnings?: string[]
 }
 
 // Validation error detail
@@ -88,6 +92,8 @@ export interface MigratorResult {
   recordsProcessed: number
   duration: number
   error?: string
+  /** Non-fatal diagnostics from prepare + execute, surfaced in the migration report */
+  warnings?: string[]
 }
 
 // Overall migration result

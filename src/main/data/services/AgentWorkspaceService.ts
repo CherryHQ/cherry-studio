@@ -5,68 +5,32 @@ import type { DbOrTx } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { timestampToISO } from '@data/services/utils/rowMappers'
+import { normalizeWorkspacePath } from '@main/utils/agentWorkspacePath'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { AgentWorkspaceEntity, AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
-import { and, asc, eq, inArray } from 'drizzle-orm'
+import {
+  AGENT_WORKSPACE_TYPE,
+  type AgentWorkspaceEntity,
+  AgentWorkspaceTypeSchema
+} from '@shared/data/api/schemas/agentWorkspaces'
+import { asc, eq } from 'drizzle-orm'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
-
-type WorkspaceLookupOptions = { includeSystem?: boolean }
-export type CreateSystemWorkspaceInput = {
-  path: string
-  name: string
-}
 
 export function rowToWorkspace(row: AgentWorkspaceRow): AgentWorkspaceEntity {
   return {
     id: row.id,
     name: row.name,
     path: row.path,
-    type: row.type,
+    type: AgentWorkspaceTypeSchema.parse(row.type),
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
 }
 
-function normalizeWorkspacePath(rawPath: string): string {
-  const trimmed = rawPath.trim()
-  if (!trimmed) {
-    throw DataApiErrorFactory.validation({ path: ['Workspace path is required'] })
-  }
-  if (!path.isAbsolute(trimmed)) {
-    throw DataApiErrorFactory.validation({ path: ['Workspace path must be absolute'] })
-  }
-  return path.normalize(trimmed)
-}
-
 function defaultWorkspaceName(workspacePath: string): string {
   return path.basename(workspacePath) || workspacePath
-}
-
-function userWorkspaceScope() {
-  return eq(agentWorkspaceTable.type, 'user')
-}
-
-function collectOrderReferenceIds(moves: Array<{ id: string; anchor: OrderRequest }>): string[] {
-  const ids: string[] = []
-  const seen = new Set<string>()
-
-  for (const move of moves) {
-    if (!seen.has(move.id)) {
-      ids.push(move.id)
-      seen.add(move.id)
-    }
-
-    const anchorId = 'before' in move.anchor ? move.anchor.before : 'after' in move.anchor ? move.anchor.after : null
-    if (anchorId && !seen.has(anchorId)) {
-      ids.push(anchorId)
-      seen.add(anchorId)
-    }
-  }
-
-  return ids
 }
 
 export class AgentWorkspaceService {
@@ -100,31 +64,6 @@ export class AgentWorkspaceService {
     return row
   }
 
-  async deleteByIdTx(tx: DbOrTx, id: string): Promise<void> {
-    const [row] = await tx
-      .delete(agentWorkspaceTable)
-      .where(eq(agentWorkspaceTable.id, id))
-      .returning({ id: agentWorkspaceTable.id })
-    if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
-  }
-
-  async findOrCreateByPath(rawPath: string, options: { name?: string } = {}): Promise<AgentWorkspaceEntity> {
-    const workspacePath = normalizeWorkspacePath(rawPath)
-
-    const row = await withSqliteErrors(
-      () =>
-        application
-          .get('DbService')
-          .withWriteTx((tx) => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options)),
-      {
-        ...defaultHandlersFor('Workspace', workspacePath),
-        unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
-      }
-    )
-
-    return rowToWorkspace(row)
-  }
-
   async findOrCreateByPathTx(
     tx: DbOrTx,
     rawPath: string,
@@ -138,44 +77,6 @@ export class AgentWorkspaceService {
     return rowToWorkspace(row)
   }
 
-  async createDefaultWorkspaceTx(tx: DbOrTx, workspacePath: string): Promise<AgentWorkspaceEntity> {
-    return await this.findOrCreateByPathTx(tx, workspacePath)
-  }
-
-  async createSystemWorkspace(input: CreateSystemWorkspaceInput): Promise<AgentWorkspaceEntity> {
-    const workspacePath = normalizeWorkspacePath(input.path)
-    const row = await withSqliteErrors(
-      () =>
-        application
-          .get('DbService')
-          .withWriteTx((tx) => this.createSystemWorkspaceRowTx(tx, { ...input, path: workspacePath })),
-      {
-        ...defaultHandlersFor('Workspace', workspacePath),
-        unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
-      }
-    )
-    return rowToWorkspace(row)
-  }
-
-  async createSystemWorkspaceTx(tx: DbOrTx, input: CreateSystemWorkspaceInput): Promise<AgentWorkspaceEntity> {
-    const workspacePath = normalizeWorkspacePath(input.path)
-    const row = await withSqliteErrors(() => this.createSystemWorkspaceRowTx(tx, { ...input, path: workspacePath }), {
-      ...defaultHandlersFor('Workspace', workspacePath),
-      unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
-    })
-    return rowToWorkspace(row)
-  }
-
-  private async createSystemWorkspaceRowTx(tx: DbOrTx, input: CreateSystemWorkspaceInput): Promise<AgentWorkspaceRow> {
-    const workspacePath = normalizeWorkspacePath(input.path)
-    return await this.insertWorkspaceRowTx(tx, {
-      id: uuidv4(),
-      name: input.name,
-      path: workspacePath,
-      type: 'system'
-    })
-  }
-
   private async findOrCreateRowByNormalizedPathTx(
     tx: DbOrTx,
     workspacePath: string,
@@ -186,40 +87,45 @@ export class AgentWorkspaceService {
       .from(agentWorkspaceTable)
       .where(and(eq(agentWorkspaceTable.path, workspacePath), eq(agentWorkspaceTable.type, 'user')))
       .limit(1)
-    if (existing) return existing
+    if (existing) {
+      if (AgentWorkspaceTypeSchema.parse(existing.type) === AGENT_WORKSPACE_TYPE.USER) return existing
+      throw DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
+    }
 
     const id = uuidv4()
     const name = options.name?.trim() || defaultWorkspaceName(workspacePath)
-    return await this.insertWorkspaceRowTx(tx, { id, name, path: workspacePath, type: 'user' })
+    return (await insertWithOrderKey(
+      tx,
+      agentWorkspaceTable,
+      { id, name, path: workspacePath, type: AGENT_WORKSPACE_TYPE.USER },
+      { pkColumn: agentWorkspaceTable.id, position: 'first' }
+    )) as AgentWorkspaceRow
   }
 
-  private async insertWorkspaceRowTx(
-    tx: DbOrTx,
-    workspace: { id: string; name: string; path: string; type: AgentWorkspaceType }
-  ): Promise<AgentWorkspaceRow> {
-    return (await insertWithOrderKey(tx, agentWorkspaceTable, workspace, {
-      pkColumn: agentWorkspaceTable.id,
-      position: 'first'
-    })) as AgentWorkspaceRow
-  }
-
-  async deleteWorkspaceWithSessions(id: string, options: WorkspaceLookupOptions = {}): Promise<string | null> {
-    return await withSqliteErrors(
-      () => application.get('DbService').withWriteTx((tx) => this.deleteWorkspaceWithSessionsTx(tx, id, options)),
-      defaultHandlersFor('Workspace', id)
+  async createSystemWorkspaceForSessionTx(tx: DbOrTx, input: { sessionId: string }): Promise<AgentWorkspaceEntity> {
+    const workspacePath = normalizeWorkspacePath(
+      path.join(application.getPath('feature.agents.workspaces'), input.sessionId)
     )
-  }
-
-  async deleteWorkspaceWithSessionsTx(
-    tx: DbOrTx,
-    id: string,
-    options: WorkspaceLookupOptions = {}
-  ): Promise<string | null> {
-    const workspace = await this.getRowByIdTx(tx, id, options)
-    const systemWorkspacePath = workspace.type === 'system' ? workspace.path : null
-    await agentSessionService.deleteByWorkspaceTx(tx, id)
-    await this.deleteByIdTx(tx, id)
-    return systemWorkspacePath
+    const row = await withSqliteErrors(
+      () =>
+        insertWithOrderKey(
+          tx,
+          agentWorkspaceTable,
+          {
+            id: uuidv4(),
+            name: defaultWorkspaceName(workspacePath),
+            path: workspacePath,
+            type: AGENT_WORKSPACE_TYPE.SYSTEM
+          },
+          { pkColumn: agentWorkspaceTable.id, position: 'first' }
+        ) as Promise<AgentWorkspaceRow>,
+      {
+        ...defaultHandlersFor('Workspace', workspacePath),
+        unique: () =>
+          DataApiErrorFactory.conflict(`System workspace already exists for session ${input.sessionId}`, 'Workspace')
+      }
+    )
+    return rowToWorkspace(row)
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {

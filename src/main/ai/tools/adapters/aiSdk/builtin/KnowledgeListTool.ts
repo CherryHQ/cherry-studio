@@ -43,8 +43,8 @@ Returns each base's name, group, item count, and a few sample sources (filenames
     const { request } = getToolCallContext(options)
     const allowedIds = request.assistant?.knowledgeBaseIds ?? []
 
-    const orchestrator = application.get('KnowledgeOrchestrationService')
-    const allBases = await orchestrator.listBases()
+    const knowledgeService = application.get('KnowledgeService')
+    const allBases = await knowledgeService.listBases()
     const scopedBases = allowedIds.length > 0 ? allBases.filter((base) => allowedIds.includes(base.id)) : allBases
 
     const groupFiltered = groupId !== undefined ? scopedBases.filter((base) => base.groupId === groupId) : scopedBases
@@ -52,9 +52,9 @@ Returns each base's name, group, item count, and a few sample sources (filenames
     // Cap concurrency: a user with 50+ KBs would otherwise fire 50 concurrent
     // listRootItems queries against SQLite + the vector store on every kb__list
     // call. 8 in-flight is enough to keep the agent loop responsive without
-    // overwhelming the orchestrator.
+    // overwhelming the knowledge service.
     const items: KbListOutputItem[] = await mapWithConcurrency(groupFiltered, 8, (base) =>
-      buildOutputItem(base, orchestrator)
+      buildOutputItem(base, knowledgeService)
     )
 
     const lowered = query?.toLowerCase()
@@ -77,14 +77,14 @@ Returns each base's name, group, item count, and a few sample sources (filenames
 
 async function buildOutputItem(
   base: KnowledgeBase,
-  orchestrator: { listRootItems: (id: string) => Promise<KnowledgeItem[]> }
+  knowledgeService: { listRootItems: (id: string) => Promise<KnowledgeItem[]> }
 ): Promise<KbListOutputItem> {
   let rootItems: KnowledgeItem[] = []
   if (base.status === 'completed') {
     try {
-      rootItems = await orchestrator.listRootItems(base.id)
+      rootItems = await knowledgeService.listRootItems(base.id)
     } catch (error) {
-      logger.warn('KnowledgeOrchestrationService.listRootItems failed', {
+      logger.warn('KnowledgeService.listRootItems failed', {
         baseId: base.id,
         error: error instanceof Error ? error.message : String(error)
       })
@@ -116,7 +116,7 @@ function deriveSampleSource(item: KnowledgeItem): string | null {
         legacyFile?.origin_name?.trim() ||
         legacyFile?.name?.trim() ||
         item.data.source.trim() ||
-        item.data.fileEntryId.trim()
+        item.data.relativePath.trim()
       return value ? value : null
     }
     case 'url':
