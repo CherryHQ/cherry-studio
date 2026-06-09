@@ -1,7 +1,7 @@
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { KNOWLEDGE_ITEMS_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
-import type { KnowledgeItem, KnowledgeItemStatus, KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
+import type { KnowledgeAddItemInput, KnowledgeItem, KnowledgeItemStatus } from '@shared/data/types/knowledge'
 import { useCallback, useState } from 'react'
 
 const KNOWLEDGE_V2_ITEMS_QUERY = {
@@ -68,7 +68,7 @@ export const useAddKnowledgeItems = (baseId: string) => {
   const invalidateCache = useInvalidateCache()
 
   const submit = useCallback(
-    async (items: KnowledgeRuntimeAddItemInput[]): Promise<void> => {
+    async (items: KnowledgeAddItemInput[]): Promise<void> => {
       if (!baseId) {
         return Promise.reject(new Error('Knowledge base id is required'))
       }
@@ -82,7 +82,7 @@ export const useAddKnowledgeItems = (baseId: string) => {
 
       let submitError: Error | undefined
       try {
-        await window.api.knowledgeRuntime.addItems(baseId, items)
+        await window.api.knowledge.addItems(baseId, items)
       } catch (error) {
         submitError = normalizeKnowledgeError(error)
 
@@ -134,7 +134,7 @@ export const useDeleteKnowledgeItem = (baseId: string) => {
 
       let deleteError: Error | undefined
       try {
-        await window.api.knowledgeRuntime.deleteItems(baseId, [item.id])
+        await window.api.knowledge.deleteItems(baseId, [item.id])
       } catch (error) {
         deleteError = normalizeKnowledgeError(error)
 
@@ -189,7 +189,7 @@ export const useReindexKnowledgeItem = (baseId: string) => {
 
       let reindexError: Error | undefined
       try {
-        await window.api.knowledgeRuntime.reindexItems(baseId, [item.id])
+        await window.api.knowledge.reindexItems(baseId, [item.id])
       } catch (error) {
         reindexError = normalizeKnowledgeError(error)
 

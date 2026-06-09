@@ -1,7 +1,6 @@
 import fs from 'node:fs'
 
 import { createClient } from '@libsql/client'
-import { FileRefSchema } from '@shared/data/types/file'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -35,11 +34,6 @@ vi.mock('@libsql/client', () => ({
 const UUIDV7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const UUIDV4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const STREAMED_FILE_ID = '019606a0-0000-7000-8000-000000000201'
-const LEGACY_FILE_A_ID = '019606a0-0000-7000-8000-000000000301'
-const LEGACY_FILE_B_ID = '019606a0-0000-7000-8000-000000000302'
-const LEGACY_FILE_SURVIVOR_ID = '019606a0-0000-7000-8000-000000000303'
-const LEGACY_FILE_SKIPPED_ID = '019606a0-0000-7000-8000-000000000304'
-const LEGACY_FILE_GHOST_ID = '019606a0-0000-7000-8000-000000000305'
 
 describe('KnowledgeMappings', () => {
   it('migrates legacy sitemap items as url items', () => {
@@ -700,7 +694,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     })
     expect(fileItem?.data).toEqual({
       source: '/tmp/report.pdf',
-      fileEntryId: STREAMED_FILE_ID
+      relativePath: 'report.pdf'
     })
     expect(noteReader.readInBatches).toHaveBeenCalledTimes(1)
     expect(fileReader.readInBatches).toHaveBeenCalledTimes(1)
@@ -1509,27 +1503,15 @@ describe('KnowledgeMigrator execute/validate paths', () => {
   })
 })
 
-describe('KnowledgeMigrator file_ref creation', () => {
+describe('KnowledgeMigrator file item path storage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  /**
-   * Build a minimal ctx mock that captures insert calls made outside the
-   * knowledge-base transaction (i.e. the file_ref inserts).
-   *
-   * Per migration-plan §2.9 the v1 file id is preserved verbatim into v2, so
-   * file_ref.fileEntryId is just the legacyFileId — no idRemap lookup.
-   */
   function makeExecCtx() {
     const sharedData = new Map<string, unknown>()
-
-    // file_ref rows are uniquely identifiable by their `fileEntryId` field —
-    // knowledge_base / knowledge_item rows never carry it.
     const insertedInsideTx: unknown[] = []
     const insertedOutsideTx: unknown[] = []
-    const isFileRefRow = (r: unknown): r is Record<string, unknown> =>
-      !!r && typeof r === 'object' && 'fileEntryId' in r
 
     const makeInsertFn = (bucket: unknown[]) =>
       vi.fn((/* _table */) => ({
@@ -1557,88 +1539,11 @@ describe('KnowledgeMigrator file_ref creation', () => {
       db: { transaction, insert: outerInsert, delete: deleteMock, all: vi.fn().mockResolvedValue([]) },
       logger,
       insertedInsideTx,
-      insertedOutsideTx,
-      get fileRefInserts() {
-        return [...insertedInsideTx, ...insertedOutsideTx].filter(isFileRefRow)
-      },
-      get fileRefInsertsInsideTx() {
-        return insertedInsideTx.filter(isFileRefRow)
-      }
+      insertedOutsideTx
     }
   }
 
-  it('creates one file_ref row for a knowledge item with a fileId (id preserved verbatim)', async () => {
-    const itemId = '019606a1-0000-7000-8000-000000000abc'
-    const legacyFileId = LEGACY_FILE_SURVIVOR_ID
-    const ctx = makeExecCtx()
-
-    const migrator = new KnowledgeMigrator() as any
-    migrator.preparedBases = [{ id: 'kb-1', name: 'KB 1', dimensions: 512, embeddingModelId: 'openai::emb' }]
-    migrator.preparedItems = [
-      {
-        id: itemId,
-        baseId: 'kb-1',
-        groupId: null,
-        type: 'file',
-        data: { source: '/tmp/foo.pdf', fileEntryId: legacyFileId },
-        status: 'idle'
-      }
-    ]
-    vi.spyOn(migrator, 'loadMigratedFileEntryIds').mockResolvedValue(new Set([legacyFileId]))
-
-    const result = await migrator.execute({ db: ctx.db, sharedData: ctx.sharedData, logger: ctx.logger } as any)
-
-    expect(result.success).toBe(true)
-    expect(ctx.fileRefInserts).toHaveLength(1)
-    expect(ctx.fileRefInserts[0]).toMatchObject({
-      fileEntryId: legacyFileId,
-      sourceType: 'knowledge_item',
-      sourceId: itemId,
-      role: 'source'
-    })
-    expect(FileRefSchema.parse(ctx.fileRefInserts[0])).toMatchObject({
-      fileEntryId: legacyFileId,
-      sourceType: 'knowledge_item',
-      sourceId: itemId,
-      role: 'source'
-    })
-    expect(typeof ctx.fileRefInserts[0].id).toBe('string')
-  })
-
-  it('skips file_ref creation for a knowledge item without a fileId and records a bucketed warning', async () => {
-    const ctx = makeExecCtx()
-    loggerWarnMock.mockClear()
-
-    const migrator = new KnowledgeMigrator() as any
-    migrator.preparedBases = [{ id: 'kb-1', name: 'KB 1', dimensions: 512, embeddingModelId: 'openai::emb' }]
-    migrator.preparedItems = [
-      {
-        id: 'item-file-missing',
-        baseId: 'kb-1',
-        groupId: null,
-        type: 'file',
-        data: { source: '/tmp/bar.pdf' },
-        status: 'idle'
-      }
-    ]
-
-    const result = await migrator.execute({ db: ctx.db, sharedData: ctx.sharedData, logger: ctx.logger } as any)
-
-    expect(result.success).toBe(true)
-    expect(result.processedCount).toBe(1)
-    expect(ctx.fileRefInserts).toHaveLength(0)
-    expect(ctx.insertedInsideTx).not.toEqual(
-      expect.arrayContaining([expect.objectContaining({ id: 'item-file-missing' })])
-    )
-    const summaryCall = loggerWarnMock.mock.calls.find(
-      ([msg]) => typeof msg === 'string' && msg.includes('knowledge_item_missing_file_id')
-    )
-    expect(summaryCall).toBeDefined()
-    expect(summaryCall![0]).toContain('count=1')
-    expect(summaryCall![0]).toContain('item-file-missing')
-  })
-
-  it('creates one file_ref per file item; skips non-file types', async () => {
+  it('inserts file items with knowledge-owned relative paths and no file_ref rows', async () => {
     const ctx = makeExecCtx()
 
     const migrator = new KnowledgeMigrator() as any
@@ -1649,7 +1554,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/a.pdf', fileEntryId: LEGACY_FILE_A_ID },
+        data: { source: '/tmp/a.pdf', relativePath: 'a.pdf' },
         status: 'idle'
       },
       {
@@ -1657,7 +1562,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/b.pdf', fileEntryId: LEGACY_FILE_B_ID },
+        data: { source: '/tmp/b.pdf', relativePath: 'b.pdf', indexedRelativePath: 'b.md' },
         status: 'idle'
       },
       {
@@ -1669,47 +1574,28 @@ describe('KnowledgeMigrator file_ref creation', () => {
         status: 'idle'
       }
     ]
-    vi.spyOn(migrator, 'loadMigratedFileEntryIds').mockResolvedValue(new Set([LEGACY_FILE_A_ID, LEGACY_FILE_B_ID]))
 
     const result = await migrator.execute({ db: ctx.db, sharedData: ctx.sharedData, logger: ctx.logger } as any)
 
     expect(result.success).toBe(true)
-    expect(ctx.fileRefInserts).toHaveLength(2)
-    const refSourceIds = ctx.fileRefInserts.map((r) => r.sourceId).sort()
-    expect(refSourceIds).toEqual(['item-a', 'item-b'])
-    const refFileEntryIds = ctx.fileRefInserts.map((r) => r.fileEntryId).sort()
-    expect(refFileEntryIds).toEqual([LEGACY_FILE_A_ID, LEGACY_FILE_B_ID])
-  })
-
-  it('inserts file_ref rows inside the per-base transaction (atomic with base + items)', async () => {
-    const ctx = makeExecCtx()
-
-    const migrator = new KnowledgeMigrator() as any
-    migrator.preparedBases = [{ id: 'kb-1', name: 'KB 1', dimensions: 512, embeddingModelId: 'openai::emb' }]
-    migrator.preparedItems = [
-      {
-        id: 'item-a',
-        baseId: 'kb-1',
-        groupId: null,
-        type: 'file',
-        data: { source: '/tmp/a.pdf', fileEntryId: LEGACY_FILE_A_ID },
-        status: 'idle'
-      }
-    ]
-    vi.spyOn(migrator, 'loadMigratedFileEntryIds').mockResolvedValue(new Set([LEGACY_FILE_A_ID]))
-
-    await migrator.execute({ db: ctx.db, sharedData: ctx.sharedData, logger: ctx.logger } as any)
-
-    // file_ref must appear in the per-base transaction, not via outer db.insert,
-    // so base + items + refs commit atomically (if file_ref fails, base is rolled
-    // back and the next run retries everything cleanly).
-    expect(ctx.fileRefInsertsInsideTx).toHaveLength(1)
+    expect(result.processedCount).toBe(4)
+    expect(ctx.insertedInsideTx).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 'item-a',
+          data: { source: '/tmp/a.pdf', relativePath: 'a.pdf' }
+        }),
+        expect.objectContaining({
+          id: 'item-b',
+          data: { source: '/tmp/b.pdf', relativePath: 'b.pdf', indexedRelativePath: 'b.md' }
+        })
+      ])
+    )
     expect(ctx.insertedOutsideTx).toHaveLength(0)
   })
 
-  it('skips file_ref creation when legacyFileId is absent from v2 file_entry (dangling guard)', async () => {
+  it('keeps file item remaps without requiring v2 file_entry rows', async () => {
     const ctx = makeExecCtx()
-    loggerWarnMock.mockClear()
 
     const migrator = new KnowledgeMigrator() as any
     migrator.preparedBases = [{ id: 'kb-1', name: 'KB 1', dimensions: 512, embeddingModelId: 'openai::emb' }]
@@ -1719,58 +1605,39 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/ok.pdf', fileEntryId: LEGACY_FILE_SURVIVOR_ID },
+        data: { source: '/tmp/ok.pdf', relativePath: 'ok.pdf' },
         status: 'idle'
       },
       {
-        id: 'item-skipped-by-filemigrator',
+        id: 'item-skipped-file-entry',
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/bad.xyz', fileEntryId: LEGACY_FILE_SKIPPED_ID },
-        status: 'idle'
-      },
-      {
-        id: 'item-orphan-ref',
-        baseId: 'kb-1',
-        groupId: null,
-        type: 'file',
-        data: { source: '/tmp/ghost.pdf', fileEntryId: LEGACY_FILE_GHOST_ID },
+        data: { source: '/tmp/bad.xyz', relativePath: 'bad.xyz' },
         status: 'idle'
       }
     ]
-    // Only the survivor exists in v2 file_entry; the other two are dangling
-    // (one was dropped by FileMigrator; the other never existed).
     migrator.legacyItemIdRemap = new Map([
       ['legacy-item-survivor', 'item-survivor'],
-      ['legacy-item-skipped', 'item-skipped-by-filemigrator'],
-      ['legacy-item-ghost', 'item-orphan-ref']
+      ['legacy-item-skipped', 'item-skipped-file-entry']
     ])
-    vi.spyOn(migrator, 'loadMigratedFileEntryIds').mockResolvedValue(new Set([LEGACY_FILE_SURVIVOR_ID]))
 
     const result = await migrator.execute({ db: ctx.db, sharedData: ctx.sharedData, logger: ctx.logger } as any)
 
     expect(result.success).toBe(true)
-    expect(result.processedCount).toBe(2)
-    expect(ctx.fileRefInserts).toHaveLength(1)
-    expect(ctx.insertedInsideTx).not.toEqual(
+    expect(result.processedCount).toBe(3)
+    expect(ctx.insertedInsideTx).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: 'item-skipped-by-filemigrator' }),
-        expect.objectContaining({ id: 'item-orphan-ref' })
+        expect.objectContaining({ id: 'item-survivor' }),
+        expect.objectContaining({ id: 'item-skipped-file-entry' })
       ])
     )
-    expect(ctx.sharedData.get('knowledgeItemIdRemap')).toEqual(new Map([['legacy-item-survivor', 'item-survivor']]))
-    expect(ctx.fileRefInserts[0]).toMatchObject({
-      fileEntryId: LEGACY_FILE_SURVIVOR_ID,
-      sourceId: 'item-survivor'
-    })
-    const summaryCall = loggerWarnMock.mock.calls.find(
-      ([msg]) => typeof msg === 'string' && msg.includes('knowledge_item_dangling_file_entry')
+    expect(ctx.sharedData.get('knowledgeItemIdRemap')).toEqual(
+      new Map([
+        ['legacy-item-survivor', 'item-survivor'],
+        ['legacy-item-skipped', 'item-skipped-file-entry']
+      ])
     )
-    expect(summaryCall).toBeDefined()
-    expect(summaryCall![0]).toContain('count=2')
-    // Sample messages should mention both dangling item ids (limit=3 so both fit).
-    expect(summaryCall![0]).toContain('item-skipped-by-filemigrator')
-    expect(summaryCall![0]).toContain('item-orphan-ref')
+    expect(ctx.insertedOutsideTx).toHaveLength(0)
   })
 })

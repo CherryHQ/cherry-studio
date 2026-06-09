@@ -127,7 +127,17 @@ vi.mock('@cherrystudio/ui', async () => {
 })
 
 vi.mock('../../../hooks', () => ({
-  useKnowledgeRagConfig: (base: KnowledgeBase) => mockUseKnowledgeRagConfig(base)
+  useKnowledgeRagConfig: (base: KnowledgeBase) => mockUseKnowledgeRagConfig(base),
+  useEmbeddingDimensions: () => ({
+    fetchDimensions: async (uniqueModelId: string) => {
+      const { embeddings } = await window.api.ai.embedMany({
+        uniqueModelId,
+        values: ['test']
+      })
+      return embeddings[0]?.length ?? 0
+    },
+    isFetchingDimensions: false
+  })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -414,19 +424,19 @@ describe('RagConfigPanel', () => {
     expect(mockSave).not.toHaveBeenCalled()
   })
 
-  it('opens rebuild dialog instead of patching when embedding config changes', () => {
+  it('clears dimensions and opens rebuild dialog without old dimensions when embedding model changes', () => {
     const onRestoreBase = vi.fn()
 
     renderRagConfigPanel(onRestoreBase)
 
     fireEvent.click(screen.getByRole('button', { name: 'voyage-3-large · voyage' }))
+    expect(screen.getByDisplayValue('')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重建' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
     expect(mockSave).not.toHaveBeenCalled()
     expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
-      embeddingModelId: 'voyage::voyage-3-large',
-      dimensions: 1536
+      embeddingModelId: 'voyage::voyage-3-large'
     })
   })
 

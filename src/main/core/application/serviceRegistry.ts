@@ -18,6 +18,9 @@ import { JobManager } from '@main/core/job/JobManager'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { WindowManager } from '@main/core/window/WindowManager'
 import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
+import { FileProcessingService, TesseractRuntimeService } from '@main/features/fileProcessing'
+import { KnowledgeService } from '@main/features/knowledge'
+import { KnowledgeVectorStoreService } from '@main/features/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
@@ -26,9 +29,6 @@ import { CodeCliService } from '@main/services/CodeCliService'
 import { CommandService } from '@main/services/CommandService'
 import { FileManager } from '@main/services/file/FileManager'
 import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
-import { FileProcessingOrchestrationService, TesseractRuntimeService } from '@main/services/fileProcessing'
-import { KnowledgeOrchestrationService } from '@main/services/knowledge'
-import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
 import { OcrService } from '@main/services/ocr/OcrService'
@@ -90,7 +90,7 @@ export const services = {
   LanTransferService,
   FileManager,
   DirectoryTreeManager,
-  FileProcessingOrchestrationService,
+  FileProcessingService,
   PowerMonitorService,
   SelectionService,
   SettingsWindowService,
@@ -122,7 +122,7 @@ export const services = {
   AiService,
   ClaudeCodeWarmQueryManager,
   AiStreamManager,
-  KnowledgeOrchestrationService,
+  KnowledgeService,
   KnowledgeVectorStoreService,
   ApiGatewayService,
   AppUpdaterService,
