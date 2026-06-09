@@ -25,6 +25,17 @@ const TEXT_PREVIEW_LIMIT = 500
 type LabFeature = Extract<FileProcessorFeature, 'image_to_text' | 'document_to_markdown'>
 type LabRunStatus = JobSnapshot['status'] | 'idle' | 'starting'
 
+const LAB_STATUS_LABEL_KEYS: Record<LabRunStatus, string> = {
+  cancelled: 'settings.componentLab.fileProcessing.status.cancelled',
+  completed: 'settings.componentLab.fileProcessing.status.completed',
+  delayed: 'settings.componentLab.fileProcessing.status.delayed',
+  failed: 'settings.componentLab.fileProcessing.status.failed',
+  idle: 'settings.componentLab.fileProcessing.status.idle',
+  pending: 'settings.componentLab.fileProcessing.status.pending',
+  running: 'settings.componentLab.fileProcessing.status.running',
+  starting: 'settings.componentLab.fileProcessing.status.starting'
+}
+
 type LabSectionConfig = {
   feature: LabFeature
   titleKey: string
@@ -146,7 +157,7 @@ function ProcessorIdleHeader({ processor }: { processor: FileProcessorMerged }) 
         </div>
         <Badge variant="outline" className="gap-1">
           <StatusIcon status="idle" />
-          {t(`settings.componentLab.fileProcessing.status.idle`)}
+          {t(LAB_STATUS_LABEL_KEYS.idle)}
         </Badge>
       </div>
 
@@ -195,7 +206,7 @@ function ProcessorJobView({
         </div>
         <Badge variant={status === 'failed' || status === 'cancelled' ? 'destructive' : 'outline'} className="gap-1">
           <StatusIcon status={status} />
-          {t(`settings.componentLab.fileProcessing.status.${status}`)}
+          {t(LAB_STATUS_LABEL_KEYS[status])}
         </Badge>
       </div>
 

@@ -103,6 +103,7 @@ describe('ProviderHeader', () => {
     useProviderMetaMock.mockReturnValue({
       fancyProviderName: 'OpenAI',
       docsWebsite: 'https://platform.openai.com/docs',
+      modelsWebsite: 'https://platform.openai.com/docs/models',
       showApiOptionsButton: false
     })
 
@@ -111,6 +112,7 @@ describe('ProviderHeader', () => {
     expect(screen.getByText('OpenAI').closest('a')).toBeNull()
     const docsLink = screen.getByRole('link', { name: 'OpenAI · common.docs' })
     expect(docsLink).toHaveAttribute('href', 'https://platform.openai.com/docs')
+    expect(screen.queryByRole('link', { name: 'OpenAI · settings.models.list_title' })).not.toBeInTheDocument()
   })
 
   it('opens the api options drawer when the meta enables the entry', () => {

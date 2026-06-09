@@ -17,7 +17,7 @@ function DebugPanel({ title, value }: { title: string; value?: string }) {
   return (
     <div className="flex flex-col rounded-[12px] border border-border/70 bg-background p-3">
       <div className="mb-2 font-medium text-foreground text-xs">{title}</div>
-      <pre className="min-h-[72px] flex-1 overflow-x-auto rounded-[8px] border border-border/50 bg-muted/30 px-3 py-2 font-mono text-muted-foreground text-xs leading-5">
+      <pre className="min-h-18 flex-1 overflow-x-auto rounded-[8px] border border-border/50 bg-muted/30 px-3 py-2 font-mono text-muted-foreground text-xs leading-5">
         {value ?? '—'}
       </pre>
     </div>
@@ -81,7 +81,7 @@ const ComponentLabAgentSelectorSettings: FC = () => {
   }, [idValue, itemValue, nameForId, selectionType, t])
 
   const trigger = (
-    <Button variant="outline" className="min-w-[240px] justify-between gap-3 text-left">
+    <Button variant="outline" className="min-w-60 justify-between gap-3 text-left">
       <span className="truncate">{triggerLabel}</span>
     </Button>
   )

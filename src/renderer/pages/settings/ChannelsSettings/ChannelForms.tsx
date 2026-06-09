@@ -324,7 +324,7 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
           setQrUrl(null)
           if (status === 'pending') setStatus('idle')
         }}>
-        <DialogContent className="max-w-[360px]">
+        <DialogContent className="max-w-90">
           <DialogHeader>
             <DialogTitle>{t('agent.cherryClaw.channels.feishu.qrTitle')}</DialogTitle>
           </DialogHeader>
@@ -470,7 +470,7 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
           setQrUrl(null)
           if (status !== 'confirmed' && onRemove) onRemove()
         }}>
-        <DialogContent className="max-w-[360px]">
+        <DialogContent className="max-w-90">
           <DialogHeader>
             <DialogTitle>{t('agent.cherryClaw.channels.wechat.qrTitle')}</DialogTitle>
           </DialogHeader>
