@@ -113,7 +113,7 @@ describe('useCreateKnowledgeBase', () => {
     mockInvalidateCache.mockResolvedValue(undefined)
     mockRuntimeCreateBase.mockResolvedValue(createKnowledgeBase())
     ;(window as any).api = {
-      knowledgeRuntime: {
+      knowledge: {
         createBase: mockRuntimeCreateBase
       }
     }
@@ -217,7 +217,7 @@ describe('useRestoreKnowledgeBase', () => {
     mockInvalidateCache.mockResolvedValue(undefined)
     mockRuntimeRestoreBase.mockResolvedValue(createKnowledgeBase())
     ;(window as any).api = {
-      knowledgeRuntime: {
+      knowledge: {
         restoreBase: mockRuntimeRestoreBase
       }
     }
@@ -336,7 +336,7 @@ describe('useDeleteKnowledgeBase', () => {
     mockInvalidateCache.mockResolvedValue(undefined)
     mockRuntimeDeleteBase.mockResolvedValue(undefined)
     ;(window as any).api = {
-      knowledgeRuntime: {
+      knowledge: {
         deleteBase: mockRuntimeDeleteBase
       }
     }

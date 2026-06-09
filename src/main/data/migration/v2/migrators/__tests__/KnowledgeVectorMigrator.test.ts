@@ -64,6 +64,14 @@ function createTempRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'knowledge-vector-migrator-'))
 }
 
+// Mirrors the runtime vector store layout in
+// src/main/features/knowledge/utils/storage/pathStorage.ts: {root}/{baseId}/.cherry/index.sqlite.
+// Read-back assertions use this so they fail if the migrator ever writes to a path the runtime
+// would not open — the exact bug this regression guards against.
+function runtimeVectorStorePath(baseId: string): string {
+  return path.join(currentKnowledgeBaseRoot, baseId, '.cherry', 'index.sqlite')
+}
+
 interface MigratedKnowledgeBaseRow {
   id: string
   dimensions: number
@@ -162,7 +170,8 @@ function createMigrationCtx({
       ['knowledgeBaseIdRemap', knowledgeBaseIdRemap],
       ['knowledgeItemIdRemap', knowledgeItemIdRemap]
     ]),
-    logger: {} as any
+    logger: {} as any,
+    paths: { knowledgeBaseDir: currentKnowledgeBaseRoot } as any
   }
 }
 
@@ -706,7 +715,8 @@ describe('KnowledgeVectorMigrator', () => {
     expect(executeResult.success).toBe(true)
     expect(executeResult.processedCount).toBe(1)
 
-    const targetClient = createClient({ url: pathToFileURL(dbPath).toString() })
+    const targetPath = runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID)
+    const targetClient = createClient({ url: pathToFileURL(targetPath).toString() })
     const rows = await targetClient.execute(
       'SELECT id, external_id, collection, document, metadata, length(embeddings) AS bytes FROM libsql_vectorstores_embedding'
     )
@@ -739,8 +749,14 @@ describe('KnowledgeVectorMigrator', () => {
       skippedCount: 0
     })
 
-    expect(fs.existsSync(`${dbPath}.vectorstore.tmp`)).toBe(false)
+    expect(fs.existsSync(`${targetPath}.vectorstore.tmp`)).toBe(false)
     expect(fs.existsSync(`${dbPath}.embedjs.bak`)).toBe(true)
+    // Regression for the migration path bug: the rebuilt store must live at the runtime path
+    // under the migrated (new) base id, and the legacy flat path must no longer hold a live store
+    // (it was moved aside to .embedjs.bak). The old test only read back from the legacy flat path,
+    // so it never caught vectors that were invisible to the runtime.
+    expect(fs.existsSync(targetPath)).toBe(true)
+    expect(fs.existsSync(dbPath)).toBe(false)
 
     const retrySource = await migrationCtx.sources.knowledgeVectorSource.loadBase(LEGACY_KNOWLEDGE_BASE_ID)
     expect(retrySource.status).toBe('ok')
@@ -758,7 +774,8 @@ describe('KnowledgeVectorMigrator', () => {
     migrator.preparedBasePlans = [
       {
         baseId: 'kb-progress',
-        dbPath,
+        sourceDbPath: dbPath,
+        targetDbPath: dbPath,
         dimensions: 2,
         rows: Array.from({ length: 250 }, (_, index) => ({
           document: `doc-${index}`,
@@ -825,7 +842,9 @@ describe('KnowledgeVectorMigrator', () => {
     expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
     expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
 
-    const targetClient = createClient({ url: pathToFileURL(dbPath).toString() })
+    const targetClient = createClient({
+      url: pathToFileURL(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID)).toString()
+    })
     const rows = await targetClient.execute('SELECT metadata FROM libsql_vectorstores_embedding')
     targetClient.close()
 
@@ -1015,7 +1034,9 @@ describe('KnowledgeVectorMigrator', () => {
     expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
     expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
 
-    const targetClient = createClient({ url: pathToFileURL(dbPath).toString() })
+    const targetClient = createClient({
+      url: pathToFileURL(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID)).toString()
+    })
     const rows = await targetClient.execute(
       "SELECT metadata FROM libsql_vectorstores_embedding ORDER BY CAST(json_extract(metadata, '$.chunkIndex') AS INTEGER)"
     )
@@ -1114,7 +1135,9 @@ describe('KnowledgeVectorMigrator', () => {
     await expect(migrator.prepare(migrationCtx as any)).resolves.toMatchObject({ success: true })
     await expect(migrator.execute(migrationCtx as any)).resolves.toMatchObject({ success: true, processedCount: 1 })
 
-    const targetClient = createClient({ url: pathToFileURL(dbPath).toString() })
+    const targetClient = createClient({
+      url: pathToFileURL(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID)).toString()
+    })
     await targetClient.execute({
       sql: `UPDATE libsql_vectorstores_embedding SET metadata = ? WHERE external_id = ?`,
       args: [JSON.stringify({ source: '/tmp/file-1.md' }), MIGRATED_FILE_ITEM_ID]

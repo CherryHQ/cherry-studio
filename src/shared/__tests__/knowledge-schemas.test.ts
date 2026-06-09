@@ -10,10 +10,12 @@ import {
   CreateKnowledgeItemSchema,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+  isCompletedKnowledgeBase,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  KnowledgeAddItemInputSchema,
+  type KnowledgeBase,
   KnowledgeBaseSchema,
   KnowledgeItemSchema,
-  KnowledgeRuntimeAddItemInputSchema,
   RestoreKnowledgeBaseSchema
 } from '../data/types/knowledge'
 
@@ -152,7 +154,7 @@ describe('Knowledge base schemas', () => {
 
   it('uses create-item DTO shapes for runtime add-item inputs', () => {
     expect(
-      KnowledgeRuntimeAddItemInputSchema.safeParse({
+      KnowledgeAddItemInputSchema.safeParse({
         type: 'url',
         data: { source: 'https://example.com/docs', url: 'https://example.com/docs' },
         groupId: null
@@ -160,11 +162,11 @@ describe('Knowledge base schemas', () => {
     ).toBe(true)
 
     expect(
-      KnowledgeRuntimeAddItemInputSchema.safeParse({
+      KnowledgeAddItemInputSchema.safeParse({
         type: 'file',
         data: {
           source: '/docs/guide.md',
-          fileEntryId: '019606a0-0000-7000-8000-000000000001'
+          path: '/docs/guide.md'
         }
       }).success
     ).toBe(true)
@@ -174,23 +176,23 @@ describe('Knowledge base schemas', () => {
         type: 'file',
         data: {
           source: '/docs/guide.md',
-          fileEntryId: '/docs/guide.md'
+          path: '/docs/guide.md'
         }
       }).success
     ).toBe(false)
 
     expect(
-      KnowledgeRuntimeAddItemInputSchema.safeParse({
+      KnowledgeAddItemInputSchema.safeParse({
         type: 'file',
         data: {
           source: '/docs/guide.md',
-          fileEntryId: '/docs/guide.md'
+          path: 'docs/guide.md'
         }
       }).success
     ).toBe(false)
 
     expect(
-      KnowledgeRuntimeAddItemInputSchema.safeParse({
+      KnowledgeAddItemInputSchema.safeParse({
         type: 'url',
         url: 'https://example.com/docs',
         name: 'Docs'
@@ -198,14 +200,14 @@ describe('Knowledge base schemas', () => {
     ).toBe(false)
 
     expect(
-      KnowledgeRuntimeAddItemInputSchema.safeParse({
+      KnowledgeAddItemInputSchema.safeParse({
         type: 'note',
         data: { source: 'hello', content: 'hello' }
       }).success
     ).toBe(true)
 
     expect(
-      KnowledgeRuntimeAddItemInputSchema.safeParse({
+      KnowledgeAddItemInputSchema.safeParse({
         type: 'note',
         content: 'hello',
         source: 'note-1'
@@ -596,4 +598,49 @@ it('keeps patch groupId aligned with topic semantics', () => {
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: null }).success).toBe(true)
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: GROUP_ID }).success).toBe(true)
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: '   ' }).success).toBe(false)
+})
+
+describe('isCompletedKnowledgeBase', () => {
+  const completedBase = KnowledgeBaseSchema.parse({
+    id: KNOWLEDGE_BASE_ID,
+    name: 'KB',
+    groupId: null,
+    dimensions: 768,
+    embeddingModelId: 'embed-model',
+    status: 'completed',
+    error: null,
+    chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+    chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+    searchMode: 'hybrid',
+    createdAt: '2026-04-10T00:00:00.000Z',
+    updatedAt: '2026-04-10T00:00:00.000Z'
+  })
+
+  it('accepts a completed base with positive integer dimensions', () => {
+    expect(isCompletedKnowledgeBase(completedBase)).toBe(true)
+  })
+
+  it('rejects a failed base with unknown dimensions', () => {
+    const failedBase = KnowledgeBaseSchema.parse({
+      ...completedBase,
+      status: 'failed',
+      embeddingModelId: null,
+      dimensions: null,
+      error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
+    })
+
+    expect(isCompletedKnowledgeBase(failedBase)).toBe(false)
+  })
+
+  it('rejects illegal completed states the schema would never produce', () => {
+    expect(isCompletedKnowledgeBase({ ...completedBase, dimensions: null } as KnowledgeBase)).toBe(false)
+    expect(isCompletedKnowledgeBase({ ...completedBase, dimensions: 0 } as KnowledgeBase)).toBe(false)
+    expect(isCompletedKnowledgeBase({ ...completedBase, embeddingModelId: null } as KnowledgeBase)).toBe(false)
+    expect(
+      isCompletedKnowledgeBase({
+        ...completedBase,
+        error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
+      } as KnowledgeBase)
+    ).toBe(false)
+  })
 })

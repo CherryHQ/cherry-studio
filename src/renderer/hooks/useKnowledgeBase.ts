@@ -88,7 +88,7 @@ export const useCreateKnowledgeBase = () => {
       setIsCreating(true)
 
       try {
-        const createdBase = await window.api.knowledgeRuntime.createBase(body)
+        const createdBase = await window.api.knowledge.createBase(body)
 
         try {
           await invalidateCache('/knowledge-bases')
@@ -155,7 +155,7 @@ export const useRestoreKnowledgeBase = () => {
       setIsRestoring(true)
 
       try {
-        const restoredBase = await window.api.knowledgeRuntime.restoreBase({
+        const restoredBase = await window.api.knowledge.restoreBase({
           sourceBaseId,
           name,
           embeddingModelId,
@@ -242,7 +242,7 @@ export const useDeleteKnowledgeBase = () => {
       let mutationError: Error | undefined
 
       try {
-        await window.api.knowledgeRuntime.deleteBase(baseId)
+        await window.api.knowledge.deleteBase(baseId)
       } catch (error) {
         const normalizedError = normalizeError(error)
         logger.error('Failed to delete knowledge base', normalizedError, {

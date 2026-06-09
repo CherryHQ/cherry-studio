@@ -1,7 +1,7 @@
 import { Dialog, DialogContent } from '@cherrystudio/ui'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { resolveKnowledgeFileEntryData } from '@renderer/utils/knowledgeFileEntry'
+import { resolveKnowledgeFileData } from '@renderer/utils/knowledgeFileEntry'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -41,7 +41,7 @@ const resolveSelectedFileEntryData = async (file: File) => {
     return Promise.reject(filePath)
   }
 
-  return resolveKnowledgeFileEntryData(filePath, file.name)
+  return resolveKnowledgeFileData(filePath, file.name)
 }
 
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
