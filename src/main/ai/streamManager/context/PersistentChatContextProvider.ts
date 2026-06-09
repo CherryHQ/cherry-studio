@@ -24,15 +24,10 @@ import type { MainContinueConversationRequest, MainDispatchRequest } from './dis
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
 /**
- * One OTel root span per execution. Its `traceId` is the source of truth
- * for `Message.traceId`; stream-manager sets the span active around
- * `runExecutionLoop` so AI SDK spans become children.
+ * One OTel root span per execution. Stream-manager sets the span active
+ * around `runExecutionLoop` so AI SDK spans become children.
  */
-function startTurnRootSpans(
-  topicId: string,
-  trigger: string,
-  models: Model[]
-): Array<{ model: Model; span: Span; traceId: string }> {
+function startTurnRootSpans(topicId: string, trigger: string, models: Model[]): Array<{ model: Model; span: Span }> {
   return models.map((model) => {
     const modelName = model.name ?? model.id
     const turnTrace = startAiTurnTrace(
@@ -47,7 +42,7 @@ function startTurnRootSpans(
       },
       { topicId, modelName }
     )
-    return { model, span: turnTrace.rootSpan, traceId: turnTrace.traceId }
+    return { model, span: turnTrace.rootSpan }
   })
 }
 
@@ -120,17 +115,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           } as const)
         : ({ mode: 'existing' as const, id: req.parentAnchorId } as const)
 
-    // Span traceId == Message.traceId — the viewer keys on this. The spans are
-    // created before the DB write because the placeholder rows persist each
-    // span's traceId, so a failure between here and the handoff to `send()` must
-    // end them explicitly or they leak (never ended).
+    // Spans are created before the DB write so a failure between here and the
+    // handoff to `send()` must end them explicitly or they leak.
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, models)
     try {
       const { userMessage, placeholders } = await messageService.createUserMessageWithPlaceholders({
         topicId: req.topicId,
         userMessage: userMessageInput,
         siblingsGroupId,
-        placeholders: turnRootSpans.map(({ model, traceId }) => ({
+        placeholders: turnRootSpans.map(({ model }) => ({
           role: 'assistant',
           data: { parts: [] },
           status: 'pending',
@@ -139,8 +132,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
             name: model.name,
             provider: model.providerId
-          },
-          traceId
+          }
         }))
       })
 
@@ -240,15 +232,14 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const continueModelId = (anchor.modelId ?? defaultModelId) as UniqueModelId
     const [model] = await resolveModels([continueModelId], defaultModelId)
 
-    // Created before the DB write so the anchor row can persist the span's
-    // traceId; end it explicitly if anything below throws or it leaks.
+    // Created before the DB write; end it explicitly if anything below throws
+    // or it leaks.
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model])
-    const [{ span: rootSpan, traceId }] = turnRootSpans
+    const [{ span: rootSpan }] = turnRootSpans
     try {
       await messageService.update(req.parentAnchorId, {
         data: { parts: updatedParts },
-        status: 'pending',
-        traceId
+        status: 'pending'
       })
 
       const listeners: StreamListener[] = [

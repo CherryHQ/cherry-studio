@@ -628,8 +628,7 @@ export class AgentSessionRuntimeService extends BaseService {
           role: 'assistant',
           status: 'pending',
           data: { parts: [] },
-          modelId: entry.modelId,
-          traceId
+          modelId: entry.modelId
         }
       })
     } catch (error) {
@@ -829,7 +828,6 @@ function createSyntheticUserMessage(sessionId: string): AgentSessionMessageEntit
     searchableText: '',
     modelId: null,
     modelSnapshot: null,
-    traceId: null,
     stats: null,
     runtimeResumeToken: null,
     createdAt: now,
