@@ -848,6 +848,9 @@
       "name": "Groq",
       "description": "Groq - AI model provider",
       "defaultChatEndpoint": "openai-chat-completions",
+      "apiFeatures": {
+        "serviceTier": true
+      },
       "endpointConfigs": {
         "openai-chat-completions": {
           "baseUrl": "https://api.groq.com/openai",

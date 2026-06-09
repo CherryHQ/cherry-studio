@@ -2,7 +2,7 @@ import { Button, Input, PageSidePanelItem, Switch, Tooltip } from '@cherrystudio
 import { useProvider } from '@renderer/hooks/useProvider'
 import { cn } from '@renderer/utils'
 import type { Provider, RuntimeApiFeatures } from '@shared/data/types/provider'
-import { isAnthropicSupportedProvider, isAzureOpenAIProvider, isOpenAICompatibleProvider } from '@shared/utils/provider'
+import { isAnthropicSupportedProvider } from '@shared/utils/provider'
 import { Info } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next'
 import ProviderActions from '../primitives/ProviderActions'
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
+import { getProviderApiOptionsVisibility } from '../utils/providerApiOptions'
 
 interface ProviderApiOptionsDrawerProps {
   providerId: string
@@ -55,10 +56,6 @@ function OptionTitle({ id, label, help }: { id: string; label: string; help: str
       </Tooltip>
     </span>
   )
-}
-
-function isOpenAIOptionsProvider(provider: Provider): boolean {
-  return isOpenAICompatibleProvider(provider) || isAzureOpenAIProvider(provider)
 }
 
 export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: ProviderApiOptionsDrawerProps) {
@@ -111,6 +108,11 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       return []
     }
 
+    const visibility = getProviderApiOptionsVisibility(provider)
+    if (!visibility.showApiFeatureSettings) {
+      return []
+    }
+
     const items: ApiOption[] = [
       {
         key: 'arrayContent',
@@ -119,7 +121,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       }
     ]
 
-    if (isOpenAIOptionsProvider(provider)) {
+    if (visibility.isOpenAIProvider) {
       items.push(...openAIOptions)
     }
 
