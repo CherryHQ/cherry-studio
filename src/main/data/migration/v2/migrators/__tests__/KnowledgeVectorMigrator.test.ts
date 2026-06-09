@@ -750,13 +750,13 @@ describe('KnowledgeVectorMigrator', () => {
     })
 
     expect(fs.existsSync(`${targetPath}.vectorstore.tmp`)).toBe(false)
-    expect(fs.existsSync(`${dbPath}.embedjs.bak`)).toBe(true)
-    // Regression for the migration path bug: the rebuilt store must live at the runtime path
-    // under the migrated (new) base id, and the legacy flat path must no longer hold a live store
-    // (it was moved aside to .embedjs.bak). The old test only read back from the legacy flat path,
-    // so it never caught vectors that were invisible to the runtime.
+    // The rebuilt store lives at the runtime path under the migrated (new) base id, while the legacy
+    // embedjs DB is left untouched in place so a user who rolls back to v1 after a failed or
+    // abandoned migration keeps a working knowledge base. The new uuid dir never collides with the
+    // legacy flat path, so no .bak relocation happens.
     expect(fs.existsSync(targetPath)).toBe(true)
-    expect(fs.existsSync(dbPath)).toBe(false)
+    expect(fs.existsSync(dbPath)).toBe(true)
+    expect(fs.existsSync(`${dbPath}.embedjs.bak`)).toBe(false)
 
     const retrySource = await migrationCtx.sources.knowledgeVectorSource.loadBase(LEGACY_KNOWLEDGE_BASE_ID)
     expect(retrySource.status).toBe('ok')
@@ -774,7 +774,6 @@ describe('KnowledgeVectorMigrator', () => {
     migrator.preparedBasePlans = [
       {
         baseId: 'kb-progress',
-        sourceDbPath: dbPath,
         targetDbPath: dbPath,
         dimensions: 2,
         rows: Array.from({ length: 250 }, (_, index) => ({
