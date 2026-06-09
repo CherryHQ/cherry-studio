@@ -225,6 +225,14 @@ vi.mock('@cherrystudio/ui', () => {
         { ...props, type: 'button', onClick: onSelect, 'data-testid': 'context-menu-item' },
         children
       ),
+    ContextMenuItemContent: ({ badge, children, icon, shortcut, ...props }) =>
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('span', { ...props }, icon, children),
+        badge,
+        shortcut ? React.createElement('span', null, shortcut) : null
+      ),
     ContextMenuSeparator: (props) => React.createElement('div', { ...props, 'data-testid': 'context-menu-separator' }),
     ImagePreviewContextMenu: ({ actions = [], children, context, item }) =>
       React.createElement(
