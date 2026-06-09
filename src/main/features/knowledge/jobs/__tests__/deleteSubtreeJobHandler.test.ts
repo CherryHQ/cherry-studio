@@ -6,9 +6,12 @@ import {
   createCtx,
   createDeleteSubtreeJobHandler,
   createDirectoryItem,
+  createFileItem,
   createJobSnapshot,
   createNoteItem,
   deleteItemsByIdsMock,
+  deleteKnowledgeItemFilesBestEffortMock,
+  FILE_ITEM_ID,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
   knowledgeLockManager,
@@ -62,6 +65,27 @@ describe('delete-subtree job handler', () => {
     expect(cancelMock).not.toHaveBeenCalledWith('unrelated-job', expect.anything())
     expect(replaceByExternalIdMock).toHaveBeenCalledWith('note-1', [])
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['dir-1', 'note-1'])
+  })
+
+  it('routes file cleanup through best-effort delete before hard-deleting rows', async () => {
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
+    const subtreeItems: KnowledgeItem[] = [
+      createDirectoryItem('dir-1', 'deleting'),
+      createFileItem(FILE_ITEM_ID, 'deleting')
+    ]
+    knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
+
+    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'delete-job'))
+
+    expect(deleteKnowledgeItemFilesBestEffortMock).toHaveBeenCalledWith('kb-1', subtreeItems, {
+      baseId: 'kb-1',
+      jobId: 'delete-job'
+    })
+    expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['dir-1', FILE_ITEM_ID])
+    // Cleanup is best-effort (swallows failures — see pathStorage test); row deletion must run after it.
+    expect(deleteKnowledgeItemFilesBestEffortMock.mock.invocationCallOrder[0]).toBeLessThan(
+      deleteItemsByIdsMock.mock.invocationCallOrder[0]
+    )
   })
 
   it('deletes deleting rows by id', async () => {

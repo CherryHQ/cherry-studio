@@ -9,6 +9,7 @@ import {
   createNoteItem,
   createReindexSubtreeJobHandler,
   deleteItemsByIdsMock,
+  deleteKnowledgeItemFilesBestEffortMock,
   FILE_ITEM_ID,
   getJobMock,
   knowledgeItemGetSubtreeItemsMock,
@@ -40,6 +41,31 @@ describe('reindex-subtree job handler', () => {
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['note-1'])
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('dir-1', 'preparing')
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'dir-1', 'reindex-job')
+  })
+
+  it('routes container descendant cleanup through best-effort delete before deleting rows', async () => {
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, workflowService as never)
+    const root = createDirectoryItem('dir-1')
+    const child = createNoteItem('note-1', 'dir-1')
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      async (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) => {
+        if (options.leafOnly) return [child]
+        if (options.includeRoots) return [root, child]
+        return [child]
+      }
+    )
+
+    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job'))
+
+    expect(deleteKnowledgeItemFilesBestEffortMock).toHaveBeenCalledWith('kb-1', [child], {
+      baseId: 'kb-1',
+      jobId: 'reindex-job'
+    })
+    expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['note-1'])
+    // Cleanup is best-effort (swallows failures — see pathStorage test); row deletion must run after it.
+    expect(deleteKnowledgeItemFilesBestEffortMock.mock.invocationCallOrder[0]).toBeLessThan(
+      deleteItemsByIdsMock.mock.invocationCallOrder[0]
+    )
   })
 
   it('skips deleting subtrees before reset', async () => {

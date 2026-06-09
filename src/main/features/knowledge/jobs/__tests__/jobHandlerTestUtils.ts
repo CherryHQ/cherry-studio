@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   getJobMock: vi.fn(),
   getStoreIfExistsMock: vi.fn(),
   deleteItemsByIdsMock: vi.fn(),
+  deleteKnowledgeItemFilesBestEffortMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
   knowledgeItemGetByIdMock: vi.fn(),
   knowledgeItemGetSubtreeItemsMock: vi.fn(),
@@ -33,6 +34,7 @@ export const {
   getJobMock,
   getStoreIfExistsMock,
   deleteItemsByIdsMock,
+  deleteKnowledgeItemFilesBestEffortMock,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
@@ -101,7 +103,10 @@ vi.mock('../../utils/storage/pathStorage', async () => {
   const actual = await vi.importActual<typeof PathStorage>('../../utils/storage/pathStorage')
   return {
     ...actual,
-    deleteKnowledgeItemFiles: vi.fn()
+    // Stub the best-effort cleanup the handlers call. Its swallow-on-failure
+    // contract is unit-tested directly in pathStorage's own test; here we only
+    // need handlers to route cleanup through it and still delete rows.
+    deleteKnowledgeItemFilesBestEffort: deleteKnowledgeItemFilesBestEffortMock
   }
 })
 
@@ -284,6 +289,7 @@ beforeEach(() => {
   enqueueMock.mockResolvedValue({ id: 'job-index', snapshot: {}, finished: Promise.resolve({}) })
   knowledgeItemUpdateIndexedRelativePathMock.mockResolvedValue(createFileItem())
   deleteItemsByIdsMock.mockResolvedValue(undefined)
+  deleteKnowledgeItemFilesBestEffortMock.mockResolvedValue(undefined)
   cancelMock.mockResolvedValue({ outcome: 'cancelled' })
   workflowService.scheduleFileProcessingCheck.mockResolvedValue(undefined)
   workflowService.scheduleIndexing.mockResolvedValue(undefined)

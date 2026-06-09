@@ -6,18 +6,25 @@ import path from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { copyMock, ensureDirMock, removeMock, removeDirMock, lstatMock } = vi.hoisted(() => ({
+const { copyMock, ensureDirMock, removeMock, removeDirMock, lstatMock, errorMock } = vi.hoisted(() => ({
   copyMock: vi.fn(),
   ensureDirMock: vi.fn(),
   removeMock: vi.fn(),
   removeDirMock: vi.fn(),
-  lstatMock: vi.fn()
+  lstatMock: vi.fn(),
+  errorMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory()
 })
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({ error: errorMock, info: vi.fn(), warn: vi.fn() })
+  }
+}))
 
 vi.mock('node:fs/promises', () => ({
   default: { lstat: lstatMock }
@@ -36,7 +43,9 @@ const {
   getKnowledgeSourceRelativePath,
   toKnowledgeRelativePath,
   getProcessedMarkdownRelativePath,
-  copyFileIntoKnowledgeBaseAt
+  copyFileIntoKnowledgeBaseAt,
+  deleteKnowledgeItemFiles,
+  deleteKnowledgeItemFilesBestEffort
 } = await import('../pathStorage')
 
 const BASE_ID = 'kb-1'
@@ -131,5 +140,92 @@ describe('pathStorage relative-path safety', () => {
       )
       expect(copyMock).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe('deleteKnowledgeItemFiles', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    removeMock.mockResolvedValue(undefined)
+  })
+
+  it('removes only file-type items, skipping notes and directories', async () => {
+    await deleteKnowledgeItemFiles(BASE_ID, [
+      { type: 'note', data: { source: 'n', content: 'x' } },
+      { type: 'directory', data: { source: 'd', path: '/d' } },
+      { type: 'file', data: { relativePath: 'a.pdf' } }
+    ])
+
+    expect(removeMock).toHaveBeenCalledTimes(1)
+    expect(removeMock).toHaveBeenCalledWith(path.join(BASE_DIR, 'a.pdf'))
+  })
+
+  it('removes both relativePath and indexedRelativePath when they differ', async () => {
+    await deleteKnowledgeItemFiles(BASE_ID, [
+      { type: 'file', data: { relativePath: 'a.pdf', indexedRelativePath: 'a.md' } }
+    ])
+
+    expect(removeMock).toHaveBeenCalledTimes(2)
+    expect(removeMock).toHaveBeenCalledWith(path.join(BASE_DIR, 'a.pdf'))
+    expect(removeMock).toHaveBeenCalledWith(path.join(BASE_DIR, 'a.md'))
+  })
+
+  it('deduplicates identical relativePath and indexedRelativePath', async () => {
+    await deleteKnowledgeItemFiles(BASE_ID, [
+      { type: 'file', data: { relativePath: 'a.pdf', indexedRelativePath: 'a.pdf' } }
+    ])
+
+    expect(removeMock).toHaveBeenCalledTimes(1)
+    expect(removeMock).toHaveBeenCalledWith(path.join(BASE_DIR, 'a.pdf'))
+  })
+
+  it('resolves when every removal succeeds (ENOENT idempotency is handled inside remove)', async () => {
+    await expect(
+      deleteKnowledgeItemFiles(BASE_ID, [{ type: 'file', data: { relativePath: 'a.pdf' } }])
+    ).resolves.toBeUndefined()
+  })
+
+  it('propagates a non-ENOENT removal error', async () => {
+    removeMock.mockRejectedValue(Object.assign(new Error('busy'), { code: 'EBUSY' }))
+    await expect(
+      deleteKnowledgeItemFiles(BASE_ID, [{ type: 'file', data: { relativePath: 'a.pdf' } }])
+    ).rejects.toThrow('busy')
+  })
+})
+
+describe('deleteKnowledgeItemFilesBestEffort', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    removeMock.mockResolvedValue(undefined)
+  })
+
+  it('delegates to deleteKnowledgeItemFiles on the happy path without logging', async () => {
+    await deleteKnowledgeItemFilesBestEffort(BASE_ID, [{ type: 'file', data: { relativePath: 'a.pdf' } }], {
+      baseId: BASE_ID
+    })
+
+    expect(removeMock).toHaveBeenCalledWith(path.join(BASE_DIR, 'a.pdf'))
+    expect(errorMock).not.toHaveBeenCalled()
+  })
+
+  it('swallows and logs a non-ENOENT removal failure instead of throwing', async () => {
+    removeMock.mockRejectedValue(Object.assign(new Error('busy'), { code: 'EBUSY' }))
+
+    await expect(
+      deleteKnowledgeItemFilesBestEffort(BASE_ID, [{ type: 'file', data: { relativePath: 'a.pdf' } }], {
+        baseId: BASE_ID
+      })
+    ).resolves.toBeUndefined()
+    expect(errorMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('swallows and logs a reserved/unsafe relative path that would throw before any removal', async () => {
+    await expect(
+      deleteKnowledgeItemFilesBestEffort(BASE_ID, [{ type: 'file', data: { relativePath: '../escape.pdf' } }], {
+        baseId: BASE_ID
+      })
+    ).resolves.toBeUndefined()
+    expect(removeMock).not.toHaveBeenCalled()
+    expect(errorMock).toHaveBeenCalledTimes(1)
   })
 })

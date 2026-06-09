@@ -16,7 +16,7 @@ import {
 } from '../types'
 import { deleteKnowledgeItemVectors } from '../utils/cleanup/vectorCleanup'
 import { isIndexableKnowledgeItem } from '../utils/items'
-import { deleteKnowledgeItemFiles } from '../utils/storage/pathStorage'
+import { deleteKnowledgeItemFilesBestEffort } from '../utils/storage/pathStorage'
 import type { KnowledgeDeleteSubtreePayload } from './jobTypes'
 import { cancelJobOrThrow } from './utils/cancel'
 import { narrowKnowledgeJobInput } from './utils/jobInput'
@@ -66,7 +66,9 @@ export function createDeleteSubtreeJobHandler(
 
         // Vector cleanup precedes DB deletion so a retry can still discover affected item ids.
         await deleteKnowledgeItemVectors(base, leafItemIds)
-        await deleteKnowledgeItemFiles(baseId, subtreeItems)
+        // Best-effort: a file-removal failure must not abort the row deletion below,
+        // which would otherwise strand rows in 'deleting' after their vectors are gone.
+        await deleteKnowledgeItemFilesBestEffort(baseId, subtreeItems, { baseId, jobId: ctx.jobId })
 
         await knowledgeItemService.deleteItemsByIds(baseId, subtreeItemIds)
       })

@@ -2,8 +2,11 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { copy, ensureDir, remove, removeDir } from '@main/utils/file/fs'
 import type { FilePath } from '@shared/file/types'
+
+const logger = loggerService.withContext('Knowledge:PathStorage')
 
 const CHERRY_META_DIR = '.cherry'
 const VECTOR_STORE_FILE = 'index.sqlite'
@@ -89,6 +92,29 @@ export async function deleteKnowledgeItemFiles(
   }
 
   await Promise.all([...paths].map((relativePath) => remove(getKnowledgeBaseFilePath(baseId, relativePath))))
+}
+
+/**
+ * Best-effort variant of {@link deleteKnowledgeItemFiles}: a failed delete
+ * (EACCES/EBUSY/... or a reserved/unsafe relativePath) is logged and swallowed
+ * so it cannot abort the caller's primary operation (e.g. the subsequent DB row
+ * deletion). Orphaned on-disk files are recoverable via full-base deletion;
+ * a half-finished DB mutation is not.
+ */
+export async function deleteKnowledgeItemFilesBestEffort(
+  baseId: string,
+  items: Array<{ type: string; data: unknown }>,
+  logContext: Record<string, unknown>
+): Promise<void> {
+  try {
+    await deleteKnowledgeItemFiles(baseId, items)
+  } catch (error) {
+    logger.error(
+      'Best-effort knowledge file cleanup failed; continuing',
+      error instanceof Error ? error : new Error(String(error)),
+      logContext
+    )
+  }
 }
 
 export async function deleteKnowledgeBaseDir(baseId: string): Promise<void> {

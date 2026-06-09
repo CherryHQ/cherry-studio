@@ -30,7 +30,7 @@ import { planKnowledgeItemSource } from './utils/sources/sourcePlanning'
 import {
   assertKnowledgeFileTargetAvailable,
   copyFileIntoKnowledgeBase,
-  deleteKnowledgeItemFiles,
+  deleteKnowledgeItemFilesBestEffort,
   getKnowledgeBaseFilePath,
   getKnowledgeSourceRelativePath,
   getProcessedMarkdownRelativePath
@@ -73,17 +73,12 @@ export class KnowledgeWorkflowService {
         }
       } catch (error) {
         await this.rollbackAcceptedItems(base.id, acceptedItems, error)
-        // Guard the file cleanup so a failed delete (EACCES/EBUSY/...) cannot
+        // Best-effort cleanup so a failed delete (EACCES/EBUSY/...) cannot
         // mask the original error that triggered the rollback.
-        try {
-          await deleteKnowledgeItemFiles(base.id, copiedFileItems)
-        } catch (cleanupError) {
-          logger.error(
-            'Failed to delete copied knowledge files during addItems rollback',
-            cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
-            { baseId: base.id, addError: error instanceof Error ? error.message : String(error) }
-          )
-        }
+        await deleteKnowledgeItemFilesBestEffort(base.id, copiedFileItems, {
+          baseId: base.id,
+          addError: error instanceof Error ? error.message : String(error)
+        })
         throw error
       }
     })

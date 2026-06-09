@@ -7,6 +7,7 @@ import {
   createNoteItem,
   createPrepareRootJobHandler,
   deleteItemsByIdsMock,
+  deleteKnowledgeItemFilesBestEffortMock,
   getJobMock,
   knowledgeItemGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
@@ -44,6 +45,25 @@ describe('prepare-root job handler', () => {
     expect(replaceByExternalIdMock).toHaveBeenCalledWith('active-note', [])
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['active-note'])
     expect(replaceByExternalIdMock.mock.invocationCallOrder[0]).toBeLessThan(
+      deleteItemsByIdsMock.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('routes stale-expansion cleanup through best-effort delete before deleting rows', async () => {
+    const handler = createPrepareRootJobHandler(knowledgeLockManager as never, workflowService as never)
+    const activeChild = createNoteItem('active-note', 'dir-1')
+    knowledgeItemGetByIdMock.mockResolvedValue(createDirectoryItem())
+    knowledgeItemGetSubtreeItemsMock.mockResolvedValue([activeChild])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+
+    expect(deleteKnowledgeItemFilesBestEffortMock).toHaveBeenCalledWith('kb-1', [activeChild], {
+      baseId: 'kb-1',
+      itemId: 'dir-1'
+    })
+    expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['active-note'])
+    // Cleanup is best-effort (swallows failures — see pathStorage test); row deletion must run after it.
+    expect(deleteKnowledgeItemFilesBestEffortMock.mock.invocationCallOrder[0]).toBeLessThan(
       deleteItemsByIdsMock.mock.invocationCallOrder[0]
     )
   })

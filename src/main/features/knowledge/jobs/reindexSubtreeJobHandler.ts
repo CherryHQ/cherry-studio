@@ -20,7 +20,7 @@ import {
 } from '../types'
 import { deleteKnowledgeItemVectors } from '../utils/cleanup/vectorCleanup'
 import { isContainerKnowledgeItem } from '../utils/items'
-import { deleteKnowledgeItemFiles } from '../utils/storage/pathStorage'
+import { deleteKnowledgeItemFilesBestEffort } from '../utils/storage/pathStorage'
 import type { KnowledgeReindexSubtreePayload } from './jobTypes'
 import { narrowKnowledgeJobInput } from './utils/jobInput'
 
@@ -77,7 +77,8 @@ export function createReindexSubtreeJobHandler(
         if (containerRootIds.length > 0) {
           // Container roots are rescanned from source, so their previous expansion must be removed.
           const descendantItems = await knowledgeItemService.getSubtreeItems(baseId, containerRootIds)
-          await deleteKnowledgeItemFiles(baseId, descendantItems)
+          // Best-effort: a file-removal failure must not abort the row deletion below.
+          await deleteKnowledgeItemFilesBestEffort(baseId, descendantItems, { baseId, jobId: ctx.jobId })
           await knowledgeItemService.deleteItemsByIds(
             baseId,
             descendantItems.map((item) => item.id)
