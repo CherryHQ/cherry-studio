@@ -177,13 +177,8 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
       title={t('settings.provider.api.key.list.title')}
       description={t('settings.provider.api_key.list_description')}
       footer={
-        <div className="flex items-center justify-between gap-3">
-          <div className={apiKeyListClasses.summaryMeta}>
-            {enabledCount} / {apiKeys.length} {t('settings.provider.api_key.enabled_suffix')}
-          </div>
-          <Button variant="outline" onClick={onClose}>
-            {t('common.close')}
-          </Button>
+        <div className={apiKeyListClasses.summaryMeta}>
+          {enabledCount} / {apiKeys.length} {t('settings.provider.api_key.enabled_suffix')}
         </div>
       }>
       <div className="space-y-4">
