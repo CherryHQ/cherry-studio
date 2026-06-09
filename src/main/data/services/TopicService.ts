@@ -1,5 +1,7 @@
 // Topic CRUD, branch switching, ordering.
 
+import { randomBytes } from 'node:crypto'
+
 import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
@@ -39,6 +41,7 @@ function rowToTopic(row: TopicRow): Topic {
     assistantId: row.assistantId ?? undefined,
     activeNodeId: row.activeNodeId ?? undefined,
     groupId: row.groupId ?? undefined,
+    traceId: row.traceId ?? undefined,
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
@@ -122,6 +125,27 @@ export class TopicService {
     }
 
     return rowToTopic(row)
+  }
+
+  async ensureTraceId(topicId: string): Promise<string> {
+    return application.get('DbService').withWriteTx(async (tx) => {
+      const [row] = await tx
+        .select({ traceId: topicTable.traceId })
+        .from(topicTable)
+        .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+        .limit(1)
+
+      if (!row) {
+        throw DataApiErrorFactory.notFound('Topic', topicId)
+      }
+      if (row.traceId) {
+        return row.traceId
+      }
+
+      const traceId = randomBytes(16).toString('hex')
+      await tx.update(topicTable).set({ traceId }).where(eq(topicTable.id, topicId))
+      return traceId
+    })
   }
 
   async create(dto: CreateTopicDto): Promise<Topic> {

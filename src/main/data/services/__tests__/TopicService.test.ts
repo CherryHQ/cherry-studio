@@ -72,6 +72,16 @@ describe('TopicService', () => {
     })
   })
 
+  it('creates and reuses a topic-level trace id', async () => {
+    await dbh.db.insert(topicTable).values({ id: 'topic-trace', name: 'Trace', orderKey: 'a0' })
+
+    const traceId = await topicService.ensureTraceId('topic-trace')
+
+    expect(traceId).toMatch(/^[0-9a-f]{32}$/)
+    expect(await topicService.ensureTraceId('topic-trace')).toBe(traceId)
+    expect((await topicService.getById('topic-trace')).traceId).toBe(traceId)
+  })
+
   describe('listByCursor', () => {
     it('returns all non-deleted topics across assistants ordered by orderKey', async () => {
       const service = new TopicService()
