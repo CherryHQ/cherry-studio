@@ -13,8 +13,8 @@
  */
 
 import { application } from '@application'
-import { messageTable } from '@data/db/schemas/message'
-import { topicTable } from '@data/db/schemas/topic'
+import { type CreateLinearTopicMessageInput, messageService } from '@data/services/MessageService'
+import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
@@ -22,12 +22,9 @@ import type { UpdateTemporaryTopicDto } from '@shared/data/api/schemas/temporary
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Message, MessageRole, MessageStatus } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
-import { eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
-import { insertWithOrderKey } from './utils/orderKey'
-
-const logger = loggerService.withContext('DataApi:TemporaryChatService')
+const logger = loggerService.withContext('TemporaryChatService')
 
 const VALID_ROLES: readonly MessageRole[] = ['user', 'assistant', 'system']
 const ACCEPTED_STATUSES: readonly MessageStatus[] = ['success', 'error', 'paused']
@@ -191,57 +188,28 @@ export class TemporaryChatService {
     this.messages.delete(topicId)
 
     try {
-      const db = application.get('DbService').getDb()
-      await db.transaction(async (tx) => {
-        // 2. Insert topic with the same id. Timestamps / defaults are filled by
-        // Drizzle's $defaultFn; we do not pass createdAt / updatedAt manually
-        // because the TS-side ISO strings don't match the DB's integer column.
-        //
-        // `orderKey` is computed via `insertWithOrderKey` so the new persisted
-        // topic lands at the tail of its `groupId` partition, matching what
-        // `topicService.create` does for normal topics. The `?? undefined`
-        // pattern used for the other fields converts `null` to `undefined`
-        // so Drizzle omits the column entirely, letting the DB default apply.
-        const groupIdForScope = topic.groupId ?? null
-        const assistantId = topic.assistantId ?? undefined
-        await insertWithOrderKey(
+      await application.get('DbService').withWriteTx(async (tx) => {
+        await topicService.createWithIdTx(tx, topic.id, {
+          name: topic.name,
+          assistantId: topic.assistantId,
+          groupId: topic.groupId
+        })
+        await messageService.createLinearMessagesTx(
           tx,
-          topicTable,
-          {
-            id: topic.id,
-            name: topic.name ?? undefined,
-            assistantId,
-            groupId: topic.groupId ?? undefined
-          },
-          {
-            pkColumn: topicTable.id,
-            scope: groupIdForScope === null ? isNull(topicTable.groupId) : eq(topicTable.groupId, groupIdForScope)
-          }
+          topic.id,
+          msgs.map(
+            (message): CreateLinearTopicMessageInput => ({
+              id: message.id,
+              role: message.role,
+              data: message.data,
+              status: message.status,
+              modelId: message.modelId ?? undefined,
+              modelSnapshot: message.modelSnapshot ?? undefined,
+              traceId: message.traceId ?? undefined,
+              stats: message.stats ?? undefined
+            })
+          )
         )
-
-        // 3. Linearize: parentId[i] = msgs[i-1].id. First message's parent is null.
-        let prevId: string | null = null
-        for (const m of msgs) {
-          await tx.insert(messageTable).values({
-            id: m.id,
-            topicId: topic.id,
-            parentId: prevId,
-            role: m.role,
-            data: m.data,
-            status: m.status,
-            siblingsGroupId: 0,
-            modelId: m.modelId ?? undefined,
-            modelSnapshot: m.modelSnapshot ?? undefined,
-            traceId: m.traceId ?? undefined,
-            stats: m.stats ?? undefined
-          })
-          prevId = m.id
-        }
-
-        // 4. Set activeNodeId to the last message (if any).
-        if (prevId) {
-          await tx.update(topicTable).set({ activeNodeId: prevId }).where(eq(topicTable.id, topic.id))
-        }
       })
     } catch (err) {
       // Transaction failed: restore the snapshot so the user can retry.

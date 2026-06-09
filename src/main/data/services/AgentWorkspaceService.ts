@@ -2,7 +2,6 @@ import { application } from '@application'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
-import { agentSessionService } from '@data/services/AgentSessionService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { normalizeWorkspacePath } from '@main/utils/agentWorkspacePath'
@@ -34,32 +33,29 @@ function defaultWorkspaceName(workspacePath: string): string {
 }
 
 export class AgentWorkspaceService {
-  async list(options: WorkspaceLookupOptions = {}): Promise<AgentWorkspaceEntity[]> {
+  async list(): Promise<AgentWorkspaceEntity[]> {
     const db = application.get('DbService').getDb()
     const rows = await db
       .select()
       .from(agentWorkspaceTable)
-      .where(options.includeSystem ? undefined : eq(agentWorkspaceTable.type, 'user'))
+      .where(eq(agentWorkspaceTable.type, AGENT_WORKSPACE_TYPE.USER))
       .orderBy(asc(agentWorkspaceTable.orderKey), asc(agentWorkspaceTable.id))
     return rows.map(rowToWorkspace)
   }
 
-  async getById(id: string, options: WorkspaceLookupOptions = {}): Promise<AgentWorkspaceEntity> {
+  async getById(id: string): Promise<AgentWorkspaceEntity> {
     const db = application.get('DbService').getDb()
-    const row = await this.getRowByIdTx(db, id, options)
+    const row = await this.getRowByIdTx(db, id)
     return rowToWorkspace(row)
   }
 
-  async getByIdTx(tx: DbOrTx, id: string, options: WorkspaceLookupOptions = {}): Promise<AgentWorkspaceEntity> {
-    const row = await this.getRowByIdTx(tx, id, options)
+  async getByIdTx(tx: DbOrTx, id: string): Promise<AgentWorkspaceEntity> {
+    const row = await this.getRowByIdTx(tx, id)
     return rowToWorkspace(row)
   }
 
-  async getRowByIdTx(tx: DbOrTx, id: string, options: WorkspaceLookupOptions = {}): Promise<AgentWorkspaceRow> {
-    const predicate = options.includeSystem
-      ? eq(agentWorkspaceTable.id, id)
-      : and(eq(agentWorkspaceTable.id, id), eq(agentWorkspaceTable.type, 'user'))
-    const [row] = await tx.select().from(agentWorkspaceTable).where(predicate).limit(1)
+  async getRowByIdTx(tx: DbOrTx, id: string): Promise<AgentWorkspaceRow> {
+    const [row] = await tx.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, id)).limit(1)
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
     return row
   }
@@ -85,7 +81,7 @@ export class AgentWorkspaceService {
     const [existing] = await tx
       .select()
       .from(agentWorkspaceTable)
-      .where(and(eq(agentWorkspaceTable.path, workspacePath), eq(agentWorkspaceTable.type, 'user')))
+      .where(eq(agentWorkspaceTable.path, workspacePath))
       .limit(1)
     if (existing) {
       if (AgentWorkspaceTypeSchema.parse(existing.type) === AGENT_WORKSPACE_TYPE.USER) return existing
@@ -133,12 +129,12 @@ export class AgentWorkspaceService {
   }
 
   async reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): Promise<void> {
-    const moves = [{ id, anchor }]
-    await this.assertUserWorkspaceOrderReferencesTx(tx, moves)
-    await applyMoves(tx, agentWorkspaceTable, moves, {
-      pkColumn: agentWorkspaceTable.id,
-      scope: userWorkspaceScope()
-    })
+    const [target] = await tx
+      .select({ id: agentWorkspaceTable.id })
+      .from(agentWorkspaceTable)
+      .where(eq(agentWorkspaceTable.id, id))
+    if (!target) throw DataApiErrorFactory.notFound('Workspace', id)
+    await applyMoves(tx, agentWorkspaceTable, [{ id, anchor }], { pkColumn: agentWorkspaceTable.id })
   }
 
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
@@ -147,30 +143,7 @@ export class AgentWorkspaceService {
   }
 
   async reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
-    await this.assertUserWorkspaceOrderReferencesTx(tx, moves)
-    await applyMoves(tx, agentWorkspaceTable, moves, {
-      pkColumn: agentWorkspaceTable.id,
-      scope: userWorkspaceScope()
-    })
-  }
-
-  private async assertUserWorkspaceOrderReferencesTx(
-    tx: DbOrTx,
-    moves: Array<{ id: string; anchor: OrderRequest }>
-  ): Promise<void> {
-    const ids = collectOrderReferenceIds(moves)
-    if (ids.length === 0) return
-
-    const rows = await tx
-      .select({ id: agentWorkspaceTable.id })
-      .from(agentWorkspaceTable)
-      .where(and(inArray(agentWorkspaceTable.id, ids), userWorkspaceScope()))
-
-    if (rows.length === ids.length) return
-
-    const found = new Set(rows.map((row) => row.id))
-    const missing = ids.find((id) => !found.has(id)) ?? ids[0]
-    throw DataApiErrorFactory.notFound('Workspace', missing)
+    await applyMoves(tx, agentWorkspaceTable, moves, { pkColumn: agentWorkspaceTable.id })
   }
 }
 

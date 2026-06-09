@@ -11,6 +11,7 @@
 import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type {
@@ -71,6 +72,11 @@ export interface CreateUserMessageWithPlaceholdersResult {
   userMessage: Message
   /** In the same order as `input.placeholders`. */
   placeholders: Message[]
+}
+
+export interface CreateLinearTopicMessageInput
+  extends Omit<CreateMessageDto, 'parentId' | 'siblingsGroupId' | 'setAsActive'> {
+  id: string
 }
 
 /**
@@ -860,6 +866,42 @@ export class MessageService {
 
       return rowToMessage(row)
     })
+  }
+
+  async createLinearMessagesTx(
+    tx: DbOrTx,
+    topicId: string,
+    messages: CreateLinearTopicMessageInput[]
+  ): Promise<Message[]> {
+    const rows: Message[] = []
+    let prevId: string | null = null
+
+    for (const message of messages) {
+      const [row] = await tx
+        .insert(messageTable)
+        .values({
+          id: message.id,
+          topicId,
+          parentId: prevId,
+          role: message.role,
+          data: message.data,
+          status: message.status ?? 'success',
+          siblingsGroupId: 0,
+          modelId: message.modelId,
+          modelSnapshot: message.modelSnapshot,
+          traceId: message.traceId,
+          stats: message.stats
+        })
+        .returning()
+      rows.push(rowToMessage(row))
+      prevId = row.id
+    }
+
+    if (prevId) {
+      await topicService.setActiveNodeTx(tx, topicId, prevId, { assumeValid: true })
+    }
+
+    return rows
   }
 
   /**

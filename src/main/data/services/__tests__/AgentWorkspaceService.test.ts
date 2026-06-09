@@ -7,24 +7,14 @@ import { eq } from 'drizzle-orm'
 import { mkdtemp, stat } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 describe('AgentWorkspaceService', () => {
   const dbh = setupTestDatabase()
 
-  function workspacePath(name: string): string {
-    return path.join(tmpdir(), `cherry-workspace-${name}-${Date.now()}-${Math.random().toString(16).slice(2)}`)
-  }
-
-  async function insertSystemWorkspace(id: string, workspacePath: string): Promise<void> {
-    await dbh.db.insert(agentWorkspaceTable).values({
-      id,
-      name: 'System Workspace',
-      path: workspacePath,
-      type: 'system',
-      orderKey: 'a0'
-    })
-  }
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
 
   function workspacePath(...segments: string[]) {
     return path.join('/tmp', 'cherry-workspace-service', ...segments)
@@ -63,99 +53,6 @@ describe('AgentWorkspaceService', () => {
     const workspaces = await agentWorkspaceService.list()
 
     expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id])
-  })
-
-  it('hides system workspaces from the default list and get APIs', async () => {
-    const userWorkspace = await agentWorkspaceService.findOrCreateByPath(workspacePath('user-project'))
-    const systemWorkspacePath = workspacePath('system-project')
-    await insertSystemWorkspace('system-workspace-hidden', systemWorkspacePath)
-
-    await expect(agentWorkspaceService.getById('system-workspace-hidden')).rejects.toMatchObject({
-      code: ErrorCode.NOT_FOUND
-    })
-    await expect(
-      agentWorkspaceService.getById('system-workspace-hidden', { includeSystem: true })
-    ).resolves.toMatchObject({
-      id: 'system-workspace-hidden',
-      type: 'system'
-    })
-    expect((await agentWorkspaceService.list()).map((workspace) => workspace.id)).toEqual([userWorkspace.id])
-  })
-
-  it('creates system workspaces as hidden system rows', async () => {
-    const systemWorkspacePath = workspacePath('prepared-system')
-
-    const workspace = await agentWorkspaceService.createSystemWorkspace({
-      path: systemWorkspacePath,
-      name: 'No project 2026-05-25 14:30:12'
-    })
-
-    expect(workspace).toMatchObject({
-      name: 'No project 2026-05-25 14:30:12',
-      path: systemWorkspacePath,
-      type: 'system'
-    })
-    await expect(agentWorkspaceService.getById(workspace.id)).rejects.toMatchObject({
-      code: ErrorCode.NOT_FOUND
-    })
-    await expect(agentWorkspaceService.getById(workspace.id, { includeSystem: true })).resolves.toMatchObject({
-      id: workspace.id,
-      type: 'system'
-    })
-  })
-
-  it('maps transactional system workspace duplicate paths to conflict errors', async () => {
-    const systemWorkspacePath = workspacePath('prepared-system-tx')
-    await agentWorkspaceService.createSystemWorkspace({
-      path: systemWorkspacePath,
-      name: 'No project 2026-05-25 14:30:12'
-    })
-
-    await expect(
-      dbh.db.transaction((tx) =>
-        agentWorkspaceService.createSystemWorkspaceTx(tx, {
-          path: systemWorkspacePath,
-          name: 'No project 2026-05-25 14:30:13'
-        })
-      )
-    ).rejects.toMatchObject({
-      code: ErrorCode.CONFLICT
-    })
-  })
-
-  it('deletes a workspace with its sessions and returns the system path when needed', async () => {
-    const workspace = await agentWorkspaceService.createSystemWorkspace({
-      path: workspacePath('system-delete'),
-      name: 'No project 2026-05-25 14:30:12'
-    })
-    await dbh.db.insert(agentSessionTable).values({
-      id: 'session-for-system-workspace',
-      name: 'System session',
-      workspaceId: workspace.id,
-      orderKey: 'a0'
-    })
-
-    await expect(
-      agentWorkspaceService.deleteWorkspaceWithSessions(workspace.id, { includeSystem: true })
-    ).resolves.toBe(workspace.path)
-
-    await expect(agentWorkspaceService.getById(workspace.id, { includeSystem: true })).rejects.toMatchObject({
-      code: ErrorCode.NOT_FOUND
-    })
-    const sessions = await dbh.db
-      .select()
-      .from(agentSessionTable)
-      .where(eq(agentSessionTable.id, 'session-for-system-workspace'))
-    expect(sessions).toHaveLength(0)
-  })
-
-  it('does not return a system workspace from findOrCreateByPath', async () => {
-    const systemWorkspacePath = workspacePath('system-path')
-    await insertSystemWorkspace('system-workspace-path', systemWorkspacePath)
-
-    await expect(agentWorkspaceService.findOrCreateByPath(systemWorkspacePath)).rejects.toMatchObject({
-      code: ErrorCode.CONFLICT
-    })
   })
 
   it('rejects relative workspace paths', async () => {
@@ -197,6 +94,18 @@ describe('AgentWorkspaceService', () => {
       type: 'system'
     })
     await expect(stat(workspace.path)).rejects.toThrow()
+  })
+
+  it('excludes system workspace rows from the user workspace list', async () => {
+    const userWorkspace = await findOrCreateWorkspace(workspacePath('visible-user-workspace'))
+    await dbh.db.transaction((tx) =>
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'hidden-system-workspace' })
+    )
+
+    const workspaces = await agentWorkspaceService.list()
+
+    expect(workspaces.map((workspace) => workspace.id)).toEqual([userWorkspace.id])
+    expect(workspaces.every((workspace) => workspace.type === 'user')).toBe(true)
   })
 
   it('translates findOrCreateByPathTx unique races to conflict errors', async () => {

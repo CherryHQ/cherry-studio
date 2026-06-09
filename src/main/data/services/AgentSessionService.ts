@@ -4,11 +4,7 @@ import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable 
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
-import {
-  agentWorkspaceService,
-  type CreateSystemWorkspaceInput,
-  rowToWorkspace
-} from '@data/services/AgentWorkspaceService'
+import { agentWorkspaceService, rowToWorkspace } from '@data/services/AgentWorkspaceService'
 import { pinService } from '@data/services/PinService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -55,24 +51,6 @@ type JoinedSessionRow = {
   session: SessionRow
   workspace: AgentWorkspaceRow
 }
-
-type CreateWithWorkspaceResolutionOptions = {
-  id: string
-  defaultWorkspacePath?: string | null
-  systemWorkspace?: CreateSystemWorkspaceInput | null
-}
-
-export type CreateWithWorkspaceResolutionResult =
-  | {
-      needsDefaultWorkspace: true
-      usedDefaultWorkspace: false
-      session: null
-    }
-  | {
-      needsDefaultWorkspace: false
-      usedDefaultWorkspace: boolean
-      session: AgentSessionEntity
-    }
 
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
   return {

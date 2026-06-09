@@ -11,6 +11,7 @@ const {
   listMessagesMock,
   persistMock,
   createSessionMock,
+  updateSessionMock,
   deleteSessionMock,
   persistSessionMock
 } = vi.hoisted(() => ({
@@ -21,11 +22,12 @@ const {
   listMessagesMock: vi.fn(),
   persistMock: vi.fn(),
   createSessionMock: vi.fn(),
+  updateSessionMock: vi.fn(),
   deleteSessionMock: vi.fn(),
   persistSessionMock: vi.fn()
 }))
 
-vi.mock('@data/services/TemporaryChatService', () => ({
+vi.mock('@main/ai/temporaryChat/TemporaryChatService', () => ({
   temporaryChatService: {
     createTopic: createTopicMock,
     updateTopic: updateTopicMock,
@@ -36,9 +38,10 @@ vi.mock('@data/services/TemporaryChatService', () => ({
   }
 }))
 
-vi.mock('@main/services/agentWorkspace/TemporarySessionService', () => ({
+vi.mock('@main/ai/agentSession/TemporaryAgentSessionDraftService', () => ({
   temporarySessionService: {
     createSession: createSessionMock,
+    updateSession: updateSessionMock,
     deleteSession: deleteSessionMock,
     persist: persistSessionMock
   }
@@ -89,12 +92,8 @@ function fakeSession() {
   return {
     id: 'sid-123',
     agentId: 'agent-a',
-    name: 'Draft',
-    description: '',
-    workspaceId: null,
+    workspaceSource: { type: 'system' },
     workspace: null,
-    workspaceMode: 'system',
-    orderKey: '',
     createdAt: '2025-01-01T00:00:00.000Z',
     updatedAt: '2025-01-01T00:00:00.000Z'
   }
@@ -115,6 +114,7 @@ describe('temporaryChatHandlers', () => {
     listMessagesMock.mockReset()
     persistMock.mockReset()
     createSessionMock.mockReset()
+    updateSessionMock.mockReset()
     deleteSessionMock.mockReset()
     persistSessionMock.mockReset()
   })
@@ -145,6 +145,10 @@ describe('temporaryChatHandlers', () => {
     })
 
     it('rejects invalid patch bodies before calling the service', async () => {
+      await expect(
+        temporaryChatHandlers['/temporary/topics/:id'].PATCH(reqEnvelope({ params: { id: 'tid-xyz' }, body: {} }))
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+
       await expect(
         temporaryChatHandlers['/temporary/topics/:id'].PATCH(
           reqEnvelope({ params: { id: 'tid-xyz' }, body: { assistantId: 123 } })
@@ -224,10 +228,18 @@ describe('temporaryChatHandlers', () => {
 
       await expect(
         temporaryChatHandlers['/temporary/sessions'].POST(
-          reqEnvelope({ body: { agentId: 'agent-a', workspaceMode: 'system' } })
+          reqEnvelope({ body: { agentId: 'agent-a', workspace: { type: 'system' } } })
         )
       ).resolves.toBe(session)
-      expect(createSessionMock).toHaveBeenCalledWith({ agentId: 'agent-a', workspaceMode: 'system' })
+      expect(createSessionMock).toHaveBeenCalledWith({ agentId: 'agent-a', workspace: { type: 'system' } })
+
+      updateSessionMock.mockResolvedValue({ ...session, agentId: 'agent-b' })
+      await expect(
+        temporaryChatHandlers['/temporary/sessions/:id'].PATCH(
+          reqEnvelope({ params: { id: 'sid-123' }, body: { agentId: 'agent-b' } })
+        )
+      ).resolves.toMatchObject({ agentId: 'agent-b' })
+      expect(updateSessionMock).toHaveBeenCalledWith('sid-123', { agentId: 'agent-b' })
 
       await expect(
         temporaryChatHandlers['/temporary/sessions/:id'].DELETE(reqEnvelope({ params: { id: 'sid-123' } }))
@@ -248,17 +260,31 @@ describe('temporaryChatHandlers', () => {
 
       await expect(
         temporaryChatHandlers['/temporary/sessions'].POST(
-          reqEnvelope({ body: { agentId: 'agent-a', workspaceMode: 'invalid' } })
+          reqEnvelope({ body: { agentId: 'agent-a', workspace: { type: 'invalid' } } })
         )
       ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
       expect(createSessionMock).not.toHaveBeenCalled()
 
       await expect(
         temporaryChatHandlers['/temporary/sessions'].POST(
-          reqEnvelope({ body: { agentId: 'agent-a', workspaceId: 'ws-a', workspaceMode: 'system' } })
+          reqEnvelope({ body: { agentId: 'agent-a', workspace: { type: 'system', workspaceId: 'ws-a' } } })
         )
       ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
       expect(createSessionMock).not.toHaveBeenCalled()
+    })
+
+    it('validates temporary session patch bodies before calling the service', async () => {
+      await expect(
+        temporaryChatHandlers['/temporary/sessions/:id'].PATCH(reqEnvelope({ params: { id: 'sid-123' }, body: {} }))
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+
+      await expect(
+        temporaryChatHandlers['/temporary/sessions/:id'].PATCH(
+          reqEnvelope({ params: { id: 'sid-123' }, body: { workspace: { type: 'user' } } })
+        )
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+
+      expect(updateSessionMock).not.toHaveBeenCalled()
     })
   })
 })

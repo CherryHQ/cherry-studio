@@ -59,6 +59,9 @@ docs above reference them:
   model + gaps for externally-triggered (inbound IM) agent runs (review D1).
 - [`stream-ipc-validation.md`](./stream-ipc-validation.md) — scheme to validate
   the untrusted-renderer AI stream IPC payloads (review D2).
+- [`temporary-chat-and-session.md`](./temporary-chat-and-session.md) — design
+  for temporary topics, temporary agent sessions, workspace source binding, and
+  update vs reset behavior.
 
 ## Suggested review order
 

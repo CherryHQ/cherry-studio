@@ -165,6 +165,31 @@ export class TopicService {
     return rowToTopic(row)
   }
 
+  async createWithIdTx(tx: DbOrTx, id: string, dto: CreateTopicDto): Promise<Topic> {
+    if (dto.sourceNodeId) {
+      throw DataApiErrorFactory.invalidOperation('create topic with id', 'sourceNodeId is not supported')
+    }
+
+    const groupId = dto.groupId ?? null
+    const row = (await insertWithOrderKey(
+      tx,
+      topicTable,
+      {
+        id,
+        name: dto.name,
+        assistantId: dto.assistantId,
+        groupId
+      },
+      {
+        pkColumn: topicTable.id,
+        scope: topicScopePredicate(groupId)
+      }
+    )) as TopicRow
+
+    logger.info('Created topic with caller-provided id', { id: row.id })
+    return rowToTopic(row)
+  }
+
   /** Pin state and ordering go through `/pins` and `/topics/:id/order` — not this DTO. */
   async update(id: string, dto: UpdateTopicDto): Promise<Topic> {
     const db = application.get('DbService').getDb()

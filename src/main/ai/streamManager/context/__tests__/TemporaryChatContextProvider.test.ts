@@ -9,7 +9,7 @@ const hasTopicMock = vi.fn()
 const appendMessageMock = vi.fn()
 const listMessagesMock = vi.fn()
 
-vi.mock('@main/data/services/TemporaryChatService', () => ({
+vi.mock('@main/ai/temporaryChat/TemporaryChatService', () => ({
   temporaryChatService: {
     getTopic: getTopicMock,
     hasTopic: hasTopicMock,

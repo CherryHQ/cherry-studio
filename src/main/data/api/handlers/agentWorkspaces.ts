@@ -1,5 +1,4 @@
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
-import { agentWorkspaceWorkflowService } from '@main/services/agentWorkspace/AgentWorkspaceWorkflowService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentWorkspaceSchemas } from '@shared/data/api/schemas/agentWorkspaces'
@@ -14,10 +13,6 @@ export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
   '/agent-workspaces/:workspaceId': {
     GET: async ({ params }) => {
       return await agentWorkspaceService.getById(params.workspaceId)
-    },
-    DELETE: async ({ params }) => {
-      await agentWorkspaceWorkflowService.deleteWorkspace(params.workspaceId)
-      return undefined
     }
   },
 

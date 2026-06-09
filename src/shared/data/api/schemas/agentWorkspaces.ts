@@ -46,9 +46,5 @@ export type AgentWorkspaceSchemas = {
       params: { workspaceId: string }
       response: AgentWorkspaceEntity
     }
-    DELETE: {
-      params: { workspaceId: string }
-      response: void
-    }
   }
 } & OrderEndpoints<'/agent-workspaces'>

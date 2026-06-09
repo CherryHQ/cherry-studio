@@ -4,7 +4,6 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
-import { agentWorkspaceWorkflowService } from '@main/services/agentWorkspace/AgentWorkspaceWorkflowService'
 import { ErrorCode } from '@shared/data/api'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -313,13 +312,7 @@ describe('AgentSessionService', () => {
 
     await agentSessionService.delete(session.id)
 
-    await expect(agentSessionService.delete(session.id)).resolves.toBe(workspace.path)
-
-    await expect(agentSessionService.getById(session.id)).rejects.toMatchObject({
-      code: ErrorCode.NOT_FOUND
-    })
-    await expect(agentWorkspaceService.getById(workspace.id, { includeSystem: true })).rejects.toMatchObject({
-      code: ErrorCode.NOT_FOUND
-    })
+    const rows = await dbh.db.select().from(agentWorkspaceTable)
+    expect(rows).toHaveLength(0)
   })
 })

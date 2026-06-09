@@ -7,7 +7,7 @@
  * single `persistAssistant` handles success / paused / error uniformly.
  */
 
-import { temporaryChatService } from '@main/data/services/TemporaryChatService'
+import { temporaryChatService } from '@main/ai/temporaryChat/TemporaryChatService'
 import type { CherryMessagePart, MessageStats, ModelSnapshot } from '@shared/data/types/message'
 
 import { finalizeInterruptedParts, type PersistAssistantInput, type PersistenceBackend } from '../PersistenceBackend'

@@ -1,10 +1,11 @@
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
-import { TemporaryChatService } from '@data/services/TemporaryChatService'
 import type { MessageData } from '@shared/data/types/message'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
+
+import { TemporaryChatService } from '../TemporaryChatService'
 
 function fieldsOf(err: unknown): Record<string, string[]> {
   const details = (err as { details?: { fieldErrors?: Record<string, string[]> } }).details

@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { CreateTemporarySessionSchema, TemporarySessionEntitySchema } from '../temporaryChats'
+import {
+  CreateTemporarySessionSchema,
+  TemporarySessionEntitySchema,
+  UpdateTemporarySessionSchema,
+  UpdateTemporaryTopicSchema
+} from '../temporaryChats'
 
 describe('Temporary session schemas', () => {
   const workspace = {
@@ -13,65 +18,68 @@ describe('Temporary session schemas', () => {
     updatedAt: '2026-01-01T00:00:00.000Z'
   }
 
-  it('requires either a user workspace id or system workspace mode', () => {
+  it('requires a workspace source', () => {
     expect(
       CreateTemporarySessionSchema.parse({
         agentId: 'agent-1',
-        name: 'Draft',
-        workspaceId: workspace.id
-      }).workspaceId
-    ).toBe(workspace.id)
+        workspace: { type: 'user', workspaceId: workspace.id }
+      }).workspace
+    ).toEqual({ type: 'user', workspaceId: workspace.id })
     expect(
       CreateTemporarySessionSchema.parse({
         agentId: 'agent-1',
-        name: 'Draft',
-        workspaceMode: 'system'
-      }).workspaceMode
-    ).toBe('system')
+        workspace: { type: 'system' }
+      }).workspace
+    ).toEqual({ type: 'system' })
     expect(
       CreateTemporarySessionSchema.safeParse({
-        agentId: 'agent-1',
-        name: 'Draft'
+        agentId: 'agent-1'
       }).success
     ).toBe(false)
     expect(
       CreateTemporarySessionSchema.safeParse({
         agentId: 'agent-1',
-        name: 'Draft',
-        workspaceId: workspace.id,
-        workspaceMode: 'system'
+        workspace: { type: 'system', workspaceId: workspace.id }
       }).success
     ).toBe(false)
     expect(
       CreateTemporarySessionSchema.safeParse({
         agentId: 'agent-1',
-        name: 'Draft',
-        workspaceMode: 'user'
+        workspace: { type: 'user' }
       }).success
     ).toBe(false)
+  })
+
+  it('requires at least one update field', () => {
+    expect(UpdateTemporarySessionSchema.parse({ agentId: 'agent-2' }).agentId).toBe('agent-2')
+    expect(UpdateTemporarySessionSchema.parse({ workspace: { type: 'system' } }).workspace).toEqual({
+      type: 'system'
+    })
+    expect(UpdateTemporarySessionSchema.safeParse({}).success).toBe(false)
+  })
+
+  it('requires at least one temporary topic update field', () => {
+    expect(UpdateTemporaryTopicSchema.parse({ assistantId: 'agent-2' }).assistantId).toBe('agent-2')
+    expect(UpdateTemporaryTopicSchema.parse({ assistantId: null }).assistantId).toBeNull()
+    expect(UpdateTemporaryTopicSchema.safeParse({}).success).toBe(false)
   })
 
   it('describes temporary draft sessions separately from persisted sessions', () => {
     const systemDraft = {
       id: 'session-1',
       agentId: 'agent-1',
-      name: 'Draft',
-      description: '',
-      workspaceId: null,
+      workspaceSource: { type: 'system' },
       workspace: null,
-      workspaceMode: 'system',
-      orderKey: '',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z'
     }
     const userDraft = {
       ...systemDraft,
-      workspaceId: workspace.id,
-      workspace,
-      workspaceMode: undefined
+      workspaceSource: { type: 'user', workspaceId: workspace.id },
+      workspace
     }
 
-    expect(TemporarySessionEntitySchema.parse(systemDraft).workspaceMode).toBe('system')
+    expect(TemporarySessionEntitySchema.parse(systemDraft).workspaceSource.type).toBe('system')
     expect(TemporarySessionEntitySchema.parse(userDraft).workspace?.id).toBe(workspace.id)
     expect(TemporarySessionEntitySchema.safeParse({ ...systemDraft, accessiblePaths: [] }).success).toBe(false)
   })

@@ -10,22 +10,23 @@
  * - GET    /temporary/topics/:topicId/messages
  * - POST   /temporary/topics/:id/persist
  * - POST   /temporary/sessions
+ * - PATCH  /temporary/sessions/:id
  * - DELETE /temporary/sessions/:id
  * - POST   /temporary/sessions/:id/persist
  *
- * Topic/message logic lives in TemporaryChatService. Agent session draft logic
- * lives in main-side TemporarySessionService because persisting drafts runs
- * workspace/session workflow side effects. Handlers stay thin: validate request
- * bodies when needed, then forward to the owning service.
+ * Topic/message draft logic lives in TemporaryChatService. Agent session draft
+ * logic lives in TemporaryAgentSessionDraftService. Handlers stay thin:
+ * validate request bodies when needed, then forward to the owning service.
  */
 
-import { temporaryChatService } from '@data/services/TemporaryChatService'
-import { temporarySessionService } from '@main/services/agentWorkspace/TemporarySessionService'
+import { temporarySessionService } from '@main/ai/agentSession/TemporaryAgentSessionDraftService'
+import { temporaryChatService } from '@main/ai/temporaryChat/TemporaryChatService'
 import { toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {
   CreateTemporarySessionSchema,
   type TemporaryChatSchemas,
+  UpdateTemporarySessionSchema,
   UpdateTemporaryTopicSchema
 } from '@shared/data/api/schemas/temporaryChats'
 
@@ -72,6 +73,11 @@ export const temporaryChatHandlers: HandlersFor<TemporaryChatSchemas> = {
   },
 
   '/temporary/sessions/:id': {
+    PATCH: async ({ params, body }) => {
+      const parsed = UpdateTemporarySessionSchema.safeParse(body)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return await temporarySessionService.updateSession(params.id, parsed.data)
+    },
     DELETE: async ({ params }) => {
       await temporarySessionService.deleteSession(params.id)
       return undefined

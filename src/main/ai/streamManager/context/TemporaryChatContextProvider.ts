@@ -6,7 +6,7 @@
 
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
-import { temporaryChatService } from '@main/data/services/TemporaryChatService'
+import { temporaryChatService } from '@main/ai/temporaryChat/TemporaryChatService'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import type { AiStreamRequest } from '../../types/requests'

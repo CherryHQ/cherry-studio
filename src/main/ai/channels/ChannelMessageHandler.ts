@@ -14,7 +14,6 @@ import {
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import { application } from '@main/core/application'
-import { agentSessionWorkflowService } from '@main/services/agentWorkspace/AgentSessionWorkflowService'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 

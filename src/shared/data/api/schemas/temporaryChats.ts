@@ -18,9 +18,8 @@ import type { Message } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import * as z from 'zod'
 
-import { AgentNameAtomSchema } from './agents'
-import { type AgentSessionEntity, AgentWorkspaceModeSchema } from './agentSessions'
-import { AgentWorkspaceEntitySchema } from './agentWorkspaces'
+import type { AgentSessionEntity } from './agentSessions'
+import { AgentSessionWorkspaceSourceSchema, AgentWorkspaceEntitySchema } from './agentWorkspaces'
 import type { CreateMessageDto } from './messages'
 import type { CreateTopicDto } from './topics'
 
@@ -38,51 +37,39 @@ export interface PersistTemporaryChatResponse {
   messageCount: number
 }
 
-const TemporarySessionBaseSchema = z.strictObject({
+export const TemporarySessionEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string(),
-  name: AgentNameAtomSchema,
-  description: z.string().optional(),
-  orderKey: z.string(),
+  workspaceSource: AgentSessionWorkspaceSourceSchema,
+  workspace: AgentWorkspaceEntitySchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string()
 })
-
-export const TemporarySessionEntitySchema = z.union([
-  TemporarySessionBaseSchema.extend({
-    workspaceId: z.string(),
-    workspace: AgentWorkspaceEntitySchema,
-    workspaceMode: z.undefined().optional()
-  }),
-  TemporarySessionBaseSchema.extend({
-    workspaceId: z.null(),
-    workspace: z.null(),
-    workspaceMode: AgentWorkspaceModeSchema
-  })
-])
 export type TemporarySessionEntity = z.infer<typeof TemporarySessionEntitySchema>
 
-export const CreateTemporarySessionSchema = z.union([
-  z.strictObject({
-    agentId: z.string().min(1),
-    name: AgentNameAtomSchema.optional(),
-    description: z.string().optional(),
-    workspaceId: z.string().min(1),
-    workspaceMode: z.undefined().optional()
-  }),
-  z.strictObject({
-    agentId: z.string().min(1),
-    name: AgentNameAtomSchema.optional(),
-    description: z.string().optional(),
-    workspaceId: z.undefined().optional(),
-    workspaceMode: AgentWorkspaceModeSchema
-  })
-])
+export const CreateTemporarySessionSchema = z.strictObject({
+  agentId: z.string().min(1),
+  workspace: AgentSessionWorkspaceSourceSchema
+})
 export type CreateTemporarySessionDto = z.infer<typeof CreateTemporarySessionSchema>
 
-export const UpdateTemporaryTopicSchema = z.strictObject({
-  assistantId: z.string().nullable().optional()
-})
+export const UpdateTemporarySessionSchema = z
+  .strictObject({
+    agentId: z.string().min(1).optional(),
+    workspace: AgentSessionWorkspaceSourceSchema.optional()
+  })
+  .refine((dto) => dto.agentId !== undefined || dto.workspace !== undefined, {
+    message: 'at least one temporary session field is required'
+  })
+export type UpdateTemporarySessionDto = z.infer<typeof UpdateTemporarySessionSchema>
+
+export const UpdateTemporaryTopicSchema = z
+  .strictObject({
+    assistantId: z.string().nullable().optional()
+  })
+  .refine((dto) => dto.assistantId !== undefined, {
+    message: 'at least one temporary topic field is required'
+  })
 export type UpdateTemporaryTopicDto = z.infer<typeof UpdateTemporaryTopicSchema>
 
 // ============================================================================
@@ -100,6 +87,7 @@ export type UpdateTemporaryTopicDto = z.infer<typeof UpdateTemporaryTopicSchema>
  * - GET    /temporary/topics/:topicId/messages
  * - POST   /temporary/topics/:id/persist
  * - POST   /temporary/sessions
+ * - PATCH  /temporary/sessions/:id
  * - DELETE /temporary/sessions/:id
  * - POST   /temporary/sessions/:id/persist
  *
@@ -190,6 +178,11 @@ export type TemporaryChatSchemas = {
   }
 
   '/temporary/sessions/:id': {
+    PATCH: {
+      params: { id: string }
+      body: UpdateTemporarySessionDto
+      response: TemporarySessionEntity
+    }
     DELETE: {
       params: { id: string }
       response: void
