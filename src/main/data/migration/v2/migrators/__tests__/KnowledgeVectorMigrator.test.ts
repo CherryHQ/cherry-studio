@@ -750,13 +750,13 @@ describe('KnowledgeVectorMigrator', () => {
     })
 
     expect(fs.existsSync(`${targetPath}.vectorstore.tmp`)).toBe(false)
-    expect(fs.existsSync(`${dbPath}.embedjs.bak`)).toBe(true)
-    // Regression for the migration path bug: the rebuilt store must live at the runtime path
-    // under the migrated (new) base id, and the legacy flat path must no longer hold a live store
-    // (it was moved aside to .embedjs.bak). The old test only read back from the legacy flat path,
-    // so it never caught vectors that were invisible to the runtime.
+    // The rebuilt store lives at the runtime path under the migrated (new) base id, while the legacy
+    // embedjs DB is left untouched in place so a user who rolls back to v1 after a failed or
+    // abandoned migration keeps a working knowledge base. The new uuid dir never collides with the
+    // legacy flat path, so no .bak relocation happens.
     expect(fs.existsSync(targetPath)).toBe(true)
-    expect(fs.existsSync(dbPath)).toBe(false)
+    expect(fs.existsSync(dbPath)).toBe(true)
+    expect(fs.existsSync(`${dbPath}.embedjs.bak`)).toBe(false)
 
     const retrySource = await migrationCtx.sources.knowledgeVectorSource.loadBase(LEGACY_KNOWLEDGE_BASE_ID)
     expect(retrySource.status).toBe('ok')
@@ -774,7 +774,6 @@ describe('KnowledgeVectorMigrator', () => {
     migrator.preparedBasePlans = [
       {
         baseId: 'kb-progress',
-        sourceDbPath: dbPath,
         targetDbPath: dbPath,
         dimensions: 2,
         rows: Array.from({ length: 250 }, (_, index) => ({
@@ -802,6 +801,48 @@ describe('KnowledgeVectorMigrator', () => {
     expect(reportedProgress).toEqual([40, 80, 100])
     expect(fs.existsSync(dbPath)).toBe(true)
     expect(fs.existsSync(`${dbPath}.vectorstore.tmp`)).toBe(false)
+  })
+
+  it('removes the target store with EBUSY-survivable retry options before renaming', async () => {
+    const migrator = new KnowledgeVectorMigrator() as any
+    const dbPath = path.join(knowledgeBaseDir, 'kb-ebusy')
+
+    migrator.preparedBasePlans = [
+      {
+        baseId: 'kb-ebusy',
+        targetDbPath: dbPath,
+        dimensions: 2,
+        rows: [
+          {
+            document: 'doc',
+            externalId: 'item-0',
+            itemType: 'file',
+            source: '/tmp/doc.md',
+            chunkIndex: 0,
+            tokenCount: 2,
+            embedding: [1, 2]
+          }
+        ],
+        sourceRowCount: 1
+      }
+    ]
+
+    const rmSpy = vi.spyOn(fs.promises, 'rm')
+
+    await expect(migrator.execute()).resolves.toMatchObject({ success: true })
+
+    // The target unlink must carry the EBUSY retry options (recursive is required for fs.rm to honor
+    // maxRetries/retryDelay) so a transient Windows file lock cannot abort the migration.
+    const targetRmCall = rmSpy.mock.calls.find(([target]) => target === dbPath)
+    expect(targetRmCall).toBeDefined()
+    expect(targetRmCall?.[1]).toMatchObject({
+      recursive: true,
+      force: true,
+      maxRetries: expect.any(Number),
+      retryDelay: expect.any(Number)
+    })
+
+    rmSpy.mockRestore()
   })
 
   it('falls back to migrated item source when legacy source is missing', async () => {
