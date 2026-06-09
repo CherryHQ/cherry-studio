@@ -23,7 +23,7 @@ const providerMocks = vi.hoisted(() => ({
 
 vi.mock('@shared/utils/provider', () => providerMocks)
 
-const buildAzureParams = (apiVersion?: string) => ({
+const buildAzureParams = (apiVersion?: string): Parameters<typeof buildHostEndpointPreviews>[0] => ({
   provider: {
     id: 'azure-openai',
     settings: apiVersion !== undefined ? { apiVersion } : {}
