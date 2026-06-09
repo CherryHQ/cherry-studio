@@ -10,11 +10,15 @@ const UUIDV4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-
 
 const LEGACY_FILE_ID = '019606a0-0000-7000-8000-000000000101'
 
+// Keep the three filename-bearing fields distinct so each assertion below can
+// independently tell where a value came from: `name` (v1 storage name) feeds
+// `fileCopy.storageName`, `origin_name` (user-facing) feeds `relativePath`, and
+// `path` (stale column) feeds `data.source`. A crossed wiring fails the asserts.
 const fileMetadata = {
   id: LEGACY_FILE_ID,
-  name: 'report.pdf',
+  name: 'stored-019606a0.pdf',
   origin_name: 'report.pdf',
-  path: '/tmp/report.pdf',
+  path: '/tmp/source-on-disk.pdf',
   size: 128,
   ext: '.pdf',
   type: FILE_TYPE.DOCUMENT,
@@ -395,15 +399,58 @@ describe('KnowledgeMappings', () => {
         groupId: null,
         type: 'file',
         data: {
-          source: '/tmp/report.pdf',
-          fileEntryId: LEGACY_FILE_ID
+          source: '/tmp/source-on-disk.pdf',
+          relativePath: 'report.pdf'
         },
         status: 'completed',
         error: null,
         createdAt: expect.any(Number),
         updatedAt: expect.any(Number)
-      }
+      },
+      fileCopy: { storageName: 'stored-019606a0.pdf' }
     })
+  })
+
+  it('transformKnowledgeItem falls back to the storage name when origin_name is blank', () => {
+    // A blank origin_name short-circuits sanitizeFilename to '' (before its
+    // 'untitled' guard). A blank relativePath fails the read path
+    // (FileItemDataSchema `.min(1)`) and poisons the whole base's item list —
+    // degrade to the storage name (keeps the extension) like FileMigrator does.
+    const warnings: string[] = []
+    const blankOriginFile = {
+      ...fileMetadata,
+      name: 'stored-019606a0.pdf',
+      origin_name: ''
+    }
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'file-blank-name',
+        type: 'file',
+        content: LEGACY_FILE_ID
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map([[LEGACY_FILE_ID, blankOriginFile]])
+      },
+      (msg) => warnings.push(msg)
+    )
+
+    expect(result).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        type: 'file',
+        data: {
+          source: '/tmp/source-on-disk.pdf',
+          relativePath: 'stored-019606a0.pdf'
+        }
+      }),
+      fileCopy: { storageName: 'stored-019606a0.pdf' }
+    })
+    // The fallback leaves a diagnostic trail in the migration log.
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('file-blank-name')
+    expect(warnings[0]).toContain('blank v1 filename')
   })
 
   it('transformKnowledgeItem clears blank legacy processing errors for idle and completed items', () => {
@@ -447,7 +494,8 @@ describe('KnowledgeMappings', () => {
       value: expect.objectContaining({
         status: 'completed',
         error: null
-      })
+      }),
+      fileCopy: { storageName: 'stored-019606a0.pdf' }
     })
   })
 

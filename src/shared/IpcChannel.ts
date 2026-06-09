@@ -167,16 +167,18 @@ export enum IpcChannel {
   Tab_TryAttach = 'tab:try-attach',
   Tab_DragEnd = 'tab:drag-end',
 
+  Knowledge_CreateBase = 'knowledge:create-base',
+  Knowledge_RestoreBase = 'knowledge:restore-base',
+  Knowledge_DeleteBase = 'knowledge:delete-base',
+  Knowledge_AddItems = 'knowledge:add-items',
+  Knowledge_DeleteItems = 'knowledge:delete-items',
+  Knowledge_ReindexItems = 'knowledge:reindex-items',
+  Knowledge_Search = 'knowledge:search',
+  Knowledge_ListItemChunks = 'knowledge:list-item-chunks',
+  Knowledge_DeleteItemChunk = 'knowledge:delete-item-chunk',
+  // v1 bridge: still invoked by the v1 Redux store/knowledge slice until that
+  // slice is removed in the unified step. Routed to the v2 KnowledgeService.
   KnowledgeBase_Delete = 'knowledge-base:delete',
-  KnowledgeRuntime_CreateBase = 'knowledge-runtime:create-base',
-  KnowledgeRuntime_RestoreBase = 'knowledge-runtime:restore-base',
-  KnowledgeRuntime_DeleteBase = 'knowledge-runtime:delete-base',
-  KnowledgeRuntime_AddItems = 'knowledge-runtime:add-items',
-  KnowledgeRuntime_DeleteItems = 'knowledge-runtime:delete-items',
-  KnowledgeRuntime_ReindexItems = 'knowledge-runtime:reindex-items',
-  KnowledgeRuntime_Search = 'knowledge-runtime:search',
-  KnowledgeRuntime_ListItemChunks = 'knowledge-runtime:list-item-chunks',
-  KnowledgeRuntime_DeleteItemChunk = 'knowledge-runtime:delete-item-chunk',
 
   FileProcessing_StartJob = 'file-processing:start-job',
   FileProcessing_ListAvailableProcessors = 'file-processing:list-available-processors',
