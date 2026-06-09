@@ -23,7 +23,6 @@ const logger = loggerService.withContext('KnowledgeVectorMigrator')
 
 const VECTORSTORE_TABLE_NAME = 'libsql_vectorstores_embedding'
 const INSERT_BATCH_SIZE = 100
-const LEGACY_VECTOR_BACKUP_SUFFIX = '.embedjs.bak'
 // Runtime vector store layout — source of truth:
 // src/main/features/knowledge/utils/storage/pathStorage.ts (CHERRY_META_DIR / VECTOR_STORE_FILE).
 // Runtime opens {knowledgeBaseDir}/{baseId}/.cherry/index.sqlite by the migrated (new) base id,
@@ -79,7 +78,6 @@ interface LoaderTarget {
 
 interface PreparedBasePlan {
   baseId: string
-  sourceDbPath: string
   targetDbPath: string
   dimensions: number
   rows: PreparedVectorRow[]
@@ -118,10 +116,6 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
   private getTempVectorStorePath(dbPath: string): string {
     return `${dbPath}.vectorstore.tmp`
-  }
-
-  private getLegacyBackupPath(dbPath: string): string {
-    return `${dbPath}${LEGACY_VECTOR_BACKUP_SUFFIX}`
   }
 
   private getRuntimeVectorStorePath(knowledgeBaseDir: string, baseId: string): string {
@@ -490,7 +484,6 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // legacy vectors can be associated with valid migrated knowledge_item rows.
         this.preparedBasePlans.push({
           baseId: base.id,
-          sourceDbPath: source.dbPath,
           targetDbPath: this.getRuntimeVectorStorePath(ctx.paths.knowledgeBaseDir, base.id),
           dimensions,
           rows,
@@ -531,7 +524,6 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
     for (const plan of this.preparedBasePlans) {
       const tempPath = this.getTempVectorStorePath(plan.targetDbPath)
-      const backupPath = this.getLegacyBackupPath(plan.sourceDbPath)
 
       try {
         const rebuiltRows: Array<PreparedVectorRow & { id: string }> = plan.rows.map((row) => ({
@@ -577,17 +569,16 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           await yieldToEventLoop()
         }
 
-        // First migration moves the legacy embedjs DB aside to .embedjs.bak; later runs read it
-        // back via the .embedjs.bak fallback in KnowledgeVectorSourceReader, so only drop the
-        // legacy source when a backup already exists.
-        if (!fs.existsSync(backupPath) && fs.existsSync(plan.sourceDbPath)) {
-          await fs.promises.rename(plan.sourceDbPath, backupPath)
-        } else {
-          await fs.promises.rm(plan.sourceDbPath, { force: true })
-        }
-        // Runtime may have auto-created an empty store at the target; remove it first so the
-        // rename succeeds on Windows (POSIX rename overwrites, Windows throws on an existing target).
-        await fs.promises.rm(plan.targetDbPath, { force: true })
+        // Leave the v1 legacy embedjs DB untouched in place: a user who rolls back to v1 after a
+        // failed or abandoned migration must keep a working knowledge base. The rebuilt V2 store
+        // lives under the migrated base's new uuid directory, so it never collides with the legacy
+        // flat path and the v1 source needs no relocation.
+        //
+        // Runtime may have auto-created an empty store at the target; remove it first so the rename
+        // succeeds on Windows (POSIX rename overwrites, Windows throws on an existing target). That
+        // target can be transiently locked on Windows (libsql handle, AV, file indexer), so retry
+        // the unlink on EBUSY — `recursive` is required for fs.rm to honor maxRetries/retryDelay.
+        await fs.promises.rm(plan.targetDbPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
         await fs.promises.rename(tempPath, plan.targetDbPath)
 
         this.successfulBaseIds.add(plan.baseId)
