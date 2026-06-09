@@ -9,6 +9,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 import { sanitizeChannelOutput } from '../security'
 
+const { mockPrepareClaudeCodeWorkspaceDirectory, MockAgentSessionWorkspaceError } = vi.hoisted(() => {
+  class MockAgentSessionWorkspaceError extends Error {
+    constructor(message: string) {
+      super(message)
+      this.name = 'AgentSessionWorkspaceError'
+    }
+  }
+
+  return {
+    mockPrepareClaudeCodeWorkspaceDirectory: vi.fn(),
+    MockAgentSessionWorkspaceError
+  }
+})
+
+vi.mock('@main/ai/runtime/claudeCode/settingsBuilder', () => ({
+  AgentSessionWorkspaceError: MockAgentSessionWorkspaceError,
+  isAgentSessionWorkspaceError: (error: unknown) => error instanceof MockAgentSessionWorkspaceError,
+  prepareClaudeCodeWorkspaceDirectory: mockPrepareClaudeCodeWorkspaceDirectory
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
@@ -118,7 +138,14 @@ function createMockAdapter(overrides: Record<string, unknown> = {}) {
  */
 async function handleIncomingAndFlush(
   adapter: ReturnType<typeof createMockAdapter>,
-  message: { chatId: string; userId: string; userName: string; text: string }
+  message: {
+    chatId: string
+    userId: string
+    userName: string
+    text: string
+    images?: Array<{ media_type: string; data: string }>
+    files?: Array<{ filename: string; data: string }>
+  }
 ) {
   const promise = channelMessageHandler.handleIncoming(adapter, message)
   // Advance past the MESSAGE_BATCH_DELAY_MS debounce (10 000 ms)
@@ -136,6 +163,8 @@ describe('ChannelMessageHandler', () => {
       configuration: {},
       model: 'openai::gpt-4'
     } as any)
+    mockPrepareClaudeCodeWorkspaceDirectory.mockReset()
+    mockPrepareClaudeCodeWorkspaceDirectory.mockResolvedValue(undefined)
     // Clear session tracker to ensure clean state
     channelMessageHandler.clearSessionTracker('agent-1')
   })
@@ -239,6 +268,43 @@ describe('ChannelMessageHandler', () => {
 
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing')
     expect(adapter.onStreamError).not.toHaveBeenCalled()
+  })
+
+  it('validates the workspace before persisting channel attachments', async () => {
+    const adapter = createMockAdapter()
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      workspaceId: 'workspace-1',
+      workspace: {
+        id: 'workspace-1',
+        name: 'Workspace',
+        path: '/tmp/test-workspace',
+        type: 'user',
+        orderKey: 'a0',
+        createdAt: '2026-05-20T00:00:00.000Z',
+        updatedAt: '2026-05-20T00:00:00.000Z'
+      },
+      configuration: {}
+    }
+    vi.mocked(agentSessionService.create).mockResolvedValueOnce(session as any)
+    mockPrepareClaudeCodeWorkspaceDirectory.mockRejectedValueOnce(
+      new AgentSessionWorkspaceError('workspace is missing')
+    )
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'Hi',
+      images: [{ media_type: 'image/png', data: 'AA==' }]
+    })
+
+    expect(mockPrepareClaudeCodeWorkspaceDirectory).toHaveBeenCalledWith(session)
+    expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing')
   })
 
   it('skips final send when adapter handles stream completion', async () => {

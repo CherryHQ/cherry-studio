@@ -238,6 +238,23 @@ describe('AgentTaskService (thin facade)', () => {
       expect(result).toMatchObject({ id: TASK_ID, agentId: AGENT_ID, enabled: true, status: 'active' })
     })
 
+    it('treats legacy task templates without workspace as system workspace tasks', async () => {
+      setupApplicationMocks()
+      vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(
+        makeSnapshot({
+          jobInputTemplate: { agentId: AGENT_ID, prompt: 'legacy task', timeoutMinutes: 2 }
+        })
+      )
+
+      const result = await agentTaskService.getTask(AGENT_ID, TASK_ID)
+
+      expect(result).toMatchObject({
+        id: TASK_ID,
+        agentId: AGENT_ID,
+        workspace: { type: 'system' }
+      })
+    })
+
     it('returns null when agentId does not match', async () => {
       setupApplicationMocks()
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(

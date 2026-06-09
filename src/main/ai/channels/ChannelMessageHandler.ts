@@ -7,7 +7,10 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { isAgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/settingsBuilder'
+import {
+  isAgentSessionWorkspaceError,
+  prepareClaudeCodeWorkspaceDirectory
+} from '@main/ai/runtime/claudeCode/settingsBuilder'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import { application } from '@main/core/application'
@@ -205,6 +208,17 @@ export class ChannelMessageHandler {
       // override needs to flow as a per-dispatch option instead. Tracked separately.
 
       const workDir = session.workspace?.path
+      const hasAttachments = !!(message.images?.length || message.files?.length)
+      if (hasAttachments) {
+        try {
+          await prepareClaudeCodeWorkspaceDirectory(session)
+        } catch (error) {
+          if (isAgentSessionWorkspaceError(error)) {
+            await adapter.sendMessage(message.chatId, error.message).catch(() => {})
+          }
+          throw error
+        }
+      }
 
       // Save images to agent workspace so the agent can read them via the Read tool
       let imagePaths: string[] = []

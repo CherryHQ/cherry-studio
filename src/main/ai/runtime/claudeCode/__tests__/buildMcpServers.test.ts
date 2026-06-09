@@ -10,9 +10,10 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockGetPathStatus, mockMkdir, mockGetPath } = vi.hoisted(() => ({
+const { mockGetPathStatus, mockMkdir, mockRealpath, mockGetPath } = vi.hoisted(() => ({
   mockGetPathStatus: vi.fn(),
   mockMkdir: vi.fn(),
+  mockRealpath: vi.fn(),
   mockGetPath: vi.fn(() => '/tmp/managed-workspaces')
 }))
 
@@ -29,7 +30,8 @@ vi.mock('node:fs', async (importOriginal) => {
     default: actual,
     promises: {
       ...actual.promises,
-      mkdir: mockMkdir
+      mkdir: mockMkdir,
+      realpath: mockRealpath
     }
   }
 })
@@ -128,6 +130,8 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
   beforeEach(() => {
     mockGetPathStatus.mockReset()
     mockMkdir.mockReset()
+    mockRealpath.mockReset()
+    mockRealpath.mockImplementation(async (targetPath: string) => targetPath)
     mockGetPath.mockReturnValue('/tmp/managed-workspaces')
   })
 
@@ -155,6 +159,22 @@ describe('prepareClaudeCodeWorkspaceDirectory', () => {
 
   it('rejects system workspace paths outside the managed root', async () => {
     await expect(prepareClaudeCodeWorkspaceDirectory(makeSession('/tmp/outside', 'system'))).rejects.toBeInstanceOf(
+      AgentSessionWorkspaceError
+    )
+
+    expect(mockGetPathStatus).not.toHaveBeenCalled()
+    expect(mockMkdir).not.toHaveBeenCalled()
+  })
+
+  it('rejects system workspace symlinks that resolve outside the managed root', async () => {
+    const workspacePath = '/tmp/managed-workspaces/sess-link'
+    mockRealpath.mockImplementation(async (targetPath: string) => {
+      if (targetPath === '/tmp/managed-workspaces') return '/tmp/managed-workspaces'
+      if (targetPath === workspacePath) return '/tmp/outside-workspace'
+      return targetPath
+    })
+
+    await expect(prepareClaudeCodeWorkspaceDirectory(makeSession(workspacePath, 'system'))).rejects.toBeInstanceOf(
       AgentSessionWorkspaceError
     )
 

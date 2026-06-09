@@ -295,7 +295,7 @@ export async function prepareClaudeCodeWorkspaceDirectory(session: AgentSessionE
 }
 
 async function ensureSystemWorkspaceDirectory(cwd: string): Promise<void> {
-  assertSystemWorkspacePath(cwd)
+  await assertSystemWorkspacePath(cwd)
   const status = await getPathStatus(cwd)
   if (status.ok && status.kind === 'directory') return
   if (status.ok) {
@@ -313,12 +313,34 @@ async function ensureSystemWorkspaceDirectory(cwd: string): Promise<void> {
   }
 }
 
-function assertSystemWorkspacePath(cwd: string): void {
-  const root = path.resolve(application.getPath('feature.agents.workspaces'))
-  const target = path.resolve(cwd)
+async function assertSystemWorkspacePath(cwd: string): Promise<void> {
+  const root = await resolveRealOrNearestExistingPath(path.resolve(application.getPath('feature.agents.workspaces')))
+  const target = await resolveRealOrNearestExistingPath(path.resolve(cwd))
   const relative = path.relative(root, target)
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
     throw new AgentSessionWorkspaceError(`System workspace path is outside the managed workspace root: ${cwd}`)
+  }
+}
+
+async function resolveRealOrNearestExistingPath(targetPath: string): Promise<string> {
+  try {
+    return path.normalize(await fs.promises.realpath(targetPath))
+  } catch {
+    let currentPath = path.dirname(targetPath)
+
+    while (true) {
+      try {
+        const realCurrentPath = await fs.promises.realpath(currentPath)
+        const relativeSuffix = path.relative(currentPath, targetPath)
+        return path.normalize(path.join(realCurrentPath, relativeSuffix))
+      } catch {
+        const parentPath = path.dirname(currentPath)
+        if (parentPath === currentPath) {
+          return path.normalize(targetPath)
+        }
+        currentPath = parentPath
+      }
+    }
   }
 }
 
