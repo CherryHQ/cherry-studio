@@ -149,9 +149,13 @@ export default function ProviderListContent({
         return
       }
 
-      void Promise.resolve(onReorder(nextProviders)).catch((error: unknown) => {
+      try {
+        void Promise.resolve(onReorder(nextProviders)).catch((error: unknown) => {
+          onReorderError?.(error)
+        })
+      } catch (error: unknown) {
         onReorderError?.(error)
-      })
+      }
     }
 
     const handleDragStart = () => {

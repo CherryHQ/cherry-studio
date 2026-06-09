@@ -213,6 +213,37 @@ describe('ProviderListContent — C1 grouped reorder', () => {
     expect(onReorder).not.toHaveBeenCalled()
   })
 
+  it('routes synchronous reorder failures to onReorderError', () => {
+    const error = new Error('sync reorder failed')
+    const onReorder = vi.fn(() => {
+      throw error
+    })
+    const onReorderError = vi.fn()
+    const all = [
+      provider('solo-a', 'solo-a', true),
+      provider('zhipu-a', 'zhipu', true),
+      provider('zhipu-b', 'zhipu', true),
+      provider('solo-b', 'solo-b', true)
+    ]
+
+    render(
+      <ProviderListContent
+        providers={all}
+        visibleProviders={all}
+        searchActive={false}
+        expandedGroups={{ zhipu: true }}
+        onToggleGroup={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={onReorder}
+        onReorderError={onReorderError}
+        renderItem={() => null}
+      />
+    )
+
+    expect(() => sortableCalls[0].onSortEnd({ oldIndex: 1, newIndex: 2 })).not.toThrow()
+    expect(onReorderError).toHaveBeenCalledWith(error)
+  })
+
   it('uses center collision detection for grouped sorting', () => {
     const all = [
       provider('solo-a', 'solo-a', true),
