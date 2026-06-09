@@ -9,7 +9,7 @@ export function PaddleOcrDeploymentInfo() {
   const { t } = useTranslation()
 
   return (
-    <div className="border-border/60 border-t pt-4">
+    <div className="border-border-muted border-t pt-4">
       <SettingHelpTextRow className="flex-wrap gap-x-1.5 gap-y-1 py-0">
         <SettingHelpText className="text-xs leading-relaxed">
           {t('settings.tool.file_processing.processors.paddleocr.deployment.description')}
