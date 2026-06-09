@@ -26,6 +26,7 @@ import {
   __testing,
   useInfiniteFlatItems,
   useInfiniteQuery,
+  useMutation,
   usePaginatedQuery,
   useReadCache,
   useWriteCache
@@ -624,6 +625,30 @@ describe('useInfiniteFlatItems behavior', () => {
     expect(pages[0].items).toEqual(['a', 'b'])
     expect(pages[1].items).toBe(items1)
     expect(pages[1].items).toEqual(['c', 'd'])
+  })
+})
+
+describe('useMutation integration', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('passes request body through for DELETE mutations', async () => {
+    const deleteSpy = vi.spyOn(dataApiService, 'delete').mockResolvedValue({
+      deletedIds: ['topic-a'],
+      deletedCount: 1
+    } as never)
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useMutation('DELETE', '/topics'), { wrapper: Wrapper })
+
+    await act(async () => {
+      await result.current.trigger({ body: { ids: ['topic-a'] } })
+    })
+
+    expect(deleteSpy).toHaveBeenCalledWith('/topics', {
+      body: { ids: ['topic-a'] },
+      query: undefined
+    })
   })
 })
 

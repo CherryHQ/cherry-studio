@@ -276,11 +276,13 @@ export class DataApiService implements ApiClient {
   async delete<TPath extends ConcreteApiPaths>(
     path: TPath,
     options?: {
+      body?: BodyForPath<TPath, 'DELETE'>
       query?: QueryParamsForPath<TPath, 'DELETE'>
       headers?: Record<string, string>
     }
   ): Promise<ResponseForPath<TPath, 'DELETE'>> {
     return this.makeRequest<ResponseForPath<TPath, 'DELETE'>>('DELETE', path as string, {
+      body: options?.body,
       params: options?.query,
       headers: options?.headers
     })
