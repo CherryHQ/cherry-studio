@@ -32,6 +32,7 @@ import { useTranslation } from 'react-i18next'
 import { InputbarCore } from './components/InputbarCore'
 import InputbarTools from './InputbarTools'
 import KnowledgeBaseInput from './KnowledgeBaseInput'
+import MentionAssistantInput from './MentionAssistantInput'
 import MentionModelsInput from './MentionModelsInput'
 import { getInputbarConfig } from './registry'
 
@@ -54,7 +55,12 @@ interface Props {
   topic: Topic
   onSend: (
     text: string,
-    options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }
+    options?: {
+      files?: FileMetadata[]
+      mentionedModels?: UniqueModelId[]
+      temporarySystemPrompt?: string
+      temporaryAssistantName?: string
+    }
   ) => void | Promise<void>
 }
 
@@ -117,8 +123,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
   const scope = topic.type ?? TopicType.Chat
   const config = getInputbarConfig(scope)
 
-  const { files, mentionedModels, selectedKnowledgeBases } = useInputbarToolsState()
-  const { setFiles, setMentionedModels, setSelectedKnowledgeBases } = useInputbarToolsDispatch()
+  const { files, mentionedModels, selectedKnowledgeBases, mentionedAssistant } = useInputbarToolsState()
+  const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setMentionedAssistant } = useInputbarToolsDispatch()
   const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
 
   const { text, setText } = useInputText({
@@ -231,25 +237,25 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
     setIsSending(true)
     setText('')
     setFiles([])
+    // Snapshot before clearing so the request carries the right prompt even
+    // if the state update races with the async send path.
+    const temporarySystemPrompt = mentionedAssistant?.prompt
+    const temporaryAssistantName = mentionedAssistant?.name
+    setMentionedAssistant(null)
     setTimeoutTimer('sendMessage', () => resizeTextArea(), 0)
     focusTextarea()
-    // Await `onSendProp` in a try/finally so `isSending` clears on any
-    // terminal state — success path relies on the `pending` broadcast
-    // effect above, but sync/async failures (validation, IPC reject,
-    // transport error) never reach `pending` and would otherwise
-    // strand the input bar in pause mode.
     try {
       await onSendProp(text_, {
         files: files.length > 0 ? files : undefined,
-        mentionedModels: mentionedModels.length > 0 ? mentionedModels.map((model) => model.id) : undefined
+        mentionedModels: mentionedModels.length > 0 ? mentionedModels.map((model) => model.id) : undefined,
+        ...(temporarySystemPrompt !== undefined && { temporarySystemPrompt }),
+        ...(temporaryAssistantName !== undefined && { temporaryAssistantName })
       })
     } catch (error) {
       logger.warn('send failed', { error })
-      // A pre-stream failure never reaches the `pending` broadcast, so restore the
-      // optimistically-cleared input (text + files) and surface the failure rather than
-      // silently discarding what the user typed.
       setText(text_)
       setFiles(files)
+      setMentionedAssistant(mentionedAssistant)
       window.toast.error(t('chat.input.send_failed'))
     } finally {
       setIsSending(false)
@@ -259,9 +265,11 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
     onSendProp,
     text,
     mentionedModels,
+    mentionedAssistant,
     files,
     setText,
     setFiles,
+    setMentionedAssistant,
     setTimeoutTimer,
     resizeTextArea,
     focusTextarea,
@@ -304,6 +312,15 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
     },
     [mentionedModels, setMentionedModels]
   )
+
+  const handleRemoveAssistant = useCallback(() => {
+    setMentionedAssistant(null)
+  }, [setMentionedAssistant])
+
+  // Clear temporary assistant when switching topics
+  useEffect(() => {
+    setMentionedAssistant(null)
+  }, [topic.id, setMentionedAssistant])
 
   const handleRemoveKnowledgeBase = useCallback(
     (knowledgeBase: KnowledgeBase) => {
@@ -383,6 +400,10 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
         />
       )}
 
+      {mentionedAssistant && (
+        <MentionAssistantInput assistant={mentionedAssistant} onRemoveAssistant={handleRemoveAssistant} />
+      )}
+
       {mentionedModels.length > 0 && (
         <MentionModelsInput selectedModels={mentionedModels} onRemoveModel={handleRemoveModel} />
       )}
@@ -411,6 +432,7 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
       leftToolbar={leftToolbar}
       primaryActionMode={loading ? 'pause' : 'send'}
       topContent={topContent}
+      forceEnableQuickPanelTriggers={enableQuickPanelTriggers}
     />
   )
 }

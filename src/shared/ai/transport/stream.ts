@@ -109,6 +109,14 @@ export type AiStreamOpenRequest = {
       parentAnchorId?: string
       /** Content of the new user msg. */
       userMessageParts: CherryMessagePart[]
+      /**
+       * One-shot system prompt override from a @-mentioned assistant. Applied only to this
+       * request; topic assistantId and all other assistant settings remain unchanged.
+       * Empty string is valid (overrides to blank). Check with `!== undefined`, not truthiness.
+       */
+      temporarySystemPrompt?: string
+      /** Name snapshot of the @-mentioned assistant, persisted into assistant message data. */
+      temporaryAssistantName?: string
     }
   | {
       /** Re-run the assistant under an existing user msg. */
@@ -116,6 +124,8 @@ export type AiStreamOpenRequest = {
       /** Id of the existing user msg whose assistant child(ren) we're regenerating. */
       parentAnchorId: string
       userMessageParts?: never
+      temporarySystemPrompt?: never
+      temporaryAssistantName?: never
     }
 )
 

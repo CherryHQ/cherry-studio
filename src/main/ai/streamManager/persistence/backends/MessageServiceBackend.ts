@@ -26,8 +26,9 @@ export class MessageServiceBackend implements PersistenceBackend {
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
     const { finalMessage, status, stats } = input
     const parts = finalizeInterruptedParts((finalMessage?.parts ?? []) as CherryMessagePart[], status)
+    const existing = await messageService.getById(this.opts.assistantMessageId)
     await messageService.update(this.opts.assistantMessageId, {
-      data: { parts },
+      data: { ...existing.data, parts },
       status,
       stats: this.opts.stats ?? stats
     })

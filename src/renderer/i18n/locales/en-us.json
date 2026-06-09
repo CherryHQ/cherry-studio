@@ -1208,6 +1208,11 @@
       "generate_image": "Generate image",
       "generate_image_not_supported": "The model does not support generating images.",
       "knowledge_base": "Knowledge Base",
+      "mention_assistant": {
+        "section_label": "Assistants",
+        "section_models_label": "Models",
+        "tag_prefix": "Assistant"
+      },
       "new": {
         "context": "Clear Context"
       },
@@ -1320,6 +1325,9 @@
       "quote": "Quote",
       "regenerate": {
         "model": "Switch Model"
+      },
+      "temporary_assistant": {
+        "label": "Assistant · {{name}}"
       },
       "useful": {
         "label": "Set as context",

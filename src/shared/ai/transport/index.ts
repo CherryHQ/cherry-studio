@@ -9,6 +9,14 @@ export interface AiChatRequestBody {
   mentionedModels?: UniqueModelId[]
   /** Uploaded file metadata. */
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
+  /**
+   * One-shot system prompt from a @-mentioned assistant. Overrides only the system prompt
+   * for this request; all other assistant settings come from the topic's assistant.
+   * Empty string is valid. Check with `!== undefined`, not truthiness.
+   */
+  temporarySystemPrompt?: string
+  /** Name snapshot of the @-mentioned assistant, for display in message history. */
+  temporaryAssistantName?: string
 }
 
 export { applyApprovalDecisions } from './applyApprovalDecisions'

@@ -45,6 +45,12 @@ export interface AiBaseRequest {
   requestOptions?: AiTransportOptions
   /** Per-request overrides (in-process only; assistant-less callers like the API gateway). */
   callOverrides?: CallOverrides
+  /**
+   * One-shot system prompt override from a @-mentioned assistant. When defined (including
+   * empty string), replaces the topic assistant's prompt only for assembleSystemPrompt —
+   * all other assistant settings (MCP, tools, temperature, etc.) are unchanged.
+   */
+  temporarySystemPrompt?: string
 }
 
 /**

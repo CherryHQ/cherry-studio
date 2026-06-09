@@ -46,17 +46,21 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
 
   const ModelIcon = useMemo(() => getModelLogo(message.model ?? model), [message.model, model])
 
+  const modelName = useMemo(() => model?.name || model?.id || getMessageModelId(message) || '', [model, message])
+
   const getUserName = useCallback(() => {
     if (isAgentSessionAssistantMessage) {
       return agent?.name ?? t('common.unknown')
     }
 
     if (message.role === 'assistant') {
-      return model?.name || model?.id || getMessageModelId(message) || ''
+      const asstName = message.temporaryAssistantName
+      if (asstName) return t('chat.message.temporary_assistant.label', { name: asstName })
+      return modelName || t('common.unknown')
     }
 
     return userName || t('common.you')
-  }, [agent?.name, isAgentSessionAssistantMessage, message, model, t, userName])
+  }, [agent?.name, isAgentSessionAssistantMessage, message, modelName, t, userName])
 
   const isAssistantMessage = message.role === 'assistant'
   const isUserMessage = message.role === 'user'
@@ -123,6 +127,9 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
             </Tooltip>
           )}
         </RowFlex>
+        {isAssistantMessage && message.temporaryAssistantName && modelName && (
+          <div className="text-(--color-text-3) text-[10px] leading-tight">{modelName}</div>
+        )}
         <div className="message-header-info-wrap flex items-center gap-1 text-(--color-text-3) text-[10px]">
           <div>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</div>
           {isBubbleStyle && message.usage !== undefined && (

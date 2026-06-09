@@ -132,7 +132,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         siblingsGroupId,
         placeholders: turnRootSpans.map(({ model, traceId }) => ({
           role: 'assistant',
-          data: { parts: [] },
+          data: {
+            parts: [],
+            ...(req.trigger === 'submit-message' &&
+              req.temporaryAssistantName !== undefined && {
+                temporaryAssistantName: req.temporaryAssistantName
+              })
+          },
           status: 'pending',
           modelId: model.id,
           modelSnapshot: {
@@ -143,7 +149,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           traceId
         }))
       })
-
       const shouldAutoNameInitialTurn = !isRegenerate && !req.parentAnchorId
       if (shouldAutoNameInitialTurn) {
         void topicNamingService.maybeRenameFromFirstUserMessage(req.topicId, userMessage.id)
@@ -192,9 +197,17 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
       const history = await this.buildHistory(userMessage.id)
+      const temporarySystemPrompt = req.trigger === 'submit-message' ? req.temporarySystemPrompt : undefined
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
         modelId: model.id,
-        request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id),
+        request: this.buildStreamRequest(
+          req.topicId,
+          assistantId,
+          model.id,
+          history,
+          placeholder.id,
+          temporarySystemPrompt
+        ),
         rootSpan
       }))
 
@@ -309,7 +322,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     assistantId: string | undefined,
     uniqueModelId: UniqueModelId,
     history: CherryUIMessage[],
-    messageId: string
+    messageId: string,
+    temporarySystemPrompt?: string
   ): AiStreamRequest {
     return {
       chatId: topicId,
@@ -317,7 +331,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       assistantId,
       uniqueModelId,
       messages: history,
-      messageId
+      messageId,
+      ...(temporarySystemPrompt !== undefined && { temporarySystemPrompt })
     }
   }
 }

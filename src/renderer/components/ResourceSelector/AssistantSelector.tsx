@@ -131,9 +131,11 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     ...(openTab && {
       onEditItem: (id: string) => {
         openTab(buildLibraryRouteUrl(buildLibraryEditSearch('assistant', id)), { forceNew: true })
+        onOpenChange?.(false)
       },
       onCreateNew: () => {
         openTab(buildLibraryRouteUrl(buildLibraryCreateSearch('assistant')), { forceNew: true })
+        onOpenChange?.(false)
       }
     }),
     labels: {

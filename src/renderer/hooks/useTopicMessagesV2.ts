@@ -24,6 +24,7 @@ const PAGE_SIZE = 50
 // ── Converters ──
 
 function toUIMessage(shared: SharedMessage): CherryUIMessage {
+  const asstName = shared.data?.temporaryAssistantName
   return {
     id: shared.id,
     role: shared.role,
@@ -38,7 +39,10 @@ function toUIMessage(shared: SharedMessage): CherryUIMessage {
       createdAt: shared.createdAt,
       updatedAt: shared.updatedAt,
       stats: shared.stats ?? undefined,
-      ...(shared.stats?.totalTokens ? { totalTokens: shared.stats.totalTokens } : {})
+      ...(shared.stats?.totalTokens != null ? { totalTokens: shared.stats.totalTokens } : {}),
+      ...(asstName !== undefined && {
+        temporaryAssistantName: asstName
+      })
     }
   }
 }

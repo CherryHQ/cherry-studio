@@ -48,7 +48,13 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             topicId,
             parentAnchorId: mergedBody.parentAnchorId,
             userMessageParts: lastMessage?.parts ?? [],
-            mentionedModelIds: mergedBody.mentionedModels
+            mentionedModelIds: mergedBody.mentionedModels,
+            ...(mergedBody.temporarySystemPrompt !== undefined && {
+              temporarySystemPrompt: mergedBody.temporarySystemPrompt
+            }),
+            ...(mergedBody.temporaryAssistantName !== undefined && {
+              temporaryAssistantName: mergedBody.temporaryAssistantName
+            })
           }
 
     streamDispatchCoordinator.dispatch(topicId, ipcRequest)

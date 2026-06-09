@@ -1208,6 +1208,11 @@
       "generate_image": "產生圖片",
       "generate_image_not_supported": "模型不支援產生圖片",
       "knowledge_base": "知識庫",
+      "mention_assistant": {
+        "section_label": "助手",
+        "section_models_label": "模型",
+        "tag_prefix": "助手"
+      },
       "new": {
         "context": "清除上下文"
       },
@@ -1320,6 +1325,9 @@
       "quote": "引用",
       "regenerate": {
         "model": "切換模型"
+      },
+      "temporary_assistant": {
+        "label": "助手 · {{name}}"
       },
       "useful": {
         "label": "設為上下文",
