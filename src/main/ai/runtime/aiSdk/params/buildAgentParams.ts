@@ -5,7 +5,7 @@ import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/a
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
-import { stepCountIs, type ToolSet } from 'ai'
+import { stepCountIs, type StopCondition, type ToolSet } from 'ai'
 
 import { providerToAiSdkConfig } from '../../../provider/config'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
@@ -94,7 +94,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const contributions = collectFromFeatures(scope, features)
 
   const system = await assembleSystemPrompt({ assistant, model, tools, deferredEntries })
-  const options = buildAgentOptions(scope)
+  const options = buildAgentOptions(scope, contributions.stopConditions)
 
   return {
     sdkConfig,
@@ -176,7 +176,7 @@ async function resolveTools(
  * provider-scoped params), per-call headers/maxRetries, stop-after-N-tools,
  * and the tool-call repair function.
  */
-function buildAgentOptions(scope: RequestScope): AgentOptions {
+function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondition<ToolSet>[]): AgentOptions {
   const { assistant, capabilities, model, provider, sdkConfig, requestContext, request, aiSdkProviderId } = scope
 
   let providerOptions =
@@ -198,7 +198,10 @@ function buildAgentOptions(scope: RequestScope): AgentOptions {
   providerOptions = overridden.providerOptions as typeof providerOptions
 
   const { headers, maxRetries } = request.requestOptions ?? {}
-  const stopWhen = assistant ? resolveStopWhenForAssistant(assistant) : undefined
+  const baseStopWhen = assistant ? resolveStopWhenForAssistant(assistant) : undefined
+  const stopWhen: StopCondition<ToolSet> | StopCondition<ToolSet>[] | undefined = featureStopConditions.length
+    ? [...(baseStopWhen ? [baseStopWhen] : []), ...featureStopConditions]
+    : baseStopWhen
   const telemetry = buildTelemetry(scope)
 
   return {

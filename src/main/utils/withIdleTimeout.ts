@@ -20,13 +20,13 @@
  * isolation.
  */
 
-import { IdleTimeoutController } from './IdleTimeoutController'
+import { IdleTimeoutController, type IdleTimeoutHandle } from './IdleTimeoutController'
 
 export function withIdleTimeout<T>(
   source: ReadableStream<T>,
   controller: AbortController,
   timeoutMs: number
-): ReadableStream<T> {
+): { stream: ReadableStream<T>; idle: IdleTimeoutHandle } {
   const idle = new IdleTimeoutController(timeoutMs)
 
   // When the idle timer fires, abort the caller's controller so the abort
@@ -46,7 +46,7 @@ export function withIdleTimeout<T>(
 
   const reader = source.getReader()
 
-  return new ReadableStream<T>({
+  const stream = new ReadableStream<T>({
     async pull(dest) {
       try {
         const { done, value } = await reader.read()
@@ -67,4 +67,9 @@ export function withIdleTimeout<T>(
       return reader.cancel(reason)
     }
   })
+
+  // `idle` is exposed so a consumer can pause the timer during a legitimate
+  // no-chunk wait (e.g. a tool awaiting human approval): call `idle.cleanup()`
+  // to pause; the next pulled chunk's `idle.reset()` above rearms it.
+  return { stream, idle }
 }

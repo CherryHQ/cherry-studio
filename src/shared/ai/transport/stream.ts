@@ -42,6 +42,15 @@ export interface ActiveExecution {
   anchorMessageId?: string
 }
 
+export interface ComposerQueuedMessagePayload {
+  text: string
+  userMessageParts: CherryMessagePart[]
+  files?: Array<Record<string, unknown>>
+  /** Models selected by the composer model selector for this queued draft. */
+  mentionedModels?: UniqueModelId[]
+  knowledgeBaseIds?: string[]
+}
+
 /**
  * Per-topic stream state entry — stored under the shared
  * `topic.stream.statuses.${topicId}` template cache key.
@@ -60,6 +69,8 @@ export interface ActiveExecution {
  */
 export interface TopicStatusSnapshotEntry {
   status: TopicStreamStatus
+  /** Unique per stream lifecycle; lets per-window seen state distinguish repeated turns on the same topic. */
+  turnId?: string
   activeExecutions: ActiveExecution[]
   awaitingApprovalAnchors: ActiveExecution[]
   lastCompletedAt?: number
@@ -95,7 +106,7 @@ export interface StreamErrorPayload {
  */
 export type AiStreamOpenRequest = {
   topicId: string
-  /** UniqueModelIds of @-mentioned models — Main dispatches one execution per model. */
+  /** UniqueModelIds selected by the composer model selector — Main dispatches one execution per model. */
   mentionedModelIds?: UniqueModelId[]
 } & (
   | {
@@ -129,6 +140,16 @@ export interface ApprovalDecision {
   approvalId: string
   approved: boolean
   reason?: string
+  updatedInput?: Record<string, unknown>
+}
+
+export interface AiToolApprovalRespondRequest extends ApprovalDecision {
+  topicId?: string
+  anchorId?: string
+}
+
+export interface AiToolApprovalRespondResponse {
+  ok: boolean
 }
 
 /** Subscribe to a topic's stream state. */
@@ -195,11 +216,12 @@ export type AiStreamOpenResponse =
        */
       userMessageId?: string
       /**
-       * Authoritative DB ids of the assistant placeholder row(s) reserved for
-       * this turn, one per execution (model order matches `executionIds`).
-       * Created atomically with the user message, so the presence of any of
-       * these in `uiMessages` also implies the user row landed.
+       * Authoritative persisted message skeletons reserved before the stream
+       * starts. The renderer seeds these into history immediately, then lets
+       * DB refresh reconcile final content/status.
        */
+      reservedMessages?: CherryUIMessage[]
+      /** Backward-compatible assistant placeholder ids derived from reservedMessages. */
       placeholderIds?: string[]
     }
   | {
