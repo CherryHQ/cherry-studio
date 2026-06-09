@@ -4,9 +4,18 @@
  * server into the runtime MCP list AND allow its tools — not just reference the name.
  */
 
+import type * as NodeFs from 'node:fs'
+
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockGetPathStatus, mockMkdir, mockRealpath, mockGetPath } = vi.hoisted(() => ({
+  mockGetPathStatus: vi.fn(),
+  mockMkdir: vi.fn(),
+  mockRealpath: vi.fn(),
+  mockGetPath: vi.fn(() => '/tmp/managed-workspaces')
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -14,14 +23,80 @@ vi.mock('@logger', () => ({
   }
 }))
 
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = (await importOriginal()) as typeof NodeFs
+  return {
+    ...actual,
+    default: actual,
+    promises: {
+      ...actual.promises,
+      mkdir: mockMkdir,
+      realpath: mockRealpath
+    }
+  }
+})
+
+vi.mock('@main/core/application', () => ({
+  application: {
+    get: vi.fn(),
+    getPath: mockGetPath
+  }
+}))
+
+vi.mock('@main/utils/file/pathStatus', () => ({
+  getPathStatus: mockGetPathStatus
+}))
+
+vi.mock('@main/utils/language', () => ({
+  getAppLanguage: vi.fn(() => 'en-US'),
+  t: vi.fn((key: string, vars?: { path?: string }) => `${key}:${vars?.path ?? ''}`)
+}))
+
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { listChannels: vi.fn().mockResolvedValue([]) }
 }))
 
-const { buildMcpServers, adjustAllowedToolsForMcp, formatNetworkProbeLine } = await import('../settingsBuilder')
+const {
+  AgentSessionWorkspaceError,
+  adjustAllowedToolsForMcp,
+  assertClaudeCodeWorkspaceDirectory,
+  buildMcpServers,
+  formatNetworkProbeLine,
+  prepareClaudeCodeWorkspaceDirectory
+} = await import('../settingsBuilder')
 
 const agent = { id: 'agent-1', mcps: [] } as unknown as AgentEntity
-const session = { id: 'sess-1', agentId: 'agent-1' } as unknown as AgentSessionEntity
+const session = {
+  id: 'sess-1',
+  agentId: 'agent-1',
+  workspaceId: 'ws-1',
+  workspace: {
+    id: 'ws-1',
+    name: 'Workspace',
+    path: '/tmp/workspace',
+    type: 'user',
+    orderKey: 'a0',
+    createdAt: '2026-05-20T00:00:00.000Z',
+    updatedAt: '2026-05-20T00:00:00.000Z'
+  }
+} as unknown as AgentSessionEntity
+
+function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessionEntity {
+  return {
+    id: 'sess-workspace',
+    agentId: 'agent-1',
+    workspaceId: 'ws-1',
+    workspace: {
+      id: 'ws-1',
+      name: 'Workspace',
+      path,
+      type,
+      orderKey: 'a0',
+      createdAt: '2026-05-20T00:00:00.000Z',
+      updatedAt: '2026-05-20T00:00:00.000Z'
+    }
+  } as unknown as AgentSessionEntity
+}
 
 describe('adjustAllowedToolsForMcp', () => {
   it('adds the claw + agent-memory wildcards in Soul Mode', () => {
@@ -48,6 +123,73 @@ describe('buildMcpServers', () => {
   it('does not inject agent-memory when Soul Mode is off', async () => {
     const result = await buildMcpServers(session, agent, false, false)
     expect(result?.['agent-memory']).toBeUndefined()
+  })
+})
+
+describe('prepareClaudeCodeWorkspaceDirectory', () => {
+  beforeEach(() => {
+    mockGetPathStatus.mockReset()
+    mockMkdir.mockReset()
+    mockRealpath.mockReset()
+    mockRealpath.mockImplementation(async (targetPath: string) => targetPath)
+    mockGetPath.mockReturnValue('/tmp/managed-workspaces')
+  })
+
+  it('does not create a missing user workspace', async () => {
+    mockGetPathStatus.mockResolvedValueOnce({ ok: false, reason: 'missing' })
+
+    await expect(
+      prepareClaudeCodeWorkspaceDirectory(makeSession('/tmp/user-workspace', 'user'))
+    ).rejects.toBeInstanceOf(AgentSessionWorkspaceError)
+
+    expect(mockMkdir).not.toHaveBeenCalled()
+  })
+
+  it('creates a missing system workspace before asserting it', async () => {
+    const workspacePath = '/tmp/managed-workspaces/sess-workspace'
+    mockGetPathStatus
+      .mockResolvedValueOnce({ ok: false, reason: 'missing' })
+      .mockResolvedValueOnce({ ok: true, kind: 'directory' })
+    mockMkdir.mockResolvedValueOnce(undefined)
+
+    await prepareClaudeCodeWorkspaceDirectory(makeSession(workspacePath, 'system'))
+
+    expect(mockMkdir).toHaveBeenCalledWith(workspacePath, { recursive: true })
+  })
+
+  it('rejects system workspace paths outside the managed root', async () => {
+    await expect(prepareClaudeCodeWorkspaceDirectory(makeSession('/tmp/outside', 'system'))).rejects.toBeInstanceOf(
+      AgentSessionWorkspaceError
+    )
+
+    expect(mockGetPathStatus).not.toHaveBeenCalled()
+    expect(mockMkdir).not.toHaveBeenCalled()
+  })
+
+  it('rejects system workspace symlinks that resolve outside the managed root', async () => {
+    const workspacePath = '/tmp/managed-workspaces/sess-link'
+    mockRealpath.mockImplementation(async (targetPath: string) => {
+      if (targetPath === '/tmp/managed-workspaces') return '/tmp/managed-workspaces'
+      if (targetPath === workspacePath) return '/tmp/outside-workspace'
+      return targetPath
+    })
+
+    await expect(prepareClaudeCodeWorkspaceDirectory(makeSession(workspacePath, 'system'))).rejects.toBeInstanceOf(
+      AgentSessionWorkspaceError
+    )
+
+    expect(mockGetPathStatus).not.toHaveBeenCalled()
+    expect(mockMkdir).not.toHaveBeenCalled()
+  })
+
+  it('keeps assertClaudeCodeWorkspaceDirectory as pure validation', async () => {
+    mockGetPathStatus.mockResolvedValueOnce({ ok: false, reason: 'missing' })
+
+    await expect(assertClaudeCodeWorkspaceDirectory('sess-1', '/tmp/missing')).rejects.toBeInstanceOf(
+      AgentSessionWorkspaceError
+    )
+
+    expect(mockMkdir).not.toHaveBeenCalled()
   })
 })
 

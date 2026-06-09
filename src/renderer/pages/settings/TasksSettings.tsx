@@ -701,12 +701,14 @@ const CreateForm: FC<{
   const [scheduleValue, setScheduleValue] = useState('')
   const [timeoutMinutes, setTimeoutMinutes] = useState('')
   const [channelIds, setChannelIds] = useState<string[]>([])
+  // TODO(agent-workspace-picker): wire the workspace picker before re-enabling task creation.
+  const [workspaceSource] = useState<CreateTaskRequest['workspace'] | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const isValid = agentId && name.trim() && prompt.trim() && scheduleValue.trim()
+  const isValid = agentId && name.trim() && prompt.trim() && scheduleValue.trim() && workspaceSource
 
   const handleCreate = useCallback(async () => {
-    if (!agentId || !name.trim() || !prompt.trim() || !scheduleValue.trim()) return
+    if (!agentId || !name.trim() || !prompt.trim() || !scheduleValue.trim() || !workspaceSource) return
     const trigger = formStateToTrigger(scheduleType, scheduleValue.trim())
     if (!trigger) return
     setSaving(true)
@@ -716,13 +718,14 @@ const CreateForm: FC<{
         name: name.trim(),
         prompt: prompt.trim(),
         trigger,
+        workspace: workspaceSource,
         timeoutMinutes: timeout && timeout > 0 ? timeout : undefined,
         channelIds: channelIds.length > 0 ? channelIds : undefined
       })
     } finally {
       setSaving(false)
     }
-  }, [agentId, name, prompt, scheduleType, scheduleValue, timeoutMinutes, channelIds, onCreate])
+  }, [agentId, name, prompt, scheduleType, scheduleValue, workspaceSource, timeoutMinutes, channelIds, onCreate])
 
   return (
     <SettingsContentColumn theme={theme}>

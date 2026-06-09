@@ -1,6 +1,7 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { setupTestDatabase } from '@test-helpers/db'
 import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -21,10 +22,19 @@ async function insertAgent(db: ReturnType<typeof setupTestDatabase>['db'], id: s
 }
 
 async function insertSession(db: ReturnType<typeof setupTestDatabase>['db'], sessionId: string, agentId: string) {
+  const workspaceId = `workspace-${sessionId}`
+  await db.insert(agentWorkspaceTable).values({
+    id: workspaceId,
+    name: workspaceId,
+    path: `/tmp/${workspaceId}`,
+    type: 'user',
+    orderKey: 'a0'
+  })
   await db.insert(agentSessionTable).values({
     id: sessionId,
     agentId,
     name: 'Test Session',
+    workspaceId,
     orderKey: 'a0'
   })
 }

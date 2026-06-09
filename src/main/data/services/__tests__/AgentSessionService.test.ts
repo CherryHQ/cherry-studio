@@ -5,25 +5,17 @@ import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { ErrorCode } from '@shared/data/api'
+import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { mkdtemp } from 'fs/promises'
-import { tmpdir } from 'os'
 import path from 'path'
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type Mock } from 'vitest'
 
 describe('AgentSessionService', () => {
   const dbh = setupTestDatabase()
-  let root: string
+  const root = path.join('/tmp', 'cherry-session-service')
 
   beforeEach(async () => {
-    root = await mkdtemp(path.join(tmpdir(), 'cherry-session-'))
-    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
-      if (key === 'feature.agents.workspaces') {
-        return filename ? path.join(root, 'Agents', filename) : path.join(root, 'Agents')
-      }
-      return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
-    })
     ;(application.get('DbService').withWriteTx as Mock).mockImplementation(async (fn) =>
       dbh.db.transaction(fn as never)
     )
@@ -39,23 +31,33 @@ describe('AgentSessionService', () => {
 
   afterEach(() => {
     ;(application.get('DbService').withWriteTx as Mock).mockReset()
-    vi.restoreAllMocks()
   })
 
+  function workspacePath(...segments: string[]) {
+    return path.join(root, ...segments)
+  }
+
+  async function createWorkspace(name: string): Promise<AgentWorkspaceEntity> {
+    return await dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, workspacePath(name)))
+  }
+
   async function createSession(name: string, workspaceId?: string) {
-    return await agentSessionService.createSession({
+    const workspace = workspaceId ? null : await createWorkspace(`${name}-workspace`)
+    return await agentSessionService.create({
       agentId: 'agent-session-test',
       name,
-      workspaceId
+      workspace: { type: 'user', workspaceId: workspaceId ?? workspace!.id }
     })
   }
 
   it('searches sessions as lean navigation items with agent names resolved inline', async () => {
+    const workspace = await createWorkspace('search')
     await dbh.db.insert(agentSessionTable).values([
       {
         id: 'session-search-old',
         agentId: 'agent-session-test',
         name: 'Needle Old Session',
+        workspaceId: workspace.id,
         orderKey: 'a0',
         updatedAt: 100
       },
@@ -63,6 +65,7 @@ describe('AgentSessionService', () => {
         id: 'session-search-new',
         agentId: 'agent-session-test',
         name: 'Needle New Session',
+        workspaceId: workspace.id,
         orderKey: 'a1',
         updatedAt: 200
       },
@@ -70,6 +73,7 @@ describe('AgentSessionService', () => {
         id: 'session-search-miss',
         agentId: 'agent-session-test',
         name: 'Other Session',
+        workspaceId: workspace.id,
         orderKey: 'a2',
         updatedAt: 300
       }
@@ -99,67 +103,79 @@ describe('AgentSessionService', () => {
   })
 
   it('binds a session to an explicit workspace', async () => {
-    const workspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'explicit'))
+    const workspace = await createWorkspace('explicit')
 
-    const session = await agentSessionService.createSession({
+    const session = await agentSessionService.create({
       agentId: 'agent-session-test',
       name: 'Explicit',
-      workspaceId: workspace.id
+      workspace: { type: 'user', workspaceId: workspace.id }
     })
 
     expect(session.workspaceId).toBe(workspace.id)
-    expect(session.workspace?.path).toBe(workspace.path)
+    expect(session.workspace.path).toBe(workspace.path)
   })
 
-  it('inherits the latest sibling workspace when no workspace is provided', async () => {
-    const firstWorkspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'first'))
-    const secondWorkspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'second'))
+  it('rejects a user workspace source that points at a system workspace row', async () => {
+    const systemWorkspace = await dbh.db.transaction((tx) =>
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'system-owned-session' })
+    )
 
-    await agentSessionService.createSession({
+    await expect(
+      agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: 'Invalid user source',
+        workspace: { type: 'user', workspaceId: systemWorkspace.id }
+      })
+    ).rejects.toMatchObject({
+      code: ErrorCode.INVALID_OPERATION
+    })
+  })
+
+  it('requires an explicit workspace source', async () => {
+    await expect(
+      agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: 'Missing workspace'
+      } as never)
+    ).rejects.toThrow()
+  })
+
+  it('does not inherit the latest sibling workspace', async () => {
+    const firstWorkspace = await createWorkspace('first')
+    const secondWorkspace = await createWorkspace('second')
+
+    await agentSessionService.create({
       agentId: 'agent-session-test',
       name: 'First',
-      workspaceId: firstWorkspace.id
+      workspace: { type: 'user', workspaceId: firstWorkspace.id }
     })
-    await agentSessionService.createSession({
+    await agentSessionService.create({
       agentId: 'agent-session-test',
       name: 'Second',
-      workspaceId: secondWorkspace.id
+      workspace: { type: 'user', workspaceId: secondWorkspace.id }
     })
 
-    const inherited = await agentSessionService.createSession({
-      agentId: 'agent-session-test',
-      name: 'Inherited'
-    })
-
-    expect(inherited.workspaceId).toBe(secondWorkspace.id)
-    expect(inherited.workspace?.path).toBe(secondWorkspace.path)
+    await expect(
+      agentSessionService.create({
+        agentId: 'agent-session-test',
+        name: 'Inherited'
+      } as never)
+    ).rejects.toThrow()
   })
 
-  it('creates and binds a default workspace when none can be inherited', async () => {
-    const session = await agentSessionService.createSession({
+  it('creates and binds a system workspace row without creating a directory', async () => {
+    const session = await agentSessionService.create({
       agentId: 'agent-session-test',
-      name: 'Default'
+      name: 'System',
+      workspace: { type: 'system' }
     })
 
     expect(session.workspaceId).toBeTruthy()
-    expect(session.workspace?.path).toBeTruthy()
+    expect(session.workspace.type).toBe('system')
+    expect(session.workspace.path).toBe(path.join(application.getPath('feature.agents.workspaces'), session.id))
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(1)
     expect(rows[0].id).toBe(session.workspaceId)
-  })
-
-  it('returns migrated sessions without a workspace binding', async () => {
-    await dbh.db.insert(agentSessionTable).values({
-      id: 'session-without-workspace',
-      agentId: 'agent-session-test',
-      name: 'Migrated',
-      orderKey: 'a0'
-    })
-
-    const session = await agentSessionService.getById('session-without-workspace')
-
-    expect(session.workspaceId).toBeNull()
-    expect(session.workspace).toBeNull()
   })
 
   it('throws not found for missing sessions', async () => {
@@ -184,8 +200,8 @@ describe('AgentSessionService', () => {
   })
 
   it('ignores workspace updates even if callers bypass the schema', async () => {
-    const firstWorkspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'before-switch'))
-    const secondWorkspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'after-switch'))
+    const firstWorkspace = await createWorkspace('before-switch')
+    const secondWorkspace = await createWorkspace('after-switch')
     const session = await createSession('Workspace switch', firstWorkspace.id)
 
     const updated = await agentSessionService.update(session.id, {
@@ -193,7 +209,7 @@ describe('AgentSessionService', () => {
     } as never)
 
     expect(updated.workspaceId).toBe(firstWorkspace.id)
-    expect(updated.workspace?.path).toBe(firstWorkspace.path)
+    expect(updated.workspace.path).toBe(firstWorkspace.path)
   })
 
   it('deletes a session', async () => {
@@ -203,6 +219,26 @@ describe('AgentSessionService', () => {
 
     await expect(agentSessionService.getById(session.id)).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
+    })
+  })
+
+  it('leaves a user workspace and sibling sessions intact when deleting one session', async () => {
+    const workspace = await createWorkspace('shared-user')
+    const first = await createSession('Shared first', workspace.id)
+    const second = await createSession('Shared second', workspace.id)
+
+    await agentSessionService.delete(first.id)
+
+    await expect(agentWorkspaceService.getById(workspace.id)).resolves.toMatchObject({
+      id: workspace.id,
+      type: 'user'
+    })
+    await expect(agentSessionService.getById(first.id)).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    await expect(agentSessionService.getById(second.id)).resolves.toMatchObject({
+      id: second.id,
+      workspaceId: workspace.id
     })
   })
 
@@ -237,18 +273,18 @@ describe('AgentSessionService', () => {
     expect(page2.nextCursor).toBeUndefined()
   })
 
-  it('clears workspace bindings when the workspace row is deleted', async () => {
-    const workspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'transient'))
+  it('deletes sessions when a user workspace row is deleted', async () => {
+    const workspace = await createWorkspace('transient')
     const session = await createSession('Workspace delete', workspace.id)
 
     await dbh.db.delete(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, workspace.id))
 
-    const refetched = await agentSessionService.getById(session.id)
-    expect(refetched.workspaceId).toBeNull()
-    expect(refetched.workspace).toBeNull()
+    await expect(agentSessionService.getById(session.id)).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
   })
 
-  it('throws when a corrupt session references a missing workspace', async () => {
+  it('treats a corrupt session that references a missing workspace as not found', async () => {
     await dbh.client.execute('PRAGMA foreign_keys = OFF')
     try {
       await dbh.db.insert(agentSessionTable).values({
@@ -262,18 +298,19 @@ describe('AgentSessionService', () => {
       await dbh.client.execute('PRAGMA foreign_keys = ON')
     }
 
-    await expect(agentSessionService.listByCursor()).rejects.toMatchObject({
+    await expect(agentSessionService.getById('corrupt-session')).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
   })
 
-  it('does not leave an orphan default workspace row when session creation fails', async () => {
-    await expect(
-      agentSessionService.createSession({
-        agentId: 'agent-session-test',
-        name: null as never
-      })
-    ).rejects.toThrow()
+  it('deletes a one-to-one system workspace row when deleting its session', async () => {
+    const session = await agentSessionService.create({
+      agentId: 'agent-session-test',
+      name: 'System delete',
+      workspace: { type: 'system' }
+    })
+
+    await agentSessionService.delete(session.id)
 
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(0)
