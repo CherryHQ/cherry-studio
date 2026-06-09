@@ -50,6 +50,15 @@ describe('Temporary session schemas', () => {
     ).toBe(false)
   })
 
+  it('does not validate agent id content', () => {
+    expect(
+      CreateTemporarySessionSchema.parse({
+        agentId: '',
+        workspace: { type: 'system' }
+      }).agentId
+    ).toBe('')
+  })
+
   it('requires at least one update field', () => {
     expect(UpdateTemporarySessionSchema.parse({ agentId: 'agent-2' }).agentId).toBe('agent-2')
     expect(UpdateTemporarySessionSchema.parse({ workspace: { type: 'system' } }).workspace).toEqual({
@@ -69,18 +78,19 @@ describe('Temporary session schemas', () => {
       id: 'session-1',
       agentId: 'agent-1',
       workspaceSource: { type: 'system' },
-      workspace: null,
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z'
     }
     const userDraft = {
       ...systemDraft,
-      workspaceSource: { type: 'user', workspaceId: workspace.id },
-      workspace
+      workspaceSource: { type: 'user', workspaceId: workspace.id }
     }
 
     expect(TemporarySessionEntitySchema.parse(systemDraft).workspaceSource.type).toBe('system')
-    expect(TemporarySessionEntitySchema.parse(userDraft).workspace?.id).toBe(workspace.id)
+    expect(TemporarySessionEntitySchema.parse(userDraft).workspaceSource).toEqual({
+      type: 'user',
+      workspaceId: workspace.id
+    })
     expect(TemporarySessionEntitySchema.safeParse({ ...systemDraft, accessiblePaths: [] }).success).toBe(false)
   })
 })

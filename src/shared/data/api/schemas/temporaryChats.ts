@@ -2,10 +2,8 @@
  * Temporary runtime API schema definitions
  *
  * Contains endpoints for in-memory, non-persistent topics, messages, and
- * agent sessions that live on the main process until the user explicitly
- * persists or destroys them. These `/temporary/*` endpoints are a controlled
- * DataApi exception: they mirror the persistent resources' transport shape,
- * but only the persist endpoints promote data into SQLite.
+ * agent sessions that live on the main process until the caller explicitly
+ * destroys them or hands their parameters to the runtime.
  *
  * All entity types (Topic, Message) and DTOs (CreateTopicDto, CreateMessageDto)
  * are reused from the persistent topic / message schemas. Fields that don't
@@ -18,8 +16,7 @@ import type { Message } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import * as z from 'zod'
 
-import type { AgentSessionEntity } from './agentSessions'
-import { AgentSessionWorkspaceSourceSchema, AgentWorkspaceEntitySchema } from './agentWorkspaces'
+import { AgentSessionWorkspaceSourceSchema } from './agentWorkspaces'
 import type { CreateMessageDto } from './messages'
 import type { CreateTopicDto } from './topics'
 
@@ -41,21 +38,20 @@ export const TemporarySessionEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string(),
   workspaceSource: AgentSessionWorkspaceSourceSchema,
-  workspace: AgentWorkspaceEntitySchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string()
 })
 export type TemporarySessionEntity = z.infer<typeof TemporarySessionEntitySchema>
 
 export const CreateTemporarySessionSchema = z.strictObject({
-  agentId: z.string().min(1),
+  agentId: z.string(),
   workspace: AgentSessionWorkspaceSourceSchema
 })
 export type CreateTemporarySessionDto = z.infer<typeof CreateTemporarySessionSchema>
 
 export const UpdateTemporarySessionSchema = z
   .strictObject({
-    agentId: z.string().min(1).optional(),
+    agentId: z.string().optional(),
     workspace: AgentSessionWorkspaceSourceSchema.optional()
   })
   .refine((dto) => dto.agentId !== undefined || dto.workspace !== undefined, {
@@ -192,7 +188,7 @@ export type TemporaryChatSchemas = {
   '/temporary/sessions/:id/persist': {
     POST: {
       params: { id: string }
-      response: AgentSessionEntity
+      response: TemporarySessionEntity
     }
   }
 }

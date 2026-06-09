@@ -16,7 +16,7 @@
  *
  * Topic/message draft logic lives in TemporaryChatService. Agent session draft
  * logic lives in TemporaryAgentSessionDraftService. Handlers stay thin:
- * validate request bodies when needed, then forward to the owning service.
+ * parse request shapes when needed, then forward to the owning service.
  */
 
 import { temporarySessionService } from '@main/ai/agentSession/TemporaryAgentSessionDraftService'
