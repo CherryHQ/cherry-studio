@@ -62,6 +62,11 @@ interface SortableProps<T> {
    * If you want to hide ghost item, set showGhost to false rather than useDragOverlay.
    */
   useDragOverlay?: boolean
+  /** Whether the drag overlay scales to match the dragged element's measured size.
+   * Disable when the overlay renders a different (e.g. compact) representation than
+   * the in-list item, so dnd-kit doesn't stretch/squish it to the source rect.
+   */
+  adjustScale?: boolean
   /** Collision detection algorithm passed to dnd-kit */
   collisionDetection?: CollisionDetection
   /** Whether to show ghost item, only works when useDragOverlay is true */
@@ -98,6 +103,7 @@ function Sortable<T>({
   layout = 'list',
   horizontal = false,
   useDragOverlay = true,
+  adjustScale = true,
   collisionDetection,
   showGhost = false,
   className,
@@ -227,7 +233,7 @@ function Sortable<T>({
 
       {useDragOverlay &&
         createPortal(
-          <DragOverlay adjustScale dropAnimation={dropAnimation}>
+          <DragOverlay adjustScale={adjustScale} dropAnimation={dropAnimation}>
             {activeItem && <ItemRenderer item={activeItem} renderItem={renderItem} itemStyle={itemStyle} dragOverlay />}
           </DragOverlay>,
           document.body
