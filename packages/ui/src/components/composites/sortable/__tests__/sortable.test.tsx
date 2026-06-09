@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { act, render, screen, within } from '@testing-library/react'
+import { render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -66,54 +66,5 @@ describe('Sortable', () => {
     )
 
     expect(dndContextCalls[0].collisionDetection).toBe(collisionDetection)
-  })
-
-  it('resolves function itemStyle for each item wrapper', () => {
-    render(
-      <Sortable
-        items={[{ id: 'a' }, { id: 'b' }]}
-        itemKey="id"
-        itemStyle={(item, index) => ({
-          marginBottom: index + 1,
-          paddingTop: item.id === 'b' ? 6 : 2
-        })}
-        onSortEnd={() => {}}
-        renderItem={(item) => <div data-testid={`row-${item.id}`}>{item.id}</div>}
-      />
-    )
-
-    expect(screen.getByTestId('row-a').parentElement?.parentElement).toHaveStyle({
-      marginBottom: '1px',
-      paddingTop: '2px'
-    })
-    expect(screen.getByTestId('row-b').parentElement?.parentElement).toHaveStyle({
-      marginBottom: '2px',
-      paddingTop: '6px'
-    })
-  })
-
-  it('resolves function itemStyle for the active drag overlay item', () => {
-    render(
-      <Sortable
-        items={[{ id: 'a' }, { id: 'b' }]}
-        itemKey="id"
-        itemStyle={(item, index) => ({
-          marginBottom: index + 1,
-          paddingTop: item.id === 'b' ? 6 : 2
-        })}
-        onSortEnd={() => {}}
-        renderItem={(item) => <div data-testid={`row-${item.id}`}>{item.id}</div>}
-      />
-    )
-
-    act(() => {
-      dndContextCalls[0].onDragStart({ active: { id: 'b' } })
-    })
-
-    const overlayRow = within(screen.getByTestId('drag-overlay')).getByTestId('row-b')
-    expect(overlayRow.parentElement?.parentElement).toHaveStyle({
-      marginBottom: '2px',
-      paddingTop: '6px'
-    })
   })
 })

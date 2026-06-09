@@ -39,8 +39,6 @@ import { SortableItem } from './sortable-item'
 import type { RenderItemType } from './types'
 import { PortalSafePointerSensor } from './utils'
 
-type SortableItemStyle<T> = React.CSSProperties | ((item: T, index: number) => React.CSSProperties | undefined)
-
 interface SortableProps<T> {
   /** Array of sortable items */
   items: T[]
@@ -75,7 +73,7 @@ interface SortableProps<T> {
   /** Item list style */
   listStyle?: React.CSSProperties
   /** Item style */
-  itemStyle?: SortableItemStyle<T>
+  itemStyle?: React.CSSProperties
   /** Item gap */
   gap?: number | string
   /** Restrictions, shortcuts for some modifiers */
@@ -141,11 +139,6 @@ function Sortable<T>({
   const getIndex = (id: UniqueIdentifier) => itemIds.indexOf(id)
 
   const activeIndex = activeId ? getIndex(activeId) : -1
-
-  const resolveItemStyle = useCallback(
-    (item: T, index: number) => (typeof itemStyle === 'function' ? itemStyle(item, index) : itemStyle),
-    [itemStyle]
-  )
 
   const handleDragStart = ({ active }: DragStartEvent) => {
     customOnDragStart?.({ active })
@@ -226,7 +219,7 @@ function Sortable<T>({
               disabled={disabled}
               useDragOverlay={useDragOverlay}
               showGhost={showGhost}
-              itemStyle={resolveItemStyle(item, index)}
+              itemStyle={itemStyle}
             />
           ))}
         </div>
@@ -235,14 +228,7 @@ function Sortable<T>({
       {useDragOverlay &&
         createPortal(
           <DragOverlay adjustScale dropAnimation={dropAnimation}>
-            {activeItem && (
-              <ItemRenderer
-                item={activeItem}
-                renderItem={renderItem}
-                itemStyle={resolveItemStyle(activeItem, activeIndex)}
-                dragOverlay
-              />
-            )}
+            {activeItem && <ItemRenderer item={activeItem} renderItem={renderItem} itemStyle={itemStyle} dragOverlay />}
           </DragOverlay>,
           document.body
         )}
