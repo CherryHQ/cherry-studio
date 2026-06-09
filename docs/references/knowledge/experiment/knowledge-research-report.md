@@ -122,6 +122,7 @@ file_mode_search_preference(
 - **裁决三 · BM25-only 是一等模式**：纯 BM25 不是降级凑数，而是「无 embedding 也能用」契约的表达；并需修复 **CJK 分词（bigram）**，可在纯 BM25 上叠加 RM3 伪相关反馈 / 字段加权。
 - **混合检索栈**：BM25 召回（path / title / body）+ Vector 召回（semantic chunks）→ Hybrid 融合（RRF 优先或归一化加权）→（可选）rerank（本地 cross-encoder 默认不启用，见 §3）→ 可选 bounded boost → MMR。
 - **向量索引选型**：HNSW（approximate nearest neighbor）保大库低延迟；语义召回用 Sentence-BERT / E5 / DPR 类 dual-encoder；rerank（如启用）用 Cross-encoder 或 ColBERT late interaction，但本地 cross-encoder 实测过慢、默认不启用（见 §3）；主题层用 BERTopic / Top2Vec（必要时 HDBSCAN / k-means）；多样化用 MMR；个性化先显式反馈 boost，数据足够后再考虑 BPR / LightGCN。
+  - **落地约束（引擎可移植）**：向量须以引擎可移植的**纯 BLOB**（little-endian float32）存储，ANN / 相似度索引作为**可重建的派生产物**藏在适配层后，以便 libsql ↔ 未来 better-sqlite3 + sqlite-vec **零用户迁移**切换；详见[技术方案 §5.6](./knowledge-technical-design.md)。
 - **本地 ↔ 企业云端等价的契约不变量**（详见 §5）：`locator` 是不透明令牌（本地编码字符位移、云端编码块号 / 页码 / 版本），同一 `read` 签名走不同取数实现；无原文权限时返回「仅片段」状态（退回投影文本）而非异常。
 
 ### 2.3 对 Cherry 的建议
@@ -133,6 +134,8 @@ file_mode_search_preference(
 ---
 
 ## 3. 子调研三 · 本地 Embedding / Rerank 选型（Qwen3 + Transformers.js + AI SDK）
+
+> **as-built（2026-06-09）：本节的本地 Qwen3 embedding / rerank 选型最终未被采纳。** 实际落地把 embedding / rerank 统一路由到 `AiService` → 用户配置的 provider API（`#15796` 删除了旧 embedjs 栈与本地 reranker 策略适配器），详见[技术方案 §5.5](./knowledge-technical-design.md)。本节内容保留为「本地 / 完全离线」路线的原始调研，可作为未来 AiService 之外的可选 provider 接入参考；其中 Qwen3-Reranker-0.6B 因本地实测过慢（≈6s/次、50 次 ≈ 5 分钟）本就已 Pass。
 
 ### 3.1 背景与问题
 
@@ -404,7 +407,7 @@ type KbReadPageRequest = { baseId; relativePath; pageStart; pageLimit };
 - Agent 工具：5 个 `kb__*` 专用工具，不暴露通用文件工具；`read` 凭不透明 locator；`add/delete/refresh` 收口为 `kb__manage`。
 - 知识库做成独立子系统：六类检索资产 + 权限红线（结果进模型前按身份裁剪）。
 - 越用越准：三轨 P0~P1，唯一新增一张轻量 `usage_event` 表，配位置纠偏 + 探索配额护栏，数据不出设备。
-- 本地模型：仅 Qwen3-Embedding-0.6B-ONNX（经 Transformers.js 封装 AI SDK V3）；Qwen3-Reranker-0.6B-ONNX 本地实测过慢（50 次 ≈ 5 分钟）已 Pass，本地精排暂缓。
+- embedding / rerank（as-built 修正）：统一走 `AiService` → 用户配置 provider 的 API（与 Chat 共用凭证，`#15796`），**非**本地 ONNX；§3 的本地 Qwen3 选型未被采纳，保留为未来全离线可选路线。Qwen3-Reranker-0.6B 本地过慢已 Pass。
 - 企业场景：Remote File Mode + Knowledge Gateway，保留文件语义但放弃本地 fs 唯一内容源假设，服务端强制 ACL，默认只读。
 
 **各子调研的实施 / 阶段建议（落地路线由技术方案统一）**
@@ -413,7 +416,7 @@ type KbReadPageRequest = { baseId; relativePath; pageStart; pageLimit };
 | --- | --- |
 | File Mode + RAG | 阶段一可信搜索闭环 → 阶段二本地语义增强 → 阶段三知识工作区智能层 |
 | Remote File Mode | MVP1 只读 → MVP2 工具接入 → MVP3 权限审计 → MVP4 上传与增量索引 → 后续受控写入 |
-| 本地 Embedding/Rerank | 短期仅文本 embedding 闭环（本地 reranker 暂缓，过慢被 Pass）→ 中期保留 Qwen3-VL 多模态路线 |
+| 本地 Embedding/Rerank | as-built 已改走 AiService→provider（非本地 ONNX）；本节本地路线留作未来全离线可选项，Qwen3-VL 多模态路线中期保留 |
 | 工具面与自适应检索 | 越用越准三轨均 P0~P1，前两轨前几项优先且几乎全复用已规划表 |
 
-这些建议是方向性输入；v2 当前阶段的 5 PR 拆分与 as-built 状态以[技术方案](./knowledge-technical-design.md)为准，产品可感知口径以[产品文档](./knowledge-product-spec.md)为准。
+这些建议是方向性输入；v2 当前阶段的 PR 拆分（2026-06-09 重规划为 3 个 PR）与 as-built 状态以[技术方案 §15](./knowledge-technical-design.md)为准，产品可感知口径以[产品文档](./knowledge-product-spec.md)为准。

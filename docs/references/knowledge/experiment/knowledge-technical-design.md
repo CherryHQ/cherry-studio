@@ -13,7 +13,7 @@ Date: 2026-06-09
 
 ---
 
-## 0. 文档状态说明（as-built 2026-06-08 基线 · 阅读约定）
+## 0. 文档状态说明（as-built 2026-06-09 重新核实 · 阅读约定）
 
 本文同时承载两件事：**未来终态设计** 与 **当前 baseline as-built 现状**。除非明确标注，正文描述的是要执行的目标设计；与 baseline 现状有偏离处，用 `> as-built` 引注说明实际落地情况。
 
@@ -23,6 +23,8 @@ Date: 2026-06-09
 2. **主进程代码已从 `services/knowledge` 迁到 `features/knowledge`。** 知识库主进程代码已迁到 `src/main/features/knowledge/`，文件处理在 `src/main/features/fileProcessing/`。本文路径统一写 `features/`（部分历史文档与代码注释仍写 `services/knowledge`，应据此读为 `features/knowledge`）。
 
 最重要的现状结论：**9 表 material 模型 + `KnowledgeIndexStore` 是唯一尚未开始的核心（grep 零命中）。** 运行时仍是旧单表 `libsql_vectorstores_embedding` + `external_id` API（`replaceByExternalId` / `listByExternalId` / `deleteByIdAndExternalId`，见 `packages/vectorstores/libsql`）。本文 §4/§5 的 schema 与接口为「已设计、尚未实现」。
+
+2026-06-09 重新核实补充（上游已合并）：embedding / rerank 已改走 `AiService` → 用户配置 provider（不再是本地 ONNX，见 §5.5）；BM25 + 向量 + RRF hybrid 检索已可跑（但建在旧单表上、且缺 BM25-only 降级）；删除 / 迁移 / 渲染解耦等大部分已落地。最新 PR 规划见 §15，引擎可移植性设计见 §5.6。
 
 完整偏离证据（含 `file:line`）见本地 `docs/references/knowledge/experiment/drift-report-2026-06-08.md`。
 
@@ -499,16 +501,37 @@ content.text.slice(charStart, charEnd) === bodySearchText.text
 
 ### 5.4 embedding contract
 
-当前 v2 仍要求 `knowledge_base.embeddingModelId` 和 `dimensions` 有值。打开 index store 时：从全局 `knowledge_base` 读当前模型/维度 → 从 `index_meta` 读 snapshot → snapshot 为空则写入 → snapshot 与全局配置不一致则标记需全量重嵌入（不混用旧维度向量）。改模型/维度时必须清空旧 embedding 并重建所有 material。
+当前 v2 仍要求 `knowledge_base.embeddingModelId` 和 `dimensions` 有值（embedding 由 `AiService` 计算，见 §5.5）。打开 index store 时：从全局 `knowledge_base` 读当前模型/维度 → 从 `index_meta` 读 snapshot → snapshot 为空则写入 → snapshot 与全局配置不一致则标记需全量重嵌入（不混用旧维度向量）。改模型/维度时必须清空旧 embedding 并重建所有 material。
 
-### 5.5 embedding/rerank 本地接入（接口与服务边界）
+### 5.5 embedding / rerank 接入（as-built：走 AiService）
 
-本地 embedding/rerank 的目标是把「选模型/配模型」降级为「一键下载默认模型」。模型选型（仅文本 embedding `Qwen3-Embedding-0.6B-ONNX`；本地 cross-encoder reranker `Qwen3-Reranker-0.6B-ONNX` 经实测过慢已 Pass，本地精排默认不启用）、实现代码、被 Pass 方案与风险验证见 [调研报告 §3](./knowledge-research-report.md)，本文只写落地接口与服务边界：
+> as-built（2026-06-09）：embedding / rerank 已**改为统一路由到 `AiService`**，不再走本地 ONNX 模型。原计划的「本地 Qwen3-Embedding / Reranker via Transformers.js」（见 [调研报告 §3](./knowledge-research-report.md)）**未被采纳**——`#15796` 删除了旧 embedjs 客户端栈与本地 reranker 策略适配器，改为复用用户在 Chat 侧配置的 provider。
 
-- **AI SDK 封装：** AI SDK 6 原生支持 `EmbeddingModelV3` / `RerankingModelV3`，用 `customProvider({ embeddingModels, rerankingModels })` 封装，经 `embedMany` / `rerank` 调用，无需 OpenAI-compatible HTTP 伪装。服务层区分 `embedQuery` / `embedDocuments`。`RerankingModelV3` 封装能力保留，但默认**不内置本地重排模型**（待更轻量 reranker / WebGPU 加速 / 云端 rerank API 再启用）。
-- **模型下载/缓存/加载服务：** 不写死 HF URL；定义 `LocalModelManifest`（`id/revision/files[]`）+ `ModelFile`（`name/path/size/sha256/sources[]`，source type 含 `huggingface/mirror/cdn/modelscope`），支持多源下载、完整性校验、失败重试、取消、版本锁定。下载/校验/加载/释放拆为四阶段。
-- **本地缓存路径：** `env.allowRemoteModels = false`、`env.allowLocalModels = true`、`env.localModelPath = application.getPath('models.transformers')`（走集中式 path 命名空间）。
-- **资源控制：** embedding 模型懒加载 + 空闲释放 + 限并发；默认 WASM，可配 WebGPU 并失败自动 fallback。（同样的资源控制策略适用于未来启用的可选 reranker。）
+当前架构（落地形态）：
+
+- **统一入口：** `utils/indexing/embed.ts` → `application.get('AiService').embedMany({ uniqueModelId, values })`；`utils/indexing/rerank.ts` → `AiService.rerank({ uniqueModelId, query, documents, topN })`。两者最终经 `@cherrystudio/ai-core` 调用用户配置 provider 的 API。
+- **模型标识：** `knowledge_base.embeddingModelId` / `rerankModelId` 为 `UniqueModelId`（`provider::model`，如 `openai::text-embedding-3-large`、`jina::jina-reranker-v2-base-multilingual`），与 Chat 共用 provider 凭证。
+- **维度契约：** `embedMany` 结果经严格维度校验，拒绝与当前模型维度不匹配的向量（见 §5.4）。
+- **rerank 配置错误处理：** 401/403/404 视为持久性误配并升级 error log（`8cc97cba89`）；网络/超时/429/5xx 保持 warn 并回退为「未重排结果」。
+- **取舍：** 优点是与 Chat provider 统一配置、不再维护并行本地推理栈；约束是没有「完全离线」的内置 embedding——需用户至少配置一个提供 embedding 的 provider。产品口径「未配 embedding 也能搜」（= BM25-only / FTS-only）属 **v2.x**；**当前 v2 仍要求用户在 UI 配置 embedding 模型**（见 §1），PR A 只把 search 搬到新 store、保持 embedding-必需契约。
+
+> 未来若要补「完全离线」本地 embedding，仍可参考调研报告 §3 的本地 ONNX / Transformers.js 路线，作为 AiService 之外的一个可选 provider 接入，不影响上述主路径。
+
+### 5.6 引擎可移植性（libsql ↔ better-sqlite3 + sqlite-vec）
+
+设计目标：让每库 `.cherry/index.sqlite` 在 libsql 与未来 **better-sqlite3 + sqlite-vec** 下**共用同一套 schema，切换底层库零用户迁移**。关键是把「可移植的规范数据」与「可重建的派生索引」分开：
+
+1. **关系表全用通用 SQLite DDL**（`material` / `content` / `search_unit` / `search_text` / `content_index_entry` / `material_relation` / `index_meta`）——两引擎逐字节一致，不使用任一引擎专有列类型或函数。
+2. **FTS5 是标准扩展**，libsql 与 better-sqlite3 预编译版均内置 → BM25 天然可移植；CJK 分词在应用层完成后写入 `search_text`，不依赖引擎内置 tokenizer。
+3. **embedding 规范存储 = 普通 `BLOB` 列**，存原始 little-endian float32 字节（不用 libsql 专有的 `F32_BLOB` 作为落盘格式），两引擎都能直读同一份字节，是 source of truth。
+4. **向量检索 = 直接在规范 BLOB 上暴力匹配（首版，不建派生索引）**，经 `VectorIndex` 适配接口暴露：libsql 适配器用 `vector_distance_cos(vector, vector32(?))`、sqlite-vec 适配器用标量 `vec_distance_cosine(vector, ?)`，都是全表扫描 + `ORDER BY dist LIMIT k`。**首版不建 `vec0` 虚表 / libsql 向量索引**——它们只是加速用的派生结构，留作后续按性能评估再增量加入（纯派生层，加入不动数据、不重嵌）。
+5. **一层薄 `SqliteDriver` 接口**（open / exec / query / transaction / close），`KnowledgeIndexStore` 只写一次：今天接 libsql client，将来换 better-sqlite3 同代码。
+
+> 决议（2026-06-09 grill）：
+> - **规范存储统一为纯 `BLOB`（little-endian float32），不依赖 libsql 专属 `F32_BLOB`**；它是向量唯一权威副本。
+> - **首版用暴力扫描直接匹配规范 BLOB，不做任何派生 ANN 索引**（vec0 / libsql 向量索引）。因此切引擎是「零操作」——无派生结构需重建，两引擎各用标量距离函数直读同一份字节。注：libsql 当前生产单表 store 本就是无 ANN 索引的全表 `vector_distance_cos`，这不是退步。
+> - **派生 ANN 索引延后**：待后续性能评估（不同 N 规模的 topK 延迟基准，预计拐点在十万~百万级向量）确定后，必要时再作为纯增量派生层加入（`index_meta` 记录引擎、不匹配则本地重建，不重嵌、不需用户操作）。
+> - **待 spike 验证**：libsql `vector_distance_cos` 能否直读「声明为普通 `BLOB`」的列。若它强制要求 `F32_BLOB`——其落盘字节本就是裸 LE f32，sqlite-vec `vec_distance_cosine` 仍能读同一份字节，可移植性不破。
 
 ---
 
@@ -527,7 +550,9 @@ content.text.slice(charStart, charEnd) === bodySearchText.text
 5. 再过滤 `knowledge_item.status = completed` 且非 deleting（确保 UI 删除/失败 item 不返回）。
 6. 映射成当前 v2 `KnowledgeSearchResult`。
 
-**无向量库降级：** 单一 `search` 后端自适应——有向量库走 hybrid，无向量/未配 embedding/索引未完成走纯 BM25，实际模式作为返回值回传。当前 v2 仍要求 embedding 必需，但底层 schema 已为 v2.x「无 embedding 也能用」预埋。
+**无向量库降级：** 单一 `search` 后端自适应——有向量库走 hybrid，无向量/未配 embedding/索引未完成走纯 BM25，实际模式作为返回值回传。
+
+> as-built（2026-06-09）：该降级**尚未实现**。当前默认 `searchMode='hybrid'`，查询前无条件调 `embedKnowledgeQuery`（`KnowledgeService.ts:235` 无 try-catch），缺 embedding 时直接抛错而非回退 BM25（`LibSQLVectorStore` hybrid/vector 分支均 `throw 'queryEmbedding is required'`）。补齐 BM25-only 降级属 **v2.x**（当前 v2 仍要求配置 embedding、不开放 FTS-only，见 §1）；PR A 只把 search 搬到新 store、保持 embedding-必需契约不变。
 
 ### 6.2 当前 v2 旧 result shape 映射
 
@@ -651,7 +676,7 @@ type KnowledgeIndexDocumentsPayload = {
 
 不再传 `sourceFileEntryId` / `processedFileEntryId`。`checkFileProcessingResultJobHandler` 通过 file-processing job 的 `context.dataId === itemId` 和 path-inside-base 校验归属；索引 job 从最新的 `indexedRelativePath ?? relativePath` 读取实际索引文件；`sourcePlanning` 从 `indexedRelativePath ?? relativePath` 推断扩展名。
 
-> as-built: 编排服务/path workflow 已落地，job payload 已去 FileEntry，`checkFileProcessingResultJobHandler` 已用 path output 回写 `indexedRelativePath`。但索引/搜索仍走旧 vectorstore（`replaceByExternalId`），阻塞于 §5 的 PR1A。
+> as-built: 编排服务/path workflow 已落地，job payload 已去 FileEntry，`checkFileProcessingResultJobHandler` 已用 path output 回写 `indexedRelativePath`。但索引/搜索仍走旧 vectorstore（`replaceByExternalId`），阻塞于新 store（§15 PR A）。
 
 ---
 
@@ -769,26 +794,59 @@ type KbReadPageRequest = { baseId; relativePath; pageStart; pageLimit }
 
 ---
 
-## 15. 实施 PR 拆分与路线图
+## 15. 实施 PR 拆分与路线图（2026-06-09 重规划）
 
-5 个 PR + as-built 状态。**关键顺序：先证明 index store 和 path-based fileProcessing（POC），再改数据模型与运行时，最后做迁移和 UI 收尾。** 依赖链 PR1→PR2→PR3→PR4，PR5 依赖稳定后端 contract 可提前开发但最后合并。POC A 与 POC B 可并行。
+> 本节于 2026-06-09 重新扫描当前代码后重写。原「5 个 PR 拆分」制定于早期 baseline，其中 PR1B / PR2 / PR3 编排 / PR4 删除 / PR5 渲染解耦的**绝大部分已随上游合并落地**（见 §15.1）。故重新收敛为 **3 个 PR**：A+B 让 v2 跑在新可移植 store 上，C 输出 Agent-first（v2.x）价值层。
 
-| PR | 目标 | 主要范围 | 依赖 | as-built 状态 |
+### 15.1 已落地基线（不再单列 PR）
+
+经核实，以下原计划工作已合并到当前分支，无需再排 PR：
+
+- 代码归位 `features/knowledge` + `features/fileProcessing`（`e9d89a21db`）。
+- relativePath 体系、base 自有文件目录、`.cherry/index.sqlite` 路径与安全校验（`pathStorage.ts`、`createBase`）。
+- path-based fileProcessing：`managed_artifact` 整体删除、单臂 `{kind:'path'}` output、MinerU dataId、原子写 Markdown、回写 `indexedRelativePath`（`checkFileProcessingResultJobHandler.ts`）。
+- **embedding / rerank 改走 `AiService` → `@cherrystudio/ai-core` → 用户配置 provider**（`#15796`、`utils/indexing/{embed,rerank}.ts`）；rerank 持久性误配（401/403/404）升级 error log（`8cc97cba89`）。详见 §5.5。
+- 检索栈 BM25(FTS5)+向量(`vector_distance_cos`)+RRF hybrid，默认 hybrid（`LibSQLVectorStore.query`）——但建在**旧单表**上，且**无 BM25-only 降级**。
+- 删除顺序（向量→文件→行）、句柄先关再删、向量孤立修复（`a6128a6da9`）、迁移 warning 浮现（`5c7124aa50`）、删除 cleanup guard（`b7bd21c2ae`）。
+- 渲染层去 FileEntry（`fileEntryId` 仅存于 chat 域）、add/save 走新 `KnowledgeAddItemInput` command shape、preload 类型校验。
+
+### 15.2 仍待做（3 个 PR）
+
+关键事实：**9 表 material 模型 + `KnowledgeIndexStore` 仍完全未开始（grep 零命中）**，运行时仍是旧单表 `libsql_vectorstores_embedding` + `external_id` API。它是 Agent-first 能力与「引擎可移植」目标的唯一阻塞核心。
+
+| PR | 目标 | 主要范围 | 依赖 | 规模 / 风险 |
 | --- | --- | --- | --- | --- |
-| **PR1 Foundation POCs** | 隔离验证两个核心 | PR1A `KnowledgeIndexStore`（9 表、`rebuildMaterial` 原子替换、vector/BM25/hybrid 搜索）；PR1B path-based FileProcessing（path I/O、原子写 markdown、remote poll 恢复、MinerU dataId） | — | **PR1A 未开始**（唯一未动工核心，grep 零命中）；**PR1B 已落地且更激进**（`managed_artifact` 整体删除） |
-| **PR2 Path + Data Model** | 材料身份从 FileEntry/inline 迁到 base-owned files + persisted `relativePath` | file/url/note data shape、relativePath validator、main path/file service、`createBase` 建目录与 index.sqlite | PR1 | 大部分已落地；冲突策略落地为 **reject-on-conflict**（非 keep-both）；`id == material_id` 未做；url/note 快照未做 |
-| **PR3 Runtime Integration** | 接入 v2 runtime | reader 走 base path、index job 写 `rebuildMaterial`、search/listChunks 兼容旧 shape、fileProcessing workflow 写回 `indexedRelativePath`、删 FileEntry-shaped payload | PR1A, PR2 | 编排/path workflow 已落地，但索引/搜索仍走旧 vectorstore，**阻塞于 PR1A** |
-| **PR4 Delete/Reindex/Restore/Migration** | 破坏性操作 + v1 迁移终态 | leaf/base 删除顺序、reindex/prepare、restore/duplicate、v1 migration 直接生成最终 layout | PR1A, PR2, PR3 | 删除/恢复顺序已落地、向量孤立 bug 已修复；迁移器仍写旧单表、restore 不复制已处理 markdown、`duplicateBase` 不存在，迁移终态**阻塞于 PR1A** |
-| **PR5 UI/Preload/Rollout** | 用户可见收尾 | preload/IPC 去 FileEntry、add/save 提交 path command、DataSource 从 relativePath 展示并移除单 chunk 删除、附件用 material handle、grep gate + E2E smoke | 稳定后端 contract | 渲染层去 FileEntry 已完成；`deleteItemChunk` 仍在、note 仍持久化 content、material preview/attach 与 E2E 未做、chat 附件按钮被直接删除 |
+| **PR A · 可移植 IndexStore + 9 表 + 检索切换** | 用引擎可移植 schema 落地新 store，并把索引 / 检索切过去 | `SqliteDriver` 接口 + libsql 适配 + `VectorIndex` 适配（首版暴力扫描、不建 vec0/ANN 索引，§5.6）；建 9 表 + FTS5（trigram，照搬 `message.ts` external-content + trigger）；`rebuildMaterial` 事务原子替换（旧 unit 清理、embedding 以**纯 BLOB** 写入并按「文字指纹+模型+维度」复用、FTS rowid 对齐）；`search()` 切新 store（BM25 / 向量 / RRF，保留旧 `KnowledgeSearchResult` shape、**embedding-必需契约不变**）；索引 job 由 `replaceByExternalId` 切到 `rebuildMaterial`；**随切换移除 `deleteItemChunk` 全链路**（其后端 `deleteByIdAndExternalId` 此时消失） | 无 | 生产 ~2.5–4k LOC / 20–30 文件；测试 ~3–5k LOC。**风险最高**：事务原子性、FTS rowid、向量 BLOB 跨引擎可移植 |
+| **PR B · 迁移終態 + 破坏性操作 + 快照** | 让 v1 迁移与生命周期接到新 store | 迁移器写 9 表 material（`material_id = knowledge_item.id`、一律新 uuidv7、不保留旧 id）；**url / note 统一落 `.md` 快照**（reindex 读快照、不再联网 / inline）；**冲突按「保留副本 / 自动改名」**（跳过 / 覆盖后补）；restore 复制已处理 md（**不做 `duplicateBase`**） | PR A（store 契约冻结后） | 生产 ~1.5–2.5k LOC / 15–20 文件；测试 ~2–3k LOC。风险中 |
+| **PR C · Agent-first 检索面 + 自适应（v2.x）** | 输出 Agent-first 价值层 | material-level 结果 + `locator` / `read(locator)` + snippets / matchedKinds；`content_index_entry`（doc2query / 摘要 / 关键词）+ `usage_event` 自适应（位置纠偏 + 探索配额）；kb__list / kb__search / kb__read / kb__tree / kb__manage 工具面 | PR A（B 更佳） | 生产 ~2–4k LOC；测试 ~3–4k LOC。风险中 |
 
-**规模估算：** 生产代码约 4,500–8,500 LOC / 45–75 文件；测试约 6,000–11,000 LOC / 30–45 文件。最大风险 IndexStore / FileProcessing / Migration——先 POC 后实现。
+**不进编号 PR 的独立跟进项：** material preview / attach 重新接入——阻塞于 chat 管线迁出 `FileMetadata`（外部依赖，`AttachmentButton.tsx` 已有意断开），待该管线就绪再做。
+
+**为何不能更少：** PR A 是一个原子单元（新 store 无法半上线）；PR B 必须等 PR A 的 store 契约冻结才能写迁移与测试，合进 A 会形成 review-hostile 巨型 PR、且迁移无法在不稳定 store 上验证；PR C 是纯增量、可延后不影响现网。故「A+B 完成 v2、C 做 v2.x」是负责任前提下最紧的拆分。
+
+**关键顺序：** PR A → PR B → PR C；PR C 的工具面可在 A 稳定后并行开发、最后合并。
 
 **重点改动文件（按 PR，路径以 `features/` 为准）：**
-- jobs：`indexDocumentsJobHandler.ts`、`checkFileProcessingResultJobHandler.ts`、`deleteSubtreeJobHandler.ts`、`reindexSubtreeJobHandler.ts`、`prepareRootJobHandler.ts`
-- services：`KnowledgeService.ts`、`KnowledgeWorkflowService.ts`、`KnowledgeItemService.ts`、`vectorstore/*`、`utils/storage/pathStorage.ts`、`utils/indexing/{chunk,embed}.ts`、`readers/*`、`utils/sources/*`
-- migration：`migration/v2/migrators/KnowledgeMigrator.ts`、`KnowledgeVectorMigrator.ts`、`mappings/KnowledgeMappings.ts`、`MigrationPaths.ts`
-- fileProcessing：`features/fileProcessing/*`、`processors/mineru/*`、`src/shared/data/types/fileProcessing.ts`
-- shared/preload/UI：`src/shared/data/types/knowledge.ts`、`src/preload/index.ts`、renderer `AddKnowledgeItemDialog.tsx`、`SaveToKnowledgePopup.tsx`、`dataSource/*`、`AttachmentButton.tsx`
+- **PR A** — `vectorstore/*`（新增 `KnowledgeIndexStore` + `SqliteDriver` + `VectorIndex` 适配）、9 表 schema 与建表模块、`jobs/indexDocumentsJobHandler.ts`、`KnowledgeService.search`、`utils/indexing/{chunk,embed}.ts`、`utils/search.ts`、`src/preload/index.ts` 与 renderer `dataSource/KnowledgeItemChunkDetailPanel.tsx`（随切换移除 `deleteItemChunk` 链路与单 chunk 删除控件）。
+- **PR B** — `migration/v2/migrators/{KnowledgeMigrator,KnowledgeVectorMigrator}.ts`、`mappings/KnowledgeMappings.ts`、`MigrationPaths.ts`、`readers/{KnowledgeUrlReader,KnowledgeNoteReader}.ts`、`KnowledgeWorkflowService.ts` 与 `utils/storage/pathStorage.ts`（冲突「保留副本 / 自动改名」）、`KnowledgeService.ts`（restore 复制已处理 md）。
+- **PR C** — `KnowledgeService.search`（material-level / locator / snippets）、`content_index_entry` 与 `usage_event` 写入与自适应排序、Agent 工具面（kb__* tools）、相关 `src/shared/data/types/knowledge.ts`。
+- **跟进项** — renderer `AttachmentButton.tsx`、material preview 入口（待 chat 管线就绪）。
+
+### 15.3 PR A / PR B 已敲定的设计决策（2026-06-09 grill）
+
+| # | 决策点 | 结论 |
+| --- | --- | --- |
+| A1 | 向量落盘格式 + 检索 | 中性裸 `BLOB`（little-endian float32），**不用 libsql 专属 `F32_BLOB`**；**首版直接暴力扫描匹配规范 BLOB**（libsql `vector_distance_cos` / sqlite-vec 标量 `vec_distance_cosine`），**不建 `vec0` / libsql 向量索引**；派生 ANN 索引延后，待性能评估再按需增量加（见 §5.6） |
+| A2 | `index.sqlite` 访问层 | 独立生命周期 service + IPC，不挂 DataApi（符合 DataApi 边界规则） |
+| A3 | FTS / 分词 | 照搬 `message.ts`：`tokenize='trigram'` + external-content + trigger；bm25 排序 + 超短中文 `LIKE` 兜底；真正的 CJK 分词留 v2.x（切换只需本地重建 FTS、不重嵌、不迁移） |
+| A4 | embedding 复用 | `rebuildMaterial` 按「文字指纹 + 模型 + 维度」全等时复用旧向量，否则重算；模型 / 维度变更强制全量重嵌 |
+| A5 | 建表范围 | PR A 一次全建 9 张表（`content_index_entry` / `material_relation` 本期仅朴素 DDL、不建逻辑） |
+| B1 | url / note | 统一落 base 目录下 `.md` 快照（带 `relativePath`），与 file 同为「base 自有快照」；二进制 file 保留原件 + 派生 md，原件不被替换 |
+| B2 | 冲突策略 | PR B 先做「保留副本（自动改名）」杜绝整批失败、不丢数据；「跳过 / 覆盖（需确认）」后补 |
+| B3 | 材料 id | `material.material_id = knowledge_item.id`；一律新 uuidv7，不保留旧 id |
+| B4 | `deleteItemChunk` | 整链移除（非 stub），时机绑定 PR A（其后端随旧 store 一起消失） |
+| B5 | restore / clone | restore 复制已处理 md（省重处理）；**不做 `duplicateBase`** |
+| — | 无 embedding 降级 | **属 v2.x**：当前 v2 仍要求 UI 选 embedding 模型、不开放 FTS-only（见 §1） |
 
 ---
 
@@ -800,13 +858,13 @@ type KbReadPageRequest = { baseId; relativePath; pageStart; pageLimit }
 rg -n "fileEntryId|sourceFileEntryId|processedFileEntryId|replaceByExternalId|listByExternalId|deleteByIdAndExternalId|deleteItemChunk|ensureExternalEntry|/files/entries/:id"
 ```
 
-范围覆盖 `src/main/features/knowledge`、`src/main/data/migration/v2`、`src/preload`、`src/renderer/pages/knowledge` 等。剩余命中须满足：unsupported compatibility stub / 非 knowledge domain / 旧 package 测试隔离 / 文档说明。**注意 `deleteItemChunk` 当前是「待移除残留」**——material 模型落地前会一直命中。
+范围覆盖 `src/main/features/knowledge`、`src/main/data/migration/v2`、`src/preload`、`src/renderer/pages/knowledge` 等。剩余命中须满足：unsupported compatibility stub / 非 knowledge domain / 旧 package 测试隔离 / 文档说明。清理时序：`replaceByExternalId` / `listByExternalId` / `deleteByIdAndExternalId` **以及 `deleteItemChunk` 全链路**均随 **PR A** 的 store 切换一起清掉（`deleteItemChunk` 后端依赖 `deleteByIdAndExternalId`，切换后无法保留）——在此之前它们仍是「待移除残留」会一直命中。
 
 **测试矩阵（6 类）：**
 
 - **Unit：** relativePath validator、chunk offset（`content.text.slice(charStart,charEnd) === body search_text.text`）、stable `unit_id`、sourcePlanning（`indexedRelativePath ?? relativePath`）、artifact parser、command vs persisted schema。
 - **Integration：** base dir + index lifecycle、add file/url/note → index → search → list chunks → delete 垂直切片、remote poll recovery、delete/reindex race + crash retry、missing file 标记 material/item 不可用且 search 过滤 stale。
-- **Migration：** v1 file copy 写 `relativePath`、note/url snapshot 写 Markdown、合法 id 保留 + 非法 id remap、无 knowledge `file_ref`、无旧 `libsql_vectorstores_embedding` 终态、failed missing-model bases 仍可 restore。
+- **Migration：** v1 file copy 写 `relativePath`、note/url snapshot 写 Markdown、id 一律新 uuidv7（`material_id = knowledge_item.id`、不保留旧 id）、无 knowledge `file_ref`、无旧 `libsql_vectorstores_embedding` 终态、failed missing-model bases 仍可 restore。
 - **Workflow Recovery：** delete enqueue failure、startup recovery、crash after each cleanup step。
 - **UI / IPC：** add dialog 与 SaveToKnowledge 不调 `ensureExternalEntry`、rows/chunk detail 不查 `/files/entries/:id`、chunk delete 控件缺失、attachment/preview 用 material handle、preload 校验新 command input。
 - **E2E / Manual：** create base → add Markdown → search → view chunks → delete；add processed document（mock 轻量 processor）；restart during import 和 delete cleanup。
@@ -832,23 +890,21 @@ rg -n "fileEntryId|sourceFileEntryId|processedFileEntryId|replaceByExternalId|li
 | 删除 base 时 index store 句柄未关闭 | `KnowledgeIndexStore` 必须支持 close，rm 目录前释放（尤其 Windows） |
 | base delete crash strands rows | base-level deleting intent 或幂等清理路径 |
 | 旧向量被错误复用 | 默认 rebuild，仅在 material id/text hash/model id/dimensions 全匹配时复用 |
-| KnowledgeIndexStore 原子性错误 | POC A 配 failure injection + rollback 测试 |
+| KnowledgeIndexStore 原子性错误 | PR A 配 failure injection + rollback 测试 |
 | migration 丢失源内容 | copy/snapshot 配可恢复失败态 |
 | 当前 v2 与 v2.x 语义混淆 | 当前 v2 只预埋 schema 和目录形态，不启用 watcher/FTS-only/内容索引 UI/processed Markdown 独立 item |
 
 **仍需拍板的开放问题（实现前确认）：**
 
+> A1–A5 / B1–B5 等 PR A/B 决策已在 2026-06-09 grill 敲定（见 §15.3），原列于此的「向量 BLOB 格式、index.sqlite 访问层、FTS/分词、冲突策略、legacy id、deleteItemChunk、restore/duplicate」均已 resolve。以下为剩余项，多属 v2.x：
+
 - URL migration policy（源内容不可用时；sitemap 折叠为 `url`）。
-- attachment/preview IPC shape（base-owned files）。
-- `deleteItemChunk` 最终过渡行为（移除 vs unsupported stub）——需用户确认是否移除。
-- legacy id 保留/重映射规则（当前全部重新生成，与「保留合法旧 id」目标冲突）。
-- 文件冲突策略——产品目标为「覆盖/保留副本/跳过」三选一，当前 as-built 为 reject-on-conflict，需用户拍板是否补齐 keep-both（详见 [产品文档](./knowledge-product-spec.md) 与本文 §15 PR2）。
-- restore/duplicate 是否复制已处理 Markdown、是否补 `duplicateBase`（当前缺）。
+- attachment/preview IPC shape（base-owned files；阻塞于 chat 管线迁出 `FileMetadata`）。
 - `missing` material 保留时长，是否需用户可见恢复入口。
-- 手动 `content_index_entry` 在文件内容变化后的高级保留策略。
-- FTS 维护用 trigger 还是索引服务同事务写入；FTS tokenizer 是否 trigram/unicode61 或应用层 CJK 分词后写入 `search_text`。
-- `locator_json` 具体格式；captured material 的 `source_ref_json` 是否统一 envelope。
-- 每库 `index.sqlite` 访问层是 DataApi 扩展还是独立 lifecycle service + IPC（per-base index 更适合由 main process service 经 IPC 暴露，而非全局 DataApi 表）。
+- 手动 `content_index_entry` 在文件内容变化后的高级保留策略（v2.x）。
+- `locator_json` 具体格式；captured material 的 `source_ref_json` 是否统一 envelope（v2.x）。
 - 最终类/服务命名（`KnowledgeIndexStoreService`）。
+- **向量检索性能评估（后续）**：不同 N（1k / 1 万 / 10 万 / 100 万、D≈1024）下暴力 topK 的 p50/p95 延迟基准，据此决定是否 / 何时引入派生 ANN 索引（vec0 / libsql 向量索引，纯增量、加入不动数据，见 §5.6）。
+- **spike**：libsql `vector_distance_cos` 能否直读声明为普通 `BLOB` 的列（见 §5.6 决议）。
 
 完整 as-built 偏离证据与 5 条战略决策逐条 `file:line` 见本地 `docs/references/knowledge/experiment/drift-report-2026-06-08.md`。
