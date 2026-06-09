@@ -200,6 +200,7 @@ describe('useProvider', () => {
     expect(result.current.provider).toEqual(mockProvider1)
     expect(result.current.isLoading).toBe(false)
     expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', {
+      enabled: true,
       params: { providerId: 'openai' },
       swrOptions: { keepPreviousData: false }
     })
@@ -209,6 +210,7 @@ describe('useProvider', () => {
     renderHook(() => useProvider('openai-main'))
 
     expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', {
+      enabled: true,
       params: { providerId: 'openai-main' },
       swrOptions: { keepPreviousData: false }
     })
@@ -703,6 +705,7 @@ describe('useProviderAuthConfig', () => {
     expect(result.current.data).toEqual(mockAuthConfig)
     expect(result.current.isLoading).toBe(false)
     expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/auth-config', {
+      enabled: true,
       params: { providerId: 'vertexai' }
     })
   })
@@ -711,6 +714,7 @@ describe('useProviderAuthConfig', () => {
     renderHook(() => useProviderAuthConfig('vertexai-prod'))
 
     expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId/auth-config', {
+      enabled: true,
       params: { providerId: 'vertexai-prod' }
     })
   })

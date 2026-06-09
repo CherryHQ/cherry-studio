@@ -111,6 +111,8 @@ export interface ComboboxProps<TExtra extends object = Record<never, never>>
   placeholder?: string
   className?: string
   popoverClassName?: string
+  popoverAlign?: React.ComponentProps<typeof PopoverContent>['align']
+  portalContainer?: React.ComponentProps<typeof PopoverContent>['portalContainer']
   triggerStyle?: React.CSSProperties
   width?: string | number
 
@@ -141,6 +143,8 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   placeholder = 'Please Select',
   className,
   popoverClassName,
+  popoverAlign,
+  portalContainer,
   triggerStyle,
   width,
   size,
@@ -202,6 +206,9 @@ export function Combobox<TExtra extends object = Record<never, never>>({
   const handleOpenChange = (nextOpen: boolean) => {
     setOpen(nextOpen)
     if (!nextOpen) {
+      if (triggerSearch || contentSearch) {
+        onSearch?.('')
+      }
       setTriggerSearch('')
       setContentSearch('')
       return
@@ -227,11 +234,18 @@ export function Combobox<TExtra extends object = Record<never, never>>({
     }
   }
 
-  const handleRemoveTag = (tagValue: string, e: React.MouseEvent) => {
+  const handleRemoveTag = (tagValue: string, e: React.MouseEvent | React.KeyboardEvent) => {
+    e.preventDefault()
     e.stopPropagation()
     if (multiple) {
       const currentValues = (value as string[]) || []
       setValue(currentValues.filter((v) => v !== tagValue))
+    }
+  }
+
+  const handleRemoveTagKeyDown = (tagValue: string, e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      handleRemoveTag(tagValue, e)
     }
   }
 
@@ -336,7 +350,7 @@ export function Combobox<TExtra extends object = Record<never, never>>({
       const selectedOptions = options.filter((opt) => selectedValues.includes(opt.value))
 
       return (
-        <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+        <div className="flex min-w-0 flex-1 flex-wrap gap-1">
           {selectedOptions.map((option) => (
             <span
               key={option.value}
@@ -347,10 +361,15 @@ export function Combobox<TExtra extends object = Record<never, never>>({
                 'text-success-foreground text-xs'
               )}>
               {option.label}
-              <X
-                className="size-3 cursor-pointer hover:text-success"
+              <span
+                role="button"
+                tabIndex={0}
+                aria-label={`Remove ${option.label}`}
+                className="inline-flex size-3 cursor-pointer items-center justify-center hover:text-success"
                 onClick={(e) => handleRemoveTag(option.value, e)}
-              />
+                onKeyDown={(e) => handleRemoveTagKeyDown(option.value, e)}>
+                <X className="size-3" />
+              </span>
             </span>
           ))}
         </div>
@@ -460,6 +479,8 @@ export function Combobox<TExtra extends object = Record<never, never>>({
       )}
       <PopoverContent
         className={cn('p-0 rounded-md', popoverClassName)}
+        align={popoverAlign}
+        portalContainer={portalContainer}
         style={{ width: triggerWidth }}
         onOpenAutoFocus={(event) => {
           if (!triggerSearchEnabled) {
