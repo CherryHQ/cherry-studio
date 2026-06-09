@@ -10,6 +10,19 @@ const mockUseKnowledgeRagConfig = vi.fn()
 const mockSave = vi.fn()
 const mockEmbedMany = vi.fn()
 
+const { testModels } = vi.hoisted(() => ({
+  testModels: [
+    {
+      id: 'openai::text-embedding-3-small',
+      name: 'text-embedding-3-small',
+      providerId: 'openai',
+      capabilities: ['embedding']
+    },
+    { id: 'voyage::voyage-3-large', name: 'voyage-3-large', providerId: 'voyage', capabilities: ['embedding'] },
+    { id: 'jina::rerank', name: 'rerank', providerId: 'jina', capabilities: ['rerank'] }
+  ]
+}))
+
 const renderRagConfigPanel = (onRestoreBase = vi.fn(), baseOverrides: Partial<KnowledgeBase> = {}) => {
   return render(<RagConfigPanel base={createKnowledgeBase(baseOverrides)} onRestoreBase={onRestoreBase} />)
 }
@@ -125,6 +138,34 @@ vi.mock('@cherrystudio/ui', async () => {
     )
   }
 })
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModels: () => ({ models: testModels, isLoading: false, refetch: vi.fn() })
+}))
+
+vi.mock('@renderer/components/ModelSelector', () => ({
+  ModelSelector: ({
+    trigger,
+    filter,
+    onSelect
+  }: {
+    trigger: ReactNode
+    filter?: (model: (typeof testModels)[number]) => boolean
+    onSelect: (modelId: string | undefined) => void
+  }) => {
+    const options = filter ? testModels.filter(filter) : testModels
+    return (
+      <div>
+        {trigger}
+        {options.map((model) => (
+          <button key={model.id} type="button" onClick={() => onSelect(model.id)}>
+            {`select-${model.name}`}
+          </button>
+        ))}
+      </div>
+    )
+  }
+}))
 
 vi.mock('../../../hooks', () => ({
   useKnowledgeRagConfig: (base: KnowledgeBase) => mockUseKnowledgeRagConfig(base)
@@ -272,16 +313,11 @@ describe('RagConfigPanel', () => {
         }
       ],
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      embeddingModelOptions: [
-        { value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' },
-        { value: 'voyage::voyage-3-large', label: 'voyage-3-large · voyage' }
-      ],
       searchModeOptions: [
         { value: 'hybrid', label: '混合检索（推荐）' },
         { value: 'default', label: '向量检索' },
         { value: 'bm25', label: '全文检索' }
       ],
-      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }],
       save: mockSave,
       isLoading: false,
       error: undefined
@@ -324,7 +360,7 @@ describe('RagConfigPanel', () => {
     expect(screen.getByText('请求文档片段数 (Top K)')).toBeInTheDocument()
     expect(screen.getByText('重排模型 (Rerank)')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '不使用' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'text-embedding-3-small · openai' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'text-embedding-3-small' })).toBeInTheDocument()
     expect(screen.getByDisplayValue('1536')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '刷新向量维度' })).not.toBeDisabled()
     expect(screen.queryByRole('button', { name: '获取嵌入维度' })).not.toBeInTheDocument()
@@ -419,7 +455,7 @@ describe('RagConfigPanel', () => {
 
     renderRagConfigPanel(onRestoreBase)
 
-    fireEvent.click(screen.getByRole('button', { name: 'voyage-3-large · voyage' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select-voyage-3-large' }))
     expect(screen.getByRole('button', { name: '重建' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
@@ -496,7 +532,6 @@ describe('RagConfigPanel', () => {
         hybridAlpha: 0.6
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' }],
       searchModeOptions: [
         { value: 'hybrid', label: '混合检索（推荐）' },
         { value: 'default', label: '向量检索' },
@@ -515,7 +550,6 @@ describe('RagConfigPanel', () => {
           isHidden: false
         }
       ],
-      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }],
       save: mockSave,
       isLoading: false,
       error: undefined
@@ -547,7 +581,6 @@ describe('RagConfigPanel', () => {
         hybridAlpha: 0.6
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' }],
       searchModeOptions: [
         { value: 'hybrid', label: '混合检索（推荐）' },
         { value: 'default', label: '向量检索' },
@@ -566,7 +599,6 @@ describe('RagConfigPanel', () => {
           isHidden: false
         }
       ],
-      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }],
       save: mockSave,
       isLoading: false,
       error: undefined

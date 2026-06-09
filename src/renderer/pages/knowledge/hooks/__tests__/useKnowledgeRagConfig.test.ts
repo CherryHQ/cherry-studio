@@ -95,22 +95,6 @@ describe('useKnowledgeRagConfig', () => {
         }
       }
 
-      if (query?.capability === MODEL_CAPABILITY.RERANK) {
-        return {
-          models: [
-            {
-              id: 'jina::jina-reranker-v2-base-multilingual',
-              providerId: 'jina',
-              name: 'jina-reranker-v2-base-multilingual',
-              capabilities: [MODEL_CAPABILITY.RERANK],
-              supportsStreaming: false,
-              isEnabled: true,
-              isHidden: false
-            }
-          ]
-        }
-      }
-
       return { models: [] }
     })
     mockUseMutation.mockReturnValue({
@@ -134,18 +118,6 @@ describe('useKnowledgeRagConfig', () => {
       { value: 'mistral', label: 'Mistral' },
       { value: 'open-mineru', label: 'Open MinerU' }
     ])
-    expect(result.current.embeddingModelOptions).toEqual([
-      {
-        value: 'openai::text-embedding-3-small',
-        label: 'text-embedding-3-small · openai'
-      }
-    ])
-    expect(result.current.rerankModelOptions).toEqual([
-      {
-        value: 'jina::jina-reranker-v2-base-multilingual',
-        label: 'jina-reranker-v2-base-multilingual · jina'
-      }
-    ])
     expect(result.current.searchModeOptions).toEqual([
       { value: 'hybrid', label: '混合检索（推荐）' },
       { value: 'default', label: '向量检索' },
@@ -154,8 +126,6 @@ describe('useKnowledgeRagConfig', () => {
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('tesseract')
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('system')
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('ovocr')
-    expect(mockUseModels).toHaveBeenCalledWith({ capability: MODEL_CAPABILITY.EMBEDDING, enabled: true })
-    expect(mockUseModels).toHaveBeenCalledWith({ capability: MODEL_CAPABILITY.RERANK, enabled: true })
     expect(mockUseMutation).toHaveBeenCalledWith('PATCH', '/knowledge-bases/:id', {
       refresh: ['/knowledge-bases']
     })
@@ -187,15 +157,6 @@ describe('useKnowledgeRagConfig', () => {
         searchMode: 'default'
       }
     })
-  })
-
-  it('returns empty model options when no enabled runtime models are available', () => {
-    mockUseModels.mockReturnValue({ models: [] })
-
-    const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
-
-    expect(result.current.embeddingModelOptions).toEqual([])
-    expect(result.current.rerankModelOptions).toEqual([])
   })
 
   it('propagates save failures to the caller', async () => {

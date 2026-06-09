@@ -4,7 +4,7 @@ import { useModels } from '@renderer/hooks/useModel'
 import { getFileProcessorLabel } from '@renderer/i18n/label'
 import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -19,23 +19,10 @@ const KNOWLEDGE_V2_FILE_PROCESSORS = PRESETS_FILE_PROCESSORS.filter((preset) =>
   )
 )
 
-const formatModelOptionLabel = (uniqueModelId: string) => {
-  if (!isUniqueModelId(uniqueModelId)) {
-    return uniqueModelId
-  }
-
-  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  return `${modelId} · ${providerId}`
-}
-
 export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
   const { t } = useTranslation()
   const { models: embeddingModels } = useModels({
     capability: MODEL_CAPABILITY.EMBEDDING,
-    enabled: true
-  })
-  const { models: rerankModels } = useModels({
-    capability: MODEL_CAPABILITY.RERANK,
     enabled: true
   })
   const { trigger, isLoading, error } = useMutation('PATCH', '/knowledge-bases/:id', {
@@ -50,20 +37,6 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
       label: getFileProcessorLabel(processor.id)
     }))
   }, [])
-
-  const embeddingModelOptions = useMemo(() => {
-    return embeddingModels.map((model) => ({
-      value: model.id,
-      label: formatModelOptionLabel(model.id)
-    }))
-  }, [embeddingModels])
-
-  const rerankModelOptions = useMemo(() => {
-    return rerankModels.map((model) => ({
-      value: model.id,
-      label: formatModelOptionLabel(model.id)
-    }))
-  }, [rerankModels])
 
   const searchModeOptions = useMemo<KnowledgeSelectOption[]>(
     () => [
@@ -96,8 +69,6 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
     initialValues,
     embeddingModels,
     fileProcessorOptions,
-    embeddingModelOptions,
-    rerankModelOptions,
     searchModeOptions,
     save,
     isLoading,

@@ -8,8 +8,43 @@ import CreateKnowledgeBaseDialog from '../CreateKnowledgeBaseDialog'
 
 const mockUseModels = vi.fn()
 
+const { testModels } = vi.hoisted(() => ({
+  testModels: [
+    {
+      id: 'openai::text-embedding-3-small',
+      name: 'text-embedding-3-small',
+      providerId: 'openai',
+      capabilities: ['embedding']
+    }
+  ]
+}))
+
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
+}))
+
+vi.mock('@renderer/components/ModelSelector', () => ({
+  ModelSelector: ({
+    trigger,
+    filter,
+    onSelect
+  }: {
+    trigger: ReactNode
+    filter?: (model: (typeof testModels)[number]) => boolean
+    onSelect: (modelId: string | undefined) => void
+  }) => {
+    const options = filter ? testModels.filter(filter) : testModels
+    return (
+      <div>
+        {trigger}
+        {options.map((model) => (
+          <button key={model.id} type="button" onClick={() => onSelect(model.id)}>
+            {`select-${model.name}`}
+          </button>
+        ))}
+      </div>
+    )
+  }
 }))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
@@ -129,9 +164,7 @@ const createGroup = (overrides: Partial<Group> = {}): Group => ({
 describe('CreateKnowledgeBaseDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockUseModels.mockReturnValue({
-      models: [{ id: 'openai::text-embedding-3-small' }]
-    })
+    mockUseModels.mockReturnValue({ models: testModels })
   })
 
   it('does not submit when the name is empty', async () => {
@@ -149,7 +182,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'lg')
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select-text-embedding-3-small' }))
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() => expect(createBase).not.toHaveBeenCalled())
@@ -284,7 +317,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select-text-embedding-3-small' }))
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() =>
@@ -313,7 +346,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select-text-embedding-3-small' }))
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('知识库创建失败: create failed'))
@@ -337,7 +370,7 @@ describe('CreateKnowledgeBaseDialog', () => {
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
     fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select-text-embedding-3-small' }))
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() =>
@@ -366,7 +399,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select-text-embedding-3-small' }))
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() =>
