@@ -8,8 +8,8 @@
 
 import type { JobContext } from '@main/core/job/types'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockAbort, mockGetAdapter, mockStartRun, captured } = vi.hoisted(() => {

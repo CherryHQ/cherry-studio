@@ -31,7 +31,6 @@ export enum IpcChannel {
   App_InstallBunBinary = 'app:install-bun-binary',
   App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
-  App_GetDiskInfo = 'app:get-disk-info',
   App_GetSystemFonts = 'app:get-system-fonts',
   App_GetIpCountry = 'app:get-ip-country',
 
@@ -39,6 +38,10 @@ export enum IpcChannel {
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
 
   App_QuoteToMain = 'app:quote-to-main',
+
+  // StorageMonitor: main-process disk-space watcher for the user-data volume
+  StorageMonitor_GetHealth = 'storage-monitor:get-health',
+  StorageMonitor_HealthChanged = 'storage-monitor:health-changed',
 
   Notification_Send = 'notification:send',
   Notification_OnClick = 'notification:on-click',
@@ -155,6 +158,8 @@ export enum IpcChannel {
 
   Shortcut_RegistrationConflict = 'shortcut:registration-conflict',
 
+  NativeCommandPopupMenu_Show = 'native-command-popup-menu:show',
+
   // Tab
   Tab_Attach = 'tab:attach',
   Tab_Detach = 'tab:detach',
@@ -213,7 +218,7 @@ export enum IpcChannel {
   File_OpenWithRelativePath = 'file:openWithRelativePath',
   File_IsTextFile = 'file:isTextFile',
   File_IsDirectory = 'file:isDirectory',
-  File_CheckWorkspacePath = 'file:checkWorkspacePath',
+  File_GetMetadata = 'file:getMetadata',
   File_ListDirectory = 'file:listDirectory',
   File_CheckFileName = 'file:checkFileName',
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',
@@ -355,18 +360,11 @@ export enum IpcChannel {
 
   // TRACE
   TRACE_SAVE_DATA = 'trace:saveData',
-  TRACE_GET_DATA = 'trace:getData',
   TRACE_SAVE_ENTITY = 'trace:saveEntity',
   TRACE_GET_ENTITY = 'trace:getEntity',
   TRACE_BIND_TOPIC = 'trace:bindTopic',
-  TRACE_CLEAN_TOPIC = 'trace:cleanTopic',
-  TRACE_TOKEN_USAGE = 'trace:tokenUsage',
   TRACE_CLEAN_HISTORY = 'trace:cleanHistory',
-  TRACE_OPEN_WINDOW = 'trace:openWindow',
-  TRACE_SET_TITLE = 'trace:setTitle',
-  TRACE_ADD_END_MESSAGE = 'trace:addEndMessage',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
-  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage',
 
   // API Server
   ApiServer_Start = 'api-server:start',

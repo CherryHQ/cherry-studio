@@ -17,7 +17,7 @@ describe('identity-scoped agent queries', () => {
     renderHook(() => useSession('session-1'))
 
     expect(vi.mocked(useQuery)).toHaveBeenCalledWith(
-      '/sessions/:sessionId',
+      '/agent-sessions/:sessionId',
       expect.objectContaining({
         enabled: true,
         swrOptions: { keepPreviousData: false }
@@ -49,7 +49,7 @@ describe('identity-scoped agent queries', () => {
     renderHook(() => useChannels('telegram'))
 
     expect(vi.mocked(useQuery)).toHaveBeenCalledWith(
-      '/channels',
+      '/agent-channels',
       expect.objectContaining({
         query: { type: 'telegram' },
         swrOptions: { keepPreviousData: false }

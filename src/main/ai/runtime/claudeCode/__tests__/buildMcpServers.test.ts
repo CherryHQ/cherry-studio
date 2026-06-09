@@ -5,7 +5,7 @@
  */
 
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({

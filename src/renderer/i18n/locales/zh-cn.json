@@ -1191,7 +1191,7 @@
       "auto_resize": "自动调整高度",
       "clear": {
         "content": "确定要清除当前会话所有消息吗？",
-        "label": "清空消息 {{Command}}",
+        "label": "清空消息",
         "title": "清空消息"
       },
       "collapse": "收起",
@@ -1209,7 +1209,7 @@
       "generate_image_not_supported": "模型不支持生成图片",
       "knowledge_base": "知识库",
       "new": {
-        "context": "清除上下文 {{Command}}"
+        "context": "清除上下文"
       },
       "new_session": "新会话 {{Command}}",
       "new_topic": "新话题 {{Command}}",
@@ -6517,7 +6517,7 @@
         "header_name_placeholder": "请求头名称",
         "header_value_placeholder": "请求头取值",
         "headers_description": "自定义请求头（JSON 格式）",
-        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
+        "headers_json_placeholder": "{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "JSON 格式错误",
         "login": "登录 Github",
         "logout": "退出 Github",
@@ -7074,23 +7074,6 @@
     "settings": "设置",
     "store": "助手库",
     "translate": "翻译"
-  },
-  "trace": {
-    "backList": "返回列表",
-    "edasSupport": "Powered by Alibaba Cloud EDAS",
-    "endTime": "结束时间",
-    "inputs": "输入",
-    "label": "调用链",
-    "name": "节点名称",
-    "noTraceList": "没有找到Trace信息",
-    "outputs": "输出",
-    "parentId": "上级Id",
-    "spanDetail": "Span详情",
-    "spendTime": "消耗时间",
-    "startTime": "开始时间",
-    "tag": "标签",
-    "tokenUsage": "Token使用量",
-    "traceWindow": "调用链窗口"
   },
   "translate": {
     "alter_language": "备用语言",
