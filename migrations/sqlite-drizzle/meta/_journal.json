@@ -43,6 +43,13 @@
       "when": 1780987715667,
       "tag": "0005_lyrical_galactus",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1781042136976,
+      "tag": "0006_luxuriant_outlaw_kid",
+      "breakpoints": true
     }
   ]
 }

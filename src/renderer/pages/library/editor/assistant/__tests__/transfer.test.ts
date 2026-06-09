@@ -1,4 +1,4 @@
-import type { Assistant } from '@shared/data/types/assistant'
+import { type Assistant, ASSISTANT_SOURCE_USER } from '@shared/data/types/assistant'
 import type { Tag } from '@shared/data/types/tag'
 import { describe, expect, it } from 'vitest'
 
@@ -43,7 +43,9 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     updatedAt: '2026-04-20T00:00:00.000Z',
     tags: [createTag('tag-1', '写作')],
     modelName: 'GPT-4o',
-    ...overrides
+    ...overrides,
+    source: overrides.source ?? ASSISTANT_SOURCE_USER,
+    orderKey: overrides.orderKey ?? 'a0'
   }
 }
 

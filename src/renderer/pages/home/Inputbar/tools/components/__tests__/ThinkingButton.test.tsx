@@ -1,5 +1,6 @@
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { Assistant, ThinkingOption } from '@renderer/types'
+import { ASSISTANT_SOURCE_USER } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -176,6 +177,8 @@ const createAssistant = (overrides: AssistantTestOverrides = {}): Assistant => (
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   ...overrides,
+  source: overrides.source ?? ASSISTANT_SOURCE_USER,
+  orderKey: overrides.orderKey ?? 'a0',
   // Deep-merge settings so test sites that supply only the key under test
   // don't drop the rest of the v2 schema.
   settings: { ...DEFAULT_TEST_SETTINGS, ...overrides.settings }

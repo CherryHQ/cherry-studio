@@ -11,11 +11,12 @@ import { pinService } from '@data/services/PinService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
 import { type ListAssistantsQuery, ListAssistantsQuerySchema } from '@shared/data/api/schemas/assistants'
-import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { ASSISTANT_SOURCE_USER, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
-import { eq } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -33,6 +34,7 @@ describe('AssistantDataService', () => {
     // Reset preference state between tests so one test's
     // `chat.default_model_id` override does not leak into the next.
     MockMainPreferenceServiceUtils.resetMocks()
+    MockMainDbServiceExport.dbService.withWriteTx.mockImplementation((fn) => dbh.db.transaction(fn as never))
     await seedModelRefs()
   })
 
@@ -103,12 +105,13 @@ describe('AssistantDataService', () => {
   type SeedAssistantValues = Partial<typeof assistantTable.$inferInsert>
   async function seedAssistantRow(values: SeedAssistantValues | SeedAssistantValues[]) {
     const rows = Array.isArray(values) ? values : [values]
+    const orderKeys = generateOrderKeySequence(rows.length)
     await dbh.db.insert(assistantTable).values(
-      rows.map((v) => ({
+      rows.map((v, index) => ({
         emoji: '🌟',
         settings: DEFAULT_ASSISTANT_SETTINGS,
         name: 'test',
-        orderKey: 'a0',
+        orderKey: orderKeys[index],
         ...v
       }))
     )
@@ -292,6 +295,26 @@ describe('AssistantDataService', () => {
       expect(result.items.map((a) => a.id)).toEqual(['ast-1'])
     })
 
+    it('filters by updatedAtFrom and can sort by updatedAt descending', async () => {
+      const cutoff = Date.parse('2026-05-01T00:00:00.000Z')
+      await seedAssistantRow([
+        { id: 'ast-old', name: 'Research old', updatedAt: cutoff - 1, orderKey: 'a0' },
+        { id: 'ast-newer', name: 'Research newer', updatedAt: cutoff + 2000, orderKey: 'a1' },
+        { id: 'ast-newest', name: 'Research newest', updatedAt: cutoff + 3000, orderKey: 'a2' },
+        { id: 'ast-other', name: 'Other', updatedAt: cutoff + 4000, orderKey: 'a3' }
+      ])
+
+      const result = await assistantDataService.list({
+        ...listQuery({ search: 'Research', limit: 10 }),
+        updatedAtFrom: cutoff,
+        sortBy: 'updatedAt',
+        orderBy: 'desc'
+      })
+
+      expect(result.items.map((a) => a.id)).toEqual(['ast-newest', 'ast-newer'])
+      expect(result.total).toBe(2)
+    })
+
     it('should treat %/_ in search as literals, not wildcards', async () => {
       await seedAssistantRow([
         { id: 'ast-1', name: 'percent_100', description: '' },
@@ -378,15 +401,16 @@ describe('AssistantDataService', () => {
       expect(result.items[1].id).toBe('ast-3')
     })
 
-    it('should order by createdAt ascending', async () => {
+    it('should order by orderKey ascending with id tiebreaker', async () => {
       await seedAssistantRow([
-        { id: 'ast-new', name: 'new', createdAt: 300 },
-        { id: 'ast-old', name: 'old', createdAt: 100 },
-        { id: 'ast-mid', name: 'mid', createdAt: 200 }
+        { id: 'ast-later-created', name: 'first-by-key', orderKey: 'a0', createdAt: 300 },
+        { id: 'ast-a', name: 'tie-a', orderKey: 'a1', createdAt: 100 },
+        { id: 'ast-b', name: 'tie-b', orderKey: 'a1', createdAt: 200 },
+        { id: 'ast-earlier-created', name: 'last-by-key', orderKey: 'a2', createdAt: 50 }
       ])
 
       const result = await assistantDataService.list(listQuery())
-      expect(result.items.map((a) => a.id)).toEqual(['ast-old', 'ast-mid', 'ast-new'])
+      expect(result.items.map((a) => a.id)).toEqual(['ast-later-created', 'ast-a', 'ast-b', 'ast-earlier-created'])
     })
 
     it('surfaces pinned assistants ahead of unpinned ones, sorted by pin.orderKey', async () => {
@@ -411,9 +435,40 @@ describe('AssistantDataService', () => {
       // pin-free path. Pin column is NULL for every row → CASE evaluates to 1
       // uniformly → secondary sort applies as before.
       await seedAssistantRow([
-        { id: 'ast-z', name: 'z', createdAt: 300 },
-        { id: 'ast-a', name: 'a', createdAt: 100 },
-        { id: 'ast-m', name: 'm', createdAt: 200 }
+        { id: 'ast-z', name: 'z', orderKey: 'a0', createdAt: 300 },
+        { id: 'ast-a', name: 'a', orderKey: 'a0', createdAt: 100 },
+        { id: 'ast-m', name: 'm', orderKey: 'a0', createdAt: 200 }
+      ])
+
+      const result = await assistantDataService.list(listQuery())
+      expect(result.items.map((a) => a.id)).toEqual(['ast-a', 'ast-m', 'ast-z'])
+    })
+
+    it('surfaces pinned assistants ahead of unpinned ones, sorted by pin.orderKey', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'a1', createdAt: 100 },
+        { id: 'ast-2', name: 'a2', createdAt: 200 },
+        { id: 'ast-3', name: 'a3', createdAt: 300 },
+        { id: 'ast-4', name: 'a4', createdAt: 400 }
+      ])
+      // Pin ast-3 then ast-1 — pin.orderKey is assigned by `insertWithOrderKey`,
+      // so the second pin gets a larger key and appears AFTER ast-3 in the
+      // pinned section.
+      await pinService.pin({ entityType: 'assistant', entityId: 'ast-3' })
+      await pinService.pin({ entityType: 'assistant', entityId: 'ast-1' })
+
+      const result = await assistantDataService.list(listQuery())
+      expect(result.items.map((a) => a.id)).toEqual(['ast-3', 'ast-1', 'ast-2', 'ast-4'])
+    })
+
+    it('keeps unpinned assistants in createdAt order when no pins exist', async () => {
+      // Regression: the pin LEFT JOIN must not change ordering for the
+      // pin-free path. Pin column is NULL for every row → CASE evaluates to 1
+      // uniformly → secondary sort applies as before.
+      await seedAssistantRow([
+        { id: 'ast-z', name: 'z', orderKey: 'a0', createdAt: 300 },
+        { id: 'ast-a', name: 'a', orderKey: 'a0', createdAt: 100 },
+        { id: 'ast-m', name: 'm', orderKey: 'a0', createdAt: 200 }
       ])
 
       const result = await assistantDataService.list(listQuery())
@@ -542,8 +597,25 @@ describe('AssistantDataService', () => {
 
       expect(result.id).toBeTruthy()
       expect(result.name).toBe('test-assistant')
+      expect(result.source).toBe(ASSISTANT_SOURCE_USER)
       expect(result.modelId).toBeNull()
+      expect(result.orderKey.length).toBeGreaterThan(0)
       expect(typeof result.createdAt).toBe('string')
+    })
+
+    it('should assign strictly increasing order keys on successive creates', async () => {
+      const first = await assistantDataService.create({ name: 'first' })
+      const second = await assistantDataService.create({ name: 'second' })
+      const third = await assistantDataService.create({ name: 'third' })
+
+      const rows = await dbh.db
+        .select({ id: assistantTable.id, orderKey: assistantTable.orderKey })
+        .from(assistantTable)
+        .orderBy(asc(assistantTable.orderKey), asc(assistantTable.id))
+
+      expect(rows.map((row) => row.id)).toEqual([first.id, second.id, third.id])
+      expect(first.orderKey < second.orderKey).toBe(true)
+      expect(second.orderKey < third.orderKey).toBe(true)
     })
 
     it('should persist assistant to database', async () => {
@@ -552,6 +624,17 @@ describe('AssistantDataService', () => {
       const [row] = await dbh.db.select().from(assistantTable)
       expect(row.id).toBe(created.id)
       expect(row.name).toBe('test-assistant')
+      expect(row.source).toBe(ASSISTANT_SOURCE_USER)
+    })
+
+    it('should persist bundled preset source when provided', async () => {
+      const source = '550e8400-e29b-41d4-a716-446655440000'
+      const created = await assistantDataService.create({ name: 'preset-assistant', source })
+
+      expect(created.source).toBe(source)
+
+      const [row] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, created.id))
+      expect(row.source).toBe(source)
     })
 
     it('should apply default settings when settings are omitted', async () => {
@@ -719,6 +802,66 @@ describe('AssistantDataService', () => {
       const result = await assistantDataService.create({ name: 'explicit-null', modelId: null })
 
       expect(result.modelId).toBeNull()
+    })
+  })
+
+  describe('reorder', () => {
+    it("should move an assistant to the first position via { position: 'first' }", async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'A', orderKey: 'a0' },
+        { id: 'ast-2', name: 'B', orderKey: 'a1' },
+        { id: 'ast-3', name: 'C', orderKey: 'a2' }
+      ])
+
+      await assistantDataService.reorder('ast-3', { position: 'first' })
+
+      const result = await assistantDataService.list(listQuery())
+      expect(result.items.map((a) => a.id)).toEqual(['ast-3', 'ast-1', 'ast-2'])
+    })
+
+    it('should move an assistant before an anchor', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'A', orderKey: 'a0' },
+        { id: 'ast-2', name: 'B', orderKey: 'a1' },
+        { id: 'ast-3', name: 'C', orderKey: 'a2' }
+      ])
+
+      await assistantDataService.reorder('ast-3', { before: 'ast-2' })
+
+      const result = await assistantDataService.list(listQuery())
+      expect(result.items.map((a) => a.id)).toEqual(['ast-1', 'ast-3', 'ast-2'])
+    })
+
+    it('should reject soft-deleted targets and anchors as NOT_FOUND', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'A', orderKey: 'a0' },
+        { id: 'ast-2', name: 'B', orderKey: 'a1', deletedAt: Date.now() }
+      ])
+
+      await expect(assistantDataService.reorder('ast-2', { position: 'first' })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+      await expect(assistantDataService.reorder('ast-1', { before: 'ast-2' })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+  })
+
+  describe('reorderBatch', () => {
+    it('should apply multiple assistant moves atomically', async () => {
+      await seedAssistantRow([
+        { id: 'ast-1', name: 'A', orderKey: 'a0' },
+        { id: 'ast-2', name: 'B', orderKey: 'a1' },
+        { id: 'ast-3', name: 'C', orderKey: 'a2' }
+      ])
+
+      await assistantDataService.reorderBatch([
+        { id: 'ast-3', anchor: { position: 'first' } },
+        { id: 'ast-1', anchor: { position: 'last' } }
+      ])
+
+      const result = await assistantDataService.list(listQuery())
+      expect(result.items.map((a) => a.id)).toEqual(['ast-3', 'ast-2', 'ast-1'])
     })
   })
 
