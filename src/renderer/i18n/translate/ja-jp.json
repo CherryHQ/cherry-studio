@@ -2162,16 +2162,10 @@
           "supported_formats": "PDF、DOCX、MD、XLSX、TXT、CSVに対応",
           "title": "ファイルを選択するにはクリックするか、ここにドラッグしてください"
         },
-        "sitemap": {
-          "description": "サイトマップのURLを入力してください:",
-          "help": "サイトマップに記載されているページは読み込まれ、インデックスされます。",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
-        },
         "sources": {
           "directory": "フォルダ",
           "file": "ファイル",
           "note": "注",
-          "sitemap": "ウェブサイト",
           "url": "URL"
         },
         "submit": {
@@ -2209,9 +2203,6 @@
           "file": {
             "title": "ファイル"
           },
-          "sitemap": {
-            "title": "ウェブサイト同期"
-          },
           "url": {
             "title": "URL"
           }
@@ -2224,7 +2215,6 @@
         "directory": "フォルダ",
         "file": "ファイル",
         "note": "メモ",
-        "sitemap": "ウェブサイト",
         "url": "URL"
       },
       "preview": {
@@ -6147,6 +6137,9 @@
         "enabled": "開く",
         "failed": "失敗",
         "failed_to_start": "ヘルスチェックの開始に失敗しました",
+        "generation_output_audio": "オーディオ",
+        "generation_output_image": "画像",
+        "generation_output_video": "動画",
         "keys_status_count": "合格：{{count_passed}}個のキー、不合格：{{count_failed}}個のキー",
         "model_status_failed": "{{count}} 個のモデルが完全にアクセスできません",
         "model_status_partial": "{{count}} 個のモデルが一部のキーでアクセスできません",
@@ -6155,6 +6148,7 @@
         "no_api_keys": "APIキーが見つかりません。まずAPIキーを追加してください。",
         "no_results": "結果なし",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "{{count}} 件スキップされました",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "成功",
@@ -6166,8 +6160,11 @@
         "retry": "Check again",
         "select_api_key": "使用するAPIキーを選択：",
         "single": "単一",
+        "skip_reason_generation_cost": "このモデルのヘルスチェックは {{output}} を生成し、クォータを消費するため、デフォルトでスキップされます。",
+        "skip_reason_unsupported_probe": "このモデルタイプにはまだ低コストのヘルスチェックが存在しないため、デフォルトでスキップされます。",
         "start": "開始",
         "status_checking": "Checking…",
+        "status_skipped": "スキップしました",
         "timeout": "タイムアウト",
         "title": "モデル健康チェック",
         "use_all_keys": "キー"
@@ -6176,6 +6173,8 @@
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
       "empty": "モデルが見つかりません",
+      "group_disable": "このグループを閉じる",
+      "group_enable": "このグループを有効にする",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",
