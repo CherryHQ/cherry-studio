@@ -96,21 +96,23 @@ describe('Sortable', () => {
   })
 
   it('passes overlay:false to in-list items and overlay:true to the drag-overlay copy', () => {
-    const renderItem = vi.fn((item: { id: string }, _state: { dragging: boolean; overlay: boolean }) => (
-      <div>{item.id}</div>
-    ))
+    const states: Array<{ dragging: boolean; overlay: boolean }> = []
+    const renderItem = (item: { id: string }, state: { dragging: boolean; overlay: boolean }) => {
+      states.push(state)
+      return <div>{item.id}</div>
+    }
 
     render(<Sortable items={[{ id: 'a' }, { id: 'b' }]} itemKey="id" onSortEnd={() => {}} renderItem={renderItem} />)
 
     // Initial render: every in-list item gets overlay:false.
-    expect(renderItem.mock.calls.length).toBeGreaterThan(0)
-    expect(renderItem.mock.calls.every(([, state]) => state.overlay === false)).toBe(true)
+    expect(states.length).toBeGreaterThan(0)
+    expect(states.every((state) => state.overlay === false)).toBe(true)
 
     act(() => {
       dndContextCalls[0].onDragStart({ active: { id: 'a' } })
     })
 
     // After drag start, the overlay copy renders with overlay:true.
-    expect(renderItem.mock.calls.some(([, state]) => state.overlay === true)).toBe(true)
+    expect(states.some((state) => state.overlay === true)).toBe(true)
   })
 })
