@@ -1,6 +1,7 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -9,12 +10,31 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const SESSION_ID = 'session-1'
 const USER_MESSAGE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001'
 const ASSISTANT_MESSAGE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002'
+type AgentSessionInsert = typeof agentSessionTable.$inferInsert
 
 describe('AgentSessionMessageService', () => {
   const dbh = setupTestDatabase()
 
+  async function seedSession(values: Omit<AgentSessionInsert, 'workspaceId'> & { workspaceId?: string }) {
+    const workspaceId = values.workspaceId ?? `workspace-${values.id}`
+    await dbh.db.insert(agentWorkspaceTable).values({
+      id: workspaceId,
+      name: workspaceId,
+      path: `/tmp/${workspaceId}`,
+      type: 'user',
+      orderKey: `workspace-${values.orderKey}`
+    })
+    await dbh.db.insert(agentSessionTable).values({ ...values, workspaceId })
+  }
+
+  async function seedSessions(rows: Array<Omit<AgentSessionInsert, 'workspaceId'> & { workspaceId?: string }>) {
+    for (const row of rows) {
+      await seedSession(row)
+    }
+  }
+
   beforeEach(async () => {
-    await dbh.db.insert(agentSessionTable).values({ id: SESSION_ID, name: 'Session', orderKey: 'a0' })
+    await seedSession({ id: SESSION_ID, name: 'Session', orderKey: 'a0' })
   })
 
   afterEach(() => {
@@ -228,7 +248,7 @@ describe('AgentSessionMessageService', () => {
       model: null,
       orderKey: 'a0'
     })
-    await dbh.db.insert(agentSessionTable).values({
+    await seedSession({
       id: 'session-search',
       agentId: 'agent-search',
       name: 'Session Search',
@@ -262,7 +282,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   it('matches extracted text instead of serialized JSON escapes', async () => {
-    await dbh.db.insert(agentSessionTable).values({
+    await seedSession({
       id: 'session-escaped',
       name: 'Session Escaped',
       orderKey: 'se0'
@@ -285,7 +305,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   it('defaults session message search to substring matching', async () => {
-    await dbh.db.insert(agentSessionTable).values({
+    await seedSession({
       id: 'session-substring-default',
       name: 'Session Substring Default',
       orderKey: 'ssd0'
@@ -306,7 +326,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   it('requires all search terms to match a session message', async () => {
-    await dbh.db.insert(agentSessionTable).values({
+    await seedSession({
       id: 'session-search-and',
       name: 'Session Search And',
       orderKey: 'ssa0'
@@ -338,7 +358,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   it('treats LIKE wildcards as literal session-message search text after FTS prefiltering', async () => {
-    await dbh.db.insert(agentSessionTable).values({
+    await seedSession({
       id: 'session-search-literal',
       name: 'Session Search Literal',
       orderKey: 'ssl0'
@@ -381,7 +401,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   it('uses the session message FTS index as the search candidate source', async () => {
-    await dbh.db.insert(agentSessionTable).values({
+    await seedSession({
       id: 'session-fts-candidate',
       name: 'Session FTS Candidate',
       orderKey: 'sfc0'
@@ -417,7 +437,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   it('filters session message search by session id', async () => {
-    await dbh.db.insert(agentSessionTable).values([
+    await seedSessions([
       {
         id: 'session-source-filter',
         name: 'Session Source Filter',
@@ -459,7 +479,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   it('filters session message search by createdAtFrom', async () => {
-    await dbh.db.insert(agentSessionTable).values({
+    await seedSession({
       id: 'session-created-filter',
       name: 'Session Created Filter',
       orderKey: 'sc0'
@@ -494,7 +514,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   it('paginates search with message ids as row-id cursors', async () => {
-    await dbh.db.insert(agentSessionTable).values({
+    await seedSession({
       id: 'session-page',
       name: 'Session Page',
       orderKey: 'sp0'
@@ -551,7 +571,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   it('uses session message id as the search cursor tiebreaker when createdAt values match', async () => {
-    await dbh.db.insert(agentSessionTable).values({
+    await seedSession({
       id: 'session-page-tie',
       name: 'Session Page Tie',
       orderKey: 'spt0'

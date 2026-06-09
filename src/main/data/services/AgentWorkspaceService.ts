@@ -17,6 +17,7 @@ export function rowToWorkspace(row: AgentWorkspaceRow): AgentWorkspaceEntity {
     id: row.id,
     name: row.name,
     path: row.path,
+    type: row.type as AgentWorkspaceEntity['type'],
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
@@ -77,16 +78,45 @@ export class AgentWorkspaceService {
       .from(agentWorkspaceTable)
       .where(eq(agentWorkspaceTable.path, workspacePath))
       .limit(1)
-    if (existing) return existing
+    if (existing) {
+      if (existing.type === 'user') return existing
+      throw DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
+    }
 
     const id = uuidv4()
     const name = options.name?.trim() || defaultWorkspaceName(workspacePath)
     return (await insertWithOrderKey(
       tx,
       agentWorkspaceTable,
-      { id, name, path: workspacePath },
+      { id, name, path: workspacePath, type: 'user' },
       { pkColumn: agentWorkspaceTable.id, position: 'first' }
     )) as AgentWorkspaceRow
+  }
+
+  async createSystemWorkspaceForSessionTx(tx: DbOrTx, input: { sessionId: string }): Promise<AgentWorkspaceEntity> {
+    const workspacePath = normalizeWorkspacePath(
+      path.join(application.getPath('feature.agents.workspaces'), input.sessionId)
+    )
+    const row = await withSqliteErrors(
+      () =>
+        insertWithOrderKey(
+          tx,
+          agentWorkspaceTable,
+          {
+            id: uuidv4(),
+            name: defaultWorkspaceName(workspacePath),
+            path: workspacePath,
+            type: 'system'
+          },
+          { pkColumn: agentWorkspaceTable.id, position: 'first' }
+        ) as Promise<AgentWorkspaceRow>,
+      {
+        ...defaultHandlersFor('Workspace', workspacePath),
+        unique: () =>
+          DataApiErrorFactory.conflict(`System workspace already exists for session ${input.sessionId}`, 'Workspace')
+      }
+    )
+    return rowToWorkspace(row)
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {

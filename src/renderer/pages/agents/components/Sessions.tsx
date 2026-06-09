@@ -45,7 +45,8 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
     const activeAgentId = sessions.find((s) => s.id === activeSessionId)?.agentId
     return activeAgentId ?? sessions[0]?.agentId ?? null
   }, [sessions, activeSessionId])
-  const { createDefaultSession, creatingSession } = useCreateDefaultSession(fallbackAgentId)
+  const workspaceSource = null
+  const { createDefaultSession, creatingSession } = useCreateDefaultSession(fallbackAgentId, workspaceSource)
 
   const listRef = useRef<DraggableVirtualListRef>(null)
 
@@ -156,7 +157,10 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
         itemKey={(index) => sessions[index]?.id ?? index}
         header={
           <div className="-mt-0.5 mb-1.5">
-            <AddButton className="w-full" onClick={createDefaultSession} disabled={creatingSession || !fallbackAgentId}>
+            <AddButton
+              className="w-full"
+              onClick={createDefaultSession}
+              disabled={creatingSession || !fallbackAgentId || !workspaceSource}>
               {t('agent.session.add.title')}
             </AddButton>
           </div>

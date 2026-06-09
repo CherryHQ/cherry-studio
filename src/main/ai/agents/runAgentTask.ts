@@ -13,16 +13,17 @@
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import { readHeartbeat } from '@main/ai/agents/cherryclaw/heartbeat'
-import { agentSessionCreationService } from '@main/ai/agentSession/AgentSessionCreationService'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import { application } from '@main/core/application'
 import type { JobContext } from '@main/core/job/types'
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')
 
@@ -33,6 +34,7 @@ export type AgentTaskInput = {
   agentId: string
   prompt: string
   timeoutMinutes: number
+  workspace: AgentSessionWorkspaceSource
 }
 
 export type AgentTaskOutput = {
@@ -63,7 +65,7 @@ function makeRunSignal(
 }
 
 export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<AgentTaskOutput> {
-  const { agentId, prompt, timeoutMinutes } = ctx.input
+  const { agentId, prompt, timeoutMinutes, workspace } = ctx.input
 
   // schedule-fired jobs carry `scheduleId` on the row; manual ad-hoc enqueues
   // (no schedule) degrade gracefully: skip channel notification.
@@ -83,20 +85,20 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
 
   let effectivePrompt = prompt
 
-  // All heartbeat skip decisions happen BEFORE we create a session — `createSession`
-  // lazily provisions a workspace, so creating one for a fire we're going to drop
-  // accretes a session row (and workspace) every interval. The agent's workspace is
-  // shared across its sessions, so we can read `heartbeat.md` without creating one.
   if (isHeartbeat) {
     if (config.heartbeat_enabled === false) {
       logger.debug('Heartbeat skipped (disabled)', { agentId, scheduleId })
       return { sessionId: null, result: 'Skipped (disabled)' }
     }
-    const workspacePath = await agentSessionService.findAgentWorkspacePath(agentId)
-    if (!workspacePath) {
+    if (workspace.type === 'system') {
       logger.debug('Heartbeat skipped (no workspace)', { agentId, scheduleId })
       return { sessionId: null, result: 'Skipped (no file)' }
     }
+    const workspaceRow = await agentWorkspaceService.getById(workspace.workspaceId)
+    if (workspaceRow.type !== 'user') {
+      throw new Error(`Heartbeat workspace must be user-owned: ${workspace.workspaceId}`)
+    }
+    const workspacePath = workspaceRow.path
     const content = await readHeartbeat(workspacePath)
     if (!content) {
       logger.debug('Heartbeat skipped (no heartbeat.md)', { agentId, scheduleId })
@@ -115,9 +117,10 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   // Always create a fresh session per fire. Scheduled tasks are discrete
   // invocations; cross-fire session reuse would only carry stale model
   // context. Persistent state lives in workspace files (heartbeat.md, etc.).
-  const session = await agentSessionCreationService.createSession({
+  const session = await agentSessionService.create({
     agentId,
-    name: taskName ?? 'Scheduled task'
+    name: taskName ?? 'Scheduled task',
+    workspace
   })
 
   const subscribedChannels = scheduleId ? await agentChannelService.getSubscribedChannels(scheduleId) : []

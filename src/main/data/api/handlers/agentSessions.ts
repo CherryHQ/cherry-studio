@@ -15,6 +15,7 @@ import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/sc
 import {
   AgentSessionMessagesListQuerySchema,
   type AgentSessionSchemas,
+  CreateAgentSessionSchema,
   ListAgentSessionsQuerySchema,
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
@@ -25,6 +26,12 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
       const parsed = ListAgentSessionsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
       return await agentSessionService.listByCursor(parsed.data)
+    },
+
+    POST: async ({ body }) => {
+      const parsed = CreateAgentSessionSchema.safeParse(body)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return await agentSessionService.create(parsed.data)
     }
   },
 

@@ -1,13 +1,20 @@
+import { application } from '@application'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { AgentWorkspaceService, agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
+import { mkdtemp, stat } from 'fs/promises'
+import { tmpdir } from 'os'
 import path from 'path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 describe('AgentWorkspaceService', () => {
   const dbh = setupTestDatabase()
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
 
   function workspacePath(...segments: string[]) {
     return path.join('/tmp', 'cherry-workspace-service', ...segments)
@@ -31,7 +38,8 @@ describe('AgentWorkspaceService', () => {
     expect(second.id).toBe(first.id)
     expect(first).toMatchObject({
       name: 'project',
-      path: normalizedPath
+      path: normalizedPath,
+      type: 'user'
     })
 
     const rows = await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.path, normalizedPath))
@@ -66,6 +74,26 @@ describe('AgentWorkspaceService', () => {
       id: workspace.id,
       path: workspace.path
     })
+  })
+
+  it('creates system workspace rows without creating the backing directory', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-system-workspace-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.agents.workspaces') {
+        return filename ? path.join(root, 'Agents', filename) : path.join(root, 'Agents')
+      }
+      return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
+    })
+
+    const workspace = await dbh.db.transaction((tx) =>
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'session-system' })
+    )
+
+    expect(workspace).toMatchObject({
+      path: path.join(root, 'Agents', 'session-system'),
+      type: 'system'
+    })
+    await expect(stat(workspace.path)).rejects.toThrow()
   })
 
   it('translates findOrCreateByPathTx unique races to conflict errors', async () => {

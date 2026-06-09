@@ -359,7 +359,6 @@ export enum IpcChannel {
   Topic_AutoRenamed = 'topic:auto-renamed',
   // Agent session auto-rename push (main → renderer; payload: { sessionId })
   AgentSession_AutoRenamed = 'agent-session:auto-renamed',
-  AgentSession_Create = 'agent-session:create',
 
   // TRACE
   TRACE_SAVE_DATA = 'trace:saveData',

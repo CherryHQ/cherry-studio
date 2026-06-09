@@ -43,11 +43,13 @@ const AGENT_ID = 'agent-a1'
 const TASK_ID = 'sched-1'
 
 const validTrigger = { kind: 'interval' as const, ms: 60_000 }
+const taskWorkspace = { type: 'user' as const, workspaceId: 'ws-task' }
 const validDto: CreateTaskDto = {
   name: 'daily-report',
   prompt: 'Summarise yesterday',
   trigger: validTrigger,
-  timeoutMinutes: 5
+  timeoutMinutes: 5,
+  workspace: taskWorkspace
 }
 
 function makeSnapshot(overrides: Partial<JobScheduleSnapshot> = {}): JobScheduleSnapshot {
@@ -56,7 +58,7 @@ function makeSnapshot(overrides: Partial<JobScheduleSnapshot> = {}): JobSchedule
     type: 'agent.task',
     name: 'daily-report',
     trigger: validTrigger,
-    jobInputTemplate: { agentId: AGENT_ID, prompt: 'Summarise yesterday', timeoutMinutes: 5 },
+    jobInputTemplate: { agentId: AGENT_ID, prompt: 'Summarise yesterday', timeoutMinutes: 5, workspace: taskWorkspace },
     enabled: true,
     nextRun: '2026-05-20T01:00:00.000Z',
     lastRun: null,
@@ -167,7 +169,7 @@ describe('AgentTaskService (thin facade)', () => {
         type: 'agent.task',
         name: validDto.name,
         trigger: validTrigger,
-        jobInputTemplate: { agentId: AGENT_ID, prompt: validDto.prompt, timeoutMinutes: 5 },
+        jobInputTemplate: { agentId: AGENT_ID, prompt: validDto.prompt, timeoutMinutes: 5, workspace: taskWorkspace },
         catchUpPolicy: { kind: 'skip-missed' }
       })
       expect(result).toMatchObject({ id: TASK_ID, agentId: AGENT_ID, name: validDto.name, enabled: true })
@@ -239,7 +241,9 @@ describe('AgentTaskService (thin facade)', () => {
     it('returns null when agentId does not match', async () => {
       setupApplicationMocks()
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(
-        makeSnapshot({ jobInputTemplate: { agentId: 'other-agent', prompt: 'x', timeoutMinutes: 2 } })
+        makeSnapshot({
+          jobInputTemplate: { agentId: 'other-agent', prompt: 'x', timeoutMinutes: 2, workspace: taskWorkspace }
+        })
       )
 
       const result = await agentTaskService.getTask(AGENT_ID, TASK_ID)
@@ -286,7 +290,7 @@ describe('AgentTaskService (thin facade)', () => {
         makeSnapshot({
           id: 's2',
           name: 'b',
-          jobInputTemplate: { agentId: 'other', prompt: 'x', timeoutMinutes: 2 }
+          jobInputTemplate: { agentId: 'other', prompt: 'x', timeoutMinutes: 2, workspace: taskWorkspace }
         }),
         makeSnapshot({ id: 's3', name: 'heartbeat' })
       ])
@@ -331,7 +335,7 @@ describe('AgentTaskService (thin facade)', () => {
         expect.objectContaining({
           name: 'new-name',
           enabled: false,
-          jobInputTemplate: { agentId: AGENT_ID, prompt: 'new prompt', timeoutMinutes: 5 }
+          jobInputTemplate: { agentId: AGENT_ID, prompt: 'new prompt', timeoutMinutes: 5, workspace: taskWorkspace }
         })
       )
     })
@@ -390,7 +394,9 @@ describe('AgentTaskService (thin facade)', () => {
     it('returns false (without deleting) when the task does not belong to the agent', async () => {
       setupApplicationMocks()
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(
-        makeSnapshot({ jobInputTemplate: { agentId: 'other', prompt: 'x', timeoutMinutes: 2 } })
+        makeSnapshot({
+          jobInputTemplate: { agentId: 'other', prompt: 'x', timeoutMinutes: 2, workspace: taskWorkspace }
+        })
       )
 
       const result = await agentTaskService.deleteTask(AGENT_ID, TASK_ID)

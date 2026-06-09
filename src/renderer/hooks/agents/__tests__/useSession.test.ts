@@ -17,8 +17,6 @@ const buildInfiniteReturn = (overrides: Record<string, unknown> = {}) => ({
   ...overrides
 })
 
-const mockCreateAgentSession = vi.fn()
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
@@ -40,7 +38,7 @@ vi.mock('@data/DataApiService', () => ({
 }))
 
 const mockToast = { success: vi.fn(), error: vi.fn() }
-vi.stubGlobal('window', { toast: mockToast, api: { agentSession: { create: mockCreateAgentSession } } })
+vi.stubGlobal('window', { toast: mockToast })
 
 describe('useSessions', () => {
   beforeEach(() => {
@@ -136,7 +134,7 @@ describe('useSessions', () => {
     expect(result.current.hasMore).toBe(true)
   })
 
-  it('creates a session through IPC and refreshes the session list', async () => {
+  it('creates a session through DataApi and refreshes the session list', async () => {
     const refresh = vi.fn().mockResolvedValue(undefined)
     const mockSession = {
       id: 'session-1',
@@ -144,28 +142,39 @@ describe('useSessions', () => {
       name: 'New session',
       description: 'Notes',
       workspaceId: 'workspace-1',
-      workspace: null,
+      workspace: {
+        id: 'workspace-1',
+        name: 'Workspace',
+        path: '/tmp/workspace',
+        type: 'user',
+        orderKey: 'a0',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z'
+      },
       orderKey: 'a0',
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
     }
+    const createTrigger = vi.fn().mockResolvedValueOnce(mockSession)
     mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ refresh }) as never)
-    mockCreateAgentSession.mockResolvedValueOnce(mockSession)
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions', createTrigger)
 
     const { result } = renderHook(() => useSessions('agent-1'))
     const created = await act(async () =>
       result.current.createSession({
         name: 'New session',
         description: 'Notes',
-        workspaceId: 'workspace-1'
+        workspace: { type: 'user', workspaceId: 'workspace-1' }
       })
     )
 
-    expect(mockCreateAgentSession).toHaveBeenCalledWith({
-      agentId: 'agent-1',
-      name: 'New session',
-      description: 'Notes',
-      workspaceId: 'workspace-1'
+    expect(createTrigger).toHaveBeenCalledWith({
+      body: {
+        agentId: 'agent-1',
+        name: 'New session',
+        description: 'Notes',
+        workspace: { type: 'user', workspaceId: 'workspace-1' }
+      }
     })
     expect(refresh).toHaveBeenCalledTimes(1)
     expect(created).toBe(mockSession)
@@ -179,20 +188,29 @@ describe('useSessions', () => {
       name: 'New session',
       description: 'Notes',
       workspaceId: 'workspace-1',
-      workspace: null,
+      workspace: {
+        id: 'workspace-1',
+        name: 'Workspace',
+        path: '/tmp/workspace',
+        type: 'user',
+        orderKey: 'a0',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z'
+      },
       orderKey: 'a0',
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
     }
+    const createTrigger = vi.fn().mockResolvedValueOnce(mockSession)
     mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ refresh }) as never)
-    mockCreateAgentSession.mockResolvedValueOnce(mockSession)
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions', createTrigger)
 
     const { result } = renderHook(() => useSessions('agent-1'))
     const created = await act(async () =>
       result.current.createSession({
         name: 'New session',
         description: 'Notes',
-        workspaceId: 'workspace-1'
+        workspace: { type: 'user', workspaceId: 'workspace-1' }
       })
     )
 
@@ -201,12 +219,15 @@ describe('useSessions', () => {
     expect(mockToast.error).toHaveBeenCalled()
   })
 
-  it('shows an error toast and returns null when IPC session creation fails', async () => {
+  it('shows an error toast and returns null when DataApi session creation fails', async () => {
     mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn() as never)
-    mockCreateAgentSession.mockRejectedValueOnce(new Error('create failed'))
+    const createTrigger = vi.fn().mockRejectedValueOnce(new Error('create failed'))
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions', createTrigger)
 
     const { result } = renderHook(() => useSessions('agent-1'))
-    const created = await act(async () => result.current.createSession({ name: 'New session' }))
+    const created = await act(async () =>
+      result.current.createSession({ name: 'New session', workspace: { type: 'system' } })
+    )
 
     expect(created).toBeNull()
     expect(mockToast.error).toHaveBeenCalled()

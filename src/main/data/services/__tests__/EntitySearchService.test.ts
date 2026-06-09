@@ -1,5 +1,6 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { topicTable } from '@data/db/schemas/topic'
@@ -45,6 +46,18 @@ describe('EntitySearchService', () => {
     ])
   }
 
+  async function seedSession(values: Omit<typeof agentSessionTable.$inferInsert, 'workspaceId'>) {
+    const workspaceId = `workspace-${values.id}`
+    await dbh.db.insert(agentWorkspaceTable).values({
+      id: workspaceId,
+      name: workspaceId,
+      path: `/tmp/${workspaceId}`,
+      type: 'user',
+      orderKey: `workspace-${values.orderKey}`
+    })
+    await dbh.db.insert(agentSessionTable).values({ ...values, workspaceId })
+  }
+
   async function seedEntitySearchRows() {
     await dbh.db.insert(assistantTable).values({
       id: '11111111-1111-4111-8111-111111111111',
@@ -72,7 +85,7 @@ describe('EntitySearchService', () => {
       assistantId: '11111111-1111-4111-8111-111111111111',
       orderKey: 'a0'
     })
-    await dbh.db.insert(agentSessionTable).values({
+    await seedSession({
       id: '44444444-4444-4444-8444-444444444444',
       agentId: '22222222-2222-4222-8222-222222222222',
       name: 'Needle Session',
@@ -169,7 +182,7 @@ describe('EntitySearchService', () => {
 
   it('honors type filters and limitPerType', async () => {
     await seedEntitySearchRows()
-    await dbh.db.insert(agentSessionTable).values({
+    await seedSession({
       id: '66666666-6666-4666-8666-666666666666',
       agentId: '22222222-2222-4222-8222-222222222222',
       name: 'Needle Follow-up',

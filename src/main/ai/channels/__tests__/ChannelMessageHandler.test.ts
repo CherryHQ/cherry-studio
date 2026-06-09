@@ -1,7 +1,6 @@
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { agentSessionCreationService } from '@main/ai/agentSession/AgentSessionCreationService'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { AgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/settingsBuilder'
 import { EventEmitter } from 'events'
@@ -41,13 +40,8 @@ vi.mock('@data/services/AgentService', () => ({
 
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
-    getById: vi.fn()
-  }
-}))
-
-vi.mock('@main/ai/agentSession/AgentSessionCreationService', () => ({
-  agentSessionCreationService: {
-    createSession: vi.fn()
+    getById: vi.fn(),
+    create: vi.fn()
   }
 }))
 
@@ -66,7 +60,9 @@ vi.mock('@main/ai/streamManager/api/startAgentSessionRun', () => ({
 
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
-    getChannel: vi.fn().mockResolvedValue({ id: 'channel-1', sessionId: null, permissionMode: null }),
+    getChannel: vi
+      .fn()
+      .mockResolvedValue({ id: 'channel-1', sessionId: null, permissionMode: null, workspace: { type: 'system' } }),
     updateChannel: vi.fn().mockResolvedValue(null),
     findBySessionId: vi.fn().mockResolvedValue(null)
   }
@@ -159,7 +155,7 @@ describe('ChannelMessageHandler', () => {
       configuration: {}
     }
 
-    vi.mocked(agentSessionCreationService.createSession).mockResolvedValueOnce(session as any)
+    vi.mocked(agentSessionService.create).mockResolvedValueOnce(session as any)
     simulateStream([
       { type: 'text-delta', delta: 'Hello ' },
       { type: 'text-delta', delta: 'world!' },
@@ -195,7 +191,7 @@ describe('ChannelMessageHandler', () => {
       workspace: { path: '/tmp/test-workspace' },
       configuration: {}
     }
-    vi.mocked(agentSessionCreationService.createSession).mockResolvedValueOnce(session as any)
+    vi.mocked(agentSessionService.create).mockResolvedValueOnce(session as any)
 
     vi.mocked(sanitizeChannelOutput).mockImplementation((text: string) => ({
       text: text.replace('sk-SECRET', '<redacted>'),
@@ -231,7 +227,7 @@ describe('ChannelMessageHandler', () => {
       workspace: { path: '/tmp/test-workspace' },
       configuration: {}
     }
-    vi.mocked(agentSessionCreationService.createSession).mockResolvedValueOnce(session as any)
+    vi.mocked(agentSessionService.create).mockResolvedValueOnce(session as any)
     mockStartAgentSessionRun.mockRejectedValueOnce(new AgentSessionWorkspaceError('workspace is missing'))
 
     await handleIncomingAndFlush(adapter, {
@@ -257,7 +253,7 @@ describe('ChannelMessageHandler', () => {
     }
 
     adapter.onStreamComplete.mockResolvedValueOnce(true)
-    vi.mocked(agentSessionCreationService.createSession).mockResolvedValueOnce(session as any)
+    vi.mocked(agentSessionService.create).mockResolvedValueOnce(session as any)
     simulateStream([{ type: 'text-delta', delta: 'Hello world!' }])
 
     await handleIncomingAndFlush(adapter, {
@@ -282,7 +278,7 @@ describe('ChannelMessageHandler', () => {
       configuration: {}
     }
 
-    vi.mocked(agentSessionCreationService.createSession).mockResolvedValueOnce(session as any)
+    vi.mocked(agentSessionService.create).mockResolvedValueOnce(session as any)
 
     const longText = 'A'.repeat(5000)
     simulateStream([{ type: 'text-delta', delta: longText }])
@@ -303,7 +299,7 @@ describe('ChannelMessageHandler', () => {
 
   it('handleCommand /new creates a new session', async () => {
     const adapter = createMockAdapter()
-    vi.mocked(agentSessionCreationService.createSession).mockResolvedValueOnce({ id: 'new-session' } as any)
+    vi.mocked(agentSessionService.create).mockResolvedValueOnce({ id: 'new-session' } as any)
 
     await channelMessageHandler.handleCommand(adapter, {
       chatId: 'chat-1',
@@ -312,9 +308,10 @@ describe('ChannelMessageHandler', () => {
       command: 'new'
     })
 
-    expect(agentSessionCreationService.createSession).toHaveBeenCalledWith({
+    expect(agentSessionService.create).toHaveBeenCalledWith({
       agentId: 'agent-1',
-      name: 'Channel session'
+      name: 'Channel session',
+      workspace: { type: 'system' }
     })
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'New session created.')
   })
@@ -330,7 +327,7 @@ describe('ChannelMessageHandler', () => {
       configuration: {}
     }
 
-    vi.mocked(agentSessionCreationService.createSession).mockResolvedValueOnce(session as any)
+    vi.mocked(agentSessionService.create).mockResolvedValueOnce(session as any)
     simulateStream([{ type: 'text-delta', delta: 'Compacted.' }])
 
     await channelMessageHandler.handleCommand(adapter, {
@@ -406,7 +403,7 @@ describe('ChannelMessageHandler', () => {
       configuration: {}
     }
 
-    vi.mocked(agentSessionCreationService.createSession).mockResolvedValueOnce(newSession as any)
+    vi.mocked(agentSessionService.create).mockResolvedValueOnce(newSession as any)
 
     await channelMessageHandler.handleCommand(adapter, {
       chatId: 'chat-1',
@@ -441,7 +438,7 @@ describe('ChannelMessageHandler', () => {
     }
 
     // First interaction creates a session
-    vi.mocked(agentSessionCreationService.createSession).mockResolvedValueOnce(session1 as any)
+    vi.mocked(agentSessionService.create).mockResolvedValueOnce(session1 as any)
     simulateStream([{ type: 'text-delta', delta: 'R1' }])
 
     await handleIncomingAndFlush(adapter, {
@@ -473,7 +470,7 @@ describe('ChannelMessageHandler', () => {
     // After clearing tracker, should look up channel then getSession instead of creating new session
     expect(channelService.getChannel).toHaveBeenCalledWith('channel-1')
     // Only 1 createSession call (the first one), not 2
-    expect(agentSessionCreationService.createSession).toHaveBeenCalledTimes(1)
+    expect(agentSessionService.create).toHaveBeenCalledTimes(1)
   })
 
   // channels-core-3: discarding a pending (un-flushed) batch must settle its callers'
@@ -501,7 +498,7 @@ describe('ChannelMessageHandler', () => {
   // a tracked session must stop the upstream agent-session turn via the manager.
   it('clearSessionTracker aborts the upstream agent-session turn via the manager', async () => {
     const adapter = createMockAdapter()
-    vi.mocked(agentSessionCreationService.createSession).mockResolvedValueOnce({ id: 'sess-x' } as any)
+    vi.mocked(agentSessionService.create).mockResolvedValueOnce({ id: 'sess-x' } as any)
 
     await channelMessageHandler.handleCommand(adapter, {
       chatId: 'chat-1',

@@ -4,7 +4,6 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { registerAgentSessionIpcHandlers } from '@main/ai/agentSession/agentSessionIpcHandlers'
 import { isMac, isWin } from '@main/core/platform'
 import { generateSignature } from '@main/integration/cherryai'
 import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
@@ -52,7 +51,6 @@ const obsidianVaultService = new ObsidianVaultService()
 
 export async function registerIpc() {
   const notificationService = new NotificationService()
-  registerAgentSessionIpcHandlers()
 
   // [v2] Removed: Redux persistor flush is no longer needed after v2 data refactoring
   // const powerMonitorService = application.get('PowerMonitorService')

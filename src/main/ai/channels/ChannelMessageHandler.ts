@@ -6,7 +6,6 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
-import { agentSessionCreationService } from '@main/ai/agentSession/AgentSessionCreationService'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { isAgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/settingsBuilder'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
@@ -308,10 +307,7 @@ export class ChannelMessageHandler {
         case 'new': {
           // TODO(channel-perm-override): channel.permissionMode no longer
           // applied here — config lives on agent now. Tracked separately.
-          const newSession = await agentSessionCreationService.createSession({
-            agentId,
-            name: 'Channel session'
-          })
+          const newSession = await this.createSessionForChannel(agentId, adapter.channelId)
           await channelService.updateChannel(adapter.channelId, { sessionId: newSession.id })
           const trackerKey = `${agentId}:${adapter.channelId}:${command.chatId}`
           this.sessionTracker.set(trackerKey, newSession.id)
@@ -522,11 +518,27 @@ export class ChannelMessageHandler {
       trackerKey
     })
 
-    const newSession = await agentSessionCreationService.createSession({ agentId, name: 'Channel session' })
+    const newSession = await this.createSessionForChannel(agentId, channelId, channelRow ?? undefined)
     await channelService.updateChannel(channelId, { sessionId: newSession.id })
     this.sessionTracker.set(trackerKey, newSession.id)
     this.evictSessionTracker()
     return newSession
+  }
+
+  private async createSessionForChannel(
+    agentId: string,
+    channelId: string,
+    channel?: NonNullable<Awaited<ReturnType<typeof channelService.getChannel>>>
+  ): Promise<AgentSessionEntity> {
+    const channelRow = channel ?? (await channelService.getChannel(channelId))
+    if (!channelRow) {
+      throw new Error(`Channel not found: ${channelId}`)
+    }
+    return await agentSessionService.create({
+      agentId,
+      name: 'Channel session',
+      workspace: channelRow.workspace
+    })
   }
 
   private async collectStreamResponse(
