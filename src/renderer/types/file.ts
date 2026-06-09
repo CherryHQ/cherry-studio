@@ -135,6 +135,11 @@ export interface FileMetadata {
    * 输入框内部使用的文件来源类型
    */
   composerFileKind?: ComposerFileKind
+  /**
+   * Association identity that links a composer file token to its file metadata.
+   * It is not a file path, display name, or file storage identity.
+   */
+  fileTokenSourceId?: string
 }
 
 export type PastedTextFileMetadata = FileMetadata & {

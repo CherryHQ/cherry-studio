@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { CherryMessagePart } from '../message'
 import {
+  CherryFileMetaSchema,
   CherryReasoningMetaSchema,
   CherryTextMetaSchema,
   CherryToolMetaSchema,
@@ -45,6 +46,23 @@ describe('CherryToolMetaSchema', () => {
   })
   it('rejects tool.type outside the enum', () => {
     const bad = CherryToolMetaSchema.safeParse({ tool: { type: 'pluggable' } })
+    expect(bad.success).toBe(false)
+  })
+})
+
+describe('CherryFileMetaSchema', () => {
+  it('accepts fileEntryId and fileTokenSourceId', () => {
+    const ok = CherryFileMetaSchema.safeParse({
+      fileEntryId: 'entry-1',
+      fileTokenSourceId: 'source-1'
+    })
+
+    expect(ok.success).toBe(true)
+  })
+
+  it('rejects non-string fileTokenSourceId', () => {
+    const bad = CherryFileMetaSchema.safeParse({ fileTokenSourceId: 1 })
+
     expect(bad.success).toBe(false)
   })
 })
@@ -97,6 +115,18 @@ describe('readCherryMeta', () => {
       providerMetadata: { cherry: { transport: 'claude-agent' } }
     } as unknown as Extract<CherryMessagePart, { type: 'dynamic-tool' }>
     expect(readCherryMeta(part)?.transport).toBe('claude-agent')
+  })
+
+  it('reads CherryFileMeta from a file part with token source id', () => {
+    const part = {
+      type: 'file',
+      mediaType: 'application/pdf',
+      url: 'file:///tmp/report.pdf',
+      filename: 'report.pdf',
+      providerMetadata: { cherry: { fileEntryId: 'entry-1', fileTokenSourceId: 'source-1' } }
+    } as unknown as Extract<CherryMessagePart, { type: 'file' }>
+
+    expect(readCherryMeta(part)).toEqual({ fileEntryId: 'entry-1', fileTokenSourceId: 'source-1' })
   })
 
   it('returns undefined when providerMetadata is missing', () => {
@@ -172,6 +202,18 @@ describe('withCherryMeta', () => {
     const part: ReasoningUIPart = { type: 'reasoning', text: '' }
     const next = withCherryMeta(part, { thinkingMs: 1234 })
     expect(next.providerMetadata?.cherry).toEqual({ thinkingMs: 1234 })
+  })
+
+  it('writes fileTokenSourceId onto a FileUIPart', () => {
+    const part = {
+      type: 'file',
+      mediaType: 'application/pdf',
+      url: 'file:///tmp/report.pdf',
+      filename: 'report.pdf'
+    } as unknown as Extract<CherryMessagePart, { type: 'file' }>
+    const next = withCherryMeta(part, { fileTokenSourceId: 'source-1' })
+
+    expect(next.providerMetadata?.cherry).toEqual({ fileTokenSourceId: 'source-1' })
   })
 
   // ── Compile-time negatives — `tsc --noEmit` enforces these. ──────────

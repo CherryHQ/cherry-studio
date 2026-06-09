@@ -1,13 +1,22 @@
 import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { type ComposerMessageToken, readCherryMeta } from '@shared/data/types/uiParts'
-import { getFileTypeByExt } from '@shared/file/types'
+import { type CherryFileMeta, type ComposerMessageToken, readCherryMeta } from '@shared/data/types/uiParts'
+import { type FileURLString, getFileTypeByExt } from '@shared/file/types'
+import { fileUrlToPath } from '@shared/file/urlUtil'
+
+import {
+  createComposerSecureRandomId,
+  isComposerFileTokenPathLike,
+  readComposerFileTokenSourceIdFromTokenId,
+  withComposerFileTokenSourceId
+} from './composerFileTokenSource'
 
 export const COMPOSER_CLIPBOARD_FRAGMENT_MIME = 'web application/x-cherry-composer-fragment+json'
 
 const COMPOSER_CLIPBOARD_FRAGMENT_VERSION = 1
 const COMPOSER_CLIPBOARD_FRAGMENT_MAX_LENGTH = 250_000
 const COMPOSER_CLIPBOARD_TOKEN_KINDS = ['skill', 'file', 'knowledge', 'reference', 'quote', 'promptVariable'] as const
+const COMPOSER_CLIPBOARD_FILE_HANDLE_TTL_MS = 30 * 60 * 1000
 
 type ComposerClipboardTokenKind = (typeof COMPOSER_CLIPBOARD_TOKEN_KINDS)[number]
 
@@ -32,7 +41,7 @@ export interface ComposerClipboardToken {
     name?: string
     origin_name?: string
     size?: number
-    path?: string
+    handle?: string
   }
 }
 
@@ -64,9 +73,13 @@ interface ComposerClipboardProjection {
   hasToken: boolean
 }
 
-type FileClipboardPayload = NonNullable<ComposerClipboardToken['payload']>
+type FileClipboardPayload = NonNullable<ComposerClipboardToken['payload']> & {
+  id?: string
+  path?: string
+  fileTokenSourceId?: string
+}
 type ClipboardComposerMessageToken = Omit<ComposerMessageToken, 'payload'> & {
-  payload?: ComposerClipboardToken['payload']
+  payload?: FileClipboardPayload
 }
 type ComposerClipboardDraftToken = ComposerClipboardSourceToken & {
   index: number
@@ -97,12 +110,16 @@ function getFileExtensionFromName(name: string | undefined) {
   return name?.match(/\.[^.]+$/)?.[0] ?? ''
 }
 
+function readNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
 function stripFileUrl(value: string | undefined): string | undefined {
   if (!value) return undefined
   if (!value.startsWith('file://')) return value
 
   try {
-    return decodeURIComponent(new URL(value).pathname)
+    return fileUrlToPath(value as FileURLString)
   } catch {
     return value.replace(/^file:\/\//, '')
   }
@@ -112,26 +129,115 @@ function isFileType(value: unknown): value is FileType {
   return typeof value === 'string' && Object.values(FILE_TYPE).includes(value as FileType)
 }
 
-function readFilePayload(payload: unknown): ComposerClipboardToken['payload'] | undefined {
+function readFileDisplayPayload(
+  payload: unknown,
+  options: { includeHandle?: boolean } = {}
+): FileClipboardPayload | undefined {
   if (!isRecord(payload)) return undefined
 
-  const result: NonNullable<ComposerClipboardToken['payload']> = {}
+  const result: FileClipboardPayload = {}
   const type = readString(payload.type)
   const ext = readString(payload.ext)
   const name = readString(payload.name)
   const originName = readString(payload.origin_name)
-  // Kept only inside the private fragment so an internally-copied message can
-  // re-attach the file on paste. The path never reaches html/plain text.
-  const path = readString(payload.path)
+  const handle = readString(payload.handle)
 
   if (type) result.type = type
   if (ext) result.ext = ext
   if (name) result.name = name
   if (originName) result.origin_name = originName
-  if (typeof payload.size === 'number') result.size = payload.size
-  if (path) result.path = path
+  if (readNumber(payload.size) !== undefined) result.size = readNumber(payload.size)
+  if (options.includeHandle && handle) result.handle = handle
 
   return Object.keys(result).length > 0 ? result : undefined
+}
+
+interface FileRestorationRegistryEntry {
+  sourceId: string
+  file: FileMetadata
+  expiresAt: number
+}
+
+const fileRestorationRegistry = new Map<string, FileRestorationRegistryEntry>()
+
+function createFileRestorationHandle() {
+  return createComposerSecureRandomId('composer-file')
+}
+
+function pruneExpiredFileRestorationHandles(now = Date.now()) {
+  for (const [handle, entry] of fileRestorationRegistry) {
+    if (entry.expiresAt <= now) fileRestorationRegistry.delete(handle)
+  }
+}
+
+function registerFileRestorationHandle(file: FileMetadata): string | null {
+  pruneExpiredFileRestorationHandles()
+
+  const restorableFile = withComposerFileTokenSourceId(file)
+  const handle = createFileRestorationHandle()
+  if (!handle) return null
+
+  fileRestorationRegistry.set(handle, {
+    sourceId: restorableFile.fileTokenSourceId,
+    file: restorableFile,
+    expiresAt: Date.now() + COMPOSER_CLIPBOARD_FILE_HANDLE_TTL_MS
+  })
+  return handle
+}
+
+function resolveFileRestorationHandle(handle: string, sourceId: string): FileMetadata | null {
+  pruneExpiredFileRestorationHandles()
+
+  const entry = fileRestorationRegistry.get(handle)
+  if (!entry || entry.sourceId !== sourceId) return null
+  return { ...entry.file }
+}
+
+function createFileMetadataFromWritePayload(
+  token: Pick<ComposerClipboardSourceToken, 'id' | 'label'>,
+  payload: unknown
+): FileMetadata | null {
+  if (!isRecord(payload)) return null
+
+  const sourceId = readComposerFileTokenSourceIdFromTokenId(token.id)
+  const payloadSourceId = readString(payload.fileTokenSourceId)
+  const path = stripFileUrl(readString(payload.path))
+  if (!sourceId || payloadSourceId !== sourceId || !path) return null
+
+  const name = readString(payload.name) || readString(payload.origin_name) || token.label
+  const ext = readString(payload.ext) || getFileExtensionFromName(name)
+  const type = isFileType(payload.type) ? payload.type : getFileTypeByExt(ext)
+  const rawId = readString(payload.id)
+
+  return {
+    id: rawId && !hasUnsafeComposerClipboardFileTokenId({ id: rawId, kind: 'file' }) ? rawId : sourceId,
+    fileTokenSourceId: sourceId,
+    name,
+    origin_name: readString(payload.origin_name) || name,
+    path,
+    size: readNumber(payload.size) ?? 0,
+    ext,
+    type,
+    created_at: readString(payload.created_at) ?? '',
+    count: readNumber(payload.count) ?? 1
+  }
+}
+
+function createFilePayloadForWrite(token: Pick<ComposerClipboardSourceToken, 'id' | 'label' | 'payload'>) {
+  const payload = readFileDisplayPayload(token.payload)
+  const file = createFileMetadataFromWritePayload(token, token.payload)
+  const sourceId = readComposerFileTokenSourceIdFromTokenId(token.id)
+  const incomingHandle = isRecord(token.payload) ? readString(token.payload.handle) : undefined
+  const restoredFile =
+    !file && sourceId && incomingHandle ? resolveFileRestorationHandle(incomingHandle, sourceId) : null
+  const restorableFile = file ?? restoredFile
+  const handle = restorableFile ? registerFileRestorationHandle(restorableFile) : null
+  if (!handle) return payload
+
+  return {
+    ...payload,
+    handle
+  }
 }
 
 function isComposerClipboardTokenKind(value: unknown): value is ComposerClipboardTokenKind {
@@ -142,7 +248,7 @@ function hasUnsafeComposerClipboardFileTokenId(token: Pick<ComposerClipboardSour
   if (token.kind !== 'file') return false
 
   const id = token.id.startsWith('file:') ? token.id.slice('file:'.length) : token.id
-  return id.startsWith('/') || id.startsWith('\\') || id.startsWith('~') || /^[A-Za-z]:[\\/]/.test(id)
+  return isComposerFileTokenPathLike(id)
 }
 
 function isUnsafeComposerClipboardFileToken(token: unknown) {
@@ -174,7 +280,7 @@ export function createComposerClipboardTextHtml(text: string): string {
   return createComposerClipboardParagraphHtml(createComposerClipboardInlineTextHtml(text))
 }
 
-function sanitizeComposerClipboardToken(token: unknown): ComposerClipboardToken | null {
+function sanitizeComposerClipboardToken(token: unknown, mode: 'read' | 'write'): ComposerClipboardToken | null {
   if (!isRecord(token)) return null
 
   const id = readString(token.id)
@@ -185,7 +291,12 @@ function sanitizeComposerClipboardToken(token: unknown): ComposerClipboardToken 
 
   const description = readString(token.description)
   const promptText = readString(token.promptText)
-  const payload = kind === 'file' ? readFilePayload(token.payload) : undefined
+  const payload =
+    kind === 'file'
+      ? mode === 'write'
+        ? createFilePayloadForWrite({ id, label, payload: token.payload })
+        : readFileDisplayPayload(token.payload, { includeHandle: true })
+      : undefined
 
   return {
     id,
@@ -210,7 +321,7 @@ function sanitizeComposerClipboardSegment(segment: unknown): ComposerClipboardSe
   const fallbackText = readString(segment.fallbackText)
   if (!fallbackText) return null
 
-  const token = sanitizeComposerClipboardToken(segment.token)
+  const token = sanitizeComposerClipboardToken(segment.token, 'read')
   if (!token) {
     return isUnsafeComposerClipboardFileToken(segment.token) ? { type: 'text', text: fallbackText } : null
   }
@@ -231,7 +342,7 @@ export function createComposerClipboardFragment(
   const safeSegments = segments.flatMap((segment): ComposerClipboardSegment[] => {
     if (segment.type === 'text') return segment.text ? [{ type: 'text', text: segment.text }] : []
 
-    const token = sanitizeComposerClipboardToken(segment.token)
+    const token = sanitizeComposerClipboardToken(segment.token, 'write')
     if (!token) return segment.fallbackText ? [{ type: 'text', text: segment.fallbackText }] : []
 
     return [{ type: 'token', token, fallbackText: segment.fallbackText }]
@@ -267,12 +378,18 @@ function readMessageFilePayload(part: CherryMessagePart): FileClipboardPayload |
     mediaType?: string
     url?: string
   }
+  const cherry = readCherryMeta(part) as CherryFileMeta | undefined
+  const fileTokenSourceId = cherry?.fileTokenSourceId
+  if (!fileTokenSourceId) return undefined
+
   const path = stripFileUrl(filePart.url)
   if (!path) return undefined
 
   const name = filePart.filename || path.split(/[\\/]/).pop() || ''
   const ext = getFileExtensionFromName(name)
   return {
+    id: cherry.fileEntryId ?? fileTokenSourceId,
+    fileTokenSourceId,
     type: filePart.mediaType?.startsWith('image/') ? FILE_TYPE.IMAGE : getFileTypeByExt(ext),
     ...(ext && { ext }),
     ...(name && { name, origin_name: name }),
@@ -280,16 +397,14 @@ function readMessageFilePayload(part: CherryMessagePart): FileClipboardPayload |
   }
 }
 
-function collectFilePayloadsByName(parts: readonly CherryMessagePart[]): Map<string, FileClipboardPayload> {
+function collectFilePayloadsBySourceId(parts: readonly CherryMessagePart[]): Map<string, FileClipboardPayload> {
   const payloads = new Map<string, FileClipboardPayload>()
 
   for (const part of parts) {
     const payload = readMessageFilePayload(part)
     if (!payload) continue
 
-    for (const key of [payload.name, payload.origin_name].filter((value): value is string => Boolean(value))) {
-      payloads.set(key, payload)
-    }
+    payloads.set(payload.fileTokenSourceId!, payload)
   }
 
   return payloads
@@ -297,24 +412,25 @@ function collectFilePayloadsByName(parts: readonly CherryMessagePart[]): Map<str
 
 function mergeFileTokenPayload(
   token: ComposerMessageToken,
-  filePayloadsByName: ReadonlyMap<string, FileClipboardPayload>
+  filePayloadsBySourceId: ReadonlyMap<string, FileClipboardPayload>
 ): ClipboardComposerMessageToken {
   if (token.kind !== 'file') return token
 
-  const tokenPayload = isRecord(token.payload) ? token.payload : {}
-  const matchingFilePayload =
-    filePayloadsByName.get(token.label) ||
-    filePayloadsByName.get(readString(tokenPayload.name) ?? '') ||
-    filePayloadsByName.get(readString(tokenPayload.origin_name) ?? '')
+  const tokenPayload = readFileDisplayPayload(token.payload) ?? undefined
+  const sourceId = readComposerFileTokenSourceIdFromTokenId(token.id)
+  const matchingFilePayload = sourceId ? filePayloadsBySourceId.get(sourceId) : undefined
 
-  if (!matchingFilePayload) return token
+  if (!matchingFilePayload) {
+    return tokenPayload ? { ...token, payload: tokenPayload } : token
+  }
 
   return {
     ...token,
     payload: {
       ...matchingFilePayload,
       ...tokenPayload,
-      path: readString(tokenPayload.path) ?? matchingFilePayload.path
+      path: matchingFilePayload.path,
+      fileTokenSourceId: sourceId
     }
   } satisfies ClipboardComposerMessageToken
 }
@@ -350,7 +466,7 @@ function appendTokenSegment(
 
 function projectTextPartToClipboardSegments(
   part: Extract<CherryMessagePart, { type: 'text' }>,
-  filePayloadsByName: ReadonlyMap<string, FileClipboardPayload>
+  filePayloadsBySourceId: ReadonlyMap<string, FileClipboardPayload>
 ): ComposerClipboardProjection {
   const composer = readCherryMeta(part)?.composer
   if (!composer?.tokens.length) {
@@ -364,7 +480,7 @@ function projectTextPartToClipboardSegments(
   const tokens = composer.tokens
     .filter((token) => COMPOSER_CLIPBOARD_MESSAGE_TOKEN_KINDS.has(token.kind) && token.label)
     .toSorted((a, b) => a.textOffset - b.textOffset || a.index - b.index)
-    .map((token) => mergeFileTokenPayload(token, filePayloadsByName))
+    .map((token) => mergeFileTokenPayload(token, filePayloadsBySourceId))
   const segments: ComposerClipboardSegment[] = []
   let plainText = ''
   let cursor = 0
@@ -398,10 +514,10 @@ function projectTextPartToClipboardSegments(
 }
 
 function projectComposerClipboardPartGroup(parts: readonly CherryMessagePart[]): ComposerClipboardProjection {
-  const filePayloadsByName = collectFilePayloadsByName(parts)
+  const filePayloadsBySourceId = collectFilePayloadsBySourceId(parts)
   const projections = parts
     .filter((part): part is Extract<CherryMessagePart, { type: 'text' }> => part.type === 'text')
-    .map((part) => projectTextPartToClipboardSegments(part, filePayloadsByName))
+    .map((part) => projectTextPartToClipboardSegments(part, filePayloadsBySourceId))
     .filter((projection) => projection.plainText.trim().length > 0)
 
   const segments: ComposerClipboardSegment[] = []
@@ -505,26 +621,12 @@ export function createComposerRichClipboardContentFromPartGroups(
 }
 
 export function createFileMetadataFromComposerClipboardToken(token: ComposerClipboardToken): FileMetadata | null {
-  if (token.kind !== 'file' || !token.payload?.path) return null
+  if (token.kind !== 'file' || !token.payload?.handle) return null
 
-  const rawId = token.id.startsWith('file:') ? token.id.slice('file:'.length) : token.id
-  if (!rawId) return null
+  const sourceId = readComposerFileTokenSourceIdFromTokenId(token.id)
+  if (!sourceId) return null
 
-  const name = token.payload.name || token.payload.origin_name || token.label
-  const ext = token.payload.ext || getFileExtensionFromName(name)
-  const type = isFileType(token.payload.type) ? token.payload.type : getFileTypeByExt(ext)
-
-  return {
-    id: rawId,
-    name,
-    origin_name: token.payload.origin_name || name,
-    path: stripFileUrl(token.payload.path) ?? token.payload.path,
-    size: token.payload.size ?? 0,
-    ext,
-    type,
-    created_at: '',
-    count: 1
-  }
+  return resolveFileRestorationHandle(token.payload.handle, sourceId)
 }
 
 export function readComposerClipboardFragment(value: string): ComposerClipboardFragment | null {

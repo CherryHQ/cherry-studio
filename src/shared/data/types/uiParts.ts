@@ -154,6 +154,8 @@ export interface CherryFileMeta {
    * `file_ref` rows after migration.
    */
   fileEntryId?: string
+  /** Composer file token association identity. Not a path, filename, or file storage id. */
+  fileTokenSourceId?: string
 }
 
 /**
@@ -204,7 +206,8 @@ export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({
 })
 
 export const CherryFileMetaSchema: z.ZodType<CherryFileMeta> = z.object({
-  fileEntryId: z.string().optional()
+  fileEntryId: z.string().optional(),
+  fileTokenSourceId: z.string().optional()
 })
 
 // Table-driven dispatch — part `type` → schema. First match wins.
