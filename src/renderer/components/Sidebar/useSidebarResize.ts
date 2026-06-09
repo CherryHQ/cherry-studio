@@ -5,11 +5,14 @@ import {
   SIDEBAR_FULL_THRESHOLD,
   SIDEBAR_HIDDEN_THRESHOLD,
   SIDEBAR_ICON_WIDTH,
-  SIDEBAR_MAX_WIDTH,
-  SIDEBAR_RELEASE_DELTA
+  SIDEBAR_MAX_WIDTH
 } from './constants'
 
-export function useSidebarResize(width: number, setWidth: (width: number) => void) {
+export function useSidebarResize(
+  width: number,
+  setWidth: (width: number) => void,
+  onResizePreview?: (width: number | null) => void
+) {
   const isResizing = useRef(false)
   const resizeCleanupRef = useRef<(() => void) | null>(null)
   const sidebarRef = useRef<HTMLDivElement>(null)
@@ -26,26 +29,36 @@ export function useSidebarResize(width: number, setWidth: (width: number) => voi
       document.body.style.userSelect = 'none'
 
       const containerLeft = sidebarRef.current?.parentElement?.getBoundingClientRect().left ?? 0
-      const startLayout = width >= SIDEBAR_FULL_THRESHOLD ? 'full' : 'icon'
       const startWidth = getSidebarDisplayWidth(width)
       let lastWidth: number | null = null
+
+      const commitDragWidth = (nextWidth: number) => {
+        lastWidth = nextWidth
+
+        if (nextWidth > SIDEBAR_ICON_WIDTH && nextWidth < SIDEBAR_FULL_THRESHOLD) {
+          onResizePreview?.(nextWidth)
+          return
+        }
+
+        onResizePreview?.(null)
+        setWidth(nextWidth)
+      }
 
       const onMouseMove = (moveEvent: MouseEvent) => {
         if (!isResizing.current) return
         const nextWidth = moveEvent.clientX - containerLeft
 
         if (nextWidth < SIDEBAR_HIDDEN_THRESHOLD) {
-          lastWidth = 0
+          commitDragWidth(0)
         } else if (nextWidth <= SIDEBAR_ICON_WIDTH) {
-          lastWidth = SIDEBAR_ICON_WIDTH
+          commitDragWidth(SIDEBAR_ICON_WIDTH)
         } else {
-          lastWidth = Math.min(SIDEBAR_MAX_WIDTH, nextWidth)
+          commitDragWidth(Math.min(SIDEBAR_MAX_WIDTH, nextWidth))
         }
-
-        setWidth(lastWidth)
       }
 
       const cleanup = () => {
+        onResizePreview?.(null)
         isResizing.current = false
         document.body.style.cursor = ''
         document.body.style.userSelect = ''
@@ -56,15 +69,7 @@ export function useSidebarResize(width: number, setWidth: (width: number) => voi
 
       const onMouseUp = () => {
         if (lastWidth !== null && lastWidth > SIDEBAR_ICON_WIDTH && lastWidth < SIDEBAR_FULL_THRESHOLD) {
-          let nextWidth = startLayout === 'full' ? SIDEBAR_FULL_THRESHOLD : SIDEBAR_ICON_WIDTH
-
-          if (startLayout === 'icon' && lastWidth - startWidth > SIDEBAR_RELEASE_DELTA) {
-            nextWidth = SIDEBAR_FULL_THRESHOLD
-          } else if (startLayout === 'full' && startWidth - lastWidth > SIDEBAR_RELEASE_DELTA) {
-            nextWidth = SIDEBAR_ICON_WIDTH
-          }
-
-          setWidth(nextWidth)
+          setWidth(lastWidth > startWidth ? SIDEBAR_FULL_THRESHOLD : SIDEBAR_ICON_WIDTH)
         }
         cleanup()
       }
@@ -73,7 +78,7 @@ export function useSidebarResize(width: number, setWidth: (width: number) => voi
       document.addEventListener('mouseup', onMouseUp)
       resizeCleanupRef.current = cleanup
     },
-    [setWidth, width]
+    [onResizePreview, setWidth, width]
   )
 
   return { sidebarRef, startResizing }

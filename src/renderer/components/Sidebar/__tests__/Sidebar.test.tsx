@@ -31,8 +31,16 @@ const items: SidebarMenuItem[] = [
 
 function dragResizeFrom(width: number, clientX: number) {
   const setWidth = vi.fn()
+  const onResizePreview = vi.fn()
   const { container, unmount } = render(
-    <Sidebar width={width} setWidth={setWidth} activeItem="chat" items={items} onItemClick={vi.fn()} />
+    <Sidebar
+      width={width}
+      setWidth={setWidth}
+      activeItem="chat"
+      items={items}
+      onItemClick={vi.fn()}
+      onResizePreview={onResizePreview}
+    />
   )
   const resizeHandle = container.querySelector('.cursor-col-resize') as HTMLElement
 
@@ -41,7 +49,7 @@ function dragResizeFrom(width: number, clientX: number) {
   fireEvent.mouseUp(document)
   unmount()
 
-  return setWidth
+  return { setWidth, onResizePreview }
 }
 
 describe('Sidebar resize handle', () => {
@@ -57,19 +65,19 @@ describe('Sidebar resize handle', () => {
     expect(resizeHandle).toHaveClass('[-webkit-app-region:no-drag]')
   })
 
-  it('switches state only when drag delta is greater than 15px', () => {
-    const cases: Array<[number, number, number, number]> = [
-      [80, 65, 65, SIDEBAR_ICON_WIDTH],
-      [80, 66, 66, SIDEBAR_FULL_THRESHOLD],
-      [120, 105, 105, SIDEBAR_FULL_THRESHOLD],
-      [120, 104, 104, SIDEBAR_ICON_WIDTH],
-      [170, 110, 110, SIDEBAR_ICON_WIDTH]
+  it('previews intermediate widths and snaps release by drag direction', () => {
+    const cases: Array<[number, number, number]> = [
+      [50, 80, SIDEBAR_FULL_THRESHOLD],
+      [120, 80, SIDEBAR_ICON_WIDTH],
+      [170, 110, SIDEBAR_ICON_WIDTH]
     ]
 
-    for (const [start, moveTo, tracked, released] of cases) {
-      const setWidth = dragResizeFrom(start, moveTo)
+    for (const [start, moveTo, released] of cases) {
+      const { setWidth, onResizePreview } = dragResizeFrom(start, moveTo)
 
-      expect(setWidth).toHaveBeenNthCalledWith(1, tracked)
+      expect(onResizePreview).toHaveBeenNthCalledWith(1, moveTo)
+      expect(onResizePreview).toHaveBeenLastCalledWith(null)
+      expect(setWidth).toHaveBeenCalledTimes(1)
       expect(setWidth).toHaveBeenLastCalledWith(released)
     }
   })
@@ -83,26 +91,26 @@ describe('Sidebar resize handle', () => {
     ]
 
     for (const [moveTo, expected] of cases) {
-      const setWidth = dragResizeFrom(120, moveTo)
+      const { setWidth } = dragResizeFrom(120, moveTo)
 
       expect(setWidth).toHaveBeenCalledTimes(1)
       expect(setWidth).toHaveBeenLastCalledWith(expected)
     }
   })
 
-  it('renders intermediate widths at icon width without menu text', () => {
+  it('renders intermediate widths with icon layout without menu text', () => {
     const { container, queryByText } = render(
       <Sidebar width={80} setWidth={vi.fn()} activeItem="chat" items={items} onItemClick={vi.fn()} />
     )
 
-    expect(container.firstElementChild).toHaveStyle({ width: '50px' })
+    expect(container.firstElementChild).toHaveStyle({ width: '80px' })
     expect(queryByText('Chat')).not.toBeInTheDocument()
   })
 
   it('resolves display widths for CSS variable consumers', () => {
     expect(SIDEBAR_FULL_THRESHOLD).toBe(120)
     expect(getSidebarDisplayWidth(30)).toBe(SIDEBAR_ICON_WIDTH)
-    expect(getSidebarDisplayWidth(80)).toBe(SIDEBAR_ICON_WIDTH)
+    expect(getSidebarDisplayWidth(80)).toBe(80)
     expect(getSidebarDisplayWidth(120)).toBe(SIDEBAR_FULL_THRESHOLD)
   })
 

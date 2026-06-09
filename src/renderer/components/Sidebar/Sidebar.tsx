@@ -29,6 +29,7 @@ export interface SidebarProps {
   actions?: React.ReactNode
   onItemClick: (id: string) => void
   onHoverChange?: (visible: boolean) => void
+  onResizePreview?: (width: number | null) => void
   onSearchClick?: () => void
   onExtensionsClick?: () => void
   onMiniAppTabClick?: (tabId: string) => void
@@ -53,6 +54,7 @@ export function Sidebar({
   actions,
   onItemClick,
   onHoverChange,
+  onResizePreview,
   onSearchClick,
   onExtensionsClick,
   onMiniAppTabClick,
@@ -61,7 +63,7 @@ export function Sidebar({
   onDismiss
 }: SidebarProps) {
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { sidebarRef, startResizing } = useSidebarResize(width, setWidth)
+  const { sidebarRef, startResizing } = useSidebarResize(width, setWidth, onResizePreview)
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const layout = getSidebarLayout(width)
   const showFooter = Boolean(extensionsLabel || user || onExtensionsClick || actions)

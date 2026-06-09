@@ -76,24 +76,25 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const { activeTab, updateTab, openTab } = useTabs()
 
-  // Sidebar width — persisted across restarts. Drive the CSS variable
-  // straight from the cached value so:
-  //   (1) cross-window updates flow without a local-state mirror
-  //   (2) the resize handler writes to the cache directly (event-handler
-  //       semantics) instead of via an effect on derived state, which
-  //       would loop on revalidation per the SWR write-back antipattern.
+  // Sidebar width — persisted across restarts. Dragging through the
+  // intermediate 50-120px range uses a local preview width so the UI can
+  // follow the cursor without persisting unstable widths.
   const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
+  const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
+  const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
 
   useLayoutEffect(() => {
-    document.documentElement.style.setProperty('--sidebar-width', `${getSidebarDisplayWidth(sidebarWidth)}px`)
-  }, [sidebarWidth])
+    document.documentElement.style.setProperty('--sidebar-width', `${getSidebarDisplayWidth(activeSidebarWidth)}px`)
+  }, [activeSidebarWidth])
 
   useEffect(() => {
+    if (previewSidebarWidth !== null) return
+
     const normalizedWidth = normalizeSidebarWidth(sidebarWidth)
     if (normalizedWidth !== sidebarWidth) {
       setSidebarWidth(normalizedWidth)
     }
-  }, [setSidebarWidth, sidebarWidth])
+  }, [previewSidebarWidth, setSidebarWidth, sidebarWidth])
 
   // User avatar
   const avatar = useAvatar()
@@ -108,7 +109,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   // Floating sidebar (hover reveal when hidden)
   const [hoverVisible, setHoverVisible] = useState(false)
-  const layout = getSidebarLayout(sidebarWidth)
+  const layout = getSidebarLayout(activeSidebarWidth)
 
   // Menu items
   const pathname = activeTab?.url || '/'
@@ -171,10 +172,16 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   return (
     <div ref={ref} id="app-sidebar" className="relative h-full [-webkit-app-region:no-drag]">
-      <UISidebar width={sidebarWidth} setWidth={setSidebarWidth} onHoverChange={setHoverVisible} {...sidebarProps} />
+      <UISidebar
+        width={activeSidebarWidth}
+        setWidth={setSidebarWidth}
+        onHoverChange={setHoverVisible}
+        onResizePreview={setPreviewSidebarWidth}
+        {...sidebarProps}
+      />
       {hoverVisible && layout === 'hidden' && (
         <UISidebar
-          width={sidebarWidth}
+          width={activeSidebarWidth}
           setWidth={setSidebarWidth}
           isFloating
           onDismiss={() => setHoverVisible(false)}

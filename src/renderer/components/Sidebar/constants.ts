@@ -1,7 +1,6 @@
 import type { SidebarLayout } from './types'
 
 export const SIDEBAR_ICON_WIDTH = 50
-export const SIDEBAR_RELEASE_DELTA = 15
 export const SIDEBAR_FULL_WIDTH = 170
 export const SIDEBAR_MAX_WIDTH = 280
 
@@ -20,6 +19,7 @@ export function normalizeSidebarWidth(width: number): number {
 }
 
 export function getSidebarDisplayWidth(width: number): number {
+  if (width > SIDEBAR_ICON_WIDTH && width < SIDEBAR_FULL_THRESHOLD) return width
   if (getSidebarLayout(width) === 'icon') return SIDEBAR_ICON_WIDTH
   return width
 }
