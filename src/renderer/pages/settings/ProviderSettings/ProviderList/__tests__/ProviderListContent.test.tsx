@@ -204,6 +204,56 @@ describe('ProviderListContent — C1 grouped reorder', () => {
     expect(onReorder).toHaveBeenCalledWith([all[1], all[2], all[0], all[3]])
   })
 
+  // Two multi-member groups: only here do the `targetIndexes.at(-1)` (forward)
+  // and `[0]` (backward) branches diverge — a single-member target makes them
+  // identical, so picking the wrong end (which would split the target group)
+  // can't be caught by the single-group fixtures above.
+  const renderTwoGroupFixture = (onReorder: (next: Provider[]) => void) => {
+    const all = [
+      provider('g1-a', 'g1', true),
+      provider('g1-b', 'g1', true),
+      provider('g2-a', 'g2', true),
+      provider('g2-b', 'g2', true)
+    ]
+
+    render(
+      <ProviderListContent
+        providers={all}
+        visibleProviders={all}
+        searchActive={false}
+        expandedGroups={{ g1: true, g2: true }}
+        onToggleGroup={() => {}}
+        onDragStateChange={() => {}}
+        onReorder={onReorder}
+        renderItem={() => null}
+      />
+    )
+
+    return all
+  }
+
+  it('moves a group block forward past another group as one unit', () => {
+    const onReorder = vi.fn()
+    const all = renderTwoGroupFixture(onReorder)
+
+    expect(sortableCalls[0].items.map((item) => item.id)).toEqual(['group:g1', 'group:g2'])
+
+    // Drag group g1 (index 0) down onto group g2 (index 1).
+    sortableCalls[0].onSortEnd({ oldIndex: 0, newIndex: 1 })
+
+    expect(onReorder).toHaveBeenCalledWith([all[2], all[3], all[0], all[1]])
+  })
+
+  it('moves a group block backward past another group as one unit', () => {
+    const onReorder = vi.fn()
+    const all = renderTwoGroupFixture(onReorder)
+
+    // Drag group g2 (index 1) up onto group g1 (index 0).
+    sortableCalls[0].onSortEnd({ oldIndex: 1, newIndex: 0 })
+
+    expect(onReorder).toHaveBeenCalledWith([all[2], all[3], all[0], all[1]])
+  })
+
   it('ignores a no-op reorder onto the same index', () => {
     const onReorder = vi.fn()
     renderBlockFixture(onReorder)

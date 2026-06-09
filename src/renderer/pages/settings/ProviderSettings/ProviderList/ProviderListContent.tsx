@@ -27,6 +27,12 @@ interface ProviderListContentProps {
   renderItem: (provider: Provider, index: number, state: ProviderListContentItemState) => ReactNode
 }
 
+// `providerIds` lets `reorderProviderBlocks` treat singles and groups uniformly,
+// so its meaning differs per variant:
+// - single: `[provider.id]` — just the row's own id; kept (not redundant) so the
+//   reorder algorithm doesn't need a separate single-row branch.
+// - group: every underlying provider row for the preset in the full `providers`
+//   cache — a superset of the visible `members` (includes filtered/hidden rows).
 type ProviderListSortableItem =
   | { id: string; kind: 'single'; provider: Provider; providerIds: string[] }
   | {
