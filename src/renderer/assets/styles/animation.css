@@ -126,3 +126,30 @@
   white-space: nowrap;
   animation: animation-reveal 0.5s linear both;
 }
+
+@keyframes animation-animated-reveal-text {
+  0% {
+    clip-path: inset(0 100% 0 0);
+  }
+  99% {
+    clip-path: inset(0 0 0 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.animated-reveal-text {
+  color: color-mix(in srgb, var(--color-foreground-muted) 45%, var(--color-foreground));
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--color-foreground-muted) 10%, transparent));
+  clip-path: inset(0 100% 0 0);
+  animation: animation-animated-reveal-text 0.9s ease-out 0.12s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animated-reveal-text {
+    filter: none;
+    clip-path: inset(0 0 0 0);
+    animation: none;
+  }
+}
