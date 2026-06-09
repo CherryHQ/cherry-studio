@@ -8,8 +8,6 @@ import { loggerService } from '@logger'
 import type { BuiltinMcpServerName } from '@renderer/types'
 import { BuiltinMcpServerNames } from '@renderer/types'
 
-import i18n from './index'
-
 const logger = loggerService.withContext('i18n:label')
 
 const getLabelKey = (keyMap: Record<string, string>, key: string, fallback?: string) => {
@@ -328,7 +326,7 @@ const builtInMcpDescriptionKeyMap: Record<BuiltinMcpServerName, string> = {
 } as const
 
 export const getBuiltInMcpServerDescriptionLabelKey = (key: string): string => {
-  return getLabelKey(builtInMcpDescriptionKeyMap, key, i18n.t('settings.mcp.builtinServersDescriptions.no'))
+  return getLabelKey(builtInMcpDescriptionKeyMap, key, 'settings.mcp.builtinServersDescriptions.no')
 }
 
 // placeholder for future agent type labels
