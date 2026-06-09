@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   COMPOSER_CLIPBOARD_FRAGMENT_MIME,
@@ -6,17 +6,20 @@ import {
   createComposerRichClipboardContentFromDraft,
   createComposerRichClipboardContentFromPartGroups,
   createComposerRichClipboardContentFromParts,
+  createFileMetadataFromComposerClipboardToken,
   readComposerClipboardFragment
 } from '../composerClipboard'
 
 describe('composer clipboard', () => {
-  it('keeps the file path in the private fragment for re-attach while stripping unknown payload fields', () => {
+  it('keeps the file path out of the private fragment while preserving a session restore handle', () => {
     const token = {
-      id: 'file:image',
+      id: 'file:source-image',
       kind: 'file' as const,
       label: 'default-topic.png',
       promptText: 'default-topic.png',
       payload: {
+        id: 'file-entry-image',
+        fileTokenSourceId: 'source-image',
         type: 'image',
         ext: '.png',
         name: 'default-topic.png',
@@ -36,7 +39,7 @@ describe('composer clipboard', () => {
         type: 'token',
         fallbackText: 'default-topic.png',
         token: {
-          id: 'file:image',
+          id: 'file:source-image',
           kind: 'file',
           label: 'default-topic.png',
           promptText: 'default-topic.png',
@@ -46,15 +49,126 @@ describe('composer clipboard', () => {
             name: 'default-topic.png',
             origin_name: 'default-topic.png',
             size: 2048,
-            path: '/Users/example/private/default-topic.png'
+            handle: expect.any(String)
           }
         }
       }
     ])
-    // The path is intentionally retained inside the private fragment (internal re-attach),
-    // but unknown/sensitive fields are dropped.
-    expect(fragmentText).toContain('/Users/example/private')
+    expect(fragmentText).not.toContain('/Users/example/private')
     expect(fragmentText).not.toContain('providerMetadata')
+
+    const segment = fragment?.segments[0]
+    expect(segment?.type).toBe('token')
+    if (segment?.type === 'token') {
+      expect(createFileMetadataFromComposerClipboardToken(segment.token)).toEqual(
+        expect.objectContaining({
+          id: 'file-entry-image',
+          fileTokenSourceId: 'source-image',
+          path: '/Users/example/private/default-topic.png',
+          type: 'image'
+        })
+      )
+    }
+  })
+
+  it('does not create restorable file handles without secure random support', () => {
+    const originalCryptoDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto')
+    const randomSpy = vi.spyOn(Math, 'random')
+    vi.stubGlobal('crypto', {})
+
+    try {
+      const token = {
+        id: 'file:source-image',
+        kind: 'file' as const,
+        label: 'default-topic.png',
+        payload: {
+          id: 'file-entry-image',
+          fileTokenSourceId: 'source-image',
+          type: 'image',
+          ext: '.png',
+          name: 'default-topic.png',
+          origin_name: 'default-topic.png',
+          path: '/Users/example/private/default-topic.png'
+        }
+      }
+
+      const fragment = readComposerClipboardFragment(
+        createComposerClipboardFragment([{ type: 'token', token, fallbackText: token.label }])
+      )
+      const segment = fragment?.segments[0]
+
+      expect(randomSpy).not.toHaveBeenCalled()
+      expect(segment?.type).toBe('token')
+      if (segment?.type === 'token') {
+        expect(segment.token.payload).not.toHaveProperty('handle')
+        expect(createFileMetadataFromComposerClipboardToken(segment.token)).toBeNull()
+      }
+    } finally {
+      vi.unstubAllGlobals()
+      if (originalCryptoDescriptor) {
+        Object.defineProperty(globalThis, 'crypto', originalCryptoDescriptor)
+      } else {
+        delete (globalThis as { crypto?: Crypto }).crypto
+      }
+      randomSpy.mockRestore()
+    }
+  })
+
+  it('does not reuse incoming file handles when writing private fragments', () => {
+    const token = {
+      id: 'file:source-image',
+      kind: 'file' as const,
+      label: 'default-topic.png',
+      payload: {
+        type: 'image',
+        ext: '.png',
+        name: 'default-topic.png',
+        origin_name: 'default-topic.png',
+        handle: 'forged-handle'
+      }
+    }
+
+    const fragment = readComposerClipboardFragment(
+      createComposerClipboardFragment([{ type: 'token', token, fallbackText: token.label }])
+    )
+    const segment = fragment?.segments[0]
+
+    expect(segment?.type).toBe('token')
+    if (segment?.type === 'token') {
+      expect(segment.token.payload).not.toHaveProperty('handle')
+      expect(createFileMetadataFromComposerClipboardToken(segment.token)).toBeNull()
+    }
+  })
+
+  it.each([
+    ['missing', undefined],
+    ['mismatched', 'other-source']
+  ])('does not register a file restore handle when the payload file token source id is %s', (_, fileTokenSourceId) => {
+    const token = {
+      id: 'file:source-image',
+      kind: 'file' as const,
+      label: 'default-topic.png',
+      payload: {
+        id: 'file-entry-image',
+        ...(fileTokenSourceId && { fileTokenSourceId }),
+        type: 'image',
+        ext: '.png',
+        name: 'default-topic.png',
+        origin_name: 'default-topic.png',
+        path: '/Users/example/private/default-topic.png'
+      }
+    }
+
+    const fragmentText = createComposerClipboardFragment([{ type: 'token', token, fallbackText: token.label }])
+    const fragment = readComposerClipboardFragment(fragmentText)
+    const segment = fragment?.segments[0]
+
+    expect(fragmentText).not.toContain('/Users/example/private/default-topic.png')
+    expect(segment?.type).toBe('token')
+    if (segment?.type === 'token') {
+      expect(segment.token.payload).not.toHaveProperty('handle')
+      expect(createFileMetadataFromComposerClipboardToken(segment.token)).toBeNull()
+    }
   })
 
   it('downgrades file tokens with path ids to visible text without leaking the id', () => {
@@ -79,6 +193,28 @@ describe('composer clipboard', () => {
     expect(fragmentText).not.toContain('file:/Users/example/private/default-topic.png')
   })
 
+  it('downgrades file tokens with file URL ids to visible text without leaking the id', () => {
+    const token = {
+      id: 'file:file:///Users/example/private/default-topic.png',
+      kind: 'file' as const,
+      label: 'default-topic.png',
+      promptText: 'default-topic.png',
+      payload: {
+        type: 'image',
+        ext: '.png',
+        name: 'default-topic.png',
+        origin_name: 'default-topic.png',
+        size: 2048
+      }
+    }
+
+    const fragmentText = createComposerClipboardFragment([{ type: 'token', token, fallbackText: token.label }])
+    const fragment = readComposerClipboardFragment(fragmentText)
+
+    expect(fragment?.segments).toEqual([{ type: 'text', text: 'default-topic.png' }])
+    expect(fragmentText).not.toContain('file:file:///Users/example/private/default-topic.png')
+  })
+
   it('downgrades forged private file fragments with path ids to visible fallback text', () => {
     const fragment = readComposerClipboardFragment(
       JSON.stringify({
@@ -99,6 +235,75 @@ describe('composer clipboard', () => {
     )
 
     expect(fragment?.segments).toEqual([{ type: 'text', text: 'default-topic.png' }])
+  })
+
+  it('downgrades forged private file fragments with file URL ids to visible fallback text', () => {
+    const fragment = readComposerClipboardFragment(
+      JSON.stringify({
+        version: 1,
+        segments: [
+          {
+            type: 'token',
+            fallbackText: 'default-topic.png',
+            token: {
+              id: 'file:file:///Users/example/private/default-topic.png',
+              kind: 'file',
+              label: 'default-topic.png',
+              promptText: 'hidden injected prompt'
+            }
+          }
+        ]
+      })
+    )
+
+    expect(fragment?.segments).toEqual([{ type: 'text', text: 'default-topic.png' }])
+  })
+
+  it('strips forged path payloads from private file fragments read from the clipboard', () => {
+    const fragment = readComposerClipboardFragment(
+      JSON.stringify({
+        version: 1,
+        segments: [
+          {
+            type: 'token',
+            fallbackText: 'report.pdf',
+            token: {
+              id: 'file:source-report',
+              kind: 'file',
+              label: 'report.pdf',
+              payload: {
+                type: 'document',
+                ext: '.pdf',
+                name: 'report.pdf',
+                path: '/Users/example/private/report.pdf'
+              }
+            }
+          }
+        ]
+      })
+    )
+
+    expect(fragment?.segments).toEqual([
+      {
+        type: 'token',
+        fallbackText: 'report.pdf',
+        token: {
+          id: 'file:source-report',
+          kind: 'file',
+          label: 'report.pdf',
+          payload: {
+            type: 'document',
+            ext: '.pdf',
+            name: 'report.pdf'
+          }
+        }
+      }
+    ])
+    const segment = fragment?.segments[0]
+    expect(segment?.type).toBe('token')
+    if (segment?.type === 'token') {
+      expect(createFileMetadataFromComposerClipboardToken(segment.token)).toBeNull()
+    }
   })
 
   it('serializes prompt variable tokens without requiring payload data', () => {
@@ -219,7 +424,7 @@ describe('composer clipboard', () => {
     ])
   })
 
-  it('keeps file paths private when a matching file part can restore the attachment', () => {
+  it('keeps file paths private and registers a handle when a matching source file part can restore the attachment', () => {
     const content = createComposerRichClipboardContentFromParts([
       {
         type: 'text',
@@ -230,7 +435,135 @@ describe('composer clipboard', () => {
               version: 1,
               tokens: [
                 {
-                  id: 'file:file-1',
+                  id: 'file:source-report',
+                  kind: 'file',
+                  label: 'report.pdf',
+                  index: 0,
+                  textOffset: 0,
+                  payload: {
+                    fileTokenSourceId: 'source-report',
+                    type: 'document',
+                    ext: '.pdf',
+                    name: 'report.pdf',
+                    origin_name: 'report.pdf',
+                    size: 4096
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        type: 'file',
+        filename: 'report.pdf',
+        mediaType: 'application/pdf',
+        url: 'file:///Users/example/private/report.pdf',
+        providerMetadata: {
+          cherry: {
+            fileTokenSourceId: 'source-report'
+          }
+        }
+      }
+    ] as any)
+
+    const fragmentText = content?.customFormats?.[COMPOSER_CLIPBOARD_FRAGMENT_MIME] ?? ''
+
+    expect(content?.plainText).toBe('report.pdf open')
+    expect(content?.html).not.toContain('/Users/example/private')
+    expect(fragmentText).not.toContain('/Users/example/private/report.pdf')
+    expect(readComposerClipboardFragment(fragmentText)?.segments[0]).toMatchObject({
+      type: 'token',
+      token: {
+        id: 'file:source-report',
+        kind: 'file',
+        label: 'report.pdf',
+        payload: {
+          handle: expect.any(String)
+        }
+      }
+    })
+    const segment = readComposerClipboardFragment(fragmentText)?.segments[0]
+    expect(segment?.type).toBe('token')
+    if (segment?.type === 'token') {
+      expect(createFileMetadataFromComposerClipboardToken(segment.token)).toEqual(
+        expect.objectContaining({
+          fileTokenSourceId: 'source-report',
+          path: '/Users/example/private/report.pdf',
+          type: 'document'
+        })
+      )
+    }
+  })
+
+  it('restores Windows file URLs without adding a POSIX leading slash', () => {
+    const content = createComposerRichClipboardContentFromParts([
+      {
+        type: 'text',
+        text: ' open',
+        providerMetadata: {
+          cherry: {
+            composer: {
+              version: 1,
+              tokens: [
+                {
+                  id: 'file:source-report-win',
+                  kind: 'file',
+                  label: 'report.pdf',
+                  index: 0,
+                  textOffset: 0,
+                  payload: {
+                    fileTokenSourceId: 'source-report-win',
+                    type: 'document',
+                    ext: '.pdf',
+                    name: 'report.pdf',
+                    origin_name: 'report.pdf'
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        type: 'file',
+        filename: 'report.pdf',
+        mediaType: 'application/pdf',
+        url: 'file:///C:/Users/example/private/report.pdf',
+        providerMetadata: {
+          cherry: {
+            fileTokenSourceId: 'source-report-win'
+          }
+        }
+      }
+    ] as any)
+
+    const fragmentText = content?.customFormats?.[COMPOSER_CLIPBOARD_FRAGMENT_MIME] ?? ''
+    const segment = readComposerClipboardFragment(fragmentText)?.segments[0]
+
+    expect(segment?.type).toBe('token')
+    if (segment?.type === 'token') {
+      expect(createFileMetadataFromComposerClipboardToken(segment.token)).toEqual(
+        expect.objectContaining({
+          fileTokenSourceId: 'source-report-win',
+          path: 'C:/Users/example/private/report.pdf'
+        })
+      )
+    }
+  })
+
+  it('does not restore message file tokens by filename when source ids do not match', () => {
+    const content = createComposerRichClipboardContentFromParts([
+      {
+        type: 'text',
+        text: ' open',
+        providerMetadata: {
+          cherry: {
+            composer: {
+              version: 1,
+              tokens: [
+                {
+                  id: 'file:source-token',
                   kind: 'file',
                   label: 'report.pdf',
                   index: 0,
@@ -252,26 +585,38 @@ describe('composer clipboard', () => {
         type: 'file',
         filename: 'report.pdf',
         mediaType: 'application/pdf',
-        url: 'file:///Users/example/private/report.pdf'
+        url: 'file:///Users/example/private/report.pdf',
+        providerMetadata: {
+          cherry: {
+            fileTokenSourceId: 'source-part'
+          }
+        }
       }
     ] as any)
 
     const fragmentText = content?.customFormats?.[COMPOSER_CLIPBOARD_FRAGMENT_MIME] ?? ''
+    const segment = readComposerClipboardFragment(fragmentText)?.segments[0]
 
     expect(content?.plainText).toBe('report.pdf open')
-    expect(content?.html).not.toContain('/Users/example/private')
-    expect(fragmentText).toContain('/Users/example/private/report.pdf')
-    expect(readComposerClipboardFragment(fragmentText)?.segments[0]).toMatchObject({
+    expect(fragmentText).not.toContain('/Users/example/private/report.pdf')
+    expect(segment).toMatchObject({
       type: 'token',
       token: {
-        id: 'file:file-1',
+        id: 'file:source-token',
         kind: 'file',
         label: 'report.pdf',
         payload: {
-          path: '/Users/example/private/report.pdf'
+          type: 'document',
+          ext: '.pdf',
+          name: 'report.pdf',
+          origin_name: 'report.pdf',
+          size: 4096
         }
       }
     })
+    if (segment?.type === 'token') {
+      expect(createFileMetadataFromComposerClipboardToken(segment.token)).toBeNull()
+    }
   })
 
   it('creates one private fragment for multiple selected message groups', () => {
@@ -350,12 +695,14 @@ describe('composer clipboard', () => {
           textOffset: 'Use PDF Ask docs '.length
         },
         {
-          id: 'file:file-1',
+          id: 'file:source-report',
           kind: 'file',
           label: 'report.pdf',
           index: 3,
           textOffset: 'Use PDF Ask docs ${city} '.length,
           payload: {
+            id: 'file-1',
+            fileTokenSourceId: 'source-report',
             type: 'document',
             ext: '.pdf',
             name: 'report.pdf',
@@ -372,7 +719,7 @@ describe('composer clipboard', () => {
     expect(content?.plainText).toBe('/pdf/ Ask #kb-1#docs ${city} report.pdf after')
     expect(content?.html).not.toContain('data-composer-token')
     expect(content?.html).not.toContain('/Users/example/private/report.pdf')
-    expect(fragmentText).toContain('/Users/example/private/report.pdf')
+    expect(fragmentText).not.toContain('/Users/example/private/report.pdf')
     expect(readComposerClipboardFragment(fragmentText)?.segments).toEqual([
       {
         type: 'token',
@@ -411,7 +758,7 @@ describe('composer clipboard', () => {
         type: 'token',
         fallbackText: 'report.pdf',
         token: {
-          id: 'file:file-1',
+          id: 'file:source-report',
           kind: 'file',
           label: 'report.pdf',
           payload: {
@@ -420,7 +767,7 @@ describe('composer clipboard', () => {
             name: 'report.pdf',
             origin_name: 'report.pdf',
             size: 4096,
-            path: '/Users/example/private/report.pdf'
+            handle: expect.any(String)
           }
         }
       },

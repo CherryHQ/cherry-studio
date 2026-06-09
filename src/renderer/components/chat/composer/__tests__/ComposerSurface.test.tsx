@@ -1450,6 +1450,7 @@ describe('ComposerSurface', () => {
               kind: 'file',
               label: 'report.pdf',
               payload: {
+                fileTokenSourceId: 'file-1',
                 type: 'document',
                 ext: '.pdf',
                 name: 'report.pdf',
@@ -1470,7 +1471,7 @@ describe('ComposerSurface', () => {
     expect(handled).toBe(true)
     expect(clipboardData.getData('text/plain')).toBe('report.pdf after')
     expect(clipboardData.getData('text/html')).not.toContain('/Users/example/private/report.pdf')
-    expect(fragmentText).toContain('/Users/example/private/report.pdf')
+    expect(fragmentText).not.toContain('/Users/example/private/report.pdf')
     expect(readComposerClipboardFragment(fragmentText)?.segments[0]).toMatchObject({
       type: 'token',
       token: {
@@ -1478,7 +1479,7 @@ describe('ComposerSurface', () => {
         kind: 'file',
         label: 'report.pdf',
         payload: {
-          path: '/Users/example/private/report.pdf'
+          handle: expect.any(String)
         }
       }
     })
@@ -1495,6 +1496,7 @@ describe('ComposerSurface', () => {
             label: 'report.pdf',
             payload: {
               id: 'file-1',
+              fileTokenSourceId: 'file-1',
               name: 'report.pdf',
               origin_name: 'report.pdf',
               path: '/Users/example/private/report.pdf',
@@ -1551,7 +1553,7 @@ describe('ComposerSurface', () => {
         kind: 'file',
         label: 'report.pdf',
         payload: {
-          path: '/Users/example/private/report.pdf'
+          handle: expect.any(String)
         }
       }
     })
@@ -1855,7 +1857,7 @@ describe('ComposerSurface', () => {
     expect(resolveSkillMarker).not.toHaveBeenCalledWith('async')
   })
 
-  it('restores private clipboard file fragments with paths into file tokens and file state', async () => {
+  it('restores private clipboard file fragments with handles into file tokens and file state', async () => {
     const setFiles = vi.fn()
     render(<ComposerSurface {...baseProps} managedTokenKinds={['file']} setFiles={setFiles} />)
 
@@ -1868,6 +1870,7 @@ describe('ComposerSurface', () => {
           kind: 'file',
           label: 'report.pdf',
           payload: {
+            fileTokenSourceId: 'file-1',
             type: 'document',
             ext: '.pdf',
             name: 'report.pdf',
@@ -1879,6 +1882,7 @@ describe('ComposerSurface', () => {
         fallbackText: 'report.pdf'
       }
     ])
+    expect(fragment).not.toContain('/Users/example/private/report.pdf')
     const event = {
       preventDefault: vi.fn(),
       clipboardData: {

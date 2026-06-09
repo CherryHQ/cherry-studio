@@ -1,8 +1,10 @@
+import { readComposerClipboardFragment } from '@renderer/utils/messageUtils/composerClipboard'
 import { describe, expect, it } from 'vitest'
 
 import {
   createComposerMarkedTextPasteContent,
   createComposerPlainTextPasteContent,
+  getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride
 } from '../composerPaste'
 
@@ -185,6 +187,36 @@ describe('composer paste handling', () => {
 
   it('does not intercept empty text paste', () => {
     expect(getComposerPlainTextPasteOverride('', {})).toBeNull()
+  })
+
+  it('downgrades private file tokens with path-only payloads to fallback text', () => {
+    const fragment = readComposerClipboardFragment(
+      JSON.stringify({
+        version: 1,
+        segments: [
+          {
+            type: 'token',
+            fallbackText: 'report.pdf',
+            token: {
+              id: 'file:source-report',
+              kind: 'file',
+              label: 'report.pdf',
+              payload: {
+                type: 'document',
+                ext: '.pdf',
+                name: 'report.pdf',
+                path: '/Users/example/private/report.pdf'
+              }
+            }
+          }
+        ]
+      })
+    )
+
+    expect(getComposerClipboardPasteOverride(fragment, {})).toEqual({
+      content: [{ type: 'text', text: 'report.pdf' }],
+      files: []
+    })
   })
 
   it('delegates text longer than the long-text threshold to the file handler', () => {
