@@ -4,6 +4,8 @@ Last updated: 2026-06-10
 
 This working note tracks the `origin/feat/chat-page` split stack for review. The goal is to land independently reviewable business-logic PRs into `main` without a catch-all remainder PR.
 
+For the target system shape behind the split, see [feat/chat-page Architecture](./feat-chat-page-architecture.md).
+
 ## Ground Rules
 
 - Target branch is `main`.
