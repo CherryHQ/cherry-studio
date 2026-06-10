@@ -14,7 +14,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { deriveRootSpanId } from '../core/AiTurnTrace'
 import { TraceSpanStore } from './TraceSpanStore'
 
-const logger = loggerService.withContext('SpanCacheService')
+const logger = loggerService.withContext('TraceStorageService')
 
 /** Union spans by id; `overrides` (e.g. the live, fresher copy) wins over `base` (e.g. the history file). */
 function mergeSpansById(base: SpanEntity[], overrides: SpanEntity[]): SpanEntity[] {
@@ -44,9 +44,9 @@ function reparentClaudeCodeUnderTurns(spans: SpanEntity[], traceId: string): Spa
   })
 }
 
-@Injectable('SpanCacheService')
+@Injectable('TraceStorageService')
 @ServicePhase(Phase.WhenReady)
-export class SpanCacheService extends BaseService implements TraceCache, Activatable {
+export class TraceStorageService extends BaseService implements TraceCache, Activatable {
   private readonly store = new TraceSpanStore()
 
   protected async onInit() {
@@ -378,7 +378,7 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
       value.includes('\\') ||
       path.isAbsolute(value)
     ) {
-      throw new Error(`SpanCacheService: invalid ${label} path segment`)
+      throw new Error(`TraceStorageService: invalid ${label} path segment`)
     }
   }
 

@@ -126,7 +126,7 @@ describe('AgentSessionRuntimeService', () => {
           broadcastTopicError: mocks.broadcastTopicError
         }
       }
-      if (name === 'SpanCacheService') return { setTopicId: mocks.spanCacheSetTopicId }
+      if (name === 'TraceStorageService') return { setTopicId: mocks.spanCacheSetTopicId }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })

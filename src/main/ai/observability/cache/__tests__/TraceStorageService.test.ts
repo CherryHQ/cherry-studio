@@ -11,8 +11,8 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { SpanCacheService } from '../SpanCacheService'
 import { TraceSpanStore } from '../TraceSpanStore'
+import { TraceStorageService } from '../TraceStorageService'
 
 function span(overrides: Partial<SpanEntity>): SpanEntity {
   return {
@@ -48,8 +48,8 @@ function readableSpan(overrides: { spanId: string; traceId: string; ended: boole
   } as unknown as ReadableSpan
 }
 
-describe('SpanCacheService', () => {
-  let service: SpanCacheService
+describe('TraceStorageService', () => {
+  let service: TraceStorageService
   let traceDir: string
 
   beforeEach(async () => {
@@ -60,7 +60,7 @@ describe('SpanCacheService', () => {
     vi.mocked(application.getPath).mockReset()
     vi.mocked(application.getPath).mockReturnValue(traceDir)
     mockMainLoggerService.error.mockClear()
-    service = new SpanCacheService()
+    service = new TraceStorageService()
   })
 
   afterEach(async () => {

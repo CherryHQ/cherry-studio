@@ -23,7 +23,7 @@ vi.mock('node:zlib', async (importOriginal) => {
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    SpanCacheService: {
+    TraceStorageService: {
       setTopicId: mocks.spanCacheSetTopicId,
       saveEntity: mocks.spanCacheSaveEntity,
       addSpanEvent: mocks.spanCacheAddSpanEvent

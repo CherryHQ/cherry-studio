@@ -82,7 +82,7 @@ describe('AgentChatContextProvider', () => {
     mocks.saveMessage.mockResolvedValue(undefined)
     mocks.saveMessages.mockResolvedValue(undefined)
     mocks.applicationGet.mockImplementation((name: string) => {
-      if (name === 'SpanCacheService') return { setTopicId: mocks.spanCacheSetTopicId }
+      if (name === 'TraceStorageService') return { setTopicId: mocks.spanCacheSetTopicId }
       if (name === 'AgentSessionRuntimeService') {
         return {
           beginTurn: mocks.runtimeBeginTurn,
