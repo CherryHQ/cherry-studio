@@ -90,6 +90,16 @@ const HomePage: FC = () => {
     autoPickFirst: !shouldUseTemporary
   })
 
+  // Mid-session adoption: when the last persisted topic is deleted while the
+  // page stays mounted, `useActiveTopic` keeps the deleted topic's id (its
+  // initial-topic effect only fills a *missing* id) and would keep rendering
+  // the deleted topic. Steer it to the freshly-leased temp explicitly.
+  useEffect(() => {
+    if (shouldUseTemporary && noPersistedTopic && tempTopicId && activeTopic?.id !== tempTopicId) {
+      setActiveTopic(buildPendingTemporaryTopic(tempTopicId))
+    }
+  }, [shouldUseTemporary, noPersistedTopic, tempTopicId, activeTopic?.id, setActiveTopic])
+
   const persistTemporaryTopicAndRefresh = useCallback(
     async (initialName?: string) => {
       await persistTemporaryTopic(initialName)

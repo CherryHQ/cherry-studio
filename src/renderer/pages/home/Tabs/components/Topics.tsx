@@ -231,8 +231,8 @@ export const Topics: React.FC<Props> = ({ activeTopic, setActiveTopic, position 
         return
       }
       // Topics are no longer assistant-scoped — when the deleted row was the
-      // active one, hop to its neighbour. An empty list now shows an empty
-      // state instead of auto-seeding a fresh topic.
+      // active one, hop to its neighbour. Deleting the last topic empties the
+      // list — HomePage then leases a fresh temporary topic and adopts it.
       if (topic.id === activeTopic.id && topics.length > 1) {
         const index = findIndex(topics, (t) => t.id === topic.id)
         setActiveTopic(topics[index + 1 === topics.length ? index - 1 : index + 1])

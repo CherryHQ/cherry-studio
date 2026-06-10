@@ -1,5 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { cleanup, render } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
@@ -50,6 +51,16 @@ vi.mock('@renderer/services/NavigationService', () => ({
 vi.mock('../Chat', () => ({ default: () => null }))
 vi.mock('../Navbar', () => ({ default: () => null }))
 vi.mock('../Tabs', () => ({ default: () => null }))
+
+// The adoption tests render with a truthy activeTopic, reaching the full tree —
+// stub the wrappers so they don't pull in the UI kit / animation runtime.
+vi.mock('@renderer/components/ErrorBoundary', () => ({
+  ErrorBoundary: ({ children }: { children?: ReactNode }) => <>{children}</>
+}))
+vi.mock('motion/react', () => ({
+  AnimatePresence: ({ children }: { children?: ReactNode }) => <>{children}</>,
+  motion: { div: ({ children }: { children?: ReactNode }) => <>{children}</> }
+}))
 
 import HomePage from '../HomePage'
 
@@ -111,5 +122,43 @@ describe('HomePage temporary-topic gating', () => {
     render(<HomePage />)
 
     expect(leasedEnabled()).toBe(false)
+  })
+
+  it('adopts the leased temp topic when the list empties mid-session', () => {
+    cacheService.set('topic.home.first_launch_temp_used', true) // not the first mount
+    mockUseAllTopics.mockReturnValue({ topics: [], isLoading: false })
+    mockUseTemporaryTopic.mockReturnValue({ topicId: 'temp-1', ready: true, reset: vi.fn(), persist: vi.fn() })
+    // The previously-active topic was just deleted — useActiveTopic resolves
+    // nothing (its initial-topic effect only fills a *missing* id).
+    const setActiveTopic = vi.fn()
+    mockUseActiveTopic.mockReturnValue({ activeTopic: undefined, setActiveTopic, isLoading: false })
+
+    render(<HomePage />)
+
+    expect(setActiveTopic).toHaveBeenCalledWith(expect.objectContaining({ id: 'temp-1' }))
+  })
+
+  it('does not re-adopt when the temp topic is already active', () => {
+    cacheService.set('topic.home.first_launch_temp_used', true) // not the first mount
+    mockUseAllTopics.mockReturnValue({ topics: [], isLoading: false })
+    mockUseTemporaryTopic.mockReturnValue({ topicId: 'temp-1', ready: true, reset: vi.fn(), persist: vi.fn() })
+    const setActiveTopic = vi.fn()
+    mockUseActiveTopic.mockReturnValue({ activeTopic: { id: 'temp-1' }, setActiveTopic, isLoading: false })
+
+    render(<HomePage />)
+
+    expect(setActiveTopic).not.toHaveBeenCalled()
+  })
+
+  it('does not steer the active topic while persisted topics exist', () => {
+    cacheService.set('topic.home.first_launch_temp_used', false) // first mount, temp leased
+    mockUseAllTopics.mockReturnValue({ topics: [{ id: 't1' }], isLoading: false })
+    mockUseTemporaryTopic.mockReturnValue({ topicId: 'temp-1', ready: true, reset: vi.fn(), persist: vi.fn() })
+    const setActiveTopic = vi.fn()
+    mockUseActiveTopic.mockReturnValue({ activeTopic: { id: 't1' }, setActiveTopic, isLoading: false })
+
+    render(<HomePage />)
+
+    expect(setActiveTopic).not.toHaveBeenCalled()
   })
 })
