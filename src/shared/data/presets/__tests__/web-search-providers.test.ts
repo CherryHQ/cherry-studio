@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { WEB_SEARCH_PROVIDER_IDS } from '../data/preference/preferenceTypes'
+import { WEB_SEARCH_PROVIDER_IDS } from '../../preference/preferenceTypes'
 import {
   PRESETS_WEB_SEARCH_PROVIDERS,
   WebSearchProviderIdSchema,
@@ -8,7 +8,7 @@ import {
   WebSearchProviderOverridesSchema,
   WebSearchProviderPresetDefinitionSchema,
   WebSearchProviderTypeSchema
-} from '../data/presets/web-search-providers'
+} from '../web-search-providers'
 
 describe('web search provider schemas', () => {
   it('accepts the current preset list', () => {

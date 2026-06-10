@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { FILE_PROCESSOR_IDS } from '../data/preference/preferenceTypes'
+import { FILE_PROCESSOR_IDS } from '../../preference/preferenceTypes'
+import { FILE_TYPE } from '../../types/file'
+import {
+  FileProcessingArtifactSchema,
+  FileProcessingJobOutputSchema,
+  FileProcessingOutputTargetSchema,
+  ListAvailableFileProcessorsResultSchema
+} from '../../types/fileProcessing'
 import {
   FileProcessorFeatureCapabilitySchema,
   FileProcessorIdSchema,
@@ -10,14 +17,7 @@ import {
   FileProcessorTemplatesSchema,
   FileProcessorTypeSchema,
   PRESETS_FILE_PROCESSORS
-} from '../data/presets/file-processing'
-import { FILE_TYPE } from '../data/types/file'
-import {
-  FileProcessingArtifactSchema,
-  FileProcessingJobOutputSchema,
-  FileProcessingOutputTargetSchema,
-  ListAvailableFileProcessorsResultSchema
-} from '../data/types/fileProcessing'
+} from '../file-processing'
 
 describe('FileProcessorFeatureCapabilitySchema', () => {
   it('accepts image_to_text with image inputs', () => {

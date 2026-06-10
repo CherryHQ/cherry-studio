@@ -4,8 +4,8 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { generateSignature } from '@main/ai/provider/cherryai'
 import { isMac, isWin } from '@main/core/platform'
-import { generateSignature } from '@main/integration/cherryai'
 import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
 import { getIpCountry } from '@main/utils/ipService'
 import {
