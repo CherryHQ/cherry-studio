@@ -18,6 +18,7 @@
  * - data-code (code blocks)
  */
 
+import type { FileType } from '@shared/file/types'
 import * as z from 'zod'
 
 import type { SerializedError } from '../../types/error'
@@ -85,6 +86,8 @@ export type CherryDataPartTypes = {
 export interface CherryTextMeta {
   /** Content references (citations, mentions). */
   references?: unknown[]
+  /** Composer inline token display snapshot on user TextUIPart only. */
+  composer?: ComposerMessageSnapshot
 }
 
 /** Cherry metadata on a ReasoningUIPart. */
@@ -144,7 +147,8 @@ export type CherryProviderMetadata = CherryTextMeta & CherryReasoningMeta & Cher
 // ============================================================================
 
 export const CherryTextMetaSchema: z.ZodType<CherryTextMeta> = z.object({
-  references: z.array(z.unknown()).optional()
+  references: z.array(z.unknown()).optional(),
+  composer: z.custom<ComposerMessageSnapshot>().optional()
 })
 
 export const CherryReasoningMetaSchema: z.ZodType<CherryReasoningMeta> = z.object({
@@ -185,6 +189,35 @@ function schemaForPartType(type: string): z.ZodTypeAny | null {
 // ============================================================================
 // Accessors — single read/write boundary for providerMetadata.cherry
 // ============================================================================
+
+export type ComposerMessageTokenKind = 'skill' | 'file' | 'command' | 'knowledge' | 'reference' | 'quote'
+
+export interface ComposerMessageFileTokenPayload {
+  type?: FileType
+  ext?: string
+  name?: string
+  origin_name?: string
+  size?: number
+}
+
+export type ComposerMessageTokenPayload = ComposerMessageFileTokenPayload
+
+export interface ComposerMessageToken {
+  id: string
+  kind: ComposerMessageTokenKind
+  label: string
+  icon?: string
+  description?: string
+  index: number
+  textOffset: number
+  promptText?: string
+  payload?: ComposerMessageTokenPayload
+}
+
+export interface ComposerMessageSnapshot {
+  version: 1
+  tokens: ComposerMessageToken[]
+}
 
 /**
  * Read cherry meta with runtime validation. Returns `undefined` for missing,
