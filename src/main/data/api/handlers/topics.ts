@@ -14,6 +14,7 @@ import { topicNamingService } from '@main/services/TopicNamingService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
+  CopyTopicBranchSchema,
   CreateTopicSchema,
   ListTopicsQuerySchema,
   SetActiveNodeSchema,
@@ -62,6 +63,17 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     PUT: async ({ params, body }) => {
       const parsed = SetActiveNodeSchema.parse(body)
       return await topicService.setActiveNode(params.id, parsed.nodeId)
+    }
+  },
+
+  '/topics/:id/branch-copies': {
+    POST: async ({ params, body }) => {
+      const parsed = CopyTopicBranchSchema.parse(body)
+      const topic = await topicService.copyBranchToNewTopic(params.id, parsed)
+      void topicNamingService.maybeRenameForkedTopic(topic.id, topic.assistantId).catch((err) => {
+        logger.warn('Failed to auto-name copied branch topic', { topicId: topic.id, err })
+      })
+      return topic
     }
   },
 
