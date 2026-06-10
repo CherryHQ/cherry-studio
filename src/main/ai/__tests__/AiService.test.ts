@@ -331,6 +331,7 @@ describe('AiService tool approval', () => {
     const result = await handler(fakeEvent(), {
       approvalId: 'mcp-approval-1',
       approved: true,
+      updatedInput: { command: 'pwd' },
       topicId: 'topic-1',
       anchorId: 'anchor-1'
     })
@@ -342,6 +343,7 @@ describe('AiService tool approval', () => {
     expect(updatedId).toBe('anchor-1')
     const writtenParts = (updateDto as { data: { parts: Array<{ state?: string }> } }).data.parts
     expect(writtenParts[1].state).toBe('approval-responded')
+    expect(writtenParts[1]).toMatchObject({ input: { command: 'pwd' } })
     // Nothing left pending → resume via continue-conversation.
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(dispatch).toHaveBeenCalledWith(
@@ -350,7 +352,7 @@ describe('AiService tool approval', () => {
         trigger: 'continue-conversation',
         topicId: 'topic-1',
         parentAnchorId: 'anchor-1',
-        approvalDecisions: [{ approvalId: 'mcp-approval-1', approved: true }]
+        approvalDecisions: [{ approvalId: 'mcp-approval-1', approved: true, updatedInput: { command: 'pwd' } }]
       })
     )
   })
