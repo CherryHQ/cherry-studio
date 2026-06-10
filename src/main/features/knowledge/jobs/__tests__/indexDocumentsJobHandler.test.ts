@@ -15,7 +15,7 @@ import {
   knowledgeLockManager,
   loadKnowledgeItemDocumentsMock,
   NOTE_ITEM_ID,
-  replaceByExternalIdMock
+  rebuildMaterialMock
 } from './jobHandlerTestUtils'
 
 describe('index-documents job handler', () => {
@@ -28,7 +28,14 @@ describe('index-documents job handler', () => {
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'reading')
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'embedding')
-    expect(replaceByExternalIdMock).toHaveBeenCalledWith(NOTE_ITEM_ID, expect.any(Array))
+    expect(rebuildMaterialMock).toHaveBeenCalledWith(
+      NOTE_ITEM_ID,
+      expect.objectContaining({
+        content: expect.objectContaining({ text: 'hello world' }),
+        units: expect.arrayContaining([expect.objectContaining({ unitType: 'chunk' })]),
+        embeddings: expect.any(Array)
+      })
+    )
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
     expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null })).toBe('base.kb-1')
   })
@@ -61,7 +68,10 @@ describe('index-documents job handler', () => {
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'reading')
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'embedding')
-    expect(replaceByExternalIdMock).toHaveBeenCalledWith(NOTE_ITEM_ID, [])
+    expect(rebuildMaterialMock).toHaveBeenCalledWith(
+      NOTE_ITEM_ID,
+      expect.objectContaining({ content: expect.objectContaining({ text: '' }), units: [], embeddings: [] })
+    )
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
   })
 
@@ -73,14 +83,14 @@ describe('index-documents job handler', () => {
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
 
-    expect(replaceByExternalIdMock).not.toHaveBeenCalled()
+    expect(rebuildMaterialMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
   })
 
   it('does not mark completed when vector replacement fails', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
-    replaceByExternalIdMock.mockRejectedValueOnce(new Error('vector write failed'))
+    rebuildMaterialMock.mockRejectedValueOnce(new Error('vector write failed'))
 
     await expect(
       handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
@@ -97,7 +107,7 @@ describe('index-documents job handler', () => {
     ).rejects.toThrow()
 
     expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
-    expect(replaceByExternalIdMock).not.toHaveBeenCalled()
+    expect(rebuildMaterialMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
   })
 

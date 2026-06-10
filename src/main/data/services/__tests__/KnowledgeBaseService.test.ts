@@ -466,16 +466,16 @@ describe('KnowledgeBaseService', () => {
       })
 
       const result = await service.update(KNOWLEDGE_BASE_ID, {
-        searchMode: 'default'
+        searchMode: 'vector'
       })
 
-      expect(result.searchMode).toBe('default')
+      expect(result.searchMode).toBe('vector')
       expect(result.chunkSize).toBe(256)
       expect(result.chunkOverlap).toBe(120)
       expect(result.hybridAlpha).toBeUndefined()
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
-      expect(row.searchMode).toBe('default')
+      expect(row.searchMode).toBe('vector')
       expect(row.chunkSize).toBe(256)
       expect(row.chunkOverlap).toBe(120)
       expect(row.hybridAlpha).toBeNull()
@@ -516,7 +516,7 @@ describe('KnowledgeBaseService', () => {
     })
 
     it('should not silently clean stale dependent fields during unrelated updates', async () => {
-      await seedKnowledgeBase({ searchMode: 'default', hybridAlpha: 0.7 })
+      await seedKnowledgeBase({ searchMode: 'vector', hybridAlpha: 0.7 })
 
       await expect(
         service.update(KNOWLEDGE_BASE_ID, {
@@ -530,7 +530,7 @@ describe('KnowledgeBaseService', () => {
 
       await expect(
         service.update(KNOWLEDGE_BASE_ID, {
-          searchMode: 'default',
+          searchMode: 'vector',
           hybridAlpha: 0.7
         })
       ).rejects.toMatchObject({

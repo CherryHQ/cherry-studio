@@ -1,16 +1,16 @@
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getStoreIfExistsMock, replaceByExternalIdMock } = vi.hoisted(() => ({
-  getStoreIfExistsMock: vi.fn(),
-  replaceByExternalIdMock: vi.fn()
+const { getIndexStoreIfExistsMock, deleteMaterialMock } = vi.hoisted(() => ({
+  getIndexStoreIfExistsMock: vi.fn(),
+  deleteMaterialMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     KnowledgeVectorStoreService: {
-      getStoreIfExists: getStoreIfExistsMock
+      getIndexStoreIfExists: getIndexStoreIfExistsMock
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -32,7 +32,7 @@ function createBase(): KnowledgeBase {
     chunkOverlap: 200,
     threshold: undefined,
     documentCount: 10,
-    searchMode: 'default',
+    searchMode: 'vector',
     hybridAlpha: undefined,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -42,37 +42,37 @@ function createBase(): KnowledgeBase {
 describe('deleteKnowledgeItemVectors', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getStoreIfExistsMock.mockResolvedValue({ replaceByExternalId: replaceByExternalIdMock })
-    replaceByExternalIdMock.mockResolvedValue([])
+    getIndexStoreIfExistsMock.mockResolvedValue({ deleteMaterial: deleteMaterialMock })
+    deleteMaterialMock.mockResolvedValue(undefined)
   })
 
   it('skips cleanup when no vector store exists', async () => {
-    getStoreIfExistsMock.mockResolvedValueOnce(null)
+    getIndexStoreIfExistsMock.mockResolvedValueOnce(undefined)
 
     await deleteKnowledgeItemVectors(createBase(), ['note-1'])
 
-    expect(replaceByExternalIdMock).not.toHaveBeenCalled()
+    expect(deleteMaterialMock).not.toHaveBeenCalled()
   })
 
   it('deduplicates item ids before deleting vectors', async () => {
     await deleteKnowledgeItemVectors(createBase(), ['note-1', 'note-1', 'note-2'])
 
-    expect(replaceByExternalIdMock).toHaveBeenCalledTimes(2)
-    expect(replaceByExternalIdMock).toHaveBeenCalledWith('note-1', [])
-    expect(replaceByExternalIdMock).toHaveBeenCalledWith('note-2', [])
+    expect(deleteMaterialMock).toHaveBeenCalledTimes(2)
+    expect(deleteMaterialMock).toHaveBeenCalledWith('note-1')
+    expect(deleteMaterialMock).toHaveBeenCalledWith('note-2')
   })
 
   it('attempts every vector cleanup before reporting failed item ids', async () => {
-    replaceByExternalIdMock
-      .mockResolvedValueOnce([])
+    deleteMaterialMock
+      .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error('note-2 failed'))
-      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error('note-4 failed'))
 
     await expect(deleteKnowledgeItemVectors(createBase(), ['note-1', 'note-2', 'note-3', 'note-4'])).rejects.toThrow(
       'note-2, note-4'
     )
 
-    expect(replaceByExternalIdMock).toHaveBeenCalledTimes(4)
+    expect(deleteMaterialMock).toHaveBeenCalledTimes(4)
   })
 })

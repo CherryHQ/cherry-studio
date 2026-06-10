@@ -92,7 +92,7 @@ describe('EntitySearchService', () => {
       chunkOverlap: 120,
       threshold: null,
       documentCount: null,
-      searchMode: 'default',
+      searchMode: 'vector',
       hybridAlpha: null
     })
   }

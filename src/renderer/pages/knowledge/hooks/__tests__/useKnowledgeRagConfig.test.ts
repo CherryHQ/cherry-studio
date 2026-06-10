@@ -47,7 +47,7 @@ vi.mock('react-i18next', () => ({
       (
         ({
           'knowledge.rag.search_mode.hybrid': '混合检索（推荐）',
-          'knowledge.rag.search_mode.default': '向量检索',
+          'knowledge.rag.search_mode.vector': '向量检索',
           'knowledge.rag.search_mode.bm25': '全文检索'
         }) as Record<string, string>
       )[key] ?? key
@@ -148,7 +148,7 @@ describe('useKnowledgeRagConfig', () => {
     ])
     expect(result.current.searchModeOptions).toEqual([
       { value: 'hybrid', label: '混合检索（推荐）' },
-      { value: 'default', label: '向量检索' },
+      { value: 'vector', label: '向量检索' },
       { value: 'bm25', label: '全文检索' }
     ])
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('tesseract')
@@ -170,7 +170,7 @@ describe('useKnowledgeRagConfig', () => {
         dimensions: '4096',
         documentCount: 10,
         threshold: 0.25,
-        searchMode: 'default',
+        searchMode: 'vector',
         hybridAlpha: 0.6
       })
     })
@@ -184,7 +184,7 @@ describe('useKnowledgeRagConfig', () => {
         rerankModelId: null,
         documentCount: 10,
         threshold: 0.25,
-        searchMode: 'default'
+        searchMode: 'vector'
       }
     })
   })
@@ -216,14 +216,14 @@ describe('useKnowledgeRagConfig', () => {
     await act(async () => {
       await result.current.save({
         ...result.current.initialValues,
-        searchMode: 'default'
+        searchMode: 'vector'
       })
     })
 
     expect(mockTrigger).toHaveBeenCalledWith({
       params: { id: 'base-1' },
       body: {
-        searchMode: 'default'
+        searchMode: 'vector'
       }
     })
   })

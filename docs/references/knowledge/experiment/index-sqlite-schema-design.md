@@ -420,9 +420,7 @@ CREATE TABLE content (
   text TEXT NOT NULL,
   text_format TEXT NOT NULL CHECK (text_format IN ('markdown', 'plain', 'extracted_text')),
   normalization_version INTEGER NOT NULL,
-  token_count INTEGER,
-  created_at INTEGER NOT NULL,
-  CHECK (token_count IS NULL OR token_count >= 0)
+  created_at INTEGER NOT NULL
 );
 ```
 
@@ -433,6 +431,7 @@ CREATE TABLE content (
 - 内容历史按 hash 保留；后续由 GC 删除不可达旧内容。
 - `content.text` 可以与原 Markdown 文件内容相同，也可以是抽取、清洗、标准化后的索引文本。
 - 当前 v2 也应让 `content.text` 保存整份 material 的规范化文本，而不是每个 chunk 的文本。`search_unit.char_start` / `search_unit.char_end` 标记 chunk 在整份文本中的范围。
+- token 数不作为 PR A 的持久索引字段；需要展示、预算或诊断时按使用场景对 `content.text` 或 chunk 文本即时估算。
 
 ### 6.5 search_unit
 

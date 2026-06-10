@@ -353,9 +353,7 @@ const api = {
     search: (baseId: string, query: string): Promise<KnowledgeVectorSearchResult[]> =>
       ipcRenderer.invoke(IpcChannel.Knowledge_Search, { baseId, query }),
     listItemChunks: (baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_ListItemChunks, { baseId, itemId }),
-    deleteItemChunk: (baseId: string, itemId: string, chunkId: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_DeleteItemChunk, { baseId, itemId, chunkId })
+      ipcRenderer.invoke(IpcChannel.Knowledge_ListItemChunks, { baseId, itemId })
   },
   knowledgeBase: {
     // v1 renderer knowledge path retired. Only base deletion remains, still

@@ -17,7 +17,7 @@ const createFormValues = (overrides: Partial<KnowledgeRagConfigFormValues> = {})
   dimensions: '1536',
   documentCount: 6,
   threshold: 0.1,
-  searchMode: 'default',
+  searchMode: 'vector',
   hybridAlpha: null,
   ...overrides
 })

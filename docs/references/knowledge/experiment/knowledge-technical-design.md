@@ -174,7 +174,7 @@ directory 是 UI/Job 容器，不创建 `material`；展开出的 leaf file item
 **路径服务（`features/knowledge/utils/storage/pathStorage.ts` 函数模块，非 class）：**
 
 - `getKnowledgeBaseDir(baseId)` / `getKnowledgeBaseMetaDir(baseId)`
-- `getKnowledgeVectorStoreFilePath[Sync](baseId)` → `{baseId}/.cherry/index.sqlite`
+- `getKnowledgeVectorStoreFilePath(baseId)` / `getKnowledgeVectorStoreFilePathSync(baseId)` → `{baseId}/.cherry/index.sqlite`
 - `getKnowledgeBaseFilePath(baseId, relativePath)` —— 校验并解析到绝对路径（即早期 plan 设想的 `resolveMaterialPath`）
 - `getKnowledgeSourceRelativePath` / `toKnowledgeRelativePath` / `getProcessedMarkdownRelativePath`
 - `copyFileIntoKnowledgeBase[At]` / `deleteKnowledgeItemFiles` / `deleteKnowledgeBaseDir`
@@ -314,13 +314,11 @@ CREATE TABLE content (
   text TEXT NOT NULL,
   text_format TEXT NOT NULL CHECK (text_format IN ('markdown', 'plain', 'extracted_text')),
   normalization_version INTEGER NOT NULL,
-  token_count INTEGER,
-  created_at INTEGER NOT NULL,
-  CHECK (token_count IS NULL OR token_count >= 0)
+  created_at INTEGER NOT NULL
 );
 ```
 
-`content_hash` 由规范化文本与 normalization contract 生成，相同内容可被多个 material 复用；内容历史按 hash 保留，后续 GC 删除不可达旧内容。**`content.text` 保存整份 material 的规范化文本（不是每个 chunk 的文本）**；chunk 在整份文本中的范围由 `search_unit.char_start/char_end` 标记。
+`content_hash` 由规范化文本与 normalization contract 生成，相同内容可被多个 material 复用；内容历史按 hash 保留，后续 GC 删除不可达旧内容。**`content.text` 保存整份 material 的规范化文本（不是每个 chunk 的文本）**；chunk 在整份文本中的范围由 `search_unit.char_start/char_end` 标记。token 数不作为 PR A 的持久索引字段；需要展示或预算时按使用场景对 `content.text` 或 chunk 文本即时估算。
 
 ### 4.5 search_unit
 

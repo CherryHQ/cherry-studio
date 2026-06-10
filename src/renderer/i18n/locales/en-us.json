@@ -2333,9 +2333,9 @@
       "saved": "Saved",
       "search_mode": {
         "bm25": "Full-text Search",
-        "default": "Vector Search",
         "hybrid": "Hybrid Search (recommended)",
-        "title": "Search Mode"
+        "title": "Search Mode",
+        "vector": "Vector Search"
       },
       "separator_rule": "Separator Rule",
       "threshold": "Similarity Threshold",

@@ -60,7 +60,7 @@ export const KNOWLEDGE_ITEM_STATUSES = [
 export const KnowledgeItemStatusSchema = z.enum(KNOWLEDGE_ITEM_STATUSES)
 export type KnowledgeItemStatus = z.infer<typeof KnowledgeItemStatusSchema>
 
-export const KNOWLEDGE_SEARCH_MODES = ['default', 'bm25', 'hybrid'] as const
+export const KNOWLEDGE_SEARCH_MODES = ['vector', 'bm25', 'hybrid'] as const
 export const KnowledgeSearchModeSchema = z.enum(KNOWLEDGE_SEARCH_MODES)
 export type KnowledgeSearchMode = z.infer<typeof KnowledgeSearchModeSchema>
 export const DEFAULT_KNOWLEDGE_SEARCH_MODE: KnowledgeSearchMode = 'hybrid'

@@ -175,7 +175,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.rag.threshold': '相似度阈值',
           'knowledge.rag.tokens_unit': 'tokens',
           'knowledge.rag.search_mode.title': '检索模式',
-          'knowledge.rag.search_mode.default': '向量检索',
+          'knowledge.rag.search_mode.vector': '向量检索',
           'knowledge.rag.search_mode.bm25': '全文检索',
           'knowledge.rag.search_mode.hybrid': '混合检索（推荐）',
           'knowledge.rag.hybrid_alpha': 'Hybrid Alpha',
@@ -219,7 +219,7 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   documentCount: 6,
   status: 'completed',
   error: null,
-  searchMode: 'default',
+  searchMode: 'vector',
   hybridAlpha: undefined,
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
@@ -254,7 +254,7 @@ describe('RagConfigPanel', () => {
         dimensions: '1536',
         documentCount: 6,
         threshold: 0.1,
-        searchMode: 'default',
+        searchMode: 'vector',
         hybridAlpha: null
       },
       embeddingModels: [
@@ -288,7 +288,7 @@ describe('RagConfigPanel', () => {
       ],
       searchModeOptions: [
         { value: 'hybrid', label: '混合检索（推荐）' },
-        { value: 'default', label: '向量检索' },
+        { value: 'vector', label: '向量检索' },
         { value: 'bm25', label: '全文检索' }
       ],
       rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }],
@@ -509,7 +509,7 @@ describe('RagConfigPanel', () => {
       embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' }],
       searchModeOptions: [
         { value: 'hybrid', label: '混合检索（推荐）' },
-        { value: 'default', label: '向量检索' },
+        { value: 'vector', label: '向量检索' },
         { value: 'bm25', label: '全文检索' }
       ],
       embeddingModels: [
@@ -560,7 +560,7 @@ describe('RagConfigPanel', () => {
       embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' }],
       searchModeOptions: [
         { value: 'hybrid', label: '混合检索（推荐）' },
-        { value: 'default', label: '向量检索' },
+        { value: 'vector', label: '向量检索' },
         { value: 'bm25', label: '全文检索' }
       ],
       embeddingModels: [

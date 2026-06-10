@@ -15,12 +15,11 @@ import type * as PathStorage from '../utils/storage/pathStorage'
 const {
   cancelManyMock,
   cancelMock,
-  createStoreMock,
+  getIndexStoreMock,
   deleteStoreMock,
   enqueueMock,
   fileProcessingStartJobMock,
   getJobMock,
-  getStoreIfExistsMock,
   aiEmbedManyMock,
   knowledgeBaseCreateMock,
   knowledgeBaseDeleteMock,
@@ -42,18 +41,16 @@ const {
   deleteKnowledgeItemFilesBestEffortMock,
   fsLstatMock,
   fsStatMock,
-  vectorDeleteByIdAndExternalIdMock,
-  vectorListByExternalIdMock,
-  vectorQueryMock
+  listMaterialUnitsMock,
+  storeSearchMock
 } = vi.hoisted(() => ({
   cancelManyMock: vi.fn(),
   cancelMock: vi.fn(),
-  createStoreMock: vi.fn(),
+  getIndexStoreMock: vi.fn(),
   deleteStoreMock: vi.fn(),
   enqueueMock: vi.fn(),
   fileProcessingStartJobMock: vi.fn(),
   getJobMock: vi.fn(),
-  getStoreIfExistsMock: vi.fn(),
   aiEmbedManyMock: vi.fn(),
   knowledgeBaseCreateMock: vi.fn(),
   knowledgeBaseDeleteMock: vi.fn(),
@@ -75,9 +72,8 @@ const {
   deleteKnowledgeItemFilesBestEffortMock: vi.fn(),
   fsLstatMock: vi.fn(),
   fsStatMock: vi.fn(),
-  vectorDeleteByIdAndExternalIdMock: vi.fn(),
-  vectorListByExternalIdMock: vi.fn(),
-  vectorQueryMock: vi.fn()
+  listMaterialUnitsMock: vi.fn(),
+  storeSearchMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -95,9 +91,8 @@ vi.mock('@application', async () => {
       registerHandler: registerHandlerMock
     },
     KnowledgeVectorStoreService: {
-      createStore: createStoreMock,
-      deleteStore: deleteStoreMock,
-      getStoreIfExists: getStoreIfExistsMock
+      getIndexStore: getIndexStoreMock,
+      deleteStore: deleteStoreMock
     },
     AiService: {
       embedMany: aiEmbedManyMock
@@ -108,6 +103,7 @@ vi.mock('@application', async () => {
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
+      debug: vi.fn(),
       error: vi.fn(),
       info: vi.fn(),
       warn: vi.fn()
@@ -197,7 +193,7 @@ function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
     chunkOverlap: 200,
     threshold: undefined,
     documentCount: 10,
-    searchMode: 'default',
+    searchMode: 'vector',
     hybridAlpha: undefined,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z',
@@ -347,13 +343,12 @@ describe('KnowledgeService', () => {
     fileProcessingStartJobMock.mockResolvedValue({ id: 'fp-job-1', snapshot: {}, finished: Promise.resolve({}) })
     getJobMock.mockResolvedValue(null)
     listMock.mockResolvedValue([])
-    createStoreMock.mockResolvedValue({
-      deleteByIdAndExternalId: vectorDeleteByIdAndExternalIdMock,
-      listByExternalId: vectorListByExternalIdMock,
-      query: vectorQueryMock
+    getIndexStoreMock.mockResolvedValue({
+      search: storeSearchMock,
+      listMaterialUnits: listMaterialUnitsMock
     })
-    vectorListByExternalIdMock.mockResolvedValue([])
-    vectorQueryMock.mockResolvedValue({ nodes: [], similarities: [] })
+    listMaterialUnitsMock.mockResolvedValue([])
+    storeSearchMock.mockResolvedValue([])
     knowledgeItemGetRootItemsByBaseIdMock.mockResolvedValue([])
     aiEmbedManyMock.mockResolvedValue({ embeddings: [[0.1, 0.2, 0.3]] })
     rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => results)
@@ -391,7 +386,6 @@ describe('KnowledgeService', () => {
       IpcChannel.Knowledge_ReindexItems,
       IpcChannel.Knowledge_Search,
       IpcChannel.Knowledge_ListItemChunks,
-      IpcChannel.Knowledge_DeleteItemChunk,
       IpcChannel.KnowledgeBase_Delete
     ])
   })
@@ -517,9 +511,9 @@ describe('KnowledgeService', () => {
     await expect(service.createBase({ name: 'KB', dimensions: 3, embeddingModelId: 'provider::embed' })).resolves.toBe(
       base
     )
-    expect(createStoreMock).toHaveBeenCalledWith(base)
+    expect(getIndexStoreMock).toHaveBeenCalledWith(base)
 
-    createStoreMock.mockRejectedValueOnce(new Error('store failed'))
+    getIndexStoreMock.mockRejectedValueOnce(new Error('store failed'))
     await expect(
       service.createBase({ name: 'KB', dimensions: 3, embeddingModelId: 'provider::embed' })
     ).rejects.toThrow('store failed')
@@ -1138,21 +1132,10 @@ describe('KnowledgeService', () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ threshold: 0.5 }))
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
-    vectorQueryMock.mockResolvedValueOnce({
-      nodes: [
-        {
-          id_: 'chunk-1',
-          metadata: { itemId: NOTE_ITEM_ID, itemType: 'note', source: 'note-1', chunkIndex: 0, tokenCount: 3 },
-          getContent: () => 'hello world'
-        },
-        {
-          id_: 'chunk-2',
-          metadata: { itemId: NOTE_ITEM_ID, itemType: 'note', source: 'note-1', chunkIndex: 1, tokenCount: 3 },
-          getContent: () => 'low score'
-        }
-      ],
-      similarities: [0.8, 0.2]
-    })
+    storeSearchMock.mockResolvedValueOnce([
+      { unitId: 'chunk-1', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'hello world', score: 0.8 },
+      { unitId: 'chunk-2', materialId: NOTE_ITEM_ID, unitIndex: 1, text: 'low score', score: 0.2 }
+    ])
 
     await expect(service.search('kb-1', 'hello')).resolves.toEqual([
       expect.objectContaining({ chunkId: 'chunk-1', itemId: NOTE_ITEM_ID, rank: 1, score: 0.8 })
@@ -1164,26 +1147,51 @@ describe('KnowledgeService', () => {
     })
   })
 
+  it('over-fetches index candidates (documentCount × factor, capped) so visibility filtering keeps enough results', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ documentCount: 3 }))
+    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
+    storeSearchMock.mockResolvedValueOnce([])
+
+    await service.search('kb-1', 'hello')
+
+    expect(storeSearchMock).toHaveBeenCalledWith(expect.objectContaining({ topK: 15 }))
+  })
+
+  it('caps over-fetched candidates regardless of a large documentCount', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ documentCount: 1000 }))
+    storeSearchMock.mockResolvedValueOnce([])
+
+    await service.search('kb-1', 'hello')
+
+    expect(storeSearchMock).toHaveBeenCalledWith(expect.objectContaining({ topK: 200 }))
+  })
+
+  it('trims visible search results down to documentCount after over-fetching', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ documentCount: 2 }))
+    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
+    storeSearchMock.mockResolvedValueOnce([
+      { unitId: 'c1', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'a', score: 0.9 },
+      { unitId: 'c2', materialId: NOTE_ITEM_ID, unitIndex: 1, text: 'b', score: 0.8 },
+      { unitId: 'c3', materialId: NOTE_ITEM_ID, unitIndex: 2, text: 'c', score: 0.7 }
+    ])
+
+    const results = await service.search('kb-1', 'hello')
+
+    expect(results.map((result) => result.chunkId)).toEqual(['c1', 'c2'])
+  })
+
   it('applies rerank results before applying relevance threshold', async () => {
     const service = new KnowledgeService()
     const base = createBase({ threshold: 0.5, rerankModelId: 'jina::jina-reranker-v2-base-multilingual' })
     knowledgeBaseGetByIdMock.mockResolvedValue(base)
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
-    vectorQueryMock.mockResolvedValueOnce({
-      nodes: [
-        {
-          id_: 'chunk-1',
-          metadata: { itemId: NOTE_ITEM_ID, itemType: 'note', source: 'note-1', chunkIndex: 0, tokenCount: 3 },
-          getContent: () => 'vector high rerank low'
-        },
-        {
-          id_: 'chunk-2',
-          metadata: { itemId: NOTE_ITEM_ID, itemType: 'note', source: 'note-1', chunkIndex: 1, tokenCount: 3 },
-          getContent: () => 'vector low rerank high'
-        }
-      ],
-      similarities: [0.8, 0.2]
-    })
+    storeSearchMock.mockResolvedValueOnce([
+      { unitId: 'chunk-1', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'vector high rerank low', score: 0.8 },
+      { unitId: 'chunk-2', materialId: NOTE_ITEM_ID, unitIndex: 1, text: 'vector low rerank high', score: 0.2 }
+    ])
     rerankKnowledgeSearchResultsMock.mockImplementationOnce(async (_base, _query, results) => [
       { ...results[1], score: 0.9, scoreKind: 'relevance', rank: 1 },
       { ...results[0], score: 0.2, scoreKind: 'relevance', rank: 2 }
@@ -1222,71 +1230,14 @@ describe('KnowledgeService', () => {
       }
       return createNoteItem(id, 'kb-1', null, 'completed')
     })
-    vectorQueryMock.mockResolvedValueOnce({
-      nodes: [
-        {
-          id_: 'chunk-active',
-          metadata: { itemId: NOTE_ITEM_ID, itemType: 'note', source: 'note-1', chunkIndex: 0, tokenCount: 3 },
-          getContent: () => 'active'
-        },
-        {
-          id_: 'chunk-deleting',
-          metadata: {
-            itemId: DELETING_NOTE_ITEM_ID,
-            itemType: 'note',
-            source: 'deleting-note',
-            chunkIndex: 0,
-            tokenCount: 3
-          },
-          getContent: () => 'deleting'
-        },
-        {
-          id_: 'chunk-failed',
-          metadata: {
-            itemId: FAILED_NOTE_ITEM_ID,
-            itemType: 'note',
-            source: 'failed-note',
-            chunkIndex: 0,
-            tokenCount: 3
-          },
-          getContent: () => 'failed'
-        },
-        {
-          id_: 'chunk-processing',
-          metadata: {
-            itemId: PROCESSING_NOTE_ITEM_ID,
-            itemType: 'note',
-            source: 'processing-note',
-            chunkIndex: 0,
-            tokenCount: 3
-          },
-          getContent: () => 'processing'
-        },
-        {
-          id_: 'chunk-embedding',
-          metadata: {
-            itemId: EMBEDDING_NOTE_ITEM_ID,
-            itemType: 'note',
-            source: 'embedding-note',
-            chunkIndex: 0,
-            tokenCount: 3
-          },
-          getContent: () => 'embedding'
-        },
-        {
-          id_: 'chunk-missing',
-          metadata: {
-            itemId: MISSING_NOTE_ITEM_ID,
-            itemType: 'note',
-            source: 'missing-note',
-            chunkIndex: 0,
-            tokenCount: 3
-          },
-          getContent: () => 'missing'
-        }
-      ],
-      similarities: [0.9, 0.8, 0.7, 0.6, 0.5, 0.4]
-    })
+    storeSearchMock.mockResolvedValueOnce([
+      { unitId: 'chunk-active', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'active', score: 0.9 },
+      { unitId: 'chunk-deleting', materialId: DELETING_NOTE_ITEM_ID, unitIndex: 0, text: 'deleting', score: 0.8 },
+      { unitId: 'chunk-failed', materialId: FAILED_NOTE_ITEM_ID, unitIndex: 0, text: 'failed', score: 0.7 },
+      { unitId: 'chunk-processing', materialId: PROCESSING_NOTE_ITEM_ID, unitIndex: 0, text: 'processing', score: 0.6 },
+      { unitId: 'chunk-embedding', materialId: EMBEDDING_NOTE_ITEM_ID, unitIndex: 0, text: 'embedding', score: 0.5 },
+      { unitId: 'chunk-missing', materialId: MISSING_NOTE_ITEM_ID, unitIndex: 0, text: 'missing', score: 0.4 }
+    ])
 
     await expect(service.search('kb-1', 'hello')).resolves.toEqual([
       expect.objectContaining({ chunkId: 'chunk-active', itemId: NOTE_ITEM_ID, rank: 1, score: 0.9 })
@@ -1302,23 +1253,52 @@ describe('KnowledgeService', () => {
     )
   })
 
-  it('lists and deletes chunks after checking item ownership', async () => {
+  it('translates a search failure into a defined error when the store was closed mid-flight', async () => {
+    const service = new KnowledgeService()
+    getIndexStoreMock.mockResolvedValueOnce({
+      search: vi.fn().mockRejectedValue(new Error('Knowledge index store driver is closed')),
+      listMaterialUnits: listMaterialUnitsMock,
+      isClosed: () => true
+    })
+
+    await expect(service.search('kb-1', 'hello')).rejects.toMatchObject({
+      code: ErrorCode.INVALID_OPERATION,
+      message: expect.stringContaining("Knowledge base 'kb-1' index store was closed during search")
+    })
+  })
+
+  it('rethrows a genuine search failure unchanged when the store is still open', async () => {
+    const service = new KnowledgeService()
+    const queryError = new Error('disk I/O error')
+    getIndexStoreMock.mockResolvedValueOnce({
+      search: vi.fn().mockRejectedValue(queryError),
+      listMaterialUnits: listMaterialUnitsMock,
+      isClosed: () => false
+    })
+
+    await expect(service.search('kb-1', 'hello')).rejects.toBe(queryError)
+  })
+
+  it('lists chunks after checking item ownership', async () => {
     const service = new KnowledgeService()
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem('note-1', 'kb-1', null, 'completed'))
-    vectorListByExternalIdMock.mockResolvedValueOnce([
+    listMaterialUnitsMock.mockResolvedValueOnce([
       {
-        id_: 'chunk-1',
-        metadata: { itemId: NOTE_ITEM_ID, itemType: 'note', source: 'note-1', chunkIndex: 0, tokenCount: 2 },
-        getContent: () => 'chunk text'
+        unitId: 'chunk-1',
+        materialId: 'note-1',
+        unitType: 'chunk',
+        unitIndex: 0,
+        title: null,
+        charStart: 0,
+        charEnd: 10,
+        text: 'chunk text'
       }
     ])
 
     await expect(service.listItemChunks('kb-1', 'note-1')).resolves.toEqual([
-      expect.objectContaining({ id: 'chunk-1', itemId: NOTE_ITEM_ID, content: 'chunk text' })
+      expect.objectContaining({ id: 'chunk-1', itemId: 'note-1', content: 'chunk text' })
     ])
-    await service.deleteItemChunk('kb-1', 'note-1', 'chunk-1')
-
-    expect(vectorDeleteByIdAndExternalIdMock).toHaveBeenCalledWith('chunk-1', 'note-1')
+    expect(listMaterialUnitsMock).toHaveBeenCalledWith('note-1')
   })
 
   it('lists chunks for completed directories without deleting children', async () => {
@@ -1327,19 +1307,24 @@ describe('KnowledgeService', () => {
     knowledgeItemGetSubtreeItemsMock
       .mockResolvedValueOnce([createNoteItem('note-1', 'kb-1', 'dir-1', 'completed')])
       .mockResolvedValueOnce([createNoteItem('note-1', 'kb-1', 'dir-1', 'completed')])
-    vectorListByExternalIdMock.mockResolvedValueOnce([
+    listMaterialUnitsMock.mockResolvedValueOnce([
       {
-        id_: 'chunk-1',
-        metadata: { itemId: NOTE_ITEM_ID, itemType: 'note', source: 'note-1', chunkIndex: 0, tokenCount: 2 },
-        getContent: () => 'chunk text'
+        unitId: 'chunk-1',
+        materialId: 'note-1',
+        unitType: 'chunk',
+        unitIndex: 0,
+        title: null,
+        charStart: 0,
+        charEnd: 10,
+        text: 'chunk text'
       }
     ])
 
     await expect(service.listItemChunks('kb-1', 'dir-1')).resolves.toEqual([
-      expect.objectContaining({ id: 'chunk-1', itemId: NOTE_ITEM_ID, content: 'chunk text' })
+      expect.objectContaining({ id: 'chunk-1', itemId: 'note-1', content: 'chunk text' })
     ])
 
-    expect(vectorListByExternalIdMock).toHaveBeenCalledWith('note-1')
+    expect(listMaterialUnitsMock).toHaveBeenCalledWith('note-1')
   })
 
   it('rejects listing chunks for completed directories with deleting children', async () => {
@@ -1353,7 +1338,7 @@ describe('KnowledgeService', () => {
       code: ErrorCode.VALIDATION_ERROR,
       message: 'Cannot list chunks for a deleting knowledge item'
     })
-    expect(vectorListByExternalIdMock).not.toHaveBeenCalled()
+    expect(listMaterialUnitsMock).not.toHaveBeenCalled()
   })
 
   it.each(['idle', 'processing', 'reading', 'embedding', 'failed', 'deleting'] as const)(
@@ -1366,13 +1351,23 @@ describe('KnowledgeService', () => {
         code: ErrorCode.VALIDATION_ERROR,
         message: 'Cannot list chunks for a non-completed knowledge item'
       })
-      await expect(service.deleteItemChunk('kb-1', 'note-1', 'chunk-1')).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR,
-        message: 'Cannot delete chunk for a non-completed knowledge item'
-      })
 
-      expect(vectorListByExternalIdMock).not.toHaveBeenCalled()
-      expect(vectorDeleteByIdAndExternalIdMock).not.toHaveBeenCalled()
+      expect(listMaterialUnitsMock).not.toHaveBeenCalled()
     }
   )
+
+  it('translates a listItemChunks failure into a defined error when the store was closed mid-flight', async () => {
+    const service = new KnowledgeService()
+    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem('note-1', 'kb-1', null, 'completed'))
+    getIndexStoreMock.mockResolvedValueOnce({
+      search: storeSearchMock,
+      listMaterialUnits: vi.fn().mockRejectedValue(new Error('Knowledge index store driver is closed')),
+      isClosed: () => true
+    })
+
+    await expect(service.listItemChunks('kb-1', 'note-1')).rejects.toMatchObject({
+      code: ErrorCode.INVALID_OPERATION,
+      message: expect.stringContaining("Knowledge base 'kb-1' index store was closed during listItemChunks")
+    })
+  })
 })

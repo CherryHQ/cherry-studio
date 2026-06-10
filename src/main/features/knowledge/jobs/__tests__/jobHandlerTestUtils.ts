@@ -8,10 +8,10 @@ import type * as PathStorage from '../../utils/storage/pathStorage'
 
 const mocks = vi.hoisted(() => ({
   cancelMock: vi.fn(),
-  createStoreMock: vi.fn(),
+  getIndexStoreMock: vi.fn(),
   enqueueMock: vi.fn(),
   getJobMock: vi.fn(),
-  getStoreIfExistsMock: vi.fn(),
+  getIndexStoreIfExistsMock: vi.fn(),
   deleteItemsByIdsMock: vi.fn(),
   deleteKnowledgeItemFilesBestEffortMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
@@ -23,16 +23,17 @@ const mocks = vi.hoisted(() => ({
   listMock: vi.fn(),
   loadKnowledgeItemDocumentsMock: vi.fn(),
   prepareKnowledgeItemMock: vi.fn(),
-  replaceByExternalIdMock: vi.fn(),
+  rebuildMaterialMock: vi.fn(),
+  deleteMaterialMock: vi.fn(),
   scheduleItemMock: vi.fn()
 }))
 
 export const {
   cancelMock,
-  createStoreMock,
+  getIndexStoreMock,
   enqueueMock,
   getJobMock,
-  getStoreIfExistsMock,
+  getIndexStoreIfExistsMock,
   deleteItemsByIdsMock,
   deleteKnowledgeItemFilesBestEffortMock,
   knowledgeBaseGetByIdMock,
@@ -44,7 +45,8 @@ export const {
   listMock,
   loadKnowledgeItemDocumentsMock,
   prepareKnowledgeItemMock,
-  replaceByExternalIdMock,
+  rebuildMaterialMock,
+  deleteMaterialMock,
   scheduleItemMock
 } = mocks
 
@@ -58,8 +60,8 @@ vi.mock('@application', async () => {
       list: listMock
     },
     KnowledgeVectorStoreService: {
-      createStore: createStoreMock,
-      getStoreIfExists: getStoreIfExistsMock
+      getIndexStore: getIndexStoreMock,
+      getIndexStoreIfExists: getIndexStoreIfExistsMock
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -111,9 +113,7 @@ vi.mock('../../utils/storage/pathStorage', async () => {
 })
 
 vi.mock('../../utils/indexing/embed', () => ({
-  embedKnowledgeDocuments: vi.fn(async (_base, documents: unknown[]) =>
-    documents.length === 0 ? [] : [{ id_: 'node-1', metadata: {}, getContent: () => 'chunk' }]
-  )
+  embedKnowledgeTexts: vi.fn(async (_base, values: string[]) => values.map(() => [0.1, 0.2, 0.3]))
 }))
 
 export const { createDeleteSubtreeJobHandler } = await import('../deleteSubtreeJobHandler')
@@ -143,7 +143,7 @@ export function createBase(): KnowledgeBase {
     chunkOverlap: 200,
     threshold: undefined,
     documentCount: 10,
-    searchMode: 'default',
+    searchMode: 'vector',
     hybridAlpha: undefined,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -282,8 +282,11 @@ beforeEach(() => {
     }
   ])
   prepareKnowledgeItemMock.mockResolvedValue([createNoteItem('leaf-1', 'dir-1')])
-  createStoreMock.mockResolvedValue({ replaceByExternalId: replaceByExternalIdMock })
-  getStoreIfExistsMock.mockResolvedValue({ replaceByExternalId: replaceByExternalIdMock })
+  const indexStore = { rebuildMaterial: rebuildMaterialMock, deleteMaterial: deleteMaterialMock }
+  getIndexStoreMock.mockResolvedValue(indexStore)
+  getIndexStoreIfExistsMock.mockResolvedValue(indexStore)
+  rebuildMaterialMock.mockResolvedValue(undefined)
+  deleteMaterialMock.mockResolvedValue(undefined)
   listMock.mockResolvedValue([])
   getJobMock.mockResolvedValue(null)
   enqueueMock.mockResolvedValue({ id: 'job-index', snapshot: {}, finished: Promise.resolve({}) })

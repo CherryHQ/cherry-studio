@@ -62,7 +62,7 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
         rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
         documentCount: 6,
         threshold: 0,
-        searchMode: 'default'
+        searchMode: 'vector'
       })
     )
 
@@ -125,13 +125,13 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
     const nextValues = {
       ...initialValues,
       chunkSize: '768',
-      searchMode: 'default' as const,
+      searchMode: 'vector' as const,
       hybridAlpha: 0.6
     }
 
     expect(buildKnowledgeRagConfigPatch(initialValues, nextValues)).toEqual({
       chunkSize: 768,
-      searchMode: 'default'
+      searchMode: 'vector'
     })
   })
 
