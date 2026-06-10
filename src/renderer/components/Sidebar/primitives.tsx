@@ -1,4 +1,5 @@
 import { LogoAvatar } from '@renderer/components/Icons'
+import { isEmoji } from '@renderer/utils/naming'
 import type { LucideProps } from 'lucide-react'
 
 import type { SidebarMiniAppTab, SidebarTab, SidebarUser } from './types'
@@ -77,10 +78,21 @@ function getUserAvatarFallback(user?: SidebarUser) {
 }
 
 export function UserAvatar({ user, className }: { user: SidebarUser; className?: string }) {
+  const isEmojiAvatar = user.avatar ? isEmoji(user.avatar) : false
+
   return (
     <div className={`overflow-hidden rounded-full ring-1 ring-border ${className ?? ''}`}>
       {user.avatar && !isTextAvatar(user.avatar) ? (
         <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" />
+      ) : isEmojiAvatar ? (
+        <div className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full text-[10px]">
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 flex h-full w-full scale-150 items-center justify-center text-[200%] opacity-40 blur-[5px]">
+            {user.avatar}
+          </div>
+          {user.avatar}
+        </div>
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-400 to-indigo-500 text-[10px] text-white">
           {getUserAvatarFallback(user)}
