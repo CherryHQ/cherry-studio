@@ -27,6 +27,16 @@ export default function ProviderListItem({
     event.stopPropagation()
     onOpenMenu?.()
   }
+  const hasTrailingSlot = provider.isEnabled || onOpenMenu
+  const menuButton = onOpenMenu ? (
+    <button
+      type="button"
+      data-testid={`provider-list-menu-${provider.id}`}
+      onClick={handleOpenMenu}
+      className={providerListClasses.itemMoreActions}>
+      <MoreVertical size={14} />
+    </button>
+  ) : null
 
   return (
     <div
@@ -53,7 +63,7 @@ export default function ProviderListItem({
         selected ? providerListClasses.itemSelected : providerListClasses.itemIdle,
         dragging && 'opacity-65'
       )}>
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+      <div className={providerListClasses.itemContent}>
         <ProviderAvatar provider={provider} size={22} className={providerListClasses.itemAvatar} />
         <span
           className={cn(
@@ -63,27 +73,18 @@ export default function ProviderListItem({
           {provider.name}
         </span>
       </div>
-      {provider.isEnabled && <span aria-hidden className={providerListClasses.itemEnabledDot} />}
-      {onOpenMenu &&
-        (renderMenuButton ? (
-          renderMenuButton(
-            <button
-              type="button"
-              data-testid={`provider-list-menu-${provider.id}`}
-              onClick={handleOpenMenu}
-              className={providerListClasses.itemMoreActions}>
-              <MoreVertical size={14} />
-            </button>
-          )
-        ) : (
-          <button
-            type="button"
-            data-testid={`provider-list-menu-${provider.id}`}
-            onClick={handleOpenMenu}
-            className={providerListClasses.itemMoreActions}>
-            <MoreVertical size={14} />
-          </button>
-        ))}
+      {hasTrailingSlot && (
+        <div
+          className={cn(
+            providerListClasses.itemTrailingSlot,
+            provider.isEnabled
+              ? providerListClasses.itemTrailingSlotIndicatorOnly
+              : providerListClasses.itemTrailingSlotAction
+          )}>
+          {provider.isEnabled && <span aria-hidden className={providerListClasses.itemEnabledDot} />}
+          {menuButton && (renderMenuButton ? renderMenuButton(menuButton) : menuButton)}
+        </div>
+      )}
     </div>
   )
 }
