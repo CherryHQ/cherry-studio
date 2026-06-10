@@ -4,6 +4,7 @@ import { useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { type ApiKeyConnectivity, HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
+import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
 import { checkApi as runCheckApi } from '@renderer/services/ApiService'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
@@ -20,7 +21,7 @@ import { useProviderEndpoints } from './useProviderEndpoints'
 const logger = loggerService.withContext('ProviderSettings:ConnectionCheck')
 
 export function useProviderConnectionCheck(providerId: string) {
-  const { provider } = useProvider(providerId)
+  const { provider, updateProvider } = useProvider(providerId)
   const [connectionCheckOpen, setConnectionCheckOpen] = useState(false)
   const { models } = useModels(
     { providerId },
@@ -28,7 +29,7 @@ export function useProviderConnectionCheck(providerId: string) {
   )
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
-  const { inputApiKey } = useAuthenticationApiKey()
+  const { commitInputApiKeyNow, inputApiKey } = useAuthenticationApiKey()
   const { apiHost, anthropicApiHost } = useProviderEndpoints(provider)
   const [apiKeyConnectivity, setApiKeyConnectivity] = useState<ApiKeyConnectivity>({
     kind: 'idle',
@@ -90,13 +91,37 @@ export function useProviderConnectionCheck(providerId: string) {
       const controller = new AbortController()
       abortControllerRef.current = controller
       const runId = ++runIdRef.current
+      // Distinguishes a local save failure from a real probe failure in the
+      // catch, so the user isn't sent debugging network/key when persistence broke.
+      let didCommitApiKey = false
 
       try {
         setApiKeyConnectivity({ kind: 'checking', checking: true, status: HealthStatus.NOT_CHECKED, model })
 
+        // Persist the pending key BEFORE running the check. The check resolves
+        // credentials from the saved provider (getRotatedApiKey in main), so
+        // without flushing first it would validate a stale saved key: a new bad
+        // key typed within the input debounce window could pass against an old
+        // good key and then enable the provider on never-checked credentials.
+        // If saving fails it throws into the catch, surfacing only the failure
+        // path. Committing changes provider.apiKeys but not provider.id / host /
+        // inputApiKey, so it does not trip the abort effect.
+        await commitInputApiKeyNow()
+        didCommitApiKey = true
+
+        if (runId !== runIdRef.current || controller.signal.aborted) return
+
         await runCheckApi(model.id, { signal: controller.signal })
 
         if (runId !== runIdRef.current) return
+
+        // Enable the provider (if disabled) only after a successful check. Enable
+        // swallows its own errors, so it never diverts to the failure path.
+        await enableProviderWhenModelsAvailable(provider, updateProvider, checkableModels.length, 'connection_check')
+
+        // The enable await can interleave with a newer check; drop this run if it
+        // was superseded or aborted before touching success state.
+        if (runId !== runIdRef.current || controller.signal.aborted) return
 
         window.toast.success({
           timeout: 2000,
@@ -113,10 +138,18 @@ export function useProviderConnectionCheck(providerId: string) {
       } catch (error) {
         if (runId !== runIdRef.current || controller.signal.aborted) return
 
-        logger.error('Provider connection check failed', { providerId: provider.id, modelId: model.id, error })
+        if (didCommitApiKey) {
+          logger.error('Provider connection check failed', { providerId: provider.id, modelId: model.id, error })
+        } else {
+          logger.error('Failed to persist pending API key before connection check', {
+            providerId: provider.id,
+            modelId: model.id,
+            error
+          })
+        }
         window.toast.error({
           timeout: 8000,
-          title: i18n.t('message.api.connection.failed')
+          title: i18n.t(didCommitApiKey ? 'message.api.connection.failed' : 'settings.provider.api_key.save_failed')
         })
 
         setApiKeyConnectivity({
@@ -129,7 +162,7 @@ export function useProviderConnectionCheck(providerId: string) {
         setConnectionCheckOpen(false)
       }
     },
-    [abortInFlightCheck, i18n, provider, setTimeoutTimer]
+    [abortInFlightCheck, checkableModels.length, commitInputApiKeyNow, i18n, provider, setTimeoutTimer, updateProvider]
   )
 
   const checkApi = useCallback(async () => {
