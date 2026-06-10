@@ -10,7 +10,7 @@ import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { loggerService } from '@renderer/services/LoggerService'
-import type { Model as SharedModel } from '@shared/data/types/model'
+import { type Model as SharedModel, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ChevronDown, Download, ExternalLink, Loader2, Play, Square, X } from 'lucide-react'
@@ -25,6 +25,12 @@ const logger = loggerService.withContext('OpenClawPage')
 
 const DEFAULT_DOCS_URL = 'https://docs.openclaw.ai/'
 const NO_API_KEY_PROVIDERS = new Set(['ollama', 'lmstudio', 'gpustack'])
+
+const DISALLOWED_OPENCLAW_CAPABILITIES = new Set<string>([
+  MODEL_CAPABILITY.EMBEDDING,
+  MODEL_CAPABILITY.RERANK,
+  MODEL_CAPABILITY.IMAGE_GENERATION
+])
 
 interface TitleSectionProps {
   title: string
@@ -106,6 +112,7 @@ const OpenClawPage: FC = () => {
       const provider = providers.find((p) => p.id === model.providerId)
       if (!provider) return false
       if (NO_API_KEY_PROVIDERS.has(provider.id)) return true
+      if (model.capabilities.some((c) => DISALLOWED_OPENCLAW_CAPABILITIES.has(c))) return false
       return provider.apiKeys.some((k) => k.isEnabled)
     },
     [providers]
