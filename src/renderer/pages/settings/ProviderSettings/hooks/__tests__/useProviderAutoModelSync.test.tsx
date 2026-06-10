@@ -11,6 +11,7 @@ const useProviderApiKeysMock = vi.fn()
 const useModelsMock = vi.fn()
 const useProviderModelSyncMock = vi.fn()
 const syncProviderModelsMock = vi.fn()
+const updateProviderMock = vi.fn()
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -42,15 +43,18 @@ describe('useProviderAutoModelSync', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     syncProviderModelsMock.mockResolvedValue([])
+    updateProviderMock.mockResolvedValue(undefined)
 
     useProviderMock.mockReturnValue({
       provider: {
         id: 'openai',
+        isEnabled: false,
         defaultChatEndpoint: 'openai_chat_completions',
         endpointConfigs: {
           openai_chat_completions: { baseUrl: 'https://api.openai.com/v1' }
         }
-      }
+      },
+      updateProvider: updateProviderMock
     })
     useProviderApiKeysMock.mockReturnValue({
       data: { keys: [{ id: 'key-1', key: 'sk-test', isEnabled: true }] }
@@ -74,6 +78,45 @@ describe('useProviderAutoModelSync', () => {
       { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS }
     )
     expect(useProviderModelSyncMock).toHaveBeenCalledWith('openai', { existingModels: [] })
+  })
+
+  it('enables a disabled provider when auto sync returns at least one model', async () => {
+    syncProviderModelsMock.mockResolvedValueOnce([{ id: 'openai::gpt-4o' }])
+
+    renderHook(() => useProviderAutoModelSync('openai'))
+
+    await waitFor(() => expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true }))
+  })
+
+  it('keeps a disabled provider disabled when auto sync returns zero models', async () => {
+    syncProviderModelsMock.mockResolvedValueOnce([])
+
+    renderHook(() => useProviderAutoModelSync('openai'))
+
+    await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
+    await Promise.resolve()
+    expect(updateProviderMock).not.toHaveBeenCalled()
+  })
+
+  it('does not patch an already enabled provider after successful auto sync', async () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'openai',
+        isEnabled: true,
+        defaultChatEndpoint: 'openai_chat_completions',
+        endpointConfigs: {
+          openai_chat_completions: { baseUrl: 'https://api.openai.com/v1' }
+        }
+      },
+      updateProvider: updateProviderMock
+    })
+    syncProviderModelsMock.mockResolvedValueOnce([{ id: 'openai::gpt-4o' }])
+
+    renderHook(() => useProviderAutoModelSync('openai'))
+
+    await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
+    await Promise.resolve()
+    expect(updateProviderMock).not.toHaveBeenCalled()
   })
 
   it('syncs only once for the same initial eligible configuration', async () => {
@@ -142,5 +185,6 @@ describe('useProviderAutoModelSync', () => {
     rerender()
 
     await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(2))
+    expect(updateProviderMock).not.toHaveBeenCalled()
   })
 })

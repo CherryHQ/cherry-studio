@@ -19,19 +19,24 @@ import type {
   DeleteMessageResponse,
   UpdateMessageDto
 } from '@shared/data/api/schemas/messages'
-import type {
-  BranchMessage,
-  BranchMessagesResponse,
-  Message,
-  MessageData,
-  SiblingsGroup,
-  TreeNode,
-  TreeResponse
+import type { TopicMessageContentSearchItem } from '@shared/data/api/schemas/search'
+import {
+  type BranchMessage,
+  type BranchMessagesResponse,
+  coerceSearchRole,
+  type Message,
+  type MessageData,
+  type SiblingsGroup,
+  TOPIC_MESSAGE_SEARCH_ROLES,
+  type TreeNode,
+  type TreeResponse
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { buildSearchSnippet } from '@shared/utils/searchSnippet'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 
 import { topicService } from './TopicService'
+import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MessageService')
@@ -77,6 +82,10 @@ const PREVIEW_LENGTH = 50
  * Default pagination limit
  */
 const DEFAULT_LIMIT = 20
+const MESSAGE_SEARCH_CURSOR_CONFIG = {
+  fieldMessage: 'must be a valid search cursor',
+  errorMessage: 'Invalid message search cursor'
+}
 
 /**
  * Convert database row to Message entity.
@@ -147,6 +156,26 @@ function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
     createdAt: message.createdAt,
     hasChildren
   }
+}
+
+type MessageSearchRow = {
+  id: string
+  topicId: string
+  topicName: string
+  topicAssistantId: string | null
+  role: string
+  topicCreatedAt: number
+  topicUpdatedAt: number
+  searchableText: string
+  createdAt: number
+}
+
+type MessageContentSearchInput = {
+  q: string
+  cursor?: string
+  limit?: number
+  createdAtFrom?: string
+  topicId?: string
 }
 
 export class MessageService {
@@ -584,6 +613,72 @@ export class MessageService {
     if (ids.length === 0) return
     await application.get('DbService').withWriteTx(async (tx) => {
       await tx.update(messageTable).set({ status: 'error' }).where(inArray(messageTable.id, ids))
+    })
+  }
+
+  async search(query: MessageContentSearchInput) {
+    const db = application.get('DbService').getDb()
+    const topicConditionForMessageAlias = query.topicId ? sql`message.topic_id = ${query.topicId}` : sql`1 = 1`
+
+    return await searchWithCursor<MessageSearchRow, TopicMessageContentSearchItem>({
+      q: query.q,
+      limit: query.limit,
+      cursor: query.cursor,
+      createdAtFrom: query.createdAtFrom,
+      cursorConfig: MESSAGE_SEARCH_CURSOR_CONFIG,
+      fetchRows: async ({ ftsConditions, cursor, createdAtFromMs, offset, chunkSize }: SearchFetchContext) => {
+        const createdAtConditionForMessageAlias =
+          createdAtFromMs !== undefined ? sql`message.created_at >= ${createdAtFromMs}` : sql`1 = 1`
+
+        return await db.all<MessageSearchRow>(sql`
+          SELECT
+            message.id,
+            message.topic_id AS "topicId",
+            t.name AS "topicName",
+            t.assistant_id AS "topicAssistantId",
+            message.role,
+            t.created_at AS "topicCreatedAt",
+            t.updated_at AS "topicUpdatedAt",
+            message.searchable_text AS "searchableText",
+            message.created_at AS "createdAt"
+          FROM message
+          JOIN message_fts fts ON message.rowid = fts.rowid
+          JOIN topic t ON t.id = message.topic_id
+          WHERE message.deleted_at IS NULL
+            AND t.deleted_at IS NULL
+            AND message.searchable_text != ''
+            AND ${topicConditionForMessageAlias}
+            AND ${createdAtConditionForMessageAlias}
+            AND ${sql.join(ftsConditions, sql` AND `)}
+            AND ${
+              cursor
+                ? sql`(message.created_at < ${cursor.createdAt} OR (message.created_at = ${cursor.createdAt} AND message.id < ${cursor.id}))`
+                : sql`1 = 1`
+            }
+          ORDER BY message.created_at DESC, message.id DESC
+          LIMIT ${chunkSize}
+          OFFSET ${offset}
+        `)
+      },
+      getSearchableText: (row) => row.searchableText,
+      buildSnippet: buildSearchSnippet,
+      mapRow: (row, { snippet }) => ({
+        item: {
+          messageId: row.id,
+          topicId: row.topicId,
+          topicName: row.topicName,
+          topicAssistantId: row.topicAssistantId ?? undefined,
+          role: coerceSearchRole(row.role, TOPIC_MESSAGE_SEARCH_ROLES),
+          topicCreatedAt: timestampToISO(Number(row.topicCreatedAt)),
+          topicUpdatedAt: timestampToISO(Number(row.topicUpdatedAt)),
+          snippet,
+          createdAt: timestampToISO(Number(row.createdAt))
+        },
+        sort: {
+          createdAt: Number(row.createdAt),
+          id: row.id
+        }
+      })
     })
   }
 

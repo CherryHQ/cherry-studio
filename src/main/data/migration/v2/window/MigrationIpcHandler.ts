@@ -229,7 +229,8 @@ export function registerMigrationIpcHandlers(userDataPath: string): void {
           migrators: currentProgress.migrators.map((m) => ({
             ...m,
             status: 'completed'
-          }))
+          })),
+          warnings: result.migratorResults.flatMap((migratorResult) => migratorResult.warnings ?? [])
         })
       } else {
         updateProgress({

@@ -4,6 +4,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
 const TELEGRAM_CONFIG = { bot_token: 'test-token-123', allowed_chat_ids: [] }
+const SYSTEM_WORKSPACE = { type: 'system' as const }
 
 describe('AgentChannelService', () => {
   const dbh = setupTestDatabase()
@@ -25,6 +26,7 @@ describe('AgentChannelService', () => {
       const channel = await agentChannelService.createChannel({
         type: 'telegram',
         name: 'My Bot',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG,
         isActive: true
       })
@@ -40,6 +42,7 @@ describe('AgentChannelService', () => {
       const channel = await agentChannelService.createChannel({
         type: 'telegram',
         name: 'Draft Bot',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG,
         isActive: false
       })
@@ -51,6 +54,7 @@ describe('AgentChannelService', () => {
       const channel = await agentChannelService.createChannel({
         type: 'telegram',
         name: 'Timestamp Test',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG
       })
 
@@ -64,6 +68,7 @@ describe('AgentChannelService', () => {
       const created = await agentChannelService.createChannel({
         type: 'telegram',
         name: 'Get Test',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG
       })
 
@@ -80,15 +85,30 @@ describe('AgentChannelService', () => {
 
   describe('listChannels', () => {
     it('lists all channels when no filters applied', async () => {
-      await agentChannelService.createChannel({ type: 'telegram', name: 'TG', config: TELEGRAM_CONFIG })
-      await agentChannelService.createChannel({ type: 'discord', name: 'DC', config: { bot_token: 'dc-token' } })
+      await agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'TG',
+        workspace: SYSTEM_WORKSPACE,
+        config: TELEGRAM_CONFIG
+      })
+      await agentChannelService.createChannel({
+        type: 'discord',
+        name: 'DC',
+        workspace: SYSTEM_WORKSPACE,
+        config: { bot_token: 'dc-token' }
+      })
 
       const channels = await agentChannelService.listChannels()
       expect(channels.length).toBeGreaterThanOrEqual(2)
     })
 
     it('filters by type', async () => {
-      await agentChannelService.createChannel({ type: 'telegram', name: 'TG Filter', config: TELEGRAM_CONFIG })
+      await agentChannelService.createChannel({
+        type: 'telegram',
+        name: 'TG Filter',
+        workspace: SYSTEM_WORKSPACE,
+        config: TELEGRAM_CONFIG
+      })
 
       const channels = await agentChannelService.listChannels({ type: 'telegram' })
       expect(channels.every((c) => c.type === 'telegram')).toBe(true)
@@ -100,12 +120,14 @@ describe('AgentChannelService', () => {
       await agentChannelService.createChannel({
         type: 'telegram',
         name: 'AgentA Bot',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG,
         agentId
       })
       await agentChannelService.createChannel({
         type: 'telegram',
         name: 'No-Agent Bot',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG
         // agentId intentionally omitted
       })
@@ -121,12 +143,14 @@ describe('AgentChannelService', () => {
       await agentChannelService.createChannel({
         type: 'telegram',
         name: 'TG Agent Bot',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG,
         agentId
       })
       await agentChannelService.createChannel({
         type: 'discord',
         name: 'DC Agent Bot',
+        workspace: SYSTEM_WORKSPACE,
         config: { bot_token: 'dc-tok' },
         agentId
       })
@@ -134,6 +158,7 @@ describe('AgentChannelService', () => {
       await agentChannelService.createChannel({
         type: 'telegram',
         name: 'TG Other Bot',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG
       })
 
@@ -148,6 +173,7 @@ describe('AgentChannelService', () => {
       const channel = await agentChannelService.createChannel({
         type: 'telegram',
         name: 'Before',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG
       })
 
@@ -164,6 +190,7 @@ describe('AgentChannelService', () => {
       const channel = await agentChannelService.createChannel({
         type: 'telegram',
         name: 'Toggle',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG,
         isActive: true
       })
@@ -178,6 +205,7 @@ describe('AgentChannelService', () => {
       const channel = await agentChannelService.createChannel({
         type: 'telegram',
         name: 'Norm Test',
+        workspace: SYSTEM_WORKSPACE,
         config: { bot_token: 'tok', type: 'telegram' } as any
       })
 
@@ -189,6 +217,7 @@ describe('AgentChannelService', () => {
       const channel = await agentChannelService.createChannel({
         type: 'telegram',
         name: 'Non-obj Config',
+        workspace: SYSTEM_WORKSPACE,
         config: 'bad-value' as any
       })
 
@@ -201,6 +230,7 @@ describe('AgentChannelService', () => {
       const channel = await agentChannelService.createChannel({
         type: 'telegram',
         name: 'To Delete',
+        workspace: SYSTEM_WORKSPACE,
         config: TELEGRAM_CONFIG
       })
 

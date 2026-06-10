@@ -2162,16 +2162,10 @@
           "supported_formats": "Soporta PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Haz clic para seleccionar archivos o arrástralos aquí"
         },
-        "sitemap": {
-          "description": "Introduce una URL del mapa del sitio:",
-          "help": "Las páginas listadas en el mapa del sitio serán leídas e indexadas",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
-        },
         "sources": {
           "directory": "Carpeta",
           "file": "Archivo",
           "note": "Nota",
-          "sitemap": "Sitio web",
           "url": "URL"
         },
         "submit": {
@@ -2209,9 +2203,6 @@
           "file": {
             "title": "Archivo"
           },
-          "sitemap": {
-            "title": "Sincronización del sitio web"
-          },
           "url": {
             "title": "URL"
           }
@@ -2224,7 +2215,6 @@
         "directory": "Carpetas",
         "file": "Archivos",
         "note": "Notas",
-        "sitemap": "Sitios web",
         "url": "URLs"
       },
       "preview": {
@@ -6147,6 +6137,9 @@
         "enabled": "Habilitado",
         "failed": "Fallido",
         "failed_to_start": "Error al iniciar la verificación de estado",
+        "generation_output_audio": "audio",
+        "generation_output_image": "una imagen",
+        "generation_output_video": "un vídeo",
         "keys_status_count": "Pasados: {{count_passed}} claves, fallidos: {{count_failed}} claves",
         "model_status_failed": "{{count}} modelos no son accesibles en absoluto",
         "model_status_partial": "De ellos, {{count}} modelos no son accesibles con ciertas claves",
@@ -6155,6 +6148,7 @@
         "no_api_keys": "No se encontraron claves API, agrega una clave API primero.",
         "no_results": "Sin resultados",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "{{count}} omitido",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Pasado",
@@ -6166,8 +6160,11 @@
         "retry": "Check again",
         "select_api_key": "Seleccionar clave API a usar:",
         "single": "Individual",
+        "skip_reason_generation_cost": "La verificación de salud de este modelo generaría {{output}} y consumiría cuota, por lo que se omite por defecto.",
+        "skip_reason_unsupported_probe": "Este tipo de modelo aún no tiene una verificación de salud de bajo costo, por lo que se omite por defecto.",
         "start": "Iniciar",
         "status_checking": "Checking…",
+        "status_skipped": "Omitido",
         "timeout": "Tiempo de espera agotado",
         "title": "Verificación de salud del modelo",
         "use_all_keys": "Usar todas las claves"
@@ -6176,6 +6173,8 @@
       "default_assistant_model": "Modelo predeterminado del asistente",
       "default_assistant_model_description": "Se usa cuando un asistente no tiene modelo.",
       "empty": "Sin modelos",
+      "group_disable": "Cierra este grupo",
+      "group_enable": "Habilitar este grupo",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",

@@ -2162,16 +2162,10 @@
           "supported_formats": "Unterstützt PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Klicken Sie, um Dateien auszuwählen, oder ziehen Sie sie hierher"
         },
-        "sitemap": {
-          "description": "Gib eine Sitemap-URL ein:",
-          "help": "Die in der Sitemap aufgeführten Seiten werden gelesen und indiziert.",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
-        },
         "sources": {
           "directory": "Ordner",
           "file": "Datei",
           "note": "Hinweis",
-          "sitemap": "Website",
           "url": "URL"
         },
         "submit": {
@@ -2209,9 +2203,6 @@
           "file": {
             "title": "Datei"
           },
-          "sitemap": {
-            "title": "Website-Synchronisierung"
-          },
           "url": {
             "title": "URL"
           }
@@ -2224,7 +2215,6 @@
         "directory": "Ordner",
         "file": "Dateien",
         "note": "Notizen",
-        "sitemap": "Websites",
         "url": "URLs"
       },
       "preview": {
@@ -6147,6 +6137,9 @@
         "enabled": "Einschalten",
         "failed": "Fehlgeschlagen",
         "failed_to_start": "Fehler beim Start der Gesundheitsprüfung",
+        "generation_output_audio": "Audio",
+        "generation_output_image": "ein Bild",
+        "generation_output_video": "ein Video",
         "keys_status_count": "Erfolgreich: {{count_passed}} Schlüssel, Fehlgeschlagen: {{count_failed}} Schlüssel",
         "model_status_failed": "{{count}} Modelle vollständig nicht zugänglich",
         "model_status_partial": "{{count}} Modelle mit einigen Schlüsseln nicht zugänglich",
@@ -6155,6 +6148,7 @@
         "no_api_keys": "API-Schlüssel nicht gefunden, bitte zuerst API-Schlüssel hinzufügen",
         "no_results": "Keine Ergebnisse",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "{{count}} übersprungen",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Durch",
@@ -6166,8 +6160,11 @@
         "retry": "Check again",
         "select_api_key": "API-Schlüssel auswählen: ",
         "single": "Einzeln",
+        "skip_reason_generation_cost": "Der Health-Check dieses Modells würde {{output}} erzeugen und Kontingent verbrauchen, daher wird er standardmäßig übersprungen.",
+        "skip_reason_unsupported_probe": "Dieser Modelltyp verfügt noch über keine kostengünstige Health-Check-Option, daher wird er standardmäßig übersprungen.",
         "start": "Start",
         "status_checking": "Checking…",
+        "status_skipped": "Übersprungen",
         "timeout": "Timeout",
         "title": "Modell-Gesundheitscheck",
         "use_all_keys": "Schlüssel verwenden"
@@ -6176,6 +6173,8 @@
       "default_assistant_model": "Standard-Assistent-Modell",
       "default_assistant_model_description": "Wird verwendet, wenn ein Assistent kein Modell hat.",
       "empty": "Kein Modell",
+      "group_disable": "Diese Gruppe schließen",
+      "group_enable": "Aktiviere diese Gruppe",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",

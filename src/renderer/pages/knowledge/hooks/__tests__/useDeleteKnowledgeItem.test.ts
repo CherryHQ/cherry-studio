@@ -21,7 +21,7 @@ describe('useDeleteKnowledgeItem', () => {
     mockInvalidateCache.mockResolvedValue(undefined)
     mockDeleteItems.mockResolvedValue({ itemIds: ['note-1'] })
     ;(window as any).api = {
-      knowledgeRuntime: {
+      knowledge: {
         deleteItems: mockDeleteItems
       }
     }

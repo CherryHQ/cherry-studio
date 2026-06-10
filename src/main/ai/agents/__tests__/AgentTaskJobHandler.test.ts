@@ -21,7 +21,9 @@ import { application } from '@application'
 import { jobService } from '@data/services/JobService'
 
 import { AgentTaskJobHandler } from '../AgentTaskJobHandler'
-import { runAgentTask } from '../runAgentTask'
+import { type AgentTaskInput, runAgentTask } from '../runAgentTask'
+
+const WORKSPACE_SOURCE = { type: 'system' as const }
 
 function makeTerminal(status: 'completed' | 'failed' | 'cancelled', id = `job-${status}`): JobSnapshot {
   return {
@@ -90,18 +92,24 @@ describe('AgentTaskJobHandler', () => {
         baseDelayMs: 0,
         maxDelayMs: 0
       })
-      expect(AgentTaskJobHandler.defaultQueue?.({ agentId: 'a-42', prompt: 'x', timeoutMinutes: 2 })).toBe('agent:a-42')
+      expect(
+        AgentTaskJobHandler.defaultQueue?.({
+          agentId: 'a-42',
+          prompt: 'x',
+          timeoutMinutes: 2,
+          workspace: WORKSPACE_SOURCE
+        })
+      ).toBe('agent:a-42')
     })
   })
 
   describe('execute', () => {
     it('delegates to runAgentTask with the JobContext', async () => {
       vi.mocked(runAgentTask).mockResolvedValueOnce({ sessionId: 'sess-1', result: 'ok' })
-      const ctx = { jobId: 'j1', input: { agentId: 'a', prompt: 'p', timeoutMinutes: 2 } } as JobContext<{
-        agentId: string
-        prompt: string
-        timeoutMinutes: number
-      }>
+      const ctx = {
+        jobId: 'j1',
+        input: { agentId: 'a', prompt: 'p', timeoutMinutes: 2, workspace: WORKSPACE_SOURCE }
+      } as JobContext<AgentTaskInput>
 
       const out = await AgentTaskJobHandler.execute(ctx)
 
