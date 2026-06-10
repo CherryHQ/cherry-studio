@@ -4,6 +4,8 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from 'lucide-react'
 import * as React from 'react'
 
+import { usePortalContainer } from './portal-container'
+
 const selectTriggerVariants = cva(
   cn(
     'inline-flex items-center justify-between rounded-md border-1 text-sm transition-colors outline-none font-normal',
@@ -75,10 +77,15 @@ function SelectContent({
   children,
   position = 'popper',
   align = 'center',
+  portalContainer,
   ...props
-}: React.ComponentProps<typeof SelectPrimitive.Content>) {
+}: React.ComponentProps<typeof SelectPrimitive.Content> & {
+  portalContainer?: React.ComponentProps<typeof SelectPrimitive.Portal>['container']
+}) {
+  const defaultPortalContainer = usePortalContainer()
+
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal container={portalContainer ?? defaultPortalContainer ?? undefined}>
       <SelectPrimitive.Content
         data-slot="select-content"
         className={cn(

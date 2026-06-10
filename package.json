@@ -112,6 +112,7 @@
     "pdf-parse": "^2.4.5",
     "selection-hook": "2.0.1",
     "sharp": "0.34.5",
+    "streamdown": "^2.5.0",
     "tesseract.js": "6.0.1",
     "turndown": "7.2.0",
     "ws": "^8.18.2",

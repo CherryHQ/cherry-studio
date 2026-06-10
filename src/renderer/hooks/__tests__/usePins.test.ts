@@ -104,7 +104,24 @@ describe('usePins', () => {
 
     renderHook(() => usePins('model'))
 
-    expect(mockUseQuery).toHaveBeenCalledWith('/pins', { query: { entityType: 'model' } })
+    expect(mockUseQuery).toHaveBeenCalledWith('/pins', { enabled: true, query: { entityType: 'model' } })
+  })
+
+  it('can disable the pins query and gate pin toggles', async () => {
+    wirePins([MODEL_PIN_A])
+    const { postTrigger, deleteTrigger } = wireMutations()
+
+    const { result } = renderHook(() => usePins('model', { enabled: false }))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/pins', { enabled: false, query: { entityType: 'model' } })
+    expect(result.current.pinnedIds).toEqual([])
+
+    await act(async () => {
+      await result.current.togglePin('openai::gpt-4')
+    })
+
+    expect(postTrigger).not.toHaveBeenCalled()
+    expect(deleteTrigger).not.toHaveBeenCalled()
   })
 
   it('narrows returned pins to the requested entityType and preserves API order', () => {

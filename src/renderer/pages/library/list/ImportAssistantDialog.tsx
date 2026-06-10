@@ -12,7 +12,7 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { useEnsureTags } from '@renderer/hooks/useTags'
-import { Clipboard, FileJson, Link, Upload, X } from 'lucide-react'
+import { Clipboard, FileJson, Link, Upload } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,7 +20,7 @@ import { sanitizeUrl } from 'strict-url-sanitise'
 
 import { useAssistantMutations } from '../adapters/assistantAdapter'
 import { getRandomTagColor } from '../constants'
-import { AssistantTransferError, parseAssistantImportContent } from '../editor/assistant/transfer'
+import { AssistantTransferError, parseAssistantImportContent } from '../utils/assistantTransfer'
 
 const ALLOWED_FETCH_PROTOCOLS = new Set(['http:', 'https:'])
 const ALLOWED_FETCH_HOSTS = new Set(['gist.githubusercontent.com', 'raw.githubusercontent.com'])
@@ -322,37 +322,28 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
       onOpenChange={(v) => {
         if (!v && !loading) close()
       }}>
-      <DialogContent
-        showCloseButton={false}
-        overlayClassName="bg-black/40 backdrop-blur-sm"
-        className="w-[460px] gap-0 overflow-hidden rounded-lg border-border/30 bg-card p-0 shadow-2xl sm:max-w-[460px]">
+      <DialogContent className="overflow-hidden sm:max-w-md">
         {/* Header */}
-        <div className="flex items-center justify-between border-border/15 border-b px-5 py-4">
+        <div>
           <div>
-            <h3 className="text-[13px] text-foreground">{t('assistants.presets.import.title')}</h3>
-            <p className="mt-0.5 text-[9px] text-muted-foreground/45">{t('library.import_dialog.subtitle')}</p>
+            <h3 className="font-semibold text-foreground text-lg leading-none">
+              {t('assistants.presets.import.title')}
+            </h3>
+            <p className="mt-2 text-foreground-secondary text-sm">{t('library.import_dialog.subtitle')}</p>
           </div>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={close}
-            disabled={loading}
-            className="flex h-6 min-h-0 w-6 items-center justify-center rounded-md font-normal text-muted-foreground/40 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
-            <X size={14} />
-          </Button>
         </div>
 
         {/* TabsList keeps a11y/keyboard navigation while the content area owns the animated transitions. */}
         <Tabs value={tab} onValueChange={(v) => setTab(v as ImportTab)}>
-          <TabsList className="h-auto w-auto justify-start gap-0.5 bg-transparent p-0 px-5 pt-3">
+          <TabsList className="h-auto w-auto justify-start gap-1 bg-transparent p-0">
             {tabs.map((tabDef) => {
               const Icon = tabDef.icon
               return (
                 <TabsTrigger
                   key={tabDef.id}
                   value={tabDef.id}
-                  className="flex h-auto flex-none items-center gap-1.5 rounded-md border-0 bg-transparent px-3 py-1.5 text-[10px] text-muted-foreground/50 shadow-none transition-all hover:bg-accent/30 hover:text-foreground data-[state=active]:bg-accent/60 data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:border-0 dark:data-[state=active]:bg-accent/60">
-                  <Icon size={11} />
+                  className="flex h-8 flex-none items-center gap-1.5 rounded-md border-0 bg-transparent px-3 text-foreground-secondary text-xs shadow-none hover:bg-accent hover:text-foreground data-[state=active]:bg-secondary data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:border-0 dark:data-[state=active]:bg-secondary">
+                  <Icon size={12} />
                   <span>{tabDef.label}</span>
                 </TabsTrigger>
               )
@@ -361,7 +352,7 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
         </Tabs>
 
         {/* Content */}
-        <div className="min-h-[200px] px-5 py-4">
+        <div className="min-h-52">
           <AnimatePresence mode="wait">
             {tab === 'file' && (
               <motion.div
@@ -377,13 +368,13 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                   onError={() =>
                     setStatus({ kind: 'error', message: t('assistants.presets.import.error.invalid_format') })
                   }
-                  className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-border/20 border-dashed bg-transparent p-8 text-center shadow-none transition-all hover:border-border/40 hover:bg-accent/10 disabled:pointer-events-none disabled:opacity-60">
+                  className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-border-muted border-dashed bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-hover hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
                   <DropzoneEmptyState>
-                    <Upload size={24} strokeWidth={1.2} className="mb-3 text-muted-foreground/30" />
-                    <p className="mb-1 text-[11px] text-muted-foreground/50">
+                    <Upload size={24} strokeWidth={1.2} className="mb-3 text-foreground-muted" />
+                    <p className="mb-1 text-foreground-secondary text-xs">
                       {t('library.import_dialog.file.drop_hint')}
                     </p>
-                    <p className="text-[9px] text-muted-foreground/35">{t('library.import_dialog.file.formats')}</p>
+                    <p className="text-foreground-muted text-xs">{t('library.import_dialog.file.formats')}</p>
                   </DropzoneEmptyState>
                 </Dropzone>
               </motion.div>
@@ -399,13 +390,15 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                   onValueChange={setClipboardText}
                   disabled={loading}
                   placeholder={t('library.import_dialog.clipboard.placeholder')}
-                  className="h-[120px] min-h-0 w-full resize-none rounded-md border border-border/20 bg-accent/10 p-3 font-mono text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0 disabled:cursor-not-allowed [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-[3px]"
+                  className="h-32 min-h-0 w-full resize-none rounded-md border border-input bg-background p-3 font-mono text-foreground text-xs shadow-none placeholder:text-foreground-muted disabled:cursor-not-allowed [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-muted [&::-webkit-scrollbar]:w-1"
                 />
                 <Button
+                  variant="emphasis"
+                  size="sm"
                   onClick={handleClipboardImport}
                   disabled={!clipboardText.trim() || loading}
-                  className="mt-3 flex h-auto min-h-0 items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 font-normal text-[11px] text-background shadow-none transition-colors hover:bg-foreground/90 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-30">
-                  <FileJson size={10} className="lucide-custom" />
+                  className="mt-3">
+                  <FileJson size={12} className="lucide-custom" />
                   <span>{t('library.import_dialog.clipboard.button')}</span>
                 </Button>
               </motion.div>
@@ -416,23 +409,24 @@ export function ImportAssistantDialog({ open, onOpenChange, onImported }: Props)
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}>
-                <p className="mb-3 text-[10px] text-muted-foreground/50">{t('library.import_dialog.url.hint')}</p>
+                <p className="mb-3 text-foreground-secondary text-xs">{t('library.import_dialog.url.hint')}</p>
                 <Input
                   value={urlText}
                   onChange={(e) => setUrlText(e.target.value)}
                   disabled={loading}
                   placeholder="https://gist.github.com/..."
-                  className="h-auto w-full rounded-md border border-border/20 bg-accent/10 px-3 py-2 font-mono text-[11px] text-foreground shadow-none outline-none transition-all placeholder:text-muted-foreground/35 focus-visible:border-border/40 focus-visible:bg-accent/15 focus-visible:ring-0 disabled:cursor-not-allowed"
+                  className="font-mono text-xs placeholder:text-foreground-muted disabled:cursor-not-allowed"
                 />
                 <div className="mt-3 flex items-center gap-3">
                   <Button
+                    variant="emphasis"
+                    size="sm"
                     onClick={() => void handleUrlImport()}
-                    disabled={!urlText.trim() || loading}
-                    className="flex h-auto min-h-0 items-center gap-1.5 rounded-lg bg-foreground px-3 py-1.5 font-normal text-[11px] text-background shadow-none transition-colors hover:bg-foreground/90 focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-30">
-                    <Link size={10} className="lucide-custom" />
+                    disabled={!urlText.trim() || loading}>
+                    <Link size={12} className="lucide-custom" />
                     <span>{t('library.import_dialog.url.button')}</span>
                   </Button>
-                  <p className="text-[9px] text-muted-foreground/35">{t('library.import_dialog.url.supports')}</p>
+                  <p className="text-foreground-muted text-xs">{t('library.import_dialog.url.supports')}</p>
                 </div>
               </motion.div>
             )}
@@ -457,7 +451,7 @@ function StatusBanner({ status }: { status: ImportStatus }) {
             type="success"
             showIcon
             message={status.message}
-            className="rounded-md px-3 py-2 text-[10px] shadow-none"
+            className="rounded-md px-3 py-2 text-xs shadow-none"
           />
         </motion.div>
       )}
@@ -467,12 +461,7 @@ function StatusBanner({ status }: { status: ImportStatus }) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
           className="mt-4">
-          <Alert
-            type="error"
-            showIcon
-            message={status.message}
-            className="rounded-md px-3 py-2 text-[10px] shadow-none"
-          />
+          <Alert type="error" showIcon message={status.message} className="rounded-md px-3 py-2 text-xs shadow-none" />
         </motion.div>
       )}
     </AnimatePresence>
