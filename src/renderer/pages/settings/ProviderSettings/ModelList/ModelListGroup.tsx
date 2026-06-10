@@ -1,4 +1,5 @@
 import { Switch, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { cn } from '@renderer/utils'
 import type { Model } from '@shared/data/types/model'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -10,6 +11,8 @@ import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { getModelGroupLabel } from './grouping'
 import ModelListItem from './ModelListItem'
 import type { ModelListGroupItem } from './useProviderModelList'
+
+const logger = loggerService.withContext('ModelListGroup')
 
 interface ModelListGroupProps {
   groupName: string
@@ -76,11 +79,12 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
         return
       }
 
-      void onToggleModels(groupModels, enabled).catch(() => {
+      void onToggleModels(groupModels, enabled).catch((error) => {
+        logger.error('Failed to toggle provider model group', { groupName, enabled, error })
         window.toast.error(t('settings.models.manage.operation_failed'))
       })
     },
-    [canToggleGroupModels, groupModels, onToggleModels, t]
+    [canToggleGroupModels, groupModels, groupName, onToggleModels, t]
   )
 
   return (

@@ -1,4 +1,5 @@
 import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { ChevronsDown, ChevronsUp, MoreHorizontal, ToggleLeft, ToggleRight } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useMemo, useState } from 'react'
@@ -10,6 +11,8 @@ import { EditModelDrawer } from './ModelDrawer'
 import ModelListHeader from './ModelListHeader'
 import ModelListSections from './ModelListSections'
 import { useProviderModelList } from './useProviderModelList'
+
+const logger = loggerService.withContext('ProviderModelList')
 
 interface ProviderModelListProps {
   providerId: string
@@ -42,17 +45,19 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
 
   const handleCloseVisibleModels = useCallback(() => {
     setOpenMenu(null)
-    void Promise.resolve(modelList.header.onToggleVisibleModels(false)).catch(() => {
+    void Promise.resolve(modelList.header.onToggleVisibleModels(false)).catch((error) => {
+      logger.error('Failed to disable visible provider models', { providerId, error })
       window.toast.error(t('settings.models.manage.operation_failed'))
     })
-  }, [modelList.header, t])
+  }, [modelList.header, providerId, t])
 
   const handleEnableVisibleModels = useCallback(() => {
     setOpenMenu(null)
-    void Promise.resolve(modelList.header.onToggleVisibleModels(true)).catch(() => {
+    void Promise.resolve(modelList.header.onToggleVisibleModels(true)).catch((error) => {
+      logger.error('Failed to enable visible provider models', { providerId, error })
       window.toast.error(t('settings.models.manage.operation_failed'))
     })
-  }, [modelList.header, t])
+  }, [modelList.header, providerId, t])
 
   const handleExpandAll = useCallback(() => {
     setOpenMenu(null)

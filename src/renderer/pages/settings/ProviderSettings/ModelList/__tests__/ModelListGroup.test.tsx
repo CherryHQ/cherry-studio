@@ -1,7 +1,19 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ModelListGroup from '../ModelListGroup'
+
+const { loggerErrorMock } = vi.hoisted(() => ({
+  loggerErrorMock: vi.fn()
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      error: loggerErrorMock
+    })
+  }
+}))
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
@@ -67,6 +79,13 @@ const models = [
 ] as any
 
 describe('ModelListGroup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    ;(window as any).toast = {
+      error: vi.fn()
+    }
+  })
+
   it('runs the group bulk action without toggling the group open state', () => {
     const onToggleModels = vi.fn().mockResolvedValue(undefined)
 
@@ -91,6 +110,37 @@ describe('ModelListGroup', () => {
 
     expect(onToggleModels).toHaveBeenCalledWith(models, false)
     expect(screen.getByTestId('model-openai::alpha')).toBeInTheDocument()
+  })
+
+  it('logs and shows a toast when group bulk action fails', async () => {
+    const error = new Error('toggle failed')
+    const onToggleModels = vi.fn().mockRejectedValue(error)
+
+    render(
+      <ModelListGroup
+        groupName="chat"
+        items={models.map((model: any) => ({ model }))}
+        defaultOpen
+        disabled={false}
+        pendingModelIds={new Set()}
+        bulkToggleEnabled={false}
+        bulkToggleLabel="settings.models.group_disable"
+        onEditModel={vi.fn()}
+        onToggleModel={vi.fn()}
+        onToggleModels={onToggleModels}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('switch', { name: 'settings.models.group_disable' }))
+
+    await waitFor(() => {
+      expect(loggerErrorMock).toHaveBeenCalledWith('Failed to toggle provider model group', {
+        groupName: 'chat',
+        enabled: false,
+        error
+      })
+    })
+    expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
   })
 
   it('renders the group bulk action as a switch', () => {
