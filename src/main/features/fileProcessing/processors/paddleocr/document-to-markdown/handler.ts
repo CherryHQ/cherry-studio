@@ -1,4 +1,4 @@
-import { PaddleOCRClient, type JobStatus } from '@paddleocr/api-sdk'
+import { type JobStatus,PaddleOCRClient } from '@paddleocr/api-sdk'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileInfo } from '@shared/file/types'
 import { net } from 'electron'
