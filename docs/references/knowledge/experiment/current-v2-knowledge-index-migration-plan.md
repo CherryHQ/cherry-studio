@@ -8,7 +8,9 @@ Date: 2026-06-06
 >
 > **已具备地基**(baseline 已实现,后续在其上继续):file leaf 数据模型 `{ source, relativePath, indexedRelativePath? }`(`fileEntryId` 已从 knowledge 移除);中心化路径模块 `pathStorage.ts`(含安全校验 `assertSafeKnowledgeRelativePath`);文件拷入 base 目录的导入流程(create 不再写 knowledge `file_ref`);path-based 文件处理 + 持久化恢复;MinerU 用 `context.dataId`;job payload 去 FileEntry;渲染层去 FileEntry + add-item DTO 拆分;删除 leaf/容器/base 的顺序;`index.sqlite` 已落在 `{baseId}/.cherry/index.sqlite`。
 >
-> **仍待执行**(核心计划,尚未开始或前提已变):`material` 模型 + 9 表 `index.sqlite` + `KnowledgeIndexStore`(当前运行时仍是旧单表 `libsql_vectorstores_embedding` + `external_id` API);url/note 的 Markdown 快照(当前 url 每次联网抓取、note 读 inline `data.content`);`knowledge_item.id == material.material_id`;v1 迁移写入新 index.sqlite 形态。
+> **已落地(PR A)**:`material` 模型 + 9 表 `index.sqlite` + `KnowledgeIndexStore`,runtime 的 `search()` 与索引 job 已切新 store,旧单表 `libsql_vectorstores_embedding` + `external_id` API 仅剩 v1→v2 迁移器读取作来源(见 §3.2)。
+>
+> **仍待执行**(PR B / v2.x,前提已变):url/note 的 Markdown 快照(当前 url 每次联网抓取、note 读 inline `data.content`);`knowledge_item.id == material.material_id`(v1 迁移仍重新生成 id);v1 迁移器写入新 index.sqlite 9 表形态(当前仍写旧单表)。
 
 ## 1. 背景与目标
 
@@ -86,11 +88,11 @@ KnowledgeBase/
 
 ### 3.2 每个知识库的 `index.sqlite`
 
-> 状态(2026-06-08): 本节 9 表方案**已设计、尚未实现**,保留为要执行的计划。当前运行时仍是旧单表 `libsql_vectorstores_embedding` + `external_id` API(`packages/vectorstores/libsql`),material 模型与下列各表都还没建。下表的"是否使用"列描述的是计划终态,不是 baseline 现状。
+> 状态(2026-06-10): 本节 9 表方案**已由 PR A 落地**(`schema.ts` `createKnowledgeIndexSchema`),material 模型与下列各表已建、runtime 已写入。旧单表 `libsql_vectorstores_embedding` + `external_id` API 仅剩 v1→v2 迁移器读取作来源。下表的"是否使用"列即当前 runtime 行为。
 
 当前 v2 每个知识库创建 9 张表：
 
-| 表 | 计划终态(尚未实现) | 用途 |
+| 表 | 当前 v2 用法(runtime) | 用途 |
 | --- | --- | --- |
 | `index_meta` | 使用 | 保存 schema version、base_id、embedding contract 快照、chunker/normalization 版本。 |
 | `material` | 使用 | 保存当前 v2 leaf `knowledge_item` 对应的材料身份和实际索引路径。 |
@@ -286,7 +288,7 @@ const indexPath = path.join(baseDir, '.cherry', 'index.sqlite')
 4. 初始化 9 张 `index.sqlite` 表。
 5. 写入 `index_meta(id = 1, base_id = baseId, embedding_model_id_snapshot, dimensions_snapshot, ...)`。
 
-> 状态(2026-06-08): step 3 的目录/路径地基已具备(`.cherry/index.sqlite`);step 4/5 的 9 表 + `index_meta` 仍待执行(见 §3.2),当前 baseline 在该路径上创建的是旧单表向量库。
+> 状态(2026-06-10): step 3 的目录/路径地基已具备;step 4/5 的 9 表初始化 + `index_meta` 写入与 `base_id` 校验已由 PR A 落地(`schema.ts` `createKnowledgeIndexSchema` + `ensureIndexMeta`),该路径下创建的已是 9 表 index.sqlite,不再是旧单表向量库。
 
 打开 `index.sqlite` 时必须校验 `index_meta.base_id === baseId`。如果不一致，拒绝打开或进入明确修复流程。
 
@@ -477,7 +479,7 @@ interface KnowledgeIndexStore {
 
 `deleteItemChunk` UI/API 应移除或返回 unsupported。它不能继续删除单条派生 chunk。
 
-> 状态(2026-06-08): 当前 baseline 的 `deleteItemChunk` **仍全链路可用**(UI → preload → IPC → `deleteByIdAndExternalId`,`KnowledgeService.ts:295-309,543`)。其移除绑定 material 模型落地(material 模型下 chunk 是派生索引、不支持单 chunk 删),material 模型尚未实现,故此项保留为未来工作。
+> 状态(2026-06-10): `deleteItemChunk` 全链路已由 PR A 移除(UI → preload → IPC → handler 一并删,其后端 `deleteByIdAndExternalId` 随之消失)。material 模型下 chunk 是派生索引、不支持单 chunk 删,删除/重建以整个 material 为单位。
 
 当前 `planKnowledgeItemSource` 一类的调度判断也要改为基于知识库内路径：
 
@@ -549,7 +551,7 @@ unit_id = hash(material_id + content_hash + unit_type + unit_index + char_start 
 
 如果用户修改 embedding 模型或维度，当前 v2 必须清空旧 embedding 并重建所有 material。
 
-> 状态(2026-06-08): 本节 `index_meta` snapshot + 选择性重嵌的设计**保留为未来计划目标**(随 §3.2 的 9 表方案一起落地)。baseline 当前用过渡手段:embedding 配置每库不可变,改模型/维度会触发把整库 restore 进一个新库(`KnowledgeVectorStoreService.ts:37-39`),而不是 snapshot 比对 + 选择性重嵌。restore 只是过渡;未来计划目标仍是这里的 index_meta snapshot 机制。
+> 状态(2026-06-10): `index_meta` 单行写入与 `base_id` 校验已由 PR A 落地(`ensureIndexMeta`);但本节 snapshot **比对 + 选择性重嵌**仍**保留为未来计划目标**。baseline 过渡手段:embedding 配置每库不可变,改模型/维度会触发把整库 restore 进一个新库(`KnowledgeVectorStoreService.ts`),而非 snapshot 比对 + 选择性重嵌。restore 只是过渡;未来计划目标仍是这里的 index_meta snapshot 机制。
 
 ### 8.5 搜索行为
 
@@ -751,17 +753,17 @@ preload / IPC 契约也要同步：
 | `src/main/services/knowledge/readers/*` | file/url/note reader 统一读取知识库目录内文件。 | file 已做;url 仍联网(`KnowledgeUrlReader.ts:13`)、note 仍读 inline,未做 |
 | `src/main/services/fileProcessing/*` | `StartFileProcessingJobInput` 改成 `FileHandle` + 单臂 `{kind:'path'}` output target + context。 | 已做 |
 | `src/main/services/fileProcessing/processors/mineru/*` | 输出 Markdown 到指定 path，业务身份使用 `context.dataId`(无 `fileEntryId` 回退)。 | 已做 |
-| `src/main/services/knowledge/vectorstore/*` | 从 `BaseVectorStore` 迁移为 `KnowledgeIndexStore`，路径已是 `{baseId}/.cherry/index.sqlite`。 | 未做(仍是旧 `external_id` 抽象);路径地基已具备 |
-| `packages/vectorstores/libsql/*` | 如果继续复用 libSQL 包，需要把 schema 和方法改成 knowledge index 语义，或新增 knowledge 专用 libSQL store。 | 未做(仍是单表 `libsql_vectorstores_embedding`) |
-| `src/main/services/knowledge/utils/indexing/chunk.ts` | chunk DTO 增加 offset，保证 body search_text 可由 `content.text.slice` 验证。 | 未做(绑定 material 模型) |
-| `src/main/services/knowledge/utils/indexing/embed.ts` | embedding 输入改为 `search_text.text`，不再依赖旧 `TextNode.sourceNode.nodeId` / external_id 语义。 | 未做(绑定 material 模型) |
-| `src/main/services/knowledge/jobs/indexDocumentsJobHandler.ts` | 读取本地 material，chunk 带 offset，调用 `rebuildMaterial`。 | 未做(仍走 external_id 路径) |
+| `src/main/services/knowledge/vectorstore/*` | 从 `BaseVectorStore` 迁移为 `KnowledgeIndexStore`，路径已是 `{baseId}/.cherry/index.sqlite`。 | 已做(已迁为 `KnowledgeIndexStore`,旧 `external_id` 抽象移除) |
+| `packages/vectorstores/libsql/*` | 如果继续复用 libSQL 包，需要把 schema 和方法改成 knowledge index 语义，或新增 knowledge 专用 libSQL store。 | 已做(PR A 走「新增 knowledge 专用 store」路线 `indexStore/` + `LibsqlDriver`,runtime 不再用该包单表 store;包本身未改动) |
+| `src/main/services/knowledge/utils/indexing/chunk.ts` | chunk DTO 增加 offset，保证 body search_text 可由 `content.text.slice` 验证。 | 已做(chunk 带 offset,`content.text.slice` 可验证) |
+| `src/main/services/knowledge/utils/indexing/embed.ts` | embedding 输入改为 `search_text.text`，不再依赖旧 `TextNode.sourceNode.nodeId` / external_id 语义。 | 已做(embedding 输入改 `search_text.text`) |
+| `src/main/services/knowledge/jobs/indexDocumentsJobHandler.ts` | 读取本地 material，chunk 带 offset，调用 `rebuildMaterial`。 | 已做(调 `rebuildMaterial`;embedding 按 hash 复用,I2) |
 | `src/main/services/knowledge/jobs/checkFileProcessingResultJobHandler.ts` | 处理 path output，回写 `indexedRelativePath`，不再保存 `processedFileEntryId`。 | 已做 |
-| `src/main/services/knowledge/jobs/deleteSubtreeJobHandler.ts` | 清理 material/index/files，最后删除 `knowledge_item` row。 | 顺序已做(index/files → row);material 维度待 material 模型落地 |
-| `src/main/services/knowledge/jobs/reindexSubtreeJobHandler.ts` | 不再用 `replaceByExternalId(itemId, [])`，改成 material 级 delete/rebuild。 | 未做(仍用 external_id) |
+| `src/main/services/knowledge/jobs/deleteSubtreeJobHandler.ts` | 清理 material/index/files，最后删除 `knowledge_item` row。 | 已做(material 级清理 + 顺序 index/files → row) |
+| `src/main/services/knowledge/jobs/reindexSubtreeJobHandler.ts` | 不再用 `replaceByExternalId(itemId, [])`，改成 material 级 delete/rebuild。 | 已做(material 级 delete/rebuild) |
 | `src/main/services/knowledge/KnowledgeService.ts` | delete base / restore base 改为操作 base 目录和新 `index.sqlite`，不能只删旧 vector store 或复用旧 root item data。 | delete base 已做;restore 只复制源文件、不复制 indexed 产物,部分待办(§10.5) |
 | `src/main/data/migration/v2/*` | v1 -> v2 迁移直接生成 base 目录、材料文件、`index.sqlite` 终态。 | 文件/relativePath 已做;孤立向量 bug 已修复(`a6128a6da9`,§11);向量仍写旧单表格式,material 终态未做 |
-| `src/preload/index.ts` | 同步 knowledge、fileProcessing IPC 契约，移除或 unsupported 单 chunk 删除。 | fileProcessing/payload 已做;`deleteItemChunk` 仍在(`preload/index.ts:358`),未移除 |
+| `src/preload/index.ts` | 同步 knowledge、fileProcessing IPC 契约，移除或 unsupported 单 chunk 删除。 | 已做(fileProcessing/payload + `deleteItemChunk` 已从 preload 移除) |
 | `src/renderer/pages/knowledge/*` | 移除 FileEntry 查询依赖，改用 `relativePath` 展示和预览。 | 已做(无 `/files/entries/:id`) |
 | `src/renderer/components/Popups/SaveToKnowledgePopup.tsx` | 保存到知识库入口不再创建 FileEntry；note content 只作为导入输入。 | FileEntry 去除已做;note 写 snapshot 未做 |
 
@@ -769,14 +771,14 @@ preload / IPC 契约也要同步：
 
 ### 阶段 1：目录和 schema 基础
 
-> 状态(2026-06-08): 目录与路径地基已具备(`pathStorage.ts`,index.sqlite 已在 `.cherry/`);9 张表 + `index_meta` 仍待执行。
+> 状态(2026-06-10): 目录与路径地基已具备(`pathStorage.ts`,index.sqlite 已在 `.cherry/`);9 张表初始化 + `index_meta` 写入与校验已由 PR A 落地。
 
 目标：
 
 - 建立中心化路径模块 `pathStorage.ts`(取代早期 `KnowledgeBaseFileService` 设想)。(已做)
 - vector store 路径为 `KnowledgeBase/{baseId}/.cherry/index.sqlite`。(已做)
-- 初始化 9 张 `index.sqlite` 表。(未做)
-- 写入并校验 `index_meta`。(未做)
+- 初始化 9 张 `index.sqlite` 表。(已做，PR A `createKnowledgeIndexSchema`)
+- 写入并校验 `index_meta`。(已做，PR A `ensureIndexMeta`)
 
 验证：
 
@@ -818,7 +820,7 @@ preload / IPC 契约也要同步：
 
 ### 阶段 4：KnowledgeIndexStore
 
-> 状态(2026-06-08): 未开始。这是核心未来工作 —— 当前运行时仍是旧单表 `libsql_vectorstores_embedding` + `external_id` API。
+> 状态(2026-06-10): 已由 PR A 落地。material 级 API(`rebuildMaterial` / `deleteMaterial` / `listMaterialUnits`)已替换 `external_id` API,chunk 写入 `content` / `search_unit` / `search_text` / `embedding`;旧单表仅剩 v1→v2 迁移器读取作来源。
 
 目标：
 
