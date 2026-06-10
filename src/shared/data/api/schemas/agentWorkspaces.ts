@@ -34,10 +34,24 @@ export const AgentWorkspaceEntitySchema = z.strictObject({
 })
 export type AgentWorkspaceEntity = z.infer<typeof AgentWorkspaceEntitySchema>
 
+// `name` is optional — the service derives it from the path basename when omitted.
+export const CreateAgentWorkspaceSchema = AgentWorkspaceEntitySchema.pick({ path: true, name: true }).partial({
+  name: true
+})
+export type CreateAgentWorkspaceDto = z.infer<typeof CreateAgentWorkspaceSchema>
+
+export const UpdateAgentWorkspaceSchema = AgentWorkspaceEntitySchema.pick({ name: true })
+export type UpdateAgentWorkspaceDto = z.infer<typeof UpdateAgentWorkspaceSchema>
+
 export type AgentWorkspaceSchemas = {
   '/agent-workspaces': {
     GET: {
       response: AgentWorkspaceEntity[]
+    }
+    // find-or-create by path: idempotent on the `agent_AgentWorkspace.path` unique index.
+    POST: {
+      body: CreateAgentWorkspaceDto
+      response: AgentWorkspaceEntity
     }
   }
 
@@ -45,6 +59,15 @@ export type AgentWorkspaceSchemas = {
     GET: {
       params: { workspaceId: string }
       response: AgentWorkspaceEntity
+    }
+    PATCH: {
+      params: { workspaceId: string }
+      body: UpdateAgentWorkspaceDto
+      response: AgentWorkspaceEntity
+    }
+    DELETE: {
+      params: { workspaceId: string }
+      response: void
     }
   }
 } & OrderEndpoints<'/agent-workspaces'>

@@ -2,6 +2,7 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { ErrorCode } from '@shared/data/api'
@@ -222,24 +223,158 @@ describe('AgentSessionService', () => {
     })
   })
 
-  it('leaves a user workspace and sibling sessions intact when deleting one session', async () => {
-    const workspace = await createWorkspace('shared-user')
-    const first = await createSession('Shared first', workspace.id)
-    const second = await createSession('Shared second', workspace.id)
-
-    await agentSessionService.delete(first.id)
-
-    await expect(agentWorkspaceService.getById(workspace.id)).resolves.toMatchObject({
-      id: workspace.id,
-      type: 'user'
+  it('deletes the system workspace row when deleting a no-project session', async () => {
+    const session = await agentSessionService.create({
+      agentId: 'agent-session-test',
+      name: 'Delete system workspace',
+      workspace: { type: 'system' }
     })
-    await expect(agentSessionService.getById(first.id)).rejects.toMatchObject({
+
+    await agentSessionService.delete(session.id)
+
+    await expect(agentSessionService.getById(session.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(0)
+  })
+
+  it('deletes sessions for one agent without deleting the agent', async () => {
+    await dbh.db.insert(agentTable).values({
+      id: 'other-agent',
+      type: 'claude-code',
+      name: 'Other Agent',
+      instructions: 'Test instructions',
+      model: null,
+      orderKey: 'a1'
+    })
+    const first = await createSession('First')
+    const second = await createSession('Second')
+    const otherWorkspace = await createWorkspace('other-agent-workspace')
+    const other = await agentSessionService.create({
+      agentId: 'other-agent',
+      name: 'Other',
+      workspace: { type: 'user', workspaceId: otherWorkspace.id }
+    })
+    await dbh.db.insert(pinTable).values({
+      id: 'pin-first',
+      entityType: 'session',
+      entityId: first.id,
+      orderKey: 'a0',
+      createdAt: 1,
+      updatedAt: 1
+    })
+
+    const result = await agentSessionService.deleteByAgentId('agent-session-test')
+
+    expect(result).toEqual({ deletedIds: expect.arrayContaining([first.id, second.id]), deletedCount: 2 })
+    await expect(agentSessionService.getById(first.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(agentSessionService.getById(second.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(agentSessionService.getById(other.id)).resolves.toMatchObject({ id: other.id })
+    expect(await dbh.db.select().from(agentTable)).toHaveLength(2)
+    expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
+  })
+
+  it('returns an empty result for an active agent with no sessions', async () => {
+    await expect(agentSessionService.deleteByAgentId('agent-session-test')).resolves.toEqual({
+      deletedIds: [],
+      deletedCount: 0
+    })
+  })
+
+  it('throws not found when deleting sessions for a missing agent', async () => {
+    await expect(agentSessionService.deleteByAgentId('missing-agent')).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
-    await expect(agentSessionService.getById(second.id)).resolves.toMatchObject({
-      id: second.id,
-      workspaceId: workspace.id
+  })
+
+  it('throws not found when deleting sessions for a soft-deleted agent', async () => {
+    await dbh.db.insert(agentTable).values({
+      id: 'soft-deleted-agent',
+      type: 'claude-code',
+      name: 'Soft Deleted Agent',
+      instructions: 'Test instructions',
+      model: null,
+      orderKey: 'z0',
+      deletedAt: 1
     })
+    const workspace = await createWorkspace('soft-deleted-agent-workspace')
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'soft-deleted-agent-session',
+      agentId: 'soft-deleted-agent',
+      name: 'Should remain',
+      workspaceId: workspace.id,
+      orderKey: 'a0'
+    })
+
+    await expect(agentSessionService.deleteByAgentId('soft-deleted-agent')).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+
+    const [session] = await dbh.db
+      .select({ id: agentSessionTable.id })
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, 'soft-deleted-agent-session'))
+    expect(session).toEqual({ id: 'soft-deleted-agent-session' })
+  })
+
+  it('deletes selected sessions by ids', async () => {
+    const first = await createSession('First')
+    const second = await createSession('Second')
+    const third = await createSession('Third')
+    await dbh.db.insert(pinTable).values({
+      id: 'pin-second',
+      entityType: 'session',
+      entityId: second.id,
+      orderKey: 'a0',
+      createdAt: 1,
+      updatedAt: 1
+    })
+
+    const result = await agentSessionService.deleteByIds([first.id, second.id])
+
+    expect(result).toEqual({ deletedIds: expect.arrayContaining([first.id, second.id]), deletedCount: 2 })
+    await expect(agentSessionService.getById(first.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(agentSessionService.getById(second.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(agentSessionService.getById(third.id)).resolves.toMatchObject({ id: third.id })
+    expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
+  })
+
+  it('throws not found when deleting selected sessions with a missing id', async () => {
+    const first = await createSession('First')
+
+    await expect(agentSessionService.deleteByIds([first.id, 'missing-session'])).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+
+    await expect(agentSessionService.getById(first.id)).resolves.toMatchObject({ id: first.id })
+  })
+
+  it('deletes selected system workspace sessions and their workspace rows by ids', async () => {
+    const systemSession = await agentSessionService.create({
+      agentId: 'agent-session-test',
+      name: 'Bulk system workspace',
+      workspace: { type: 'system' }
+    })
+    const normalSession = await createSession('Normal session')
+
+    const result = await agentSessionService.deleteByIds([systemSession.id])
+
+    expect(result).toEqual({ deletedIds: [systemSession.id], deletedCount: 1 })
+    await expect(agentSessionService.getById(systemSession.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(agentSessionService.getById(normalSession.id)).resolves.toMatchObject({ id: normalSession.id })
+    expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(1)
+  })
+
+  it('deletes system workspace rows when deleting agent sessions', async () => {
+    const session = await agentSessionService.create({
+      agentId: 'agent-session-test',
+      name: 'Agent system workspace',
+      workspace: { type: 'system' }
+    })
+
+    const result = await agentSessionService.deleteByAgentId('agent-session-test')
+
+    expect(result).toEqual({ deletedIds: [session.id], deletedCount: 1 })
+    await expect(agentSessionService.getById(session.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    expect(await dbh.db.select().from(agentWorkspaceTable)).toHaveLength(0)
   })
 
   it('reorders sessions with single and batch moves', async () => {
@@ -273,7 +408,117 @@ describe('AgentSessionService', () => {
     expect(page2.nextCursor).toBeUndefined()
   })
 
-  it('deletes sessions when a user workspace row is deleted', async () => {
+  it('searches sessions by name and description', async () => {
+    const workspace = await createWorkspace('search-list')
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-name-hit',
+        agentId: 'agent-session-test',
+        name: 'Deploy checklist',
+        description: '',
+        workspaceId: workspace.id,
+        orderKey: 'a0'
+      },
+      {
+        id: 'session-description-hit',
+        agentId: 'agent-session-test',
+        name: 'Notes',
+        description: 'Incident response drill',
+        workspaceId: workspace.id,
+        orderKey: 'a1'
+      },
+      {
+        id: 'session-miss',
+        agentId: 'agent-session-test',
+        name: 'Backlog',
+        description: '',
+        workspaceId: workspace.id,
+        orderKey: 'a2'
+      }
+    ])
+
+    await expect(agentSessionService.listByCursor({ search: 'Deploy' })).resolves.toMatchObject({
+      items: [{ id: 'session-name-hit' }]
+    })
+    await expect(agentSessionService.listByCursor({ search: 'response' })).resolves.toMatchObject({
+      items: [{ id: 'session-description-hit' }]
+    })
+  })
+
+  it('treats % and _ in session search as literal characters', async () => {
+    const workspace = await createWorkspace('wildcard-search')
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-wildcard-literal',
+        agentId: 'agent-session-test',
+        name: 'Deploy 100%_done',
+        description: '',
+        workspaceId: workspace.id,
+        orderKey: 'a0'
+      },
+      {
+        id: 'session-wildcard-expanded',
+        agentId: 'agent-session-test',
+        name: 'Deploy 100xxdone',
+        description: '',
+        workspaceId: workspace.id,
+        orderKey: 'a1'
+      }
+    ])
+
+    const result = await agentSessionService.listByCursor({ search: '100%_' })
+
+    expect(result.items.map((item) => item.id)).toEqual(['session-wildcard-literal'])
+  })
+
+  it('lists recent search matches with updatedAtFrom applied in the session service', async () => {
+    const cutoff = Date.parse('2026-05-01T00:00:00.000Z')
+    const workspace = await createWorkspace('recent-search')
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-old',
+        agentId: 'agent-session-test',
+        name: 'Research old',
+        workspaceId: workspace.id,
+        orderKey: 'a0',
+        updatedAt: cutoff - 1
+      },
+      {
+        id: 'session-newer',
+        agentId: 'agent-session-test',
+        name: 'Research newer',
+        workspaceId: workspace.id,
+        orderKey: 'a1',
+        updatedAt: cutoff + 2000
+      },
+      {
+        id: 'session-newest',
+        agentId: 'agent-session-test',
+        name: 'Research newest',
+        workspaceId: workspace.id,
+        orderKey: 'a2',
+        updatedAt: cutoff + 3000
+      },
+      {
+        id: 'session-other',
+        agentId: 'agent-session-test',
+        name: 'Other',
+        workspaceId: workspace.id,
+        orderKey: 'a3',
+        updatedAt: cutoff + 4000
+      }
+    ])
+
+    const result = await agentSessionService.listRecentSearchMatches({
+      search: 'Research',
+      limit: 10,
+      updatedAtFrom: cutoff
+    })
+
+    expect(result.map((session) => session.id)).toEqual(['session-newest', 'session-newer'])
+  })
+
+  it('deletes sessions when the workspace row is deleted', async () => {
     const workspace = await createWorkspace('transient')
     const session = await createSession('Workspace delete', workspace.id)
 
