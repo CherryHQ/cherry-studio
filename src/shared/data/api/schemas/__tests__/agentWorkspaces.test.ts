@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import { AgentSessionEntitySchema, CreateAgentSessionSchema, UpdateAgentSessionSchema } from '../agentSessions'
-import { AgentSessionWorkspaceSourceSchema, AgentWorkspaceEntitySchema } from '../agentWorkspaces'
+import {
+  AgentSessionWorkspaceSourceSchema,
+  AgentWorkspaceEntitySchema,
+  CreateAgentWorkspaceSchema,
+  UpdateAgentWorkspaceSchema
+} from '../agentWorkspaces'
 
 describe('AgentWorkspaceEntitySchema', () => {
   const workspace = {
@@ -16,6 +21,17 @@ describe('AgentWorkspaceEntitySchema', () => {
 
   it('describes normalized workspace rows', () => {
     expect(AgentWorkspaceEntitySchema.parse(workspace)).toEqual(workspace)
+  })
+
+  it('validates workspace create and update DTOs', () => {
+    expect(CreateAgentWorkspaceSchema.parse({ path: '/tmp/workspace' })).toEqual({ path: '/tmp/workspace' })
+    expect(CreateAgentWorkspaceSchema.parse({ path: '/tmp/workspace', name: 'Workspace' })).toEqual({
+      path: '/tmp/workspace',
+      name: 'Workspace'
+    })
+    expect(CreateAgentWorkspaceSchema.safeParse({ name: 'Workspace' }).success).toBe(false)
+    expect(UpdateAgentWorkspaceSchema.parse({ name: 'Renamed' })).toEqual({ name: 'Renamed' })
+    expect(UpdateAgentWorkspaceSchema.safeParse({ name: '' }).success).toBe(false)
   })
 
   it('exposes workspace on sessions instead of accessiblePaths', () => {

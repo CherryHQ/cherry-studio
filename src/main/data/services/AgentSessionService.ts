@@ -127,7 +127,7 @@ export class AgentSessionService {
     let workspaceId: string
     switch (dto.workspace.type) {
       case AGENT_WORKSPACE_TYPE.USER: {
-        const workspace = await agentWorkspaceService.getByIdTx(tx, dto.workspace.workspaceId)
+        const workspace = await agentWorkspaceService.getByIdTx(tx, dto.workspace.workspaceId, { includeSystem: true })
         if (workspace.type !== AGENT_WORKSPACE_TYPE.USER) {
           throw DataApiErrorFactory.invalidOperation(
             'create session',
@@ -263,8 +263,18 @@ export class AgentSessionService {
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
     await pinService.purgeForEntityTx(tx, 'session', id)
     if (AgentWorkspaceTypeSchema.parse(session.workspaceType) === AGENT_WORKSPACE_TYPE.SYSTEM) {
-      await tx.delete(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, session.workspaceId))
+      await agentWorkspaceService.deleteByIdTx(tx, session.workspaceId)
     }
+  }
+
+  async deleteByWorkspaceTx(tx: DbOrTx, workspaceId: string): Promise<string[]> {
+    const deletedSessions = await tx
+      .delete(sessionsTable)
+      .where(eq(sessionsTable.workspaceId, workspaceId))
+      .returning({ id: sessionsTable.id })
+    const sessionIds = deletedSessions.map((session) => session.id)
+    await pinService.purgeForEntitiesTx(tx, 'session', sessionIds)
+    return sessionIds
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {

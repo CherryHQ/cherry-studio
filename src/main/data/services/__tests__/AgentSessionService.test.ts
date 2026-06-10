@@ -2,8 +2,10 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { pinTable } from '@data/db/schemas/pin'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { pinService } from '@data/services/PinService'
 import { ErrorCode } from '@shared/data/api'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -282,6 +284,26 @@ describe('AgentSessionService', () => {
     await expect(agentSessionService.getById(session.id)).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
+  })
+
+  it('deletes all workspace sessions and their pins in one transaction', async () => {
+    const workspace = await createWorkspace('delete-workspace')
+    const first = await createSession('Delete workspace first', workspace.id)
+    const second = await createSession('Delete workspace second', workspace.id)
+    const other = await createSession('Keep sibling workspace')
+    const firstPin = await pinService.pin({ entityType: 'session', entityId: first.id })
+    const secondPin = await pinService.pin({ entityType: 'session', entityId: second.id })
+    const otherPin = await pinService.pin({ entityType: 'session', entityId: other.id })
+
+    const deletedIds = await dbh.db.transaction((tx) => agentSessionService.deleteByWorkspaceTx(tx, workspace.id))
+
+    expect(deletedIds.sort()).toEqual([first.id, second.id].sort())
+    await expect(agentSessionService.getById(first.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(agentSessionService.getById(second.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(agentSessionService.getById(other.id)).resolves.toMatchObject({ id: other.id })
+    const remainingPins = await dbh.db.select().from(pinTable)
+    expect(remainingPins.map((pin) => pin.id).sort()).toEqual([otherPin.id].sort())
+    expect(remainingPins.find((pin) => pin.id === firstPin.id || pin.id === secondPin.id)).toBeUndefined()
   })
 
   it('treats a corrupt session that references a missing workspace as not found', async () => {
