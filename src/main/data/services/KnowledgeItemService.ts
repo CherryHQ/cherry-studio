@@ -5,7 +5,6 @@
  */
 
 import { application } from '@application'
-import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
@@ -13,9 +12,6 @@ import { loggerService } from '@logger'
 import type { OffsetPaginationResponse } from '@shared/data/api'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
-import type { FileEntryId } from '@shared/data/types/file'
-import type { KnowledgeItemFileRefRole } from '@shared/data/types/file/ref'
-import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import {
   type CreateKnowledgeItemDto,
   type KnowledgeItem,
@@ -24,7 +20,6 @@ import {
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
 import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
-import { v4 as uuidv4 } from 'uuid'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 import { timestampToISO } from './utils/rowMappers'
@@ -188,18 +183,6 @@ export class KnowledgeItemService {
     const row = await dbService.withWriteTx(async (tx) => {
       await this.validateGroupOwnerTx(tx, baseId, item.groupId)
 
-      if (item.type === 'file') {
-        const [fileEntry] = await tx
-          .select({ id: fileEntryTable.id })
-          .from(fileEntryTable)
-          .where(eq(fileEntryTable.id, item.data.fileEntryId))
-          .limit(1)
-
-        if (!fileEntry) {
-          throw DataApiErrorFactory.notFound('FileEntry', item.data.fileEntryId)
-        }
-      }
-
       const [insertedRow] = await withSqliteErrors(
         async () =>
           await tx
@@ -233,19 +216,6 @@ export class KnowledgeItemService {
 
       if (!insertedRow) {
         throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', 'Knowledge item create result missing')
-      }
-
-      if (item.type === 'file') {
-        const now = Date.now()
-        await tx.insert(fileRefTable).values({
-          id: uuidv4(),
-          fileEntryId: item.data.fileEntryId,
-          sourceType: knowledgeItemSourceType,
-          sourceId: insertedRow.id,
-          role: 'source',
-          createdAt: now,
-          updatedAt: now
-        })
       }
 
       return insertedRow
@@ -389,7 +359,6 @@ export class KnowledgeItemService {
         .select({ groupId: knowledgeItemTable.groupId })
         .from(knowledgeItemTable)
         .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
-      await this.deleteFileRefsForSubtreeTx(tx, baseId, uniqueItemIds)
       await tx
         .delete(knowledgeItemTable)
         .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
@@ -402,139 +371,6 @@ export class KnowledgeItemService {
     await this.reconcileContainers(baseId, deleted.groupIds)
 
     logger.info('Deleted knowledge items by ids', { baseId, count: deleted.rowsAffected })
-  }
-
-  private async deleteFileRefsForSubtreeTx(tx: Pick<DbType, 'run'>, baseId: string, rootIds: string[]): Promise<void> {
-    const uniqueRootIds = [...new Set(rootIds)]
-    if (uniqueRootIds.length === 0) {
-      return
-    }
-
-    await tx.run(sql`
-      WITH RECURSIVE subtree AS (
-        SELECT id
-        FROM knowledge_item
-        WHERE base_id = ${baseId}
-          AND id IN (${sql.join(
-            uniqueRootIds.map((id) => sql`${id}`),
-            sql`, `
-          )})
-
-        UNION ALL
-
-        SELECT child.id
-        FROM knowledge_item child
-        INNER JOIN subtree parent ON child.group_id = parent.id
-        WHERE child.base_id = ${baseId}
-      )
-      DELETE FROM file_ref
-      WHERE source_type = ${knowledgeItemSourceType}
-        AND source_id IN (SELECT DISTINCT id FROM subtree)
-    `)
-  }
-
-  async replaceFileRef(itemId: string, fileEntryId: FileEntryId, role: KnowledgeItemFileRefRole): Promise<void> {
-    const dbService = application.get('DbService')
-    await dbService.withWriteTx(async (tx) => {
-      const [item] = await tx
-        .select({ id: knowledgeItemTable.id })
-        .from(knowledgeItemTable)
-        .where(eq(knowledgeItemTable.id, itemId))
-        .limit(1)
-      if (!item) {
-        throw DataApiErrorFactory.notFound('KnowledgeItem', itemId)
-      }
-
-      const [fileEntry] = await tx
-        .select({ id: fileEntryTable.id })
-        .from(fileEntryTable)
-        .where(eq(fileEntryTable.id, fileEntryId))
-        .limit(1)
-      if (!fileEntry) {
-        throw DataApiErrorFactory.notFound('FileEntry', fileEntryId)
-      }
-
-      await tx
-        .delete(fileRefTable)
-        .where(
-          and(
-            eq(fileRefTable.sourceType, knowledgeItemSourceType),
-            eq(fileRefTable.sourceId, itemId),
-            eq(fileRefTable.role, role)
-          )
-        )
-
-      const now = Date.now()
-      await tx.insert(fileRefTable).values({
-        id: uuidv4(),
-        fileEntryId,
-        sourceType: knowledgeItemSourceType,
-        sourceId: itemId,
-        role,
-        createdAt: now,
-        updatedAt: now
-      })
-    })
-
-    logger.info('Replaced knowledge item file ref', { itemId, fileEntryId, role })
-  }
-
-  async rebuildFileRefsForItems(itemIds: string[]): Promise<void> {
-    const uniqueItemIds = [...new Set(itemIds)]
-    if (uniqueItemIds.length === 0) {
-      return
-    }
-
-    const dbService = application.get('DbService')
-    const result = await dbService.withWriteTx(async (tx) => {
-      const targetRows = await tx.select().from(knowledgeItemTable).where(inArray(knowledgeItemTable.id, uniqueItemIds))
-      const targetItems = targetRows.map((row) => rowToKnowledgeItem(row))
-
-      await tx
-        .delete(fileRefTable)
-        .where(
-          and(
-            eq(fileRefTable.sourceType, knowledgeItemSourceType),
-            inArray(fileRefTable.sourceId, uniqueItemIds),
-            eq(fileRefTable.role, 'source')
-          )
-        )
-
-      const fileItems = targetItems.filter((item) => item.type === 'file')
-      if (fileItems.length === 0) {
-        return {
-          itemCount: targetItems.length,
-          refCount: 0
-        }
-      }
-
-      const now = Date.now()
-      const refs = await tx
-        .insert(fileRefTable)
-        .values(
-          fileItems.map((item) => ({
-            id: uuidv4(),
-            fileEntryId: item.data.fileEntryId,
-            sourceType: knowledgeItemSourceType,
-            sourceId: item.id,
-            role: 'source',
-            createdAt: now,
-            updatedAt: now
-          }))
-        )
-        .onConflictDoNothing()
-        .returning({ id: fileRefTable.id })
-
-      return {
-        itemCount: targetItems.length,
-        refCount: refs.length
-      }
-    })
-
-    logger.info('Rebuilt knowledge item file refs', {
-      itemCount: result.itemCount,
-      refCount: result.refCount
-    })
   }
 
   async getSubtreeItems(
@@ -653,6 +489,47 @@ export class KnowledgeItemService {
     return item
   }
 
+  async updateIndexedRelativePath(id: string, indexedRelativePath: string): Promise<KnowledgeItem> {
+    const dbService = application.get('DbService')
+    const row = await dbService.withWriteTx(async (tx) => {
+      const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
+
+      if (!existingRow) {
+        throw DataApiErrorFactory.notFound('KnowledgeItem', id)
+      }
+
+      const existingItem = rowToKnowledgeItem(existingRow)
+      if (existingItem.type !== 'file') {
+        throw DataApiErrorFactory.validation({
+          type: [`Knowledge item must be a file to store indexed relative path: ${id}`]
+        })
+      }
+
+      const [updatedRow] = await tx
+        .update(knowledgeItemTable)
+        .set({
+          data: {
+            ...existingItem.data,
+            indexedRelativePath
+          }
+        })
+        .where(eq(knowledgeItemTable.id, id))
+        .returning()
+
+      if (!updatedRow) {
+        throw DataApiErrorFactory.dataInconsistent(
+          'KnowledgeItem',
+          `Knowledge item indexed path update result missing for id '${id}'`
+        )
+      }
+
+      return updatedRow
+    })
+
+    logger.info('Updated knowledge item indexed relative path', { id, indexedRelativePath })
+    return rowToKnowledgeItem(row)
+  }
+
   private async reconcileContainers(
     baseId: string,
     startContainerIds: Array<string | null | undefined>
@@ -731,8 +608,6 @@ export class KnowledgeItemService {
       if (!existingRow) {
         throw DataApiErrorFactory.notFound('KnowledgeItem', id)
       }
-
-      await this.deleteFileRefsForSubtreeTx(tx, existingRow.baseId, [id])
 
       const [row] = await tx.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).returning({
         id: knowledgeItemTable.id

@@ -359,7 +359,7 @@ export class LifecycleManager extends EventEmitter {
     const excludedByPhase = this.container.getExcludedByPhase()
 
     // Name column auto-sizes to the longest service name (min 32) so the timing
-    // column stays aligned even for long names (e.g. FileProcessingOrchestrationService).
+    // column stays aligned even for long names (e.g. FileProcessingService).
     let nameCol = 32
     for (const [name] of this.serviceTiming) nameCol = Math.max(nameCol, name.length)
     for (const names of excludedByPhase.values()) {

@@ -20,31 +20,112 @@ import {
   AGENT_SESSION_MESSAGES_DEFAULT_LIMIT,
   AGENT_SESSION_MESSAGES_MAX_LIMIT
 } from '@shared/data/api/schemas/agentSessions'
-import { and, desc, eq, inArray, isNotNull, lt, or } from 'drizzle-orm'
+import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
+import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
+import { buildSearchSnippet } from '@shared/utils/searchSnippet'
+import { and, desc, eq, inArray, isNotNull, lt, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
-const logger = loggerService.withContext('SessionMessageService')
+import { decodeSearchCursor, encodeSearchCursor, type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 
-// Cursor wire format: `<createdAt-ms>:<id>`. Stale/legacy cursors fall back
-// to first page (warn) instead of throwing — opaque server-issued tokens.
+const logger = loggerService.withContext('AgentSessionMessageService')
+const MESSAGE_CURSOR_CONFIG = {
+  fieldMessage: 'must be a valid message cursor',
+  errorMessage: 'Invalid message cursor'
+}
+
+type SessionMessageSearchRow = {
+  rowId: string
+  sessionId: string
+  sessionName: string
+  agentId: string | null
+  agentName: string | null
+  role: string
+  searchableText: string
+  createdAt: number
+}
+
+type SessionMessageContentSearchInput = {
+  q: string
+  cursor?: string
+  limit?: number
+  createdAtFrom?: string
+  sessionId?: string
+}
+
+// Cursor wire format: `<createdAt-ms>:<id>` — opaque server-issued tokens.
 function decodeMessageCursor(raw: string): { createdAt: number; id: string } | null {
-  const sep = raw.indexOf(':')
-  if (sep < 0) {
-    logger.warn('decodeMessageCursor: missing separator, falling back to first page', { cursor: raw })
+  try {
+    return decodeSearchCursor(raw, MESSAGE_CURSOR_CONFIG)
+  } catch (error) {
+    logger.warn('Ignoring malformed session message list cursor', { cursor: raw, error })
     return null
   }
-  const key = raw.slice(0, sep)
-  const id = raw.slice(sep + 1)
-  if (!key || !id) {
-    logger.warn('decodeMessageCursor: empty key or id, falling back to first page', { cursor: raw })
-    return null
-  }
-  const createdAt = Number(key)
-  if (!Number.isFinite(createdAt)) return null
-  return { createdAt, id }
 }
 
 export class AgentSessionMessageService {
+  async search(query: SessionMessageContentSearchInput) {
+    const db = application.get('DbService').getDb()
+    const messageSessionCondition = query.sessionId ? sql`sm.session_id = ${query.sessionId}` : sql`1 = 1`
+
+    return await searchWithCursor<SessionMessageSearchRow, SessionMessageContentSearchItem>({
+      q: query.q,
+      limit: query.limit,
+      cursor: query.cursor,
+      createdAtFrom: query.createdAtFrom,
+      cursorConfig: MESSAGE_CURSOR_CONFIG,
+      fetchRows: async ({ ftsConditions, cursor, createdAtFromMs, offset, chunkSize }: SearchFetchContext) => {
+        const createdAtCondition = createdAtFromMs !== undefined ? sql`sm.created_at >= ${createdAtFromMs}` : sql`1 = 1`
+
+        return await db.all<SessionMessageSearchRow>(sql`
+          SELECT
+            sm.id AS "rowId",
+            sm.searchable_text AS "searchableText",
+            sm.session_id AS "sessionId",
+            s.name AS "sessionName",
+            s.agent_id AS "agentId",
+            a.name AS "agentName",
+            sm.role,
+            sm.created_at AS "createdAt"
+          FROM agent_session_message sm
+          JOIN agent_session_message_fts fts ON sm.rowid = fts.rowid
+          JOIN agent_session s ON s.id = sm.session_id
+          LEFT JOIN agent a ON a.id = s.agent_id
+          WHERE sm.searchable_text != ''
+            AND ${messageSessionCondition}
+            AND ${createdAtCondition}
+            AND ${sql.join(ftsConditions, sql` AND `)}
+            AND ${
+              cursor
+                ? sql`(sm.created_at < ${cursor.createdAt} OR (sm.created_at = ${cursor.createdAt} AND sm.id < ${cursor.id}))`
+                : sql`1 = 1`
+            }
+          ORDER BY sm.created_at DESC, sm.id DESC
+          LIMIT ${chunkSize}
+          OFFSET ${offset}
+        `)
+      },
+      getSearchableText: (row) => row.searchableText,
+      buildSnippet: buildSearchSnippet,
+      mapRow: (row, { snippet }) => ({
+        item: {
+          messageId: row.rowId,
+          sessionId: row.sessionId,
+          sessionName: row.sessionName,
+          agentId: row.agentId ?? undefined,
+          agentName: row.agentName ?? undefined,
+          role: coerceSearchRole(row.role, AGENT_SESSION_MESSAGE_SEARCH_ROLES),
+          snippet,
+          createdAt: timestampToISO(Number(row.createdAt))
+        },
+        sort: {
+          createdAt: Number(row.createdAt),
+          id: row.rowId
+        }
+      })
+    })
+  }
+
   /**
    * Cursor-paginated message read. Walks newest-first; an absent cursor
    * returns the most recent page, each `nextCursor` walks one page older.
@@ -89,7 +170,7 @@ export class AgentSessionMessageService {
     const pageRows = hasNext ? rows.slice(0, limit) : rows
     const items = pageRows.map((row) => this.rowToEntity(row))
     const tail = pageRows[pageRows.length - 1]
-    const nextCursor = hasNext && tail ? `${tail.createdAt}:${tail.id}` : undefined
+    const nextCursor = hasNext && tail ? encodeSearchCursor(tail.createdAt, tail.id) : undefined
 
     return { items, nextCursor }
   }

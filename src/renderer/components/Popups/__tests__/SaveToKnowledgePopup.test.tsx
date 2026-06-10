@@ -144,12 +144,7 @@ describe('SaveToKnowledgePopup', () => {
     Object.assign(window, {
       api: {
         file: {
-          ensureExternalEntry: vi.fn(async ({ externalPath }: { externalPath: string }) => ({
-            id:
-              externalPath === '/tmp/ok.pdf'
-                ? '019606a0-0000-7000-8000-000000000001'
-                : '019606a0-0000-7000-8000-000000000002'
-          }))
+          ensureExternalEntry: vi.fn()
         }
       },
       toast: mocks.toast
@@ -174,7 +169,7 @@ describe('SaveToKnowledgePopup', () => {
           type: 'file',
           data: {
             source: '/tmp/ok.pdf',
-            fileEntryId: '019606a0-0000-7000-8000-000000000001'
+            path: '/tmp/ok.pdf'
           }
         }
       ])

@@ -1,3 +1,4 @@
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
@@ -14,6 +15,7 @@ export const agentChannelTable = sqliteTable(
     name: text().notNull(),
     agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
     sessionId: text().references(() => agentSessionTable.id, { onDelete: 'set null' }),
+    workspace: text({ mode: 'json' }).$type<AgentSessionWorkspaceSource>().notNull(),
     config: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull(),
     isActive: integer({ mode: 'boolean' }).notNull().default(true),
     activeChatIds: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),

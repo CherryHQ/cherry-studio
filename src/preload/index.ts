@@ -40,13 +40,13 @@ import type {
   UnifiedPreferenceType,
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
-import type { FileEntry, FileEntryId } from '@shared/data/types/file'
-import type { ListAvailableFileProcessorsResult } from '@shared/data/types/fileProcessing'
+import type { FileEntry } from '@shared/data/types/file'
+import type { FileProcessingOutputTarget, ListAvailableFileProcessorsResult } from '@shared/data/types/fileProcessing'
 import type {
   CreateKnowledgeBaseDto,
+  KnowledgeAddItemInput,
   KnowledgeBase,
   KnowledgeItemChunk,
-  KnowledgeRuntimeAddItemInput,
   KnowledgeSearchResult as KnowledgeVectorSearchResult,
   RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
@@ -338,31 +338,30 @@ const api = {
     getFiles: (vaultName: string) => ipcRenderer.invoke(IpcChannel.Obsidian_GetFiles, vaultName)
   },
   openPath: (path: string) => ipcRenderer.invoke(IpcChannel.Open_Path, path),
-  knowledgeBase: {
-    // v1 renderer knowledge path retired (T4.2). Only base deletion remains,
-    // still invoked by the v1 Redux store/knowledge slice until that slice is
-    // removed in the unified step. v2 knowledge runs via window.api.knowledgeRuntime.*.
-    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id)
-  },
-  knowledgeRuntime: {
+  knowledge: {
     createBase: (base: CreateKnowledgeBaseDto): Promise<KnowledgeBase> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_CreateBase, { base }),
+      ipcRenderer.invoke(IpcChannel.Knowledge_CreateBase, { base }),
     restoreBase: (dto: RestoreKnowledgeBaseDto): Promise<KnowledgeBase> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_RestoreBase, dto),
-    deleteBase: (baseId: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteBase, { baseId }),
-    addItems: (baseId: string, items: KnowledgeRuntimeAddItemInput[]): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_AddItems, { baseId, items }),
+      ipcRenderer.invoke(IpcChannel.Knowledge_RestoreBase, dto),
+    deleteBase: (baseId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Knowledge_DeleteBase, { baseId }),
+    addItems: (baseId: string, items: KnowledgeAddItemInput[]): Promise<void> =>
+      ipcRenderer.invoke(IpcChannel.Knowledge_AddItems, { baseId, items }),
     deleteItems: (baseId: string, itemIds: string[]): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteItems, { baseId, itemIds }),
+      ipcRenderer.invoke(IpcChannel.Knowledge_DeleteItems, { baseId, itemIds }),
     reindexItems: (baseId: string, itemIds: string[]): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_ReindexItems, { baseId, itemIds }),
+      ipcRenderer.invoke(IpcChannel.Knowledge_ReindexItems, { baseId, itemIds }),
     search: (baseId: string, query: string): Promise<KnowledgeVectorSearchResult[]> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_Search, { baseId, query }),
+      ipcRenderer.invoke(IpcChannel.Knowledge_Search, { baseId, query }),
     listItemChunks: (baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_ListItemChunks, { baseId, itemId }),
+      ipcRenderer.invoke(IpcChannel.Knowledge_ListItemChunks, { baseId, itemId }),
     deleteItemChunk: (baseId: string, itemId: string, chunkId: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_DeleteItemChunk, { baseId, itemId, chunkId })
+      ipcRenderer.invoke(IpcChannel.Knowledge_DeleteItemChunk, { baseId, itemId, chunkId })
+  },
+  knowledgeBase: {
+    // v1 renderer knowledge path retired. Only base deletion remains, still
+    // invoked by the v1 Redux store/knowledge slice until that slice is removed
+    // in the unified step. v2 knowledge runs via window.api.knowledge.*.
+    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id)
   },
   window: {
     setMinimumSize: (width: number, height: number) =>
@@ -729,7 +728,11 @@ const api = {
   fileProcessing: {
     startJob: (payload: {
       feature: FileProcessorFeature
-      fileEntryId: FileEntryId
+      file: FileHandle
+      output?: FileProcessingOutputTarget
+      context?: {
+        dataId?: string
+      }
       processorId?: FileProcessorId
     }): Promise<JobSnapshot> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartJob, payload),
     listAvailableProcessors: (): Promise<ListAvailableFileProcessorsResult> =>

@@ -5,8 +5,8 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { withSpanFunc } from '@mcp-trace/trace-core'
 import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
+import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
-import { buildFunctionCallToolName } from '@shared/mcp'
 import type { McpServer, McpTool } from '@types'
 import * as z from 'zod'
 
