@@ -15,6 +15,25 @@ For the target system shape behind the split, see [feat/chat-page Architecture](
 - Let DB API PRs grow when schema, handler, service, hook, and consumer changes form one contract.
 - For stacked or prerequisite-heavy areas, review the smallest business slice first, then rebase or retarget dependent PRs as prerequisites merge.
 
+## `src/main` Review Readiness
+
+The `src/main` portion is ready for review by split PR boundary. Reviewers do not need to wait for the remaining chat/page renderer slices before starting the backend review.
+
+Current backend review boundaries:
+
+- AI runtime and tool plumbing: `split-16` through `split-19`, plus `split-63` for AI SDK meta-tool hardening.
+- Provider settings and runtime routing: `split-20` and `split-67`.
+- Agent/resource and DataApi workflows: `split-30`, `split-31`, `split-32`, `split-64`, `split-65`, and `split-66`.
+- Builtin tool exposure and lookup cores: `split-59` through `split-62`.
+
+Recent convergence decisions:
+
+- Agent workspace/session/task changes belong to `split-65`.
+- Provider `userProvider.isEnabled` default convergence belongs to `split-20`.
+- Agent disabled-tool policy is already covered by `split-30`; do not copy unrelated `AgentService.search` hunks there.
+- Agent list/search `updatedAtFrom` query convergence belongs to `split-66`.
+- `CacheService` convergence is intentionally deferred until the UI consumers are added; it is not a blocker for reviewing the current `src/main` PRs.
+
 ## Open PRs
 
 All currently pushed `codex/split-*` branches now have non-draft PRs open against `main`.
@@ -252,6 +271,7 @@ Dependency notes:
 
 These areas still need branch work after the pushed PR set above:
 
+- Cache/UI convergence, intentionally deferred until the corresponding UI consumers are split.
 - Clickable file path renderer, after provider runtime and file path utilities are available.
 - Markdown renderer slice.
 - Agent tool renderer set, after the chat tool foundations in `split-52` through `split-58`.
