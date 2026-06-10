@@ -23,6 +23,8 @@ import { generateSignature } from './cherryai'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from './endpoint'
 
+const CHERRYAI_PROVIDER_ID = 'cherryai'
+
 interface BaseConfig {
   baseURL: string
   apiKey: string
@@ -55,7 +57,15 @@ function formatBaseURL(baseURL: string, provider: Provider, endpointType?: Endpo
   if (isGeminiProvider(provider)) return formatApiHost(baseURL, appendApiVersion, 'v1beta')
 
   // Providers that don't append API version
-  const noVersionProviders = ['copilot', 'github', 'cherryai', 'perplexity', 'newapi', 'new-api', 'azure-openai']
+  const noVersionProviders = [
+    'copilot',
+    'github',
+    CHERRYAI_PROVIDER_ID,
+    'perplexity',
+    'newapi',
+    'new-api',
+    'azure-openai'
+  ]
   if (noVersionProviders.includes(provider.id) || noVersionProviders.includes(provider.presetProviderId ?? '')) {
     return formatApiHost(baseURL, false)
   }
@@ -90,7 +100,7 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
 
   const builders: ConfigBuilderEntry[] = [
     { match: (p) => p.id === SystemProviderIds.copilot, build: buildCopilotConfig },
-    { match: (p) => p.id === 'cherryai', build: buildCherryAIConfig },
+    { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: buildCherryAIConfig },
     { match: (p) => isOllamaProvider(p), build: buildOllamaConfig },
     { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
     // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.
