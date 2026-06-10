@@ -74,11 +74,121 @@ All currently pushed `codex/split-*` branches now have non-draft PRs open agains
 | [#15905](https://github.com/CherryHQ/cherry-studio/pull/15905) | `codex/split-53-chat-tool-output-truncation` | Tool output truncation helper |
 | [#15906](https://github.com/CherryHQ/cherry-studio/pull/15906) | `codex/split-54-chat-tool-task-data` | Agent task data helpers |
 
+## Dependency DAG
+
+Edges below are review or merge prerequisites between split PRs. They are not necessarily the exact GitHub base branch. PRs not connected by an edge are currently treated as parallel reviewable slices. Dashed edges mark reconciliation or superseded-split guidance, not a hard merge prerequisite.
+
+```mermaid
+flowchart TD
+  p02["#15849 split-02 UI floating primitives"]
+  p03["#15850 split-03 UI tree view"]
+  p04["#15851 split-04 UI markdown composite"]
+  p05["#15852 split-05 UI primitive polish"]
+  p06["#15853 split-06 renderer hook utilities"]
+  p07["#15854 split-07 renderer virtual-list groups"]
+  p16["#15863 split-16 AI trace observability"]
+  p18["#15865 split-18 AI agent runtime"]
+  p19["#15866 split-19 AI MCP tool runtime"]
+  p21["#15874 split-21 chat primitives"]
+  p22["#15875 split-22 chat contracts/adapters"]
+  p23["#15876 split-23 chat resource actions"]
+  p24["#15877 split-24 chat shell layout"]
+  p25["#15868 split-25 library resource workflow"]
+  p26["#15878 split-26 selector/model infra"]
+  p27["#15879 split-27 tag hooks"]
+  p28["#15880 split-28 assistant catalog source API"]
+  p29["#15881 split-29 library form adapters"]
+  p30["#15882 split-30 agent resource API"]
+  p31["#15883 split-31 container trace data API"]
+  p32["#15884 split-32 topic branch copy DataApi"]
+  p34["#15886 split-34 library skill detail dialog"]
+  p35["#15887 split-35 chat trace pane"]
+  p36["#15888 split-36 chat adapter contracts"]
+  p37["#15889 split-37 chat layout primitives"]
+  p38["#15890 split-38 chat composer token draft"]
+  p39["#15891 split-39 combined message flow model"]
+  p40["#15892 split-40 message projection"]
+  p41["#15893 split-41 virtualizer runtime"]
+  p42["#15894 split-42 message-list layout"]
+  p43["#15895 split-43 grouping utilities"]
+  p44["#15896 split-44 virtual list shell"]
+  p45["#15897 split-45 parts context"]
+  p46["#15898 split-46 provider contract"]
+  p47["#15899 split-47 provider runtime"]
+  p48["#15900 split-48 selection utilities"]
+  p49["#15901 split-49 file path utilities"]
+  p50["#15902 split-50 flow graph"]
+  p51["#15903 split-51 flow layout"]
+  p52["#15904 split-52 tool response adapter"]
+  p53["#15905 split-53 output truncation"]
+  p54["#15906 split-54 task data"]
+  f_clickable["future clickable file path renderer"]
+  f_markdown["future markdown renderer"]
+  f_agent_tools["future agent tool renderers"]
+  f_pages["future chat/pages integration"]
+
+  p02 --> p03
+  p02 --> p04
+  p02 --> p05
+  p02 --> p26
+  p06 --> p07
+  p07 --> p23
+
+  p18 --> p19
+  p16 --> p31
+  p31 --> p35
+
+  p21 --> p22
+  p22 --> p23
+  p23 --> p24
+  p22 --> p36
+  p36 --> p37
+  p36 --> p38
+  p37 --> f_pages
+  p38 --> f_pages
+
+  p26 --> p25
+  p27 --> p25
+  p28 --> p25
+  p29 --> p25
+  p30 --> p25
+  p34 --> p25
+
+  p32 --> f_pages
+  p35 --> f_pages
+
+  p40 --> p43
+  p40 --> p46
+  p41 --> p44
+  p42 --> p44
+  p43 --> p44
+  p45 --> p47
+  p46 --> p47
+  p46 --> p48
+  p38 --> p48
+  p49 --> f_clickable
+
+  p50 --> p51
+  p39 -. reconcile with smaller flow split .-> p50
+  p39 -. reconcile with smaller flow split .-> p51
+
+  p52 --> f_agent_tools
+  p53 --> f_agent_tools
+  p54 --> f_agent_tools
+  p52 --> f_markdown
+```
+
+Dependency notes:
+
+- `split-25` is the broad library resource workflow. `split-26`, `split-27`, `split-28`, `split-29`, `split-30`, and `split-34` are independent prerequisites or extractable pieces that should be reviewed before finalizing the broad workflow.
+- `split-39` is the earlier combined message-flow split. `split-50` and `split-51` are the smaller replacement graph/layout slices, so reviewers should reconcile or supersede `split-39` rather than merge both shapes blindly.
+- `split-52`, `split-53`, and `split-54` are tool-foundation slices. The larger markdown and agent-tool renderer PRs should consume these instead of duplicating helper logic.
+
 ## Suggested Review Order
 
-1. Review and land the already-open foundation PRs first: `split-01` through `split-20`, plus `split-25`.
+1. Review and land the already-open foundation PRs first: `split-01` through `split-20`.
 2. Review chat shell and composer foundations: `split-21` through `split-24`, then `split-35` through `split-38`.
-3. Review the remaining resource/data API branches: `split-26` through `split-34`. Keep DB API and consumers together when the contract boundary requires it.
+3. Review the library/resource prerequisites: `split-26` through `split-34`, then finalize `split-25`. Keep DB API and consumers together when the contract boundary requires it.
 4. Review message-list foundations before renderer shells: `split-40`, `split-41`, `split-42`, `split-43`, `split-44`.
 5. Review message provider, selection, and file-path utilities: `split-45`, `split-46`, `split-47`, `split-48`, `split-49`.
 6. Review message flow: `split-50` and `split-51`; `split-39` is the earlier combined flow-model split and should be reconciled with those smaller PRs during review.
