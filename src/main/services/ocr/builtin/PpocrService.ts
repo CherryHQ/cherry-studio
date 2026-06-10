@@ -20,13 +20,21 @@ export class PpocrService extends OcrBaseService {
 
   /** Submits the image to PaddleOCR and extracts recognized text. */
   private async imageOcr(file: ImageFileMetadata, options: OcrPpocrConfig): Promise<OcrResult> {
+    if (!options.accessToken) {
+      throw new Error('PaddleOCR access token is required')
+    }
     const client = new PaddleOCRClient({
-      token: options.accessToken ?? '',
+      token: options.accessToken,
       baseUrl: options.apiUrl,
       fetch: net.fetch as typeof fetch
     })
     const result = await client.ocr({ filePath: file.path, model: 'PP-OCRv5' })
-    const text = result.pages.flatMap((p) => (p.prunedResult as any)?.rec_texts ?? []).join('\n')
+    const text = result.pages
+      .flatMap((p) => {
+        const recTexts = (p.prunedResult as any)?.rec_texts
+        return Array.isArray(recTexts) ? recTexts : []
+      })
+      .join('\n')
     return { text }
   }
 }

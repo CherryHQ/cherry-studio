@@ -23,7 +23,12 @@ export const paddleImageToTextHandler: FileProcessingCapabilityHandler<'image_to
           fetch: net.fetch as typeof fetch
         })
         const result = await client.ocr({ filePath: file.path, model }, { signal: executionContext.signal })
-        const text = result.pages.flatMap((p) => (p.prunedResult as any)?.rec_texts ?? []).join('\n')
+        const text = result.pages
+          .flatMap((p) => {
+            const recTexts = (p.prunedResult as any)?.rec_texts
+            return Array.isArray(recTexts) ? recTexts : []
+          })
+          .join('\n')
         return { kind: 'text', text }
       }
     }
