@@ -53,6 +53,7 @@ Backend split areas:
 | Trace observability | Capture trace spans and expose container-owned trace IDs | `split-16`, `split-31`, `split-35` |
 | Stream control | Queue steering and continuation events for active streams | `split-17` |
 | Agent runtime | Keep agent sessions warm and expose agent resource policy | `split-18`, `split-30` |
+| Assistant data bootstrap | Persist assistant source metadata and seed the v2 default assistant through DataApi/bootstrap consumers | `split-28`, `split-64` |
 | MCP tools | Add Claude MCP tool runtime and chat tool-rendering foundations | `split-19`, `split-52` through `split-58` |
 | Builtin tools | Keep builtin tool contracts shared, extract knowledge/web lookup cores, and expose Cherry builtin tools through MCP | `split-59`, `split-60`, `split-61`, `split-62` |
 | AI SDK meta tools | Harden meta-tool search, inspect, invoke, and defer exposition behavior | `split-63` |
@@ -180,6 +181,7 @@ The resource library supports the chat page by making agents, assistants, prompt
 - selector/model infrastructure is shared before form workflows consume it
 - tag mutation hooks are independent reusable resource operations
 - assistant catalog source metadata is DataApi-owned
+- default assistant bootstrap is DataApi-owned and should keep schema, seeding, migration transforms, service, hook, and immediate consumers together
 - library form adapters convert resource entities into form DTOs
 - skill detail dialog is a focused library interaction, not a chat shell concern
 
@@ -192,7 +194,7 @@ The broad library resource workflow should be finalized after its extracted prer
 | UI primitives and renderer utilities | `split-02` through `split-12` |
 | Backend AI/runtime | `split-16` through `split-20` |
 | Shared chat contracts and shell | `split-21` through `split-24`, `split-36`, `split-37` |
-| Library/resource support | `split-25` through `split-30`, `split-34` |
+| Library/resource support | `split-25` through `split-30`, `split-34`, `split-64` |
 | Trace and topic DataApi | `split-31`, `split-32`, `split-35` |
 | Composer | `split-38` |
 | Message list foundations | `split-40` through `split-49` |
