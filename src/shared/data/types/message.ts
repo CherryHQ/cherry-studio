@@ -139,6 +139,8 @@ export interface CherryUIMessageMetadata {
   parentId?: string | null
   /** Non-zero for messages that belong to a regenerate/multi-model cohort. */
   siblingsGroupId?: number
+  /** Whether this message is on the currently active branch in its sibling group. */
+  isActiveBranch?: boolean
   /** `UniqueModelId` (`providerId::modelId`) the assistant was generated with. */
   modelId?: string
   /** Snapshot captured at message creation (`{id, name, provider, group?}`). */
