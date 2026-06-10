@@ -1,4 +1,4 @@
-import { type Assistant, ASSISTANT_SOURCE_USER } from '@shared/data/types/assistant'
+import type { Assistant } from '@shared/data/types/assistant'
 import type { Tag } from '@shared/data/types/tag'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -65,9 +65,7 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     updatedAt: '2026-04-20T00:00:00.000Z',
     tags: [],
     modelName: 'GPT-4o',
-    ...overrides,
-    source: overrides.source ?? ASSISTANT_SOURCE_USER,
-    orderKey: overrides.orderKey ?? 'a0'
+    ...overrides
   }
 }
 
