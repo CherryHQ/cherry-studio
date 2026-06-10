@@ -116,6 +116,26 @@ export const ListAgentSessionsQuerySchema = z.strictObject({
 })
 export type ListAgentSessionsQuery = z.infer<typeof ListAgentSessionsQuerySchema>
 
+export interface DeleteAgentSessionsResult {
+  deletedIds: string[]
+  deletedCount: number
+}
+
+const DeleteAgentSessionsIdsQueryValueSchema = z
+  .string()
+  .transform((value) =>
+    value
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean)
+  )
+  .pipe(z.array(z.string().min(1)).min(1))
+
+export const DeleteAgentSessionsQuerySchema = z.strictObject({
+  ids: DeleteAgentSessionsIdsQueryValueSchema
+})
+export type DeleteAgentSessionsQuery = z.input<typeof DeleteAgentSessionsQuerySchema>
+
 // ============================================================================
 // API Schema definitions
 // ============================================================================
@@ -129,6 +149,15 @@ export type AgentSessionSchemas = {
     POST: {
       body: CreateAgentSessionDto
       response: AgentSessionEntity
+    }
+    /**
+     * Delete an explicit set of sessions.
+     *
+     * Used by multi-select table flows where the selection can span agents.
+     */
+    DELETE: {
+      query: DeleteAgentSessionsQuery
+      response: DeleteAgentSessionsResult
     }
   }
 
