@@ -80,8 +80,17 @@ export const AGENT_SESSION_MESSAGE_FTS_STATEMENTS: string[] = [
     ), '') WHERE id = NEW.id;
     INSERT INTO agent_session_message_fts(rowid, searchable_text)
     SELECT rowid, searchable_text FROM agent_session_message WHERE id = NEW.id;
-  END`,
+  END`
+]
 
+/**
+ * One-shot backfill + FTS seed. The UPDATE recomputes searchable_text for every
+ * row and the INSERT seeds the FTS index, so they must run ONCE (guarded by a
+ * marker in DbService.runCustomMigrations), never on every boot like the
+ * idempotent triggers above. The triggers keep both in sync for subsequent
+ * writes. Bump the marker key in customSqls.ts if the expression changes.
+ */
+export const AGENT_SESSION_MESSAGE_FTS_BACKFILL_STATEMENTS: string[] = [
   `UPDATE agent_session_message SET searchable_text = COALESCE((
     SELECT group_concat(json_extract(value, '$.text'), char(10))
     FROM json_each(json_extract(agent_session_message.data, '$.parts'))

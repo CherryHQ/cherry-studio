@@ -155,8 +155,18 @@ export const MESSAGE_FTS_STATEMENTS: string[] = [
     UPDATE message SET searchable_text = ${searchableTextExpression('NEW.data')} WHERE id = NEW.id;
     INSERT INTO message_fts(rowid, searchable_text)
     SELECT rowid, searchable_text FROM message WHERE id = NEW.id;
-  END`,
+  END`
+]
 
+/**
+ * One-shot backfill + full FTS rebuild. A rebuild is O(all messages), so these
+ * must run ONCE (guarded by a marker in DbService.runCustomMigrations), never on
+ * every boot like the idempotent triggers above. The triggers keep
+ * searchable_text and the FTS index in sync for every subsequent write. Bump the
+ * marker key in customSqls.ts if `searchableTextExpression` changes so the
+ * backfill re-runs once.
+ */
+export const MESSAGE_FTS_BACKFILL_STATEMENTS: string[] = [
   `UPDATE message
    SET searchable_text = ${searchableTextExpression('data')}
    WHERE searchable_text = '' AND deleted_at IS NULL`,
