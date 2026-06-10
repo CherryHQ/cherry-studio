@@ -5512,6 +5512,7 @@
         }
       },
       "font": {
+        "apple_native": "Apple 原生字型",
         "code": "程式碼字型",
         "default": "預設",
         "global": "全域字型",

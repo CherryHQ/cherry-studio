@@ -5512,6 +5512,7 @@
         }
       },
       "font": {
+        "apple_native": "Phông chữ gốc Apple",
         "code": "Phông chữ mã",
         "default": "Mặc định",
         "global": "Phông chữ Toàn cầu",
