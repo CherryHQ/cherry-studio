@@ -16,6 +16,7 @@ import type {
   SDKTaskProgressMessage,
   SDKTaskStartedMessage,
   SDKTaskUpdatedMessage,
+  SDKThinkingTokensMessage,
   SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import type {
@@ -794,6 +795,9 @@ export class ClaudeCodeStreamAdapter {
       case 'compact_boundary':
         this.handleCompactBoundarySystemMessage()
         return
+      case 'thinking_tokens':
+        this.handleThinkingTokensSystemMessage(message, ctx)
+        return
       case 'api_retry':
       case 'hook_started':
       case 'hook_progress':
@@ -803,6 +807,7 @@ export class ClaudeCodeStreamAdapter {
       case 'memory_recall':
       case 'local_command_output':
       case 'elicitation_complete':
+      case 'commands_changed':
       case 'files_persisted':
       case 'mirror_error':
       case 'notification':
@@ -840,6 +845,15 @@ export class ClaudeCodeStreamAdapter {
   private handleCompactBoundarySystemMessage(): void {
     // Compaction runtime events are emitted by ClaudeCodeRuntimeDriver before this adapter sees the message.
     // The stream adapter intentionally does not enqueue a message chunk for the boundary.
+  }
+
+  private handleThinkingTokensSystemMessage(message: SDKThinkingTokensMessage, ctx: StreamContext): void {
+    ctx.sink.enqueue({
+      type: 'message-metadata',
+      messageMetadata: {
+        thoughtsTokens: message.estimated_tokens
+      }
+    })
   }
 
   private toTaskEventPartData(message: SDKTaskSystemMessage): AgentTaskEventPartData {
