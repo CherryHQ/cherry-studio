@@ -53,6 +53,7 @@ Backend split areas:
 | Trace observability | Capture trace spans and expose container-owned trace IDs | `split-16`, `split-31`, `split-35` |
 | Stream control | Queue steering and continuation events for active streams | `split-17` |
 | Agent runtime | Keep agent sessions warm and expose agent resource policy | `split-18`, `split-30` |
+| Provider runtime | Harden CherryAI configuration and AiHubMix routing behavior | `split-67` |
 | Agent workspaces | Manage DataApi-backed agent workspace workflows and session links | `split-65` |
 | Assistant data bootstrap | Persist assistant source metadata and seed the v2 default assistant through DataApi/bootstrap consumers | `split-28`, `split-64` |
 | Knowledge data | Provide searchable Knowledge list queries through DataApi service and shared schemas | `split-66` |
@@ -196,7 +197,7 @@ The broad library resource workflow should be finalized after its extracted prer
 | Architecture area | Split PRs |
 | --- | --- |
 | UI primitives and renderer utilities | `split-02` through `split-12` |
-| Backend AI/runtime | `split-16` through `split-20` |
+| Backend AI/runtime | `split-16` through `split-20`, `split-67` |
 | Shared chat contracts and shell | `split-21` through `split-24`, `split-36`, `split-37` |
 | Library/resource support | `split-25` through `split-30`, `split-34`, `split-64` |
 | Knowledge DataApi | `split-66` |
