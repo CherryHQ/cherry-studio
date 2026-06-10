@@ -6,7 +6,7 @@ import {
   generateMcpToolFunctionName,
   isFunctionCallToolNameForServer,
   toCamelCase
-} from '../mcp'
+} from '../mcpToolName'
 
 describe('isFunctionCallToolNameForServer', () => {
   it('matches a normal minted id back to its server', () => {

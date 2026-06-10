@@ -12,6 +12,7 @@ CREATE TABLE `__new_knowledge_base` (
 	`chunk_size` integer NOT NULL,
 	`chunk_overlap` integer NOT NULL,
 	`search_mode` text NOT NULL,
+	`hybrid_alpha` real,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	FOREIGN KEY (`group_id`) REFERENCES `group`(`id`) ON UPDATE no action ON DELETE set null,
@@ -35,7 +36,7 @@ CREATE TABLE `__new_knowledge_base` (
       )
 );
 --> statement-breakpoint
-INSERT INTO `__new_knowledge_base`("id", "name", "group_id", "dimensions", "embedding_model_id", "status", "error", "rerank_model_id", "file_processor_id", "chunk_size", "chunk_overlap", "search_mode", "created_at", "updated_at") SELECT "id", "name", "group_id", "dimensions", "embedding_model_id", "status", "error", "rerank_model_id", "file_processor_id", "chunk_size", "chunk_overlap", "search_mode", "created_at", "updated_at" FROM `knowledge_base`;--> statement-breakpoint
+INSERT INTO `__new_knowledge_base`("id", "name", "group_id", "dimensions", "embedding_model_id", "status", "error", "rerank_model_id", "file_processor_id", "chunk_size", "chunk_overlap", "search_mode", "hybrid_alpha", "created_at", "updated_at") SELECT "id", "name", "group_id", "dimensions", "embedding_model_id", "status", "error", "rerank_model_id", "file_processor_id", "chunk_size", "chunk_overlap", "search_mode", "hybrid_alpha", "created_at", "updated_at" FROM `knowledge_base`;--> statement-breakpoint
 DROP TABLE `knowledge_base`;--> statement-breakpoint
 ALTER TABLE `__new_knowledge_base` RENAME TO `knowledge_base`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;

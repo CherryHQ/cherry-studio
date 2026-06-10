@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  ListKnowledgeBasesQuerySchema,
-  ListKnowledgeItemsQuerySchema,
-  UpdateKnowledgeBaseSchema
-} from '../data/api/schemas/knowledges'
-import {
   CreateKnowledgeBaseSchema,
   CreateKnowledgeItemSchema,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
@@ -17,7 +12,8 @@ import {
   KnowledgeBaseSchema,
   KnowledgeItemSchema,
   RestoreKnowledgeBaseSchema
-} from '../data/types/knowledge'
+} from '../../../types/knowledge'
+import { ListKnowledgeBasesQuerySchema, ListKnowledgeItemsQuerySchema, UpdateKnowledgeBaseSchema } from '../knowledges'
 
 const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const SECOND_KNOWLEDGE_BASE_ID = '22222222-2222-4222-8222-222222222222'
