@@ -50,13 +50,19 @@ export function applyDeferExposition(
   // are added below — they don't address themselves.
   const allowedNames = new Set(Object.keys(tools))
 
+  // Shared per-request inspect-before-invoke ledger: `tool_inspect` records the tools whose
+  // signature the model has seen, `tool_invoke` requires membership before running one. Scoped to
+  // this request (one streamText loop), so the model re-confirms a tool's schema each turn rather
+  // than relying on an inspect that may have been compacted out of context.
+  const inspectedNames = new Set<string>()
+
   const inlineTools: ToolSet = {}
   for (const [name, entry] of Object.entries(tools)) {
     if (!deferredNames.has(name)) inlineTools[name] = entry
   }
   inlineTools[TOOL_SEARCH_TOOL_NAME] = createToolSearchTool(registry, deferredNames)
-  inlineTools[TOOL_INSPECT_TOOL_NAME] = createToolInspectTool(registry, allowedNames)
-  inlineTools[TOOL_INVOKE_TOOL_NAME] = createToolInvokeTool(registry, allowedNames)
+  inlineTools[TOOL_INSPECT_TOOL_NAME] = createToolInspectTool(registry, allowedNames, inspectedNames)
+  inlineTools[TOOL_INVOKE_TOOL_NAME] = createToolInvokeTool(registry, allowedNames, inspectedNames)
   // `tool_exec` (worker-thread JS sandbox with full registry access) is
   // intentionally NOT injected by default — it is a meaningful privilege-
   // escalation surface vs the renderer's prior restrictions. Re-enable

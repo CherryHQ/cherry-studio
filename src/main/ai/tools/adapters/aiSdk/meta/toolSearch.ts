@@ -17,8 +17,9 @@ export const TOOL_SEARCH_TOOL_NAME = 'tool_search'
 export function createToolSearchTool(registry: ToolRegistry, deferredNames: ReadonlySet<string>): Tool {
   return tool({
     description:
-      'Discover available tools by namespace. Tools are grouped by domain (web, kb, mcp:gmail, ...). ' +
-      'Omit `query` to browse all. Use the names returned here with `tool_invoke`.',
+      'Discover available tools by namespace. This is tool discovery (NOT web search). Tools are ' +
+      'grouped by domain (web, kb, mcp:gmail, ...). Omit `query` to browse all. Inspect a name ' +
+      'returned here with `tool_inspect`, then call it with `tool_invoke`.',
     inputSchema: z.object({
       query: z
         .string()
@@ -31,6 +32,7 @@ export function createToolSearchTool(registry: ToolRegistry, deferredNames: Read
         .default(false)
         .describe('Include each tool full input schema in the result (more tokens)')
     }),
+    inputExamples: [{ input: { query: 'gmail', verbose: false } }, { input: { namespace: 'web', verbose: true } }],
     execute: async ({ query, namespace, verbose }) => {
       const grouped = registry.getByNamespace({ query, namespace })
       const matchedNamespaces: Array<{
@@ -51,8 +53,32 @@ export function createToolSearchTool(registry: ToolRegistry, deferredNames: Read
         matchedNamespaces.push({ namespace: ns, tools })
       }
       return { matchedNamespaces }
-    }
+    },
+    // Render the catalog as a compact namespace listing instead of nested JSON — fewer tokens and
+    // easier for the model to scan tool names. Names are verbatim so they can be passed to
+    // `tool_inspect` / `tool_invoke` as-is.
+    toModelOutput: ({ output }) => ({ type: 'text', value: formatSearchForModel(output) })
   })
+}
+
+function formatSearchForModel(output: {
+  matchedNamespaces: Array<{
+    namespace: string
+    tools: Array<{ name: string; description: string; inputSchema?: unknown }>
+  }>
+}): string {
+  if (output.matchedNamespaces.length === 0) {
+    return 'No tools matched. Broaden `query`, or omit it to browse all namespaces.'
+  }
+  const lines: string[] = []
+  for (const group of output.matchedNamespaces) {
+    lines.push(group.namespace)
+    for (const t of group.tools) {
+      lines.push(`  - ${t.name} — ${t.description}`)
+      if (t.inputSchema !== undefined) lines.push(`    input: ${JSON.stringify(t.inputSchema)}`)
+    }
+  }
+  return lines.join('\n')
 }
 
 async function serializeSchema(schema: unknown): Promise<unknown> {

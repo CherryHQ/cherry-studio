@@ -129,6 +129,7 @@ export interface ApprovalDecision {
   approvalId: string
   approved: boolean
   reason?: string
+  updatedInput?: unknown
 }
 
 /** Subscribe to a topic's stream state. */
