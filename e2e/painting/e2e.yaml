@@ -1,0 +1,180 @@
+# =============================================================================
+# Cherry Studio v2 绘图（Paintings） — E2E 测试文档（agent-browser / CDP 可执行）
+# =============================================================================
+# 目的：把绘图模式测试流程固定下来，后续由 agent 读本文件按 cases 执行，
+#       不必每次重新探索 UI 流程。
+#
+# 执行方式：agent 通过 CDP 驱动 Electron 渲染进程（不用 Playwright、不改项目源码）。
+# 定位策略：refs 是动态的——每步先 `agent-browser snapshot -i`，按 runner.locator
+#           里的「可见中文文案 + role」找到元素 ref 再操作。
+# 通用规范（启动 / 定位 / 记录约定）见 ../README.md。
+# 状态标记：status: validated（已实测跑通） | draft（按 UI 观察写、待实测核对）
+# 最后更新：2026-06-10
+# =============================================================================
+
+meta:
+  name: painting-e2e
+  project_dir: ./cherry-studio/
+  scope:
+    - 文生图：CherryIN qwen/qwen-image（本次重点）
+    - 模型选择：绘图模式的「选择模型」下拉（按服务商分组）
+    - 绘图参数：生成数量 / 图片尺寸（5 种比例）
+    - 生成生命周期：发送 → 生成中（可取消）→ 出图
+    - （draft）图像编辑 qwen-image-edit、切尺寸、生成数量>1、取消生成
+  # 实测结论总览（2026-06-10）
+  results_2026_06_10:
+    text_to_image: "CherryIN qwen/qwen-image(free) 文生图 ✓ —— 1664×928 / 数量 1 / 中文提示词，~51s 出图 1/1，内容与提示词匹配，无报错"
+    backend_log:   "POST /paintings {providerId:'cherryin', modelId:'qwen/qwen-image(free)'} → Created painting → Updated painting changes:['files'] → GET /files/entries/<id>"
+    models_seen:   "CherryIN 生图模型：gemini-2.5-flash-image / gemini-3-pro-image-preview / GPT-Image-2 / gpt-image-1 / qwen/qwen-image(free) / qwen/qwen-image-edit(free) / qwen/qwen-image-edit-2509(free)"
+
+# -----------------------------------------------------------------------------
+# 环境：启动 / 连接 / 收尾（与 knowledge 复用同一 dev 实例与配方，详见 ../README.md 四）
+# -----------------------------------------------------------------------------
+env:
+  user_data_suffix: KnowledgeV2FullTest          # 复用同一隔离实例（cherryin 已配 API key，无需另起）
+  cdp_port: 9222
+  vite_port: 5173
+  aerospace_workspace: 6
+  screenshot_dir: /tmp/cherry-v2-e2e
+
+  launch: |
+    cd {meta.project_dir}
+    pnpm install                                  # 必跑：@elysia/* 等新依赖，否则构建失败
+    lsof -ti :9222 | xargs kill 2>/dev/null; lsof -ti :5173 | xargs kill 2>/dev/null
+    mkdir -p /tmp/cherry-v2-e2e
+    MAIN_VITE_USER_DATA_DEV_SUFFIX=KnowledgeV2FullTest nohup pnpm debug > /tmp/cherry-v2-e2e/debug.log 2>&1 &
+    for i in $(seq 1 60); do lsof -i :9222 | grep -q LISTEN && break; sleep 2; done
+
+  connect: |
+    agent-browser connect 9222
+    agent-browser tab            # t1 = http://localhost:5173/windows/main/index.html （主窗口）
+
+  prereq:
+    生图模型: |
+      CherryIN 已配 API key 即可用（账号显示「未登录」但有密钥也行）；
+      绘图模式的「选择模型」下拉会自动按服务商分组列出可用生图模型，无需额外打能力标签。
+      若 cherryin 下看不到 qwen/qwen-image：到 设置→模型服务→CherryIN 确认模型已拉取/启用。
+
+  teardown: |
+    lsof -ti :9222 | xargs kill 2>/dev/null; lsof -ti :5173 | xargs kill 2>/dev/null
+    pkill -f "remote-debugging-port=9222" 2>/dev/null
+    # 生成的图片留在绘图历史里；数据保留在 CherryStudioKnowledgeV2FullTest
+
+# -----------------------------------------------------------------------------
+# runner：动作词汇 + 绘图特有的定位约定
+# -----------------------------------------------------------------------------
+runner:
+  locator: |
+    每步先 `agent-browser snapshot -i`，按「可见中文文案 + role」匹配 ref：
+      - 入口：应用列表「绘画」(generic clickable) 或 左侧栏 button "图片"
+      - 模型下拉：button "选择模型" [expanded]
+      - 模型选项：option "qwen/qwen-image(free) 免费"  ← ★ 可被 snapshot -i 直接抓到 ref（不像知识库 RAG 抽屉的 portal）
+      - 提示词框：textbox "描述你想创建的图片，例如：…"
+      - 发送：button "发送"（右下角 ↑）
+    refs 每次快照可能变，**不要跨快照复用 ref**。
+  actions:
+    nav_paint:     "主界面点应用列表「绘画」进入绘图模式（也可点左侧栏「图片」）。"
+    open_model:    "click button『选择模型』展开下拉（含搜索框 + 按服务商分组的生图模型）。"
+    pick_model:    "{option}：snapshot→按文案找 option（如 'qwen/qwen-image(free) 免费'）→click ref。"
+    set_size:      "{label}：选模型后出现『图片尺寸』比例按钮（5 个），按文案点（默认 1664×928 高亮）。"
+    set_count:     "{n}：『生成数量』输入框，默认 1。"
+    fill_prompt:   "{value}：定位 textbox(placeholder 含『描述你想创建的图片』)→fill。"
+    send:          "click button『发送』(右下角 ↑) 提交生成。"
+    wait_image:    "{timeout_s}：生成期间显示『生成中…』进度环 + button『取消』；轮询直到进度环消失/出现缩略图。"
+    screenshot:    "{name}：存到 env.screenshot_dir。"
+    assert_image:  "出图后中间区显示生成的图片 + 张数计数（如 1/1）；右上出现缩略图。"
+    assert_log:    "tail debug.log 佐证后端调用（DataApi:PaintingService 等）。"
+  notes:
+    - "绘图模式没有单独的『服务商』选择，只有一个『选择模型』下拉；模型下拉里按服务商（CherryIN 等）分组，生图模型才会列出。"
+    - "★ 绘图模型下拉的 option 能被 `snapshot -i` 直接抓到 ref（与知识库 RAG 抽屉里渲染到 portal 的 Radix Select 不同），可直接 click，不必走 eval。"
+    - "选定模型后才出现绘图参数区（生成数量 / 图片尺寸）。qwen/qwen-image 默认尺寸 1664×928，比例选项：1664×928 / 1472×… / 1328×… / 1140×… / 928×1664。"
+    - "生成是异步的：点发送后中间区出『生成中…』进度环（可点『取消』中止），完成后图片落地到本地文件（GET /files/entries/<id>），UI 显示缩略图与张数。实测 qwen-image 文生图 ~51s。"
+    - "后端链路（debug.log）：POST /paintings（带 providerId/modelId）→ PaintingService『Created painting』→ 完成时『Updated painting changes:[files]』→ GET /files/entries/<fileId>。可据此断言用了正确 provider/model。"
+
+# -----------------------------------------------------------------------------
+# 供应商（引用，不存明文 key）
+# -----------------------------------------------------------------------------
+providers:
+  cherryin:
+    status: ready                              # 已填 API key（与 knowledge 测试同一实例）
+    base_url: https://open.cherryin.ai
+    image_models:                              # 绘图『选择模型』下拉 CherryIN 分组实测可见
+      - id: "qwen/qwen-image(free)"            # ★ 本次实测：文生图（text-to-image）
+        kind: text_to_image
+        free: true
+      - id: "qwen/qwen-image-edit(free)"       # 图像编辑（需上传参考图）
+        kind: image_edit
+        free: true
+      - id: "qwen/qwen-image-edit-2509(free)"
+        kind: image_edit
+        free: true
+      - { id: "gemini-2.5-flash-image", kind: text_to_image }
+      - { id: "gemini-3-pro-image-preview", kind: text_to_image }
+      - { id: "GPT-Image-2", kind: text_to_image }
+      - { id: "gpt-image-1", kind: text_to_image }
+
+# -----------------------------------------------------------------------------
+# 测试素材
+# -----------------------------------------------------------------------------
+fixtures:
+  prompts:
+    - id: cat_sunset
+      text: "一只橘色的小猫坐在窗台上，背景是夕阳，水彩画风格"
+      expect: "出图为橘猫 + 窗台 + 夕阳 + 水彩风，内容与提示词匹配"   # 已实测命中
+
+# =============================================================================
+# CASES
+# =============================================================================
+cases:
+
+  - id: PAINT1-text-to-image
+    status: validated
+    model: "qwen/qwen-image(free) · cherryin"
+    desc: 用 CherryIN 的 qwen/qwen-image 文生图（核心路径）
+    steps:
+      - nav_paint: {}                                    # 主界面应用列表「绘画」
+      - open_model: {}                                   # button「选择模型」
+      - pick_model: { option: "qwen/qwen-image(free) 免费" }   # CherryIN 分组下，option 可直接 snapshot 取 ref
+      - assert_text: "qwen/qwen-image(free)"             # 下拉收起后按钮显示选中模型
+      - set_size: { label: "1664×928" }                  # 默认即此，可略
+      - set_count: { n: 1 }                              # 默认 1
+      - fill_prompt: { value: "{fixtures.prompts[cat_sunset].text}" }
+      - send: {}
+      - wait_image: { timeout_s: 120 }                   # 「生成中…」进度环 → 出图
+      - screenshot: { name: paint1-generated.png }
+    expect:
+      - measured: |                                      # 实测 2026-06-10
+          选 qwen/qwen-image(free) 后出现绘图参数（生成数量=1、图片尺寸默认 1664×928）；
+          填中文提示词 → 发送 → 「生成中…」进度环（带「取消」）约 51s（17:48:56→17:49:47）→ 出图 1/1；
+          画面＝橘色小猫坐窗台+夕阳+水彩风，与提示词完全匹配，无报错。
+      - backend_log: |                                   # debug.log 佐证用了 cherryin + 正确模型
+          POST /paintings { providerId: 'cherryin', modelId: 'qwen/qwen-image(free)' }  status 200
+          PaintingService『Created painting { id, providerId: 'cherryin' }』
+          PaintingService『Updated painting { id, changes: ['files'] }』        ← 图片文件落地
+          GET /files/entries/<fileId>  status 200                              ← UI 取图显示
+      - assert_image: "中间区显示生成图片 + 1/1；右上出现缩略图"
+
+  # ---- 以下为 draft：UI 已观察到入口/控件，待逐条实测后翻 validated -----------
+  - id: PAINT2-image-edit
+    status: draft
+    model: "qwen/qwen-image-edit(free) · cherryin"
+    desc: 图像编辑（qwen-image-edit，需上传参考图 + 提示词）
+    draft_todo:
+      - "选 qwen/qwen-image-edit(free) 后参数区是否要求上传参考图（底部输入框左侧有 + 号疑似上传入口）"
+      - "上传参考图：若走原生选择器则 CDP 不可驱动，参照 knowledge 的 upload(给 input[type=file] 塞文件) 或 API 驱动"
+      - "填编辑提示词 → 发送 → 出图，验证基于参考图编辑而非纯文生图"
+
+  - id: PAINT3-size-and-count
+    status: draft
+    model: "qwen/qwen-image(free) · cherryin"
+    desc: 切换图片尺寸比例 / 生成数量>1
+    draft_todo:
+      - "切尺寸：点 928×1664（竖图）/ 1328×… 等 → 生成图片实际尺寸/比例随之变化"
+      - "生成数量设 2~4 → 一次产出多张，计数显示 N/N，逐张可切换查看"
+
+  - id: PAINT4-cancel
+    status: draft
+    model: "qwen/qwen-image(free) · cherryin"
+    desc: 生成中点「取消」中止
+    draft_todo:
+      - "发送后在『生成中…』态点 button『取消』→ 正常中止、无残图、无报错，可重新发起"

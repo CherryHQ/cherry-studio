@@ -1,0 +1,514 @@
+# =============================================================================
+# Cherry Studio v2 知识库 — E2E 测试文档（agent-browser / CDP 可执行）
+# =============================================================================
+# 目的：把知识库测试流程固定下来，后续由 agent 读本文件按 cases 执行，
+#       不必每次重新探索 UI 流程。
+#
+# 执行方式：agent 通过 CDP 驱动 Electron 渲染进程（不用 Playwright、不改项目源码）。
+# 定位策略：refs 是动态的——每步先 `agent-browser snapshot -i`，按 runner.locator
+#           里的「可见中文文案 + role」找到元素 ref 再操作。
+# 配套说明见 ../README.md（通用规范）/ ./test-plan.md / ./reference.md。
+# 状态标记：status: validated（已实测跑通） | draft（按代码事实写、待实测核对）
+# 最后更新：2026-06-09
+# =============================================================================
+
+meta:
+  name: knowledge-base-e2e
+  project_dir: ./cherry-studio/
+  scope:
+    - 多供应商嵌入（Ollama 本地 / CherryIN）
+    - 重排（CherryIN，唯一的 /v1/rerank 协议）
+    - 数据源：文件 / 文件夹 / URL
+    - PDF 文档处理器（PaddleOCR / MinerU / Doc2x / Mistral）
+    - 召回三策略：向量(default) / 全文(bm25) / 混合(hybrid)
+    - 生命周期：reindex / restore / 查看·删除 chunk
+  # 实测结论总览（2026-06-09，全部跑通）
+  results_2026_06_09:
+    embedding:   "Ollama bge-m3 ✓ / Ollama qwen3-embedding:0.6b ✓(restore 用) / CherryIN baai-bge-m3 ✓"
+    rerank:      "CherryIN BAAI/bge-reranker-v2-m3 ✓ —— 开/关对比：关=按排序返回(10)，开=相关度97%(6)"
+    sources:     "文件(UI upload) ✓ / 文件夹(API，原生选择器不可 CDP) ✓→7子文件 / URL(UI) ✓"
+    recall:      "向量 2129ms·相关度 / 全文 191ms·相关度 / 混合 120ms·按排序返回，均命中"
+    pdf:         "内置/PaddleOCR/MinerU/Doc2X/Mistral 全部 completed，4 个云端 key 均有效"
+    lifecycle:   "查看Chunks ✓ / 删Chunk(15→14) ✓ / reindex(14→15) ✓ / restore(建副本+新模型重嵌) ✓ / 删KB ✓"
+
+# -----------------------------------------------------------------------------
+# 环境：启动 / 连接 / 收尾
+# -----------------------------------------------------------------------------
+env:
+  user_data_suffix: KnowledgeV2FullTest          # → ~/Library/Application Support/CherryStudioKnowledgeV2FullTest
+  cdp_port: 9222
+  vite_port: 5173
+  aerospace_workspace: 6
+  screenshot_dir: /tmp/cherry-v2-e2e
+
+  launch: |
+    cd {meta.project_dir}
+    pnpm install                                  # 必跑：@elysia/* 等新依赖，否则构建失败
+    lsof -ti :9222 | xargs kill 2>/dev/null; lsof -ti :5173 | xargs kill 2>/dev/null
+    mkdir -p /tmp/cherry-v2-e2e
+    MAIN_VITE_USER_DATA_DEV_SUFFIX=KnowledgeV2FullTest nohup pnpm debug > /tmp/cherry-v2-e2e/debug.log 2>&1 &
+    for i in $(seq 1 60); do lsof -i :9222 | grep -q LISTEN && break; sleep 2; done
+
+  move_window: |                                   # 移到 workspace 6，避免干扰当前工作区
+    WID=$(aerospace list-windows --all --format '%{window-id} | %{app-pid} | %{app-name}' \
+      | awk -F' \\| ' '$3=="Electron"{print $1; exit}')
+    aerospace move-node-to-workspace --window-id "$WID" 6   # 先用 app-pid 比对 9222 进程确认是本实例
+
+  connect: |
+    agent-browser connect 9222
+    agent-browser tab            # t1 = http://localhost:5173/windows/main/index.html （主窗口）
+    # 设置在独立窗口 t3 = .../windows/settings/index.html
+
+  teardown: |
+    lsof -ti :9222 | xargs kill 2>/dev/null; lsof -ti :5173 | xargs kill 2>/dev/null
+    pkill -f "remote-debugging-port=9222" 2>/dev/null
+    # 数据保留在 CherryStudioKnowledgeV2FullTest，下次复跑前可整目录删除以求干净
+
+# -----------------------------------------------------------------------------
+# runner：agent 执行每个 step 的动作词汇 + 定位约定（避免重复探索）
+# -----------------------------------------------------------------------------
+runner:
+  locator: |
+    每步先 `agent-browser snapshot -i`，按「可见中文文案 + role」匹配 ref：
+      - 按钮/菜单项：grep 形如  button "文案" / menuitem "文案"  取 ref
+      - 输入框：textbox "placeholder"（如 "名称" / "输入测试 Query..." / "搜索模型平台..."）
+      - 下拉：combobox（当前值如 "未设置"）
+    refs 每次快照可能变，**不要跨快照复用 ref**；菜单类先点触发器再快照取项。
+  actions:
+    nav_sidebar:   "主窗口侧栏按 label 点击图标（如 知识库）。"
+    open_settings: "点顶栏齿轮『设置』→ 切到独立设置窗口 t3。"
+    click_text:    "snapshot→按文案找 button/menuitem→click ref。"
+    fill:          "{find: placeholder/label, value}：定位 textbox→fill。"
+    select_combobox: "{open: 当前值, option: 选项文案}：click combobox→snapshot→click option。"
+    upload:        "{selector: 'input[type=file]', path}：agent-browser upload 给隐藏 input 塞文件（dropzone 是 sr-only input）。"
+    stub_ipc:      "❌ 不可用：window.api / window.electron 是 contextBridge 深度冻结对象，无法覆写其方法或包裹 ipcRenderer.invoke。需要『原生选择器返回值』的场景改用 API 驱动（见下 notes 与 KB1-add-dir）。"
+    eval:          "{js}：agent-browser eval 执行 JS / 调 window.api.knowledge.*。"
+    wait_text:     "{text, timeout_s}：轮询 snapshot 直到出现文案（如 '1/1 就绪'）。"
+    screenshot:    "{name}：存到 env.screenshot_dir。"
+    assert_text:   "snapshot 包含子串。"
+    assert_recall: "{top_contains|any_contains}：召回结果断言。"
+  notes:
+    - "原生选择器无法 CDP 驱动，且 contextBridge API 全冻结无法 stub：文件→用 agent-browser upload 给 sr-only input[type=file] 塞文件（走 UI）；目录→无 upload 通道，改用 window.api.knowledge.addItems 直接 API 驱动（见 KB1-add-dir）。"
+    - "API 驱动加项后 UI 不会自动刷新（React Query 缓存未失效、completed 后停止轮询）：切换侧栏页面再回来 remount 组件即可重新拉取。读 baseId：window.api.dataApi.request({id,method:'GET',path:'/knowledge-bases'})。"
+    - "评分显示（实测）：向量检索 & 全文检索都显示『相关度 %』(+向量有相似度阈值滑块)；只有混合检索 hybrid 是『按排序返回 / 排序 #n』+token 数(RRF 融合无可比分，scoreKind=ranking)。"
+    - "RAG 配置 / 召回测试是右侧抽屉(overlay)，非内联 tab：点头部按钮开，点『关闭』(X，唯一抽屉时 ref 恒为 e1) 后头部三按钮(搜索数据源/RAG 配置/召回测试)才回来；同一时刻只能开一个抽屉。"
+    - "RAG 抽屉里下拉用 Radix Select(button role=combobox)渲染到 portal，snapshot -i 抓不到展开的 option：用 eval 操作——comboboxes 顺序为 [0]文档处理器 [1]嵌入模型 [2]检索模式 [3]重排模型；click() 触发器后用 [...document.querySelectorAll('[role=option]')] 找文案 .click()。"
+    - "保存无显式 toast：『保存』按钮 enabled→点击→回 disabled 即代表已持久化。"
+    - "改嵌入模型/维度 = 触发 restore 重建：底部按钮『保存』→『重建』，点后弹『重建知识库』确认框；★实测重建会新建『<原名>_副本』(新模型重嵌原库全部数据源)、原库保留，非原地重嵌。其余配置(分块/检索/重排/处理器)可在同库直接『保存』。"
+    - "给模型打能力标签(嵌入/重排/…)：设置→模型服务→点服务商→点模型名→『编辑模型』→『更多设置』→能力 chip(灰→橙=选中，chip 在框下方需 scrollIntoView 才点得到)→保存。"
+
+# -----------------------------------------------------------------------------
+# 供应商（引用，不存明文 key）
+# -----------------------------------------------------------------------------
+providers:
+  ollama:
+    status: ready                    # 已启用，无需 key
+    base_url: http://localhost:11434
+    embedding_models:
+      - id: "bge-m3:latest"          # 已带嵌入能力标记，1024 维（自动探测）
+        capability_tagged: true
+      - id: "qwen3-embedding:0.6b"   # 已在 设置→模型服务→Ollama 打上『嵌入』能力标记（KB1-restore 时完成，1024 维）
+        capability_tagged: true
+    rerank: none                     # Ollama 无重排
+  cherryin:
+    status: ready                    # 已填 API key
+    base_url: https://open.cherryin.ai       # 用户已从 .net 改为 .ai
+    embedding_models: ["baai/bge-m3(free)", "qwen/qwen3-embedding-0.6b(free)"]
+    rerank_models:    ["BAAI/bge-reranker-v2-m3(free)"]   # 草案：KB-2 跑时以 RAG『重排模型』下拉为准
+  file_processors:                   # 设置→文档解析；用户 4 个云端均已填 key（实测全部 key 有效）
+    # RAG『文档处理』下拉文案 → KB.fileProcessorId（实测，小写）
+    keyed:
+      - { label: PaddleOCR, id: paddleocr }
+      - { label: MinerU,    id: mineru }   # 另见 env MAIN_VITE_MINERU_API_KEY
+      - { label: Doc2X,     id: doc2x }
+      - { label: Mistral,   id: mistral }
+    builtin_no_processor: { label: 未设置, id: null }   # 内置 PDFReader 纯文本提取
+    excluded: [Open MinerU]          # 按用户要求不用
+
+# -----------------------------------------------------------------------------
+# 测试素材（demo/）
+# -----------------------------------------------------------------------------
+fixtures:
+  files:
+    md_quickstart:
+      path: demo/docs/quickstart.md
+      about: "MinerU Document Explorer 安装；Python 3.10+、npm 安装"
+    # 原始 demo 提供的 4 本完整《经济学人》（用户素材，未改动）
+    pdf_economist_full:
+      paths:
+        - demo/te_2026.03.07/TheEconomist.2026.03.07.pdf     # 8.4MB（demo 里最小的整本）
+        - demo/te_2026.02.07/TheEconomist.2026.02.07.pdf     # 9.6MB
+        - demo/TheEconomist.2025.01.04.pdf                   # 11MB
+        - demo/TheEconomist.2025.02.01.pdf                   # 11.7MB
+      note: "都是 8MB+ / 80+ 页整本杂志，云端 OCR 太慢/费 key，逐处理器测不现实"
+    # KB3 实际用的小测试件 —— ★非原始 demo，是本测试自己生成的
+    pdf_small:
+      path: demo/_e2e/economist-p1.pdf
+      provenance: |
+        来历：gs 从 demo/te_2026.03.07/TheEconomist.2026.03.07.pdf 抽『第 3–4 页』(目录页) 生成。
+        46439 字节 / 2 页 / md5=0c4e739d8eec780395643dfdbd68f713。
+      gen: "gs -sDEVICE=pdfwrite -dFirstPage=3 -dLastPage=4 -dNOPAUSE -dBATCH -dQUIET -sOutputFile=demo/_e2e/economist-p1.pdf demo/te_2026.03.07/TheEconomist.2026.03.07.pdf  # 沙箱会挡 gs 写盘，需放行"
+      per_processor_copies:
+        files: [economist-paddleocr.pdf, economist-mineru.pdf, economist-doc2x.pdf, economist-mistral.pdf]
+        note: "★这 4 份与 economist-p1.pdf 字节完全相同(同一 md5)，只是改名——因知识库按文件名去重，同名 PDF 不能加第二次，故每个处理器一份不同名，好在同库里横向对比 5 种解析。"
+        regen: "cd demo/_e2e && for p in paddleocr mineru doc2x mistral; do cp economist-p1.pdf economist-$p.pdf; done"
+      cleanup: "纯测试临时件，都在 demo/_e2e/（demo/ 本就 git 未跟踪）；可整目录删，下次复跑按上面 gen+regen 重建。"
+  dirs:
+    docs:
+      path: demo/docs                 # 7 个 md：architecture/cli/mcp/quickstart/sdk/SYNTAX/tutorial-zh
+  urls:
+    rag_wiki:
+      url: "https://en.wikipedia.org/wiki/Retrieval-augmented_generation"   # 默认；可换内容稳定的页面
+  queries:
+    - id: q_python_version
+      for: md_quickstart
+      text: "What Python version is required for document processing?"
+      expect_top_contains: "Python 3.10+"          # 已实测命中 排序 #1
+    - id: q_mcp_tools
+      for: dir_docs
+      text: "How many tools does the MCP server expose?"
+      expect_any_contains: "15 tools"
+    - id: q_rag
+      for: rag_wiki
+      text: "What is retrieval-augmented generation?"
+      expect_any_contains: "retrieval"
+
+# -----------------------------------------------------------------------------
+# 要创建的知识库（嵌入固定 → 按嵌入分库）
+# -----------------------------------------------------------------------------
+knowledge_bases:
+  - id: e2e-ollama          # KB-1
+    embedding: "bge-m3:latest · ollama"
+    covers: [file, dir, url, recall_3modes, reindex, chunks, restore]
+  - id: e2e-cherryin        # KB-2
+    embedding: "baai/bge-m3(free) · cherryin"
+    rerank: "BAAI/bge-reranker-v2-m3(free)"
+    covers: [embedding, rerank_on_off, recall_3modes]
+  - id: e2e-pdf-processors  # KB-3
+    embedding: "bge-m3:latest · ollama"        # 本地省成本，重点测处理器
+    covers: [pdf_processing_each_processor]
+
+# =============================================================================
+# CASES
+# =============================================================================
+cases:
+
+  # ---- KB-1: Ollama --------------------------------------------------------
+  - id: KB1-create
+    status: validated
+    kb: e2e-ollama
+    desc: 用 Ollama bge-m3 创建知识库（维度自动探测）
+    steps:
+      - nav_sidebar: 知识库
+      - click_text: 添加                      # 导航区 + 按钮（菜单触发器）
+      - click_text: 新建知识库                 # 弹出菜单项
+      - fill: { find: 名称, value: e2e-ollama }
+      - select_combobox: { open: 未设置, option: "bge-m3:latest · ollama" }
+      - click_text: 创建                       # 提交（注意是『创建』不是『确定』）
+      - wait_text: { text: "e2e-ollama", timeout_s: 15 }
+    expect:
+      - assert_text: 就绪                       # 库状态 completed
+      - note: "维度自动从本地 Ollama 取到（bge-m3=1024）"
+
+  - id: KB1-add-file
+    status: validated
+    kb: e2e-ollama
+    desc: 经 UI 添加文件数据源（upload 塞 dropzone）
+    steps:
+      - click_text: 添加数据源
+      - click_text: 文件                       # 来源菜单（popover 内的『文件』）
+      - upload: { selector: "input[type=file]", path: "{fixtures.files.md_quickstart.path}" }
+      - assert_text: "quickstart.md"           # 进入已选列表，footer『已选 1 个文件』
+      - click_text: 添加                        # 提交
+      - wait_text: { text: "1/1 就绪", timeout_s: 60 }
+    expect:
+      - assert_text: "1/1 就绪"                 # 读取→分块→Ollama 嵌入→入库
+
+  - id: KB1-recall-hybrid
+    status: validated
+    kb: e2e-ollama
+    desc: 召回测试（默认 hybrid）
+    steps:
+      - click_text: 召回测试
+      - fill: { find: "输入测试 Query...", value: "{fixtures.queries[q_python_version].text}" }
+      - click_text: 检索
+      - wait_text: { text: "个结果", timeout_s: 30 }
+    expect:
+      - assert_recall: { top_contains: "Python 3.10+" }   # 实测 排序 #1 命中，10 结果 / ~157ms
+      - assert_text: "按排序返回"               # hybrid 无 rerank → scoreKind=ranking
+
+  - id: KB1-recall-modes
+    status: validated
+    kb: e2e-ollama
+    desc: 三种检索模式各跑一次（向量/全文/混合）
+    notes:
+      - "RAG 配置 / 召回测试都是右侧抽屉(overlay)，不是内联 tab：点头部按钮打开，点『关闭』(X，唯一抽屉时 ref 恒为 e1) 关掉后头部三按钮才回来。"
+      - "检索模式是 RAG 抽屉里第 3 个 [role=combobox]（前两个=文档处理器、嵌入模型）。它是 Radix Select 渲染到 portal，snapshot grep 抓不到选项——用 eval 点：document.querySelectorAll('[role=combobox]')[2].click() 再 [...document.querySelectorAll('[role=option]')].find(o=>o.textContent.includes('全文检索')).click()。"
+      - "选项文案：混合检索（推荐） / 向量检索 / 全文检索。改完『保存』(disabled→enabled，点完回 disabled=已存)，再『关闭』抽屉。"
+    steps:
+      - for_each_mode: [向量检索, 全文检索, 混合检索（推荐）]
+        do:
+          - click_text: RAG 配置                  # 打开 RAG 抽屉
+          - select_combobox: { open: "第3个combobox(检索模式)", option: "{mode}", via: eval_portal }
+          - click_text: 保存                       # e3；点完变 disabled 即已保存（无显式 toast）
+          - close_drawer: { ref: e1 }
+          - click_text: 召回测试
+          - fill: { find: "输入测试 Query...", value: "{fixtures.queries[q_python_version].text}" }
+          - click_text: 检索
+          - wait_text: { text: 个结果, timeout_s: 30 }
+          - screenshot: { name: "kb1-recall-{mode}.png" }
+          - close_drawer: { ref: e1 }
+    expect:
+      - measured:                                  # 实测 2026-06-09，query=q_python_version，10 结果，均命中 Python≥3.10
+          向量检索:        { results: 10, latency_ms: 2129, score: "相关度 + 相似度阈值滑块；最高 72%", note: "查询需经 Ollama 嵌入→最慢" }
+          全文检索:        { results: 10, latency_ms: 191,  score: "相关度；最高 72%（bm25）" }
+          混合检索（推荐）: { results: 10, latency_ms: 120,  score: "按排序返回 / 排序 #n + token 数，无相关度%（RRF 融合，无可比分）" }
+      - note: "向量 & 全文都显示『相关度 %』；只有混合是『按排序返回/排序#n』。三模式 top 片段都是 # Check Python version (needs >= 3.10)。"
+
+  - id: KB1-add-dir
+    status: validated
+    kb: e2e-ollama
+    desc: 添加文件夹（递归索引 demo/docs 7 个 md）
+    important: |
+      原生目录选择器无法 CDP 驱动，且 stub_ipc 此处不可行：
+      window.api / window.electron 都是 contextBridge 深度冻结对象
+      （Object.isFrozen=true，window 上 writable:false / configurable:false），
+      无法覆写 selectFolder，也无法包裹 ipcRenderer.invoke（invoke 不可写）；
+      原生 NSOpenPanel 本就不受 CDP 控制。
+      → 改为 API 驱动同一后端路径：window.api.knowledge.addItems
+        （正是 dialog『添加』按钮经 useAddKnowledgeItems.submit 调的方法）。
+    steps:
+      - get_base_id:
+          via: "window.api.dataApi.request({id:'x',method:'GET',path:'/knowledge-bases'}) → data.items[].id"
+          example: "e2e-ollama = 4f1d7eb0-08c2-4b43-a2df-62e1d19a6a27"
+      - eval:
+          js: |
+            await window.api.knowledge.addItems(BASE_ID, [{
+              type: 'directory',
+              data: { source: DIR_ABS_PATH, path: DIR_ABS_PATH }   // source 与 path 同值＝目录绝对路径
+            }])
+          note: "addItems 返回 void(undefined)＝成功；payload 形状取自 AddKnowledgeItemDialog.tsx:174-178"
+      - wait_items_completed:
+          via: "GET /knowledge-bases/:id/items 轮询 items[].status 全为 completed"
+      - refresh_ui:
+          how: "带外 API 加的项不会自动进 React Query 缓存（completed 后轮询停）；切到『助手』再回『知识库』remount 才刷新"
+      - assert_text: "2 数据源"                  # quickstart.md(文件) + docs(目录)
+      - screenshot: { name: kb1-dir-row.png }
+    expect:
+      - measured: |                              # 实测 2026-06-09
+          directory 容器项 1 个 → 递归展开为 7 个子文件(tutorial-zh/sdk/quickstart/mcp/cli/architecture/SYNTAX.md)
+          全部 status=completed；KB 头部从『1 文档』→『9 文档 就绪』，数据源 1→2，『2/2 就绪』
+      - recall_check:
+          query: "What is the system architecture design?"
+          top_src: architecture.md             # 仅存在于 docs 目录 → 证明目录子文件已嵌入且可召回
+          note: "hybrid 分数为 RRF 值(~0.008=1/(60+rank))"
+
+  - id: KB1-add-url
+    status: validated
+    kb: e2e-ollama
+    desc: 添加 URL 数据源（链接完全可走 UI——纯文本输入，无原生选择器）
+    steps:
+      - click_text: 添加数据源                    # e28 下拉触发器
+      - click_menuitem: 链接                       # [role=menuitem]，菜单项：文件/笔记/目录/链接
+      - fill: { find: "https://example.com", value: "{fixtures.urls.rag_wiki.url}" }   # textbox placeholder
+      - click_text: 添加                           # disabled→填入合法 URL 后 enabled
+      - wait_text: { text: "3/3 就绪", timeout_s: 90 }   # 抓取网页→分块→Ollama 嵌入
+    expect:
+      - measured: |                              # 实测 2026-06-09（此时库已有 文件+目录）
+          链接行即时出现：type=链接，status=就绪；数据源 2→3，KB 头部『10 文档 就绪』，『3/3 就绪』
+          UI 即时刷新——经 UI 按钮走 useAddKnowledgeItems.submit 会失效 React Query 缓存
+          （对比 KB1-add-dir 带外 API 加项需手动 remount 才刷新）
+      - recall_check:
+          query: "What is retrieval-augmented generation?"
+          top_src: "en.wikipedia.org/wiki/Retrieval-augmented_generation"   # 命中『Title: Retrieval-augmented generation』
+          note: "URL 抓取后内容含页面标题/正文，可正常召回"
+
+  - id: KB1-chunks
+    status: validated
+    kb: e2e-ollama
+    desc: 查看 + 删除 chunk
+    notes:
+      - "数据源每行末尾有『更多』(…) 按钮(portal 菜单，是 button 不是 menuitem)：预览原文 / 查看 Chunks / 重新索引 / 删除。"
+      - "chunk 视图头部『← 返回』按钮(snapshot -i 标为 button \"返回\")回到数据源列表；不要靠点侧栏库重置(在 chunk 视图里点库不一定回列表)。"
+    steps:
+      - open_row_menu: { row: "quickstart.md", trigger: "button 更多(行尾 …)" }
+      - click_text: 查看 Chunks
+      - assert_text: "15 chunks"                # quickstart.md 切成 15 块，每块显示 token 数 + 删除(垃圾桶)按钮
+      - delete_one_chunk:
+          click: "某 chunk 的 删除 按钮"
+          confirm_dialog: { title: "确认删除 Chunk", buttons: [取消, 删除], click: 删除 }
+      - assert_text: "14 chunks"                # 实测 15→14
+    expect:
+      - measured: "查看 Chunks → 15 chunks；删一块经『确认删除 Chunk』弹窗确认后 → 14 chunks"
+
+  - id: KB1-reindex
+    status: validated
+    kb: e2e-ollama
+    desc: 单项重新索引（接 KB1-chunks 删块后，验证 reindex 重建回 15）
+    steps:
+      - back_to_list: { click: "button 返回" }   # 若在 chunk 视图
+      - open_row_menu: { row: "quickstart.md", trigger: "button 更多" }
+      - click_text: 重新索引
+      - wait_text: { text: "3/3 就绪", timeout_s: 60 }   # 触发后头部计数 3/3→2/3(处理中)→3/3；本地 Ollama 秒级完成
+      - reopen_chunks: { via: "更多 → 查看 Chunks" }
+      - assert_text: "15 chunks"                # 14→15 复原
+    expect:
+      - measured: "reindex 清原向量→重读重切重嵌；chunk 数从 14 恢复到 15，生命周期闭环成立"
+      - note: "失败时该行状态显示错误（『数据源重新索引失败』）"
+
+  - id: KB1-restore
+    status: validated
+    kb: e2e-ollama
+    desc: 改嵌入模型触发重建（切到第 2 个 ollama 嵌入模型 qwen3-embedding:0.6b）
+    important: |
+      ★ 重建 ≠ 原地重嵌：实测点『重建』会新建一个『<原名>_副本』知识库，
+        用新嵌入模型 + 新维度重新导入原库的全部「数据源」(顶层源，目录会再展开)，
+        原库 e2e-ollama 原封保留。→ 不是破坏性操作，是安全克隆式重建。
+    pre:
+      tag_embedding_model:
+        why: "本地 ollama qwen3-embedding:0.6b 默认未打『嵌入』能力，不会出现在 KB 嵌入下拉里"
+        steps:
+          - "切设置窗口 t3 → 模型服务 → 服务商搜索框填 Ollama → 点 Ollama"
+          - "点模型名 qwen3-embedding:0.6b → 弹出『编辑模型』对话框"
+          - "点『更多设置』展开 → 『模型类型』区有能力 chip：视觉/联网/推理/工具/重排/嵌入"
+          - "★ chip 在对话框下方常被截断：先 el.scrollIntoView({block:'center'}) 再点，否则点不到"
+          - "点『嵌入』chip：未选=灰 rgb(170,170,170) → 选中=橙 rgb(255,165,0)；点完截图/读 computedStyle.color 确认变橙"
+          - "点『保存』；Ollama 页底部『嵌入 (N)』tab 计数 1→2 即成功"
+    steps:
+      - back_to_main: { tab: t1 }
+      - click_text: RAG 配置
+      - select_combobox: { combobox_index: 1, option: "qwen3-embedding:0.6b · ollama", via: eval_portal }   # [1]=嵌入模型
+      - assert_button: 重建                       # ★ 底部主按钮从『保存』变『重建』(e3)
+      - click_text: 重建
+      - confirm_dialog: { title: "重建知识库", buttons: [取消, 重建], click: 重建 }
+      - wait_text: { text: "3/3 就绪", timeout_s: 120 }   # 副本重新导入 3 个数据源；本地 Ollama 秒级
+    expect:
+      - measured: |                              # 实测 2026-06-09
+          新建『e2e-ollama_副本』(id 260aad0d…)：embeddingModelId=ollama::qwen3-embedding:0.6b，dim=1024，
+          itemCount=10(=3 源展开：file + dir容器 + 7子文件 + url)，status=completed；
+          原『e2e-ollama』(4f1d7eb0…, bge-m3) 保留不变。侧栏分组『默认 2』。
+      - recall_check:
+          base: e2e-ollama_副本
+          query: "What Python version is required?"
+          top_src: quickstart.md               # 用新模型 qwen3-embedding 重嵌后召回正常
+      - cleanup_note: "测试后副本可经 KB 头部『更多』→『删除知识库』清掉（见 LIFE-misc）"
+
+  # ---- KB-2: CherryIN 嵌入 + 重排 ------------------------------------------
+  - id: KB2-create
+    status: validated
+    kb: e2e-cherryin
+    desc: 用 CherryIN 嵌入建库（联网取维度）
+    steps:
+      - click_text: 添加                          # 左上『添加』(e20)，KB 列表搜索框旁
+      - click_menuitem: 新建知识库                 # 菜单：新建知识库 / 新建分组
+      - fill: { find: 名称, value: e2e-cherryin }
+      - select_combobox: { combobox_index: 0, option: "baai/bge-m3(free) · cherryin", via: eval_portal }
+      - click_text: 创建
+      - wait_text: { text: e2e-cherryin, timeout_s: 30 }
+    expect:
+      - measured: "建库成功，status=就绪；CherryIN 联网自动探测维度(bge-m3=1024)。id 21ca28ac…"
+      - note: "CherryIN 账号显示『未登录』但已配 API 密钥即可用，嵌入/重排下拉都能列出 cherryin 模型"
+
+  - id: KB2-add-file
+    status: validated
+    kb: e2e-cherryin
+    desc: 给 cherryin 库加文件并联网嵌入
+    note: "空库中心快捷按钮(文件/笔记/目录/链接)会触发原生选择器，CDP 难驱动；此处用 API addItems 加文件(UI 上传流程已在 KB1-add-file 验证)"
+    steps:
+      - eval:
+          js: "await window.api.knowledge.addItems(CHERRYIN_BASE_ID, [{type:'file', data:{source: ABS, path: ABS}}])"
+      - wait_items_completed: { via: "GET /knowledge-bases/:id/items → status 全 completed" }
+      - refresh_ui: { how: "切页 remount" }
+    expect:
+      - measured: "quickstart.md 经 CherryIN baai/bge-m3 嵌入 → status=completed，KB『1 文档 就绪』"
+
+  - id: KB2-rerank
+    status: validated
+    kb: e2e-cherryin
+    desc: 重排开/关对比（rerank 是唯一的 /v1/rerank 协议，仅 cherryin 等云端有）
+    steps:
+      - baseline_no_rerank:
+          recall: { query: "{fixtures.queries[q_python_version].text}" }
+      - enable_rerank:
+          set_rag: { combobox_index: 3, rerank_model: "BAAI/bge-reranker-v2-m3(free) · cherryin", via: eval_portal }
+          observe: "选 rerank 后『相似度阈值』滑块出现"
+          save_and_close: true
+      - with_rerank:
+          recall: { query: "{fixtures.queries[q_python_version].text}" }
+    expect:
+      - measured: |                              # 实测 2026-06-09，同一 query
+          无重排(不使用)：10 个结果 / 1941ms / 『按排序返回』(hybrid ranking，无相关度%)
+          有重排(BAAI/bge-reranker-v2-m3)：6 个结果 / 2155ms / 『相关度 97%、93%…最高 97%』
+          → 重排把 scoreKind 从 ranking 变为 relevance(交叉编码器打分)，结果数因 topK/阈值收敛(10→6)，分数高置信
+      - note: "重排下拉(第4个 combobox)还列出 qwen/qwen3-reranker-0.6b/4b/8b · cherryin 等；rerank 协议只有这一种"
+
+  # ---- KB-3: PDF 文档处理器 ------------------------------------------------
+  - id: KB3-pdf-processors
+    status: validated
+    kb: e2e-pdf-processors
+    desc: 同一 PDF 在 5 种处理器下分别导入并对比解析（builtin + PaddleOCR/MinerU/Doc2X/Mistral）
+    fixture_note: |
+      ★ demo/ 里的 PDF 全是 8MB+ / 80+ 页大杂志，云端 OCR 太慢不适合逐处理器测。
+        用 gs 抽 2 页生成小 PDF(46KB)：
+          gs -sDEVICE=pdfwrite -dFirstPage=3 -dLastPage=4 -dNOPAUSE -dBATCH -dQUIET \
+             -sOutputFile=demo/_e2e/economist-p1.pdf demo/te_2026.03.07/TheEconomist.2026.03.07.pdf
+        （沙箱会挡 gs 写盘，需放行/写 /tmp）
+      ★ 知识库按文件名去重：同名 PDF 不能加第二次（报『Knowledge file already exists』）。
+        每个处理器复制一份不同名：economist-{paddleocr,mineru,doc2x,mistral}.pdf
+    mechanics:
+      processor_setting: |
+        文档处理器是 KB 级配置 fileProcessorId（在 base 记录上），对「设置后新加的内容」生效。
+        RAG 配置抽屉第 1 个 [role=combobox]=『文档处理』，选项：未设置/PaddleOCR/MinerU/Doc2X/Mistral/Open MinerU。
+        实测 fileProcessorId 取值(小写)：null(未设置) / paddleocr / mineru / doc2x / mistral。
+      per_processor_loop: "设处理器(UI 选+保存) → addItems 加对应命名的 PDF → 轮询该 item.status 到 completed → 下一个（串行，避免改 processor 影响在飞任务）"
+      keys: "PaddleOCR/MinerU/Doc2X/Mistral 的 key 由用户在 设置→文档解析 配置；MinerU 另见 env MAIN_VITE_MINERU_API_KEY。不用 Open MinerU。"
+    steps:
+      - new_kb: { name: e2e-pdf-processors, embedding: "bge-m3:latest · ollama" }   # 本地嵌入省成本，专注处理器
+      - for_each_processor: [未设置, PaddleOCR, MinerU, Doc2X, Mistral]
+        do:
+          # 设处理器两法：① UI RAG 配置第0个 combobox 选+保存；② 更快——dataApi PATCH（复测用此法）
+          - set_processor:
+              ui:  { combobox_index: 0, file_processor: "{processor}", via: eval_portal, then: 保存 }
+              api: "window.api.dataApi.request({id,method:'PATCH',path:'/knowledge-bases/'+KBID,body:{fileProcessorId:'{proc_lower}'}}) → status 200"
+          - add_file_api: { path: "demo/_e2e/economist-{proc_lower}.pdf" }   # 任务入队时即捕获当前 fileProcessorId，可连续 set→add→set→add 后统一轮询
+          - poll_until: { item_status: completed, by_filename: "economist-{proc_lower}", timeout_s: 300 }
+          - view_or_listchunks: {}
+    expect:
+      - measured: |                              # 实测 2026-06-09，2 页 Economist 小 PDF，全部 status=completed（key 均有效）
+          内置(未设置): 2 chunks  |  PaddleOCR: 2  |  MinerU: 2  |  Doc2X: 1  |  Mistral: 2
+          KB 头部『5 文档 就绪 / 5/5 就绪』
+      - parse_quality_sample: |                  # 同一页『Economic & financial indicators / Obituary』各处理器输出版式不同
+          内置:      "Economic & financial indicators Obituary"
+          PaddleOCR: "• Economic & financial indicators • Obituary"    （• 项目符）
+          MinerU:    "Economic & financial indicators Obituary."
+          Doc2X:     "- Economic & financial indicators - Obituary 优质App推荐 !<img-uuid>"  （markdown + 水印/图片引用）
+          Mistral:   "- Economic &amp; financial indicators - Obituary"  （markdown，HTML 转义 &amp;）
+      # ★ 复测三重证据（2026-06-09，确认 4 个云端处理器是真调云端 API，非空过/回退内置）
+      - reverified_3_evidence:
+          1_debug_log: "debug.log 有 [FileProcessingService] Enqueued file processing job { processorId: 'mineru' / 'doc2x' / 'mistral' / 'paddleocr' }，queue=file-processing.<proc>"
+          2_md_artifact: "每个云端处理器在 KB Data 目录(.../Data/KnowledgeBase/<baseId>/)生成独立 economist-<proc>.md 处理产物(再被索引)；内置不产 .md(直接抽文本)。4 份 .md 首行版式各不同(见 parse_quality_sample)＝各跑各的云端 API。"
+          3_ui: "界面 5/5 就绪；逐 PDF 行 …→查看 Chunks 可对比解析差异。"
+      - note: "导入成功即验证该处理器 key 有效；失败会在该 item 状态显示错误。5 种解析出的版式/分块略有差异，均可正常召回。"
+
+  # ---- 生命周期 / 边界（穿插）---------------------------------------------
+  - id: LIFE-misc
+    status: partial               # 删除 KB 已实测；rename/group/bulk/filter 仍 draft
+    desc: 知识库改名 / 分组 / 删除；批量重索引/删除；列表搜索/过滤
+    validated:
+      delete_kb:
+        flow: "主面板头部右上『更多』(…，约 left>900 top<120) 菜单(项：重命名 / 删除知识库) → 删除知识库 → 确认弹窗『确认删除知识库 / 删除后将无法恢复该知识库』(取消/删除) → 删除"
+        measured: "★复测确认(2026-06-09)：经 UI 删除后 DB 删对目标 + 侧栏立即更新、无残留(不需刷新页面)。cascade 清其 items/向量。"
+        two_more_menus: "★ 有两类『更多』：①侧栏每个库项各自的(操作该项) ②主面板头部的(操作当前显示的库)。要删『当前显示』的库必须用②。自动化别用 grep|head -1 抓第一个『更多』(那是侧栏①)，按位置 left>900&top<120 取头部。"
+        raw_ipc_caveat: |
+          ★★ 用裸 IPC window.api.knowledge.deleteBase(id) 删库会造成「幽灵库」：DB 删了但渲染端 React Query
+          列表缓存未失效，侧栏仍显示该库(旧快照)；点进它的目录会去 DB 取已被 cascade 删的 item →
+          报『KnowledgeItem with id '...' not found』、卡在「加载中… 0 chunks」。
+          —— 这不是产品 bug，正常 UI 删除(走 mutation)会失效缓存、不复现；裸 IPC 删除后需 location.reload() 清缓存。
+        dir_view_ok: "复测：正常库 & 新 restore 副本 点目录数据源都能进，显示『docs · N chunks』(7 个 md 聚合 189 chunks)，无 not found。"
+    draft_todo:
+      - rename_kb: { menu: 重命名 }
+      - group_ops: { create: 新建分组, move_to: 移动到, delete: 删除分组 }     # 侧栏『添加→新建分组』；分组头部可展开
+      - bulk_ops: { select_rows: 行首 checkbox / 全选, then: [重新索引, 删除] }
+      - filter: { 数据源类型: [全部, 文件, 目录, 链接] }
+    expect:
+      - note: "删除库级联清向量；删除分组其库回落默认。"
