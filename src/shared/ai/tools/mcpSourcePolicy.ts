@@ -1,5 +1,5 @@
 import type { McpServer } from '../../data/types/mcpServer'
-import { buildFunctionCallToolName, toCamelCase } from '../../mcp'
+import { buildFunctionCallToolName, toCamelCase } from './mcpToolName'
 
 export type McpPolicyTool = {
   id?: string
