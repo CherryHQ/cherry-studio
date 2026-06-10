@@ -8,6 +8,8 @@ const mockGenerateImage = vi.fn()
 const mockRerank = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
 const mockApplicationGet = vi.fn()
+const mockMessageGetById = vi.fn()
+const mockMessageUpdate = vi.fn()
 const mockProviderGetByProviderId = vi.fn()
 const mockProviderGetRotatedApiKey = vi.fn()
 const mockModelGetByKey = vi.fn()
@@ -33,6 +35,13 @@ vi.mock('@main/data/services/ModelService', () => ({
 
 vi.mock('@main/utils/downloadAsBase64', () => ({
   downloadImageAsBase64: (...args: unknown[]) => mockDownloadImageAsBase64(...args)
+}))
+
+vi.mock('@main/data/services/MessageService', () => ({
+  messageService: {
+    getById: mockMessageGetById,
+    update: mockMessageUpdate
+  }
 }))
 
 vi.mock('@cherrystudio/ai-core', () => ({
@@ -322,6 +331,7 @@ describe('AiService tool approval', () => {
     const result = await handler(fakeEvent(), {
       approvalId: 'mcp-approval-1',
       approved: true,
+      updatedInput: { command: 'pwd' },
       topicId: 'topic-1',
       anchorId: 'anchor-1'
     })
@@ -333,6 +343,7 @@ describe('AiService tool approval', () => {
     expect(updatedId).toBe('anchor-1')
     const writtenParts = (updateDto as { data: { parts: Array<{ state?: string }> } }).data.parts
     expect(writtenParts[1].state).toBe('approval-responded')
+    expect(writtenParts[1]).toMatchObject({ input: { command: 'pwd' } })
     // Nothing left pending → resume via continue-conversation.
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(dispatch).toHaveBeenCalledWith(
@@ -341,7 +352,7 @@ describe('AiService tool approval', () => {
         trigger: 'continue-conversation',
         topicId: 'topic-1',
         parentAnchorId: 'anchor-1',
-        approvalDecisions: [{ approvalId: 'mcp-approval-1', approved: true }]
+        approvalDecisions: [{ approvalId: 'mcp-approval-1', approved: true, updatedInput: { command: 'pwd' } }]
       })
     )
   })
