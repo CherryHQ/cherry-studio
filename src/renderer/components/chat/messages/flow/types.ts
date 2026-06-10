@@ -1,4 +1,5 @@
 import type { MessageRole, MessageStatus } from '@shared/data/types/message'
+import type { Edge, Node } from '@xyflow/react'
 
 export const TOPIC_MESSAGE_FLOW_NODE_TYPE = 'topicMessage'
 
@@ -48,6 +49,17 @@ export interface TopicMessageFlowStats {
 export interface TopicMessageFlowGraph {
   nodes: TopicMessageFlowGraphNode[]
   edges: TopicMessageFlowGraphEdge[]
+  activeNodeId: string | null
+  stats: TopicMessageFlowStats
+}
+
+export type TopicMessageFlowNodeModel = Node<TopicMessageFlowNodeData, typeof TOPIC_MESSAGE_FLOW_NODE_TYPE>
+
+export type TopicMessageFlowEdgeModel = Edge<TopicMessageFlowEdgeData, 'smoothstep'>
+
+export interface TopicMessageFlowLayout {
+  nodes: TopicMessageFlowNodeModel[]
+  edges: TopicMessageFlowEdgeModel[]
   activeNodeId: string | null
   stats: TopicMessageFlowStats
 }
