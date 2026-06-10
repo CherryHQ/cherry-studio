@@ -11,11 +11,11 @@ This working note tracks the `origin/feat/chat-page` split stack for review. The
 - Do not open catch-all equivalence branches as a substitute for business-boundary splits.
 - Prefer business boundaries over file-count boundaries.
 - Let DB API PRs grow when schema, handler, service, hook, and consumer changes form one contract.
-- For stacked PRs, review the smallest prerequisite first, then rebase or retarget dependent PRs as prerequisites merge.
+- For stacked or prerequisite-heavy areas, review the smallest business slice first, then rebase or retarget dependent PRs as prerequisites merge.
 
 ## Open PRs
 
-These branches already have non-draft PRs open against `main`.
+All currently pushed `codex/split-*` branches now have non-draft PRs open against `main`.
 
 | PR | Branch | Review area |
 | --- | --- | --- |
@@ -39,70 +39,65 @@ These branches already have non-draft PRs open against `main`.
 | [#15865](https://github.com/CherryHQ/cherry-studio/pull/15865) | `codex/split-18-ai-agent-runtime` | Agent runtime warm sessions |
 | [#15866](https://github.com/CherryHQ/cherry-studio/pull/15866) | `codex/split-19-ai-mcp-tool-runtime` | Claude MCP tool runtime |
 | [#15867](https://github.com/CherryHQ/cherry-studio/pull/15867) | `codex/split-20-provider-settings-patch` | Provider settings patch merge |
+| [#15874](https://github.com/CherryHQ/cherry-studio/pull/15874) | `codex/split-21-chat-primitives` | Reusable chat UI primitives |
+| [#15875](https://github.com/CherryHQ/cherry-studio/pull/15875) | `codex/split-22-chat-contracts-adapters` | Chat contracts, adapters, action registry, token helpers, and export contracts |
+| [#15876](https://github.com/CherryHQ/cherry-studio/pull/15876) | `codex/split-23-chat-resource-actions` | Resource-list action menus, confirm flow, grouped virtual lists, and resource-list infrastructure |
+| [#15877](https://github.com/CherryHQ/cherry-studio/pull/15877) | `codex/split-24-chat-shell-layout` | Conversation shell layout, right-pane hosting, immersive navbar state, and resize behavior |
 | [#15868](https://github.com/CherryHQ/cherry-studio/pull/15868) | `codex/split-25-library-resource-workflow` | Library resource workflow |
-
-## Pushed Branches Waiting For PRs
-
-These branches are pushed to `origin` but did not have matching open PRs at the time of this update.
-
-| Branch | Suggested review area | Notes |
-| --- | --- | --- |
-| `codex/split-21-chat-primitives` | Chat primitives | Branch pushed; PR description was not captured locally. |
-| `codex/split-22-chat-contracts-adapters` | Chat contracts and adapters | Branch pushed; PR description was not captured locally. |
-| `codex/split-23-chat-resource-actions` | Chat resource actions | Branch pushed; PR description was not captured locally. |
-| `codex/split-24-chat-shell-layout` | Chat shell layout | Branch pushed; PR description was not captured locally. |
-| `codex/split-26-selector-model-infra` | Reusable selector infrastructure | Adds selector shell, model selector implementation, portal support, filtering, keyboard navigation, and focused tests. |
-| `codex/split-27-tag-management-hooks` | Tag mutation hooks | Adds reusable tag rename and delete mutations for resource surfaces. |
-| `codex/split-28-assistant-catalog-source-api` | Assistant catalog source API | Persists assistant source, stable catalog preset IDs, list ordering filters, and serialized DB writes. |
-| `codex/split-29-library-form-adapters` | Library form adapters | Branch pushed; PR description was not captured locally. |
-| `codex/split-30-agent-resource-api` | Agent resource API | Moves agents from persisted allowlists to disabled-tool policy, adds order keys and incremental list reads. |
-| `codex/split-31-container-trace-data-api` | Container-owned trace data API | Moves trace IDs from message rows to topic/session containers and updates schemas, DTOs, mappers, projections, and migration targets. |
-| `codex/split-32-topic-branch-copy-data-api` | Topic branch copy DataApi | Adds branch-copy endpoint and service logic to clone a root-to-node path into a new topic. |
-| `codex/split-33-chat-settings-panel` | Chat settings panel | Extracts reusable chat preference sections for input, message, math, and code settings. |
-| `codex/split-34-library-skill-detail-dialog` | Library skill detail dialog | Replaces full skill editor navigation with a focused metadata dialog in library resource flows. |
-| `codex/split-35-chat-trace-pane` | Chat trace pane | Adds renderer trace tree/detail pane and minimal `TRACE_GET_DATA` IPC backed by `SpanCacheService.getSpans()`. |
-| `codex/split-36-chat-adapter-contracts` | Shared chat adapter contracts | Adds `ResourceListAdapter`, `ComposerAdapter`, tests, README guidance, and chat component exports. |
-| `codex/split-37-chat-layout-primitives` | Chat layout primitives | Adds layout contexts, `NarrowLayout`, immersive navbar resolution logic, and layout tests. |
-| `codex/split-38-chat-composer-token-draft` | Composer token draft foundation | Adds token chips, Tiptap token schema, prompt-variable editing, paste parsing, draft serialization, and sent-message token metadata. |
-| `codex/split-39-chat-message-flow-model` | Superseded message flow model | Superseded by `split-50` and `split-51`; do not open unless intentionally collapsing the smaller flow graph/layout split. |
-| `codex/split-40-chat-message-projection` | Chat message projection | Adds `MessageListItem`, projection helpers, model snapshots, status/stats metadata, and active-branch metadata. |
-| `codex/split-41-chat-message-virtualizer-runtime` | Message virtualizer runtime | Adds scroll preservation, streaming follow, sent-message pinning, anchor cache keys, and `virtua`. |
-| `codex/split-42-chat-message-list-layout` | Message list layout primitives | Adds shared message-list containers and delayed initial loading UI with tests. |
-| `codex/split-43-chat-message-grouping-utils` | Message grouping utilities | Adds sibling grouping, multi-model group layout helpers, and structural-sharing grouped-message cache. |
-| `codex/split-44-chat-message-virtual-list` | Message virtual list shell | Connects the virtualizer runtime to React rendering, scroll readiness, top padding, wheel handling, and scroll-to-bottom control. |
-| `codex/split-45-chat-message-parts-context` | Message parts context | Adds parts, refresh, and translation overlay contexts for later message renderer slices. |
-| `codex/split-46-chat-message-provider-contract` | Message provider contract | Adds provider state/actions/meta types, render/menu defaults, export DTOs, and default-value tests. |
-| `codex/split-47-chat-message-provider-runtime` | Message provider runtime | Adds `MessageListProvider` and `MessageContentProvider` runtime contexts and hook-level tests. |
-| `codex/split-48-chat-message-selection-utils` | Message selection utilities | Adds selected-message ordering, export view construction, and copy text restoration for composer tokens. |
-| `codex/split-49-chat-message-file-path-utils` | Inline file path utilities | Adds renderer-local inline file path normalization, `~/` resolution, token detection, and tests. |
-| `codex/split-50-chat-message-flow-graph` | Message flow graph model | Adds topic message flow graph construction and live-tree merge helpers; expands root sibling groups with `SiblingsGroup.parentId: string \| null`. |
-| `codex/split-51-chat-message-flow-layout` | Message flow graph layout | Stacked on `split-50`; adds dagre-based React Flow node/edge layout conversion and layout tests. |
+| [#15878](https://github.com/CherryHQ/cherry-studio/pull/15878) | `codex/split-26-selector-model-infra` | Reusable selector and model-selector infrastructure |
+| [#15879](https://github.com/CherryHQ/cherry-studio/pull/15879) | `codex/split-27-tag-management-hooks` | Tag mutation hooks |
+| [#15880](https://github.com/CherryHQ/cherry-studio/pull/15880) | `codex/split-28-assistant-catalog-source-api` | Assistant catalog source API |
+| [#15881](https://github.com/CherryHQ/cherry-studio/pull/15881) | `codex/split-29-library-form-adapters` | Library form adapters |
+| [#15882](https://github.com/CherryHQ/cherry-studio/pull/15882) | `codex/split-30-agent-resource-api` | Agent resource API disabled-tool policy and ordering |
+| [#15883](https://github.com/CherryHQ/cherry-studio/pull/15883) | `codex/split-31-container-trace-data-api` | Container-owned trace data API |
+| [#15884](https://github.com/CherryHQ/cherry-studio/pull/15884) | `codex/split-32-topic-branch-copy-data-api` | Topic branch copy DataApi |
+| [#15885](https://github.com/CherryHQ/cherry-studio/pull/15885) | `codex/split-33-chat-settings-panel` | Chat settings panel |
+| [#15886](https://github.com/CherryHQ/cherry-studio/pull/15886) | `codex/split-34-library-skill-detail-dialog` | Library skill detail dialog |
+| [#15887](https://github.com/CherryHQ/cherry-studio/pull/15887) | `codex/split-35-chat-trace-pane` | Chat trace pane |
+| [#15888](https://github.com/CherryHQ/cherry-studio/pull/15888) | `codex/split-36-chat-adapter-contracts` | Shared chat adapter contracts |
+| [#15889](https://github.com/CherryHQ/cherry-studio/pull/15889) | `codex/split-37-chat-layout-primitives` | Chat layout primitives |
+| [#15890](https://github.com/CherryHQ/cherry-studio/pull/15890) | `codex/split-38-chat-composer-token-draft` | Composer token draft foundation |
+| [#15891](https://github.com/CherryHQ/cherry-studio/pull/15891) | `codex/split-39-chat-message-flow-model` | Earlier combined chat message flow model |
+| [#15892](https://github.com/CherryHQ/cherry-studio/pull/15892) | `codex/split-40-chat-message-projection` | Chat message projection |
+| [#15893](https://github.com/CherryHQ/cherry-studio/pull/15893) | `codex/split-41-chat-message-virtualizer-runtime` | Message virtualizer runtime |
+| [#15894](https://github.com/CherryHQ/cherry-studio/pull/15894) | `codex/split-42-chat-message-list-layout` | Message list layout primitives |
+| [#15895](https://github.com/CherryHQ/cherry-studio/pull/15895) | `codex/split-43-chat-message-grouping-utils` | Message grouping utilities |
+| [#15896](https://github.com/CherryHQ/cherry-studio/pull/15896) | `codex/split-44-chat-message-virtual-list` | Message virtual list shell |
+| [#15897](https://github.com/CherryHQ/cherry-studio/pull/15897) | `codex/split-45-chat-message-parts-context` | Message parts context |
+| [#15898](https://github.com/CherryHQ/cherry-studio/pull/15898) | `codex/split-46-chat-message-provider-contract` | Message provider contract |
+| [#15899](https://github.com/CherryHQ/cherry-studio/pull/15899) | `codex/split-47-chat-message-provider-runtime` | Message provider runtime |
+| [#15900](https://github.com/CherryHQ/cherry-studio/pull/15900) | `codex/split-48-chat-message-selection-utils` | Message selection utilities |
+| [#15901](https://github.com/CherryHQ/cherry-studio/pull/15901) | `codex/split-49-chat-message-file-path-utils` | Inline file path utilities |
+| [#15902](https://github.com/CherryHQ/cherry-studio/pull/15902) | `codex/split-50-chat-message-flow-graph` | Message flow graph model |
+| [#15903](https://github.com/CherryHQ/cherry-studio/pull/15903) | `codex/split-51-chat-message-flow-layout` | Message flow graph layout |
+| [#15904](https://github.com/CherryHQ/cherry-studio/pull/15904) | `codex/split-52-chat-tool-response-adapter` | Chat tool response adapter |
+| [#15905](https://github.com/CherryHQ/cherry-studio/pull/15905) | `codex/split-53-chat-tool-output-truncation` | Tool output truncation helper |
+| [#15906](https://github.com/CherryHQ/cherry-studio/pull/15906) | `codex/split-54-chat-tool-task-data` | Agent task data helpers |
 
 ## Suggested Review Order
 
 1. Review and land the already-open foundation PRs first: `split-01` through `split-20`, plus `split-25`.
-2. Open and review the remaining resource/data API branches: `split-26` through `split-34`.
-3. Keep DB API and consumers together when the contract boundary requires it.
-4. Review chat shell and composer foundations: `split-21` through `split-24`, then `split-35` through `split-38`.
-5. Review message-list foundations before renderer shells: `split-40`, `split-41`, `split-42`, `split-43`, `split-44`.
-6. Review message provider and selection utilities: `split-45`, `split-46`, `split-47`, `split-48`, `split-49`.
-7. Review message flow as a small stack: `split-50`, then `split-51`.
+2. Review chat shell and composer foundations: `split-21` through `split-24`, then `split-35` through `split-38`.
+3. Review the remaining resource/data API branches: `split-26` through `split-34`. Keep DB API and consumers together when the contract boundary requires it.
+4. Review message-list foundations before renderer shells: `split-40`, `split-41`, `split-42`, `split-43`, `split-44`.
+5. Review message provider, selection, and file-path utilities: `split-45`, `split-46`, `split-47`, `split-48`, `split-49`.
+6. Review message flow: `split-50` and `split-51`; `split-39` is the earlier combined flow-model split and should be reconciled with those smaller PRs during review.
+7. Review tool foundation slices: `split-52`, `split-53`, `split-54`.
 
 ## Follow-up Split Backlog
 
-These areas still need branch work or PR descriptions after the pushed branches above:
+These areas still need branch work after the pushed PR set above:
 
-- Tool response adapter for AI SDK `CherryMessagePart` to tool response DTOs.
 - Clickable file path renderer, after provider runtime and file path utilities are available.
 - Markdown renderer slice.
-- Shared tool disclosure/table foundation.
+- Shared tool disclosure/table consumers beyond the foundation pieces already split.
 - Agent tool renderer set.
 - Remaining `src/renderer/components/chat/` and `src/renderer/pages/` slices that are not covered by the pushed branches.
 
 ## Reviewer Checklist
 
 - Confirm each PR has a single business boundary and is not a fallback catch-all.
-- Confirm stacked PR bases show only the intended incremental diff.
+- Confirm PR diffs are interpreted with prerequisite context where branches were split from the same `feat/chat-page` work.
 - For DB/API PRs, review schema/service/handler/hook consumers together when they form one contract.
 - Confirm CI is green before merge; local split validation should include `pnpm build:check` unless the PR is docs-only.
 - After prerequisite PRs land, rebase or retarget dependent branches before requesting final review.
