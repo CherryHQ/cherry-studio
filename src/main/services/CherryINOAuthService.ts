@@ -70,6 +70,7 @@ interface PendingOAuthFlow {
   codeVerifier: string
   oauthServer: string
   apiHost: string
+  senderId: number
   timestamp: number
 }
 
@@ -126,7 +127,7 @@ class CherryINOAuthService {
    * @returns authUrl to open in browser and state for later verification
    */
   public startOAuthFlow = async (
-    _: Electron.IpcMainInvokeEvent,
+    event: Electron.IpcMainInvokeEvent,
     oauthServer: string,
     apiHost?: string
   ): Promise<OAuthFlowParams> => {
@@ -148,6 +149,7 @@ class CherryINOAuthService {
       codeVerifier,
       oauthServer,
       apiHost: resolvedApiHost,
+      senderId: event.sender.id,
       timestamp: Date.now()
     })
 
@@ -176,7 +178,7 @@ class CherryINOAuthService {
    * @returns API keys string
    */
   public exchangeToken = async (
-    _: Electron.IpcMainInvokeEvent,
+    event: Electron.IpcMainInvokeEvent,
     code: string,
     state: string
   ): Promise<TokenExchangeResult> => {
@@ -185,6 +187,12 @@ class CherryINOAuthService {
     if (!flowData) {
       throw new CherryINOAuthServiceError('OAuth flow expired or not found')
     }
+
+    if (flowData.senderId !== event.sender.id) {
+      logger.warn('Rejected OAuth token exchange from different sender')
+      throw new CherryINOAuthServiceError('OAuth flow was started by a different window')
+    }
+
     pendingOAuthFlows.delete(state)
 
     const { codeVerifier, oauthServer, apiHost } = flowData

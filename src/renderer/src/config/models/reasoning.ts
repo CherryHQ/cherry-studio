@@ -617,7 +617,8 @@ export function isClaudeReasoningModel(model?: Model): boolean {
     modelId.includes('claude-3.7-sonnet') ||
     modelId.includes('claude-sonnet-4') ||
     modelId.includes('claude-opus-4') ||
-    modelId.includes('claude-haiku-4')
+    modelId.includes('claude-haiku-4') ||
+    modelId.includes('claude-fable')
   )
 }
 
