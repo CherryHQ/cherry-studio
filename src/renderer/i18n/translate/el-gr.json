@@ -724,17 +724,41 @@
     },
     "tools": {
       "builtin": {
+        "AgentMemory": {
+          "description": "[to be translated]:Stores and recalls cross-session memory",
+          "label": "[to be translated]:Memory"
+        },
         "Bash": {
-          "description": "Εκτελεί εντολές κελύφους στο περιβάλλον σας"
+          "description": "Εκτελεί εντολές κελύφους στο περιβάλλον σας",
+          "label": "[to be translated]:Bash"
+        },
+        "CherryKbSearch": {
+          "description": "[to be translated]:Searches your knowledge bases",
+          "label": "[to be translated]:Knowledge Search"
+        },
+        "CherryWebFetch": {
+          "description": "[to be translated]:Fetches and reads a web page",
+          "label": "[to be translated]:Web Fetch"
+        },
+        "CherryWebSearch": {
+          "description": "[to be translated]:Searches the web via your configured provider",
+          "label": "[to be translated]:Web Search"
+        },
+        "ClawCron": {
+          "description": "[to be translated]:Manages the in-app scheduler",
+          "label": "[to be translated]:Scheduler"
         },
         "Edit": {
-          "description": "Πραγματοποιεί στοχευμένες επεξεργασίες σε συγκεκριμένα αρχεία"
+          "description": "Πραγματοποιεί στοχευμένες επεξεργασίες σε συγκεκριμένα αρχεία",
+          "label": "[to be translated]:Edit"
         },
         "Glob": {
-          "description": "Εντοπίζει αρχεία με βάση την αντιστοίχιση προτύπων"
+          "description": "Εντοπίζει αρχεία με βάση την αντιστοίχιση προτύπων",
+          "label": "[to be translated]:Glob"
         },
         "Grep": {
-          "description": "Αναζητά μοτίβα στο περιεχόμενο αρχείων"
+          "description": "Αναζητά μοτίβα στο περιεχόμενο αρχείων",
+          "label": "[to be translated]:Grep"
         },
         "MultiEdit": {
           "description": "Εκτελεί πολλαπλές επεξεργασίες σε ένα μόνο αρχείο ατομικά"
@@ -746,7 +770,8 @@
           "description": "Διαβάζει και εμφανίζει το περιεχόμενο των Jupyter notebook"
         },
         "Read": {
-          "description": "Διαβάζει τα περιεχόμενα των αρχείων"
+          "description": "Διαβάζει τα περιεχόμενα των αρχείων",
+          "label": "[to be translated]:Read"
         },
         "Task": {
           "description": "Εκτελεί έναν υπο-πράκτορα για τη διαχείριση πολύπλοκων, πολυβήματων εργασιών"
@@ -763,8 +788,13 @@
         "WebSearch": {
           "description": "Πραγματοποιεί αναζητήσεις στον ιστό με φιλτράρισμα τομέα"
         },
+        "Workflow": {
+          "description": "[to be translated]:Runs a multi-step workflow that orchestrates subagents",
+          "label": "[to be translated]:Workflow"
+        },
         "Write": {
-          "description": "Δημιουργεί ή αντικαθιστά αρχεία"
+          "description": "Δημιουργεί ή αντικαθιστά αρχεία",
+          "label": "[to be translated]:Write"
         }
       }
     },
@@ -2549,6 +2579,14 @@
           },
           "tools": {
             "add": "Προσθήκη",
+            "category": {
+              "context": "[to be translated]:Context",
+              "file": "[to be translated]:File",
+              "media": "[to be translated]:Media",
+              "orchestration": "[to be translated]:Orchestration",
+              "search": "[to be translated]:Search",
+              "shell": "[to be translated]:Shell"
+            },
             "desc": "Διακομιστές MCP, επιτρεπόμενα εργαλεία και ρυθμίσεις χρόνου εκτέλεσης",
             "label": "Εργαλεία & χρόνος εκτέλεσης",
             "no_builtin_enabled": "Κανένα ενσωματωμένο εργαλείο δεν είναι ενεργοποιημένο",
@@ -2636,6 +2674,21 @@
         "unlimited": "Απεριόριστο"
       },
       "breadcrumb": "Βιβλιοθήκη",
+      "dialogs": {
+        "create": {
+          "agent_title": "[to be translated]:New agent",
+          "assistant_title": "[to be translated]:New assistant",
+          "avatar_aria": "[to be translated]:Pick avatar",
+          "description_placeholder": "[to be translated]:Describe this resource",
+          "dialog_description": "[to be translated]:Create a resource from the library.",
+          "model_placeholder": "[to be translated]:Select a model",
+          "model_required": "[to be translated]:Please select a model",
+          "name_placeholder": "[to be translated]:Name this resource",
+          "name_required": "[to be translated]:Please enter a name",
+          "submit": "[to be translated]:Create",
+          "submit_failed": "[to be translated]:Failed to create resource"
+        }
+      },
       "knowledge": {
         "add": "Προσθήκη βάσης γνώσεων",
         "desc": "Σύνδεσε μία ή περισσότερες βάσεις γνώσης· σχετικά αποσπάσματα θα ανακτώνται κατά τη διάρκεια της συνομιλίας",

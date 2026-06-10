@@ -724,17 +724,41 @@
     },
     "tools": {
       "builtin": {
+        "AgentMemory": {
+          "description": "存储和召回跨会话记忆",
+          "label": "记忆"
+        },
         "Bash": {
-          "description": "在你的环境中执行 Shell 命令"
+          "description": "在你的环境中执行 Shell 命令",
+          "label": "Bash"
+        },
+        "CherryKbSearch": {
+          "description": "搜索你的知识库",
+          "label": "知识库搜索"
+        },
+        "CherryWebFetch": {
+          "description": "获取并读取网页",
+          "label": "网页读取"
+        },
+        "CherryWebSearch": {
+          "description": "通过你配置的服务商搜索网页",
+          "label": "网页搜索"
+        },
+        "ClawCron": {
+          "description": "管理应用内调度器",
+          "label": "调度器"
         },
         "Edit": {
-          "description": "对特定文件进行精确编辑"
+          "description": "对特定文件进行精确编辑",
+          "label": "编辑"
         },
         "Glob": {
-          "description": "根据模式匹配查找文件"
+          "description": "根据模式匹配查找文件",
+          "label": "Glob"
         },
         "Grep": {
-          "description": "在文件内容中搜索模式"
+          "description": "在文件内容中搜索模式",
+          "label": "Grep"
         },
         "MultiEdit": {
           "description": "在单个文件上原子性地执行多次编辑"
@@ -746,7 +770,8 @@
           "description": "读取并显示 Jupyter notebook 内容"
         },
         "Read": {
-          "description": "读取文件内容"
+          "description": "读取文件内容",
+          "label": "读取"
         },
         "Task": {
           "description": "运行子代理来处理复杂的多步骤任务"
@@ -763,8 +788,13 @@
         "WebSearch": {
           "description": "执行带有域名过滤的网络搜索"
         },
+        "Workflow": {
+          "description": "运行编排子 Agent 的多步骤工作流",
+          "label": "工作流"
+        },
         "Write": {
-          "description": "创建或覆盖文件"
+          "description": "创建或覆盖文件",
+          "label": "写入"
         }
       }
     },
@@ -2549,6 +2579,14 @@
           },
           "tools": {
             "add": "添加",
+            "category": {
+              "context": "上下文",
+              "file": "文件",
+              "media": "媒体",
+              "orchestration": "编排",
+              "search": "搜索",
+              "shell": "Shell"
+            },
             "desc": "配置智能体可使用的工具和 MCP Server",
             "label": "工具",
             "no_builtin_enabled": "未启用任何内置工具",
@@ -2636,6 +2674,21 @@
         "unlimited": "不限"
       },
       "breadcrumb": "资源库",
+      "dialogs": {
+        "create": {
+          "agent_title": "新建智能体",
+          "assistant_title": "新建助手",
+          "avatar_aria": "选择头像",
+          "description_placeholder": "描述这个资源的用途",
+          "dialog_description": "在资源库中创建一个资源。",
+          "model_placeholder": "选择模型",
+          "model_required": "请选择模型",
+          "name_placeholder": "给资源起个名字",
+          "name_required": "请输入名称",
+          "submit": "创建",
+          "submit_failed": "创建资源失败"
+        }
+      },
       "knowledge": {
         "add": "添加知识库",
         "desc": "关联一个或多个知识库,对话时会在知识库中检索相关内容",

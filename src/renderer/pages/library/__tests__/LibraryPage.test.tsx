@@ -173,7 +173,7 @@ vi.mock('../dialogs', () => ({
   }: {
     kind: 'assistant' | 'agent'
     open: boolean
-    onSubmit: (values: { avatar: string; name: string; modelId: string; description: string }) => Promise<void>
+    onSubmit: (values: { avatar: string; name: string; modelId?: string; description: string }) => Promise<void>
     onOpenChange: (open: boolean) => void
   }) =>
     open ? (

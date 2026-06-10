@@ -16,6 +16,7 @@ const MODEL = vi.hoisted(
       isHidden: false
     }) as const
 )
+const defaultModelMock = vi.hoisted(() => ({ current: undefined as typeof MODEL | undefined }))
 const modelSelectorPropsMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/components/Selector/model', () => ({
@@ -43,6 +44,12 @@ vi.mock('@renderer/components/EmojiPicker', () => ({
       Choose emoji
     </button>
   )
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useDefaultModel: () => ({
+    defaultModel: defaultModelMock.current
+  })
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -95,18 +102,60 @@ beforeAll(() => {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  defaultModelMock.current = undefined
 })
 
 describe('ResourceCreateDialog', () => {
-  it('validates required name and model fields', async () => {
+  it('validates required name and model fields for agents', async () => {
     const onSubmit = vi.fn()
-    render(<ResourceCreateDialog kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+    defaultModelMock.current = MODEL
+    render(<ResourceCreateDialog kind="agent" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    expect(screen.queryByText('Dialog Model')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
     expect(await screen.findByText('Please enter a name')).toBeInTheDocument()
     expect(screen.getByText('Please select a model')).toBeInTheDocument()
     expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('allows assistant creation without an explicit model', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    render(<ResourceCreateDialog kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Study Assistant' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        avatar: '💬',
+        name: 'Study Assistant',
+        modelId: undefined,
+        description: ''
+      })
+    )
+    expect(screen.queryByText('Please select a model')).not.toBeInTheDocument()
+  })
+
+  it('prefills the global default model when one is provided', async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined)
+    defaultModelMock.current = MODEL
+    render(<ResourceCreateDialog kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} />)
+
+    expect(screen.getByText('Dialog Model')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByPlaceholderText('Name this resource'), { target: { value: 'Study Assistant' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        avatar: '💬',
+        name: 'Study Assistant',
+        modelId: MODEL.id,
+        description: ''
+      })
+    )
   })
 
   it('submits avatar, name, model, and description', async () => {

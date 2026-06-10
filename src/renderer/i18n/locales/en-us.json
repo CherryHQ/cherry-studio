@@ -724,17 +724,41 @@
     },
     "tools": {
       "builtin": {
+        "AgentMemory": {
+          "description": "Stores and recalls cross-session memory",
+          "label": "Memory"
+        },
         "Bash": {
-          "description": "Executes shell commands in your environment"
+          "description": "Executes shell commands in your environment",
+          "label": "Bash"
+        },
+        "CherryKbSearch": {
+          "description": "Searches your knowledge bases",
+          "label": "Knowledge Search"
+        },
+        "CherryWebFetch": {
+          "description": "Fetches and reads a web page",
+          "label": "Web Fetch"
+        },
+        "CherryWebSearch": {
+          "description": "Searches the web via your configured provider",
+          "label": "Web Search"
+        },
+        "ClawCron": {
+          "description": "Manages the in-app scheduler",
+          "label": "Scheduler"
         },
         "Edit": {
-          "description": "Makes targeted edits to specific files"
+          "description": "Makes targeted edits to specific files",
+          "label": "Edit"
         },
         "Glob": {
-          "description": "Finds files based on pattern matching"
+          "description": "Finds files based on pattern matching",
+          "label": "Glob"
         },
         "Grep": {
-          "description": "Searches for patterns in file contents"
+          "description": "Searches for patterns in file contents",
+          "label": "Grep"
         },
         "MultiEdit": {
           "description": "Performs multiple edits on a single file atomically"
@@ -746,7 +770,8 @@
           "description": "Reads and displays Jupyter notebook contents"
         },
         "Read": {
-          "description": "Reads the contents of files"
+          "description": "Reads the contents of files",
+          "label": "Read"
         },
         "Task": {
           "description": "Runs a sub-agent to handle complex, multi-step tasks"
@@ -763,8 +788,13 @@
         "WebSearch": {
           "description": "Performs web searches with domain filtering"
         },
+        "Workflow": {
+          "description": "Runs a multi-step workflow that orchestrates subagents",
+          "label": "Workflow"
+        },
         "Write": {
-          "description": "Creates or overwrites files"
+          "description": "Creates or overwrites files",
+          "label": "Write"
         }
       }
     },
@@ -2549,6 +2579,14 @@
           },
           "tools": {
             "add": "Add",
+            "category": {
+              "context": "Context",
+              "file": "File",
+              "media": "Media",
+              "orchestration": "Orchestration",
+              "search": "Search",
+              "shell": "Shell"
+            },
             "desc": "Configure tools and MCP servers the agent can use",
             "label": "Tools",
             "no_builtin_enabled": "No built-in tools enabled",
@@ -2636,6 +2674,21 @@
         "unlimited": "Unlimited"
       },
       "breadcrumb": "Library",
+      "dialogs": {
+        "create": {
+          "agent_title": "New agent",
+          "assistant_title": "New assistant",
+          "avatar_aria": "Pick avatar",
+          "description_placeholder": "Describe this resource",
+          "dialog_description": "Create a resource from the library.",
+          "model_placeholder": "Select a model",
+          "model_required": "Please select a model",
+          "name_placeholder": "Name this resource",
+          "name_required": "Please enter a name",
+          "submit": "Create",
+          "submit_failed": "Failed to create resource"
+        }
+      },
       "knowledge": {
         "add": "Add knowledge base",
         "desc": "Link one or more knowledge bases; relevant snippets will be retrieved during chat",

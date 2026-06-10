@@ -724,17 +724,41 @@
     },
     "tools": {
       "builtin": {
+        "AgentMemory": {
+          "description": "[to be translated]:Stores and recalls cross-session memory",
+          "label": "[to be translated]:Memory"
+        },
         "Bash": {
-          "description": "Выполняет shell-команды в вашей среде"
+          "description": "Выполняет shell-команды в вашей среде",
+          "label": "[to be translated]:Bash"
+        },
+        "CherryKbSearch": {
+          "description": "[to be translated]:Searches your knowledge bases",
+          "label": "[to be translated]:Knowledge Search"
+        },
+        "CherryWebFetch": {
+          "description": "[to be translated]:Fetches and reads a web page",
+          "label": "[to be translated]:Web Fetch"
+        },
+        "CherryWebSearch": {
+          "description": "[to be translated]:Searches the web via your configured provider",
+          "label": "[to be translated]:Web Search"
+        },
+        "ClawCron": {
+          "description": "[to be translated]:Manages the in-app scheduler",
+          "label": "[to be translated]:Scheduler"
         },
         "Edit": {
-          "description": "Вносит целенаправленные правки в конкретные файлы"
+          "description": "Вносит целенаправленные правки в конкретные файлы",
+          "label": "[to be translated]:Edit"
         },
         "Glob": {
-          "description": "Находит файлы на основе сопоставления шаблонов"
+          "description": "Находит файлы на основе сопоставления шаблонов",
+          "label": "[to be translated]:Glob"
         },
         "Grep": {
-          "description": "Ищет шаблоны в содержимом файлов"
+          "description": "Ищет шаблоны в содержимом файлов",
+          "label": "[to be translated]:Grep"
         },
         "MultiEdit": {
           "description": "Выполняет несколько правок в одном файле атомарно"
@@ -746,7 +770,8 @@
           "description": "Читает и отображает содержимое Jupyter-ноутбуков"
         },
         "Read": {
-          "description": "Читает содержимое файлов"
+          "description": "Читает содержимое файлов",
+          "label": "[to be translated]:Read"
         },
         "Task": {
           "description": "Запускает субагента для выполнения сложных многоэтапных задач"
@@ -763,8 +788,13 @@
         "WebSearch": {
           "description": "Выполняет веб-поиск с фильтрацией по домену"
         },
+        "Workflow": {
+          "description": "[to be translated]:Runs a multi-step workflow that orchestrates subagents",
+          "label": "[to be translated]:Workflow"
+        },
         "Write": {
-          "description": "Создает или перезаписывает файлы"
+          "description": "Создает или перезаписывает файлы",
+          "label": "[to be translated]:Write"
         }
       }
     },
@@ -2549,6 +2579,14 @@
           },
           "tools": {
             "add": "Добавить",
+            "category": {
+              "context": "[to be translated]:Context",
+              "file": "[to be translated]:File",
+              "media": "[to be translated]:Media",
+              "orchestration": "[to be translated]:Orchestration",
+              "search": "[to be translated]:Search",
+              "shell": "[to be translated]:Shell"
+            },
             "desc": "Серверы MCP, разрешённые инструменты и параметры среды выполнения",
             "label": "Инструменты и среда выполнения",
             "no_builtin_enabled": "Встроенные инструменты не включены",
@@ -2636,6 +2674,21 @@
         "unlimited": "Безлимитный"
       },
       "breadcrumb": "Библиотека",
+      "dialogs": {
+        "create": {
+          "agent_title": "[to be translated]:New agent",
+          "assistant_title": "[to be translated]:New assistant",
+          "avatar_aria": "[to be translated]:Pick avatar",
+          "description_placeholder": "[to be translated]:Describe this resource",
+          "dialog_description": "[to be translated]:Create a resource from the library.",
+          "model_placeholder": "[to be translated]:Select a model",
+          "model_required": "[to be translated]:Please select a model",
+          "name_placeholder": "[to be translated]:Name this resource",
+          "name_required": "[to be translated]:Please enter a name",
+          "submit": "[to be translated]:Create",
+          "submit_failed": "[to be translated]:Failed to create resource"
+        }
+      },
       "knowledge": {
         "add": "Добавить базу знаний",
         "desc": "Подключите одну или несколько баз знаний; релевантные фрагменты будут извлечены во время чата",

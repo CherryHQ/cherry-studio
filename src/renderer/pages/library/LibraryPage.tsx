@@ -342,10 +342,12 @@ export default function LibraryPage() {
           await createAssistant({
             name: values.name,
             emoji: values.avatar,
-            modelId: values.modelId,
+            ...(values.modelId ? { modelId: values.modelId } : {}),
             description: values.description
           })
         } else {
+          if (!values.modelId) return
+
           await createAgent({
             type: 'claude-code',
             name: values.name,

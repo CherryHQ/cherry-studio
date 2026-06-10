@@ -14,8 +14,9 @@ import {
   Textarea
 } from '@cherrystudio/ui'
 import { ModelSelector } from '@renderer/components/Selector/model'
+import { useDefaultModel } from '@renderer/hooks/useModel'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { type FormEvent, useCallback, useEffect, useId, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './components/DialogFormFields'
@@ -25,7 +26,7 @@ export type ResourceCreateDialogKind = 'assistant' | 'agent'
 export type ResourceCreateDialogValues = {
   avatar: string
   name: string
-  modelId: UniqueModelId
+  modelId?: UniqueModelId
   description: string
 }
 
@@ -53,6 +54,7 @@ export function ResourceCreateDialog({
   isSubmitting = false
 }: ResourceCreateDialogProps) {
   const { t } = useTranslation()
+  const { defaultModel } = useDefaultModel()
   const nameId = useId()
   const modelId = useId()
   const descriptionId = useId()
@@ -60,37 +62,61 @@ export function ResourceCreateDialog({
   const [avatar, setAvatar] = useState(defaults.avatar)
   const [name, setName] = useState('')
   const [selectedModel, setSelectedModel] = useState<Model | undefined>(undefined)
+  const [modelTouched, setModelTouched] = useState(false)
   const [description, setDescription] = useState('')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [submitState, setSubmitState] = useState<SubmitState>({ kind: 'idle' })
+
+  const assistantDefaultModel = useMemo(() => {
+    if (kind !== 'assistant' || !defaultModel) return undefined
+    return !modelFilter || modelFilter(defaultModel) ? defaultModel : undefined
+  }, [defaultModel, kind, modelFilter])
+  const assistantDefaultModelRef = useRef(assistantDefaultModel)
+
+  useEffect(() => {
+    assistantDefaultModelRef.current = assistantDefaultModel
+  }, [assistantDefaultModel])
 
   useEffect(() => {
     if (!open) return
 
     setAvatar(defaults.avatar)
     setName('')
-    setSelectedModel(undefined)
+    setSelectedModel(assistantDefaultModelRef.current)
+    setModelTouched(false)
     setDescription('')
     setEmojiPickerOpen(false)
     setSubmitState({ kind: 'idle' })
   }, [defaults.avatar, open])
 
+  useEffect(() => {
+    if (!open || modelTouched || !assistantDefaultModel) return
+    if (selectedModel?.id === assistantDefaultModel.id) return
+
+    setSelectedModel(assistantDefaultModel)
+  }, [assistantDefaultModel, modelTouched, open, selectedModel?.id])
+
   const trimmedName = name.trim()
   const submitted = submitState.kind !== 'idle'
   const submitError = submitState.kind === 'error' ? submitState.message : undefined
   const nameError = submitted && trimmedName.length === 0 ? t('library.config.dialogs.create.name_required') : undefined
-  const modelError = submitted && !selectedModel ? t('library.config.dialogs.create.model_required') : undefined
+  const modelError =
+    submitted && kind === 'agent' && !selectedModel ? t('library.config.dialogs.create.model_required') : undefined
   const title = t(
     kind === 'assistant' ? 'library.config.dialogs.create.assistant_title' : 'library.config.dialogs.create.agent_title'
   )
+  const handleSelectModel = useCallback((model: Model | undefined) => {
+    setModelTouched(true)
+    setSelectedModel(model)
+  }, [])
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault()
       setSubmitState({ kind: 'submitted' })
 
-      if (!trimmedName || !selectedModel?.id) {
+      if (!trimmedName || (kind === 'agent' && !selectedModel?.id)) {
         return
       }
 
@@ -98,14 +124,14 @@ export function ResourceCreateDialog({
         await onSubmit({
           avatar,
           name: trimmedName,
-          modelId: selectedModel.id,
+          modelId: selectedModel?.id,
           description: description.trim()
         })
       } catch {
         setSubmitState({ kind: 'error', message: t('library.config.dialogs.create.submit_failed') })
       }
     },
-    [avatar, description, onSubmit, selectedModel?.id, t, trimmedName]
+    [avatar, description, kind, onSubmit, selectedModel?.id, t, trimmedName]
   )
 
   return (
@@ -166,7 +192,7 @@ export function ResourceCreateDialog({
                   value={selectedModel}
                   filter={modelFilter}
                   portalContainer={dialogContentElement}
-                  onSelect={setSelectedModel}
+                  onSelect={handleSelectModel}
                   trigger={
                     <DialogModelTrigger
                       disabled={isSubmitting}
