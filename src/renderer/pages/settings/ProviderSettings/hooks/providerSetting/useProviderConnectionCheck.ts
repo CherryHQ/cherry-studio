@@ -91,6 +91,9 @@ export function useProviderConnectionCheck(providerId: string) {
       const controller = new AbortController()
       abortControllerRef.current = controller
       const runId = ++runIdRef.current
+      // Distinguishes a local save failure from a real probe failure in the
+      // catch, so the user isn't sent debugging network/key when persistence broke.
+      let didCommitApiKey = false
 
       try {
         setApiKeyConnectivity({ kind: 'checking', checking: true, status: HealthStatus.NOT_CHECKED, model })
@@ -104,6 +107,7 @@ export function useProviderConnectionCheck(providerId: string) {
         // path. Committing changes provider.apiKeys but not provider.id / host /
         // inputApiKey, so it does not trip the abort effect.
         await commitInputApiKeyNow()
+        didCommitApiKey = true
 
         if (runId !== runIdRef.current || controller.signal.aborted) return
 
@@ -134,10 +138,18 @@ export function useProviderConnectionCheck(providerId: string) {
       } catch (error) {
         if (runId !== runIdRef.current || controller.signal.aborted) return
 
-        logger.error('Provider connection check failed', { providerId: provider.id, modelId: model.id, error })
+        if (didCommitApiKey) {
+          logger.error('Provider connection check failed', { providerId: provider.id, modelId: model.id, error })
+        } else {
+          logger.error('Failed to persist pending API key before connection check', {
+            providerId: provider.id,
+            modelId: model.id,
+            error
+          })
+        }
         window.toast.error({
           timeout: 8000,
-          title: i18n.t('message.api.connection.failed')
+          title: i18n.t(didCommitApiKey ? 'message.api.connection.failed' : 'settings.provider.api_key.save_failed')
         })
 
         setApiKeyConnectivity({

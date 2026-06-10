@@ -193,14 +193,17 @@ describe('useProviderConnectionCheck', () => {
     // Key persistence now runs before the check, so a save failure aborts before
     // probing (the check would otherwise validate a stale saved key) and before
     // enabling, surfacing only the failure path — never success-then-failure.
+    // The toast must name the save failure, not the connection: nothing was probed.
     expect(checkApiMock).not.toHaveBeenCalled()
     expect(updateProviderMock).not.toHaveBeenCalled()
-    expect(loggerErrorMock).toHaveBeenCalledWith('Provider connection check failed', {
+    expect(loggerErrorMock).toHaveBeenCalledWith('Failed to persist pending API key before connection check', {
       providerId: 'cherryin',
       modelId: 'cherryin::claude-4-sonnet',
       error: saveError
     })
-    expect(window.toast.error).toHaveBeenCalled()
+    expect(window.toast.error).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'settings.provider.api_key.save_failed' })
+    )
     expect(window.toast.success).not.toHaveBeenCalled()
   })
 
