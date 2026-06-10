@@ -59,15 +59,17 @@ describe('deleteKnowledgeItemVectors', () => {
     expect(deleteMaterialMock).toHaveBeenCalledWith('note-2')
   })
 
-  it('attempts every vector cleanup before reporting failed item ids', async () => {
+  it('attempts every vector cleanup before reporting failed item ids with their root causes', async () => {
     deleteMaterialMock
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error('note-2 failed'))
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error('note-4 failed'))
 
+    // Each failed id carries its own reason — an id-only list would leave the
+    // aggregate error with nothing to diagnose the individual deletions.
     await expect(deleteKnowledgeItemVectors(createBase(), ['note-1', 'note-2', 'note-3', 'note-4'])).rejects.toThrow(
-      'note-2, note-4'
+      'note-2 (note-2 failed), note-4 (note-4 failed)'
     )
 
     expect(deleteMaterialMock).toHaveBeenCalledTimes(4)

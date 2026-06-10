@@ -19,6 +19,7 @@ import {
   knowledgeLockManager,
   listExistingEmbeddingHashesMock,
   loadKnowledgeItemDocumentsMock,
+  loggerWarnMock,
   NOTE_ITEM_ID,
   rebuildMaterialMock
 } from './jobHandlerTestUtils'
@@ -102,6 +103,42 @@ describe('index-documents job handler', () => {
     const writtenHashes = lastRebuildInput().embeddings.map((embedding) => embedding.embeddingTextHash)
     expect(writtenHashes).not.toContain(storedHash)
     expect(writtenHashes).toEqual(expect.arrayContaining([hashEmbeddingText('alpha'), hashEmbeddingText('charlie')]))
+  })
+
+  it('embeds nothing when every chunk body is already stored (full A4 reuse)', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
+    knowledgeItemUpdateStatusMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
+    loadKnowledgeItemDocumentsMock.mockResolvedValueOnce(distinctDocuments())
+    listExistingEmbeddingHashesMock.mockResolvedValueOnce(new Set(DISTINCT_DOCS.map(hashEmbeddingText)))
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+
+    // The paid embed seam receives zero bodies (embedKnowledgeTexts itself
+    // short-circuits an empty input before AiService, pinned in embed.test.ts),
+    // and the rebuild reuses the stored vectors: no embeddings re-supplied.
+    expect(embedKnowledgeTextsMock.mock.calls[0][1]).toEqual([])
+    expect(lastRebuildInput().embeddings).toEqual([])
+    expect(lastRebuildInput().units).toHaveLength(DISTINCT_DOCS.length)
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
+  })
+
+  it('warns when an item yields no indexable text, and still completes it with an empty material', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
+    knowledgeItemUpdateStatusMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
+    loadKnowledgeItemDocumentsMock.mockResolvedValueOnce([])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+
+    // An image-only PDF or failed extraction must leave a diagnosable trace —
+    // without the warn it would look indexed while matching nothing.
+    expect(loggerWarnMock).toHaveBeenCalledWith(
+      'Knowledge item produced no indexable text; it will complete with an empty index',
+      expect.objectContaining({ baseId: 'kb-1', itemId: NOTE_ITEM_ID })
+    )
+    expect(lastRebuildInput().units).toEqual([])
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
   })
 
   it('stamps file-material origin/text_format: a processed Markdown artifact is a processor product', async () => {

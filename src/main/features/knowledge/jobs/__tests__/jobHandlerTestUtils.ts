@@ -27,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   deleteMaterialMock: vi.fn(),
   listExistingEmbeddingHashesMock: vi.fn(),
   embedKnowledgeTextsMock: vi.fn(),
+  loggerWarnMock: vi.fn(),
   scheduleItemMock: vi.fn()
 }))
 
@@ -51,6 +52,7 @@ export const {
   deleteMaterialMock,
   listExistingEmbeddingHashesMock,
   embedKnowledgeTextsMock,
+  loggerWarnMock,
   scheduleItemMock
 } = mocks
 
@@ -89,7 +91,7 @@ vi.mock('@logger', () => ({
     withContext: () => ({
       error: vi.fn(),
       info: vi.fn(),
-      warn: vi.fn()
+      warn: mocks.loggerWarnMock
     })
   }
 }))

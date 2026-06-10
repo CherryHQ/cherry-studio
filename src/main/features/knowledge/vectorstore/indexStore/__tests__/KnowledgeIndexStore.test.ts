@@ -104,6 +104,17 @@ describe('KnowledgeIndexStore', () => {
     }
   })
 
+  it('throws on a unit whose body row is missing instead of fabricating an empty chunk', async () => {
+    await store.rebuildMaterial('m1', buildInput('alpha beta', [[0, 5]]))
+
+    // Corrupt the store: drop the body row out from under the unit. The same
+    // damage silently excludes the unit from search (INNER JOIN); the list lane
+    // must fail loudly rather than add a third symptom (existing-but-empty chunk).
+    await driver.execute(`DELETE FROM search_text WHERE target_type = 'search_unit' AND kind = 'body'`)
+
+    await expect(store.listMaterialUnits('m1')).rejects.toThrow('missing the body text for unit')
+  })
+
   it('atomically replaces all prior units on rebuild (no old/new mix)', async () => {
     await store.rebuildMaterial(
       'm1',

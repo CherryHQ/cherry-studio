@@ -6,6 +6,8 @@ import {
 } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { hashChunkerConfig } from '../indexStore/hashing'
+
 const {
   loggerDebugMock,
   loggerErrorMock,
@@ -177,7 +179,10 @@ describe('KnowledgeVectorStoreService', () => {
       baseId: base.id,
       embeddingModelId: base.embeddingModelId,
       dimensions: base.dimensions,
-      chunkerConfigHash: expect.any(String)
+      // Pin the exact fingerprint (real hashing, mocked persistence): a swapped
+      // (chunkOverlap, chunkSize) argument order would stamp a wrong-but-stable
+      // hash into every index.sqlite, which expect.any(String) cannot catch.
+      chunkerConfigHash: hashChunkerConfig(base.chunkSize, base.chunkOverlap)
     })
   })
 
@@ -254,6 +259,11 @@ describe('KnowledgeVectorStoreService', () => {
 
     expect(store.close).toHaveBeenCalledTimes(1)
     expect(deleteDirMock).toHaveBeenCalledWith(base.id)
+    // Close must precede directory removal — on Windows a still-open sqlite
+    // handle makes the directory deletion fail.
+    expect((store.close as unknown as ReturnType<typeof vi.fn>).mock.invocationCallOrder[0]).toBeLessThan(
+      deleteDirMock.mock.invocationCallOrder[0]
+    )
 
     // Cache was evicted: the next open builds a fresh instance.
     const reopened = await service.getIndexStore(base)

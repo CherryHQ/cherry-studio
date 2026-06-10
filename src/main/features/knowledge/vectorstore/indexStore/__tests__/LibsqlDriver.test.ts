@@ -164,4 +164,36 @@ describe('LibsqlDriver', () => {
     // A second close (e.g. app shutdown after an explicit deleteStore) is a no-op.
     await expect(driver.close()).resolves.toBeUndefined()
   })
+
+  it('rejects a queued transaction with the deterministic closed error when close lands while it waits', async () => {
+    // Pins the post-acquire assertOpen re-check: B passes the entry check while A
+    // holds the mutex, the driver closes, then B acquires — without the re-check B
+    // would BEGIN on the closed client and fail with an opaque libsql error.
+    let releaseFirst: () => void = () => undefined
+    const firstHolds = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    let firstEntered: () => void = () => undefined
+    const firstStarted = new Promise<void>((resolve) => {
+      firstEntered = resolve
+    })
+
+    const first = driver.transaction(async (tx) => {
+      await tx.execute('INSERT INTO t (id, v) VALUES (?, ?)', [1, 'x'])
+      firstEntered()
+      await firstHolds
+    })
+    await firstStarted
+
+    const queued = driver.transaction(async (tx) => tx.execute('SELECT 1'))
+    queued.catch(() => undefined) // assertion awaits it below; avoid an unhandled rejection in between
+
+    await driver.close()
+    releaseFirst()
+
+    await expect(queued).rejects.toThrow('Knowledge index store driver is closed')
+    // Whether the in-flight transaction's commit still lands after close() is
+    // libsql-internal, not contractual — just let it settle either way.
+    await first.catch(() => undefined)
+  })
 })

@@ -2189,8 +2189,6 @@
         "reindex": "Reindex",
         "selected_count": "{{count}} selected"
       },
-      "chunk_delete_confirm_description": "After deletion, this chunk will no longer be used for retrieval. Reindexing the data source will generate it again.",
-      "chunk_delete_confirm_title": "Delete Chunk?",
       "chunks_count": "{{count}} chunks",
       "delete_confirm_description": "This data source and its index data cannot be recovered after deletion.",
       "delete_confirm_title": "Delete Data Source?",

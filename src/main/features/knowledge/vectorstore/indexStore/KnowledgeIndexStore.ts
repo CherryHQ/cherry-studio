@@ -206,16 +206,25 @@ export class KnowledgeIndexStore {
       [materialId]
     )
 
-    return result.rows.map((row) => ({
-      unitId: row.unit_id as string,
-      materialId: row.material_id as string,
-      unitType: row.unit_type as KnowledgeSearchUnit['unitType'],
-      unitIndex: Number(row.unit_index),
-      title: (row.title as string | null) ?? null,
-      charStart: Number(row.char_start),
-      charEnd: Number(row.char_end),
-      text: (row.body as string | null) ?? ''
-    }))
+    return result.rows.map((row) => {
+      // rebuildMaterial writes a unit and its body row in one transaction, so a
+      // missing body is store corruption. Fail loudly: the search lanes INNER JOIN
+      // (silently excluding the unit), and fabricating '' here would give the same
+      // damage a third symptom — an existing-but-empty chunk in the UI.
+      if (row.body == null) {
+        throw new Error(`Knowledge index store is missing the body text for unit ${row.unit_id as string}`)
+      }
+      return {
+        unitId: row.unit_id as string,
+        materialId: row.material_id as string,
+        unitType: row.unit_type as KnowledgeSearchUnit['unitType'],
+        unitIndex: Number(row.unit_index),
+        title: (row.title as string | null) ?? null,
+        charStart: Number(row.char_start),
+        charEnd: Number(row.char_end),
+        text: row.body as string
+      }
+    })
   }
 
   /**

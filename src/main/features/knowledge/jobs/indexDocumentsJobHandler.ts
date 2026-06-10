@@ -61,6 +61,16 @@ export function createIndexDocumentsJobHandler(
       // Read and chunk outside the base lock; these phases can be slow and do not mutate shared state.
       const documents = await readItemDocuments(ctx, item)
       const chunked = chunkItemDocuments(base, documents)
+      if (chunked.chunks.length === 0) {
+        // Deliberate: the item still completes (an empty material is written) so the
+        // UI doesn't show a stuck/failed item, but leave a trace — an image-only PDF
+        // or failed extraction would otherwise look indexed while matching nothing.
+        logger.warn('Knowledge item produced no indexable text; it will complete with an empty index', {
+          baseId: ctx.input.baseId,
+          itemId: ctx.input.itemId,
+          jobId: ctx.jobId
+        })
+      }
 
       // Mark embedding separately so the UI reflects the current long-running phase.
       reportKnowledgeProgress(ctx, 40, { stage: 'embedding', currentFile: 0, totalFiles: 1 })
