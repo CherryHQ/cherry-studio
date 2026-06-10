@@ -125,6 +125,16 @@ describe('knowledge routes (v2)', () => {
     expect(mockSearch).toHaveBeenCalledWith('kb-1', 'hi', { topK: 15 })
   })
 
+  it('POST /search rejects the pre-rename document_count field instead of silently ignoring it', async () => {
+    // The body schema is strict: an old client still sending document_count must
+    // get a loud validation failure, not a request that silently runs with the
+    // default top_k.
+    mockList.mockResolvedValue({ items: [kb('kb-1', 'KB 1')], total: 1, page: 1 })
+    const { status } = await call('POST', '/knowledge-bases/search', { query: 'hi', document_count: 15 })
+    expect(status).toBe(422)
+    expect(mockSearch).not.toHaveBeenCalled()
+  })
+
   it('POST /search defaults top_k to the service default (10) when omitted', async () => {
     // top_k mirrors kb__search topK: omitting it must behave like the agent path,
     // i.e. the schema fills KNOWLEDGE_SEARCH_DEFAULT_TOP_K (10), not the old 5.

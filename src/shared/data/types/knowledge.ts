@@ -517,6 +517,14 @@ export const RestoreKnowledgeBaseSchema = z.strictObject({
 export type RestoreKnowledgeBaseDto = z.input<typeof RestoreKnowledgeBaseSchema>
 
 /**
+ * Per-call topK contract shared by every search face: the service fallback, the
+ * kb__search tool schema, and the REST gateway's `top_k` all read these two so
+ * the bounds and the omitted-value behavior cannot drift apart.
+ */
+export const KNOWLEDGE_SEARCH_DEFAULT_TOP_K = 10
+export const KNOWLEDGE_SEARCH_MAX_TOP_K = 50
+
+/**
  * Per-search retrieval knobs passed per request (e.g. by the kb__search tool).
  * Omitted fields fall back to the service defaults. The hybrid weight is NOT
  * here — it is a per-base configured setting (`knowledge_base.hybridAlpha`), not

@@ -8,6 +8,7 @@ import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
+  KNOWLEDGE_SEARCH_DEFAULT_TOP_K,
   type KnowledgeAddItemInput,
   KnowledgeAddItemInputSchema,
   type KnowledgeBase,
@@ -58,8 +59,6 @@ import type { KnowledgeIndexSearchMatch } from './vectorstore/indexStore/model'
 const logger = loggerService.withContext('KnowledgeService')
 const SEARCH_TOKEN_PATTERN = /[\p{L}\p{N}_]+/u
 const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
-/** Result count used when the caller doesn't pass an explicit topK. */
-const KNOWLEDGE_SEARCH_DEFAULT_TOP_K = 10
 /**
  * Fetch this many × the requested result count as index candidates. The index
  * store only filters by material state; the item-visibility filter (missing /

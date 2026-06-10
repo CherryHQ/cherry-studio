@@ -1,3 +1,4 @@
+import { KNOWLEDGE_SEARCH_MAX_TOP_K } from '@shared/data/types/knowledge'
 import * as z from 'zod'
 
 /**
@@ -65,7 +66,7 @@ export const kbSearchInputSchema = z.object({
     .number()
     .int()
     .positive()
-    .max(50)
+    .max(KNOWLEDGE_SEARCH_MAX_TOP_K)
     .optional()
     .describe(
       'Maximum number of result chunks to return per base. Omit for a sensible default; ' +
