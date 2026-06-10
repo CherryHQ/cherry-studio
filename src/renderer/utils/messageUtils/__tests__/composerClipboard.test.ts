@@ -7,8 +7,50 @@ import {
   createComposerRichClipboardContentFromPartGroups,
   createComposerRichClipboardContentFromParts,
   createFileMetadataFromComposerClipboardToken,
-  readComposerClipboardFragment
+  readComposerClipboardFragment,
+  readComposerClipboardFragmentFromSessionCache,
+  writeComposerRichClipboardContent
 } from '../composerClipboard'
+
+function mockRichClipboardWriteEnvironment(
+  options: { supportsCustomFormats?: boolean; failCustomWrite?: boolean } = {}
+) {
+  const write = vi.fn(async () => {})
+  if (options.failCustomWrite) write.mockRejectedValueOnce(new Error('write denied'))
+
+  Object.defineProperty(window, 'ClipboardItem', {
+    configurable: true,
+    value: class {
+      static supports = () => options.supportsCustomFormats ?? true
+      constructor(_items: Record<string, Blob>) {
+        void _items
+      }
+    }
+  })
+  Object.defineProperty(window.navigator, 'clipboard', {
+    configurable: true,
+    value: { write, writeText: vi.fn(async () => {}) }
+  })
+  return { write }
+}
+
+function createSessionCacheTestContent() {
+  const fragment = createComposerClipboardFragment([
+    {
+      type: 'token',
+      token: { id: 'skill:pdf', kind: 'skill', label: 'PDF', promptText: 'Use PDF' },
+      fallbackText: '/pdf/'
+    }
+  ])
+  return {
+    fragment,
+    content: {
+      plainText: 'line one\nline two',
+      html: '<div>rich copy</div>',
+      customFormats: { [COMPOSER_CLIPBOARD_FRAGMENT_MIME]: fragment }
+    }
+  }
+}
 
 describe('composer clipboard', () => {
   it('keeps the file path out of the private fragment while preserving a session restore handle', () => {
@@ -814,5 +856,44 @@ describe('composer clipboard', () => {
     expect(readComposerClipboardFragment(fragmentText)?.segments).toEqual([
       { type: 'text', text: 'Run command secret.pdf' }
     ])
+  })
+
+  it('caches the last rich write and restores it only for matching pasted text', async () => {
+    const { fragment, content } = createSessionCacheTestContent()
+    mockRichClipboardWriteEnvironment()
+
+    await writeComposerRichClipboardContent(content)
+
+    expect(readComposerClipboardFragmentFromSessionCache('line one\nline two')).toEqual(
+      readComposerClipboardFragment(fragment)
+    )
+    expect(readComposerClipboardFragmentFromSessionCache('line one\r\nline two')).toEqual(
+      readComposerClipboardFragment(fragment)
+    )
+    expect(readComposerClipboardFragmentFromSessionCache('other text')).toBeNull()
+    expect(readComposerClipboardFragmentFromSessionCache('')).toBeNull()
+  })
+
+  it('clears the session cache when the private format is not supported', async () => {
+    const { content } = createSessionCacheTestContent()
+    mockRichClipboardWriteEnvironment()
+    await writeComposerRichClipboardContent(content)
+
+    mockRichClipboardWriteEnvironment({ supportsCustomFormats: false })
+    await writeComposerRichClipboardContent(content)
+
+    expect(readComposerClipboardFragmentFromSessionCache('line one\nline two')).toBeNull()
+  })
+
+  it('clears the session cache when writing the private format fails', async () => {
+    const { content } = createSessionCacheTestContent()
+    mockRichClipboardWriteEnvironment()
+    await writeComposerRichClipboardContent(content)
+
+    const { write } = mockRichClipboardWriteEnvironment({ failCustomWrite: true })
+    await writeComposerRichClipboardContent(content)
+
+    expect(write).toHaveBeenCalledTimes(2)
+    expect(readComposerClipboardFragmentFromSessionCache('line one\nline two')).toBeNull()
   })
 })

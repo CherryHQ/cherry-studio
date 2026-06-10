@@ -660,23 +660,21 @@ export function readComposerClipboardFragmentFromDataTransfer(
   return readComposerClipboardFragment(clipboardData?.getData(COMPOSER_CLIPBOARD_FRAGMENT_MIME) || '')
 }
 
-export async function readComposerClipboardFragmentFromSystemClipboard(): Promise<ComposerClipboardFragment | null> {
-  const readClipboard = navigator.clipboard?.read?.bind(navigator.clipboard)
-  if (!readClipboard) return null
+// Session cache: part of this renderer session's restoration context. Holds the
+// last rich copy's fragment so pasting that copy restores tokens without ever
+// reading the system clipboard. Non-null ⇔ the last rich write put the private
+// fragment on the OS clipboard.
+let sessionCachedRichClipboardWrite: { plainText: string; fragment: ComposerClipboardFragment } | null = null
 
-  try {
-    const items = await readClipboard()
-    for (const item of items) {
-      if (!item.types.includes(COMPOSER_CLIPBOARD_FRAGMENT_MIME)) continue
+// The OS clipboard may convert \n to \r\n on Windows round-trips.
+function normalizeClipboardLineEndings(text: string) {
+  return text.replace(/\r\n/g, '\n')
+}
 
-      const blob = await item.getType(COMPOSER_CLIPBOARD_FRAGMENT_MIME)
-      return readComposerClipboardFragment(await blob.text())
-    }
-  } catch {
-    return null
-  }
-
-  return null
+export function readComposerClipboardFragmentFromSessionCache(pastedText: string): ComposerClipboardFragment | null {
+  const cached = sessionCachedRichClipboardWrite
+  if (!cached || !pastedText) return null
+  return normalizeClipboardLineEndings(pastedText) === cached.plainText ? cached.fragment : null
 }
 
 export function writeComposerClipboardData(
@@ -692,6 +690,7 @@ export function writeComposerClipboardData(
 }
 
 export async function writeComposerRichClipboardContent(content: ComposerRichClipboardContent) {
+  sessionCachedRichClipboardWrite = null
   const clipboardItemConstructor = window.ClipboardItem
 
   if (navigator.clipboard && clipboardItemConstructor) {
@@ -710,6 +709,12 @@ export async function writeComposerRichClipboardContent(content: ComposerRichCli
     if (Object.keys(customItems).length > 0) {
       try {
         await navigator.clipboard.write([new clipboardItemConstructor({ ...baseItems, ...customItems })])
+        const fragment = customItems[COMPOSER_CLIPBOARD_FRAGMENT_MIME]
+          ? readComposerClipboardFragment(content.customFormats?.[COMPOSER_CLIPBOARD_FRAGMENT_MIME] ?? '')
+          : null
+        if (fragment) {
+          sessionCachedRichClipboardWrite = { plainText: normalizeClipboardLineEndings(content.plainText), fragment }
+        }
         return
       } catch {
         await navigator.clipboard.write([new clipboardItemConstructor(baseItems)])

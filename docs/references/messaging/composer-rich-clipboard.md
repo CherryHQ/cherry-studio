@@ -31,6 +31,11 @@ path or original path-derived id. A restorable file token carries only an
 unguessable handle plus display fields; the corresponding file metadata stays in
 the current renderer session's in-memory restoration context.
 
+The restoration context has two parts: the file restoration handle registry and
+the session cache. The session cache holds the fragment of the last rich copy
+written through the async clipboard API, keyed by its plain text, so pasting
+that copy restores tokens without reading the system clipboard.
+
 ## Flow
 
 ```mermaid
@@ -39,15 +44,33 @@ flowchart TD
   B --> C["Write text/plain"]
   B --> D["Write safe text/html"]
   B --> E["Write private web custom format with handles when supported"]
+  E --> E2["Record fragment in the session cache"]
   E --> F["Paste into ComposerSurface"]
   C --> F
-  F --> G{"Private fragment available?"}
+  F --> G{"Private fragment in paste event data?"}
   G -->|Yes| H["Resolve supported tokens and file handles"]
-  G -->|No| I["Parse plain text markers or insert plain text"]
+  G -->|No| G2{"Pasted text matches the session cache?"}
+  G2 -->|Yes| H
+  G2 -->|No| I["Parse plain text markers or insert plain text"]
   H --> J["Update editor content"]
   H --> K["Merge restored FileMetadata into composer files"]
   I --> J
 ```
+
+## Synchronous Paste
+
+Paste handling is fully synchronous and never calls `navigator.clipboard.read()`.
+Fragments written through the async clipboard API are not visible in paste event
+`DataTransfer` data, so `writeComposerRichClipboardContent` records the written
+fragment in the session cache and a paste whose plain text matches the last rich
+copy (after line-ending normalization) restores from there. Alternatives were
+rejected: reading the system clipboard on paste makes every external paste async
+and reads unrelated clipboard data; writing through a synthetic copy event needs
+the deprecated `execCommand`; fingerprinting `text/html` leaks an origin marker.
+The accepted cost is that `quote` and `promptVariable` tokens from message
+copies lose token identity after an app restart or in another Cherry Studio
+instance; `skill` and `knowledge` tokens still restore through plain text
+markers.
 
 ## Restore Rules
 
@@ -68,9 +91,11 @@ flowchart TD
 - `quote` and `promptVariable` tokens are restored from sanitized token fields.
 - Unsupported, unsafe, or unresolved token segments fall back to their visible
   text.
+- A fragment is restored only from the paste event's clipboard data or from the
+  session cache; paste never reads the system clipboard.
 - If the browser cannot write the private custom format, clipboard writing falls
   back to `text/html` plus `text/plain`, then to plain text when `ClipboardItem`
-  is unavailable.
+  is unavailable. Every such fallback clears the session cache.
 
 ## Boundaries
 
@@ -78,7 +103,8 @@ flowchart TD
   clipboard writes. Message components request the capability; page/window
   adapters provide it.
 - `composerClipboard.ts` owns private fragment parsing, serialization, HTML
-  escaping, in-memory file restoration handles, and system clipboard helpers.
+  escaping, the restoration context (file restoration handles and the session
+  cache), and system clipboard write helpers.
 - `ComposerSurface` owns editor copy/paste event handling and delegates fragment
   parsing/projection to utilities.
 - Normal OS file paste and drag/drop are separate flows that use the browser or

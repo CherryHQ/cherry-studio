@@ -16,7 +16,7 @@ import { type FileMetadata, isPastedTextFileMetadata } from '@renderer/types'
 import {
   createComposerRichClipboardContentFromDraft,
   readComposerClipboardFragmentFromDataTransfer,
-  readComposerClipboardFragmentFromSystemClipboard,
+  readComposerClipboardFragmentFromSessionCache,
   writeComposerClipboardData
 } from '@renderer/utils/messageUtils/composerClipboard'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
@@ -1138,47 +1138,19 @@ export default function ComposerSurface({
           resolveSkillMarker,
           resolveKnowledgeBaseMarker
         }
-        const applyClipboardPasteOverride = (
-          clipboardPasteOverride: NonNullable<ReturnType<typeof getComposerClipboardPasteOverride>>
-        ) => {
-          const currentEditor = editorRef.current
-          if (!currentEditor || currentEditor.isDestroyed) return
-          currentEditor.chain().focus().insertContent(clipboardPasteOverride.content).run()
-          if (clipboardPasteOverride.files.length > 0) {
-            setFiles((prev) => mergeComposerClipboardFiles(prev, clipboardPasteOverride.files))
-          }
-        }
-
-        const clipboardPasteOverride = getComposerClipboardPasteOverride(
-          readComposerClipboardFragmentFromDataTransfer(event.clipboardData),
-          pasteOptions
-        )
+        const clipboardPasteOverride =
+          getComposerClipboardPasteOverride(
+            readComposerClipboardFragmentFromDataTransfer(event.clipboardData),
+            pasteOptions
+          ) ??
+          getComposerClipboardPasteOverride(readComposerClipboardFragmentFromSessionCache(pastedText), pasteOptions)
 
         if (clipboardPasteOverride !== null) {
           event.preventDefault()
-          applyClipboardPasteOverride(clipboardPasteOverride)
-          return true
-        }
-
-        if (pastedText) {
-          event.preventDefault()
-          void (async () => {
-            const systemClipboardPasteOverride = getComposerClipboardPasteOverride(
-              await readComposerClipboardFragmentFromSystemClipboard(),
-              pasteOptions
-            )
-            if (systemClipboardPasteOverride !== null) {
-              applyClipboardPasteOverride(systemClipboardPasteOverride)
-              return
-            }
-
-            const fallbackPlainTextOverride = getComposerPlainTextPasteOverride(textToInsert, pasteOptions)
-            if (fallbackPlainTextOverride !== null) {
-              const currentEditor = editorRef.current
-              if (!currentEditor || currentEditor.isDestroyed) return
-              currentEditor.chain().focus().insertContent(fallbackPlainTextOverride).run()
-            }
-          })()
+          editor.chain().focus().insertContent(clipboardPasteOverride.content).run()
+          if (clipboardPasteOverride.files.length > 0) {
+            setFiles((prev) => mergeComposerClipboardFiles(prev, clipboardPasteOverride.files))
+          }
           return true
         }
       }

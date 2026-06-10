@@ -2,7 +2,8 @@ import { COMPOSER_FILE_KIND } from '@renderer/types'
 import {
   COMPOSER_CLIPBOARD_FRAGMENT_MIME,
   createComposerClipboardFragment,
-  readComposerClipboardFragment
+  readComposerClipboardFragment,
+  writeComposerRichClipboardContent
 } from '@renderer/utils/messageUtils/composerClipboard'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
@@ -291,6 +292,31 @@ function createComposerCopyView(content: unknown[], options: { empty?: boolean }
       }
     }
   }
+}
+
+async function primeComposerClipboardSessionCache(plainText: string, fragment: string) {
+  Object.defineProperty(window, 'ClipboardItem', {
+    configurable: true,
+    value: class {
+      constructor(_items: Record<string, Blob>) {
+        void _items
+      }
+    }
+  })
+  const clipboard = {
+    write: vi.fn(async () => {}),
+    read: vi.fn(async () => [])
+  }
+  Object.defineProperty(window.navigator, 'clipboard', {
+    configurable: true,
+    value: clipboard
+  })
+  await writeComposerRichClipboardContent({
+    plainText,
+    html: '<div>rich copy</div>',
+    customFormats: { [COMPOSER_CLIPBOARD_FRAGMENT_MIME]: fragment }
+  })
+  return clipboard
 }
 
 describe('ComposerSurface', () => {
@@ -1676,7 +1702,7 @@ describe('ComposerSurface', () => {
     expect(resolveSkillMarker).toHaveBeenCalledWith('pdf')
   })
 
-  it('restores private clipboard fragments from async clipboard when paste data omits custom formats', async () => {
+  it('restores private clipboard fragments from the session cache when paste data omits custom formats', async () => {
     const resolveSkillMarker = vi.fn((marker: string) =>
       marker === 'pdf'
         ? {
@@ -1699,19 +1725,7 @@ describe('ComposerSurface', () => {
         fallbackText: '/plain-only/'
       }
     ])
-    const getType = vi.fn(async () => ({ text: async () => fragment }))
-    const clipboard = {
-      read: vi.fn(async () => [
-        {
-          types: [COMPOSER_CLIPBOARD_FRAGMENT_MIME],
-          getType
-        }
-      ])
-    }
-    Object.defineProperty(window.navigator, 'clipboard', {
-      configurable: true,
-      value: clipboard
-    })
+    const clipboard = await primeComposerClipboardSessionCache('/plain-only/', fragment)
 
     render(<ComposerSurface {...baseProps} resolveSkillMarker={resolveSkillMarker} />)
 
@@ -1728,29 +1742,78 @@ describe('ComposerSurface', () => {
 
     expect(handled).toBe(true)
     expect(preventDefault).toHaveBeenCalled()
-    await waitFor(() => expect(clipboard.read).toHaveBeenCalled())
-    await waitFor(() =>
-      expect(mocks.insertContent).toHaveBeenCalledWith([
-        {
-          type: 'composerToken',
-          attrs: {
-            id: 'skill:pdf',
-            kind: 'skill',
-            label: 'PDF',
-            promptText: 'Use the PDF skill.'
-          }
+    expect(mocks.insertContent).toHaveBeenCalledWith([
+      {
+        type: 'composerToken',
+        attrs: {
+          id: 'skill:pdf',
+          kind: 'skill',
+          label: 'PDF',
+          promptText: 'Use the PDF skill.'
         }
-      ])
-    )
+      }
+    ])
+    expect(clipboard.read).not.toHaveBeenCalled()
     expect(resolveSkillMarker).toHaveBeenCalledWith('pdf')
   })
 
-  it('falls back to inserting plain text once when async clipboard has no private fragment', async () => {
+  it('matches the session cache across Windows clipboard line ending round-trips', async () => {
+    const resolveSkillMarker = vi.fn((marker: string) =>
+      marker === 'pdf'
+        ? {
+            id: 'skill:pdf',
+            kind: 'skill' as const,
+            label: 'PDF',
+            promptText: 'Use the PDF skill.'
+          }
+        : null
+    )
+    const fragment = createComposerClipboardFragment([
+      {
+        type: 'token',
+        token: {
+          id: 'skill:pdf',
+          kind: 'skill',
+          label: 'PDF',
+          promptText: 'Use the PDF skill.'
+        },
+        fallbackText: '/pdf/'
+      }
+    ])
+    const clipboard = await primeComposerClipboardSessionCache('line one\nline two', fragment)
+
+    render(<ComposerSurface {...baseProps} resolveSkillMarker={resolveSkillMarker} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => (type === 'text/plain' ? 'line one\r\nline two' : ''))
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(true)
+    expect(mocks.insertContent).toHaveBeenCalledWith([
+      {
+        type: 'composerToken',
+        attrs: {
+          id: 'skill:pdf',
+          kind: 'skill',
+          label: 'PDF',
+          promptText: 'Use the PDF skill.'
+        }
+      }
+    ])
+    expect(clipboard.read).not.toHaveBeenCalled()
+  })
+
+  it('inserts external plain text synchronously without reading the system clipboard', async () => {
+    const read = vi.fn(async () => [])
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
-      value: {
-        read: vi.fn(async () => [])
-      }
+      value: { read }
     })
     render(<ComposerSurface {...baseProps} />)
 
@@ -1767,11 +1830,12 @@ describe('ComposerSurface', () => {
 
     expect(handled).toBe(true)
     expect(preventDefault).toHaveBeenCalled()
-    await waitFor(() => expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: 'plain paste' }]))
+    expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: 'plain paste' }])
     expect(mocks.insertContent).toHaveBeenCalledTimes(1)
+    expect(read).not.toHaveBeenCalled()
   })
 
-  it('prefers paste event private fragments over async clipboard fragments', async () => {
+  it('prefers paste event private fragments over the session cache', async () => {
     const resolveSkillMarker = vi.fn((marker: string) =>
       marker === 'event'
         ? {
@@ -1780,12 +1844,12 @@ describe('ComposerSurface', () => {
             label: 'Event Skill',
             promptText: 'Use event skill.'
           }
-        : marker === 'async'
+        : marker === 'cached'
           ? {
-              id: 'skill:async',
+              id: 'skill:cached',
               kind: 'skill' as const,
-              label: 'Async Skill',
-              promptText: 'Use async skill.'
+              label: 'Cached Skill',
+              promptText: 'Use cached skill.'
             }
           : null
     )
@@ -1801,29 +1865,19 @@ describe('ComposerSurface', () => {
         fallbackText: '/event/'
       }
     ])
-    const asyncFragment = createComposerClipboardFragment([
+    const cachedFragment = createComposerClipboardFragment([
       {
         type: 'token',
         token: {
-          id: 'skill:async',
+          id: 'skill:cached',
           kind: 'skill',
-          label: 'Async Skill',
-          promptText: 'Use async skill.'
+          label: 'Cached Skill',
+          promptText: 'Use cached skill.'
         },
-        fallbackText: '/async/'
+        fallbackText: '/cached/'
       }
     ])
-    Object.defineProperty(navigator, 'clipboard', {
-      configurable: true,
-      value: {
-        read: vi.fn(async () => [
-          {
-            types: [COMPOSER_CLIPBOARD_FRAGMENT_MIME],
-            getType: vi.fn(async () => new Blob([asyncFragment]))
-          }
-        ])
-      }
-    })
+    const clipboard = await primeComposerClipboardSessionCache('/event/', cachedFragment)
     render(<ComposerSurface {...baseProps} resolveSkillMarker={resolveSkillMarker} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
@@ -1852,9 +1906,9 @@ describe('ComposerSurface', () => {
         }
       }
     ])
-    expect(navigator.clipboard.read).not.toHaveBeenCalled()
+    expect(clipboard.read).not.toHaveBeenCalled()
     expect(resolveSkillMarker).toHaveBeenCalledWith('event')
-    expect(resolveSkillMarker).not.toHaveBeenCalledWith('async')
+    expect(resolveSkillMarker).not.toHaveBeenCalledWith('cached')
   })
 
   it('restores private clipboard file fragments with handles into file tokens and file state', async () => {
