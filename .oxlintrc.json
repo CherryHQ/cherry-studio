@@ -16,8 +16,6 @@
     ".gitignore",
     "scripts/cloudflare-worker.js",
     "src/main/services/nutstore/sso/lib/**",
-    "src/main/integration/cherryai/index.js",
-    "src/main/services/nutstore/sso/lib/**",
     "src/renderer/ui/**",
     "packages/**/dist",
     "eslint.config.mjs",
