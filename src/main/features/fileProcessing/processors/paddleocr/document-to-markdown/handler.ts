@@ -1,4 +1,4 @@
-import { type JobStatus,PaddleOCRClient } from '@paddleocr/api-sdk'
+import { type JobStatus, PaddleOCRClient } from '@paddleocr/api-sdk'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileInfo } from '@shared/file/types'
 import { net } from 'electron'
@@ -95,7 +95,10 @@ export async function buildPollResult(
 
   if (status.state === 'done') {
     const result = await client.waitDocumentParsingResult(providerTaskId, { signal })
-    const markdownContent = result.pages.map((p) => p.markdownText).join('\n\n').trim()
+    const markdownContent = result.pages
+      .map((p) => p.markdownText)
+      .join('\n\n')
+      .trim()
     return { status: 'completed', output: { kind: 'markdown', markdownContent } }
   }
 
