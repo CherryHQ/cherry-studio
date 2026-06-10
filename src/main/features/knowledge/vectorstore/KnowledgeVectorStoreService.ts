@@ -11,6 +11,8 @@ import {
   getKnowledgeVectorStoreFilePath,
   getKnowledgeVectorStoreFilePathSync
 } from '../utils/storage/pathStorage'
+import { hashChunkerConfig } from './indexStore/hashing'
+import { ensureIndexMeta } from './indexStore/indexMeta'
 import { KnowledgeIndexStore } from './indexStore/KnowledgeIndexStore'
 import { openLibsqlIndexDriver } from './indexStore/LibsqlDriver'
 import { libsqlVectorIndex } from './indexStore/LibsqlVectorIndex'
@@ -55,7 +57,7 @@ export class KnowledgeVectorStoreService extends BaseService {
       return cached
     }
 
-    const opening = this.openIndexStore(base.id)
+    const opening = this.openIndexStore(base)
     this.instanceCache.set(base.id, opening)
     try {
       const store = await opening
@@ -123,11 +125,26 @@ export class KnowledgeVectorStoreService extends BaseService {
     }
   }
 
-  private async openIndexStore(baseId: string): Promise<KnowledgeIndexStore> {
-    const dbPath = await getKnowledgeVectorStoreFilePath(baseId)
+  private async openIndexStore(base: CompletedKnowledgeBase): Promise<KnowledgeIndexStore> {
+    const dbPath = await getKnowledgeVectorStoreFilePath(base.id)
     const driver = await openLibsqlIndexDriver(dbPath)
-    await createKnowledgeIndexSchema(driver)
-    return new KnowledgeIndexStore(driver, libsqlVectorIndex)
+    try {
+      await createKnowledgeIndexSchema(driver)
+      // Stamp + verify the index_meta identity row before handing out the store,
+      // so a swapped/corrupted index.sqlite is rejected here (§4.1).
+      await ensureIndexMeta(driver, {
+        baseId: base.id,
+        embeddingModelId: base.embeddingModelId,
+        dimensions: base.dimensions,
+        chunkerConfigHash: hashChunkerConfig(base.chunkSize, base.chunkOverlap)
+      })
+      return new KnowledgeIndexStore(driver, libsqlVectorIndex)
+    } catch (error) {
+      // Close the driver opened above so a failed open never leaks the libsql
+      // file handle (which on Windows would later block deleting the base dir).
+      await driver.close()
+      throw error
+    }
   }
 
   private async storeFileExists(baseId: string): Promise<boolean> {

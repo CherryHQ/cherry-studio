@@ -45,10 +45,12 @@ export const KNOWLEDGE_INDEX_SCHEMA_VERSION = 1
 
 /**
  * Ordered, idempotent DDL for the per-base index database. Every statement uses
- * `IF NOT EXISTS` so re-running on an existing database is a no-op. Order
- * matters only for the FTS virtual table and its triggers (triggers reference
- * the virtual table); relational tables may be created in any order because
- * SQLite resolves foreign-key targets at use time, not at CREATE time.
+ * `IF NOT EXISTS` so re-running on an existing database is a no-op. Relational
+ * *tables* may be created in any order because SQLite resolves foreign-key
+ * targets at use time, not at CREATE time; but each `CREATE INDEX` must follow
+ * its target table, and the FTS triggers must follow the FTS virtual table
+ * (`IF NOT EXISTS` does not save a statement that references a not-yet-created
+ * object — it would fail with "no such table").
  */
 export const KNOWLEDGE_INDEX_SCHEMA_STATEMENTS: readonly string[] = [
   // index_meta — fixed single-row table (CHECK id = 1), not a key-value store.

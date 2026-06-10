@@ -108,11 +108,31 @@ export class KnowledgeService extends BaseService {
     try {
       await vectorStoreService.getIndexStore(base)
     } catch (error) {
-      await knowledgeBaseService.delete(base.id)
+      await this.rollbackFailedBaseCreation(base.id)
       throw error
     }
 
     return base
+  }
+
+  /**
+   * Undo a half-created base after its index store failed to open: remove the
+   * orphaned `.cherry/` directory `getIndexStore` left on disk and drop the DB
+   * row. Both steps are best-effort and logged — a cleanup failure must never
+   * mask the original open error the caller needs to see.
+   */
+  private async rollbackFailedBaseCreation(baseId: string): Promise<void> {
+    const vectorStoreService = application.get('KnowledgeVectorStoreService')
+    try {
+      await vectorStoreService.deleteStore(baseId)
+    } catch (cleanupError) {
+      logger.warn('Failed to remove index store dir during createBase rollback', cleanupError as Error, { baseId })
+    }
+    try {
+      await knowledgeBaseService.delete(baseId)
+    } catch (cleanupError) {
+      logger.warn('Failed to delete knowledge base row during createBase rollback', cleanupError as Error, { baseId })
+    }
   }
 
   async deleteBase(baseId: string): Promise<void> {

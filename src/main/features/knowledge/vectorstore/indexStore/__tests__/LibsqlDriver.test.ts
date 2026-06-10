@@ -91,6 +91,39 @@ describe('LibsqlDriver', () => {
     )
   })
 
+  it('serializes concurrent write transactions instead of failing them with SQLITE_BUSY', async () => {
+    // Without serialization, @libsql/client opens a fresh connection per
+    // concurrent transaction('write') and all but the first BEGIN IMMEDIATE hit
+    // SQLITE_BUSY (upstream #288). The write mutex must make them queue so every
+    // one commits.
+    const ids = Array.from({ length: 12 }, (_, i) => i + 1)
+    const results = await Promise.allSettled(
+      ids.map((id) => driver.transaction((tx) => tx.execute('INSERT INTO t (id, v) VALUES (?, ?)', [id, `v${id}`])))
+    )
+
+    expect(results.every((r) => r.status === 'fulfilled')).toBe(true)
+    const count = await driver.execute('SELECT COUNT(*) AS n FROM t')
+    expect(count.rows[0].n).toBe(ids.length)
+  })
+
+  it('serializes read-modify-write transactions so a contended counter reaches the exact total', async () => {
+    // The mutex queues these so the final value is 10 only because no two overlap.
+    // Without it, the concurrent BEGIN IMMEDIATE writes would instead reject with
+    // SQLITE_BUSY (#288), so this fails on regression too — by rejection here.
+    await driver.execute('INSERT INTO t (id, v) VALUES (?, ?)', [1, '0'])
+    const increments = Array.from({ length: 10 }, () =>
+      driver.transaction(async (tx) => {
+        const current = await tx.execute('SELECT v FROM t WHERE id = 1')
+        const next = Number((current.rows[0].v as string) ?? '0') + 1
+        await tx.execute('UPDATE t SET v = ? WHERE id = 1', [String(next)])
+      })
+    )
+    await Promise.all(increments)
+
+    const final = await driver.execute('SELECT v FROM t WHERE id = 1')
+    expect(Number(final.rows[0].v)).toBe(10)
+  })
+
   it('reports closed state and rejects use after close with a deterministic error', async () => {
     expect(driver.isClosed()).toBe(false)
 

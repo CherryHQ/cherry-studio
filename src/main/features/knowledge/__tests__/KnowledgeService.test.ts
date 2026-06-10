@@ -520,6 +520,20 @@ describe('KnowledgeService', () => {
     expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
   })
 
+  it('rollback removes the orphaned index dir and still surfaces the original error when cleanup itself fails', async () => {
+    const service = new KnowledgeService()
+    getIndexStoreMock.mockRejectedValueOnce(new Error('store failed'))
+    // Even if the orphan-dir cleanup throws, the caller must see the open error.
+    deleteStoreMock.mockRejectedValueOnce(new Error('cleanup boom'))
+
+    await expect(
+      service.createBase({ name: 'KB', dimensions: 3, embeddingModelId: 'provider::embed' })
+    ).rejects.toThrow('store failed')
+
+    expect(deleteStoreMock).toHaveBeenCalledWith('kb-1')
+    expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
+  })
+
   it('deletes base jobs before vector artifacts and SQLite base', async () => {
     const service = new KnowledgeService()
 

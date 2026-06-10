@@ -10,8 +10,10 @@ const {
   loggerDebugMock,
   loggerErrorMock,
   loggerInfoMock,
+  loggerWarnMock,
   openDriverMock,
   createSchemaMock,
+  ensureIndexMetaMock,
   indexStoreCtorMock,
   getPathMock,
   getPathSyncMock,
@@ -21,8 +23,10 @@ const {
   loggerDebugMock: vi.fn(),
   loggerErrorMock: vi.fn(),
   loggerInfoMock: vi.fn(),
+  loggerWarnMock: vi.fn(),
   openDriverMock: vi.fn(),
   createSchemaMock: vi.fn(),
+  ensureIndexMetaMock: vi.fn(),
   indexStoreCtorMock: vi.fn(),
   getPathMock: vi.fn(),
   getPathSyncMock: vi.fn(),
@@ -50,7 +54,8 @@ vi.mock('@logger', () => ({
     withContext: () => ({
       debug: loggerDebugMock,
       info: loggerInfoMock,
-      error: loggerErrorMock
+      error: loggerErrorMock,
+      warn: loggerWarnMock
     })
   }
 }))
@@ -69,6 +74,10 @@ vi.mock('../indexStore/LibsqlVectorIndex', () => ({
 
 vi.mock('../indexStore/schema', () => ({
   createKnowledgeIndexSchema: createSchemaMock
+}))
+
+vi.mock('../indexStore/indexMeta', () => ({
+  ensureIndexMeta: ensureIndexMetaMock
 }))
 
 vi.mock('../../utils/storage/pathStorage', () => ({
@@ -107,8 +116,10 @@ describe('KnowledgeVectorStoreService', () => {
     vi.clearAllMocks()
     getPathMock.mockImplementation(async (baseId: string) => `/tmp/${baseId}/index.sqlite`)
     getPathSyncMock.mockImplementation((baseId: string) => `/tmp/${baseId}/index.sqlite`)
-    openDriverMock.mockResolvedValue({ kind: 'driver' })
+    // Each open returns a fresh closeable driver so failure paths can assert close().
+    openDriverMock.mockImplementation(async () => ({ kind: 'driver', close: vi.fn().mockResolvedValue(undefined) }))
     createSchemaMock.mockResolvedValue(undefined)
+    ensureIndexMetaMock.mockResolvedValue(undefined)
     deleteDirMock.mockResolvedValue(undefined)
     indexStoreCtorMock.mockImplementation(() => ({ close: vi.fn().mockResolvedValue(undefined) }))
   })
@@ -153,6 +164,53 @@ describe('KnowledgeVectorStoreService', () => {
     expect(store).toBe(lastStore())
     expect(openDriverMock).toHaveBeenCalledTimes(2)
     expect(indexStoreCtorMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('stamps and verifies the index_meta identity row before handing out the store', async () => {
+    const service = new KnowledgeVectorStoreService()
+    const base = createBase()
+
+    await service.getIndexStore(base)
+
+    expect(ensureIndexMetaMock).toHaveBeenCalledTimes(1)
+    expect(ensureIndexMetaMock).toHaveBeenCalledWith(expect.objectContaining({ kind: 'driver' }), {
+      baseId: base.id,
+      embeddingModelId: base.embeddingModelId,
+      dimensions: base.dimensions,
+      chunkerConfigHash: expect.any(String)
+    })
+  })
+
+  it('closes the driver and aborts the open when index_meta verification fails (wrong/corrupt base)', async () => {
+    const service = new KnowledgeVectorStoreService()
+    const base = createBase()
+    let openedDriver: { close: ReturnType<typeof vi.fn> } | undefined
+    openDriverMock.mockImplementationOnce(async () => {
+      openedDriver = { kind: 'driver', close: vi.fn().mockResolvedValue(undefined) } as never
+      return openedDriver
+    })
+    ensureIndexMetaMock.mockRejectedValueOnce(new Error('belongs to a different base'))
+
+    await expect(service.getIndexStore(base)).rejects.toThrow('belongs to a different base')
+
+    expect(openedDriver?.close).toHaveBeenCalledTimes(1)
+    expect(indexStoreCtorMock).not.toHaveBeenCalled()
+  })
+
+  it('closes the driver when schema creation fails so the file handle is not leaked', async () => {
+    const service = new KnowledgeVectorStoreService()
+    const base = createBase()
+    let openedDriver: { close: ReturnType<typeof vi.fn> } | undefined
+    openDriverMock.mockImplementationOnce(async () => {
+      openedDriver = { kind: 'driver', close: vi.fn().mockResolvedValue(undefined) } as never
+      return openedDriver
+    })
+    createSchemaMock.mockRejectedValueOnce(new Error('disk full'))
+
+    await expect(service.getIndexStore(base)).rejects.toThrow('disk full')
+
+    expect(openedDriver?.close).toHaveBeenCalledTimes(1)
+    expect(indexStoreCtorMock).not.toHaveBeenCalled()
   })
 
   it('returns undefined from getIndexStoreIfExists when no backing file exists', async () => {

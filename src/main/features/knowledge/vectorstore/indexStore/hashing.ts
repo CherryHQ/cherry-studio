@@ -18,9 +18,10 @@ export function hashEmbeddingText(text: string): string {
 
 /**
  * Stable unit id: the same material / content / chunker result reproduces the
- * same id on rebuild. Excludes `chunker_config_hash` by design — a chunker
- * contract change is handled by `index_meta.chunker_config_hash` triggering a
- * full rebuild. See knowledge-technical-design.md §4.5.
+ * same id on rebuild. Excludes `chunker_config_hash` by design — the chunker
+ * contract is fingerprinted once in `index_meta.chunker_config_hash` (written at
+ * store open), so a future contract change is resolved by a full rebuild rather
+ * than by baking the config into every unit id. See knowledge-technical-design.md §4.5.
  */
 export function computeUnitId(
   materialId: string,
@@ -36,4 +37,13 @@ export function computeUnitId(
 /** Stable `search_text` id derived from its (target_type, target_id, kind) unique key. */
 export function computeSearchTextId(targetType: string, targetId: string, kind: string): string {
   return sha256Hex([targetType, targetId, kind].join(FIELD_SEPARATOR))
+}
+
+/**
+ * Fingerprint of the chunker configuration that affects how content is split,
+ * stored in `index_meta.chunker_config_hash`. A change here means the stored
+ * units no longer match the current contract (see {@link computeUnitId}).
+ */
+export function hashChunkerConfig(chunkSize: number, chunkOverlap: number): string {
+  return sha256Hex([chunkSize, chunkOverlap].join(FIELD_SEPARATOR))
 }
