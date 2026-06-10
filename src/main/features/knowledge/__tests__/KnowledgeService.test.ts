@@ -1154,19 +1154,19 @@ describe('KnowledgeService', () => {
     expect(results.map((result) => result.chunkId)).toEqual(['c1', 'c2'])
   })
 
-  it('hybrid mode embeds the query and passes the provided hybridAlpha through to the store', async () => {
+  it('hybrid mode embeds the query and passes the per-base hybridAlpha through to the store', async () => {
     const service = new KnowledgeService()
-    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ searchMode: 'hybrid' }))
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ searchMode: 'hybrid', hybridAlpha: 0.7 }))
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
     storeSearchMock.mockResolvedValueOnce([
       { unitId: 'c1', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'fused hit', score: 0.02 }
     ])
 
-    const results = await service.search('kb-1', 'hello', { hybridAlpha: 0.7, threshold: 0.5 })
+    const results = await service.search('kb-1', 'hello', { threshold: 0.5 })
 
-    // The query embedding is computed and forwarded, and alpha is passed verbatim
-    // (a lost alpha would silently fall back to 0.5; a reversed bm25/non-bm25 branch
-    // would forward an undefined embedding and the store would reject hybrid search).
+    // The query embedding is computed and forwarded, and the base's alpha is passed
+    // verbatim (a lost alpha would silently fall back to 0.5; a reversed bm25/non-bm25
+    // branch would forward an undefined embedding and the store would reject hybrid).
     expect(aiEmbedManyMock).toHaveBeenCalledWith({
       uniqueModelId: 'provider::embed',
       values: ['hello'],

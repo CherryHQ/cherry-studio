@@ -189,6 +189,12 @@ function normalizeMigratedKnowledgeBaseConfig<T extends Partial<NewKnowledgeBase
     normalized.chunkOverlap = getDefaultChunkOverlap(chunkSize) as T['chunkOverlap']
   }
 
+  if (normalized.hybridAlpha != null) {
+    if (normalized.hybridAlpha < 0 || normalized.hybridAlpha > 1 || normalized.searchMode !== 'hybrid') {
+      normalized.hybridAlpha = undefined as T['hybridAlpha']
+    }
+  }
+
   return normalized
 }
 
@@ -233,6 +239,21 @@ export const transformKnowledgeBase = (
   const trimmedName = base.name.trim()
   if (trimmedName === '') {
     onWarning?.(`Knowledge base ${base.id} has a blank v1 name; falling back to the base id`)
+  }
+
+  // v1 per-base retrieval tuning (threshold / documentCount) is no longer persisted
+  // on the base — it moved to per-call KnowledgeSearchOptions (see
+  // knowledge-technical-design.md §6.1). Surface the drop so a user who tuned a v1
+  // base can tell their saved values weren't carried forward, instead of silently
+  // reverting to v2 defaults.
+  const droppedTuning: string[] = []
+  if (base.threshold != null) droppedTuning.push(`threshold=${base.threshold}`)
+  if (base.documentCount != null) droppedTuning.push(`documentCount=${base.documentCount}`)
+  if (droppedTuning.length > 0) {
+    onWarning?.(
+      `Knowledge base ${base.id} dropped v1 retrieval tuning not carried into v2 (${droppedTuning.join(', ')}); ` +
+        'set it per query via kb__search instead'
+    )
   }
 
   const transformedBase: NewKnowledgeBase = {

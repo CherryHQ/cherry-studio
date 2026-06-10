@@ -164,7 +164,8 @@ describe('useKnowledgeRagConfig', () => {
         chunkOverlap: '256',
         embeddingModelId: 'voyage::voyage-3-large',
         rerankModelId: null,
-        searchMode: 'vector'
+        searchMode: 'vector',
+        hybridAlpha: null
       })
     })
 

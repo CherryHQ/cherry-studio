@@ -80,6 +80,7 @@ export const KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL: KnowledgeBaseErrorCod
 
 export const KnowledgeChunkSizeSchema = z.number().int().positive()
 export const KnowledgeChunkOverlapSchema = z.number().int().min(0)
+export const KnowledgeHybridAlphaSchema = z.number().min(0).max(1)
 export const KnowledgeBaseIdSchema = z.uuidv4()
 export const KnowledgeItemIdSchema = z.uuidv7()
 export const KnowledgeBaseGroupIdInputSchema = z.string().trim().pipe(GroupIdSchema)
@@ -108,6 +109,7 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
   chunkSize: KnowledgeChunkSizeSchema,
   chunkOverlap: KnowledgeChunkOverlapSchema,
   searchMode: KnowledgeSearchModeSchema,
+  hybridAlpha: KnowledgeHybridAlphaSchema.optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
@@ -152,6 +154,14 @@ export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value,
       code: 'custom',
       path: ['chunkOverlap'],
       message: 'Chunk overlap must be smaller than chunk size'
+    })
+  }
+
+  if (value.hybridAlpha != null && value.searchMode !== 'hybrid') {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['hybridAlpha'],
+      message: 'Hybrid alpha requires hybrid search mode'
     })
   }
 })
@@ -462,7 +472,8 @@ const KnowledgeBaseRuntimeConfigSchema = z.strictObject({
   fileProcessorId: z.string().nullable().optional(),
   chunkSize: KnowledgeChunkSizeSchema.optional(),
   chunkOverlap: KnowledgeChunkOverlapSchema.optional(),
-  searchMode: KnowledgeSearchModeSchema.optional()
+  searchMode: KnowledgeSearchModeSchema.optional(),
+  hybridAlpha: KnowledgeHybridAlphaSchema.optional()
 })
 
 const refineRuntimeConfig = (value: z.infer<typeof KnowledgeBaseRuntimeConfigSchema>, ctx: z.RefinementCtx): void => {
@@ -506,17 +517,16 @@ export const RestoreKnowledgeBaseSchema = z.strictObject({
 export type RestoreKnowledgeBaseDto = z.input<typeof RestoreKnowledgeBaseSchema>
 
 /**
- * Per-search retrieval knobs. These are no longer stored on the base; callers
- * (e.g. the kb__search tool) pass them per request. Omitted fields fall back to
- * the service defaults.
+ * Per-search retrieval knobs passed per request (e.g. by the kb__search tool).
+ * Omitted fields fall back to the service defaults. The hybrid weight is NOT
+ * here — it is a per-base configured setting (`knowledge_base.hybridAlpha`), not
+ * a per-call knob.
  */
 export interface KnowledgeSearchOptions {
   /** Maximum number of result chunks to return. */
   topK?: number
   /** Relevance score cutoff in [0, 1]; only applied to relevance-scored results. */
   threshold?: number
-  /** Vector-vs-BM25 weight in [0, 1] for hybrid search; ignored in other modes. */
-  hybridAlpha?: number
 }
 
 const CreateKnowledgeItemBaseSchema = z.strictObject({

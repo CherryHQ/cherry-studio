@@ -127,8 +127,10 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
             searchModeOptions={searchModeOptions}
             rerankModelOptions={rerankModelOptions}
             searchMode={values.searchMode}
+            hybridAlpha={values.hybridAlpha}
             rerankModelId={values.rerankModelId}
             onSearchModeChange={(searchMode) => setValues((currentValues) => ({ ...currentValues, searchMode }))}
+            onHybridAlphaChange={(hybridAlpha) => setValues((currentValues) => ({ ...currentValues, hybridAlpha }))}
             onRerankModelChange={(rerankModelId) => setValues((currentValues) => ({ ...currentValues, rerankModelId }))}
           />
         </div>

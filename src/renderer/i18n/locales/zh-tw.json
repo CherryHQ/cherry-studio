@@ -2307,10 +2307,12 @@
         "chunk_overlap": "相邻文档片段之间保留的重叠 token 数，有助于减少语义截断。",
         "chunk_size": "单个文档片段的目标 token 数，影响召回粒度和上下文长度。",
         "embedding_model": "用于将知识库内容转换为向量。更换模型后，通常需要重新索引已有内容。",
+        "hybrid_alpha": "混合检索中向量得分的权重，值越高越偏向语义匹配。",
         "processor": "导入文件时使用的解析处理服务，用于提取正文、表格等内容。",
         "rerank_model": "对初步召回结果重新排序的模型，可提升最终片段相关性。",
         "search_mode": "选择召回方式：向量检索适合语义匹配，全文检索适合关键词，混合检索会结合两者。"
       },
+      "hybrid_alpha": "Hybrid Alpha",
       "processor": "处理服务商",
       "rerank_disabled": "不使用",
       "rerank_model": "重排模型 (Rerank)",

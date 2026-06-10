@@ -14,4 +14,5 @@ export interface KnowledgeRagConfigFormValues {
   embeddingModelId: string | null
   rerankModelId: string | null
   searchMode: KnowledgeSearchMode
+  hybridAlpha: number | null
 }

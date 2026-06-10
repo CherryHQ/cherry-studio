@@ -176,6 +176,7 @@ export class KnowledgeService extends BaseService {
       chunkSize: sourceBase.chunkSize,
       chunkOverlap: sourceBase.chunkOverlap,
       searchMode: sourceBase.searchMode,
+      hybridAlpha: sourceBase.hybridAlpha,
       groupId: sourceBase.groupId ?? undefined
     }
 
@@ -276,7 +277,7 @@ export class KnowledgeService extends BaseService {
         queryEmbedding,
         mode,
         topK: candidateLimit,
-        alpha: options?.hybridAlpha
+        alpha: base.hybridAlpha
       })
     )
 

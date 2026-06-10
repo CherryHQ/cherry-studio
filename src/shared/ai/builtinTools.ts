@@ -77,17 +77,10 @@ export const kbSearchInputSchema = z.object({
     .max(1)
     .optional()
     .describe(
-      'Relevance score cutoff in [0, 1]. Results scored below it are dropped. ' +
-        'Omit for no extra filtering; raise it to keep only high-confidence matches.'
-    ),
-  hybridAlpha: z
-    .number()
-    .min(0)
-    .max(1)
-    .optional()
-    .describe(
-      'Hybrid-search weight in [0, 1]: higher favors semantic (vector) matches, lower favors ' +
-        'keyword (BM25). Only affects bases in hybrid mode; omit for the default balance.'
+      'Minimum relevance score in [0, 1] for a match to be kept. Applies only to relevance-scored ' +
+        'matches: vector-mode results, or keyword/hybrid results that passed a reranker. Plain ' +
+        'keyword (BM25) and hybrid ranking scores are not on this scale, so the cutoff leaves them ' +
+        'untouched. Omit for no cutoff; raise it to keep only high-confidence matches.'
     )
 })
 

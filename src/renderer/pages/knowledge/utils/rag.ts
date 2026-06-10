@@ -10,7 +10,8 @@ export const createKnowledgeRagConfigFormValues = (base: KnowledgeBase): Knowled
   chunkOverlap: String(base.chunkOverlap),
   embeddingModelId: base.embeddingModelId,
   rerankModelId: base.rerankModelId ?? null,
-  searchMode: base.searchMode
+  searchMode: base.searchMode,
+  hybridAlpha: base.hybridAlpha ?? null
 })
 
 export const buildKnowledgeRagConfigPatch = (
@@ -37,6 +38,10 @@ export const buildKnowledgeRagConfigPatch = (
 
   if (currentValues.searchMode !== initialValues.searchMode) {
     patch.searchMode = currentValues.searchMode
+  }
+
+  if (currentValues.searchMode === 'hybrid' && currentValues.hybridAlpha !== initialValues.hybridAlpha) {
+    patch.hybridAlpha = currentValues.hybridAlpha ?? undefined
   }
 
   return patch

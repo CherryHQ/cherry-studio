@@ -35,11 +35,20 @@ const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 type KnowledgeBaseRow = typeof knowledgeBaseTable.$inferSelect
 type KnowledgeBaseEntitySearchItem = Extract<EntitySearchItem, { type: 'knowledge-base' }>
 
-function validateKnowledgeBaseConfig(config: { chunkSize: number; chunkOverlap: number }): Record<string, string[]> {
+function validateKnowledgeBaseConfig(config: {
+  chunkSize: number
+  chunkOverlap: number
+  searchMode?: string | null
+  hybridAlpha?: number | null
+}): Record<string, string[]> {
   const fieldErrors: Record<string, string[]> = {}
 
   if (config.chunkOverlap >= config.chunkSize) {
     fieldErrors.chunkOverlap = ['Chunk overlap must be smaller than chunk size']
+  }
+
+  if (config.hybridAlpha != null && config.searchMode !== 'hybrid') {
+    fieldErrors.hybridAlpha = ['Hybrid alpha requires hybrid search mode']
   }
 
   return fieldErrors
@@ -151,7 +160,8 @@ export class KnowledgeBaseService {
     const createConfig = {
       chunkSize: dto.chunkSize ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
       chunkOverlap: dto.chunkOverlap ?? DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
-      searchMode: dto.searchMode ?? DEFAULT_KNOWLEDGE_SEARCH_MODE
+      searchMode: dto.searchMode ?? DEFAULT_KNOWLEDGE_SEARCH_MODE,
+      hybridAlpha: dto.hybridAlpha
     }
     const createFieldErrors = validateKnowledgeBaseConfig(createConfig)
     if (Object.keys(createFieldErrors).length > 0) {
@@ -169,7 +179,8 @@ export class KnowledgeBaseService {
       fileProcessorId: dto.fileProcessorId ?? null,
       chunkSize: createConfig.chunkSize,
       chunkOverlap: createConfig.chunkOverlap,
-      searchMode: createConfig.searchMode
+      searchMode: createConfig.searchMode,
+      hybridAlpha: createConfig.hybridAlpha ?? null
     }
 
     const dbService = application.get('DbService')
@@ -189,10 +200,16 @@ export class KnowledgeBaseService {
       chunkSize: number
       chunkOverlap: number
       searchMode: KnowledgeBase['searchMode']
+      hybridAlpha: number | null | undefined
     } = {
       chunkSize: dto.chunkSize !== undefined ? dto.chunkSize : existing.chunkSize,
       chunkOverlap: dto.chunkOverlap !== undefined ? dto.chunkOverlap : existing.chunkOverlap,
-      searchMode: dto.searchMode !== undefined ? dto.searchMode : existing.searchMode
+      searchMode: dto.searchMode !== undefined ? dto.searchMode : existing.searchMode,
+      hybridAlpha: dto.hybridAlpha !== undefined ? dto.hybridAlpha : existing.hybridAlpha
+    }
+
+    if (dto.searchMode !== undefined && dto.searchMode !== 'hybrid' && dto.hybridAlpha === undefined) {
+      nextConfig.hybridAlpha = null
     }
 
     const updateFieldErrors = validateKnowledgeBaseConfig(nextConfig)
@@ -222,6 +239,9 @@ export class KnowledgeBaseService {
     }
     if (nextConfig.searchMode !== existing.searchMode) {
       updates.searchMode = nextConfig.searchMode
+    }
+    if ((nextConfig.hybridAlpha ?? undefined) !== existing.hybridAlpha) {
+      updates.hybridAlpha = nextConfig.hybridAlpha
     }
 
     if (Object.keys(updates).length === 0) {

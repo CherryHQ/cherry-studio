@@ -2307,10 +2307,12 @@
         "chunk_overlap": "Number of overlapping tokens kept between adjacent chunks to reduce semantic breaks.",
         "chunk_size": "Target token count for each document chunk. This affects retrieval granularity and context length.",
         "embedding_model": "Used to convert knowledge base content into vectors. Changing the model usually requires reindexing existing content.",
+        "hybrid_alpha": "Vector score weight in hybrid retrieval. Higher values favor semantic matching.",
         "processor": "Parser used when importing files to extract body text, tables, and related content.",
         "rerank_model": "Model used to rerank initial retrieval results and improve final chunk relevance.",
         "search_mode": "Choose a retrieval mode: vector search for semantic matching, full-text search for keywords, or hybrid search for both."
       },
+      "hybrid_alpha": "Hybrid Alpha",
       "processor": "Processing Provider",
       "rerank_disabled": "Disabled",
       "rerank_model": "Rerank Model",

@@ -25,14 +25,13 @@ function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
   } as Assistant
 }
 
+type KbSearchArgs = { query: string; baseIds: string[]; topK?: number; threshold?: number }
+
 function callExecute(
-  args: { query: string; baseIds: string[] },
+  args: KbSearchArgs,
   ctx: { assistant?: Assistant; abortSignal?: AbortSignal } = {}
 ): Promise<unknown> {
-  const execute = entry.tool.execute as (
-    args: { query: string; baseIds: string[] },
-    options: ToolExecutionOptions
-  ) => Promise<unknown>
+  const execute = entry.tool.execute as (args: KbSearchArgs, options: ToolExecutionOptions) => Promise<unknown>
   return execute(args, {
     toolCallId: 'tc-1',
     messages: [],
@@ -73,8 +72,7 @@ describe('kb__search', () => {
     expect(knowledgeServiceSearch).toHaveBeenCalledTimes(1)
     expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'q', {
       topK: undefined,
-      threshold: undefined,
-      hybridAlpha: undefined
+      threshold: undefined
     })
   })
 
@@ -84,13 +82,11 @@ describe('kb__search', () => {
     expect(knowledgeServiceSearch).toHaveBeenCalledTimes(2)
     expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'q', {
       topK: undefined,
-      threshold: undefined,
-      hybridAlpha: undefined
+      threshold: undefined
     })
     expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-2', 'q', {
       topK: undefined,
-      threshold: undefined,
-      hybridAlpha: undefined
+      threshold: undefined
     })
   })
 
@@ -103,13 +99,11 @@ describe('kb__search', () => {
     expect(knowledgeServiceSearch).toHaveBeenCalledTimes(2)
     expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'how does X work', {
       topK: undefined,
-      threshold: undefined,
-      hybridAlpha: undefined
+      threshold: undefined
     })
     expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-2', 'how does X work', {
       topK: undefined,
-      threshold: undefined,
-      hybridAlpha: undefined
+      threshold: undefined
     })
   })
 
@@ -152,6 +146,34 @@ describe('kb__search', () => {
     expect(result).toEqual([{ id: 1, content: 'ok', score: 0.7 }])
   })
 
+  it('returns an { error } result (not []) when every requested base fails to search', async () => {
+    // A total failure must stay distinguishable from a genuinely empty result: []
+    // would let the model report "no matches" when nothing was actually searchable.
+    knowledgeServiceSearch.mockRejectedValue(new Error('vector store down'))
+    const result = (await callExecute(
+      { query: 'q', baseIds: ['kb-1', 'kb-2'] },
+      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1', 'kb-2'] }) }
+    )) as { error?: string }
+    expect(Array.isArray(result)).toBe(false)
+    expect(result.error).toMatch(/failed for all 2/i)
+    expect(result.error).toContain('vector store down')
+  })
+
+  it('passes real topK / threshold through to KnowledgeService.search unchanged', async () => {
+    // Guards the per-call knobs: a regression that dropped one would silently
+    // revert to the service default — this pins the passthrough. hybridAlpha is
+    // intentionally NOT a per-call knob (it is per-base config), so it is absent.
+    knowledgeServiceSearch.mockResolvedValue([])
+    await callExecute(
+      { query: 'q', baseIds: ['kb-1'], topK: 7, threshold: 0.42 },
+      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+    )
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'q', {
+      topK: 7,
+      threshold: 0.42
+    })
+  })
+
   describe('toModelOutput', () => {
     it('returns a hint pointing the model at kb__list when output is empty', () => {
       const toModelOutput = entry.tool.toModelOutput as (opts: {
@@ -166,6 +188,23 @@ describe('kb__search', () => {
       })
       expect(result.type).toBe('text')
       expect(result.value).toMatch(/kb__list/)
+    })
+
+    it('renders an all-failed note (distinct from the empty-result hint) for the error branch', () => {
+      const toModelOutput = entry.tool.toModelOutput as (opts: {
+        toolCallId: string
+        input: { query: string; baseIds: string[] }
+        output: unknown
+      }) => { type: string; value: string }
+      const result = toModelOutput({
+        toolCallId: 'tc-1',
+        input: { query: 'q', baseIds: ['kb-1'] },
+        output: { error: 'Knowledge base search failed for all 1 requested base(s): boom' }
+      })
+      expect(result.type).toBe('text')
+      expect(result.value).toMatch(/failed/i)
+      // Must NOT be the empty-result hint — the model has to know nothing was searchable.
+      expect(result.value).not.toMatch(/kb__list/)
     })
 
     it('passes the array through as json when results are present', () => {

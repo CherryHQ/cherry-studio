@@ -7,7 +7,7 @@ import {
   type KnowledgeSearchMode
 } from '@shared/data/types/knowledge'
 import { sql } from 'drizzle-orm'
-import { check, foreignKey, index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+import { check, foreignKey, index, integer, real, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { groupTable } from './group'
@@ -35,6 +35,7 @@ export const knowledgeBaseTable = sqliteTable(
     chunkSize: integer().notNull(),
     chunkOverlap: integer().notNull(),
     searchMode: text().$type<KnowledgeSearchMode>().notNull(),
+    hybridAlpha: real(),
 
     ...createUpdateTimestamps
   },

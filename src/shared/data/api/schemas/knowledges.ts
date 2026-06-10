@@ -22,7 +22,8 @@ const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
   fileProcessorId: true,
   chunkSize: true,
   chunkOverlap: true,
-  searchMode: true
+  searchMode: true,
+  hybridAlpha: true
 } as const
 
 // `embeddingModelId` and `dimensions` are intentionally excluded: changing
@@ -32,7 +33,8 @@ export const UpdateKnowledgeBaseSchema = KnowledgeBaseEntitySchema.pick(KNOWLEDG
   .extend({
     groupId: KnowledgeBaseGroupIdInputSchema.nullable().optional(),
     rerankModelId: KnowledgeBaseEntitySchema.shape.rerankModelId,
-    fileProcessorId: KnowledgeBaseEntitySchema.shape.fileProcessorId
+    fileProcessorId: KnowledgeBaseEntitySchema.shape.fileProcessorId,
+    hybridAlpha: KnowledgeBaseEntitySchema.shape.hybridAlpha
   })
 export type UpdateKnowledgeBaseDto = z.input<typeof UpdateKnowledgeBaseSchema>
 

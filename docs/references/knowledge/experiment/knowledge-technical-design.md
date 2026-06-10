@@ -544,7 +544,7 @@ content.text.slice(charStart, charEnd) === bodySearchText.text
 
 `KnowledgeIndexStore.search()` 在 `search_text`、`search_text_fts`、`embedding` 上执行 BM25 / vector / hybrid，并映射到 v2 `KnowledgeSearchResult`：
 
-1. 读取 `knowledge_base` 获取搜索模式、threshold、documentCount、hybridAlpha。
+1. 从 `knowledge_base` 读取 `searchMode` 与 `hybridAlpha`（两者都是 base 级配置）。`topK` / `threshold` **不再存在 base 上**，改为每次检索经 `KnowledgeSearchOptions` 逐调用传入（未传则用默认值，见下方决策注）。
 2. `search()` 在 `search_text_fts` 跑 BM25、在 `embedding` 跑向量相似度，hybrid 用 RRF（或归一化加权）融合；rerank 为可选阶段，本地 cross-encoder 默认不启用（见 §5.5 与调研报告 §3）。
 3. 结果 join `search_unit -> material`。
 4. 过滤 `material.status = active` 且 `material.index_policy = index`。
@@ -554,6 +554,13 @@ content.text.slice(charStart, charEnd) === bodySearchText.text
 **无向量库降级：** 单一 `search` 后端自适应——有向量库走 hybrid，无向量/未配 embedding/索引未完成走纯 BM25，实际模式作为返回值回传。
 
 > as-built（2026-06-10）：该降级**仍未实现**（属 v2.x）。当前默认 `searchMode='hybrid'`，查询前无条件调 `embedKnowledgeQuery`（`KnowledgeService.ts` 无 try-catch），缺 embedding 时直接抛错而非回退 BM25（新 `KnowledgeIndexStore` 的 hybrid/vector 分支要求 `queryEmbedding`）。PR A 已把 search 搬到新 store 并保持 embedding-必需契约不变；补齐 BM25-only 降级仍属 v2.x（当前 v2 仍要求配置 embedding、不开放 FTS-only，见 §1）。
+
+> **决策注（2026-06-10）· `topK`/`threshold` 走逐调用旋钮，`hybridAlpha` 保持 base 级配置。** 检索调参在这次重构里分成两类落地：
+>
+> - **`topK` / `threshold`：逐调用。** 从 `knowledge_base` 列移到 `KnowledgeService.search(baseId, query, options?: KnowledgeSearchOptions)` 的 `options`，并由 `kb__search` 作为可选入参暴露给模型（`kbSearchInputSchema` 校验区间：`topK ∈ (0,50]` 整数、`threshold ∈ [0,1]`；service 层不再做夹取，schema 是唯一闸门）。`threshold` 的语义只对 relevance-scored 命中生效（vector 模式或经 rerank 的结果），见 `utils/search.ts` 的 `applyRelevanceThreshold`，`kbSearchInputSchema` 的 `threshold.describe` 已据此如实说明。
+> - **`hybridAlpha`：base 级配置（`knowledge_base.hybridAlpha`）。** 原重构曾把它也改为逐调用，但产品方决定混合权重应是按库配置、而非每次检索由模型传入——它描述的是「这个库的语料更偏关键词还是语义」，属于库的稳定属性，不该让模型每次猜。因此 `hybridAlpha` 回退为 base 列 + RagConfig 滑块（仅 hybrid 模式可配，`searchMode` 切走时清空），`KnowledgeService.search` 从 `base.hybridAlpha` 读取，**不**进 `KnowledgeSearchOptions`、**不**进 `kb__search` 入参。`documentCount` 整列移除（由逐调用 `topK` 取代）。
+>
+> 这与 [research-2026-06-09 §Q1](./research-2026-06-09-future-knowledge-tools-and-adaptive-search.md)（L31/L45/L70/L137）的调研共识基本一致：该共识本就反对把 `hybridAlpha` 这类「算法名」暴露进 Agent 入参（最多给一个可选软提示 `intent?:'lookup'|'broad'`），把它收回 base 级配置正落在共识一侧；分歧仅在 `threshold`——调研推荐的入参是 `{query,baseIds,topK?,cursor?}`，本项目额外把 `threshold` 也作为逐调用旋钮暴露（召回质量调试 + API/检索面板共用同一组参数），是有意的小幅偏离。
 
 ### 6.2 当前 v2 旧 result shape 映射
 

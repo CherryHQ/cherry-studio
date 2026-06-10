@@ -317,6 +317,27 @@ describe('KnowledgeBaseService', () => {
       expect(row.chunkOverlap).toBe(20)
     })
 
+    it('should persist a per-base hybridAlpha, and default it to null when omitted', async () => {
+      const withAlpha = await service.create({
+        name: 'Hybrid Tuned',
+        dimensions: 1024,
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+        searchMode: 'hybrid',
+        hybridAlpha: 0.8
+      })
+      expect(withAlpha.hybridAlpha).toBe(0.8)
+
+      const defaulted = await service.create({
+        name: 'Hybrid Default',
+        dimensions: 1024,
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+        searchMode: 'hybrid'
+      })
+      expect(defaulted.hybridAlpha).toBeUndefined()
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, defaulted.id))
+      expect(row.hybridAlpha).toBeNull()
+    })
+
     it('should reject create when default chunkOverlap does not fit explicit chunkSize', async () => {
       await expect(
         service.create({
@@ -447,6 +468,52 @@ describe('KnowledgeBaseService', () => {
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(row.rerankModelId).toBeNull()
       expect(row.fileProcessorId).toBeNull()
+    })
+
+    it('should update and persist the per-base hybridAlpha', async () => {
+      await seedKnowledgeBase({ searchMode: 'hybrid' })
+
+      const result = await service.update(KNOWLEDGE_BASE_ID, { hybridAlpha: 0.9 })
+
+      expect(result.hybridAlpha).toBe(0.9)
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+      expect(row.hybridAlpha).toBe(0.9)
+    })
+
+    it('should clear stale hybrid config when search mode changes during update', async () => {
+      await seedKnowledgeBase({ chunkSize: 256, chunkOverlap: 120, searchMode: 'hybrid', hybridAlpha: 0.7 })
+
+      const result = await service.update(KNOWLEDGE_BASE_ID, { searchMode: 'vector' })
+
+      expect(result.searchMode).toBe('vector')
+      expect(result.hybridAlpha).toBeUndefined()
+
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+      expect(row.searchMode).toBe('vector')
+      expect(row.hybridAlpha).toBeNull()
+    })
+
+    it('should reject an unrelated update that surfaces pre-existing invalid hybrid config', async () => {
+      await seedKnowledgeBase({ searchMode: 'vector', hybridAlpha: 0.7 })
+
+      await expect(service.update(KNOWLEDGE_BASE_ID, { name: 'Renamed Base' })).rejects.toThrow(
+        'Hybrid alpha requires hybrid search mode'
+      )
+    })
+
+    it('should reject explicitly provided hybridAlpha when search mode is not hybrid', async () => {
+      await seedKnowledgeBase({ searchMode: 'hybrid', hybridAlpha: 0.7 })
+
+      await expect(service.update(KNOWLEDGE_BASE_ID, { searchMode: 'vector', hybridAlpha: 0.7 })).rejects.toMatchObject(
+        {
+          code: ErrorCode.VALIDATION_ERROR,
+          details: {
+            fieldErrors: {
+              hybridAlpha: ['Hybrid alpha requires hybrid search mode']
+            }
+          }
+        }
+      )
     })
 
     it('should reject shrinking chunkSize when the existing chunkOverlap no longer fits', async () => {

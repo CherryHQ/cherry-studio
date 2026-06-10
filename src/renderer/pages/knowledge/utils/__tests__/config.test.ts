@@ -37,7 +37,8 @@ describe('createKnowledgeV2RagConfigFormValues', () => {
       chunkOverlap: '64',
       embeddingModelId: 'openai::text-embedding-3-small',
       rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
-      searchMode: 'hybrid'
+      searchMode: 'hybrid',
+      hybridAlpha: null
     })
   })
 })

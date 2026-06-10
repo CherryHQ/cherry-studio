@@ -15,6 +15,7 @@ const createFormValues = (overrides: Partial<KnowledgeRagConfigFormValues> = {})
   embeddingModelId: 'openai::text-embedding-3-small',
   rerankModelId: null,
   searchMode: 'vector',
+  hybridAlpha: null,
   ...overrides
 })
 

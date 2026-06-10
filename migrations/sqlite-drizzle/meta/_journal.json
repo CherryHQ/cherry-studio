@@ -50,6 +50,13 @@
       "when": 1781075635056,
       "tag": "0006_curved_goliath",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1781083369058,
+      "tag": "0007_needy_kat_farrell",
+      "breakpoints": true
     }
   ]
 }

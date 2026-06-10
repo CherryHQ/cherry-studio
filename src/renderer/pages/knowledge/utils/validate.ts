@@ -6,7 +6,8 @@ const knowledgeRagConfigKeys = [
   'chunkOverlap',
   'embeddingModelId',
   'rerankModelId',
-  'searchMode'
+  'searchMode',
+  'hybridAlpha'
 ] as const satisfies readonly (keyof KnowledgeRagConfigFormValues)[]
 
 export type KnowledgeRagChunkValidationErrorCode =
