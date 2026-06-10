@@ -4,7 +4,6 @@ import { AgentSessionEntitySchema, CreateAgentSessionSchema, UpdateAgentSessionS
 import {
   AgentSessionWorkspaceSourceSchema,
   AgentWorkspaceEntitySchema,
-  CreateAgentWorkspaceSchema,
   UpdateAgentWorkspaceSchema
 } from '../agentWorkspaces'
 
@@ -23,15 +22,9 @@ describe('AgentWorkspaceEntitySchema', () => {
     expect(AgentWorkspaceEntitySchema.parse(workspace)).toEqual(workspace)
   })
 
-  it('validates workspace create and update DTOs', () => {
-    expect(CreateAgentWorkspaceSchema.parse({ path: '/tmp/workspace' })).toEqual({ path: '/tmp/workspace' })
-    expect(CreateAgentWorkspaceSchema.parse({ path: '/tmp/workspace', name: 'Workspace' })).toEqual({
-      path: '/tmp/workspace',
-      name: 'Workspace'
-    })
-    expect(CreateAgentWorkspaceSchema.safeParse({ name: 'Workspace' }).success).toBe(false)
-    expect(UpdateAgentWorkspaceSchema.parse({ name: 'Renamed' })).toEqual({ name: 'Renamed' })
-    expect(UpdateAgentWorkspaceSchema.safeParse({ name: '' }).success).toBe(false)
+  it('accepts workspace display-name updates only', () => {
+    expect(UpdateAgentWorkspaceSchema.parse({ name: 'Renamed workspace' })).toEqual({ name: 'Renamed workspace' })
+    expect(UpdateAgentWorkspaceSchema.safeParse({ path: '/tmp/renamed' }).success).toBe(false)
   })
 
   it('exposes workspace on sessions instead of accessiblePaths', () => {

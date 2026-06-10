@@ -4,6 +4,7 @@ import {
   AgentSessionMessageEntitySchema,
   CreateAgentSessionMessageSchema,
   CreateAgentSessionMessagesSchema,
+  ListAgentSessionsQuerySchema,
   UpdateAgentSessionSchema
 } from '../agentSessions'
 
@@ -46,6 +47,28 @@ describe('AgentSessionMessage schemas', () => {
     })
 
     expect(parsed.runtimeResumeToken).toBeUndefined()
+  })
+})
+
+describe('ListAgentSessionsQuerySchema', () => {
+  it('trims search while preserving existing cursor pagination fields', () => {
+    expect(
+      ListAgentSessionsQuerySchema.parse({
+        agentId: 'agent-1',
+        cursor: 'cursor-1',
+        limit: '10',
+        search: '  plan  '
+      })
+    ).toEqual({
+      agentId: 'agent-1',
+      cursor: 'cursor-1',
+      limit: 10,
+      search: 'plan'
+    })
+  })
+
+  it('rejects blank search', () => {
+    expect(() => ListAgentSessionsQuerySchema.parse({ search: '   ' })).toThrow()
   })
 })
 
