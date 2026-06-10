@@ -2,17 +2,20 @@ import type { Message, MessageData } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { createTopicMock, deleteTopicMock, appendMessageMock, listMessagesMock, persistMock } = vi.hoisted(() => ({
-  createTopicMock: vi.fn(),
-  deleteTopicMock: vi.fn(),
-  appendMessageMock: vi.fn(),
-  listMessagesMock: vi.fn(),
-  persistMock: vi.fn()
-}))
+const { createTopicMock, updateTopicMock, deleteTopicMock, appendMessageMock, listMessagesMock, persistMock } =
+  vi.hoisted(() => ({
+    createTopicMock: vi.fn(),
+    updateTopicMock: vi.fn(),
+    deleteTopicMock: vi.fn(),
+    appendMessageMock: vi.fn(),
+    listMessagesMock: vi.fn(),
+    persistMock: vi.fn()
+  }))
 
 vi.mock('@data/services/TemporaryChatService', () => ({
   temporaryChatService: {
     createTopic: createTopicMock,
+    updateTopic: updateTopicMock,
     deleteTopic: deleteTopicMock,
     appendMessage: appendMessageMock,
     listMessages: listMessagesMock,
@@ -70,6 +73,7 @@ function reqEnvelope<T extends object>(parts: T): any {
 describe('temporaryChatHandlers', () => {
   beforeEach(() => {
     createTopicMock.mockReset()
+    updateTopicMock.mockReset()
     deleteTopicMock.mockReset()
     appendMessageMock.mockReset()
     listMessagesMock.mockReset()
@@ -88,7 +92,17 @@ describe('temporaryChatHandlers', () => {
     })
   })
 
-  describe('DELETE /temporary/topics/:id', () => {
+  describe('PATCH / DELETE /temporary/topics/:id', () => {
+    it('forwards patch body and returns the Topic', async () => {
+      const topic = fakeTopic({ assistantId: 'asst_2' })
+      updateTopicMock.mockResolvedValue(topic)
+      const result = await temporaryChatHandlers['/temporary/topics/:id'].PATCH(
+        reqEnvelope({ params: { id: 'tid-xyz' }, body: { assistantId: 'asst_2' } })
+      )
+      expect(updateTopicMock).toHaveBeenCalledWith('tid-xyz', { assistantId: 'asst_2' })
+      expect(result).toBe(topic)
+    })
+
     it('forwards id and returns undefined', async () => {
       deleteTopicMock.mockResolvedValue(undefined)
       const result = await temporaryChatHandlers['/temporary/topics/:id'].DELETE(
