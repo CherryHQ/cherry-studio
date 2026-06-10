@@ -1,7 +1,7 @@
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
-import { claudeCodeBuiltinToolDescriptors } from '@shared/ai/claudecode/builtinTools'
+import { claudeRegistrySdkDescriptors } from '@shared/ai/claudecode/toolRegistry'
 import {
   buildClaudeMcpToolName,
   type ClaudeToolDecision,
@@ -34,12 +34,9 @@ function descriptorToToolWithAccess(descriptor: ClaudeToolDescriptor, access: Cl
   }
 }
 
-export function buildClaudeToolPolicy(
-  agent: Partial<Pick<AgentEntity, 'configuration' | 'allowedTools'>>
-): ClaudeToolPolicy {
+export function buildClaudeToolPolicy(agent: Partial<Pick<AgentEntity, 'configuration'>>): ClaudeToolPolicy {
   return {
-    permissionMode: agent.configuration?.permission_mode,
-    allowedTools: agent.allowedTools ?? []
+    permissionMode: agent.configuration?.permission_mode
   }
 }
 
@@ -82,7 +79,7 @@ export async function listClaudeAgentToolDescriptors(agent: Pick<AgentEntity, 'm
 }> {
   const mcpCatalog = await listMcpDescriptors(agent.mcps ?? [])
   return {
-    descriptors: [...claudeCodeBuiltinToolDescriptors(), ...mcpCatalog.descriptors]
+    descriptors: [...claudeRegistrySdkDescriptors(), ...mcpCatalog.descriptors]
   }
 }
 

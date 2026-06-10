@@ -21,7 +21,8 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Tooltip: ({ children }: { children: React.ReactNode }) => children
+  Tooltip: ({ children }: { children: React.ReactNode }) => children,
+  Kbd: ({ children }: { children?: React.ReactNode }) => children
 }))
 
 vi.mock('@data/hooks/usePreference', () => ({

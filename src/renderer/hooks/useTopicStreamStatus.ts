@@ -72,3 +72,37 @@ export function useTopicDbRefreshOnTerminal(topicId: string, refresh: () => Prom
     }
   }, [status])
 }
+
+/**
+ * Deterministic overlay→DB handoff at terminal. On the live→terminal edge the
+ * live chunk overlay must yield to the DB row (which persistence already
+ * finalized — e.g. an interrupted tool becomes `output-error`). The overlay's
+ * own `onFinish` is suppressed when an execution leaves `activeExecutions`, so
+ * disposal can't ride it; this fires `onHandoff` (refresh-then-dispose) off the
+ * status edge instead.
+ *
+ * Excludes `awaiting-approval` (which is `isTerminal` but must KEEP the live
+ * card — a continue stream will resume it). That distinction lives only here in
+ * `classifyTurn`, not inside the status-agnostic overlay hook — hence the
+ * handoff is decided at the consumer layer, separate from
+ * `useTopicDbRefreshOnTerminal` (whose refresh-on-awaiting-approval is wanted).
+ */
+export function useTopicOverlayHandoffOnTerminal(topicId: string, onHandoff: () => Promise<void> | void): void {
+  const [entry] = useSharedCache(`topic.stream.statuses.${topicId}` as const)
+  const status = entry?.status
+  const onHandoffRef = useRef(onHandoff)
+  onHandoffRef.current = onHandoff
+  const prevRef = useRef<typeof status>(undefined)
+  useEffect(() => {
+    const prev = prevRef.current
+    prevRef.current = status
+    const next = classifyTurn(status)
+    if (classifyTurn(prev).isStreamLive && next.isTerminal && !next.isAwaitingApproval) {
+      void (async () => {
+        await onHandoffRef.current()
+      })().catch(() => {
+        // Caller logs; the handoff must not throw out of the effect.
+      })
+    }
+  }, [status])
+}

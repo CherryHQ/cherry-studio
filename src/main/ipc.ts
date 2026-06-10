@@ -6,7 +6,6 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { generateSignature } from '@main/ai/provider/cherryai'
 import { isMac, isWin } from '@main/core/platform'
-import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
 import { getIpCountry } from '@main/utils/ipService'
 import {
   autoDiscoverGitBash,
@@ -65,6 +64,7 @@ export async function registerIpc() {
     version: app.getVersion(),
     isPackaged: app.isPackaged,
     appPath: application.getPath('app.root'),
+    homePath: application.getPath('sys.home'),
     filesPath: application.getPath('feature.files.data'),
     notesPath: application.getPath('feature.notes.data'),
     configPath: application.getPath('cherry.config'),
@@ -422,7 +422,6 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_OpenWithRelativePath, fileManager.openFileWithRelativePath.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsDirectory, fileManager.isDirectory.bind(fileManager))
-  ipcMain.handle(IpcChannel.File_ListDirectory, (_e, dirPath, options) => searchListDirectory(dirPath, options))
   ipcMain.handle(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
   ipcMain.handle(IpcChannel.File_BatchUploadMarkdown, fileManager.batchUploadMarkdownFiles.bind(fileManager))

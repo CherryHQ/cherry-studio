@@ -1,0 +1,162 @@
+import { FILE_TYPE, type FileMetadata } from '@renderer/types'
+import { getFileTypeByExt } from '@shared/file/types'
+import { Folder } from 'lucide-react'
+import { useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { serializeComposerDocument } from '../../composerDraft'
+import type { ComposerSuggestionSource } from '../../quickPanel'
+import { agentComposerTokenId, agentFileToComposerToken } from '../agentComposerTokens'
+
+const getBaseName = (filePath: string) => {
+  const normalized = filePath.replace(/\\/g, '/')
+  return normalized.split('/').pop() || normalized
+}
+
+const getFileExtension = (fileName: string) => {
+  const lastDotIndex = fileName.lastIndexOf('.')
+  return lastDotIndex > 0 ? fileName.slice(lastDotIndex) : ''
+}
+
+const createFileMetadataFromPath = (filePath: string): FileMetadata => {
+  const name = getBaseName(filePath)
+  const ext = getFileExtension(name)
+  return {
+    id: filePath,
+    name,
+    origin_name: name,
+    path: filePath,
+    size: 0,
+    ext,
+    type: ext ? getFileTypeByExt(ext) : FILE_TYPE.OTHER,
+    created_at: new Date().toISOString(),
+    count: 1
+  }
+}
+
+const getRelativePath = (filePath: string, accessiblePaths: readonly string[]) => {
+  const normalizedFilePath = filePath.replace(/\\/g, '/')
+
+  for (const basePath of accessiblePaths) {
+    const normalizedBasePath = basePath.replace(/\\/g, '/')
+    const baseWithSlash = normalizedBasePath.endsWith('/') ? normalizedBasePath : `${normalizedBasePath}/`
+
+    if (normalizedFilePath.startsWith(baseWithSlash)) {
+      return normalizedFilePath.slice(baseWithSlash.length)
+    }
+  }
+
+  return filePath
+}
+
+interface AgentResourceSuggestionOptions {
+  accessiblePaths: string[]
+  files: FileMetadata[]
+  setFiles: React.Dispatch<React.SetStateAction<FileMetadata[]>>
+  /** Whether the agent session exposes any accessible workspace paths to mention. */
+  enabled: boolean
+}
+
+/**
+ * Provides the agent composer's `@`-mention suggestion source, which lists workspace files
+ * and inserts the picked file as a managed file token. Returns an empty list when disabled.
+ */
+export function useAgentResourceSuggestion({
+  accessiblePaths,
+  files,
+  setFiles,
+  enabled
+}: AgentResourceSuggestionOptions): ComposerSuggestionSource[] {
+  const { t } = useTranslation()
+  const resourceSuggestionStateRef = useRef({ accessiblePaths, files, setFiles, t })
+  resourceSuggestionStateRef.current = { accessiblePaths, files, setFiles, t }
+
+  const resourceSuggestionSource = useMemo<ComposerSuggestionSource>(
+    () => ({
+      pluginKey: 'agent-resource-mention-suggestion',
+      char: '@',
+      title: t('chat.input.resource_panel.title'),
+      allowedPrefixes: [' ', '\n'],
+      items: async ({ query }) => {
+        const { accessiblePaths, files, setFiles, t } = resourceSuggestionStateRef.current
+        if (accessiblePaths.length === 0) {
+          return [
+            {
+              id: 'agent-resource:no-paths',
+              label: t('chat.input.resource_panel.no_file_found.label'),
+              description: t('chat.input.resource_panel.no_file_found.description'),
+              disabled: true,
+              command: () => undefined
+            }
+          ]
+        }
+
+        const searchPattern = query.trim() || '.'
+        const results = await Promise.allSettled(
+          accessiblePaths.map((dirPath) =>
+            window.api.file.listDirectory(dirPath, {
+              recursive: true,
+              maxDepth: 3,
+              includeHidden: false,
+              includeFiles: true,
+              includeDirectories: true,
+              maxEntries: 20,
+              searchPattern
+            })
+          )
+        )
+        const collected = new Set<string>()
+        for (const result of results) {
+          if (result.status !== 'fulfilled') continue
+          for (const filePath of result.value) {
+            collected.add(filePath.replace(/\\/g, '/'))
+          }
+        }
+
+        if (collected.size === 0 && results.some((result) => result.status === 'rejected')) {
+          return [
+            {
+              id: 'agent-resource:error',
+              label: t('common.error'),
+              description: t('chat.input.resource_panel.no_file_found.description'),
+              disabled: true,
+              command: () => undefined
+            }
+          ]
+        }
+
+        return [...collected].slice(0, 50).map((filePath) => {
+          const relativePath = getRelativePath(filePath, accessiblePaths)
+          const file = files.find((currentFile) => currentFile.path === filePath || currentFile.id === filePath)
+          const tokenFile = file ?? createFileMetadataFromPath(filePath)
+          const token = agentFileToComposerToken(tokenFile)
+
+          return {
+            id: token.id,
+            label: relativePath,
+            description: filePath,
+            icon: <Folder size={16} />,
+            filterText: `${relativePath} ${filePath}`,
+            disabled: files.some((currentFile) => agentComposerTokenId.file(currentFile) === token.id),
+            command: ({ editor }) => {
+              const exists = serializeComposerDocument(editor).tokens.some(
+                (currentToken) => currentToken.id === token.id
+              )
+              if (!exists) {
+                editor.chain().focus().insertComposerToken(token).insertContent(' ').run()
+              }
+              setFiles((prevFiles) =>
+                prevFiles.some((currentFile) => agentComposerTokenId.file(currentFile) === token.id)
+                  ? prevFiles
+                  : [...prevFiles, tokenFile]
+              )
+            }
+          }
+        })
+      }
+    }),
+    [t]
+  )
+
+  return useMemo(() => (enabled ? [resourceSuggestionSource] : []), [enabled, resourceSuggestionSource])
+}

@@ -84,4 +84,52 @@ describe('applyApprovalDecisions', () => {
     const out = applyApprovalDecisions(input, [{ approvalId: 'nomatch', approved: true }])
     expect(out).not.toBe(input)
   })
+
+  it('stores updated tool input when applying an approval decision', () => {
+    const parts = [
+      {
+        type: 'tool-AskUserQuestion',
+        toolCallId: 'call-1',
+        state: 'approval-requested',
+        input: {
+          questions: [
+            {
+              question: 'Choose logger',
+              header: 'Logger',
+              options: [{ label: 'Winston' }]
+            }
+          ]
+        },
+        approval: { id: 'approval-1' }
+      }
+    ] as unknown as CherryMessagePart[]
+
+    const updated = applyApprovalDecisions(parts, [
+      {
+        approvalId: 'approval-1',
+        approved: true,
+        updatedInput: {
+          questions: [
+            {
+              question: 'Choose logger',
+              header: 'Logger',
+              options: [{ label: 'Winston' }]
+            }
+          ],
+          answers: { 'Choose logger': 'Winston' }
+        }
+      }
+    ])
+
+    expect(updated[0]).toMatchObject({
+      state: 'approval-responded',
+      input: {
+        answers: { 'Choose logger': 'Winston' }
+      },
+      approval: {
+        id: 'approval-1',
+        approved: true
+      }
+    })
+  })
 })

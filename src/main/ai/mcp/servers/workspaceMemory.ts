@@ -7,7 +7,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 
-const logger = loggerService.withContext('MCPServer:WorkspaceMemory')
+const logger = loggerService.withContext('McpServer:WorkspaceMemory')
 
 /**
  * Resolve a filename within a directory using case-insensitive matching.

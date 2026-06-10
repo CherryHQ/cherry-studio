@@ -49,7 +49,7 @@ describe('withIdleTimeout', () => {
     const src = makeControllableStream<number>()
     const controller = new AbortController()
 
-    const out = withIdleTimeout(src.stream, controller, 1000)
+    const { stream: out } = withIdleTimeout(src.stream, controller, 1000)
     const reader = out.getReader()
 
     src.push(1)
@@ -68,7 +68,7 @@ describe('withIdleTimeout', () => {
     const src = makeControllableStream<number>()
     const controller = new AbortController()
 
-    const out = withIdleTimeout(src.stream, controller, 1000)
+    const { stream: out } = withIdleTimeout(src.stream, controller, 1000)
     const reader = out.getReader()
 
     // Kick the pull so the timer is running against an actually-pending read.
@@ -85,7 +85,7 @@ describe('withIdleTimeout', () => {
     const src = makeControllableStream<number>()
     const controller = new AbortController()
 
-    const out = withIdleTimeout(src.stream, controller, 1000)
+    const { stream: out } = withIdleTimeout(src.stream, controller, 1000)
     const reader = out.getReader()
 
     for (let i = 0; i < 5; i++) {
@@ -104,7 +104,7 @@ describe('withIdleTimeout', () => {
     const externalReason = new Error('user cancelled')
     controller.abort(externalReason)
 
-    const out = withIdleTimeout(src.stream, controller, 1000)
+    const { stream: out } = withIdleTimeout(src.stream, controller, 1000)
     // Idle would normally fire, but the controller is already aborted — the
     // wrapper must not overwrite the reason.
     vi.advanceTimersByTime(5000)
@@ -119,7 +119,7 @@ describe('withIdleTimeout', () => {
     const src = makeControllableStream<number>()
     const controller = new AbortController()
 
-    const out = withIdleTimeout(src.stream, controller, 1000)
+    const { stream: out } = withIdleTimeout(src.stream, controller, 1000)
     const reader = out.getReader()
 
     src.push(1)
@@ -139,7 +139,7 @@ describe('withIdleTimeout', () => {
     const src = makeControllableStream<number>()
     const controller = new AbortController()
 
-    const out = withIdleTimeout(src.stream, controller, 1000)
+    const { stream: out } = withIdleTimeout(src.stream, controller, 1000)
     const reader = out.getReader()
 
     src.push(1)
@@ -149,5 +149,45 @@ describe('withIdleTimeout', () => {
 
     vi.advanceTimersByTime(5000)
     expect(controller.signal.aborted).toBe(false)
+  })
+
+  it('exposed idle.cleanup() pauses the timer so a long no-chunk wait does not abort', async () => {
+    const src = makeControllableStream<number>()
+    const controller = new AbortController()
+
+    const { stream: out, idle } = withIdleTimeout(src.stream, controller, 1000)
+    const reader = out.getReader()
+
+    src.push(1)
+    await reader.read()
+
+    // Pause (e.g. a tool is now awaiting human approval) — no chunks for a long
+    // time must NOT trip the idle timeout.
+    idle.cleanup()
+    vi.advanceTimersByTime(5000)
+    expect(controller.signal.aborted).toBe(false)
+  })
+
+  it('rearms on the next chunk after idle.cleanup()', async () => {
+    const src = makeControllableStream<number>()
+    const controller = new AbortController()
+
+    const { stream: out, idle } = withIdleTimeout(src.stream, controller, 1000)
+    const reader = out.getReader()
+
+    src.push(1)
+    await reader.read()
+
+    idle.cleanup()
+    vi.advanceTimersByTime(5000) // paused — no abort
+    expect(controller.signal.aborted).toBe(false)
+
+    // The resolving chunk (e.g. the approval was answered) flows through `pull`,
+    // which calls `idle.reset()` and rearms the timer.
+    src.push(2)
+    await reader.read()
+    vi.advanceTimersByTime(1001)
+    expect(controller.signal.aborted).toBe(true)
+    expect((controller.signal.reason as DOMException).name).toBe('TimeoutError')
   })
 })

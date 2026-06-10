@@ -35,6 +35,10 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     if (req.trigger === 'continue-conversation') {
       throw new Error('continue-conversation is not supported for temporary chats (immutable append-only)')
     }
+    if (req.trigger === 'steer-continuation') {
+      // Never reached: steers are only enqueued for persistent topics (provider-gated in dispatch).
+      throw new Error('steer-continuation is not supported for temporary chats')
+    }
 
     const topic = temporaryChatService.getTopic(req.topicId)
     if (!topic) throw new Error(`Temporary topic not found: ${req.topicId}`)

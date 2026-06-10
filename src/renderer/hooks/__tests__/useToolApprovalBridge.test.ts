@@ -1,63 +1,87 @@
-/**
- * Regression for tool-approval-5: main signals failure via a resolved `{ ok: false }`.
- * The bridge must surface that (and hard IPC errors) as a rejection so the approval card
- * resets instead of being stuck "submitting" forever.
- */
-
-import type { ToolApprovalMatch } from '@renderer/pages/home/Messages/Tools/toolResponse'
-import { renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { MessageToolApprovalMatch } from '@renderer/components/chat/messages/types'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import { act, renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useToolApprovalBridge } from '../useToolApprovalBridge'
 
-vi.mock('@logger', () => ({
-  loggerService: { withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn() }) }
+const mocks = vi.hoisted(() => ({
+  respondToolApproval: vi.fn()
 }))
 
-const respond = vi.fn()
+function makeApprovalPart(overrides: Partial<Record<string, unknown>> = {}): CherryMessagePart {
+  return {
+    type: 'tool-CustomTool',
+    toolName: 'CustomTool',
+    toolCallId: 'call-1',
+    state: 'approval-requested',
+    input: { command: 'pnpm test' },
+    approval: { id: 'approval-1' },
+    ...overrides
+  } as unknown as CherryMessagePart
+}
 
-beforeEach(() => {
-  respond.mockReset()
-  ;(window as any).api = { ai: { toolApproval: { respond } } }
-})
-
-afterEach(() => {
-  delete (window as any).api
-})
-
-const match = { messageId: 'a1', approvalId: 'ap-1', transport: 'mcp' } as ToolApprovalMatch
+function makeApprovalMatch(): MessageToolApprovalMatch {
+  const approvalPart = makeApprovalPart()
+  return {
+    part: approvalPart,
+    state: 'approval-requested',
+    toolCallId: 'call-1',
+    messageId: 'assistant-1',
+    approvalId: 'approval-1',
+    input: { command: 'pnpm test' }
+  }
+}
 
 describe('useToolApprovalBridge', () => {
-  it('resolves when main returns { ok: true }', async () => {
-    respond.mockResolvedValueOnce({ ok: true })
-    const { result } = renderHook(() => useToolApprovalBridge('topic-1'))
+  beforeEach(() => {
+    mocks.respondToolApproval.mockReset()
+    mocks.respondToolApproval.mockResolvedValue({ ok: true })
 
-    await expect(result.current({ match, approved: true })).resolves.toBeUndefined()
-    expect(respond).toHaveBeenCalledWith(
-      expect.objectContaining({ approvalId: 'ap-1', anchorId: 'a1', approved: true })
-    )
+    Object.defineProperty(window, 'api', {
+      configurable: true,
+      value: {
+        ai: {
+          toolApproval: {
+            respond: mocks.respondToolApproval
+          }
+        }
+      }
+    })
   })
 
-  it('rejects when main returns { ok: false } so the card can reset (REGRESSION tool-approval-5)', async () => {
-    respond.mockResolvedValueOnce({ ok: false })
+  it('delivers approval decisions to main with anchor context', async () => {
+    const match = makeApprovalMatch()
+
     const { result } = renderHook(() => useToolApprovalBridge('topic-1'))
 
-    await expect(result.current({ match, approved: true })).rejects.toThrow()
+    await act(async () => {
+      await result.current({ match, approved: true })
+    })
+
+    expect(mocks.respondToolApproval).toHaveBeenCalledWith({
+      approvalId: 'approval-1',
+      approved: true,
+      reason: undefined,
+      updatedInput: undefined,
+      topicId: 'topic-1',
+      anchorId: 'assistant-1'
+    })
   })
 
-  it('rejects when the IPC call itself throws (no longer swallowed)', async () => {
-    respond.mockRejectedValueOnce(new Error('ipc boom'))
+  it('throws when main does not accept the approval response', async () => {
+    mocks.respondToolApproval.mockResolvedValueOnce({ ok: false })
+    const match = makeApprovalMatch()
     const { result } = renderHook(() => useToolApprovalBridge('topic-1'))
 
-    await expect(result.current({ match, approved: false })).rejects.toThrow('ipc boom')
+    await expect(result.current({ match, approved: true })).rejects.toThrow('Main rejected the tool-approval decision')
   })
 
-  it('no-ops without an approvalId', async () => {
+  it('throws when delivery to main fails', async () => {
+    mocks.respondToolApproval.mockRejectedValueOnce(new Error('ipc boom'))
+    const match = makeApprovalMatch()
     const { result } = renderHook(() => useToolApprovalBridge('topic-1'))
 
-    await expect(
-      result.current({ match: { messageId: 'a1' } as ToolApprovalMatch, approved: true })
-    ).resolves.toBeUndefined()
-    expect(respond).not.toHaveBeenCalled()
+    await expect(result.current({ match, approved: true })).rejects.toThrow('ipc boom')
   })
 })

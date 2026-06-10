@@ -8,7 +8,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 // Fixed chalk import for ESM
 import chalk from 'chalk'
 
-const logger = loggerService.withContext('MCPServer:SequentialThinkingServer')
+const logger = loggerService.withContext('McpServer:SequentialThinkingServer')
 
 interface ThoughtData {
   thought: string

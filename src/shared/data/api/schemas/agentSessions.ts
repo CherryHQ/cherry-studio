@@ -20,12 +20,15 @@ import { AgentSessionWorkspaceSourceSchema, AgentWorkspaceEntitySchema } from '.
  *  newest-first; an absent `cursor` returns the most recent page, then each
  *  `nextCursor` walks one page older. Limit caps at 200 — the renderer
  *  flattens with `useInfiniteFlatItems` and the virtualizer scrolls older
- *  pages in on demand, so per-page size never has to cover a whole session. */
+ *  pages in on demand, so per-page size never has to cover a whole session.
+ *  `messageId` anchors the first page at a known message for previews; cursor
+ *  takes precedence for subsequent older pages. */
 export const AGENT_SESSION_MESSAGES_MAX_LIMIT = 200
 export const AGENT_SESSION_MESSAGES_DEFAULT_LIMIT = 50
 
 export const AgentSessionMessagesListQuerySchema = z.strictObject({
   cursor: z.string().optional(),
+  messageId: z.string().min(1).optional(),
   limit: z.coerce.number().int().positive().max(AGENT_SESSION_MESSAGES_MAX_LIMIT).optional()
 })
 export type AgentSessionMessagesListQuery = z.infer<typeof AgentSessionMessagesListQuerySchema>
@@ -40,7 +43,6 @@ const AgentSessionMessageBaseSchema = z.strictObject({
   status: MessageStatusSchema,
   modelId: z.string().nullable(),
   modelSnapshot: ModelSnapshotSchema.nullable(),
-  traceId: z.string().nullable(),
   stats: MessageStatsSchema.nullable()
 })
 
@@ -50,6 +52,7 @@ export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.ext
   /** Session ID this message belongs to */
   sessionId: z.string(),
   searchableText: z.string(),
+  traceId: z.string().nullable().optional(),
   runtimeResumeToken: z.string().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
@@ -59,7 +62,6 @@ export type AgentSessionMessageEntity = z.infer<typeof AgentSessionMessageEntity
 export const CreateAgentSessionMessageSchema = AgentSessionMessageBaseSchema.pick({
   modelId: true,
   modelSnapshot: true,
-  traceId: true,
   stats: true
 })
   .partial()
@@ -85,6 +87,8 @@ export const AgentSessionEntitySchema = z.strictObject({
   description: z.string().optional(),
   workspaceId: z.string(),
   workspace: AgentWorkspaceEntitySchema,
+  /** Container-level OTel trace id — one trace tree per session (see trace 重塑). */
+  traceId: z.string().nullable().optional(),
   orderKey: z.string(),
   createdAt: z.string(),
   updatedAt: z.string()
@@ -112,9 +116,31 @@ export type UpdateAgentSessionDto = z.infer<typeof UpdateAgentSessionSchema>
 export const ListAgentSessionsQuerySchema = z.strictObject({
   agentId: z.string().optional(),
   cursor: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(200).optional()
+  limit: z.coerce.number().int().positive().max(200).optional(),
+  search: z.string().trim().min(1).optional()
 })
-export type ListAgentSessionsQuery = z.infer<typeof ListAgentSessionsQuerySchema>
+export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
+export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
+
+export interface DeleteAgentSessionsResult {
+  deletedIds: string[]
+  deletedCount: number
+}
+
+const DeleteAgentSessionsIdsQueryValueSchema = z
+  .string()
+  .transform((value) =>
+    value
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean)
+  )
+  .pipe(z.array(z.string().min(1)).min(1))
+
+export const DeleteAgentSessionsQuerySchema = z.strictObject({
+  ids: DeleteAgentSessionsIdsQueryValueSchema
+})
+export type DeleteAgentSessionsQuery = z.input<typeof DeleteAgentSessionsQuerySchema>
 
 // ============================================================================
 // API Schema definitions
@@ -123,12 +149,21 @@ export type ListAgentSessionsQuery = z.infer<typeof ListAgentSessionsQuerySchema
 export type AgentSessionSchemas = {
   '/agent-sessions': {
     GET: {
-      query?: ListAgentSessionsQuery
+      query?: ListAgentSessionsQueryParams
       response: CursorPaginationResponse<AgentSessionEntity>
     }
     POST: {
       body: CreateAgentSessionDto
       response: AgentSessionEntity
+    }
+    /**
+     * Delete an explicit set of sessions.
+     *
+     * Used by multi-select table flows where the selection can span agents.
+     */
+    DELETE: {
+      query: DeleteAgentSessionsQuery
+      response: DeleteAgentSessionsResult
     }
   }
 
@@ -160,6 +195,12 @@ export type AgentSessionSchemas = {
     DELETE: {
       params: { sessionId: string; messageId: string }
       response: void
+    }
+  }
+  '/agents/:agentId/sessions': {
+    DELETE: {
+      params: { agentId: string }
+      response: DeleteAgentSessionsResult
     }
   }
 } & OrderEndpoints<'/agent-sessions'>

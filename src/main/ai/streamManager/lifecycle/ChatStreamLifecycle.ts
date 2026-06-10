@@ -12,6 +12,7 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
   const broadcast = (stream: ActiveStream, status: TopicStreamStatus) => {
     const activeExecutions: ActiveExecution[] = []
     const awaitingApprovalAnchors: ActiveExecution[] = []
+
     for (const [modelId, exec] of stream.executions) {
       const entry: ActiveExecution = { executionId: modelId, anchorMessageId: exec.anchorMessageId }
       if (exec.status === 'streaming') activeExecutions.push(entry)
@@ -19,12 +20,14 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
       // instead of inferring from `parts` / SWR-lagged status.
       if (exec.awaitingApproval) awaitingApprovalAnchors.push(entry)
     }
+
     const cacheService = application.get('CacheService')
     const key = `topic.stream.statuses.${stream.topicId}` as const
     const prev = cacheService.getShared(key)
     const lastCompletedAt = status === 'done' ? Date.now() : prev?.lastCompletedAt
     cacheService.setShared(key, {
       status,
+      turnId: stream.turnId,
       activeExecutions,
       awaitingApprovalAnchors,
       lastCompletedAt

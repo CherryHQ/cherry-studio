@@ -115,4 +115,81 @@ describe('SpanCacheService', () => {
     expect(cappedStore.getSpan('live')).toBeUndefined()
     expect(cappedStore.getSpan('newer')).toBeDefined()
   })
+
+  // Container traces span many turns under ONE trace id, all flushing to the same file. Pre-fix,
+  // each flush overwrote the file + cleared memory and getSpans returned live-or-else-history, so the
+  // viewer only ever saw the turn in flight. Confirm the whole trace accumulates instead.
+  it('accumulates spans across turns sharing one container trace id (REGRESSION trace-container-merge)', async () => {
+    await service._doInit()
+
+    // Turn 1: a span flushed to the history file and cleared from memory.
+    service.saveEntity(span({ id: 's1', traceId: 'trace', topicId: 'topic', name: 'turn-1' }))
+    await service.saveSpans('topic')
+
+    // Turn 2: a fresh span in memory while turn 1 lives only on disk.
+    service.saveEntity(span({ id: 's2', traceId: 'trace', topicId: 'topic', name: 'turn-2' }))
+
+    // getSpans merges live (turn 2) + history (turn 1) — the whole trace, not just the turn in flight.
+    const live = await service.getSpans('topic', 'trace')
+    expect(live.map((s) => s.id).sort()).toEqual(['s1', 's2'])
+
+    // Flushing turn 2 ACCUMULATES onto the file instead of overwriting turn 1.
+    await service.saveSpans('topic')
+    const flushed = await service.getSpans('topic', 'trace')
+    expect(flushed.map((s) => s.id).sort()).toEqual(['s1', 's2'])
+  })
+
+  // A warm Claude Code connection bakes one TRACEPARENT (the container root) across all turns, so its
+  // `claude_code.*` spans land flat next to the per-turn `ai.turn` spans. getSpans re-homes each under
+  // the `ai.turn` whose time window contains it (turns are sequential / non-overlapping).
+  it('re-homes warm claude_code spans under the ai.turn whose time window contains them', async () => {
+    await service._doInit()
+    const traceId = '1234567890abcdef1234567890abcdef'
+    const root = '1234567890abcdef' // deriveRootSpanId(traceId)
+    service.saveEntity(
+      span({ id: 'turn1', traceId, topicId: 't', name: 'ai.turn', parentId: root, startTime: 10, endTime: 20 })
+    )
+    service.saveEntity(
+      span({ id: 'turn2', traceId, topicId: 't', name: 'ai.turn', parentId: root, startTime: 30, endTime: 40 })
+    )
+    service.saveEntity(
+      span({
+        id: 'cc1',
+        traceId,
+        topicId: 't',
+        name: 'claude_code.interaction',
+        parentId: root,
+        startTime: 12,
+        endTime: 19
+      })
+    )
+    service.saveEntity(
+      span({
+        id: 'cc2',
+        traceId,
+        topicId: 't',
+        name: 'claude_code.interaction',
+        parentId: root,
+        startTime: 32,
+        endTime: 39
+      })
+    )
+    service.saveEntity(
+      span({
+        id: 'ccx',
+        traceId,
+        topicId: 't',
+        name: 'claude_code.interaction',
+        parentId: root,
+        startTime: 5,
+        endTime: 6
+      })
+    )
+
+    const byId = Object.fromEntries((await service.getSpans('t', traceId)).map((s) => [s.id, s]))
+    expect(byId.cc1.parentId).toBe('turn1') // landed in turn 1's window
+    expect(byId.cc2.parentId).toBe('turn2') // landed in turn 2's window
+    expect(byId.ccx.parentId).toBe(root) // outside every turn → left under the container root
+    expect(byId.turn1.parentId).toBe(root) // ai.turn spans untouched
+  })
 })

@@ -22,6 +22,8 @@ import { type SerializedError, serializeError } from '@shared/types/error'
 import { type UIMessageChunk } from 'ai'
 import * as z from 'zod'
 
+import { isAgentSessionTopic } from '../agentSession/topic'
+import { applyTurnOutputAttributes } from '../observability'
 import type { AiStreamRequest, CallOverrides } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context'
@@ -29,6 +31,7 @@ import { KeyedMutex } from './KeyedMutex'
 import { createChatStreamLifecycle, promptStreamLifecycle, type StreamLifecycle } from './lifecycle'
 import { WebContentsListener } from './listeners/WebContentsListener'
 import { pipeStreamLoop } from './pipeStreamLoop'
+import { withReasoningTimingMetadata } from './reasoningTimingTransform'
 import type {
   ActiveStream,
   AiStreamManagerConfig,
@@ -60,12 +63,17 @@ const StreamOpenRequestSchema = z.intersection(
   ])
 )
 
-/** Idempotent: subsequent calls no-op because `exec.rootSpan` is cleared. */
+/**
+ * Finalize the turn's `ai.turn` span: write the turn-boundary output (final answer + tool
+ * count, translation delegated to the obs module), set status, end. Idempotent — subsequent
+ * calls no-op because `exec.rootSpan` is cleared.
+ */
 function endRootSpan(exec: StreamExecution, outcome: 'ok' | 'aborted' | 'error', error?: SerializedError): void {
   const span = exec.rootSpan
   if (!span) return
   exec.rootSpan = undefined
   try {
+    if (exec.finalMessage) applyTurnOutputAttributes(span, exec.finalMessage)
     if (outcome === 'ok') {
       span.setStatus({ code: SpanStatusCode.OK })
     } else if (outcome === 'aborted') {
@@ -168,6 +176,20 @@ function ensureTerminalFinalMessage(exec: StreamExecution): CherryUIMessage {
 }
 
 /**
+ * Sentinel subscriber for a main-initiated turn with no live renderer (e.g. a steer continuation
+ * whose window closed mid-stream). `isAlive: false` so it's scrubbed on the first dispatch; the
+ * turn still runs in the background and a window re-attaches via the status cache.
+ */
+const nullStreamListener: StreamListener = {
+  id: 'null',
+  onChunk: () => {},
+  onDone: () => {},
+  onPaused: () => {},
+  onError: () => {},
+  isAlive: () => false
+}
+
+/**
  * Active-stream registry. See `docs/references/ai/stream-manager.md`.
  *
  * DO NOT add `@DependsOn(['AiService'])` here — `runExecutionLoop` does
@@ -183,6 +205,13 @@ export class AiStreamManager extends BaseService {
    *  the `hasLiveStream` snapshot and orphan a PENDING placeholder row. */
   private readonly dispatchLock = new KeyedMutex()
   private readonly config: AiStreamManagerConfig
+  private nextStreamTurnSequence = 0
+  /** Per-topic FIFO of steer user-message ids persisted while a turn was live. Chat's analogue of
+   *  the agent runtime's `pendingTurns`; drained one continuation turn at a time. */
+  private readonly pendingSteers = new Map<string, string[]>()
+  /** Topics whose steer continuation is mid-launch — dedups `scheduleNextChatTurn`, mirroring the
+   *  agent runtime's `startingNextTurn`. */
+  private readonly startingNextChat = new Set<string>()
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
   readonly chatLifecycle: StreamLifecycle
 
@@ -320,19 +349,26 @@ export class AiStreamManager extends BaseService {
     const existing = this.activeStreams.get(input.topicId)
 
     if (existing && isLiveStatus(existing.status)) {
-      // Only agent sessions reach send() while live: the dispatcher aborts+evicts a
-      // live chat turn before re-dispatching, and an agent-session follow-up was
-      // already enqueued by its provider. Just attach the new subscriber.
+      // Live topic → inject: a chat steer (busy submit) or an agent-session follow-up was already
+      // persisted/enqueued by its provider; just attach the new subscriber to the running stream.
       for (const listener of input.listeners) this.addListener(input.topicId, listener)
       return { mode: 'injected', executionIds: [...existing.executions.keys()] }
     }
 
+    // Enqueue-only dispatch with no live stream to attach to: an agent-session follow-up landing in
+    // the inter-turn drain window (`isSessionBusy` true while the settled stream is terminal-in-grace,
+    // so `hasLiveStream` is false). The user row is already in the runtime's `pendingTurns` and the
+    // runtime will open the next turn — there's nothing to start here, so no-op instead of throwing
+    // (and leave the grace-period stream untouched for late renderer reads).
+    if (input.models.length === 0) {
+      logger.debug('send(): empty models with no live stream — enqueue-only, nothing to start', {
+        topicId: input.topicId
+      })
+      return { mode: 'injected', executionIds: [] }
+    }
+
     // Evict any grace-period stream so two streams never coexist on one topic.
     if (existing) this.evictStream(input.topicId)
-
-    if (input.models.length === 0) {
-      throw new Error(`send() requires at least one model when starting a new stream (topicId=${input.topicId})`)
-    }
 
     const isMultiModel = input.models.length > 1
     const executions = new Map<UniqueModelId, StreamExecution>()
@@ -347,6 +383,7 @@ export class AiStreamManager extends BaseService {
 
     const stream: ActiveStream = {
       topicId: input.topicId,
+      turnId: `${Date.now()}:${++this.nextStreamTurnSequence}`,
       executions,
       listeners: new Map(input.listeners.map((l) => [l.id, l])),
       // `pending` → `streaming` on first chunk.
@@ -420,21 +457,6 @@ export class AiStreamManager extends BaseService {
     })
   }
 
-  pauseRuntimeTurn(topicId: string, reason: string): boolean {
-    const stream = this.activeStreams.get(topicId)
-    if (!stream || !isLiveStatus(stream.status)) return false
-
-    logger.info('Pausing runtime stream turn', { topicId, reason })
-    for (const exec of stream.executions.values()) {
-      if (exec.status === 'streaming') {
-        exec.status = 'aborted'
-        exec.abortController.abort(reason)
-      }
-    }
-    stream.status = 'aborted'
-    return true
-  }
-
   /**
    * True iff this topic has a stream that `send()` would treat as the inject
    * path (live: pending or streaming). Providers query this in
@@ -444,6 +466,30 @@ export class AiStreamManager extends BaseService {
   hasLiveStream(topicId: string): boolean {
     const stream = this.activeStreams.get(topicId)
     return Boolean(stream && isLiveStatus(stream.status))
+  }
+
+  // ── Public: steer (mid-flight follow-up on chat topics) ───────────
+  // Chat mirrors the agent runtime's enqueue + chain-next-turn: a busy submit
+  // persists the user message and enqueues it here; the running turn yields at
+  // the next step boundary (see `hasPendingSteer`) and `onExecutionDone` chains
+  // a `steer-continuation` to answer it.
+
+  /** True iff this chat topic has a queued steer. Read by the steer-yield stop condition so the
+   *  running turn stops at the next safe step boundary. */
+  hasPendingSteer(topicId: string): boolean {
+    return (this.pendingSteers.get(topicId)?.length ?? 0) > 0
+  }
+
+  /** Enqueue a steer user message (already persisted by the provider). If the topic settled before
+   *  this landed, start the continuation immediately. Mirrors `AgentSessionRuntimeService.enqueueUserMessage`. */
+  enqueuePendingSteer(topicId: string, userMessageId: string): void {
+    const queue = this.pendingSteers.get(topicId)
+    if (queue) queue.push(userMessageId)
+    else this.pendingSteers.set(topicId, [userMessageId])
+    // Race: the turn may have reached terminal between `prepareDispatch` and here (the loop's
+    // `onExecutionDone` doesn't hold the dispatch lock). No terminal hook will fire for it, so
+    // drain now. Mirrors `enqueueUserMessage`'s no-active-turn branch.
+    if (!this.hasLiveStream(topicId)) this.scheduleNextChatTurn(topicId)
   }
 
   // ── Public: listener management ───────────────────────────────────
@@ -568,11 +614,26 @@ export class AiStreamManager extends BaseService {
 
     // Compute topic status first so listeners get isTopicDone
     stream.status = this.resolveTerminalStatus(stream)
-    const isTopicDone = !isLiveStatus(stream.status)
+    const topicDone = !isLiveStatus(stream.status)
 
-    await this.broadcastExecutionDone(stream, exec, isTopicDone)
+    // Chain the next turn instead of finishing: broadcast this exec's done with isTopicDone=false
+    // (the bubble finalises, the topic stays busy — reusing multi-model semantics), skip the terminal
+    // lifecycle (no idle flicker AND the stream stays alive so the next turn can carry the renderer
+    // listeners), and start the continuation. Chat drives the continuation here (scheduleNextChatTurn);
+    // the agent runtime drives its own (terminal listener → markTurnTerminal → startNextTurn), so for
+    // agent we just keep the stream alive — without this its follow-up turn reaches no renderer.
+    const chatChaining = topicDone && this.hasPendingSteer(topicId)
+    const agentChaining =
+      topicDone &&
+      !chatChaining &&
+      isAgentSessionTopic(topicId) &&
+      application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
+    const chaining = chatChaining || agentChaining
 
-    if (isTopicDone) this.runTerminalLifecycle(stream)
+    await this.broadcastExecutionDone(stream, exec, topicDone && !chaining)
+
+    if (chatChaining) this.scheduleNextChatTurn(topicId)
+    else if (topicDone && !chaining) this.runTerminalLifecycle(stream)
   }
 
   async onExecutionPaused(topicId: string, modelId: UniqueModelId): Promise<void> {
@@ -582,13 +643,27 @@ export class AiStreamManager extends BaseService {
     const exec = stream.executions.get(modelId)
     if (!exec || exec.status !== 'aborted') return
 
+    // A turn torn down while a tool is still `approval-requested` (or any
+    // in-flight tool) gets no `tool-output-*` to clear it. Clear the flag so the
+    // status resolves to plain `aborted` (not `awaiting-approval`) and the
+    // status-cache anchor drops; the dangling tool part itself is terminalized
+    // to `output-error` by `finalizeInterruptedParts` at every projection
+    // (persistence already, re-attach below). Must run before
+    // `resolveTerminalStatus`.
+    exec.awaitingApproval = false
+
     endRootSpan(exec, 'aborted')
     stream.status = this.resolveTerminalStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
 
     await this.broadcastExecutionPaused(stream, exec, isTopicDone)
 
-    if (isTopicDone) this.runTerminalLifecycle(stream)
+    if (isTopicDone) {
+      // Aborted (stop button / idle timeout), not a clean steer-yield — drop any queued steer
+      // instead of chaining. Its persisted user row stays as a dangling message the user can resend.
+      this.pendingSteers.delete(topicId)
+      this.runTerminalLifecycle(stream)
+    }
   }
 
   /** Called when one execution errors. */
@@ -602,6 +677,10 @@ export class AiStreamManager extends BaseService {
     exec.status = 'error'
     exec.error = error
     endRootSpan(exec, 'error', error)
+
+    // Mirror of onExecutionPaused: clear the flag so the status anchor drops;
+    // the in-flight tool part is terminalized by `finalizeInterruptedParts`.
+    exec.awaitingApproval = false
 
     stream.status = this.computeTopicStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
@@ -617,7 +696,11 @@ export class AiStreamManager extends BaseService {
     }
     await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result))
 
-    if (isTopicDone) this.runTerminalLifecycle(stream)
+    if (isTopicDone) {
+      // Errored turn — drop any queued steer rather than chaining onto a failed turn.
+      this.pendingSteers.delete(topicId)
+      this.runTerminalLifecycle(stream)
+    }
   }
 
   /**
@@ -649,6 +732,39 @@ export class AiStreamManager extends BaseService {
         this.activeStreams.delete(stream.topicId)
       }
     })
+  }
+
+  /** Drain-dedup + microtask defer for the steer continuation. Mirrors `scheduleNextTurn`. */
+  private scheduleNextChatTurn(topicId: string): void {
+    if (this.startingNextChat.has(topicId)) return
+    this.startingNextChat.add(topicId)
+    queueMicrotask(() => {
+      void this.startNextChatTurn(topicId)
+        .catch((error) => logger.error('Failed to start chat steer continuation', { topicId, error }))
+        .finally(() => this.startingNextChat.delete(topicId))
+    })
+  }
+
+  /**
+   * Open a fresh assistant turn answering the head of the steer queue. Carries the finished turn's
+   * renderer listeners forward so the continuation streams to the same windows; persistence/trace
+   * listeners are rebuilt by `prepareDispatch`. Mirrors `AgentSessionRuntimeService.startNextTurn`.
+   */
+  private async startNextChatTurn(topicId: string): Promise<void> {
+    const queue = this.pendingSteers.get(topicId)
+    const userMessageId = queue?.shift()
+    if (!queue || queue.length === 0) this.pendingSteers.delete(topicId)
+    if (!userMessageId) return
+
+    const previous = this.activeStreams.get(topicId)
+    const carried = previous ? [...previous.listeners.values()].filter((listener) => listener.id.startsWith('wc:')) : []
+    if (previous) this.evictStream(topicId)
+
+    const req: MainDispatchRequest = { trigger: 'steer-continuation', topicId, userMessageId }
+    await this.dispatch(carried[0] ?? nullStreamListener, req)
+    // Re-attach any other windows that were on the prior turn (single subscriber goes through
+    // `dispatch`; the rest catch up via buffer replay).
+    for (const listener of carried.slice(1)) this.addListener(topicId, listener)
   }
 
   // ── Public: inspection snapshot ───────────────────────────────────
@@ -822,7 +938,10 @@ export class AiStreamManager extends BaseService {
     // upstream AI SDK request is already wired to. Caller override via
     // `requestOptions.timeout`; otherwise `DEFAULT_TIMEOUT`.
     const timeoutMs = request.requestOptions?.timeout ?? DEFAULT_TIMEOUT
-    const stream = withIdleTimeout(rawStream, exec.abortController, timeoutMs)
+    const { stream: idleStream, idle } = withIdleTimeout(rawStream, exec.abortController, timeoutMs)
+    // Wrap before pipeStreamLoop's tee() so broadcast + accumulator share one
+    // thinkingMs measurement (see reasoningTimingTransform).
+    const stream = withReasoningTimingMetadata(idleStream)
 
     // `continue-conversation` chunks reference toolCallIds on the anchor
     // assistant message; without seeding, `readUIMessageStream`'s
@@ -832,7 +951,10 @@ export class AiStreamManager extends BaseService {
       lastIncoming?.role === 'assistant' ? (lastIncoming as CherryUIMessage) : undefined
 
     const result = await pipeStreamLoop(stream, signal, {
-      onChunk: (chunk) => this.onChunk(topicId, modelId, chunk),
+      onChunk: (chunk) => {
+        this.onChunk(topicId, modelId, chunk)
+        if (chunk.type === 'tool-approval-request') idle.cleanup()
+      },
       accumulatorSeed,
       onAccumulatedSnapshot: (msg) => {
         exec.finalMessage = msg

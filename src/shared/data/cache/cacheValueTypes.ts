@@ -1,6 +1,9 @@
-import type { McpTool, Topic } from '@types'
+import type { McpTool } from '@types'
 import type { UpdateInfo } from 'builder-util-runtime'
 
+import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
+import type { AgentSessionContextUsageBySession } from '../../ai/agentSessionContextUsage'
+import type { ExternalAppId } from '../../externalApp/types'
 import type { MiniApp } from '../types/miniApp'
 import type { WebSearchStatus } from '../types/webSearch'
 
@@ -21,7 +24,6 @@ export type CacheActiveSearches = Record<string, WebSearchStatus>
 // For cache schema, we use any for complex types to avoid circular dependencies
 // The actual type checking will be done at runtime by the cache system
 export type CacheMiniAppType = MiniApp
-export type CacheTopic = Topic
 export type CacheMcpTool = McpTool
 
 export type McpRuntimeStatus = {
@@ -65,6 +67,29 @@ export interface TabsState {
   activeTabId: string
 }
 
+export type GlobalSearchRecentEntry =
+  | {
+      kind: 'route'
+      url: string
+      title: string
+      icon?: string
+      lastAccessTime: number
+    }
+  | {
+      kind: 'topic'
+      topicId: string
+      title: string
+      assistantId?: string | null
+      lastAccessTime: number
+    }
+  | {
+      kind: 'session'
+      sessionId: string
+      title: string
+      agentId?: string | null
+      lastAccessTime: number
+    }
+
 export type TranslatingState =
   | {
       isTranslating: true
@@ -77,9 +102,30 @@ export type TranslatingState =
 
 export type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 
+/**
+ * Saved scroll position for a chat topic / agent-session message list.
+ *
+ * Stored per topic id in the Memory cache so switching topics or sessions
+ * restores the previous reading position instead of jumping to the first
+ * message. A `null` cache value (the schema default) means "follow the
+ * latest message" — the user was at the bottom or never scrolled, so the
+ * list restores to the newest message.
+ */
+export interface ChatScrollAnchor {
+  /** Stable group key of the top-most visible message group at save time. */
+  key: string
+  /** Pixels scrolled past the top of that group. */
+  offset: number
+}
+
+export type AgentOpenExternalAppTarget = ExternalAppId | 'file_manager' | null
+
 export type CachePaintingGenerationState = {
   status: 'running' | 'failed' | 'canceled'
   taskId: string | null
   error: string | null
   progress: number | null
 }
+
+export type CacheAgentSessionContextUsageBySession = AgentSessionContextUsageBySession
+export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null

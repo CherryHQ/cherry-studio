@@ -1,7 +1,7 @@
 import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { ApiKeyConnectivity } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { Activity, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
+import { Activity, ExternalLink, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -45,7 +45,23 @@ export default function ApiKey({
       <ProviderSection id={provider.id === 'cherryin' ? 'cherryin-api-key-section' : undefined}>
         <ProviderField
           className="space-y-2"
-          title={t('settings.provider.api_key.label')}
+          title={
+            <span className="inline-flex items-center gap-1">
+              <span>{t('settings.provider.api_key.label')}</span>
+              {meta.apiKeyWebsite ? (
+                <Tooltip content={t('settings.provider.get_api_key')} classNames={{ placeholder: 'inline-flex' }}>
+                  <a
+                    href={meta.apiKeyWebsite}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`${meta.fancyProviderName} · ${t('settings.provider.get_api_key')}`}
+                    className="inline-flex size-5 shrink-0 items-center justify-center rounded-md p-0 text-foreground-muted hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground">
+                    <ExternalLink className="size-3" aria-hidden />
+                  </a>
+                </Tooltip>
+              ) : null}
+            </span>
+          }
           titleClassName="text-foreground">
           <div className={fieldClasses.inputRow}>
             <InputGroup className={fieldClasses.inputGroup}>

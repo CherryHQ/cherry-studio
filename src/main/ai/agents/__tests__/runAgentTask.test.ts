@@ -138,6 +138,7 @@ function makeAgent(config: Record<string, unknown> = {}): AgentEntity {
     name: 'Agent A',
     model: 'sonnet' as never,
     configuration: config as never,
+    orderKey: 'k',
     createdAt: '2026-05-20T00:00:00.000Z',
     updatedAt: '2026-05-20T00:00:00.000Z',
     modelName: null

@@ -242,7 +242,7 @@ export function useCommandRuntime(): CommandRuntime {
  * outside any provider (tests, isolated windows).
  *
  * Direct `useMultiplePreferences(shortcutPreferenceKeys)` calls multiply IPC
- * listeners per render — N consumers × ~18 keys froze the settings window.
+ * listeners per render — N consumers × ~22 keys froze the settings window.
  */
 export function useCommandShortcutPreferences(): Partial<Record<CommandId, PreferenceShortcutType>> {
   return use(CommandSharedPreferencesContext)?.shortcutPreferences ?? EMPTY_SHORTCUT_PREFERENCES

@@ -90,7 +90,7 @@ export interface StreamListener {
 
 /**
  * One model's execution within an ActiveStream. Single-model topics have
- * one entry; multi-model (`@gpt-4o @claude-sonnet`) have N entries
+ * one entry; multi-model selections have N entries
  * running independently against the same listeners and siblingsGroupId.
  */
 export interface StreamExecution {
@@ -128,6 +128,8 @@ export interface StreamExecution {
  */
 export interface ActiveStream {
   topicId: string
+  /** Unique per stream lifecycle for renderer-side unread/seen tracking. */
+  turnId: string
   /** Key = `UniqueModelId`. */
   executions: Map<UniqueModelId, StreamExecution>
   /** Shared across all executions. Key = `listener.id`. */

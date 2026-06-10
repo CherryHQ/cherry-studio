@@ -23,7 +23,7 @@ import {
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import { AGENT_SESSION_MESSAGE_SEARCH_ROLES, coerceSearchRole } from '@shared/data/types/message'
 import { buildSearchSnippet } from '@shared/utils/searchSnippet'
-import { and, desc, eq, inArray, isNotNull, lt, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { decodeSearchCursor, encodeSearchCursor, type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
@@ -126,6 +126,17 @@ export class AgentSessionMessageService {
     })
   }
 
+  async sessionMessageExists(id: string): Promise<boolean> {
+    const database = application.get('DbService').getDb()
+    const result = await database
+      .select({ id: sessionMessagesTable.id })
+      .from(sessionMessagesTable)
+      .where(eq(sessionMessagesTable.id, id))
+      .limit(1)
+
+    return result.length > 0
+  }
+
   /**
    * Cursor-paginated message read. Walks newest-first; an absent cursor
    * returns the most recent page, each `nextCursor` walks one page older.
@@ -134,7 +145,7 @@ export class AgentSessionMessageService {
    */
   async listSessionMessages(
     sessionId: string,
-    options: { cursor?: string; limit?: number } = {}
+    options: { cursor?: string; messageId?: string; limit?: number } = {}
   ): Promise<CursorPaginationResponse<AgentSessionMessageEntity>> {
     const database = application.get('DbService').getDb()
 
@@ -155,6 +166,24 @@ export class AgentSessionMessageService {
         or(
           lt(sessionMessagesTable.createdAt, cursor.createdAt),
           and(eq(sessionMessagesTable.createdAt, cursor.createdAt), lt(sessionMessagesTable.id, cursor.id))
+        )!
+      )
+    } else if (options.messageId) {
+      const [targetMessage] = await database
+        .select({ id: sessionMessagesTable.id, createdAt: sessionMessagesTable.createdAt })
+        .from(sessionMessagesTable)
+        .where(and(eq(sessionMessagesTable.id, options.messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+        .limit(1)
+
+      if (!targetMessage) throw DataApiErrorFactory.notFound('Session message', options.messageId)
+
+      filters.push(
+        or(
+          lt(sessionMessagesTable.createdAt, targetMessage.createdAt),
+          and(
+            eq(sessionMessagesTable.createdAt, targetMessage.createdAt),
+            lte(sessionMessagesTable.id, targetMessage.id)
+          )
         )!
       )
     }
@@ -235,7 +264,6 @@ export class AgentSessionMessageService {
       status: row.status as AgentSessionMessageEntity['status'],
       modelId: row.modelId,
       modelSnapshot: row.modelSnapshot,
-      traceId: row.traceId,
       stats: row.stats,
       runtimeResumeToken: row.runtimeResumeToken,
       createdAt: timestampToISO(row.createdAt),
@@ -307,7 +335,6 @@ export class AgentSessionMessageService {
       const updatedAtMs = timestampMs
       const modelId = message.modelId === undefined ? existingRow.modelId : message.modelId
       const modelSnapshot = message.modelSnapshot === undefined ? existingRow.modelSnapshot : message.modelSnapshot
-      const traceId = message.traceId === undefined ? existingRow.traceId : message.traceId
       const stats = message.stats === undefined ? existingRow.stats : message.stats
 
       await withSqliteErrors(
@@ -320,7 +347,6 @@ export class AgentSessionMessageService {
               data: message.data,
               modelId,
               modelSnapshot,
-              traceId,
               stats,
               runtimeResumeToken: runtimeResumeTokenToPersist,
               updatedAt: updatedAtMs
@@ -337,7 +363,6 @@ export class AgentSessionMessageService {
         searchableText: existingRow.searchableText,
         modelId,
         modelSnapshot,
-        traceId,
         stats,
         runtimeResumeToken: runtimeResumeTokenToPersist,
         updatedAt: updatedAtMs
@@ -352,7 +377,6 @@ export class AgentSessionMessageService {
       data: message.data,
       modelId: message.modelId,
       modelSnapshot: message.modelSnapshot,
-      traceId: message.traceId,
       stats: message.stats,
       runtimeResumeToken,
       createdAt: timestampMs,

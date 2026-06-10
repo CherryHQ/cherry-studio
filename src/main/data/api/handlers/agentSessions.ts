@@ -16,6 +16,7 @@ import {
   AgentSessionMessagesListQuerySchema,
   type AgentSessionSchemas,
   CreateAgentSessionSchema,
+  DeleteAgentSessionsQuerySchema,
   ListAgentSessionsQuerySchema,
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
@@ -32,6 +33,12 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
       const parsed = CreateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return await agentSessionService.create(parsed.data)
+    },
+
+    DELETE: async ({ query }) => {
+      const parsed = DeleteAgentSessionsQuerySchema.safeParse(query)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return await agentSessionService.deleteByIds(parsed.data.ids)
     }
   },
 
@@ -64,6 +71,12 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     DELETE: async ({ params }) => {
       await agentSessionMessageService.deleteSessionMessage(params.sessionId, params.messageId)
       return undefined
+    }
+  },
+
+  '/agents/:agentId/sessions': {
+    DELETE: async ({ params }) => {
+      return await agentSessionService.deleteByAgentId(params.agentId)
     }
   },
 

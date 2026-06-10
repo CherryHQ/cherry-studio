@@ -21,6 +21,10 @@ describe('UpdateTopicSchema', () => {
     })
     expect(parsed).toEqual({ name: 'n', isNameManuallyEdited: true, assistantId: 'a1', groupId: 'g1' })
   })
+
+  it('accepts null assistantId to clear default-assistant ownership', () => {
+    expect(UpdateTopicSchema.parse({ assistantId: null })).toEqual({ assistantId: null })
+  })
 })
 
 describe('SetActiveNodeSchema', () => {

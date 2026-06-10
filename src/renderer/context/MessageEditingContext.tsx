@@ -1,28 +1,52 @@
+import type { MessageListItem } from '@renderer/components/chat/messages/types'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { ReactNode } from 'react'
-import { createContext, use, useState } from 'react'
+import { createContext, use, useCallback, useMemo, useRef, useState } from 'react'
+
+export interface EditingMessageSnapshot {
+  message: MessageListItem
+  parts: CherryMessagePart[]
+  editingSessionId: number
+}
 
 interface MessageEditingContextType {
   editingMessageId: string | null
-  startEditing: (messageId: string) => void
+  editingMessage: EditingMessageSnapshot | null
+  startEditing: (message: MessageListItem, parts: CherryMessagePart[]) => void
+  cancelEditing: () => void
   stopEditing: () => void
 }
 
 const MessageEditingContext = createContext<MessageEditingContextType | null>(null)
 
 export function MessageEditingProvider({ children }: { children: ReactNode }) {
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
+  const parent = use(MessageEditingContext)
+  const [editingMessage, setEditingMessage] = useState<EditingMessageSnapshot | null>(null)
+  const editingSessionIdRef = useRef(0)
 
-  const startEditing = (messageId: string) => {
-    setEditingMessageId(messageId)
-  }
+  const startEditing = useCallback((message: MessageListItem, parts: CherryMessagePart[]) => {
+    editingSessionIdRef.current += 1
+    setEditingMessage({ message, parts, editingSessionId: editingSessionIdRef.current })
+  }, [])
 
-  const stopEditing = () => {
-    setEditingMessageId(null)
-  }
+  const stopEditing = useCallback(() => {
+    setEditingMessage(null)
+  }, [])
 
-  return (
-    <MessageEditingContext value={{ editingMessageId, startEditing, stopEditing }}>{children}</MessageEditingContext>
+  const value = useMemo<MessageEditingContextType>(
+    () => ({
+      editingMessageId: editingMessage?.message.id ?? null,
+      editingMessage,
+      startEditing,
+      cancelEditing: stopEditing,
+      stopEditing
+    }),
+    [editingMessage, startEditing, stopEditing]
   )
+
+  if (parent) return <>{children}</>
+
+  return <MessageEditingContext value={value}>{children}</MessageEditingContext>
 }
 
 export function useMessageEditing() {

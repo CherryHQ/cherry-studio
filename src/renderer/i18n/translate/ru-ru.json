@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "ответил",
+      "close": "[to be translated]:Close",
       "customPlaceholder": "Введите ваш ответ...",
       "loading": "Загрузка вопросов...",
       "multiSelect": "Множественный выбор",
@@ -25,6 +26,8 @@
       "noQuestions": "Нет доступных вопросов",
       "other": "Другое",
       "previous": "Предыдущий",
+      "progress": "[to be translated]:{{current}} of {{total}}",
+      "skip": "[to be translated]:Skip",
       "submit": "Отправить",
       "title": "Вопросы от агента"
     },
@@ -215,7 +218,11 @@
         "edit": "Редактировать",
         "empty": "Нет запланированных задач. Добавьте одну, чтобы начать.",
         "error": {
-          "loadFailed": "Не удалось загрузить задачи"
+          "createFailed": "[to be translated]:Failed to create task",
+          "deleteFailed": "[to be translated]:Failed to delete task",
+          "loadFailed": "Не удалось загрузить задачи",
+          "runFailed": "[to be translated]:Failed to run task",
+          "updateFailed": "[to be translated]:Failed to update task"
         },
         "intervalPlaceholder": "Интервал в минутах",
         "intervalUnit": "минуты",
@@ -326,6 +333,9 @@
       "success": "Git Bash успешно обнаружен!",
       "tooltip": "Для запуска агентов в Windows требуется Git Bash. Установите его с сайта git-scm.com, если он отсутствует."
     },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
+    },
     "input": {
       "placeholder": "Введите ваше сообщение здесь, отправьте с помощью {{key}} — @ выбрать путь, / выбрать команду",
       "soul_placeholder": "Помогите мне подключиться к Telegram"
@@ -335,9 +345,89 @@
         "failed": "Не удалось получить список агентов."
       }
     },
+    "pin": {
+      "title": "[to be translated]:Pin Agent"
+    },
+    "preview_pane": {
+      "close": "[to be translated]:Close preview",
+      "code": "[to be translated]:Code",
+      "code_unavailable": "[to be translated]:Source view not available for binary files",
+      "empty": {
+        "description": "[to be translated]:Start chatting with the agent; generated code and live previews will appear here.",
+        "title": "[to be translated]:Ready"
+      },
+      "excel": {
+        "errors": {
+          "file_too_large": "[to be translated]:This Excel file exceeds the preview size limit.",
+          "invalid_request": "[to be translated]:The Excel preview request is invalid.",
+          "parse_failed": "[to be translated]:Unable to read this Excel file.",
+          "too_complex": "[to be translated]:This Excel file is too complex to preview.",
+          "unsupported_extension": "[to be translated]:Only .xlsx and .xlsm files can be previewed.",
+          "unsupported_xls": "[to be translated]:Legacy .xls files are not supported by Excel preview."
+        },
+        "warnings": {
+          "generic": "[to be translated]:Some workbook content may not be fully shown.",
+          "title": "[to be translated]:Preview notice",
+          "unsupported_images": "[to be translated]:Images are not shown in Excel preview yet."
+        }
+      },
+      "file_tree": "[to be translated]:File tree",
+      "items_one": "[to be translated]:{{count}} item",
+      "items_other": "[to be translated]:{{count}} items",
+      "maximize": "[to be translated]:Maximize",
+      "minimize": "[to be translated]:Minimize",
+      "no_search_results": "[to be translated]:No files match your search",
+      "preview": "[to be translated]:Preview",
+      "refresh": "[to be translated]:Refresh",
+      "search_placeholder": "[to be translated]:Search files...",
+      "select_file": "[to be translated]:Select a file to preview",
+      "toggle": "[to be translated]:Show preview panel",
+      "too_large": {
+        "description": "[to be translated]:File exceeds the {{limit}} preview limit.",
+        "title": "[to be translated]:File too large to preview"
+      },
+      "word": {
+        "errors": {
+          "parse_failed": "[to be translated]:Unable to render this Word document.",
+          "read_failed": "[to be translated]:Unable to read this Word document."
+        }
+      }
+    },
     "reorder": {
       "error": {
         "failed": "Не удалось изменить порядок агентов"
+      }
+    },
+    "right_pane": {
+      "close": "[to be translated]:Close",
+      "flow": {
+        "empty": {
+          "description": "[to be translated]:Select an agent tool call to inspect its child message flow.",
+          "title": "[to be translated]:No tool selected"
+        },
+        "no_messages": {
+          "description": "[to be translated]:This tool call has no captured child message flow.",
+          "title": "[to be translated]:No messages"
+        }
+      },
+      "status": {
+        "activity": "[to be translated]:Activity",
+        "agent": "[to be translated]:Agent",
+        "context": "[to be translated]:Context",
+        "no_tasks": "[to be translated]:No active tasks",
+        "selected_tool": "[to be translated]:Selected tool",
+        "task_count": "[to be translated]:{{completed}} / {{total}} complete",
+        "tasks": "[to be translated]:Tasks",
+        "tools_active": "[to be translated]:Active",
+        "tools_done": "[to be translated]:Done",
+        "tools_failed": "[to be translated]:Failed",
+        "tools_total": "[to be translated]:Total",
+        "workspace": "[to be translated]:Workspace"
+      },
+      "tabs": {
+        "files": "[to be translated]:Files",
+        "flow": "[to be translated]:Flow",
+        "status": "[to be translated]:Status"
       }
     },
     "server": {
@@ -360,6 +450,16 @@
       "add": {
         "title": "Добавить сеанс"
       },
+      "agent": {
+        "delete": {
+          "content": "[to be translated]:Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
+          "error": {
+            "failed": "[to be translated]:Failed to delete agent chats"
+          },
+          "title": "[to be translated]:Delete agent chats",
+          "trigger": "[to be translated]:Delete agent chats"
+        }
+      },
       "allowed_tools": {
         "empty": "Для этого агента нет доступных инструментов.",
         "helper": "Выберите инструменты с предварительным допуском. Неотмеченные инструменты потребуют подтверждения перед использованием.",
@@ -379,26 +479,94 @@
         },
         "title": "Удалить сеанс"
       },
+      "display": {
+        "agent": "[to be translated]:Agent",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Display mode",
+        "workdir": "[to be translated]:Project"
+      },
       "edit": {
         "title": "Сессия редактирования"
+      },
+      "empty": {
+        "description": "[to be translated]:Tasks will appear here after you start one.",
+        "title": "[to be translated]:No tasks yet"
+      },
+      "file_manager": {
+        "file_explorer": "[to be translated]:File Explorer",
+        "files": "[to be translated]:Files",
+        "finder": "[to be translated]:Finder"
       },
       "get": {
         "error": {
           "failed": "Не удалось получить сеанс",
+          "not_found": "[to be translated]:Session not found",
           "null_id": "ID сессии равен null"
         }
       },
+      "group": {
+        "collapse": "[to be translated]:Collapse display",
+        "collapse_all": "[to be translated]:Collapse all",
+        "conversation": "[to be translated]:Chats",
+        "drag_hint": "[to be translated]:Drag to reorder. Drag sessions to adjust display and hidden groups.",
+        "earlier": "[to be translated]:Earlier",
+        "expand_all": "[to be translated]:Expand all",
+        "no_workdir": "[to be translated]:No project",
+        "show_more": "[to be translated]:Expand display",
+        "this_week": "[to be translated]:This week",
+        "today": "[to be translated]:Today",
+        "unknown_agent": "[to be translated]:Unknown agent",
+        "yesterday": "[to be translated]:Yesterday"
+      },
       "label_one": "Сессия",
       "label_other": "Сессии",
+      "list": {
+        "title": "[to be translated]:Sessions"
+      },
+      "pin": {
+        "title": "[to be translated]:Pin task"
+      },
       "reorder": {
         "error": {
           "failed": "Не удалось изменить порядок сеансов"
         }
       },
+      "search": {
+        "placeholder": "[to be translated]:Search sessions"
+      },
+      "unpin": {
+        "title": "[to be translated]:Unpin task"
+      },
       "update": {
         "error": {
           "failed": "Не удалось обновить сеанс"
         }
+      },
+      "workdir": {
+        "delete": {
+          "content": "[to be translated]:Deleting this project will also delete all sessions under it. Only database records are removed; the actual folder on disk will not be deleted.",
+          "error": {
+            "failed": "[to be translated]:Failed to delete the project"
+          },
+          "title": "[to be translated]:Delete project",
+          "trigger": "[to be translated]:Delete project"
+        },
+        "rename": {
+          "error": {
+            "failed": "[to be translated]:Failed to rename the project"
+          },
+          "title": "[to be translated]:Rename project",
+          "trigger": "[to be translated]:Rename project"
+        }
+      },
+      "workspace_selector": {
+        "create_failed": "[to be translated]:Failed to add project.",
+        "create_new": "[to be translated]:Add new project",
+        "empty_text": "[to be translated]:No projects",
+        "no_project": "[to be translated]:No project",
+        "placeholder": "[to be translated]:Select project",
+        "search_placeholder": "[to be translated]:Search projects",
+        "select_failed": "[to be translated]:Failed to select folder."
       },
       "workspace_status": {
         "inaccessible": "Путь к рабочей области недоступен: {{path}}",
@@ -695,8 +863,10 @@
         "showDetails": "Показать сведения об инструменте"
       },
       "button": {
+        "allow": "[to be translated]:Allow",
         "allowAll": "Всегда разрешать",
         "cancel": "Отмена",
+        "deny": "[to be translated]:Deny",
         "run": "Беги"
       },
       "confirmation": "Вы уверены, что хотите запустить этот инструмент Claude?",
@@ -771,6 +941,9 @@
     "type": {
       "label": "Тип агента",
       "unknown": "Неизвестный тип"
+    },
+    "unpin": {
+      "title": "[to be translated]:Unpin Agent"
     },
     "update": {
       "error": {
@@ -881,6 +1054,7 @@
     "abbr": "Ассистент",
     "clear": {
       "content": "Очистка топика удалит все топики и файлы в ассистенте. Вы уверены, что хотите продолжить?",
+      "menu_title": "[to be translated]:Delete all assistant conversations",
       "title": "Очистить топики"
     },
     "copy": {
@@ -902,6 +1076,9 @@
     "list": {
       "showByList": "Список",
       "showByTags": "По тегам"
+    },
+    "pin": {
+      "title": "[to be translated]:Pin Assistant"
     },
     "presets": {
       "add": {
@@ -997,6 +1174,11 @@
       },
       "title": "Библиотека помощников"
     },
+    "reorder": {
+      "error": {
+        "failed": "[to be translated]:Failed to reorder assistants"
+      }
+    },
     "save": {
       "success": "Успешно сохранено",
       "title": "Сохранить в агента"
@@ -1090,7 +1272,10 @@
       },
       "untagged": "Несгруппированные метки"
     },
-    "title": "Ассистенты"
+    "title": "Ассистенты",
+    "unpin": {
+      "title": "[to be translated]:Unpin Assistant"
+    }
   },
   "auth": {
     "error": "Автоматический получение ключа API не удалось, пожалуйста, получите ключ вручную",
@@ -1125,6 +1310,7 @@
     "download": "Скачать",
     "includes_user_questions": "Включает вопросы пользователей",
     "manage": "Редактировать",
+    "select_assistant": "[to be translated]:Select Assistant",
     "select_model": "Выбрать модель",
     "show": {
       "all": "Показать все"
@@ -1169,6 +1355,9 @@
         "placeholder": "Поиск"
       }
     },
+    "conversation": {
+      "new": "[to be translated]:New Chat"
+    },
     "deeply_thought": "Мыслим ({{seconds}} секунд)",
     "default": {
       "description": "Привет, я Ассистент по умолчанию. Вы можете начать общаться со мной прямо сейчас",
@@ -1187,8 +1376,12 @@
       "user_node": "Пользователь",
       "view_full_content": "Показать полное содержимое"
     },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
+    },
     "input": {
       "auto_resize": "Автоматическая высота",
+      "cancel_editing": "[to be translated]:Cancel editing",
       "clear": {
         "content": "Хотите очистить все сообщения текущего топика?",
         "label": "Очистить {{Command}}",
@@ -1198,6 +1391,7 @@
       "context_count": {
         "tip": "Контекст / Макс. контекст"
       },
+      "editing_message": "[to be translated]:Editing sent message",
       "estimated_tokens": {
         "tip": "Затраты токенов"
       },
@@ -1208,30 +1402,24 @@
       "generate_image": "Сгенерировать изображение",
       "generate_image_not_supported": "Модель не поддерживает генерацию изображений.",
       "knowledge_base": "База знаний",
+      "knowledge_base_disabled_by_files": "[to be translated]:Remove attached files to use Knowledge Base",
+      "knowledge_base_unavailable": "[to be translated]:Select a tool-capable model or enable prompt tool use",
+      "locate_editing_message": "[to be translated]:Locate original message",
+      "mcp_unavailable": "[to be translated]:Select a tool-capable model or enable prompt tool use",
       "new": {
         "context": "Очистить контекст {{Command}}"
       },
       "new_session": "Новая сессия {{Команда}}",
       "new_topic": "Новый топик {{Command}}",
       "paste_text_file": "Вставьте во входные данные",
+      "pasted_text_file_name": "[to be translated]:Pasted text.txt",
       "pause": "Остановить",
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
-      "placeholder_without_triggers": "Напишите сообщение здесь, нажмите {{key}} для отправки",
       "resource_panel": {
-        "categories": {
-          "agents": "Агенты",
-          "files": "Файлы",
-          "skills": "Навыки"
-        },
-        "description": "Выберите из файлов, агентов или навыков",
         "loading": "Загрузка...",
         "no_file_found": {
           "description": "Нет доступных файлов в доступных каталогах",
           "label": "Файл не найден"
-        },
-        "no_items_found": {
-          "description": "Нет доступных файлов, агентов или навыков",
-          "label": "Элементы не найдены"
         },
         "title": "Ресурсы"
       },
@@ -1244,6 +1432,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "Бюджет размышления превышает максимальное количество токенов",
+        "fixed_model": "[to be translated]:Reasoning is fixed for this model",
         "label": "Мыслим",
         "mode": {
           "custom": {
@@ -1257,7 +1446,8 @@
           "tokens": {
             "tip": "Установите количество токенов для размышления"
           }
-        }
+        },
+        "unsupported_model": "[to be translated]:Current model does not support adjustable reasoning"
       },
       "tools": {
         "collapse": "Свернуть",
@@ -1275,6 +1465,8 @@
       "upload": {
         "attachment": "Загрузить вложение",
         "document": "Загрузить документ (модель не поддерживает изображения)",
+        "document_only": "[to be translated]:Documents only",
+        "image_not_supported": "[to be translated]:This model does not support image uploads. Documents only.",
         "image_or_document": "Загрузить изображение или документ",
         "upload_from_local": "Загрузить локальный файл..."
       },
@@ -1310,6 +1502,20 @@
       }
     },
     "message": {
+      "editing_current": "[to be translated]:This message is being edited in the composer",
+      "flow": {
+        "branches": "[to be translated]:branches",
+        "copy_topic": {
+          "created": "[to be translated]:Copied to a new topic",
+          "label": "[to be translated]:Copy as New Topic"
+        },
+        "nodes": "[to be translated]:nodes",
+        "status": {
+          "awaiting_input": "[to be translated]:Awaiting input"
+        },
+        "title": "[to be translated]:Branch Management"
+      },
+      "more": "[to be translated]:More actions",
       "new": {
         "branch": {
           "created": "Новая ветка создана",
@@ -1419,6 +1625,7 @@
             "save_failed": "Не удалось сохранить тему. Проверьте настройки базы знаний"
           },
           "loading": "Анализ содержимого темы...",
+          "menu_title": "[to be translated]:Save to Knowledge Base",
           "select": {
             "content": {
               "label": "Выберите тип содержимого для сохранения",
@@ -1505,14 +1712,25 @@
       "delete": {
         "shortcut": "Удерживайте {{key}} для мгновенного удаления"
       },
+      "display": {
+        "assistant": "[to be translated]:Assistant",
+        "tag": "[to be translated]:Tag",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Display mode"
+      },
       "edit": {
         "placeholder": "Введите новый заголовок",
         "title": "Редактировать заголовок",
         "title_tip": "Совет: двойной щелчок по названию темы позволяет переименовать её на месте"
       },
+      "empty": {
+        "description": "[to be translated]:Create a chat and it will stay here so you can continue with its context later.",
+        "title": "[to be translated]:No chats yet"
+      },
       "export": {
         "failed": "Экспорт не удался",
         "image": "Экспорт как изображение",
+        "image_exporting_keep_page": "[to be translated]:Exporting image. Please stay on this page.",
         "image_saved": "Изображение успешно сохранено",
         "joplin": "Экспорт в Joplin",
         "md": {
@@ -1559,6 +1777,17 @@
         "wait_for_title_naming": "Создание заголовка...",
         "word": "Экспорт как Word",
         "yuque": "Экспорт в Yuque"
+      },
+      "group": {
+        "collapse": "[to be translated]:Collapse display",
+        "collapse_all": "[to be translated]:Collapse all",
+        "earlier": "[to be translated]:Earlier",
+        "expand_all": "[to be translated]:Expand all",
+        "show_more": "[to be translated]:Expand display",
+        "this_week": "[to be translated]:This week",
+        "today": "[to be translated]:Today",
+        "unknown_assistant": "[to be translated]:Unlinked Assistant",
+        "yesterday": "[to be translated]:Yesterday"
       },
       "list": "Список топиков",
       "manage": {
@@ -1708,8 +1937,10 @@
     "add": "Добавить",
     "add_success": "Успешно добавлено",
     "advanced_settings": "Дополнительные настройки",
+    "agent": "[to be translated]:Agent",
     "agent_one": "Агент",
     "agent_other": "Агенты",
+    "all": "[to be translated]:All",
     "and": "и",
     "assistant": "Ассистент",
     "assistant_one": "Помощник",
@@ -1723,12 +1954,14 @@
     "clear_all": "Очистить всё",
     "click_to_replace": "Щёлкните для замены",
     "close": "Закрыть",
+    "close_sidebar": "[to be translated]:Close sidebar",
     "collapse": "Свернуть",
     "completed": "Завершено",
     "confirm": "Подтверждение",
     "copied": "Скопировано",
     "copy": "Копировать",
     "copy_failed": "Не удалось скопировать",
+    "create_success": "[to be translated]:Created successfully",
     "current": "Текущий",
     "cut": "Вырезать",
     "default": "По умолчанию",
@@ -1773,6 +2006,8 @@
     "knowledge_base": "База знаний",
     "language": "Язык",
     "loading": "Загрузка...",
+    "maximize": "[to be translated]:Maximize",
+    "minimize": "[to be translated]:Minimize",
     "model": "Модель",
     "models": "Модели",
     "more": "Ещё",
@@ -1785,6 +2020,8 @@
     "on": "Вкл",
     "open": "Открыть",
     "open_in": "Открыть в {{name}}",
+    "open_in_new_tab": "[to be translated]:Open in new tab",
+    "open_sidebar": "[to be translated]:Open sidebar",
     "paste": "Вставить",
     "placeholders": {
       "select": {
@@ -1837,6 +2074,7 @@
     "upload_image": "Загрузить файл изображения",
     "uploaded_image": "Загруженное изображение",
     "warning": "Предупреждение",
+    "yesterday": "[to be translated]:Yesterday",
     "you": "Вы"
   },
   "dialog": {
@@ -2047,6 +2285,85 @@
     "title": "Файлы",
     "type": "Тип"
   },
+  "globalSearch": {
+    "clear": "[to be translated]:Clear search",
+    "error": "[to be translated]:Search failed",
+    "filters": {
+      "agent": "[to be translated]:Agent",
+      "all": "[to be translated]:All",
+      "assistant": "[to be translated]:Assistant",
+      "conversation": "[to be translated]:Work",
+      "knowledge": "[to be translated]:Knowledge",
+      "label": "[to be translated]:Search type",
+      "session": "[to be translated]:Work",
+      "topic": "[to be translated]:Topic"
+    },
+    "groups": {
+      "agent": "[to be translated]:Agent",
+      "assistant": "[to be translated]:Assistant",
+      "conversation": "[to be translated]:Work",
+      "knowledge-base": "[to be translated]:Knowledge",
+      "message": "[to be translated]:Messages",
+      "recent": "[to be translated]:Recent",
+      "session": "[to be translated]:Work",
+      "topic": "[to be translated]:Topic"
+    },
+    "keyboard": {
+      "select": "[to be translated]:Select"
+    },
+    "messageSearch": {
+      "entry": "[to be translated]:Messages",
+      "hint": "[to be translated]:Type to search message content",
+      "jumpToMessage": "[to be translated]:Jump to message",
+      "more": "[to be translated]:Show {{count}} more results",
+      "open": "[to be translated]:Search messages",
+      "roles": {
+        "assistant": "[to be translated]:Assistant",
+        "system": "[to be translated]:System",
+        "tool": "[to be translated]:Tool",
+        "user": "[to be translated]:User"
+      },
+      "sourceLabel": "[to be translated]:Message source",
+      "sources": {
+        "all": "[to be translated]:All messages",
+        "session": "[to be translated]:Work messages",
+        "topic": "[to be translated]:Topic messages"
+      },
+      "viewMore": "[to be translated]:View more in Messages"
+    },
+    "no_recent": "[to be translated]:No recent routes",
+    "open": "[to be translated]:Open global search",
+    "open_failed": "[to be translated]:Failed to open search result",
+    "placeholder": "[to be translated]:Search topics, work, assistants, agents, and knowledge...",
+    "quickApps": {
+      "hide": "[to be translated]:Hide {{name}}",
+      "manage": "[to be translated]:Manage",
+      "manager_description": "[to be translated]:Drag to reorder, click the eye to hide or show",
+      "manager_title": "[to be translated]:Manage quick apps",
+      "reset": "[to be translated]:Reset",
+      "save_failed": "[to be translated]:Failed to save quick apps",
+      "show": "[to be translated]:Show {{name}}",
+      "title": "[to be translated]:Quick apps"
+    },
+    "recent_hint": "[to be translated]:Type to search work, assistants, agents, and knowledge",
+    "resultTypes": {
+      "agent": "[to be translated]:Agent",
+      "assistant": "[to be translated]:Assistant",
+      "knowledge-base": "[to be translated]:Knowledge",
+      "session": "[to be translated]:Work",
+      "topic": "[to be translated]:Topic"
+    },
+    "showMore": "[to be translated]:Show {{count}} more",
+    "timeFilters": {
+      "any": "[to be translated]:Any time",
+      "label": "[to be translated]:Updated time",
+      "messageLabel": "[to be translated]:Created time",
+      "month": "[to be translated]:Last month",
+      "quarter": "[to be translated]:Last 3 months",
+      "today": "[to be translated]:Today",
+      "week": "[to be translated]:Last 7 days"
+    }
+  },
   "gpustack": {
     "keep_alive_time": {
       "description": "Время в минутах, в течение которого модель остается активной, по умолчанию 5 минут.",
@@ -2062,6 +2379,66 @@
     },
     "locate": {
       "message": "Найти сообщение"
+    },
+    "records": {
+      "agentSubtitle": "[to be translated]:{{count}} sessions",
+      "agentTitle": "[to be translated]:Agent History",
+      "assistantSubtitle": "[to be translated]:{{count}} topics",
+      "bulkDelete": "[to be translated]:Batch Delete",
+      "bulkDeleteSessions": {
+        "description": "[to be translated]:Delete {{count}} selected session(s)?",
+        "title": "[to be translated]:Delete selected sessions"
+      },
+      "bulkDeleteTopics": {
+        "description": "[to be translated]:Delete {{count}} selected topic(s)?",
+        "title": "[to be translated]:Delete selected topics"
+      },
+      "bulkMove": "[to be translated]:Batch Move",
+      "bulkMoveTopics": {
+        "confirm": "[to be translated]:Move",
+        "description": "[to be translated]:Move {{count}} selected topic(s) to the target assistant.",
+        "empty": "[to be translated]:No assistants available",
+        "error": "[to be translated]:Failed to move topics",
+        "placeholder": "[to be translated]:Select assistant",
+        "success": "[to be translated]:Moved {{count}} topic(s)",
+        "target": "[to be translated]:Target assistant",
+        "title": "[to be translated]:Move selected topics"
+      },
+      "empty": {
+        "description": "[to be translated]:No topics for the current filters.",
+        "sessionsDescription": "[to be translated]:No sessions for the current filters.",
+        "sessionsTitle": "[to be translated]:No sessions",
+        "title": "[to be translated]:No topics"
+      },
+      "loading": {
+        "description": "[to be translated]:Loading topic list.",
+        "sessionsDescription": "[to be translated]:Loading session list.",
+        "sessionsTitle": "[to be translated]:Loading sessions",
+        "title": "[to be translated]:Loading topics"
+      },
+      "resultCount": "[to be translated]:{{count}} results",
+      "searchSession": "[to be translated]:Search sessions...",
+      "searchTopic": "[to be translated]:Search topics...",
+      "shortTitle": "[to be translated]:History",
+      "sidebar": {
+        "searchAssistant": "[to be translated]:Search assistants...",
+        "status": "[to be translated]:Status",
+        "unknownAssistant": "[to be translated]:Unlinked assistant"
+      },
+      "status": {
+        "completed": "[to be translated]:Completed",
+        "failed": "[to be translated]:Failed",
+        "running": "[to be translated]:Running"
+      },
+      "table": {
+        "actions": "[to be translated]:Actions",
+        "emptyValue": "[to be translated]:—",
+        "messages": "[to be translated]:Messages",
+        "session": "[to be translated]:Session",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Title"
+      },
+      "title": "[to be translated]:Topic History"
     },
     "search": {
       "match": {
@@ -2432,6 +2809,7 @@
       "browse_label": "Категории ассистентов",
       "empty_description": "В этой категории пока нет предустановок ассистента.",
       "empty_title": "Нет ассистентов для добавления",
+      "go_to_chat": "[to be translated]:Go to chat",
       "mine": "Моя",
       "no_match_description": "Попробуйте другой поисковый запрос",
       "no_match_title": "Подходящие ассистенты не найдены",
@@ -2470,7 +2848,8 @@
           },
           "env_vars": {
             "help": "Одна пара КЛЮЧ=ЗНАЧЕНИЕ на строку",
-            "label": "Переменные окружения"
+            "label": "Переменные окружения",
+            "placeholder": "[to be translated]:KEY=value\nANOTHER_KEY=another_value"
           },
           "heartbeat_enabled": {
             "label": "Проверка пульса"
@@ -2503,7 +2882,6 @@
             "placeholder": "Дайте агенту имя"
           },
           "permission_mode": {
-            "help": "Переключение на bypassPermissions эквивалентно включению режима Soul.",
             "label": "Режим разрешений",
             "option": {
               "acceptEdits": "Принять правки",
@@ -2618,6 +2996,7 @@
         "json_invalid": "Неверный формат JSON",
         "max_tokens": "Максимальное количество токенов",
         "max_tool_calls": "Максимальное количество вызовов инструментов",
+        "mcp_mode": "[to be translated]:MCP Mode",
         "model": "Модель по умолчанию",
         "model_clear": "Очистить",
         "model_not_found": "Модель не найдена (возможно, была удалена): {{id}}",
@@ -2636,6 +3015,34 @@
         "unlimited": "Безлимитный"
       },
       "breadcrumb": "Библиотека",
+      "dialogs": {
+        "create": {
+          "agent_title": "[to be translated]:New Agent",
+          "assistant_title": "[to be translated]:New Assistant",
+          "avatar_aria": "[to be translated]:Choose avatar",
+          "description_placeholder": "[to be translated]:Describe what it is for...",
+          "dialog_description": "[to be translated]:Create a lightweight assistant or agent.",
+          "model_placeholder": "[to be translated]:Select a model",
+          "model_required": "[to be translated]:Please select a model",
+          "name_placeholder": "[to be translated]:Enter a name",
+          "name_required": "[to be translated]:Please enter a name",
+          "submit": "[to be translated]:Create",
+          "submit_failed": "[to be translated]:Create failed"
+        },
+        "edit": {
+          "advanced_tab": "[to be translated]:Advanced",
+          "agent_description": "[to be translated]:Quickly adjust this agent's essentials.",
+          "agent_title": "[to be translated]:Edit Agent",
+          "assistant_description": "[to be translated]:Quickly adjust this assistant's essentials.",
+          "assistant_title": "[to be translated]:Edit Assistant",
+          "basic_tab": "[to be translated]:Basic",
+          "knowledge_tab": "[to be translated]:Knowledge",
+          "permission_tab": "[to be translated]:Permission",
+          "prompt_tab": "[to be translated]:Prompt",
+          "save_failed": "[to be translated]:Save failed",
+          "tools_tab": "[to be translated]:Tools"
+        }
+      },
       "knowledge": {
         "add": "Добавить базу знаний",
         "desc": "Подключите одну или несколько баз знаний; релевантные фрагменты будут извлечены во время чата",
@@ -2666,6 +3073,8 @@
           }
         },
         "generate": "Сгенерировать промпт",
+        "generate_failed_description": "Проверьте или измените модель по умолчанию и повторите попытку.",
+        "generate_failed_title": "Не удалось сгенерировать промпт",
         "insert_variable": "Вставить переменную",
         "label": "Системный промпт",
         "placeholder": "Введите системный промпт. Поддерживаются переменные вроде {{date}} и {{model_name}}...",
@@ -2824,13 +3233,9 @@
     },
     "skill_detail": {
       "created_at": "Создано",
-      "delete_description": "Удалить этот навык и всю его конфигурацию. Это действие нельзя отменить.",
-      "delete_title": "Удалить навык",
       "description": "Описание",
-      "file_preview": "Предварительный просмотр файла",
       "installed": "Установлено",
       "no_description": "Нет описания",
-      "source_files": "Исходные файлы",
       "updated_at": "Недавно обновлено"
     },
     "sort": {
@@ -2854,6 +3259,7 @@
     "title": "Библиотека",
     "toolbar": {
       "add_tag_placeholder": "Имя тега...",
+      "all_tags": "[to be translated]:All tags",
       "new_resource": "Новый ресурс",
       "search_placeholder": "Поиск ресурсов...",
       "tag_button": "Тег"
@@ -2867,7 +3273,6 @@
       "prompt": "Подсказка",
       "skill": "Навык"
     },
-    "uninstall_failed": "Не удалось удалить",
     "view": {
       "grid": "Сетка",
       "list": "Просмотр списком"
@@ -2950,6 +3355,7 @@
       "chunk_overlap_too_large": "Перекрытие фрагментов не может быть больше размера фрагмента",
       "copy": "Не удалось скопировать",
       "dimension_too_large": "Размер содержимого слишком велик",
+      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
       "enter": {
         "api": {
           "host": "Пожалуйста, введите ваш API хост",
@@ -3000,6 +3406,7 @@
         "no_api_key": "Notion ApiKey или Notion DatabaseID не настроен",
         "no_content": "Нет содержимого для экспорта в Notion"
       },
+      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "siyuan": {
         "export": "Ошибка экспорта в Siyuan, пожалуйста, проверьте состояние подключения и настройки в документации",
         "no_config": "Не настроен API адрес или токен Siyuan"
@@ -3058,6 +3465,10 @@
         "bubble": "Пузырь",
         "label": "Стиль сообщения",
         "plain": "Простой"
+      },
+      "user_content": {
+        "collapse": "[to be translated]:Collapse",
+        "expand": "[to be translated]:Expand"
       },
       "video": {
         "error": {
@@ -3125,6 +3536,76 @@
     "tools": {
       "abort_failed": "Вызов инструмента прерван",
       "aborted": "Вызов инструмента прерван",
+      "activity": {
+        "archive": "[to be translated]:archive",
+        "assistantTask": "[to be translated]:task",
+        "availableFeatures": "[to be translated]:available features",
+        "availableResources": "[to be translated]:available resources",
+        "branch": "[to be translated]:code branch",
+        "build": "[to be translated]:Build",
+        "building": "[to be translated]:Building",
+        "check": "[to be translated]:Check",
+        "checking": "[to be translated]:Checking",
+        "codeFiles": "[to be translated]:code files",
+        "codeHostInfo": "[to be translated]:code hosting information",
+        "commandName": "[to be translated]:{{name}} command",
+        "configFiles": "[to be translated]:project docs and config files",
+        "copy": "[to be translated]:Copy",
+        "copying": "[to be translated]:Copying",
+        "create": "[to be translated]:Create",
+        "creating": "[to be translated]:Creating",
+        "currentFolder": "[to be translated]:current folder",
+        "delete": "[to be translated]:Delete",
+        "deleting": "[to be translated]:Deleting",
+        "documentFiles": "[to be translated]:document files",
+        "download": "[to be translated]:Download",
+        "downloading": "[to be translated]:Downloading",
+        "executeCommand": "[to be translated]:Run command",
+        "executingCommand": "[to be translated]:Running command",
+        "extract": "[to be translated]:Extract",
+        "extracting": "[to be translated]:Extracting",
+        "file": "[to be translated]:file",
+        "fileList": "[to be translated]:file list",
+        "folder": "[to be translated]:folder",
+        "handle": "[to be translated]:Handle",
+        "handling": "[to be translated]:Handling",
+        "imageFiles": "[to be translated]:image files",
+        "install": "[to be translated]:Install",
+        "installing": "[to be translated]:Installing",
+        "matchingFiles": "[to be translated]:matching files",
+        "modify": "[to be translated]:Modify",
+        "modifying": "[to be translated]:Modifying",
+        "move": "[to be translated]:Move",
+        "moving": "[to be translated]:Moving",
+        "open": "[to be translated]:Open",
+        "opening": "[to be translated]:Opening",
+        "plan": "[to be translated]:execution plan",
+        "projectChanges": "[to be translated]:project changes",
+        "projectChecks": "[to be translated]:project checks",
+        "projectDependencies": "[to be translated]:project dependencies",
+        "projectFiles": "[to be translated]:project files",
+        "projectRootFiles": "[to be translated]:project root files",
+        "projectTask": "[to be translated]:project task",
+        "relatedContent": "[to be translated]:related content",
+        "repository": "[to be translated]:code repository",
+        "search": "[to be translated]:Find",
+        "searching": "[to be translated]:Finding",
+        "switch": "[to be translated]:Switch",
+        "switching": "[to be translated]:Switching",
+        "sync": "[to be translated]:Sync",
+        "syncing": "[to be translated]:Syncing",
+        "taskList": "[to be translated]:task list",
+        "translationFiles": "[to be translated]:translation files",
+        "upload": "[to be translated]:Upload",
+        "uploading": "[to be translated]:Uploading",
+        "view": "[to be translated]:View",
+        "viewing": "[to be translated]:Viewing",
+        "webPage": "[to be translated]:web page",
+        "webSearch": "[to be translated]:web content",
+        "workspace": "[to be translated]:workspace",
+        "write": "[to be translated]:Save",
+        "writing": "[to be translated]:Saving"
+      },
       "approvalRequired": "Инструмент \"{{tool}}\" требует одобрения",
       "autoApproveEnabled": "Для этого инструмента включен автоматический одобрен",
       "cancelled": "Отменено",
@@ -3153,6 +3634,18 @@
       },
       "noData": "Нет доступных данных для этого инструмента",
       "pending": "Ожидание",
+      "placeholder": {
+        "elapsed": {
+          "days": "[to be translated]:{{days}}d {{hours}}h {{minutes}}m {{seconds}}s",
+          "hours": "[to be translated]:{{hours}}h {{minutes}}m {{seconds}}s",
+          "minutes": "[to be translated]:{{minutes}}m {{seconds}}s",
+          "seconds": "[to be translated]:{{seconds}}s"
+        },
+        "generating": "[to be translated]:Writing response",
+        "preparing": "[to be translated]:Preparing response",
+        "thinking": "[to be translated]:Thinking",
+        "usingTools": "[to be translated]:Working on the task"
+      },
       "preview": "Предпросмотр",
       "raw": "Исходный",
       "runningCount": "{{count}} инструментов запущено",
@@ -3177,6 +3670,7 @@
         "success": "Успех"
       },
       "streaming": "Стриминг",
+      "thinkingHeader": "[to be translated]:Thinking",
       "truncated": "Вывод усечён (оригинал: {{size}})",
       "units": {
         "done_one": "{{count}} Готово",
@@ -3221,6 +3715,7 @@
     "websearch": {
       "cutoff": "Обрезка содержимого поиска...",
       "fetch_complete": "{{count}} результатов поиска",
+      "fetch_empty": "[to be translated]:No search results found",
       "partial_failure": "{{count}} результатов поиска, некоторые поиски завершились ошибкой"
     }
   },
@@ -3406,6 +3901,12 @@
     "search": {
       "placeholder": "Поиск моделей...",
       "tooltip": "Поиск моделей"
+    },
+    "selection": {
+      "context_window": "[to be translated]:Context {{count}}",
+      "remove_model": "[to be translated]:Remove {{name}}",
+      "restore_default": "[to be translated]:Restore assistant model",
+      "selected_models": "[to be translated]:Selected models"
     },
     "stream_output": "Потоковый вывод",
     "type": {
@@ -4698,6 +5199,12 @@
       "sort_label": "Сортировать",
       "unpin": "Открепить"
     },
+    "create_dialog": {
+      "refresh_failed": "[to be translated]:Created, but failed to refresh the list"
+    },
+    "edit_dialog": {
+      "refresh_failed": "[to be translated]:Saved, but failed to refresh the list"
+    },
     "workspace": {
       "empty_text": "Пока нет рабочих областей",
       "placeholder": "Выберите рабочее пространство"
@@ -4749,7 +5256,6 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "Автоматически переключаться на топик",
       "title": "Расширенные настройки"
     },
     "assistant": {
@@ -4878,7 +5384,17 @@
         "triggerSelectedCount": "{{count}} моделей выбрано",
         "valueProp": "Текущее ценностное предложение"
       },
-      "title": "Лаборатория компонентов разработки"
+      "title": "Лаборатория компонентов разработки",
+      "toolPermission": {
+        "builtinMode": "[to be translated]:Built-in",
+        "currentRequest": "[to be translated]:Current request",
+        "description": "[to be translated]:Preview the bottom tool permission composer with built-in and MCP tool requests.",
+        "latestResponse": "[to be translated]:Latest response",
+        "mcpMode": "[to be translated]:MCP",
+        "noResponse": "[to be translated]:No response submitted yet",
+        "resetPreview": "[to be translated]:Reset preview",
+        "title": "[to be translated]:Tool Permission"
+      }
     },
     "data": {
       "app_data": {
@@ -5574,7 +6090,19 @@
         "title": "Резервное копирование и восстановление данных"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "[to be translated]:Cherry",
+            "native": "[to be translated]:Native",
+            "restart": {
+              "content": "[to be translated]:Changing the menu style requires restarting the app to take effect. Do you want to restart now?",
+              "title": "[to be translated]:Restart Required"
+            },
+            "title": "[to be translated]:Context menu style"
+          }
+        },
         "sections": {
+          "chat_settings": "[to be translated]:Chat Settings",
           "custom_css": "Пользовательский CSS",
           "display_language": "Отображение и язык",
           "privacy_advanced": "Конфиденциальность и расширенные",
@@ -5833,6 +6361,13 @@
         "text": "Текст",
         "uri": "URI"
       },
+      "runtimeStatus": {
+        "connected": "[to be translated]:Connected",
+        "connecting": "[to be translated]:Connecting",
+        "disabled": "[to be translated]:Disabled",
+        "error": "[to be translated]:Error",
+        "unavailable": "[to be translated]:Unavailable"
+      },
       "search": {
         "placeholder": "Найти MCP серверы...",
         "tooltip": "Найти MCP серверы"
@@ -5938,9 +6473,6 @@
       "input": {
         "confirm_delete_message": "Подтверждать перед удалением сообщений",
         "confirm_regenerate_message": "Подтверждать перед пересозданием сообщений",
-        "enable_quick_triggers": "Включите / и @, чтобы вызвать быстрое меню.",
-        "paste_long_text_as_file": "Вставлять длинный текст как файл",
-        "paste_long_text_threshold": "Длина вставки длинного текста",
         "send_shortcuts": "Горячие клавиши для отправки",
         "show_estimated_tokens": "Показывать затраты токенов",
         "title": "Настройки ввода"
@@ -5959,7 +6491,8 @@
       "prompt": "Показывать подсказки",
       "show_message_outline": "Показать наброски сообщения",
       "title": "Настройки сообщений",
-      "use_serif_font": "Использовать serif шрифт"
+      "use_serif_font": "Использовать serif шрифт",
+      "wide_mode": "[to be translated]:Wide layout mode"
     },
     "miniApps": {
       "cache_change_notice": "Изменения вступят в силу, когда количество открытых мини-приложений достигнет установленного значения",
@@ -6326,6 +6859,7 @@
         "title": "подробность"
       }
     },
+    "parameter_settings": "[to be translated]:Parameter Settings",
     "plugins": {
       "bunDescription": "Среда выполнения JavaScript, используемая службами MCP и связанными с ними инструментальными цепочками.",
       "description": "Управляйте бинарными инструментами и зависимостями среды выполнения, необходимыми приложению.",
@@ -6354,7 +6888,8 @@
       },
       "title": "Управление промптами",
       "titleLabel": "Заголовок",
-      "titlePlaceholder": "Введите заголовок промпта"
+      "titlePlaceholder": "Введите заголовок промпта",
+      "variablePlaceholder": "[to be translated]:${variable}"
     },
     "provider": {
       "add": {
@@ -6688,6 +7223,14 @@
       "close": "Закрыть",
       "confirm": "Подтвердить",
       "forward": "Вперед",
+      "mcp": {
+        "agentEmpty": "[to be translated]:No MCP servers configured for this agent",
+        "assistantEmpty": "[to be translated]:No MCP servers configured for this assistant",
+        "autoEmpty": "[to be translated]:No enabled MCP servers",
+        "description": "[to be translated]:View current MCP server status",
+        "disabled": "[to be translated]:MCP is disabled for this assistant",
+        "unknownServer": "[to be translated]:Unknown MCP server"
+      },
       "multiple": "Множественный выбор",
       "noResult": "Результаты не найдены",
       "page": "Страница",
@@ -6731,6 +7274,7 @@
       },
       "clear_shortcut": "Очистить сочетание клавиш",
       "clear_topic": "Очистить все сообщения",
+      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "Уже используется \"{{name}}\"",
       "copy_last_message": "Копировать последнее сообщение",
       "edit_last_user_message": "Редактировать последнее сообщение пользователя",
@@ -6738,8 +7282,11 @@
       "enabled": "Включить",
       "exit_fullscreen": "Выйти из полноэкранного режима",
       "label": "Клавиша",
+      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "Новый топик",
       "occupied_by_other_application": "Это сочетание клавиш уже используется системой или другим приложением",
+      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
+      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "Нажмите сочетание клавиш",
       "quick_assistant": "Быстрый помощник",
       "rename_topic": "Переименовать топик",
@@ -6759,9 +7306,9 @@
       "show_app": "Показать/скрыть приложение",
       "show_settings": "Открыть настройки",
       "title": "Горячие клавиши",
+      "toggle_left_sidebar": "[to be translated]:Toggle Left Sidebar",
       "toggle_new_context": "Очистить контекст",
-      "toggle_show_topics": "Переключить отображение топиков",
-      "toggle_sidebar": "Свернуть боковую панель",
+      "toggle_right_sidebar": "[to be translated]:Toggle Right Sidebar",
       "zoom_in": "Увеличить",
       "zoom_out": "Уменьшить",
       "zoom_reset": "Сбросить масштаб"
@@ -7052,10 +7599,16 @@
       "title": "Масштаб страницы"
     }
   },
+  "subWindow": {
+    "back_to_main": "[to be translated]:Back to Main Window",
+    "pin": "[to be translated]:Keep on Top",
+    "unpin": "[to be translated]:Cancel Keep on Top"
+  },
   "tab": {
     "close": "Закрыть вкладку",
     "move_to_first": "Перейти к первому",
     "new": "Новая вкладка",
+    "open_in_new_window": "[to be translated]:Open in New Window",
     "pin": "Закрепить вкладку",
     "unpin": "Открепить вкладку"
   },

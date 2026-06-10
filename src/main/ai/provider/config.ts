@@ -7,6 +7,7 @@ import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystu
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { providerService } from '@main/data/services/ProviderService'
 import { copilotService } from '@main/services/CopilotService'
+import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -55,7 +56,15 @@ function formatBaseURL(baseURL: string, provider: Provider, endpointType?: Endpo
   if (isGeminiProvider(provider)) return formatApiHost(baseURL, appendApiVersion, 'v1beta')
 
   // Providers that don't append API version
-  const noVersionProviders = ['copilot', 'github', 'cherryai', 'perplexity', 'newapi', 'new-api', 'azure-openai']
+  const noVersionProviders = [
+    'copilot',
+    'github',
+    CHERRYAI_PROVIDER_ID,
+    'perplexity',
+    'newapi',
+    'new-api',
+    'azure-openai'
+  ]
   if (noVersionProviders.includes(provider.id) || noVersionProviders.includes(provider.presetProviderId ?? '')) {
     return formatApiHost(baseURL, false)
   }
@@ -90,7 +99,7 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
 
   const builders: ConfigBuilderEntry[] = [
     { match: (p) => p.id === SystemProviderIds.copilot, build: buildCopilotConfig },
-    { match: (p) => p.id === 'cherryai', build: buildCherryAIConfig },
+    { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: buildCherryAIConfig },
     { match: (p) => isOllamaProvider(p), build: buildOllamaConfig },
     { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
     // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.

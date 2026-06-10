@@ -9,5 +9,5 @@ export type SessionLabelProps = {
 export const SessionLabel = ({ session, className }: SessionLabelProps) => {
   const displayName = session?.name ?? session?.id
 
-  return <span className={cn('truncate text-(--color-foreground) text-sm', className)}>{displayName}</span>
+  return <span className={cn('truncate text-foreground text-sm', className)}>{displayName}</span>
 }

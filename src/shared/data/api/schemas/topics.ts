@@ -7,7 +7,7 @@
 
 import * as z from 'zod'
 
-import { type Topic, TopicSchema } from '../../types/topic'
+import { type Topic, TopicNameEntitySchema, TopicSchema } from '../../types/topic'
 import type { CursorPaginationResponse } from '../apiTypes'
 import type { OrderEndpoints } from './_endpointHelpers'
 
@@ -19,8 +19,9 @@ import type { OrderEndpoints } from './_endpointHelpers'
  * DTO for creating a new topic.
  *
  * `sourceNodeId` is a transient request-only field (not a Topic column): when
- * present, the service copies the path from root to this node into the new
- * topic — so it lives outside the entity pick set.
+ * present, the service initializes the new topic's active node from an
+ * existing message. Use `/topics/:id/branch-copies` when the message path
+ * itself must be copied into a new topic.
  */
 export const CreateTopicSchema = TopicSchema.pick({
   name: true,
@@ -44,9 +45,12 @@ export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
 export const UpdateTopicSchema = TopicSchema.pick({
   name: true,
   isNameManuallyEdited: true,
-  assistantId: true,
   groupId: true
-}).partial()
+})
+  .partial()
+  .extend({
+    assistantId: z.string().nullable().optional()
+  })
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
 /**
@@ -79,12 +83,46 @@ export const SetActiveNodeSchema = z.strictObject({
 export type SetActiveNodeDto = z.infer<typeof SetActiveNodeSchema>
 
 /**
+ * DTO for copying a pruned branch into a new topic.
+ *
+ * `nodeId` is the pruning point: the service copies only the root → node path
+ * into the new topic and drops siblings / descendants outside that path.
+ */
+export const CopyTopicBranchSchema = z.strictObject({
+  /** Message node to copy up to. Must belong to the source topic. */
+  nodeId: z.string().min(1),
+  /** Optional explicit name for the copied topic. Defaults to the source topic name. */
+  name: TopicNameEntitySchema.optional()
+})
+export type CopyTopicBranchDto = z.infer<typeof CopyTopicBranchSchema>
+
+/**
  * Response for active node update
  */
 export interface ActiveNodeResponse {
   /** The new active node ID */
   activeNodeId: string
 }
+
+export interface DeleteTopicsResult {
+  deletedIds: string[]
+  deletedCount: number
+}
+
+const DeleteTopicsIdsQueryValueSchema = z
+  .string()
+  .transform((value) =>
+    value
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean)
+  )
+  .pipe(z.array(z.string().min(1)).min(1))
+
+export const DeleteTopicsQuerySchema = z.strictObject({
+  ids: DeleteTopicsIdsQueryValueSchema
+})
+export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
 
 // ============================================================================
 // API Schema Definitions
@@ -94,8 +132,8 @@ export interface ActiveNodeResponse {
  * Topic API Schema definitions.
  *
  * Reorder endpoints (`/topics/:id/order`, `/topics/order:batch`) are injected
- * via `& OrderEndpoints<'/topics'>`. The reorder is scoped by `groupId`
- * server-side; callers do not include the scope in the request body.
+ * via `& OrderEndpoints<'/topics'>`. Topic reorder is global; `groupId` is not
+ * used as an ordering scope.
  */
 export type TopicSchemas = {
   /**
@@ -103,6 +141,7 @@ export type TopicSchemas = {
    * @example GET /topics?limit=50
    * @example GET /topics?cursor=...&q=search
    * @example POST /topics { "name": "New Topic", "assistantId": "asst_123" }
+   * @example DELETE /topics?ids=topic_1,topic_2
    */
   '/topics': {
     /**
@@ -122,6 +161,15 @@ export type TopicSchemas = {
     POST: {
       body: CreateTopicDto
       response: Topic
+    }
+    /**
+     * Delete an explicit set of topics.
+     *
+     * Used by multi-select table flows where the selection can span assistants.
+     */
+    DELETE: {
+      query: DeleteTopicsQuery
+      response: DeleteTopicsResult
     }
   }
 
@@ -161,6 +209,35 @@ export type TopicSchemas = {
       params: { id: string }
       body: SetActiveNodeDto
       response: ActiveNodeResponse
+    }
+  }
+
+  /**
+   * Branch-copy sub-resource.
+   *
+   * Creates a new topic by copying the source topic's root → `nodeId` message
+   * path. The copied topic's active node is the copied `nodeId`.
+   *
+   * @example POST /topics/abc123/branch-copies { "nodeId": "msg456" }
+   */
+  '/topics/:id/branch-copies': {
+    POST: {
+      params: { id: string }
+      body: CopyTopicBranchDto
+      response: Topic
+    }
+  }
+
+  /**
+   * Delete all topics currently linked to an assistant.
+   *
+   * This is an explicit scoped collection delete. It does not change
+   * `DELETE /assistants/:id`, which only deletes the assistant itself.
+   */
+  '/assistants/:assistantId/topics': {
+    DELETE: {
+      params: { assistantId: string }
+      response: DeleteTopicsResult
     }
   }
 } & OrderEndpoints<'/topics'>

@@ -854,7 +854,6 @@ const migrateConfig = {
   },
   '49': (state: RootState) => {
     try {
-      state.settings.pasteLongTextThreshold = 1500
       if (state.shortcuts) {
         state.shortcuts.shortcuts = [
           ...state.shortcuts.shortcuts,
@@ -1395,14 +1394,6 @@ const migrateConfig = {
         state.settings.exportMenuOptions = settingsInitialState.exportMenuOptions
         return state
       }
-      return state
-    } catch (error) {
-      return state
-    }
-  },
-  '94': (state: RootState) => {
-    try {
-      state.settings.enableQuickPanelTriggers = false
       return state
     } catch (error) {
       return state

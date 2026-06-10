@@ -16,7 +16,7 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import type { InputbarScope } from '@renderer/pages/home/Inputbar/types'
+import type { ComposerToolScope } from '@renderer/components/chat/composer/tools/types'
 import { TopicType } from '@renderer/types'
 import type { InputBarToolType } from '@renderer/types/chat'
 
@@ -26,40 +26,30 @@ type ToolOrder = {
 }
 
 export const DEFAULT_TOOL_ORDER: ToolOrder = {
-  visible: [
-    'new_topic',
-    'attachment',
-    'thinking',
-    'web_search',
-    'url_context',
-    'knowledge_base',
-    'mcp_tools',
-    'generate_image',
-    'mention_models'
-  ],
-  hidden: ['quick_phrases', 'clear_topic', 'toggle_expand', 'new_context']
+  visible: ['new_topic', 'attachment', 'thinking', 'web_search', 'url_context', 'knowledge_base', 'generate_image'],
+  hidden: ['quick_phrases']
 }
 
 // Default tool order per scope
 // Note: New tools not listed here will auto-show at the end.
 // Tools are filtered by visibleInScopes first, so this only controls order/visibility of available tools.
 //
-// The 'mini-window' key is legacy — InputbarScope has been renamed to 'quick-assistant' upstream.
+// The 'mini-window' key is legacy — ComposerToolScope has been renamed to 'quick-assistant' upstream.
 // It is retained here so Redux-persisted state carrying the old key still typechecks.
 // Both entries will be collapsed to 'quick-assistant' alone when Redux is removed and the
 // corresponding persisted data is migrated out.
-export const DEFAULT_TOOL_ORDER_BY_SCOPE: Record<InputbarScope | 'mini-window', ToolOrder> = {
+export const DEFAULT_TOOL_ORDER_BY_SCOPE: Record<ComposerToolScope | 'mini-window', ToolOrder> = {
   [TopicType.Chat]: DEFAULT_TOOL_ORDER,
   [TopicType.Session]: {
     visible: ['create_session', 'permission_mode', 'slash_commands', 'attachment'],
     hidden: []
   },
   'mini-window': {
-    visible: ['attachment', 'mention_models', 'quick_phrases'],
+    visible: ['attachment', 'quick_phrases'],
     hidden: []
   },
   'quick-assistant': {
-    visible: ['attachment', 'mention_models', 'quick_phrases'],
+    visible: ['attachment', 'quick_phrases'],
     hidden: []
   }
 }
@@ -80,7 +70,7 @@ const inputToolsSlice = createSlice({
   name: 'inputTools',
   initialState,
   reducers: {
-    setToolOrder: (state, action: PayloadAction<{ scope: InputbarScope; toolOrder: ToolOrder }>) => {
+    setToolOrder: (state, action: PayloadAction<{ scope: ComposerToolScope; toolOrder: ToolOrder }>) => {
       if (action.payload.scope === TopicType.Session) {
         state.sessionToolOrder = action.payload.toolOrder
       } else {
@@ -96,7 +86,10 @@ const inputToolsSlice = createSlice({
 export const { setToolOrder, setIsCollapsed } = inputToolsSlice.actions
 
 // Selector to get tool order for a specific scope
-export const selectToolOrderForScope = (state: { inputTools: InputToolsState }, scope: InputbarScope): ToolOrder => {
+export const selectToolOrderForScope = (
+  state: { inputTools: InputToolsState },
+  scope: ComposerToolScope
+): ToolOrder => {
   return scope === TopicType.Session ? state.inputTools.sessionToolOrder : state.inputTools.toolOrder
 }
 

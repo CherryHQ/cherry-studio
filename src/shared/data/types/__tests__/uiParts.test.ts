@@ -7,7 +7,8 @@ import {
   CherryTextMetaSchema,
   CherryToolMetaSchema,
   readCherryMeta,
-  withCherryMeta
+  withCherryMeta,
+  withoutCherryMeta
 } from '../uiParts'
 
 // ============================================================================
@@ -192,6 +193,70 @@ describe('withCherryMeta', () => {
     const part: TextUIPart = { type: 'text', text: '' }
     // @ts-expect-error transport is not on CherryTextMeta
     withCherryMeta(part, { transport: 'x' })
+    expect(true).toBe(true)
+  })
+})
+
+// ============================================================================
+// withoutCherryMeta — typed removal boundary
+// ============================================================================
+
+describe('withoutCherryMeta', () => {
+  it('removes one cherry field and preserves siblings plus provider metadata', () => {
+    const part = {
+      type: 'text',
+      text: 'hi',
+      providerMetadata: {
+        openai: { id: 'provider-meta' },
+        cherry: {
+          references: [{ url: 'https://ex.com' }],
+          composer: { version: 1, tokens: [] }
+        }
+      }
+    } as unknown as TextUIPart
+
+    const next = withoutCherryMeta(part, 'composer')
+
+    expect(next).toEqual({
+      type: 'text',
+      text: 'hi',
+      providerMetadata: {
+        openai: { id: 'provider-meta' },
+        cherry: {
+          references: [{ url: 'https://ex.com' }]
+        }
+      }
+    })
+  })
+
+  it('removes providerMetadata when the last cherry field is removed and no provider metadata remains', () => {
+    const part = {
+      type: 'text',
+      text: 'hi',
+      providerMetadata: {
+        cherry: {
+          composer: { version: 1, tokens: [] }
+        }
+      }
+    } as unknown as TextUIPart
+
+    expect(withoutCherryMeta(part, 'composer')).toEqual({ type: 'text', text: 'hi' })
+  })
+
+  it('preserves malformed non-object cherry metadata unchanged', () => {
+    const part = {
+      type: 'text',
+      text: 'hi',
+      providerMetadata: { cherry: 'oops', openai: { id: 'provider-meta' } }
+    } as unknown as TextUIPart
+
+    expect(withoutCherryMeta(part, 'composer')).toEqual(part)
+  })
+
+  it('rejects removing thinkingMs from TextUIPart at compile time', () => {
+    const part: TextUIPart = { type: 'text', text: '' }
+    // @ts-expect-error thinkingMs is not on CherryTextMeta
+    withoutCherryMeta(part, 'thinkingMs')
     expect(true).toBe(true)
   })
 })

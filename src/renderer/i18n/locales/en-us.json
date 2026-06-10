@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "answered",
+      "close": "Close",
       "customPlaceholder": "Enter your answer...",
       "loading": "Loading questions...",
       "multiSelect": "Multi-select",
@@ -25,6 +26,8 @@
       "noQuestions": "No questions available",
       "other": "Other",
       "previous": "Previous",
+      "progress": "{{current}} of {{total}}",
+      "skip": "Skip",
       "submit": "Submit",
       "title": "Questions from Agent"
     },
@@ -141,7 +144,7 @@
       },
       "heartbeat": {
         "enabled": "Enable Heartbeat",
-        "enabledHelper": "When enabled and heartbeat.md exists in the workspace, the scheduler reads its content and sends it to the main session at the configured interval.",
+        "enabledHelper": "When enabled and heartbeat.md exists in the workspace, the scheduler reads its content and sends it to the main task at the configured interval.",
         "interval": "Interval (minutes)",
         "intervalHelper": "How often the heartbeat runs, in minutes."
       },
@@ -215,7 +218,11 @@
         "edit": "Edit",
         "empty": "No scheduled tasks. Add one to get started.",
         "error": {
-          "loadFailed": "Failed to load tasks"
+          "createFailed": "Failed to create task",
+          "deleteFailed": "Failed to delete task",
+          "loadFailed": "Failed to load tasks",
+          "runFailed": "Failed to run task",
+          "updateFailed": "Failed to update task"
         },
         "intervalPlaceholder": "Interval in minutes",
         "intervalUnit": "minutes",
@@ -234,7 +241,7 @@
           "running": "Running...",
           "search": "Search logs...",
           "status": "Status",
-          "viewSession": "View session"
+          "viewSession": "View task"
         },
         "name": {
           "label": "Name",
@@ -280,7 +287,7 @@
       }
     },
     "delete": {
-      "content": "Deleting the agent will forcibly stop and delete all sessions associated with the agent. Are you sure?",
+      "content": "Deleting the agent will forcibly stop and delete all tasks associated with the agent. Are you sure?",
       "error": {
         "failed": "Failed to delete the agent"
       },
@@ -326,8 +333,11 @@
       "success": "Git Bash detected successfully!",
       "tooltip": "Git Bash is required to run agents on Windows. Install from git-scm.com if not available."
     },
+    "home": {
+      "welcome_title": "What shall we talk about today?"
+    },
     "input": {
-      "placeholder": "Enter your message here, send with {{key}} - @ select path, / select command",
+      "placeholder": "Enter your message here, send with {{key}}, @ select path, / select command",
       "soul_placeholder": "Help me connect to Telegram"
     },
     "list": {
@@ -335,9 +345,102 @@
         "failed": "Failed to list agents."
       }
     },
+    "pin": {
+      "title": "Pin Agent"
+    },
+    "preview_pane": {
+      "close": "Close preview",
+      "code": "Code",
+      "code_unavailable": "Source view not available for binary files",
+      "empty": {
+        "description": "Start chatting with the agent; generated code and live previews will appear here.",
+        "title": "Ready"
+      },
+      "excel": {
+        "errors": {
+          "file_too_large": "This Excel file exceeds the preview size limit.",
+          "invalid_request": "The Excel preview request is invalid.",
+          "parse_failed": "Unable to read this Excel file.",
+          "too_complex": "This Excel file is too complex to preview.",
+          "unsupported_extension": "Only .xlsx and .xlsm files can be previewed.",
+          "unsupported_xls": "Legacy .xls files are not supported by Excel preview."
+        },
+        "warnings": {
+          "generic": "Some workbook content may not be fully shown.",
+          "title": "Preview notice",
+          "unsupported_images": "Images are not shown in Excel preview yet."
+        }
+      },
+      "file_tree": "File tree",
+      "items_one": "{{count}} item",
+      "items_other": "{{count}} items",
+      "maximize": "Maximize",
+      "minimize": "Minimize",
+      "no_search_results": "No files match your search",
+      "preview": "Preview",
+      "refresh": "Refresh",
+      "search_placeholder": "Search files...",
+      "select_file": "Select a file to preview",
+      "toggle": "Show preview panel",
+      "too_large": {
+        "description": "File exceeds the {{limit}} preview limit.",
+        "title": "File too large to preview"
+      },
+      "unavailable": {
+        "description": "This file couldn't be opened — it may have been moved or deleted.",
+        "title": "File unavailable"
+      },
+      "word": {
+        "errors": {
+          "parse_failed": "Unable to render this Word document.",
+          "read_failed": "Unable to read this Word document."
+        }
+      }
+    },
     "reorder": {
       "error": {
         "failed": "Failed to reorder agents"
+      }
+    },
+    "right_pane": {
+      "close": "Close",
+      "flow": {
+        "empty": {
+          "description": "Select an agent tool call to inspect its child message flow.",
+          "title": "No tool selected"
+        },
+        "no_messages": {
+          "description": "This tool call has no captured child message flow.",
+          "title": "No messages"
+        }
+      },
+      "info": {
+        "artifacts": "Deliverables",
+        "context_usage": "Context usage",
+        "label": "Session information",
+        "more": "+{{count}} more",
+        "no_artifacts": "No declared deliverables",
+        "no_subagents": "No sub-agents",
+        "subagents": "Sub-agents"
+      },
+      "status": {
+        "activity": "Activity",
+        "agent": "Agent",
+        "context": "Context",
+        "no_tasks": "No active tasks",
+        "selected_tool": "Selected tool",
+        "task_count": "{{completed}} / {{total}} complete",
+        "tasks": "Tasks",
+        "tools_active": "Active",
+        "tools_done": "Done",
+        "tools_failed": "Failed",
+        "tools_total": "Total",
+        "workspace": "Workspace"
+      },
+      "tabs": {
+        "files": "Files",
+        "flow": "Flow",
+        "status": "Status"
       }
     },
     "server": {
@@ -358,7 +461,17 @@
         "select_failed": "Failed to select directory."
       },
       "add": {
-        "title": "Add a session"
+        "title": "Add a task"
+      },
+      "agent": {
+        "delete": {
+          "content": "Deleting this agent's tasks will delete all tasks associated with this agent. The agent itself will not be deleted.",
+          "error": {
+            "failed": "Failed to delete agent tasks"
+          },
+          "title": "Delete agent tasks",
+          "trigger": "Delete agent tasks"
+        }
       },
       "allowed_tools": {
         "empty": "No tools available for this agent.",
@@ -368,42 +481,110 @@
       },
       "create": {
         "error": {
-          "failed": "Failed to add a session"
+          "failed": "Failed to add a task"
         }
       },
       "delete": {
-        "content": "Are you sure to delete this session?",
+        "content": "Are you sure you want to delete this task?",
         "error": {
-          "failed": "Failed to delete the session",
-          "last": "At least one session must be kept"
+          "failed": "Failed to delete the task",
+          "last": "At least one task must be kept"
         },
-        "title": "Delete session"
+        "title": "Delete task"
+      },
+      "display": {
+        "agent": "Agent",
+        "time": "Time",
+        "title": "Display mode",
+        "workdir": "Project"
       },
       "edit": {
-        "title": "Edit session"
+        "title": "Edit task"
+      },
+      "empty": {
+        "description": "Tasks will appear here after you start one.",
+        "title": "No tasks yet"
+      },
+      "file_manager": {
+        "file_explorer": "File Explorer",
+        "files": "Files",
+        "finder": "Finder"
       },
       "get": {
         "error": {
-          "failed": "Failed to get the session",
-          "null_id": "Session ID is null"
+          "failed": "Failed to get the task",
+          "not_found": "Task not found",
+          "null_id": "Task ID is null"
         }
       },
-      "label_one": "Session",
-      "label_other": "Sessions",
+      "group": {
+        "collapse": "Collapse display",
+        "collapse_all": "Collapse all",
+        "conversation": "Conversations",
+        "drag_hint": "Drag to reorder. Drag tasks to adjust display and hidden groups.",
+        "earlier": "Earlier",
+        "expand_all": "Expand all",
+        "no_workdir": "No project",
+        "show_more": "Expand display",
+        "this_week": "This week",
+        "today": "Today",
+        "unknown_agent": "Unknown agent",
+        "yesterday": "Yesterday"
+      },
+      "label_one": "Task",
+      "label_other": "Tasks",
+      "list": {
+        "title": "Tasks"
+      },
+      "pin": {
+        "title": "Pin task"
+      },
       "reorder": {
         "error": {
-          "failed": "Failed to reorder sessions"
+          "failed": "Failed to reorder tasks"
         }
+      },
+      "search": {
+        "placeholder": "Search tasks"
+      },
+      "unpin": {
+        "title": "Unpin task"
       },
       "update": {
         "error": {
-          "failed": "Failed to update the session"
+          "failed": "Failed to update the task"
         }
       },
+      "workdir": {
+        "delete": {
+          "content": "Deleting this project will also delete all tasks under it. Only database records are removed; the actual folder on disk will not be deleted.",
+          "error": {
+            "failed": "Failed to delete the project"
+          },
+          "title": "Delete project",
+          "trigger": "Delete project"
+        },
+        "rename": {
+          "error": {
+            "failed": "Failed to rename the project"
+          },
+          "title": "Rename project",
+          "trigger": "Rename project"
+        }
+      },
+      "workspace_selector": {
+        "create_failed": "Failed to add project.",
+        "create_new": "Add new project",
+        "empty_text": "No projects",
+        "no_project": "No project",
+        "placeholder": "Select project",
+        "search_placeholder": "Search projects",
+        "select_failed": "Failed to select folder."
+      },
       "workspace_status": {
-        "inaccessible": "Workspace path is not accessible: {{path}}",
-        "missing": "Workspace path does not exist: {{path}}",
-        "not_directory": "Workspace path is not a directory: {{path}}"
+        "inaccessible": "Project path is not accessible: {{path}}",
+        "missing": "Project path does not exist: {{path}}",
+        "not_directory": "Project path is not a directory: {{path}}"
       }
     },
     "settings": {
@@ -415,8 +596,8 @@
         },
         "maxTurns": {
           "description": "Define how many request/response cycles the agent may complete automatically.",
-          "helper": "Higher values enable longer autonomous runs; lower values keep sessions short.",
-          "label": "Conversation turn limit"
+          "helper": "Higher values enable longer autonomous runs; lower values keep tasks short.",
+          "label": "Task turn limit"
         },
         "permissionMode": {
           "description": "Control how the agent handles actions that require approval.",
@@ -582,7 +763,7 @@
         }
       }
     },
-    "sidebar_title": "Agents",
+    "sidebar_title": "Tasks",
     "todo": {
       "mock": {
         "actions": {
@@ -676,9 +857,6 @@
         },
         "title": "Tasks"
       },
-      "panel": {
-        "title": "{{completed}}/{{total}} tasks completed"
-      },
       "status": {
         "completed": "Completed",
         "in_progress": "In Progress",
@@ -695,11 +873,13 @@
         "showDetails": "Show tool details"
       },
       "button": {
+        "allow": "Allow",
         "allowAll": "Always Allow",
         "cancel": "Cancel",
+        "deny": "Deny",
         "run": "Run"
       },
-      "confirmation": "Are you sure you want to run this Claude tool?",
+      "confirmation": "Allow tool call?",
       "defaultDenyMessage": "User denied permission for this tool.",
       "defaultDescription": "Executes code or system actions in your environment. Make sure the command looks safe before running it.",
       "error": {
@@ -712,29 +892,52 @@
       "permissionExpired": "Permission request expired. Waiting for new instructions...",
       "requiresElevatedPermissions": "This tool requires elevated permissions.",
       "suggestion": {
-        "permissionUpdateMultiple": "Approving may update multiple session permissions if you chose to always allow this tool.",
-        "permissionUpdateSingle": "Approving may update your session permissions if you chose to always allow this tool."
+        "permissionUpdateMultiple": "Approving may update multiple task permissions if you chose to always allow this tool.",
+        "permissionUpdateSingle": "Approving may update your task permissions if you chose to always allow this tool."
       },
       "toast": {
-        "denied": "Tool request was denied.",
-        "timeout": "Tool request timed out before receiving approval."
+        "denied": "Tool request was denied."
       },
       "toolPendingFallback": "Tool",
       "waiting": "Waiting for tool permission decision..."
     },
     "tools": {
       "builtin": {
+        "AgentMemory": {
+          "description": "Stores and recalls cross-session memory",
+          "label": "Memory"
+        },
         "Bash": {
-          "description": "Executes shell commands in your environment"
+          "description": "Executes shell commands in your environment",
+          "label": "Bash"
+        },
+        "CherryKbSearch": {
+          "description": "Searches your knowledge bases",
+          "label": "Knowledge Search"
+        },
+        "CherryWebFetch": {
+          "description": "Fetches and reads a web page",
+          "label": "Web Fetch"
+        },
+        "CherryWebSearch": {
+          "description": "Searches the web via your configured provider",
+          "label": "Web Search"
+        },
+        "ClawCron": {
+          "description": "Manages the in-app scheduler",
+          "label": "Scheduler"
         },
         "Edit": {
-          "description": "Makes targeted edits to specific files"
+          "description": "Makes targeted edits to specific files",
+          "label": "Edit"
         },
         "Glob": {
-          "description": "Finds files based on pattern matching"
+          "description": "Finds files based on pattern matching",
+          "label": "Glob"
         },
         "Grep": {
-          "description": "Searches for patterns in file contents"
+          "description": "Searches for patterns in file contents",
+          "label": "Grep"
         },
         "MultiEdit": {
           "description": "Performs multiple edits on a single file atomically"
@@ -746,7 +949,8 @@
           "description": "Reads and displays Jupyter notebook contents"
         },
         "Read": {
-          "description": "Reads the contents of files"
+          "description": "Reads the contents of files",
+          "label": "Read"
         },
         "Task": {
           "description": "Runs a sub-agent to handle complex, multi-step tasks"
@@ -763,14 +967,22 @@
         "WebSearch": {
           "description": "Performs web searches with domain filtering"
         },
+        "Workflow": {
+          "description": "Runs a multi-step workflow that orchestrates subagents",
+          "label": "Workflow"
+        },
         "Write": {
-          "description": "Creates or overwrites files"
+          "description": "Creates or overwrites files",
+          "label": "Write"
         }
       }
     },
     "type": {
       "label": "Agent Type",
       "unknown": "Unknown Type"
+    },
+    "unpin": {
+      "title": "Unpin Agent"
     },
     "update": {
       "error": {
@@ -880,14 +1092,15 @@
   "assistants": {
     "abbr": "Assistants",
     "clear": {
-      "content": "Clearing the topic will delete all topics and files in the assistant. Are you sure you want to continue?",
-      "title": "Clear topics"
+      "content": "Clearing conversations will delete all conversations and files in the assistant. Are you sure you want to continue?",
+      "menu_title": "Delete all assistant conversations",
+      "title": "Clear conversations"
     },
     "copy": {
       "title": "Copy Assistant"
     },
     "delete": {
-      "content": "Deleting an assistant will delete all topics and files under the assistant. Are you sure you want to delete it?",
+      "content": "Deleting an assistant will delete all conversations and files under the assistant. Are you sure you want to delete it?",
       "error": {
         "remain_one": "Not allowed to delete the last one assistant"
       },
@@ -902,6 +1115,9 @@
     "list": {
       "showByList": "List View",
       "showByTags": "Tag View"
+    },
+    "pin": {
+      "title": "Pin Assistant"
     },
     "presets": {
       "add": {
@@ -995,11 +1211,16 @@
         "new": "New",
         "system": "System"
       },
-      "title": "Assistants Library"
+      "title": "Resources"
+    },
+    "reorder": {
+      "error": {
+        "failed": "Failed to reorder assistants"
+      }
     },
     "save": {
       "success": "Saved successfully",
-      "title": "Save to assistant library"
+      "title": "Save to resources"
     },
     "search": "Search assistants...",
     "settings": {
@@ -1090,7 +1311,10 @@
       },
       "untagged": "Untagged"
     },
-    "title": "Assistants"
+    "title": "Assistants",
+    "unpin": {
+      "title": "Unpin Assistant"
+    }
   },
   "auth": {
     "error": "API key automatically obtained failed, please get it manually",
@@ -1125,6 +1349,7 @@
     "download": "Download",
     "includes_user_questions": "Include Your Questions",
     "manage": "Manage",
+    "select_assistant": "Select Assistant",
     "select_model": "Select Model",
     "show": {
       "all": "Show All"
@@ -1142,12 +1367,12 @@
         "title": "Select Type"
       },
       "topic": {
-        "title": "New Topic"
+        "title": "New Conversation"
       }
     },
     "alerts": {
       "create_agent": "Create an agent to get started",
-      "create_session": "Create a session",
+      "create_session": "Create a task",
       "select_agent": "Select an agent"
     },
     "artifacts": {
@@ -1162,19 +1387,23 @@
             "content": "Error opening the external browser."
           }
         }
-      }
+      },
+      "title": "Deliverables"
     },
     "assistant": {
       "search": {
         "placeholder": "Search"
       }
     },
+    "conversation": {
+      "new": "New Chat"
+    },
     "deeply_thought": "Deeply thought ({{seconds}} seconds)",
     "default": {
       "description": "Hello, I'm Default Assistant. You can start chatting with me right away",
       "name": "Default Assistant",
       "topic": {
-        "name": "Default Topic"
+        "name": "Default Conversation"
       }
     },
     "history": {
@@ -1187,10 +1416,14 @@
       "user_node": "User",
       "view_full_content": "View Full Content"
     },
+    "home": {
+      "welcome_title": "What shall we talk about today?"
+    },
     "input": {
       "auto_resize": "Auto resize height",
+      "cancel_editing": "Cancel editing",
       "clear": {
-        "content": "Do you want to clear all messages of the current topic?",
+        "content": "Do you want to clear all messages of the current conversation?",
         "label": "Clear",
         "title": "Clear all messages?"
       },
@@ -1198,6 +1431,7 @@
       "context_count": {
         "tip": "Context / Max Context"
       },
+      "editing_message": "Editing sent message",
       "estimated_tokens": {
         "tip": "Estimated tokens"
       },
@@ -1205,33 +1439,35 @@
       "file_error": "Error processing file",
       "file_not_supported": "Model does not support this file type",
       "file_not_supported_count": "{{count}} files are not supported",
+      "followup_queue": {
+        "edit": "Edit",
+        "pause": "Pause auto-send",
+        "remove": "Remove",
+        "resume": "Resume auto-send",
+        "steer": "Send into current turn",
+        "title": "Queued ({{count}})"
+      },
       "generate_image": "Generate image",
       "generate_image_not_supported": "The model does not support generating images.",
       "knowledge_base": "Knowledge Base",
+      "knowledge_base_disabled_by_files": "Remove attached files to use Knowledge Base",
+      "knowledge_base_unavailable": "Select a tool-capable model or enable prompt tool use",
+      "locate_editing_message": "Locate original message",
+      "mcp_unavailable": "Select a tool-capable model or enable prompt tool use",
       "new": {
         "context": "Clear Context"
       },
-      "new_session": "New Session {{Command}}",
-      "new_topic": "New Topic {{Command}}",
-      "paste_text_file": "Paste into input",
+      "new_session": "New Task {{Command}}",
+      "new_topic": "New Conversation {{Command}}",
+      "paste_text_file": "Show in input",
+      "pasted_text_file_name": "Pasted text.txt",
       "pause": "Pause",
-      "placeholder": "Type your message here, press {{key}} to send - @ to Select Model, / to Include Tools",
-      "placeholder_without_triggers": "Type your message here, press {{key}} to send",
+      "placeholder": "Type your message here, press {{key}} to send, / to include tools",
       "resource_panel": {
-        "categories": {
-          "agents": "Agents",
-          "files": "Files",
-          "skills": "Skills"
-        },
-        "description": "Select from files, agents, or skills",
         "loading": "Loading...",
         "no_file_found": {
           "description": "No files available in accessible directories",
           "label": "No File Found"
-        },
-        "no_items_found": {
-          "description": "No files, agents, or skills available",
-          "label": "No Items Found"
         },
         "title": "Resources"
       },
@@ -1239,11 +1475,12 @@
       "send_failed": "Failed to send message",
       "settings": "Settings",
       "slash_commands": {
-        "description": "Agent session slash commands",
+        "description": "Agent task slash commands",
         "title": "Slash Commands"
       },
       "thinking": {
         "budget_exceeds_max": "Thinking budget exceeds the maximum token number",
+        "fixed_model": "Reasoning is fixed for this model",
         "label": "Thinking",
         "mode": {
           "custom": {
@@ -1257,7 +1494,8 @@
           "tokens": {
             "tip": "Set the number of thinking tokens to use."
           }
-        }
+        },
+        "unsupported_model": "Current model does not support adjustable reasoning"
       },
       "tools": {
         "collapse": "Collapse",
@@ -1269,12 +1507,14 @@
         "open_file_error": "Failed to open file: {{path}}",
         "reveal_in_finder": "Reveal in Finder"
       },
-      "topics": " Topics ",
+      "topics": " Conversations ",
       "translate": "Translate to {{target_language}}",
       "translating": "Translating...",
       "upload": {
         "attachment": "Upload attachment",
-        "document": "Upload document file (model does not support images)",
+        "document": "Upload document",
+        "document_only": "Documents only",
+        "image_not_supported": "This model does not support image uploads. Documents only.",
         "image_or_document": "Upload image or document file",
         "upload_from_local": "Upload local file..."
       },
@@ -1310,6 +1550,20 @@
       }
     },
     "message": {
+      "editing_current": "This message is being edited in the composer",
+      "flow": {
+        "branches": "branches",
+        "copy_topic": {
+          "created": "Copied to a new conversation",
+          "label": "Copy as New Conversation"
+        },
+        "nodes": "nodes",
+        "status": {
+          "awaiting_input": "Awaiting input"
+        },
+        "title": "Branch Management"
+      },
+      "more": "More actions",
       "new": {
         "branch": {
           "created": "New Branch Created",
@@ -1409,25 +1663,26 @@
         "knowledge": {
           "content": {
             "maintext": {
-              "description": "Includes topic title and main text content from all messages"
+              "description": "Includes conversation title and main text content from all messages"
             }
           },
           "empty": {
-            "no_content": "This topic has no saveable content"
+            "no_content": "This conversation has no saveable content"
           },
           "error": {
-            "save_failed": "Failed to save topic, please check knowledge base configuration"
+            "save_failed": "Failed to save conversation, please check knowledge base configuration"
           },
-          "loading": "Analyzing topic content...",
+          "loading": "Analyzing conversation content...",
+          "menu_title": "Save to Knowledge Base",
           "select": {
             "content": {
               "label": "Select content types to save",
               "selected_tip": "Selected {{count}} items from {{messages}} messages",
-              "tip": "Topic will be saved to knowledge base with complete conversation context"
+              "tip": "Conversation will be saved to knowledge base with complete context"
             }
           },
-          "success": "Topic successfully saved to knowledge base ({{count}} items)",
-          "title": "Save Topic to Knowledge Base"
+          "success": "Conversation successfully saved to knowledge base ({{count}} items)",
+          "title": "Save Conversation to Knowledge Base"
         }
       }
     },
@@ -1491,6 +1746,7 @@
       "title": "Suggested Questions"
     },
     "thinking": "Thinking ({{seconds}} seconds)",
+    "thinking_tokens": "~{{tokens}} tokens",
     "topics": {
       "auto_rename": "Auto Rename",
       "clear": {
@@ -1505,14 +1761,25 @@
       "delete": {
         "shortcut": "Hold {{key}} to delete directly"
       },
+      "display": {
+        "assistant": "Assistant",
+        "tag": "Tag",
+        "time": "Time",
+        "title": "Display mode"
+      },
       "edit": {
         "placeholder": "Enter new name",
         "title": "Edit Name",
-        "title_tip": "Tips: Double-click the topic name to rename it directly in place"
+        "title_tip": "Tips: Double-click the conversation name to rename it directly in place"
+      },
+      "empty": {
+        "description": "Create a chat and it will stay here so you can continue with its context later.",
+        "title": "No chats yet"
       },
       "export": {
         "failed": "Export failed",
         "image": "Export as image",
+        "image_exporting_keep_page": "Exporting image. Please stay on this page.",
         "image_saved": "Image saved successfully",
         "joplin": "Export to Joplin",
         "md": {
@@ -1560,48 +1827,59 @@
         "word": "Export as Word",
         "yuque": "Export to Yuque"
       },
-      "list": "Topic List",
+      "group": {
+        "collapse": "Collapse display",
+        "collapse_all": "Collapse all",
+        "earlier": "Earlier",
+        "expand_all": "Expand all",
+        "show_more": "Expand display",
+        "this_week": "This week",
+        "today": "Today",
+        "unknown_assistant": "Unlinked Assistant",
+        "yesterday": "Yesterday"
+      },
+      "list": "Conversation List",
       "manage": {
         "clear_selection": "Clear Selection",
         "delete": {
           "confirm": {
-            "content": "Are you sure you want to delete {{count}} selected topic(s)? This action cannot be undone.",
-            "title": "Delete Topics"
+            "content": "Are you sure you want to delete {{count}} selected conversation(s)? This action cannot be undone.",
+            "title": "Delete Conversations"
           },
           "error": "Failed to delete. Please try again.",
-          "partial_success": "Successfully deleted {{successCount}} topics, {{failedCount}} failed",
-          "success": "Deleted {{count}} topic(s)"
+          "partial_success": "Successfully deleted {{successCount}} conversations, {{failedCount}} failed",
+          "success": "Deleted {{count}} conversation(s)"
         },
         "deselect_all": "Deselect All",
         "error": {
-          "at_least_one": "At least one topic must be kept"
+          "at_least_one": "At least one conversation must be kept"
         },
         "move": {
           "button": "Move",
           "placeholder": "Select target assistant",
-          "success": "Moved {{count}} topic(s)"
+          "success": "Moved {{count}} conversation(s)"
         },
-        "pinned": "Pinned Topics",
+        "pinned": "Pinned Conversations",
         "selected_count": "{{count}} selected",
-        "title": "Manage Topics",
-        "unpinned": "Unpinned Topics"
+        "title": "Manage Conversations",
+        "unpinned": "Unpinned Conversations"
       },
       "move_to": "Move to",
-      "new": "New Topic",
-      "pin": "Pin Topic",
+      "new": "New Conversation",
+      "pin": "Pin Conversation",
       "prompt": {
         "edit": {
-          "title": "Edit Topic Prompts"
+          "title": "Edit Conversation Prompts"
         },
-        "label": "Topic Prompts",
-        "tips": "Topic Prompts: Additional supplementary prompts provided for the current topic"
+        "label": "Conversation Prompts",
+        "tips": "Conversation Prompts: Additional supplementary prompts provided for the current conversation"
       },
       "search": {
-        "placeholder": "Search topics...",
+        "placeholder": "Search conversations...",
         "title": "Search"
       },
-      "title": "Topics",
-      "unpin": "Unpin Topic"
+      "title": "Conversations",
+      "unpin": "Unpin Conversation"
     },
     "translate": "Translate",
     "user": "User",
@@ -1708,8 +1986,10 @@
     "add": "Add",
     "add_success": "Added successfully",
     "advanced_settings": "Advanced Settings",
+    "agent": "Agent",
     "agent_one": "Agent",
     "agent_other": "Agents",
+    "all": "All",
     "and": "and",
     "assistant": "Agent",
     "assistant_one": "Assistant",
@@ -1723,12 +2003,14 @@
     "clear_all": "Clear All",
     "click_to_replace": "Click to replace",
     "close": "Close",
+    "close_sidebar": "Close sidebar",
     "collapse": "Collapse",
     "completed": "Completed",
     "confirm": "Confirm",
     "copied": "Copied",
     "copy": "Copy",
     "copy_failed": "Copy failed",
+    "create_success": "Created successfully",
     "current": "Current",
     "cut": "Cut",
     "default": "Default",
@@ -1773,6 +2055,8 @@
     "knowledge_base": "Knowledge Base",
     "language": "Language",
     "loading": "Loading...",
+    "maximize": "Maximize",
+    "minimize": "Minimize",
     "model": "Model",
     "models": "Models",
     "more": "More",
@@ -1785,6 +2069,8 @@
     "on": "On",
     "open": "Open",
     "open_in": "Open in {{name}}",
+    "open_in_new_tab": "Open in new tab",
+    "open_sidebar": "Open sidebar",
     "paste": "Paste",
     "placeholders": {
       "select": {
@@ -1814,7 +2100,7 @@
     "selected": "Selected",
     "selectedItems": "Selected {{count}} items",
     "selectedMessages": "Selected {{count}} messages",
-    "sessions": "Sessions",
+    "sessions": "Tasks",
     "settings": "Settings",
     "sort": {
       "pinyin": {
@@ -1827,7 +2113,7 @@
     "subscribe": "Subscribe",
     "success": "Success",
     "swap": "Swap",
-    "topics": "Topics",
+    "topics": "Conversations",
     "translate_text": "Translate text",
     "unknown": "Unknown",
     "unnamed": "Unnamed",
@@ -1837,6 +2123,7 @@
     "upload_image": "Upload image file",
     "uploaded_image": "Uploaded image",
     "warning": "Warning",
+    "yesterday": "Yesterday",
     "you": "You"
   },
   "dialog": {
@@ -2047,6 +2334,85 @@
     "title": "Files",
     "type": "Type"
   },
+  "globalSearch": {
+    "clear": "Clear search",
+    "error": "Search failed",
+    "filters": {
+      "agent": "Agent",
+      "all": "All",
+      "assistant": "Assistant",
+      "conversation": "Conversation",
+      "knowledge": "Knowledge",
+      "label": "Search type",
+      "session": "Task",
+      "topic": "Conversation"
+    },
+    "groups": {
+      "agent": "Agent",
+      "assistant": "Assistant",
+      "conversation": "Conversation",
+      "knowledge-base": "Knowledge",
+      "message": "Messages",
+      "recent": "Recent",
+      "session": "Task",
+      "topic": "Conversation"
+    },
+    "keyboard": {
+      "select": "Select"
+    },
+    "messageSearch": {
+      "entry": "Messages",
+      "hint": "Type to search message content",
+      "jumpToMessage": "Jump to message",
+      "more": "Show {{count}} more results",
+      "open": "Search messages",
+      "roles": {
+        "assistant": "Assistant",
+        "system": "System",
+        "tool": "Tool",
+        "user": "User"
+      },
+      "sourceLabel": "Message source",
+      "sources": {
+        "all": "All messages",
+        "session": "Task messages",
+        "topic": "Conversation messages"
+      },
+      "viewMore": "View more in Messages"
+    },
+    "no_recent": "No recent routes",
+    "open": "Open global search",
+    "open_failed": "Failed to open search result",
+    "placeholder": "Search conversations, tasks, assistants, agents, and knowledge...",
+    "quickApps": {
+      "hide": "Hide {{name}}",
+      "manage": "Manage",
+      "manager_description": "Drag to reorder, click the eye to hide or show",
+      "manager_title": "Manage quick apps",
+      "reset": "Reset",
+      "save_failed": "Failed to save quick apps",
+      "show": "Show {{name}}",
+      "title": "Quick apps"
+    },
+    "recent_hint": "Type to search conversations, tasks, assistants, agents, and knowledge",
+    "resultTypes": {
+      "agent": "Agent",
+      "assistant": "Assistant",
+      "knowledge-base": "Knowledge",
+      "session": "Task",
+      "topic": "Conversation"
+    },
+    "showMore": "Show {{count}} more",
+    "timeFilters": {
+      "any": "Any time",
+      "label": "Updated time",
+      "messageLabel": "Created time",
+      "month": "Last month",
+      "quarter": "Last 3 months",
+      "today": "Today",
+      "week": "Last 7 days"
+    }
+  },
   "gpustack": {
     "keep_alive_time": {
       "description": "The time in minutes to keep the connection alive, default is 5 minutes.",
@@ -2058,10 +2424,70 @@
   "history": {
     "continue_chat": "Continue Chatting",
     "error": {
-      "topic_not_found": "Topic not found"
+      "topic_not_found": "Conversation not found"
     },
     "locate": {
       "message": "Locate the message"
+    },
+    "records": {
+      "agentSubtitle": "{{count}} tasks",
+      "agentTitle": "Agent History",
+      "assistantSubtitle": "{{count}} conversations",
+      "bulkDelete": "Batch Delete",
+      "bulkDeleteSessions": {
+        "description": "Delete {{count}} selected task(s)?",
+        "title": "Delete selected tasks"
+      },
+      "bulkDeleteTopics": {
+        "description": "Delete {{count}} selected conversation(s)?",
+        "title": "Delete selected conversations"
+      },
+      "bulkMove": "Batch Move",
+      "bulkMoveTopics": {
+        "confirm": "Move",
+        "description": "Move {{count}} selected conversation(s) to the target assistant.",
+        "empty": "No assistants available",
+        "error": "Failed to move conversations",
+        "placeholder": "Select assistant",
+        "success": "Moved {{count}} conversation(s)",
+        "target": "Target assistant",
+        "title": "Move selected conversations"
+      },
+      "empty": {
+        "description": "No conversations for the current filters.",
+        "sessionsDescription": "No tasks for the current filters.",
+        "sessionsTitle": "No tasks",
+        "title": "No conversations"
+      },
+      "loading": {
+        "description": "Loading conversation list.",
+        "sessionsDescription": "Loading task list.",
+        "sessionsTitle": "Loading tasks",
+        "title": "Loading conversations"
+      },
+      "resultCount": "{{count}} results",
+      "searchSession": "Search tasks...",
+      "searchTopic": "Search conversations...",
+      "shortTitle": "History",
+      "sidebar": {
+        "searchAssistant": "Search assistants...",
+        "status": "Status",
+        "unknownAssistant": "Unlinked assistant"
+      },
+      "status": {
+        "completed": "Completed",
+        "failed": "Failed",
+        "running": "Running"
+      },
+      "table": {
+        "actions": "Actions",
+        "emptyValue": "—",
+        "messages": "Messages",
+        "session": "Task",
+        "time": "Time",
+        "title": "Title"
+      },
+      "title": "Conversation History"
     },
     "search": {
       "match": {
@@ -2069,16 +2495,16 @@
         "whole_word": "Whole word"
       },
       "messages": "Search All Messages",
-      "placeholder": "Search topics or messages...",
+      "placeholder": "Search conversations or messages...",
       "sort": {
         "newest": "Newest first",
         "oldest": "Oldest first"
       },
       "topics": {
-        "empty": "No topics found, press Enter to search all messages"
+        "empty": "No conversations found, press Enter to search all messages"
       }
     },
-    "title": "Topics Search"
+    "title": "Conversation Search"
   },
   "html_artifacts": {
     "capture": {
@@ -2432,6 +2858,7 @@
       "browse_label": "Assistant categories",
       "empty_description": "This category has no assistant presets yet.",
       "empty_title": "No assistants to add",
+      "go_to_chat": "Go to chat",
       "mine": "Mine",
       "no_match_description": "Try a different search keyword",
       "no_match_title": "No matching assistants",
@@ -2461,7 +2888,7 @@
             "label": "Allowed tools"
           },
           "avatar": {
-            "hint": "Used to identify it in the library and sessions"
+            "hint": "Used to identify it in the library and tasks"
           },
           "description": {
             "hint": "Helps identify what this agent is for",
@@ -2470,7 +2897,8 @@
           },
           "env_vars": {
             "help": "One KEY=VALUE per line",
-            "label": "Environment variables"
+            "label": "Environment variables",
+            "placeholder": "KEY=value\nANOTHER_KEY=another_value"
           },
           "heartbeat_enabled": {
             "label": "Heartbeat check"
@@ -2485,7 +2913,7 @@
           },
           "max_turns": {
             "help": "0 means use the default",
-            "label": "Max conversation turns"
+            "label": "Max task turns"
           },
           "mcps": {
             "add": "Add MCP server",
@@ -2495,34 +2923,33 @@
           "model": {
             "help": "UniqueModelId; will switch to a picker backed by /models later",
             "hint": "Main reasoning and execution",
-            "label": "Primary model (required)"
+            "label": "Primary model"
           },
           "name": {
-            "hint": "Shown in the library and session lists",
+            "hint": "Shown in the library and task lists",
             "label": "Agent name",
             "placeholder": "Give the agent a name"
           },
           "permission_mode": {
-            "help": "Switching to bypassPermissions is equivalent to enabling Soul mode",
             "label": "Permission mode",
             "option": {
-              "acceptEdits": "Accept edits",
-              "bypassPermissions": "Bypass permissions (Soul)",
-              "default": "Default",
-              "plan": "Plan mode"
+              "acceptEdits": "Auto-edit Mode",
+              "bypassPermissions": "Full Auto Mode",
+              "default": "Normal Mode",
+              "plan": "Plan Mode"
             }
           },
           "plan_model": {
             "hint": "Task decomposition and planning",
-            "label": "Plan model (optional)"
+            "label": "Plan model"
           },
           "small_model": {
             "hint": "Lightweight checks and formatting",
-            "label": "Small model (optional)"
+            "label": "Small model"
           },
           "soul_enabled": {
-            "help": "When enabled, automatically grants bypassPermissions",
-            "label": "Soul mode"
+            "help": "Use workspace soul files and autonomous task tools, and automatically grant bypassPermissions.",
+            "label": "Autonomous mode"
           }
         },
         "model_config": "Model configuration",
@@ -2549,6 +2976,14 @@
           },
           "tools": {
             "add": "Add",
+            "category": {
+              "context": "Context",
+              "file": "File",
+              "media": "Media",
+              "orchestration": "Orchestration",
+              "search": "Search",
+              "shell": "Shell"
+            },
             "desc": "Configure tools and MCP servers the agent can use",
             "label": "Tools",
             "no_builtin_enabled": "No built-in tools enabled",
@@ -2618,10 +3053,11 @@
         "json_invalid": "Invalid JSON format",
         "max_tokens": "Max tokens",
         "max_tool_calls": "Max tool calls",
+        "mcp_mode": "MCP Mode",
         "model": "Default model",
         "model_clear": "Clear",
         "model_not_found": "Model not found (may have been removed): {{id}}",
-        "model_pick": "+ Pick model",
+        "model_pick": "Pick model",
         "pick_avatar": "Pick avatar",
         "precise": "Precise",
         "stream_output": "Stream output",
@@ -2636,6 +3072,34 @@
         "unlimited": "Unlimited"
       },
       "breadcrumb": "Library",
+      "dialogs": {
+        "create": {
+          "agent_title": "New Agent",
+          "assistant_title": "New Assistant",
+          "avatar_aria": "Choose avatar",
+          "description_placeholder": "Describe what it is for...",
+          "dialog_description": "Create a lightweight assistant or agent.",
+          "model_placeholder": "Select a model",
+          "model_required": "Please select a model",
+          "name_placeholder": "Enter a name",
+          "name_required": "Please enter a name",
+          "submit": "Create",
+          "submit_failed": "Create failed"
+        },
+        "edit": {
+          "advanced_tab": "Advanced",
+          "agent_description": "Quickly adjust this agent's essentials.",
+          "agent_title": "Edit Agent",
+          "assistant_description": "Quickly adjust this assistant's essentials.",
+          "assistant_title": "Edit Assistant",
+          "basic_tab": "Basic",
+          "knowledge_tab": "Knowledge",
+          "permission_tab": "Permission",
+          "prompt_tab": "Prompt",
+          "save_failed": "Save failed",
+          "tools_tab": "Tools"
+        }
+      },
       "knowledge": {
         "add": "Add knowledge base",
         "desc": "Link one or more knowledge bases; relevant snippets will be retrieved during chat",
@@ -2666,6 +3130,8 @@
           }
         },
         "generate": "Generate prompt",
+        "generate_failed_description": "Check or change the default model, then try again.",
+        "generate_failed_title": "Failed to generate prompt",
         "insert_variable": "Insert variable",
         "label": "System prompt",
         "placeholder": "Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
@@ -2709,7 +3175,7 @@
       },
       "tools": {
         "add_mcp": "Add MCP server",
-        "added": "Added MCP servers",
+        "added": "MCP services",
         "added_hint": "Manual mode exposes only the servers in this list",
         "desc": "Configure the MCP servers this assistant can call during chat",
         "empty_desc": "Once added, the assistant can invoke external tools",
@@ -2824,13 +3290,9 @@
     },
     "skill_detail": {
       "created_at": "Created",
-      "delete_description": "Remove this skill and all of its configuration. This action cannot be undone.",
-      "delete_title": "Delete skill",
       "description": "Description",
-      "file_preview": "File preview",
       "installed": "Installed",
       "no_description": "No description",
-      "source_files": "Source files",
       "updated_at": "Recently updated"
     },
     "sort": {
@@ -2854,6 +3316,7 @@
     "title": "Library",
     "toolbar": {
       "add_tag_placeholder": "Tag name...",
+      "all_tags": "All tags",
       "new_resource": "New resource",
       "search_placeholder": "Search by name or description...",
       "tag_button": "Tag"
@@ -2867,7 +3330,6 @@
       "prompt": "Prompt",
       "skill": "Skill"
     },
-    "uninstall_failed": "Failed to uninstall",
     "view": {
       "grid": "Grid view",
       "list": "List view"
@@ -2950,6 +3412,7 @@
       "chunk_overlap_too_large": "Chunk overlap cannot be greater than chunk size",
       "copy": "Copy failed",
       "dimension_too_large": "Content size is too large",
+      "dismiss_failed": "Failed to dismiss error message",
       "enter": {
         "api": {
           "host": "Please enter your API host first",
@@ -2961,7 +3424,7 @@
       "excel": {
         "export": "Failed to export Excel"
       },
-      "fetchTopicName": "Failed to name the topic",
+      "fetchTopicName": "Failed to name the conversation",
       "file": {
         "process_failed": "File {{name}} could not be processed",
         "text_extraction_failed": "Failed to extract text from {{name}}"
@@ -3000,6 +3463,7 @@
         "no_api_key": "Notion ApiKey or Notion DatabaseID is not configured",
         "no_content": "There is nothing to export to Notion."
       },
+      "operation_unavailable": "Message operation is unavailable. Please try again.",
       "siyuan": {
         "export": "Failed to export to Siyuan Note, please check connection status and configuration according to documentation",
         "no_config": "Siyuan Note API address or token is not configured"
@@ -3058,6 +3522,10 @@
         "bubble": "Bubble",
         "label": "Message style",
         "plain": "Plain"
+      },
+      "user_content": {
+        "collapse": "Collapse",
+        "expand": "Expand"
       },
       "video": {
         "error": {
@@ -3125,37 +3593,126 @@
     "tools": {
       "abort_failed": "Tool call abort failed",
       "aborted": "Tool call aborted",
+      "activity": {
+        "archive": "archive",
+        "assistantTask": "task",
+        "availableFeatures": "available features",
+        "availableResources": "available resources",
+        "branch": "code branch",
+        "build": "Build",
+        "building": "Building",
+        "check": "Check",
+        "checking": "Checking",
+        "codeFiles": "code files",
+        "codeHostInfo": "code hosting information",
+        "commandName": "{{name}} command",
+        "configFiles": "project docs and config files",
+        "copy": "Copy",
+        "copying": "Copying",
+        "create": "Create",
+        "creating": "Creating",
+        "currentFolder": "current folder",
+        "delete": "Delete",
+        "deleting": "Deleting",
+        "documentFiles": "document files",
+        "download": "Download",
+        "downloading": "Downloading",
+        "executeCommand": "Run command",
+        "executingCommand": "Running command",
+        "extract": "Extract",
+        "extracting": "Extracting",
+        "file": "file",
+        "fileList": "file list",
+        "folder": "folder",
+        "handle": "Handle",
+        "handling": "Handling",
+        "imageFiles": "image files",
+        "install": "Install",
+        "installing": "Installing",
+        "matchingFiles": "matching files",
+        "modify": "Modify",
+        "modifying": "Modifying",
+        "move": "Move",
+        "moving": "Moving",
+        "open": "Open",
+        "opening": "Opening",
+        "plan": "execution plan",
+        "projectChanges": "project changes",
+        "projectChecks": "project checks",
+        "projectDependencies": "project dependencies",
+        "projectFiles": "project files",
+        "projectRootFiles": "project root files",
+        "projectTask": "project task",
+        "relatedContent": "related content",
+        "repository": "code repository",
+        "search": "Find",
+        "searching": "Finding",
+        "switch": "Switch",
+        "switching": "Switching",
+        "sync": "Sync",
+        "syncing": "Syncing",
+        "taskId": "Task {{id}}",
+        "taskList": "task list",
+        "translationFiles": "translation files",
+        "upload": "Upload",
+        "uploading": "Uploading",
+        "view": "View",
+        "viewing": "Viewing",
+        "webPage": "web page",
+        "webSearch": "web content",
+        "workspace": "workspace",
+        "write": "Save",
+        "writing": "Saving"
+      },
       "approvalRequired": "Tool \"{{tool}}\" requires approval",
       "autoApproveEnabled": "Auto-approve enabled for this tool",
       "cancelled": "Cancelled",
       "completed": "Completed",
       "error": "Error occurred",
-      "groupHeader": "{{count}} tool calls",
-      "invoking": "Invoking",
+      "groupHeader": "Completed {{count}} actions",
+      "invoking": "In progress",
       "labels": {
-        "bash": "Bash",
-        "edit": "Edit",
-        "exitPlanMode": "ExitPlanMode",
-        "glob": "Glob",
-        "grep": "Grep",
-        "mcpServerTool": "MCP Server Tool",
-        "multiEdit": "MultiEdit",
-        "notebookEdit": "NotebookEdit",
-        "readFile": "Read File",
-        "search": "Search",
+        "bash": "Run task",
+        "edit": "Modify file",
+        "exitPlanMode": "Finish plan",
+        "glob": "Find files",
+        "grep": "Find content",
+        "mcpServerTool": "Extension action",
+        "multiEdit": "Modify file",
+        "notebookEdit": "Modify notebook",
+        "readFile": "View file",
+        "search": "Find content",
         "skill": "Skill",
         "task": "Task",
-        "todoWrite": "Todo Write",
-        "tool": "Tool",
-        "webFetch": "Web Fetch",
-        "webSearch": "Web Search",
-        "write": "Write"
+        "taskCreate": "Create task",
+        "taskGet": "View task",
+        "taskList": "List tasks",
+        "taskOutput": "View task output",
+        "taskStop": "Stop task",
+        "taskUpdate": "Update task",
+        "todoWrite": "Update tasks",
+        "tool": "Action",
+        "webFetch": "View web page",
+        "webSearch": "Search web",
+        "write": "Save file"
       },
       "noData": "No data available for this tool",
-      "pending": "Pending",
+      "pending": "Waiting for approval",
+      "placeholder": {
+        "elapsed": {
+          "days": "{{days}}d {{hours}}h {{minutes}}m {{seconds}}s",
+          "hours": "{{hours}}h {{minutes}}m {{seconds}}s",
+          "minutes": "{{minutes}}m {{seconds}}s",
+          "seconds": "{{seconds}}s"
+        },
+        "generating": "Writing response",
+        "preparing": "Preparing response",
+        "thinking": "Thinking",
+        "usingTools": "Working on the task"
+      },
       "preview": "Preview",
       "raw": "Raw",
-      "runningCount": "{{count}} tools running",
+      "runningCount": "{{count}} actions in progress",
       "sections": {
         "args": "Arguments",
         "command": "Command",
@@ -3176,7 +3733,8 @@
         "running": "Running",
         "success": "Success"
       },
-      "streaming": "Streaming",
+      "streaming": "Receiving results",
+      "thinkingHeader": "Thinking",
       "truncated": "Output truncated (original: {{size}})",
       "units": {
         "done_one": "{{count}} Done",
@@ -3194,7 +3752,7 @@
       }
     },
     "topic": {
-      "added": "New topic added"
+      "added": "New conversation added"
     },
     "upgrade": {
       "success": {
@@ -3221,6 +3779,7 @@
     "websearch": {
       "cutoff": "Truncating search content...",
       "fetch_complete": "{{count}} search result(s)",
+      "fetch_empty": "No search results found",
       "partial_failure": "{{count}} search result(s), some searches failed"
     }
   },
@@ -3406,6 +3965,12 @@
     "search": {
       "placeholder": "Search models...",
       "tooltip": "Search models"
+    },
+    "selection": {
+      "context_window": "Context {{count}}",
+      "remove_model": "Remove {{name}}",
+      "restore_default": "Restore assistant model",
+      "selected_models": "Selected models"
     },
     "stream_output": "Stream output",
     "type": {
@@ -4003,7 +4568,7 @@
     "text_desc_required": "Please enter image description first",
     "thinking_mode": "Thinking Mode",
     "thinking_mode_tip": "When on, generation quality is higher but adds about 10–30 seconds.",
-    "title": "Images",
+    "title": "Drawing",
     "top_up": "Top up ",
     "translating": "Translating...",
     "uploaded_input": "Uploaded input",
@@ -4677,12 +5242,12 @@
   "selector": {
     "agent": {
       "create_new": "New Agent",
-      "empty_text": "No agents yet",
+      "empty_text": "No agents yet. Create one first.",
       "search_placeholder": "Search agents…"
     },
     "assistant": {
       "create_new": "New Assistant",
-      "empty_text": "No assistants yet",
+      "empty_text": "No assistants yet. Create one first.",
       "multi_hint": "(mutually exclusive with multi-model)",
       "multi_label": "Multi-assistant parallel",
       "search_placeholder": "Search assistants…"
@@ -4697,6 +5262,12 @@
       },
       "sort_label": "Sort",
       "unpin": "Unpin"
+    },
+    "create_dialog": {
+      "refresh_failed": "Created, but failed to refresh the list"
+    },
+    "edit_dialog": {
+      "refresh_failed": "Saved, but failed to refresh the list"
     },
     "workspace": {
       "empty_text": "No workspaces yet",
@@ -4749,7 +5320,6 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "Auto switch to topic",
       "title": "Advanced Settings"
     },
     "assistant": {
@@ -4878,7 +5448,17 @@
         "triggerSelectedCount": "{{count}} models selected",
         "valueProp": "Current Value Prop"
       },
-      "title": "Development Component Lab"
+      "title": "Development Component Lab",
+      "toolPermission": {
+        "builtinMode": "Built-in",
+        "currentRequest": "Current request",
+        "description": "Preview the bottom tool permission composer with built-in and MCP tool requests.",
+        "latestResponse": "Latest response",
+        "mcpMode": "MCP",
+        "noResponse": "No response submitted yet",
+        "resetPreview": "Reset preview",
+        "title": "Tool Permission"
+      }
     },
     "data": {
       "app_data": {
@@ -5552,7 +6132,7 @@
       },
       "title": "Display Settings",
       "topic": {
-        "title": "Topic Settings"
+        "title": "Conversation Settings"
       },
       "zoom": {
         "title": "Zoom Settings"
@@ -5574,7 +6154,19 @@
         "title": "Data Backup and Recovery"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "Cherry",
+            "native": "Native",
+            "restart": {
+              "content": "Changing the menu style requires restarting the app to take effect. Do you want to restart now?",
+              "title": "Restart Required"
+            },
+            "title": "Context menu style"
+          }
+        },
         "sections": {
+          "chat_settings": "Chat Settings",
           "custom_css": "Custom CSS",
           "display_language": "Display & Language",
           "privacy_advanced": "Privacy & Advanced",
@@ -5833,6 +6425,13 @@
         "text": "Text",
         "uri": "URI"
       },
+      "runtimeStatus": {
+        "connected": "Connected",
+        "connecting": "Connecting",
+        "disabled": "Disabled",
+        "error": "Error",
+        "unavailable": "Unavailable"
+      },
       "search": {
         "placeholder": "Search MCP servers...",
         "tooltip": "Search MCP servers"
@@ -5938,9 +6537,6 @@
       "input": {
         "confirm_delete_message": "Confirm before deleting messages",
         "confirm_regenerate_message": "Confirm before regenerating messages",
-        "enable_quick_triggers": "Enable / and @ triggers",
-        "paste_long_text_as_file": "Paste long text as file",
-        "paste_long_text_threshold": "Paste long text length",
         "send_shortcuts": "Send shortcuts",
         "show_estimated_tokens": "Show estimated tokens",
         "title": "Input Settings"
@@ -5959,7 +6555,8 @@
       "prompt": "Show prompt",
       "show_message_outline": "Show message outline",
       "title": "Message Settings",
-      "use_serif_font": "Use serif font"
+      "use_serif_font": "Use serif font",
+      "wide_mode": "Wide layout mode"
     },
     "miniApps": {
       "cache_change_notice": "Changes will take effect when the number of open mini apps reaches the set value",
@@ -6124,8 +6721,8 @@
       "api_key": "API Key",
       "available_count": "{{count}} available",
       "base_url": "Base URL",
-      "bulk_disable": "Close all",
-      "bulk_enable": "Select all",
+      "bulk_disable": "Disable all",
+      "bulk_enable": "Enable all",
       "check": {
         "all": "All",
         "all_models_passed": "All models check passed",
@@ -6255,7 +6852,7 @@
       "quick_assistant_model": "Quick Assistant Model",
       "quick_assistant_selection": "Select Assistant",
       "quick_model": {
-        "description": "Model used for simple tasks such as topic naming and keyword extraction",
+        "description": "Model used for simple tasks such as conversation naming and keyword extraction",
         "label": "Quick Model",
         "setting_title": "Quick model setup",
         "tooltip": "It is recommended to choose a lightweight model and not recommended to choose a thinking model."
@@ -6267,9 +6864,9 @@
         "pull_short": "Get model list"
       },
       "topic_naming": {
-        "auto": "Topic Auto Naming",
-        "label": "Topic naming",
-        "prompt": "Topic Naming Prompt"
+        "auto": "Conversation Auto Naming",
+        "label": "Conversation naming",
+        "prompt": "Conversation Naming Prompt"
       },
       "translate_model": "Translate Model",
       "translate_model_description": "Model used for translation service",
@@ -6326,6 +6923,7 @@
         "title": "Verbosity"
       }
     },
+    "parameter_settings": "Parameter Settings",
     "plugins": {
       "bunDescription": "JavaScript runtime used by MCP services and related toolchains.",
       "description": "Manage binary tools and runtime dependencies required by the app.",
@@ -6354,7 +6952,8 @@
       },
       "title": "Prompt Management",
       "titleLabel": "Title",
-      "titlePlaceholder": "Enter prompt title"
+      "titlePlaceholder": "Enter prompt title",
+      "variablePlaceholder": "${variable}"
     },
     "provider": {
       "add": {
@@ -6408,7 +7007,7 @@
           },
           "label": "API Settings",
           "service_tier": {
-            "help": "Whether the provider supports configuring the service_tier parameter. When enabled, this parameter can be adjusted in the service tier settings on the chat page. (OpenAI models only)",
+            "help": "Whether the provider supports configuring the service_tier parameter. When enabled, the service tier value can be adjusted in this API settings drawer. (OpenAI/Groq-compatible models only)",
             "label": "Supports service_tier"
           },
           "stream_options": {
@@ -6688,6 +7287,14 @@
       "close": "Close",
       "confirm": "Confirm",
       "forward": "Forward",
+      "mcp": {
+        "agentEmpty": "No MCP servers configured for this agent",
+        "assistantEmpty": "No MCP servers configured for this assistant",
+        "autoEmpty": "No enabled MCP servers",
+        "description": "View current MCP server status",
+        "disabled": "MCP is disabled for this assistant",
+        "unknownServer": "Unknown MCP server"
+      },
       "multiple": "Multiple Select",
       "noResult": "No results found",
       "page": "Page",
@@ -6727,10 +7334,11 @@
         "chat": "Message Interaction",
         "general": "Global and Window",
         "title": "Shortcut Groups",
-        "topic": "Conversation and Topics"
+        "topic": "Messages and Conversations"
       },
       "clear_shortcut": "Clear Shortcut",
       "clear_topic": "Clear Messages",
+      "close_tab": "Close Tab",
       "conflict_with": "Already used by \"{{name}}\"",
       "copy_last_message": "Copy Last Message",
       "edit_last_user_message": "Edit Last User Message",
@@ -6738,11 +7346,14 @@
       "enabled": "Enable",
       "exit_fullscreen": "Exit Fullscreen",
       "label": "Key",
-      "new_topic": "New Topic",
+      "move_tab_to_first": "Move Tab to First",
+      "new_topic": "New Conversation",
       "occupied_by_other_application": "This shortcut is already used by the system or another application",
+      "open_tab_in_new_window": "Open Tab in New Window",
+      "pin_tab": "Toggle Pin Tab",
       "press_shortcut": "Press Shortcut",
       "quick_assistant": "Quick Assistant",
-      "rename_topic": "Rename Topic",
+      "rename_topic": "Rename Conversation",
       "reset": "Reset",
       "reset_defaults": "Reset Defaults",
       "reset_defaults_confirm": "Are you sure you want to reset all shortcuts?",
@@ -6759,9 +7370,9 @@
       "show_app": "Show/Hide App",
       "show_settings": "Open Settings",
       "title": "Keyboard Shortcuts",
+      "toggle_left_sidebar": "Toggle Left Sidebar",
       "toggle_new_context": "Clear Context",
-      "toggle_show_topics": "Toggle Topics",
-      "toggle_sidebar": "Toggle Sidebar",
+      "toggle_right_sidebar": "Toggle Right Sidebar",
       "zoom_in": "Zoom In",
       "zoom_out": "Zoom Out",
       "zoom_reset": "Reset Zoom"
@@ -6979,17 +7590,6 @@
         "url_required": "Please enter a URL"
       }
     },
-    "topic": {
-      "pin_to_top": "Pin Topics to Top",
-      "position": {
-        "label": "Topic position",
-        "left": "Left",
-        "right": "Right"
-      },
-      "show": {
-        "time": "Show topic time"
-      }
-    },
     "translate": {
       "custom": {
         "delete": {
@@ -7052,10 +7652,16 @@
       "title": "Page Zoom"
     }
   },
+  "subWindow": {
+    "back_to_main": "Back to Main Window",
+    "pin": "Keep on Top",
+    "unpin": "Cancel Keep on Top"
+  },
   "tab": {
     "close": "Close Tab",
     "move_to_first": "Move to First",
     "new": "New Tab",
+    "open_in_new_window": "Open in New Window",
     "pin": "Pin Tab",
     "unpin": "Unpin Tab"
   },
@@ -7069,10 +7675,39 @@
     "mcp-servers": "MCP Servers",
     "notes": "Notes",
     "openclaw": "OpenClaw",
-    "paintings": "Paintings",
+    "paintings": "Drawing",
     "settings": "Settings",
-    "store": "Assistant Library",
+    "store": "Resources",
     "translate": "Translate"
+  },
+  "trace": {
+    "agent": "Agent",
+    "backList": "Back To List",
+    "cachedTokens": "Cached",
+    "endTime": "End Time",
+    "inputs": "Inputs",
+    "label": "Call Chain",
+    "model": "Model",
+    "name": "Node Name",
+    "noTraceList": "No trace information found",
+    "operation": "Operation",
+    "outputs": "Outputs",
+    "reasoningTokens": "Reasoning",
+    "requestHeaders": "Request Headers",
+    "requestMethod": "Request Method",
+    "requestUrl": "Request URL",
+    "responseHeaders": "Response Headers",
+    "responseStatus": "Response Status",
+    "serverDescription": "Server Description",
+    "serverName": "Server Name",
+    "serverType": "Server Type",
+    "spanDetail": "Span Details",
+    "spendTime": "Spend Time",
+    "startTime": "Start Time",
+    "status": "Status",
+    "tag": "Tag",
+    "tokenUsage": "Token Usage",
+    "toolCalls": "Tool Calls"
   },
   "translate": {
     "alter_language": "Alternative Language",

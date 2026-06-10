@@ -25,13 +25,17 @@ import { loggerService } from '@logger'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { cacheService } from '@renderer/data/CacheService'
 import { dataApiService } from '@renderer/data/DataApiService'
 import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { useCreateTask, useDeleteTask, useRunTask, useTaskLogs, useUpdateTask } from '@renderer/hooks/agents/useTasks'
-import type { CreateTaskRequest, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@renderer/types'
-import type { AgentEntity } from '@renderer/types/agent'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
+import type {
+  AgentEntity,
+  CreateTaskRequest,
+  ScheduledTaskEntity,
+  TaskRunLogEntity,
+  UpdateTaskRequest
+} from '@shared/data/types/agent'
 import { useNavigate } from '@tanstack/react-router'
 import {
   AlertTriangle,
@@ -506,8 +510,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
 
   const navigateToSession = useCallback(
     (sessionId: string) => {
-      cacheService.set('agent.active_session_id', sessionId)
-      void navigate({ to: '/app/chat' })
+      void navigate({ to: '/app/agents', search: { sessionId } })
     },
     [navigate]
   )

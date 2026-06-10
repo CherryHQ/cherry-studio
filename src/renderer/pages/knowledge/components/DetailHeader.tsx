@@ -9,7 +9,7 @@ import {
   PopoverTrigger,
   SearchInput
 } from '@cherrystudio/ui'
-import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
+import { formatRelativeTime } from '@renderer/utils/time'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { MoreHorizontal, PencilLine, Search, SlidersHorizontal, Trash2, Zap } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
@@ -106,7 +106,7 @@ const DetailHeader = ({
           <div className="flex shrink-0 items-center gap-1">
             {canSearch ? (
               isSearchVisible ? (
-                <div className="w-36 shrink-0 [&_[data-slot=input-group-addon]]:py-1 [&_[data-slot=input-group-control]]:h-7 [&_[data-slot=input-group-control]]:py-0 [&_[data-slot=input-group]]:h-7">
+                <div className="w-36 shrink-0 **:data-[slot=input-group-control]:h-7 **:data-[slot=input-group]:h-7 **:data-[slot=input-group-addon]:py-1 **:data-[slot=input-group-control]:py-0">
                   <SearchInput
                     autoFocus
                     value={searchQuery}

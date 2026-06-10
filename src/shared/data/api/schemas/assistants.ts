@@ -17,7 +17,7 @@ import type { OrderEndpoints } from './_endpointHelpers'
 // ============================================================================
 
 /**
- * Mutable assistant fields — explicit whitelist of everything a client may write.
+ * Mutable assistant fields — explicit whitelist of everything a client may edit.
  * Anything not listed here (id, createdAt, updatedAt, tags, modelName, future
  * auto-managed columns) is rejected at the API boundary by default.
  *
@@ -25,6 +25,7 @@ import type { OrderEndpoints } from './_endpointHelpers'
  * - `tags` is embedded on read via inline join; writes use `tagIds` below.
  * - `modelName` is resolved at read time from `user_model.name`; edits go via
  *   `modelId`.
+ * - `orderKey` is service-owned; writes go through `/assistants/:id/order`.
  */
 const ASSISTANT_MUTABLE_FIELDS = {
   name: true,
@@ -35,6 +36,18 @@ const ASSISTANT_MUTABLE_FIELDS = {
   modelId: true,
   mcpServerIds: true,
   knowledgeBaseIds: true
+} as const
+
+/**
+ * Create-only assistant fields.
+ *
+ * `source` is intentionally accepted only at create time: bundled assistant
+ * catalog imports stamp their preset UUID; later edits should not rewrite
+ * provenance.
+ */
+const ASSISTANT_CREATE_FIELDS = {
+  ...ASSISTANT_MUTABLE_FIELDS,
+  source: true
 } as const
 
 /**
@@ -51,7 +64,7 @@ const TagIdsField = z.array(TagIdSchema).optional()
  * - `name` is required (non-empty)
  * - `mcpServerIds` / `knowledgeBaseIds` / `tagIds` are synced to junction tables
  */
-export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS)
+export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_CREATE_FIELDS)
   .partial()
   .required({ name: true })
   .extend({ tagIds: TagIdsField })
@@ -98,6 +111,12 @@ export const ListAssistantsQuerySchema = z.object({
   search: z.string().trim().min(1).optional(),
   /** Return assistants bound to ANY of these tag ids (union) */
   tagIds: z.array(TagIdSchema).min(1).optional(),
+  /** Filter by assistant updatedAt timestamp (milliseconds). */
+  updatedAtFrom: z.coerce.number().int().optional(),
+  /** Sort field. Defaults to orderKey for library/resource ordering. */
+  sortBy: z.enum(['createdAt', 'updatedAt', 'name', 'orderKey']).optional(),
+  /** Sort direction. */
+  orderBy: z.enum(['asc', 'desc']).optional(),
   /** Positive integer, defaults to {@link ASSISTANTS_DEFAULT_PAGE} */
   page: z.int().positive().default(ASSISTANTS_DEFAULT_PAGE),
   /** Positive integer, max {@link ASSISTANTS_MAX_LIMIT}, defaults to {@link ASSISTANTS_DEFAULT_LIMIT} */

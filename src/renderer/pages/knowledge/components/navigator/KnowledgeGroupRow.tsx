@@ -1,13 +1,20 @@
-import { Button, ConfirmDialog } from '@cherrystudio/ui'
+import {
+  Button,
+  ConfirmDialog,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
+} from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { MoreHorizontal } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/features/command'
+import { MoreHorizontal, PencilLine, Plus, Trash2 } from 'lucide-react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BaseNavigatorSectionTrigger from './BaseNavigatorSectionTrigger'
-import { KnowledgeGroupRowMenu } from './NavigatorMenu'
 import type { KnowledgeGroupRowProps } from './types'
-import useContextMenuPosition from './useContextMenuPosition'
 
 const KnowledgeGroupRow = ({
   group,
@@ -17,69 +24,96 @@ const KnowledgeGroupRow = ({
   onDeleteGroup
 }: KnowledgeGroupRowProps) => {
   const { t } = useTranslation()
-  const {
-    isMenuOpen,
-    contextMenuPosition,
-    closeContextMenu,
-    handleContextMenu,
-    handleMenuOpenChange,
-    handleMoreButtonClick
-  } = useContextMenuPosition()
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
 
   const handleRenameGroup = useCallback(() => {
-    closeContextMenu()
-    onRenameGroup({
-      id: group.id,
-      name: group.name
-    })
-  }, [closeContextMenu, group.id, group.name, onRenameGroup])
+    onRenameGroup({ id: group.id, name: group.name })
+  }, [group.id, group.name, onRenameGroup])
 
   const handleRequestDelete = useCallback(() => {
-    closeContextMenu()
     setIsDeleteDialogOpen(true)
-  }, [closeContextMenu])
+  }, [])
 
   const handleCreateBase = useCallback(() => {
-    closeContextMenu()
     onCreateBase(group.id)
-  }, [closeContextMenu, group.id, onCreateBase])
+  }, [group.id, onCreateBase])
 
   const handleDeleteGroup = useCallback(async () => {
     await onDeleteGroup(group.id)
   }, [group.id, onDeleteGroup])
 
+  const contextMenuItems = useMemo<CommandContextMenuExtraItem[]>(
+    () => [
+      {
+        type: 'item',
+        id: 'rename',
+        label: t('knowledge.context.rename'),
+        icon: <PencilLine className="size-3.5" />,
+        onSelect: handleRenameGroup
+      },
+      {
+        type: 'item',
+        id: 'create-base',
+        label: t('knowledge.groups.create_base_here'),
+        icon: <Plus className="size-3.5" />,
+        onSelect: handleCreateBase
+      },
+      { type: 'separator' },
+      {
+        type: 'item',
+        id: 'delete',
+        label: t('knowledge.groups.delete'),
+        icon: <Trash2 className="size-3.5" />,
+        destructive: true,
+        onSelect: handleRequestDelete
+      }
+    ],
+    [handleCreateBase, handleRenameGroup, handleRequestDelete, t]
+  )
+
   return (
     <>
-      <BaseNavigatorSectionTrigger
-        label={group.name}
-        itemCount={itemCount}
-        actionSlot={
-          <KnowledgeGroupRowMenu
-            open={isMenuOpen}
-            menuPosition={contextMenuPosition}
-            trigger={
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={t('common.more')}
-                className={cn(
-                  'size-6 min-h-6 min-w-6 rounded-md p-0 text-foreground-muted hover:bg-accent hover:text-foreground group-focus-within/grp:opacity-100 group-hover/grp:opacity-100 [&_svg]:size-3.5',
-                  isMenuOpen ? 'opacity-100' : 'opacity-0'
-                )}
-                onClick={handleMoreButtonClick}>
-                <MoreHorizontal />
-              </Button>
+      <CommandContextMenu location="webcontents.context" extraItems={contextMenuItems}>
+        <div className="w-full">
+          <BaseNavigatorSectionTrigger
+            label={group.name}
+            itemCount={itemCount}
+            actionSlot={
+              <DropdownMenu open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t('common.more')}
+                    className={cn(
+                      'size-6 min-h-6 min-w-6 rounded-md p-0 text-foreground-muted hover:bg-accent hover:text-foreground group-focus-within/grp:opacity-100 group-hover/grp:opacity-100 [&_svg]:size-3.5',
+                      moreMenuOpen ? 'opacity-100' : 'opacity-0'
+                    )}>
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" side="bottom" sideOffset={8} className="w-45">
+                  <DropdownMenuItem onSelect={handleRenameGroup}>
+                    <PencilLine className="size-3.5" />
+                    <span>{t('knowledge.context.rename')}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={handleCreateBase}>
+                    <Plus className="size-3.5" />
+                    <span>{t('knowledge.groups.create_base_here')}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onSelect={handleRequestDelete}>
+                    <Trash2 className="size-3.5" />
+                    <span>{t('knowledge.groups.delete')}</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             }
-            onOpenChange={handleMenuOpenChange}
-            onRename={handleRenameGroup}
-            onCreateBase={handleCreateBase}
-            onRequestDelete={handleRequestDelete}
           />
-        }
-        onContextMenu={handleContextMenu}
-      />
+        </div>
+      </CommandContextMenu>
 
       <ConfirmDialog
         open={isDeleteDialogOpen}

@@ -16,13 +16,33 @@ import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, Reran
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
-import type { Model } from '@shared/data/types/model'
-import { isOpenAIChatCompletionOnlyModel, isOpenAILLMModel } from '@shared/utils/model'
 
 import { createAihubmixImageModel } from './aihubmixImageModel'
 
 export const AIHUBMIX_PROVIDER_NAME = 'aihubmix' as const
 const APP_CODE_HEADER = { 'APP-Code': 'MLTG2087' }
+
+// AiHubMix dispatches on the raw API model id (e.g. `gpt-4o`, `qwen3.5-plus`).
+// These predicates operate directly on that string so the provider doesn't have
+// to fabricate a `Model` just to reuse the `Model`-shaped shared helpers. The
+// OpenAI pattern mirrors the OpenAI vendor regex in @cherrystudio/provider-registry.
+
+/** OpenAI LLM ids (gpt-* / o1|o3|o4-series), excluding the gpt-4o image variant. */
+const isOpenAILLM = (modelId: string): boolean => {
+  const id = modelId.toLowerCase()
+  return /\bgpt\b|^o[134]/.test(id) && !id.includes('gpt-4o-image')
+}
+
+/** OpenAI ids that only support Chat Completions (no Responses API). */
+const isOpenAIChatCompletionOnly = (modelId: string): boolean => {
+  const id = modelId.toLowerCase()
+  return (
+    id.includes('gpt-4o-search-preview') ||
+    id.includes('gpt-4o-mini-search-preview') ||
+    id.includes('o1-mini') ||
+    id.includes('o1-preview')
+  )
+}
 
 export interface AihubmixProviderSettings {
   apiKey?: string
@@ -124,9 +144,8 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
     ) {
       return createGeminiModel(modelId)
     }
-    const model = { id: modelId } as Model
-    if (isOpenAILLMModel(model)) {
-      if (isOpenAIChatCompletionOnlyModel(model)) {
+    if (isOpenAILLM(modelId)) {
+      if (isOpenAIChatCompletionOnly(modelId)) {
         return createOpenAIChatModel(modelId)
       }
       return createResponsesModel(modelId)

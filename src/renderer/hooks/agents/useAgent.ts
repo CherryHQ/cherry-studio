@@ -8,14 +8,11 @@
 
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import type { AddAgentForm, UpdateAgentForm } from '@renderer/types'
-import type {
-  AgentEntity as LegacyAgentEntity,
-  UpdateAgentBaseOptions,
-  UpdateAgentFunction
-} from '@renderer/types/agent'
+import type { UpdateAgentBaseOptions, UpdateAgentFunction } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Tool } from '@shared/ai/tool'
 import type { AgentEntity, CreateAgentDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import { AGENTS_MAX_LIMIT } from '@shared/data/api/schemas/agents'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -64,21 +61,20 @@ export const useAgent = (id: string | null) => {
 
 /**
  * List + mutate all agents. Deleting an agent cascades to its sessions at
- * the DB layer (FK ON DELETE cascade); the active-session pointer is
- * normalized by `useAgentSessionInitializer` next render.
+ * the DB layer (FK ON DELETE cascade).
  */
 export const useAgents = () => {
   const { t } = useTranslation()
-  const { data, isLoading, error } = useQuery('/agents')
-  const agents = useMemo<LegacyAgentEntity[]>(() => (data?.items ?? []) as unknown as LegacyAgentEntity[], [data])
+  const { data, isLoading, error, refetch } = useQuery('/agents', { query: { limit: AGENTS_MAX_LIMIT } })
+  const agents = useMemo<AgentEntity[]>(() => (data?.items ?? []) as unknown as AgentEntity[], [data])
 
   const { trigger: createTrigger } = useMutation('POST', '/agents', { refresh: ['/agents'] })
   const addAgent = useCallback(
-    async (form: AddAgentForm): Promise<Result<LegacyAgentEntity>> => {
+    async (form: AddAgentForm): Promise<Result<AgentEntity>> => {
       try {
         const result = await createTrigger({ body: form as unknown as CreateAgentDto })
         window.toast.success(t('common.add_success'))
-        return { success: true, data: result as unknown as LegacyAgentEntity }
+        return { success: true, data: result as unknown as AgentEntity }
       } catch (error) {
         const msg = formatErrorMessageWithPrefix(error, t('agent.add.error.failed'))
         window.toast.error(msg)
@@ -103,7 +99,7 @@ export const useAgents = () => {
     [deleteTrigger, t]
   )
 
-  return { agents, error, isLoading, addAgent, deleteAgent }
+  return { agents, error, isLoading, addAgent, deleteAgent, refetch }
 }
 
 /**
@@ -117,7 +113,7 @@ export const useUpdateAgent = () => {
   })
 
   const updateAgent: UpdateAgentFunction = useCallback(
-    async (form: UpdateAgentForm, options?: UpdateAgentBaseOptions): Promise<LegacyAgentEntity | undefined> => {
+    async (form: UpdateAgentForm, options?: UpdateAgentBaseOptions): Promise<AgentEntity | undefined> => {
       try {
         const { id, ...patch } = form
         const result = await updateTrigger({ params: { agentId: id }, body: patch as unknown as UpdateAgentDto })
@@ -126,7 +122,7 @@ export const useUpdateAgent = () => {
         }
 
         return {
-          ...(result as unknown as LegacyAgentEntity),
+          ...(result as unknown as AgentEntity),
           configuration: parseAgentConfiguration(result.configuration, { entityId: result.id, entityType: 'agent' })
         }
       } catch (error) {

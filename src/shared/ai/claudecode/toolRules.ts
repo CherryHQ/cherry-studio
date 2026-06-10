@@ -1,6 +1,6 @@
 import type { AgentPermissionMode } from '../../data/api/schemas/agents'
 import type { ToolApproval, ToolOrigin } from '../tool'
-import { buildMcpWireToolId, buildMcpWireWildcard } from '../tools/mcpSourcePolicy'
+import { buildMcpWireToolId } from '../tools/mcpSourcePolicy'
 
 export interface ClaudeToolDescriptor {
   id: string
@@ -23,9 +23,9 @@ export interface ClaudeToolInvocation {
   input?: unknown
 }
 
+/** Approval is governed solely by the permission mode + the built-in safe/edit defaults. */
 export interface ClaudeToolPolicy {
   permissionMode?: AgentPermissionMode
-  allowedTools?: readonly string[]
 }
 
 const DEFAULT_SAFE_TOOLS = new Set(['Read', 'Glob', 'Grep', 'NotebookRead', 'Task', 'TodoWrite'])
@@ -38,36 +38,6 @@ export function normalizeClaudeBuiltinName(name: string): string {
 
 export function buildClaudeMcpToolName(serverName: string, toolName: string): string {
   return buildMcpWireToolId(serverName, toolName)
-}
-
-export function buildClaudeMcpWildcard(serverName: string): string {
-  return buildMcpWireWildcard(serverName)
-}
-
-function rawClaudeMcpToolName(serverName: string, toolName: string): string {
-  return `mcp__${serverName}__${toolName}`
-}
-
-export function matchesClaudeToolRule(rule: string, descriptor: ClaudeToolDescriptor): boolean {
-  if (rule === descriptor.id) return true
-
-  if (descriptor.origin === 'builtin') {
-    return normalizeClaudeBuiltinName(rule) === normalizeClaudeBuiltinName(descriptor.id)
-  }
-
-  if (descriptor.origin === 'mcp') {
-    if (descriptor.sourceName && rule === buildClaudeMcpWildcard(descriptor.sourceName)) return true
-    if (descriptor.sourceName && descriptor.sourceToolName) {
-      if (rule === rawClaudeMcpToolName(descriptor.sourceName, descriptor.sourceToolName)) return true
-      if (rule === rawClaudeMcpToolName(descriptor.sourceName, '*')) return true
-    }
-  }
-
-  return false
-}
-
-function hasRuleMatch(values: readonly string[] | undefined, descriptor: ClaudeToolDescriptor): boolean {
-  return values?.some((value) => matchesClaudeToolRule(value, descriptor)) ?? false
 }
 
 function sourceDecision(descriptor: ClaudeToolDescriptor): ClaudeToolDecision | undefined {
@@ -85,10 +55,6 @@ export function resolveClaudeToolAccess(
   if (source) return source
 
   if (policy.permissionMode === 'bypassPermissions') {
-    return { id: descriptor.id, approval: 'auto' }
-  }
-
-  if (hasRuleMatch(policy.allowedTools, descriptor)) {
     return { id: descriptor.id, approval: 'auto' }
   }
 
@@ -114,39 +80,6 @@ function matchesAcceptEditsBashInvocation(descriptor: ClaudeToolDescriptor, invo
   return ACCEPT_EDITS_BASH_COMMANDS.has(command)
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function matchesGlob(pattern: string, value: string): boolean {
-  const source = pattern
-    .split('*')
-    .map((part) => escapeRegExp(part))
-    .join('.*')
-  return new RegExp(`^${source}$`).test(value)
-}
-
-function matchesBashInvocationRule(
-  rule: string,
-  descriptor: ClaudeToolDescriptor,
-  invocation: ClaudeToolInvocation
-): boolean {
-  if (normalizeClaudeBuiltinName(descriptor.id) !== 'Bash') return false
-  const match = rule.match(/^Bash\((.*)\)$/)
-  if (!match) return false
-  const command = commandFromInput(invocation.input)
-  if (!command) return false
-  return matchesGlob(match[1].trim(), command)
-}
-
-function hasInvocationRuleMatch(
-  values: readonly string[] | undefined,
-  descriptor: ClaudeToolDescriptor,
-  invocation: ClaudeToolInvocation
-): boolean {
-  return values?.some((value) => matchesBashInvocationRule(value, descriptor, invocation)) ?? false
-}
-
 export function resolveClaudeToolInvocationAccess(
   descriptor: ClaudeToolDescriptor,
   policy: ClaudeToolPolicy,
@@ -156,13 +89,6 @@ export function resolveClaudeToolInvocationAccess(
   if (source) return source
 
   if (policy.permissionMode === 'bypassPermissions') {
-    return { id: descriptor.id, approval: 'auto' }
-  }
-
-  if (
-    hasRuleMatch(policy.allowedTools, descriptor) ||
-    hasInvocationRuleMatch(policy.allowedTools, descriptor, invocation)
-  ) {
     return { id: descriptor.id, approval: 'auto' }
   }
 

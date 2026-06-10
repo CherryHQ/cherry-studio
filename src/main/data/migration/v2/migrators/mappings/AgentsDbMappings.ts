@@ -121,8 +121,10 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       { name: 'plan_model', expr: buildUserModelLookupExpr('plan_model'), sourceColumn: 'plan_model' },
       { name: 'small_model', expr: buildUserModelLookupExpr('small_model'), sourceColumn: 'small_model' },
       notNullCol('mcps', "'[]'"),
-      notNullCol('allowed_tools', "'[]'"),
+      notNullCol('disabled_tools', "'[]'"),
       notNullCol('configuration', "'{}'"),
+      // Placeholder; AgentsMigrator backfills real fractional-indexing keys
+      // ordered by source `sort_order` after INSERT.
       notNullCol('order_key', "''"),
       {
         name: 'deleted_at',
@@ -223,6 +225,12 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'name',
       'agent_id',
       'session_id',
+      {
+        name: 'workspace',
+        expr: 'workspace',
+        sourceColumn: 'workspace',
+        fallbackExpr: '\'{"type":"system"}\''
+      },
       'config',
       notNullCol('is_active', '1'),
       notNullCol('active_chat_ids', "'[]'"),

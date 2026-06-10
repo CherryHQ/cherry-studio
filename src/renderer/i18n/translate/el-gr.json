@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "απαντήθηκε",
+      "close": "[to be translated]:Close",
       "customPlaceholder": "Εισάγετε την απάντησή σας...",
       "loading": "Φόρτωση ερωτήσεων...",
       "multiSelect": "Πολλαπλή επιλογή",
@@ -25,6 +26,8 @@
       "noQuestions": "Δεν υπάρχουν διαθέσιμες ερωτήσεις",
       "other": "Άλλο",
       "previous": "Προηγούμενο",
+      "progress": "[to be translated]:{{current}} of {{total}}",
+      "skip": "[to be translated]:Skip",
       "submit": "Υποβολή",
       "title": "Ερωτήσεις από τον πράκτορα"
     },
@@ -215,7 +218,11 @@
         "edit": "Επεξεργασία",
         "empty": "Δεν υπάρχουν προγραμματισμένες εργασίες. Προσθέστε μία για να ξεκινήσετε.",
         "error": {
-          "loadFailed": "Αποτυχία φόρτωσης εργασιών"
+          "createFailed": "[to be translated]:Failed to create task",
+          "deleteFailed": "[to be translated]:Failed to delete task",
+          "loadFailed": "Αποτυχία φόρτωσης εργασιών",
+          "runFailed": "[to be translated]:Failed to run task",
+          "updateFailed": "[to be translated]:Failed to update task"
         },
         "intervalPlaceholder": "Διάστημα σε λεπτά",
         "intervalUnit": "λεπτά",
@@ -326,6 +333,9 @@
       "success": "Το Git Bash εντοπίστηκε με επιτυχία!",
       "tooltip": "Το Git Bash απαιτείται για την εκτέλεση πρακτόρων στα Windows. Εγκαταστήστε το από το git-scm.com εάν δεν είναι διαθέσιμο."
     },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
+    },
     "input": {
       "placeholder": "Εισάγετε το μήνυμά σας εδώ, στείλτε με {{key}} - @ επιλέξτε διαδρομή, / επιλέξτε εντολή",
       "soul_placeholder": "Βοηθήστε με να συνδεθώ στο Telegram"
@@ -335,9 +345,89 @@
         "failed": "Αποτυχία καταχώρησης πρακτόρων."
       }
     },
+    "pin": {
+      "title": "[to be translated]:Pin Agent"
+    },
+    "preview_pane": {
+      "close": "[to be translated]:Close preview",
+      "code": "[to be translated]:Code",
+      "code_unavailable": "[to be translated]:Source view not available for binary files",
+      "empty": {
+        "description": "[to be translated]:Start chatting with the agent; generated code and live previews will appear here.",
+        "title": "[to be translated]:Ready"
+      },
+      "excel": {
+        "errors": {
+          "file_too_large": "[to be translated]:This Excel file exceeds the preview size limit.",
+          "invalid_request": "[to be translated]:The Excel preview request is invalid.",
+          "parse_failed": "[to be translated]:Unable to read this Excel file.",
+          "too_complex": "[to be translated]:This Excel file is too complex to preview.",
+          "unsupported_extension": "[to be translated]:Only .xlsx and .xlsm files can be previewed.",
+          "unsupported_xls": "[to be translated]:Legacy .xls files are not supported by Excel preview."
+        },
+        "warnings": {
+          "generic": "[to be translated]:Some workbook content may not be fully shown.",
+          "title": "[to be translated]:Preview notice",
+          "unsupported_images": "[to be translated]:Images are not shown in Excel preview yet."
+        }
+      },
+      "file_tree": "[to be translated]:File tree",
+      "items_one": "[to be translated]:{{count}} item",
+      "items_other": "[to be translated]:{{count}} items",
+      "maximize": "[to be translated]:Maximize",
+      "minimize": "[to be translated]:Minimize",
+      "no_search_results": "[to be translated]:No files match your search",
+      "preview": "[to be translated]:Preview",
+      "refresh": "[to be translated]:Refresh",
+      "search_placeholder": "[to be translated]:Search files...",
+      "select_file": "[to be translated]:Select a file to preview",
+      "toggle": "[to be translated]:Show preview panel",
+      "too_large": {
+        "description": "[to be translated]:File exceeds the {{limit}} preview limit.",
+        "title": "[to be translated]:File too large to preview"
+      },
+      "word": {
+        "errors": {
+          "parse_failed": "[to be translated]:Unable to render this Word document.",
+          "read_failed": "[to be translated]:Unable to read this Word document."
+        }
+      }
+    },
     "reorder": {
       "error": {
         "failed": "Αποτυχία αναδιάταξης πρακτόρων"
+      }
+    },
+    "right_pane": {
+      "close": "[to be translated]:Close",
+      "flow": {
+        "empty": {
+          "description": "[to be translated]:Select an agent tool call to inspect its child message flow.",
+          "title": "[to be translated]:No tool selected"
+        },
+        "no_messages": {
+          "description": "[to be translated]:This tool call has no captured child message flow.",
+          "title": "[to be translated]:No messages"
+        }
+      },
+      "status": {
+        "activity": "[to be translated]:Activity",
+        "agent": "[to be translated]:Agent",
+        "context": "[to be translated]:Context",
+        "no_tasks": "[to be translated]:No active tasks",
+        "selected_tool": "[to be translated]:Selected tool",
+        "task_count": "[to be translated]:{{completed}} / {{total}} complete",
+        "tasks": "[to be translated]:Tasks",
+        "tools_active": "[to be translated]:Active",
+        "tools_done": "[to be translated]:Done",
+        "tools_failed": "[to be translated]:Failed",
+        "tools_total": "[to be translated]:Total",
+        "workspace": "[to be translated]:Workspace"
+      },
+      "tabs": {
+        "files": "[to be translated]:Files",
+        "flow": "[to be translated]:Flow",
+        "status": "[to be translated]:Status"
       }
     },
     "server": {
@@ -360,6 +450,16 @@
       "add": {
         "title": "Προσθήκη συνεδρίας"
       },
+      "agent": {
+        "delete": {
+          "content": "[to be translated]:Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
+          "error": {
+            "failed": "[to be translated]:Failed to delete agent chats"
+          },
+          "title": "[to be translated]:Delete agent chats",
+          "trigger": "[to be translated]:Delete agent chats"
+        }
+      },
       "allowed_tools": {
         "empty": "Δεν υπάρχουν διαθέσιμα εργαλεία για αυτόν τον agent.",
         "helper": "Επιλέξτε ποια εργαλεία είναι προεγκεκριμένα. Τα μη επιλεγμένα θα χρειαστούν έγκριση πριν από τη χρήση.",
@@ -379,26 +479,94 @@
         },
         "title": "Διαγραφή συνεδρίας"
       },
+      "display": {
+        "agent": "[to be translated]:Agent",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Display mode",
+        "workdir": "[to be translated]:Project"
+      },
       "edit": {
         "title": "Συνεδρία επεξεργασίας"
+      },
+      "empty": {
+        "description": "[to be translated]:Tasks will appear here after you start one.",
+        "title": "[to be translated]:No tasks yet"
+      },
+      "file_manager": {
+        "file_explorer": "[to be translated]:File Explorer",
+        "files": "[to be translated]:Files",
+        "finder": "[to be translated]:Finder"
       },
       "get": {
         "error": {
           "failed": "Αποτυχία λήψης της συνεδρίας",
+          "not_found": "[to be translated]:Session not found",
           "null_id": "Το ID της συνεδρίας είναι null"
         }
       },
+      "group": {
+        "collapse": "[to be translated]:Collapse display",
+        "collapse_all": "[to be translated]:Collapse all",
+        "conversation": "[to be translated]:Chats",
+        "drag_hint": "[to be translated]:Drag to reorder. Drag sessions to adjust display and hidden groups.",
+        "earlier": "[to be translated]:Earlier",
+        "expand_all": "[to be translated]:Expand all",
+        "no_workdir": "[to be translated]:No project",
+        "show_more": "[to be translated]:Expand display",
+        "this_week": "[to be translated]:This week",
+        "today": "[to be translated]:Today",
+        "unknown_agent": "[to be translated]:Unknown agent",
+        "yesterday": "[to be translated]:Yesterday"
+      },
       "label_one": "Συνεδρία",
       "label_other": "Συνεδρίες",
+      "list": {
+        "title": "[to be translated]:Sessions"
+      },
+      "pin": {
+        "title": "[to be translated]:Pin task"
+      },
       "reorder": {
         "error": {
           "failed": "Αποτυχία αναδιάταξης συνεδριών"
         }
       },
+      "search": {
+        "placeholder": "[to be translated]:Search sessions"
+      },
+      "unpin": {
+        "title": "[to be translated]:Unpin task"
+      },
       "update": {
         "error": {
           "failed": "Αποτυχία ενημέρωσης της συνεδρίας"
         }
+      },
+      "workdir": {
+        "delete": {
+          "content": "[to be translated]:Deleting this project will also delete all sessions under it. Only database records are removed; the actual folder on disk will not be deleted.",
+          "error": {
+            "failed": "[to be translated]:Failed to delete the project"
+          },
+          "title": "[to be translated]:Delete project",
+          "trigger": "[to be translated]:Delete project"
+        },
+        "rename": {
+          "error": {
+            "failed": "[to be translated]:Failed to rename the project"
+          },
+          "title": "[to be translated]:Rename project",
+          "trigger": "[to be translated]:Rename project"
+        }
+      },
+      "workspace_selector": {
+        "create_failed": "[to be translated]:Failed to add project.",
+        "create_new": "[to be translated]:Add new project",
+        "empty_text": "[to be translated]:No projects",
+        "no_project": "[to be translated]:No project",
+        "placeholder": "[to be translated]:Select project",
+        "search_placeholder": "[to be translated]:Search projects",
+        "select_failed": "[to be translated]:Failed to select folder."
       },
       "workspace_status": {
         "inaccessible": "Η διαδρομή του χώρου εργασίας δεν είναι προσβάσιμη: {{path}}",
@@ -695,8 +863,10 @@
         "showDetails": "Εμφάνιση λεπτομερειών εργαλείου"
       },
       "button": {
+        "allow": "[to be translated]:Allow",
         "allowAll": "Να Επιτρέπεται Πάντα",
         "cancel": "Ακύρωση",
+        "deny": "[to be translated]:Deny",
         "run": "Τρέξε"
       },
       "confirmation": "Είσαι σίγουρος ότι θέλεις να εκτελέσεις αυτό το εργαλείο Claude;",
@@ -771,6 +941,9 @@
     "type": {
       "label": "Τύπος Πράκτορα",
       "unknown": "Άγνωστος Τύπος"
+    },
+    "unpin": {
+      "title": "[to be translated]:Unpin Agent"
     },
     "update": {
       "error": {
@@ -881,6 +1054,7 @@
     "abbr": "Βοηθός",
     "clear": {
       "content": "Η διαγραφή του θέματος θα διαγράψει όλα τα θέματα και τα αρχεία του βοηθού. Είστε σίγουροι πως θέλετε να συνεχίσετε;",
+      "menu_title": "[to be translated]:Delete all assistant conversations",
       "title": "Διαγραφή θέματος"
     },
     "copy": {
@@ -902,6 +1076,9 @@
     "list": {
       "showByList": "Εμφάνιση με λίστα",
       "showByTags": "Εμφάνιση με ετικέτες"
+    },
+    "pin": {
+      "title": "[to be translated]:Pin Assistant"
     },
     "presets": {
       "add": {
@@ -997,6 +1174,11 @@
       },
       "title": "Βιβλιοθήκη βοηθών"
     },
+    "reorder": {
+      "error": {
+        "failed": "[to be translated]:Failed to reorder assistants"
+      }
+    },
     "save": {
       "success": "Η αποθήκευση ολοκληρώθηκε επιτυχώς",
       "title": "Αποθήκευση στον νοητή"
@@ -1090,7 +1272,10 @@
       },
       "untagged": "Αχαρακτήριστο"
     },
-    "title": "Βοηθός"
+    "title": "Βοηθός",
+    "unpin": {
+      "title": "[to be translated]:Unpin Assistant"
+    }
   },
   "auth": {
     "error": "Αποτυχία στην αυτόματη πήγαινη των κλειδιών, παρακαλείστε να το κάνετε χειροκίνητα",
@@ -1125,6 +1310,7 @@
     "download": "Λήψη",
     "includes_user_questions": "Περιλαμβάνει ερωτήσεις χρήστη",
     "manage": "χειριστείτε",
+    "select_assistant": "[to be translated]:Select Assistant",
     "select_model": "επιλογή μοντέλου",
     "show": {
       "all": "δείξτε όλα"
@@ -1169,6 +1355,9 @@
         "placeholder": "Αναζήτηση"
       }
     },
+    "conversation": {
+      "new": "[to be translated]:New Chat"
+    },
     "deeply_thought": "Έχει βαθιά σκεφτεί (χρήση {{seconds}} δευτερόλεπτα)",
     "default": {
       "description": "Γεια σου, είμαι ο προεπαγγελματικός βοηθός. Μπορείς να ξεκινήσεις να μου μιλάς αμέσως.",
@@ -1187,8 +1376,12 @@
       "user_node": "Χρήστης",
       "view_full_content": "Προβολή πλήρους περιεχομένου"
     },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
+    },
     "input": {
       "auto_resize": "Αυτόματη μείωση ύψους",
+      "cancel_editing": "[to be translated]:Cancel editing",
       "clear": {
         "content": "Είσαι σίγουρος ότι θέλεις να διαγράψεις όλα τα μηνύματα της τρέχουσας συζήτησης;",
         "label": "Καθαρισμός μηνυμάτων {{Command}}",
@@ -1198,6 +1391,7 @@
       "context_count": {
         "tip": "Πλήθος ενδιάμεσων/Μέγιστο πλήθος ενδιάμεσων"
       },
+      "editing_message": "[to be translated]:Editing sent message",
       "estimated_tokens": {
         "tip": "Εκτιμώμενος αριθμός tokens"
       },
@@ -1208,30 +1402,24 @@
       "generate_image": "Δημιουργία εικόνας",
       "generate_image_not_supported": "Το μοντέλο δεν υποστηρίζει τη δημιουργία εικόνων",
       "knowledge_base": "Βάση γνώσεων",
+      "knowledge_base_disabled_by_files": "[to be translated]:Remove attached files to use Knowledge Base",
+      "knowledge_base_unavailable": "[to be translated]:Select a tool-capable model or enable prompt tool use",
+      "locate_editing_message": "[to be translated]:Locate original message",
+      "mcp_unavailable": "[to be translated]:Select a tool-capable model or enable prompt tool use",
       "new": {
         "context": "Καθαρισμός ενδιάμεσων {{Command}}"
       },
       "new_session": "Νέα Συνεδρία {{Command}}",
       "new_topic": "Νέο θέμα {{Command}}",
       "paste_text_file": "Επικόλληση στην είσοδο",
+      "pasted_text_file_name": "[to be translated]:Pasted text.txt",
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
-      "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",
       "resource_panel": {
-        "categories": {
-          "agents": "Πράκτορες",
-          "files": "Αρχεία",
-          "skills": "Δεξιότητες"
-        },
-        "description": "Επιλέξτε από αρχεία, πράκτορες ή δεξιότητες",
         "loading": "Φόρτωση...",
         "no_file_found": {
           "description": "Δεν υπάρχουν διαθέσιμα αρχεία στους προσβάσιμους καταλόγους",
           "label": "Δεν βρέθηκε αρχείο"
-        },
-        "no_items_found": {
-          "description": "Κανένα αρχείο, πράκτορας ή δεξιότητα δεν είναι διαθέσιμα",
-          "label": "Δεν βρέθηκαν στοιχεία"
         },
         "title": "Πόροι"
       },
@@ -1244,6 +1432,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "Ο προϋπολογισμός σκέψης υπερβαίνει τον μέγιστο αριθμό token",
+        "fixed_model": "[to be translated]:Reasoning is fixed for this model",
         "label": "Σκέψη",
         "mode": {
           "custom": {
@@ -1257,7 +1446,8 @@
           "tokens": {
             "tip": "Ορίστε τον αριθμό των token για τη σκέψη"
           }
-        }
+        },
+        "unsupported_model": "[to be translated]:Current model does not support adjustable reasoning"
       },
       "tools": {
         "collapse": "Σύμπτυξη",
@@ -1275,6 +1465,8 @@
       "upload": {
         "attachment": "Μεταφόρτωση συνημμένου",
         "document": "Φόρτωση έγγραφου (το μοντέλο δεν υποστηρίζει εικόνες)",
+        "document_only": "[to be translated]:Documents only",
+        "image_not_supported": "[to be translated]:This model does not support image uploads. Documents only.",
         "image_or_document": "Μεταφόρτωση εικόνας ή εγγράφου",
         "upload_from_local": "Μεταφόρτωση αρχείου από τον υπολογιστή..."
       },
@@ -1310,6 +1502,20 @@
       }
     },
     "message": {
+      "editing_current": "[to be translated]:This message is being edited in the composer",
+      "flow": {
+        "branches": "[to be translated]:branches",
+        "copy_topic": {
+          "created": "[to be translated]:Copied to a new topic",
+          "label": "[to be translated]:Copy as New Topic"
+        },
+        "nodes": "[to be translated]:nodes",
+        "status": {
+          "awaiting_input": "[to be translated]:Awaiting input"
+        },
+        "title": "[to be translated]:Branch Management"
+      },
+      "more": "[to be translated]:More actions",
       "new": {
         "branch": {
           "created": "Νέα διακοπή δημιουργήθηκε",
@@ -1419,6 +1625,7 @@
             "save_failed": "Αποτυχία αποθήκευσης θέματος, ελέγξτε τη ρύθμιση της γνωσιακής βάσης"
           },
           "loading": "Γίνεται ανάλυση του περιεχομένου του θέματος...",
+          "menu_title": "[to be translated]:Save to Knowledge Base",
           "select": {
             "content": {
               "label": "Επιλέξτε τον τύπο περιεχομένου που θέλετε να αποθηκεύσετε",
@@ -1505,14 +1712,25 @@
       "delete": {
         "shortcut": "Πατήστε {{key}} για να διαγράψετε αμέσως"
       },
+      "display": {
+        "assistant": "[to be translated]:Assistant",
+        "tag": "[to be translated]:Tag",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Display mode"
+      },
       "edit": {
         "placeholder": "Εισαγάγετε το νέο όνομα",
         "title": "Επεξεργασία ονόματος θέματος",
         "title_tip": "Συμβουλές: Διπλό κλικ στο όνομα του θέματος για να το μετονομάσετε απευθείας"
       },
+      "empty": {
+        "description": "[to be translated]:Create a chat and it will stay here so you can continue with its context later.",
+        "title": "[to be translated]:No chats yet"
+      },
       "export": {
         "failed": "Η εξαγωγή απέτυχε",
         "image": "Εξαγωγή ως εικόνα",
+        "image_exporting_keep_page": "[to be translated]:Exporting image. Please stay on this page.",
         "image_saved": "Η εικόνα αποθηκεύτηκε με επιτυχία",
         "joplin": "Εξαγωγή στο Joplin",
         "md": {
@@ -1559,6 +1777,17 @@
         "wait_for_title_naming": "Γενικευμένος τίτλος...",
         "word": "Εξαγωγή ως Word",
         "yuque": "Εξαγωγή στο Yuque"
+      },
+      "group": {
+        "collapse": "[to be translated]:Collapse display",
+        "collapse_all": "[to be translated]:Collapse all",
+        "earlier": "[to be translated]:Earlier",
+        "expand_all": "[to be translated]:Expand all",
+        "show_more": "[to be translated]:Expand display",
+        "this_week": "[to be translated]:This week",
+        "today": "[to be translated]:Today",
+        "unknown_assistant": "[to be translated]:Unlinked Assistant",
+        "yesterday": "[to be translated]:Yesterday"
       },
       "list": "Λίστα θεμάτων",
       "manage": {
@@ -1708,8 +1937,10 @@
     "add": "Προσθέστε",
     "add_success": "Η προσθήκη ήταν επιτυχής",
     "advanced_settings": "Προχωρημένες ρυθμίσεις",
+    "agent": "[to be translated]:Agent",
     "agent_one": "Πράκτορας",
     "agent_other": "Πράκτορες",
+    "all": "[to be translated]:All",
     "and": "και",
     "assistant": "Εξυπνιασμένη Ενότητα",
     "assistant_one": "βοηθός",
@@ -1723,12 +1954,14 @@
     "clear_all": "Εκκαθάριση Όλων",
     "click_to_replace": "Κάντε κλικ για αντικατάσταση",
     "close": "Κλείσιμο",
+    "close_sidebar": "[to be translated]:Close sidebar",
     "collapse": "Σύμπτυξη",
     "completed": "Ολοκληρώθηκε",
     "confirm": "Επιβεβαίωση",
     "copied": "Αντιγράφηκε",
     "copy": "Αντιγραφή",
     "copy_failed": "Αποτυχία αντιγραφής",
+    "create_success": "[to be translated]:Created successfully",
     "current": "Τρέχων",
     "cut": "Κοπή",
     "default": "Προεπιλογή",
@@ -1773,6 +2006,8 @@
     "knowledge_base": "Βάση Γνώσεων",
     "language": "Γλώσσα",
     "loading": "Φόρτωση...",
+    "maximize": "[to be translated]:Maximize",
+    "minimize": "[to be translated]:Minimize",
     "model": "Μοντέλο",
     "models": "Μοντέλα",
     "more": "Περισσότερα",
@@ -1785,6 +2020,8 @@
     "on": "Ενεργό",
     "open": "Άνοιγμα",
     "open_in": "Άνοιγμα στο {{name}}",
+    "open_in_new_tab": "[to be translated]:Open in new tab",
+    "open_sidebar": "[to be translated]:Open sidebar",
     "paste": "Επικόλληση",
     "placeholders": {
       "select": {
@@ -1837,6 +2074,7 @@
     "upload_image": "Μεταφόρτωση αρχείου εικόνας",
     "uploaded_image": "Μεταφορτωμένη εικόνα",
     "warning": "Προσοχή",
+    "yesterday": "[to be translated]:Yesterday",
     "you": "Εσείς"
   },
   "dialog": {
@@ -2047,6 +2285,85 @@
     "title": "Αρχεία",
     "type": "Τύπος"
   },
+  "globalSearch": {
+    "clear": "[to be translated]:Clear search",
+    "error": "[to be translated]:Search failed",
+    "filters": {
+      "agent": "[to be translated]:Agent",
+      "all": "[to be translated]:All",
+      "assistant": "[to be translated]:Assistant",
+      "conversation": "[to be translated]:Work",
+      "knowledge": "[to be translated]:Knowledge",
+      "label": "[to be translated]:Search type",
+      "session": "[to be translated]:Work",
+      "topic": "[to be translated]:Topic"
+    },
+    "groups": {
+      "agent": "[to be translated]:Agent",
+      "assistant": "[to be translated]:Assistant",
+      "conversation": "[to be translated]:Work",
+      "knowledge-base": "[to be translated]:Knowledge",
+      "message": "[to be translated]:Messages",
+      "recent": "[to be translated]:Recent",
+      "session": "[to be translated]:Work",
+      "topic": "[to be translated]:Topic"
+    },
+    "keyboard": {
+      "select": "[to be translated]:Select"
+    },
+    "messageSearch": {
+      "entry": "[to be translated]:Messages",
+      "hint": "[to be translated]:Type to search message content",
+      "jumpToMessage": "[to be translated]:Jump to message",
+      "more": "[to be translated]:Show {{count}} more results",
+      "open": "[to be translated]:Search messages",
+      "roles": {
+        "assistant": "[to be translated]:Assistant",
+        "system": "[to be translated]:System",
+        "tool": "[to be translated]:Tool",
+        "user": "[to be translated]:User"
+      },
+      "sourceLabel": "[to be translated]:Message source",
+      "sources": {
+        "all": "[to be translated]:All messages",
+        "session": "[to be translated]:Work messages",
+        "topic": "[to be translated]:Topic messages"
+      },
+      "viewMore": "[to be translated]:View more in Messages"
+    },
+    "no_recent": "[to be translated]:No recent routes",
+    "open": "[to be translated]:Open global search",
+    "open_failed": "[to be translated]:Failed to open search result",
+    "placeholder": "[to be translated]:Search topics, work, assistants, agents, and knowledge...",
+    "quickApps": {
+      "hide": "[to be translated]:Hide {{name}}",
+      "manage": "[to be translated]:Manage",
+      "manager_description": "[to be translated]:Drag to reorder, click the eye to hide or show",
+      "manager_title": "[to be translated]:Manage quick apps",
+      "reset": "[to be translated]:Reset",
+      "save_failed": "[to be translated]:Failed to save quick apps",
+      "show": "[to be translated]:Show {{name}}",
+      "title": "[to be translated]:Quick apps"
+    },
+    "recent_hint": "[to be translated]:Type to search work, assistants, agents, and knowledge",
+    "resultTypes": {
+      "agent": "[to be translated]:Agent",
+      "assistant": "[to be translated]:Assistant",
+      "knowledge-base": "[to be translated]:Knowledge",
+      "session": "[to be translated]:Work",
+      "topic": "[to be translated]:Topic"
+    },
+    "showMore": "[to be translated]:Show {{count}} more",
+    "timeFilters": {
+      "any": "[to be translated]:Any time",
+      "label": "[to be translated]:Updated time",
+      "messageLabel": "[to be translated]:Created time",
+      "month": "[to be translated]:Last month",
+      "quarter": "[to be translated]:Last 3 months",
+      "today": "[to be translated]:Today",
+      "week": "[to be translated]:Last 7 days"
+    }
+  },
   "gpustack": {
     "keep_alive_time": {
       "description": "Χρόνος που ο μοντέλος παραμένει στη μνήμη (προεπιλογή: 5 λεπτά)",
@@ -2062,6 +2379,66 @@
     },
     "locate": {
       "message": "Εφαρμογή στο μήνυμα"
+    },
+    "records": {
+      "agentSubtitle": "[to be translated]:{{count}} sessions",
+      "agentTitle": "[to be translated]:Agent History",
+      "assistantSubtitle": "[to be translated]:{{count}} topics",
+      "bulkDelete": "[to be translated]:Batch Delete",
+      "bulkDeleteSessions": {
+        "description": "[to be translated]:Delete {{count}} selected session(s)?",
+        "title": "[to be translated]:Delete selected sessions"
+      },
+      "bulkDeleteTopics": {
+        "description": "[to be translated]:Delete {{count}} selected topic(s)?",
+        "title": "[to be translated]:Delete selected topics"
+      },
+      "bulkMove": "[to be translated]:Batch Move",
+      "bulkMoveTopics": {
+        "confirm": "[to be translated]:Move",
+        "description": "[to be translated]:Move {{count}} selected topic(s) to the target assistant.",
+        "empty": "[to be translated]:No assistants available",
+        "error": "[to be translated]:Failed to move topics",
+        "placeholder": "[to be translated]:Select assistant",
+        "success": "[to be translated]:Moved {{count}} topic(s)",
+        "target": "[to be translated]:Target assistant",
+        "title": "[to be translated]:Move selected topics"
+      },
+      "empty": {
+        "description": "[to be translated]:No topics for the current filters.",
+        "sessionsDescription": "[to be translated]:No sessions for the current filters.",
+        "sessionsTitle": "[to be translated]:No sessions",
+        "title": "[to be translated]:No topics"
+      },
+      "loading": {
+        "description": "[to be translated]:Loading topic list.",
+        "sessionsDescription": "[to be translated]:Loading session list.",
+        "sessionsTitle": "[to be translated]:Loading sessions",
+        "title": "[to be translated]:Loading topics"
+      },
+      "resultCount": "[to be translated]:{{count}} results",
+      "searchSession": "[to be translated]:Search sessions...",
+      "searchTopic": "[to be translated]:Search topics...",
+      "shortTitle": "[to be translated]:History",
+      "sidebar": {
+        "searchAssistant": "[to be translated]:Search assistants...",
+        "status": "[to be translated]:Status",
+        "unknownAssistant": "[to be translated]:Unlinked assistant"
+      },
+      "status": {
+        "completed": "[to be translated]:Completed",
+        "failed": "[to be translated]:Failed",
+        "running": "[to be translated]:Running"
+      },
+      "table": {
+        "actions": "[to be translated]:Actions",
+        "emptyValue": "[to be translated]:—",
+        "messages": "[to be translated]:Messages",
+        "session": "[to be translated]:Session",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Title"
+      },
+      "title": "[to be translated]:Topic History"
     },
     "search": {
       "match": {
@@ -2432,6 +2809,7 @@
       "browse_label": "Κατηγορίες βοηθού",
       "empty_description": "Αυτή η κατηγορία δεν έχει ακόμα προκαθορισμένους βοηθούς.",
       "empty_title": "Κανένας βοηθός προς προσθήκη",
+      "go_to_chat": "[to be translated]:Go to chat",
       "mine": "Δικό μου",
       "no_match_description": "Δοκίμασε διαφορετική λέξη-κλειδί αναζήτησης",
       "no_match_title": "Δεν υπάρχουν αντίστοιχοι βοηθοί",
@@ -2470,7 +2848,8 @@
           },
           "env_vars": {
             "help": "Ένα ΚΛΕΙΔΙ=ΤΙΜΗ ανά γραμμή",
-            "label": "Μεταβλητές περιβάλλοντος"
+            "label": "Μεταβλητές περιβάλλοντος",
+            "placeholder": "[to be translated]:KEY=value\nANOTHER_KEY=another_value"
           },
           "heartbeat_enabled": {
             "label": "Έλεγχος παλμών"
@@ -2503,7 +2882,6 @@
             "placeholder": "Δώσε στον πράκτορα ένα όνομα"
           },
           "permission_mode": {
-            "help": "Η εναλλαγή στο bypassPermissions ισοδυναμεί με την ενεργοποίηση της λειτουργίας Soul",
             "label": "Λειτουργία δικαιωμάτων",
             "option": {
               "acceptEdits": "Αποδοχή επεξεργασιών",
@@ -2618,6 +2996,7 @@
         "json_invalid": "Μη έγκυρη μορφή JSON",
         "max_tokens": "Μέγιστα διακριτά σύμβολα",
         "max_tool_calls": "Μέγιστες κλήσεις εργαλείων",
+        "mcp_mode": "[to be translated]:MCP Mode",
         "model": "Προεπιλεγμένο μοντέλο",
         "model_clear": "Καθαρό",
         "model_not_found": "Το μοντέλο δεν βρέθηκε (μπορεί να έχει αφαιρεθεί): {{id}}",
@@ -2636,6 +3015,34 @@
         "unlimited": "Απεριόριστο"
       },
       "breadcrumb": "Βιβλιοθήκη",
+      "dialogs": {
+        "create": {
+          "agent_title": "[to be translated]:New Agent",
+          "assistant_title": "[to be translated]:New Assistant",
+          "avatar_aria": "[to be translated]:Choose avatar",
+          "description_placeholder": "[to be translated]:Describe what it is for...",
+          "dialog_description": "[to be translated]:Create a lightweight assistant or agent.",
+          "model_placeholder": "[to be translated]:Select a model",
+          "model_required": "[to be translated]:Please select a model",
+          "name_placeholder": "[to be translated]:Enter a name",
+          "name_required": "[to be translated]:Please enter a name",
+          "submit": "[to be translated]:Create",
+          "submit_failed": "[to be translated]:Create failed"
+        },
+        "edit": {
+          "advanced_tab": "[to be translated]:Advanced",
+          "agent_description": "[to be translated]:Quickly adjust this agent's essentials.",
+          "agent_title": "[to be translated]:Edit Agent",
+          "assistant_description": "[to be translated]:Quickly adjust this assistant's essentials.",
+          "assistant_title": "[to be translated]:Edit Assistant",
+          "basic_tab": "[to be translated]:Basic",
+          "knowledge_tab": "[to be translated]:Knowledge",
+          "permission_tab": "[to be translated]:Permission",
+          "prompt_tab": "[to be translated]:Prompt",
+          "save_failed": "[to be translated]:Save failed",
+          "tools_tab": "[to be translated]:Tools"
+        }
+      },
       "knowledge": {
         "add": "Προσθήκη βάσης γνώσεων",
         "desc": "Σύνδεσε μία ή περισσότερες βάσεις γνώσης· σχετικά αποσπάσματα θα ανακτώνται κατά τη διάρκεια της συνομιλίας",
@@ -2666,6 +3073,8 @@
           }
         },
         "generate": "Δημιούργησε προτροπή",
+        "generate_failed_description": "Ελέγξτε ή αλλάξτε το προεπιλεγμένο μοντέλο και δοκιμάστε ξανά.",
+        "generate_failed_title": "Αποτυχία δημιουργίας προτροπής",
         "insert_variable": "Εισαγωγή μεταβλητής",
         "label": "Προτροπή συστήματος",
         "placeholder": "Εισάγετε το prompt του συστήματος. Υποστηρίζονται μεταβλητές όπως {{date}} και {{model_name}}...",
@@ -2824,13 +3233,9 @@
     },
     "skill_detail": {
       "created_at": "Δημιουργήθηκε",
-      "delete_description": "Κατάργησε αυτή την ικανότητα και ολόκληρη τη διαμόρφωσή της. Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
-      "delete_title": "Διαγραφή δεξιότητας",
       "description": "Περιγραφή",
-      "file_preview": "Προεπισκόπηση αρχείου",
       "installed": "Εγκατεστημένο",
       "no_description": "Χωρίς περιγραφή",
-      "source_files": "Αρχεία πηγής",
       "updated_at": "Πρόσφατα ενημερώθηκε"
     },
     "sort": {
@@ -2854,6 +3259,7 @@
     "title": "Βιβλιοθήκη",
     "toolbar": {
       "add_tag_placeholder": "Όνομα ετικέτας...",
+      "all_tags": "[to be translated]:All tags",
       "new_resource": "Νέος πόρος",
       "search_placeholder": "Αναζήτηση πόρων...",
       "tag_button": "Ετικέτα"
@@ -2867,7 +3273,6 @@
       "prompt": "Προτροπή",
       "skill": "Δεξιότητα"
     },
-    "uninstall_failed": "Αποτυχία απεγκατάστασης",
     "view": {
       "grid": "Προβολή πλέγματος",
       "list": "Προβολή λίστας"
@@ -2950,6 +3355,7 @@
       "chunk_overlap_too_large": "Η επικάλυψη μεριδίων δεν μπορεί να είναι μεγαλύτερη από το μέγεθος του μεριδίου",
       "copy": "Η αντιγραφή απέτυχε",
       "dimension_too_large": "Το μέγεθος του περιεχομένου είναι πολύ μεγάλο",
+      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
       "enter": {
         "api": {
           "host": "Παρακαλώ εισάγετε τη διεύθυνση API σας",
@@ -3000,6 +3406,7 @@
         "no_api_key": "Δεν έχετε διαθέσιμο το API Key του Notion ή το ID της βάσης του Notion",
         "no_content": "Δεν υπάρχει περιεχόμενο για εξαγωγή στο Notion"
       },
+      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "siyuan": {
         "export": "Η έκθεση σημειώσεων Siyuan απέτυχε, ελέγξτε την κατάσταση σύνδεσης και τις ρυθμίσεις σύμφωνα με τα έγγραφα",
         "no_config": "Δεν έχει ρυθμιστεί η διεύθυνση API ή το Token του Siyuan Notes"
@@ -3058,6 +3465,10 @@
         "bubble": "Αερογεύματα",
         "label": "Στυλ μηνύματος",
         "plain": "Απλός"
+      },
+      "user_content": {
+        "collapse": "[to be translated]:Collapse",
+        "expand": "[to be translated]:Expand"
       },
       "video": {
         "error": {
@@ -3125,6 +3536,76 @@
     "tools": {
       "abort_failed": "Αποτυχία διακοπής κλήσης εργαλείου",
       "aborted": "Η κλήση του εργαλείου διακόπηκε",
+      "activity": {
+        "archive": "[to be translated]:archive",
+        "assistantTask": "[to be translated]:task",
+        "availableFeatures": "[to be translated]:available features",
+        "availableResources": "[to be translated]:available resources",
+        "branch": "[to be translated]:code branch",
+        "build": "[to be translated]:Build",
+        "building": "[to be translated]:Building",
+        "check": "[to be translated]:Check",
+        "checking": "[to be translated]:Checking",
+        "codeFiles": "[to be translated]:code files",
+        "codeHostInfo": "[to be translated]:code hosting information",
+        "commandName": "[to be translated]:{{name}} command",
+        "configFiles": "[to be translated]:project docs and config files",
+        "copy": "[to be translated]:Copy",
+        "copying": "[to be translated]:Copying",
+        "create": "[to be translated]:Create",
+        "creating": "[to be translated]:Creating",
+        "currentFolder": "[to be translated]:current folder",
+        "delete": "[to be translated]:Delete",
+        "deleting": "[to be translated]:Deleting",
+        "documentFiles": "[to be translated]:document files",
+        "download": "[to be translated]:Download",
+        "downloading": "[to be translated]:Downloading",
+        "executeCommand": "[to be translated]:Run command",
+        "executingCommand": "[to be translated]:Running command",
+        "extract": "[to be translated]:Extract",
+        "extracting": "[to be translated]:Extracting",
+        "file": "[to be translated]:file",
+        "fileList": "[to be translated]:file list",
+        "folder": "[to be translated]:folder",
+        "handle": "[to be translated]:Handle",
+        "handling": "[to be translated]:Handling",
+        "imageFiles": "[to be translated]:image files",
+        "install": "[to be translated]:Install",
+        "installing": "[to be translated]:Installing",
+        "matchingFiles": "[to be translated]:matching files",
+        "modify": "[to be translated]:Modify",
+        "modifying": "[to be translated]:Modifying",
+        "move": "[to be translated]:Move",
+        "moving": "[to be translated]:Moving",
+        "open": "[to be translated]:Open",
+        "opening": "[to be translated]:Opening",
+        "plan": "[to be translated]:execution plan",
+        "projectChanges": "[to be translated]:project changes",
+        "projectChecks": "[to be translated]:project checks",
+        "projectDependencies": "[to be translated]:project dependencies",
+        "projectFiles": "[to be translated]:project files",
+        "projectRootFiles": "[to be translated]:project root files",
+        "projectTask": "[to be translated]:project task",
+        "relatedContent": "[to be translated]:related content",
+        "repository": "[to be translated]:code repository",
+        "search": "[to be translated]:Find",
+        "searching": "[to be translated]:Finding",
+        "switch": "[to be translated]:Switch",
+        "switching": "[to be translated]:Switching",
+        "sync": "[to be translated]:Sync",
+        "syncing": "[to be translated]:Syncing",
+        "taskList": "[to be translated]:task list",
+        "translationFiles": "[to be translated]:translation files",
+        "upload": "[to be translated]:Upload",
+        "uploading": "[to be translated]:Uploading",
+        "view": "[to be translated]:View",
+        "viewing": "[to be translated]:Viewing",
+        "webPage": "[to be translated]:web page",
+        "webSearch": "[to be translated]:web content",
+        "workspace": "[to be translated]:workspace",
+        "write": "[to be translated]:Save",
+        "writing": "[to be translated]:Saving"
+      },
       "approvalRequired": "Το εργαλείο \"{{tool}}\" απαιτεί έγκριση",
       "autoApproveEnabled": "Αυτό το εργαλείο έχει ενεργοποιημένη την αυτόματη έγκριση",
       "cancelled": "Ακυρώθηκε",
@@ -3153,6 +3634,18 @@
       },
       "noData": "Δεν υπάρχουν διαθέσιμα δεδομένα για αυτό το εργαλείο",
       "pending": "Εκκρεμεί",
+      "placeholder": {
+        "elapsed": {
+          "days": "[to be translated]:{{days}}d {{hours}}h {{minutes}}m {{seconds}}s",
+          "hours": "[to be translated]:{{hours}}h {{minutes}}m {{seconds}}s",
+          "minutes": "[to be translated]:{{minutes}}m {{seconds}}s",
+          "seconds": "[to be translated]:{{seconds}}s"
+        },
+        "generating": "[to be translated]:Writing response",
+        "preparing": "[to be translated]:Preparing response",
+        "thinking": "[to be translated]:Thinking",
+        "usingTools": "[to be translated]:Working on the task"
+      },
       "preview": "Προεπισκόπηση",
       "raw": "Ακατέργαστο",
       "runningCount": "{{count}} εργαλεία εκτελούνται",
@@ -3177,6 +3670,7 @@
         "success": "Επιτυχία"
       },
       "streaming": "Ροή",
+      "thinkingHeader": "[to be translated]:Thinking",
       "truncated": "Η έξοδος περικόπηκε (πρωτότυπο: {{size}})",
       "units": {
         "done_one": "{{count}} Ολοκληρώθηκε",
@@ -3221,6 +3715,7 @@
     "websearch": {
       "cutoff": "Περικόπτεται η αναζήτηση...",
       "fetch_complete": "{{count}} αποτελέσματα αναζήτησης",
+      "fetch_empty": "[to be translated]:No search results found",
       "partial_failure": "{{count}} αποτελέσματα αναζήτησης, ορισμένες αναζητήσεις απέτυχαν"
     }
   },
@@ -3406,6 +3901,12 @@
     "search": {
       "placeholder": "Αναζήτηση μοντέλου...",
       "tooltip": "Αναζήτηση μοντέλου"
+    },
+    "selection": {
+      "context_window": "[to be translated]:Context {{count}}",
+      "remove_model": "[to be translated]:Remove {{name}}",
+      "restore_default": "[to be translated]:Restore assistant model",
+      "selected_models": "[to be translated]:Selected models"
     },
     "stream_output": "Διαρκής Εξόδος",
     "type": {
@@ -4698,6 +5199,12 @@
       "sort_label": "Ταξινόμηση",
       "unpin": "Ξεκαρφίτσωμα"
     },
+    "create_dialog": {
+      "refresh_failed": "[to be translated]:Created, but failed to refresh the list"
+    },
+    "edit_dialog": {
+      "refresh_failed": "[to be translated]:Saved, but failed to refresh the list"
+    },
     "workspace": {
       "empty_text": "Κανένας χώρος εργασίας ακόμα",
       "placeholder": "Επιλέξτε χώρο εργασίας"
@@ -4749,7 +5256,6 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "Αυτόματη μετάβαση σε θέματα",
       "title": "Ρυθμίσεις Ανώτερου Νiveau"
     },
     "assistant": {
@@ -4878,7 +5384,17 @@
         "triggerSelectedCount": "{{count}} μοντέλα επιλέχθηκαν",
         "valueProp": "Τρέχουσα Πρόταση Αξίας"
       },
-      "title": "Εργαστήριο Ανάπτυξης Συστατικών"
+      "title": "Εργαστήριο Ανάπτυξης Συστατικών",
+      "toolPermission": {
+        "builtinMode": "[to be translated]:Built-in",
+        "currentRequest": "[to be translated]:Current request",
+        "description": "[to be translated]:Preview the bottom tool permission composer with built-in and MCP tool requests.",
+        "latestResponse": "[to be translated]:Latest response",
+        "mcpMode": "[to be translated]:MCP",
+        "noResponse": "[to be translated]:No response submitted yet",
+        "resetPreview": "[to be translated]:Reset preview",
+        "title": "[to be translated]:Tool Permission"
+      }
     },
     "data": {
       "app_data": {
@@ -5574,7 +6090,19 @@
         "title": "Αντιγραφή ασφαλείας και αποκατάσταση δεδομένων"
       },
       "common": {
+        "menu": {
+          "presentation_mode": {
+            "cherry": "[to be translated]:Cherry",
+            "native": "[to be translated]:Native",
+            "restart": {
+              "content": "[to be translated]:Changing the menu style requires restarting the app to take effect. Do you want to restart now?",
+              "title": "[to be translated]:Restart Required"
+            },
+            "title": "[to be translated]:Context menu style"
+          }
+        },
         "sections": {
+          "chat_settings": "[to be translated]:Chat Settings",
           "custom_css": "Προσαρμοσμένη CSS",
           "display_language": "Εμφάνιση & Γλώσσα",
           "privacy_advanced": "Ιδιωτικότητα & Προηγμένα",
@@ -5833,6 +6361,13 @@
         "text": "Κείμενο",
         "uri": "URI"
       },
+      "runtimeStatus": {
+        "connected": "[to be translated]:Connected",
+        "connecting": "[to be translated]:Connecting",
+        "disabled": "[to be translated]:Disabled",
+        "error": "[to be translated]:Error",
+        "unavailable": "[to be translated]:Unavailable"
+      },
       "search": {
         "placeholder": "Αναζήτηση MCP διακομιστών...",
         "tooltip": "Αναζήτηση MCP διακομιστών"
@@ -5938,9 +6473,6 @@
       "input": {
         "confirm_delete_message": "Επιβεβαίωση πριν τη διαγραφή μηνύματος",
         "confirm_regenerate_message": "Επιβεβαίωση πριν από την επαναδημιουργία του μηνύματος",
-        "enable_quick_triggers": "Ενεργοποίηση των '/' και '@' για γρήγορη πρόσβαση σε μενού",
-        "paste_long_text_as_file": "Επικόλληση μεγάλου κειμένου ως αρχείο",
-        "paste_long_text_threshold": "Όριο μεγάλου κειμένου",
         "send_shortcuts": "Συντάγματα αποστολής",
         "show_estimated_tokens": "Εμφάνιση εκτιμώμενου αριθμού token",
         "title": "Ρυθμίσεις εισαγωγής"
@@ -5959,7 +6491,8 @@
       "prompt": "Λήμμα προτροπής",
       "show_message_outline": "Εμφάνιση πλαισίου μηνύματος",
       "title": "Ρυθμίσεις μηνυμάτων",
-      "use_serif_font": "Χρήση μορφής Serif"
+      "use_serif_font": "Χρήση μορφής Serif",
+      "wide_mode": "[to be translated]:Wide layout mode"
     },
     "miniApps": {
       "cache_change_notice": "Η αλλαγή θα τεθεί σε ισχύ αφού το πλήθος των ανοιχτών μικροπρογραμμάτων φτάσει τη ρυθμισμένη τιμή",
@@ -6326,6 +6859,7 @@
         "title": "λεπτομέρεια"
       }
     },
+    "parameter_settings": "[to be translated]:Parameter Settings",
     "plugins": {
       "bunDescription": "JavaScript runtime που χρησιμοποιείται από υπηρεσίες MCP και σχετικά εργαλειοθέματα.",
       "description": "Διαχειριστείτε τα δυαδικά εργαλεία και τις εξαρτήσεις χρόνου εκτέλεσης που απαιτούνται από την εφαρμογή.",
@@ -6354,7 +6888,8 @@
       },
       "title": "Διαχείριση Prompts",
       "titleLabel": "Τίτλος",
-      "titlePlaceholder": "Εισαγάγετε τίτλο prompt"
+      "titlePlaceholder": "Εισαγάγετε τίτλο prompt",
+      "variablePlaceholder": "[to be translated]:${variable}"
     },
     "provider": {
       "add": {
@@ -6688,6 +7223,14 @@
       "close": "Κλείσιμο",
       "confirm": "Επιβεβαίωση",
       "forward": "Μπρος",
+      "mcp": {
+        "agentEmpty": "[to be translated]:No MCP servers configured for this agent",
+        "assistantEmpty": "[to be translated]:No MCP servers configured for this assistant",
+        "autoEmpty": "[to be translated]:No enabled MCP servers",
+        "description": "[to be translated]:View current MCP server status",
+        "disabled": "[to be translated]:MCP is disabled for this assistant",
+        "unknownServer": "[to be translated]:Unknown MCP server"
+      },
       "multiple": "Πολλαπλή επιλογή",
       "noResult": "Δεν βρέθηκαν αποτελέσματα",
       "page": "Σελίδα",
@@ -6731,6 +7274,7 @@
       },
       "clear_shortcut": "Καθαρισμός συντομού πλήκτρου",
       "clear_topic": "Άδειασμα μηνυμάτων",
+      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "Ήδη χρησιμοποιείται από τον \"{{name}}\"",
       "copy_last_message": "Αντιγραφή του τελευταίου μηνύματος",
       "edit_last_user_message": "Επεξεργασία του τελευταίου μηνύματος χρήστη",
@@ -6738,8 +7282,11 @@
       "enabled": "ενεργοποίηση",
       "exit_fullscreen": "Έξοδος από πλήρη οθόνη",
       "label": "Πλήκτρο",
+      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "Νέο θέμα",
       "occupied_by_other_application": "Αυτή η συντόμευση χρησιμοποιείται ήδη από το σύστημα ή από άλλη εφαρμογή",
+      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
+      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "Πάτησε το συντομού πλήκτρου",
       "quick_assistant": "Συντομεύστε επιχειρηματικά",
       "rename_topic": "Μετονομασία θέματος",
@@ -6759,9 +7306,9 @@
       "show_app": "Εμφάνιση εφαρμογής",
       "show_settings": "Άνοιγμα των ρυθμίσεων",
       "title": "Συντομοί δρομολόγια",
+      "toggle_left_sidebar": "[to be translated]:Toggle Left Sidebar",
       "toggle_new_context": "Άδειασμα σενάριων",
-      "toggle_show_topics": "Εναλλαγή εμφάνισης θεμάτων",
-      "toggle_sidebar": "Εναλλαγή πλευρικής γραμμής",
+      "toggle_right_sidebar": "[to be translated]:Toggle Right Sidebar",
       "zoom_in": "Μεγέθυνση εμφάνισης",
       "zoom_out": "Σμικρύνση εμφάνισης",
       "zoom_reset": "Επαναφορά εμφάνισης"
@@ -7052,10 +7599,16 @@
       "title": "Κλίμακα"
     }
   },
+  "subWindow": {
+    "back_to_main": "[to be translated]:Back to Main Window",
+    "pin": "[to be translated]:Keep on Top",
+    "unpin": "[to be translated]:Cancel Keep on Top"
+  },
   "tab": {
     "close": "Κλείσιμο Καρτέλας",
     "move_to_first": "Μετακίνηση στην Αρχή",
     "new": "Νέα Καρτέλα",
+    "open_in_new_window": "[to be translated]:Open in New Window",
     "pin": "Καρφίτσωμα καρτέλας",
     "unpin": "Ξεκαρφίτσωση Καρτέλας"
   },
