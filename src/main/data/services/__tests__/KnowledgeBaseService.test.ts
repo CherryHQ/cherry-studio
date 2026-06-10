@@ -60,10 +60,7 @@ describe('KnowledgeBaseService', () => {
       fileProcessorId: 'processor-1',
       chunkSize: 800,
       chunkOverlap: 120,
-      threshold: 0.55,
-      documentCount: 5,
       searchMode: 'hybrid',
-      hybridAlpha: 0.7,
       ...overrides
     }
     await dbh.db.insert(knowledgeBaseTable).values(values)
@@ -296,10 +293,7 @@ describe('KnowledgeBaseService', () => {
       expect(row.fileProcessorId).toBeNull()
       expect(row.chunkSize).toBe(1024)
       expect(row.chunkOverlap).toBe(200)
-      expect(row.threshold).toBeNull()
-      expect(row.documentCount).toBeNull()
       expect(row.searchMode).toBe('hybrid')
-      expect(row.hybridAlpha).toBeNull()
       expect(row.status).toBe('completed')
       expect(row.error).toBeNull()
     })
@@ -423,14 +417,12 @@ describe('KnowledgeBaseService', () => {
       const result = await service.update(KNOWLEDGE_BASE_ID, {
         name: '  Updated Base  ',
         chunkSize: 1024,
-        chunkOverlap: 128,
-        hybridAlpha: 0.9
+        chunkOverlap: 128
       })
 
       expect(result.name).toBe('Updated Base')
       expect(result.chunkSize).toBe(1024)
       expect(result.chunkOverlap).toBe(128)
-      expect(result.hybridAlpha).toBe(0.9)
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(row.name).toBe('Updated Base')
@@ -455,30 +447,6 @@ describe('KnowledgeBaseService', () => {
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(row.rerankModelId).toBeNull()
       expect(row.fileProcessorId).toBeNull()
-    })
-
-    it('should clear stale hybrid config when search mode changes during update', async () => {
-      await seedKnowledgeBase({
-        chunkSize: 256,
-        chunkOverlap: 120,
-        searchMode: 'hybrid',
-        hybridAlpha: 0.7
-      })
-
-      const result = await service.update(KNOWLEDGE_BASE_ID, {
-        searchMode: 'vector'
-      })
-
-      expect(result.searchMode).toBe('vector')
-      expect(result.chunkSize).toBe(256)
-      expect(result.chunkOverlap).toBe(120)
-      expect(result.hybridAlpha).toBeUndefined()
-
-      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
-      expect(row.searchMode).toBe('vector')
-      expect(row.chunkSize).toBe(256)
-      expect(row.chunkOverlap).toBe(120)
-      expect(row.hybridAlpha).toBeNull()
     })
 
     it('should reject shrinking chunkSize when the existing chunkOverlap no longer fits', async () => {
@@ -510,34 +478,6 @@ describe('KnowledgeBaseService', () => {
         details: {
           fieldErrors: {
             chunkOverlap: ['Chunk overlap must be smaller than chunk size']
-          }
-        }
-      })
-    })
-
-    it('should not silently clean stale dependent fields during unrelated updates', async () => {
-      await seedKnowledgeBase({ searchMode: 'vector', hybridAlpha: 0.7 })
-
-      await expect(
-        service.update(KNOWLEDGE_BASE_ID, {
-          name: 'Renamed Base'
-        })
-      ).rejects.toThrow('Hybrid alpha requires hybrid search mode')
-    })
-
-    it('should reject explicitly provided hybridAlpha when search mode is not hybrid', async () => {
-      await seedKnowledgeBase({ searchMode: 'hybrid', hybridAlpha: 0.7 })
-
-      await expect(
-        service.update(KNOWLEDGE_BASE_ID, {
-          searchMode: 'vector',
-          hybridAlpha: 0.7
-        })
-      ).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR,
-        details: {
-          fieldErrors: {
-            hybridAlpha: ['Hybrid alpha requires hybrid search mode']
           }
         }
       })

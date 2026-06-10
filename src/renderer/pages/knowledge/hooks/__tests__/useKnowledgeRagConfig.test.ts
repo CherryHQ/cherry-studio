@@ -64,12 +64,9 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
-  threshold: 0,
-  documentCount: 6,
   status: 'completed',
   error: null,
   searchMode: 'hybrid',
-  hybridAlpha: 0.6,
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -167,11 +164,7 @@ describe('useKnowledgeRagConfig', () => {
         chunkOverlap: '256',
         embeddingModelId: 'voyage::voyage-3-large',
         rerankModelId: null,
-        dimensions: '4096',
-        documentCount: 10,
-        threshold: 0.25,
-        searchMode: 'vector',
-        hybridAlpha: 0.6
+        searchMode: 'vector'
       })
     })
 
@@ -182,8 +175,6 @@ describe('useKnowledgeRagConfig', () => {
         chunkSize: 1536,
         chunkOverlap: 256,
         rerankModelId: null,
-        documentCount: 10,
-        threshold: 0.25,
         searchMode: 'vector'
       }
     })
@@ -210,7 +201,7 @@ describe('useKnowledgeRagConfig', () => {
     })
   })
 
-  it('omits hybridAlpha when switching away from hybrid search', async () => {
+  it('builds a patch with only the changed search mode', async () => {
     const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
 
     await act(async () => {

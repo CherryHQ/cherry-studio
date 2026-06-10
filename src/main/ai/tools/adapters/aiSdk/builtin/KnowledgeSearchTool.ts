@@ -38,7 +38,7 @@ Workflow: call kb__list first to discover available bases and their contents, th
   inputSchema: kbSearchInputSchema,
   outputSchema: kbSearchOutputSchema,
   strict: true,
-  execute: async ({ query, baseIds }, options): Promise<KbSearchOutput> => {
+  execute: async ({ query, baseIds, topK, threshold, hybridAlpha }, options): Promise<KbSearchOutput> => {
     const { request } = getToolCallContext(options)
     const allowedIds = request.assistant?.knowledgeBaseIds ?? []
     const targetIds = allowedIds.length > 0 ? baseIds.filter((id) => allowedIds.includes(id)) : baseIds
@@ -54,7 +54,7 @@ Workflow: call kb__list first to discover available bases and their contents, th
     const perBaseResults = await Promise.all(
       targetIds.map(async (baseId) => {
         try {
-          return await knowledgeService.search(baseId, query)
+          return await knowledgeService.search(baseId, query, { topK, threshold, hybridAlpha })
         } catch (error) {
           logger.warn('KnowledgeService.search failed', {
             baseId,

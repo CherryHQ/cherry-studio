@@ -71,15 +71,27 @@ describe('kb__search', () => {
       { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
     )
     expect(knowledgeServiceSearch).toHaveBeenCalledTimes(1)
-    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'q')
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'q', {
+      topK: undefined,
+      threshold: undefined,
+      hybridAlpha: undefined
+    })
   })
 
   it('trusts the requested baseIds when assistant scope is empty (future toggle path)', async () => {
     knowledgeServiceSearch.mockResolvedValue([])
     await callExecute({ query: 'q', baseIds: ['kb-1', 'kb-2'] }, { assistant: makeAssistant({ knowledgeBaseIds: [] }) })
     expect(knowledgeServiceSearch).toHaveBeenCalledTimes(2)
-    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'q')
-    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-2', 'q')
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'q', {
+      topK: undefined,
+      threshold: undefined,
+      hybridAlpha: undefined
+    })
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-2', 'q', {
+      topK: undefined,
+      threshold: undefined,
+      hybridAlpha: undefined
+    })
   })
 
   it('queries every requested base when all are in-scope', async () => {
@@ -89,8 +101,16 @@ describe('kb__search', () => {
       { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1', 'kb-2'] }) }
     )
     expect(knowledgeServiceSearch).toHaveBeenCalledTimes(2)
-    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'how does X work')
-    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-2', 'how does X work')
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-1', 'how does X work', {
+      topK: undefined,
+      threshold: undefined,
+      hybridAlpha: undefined
+    })
+    expect(knowledgeServiceSearch).toHaveBeenCalledWith('kb-2', 'how does X work', {
+      topK: undefined,
+      threshold: undefined,
+      hybridAlpha: undefined
+    })
   })
 
   it('aggregates, dedupes by content, sorts by score desc, assigns 1-based ids', async () => {

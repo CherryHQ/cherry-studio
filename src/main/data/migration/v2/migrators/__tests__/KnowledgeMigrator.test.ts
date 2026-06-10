@@ -1073,8 +1073,6 @@ describe('KnowledgeMigrator dimensions resolution', () => {
                 model: { id: 'BAAI/bge-m3', name: 'BAAI/bge-m3', provider: 'silicon' },
                 chunkSize: 200,
                 chunkOverlap: 200,
-                threshold: 2,
-                documentCount: 0,
                 items: []
               }
             ]
@@ -1094,9 +1092,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
       result.warnings?.some(
         (warning) =>
           warning.includes('Knowledge base kb-invalid-config: cleared invalid config fields:') &&
-          warning.includes('chunkOverlap') &&
-          warning.includes('threshold') &&
-          warning.includes('documentCount')
+          warning.includes('chunkOverlap')
       )
     ).toBe(true)
     expect(
@@ -1104,9 +1100,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
         ([warning]) =>
           typeof warning === 'string' &&
           warning.includes('Knowledge base kb-invalid-config: cleared invalid config fields:') &&
-          warning.includes('chunkOverlap') &&
-          warning.includes('threshold') &&
-          warning.includes('documentCount')
+          warning.includes('chunkOverlap')
       )
     ).toBe(true)
   })
@@ -1318,10 +1312,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         fileProcessorId: null,
         chunkSize: 1024,
         chunkOverlap: 200,
-        threshold: null,
-        documentCount: null,
         searchMode: 'hybrid',
-        hybridAlpha: null,
         createdAt: 1775114958369,
         updatedAt: 1775114958369
       }

@@ -220,14 +220,14 @@ describe('knowledgeHandlers', () => {
       })
     })
 
-    it('should reject non-nullable optional config null clears before calling the service', async () => {
+    it('should reject removed tuning config fields before calling the service', async () => {
       await expect(
         knowledgeHandlers['/knowledge-bases/:id'].PATCH({
           params: { id: 'kb-1' },
           body: {
-            threshold: null,
-            documentCount: null,
-            hybridAlpha: null
+            threshold: 0.5,
+            documentCount: 5,
+            hybridAlpha: 0.7
           }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')

@@ -138,10 +138,7 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
         fileProcessorId: null,
         chunkSize: 1024,
         chunkOverlap: 200,
-        threshold: null,
-        documentCount: null,
         searchMode: 'hybrid',
-        hybridAlpha: null,
         createdAt: 1775114958369,
         updatedAt: 1775114958369
       }

@@ -29,7 +29,6 @@ export const kbListOutputItemSchema = z.object({
   name: z.string(),
   groupId: z.string().nullable(),
   status: z.enum(['completed', 'failed']),
-  documentCount: z.number().int().nonnegative(),
   itemCount: z.number().int().nonnegative(),
   sampleSources: z.array(z.string())
 })
@@ -61,6 +60,34 @@ export const kbSearchInputSchema = z.object({
     .describe(
       'IDs of the knowledge bases to search, picked from the result of kb__list. ' +
         'At least one is required; pass multiple to fan out across related bases.'
+    ),
+  topK: z
+    .number()
+    .int()
+    .positive()
+    .max(50)
+    .optional()
+    .describe(
+      'Maximum number of result chunks to return per base. Omit for a sensible default; ' +
+        'raise it for broad questions, lower it for precise lookups.'
+    ),
+  threshold: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe(
+      'Relevance score cutoff in [0, 1]. Results scored below it are dropped. ' +
+        'Omit for no extra filtering; raise it to keep only high-confidence matches.'
+    ),
+  hybridAlpha: z
+    .number()
+    .min(0)
+    .max(1)
+    .optional()
+    .describe(
+      'Hybrid-search weight in [0, 1]: higher favors semantic (vector) matches, lower favors ' +
+        'keyword (BM25). Only affects bases in hybrid mode; omit for the default balance.'
     )
 })
 

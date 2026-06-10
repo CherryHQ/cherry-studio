@@ -13,28 +13,22 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
-  threshold: undefined,
-  documentCount: undefined,
   status: 'completed',
   error: null,
   searchMode: 'hybrid',
-  hybridAlpha: undefined,
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
 })
 
 describe('createKnowledgeV2RagConfigFormValues', () => {
-  it('maps a knowledge base into form values with UI defaults', () => {
+  it('maps a knowledge base into form values', () => {
     const base = createKnowledgeBase({
       fileProcessorId: 'doc2x',
       chunkSize: 512,
       chunkOverlap: 64,
       rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
-      documentCount: undefined,
-      threshold: undefined,
-      searchMode: 'hybrid',
-      hybridAlpha: undefined
+      searchMode: 'hybrid'
     })
 
     expect(createKnowledgeRagConfigFormValues(base)).toEqual({
@@ -43,11 +37,7 @@ describe('createKnowledgeV2RagConfigFormValues', () => {
       chunkOverlap: '64',
       embeddingModelId: 'openai::text-embedding-3-small',
       rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
-      dimensions: '1536',
-      documentCount: 6,
-      threshold: 0,
-      searchMode: 'hybrid',
-      hybridAlpha: null
+      searchMode: 'hybrid'
     })
   })
 })
@@ -60,8 +50,6 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
         chunkSize: 512,
         chunkOverlap: 64,
         rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
-        documentCount: 6,
-        threshold: 0,
         searchMode: 'vector'
       })
     )
@@ -72,12 +60,8 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
       chunkSize: '1024',
       chunkOverlap: '128',
       embeddingModelId: 'voyage::voyage-3-large',
-      dimensions: '4096',
       rerankModelId: null,
-      documentCount: 10,
-      threshold: 0.35,
-      searchMode: 'hybrid' as const,
-      hybridAlpha: 0.7
+      searchMode: 'hybrid' as const
     }
 
     expect(buildKnowledgeRagConfigPatch(initialValues, nextValues)).toEqual({
@@ -85,10 +69,7 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
       chunkSize: 1024,
       chunkOverlap: 128,
       rerankModelId: null,
-      documentCount: 10,
-      threshold: 0.35,
-      searchMode: 'hybrid',
-      hybridAlpha: 0.7
+      searchMode: 'hybrid'
     })
   })
 
@@ -112,21 +93,19 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
     })
   })
 
-  it('lets the service clear hybrid alpha when leaving hybrid search mode', () => {
+  it('includes the search mode change without unrelated fields', () => {
     const initialValues = createKnowledgeRagConfigFormValues(
       createKnowledgeBase({
         chunkSize: 512,
         chunkOverlap: 64,
-        searchMode: 'hybrid',
-        hybridAlpha: 0.6
+        searchMode: 'hybrid'
       })
     )
 
     const nextValues = {
       ...initialValues,
       chunkSize: '768',
-      searchMode: 'vector' as const,
-      hybridAlpha: 0.6
+      searchMode: 'vector' as const
     }
 
     expect(buildKnowledgeRagConfigPatch(initialValues, nextValues)).toEqual({
@@ -138,10 +117,7 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
   it('does not force display defaults into the patch when the user did not change them', () => {
     const initialValues = createKnowledgeRagConfigFormValues(
       createKnowledgeBase({
-        documentCount: undefined,
-        threshold: undefined,
-        searchMode: 'hybrid',
-        hybridAlpha: undefined
+        searchMode: 'hybrid'
       })
     )
 

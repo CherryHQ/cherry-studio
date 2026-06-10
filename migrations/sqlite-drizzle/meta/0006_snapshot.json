@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "d2e21411-4819-4025-88b6-037fa16e65b0",
+  "id": "181c6e0e-afd6-4a7e-bfb3-38c4b52a3cf9",
   "prevId": "5b474d22-ab0d-4653-a8e3-bdecf899da46",
   "tables": {
     "agent": {
@@ -1813,32 +1813,11 @@
           "notNull": true,
           "autoincrement": false
         },
-        "threshold": {
-          "name": "threshold",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "document_count": {
-          "name": "document_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "search_mode": {
           "name": "search_mode",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "hybrid_alpha": {
-          "name": "hybrid_alpha",
-          "type": "real",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "created_at": {

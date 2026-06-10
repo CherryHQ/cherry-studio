@@ -151,8 +151,7 @@ describe('KnowledgeMappings', () => {
           name: 'KB soft limit config',
           model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' },
           chunkSize: 80,
-          chunkOverlap: 40,
-          documentCount: 100
+          chunkOverlap: 40
         },
         1024
       )
@@ -163,8 +162,7 @@ describe('KnowledgeMappings', () => {
         name: 'KB soft limit config',
         embeddingModelId: 'silicon::BAAI/bge-m3',
         chunkSize: 80,
-        chunkOverlap: 40,
-        documentCount: 100
+        chunkOverlap: 40
       })
     })
   })
@@ -177,9 +175,7 @@ describe('KnowledgeMappings', () => {
           name: 'KB invalid config',
           model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' },
           chunkSize: 200,
-          chunkOverlap: 200,
-          threshold: 2,
-          documentCount: 0
+          chunkOverlap: 200
         },
         1024
       )
@@ -191,8 +187,6 @@ describe('KnowledgeMappings', () => {
         embeddingModelId: 'silicon::BAAI/bge-m3',
         chunkSize: 200,
         chunkOverlap: 199,
-        threshold: undefined,
-        documentCount: undefined,
         searchMode: 'hybrid'
       })
     })

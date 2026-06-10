@@ -14,6 +14,7 @@ import {
   type KnowledgeItem,
   type KnowledgeItemChunk,
   type KnowledgeItemStatus,
+  type KnowledgeSearchOptions,
   type KnowledgeSearchResult,
   type RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
@@ -57,16 +58,16 @@ import type { KnowledgeIndexSearchMatch } from './vectorstore/indexStore/model'
 const logger = loggerService.withContext('KnowledgeService')
 const SEARCH_TOKEN_PATTERN = /[\p{L}\p{N}_]+/u
 const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
-/** Result count used when a base doesn't pin its own documentCount. */
-const KNOWLEDGE_SEARCH_DEFAULT_DOCUMENT_COUNT = 10
+/** Result count used when the caller doesn't pass an explicit topK. */
+const KNOWLEDGE_SEARCH_DEFAULT_TOP_K = 10
 /**
  * Fetch this many × the requested result count as index candidates. The index
  * store only filters by material state; the item-visibility filter (missing /
  * other-base / not-completed) runs afterwards in the caller and can drop matches,
- * so over-fetching keeps the final set from shrinking below documentCount.
+ * so over-fetching keeps the final set from shrinking below topK.
  */
 const KNOWLEDGE_SEARCH_OVERFETCH_FACTOR = 5
-/** Hard ceiling on fetched candidates, bounding the brute-force vector scan and rerank cost regardless of documentCount. */
+/** Hard ceiling on fetched candidates, bounding the brute-force vector scan and rerank cost regardless of topK. */
 const KNOWLEDGE_SEARCH_CANDIDATE_CAP = 200
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
@@ -174,10 +175,7 @@ export class KnowledgeService extends BaseService {
       fileProcessorId: sourceBase.fileProcessorId,
       chunkSize: sourceBase.chunkSize,
       chunkOverlap: sourceBase.chunkOverlap,
-      threshold: sourceBase.threshold,
-      documentCount: sourceBase.documentCount,
       searchMode: sourceBase.searchMode,
-      hybridAlpha: sourceBase.hybridAlpha,
       groupId: sourceBase.groupId ?? undefined
     }
 
@@ -251,7 +249,7 @@ export class KnowledgeService extends BaseService {
   }
 
   @TraceMethod({ spanName: 'Knowledge.search', tag: 'Knowledge' })
-  async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
+  async search(baseId: string, query: string, options?: KnowledgeSearchOptions): Promise<KnowledgeSearchResult[]> {
     await this.assertBaseCanRunRuntimeOperation(baseId, 'search')
 
     if (!SEARCH_TOKEN_PATTERN.test(query)) {
@@ -267,8 +265,8 @@ export class KnowledgeService extends BaseService {
     // BM25 is lexical only; skip the embedding round-trip when the query won't use it.
     const queryEmbedding = mode === 'bm25' ? undefined : await embedKnowledgeQuery(base, query)
 
-    const documentCount = base.documentCount ?? KNOWLEDGE_SEARCH_DEFAULT_DOCUMENT_COUNT
-    const candidateLimit = Math.min(documentCount * KNOWLEDGE_SEARCH_OVERFETCH_FACTOR, KNOWLEDGE_SEARCH_CANDIDATE_CAP)
+    const resolvedTopK = options?.topK ?? KNOWLEDGE_SEARCH_DEFAULT_TOP_K
+    const candidateLimit = Math.min(resolvedTopK * KNOWLEDGE_SEARCH_OVERFETCH_FACTOR, KNOWLEDGE_SEARCH_CANDIDATE_CAP)
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const store = await vectorStoreService.getIndexStore(base)
@@ -278,20 +276,20 @@ export class KnowledgeService extends BaseService {
         queryEmbedding,
         mode,
         topK: candidateLimit,
-        alpha: base.hybridAlpha
+        alpha: options?.hybridAlpha
       })
     )
 
     const scoreKind = getInitialSearchScoreKind(base)
     const visibleSearchResults = await this.toVisibleSearchResults(baseId, matches, scoreKind)
-    const topResults = this.trimToDocumentCount(visibleSearchResults, documentCount, baseId)
+    const topResults = this.trimToTopK(visibleSearchResults, resolvedTopK, baseId)
 
     if (base.rerankModelId) {
-      const rerankedResults = await rerankKnowledgeSearchResults(base, query, topResults)
-      return withSearchRanks(applyRelevanceThreshold(rerankedResults, base.threshold))
+      const rerankedResults = await rerankKnowledgeSearchResults(base, query, topResults, resolvedTopK)
+      return withSearchRanks(applyRelevanceThreshold(rerankedResults, options?.threshold))
     }
 
-    return withSearchRanks(applyRelevanceThreshold(topResults, base.threshold))
+    return withSearchRanks(applyRelevanceThreshold(topResults, options?.threshold))
   }
 
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {
@@ -378,21 +376,17 @@ export class KnowledgeService extends BaseService {
     return results
   }
 
-  /** Keep the highest-scored `documentCount` visible results, discarding the over-fetched tail. */
-  private trimToDocumentCount(
-    results: KnowledgeSearchResult[],
-    documentCount: number,
-    baseId: string
-  ): KnowledgeSearchResult[] {
-    if (results.length <= documentCount) {
+  /** Keep the highest-scored `topK` visible results, discarding the over-fetched tail. */
+  private trimToTopK(results: KnowledgeSearchResult[], topK: number, baseId: string): KnowledgeSearchResult[] {
+    if (results.length <= topK) {
       return results
     }
-    logger.debug('Trimmed over-fetched knowledge search results to documentCount', {
+    logger.debug('Trimmed over-fetched knowledge search results to topK', {
       baseId,
       visibleCandidates: results.length,
-      documentCount
+      topK
     })
-    return results.slice(0, documentCount)
+    return results.slice(0, topK)
   }
 
   /** Fetch the distinct items behind the matches, keeping only those visible in this base (same base, completed). */

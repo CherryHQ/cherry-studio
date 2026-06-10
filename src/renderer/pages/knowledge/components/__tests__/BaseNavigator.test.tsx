@@ -280,12 +280,9 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): Kn
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
-  threshold: undefined,
-  documentCount: undefined,
   status: 'completed',
   error: null,
   searchMode: 'hybrid',
-  hybridAlpha: undefined,
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
