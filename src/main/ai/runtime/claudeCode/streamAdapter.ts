@@ -31,9 +31,9 @@ import type {
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
 import { loggerService } from '@logger'
+import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk, CherryUIMessageMetadata } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
-import { parseFunctionCallToolName } from '@shared/mcp'
 
 import type { McpToolDisplayMetadata } from './types'
 
