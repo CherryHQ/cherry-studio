@@ -4,15 +4,19 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { CircleSlash, Folder, FolderPlus } from 'lucide-react'
-import { type ReactElement, useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { type ReactElement, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ModelSelectorRow } from '../model/ModelSelectorRow'
-import { SelectorShell, type SelectorShellMountStrategy, type SelectorShellProps } from '../shell/SelectorShell'
+import {
+  DEFAULT_SELECTOR_CONTENT_HEIGHT,
+  SelectorShell,
+  type SelectorShellMountStrategy,
+  type SelectorShellProps
+} from '../shell/SelectorShell'
 
 const logger = loggerService.withContext('WorkspaceSelector')
 const DEFAULT_MIN_LIST_HEIGHT = 144
-const DEFAULT_MAX_LIST_HEIGHT = 320
 
 type SharedProps = {
   trigger: ReactElement
@@ -54,6 +58,7 @@ export function WorkspaceSelector({
   const [searchValue, setSearchValue] = useState('')
   const open = openProp ?? internalOpen
   const listboxId = useId()
+  const listRef = useRef<HTMLDivElement>(null)
 
   const { data: workspaces, isLoading, refetch } = useQuery('/agent-workspaces')
   const { trigger: createWorkspace, isLoading: isCreatingWorkspace } = useMutation('POST', '/agent-workspaces', {
@@ -85,6 +90,15 @@ export function WorkspaceSelector({
   )
 
   const selectedId = value ?? null
+
+  useEffect(() => {
+    if (!open || selectedId === null || !filteredWorkspaces.some((workspace) => workspace.id === selectedId)) {
+      return
+    }
+
+    const element = listRef.current?.querySelector<HTMLElement>(`[data-option-id="${CSS.escape(selectedId)}"]`)
+    element?.scrollIntoView({ block: 'start' })
+  }, [filteredWorkspaces, open, selectedId])
 
   const handleSelectWorkspace = useCallback(
     async (workspaceId: string | null) => {
@@ -166,6 +180,7 @@ export function WorkspaceSelector({
       sideOffset={sideOffset ?? 6}
       contentClassName="min-w-[280px]"
       mountStrategy={mountStrategy}
+      contentHeight={DEFAULT_SELECTOR_CONTENT_HEIGHT}
       search={{
         value: searchValue,
         onChange: setSearchValue,
@@ -188,22 +203,16 @@ export function WorkspaceSelector({
         }
       ]}>
       {({ availableListHeight }) => {
-        const listMaxHeight =
-          availableListHeight === undefined
-            ? DEFAULT_MAX_LIST_HEIGHT
-            : Math.min(DEFAULT_MAX_LIST_HEIGHT, availableListHeight)
-        const listMinHeight =
-          availableListHeight === undefined
-            ? DEFAULT_MIN_LIST_HEIGHT
-            : Math.min(DEFAULT_MIN_LIST_HEIGHT, availableListHeight)
+        const listHeight = availableListHeight ?? DEFAULT_MIN_LIST_HEIGHT
 
         return (
           <Scrollbar
+            ref={listRef}
             id={listboxId}
             role="listbox"
             tabIndex={-1}
             className="min-h-0 flex-1 px-1 py-1 outline-none"
-            style={{ maxHeight: listMaxHeight, minHeight: listMinHeight }}>
+            style={{ height: listHeight }}>
             {workspaceListContent}
           </Scrollbar>
         )

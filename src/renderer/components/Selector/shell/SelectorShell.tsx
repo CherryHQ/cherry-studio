@@ -21,6 +21,7 @@ type PopoverContentProps = ComponentPropsWithoutRef<typeof PopoverContent>
  */
 export type SelectorShellMountStrategy = 'destroy' | 'lazy-keep'
 const DEFAULT_COLLISION_PADDING = 12
+export const DEFAULT_SELECTOR_CONTENT_HEIGHT = 360
 
 export type SelectorShellLayout = {
   availableListHeight?: number
@@ -82,6 +83,7 @@ export type SelectorShellProps = {
   side?: PopoverContentProps['side']
   align?: PopoverContentProps['align']
   sideOffset?: PopoverContentProps['sideOffset']
+  contentHeight?: number | string
   maxContentHeight?: number | string
   portalContainer?: PopoverContentProps['portalContainer']
   mountStrategy?: SelectorShellMountStrategy
@@ -102,14 +104,23 @@ function parsePixelValue(value: string | null | undefined) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
 }
 
-function getAvailablePopoverHeight(element: HTMLElement) {
+function parseCssSize(value: number | string | undefined) {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value > 0 ? value : undefined
+  }
+
+  return parsePixelValue(value)
+}
+
+function getAvailablePopoverHeight(element: HTMLElement, contentHeight?: number | string) {
   const styles = window.getComputedStyle(element)
   const parentStyles = element.parentElement ? window.getComputedStyle(element.parentElement) : null
   const heightCandidates = [
     parsePixelValue(styles.getPropertyValue('--radix-popover-content-available-height')),
     parsePixelValue(styles.getPropertyValue('--radix-popper-available-height')),
     parsePixelValue(parentStyles?.getPropertyValue('--radix-popper-available-height')),
-    parsePixelValue(styles.maxHeight)
+    parsePixelValue(styles.maxHeight),
+    parseCssSize(contentHeight)
   ].filter((height): height is number => height !== undefined)
 
   return heightCandidates.length > 0 ? Math.min(...heightCandidates) : undefined
@@ -126,6 +137,10 @@ function createLocalPortalContainer() {
   return element
 }
 
+function toCssSize(value: number | string | undefined) {
+  return typeof value === 'number' ? `${value}px` : value
+}
+
 export function SelectorShell({
   trigger,
   open,
@@ -140,6 +155,7 @@ export function SelectorShell({
   side = 'bottom',
   align = 'start',
   sideOffset = 4,
+  contentHeight,
   maxContentHeight,
   portalContainer,
   mountStrategy = 'destroy',
@@ -182,7 +198,7 @@ export function SelectorShell({
       return
     }
 
-    const availablePopoverHeight = getAvailablePopoverHeight(contentElement)
+    const availablePopoverHeight = getAvailablePopoverHeight(contentElement, contentHeight)
     if (!availablePopoverHeight) {
       setAvailableListHeight(undefined)
       return
@@ -198,7 +214,7 @@ export function SelectorShell({
     const nextListHeight = Math.max(0, Math.floor(availablePopoverHeight - chromeHeight - verticalPadding))
 
     setAvailableListHeight((previousHeight) => (previousHeight === nextListHeight ? previousHeight : nextListHeight))
-  }, [])
+  }, [contentHeight])
 
   const scheduleMeasureAvailableListHeight = useCallback(() => {
     if (!open) {
@@ -318,7 +334,16 @@ export function SelectorShell({
       observer.disconnect()
       window.removeEventListener('resize', measureAvailableListHeight)
     }
-  }, [hasBottomAction, hasFilterContent, hasMultiSelect, hasSearch, measureAvailableListHeight, open])
+  }, [
+    contentHeight,
+    hasBottomAction,
+    hasFilterContent,
+    hasMultiSelect,
+    hasSearch,
+    maxContentHeight,
+    measureAvailableListHeight,
+    open
+  ])
 
   useLayoutEffect(() => {
     return () => {
@@ -351,8 +376,9 @@ export function SelectorShell({
             hidden={mountStrategy === 'lazy-keep' && !open ? true : hidden}
             {...restContentProps}
             style={{
-              width: typeof width === 'number' ? `${width}px` : width,
-              maxHeight: typeof maxContentHeight === 'number' ? `${maxContentHeight}px` : maxContentHeight,
+              width: toCssSize(width),
+              height: toCssSize(contentHeight),
+              maxHeight: toCssSize(maxContentHeight),
               ...style
             }}
             onInteractOutside={(event) => {

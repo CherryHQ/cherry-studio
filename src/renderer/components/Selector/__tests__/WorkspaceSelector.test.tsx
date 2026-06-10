@@ -149,6 +149,13 @@ describe('WorkspaceSelector', () => {
     expect(screen.queryByText('/Users/jd/cherry-studio')).not.toBeInTheDocument()
   })
 
+  it('sets a 360px default popover target height', () => {
+    renderSelector()
+    openPopover()
+
+    expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({ height: '360px' })
+  })
+
   it('renders and selects the no-project option', async () => {
     const onChange = vi.fn()
     render(
@@ -173,6 +180,24 @@ describe('WorkspaceSelector', () => {
 
     expect(screen.queryByRole('option', { name: /\/Users\/jd\/cherry-studio/ })).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: /cherry-studio-1/ })).toBeInTheDocument()
+  })
+
+  it('scrolls the selected workspace to the start when opened', async () => {
+    const scrollIntoView = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {})
+    const onChange = vi.fn()
+    render(
+      <WorkspaceSelector
+        trigger={<button type="button">Open</button>}
+        value="workspace-beta"
+        onChange={onChange}
+        mountStrategy="lazy-keep"
+      />
+    )
+
+    openPopover()
+
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' }))
+    scrollIntoView.mockRestore()
   })
 
   it('fires onChange with the selected workspace id', async () => {

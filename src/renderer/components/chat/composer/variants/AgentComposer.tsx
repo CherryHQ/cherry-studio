@@ -64,6 +64,7 @@ import {
   getAgentComposerTokenIds
 } from './agentComposerTokens'
 import {
+  COMPOSER_BELOW_SELECTOR_BUTTON_CLASS,
   COMPOSER_ICON_ONLY_LABEL_CLASS,
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS,
@@ -290,13 +291,11 @@ const AgentComposerContextControls = ({
   onAgentChange,
   onModelSelect
 }: AgentComposerContextControlsProps) => {
-  const triggerClassName = cn(COMPOSER_SELECTOR_BUTTON_CLASS, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
+  const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
+  const triggerClassName = cn(baseTriggerClassName, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
   const labelClassName = cn('truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)
   const chevronClassName = cn('text-muted-foreground', iconOnly && 'hidden')
-  const modelTriggerClassName = cn(
-    COMPOSER_SELECTOR_BUTTON_CLASS,
-    iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS
-  )
+  const modelTriggerClassName = cn(baseTriggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
   const modelLabelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
   const modelChevronClassName = cn('text-muted-foreground', iconOnly && model && 'hidden')
   const [agentModelSelectorOpen, setAgentModelSelectorOpen] = useState(false)
@@ -355,7 +354,7 @@ const AgentComposerContextControls = ({
           }
         />
       ) : (
-        <Button variant="ghost" size="sm" className={COMPOSER_SELECTOR_BUTTON_CLASS} disabled>
+        <Button variant="ghost" size="sm" className={baseTriggerClassName} disabled>
           <span className="max-w-52 truncate text-muted-foreground">{selectModelLabel}</span>
           <ChevronDown size={14} className="text-muted-foreground" />
         </Button>
@@ -375,6 +374,7 @@ const AgentComposerWorkspaceControl = ({
   onWorkspaceChange
 }: AgentComposerWorkspaceControlProps) => {
   const { t } = useTranslation()
+  const baseTriggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const hasWarning = Boolean(workspaceWarning)
   const isSystemWorkspace = workspace?.type === 'system'
   const selectorValue = isSystemWorkspace ? null : workspaceId
@@ -394,7 +394,7 @@ const AgentComposerWorkspaceControl = ({
           variant="ghost"
           size="sm"
           className={cn(
-            COMPOSER_SELECTOR_BUTTON_CLASS,
+            baseTriggerClassName,
             iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
             hasWarning && 'text-warning hover:text-warning'
           )}

@@ -19,7 +19,12 @@ import {
   ModelSelectorRow,
   ModelSelectorRowActionButton
 } from '../model/ModelSelectorRow'
-import { SelectorShell, type SelectorShellMountStrategy, type SelectorShellProps } from '../shell/SelectorShell'
+import {
+  DEFAULT_SELECTOR_CONTENT_HEIGHT,
+  SelectorShell,
+  type SelectorShellMountStrategy,
+  type SelectorShellProps
+} from '../shell/SelectorShell'
 
 export type ResourceSelectorShellItem = {
   id: string
@@ -168,7 +173,6 @@ function extractValueIds<T extends ResourceSelectorShellItem>(value: unknown): s
 
 const DEFAULT_RESOURCE_TAG_COLOR = '#6372bd'
 const DEFAULT_MIN_LIST_HEIGHT = 144
-const DEFAULT_MAX_CONTENT_HEIGHT = 360
 
 function normalizeTag(tag: ResourceSelectorShellTag) {
   return typeof tag === 'string' ? { name: tag, color: undefined } : tag
@@ -270,6 +274,8 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const listboxId = useId()
   const listRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const pendingActiveScrollBlockRef = useRef<ScrollLogicalPosition>('nearest')
+  const wasOpenForActiveScrollRef = useRef(false)
 
   useEffect(() => {
     if (open) return
@@ -367,10 +373,14 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
   useEffect(() => {
     if (!open) {
+      wasOpenForActiveScrollRef.current = false
+      pendingActiveScrollBlockRef.current = 'nearest'
       setActiveIndex(-1)
       return
     }
+    pendingActiveScrollBlockRef.current = wasOpenForActiveScrollRef.current ? 'nearest' : 'start'
     initActiveIndex()
+    wasOpenForActiveScrollRef.current = true
   }, [flatItems, firstEnabledIndex, initActiveIndex, open])
 
   const emitChange = useCallback(
@@ -477,7 +487,8 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     const item = flatItems[activeIndex]
     if (!item) return
     const element = listRef.current?.querySelector<HTMLElement>(`[data-option-id="${CSS.escape(item.id)}"]`)
-    element?.scrollIntoView({ block: 'nearest' })
+    element?.scrollIntoView({ block: pendingActiveScrollBlockRef.current })
+    pendingActiveScrollBlockRef.current = 'nearest'
   }, [activeIndex, flatItems])
 
   const activeOptionDomId =
@@ -687,7 +698,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       sideOffset={sideOffset ?? 6}
       contentClassName="min-w-[280px]"
       mountStrategy={mountStrategy}
-      maxContentHeight={DEFAULT_MAX_CONTENT_HEIGHT}
+      contentHeight={DEFAULT_SELECTOR_CONTENT_HEIGHT}
       search={{
         value: searchValue,
         onChange: setSearchValue,
@@ -712,14 +723,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
         onKeyDown: handleKeyDown
       }}>
       {({ availableListHeight }) => {
-        const listMaxHeight =
-          availableListHeight === undefined
-            ? DEFAULT_MAX_CONTENT_HEIGHT
-            : Math.min(DEFAULT_MAX_CONTENT_HEIGHT, availableListHeight)
-        const listMinHeight =
-          availableListHeight === undefined
-            ? DEFAULT_MIN_LIST_HEIGHT
-            : Math.min(DEFAULT_MIN_LIST_HEIGHT, availableListHeight)
+        const listHeight = availableListHeight ?? DEFAULT_MIN_LIST_HEIGHT
 
         return (
           <Scrollbar
@@ -729,7 +733,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
             aria-multiselectable={multiEnabled}
             tabIndex={-1}
             className="min-h-0 flex-1 px-1 py-1 outline-none"
-            style={{ maxHeight: listMaxHeight, minHeight: listMinHeight }}>
+            style={{ height: listHeight }}>
             {listContent}
           </Scrollbar>
         )

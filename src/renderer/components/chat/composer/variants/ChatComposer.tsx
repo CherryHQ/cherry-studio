@@ -58,6 +58,7 @@ import {
 } from './chatComposerTokens'
 import { SelectedModelsTrigger } from './SelectedModelsTrigger'
 import {
+  COMPOSER_BELOW_SELECTOR_BUTTON_CLASS,
   COMPOSER_ICON_ONLY_LABEL_CLASS,
   COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS,
   COMPOSER_SELECTOR_BUTTON_CLASS,
@@ -76,8 +77,6 @@ const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 const logger = loggerService.withContext('ChatComposer')
 const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
 const CHAT_MODEL_FILTER = (model: Model) => !isNonChatModel(model)
-const COMPOSER_BELOW_SELECTOR_BUTTON_CLASS =
-  'h-8 shrink-0 gap-1.5 rounded-lg border border-transparent bg-transparent px-2.5 text-xs font-medium text-muted-foreground/75 shadow-none hover:bg-accent hover:text-accent-foreground active:bg-accent disabled:bg-transparent disabled:text-muted-foreground/50 [&_svg]:text-muted-foreground/60 hover:[&_svg]:text-accent-foreground'
 
 interface ChatComposerProps {
   topic?: Topic

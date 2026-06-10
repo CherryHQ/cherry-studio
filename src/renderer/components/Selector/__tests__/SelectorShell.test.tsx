@@ -72,7 +72,7 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
-import { SelectorShell } from '../shell/SelectorShell'
+import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '../shell/SelectorShell'
 
 describe('SelectorShell', () => {
   afterEach(() => {
@@ -96,6 +96,80 @@ describe('SelectorShell', () => {
       sideOffset: 4,
       collisionPadding: 12
     })
+  })
+
+  it('applies contentHeight as a fixed popover target height', () => {
+    render(
+      <SelectorShell
+        trigger={<button type="button">Open</button>}
+        open
+        onOpenChange={vi.fn()}
+        contentHeight={DEFAULT_SELECTOR_CONTENT_HEIGHT}>
+        <div />
+      </SelectorShell>
+    )
+
+    const content = document.querySelector<HTMLElement>('[data-selector-shell-content]')
+    expect(content).toHaveStyle({ height: '360px' })
+    expect(content?.style.maxHeight).toBe('')
+  })
+
+  it('does not set a fixed popover target height by default', () => {
+    render(
+      <SelectorShell trigger={<button type="button">Open</button>} open onOpenChange={vi.fn()}>
+        <div />
+      </SelectorShell>
+    )
+
+    expect(document.querySelector<HTMLElement>('[data-selector-shell-content]')?.style.height).toBe('')
+  })
+
+  it('uses contentHeight when measuring available list height', async () => {
+    const originalGetComputedStyle = window.getComputedStyle.bind(window)
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((element) => {
+      const style = originalGetComputedStyle(element)
+      const isContent = element instanceof HTMLElement && element.getAttribute('data-selector-shell-content') === 'true'
+      if (!isContent) return style
+
+      Object.defineProperties(style, {
+        height: { configurable: true, value: '360px' },
+        paddingTop: { configurable: true, value: '0px' },
+        paddingBottom: { configurable: true, value: '0px' }
+      })
+      vi.spyOn(style, 'getPropertyValue').mockImplementation((property: string) =>
+        property === '--radix-popover-content-available-height'
+          ? '500px'
+          : CSSStyleDeclaration.prototype.getPropertyValue.call(style, property)
+      )
+      return style
+    })
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const isChrome = this.hasAttribute('data-selector-shell-chrome')
+      return {
+        x: 0,
+        y: 0,
+        width: 320,
+        height: isChrome ? 20 : 0,
+        top: 0,
+        right: 320,
+        bottom: isChrome ? 20 : 0,
+        left: 0,
+        toJSON: () => {}
+      }
+    })
+
+    render(
+      <SelectorShell
+        trigger={<button type="button">Open</button>}
+        open
+        onOpenChange={vi.fn()}
+        contentHeight={DEFAULT_SELECTOR_CONTENT_HEIGHT}
+        search={{ value: '', onChange: vi.fn(), placeholder: 'Search' }}>
+        {({ availableListHeight }) => <div data-testid="available-height">{availableListHeight}</div>}
+      </SelectorShell>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('available-height')).toHaveTextContent('340'))
   })
 
   it('lets contentProps override collision padding', () => {

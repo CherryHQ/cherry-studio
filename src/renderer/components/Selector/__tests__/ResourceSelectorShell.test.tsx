@@ -136,8 +136,7 @@ describe('ResourceSelectorShell', () => {
 
       await waitFor(() =>
         expect(screen.getByRole('listbox')).toHaveStyle({
-          maxHeight: '56px',
-          minHeight: '56px'
+          height: '56px'
         })
       )
     })
@@ -161,13 +160,12 @@ describe('ResourceSelectorShell', () => {
 
       await waitFor(() =>
         expect(screen.getByRole('listbox')).toHaveStyle({
-          maxHeight: '0',
-          minHeight: '0'
+          height: '0px'
         })
       )
     })
 
-    it('uses a smaller default minimum height when there is enough popover space', () => {
+    it('fills the unified popover content height when available space is unconstrained', async () => {
       render(
         <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
@@ -182,10 +180,10 @@ describe('ResourceSelectorShell', () => {
       )
       openPopover()
 
-      expect(screen.getByRole('listbox')).toHaveStyle({ minHeight: '144px' })
+      await waitFor(() => expect(screen.getByRole('listbox')).toHaveStyle({ height: '360px' }))
     })
 
-    it('sets a 360px default popover max height when available space is unconstrained', () => {
+    it('sets a 360px default popover target height when available space is unconstrained', () => {
       render(
         <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
@@ -199,7 +197,7 @@ describe('ResourceSelectorShell', () => {
       )
       openPopover()
 
-      expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({ maxHeight: '360px' })
+      expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({ height: '360px' })
     })
 
     it('renders empty results with the shared empty state', () => {
@@ -247,7 +245,7 @@ describe('ResourceSelectorShell', () => {
       expect(document.querySelector('[data-selector-shell-content]')).toBe(content)
     })
 
-    it('uses default list bounds before lazy-kept available height is measured', () => {
+    it('uses unified list height after lazy-kept content is measured', () => {
       render(
         <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
@@ -264,9 +262,54 @@ describe('ResourceSelectorShell', () => {
       openPopover()
 
       expect(screen.getByRole('listbox')).toHaveStyle({
-        maxHeight: '360px',
-        minHeight: '144px'
+        height: '360px'
       })
+    })
+
+    it('aligns the selected row to the start when a lazy-kept selector opens', async () => {
+      const scrollIntoView = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {})
+
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          labels={LABELS}
+          value="3"
+          onChange={vi.fn()}
+          mountStrategy="lazy-keep"
+        />
+      )
+
+      openPopover()
+
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' }))
+    })
+
+    it('keeps keyboard navigation scrolling to the nearest visible row', async () => {
+      const scrollIntoView = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {})
+
+      render(
+        <ResourceSelectorShell
+          trigger={<button type="button">Open</button>}
+          items={ITEMS}
+          pinnedIds={[]}
+          onTogglePin={vi.fn()}
+          labels={LABELS}
+          value="1"
+          onChange={vi.fn()}
+          mountStrategy="lazy-keep"
+        />
+      )
+
+      openPopover()
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'start' }))
+      scrollIntoView.mockClear()
+
+      fireEvent.keyDown(screen.getByPlaceholderText('Search'), { key: 'ArrowDown' })
+
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' }))
     })
   })
 

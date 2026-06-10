@@ -20,7 +20,7 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SelectorShell } from '../shell/SelectorShell'
+import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '../shell/SelectorShell'
 import { matchesModelTag, MODEL_SELECTOR_TAGS } from './filters'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { ModelTagChip } from './ModelTagChip'
@@ -33,17 +33,15 @@ import { getProviderDisplayName } from './utils'
 const logger = loggerService.withContext('ModelSelector')
 
 const ITEM_HEIGHT = 36
-const DEFAULT_MODEL_SELECTOR_MAX_CONTENT_HEIGHT = 360
+const MODEL_SELECTOR_LIST_VERTICAL_PADDING = 8
 const ROW_TAG_SIZE = 8
 const FILTER_TAG_SIZE = 10
 const DEFAULT_PRIORITIZED_PROVIDER_IDS: string[] = []
 const MODEL_SELECTOR_NAVIGATION_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'])
-const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(
-  1,
-  Math.floor(DEFAULT_MODEL_SELECTOR_MAX_CONTENT_HEIGHT / ITEM_HEIGHT)
-)
+const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(DEFAULT_SELECTOR_CONTENT_HEIGHT / ITEM_HEIGHT))
 
 const estimateModelSelectorItemSize = () => ITEM_HEIGHT
+type ModelSelectorScrollAlign = NonNullable<Parameters<DynamicVirtualListRef['scrollToIndex']>[1]>['align']
 
 type ModelSelectorValue = Model | UniqueModelId | Model[] | UniqueModelId[] | undefined
 type ModelSelectorSelectionSnapshot = {
@@ -387,7 +385,10 @@ export function ModelSelector(props: ModelSelectorProps) {
   modelItemsRef.current = modelItems
   visibleSelectedModelIdSetRef.current = visibleSelectedModelIdSet
 
-  const listHeight = useMemo(() => Math.max(1, listItems.length) * ITEM_HEIGHT, [listItems.length])
+  const listHeight = useMemo(
+    () => MODEL_SELECTOR_LIST_VERTICAL_PADDING + Math.max(1, listItems.length) * ITEM_HEIGHT,
+    [listItems.length]
+  )
   const pageSize = DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE
   const selectedTagsKey = useMemo(() => selectedTags.join('|'), [selectedTags])
   const getListItemKey = useCallback((index: number) => listItems[index].key, [listItems])
@@ -422,7 +423,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   )
 
   const focusItem = useCallback(
-    (key: string) => {
+    (key: string, align: ModelSelectorScrollAlign = 'auto') => {
       setFocusedItemKey(key)
       const index = listItemsRef.current.findIndex((item) => item.key === key)
       if (index >= 0) {
@@ -431,7 +432,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         }
         focusScrollFrameRef.current = window.requestAnimationFrame(() => {
           focusScrollFrameRef.current = null
-          listRef.current?.scrollToIndex(index, { align: 'auto' })
+          listRef.current?.scrollToIndex(index, { align })
         })
       }
     },
@@ -590,7 +591,7 @@ export function ModelSelector(props: ModelSelectorProps) {
           currentModelItems[0]?.key)
 
     if (targetKey) {
-      focusItem(targetKey)
+      focusItem(targetKey, 'start')
     }
   }, [deferredSearchText, focusItem, isLoading, open, selectedTagsKey])
 
@@ -717,7 +718,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     [handleMultiSelectModeChange, multiSelectMode, multiple, t]
   )
 
-  const initialListHeight = Math.min(listHeight, DEFAULT_MODEL_SELECTOR_MAX_CONTENT_HEIGHT)
+  const initialListHeight = Math.min(listHeight, DEFAULT_SELECTOR_CONTENT_HEIGHT)
 
   return (
     <>
@@ -735,18 +736,22 @@ export function ModelSelector(props: ModelSelectorProps) {
         portalContainer={portalContainer}
         contentClassName={contentClassName}
         mountStrategy={mountStrategy}
-        maxContentHeight={DEFAULT_MODEL_SELECTOR_MAX_CONTENT_HEIGHT}
+        contentHeight={DEFAULT_SELECTOR_CONTENT_HEIGHT}
         data-testid="model-selector-content">
         {({ availableListHeight }) => {
-          const visibleListHeight =
-            availableListHeight === undefined ? initialListHeight : Math.min(listHeight, availableListHeight)
+          const visibleListHeight = availableListHeight === undefined ? initialListHeight : availableListHeight
+          const virtualListHeight = Math.max(0, visibleListHeight - MODEL_SELECTOR_LIST_VERTICAL_PADDING)
 
           return listItems.length > 0 ? (
-            <div className="py-1" role="listbox" aria-multiselectable={multiple && multiSelectMode}>
+            <div
+              className="py-1"
+              role="listbox"
+              aria-multiselectable={multiple && multiSelectMode}
+              style={{ height: visibleListHeight }}>
               <DynamicVirtualList
                 ref={listRef}
                 list={listItems}
-                size={visibleListHeight}
+                size={virtualListHeight}
                 estimateSize={estimateModelSelectorItemSize}
                 getItemKey={getListItemKey}
                 isSticky={isStickyListItem}
@@ -759,6 +764,7 @@ export function ModelSelector(props: ModelSelectorProps) {
           ) : (
             <div
               className="flex items-center justify-center px-3 py-4 text-muted-foreground text-xs"
+              style={{ height: visibleListHeight }}
               data-testid="model-selector-empty">
               {t('models.no_matches')}
             </div>

@@ -423,7 +423,7 @@ describe('ModelSelector', () => {
       />
     )
 
-    await waitFor(() => expect(mockScrollToIndex).toHaveBeenCalledWith(1, { align: 'auto' }))
+    await waitFor(() => expect(mockScrollToIndex).toHaveBeenCalledWith(1, { align: 'start' }))
     mockScrollToIndex.mockClear()
 
     currentData = secondData
@@ -510,7 +510,7 @@ describe('ModelSelector', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('scrolls to the selected model when reopened after a single-select change', async () => {
+  it('scrolls the selected model to the start when a lazy-kept selector reopens', async () => {
     const firstData = makeData()
     const secondData = makeData({
       resolvedSelectedModelIds: ['openai::gpt-3.5' as UniqueModelId],
@@ -521,7 +521,13 @@ describe('ModelSelector', () => {
 
     const onSelect = vi.fn()
     const { rerender } = render(
-      <ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={onSelect} />
+      <ModelSelector
+        open
+        mountStrategy="lazy-keep"
+        multiple={false}
+        trigger={<button type="button">open</button>}
+        onSelect={onSelect}
+      />
     )
 
     await waitFor(() => expect(mockScrollToIndex).toHaveBeenCalled())
@@ -530,13 +536,27 @@ describe('ModelSelector', () => {
     fireEvent.click(screen.getByTestId('model-selector-item-openai::gpt-3.5'))
     currentData = secondData
     rerender(
-      <ModelSelector open={false} multiple={false} trigger={<button type="button">open</button>} onSelect={onSelect} />
+      <ModelSelector
+        open={false}
+        mountStrategy="lazy-keep"
+        multiple={false}
+        trigger={<button type="button">open</button>}
+        onSelect={onSelect}
+      />
     )
     mockScrollToIndex.mockClear()
 
-    rerender(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={onSelect} />)
+    rerender(
+      <ModelSelector
+        open
+        mountStrategy="lazy-keep"
+        multiple={false}
+        trigger={<button type="button">open</button>}
+        onSelect={onSelect}
+      />
+    )
 
-    await waitFor(() => expect(mockScrollToIndex).toHaveBeenCalledWith(2, { align: 'auto' }))
+    await waitFor(() => expect(mockScrollToIndex).toHaveBeenCalledWith(2, { align: 'start' }))
   })
 
   it('refetches models, providers, and pinned models when controlled open switches to true', async () => {
@@ -710,7 +730,7 @@ describe('ModelSelector', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it('sets a 360px default popover max height for long model lists', () => {
+  it('sets a 360px default popover target height for long model lists', () => {
     const items = Array.from({ length: 30 }, (_, index) => makeModelItem(`openai::model-${index}` as UniqueModelId))
     mockUseModelSelectorData.mockReturnValue(
       makeData({
@@ -721,8 +741,23 @@ describe('ModelSelector', () => {
 
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
-    expect(screen.getByTestId('model-selector-content')).toHaveStyle({ maxHeight: '360px' })
-    expect(mockVirtualListSizes.at(-1)).toBe(360)
+    expect(screen.getByTestId('model-selector-content')).toHaveStyle({ height: '360px' })
+    expect(mockVirtualListSizes.at(-1)).toBe(352)
+  })
+
+  it('fills the unified popover content height for short model lists', () => {
+    const item = makeModelItem('openai::gpt-4' as UniqueModelId)
+    mockUseModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: [item],
+        modelItems: [item]
+      })
+    )
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(screen.getByTestId('model-selector-content')).toHaveStyle({ height: '360px' })
+    expect(mockVirtualListSizes.at(-1)).toBe(352)
   })
 
   it('clamps the visible model list height to the available popover space', async () => {
@@ -738,7 +773,7 @@ describe('ModelSelector', () => {
 
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
-    await waitFor(() => expect(mockVirtualListSizes.at(-1)).toBe(108))
+    await waitFor(() => expect(mockVirtualListSizes.at(-1)).toBe(100))
   })
 
   it('honors a measured zero available list height', async () => {

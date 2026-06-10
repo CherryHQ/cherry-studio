@@ -1291,6 +1291,10 @@ describe('AgentComposer', () => {
     expect(belowControls).toHaveTextContent('Agent')
     expect(belowControls).toHaveTextContent('Claude Sonnet 4.5 | Anthropic')
 
+    expect(screen.getByText('Agent').closest('button')).toHaveClass('h-8', 'rounded-lg')
+    expect(screen.getByText('Claude Sonnet 4.5 | Anthropic').closest('button')).toHaveClass('h-8', 'rounded-lg')
+    expect(screen.getByText('Workspace 1').closest('button')).toHaveClass('h-8', 'rounded-lg')
+
     const belowText = belowControls.textContent ?? ''
     expect(belowText.indexOf('Agent')).toBeLessThan(belowText.indexOf('Claude Sonnet 4.5 | Anthropic'))
     expect(belowText.indexOf('Claude Sonnet 4.5 | Anthropic')).toBeLessThan(belowText.indexOf('Workspace 1'))
