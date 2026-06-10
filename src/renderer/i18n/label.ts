@@ -271,8 +271,7 @@ const mcpProviderDescriptionKeyMap = {
   bailian: 'settings.mcp.sync.providerDescriptions.bailian',
   lanyun: 'settings.mcp.sync.providerDescriptions.lanyun',
   mcprouter: 'settings.mcp.sync.providerDescriptions.mcprouter',
-  modelscope: 'settings.mcp.sync.providerDescriptions.modelscope',
-  tokenflux: 'settings.mcp.sync.providerDescriptions.tokenflux'
+  modelscope: 'settings.mcp.sync.providerDescriptions.modelscope'
 } as const
 
 export const getMcpProviderDescriptionLabel = (key: string): string => {

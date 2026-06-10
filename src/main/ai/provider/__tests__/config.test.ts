@@ -32,7 +32,7 @@ vi.mock('@main/data/services/ProviderService', () => ({
   }
 }))
 
-vi.mock('@main/integration/cherryai', () => ({
+vi.mock('@main/ai/provider/cherryai', () => ({
   generateSignature: generateSignatureMock
 }))
 

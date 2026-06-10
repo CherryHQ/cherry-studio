@@ -188,7 +188,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
           showIcon
           type="error"
           style={{ height: 125, alignItems: 'flex-start', padding: 12, borderRadius: 'var(--radius-lg)' }}
-          description={<div className="line-clamp-3 text-(--color-error-base) text-xs leading-5">{errorDetails}</div>}
+          description={<div className="line-clamp-3 text-error-base text-xs leading-5">{errorDetails}</div>}
           onClick={onClickDetails}
           action={
             <div className="flex items-center gap-1">
@@ -281,7 +281,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
 const CardContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 border-border/60 border-b px-3 py-1.5 text-sm transition-colors hover:bg-muted/35',
+      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 border-border/60 border-b px-0 py-1.5 text-sm transition-colors',
       className
     )}
     {...props}

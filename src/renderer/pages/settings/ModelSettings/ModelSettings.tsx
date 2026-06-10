@@ -24,7 +24,8 @@ import {
   SettingGroup,
   SettingRow,
   SettingRowTitle,
-  SettingsContentColumn
+  SettingsContentColumn,
+  SettingTitle
 } from '..'
 import { TopicNamingSettings } from './QuickModelPopup'
 
@@ -182,9 +183,15 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     <div className="relative flex min-h-0 flex-1">
       <ContainerComponent theme={theme} {...containerProps}>
         <SettingGroup theme={theme} style={groupStyle}>
+          {!compact && (
+            <>
+              <SettingTitle>{t('settings.model')}</SettingTitle>
+              <SettingDivider />
+            </>
+          )}
           <ModelSettingRow
             compact={compact}
-            icon={<MessageSquareMore size={16} className="lucide-custom shrink-0 text-(--color-foreground)" />}
+            icon={<MessageSquareMore size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={t('settings.models.default_assistant_model')}
             description={showDescription ? t('settings.models.default_assistant_model_description') : undefined}>
             <DefaultModelSelector
@@ -199,7 +206,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           <SettingDivider />
           <ModelSettingRow
             compact={compact}
-            icon={<Rocket size={16} className="lucide-custom shrink-0 text-(--color-foreground)" />}
+            icon={<Rocket size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={
               <>
                 {t('settings.models.quick_model.label')}
@@ -229,7 +236,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
           <SettingDivider />
           <ModelSettingRow
             compact={compact}
-            icon={<Languages size={16} className="lucide-custom shrink-0 text-(--color-foreground)" />}
+            icon={<Languages size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={t('settings.models.translate_model')}
             description={showDescription ? t('settings.models.translate_model_description') : undefined}>
             <DefaultModelSelector

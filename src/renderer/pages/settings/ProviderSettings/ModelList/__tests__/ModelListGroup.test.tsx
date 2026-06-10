@@ -24,6 +24,19 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         {children}
       </button>
     ),
+    Switch: ({ checked, onCheckedChange, onClick, size, ...props }: any) => (
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        data-size={size}
+        onClick={(event) => {
+          onClick?.(event)
+          onCheckedChange?.(!checked)
+        }}
+        {...props}
+      />
+    ),
     Tooltip: ({ children, classNames }: any) => (
       <span className={classNames?.placeholder} data-testid="tooltip-trigger">
         {children}
@@ -74,13 +87,13 @@ describe('ModelListGroup', () => {
 
     expect(screen.getByTestId('model-openai::alpha')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'settings.models.group_disable' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'settings.models.group_disable' }))
 
     expect(onToggleModels).toHaveBeenCalledWith(models, false)
     expect(screen.getByTestId('model-openai::alpha')).toBeInTheDocument()
   })
 
-  it('keeps the group action tooltip trigger aligned with 20px controls', () => {
+  it('renders the group bulk action as a switch', () => {
     render(
       <ModelListGroup
         groupName="chat"
@@ -96,7 +109,12 @@ describe('ModelListGroup', () => {
       />
     )
 
-    expect(screen.getByTestId('tooltip-trigger')).toHaveClass('inline-flex', 'size-5', 'leading-none')
+    expect(screen.getByRole('switch', { name: 'settings.models.group_disable' })).toHaveAttribute(
+      'aria-checked',
+      'true'
+    )
+    expect(screen.getByRole('switch', { name: 'settings.models.group_disable' })).toHaveAttribute('data-size', 'xs')
+    expect(screen.getByTestId('tooltip-trigger')).toHaveClass('inline-flex', 'h-6', 'items-center')
   })
 
   it('toggles the group body from the title row while keeping the action separate', () => {
@@ -118,6 +136,61 @@ describe('ModelListGroup', () => {
     fireEvent.click(screen.getByRole('button', { name: 'chat' }))
 
     expect(screen.queryByTestId('model-openai::alpha')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'settings.models.group_enable' })).toBeInTheDocument()
+    expect(screen.getByRole('switch', { name: 'settings.models.group_enable' })).toBeInTheDocument()
+  })
+
+  it('applies list-level expansion commands', () => {
+    const { rerender } = render(
+      <ModelListGroup
+        groupName="chat"
+        items={models.map((model: any) => ({ model }))}
+        defaultOpen
+        disabled={false}
+        pendingModelIds={new Set()}
+        bulkToggleEnabled
+        bulkToggleLabel="settings.models.group_enable"
+        onEditModel={vi.fn()}
+        onToggleModel={vi.fn()}
+        onToggleModels={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('model-openai::alpha')).toBeInTheDocument()
+
+    rerender(
+      <ModelListGroup
+        groupName="chat"
+        items={models.map((model: any) => ({ model }))}
+        defaultOpen
+        disabled={false}
+        pendingModelIds={new Set()}
+        bulkToggleEnabled
+        bulkToggleLabel="settings.models.group_enable"
+        expansionCommand={{ expanded: false, version: 1 }}
+        onEditModel={vi.fn()}
+        onToggleModel={vi.fn()}
+        onToggleModels={vi.fn()}
+      />
+    )
+
+    expect(screen.queryByTestId('model-openai::alpha')).not.toBeInTheDocument()
+
+    rerender(
+      <ModelListGroup
+        groupName="chat"
+        items={models.map((model: any) => ({ model }))}
+        defaultOpen
+        disabled={false}
+        pendingModelIds={new Set()}
+        bulkToggleEnabled
+        bulkToggleLabel="settings.models.group_enable"
+        expansionCommand={{ expanded: true, version: 2 }}
+        onEditModel={vi.fn()}
+        onToggleModel={vi.fn()}
+        onToggleModels={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('model-openai::alpha')).toBeInTheDocument()
   })
 })

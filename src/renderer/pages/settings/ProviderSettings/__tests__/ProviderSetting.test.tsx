@@ -7,6 +7,7 @@ const useProviderMock = vi.fn()
 const useProviderAutoModelSyncMock = vi.fn()
 const useProviderOnboardingAutoEnableMock = vi.fn()
 const useProviderLegacyWebSearchSyncMock = vi.fn()
+const openHealthCheckMock = vi.fn()
 
 vi.mock('@renderer/context/ThemeProvider', () => ({
   useTheme: () => ({
@@ -40,6 +41,13 @@ vi.mock('../ConnectionSettings/AuthenticationSection', () => ({
 
 vi.mock('../ModelList', () => ({
   ModelList: ({ providerId }: any) => <div>{`model-list-${providerId}`}</div>
+}))
+
+vi.mock('../ModelList/modelListHealthContext', () => ({
+  ModelListHealthProvider: ({ children }: any) => <>{children}</>,
+  useModelListHealth: () => ({
+    openHealthCheck: openHealthCheckMock
+  })
 }))
 
 describe('ProviderSetting', () => {

@@ -1,7 +1,7 @@
 import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { ApiKeyConnectivity } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { Activity, ExternalLink, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
+import { Activity, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -9,7 +9,7 @@ import { useAuthenticationApiKey } from '../hooks/providerSetting/useAuthenticat
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import ProviderField from '../primitives/ProviderField'
 import ProviderSection from '../primitives/ProviderSection'
-import { fieldClasses } from '../primitives/ProviderSettingsPrimitives'
+import { fieldClasses, ProviderHelpLink } from '../primitives/ProviderSettingsPrimitives'
 import ProviderApiKeyListDrawer from './ProviderApiKeyListDrawer'
 
 interface ApiKeyProps {
@@ -46,21 +46,18 @@ export default function ApiKey({
         <ProviderField
           className="space-y-2"
           title={
-            <span className="inline-flex items-center gap-1">
+            <div className={fieldClasses.titleWithHelp}>
               <span>{t('settings.provider.api_key.label')}</span>
-              {meta.apiKeyWebsite ? (
-                <Tooltip content={t('settings.provider.get_api_key')} classNames={{ placeholder: 'inline-flex' }}>
-                  <a
-                    href={meta.apiKeyWebsite}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`${meta.fancyProviderName} · ${t('settings.provider.get_api_key')}`}
-                    className="inline-flex size-5 shrink-0 items-center justify-center rounded-md p-0 text-foreground-muted hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground">
-                    <ExternalLink className="size-3" aria-hidden />
-                  </a>
-                </Tooltip>
+              {meta.apiKeyWebsite && !meta.isDmxapi ? (
+                <ProviderHelpLink
+                  target="_blank"
+                  rel="noreferrer"
+                  href={meta.apiKeyWebsite}
+                  className={fieldClasses.titleHelpLink}>
+                  {t('settings.provider.get_api_key')}
+                </ProviderHelpLink>
               ) : null}
-            </span>
+            </div>
           }
           titleClassName="text-foreground">
           <div className={fieldClasses.inputRow}>
@@ -74,7 +71,7 @@ export default function ApiKey({
                 disabled={provider.id === 'copilot'}
               />
               {provider.id !== 'copilot' && (
-                <InputGroupAddon align="inline-end" className="pr-1.5 has-[>button]:mr-0">
+                <InputGroupAddon align="inline-end" className="-mr-0.5 pr-0">
                   <Tooltip
                     content={
                       showApiKey ? t('settings.provider.api_key.hide_key') : t('settings.provider.api_key.show_key')
