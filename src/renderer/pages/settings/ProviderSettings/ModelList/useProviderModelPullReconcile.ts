@@ -1,7 +1,7 @@
 import { useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
-import { useEnableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useEnableProviderWhenModelsAvailable'
 import { useProviderPullReconcile as usePullPreview } from '@renderer/pages/settings/ProviderSettings/hooks/useProviderPullReconcile'
+import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -16,12 +16,6 @@ export function useProviderModelPullReconcile(providerId: string) {
   const [pullReconcileDrawerOpen, setPullReconcileDrawerOpen] = useState(false)
   const { provider, updateProvider } = useProvider(providerId)
   const { models } = useModels({ providerId })
-  const enableProviderWhenModelsAvailable = useEnableProviderWhenModelsAvailable({
-    providerId,
-    provider,
-    updateProvider,
-    source: 'pull_reconcile_up_to_date'
-  })
 
   const closePullReconcile = useCallback(() => {
     setPullReconcileDrawerOpen(false)
@@ -42,7 +36,7 @@ export function useProviderModelPullReconcile(providerId: string) {
       if (!hasDiff) {
         // Up to date: no diff to apply, but the existing local models are valid
         // for the new key/host — enable the provider if it is currently disabled.
-        await enableProviderWhenModelsAvailable(models.length)
+        await enableProviderWhenModelsAvailable(provider, updateProvider, models.length, 'pull_reconcile_up_to_date')
         window.toast.success(
           `${t('settings.models.manage.fetch_up_to_date')} ${t('settings.models.manage.fetch_up_to_date_hint')}`
         )
@@ -53,7 +47,7 @@ export function useProviderModelPullReconcile(providerId: string) {
     } catch {
       /* toast + throw inside fetchPreview */
     }
-  }, [enableProviderWhenModelsAvailable, models.length, pullPreview, t])
+  }, [models.length, provider, pullPreview, t, updateProvider])
 
   return {
     openPullReconcile,

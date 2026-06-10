@@ -2,13 +2,13 @@ import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { providerNeedsApiKeyForModelSync } from '@renderer/pages/settings/ProviderSettings/ModelList/providerModelSyncRequirements'
+import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
 import { useEffect, useMemo, useRef } from 'react'
 
 import { useProviderModelSync } from '../useProviderModelSync'
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from './constants'
 import { getModelSyncSignature } from './getModelSyncSignature'
-import { useEnableProviderWhenModelsAvailable } from './useEnableProviderWhenModelsAvailable'
 
 const logger = loggerService.withContext('ProviderSettings:AutoModelSync')
 
@@ -18,12 +18,6 @@ export function useProviderAutoModelSync(providerId: string) {
   const { data: apiKeysData } = useProviderApiKeys(providerId)
   const { models } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
   const { syncProviderModels, isSyncingModels } = useProviderModelSync(providerId, { existingModels: [...models] })
-  const enableProviderWhenModelsAvailable = useEnableProviderWhenModelsAvailable({
-    providerId,
-    provider,
-    updateProvider,
-    source: 'auto_model_sync'
-  })
 
   const initialModelSyncSignatureRef = useRef<string | null>(null)
   const lastAutoSyncLogKeyRef = useRef<string | null>(null)
@@ -143,7 +137,7 @@ export function useProviderAutoModelSync(providerId: string) {
     initialModelSyncSignatureRef.current = initialModelSyncSignature
     void syncProviderModels()
       .then(async (syncedModels) => {
-        await enableProviderWhenModelsAvailable(syncedModels.length)
+        await enableProviderWhenModelsAvailable(provider, updateProvider, syncedModels.length, 'auto_model_sync')
       })
       .catch((error) => {
         logger.error('Provider auto model sync failed', { providerId, error })
@@ -151,12 +145,5 @@ export function useProviderAutoModelSync(providerId: string) {
           initialModelSyncSignatureRef.current = null
         }
       })
-  }, [
-    autoSyncDecision,
-    enableProviderWhenModelsAvailable,
-    initialModelSyncSignature,
-    provider,
-    providerId,
-    syncProviderModels
-  ])
+  }, [autoSyncDecision, initialModelSyncSignature, provider, providerId, syncProviderModels, updateProvider])
 }

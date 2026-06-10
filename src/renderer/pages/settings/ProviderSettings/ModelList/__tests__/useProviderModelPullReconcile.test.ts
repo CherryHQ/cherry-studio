@@ -7,6 +7,7 @@ const fetchPreviewMock = vi.fn()
 const resetPreviewMock = vi.fn()
 const confirmApplyMock = vi.fn()
 const enableProviderWhenModelsAvailableMock = vi.fn()
+const updateProviderMock = vi.fn()
 const useModelsMock = vi.fn()
 const useProviderMock = vi.fn()
 
@@ -27,8 +28,8 @@ vi.mock('@renderer/pages/settings/ProviderSettings/hooks/useProviderPullReconcil
   })
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useEnableProviderWhenModelsAvailable', () => ({
-  useEnableProviderWhenModelsAvailable: () => enableProviderWhenModelsAvailableMock
+vi.mock('@renderer/pages/settings/ProviderSettings/utils/providerEnablement', () => ({
+  enableProviderWhenModelsAvailable: (...args: any[]) => enableProviderWhenModelsAvailableMock(...args)
 }))
 
 vi.mock('../usePullReconcileSubmit', () => ({
@@ -52,7 +53,7 @@ describe('useProviderModelPullReconcile', () => {
     useModelsMock.mockReturnValue({ models: [{ id: 'cherryin::model-1' }] })
     useProviderMock.mockReturnValue({
       provider: { id: 'cherryin', isEnabled: false },
-      updateProvider: vi.fn()
+      updateProvider: updateProviderMock
     })
     window.toast = {
       success: vi.fn(),
@@ -69,7 +70,12 @@ describe('useProviderModelPullReconcile', () => {
       await result.current.openPullReconcile()
     })
 
-    expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledWith(2)
+    expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledWith(
+      { id: 'cherryin', isEnabled: false },
+      updateProviderMock,
+      2,
+      'pull_reconcile_up_to_date'
+    )
     expect(resetPreviewMock).toHaveBeenCalled()
     expect(result.current.pullReconcileDrawerOpen).toBe(false)
     expect(window.toast.success).toHaveBeenCalled()
@@ -84,7 +90,12 @@ describe('useProviderModelPullReconcile', () => {
       await result.current.openPullReconcile()
     })
 
-    expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledWith(0)
+    expect(enableProviderWhenModelsAvailableMock).toHaveBeenCalledWith(
+      { id: 'cherryin', isEnabled: false },
+      updateProviderMock,
+      0,
+      'pull_reconcile_up_to_date'
+    )
   })
 
   it('opens the reconcile drawer without enabling during preview when there is a diff', async () => {

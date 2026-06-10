@@ -4,6 +4,7 @@ import { useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { type ApiKeyConnectivity, HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
+import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
 import { checkApi as runCheckApi } from '@renderer/services/ApiService'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
@@ -14,7 +15,6 @@ import { useTranslation } from 'react-i18next'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from './constants'
 import { useAuthenticationApiKey } from './useAuthenticationApiKey'
-import { useEnableProviderWhenModelsAvailable } from './useEnableProviderWhenModelsAvailable'
 import { useProviderEndpoints } from './useProviderEndpoints'
 
 /** Runs provider connection checks against the current editable credentials and endpoint. */
@@ -31,12 +31,6 @@ export function useProviderConnectionCheck(providerId: string) {
   const { t, i18n } = useTranslation()
   const { commitInputApiKeyNow, inputApiKey } = useAuthenticationApiKey()
   const { apiHost, anthropicApiHost } = useProviderEndpoints(provider)
-  const enableProviderWhenModelsAvailable = useEnableProviderWhenModelsAvailable({
-    providerId,
-    provider,
-    updateProvider,
-    source: 'connection_check'
-  })
   const [apiKeyConnectivity, setApiKeyConnectivity] = useState<ApiKeyConnectivity>({
     kind: 'idle',
     status: HealthStatus.NOT_CHECKED,
@@ -119,7 +113,7 @@ export function useProviderConnectionCheck(providerId: string) {
 
         // Enable the provider (if disabled) only after a successful check. Enable
         // swallows its own errors, so it never diverts to the failure path.
-        await enableProviderWhenModelsAvailable(checkableModels.length)
+        await enableProviderWhenModelsAvailable(provider, updateProvider, checkableModels.length, 'connection_check')
 
         // The enable await can interleave with a newer check; drop this run if it
         // was superseded or aborted before touching success state.
@@ -156,15 +150,7 @@ export function useProviderConnectionCheck(providerId: string) {
         setConnectionCheckOpen(false)
       }
     },
-    [
-      abortInFlightCheck,
-      checkableModels.length,
-      commitInputApiKeyNow,
-      enableProviderWhenModelsAvailable,
-      i18n,
-      provider,
-      setTimeoutTimer
-    ]
+    [abortInFlightCheck, checkableModels.length, commitInputApiKeyNow, i18n, provider, setTimeoutTimer, updateProvider]
   )
 
   const checkApi = useCallback(async () => {
