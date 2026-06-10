@@ -6121,7 +6121,6 @@
         }
       },
       "api_key": "Κλειδί API",
-      "available_count": "{{count}} διαθέσιμα",
       "base_url": "Βασικό URL",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6170,7 +6169,6 @@
         "use_all_keys": "Χρήση όλων των κλειδιών"
       },
       "collapse_all": "Σύμπτυξη όλων",
-      "copy_model_id_tooltip": "Κάντε κλικ για αντιγραφή του αναγνωριστικού μοντέλου: {{id}}",
       "default_assistant_model": "Πρόεδρος Υπηρεσίας προεπιλεγμένου μοντέλου",
       "default_assistant_model_description": "Χρησιμοποιείται όταν ένας βοηθός δεν έχει μοντέλο.",
       "docs": "Τεκμηρίωση μοντέλου",
@@ -6896,13 +6894,6 @@
             "description": "Η μηχανή OCR ανοιχτού κώδικα της Google που λειτουργεί πλήρως τοπικά.",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "Πιστοποίηση",
-          "description": "Περιγραφή",
-          "language_packs": "Γλωσσικά Πακέτα",
-          "model_parameters": "Παράμετροι Μοντέλου",
-          "status": "Κατάσταση"
         },
         "title": "Ανάλυση Εγγράφων"
       },

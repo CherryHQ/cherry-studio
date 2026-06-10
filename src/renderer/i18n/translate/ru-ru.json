@@ -6121,7 +6121,6 @@
         }
       },
       "api_key": "API ключ",
-      "available_count": "{{count}} доступно",
       "base_url": "Базовый URL",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6170,7 +6169,6 @@
         "use_all_keys": "Использовать все ключи"
       },
       "collapse_all": "Свернуть все",
-      "copy_model_id_tooltip": "Н to copy model ID: {{id}}",
       "default_assistant_model": "Модель ассистента по умолчанию",
       "default_assistant_model_description": "Используется, если у ассистента нет модели.",
       "docs": "Документация модели",
@@ -6896,13 +6894,6 @@
             "description": "Открытый OCR-движок от Google, работающий полностью локально.",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "Аутентификация",
-          "description": "Описание",
-          "language_packs": "Языковые пакеты",
-          "model_parameters": "Параметры модели",
-          "status": "Статус"
         },
         "title": "Разбор документов"
       },

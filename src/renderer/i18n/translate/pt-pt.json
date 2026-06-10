@@ -6121,7 +6121,6 @@
         }
       },
       "api_key": "Chave API",
-      "available_count": "{{count}} disponíveis",
       "base_url": "URL Base",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6170,7 +6169,6 @@
         "use_all_keys": "Use chaves"
       },
       "collapse_all": "Recolher tudo",
-      "copy_model_id_tooltip": "Clique para copiar o ID do modelo: {{id}}",
       "default_assistant_model": "Modelo de assistente padrão",
       "default_assistant_model_description": "Usado quando um assistente não tem modelo.",
       "docs": "Documentação do modelo",
@@ -6896,13 +6894,6 @@
             "description": "O motor OCR de código aberto da Google que funciona totalmente localmente.",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "Autenticação",
-          "description": "Descrição",
-          "language_packs": "Pacotes de Idioma",
-          "model_parameters": "Parâmetros do Modelo",
-          "status": "Estado"
         },
         "title": "Análise de Documentos"
       },

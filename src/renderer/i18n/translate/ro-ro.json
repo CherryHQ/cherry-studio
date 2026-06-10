@@ -6121,7 +6121,6 @@
         }
       },
       "api_key": "Cheie API",
-      "available_count": "{{count}} disponibile",
       "base_url": "URL de bază",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6170,7 +6169,6 @@
         "use_all_keys": "Cheie(i)"
       },
       "collapse_all": "Restrânge tot",
-      "copy_model_id_tooltip": "Click pentru a copia ID-ul modelului: {{id}}",
       "default_assistant_model": "Model asistent implicit",
       "default_assistant_model_description": "Folosit când un asistent nu are model.",
       "docs": "Documentația modelului",
@@ -6896,13 +6894,6 @@
             "description": "Motorul OCR open-source de la Google care rulează complet local.",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "Autentificare",
-          "description": "Descriere",
-          "language_packs": "Pachete de limbă",
-          "model_parameters": "Parametrii modelului",
-          "status": "Stare"
         },
         "title": "Analiza documentelor"
       },

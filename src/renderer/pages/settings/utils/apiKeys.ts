@@ -26,7 +26,7 @@ export function validateApiKey(
     return { isValid: false, error: emptyError }
   }
 
-  if (existingKeys.includes(trimmedKey)) {
+  if (existingKeys.some((existingKey) => existingKey.trim() === trimmedKey)) {
     return { isValid: false, error: duplicateError }
   }
 

@@ -47,9 +47,7 @@ const sectionHeadingBase =
 
 export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-medium')
 
-/**
- * Authentication card: bordered container + section title.
- */
+/** Authentication section layout: slot stack only; fields provide their own surfaces. */
 export const authConnectionClasses = {
   shell: '',
   body: 'flex flex-col gap-2'
@@ -315,10 +313,7 @@ export const modelListClasses = {
   manageDrawerBulkGhostEnableHover: 'hover:!text-primary',
   /** Disable-all hover — destructive (design draft). */
   manageDrawerBulkGhostDisableHover: 'hover:!text-destructive',
-  /**
-   * Provider-grouped card (design: bordered shell with collapsible header — provider name + chevron at end).
-   * Replaces the antd-coupled wrapper; rows render inside the same card on expand.
-   */
+  /** Provider-grouped card: bordered shell with leading chevron; rows render inside the same card on expand. */
   groupCard:
     'group/modelGroup min-w-0 w-full rounded-[length:var(--radius-md)] border border-[color:var(--color-border-fg-hairline)] bg-transparent px-2 py-1',
   groupHeader:
@@ -448,7 +443,6 @@ export const modelSyncClasses = {
 } as const
 
 export const apiKeyListClasses = {
-  shell: 'provider-settings-default-scope space-y-4',
   summaryMeta:
     'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted tabular-nums',
   helperText: 'text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-foreground-muted',
@@ -478,7 +472,7 @@ export const apiKeyListClasses = {
 export const oauthCardClasses = {
   /** Fills the auth column; no max-width so the card tracks the detail pane (fluid layout). */
   container: 'w-full min-w-0',
-  /** Aligned with `authConnectionClasses.shell`: `--section-border` hairline, `--radius-xl` (large card), no shadow / fill. */
+  /** Large bordered auth card, no shadow or filled background. */
   shell:
     'w-full min-w-0 overflow-hidden rounded-[length:var(--radius-xl)] border border-[color:var(--color-border-fg-hairline)] px-3 py-2.5',
   loginFooterRow: 'mt-2.5 flex items-center justify-center gap-4',

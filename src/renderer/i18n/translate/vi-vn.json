@@ -6121,7 +6121,6 @@
         }
       },
       "api_key": "Khóa API",
-      "available_count": "Có {{count}} mục",
       "base_url": "URL cơ sở",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6170,7 +6169,6 @@
         "use_all_keys": "Clave(s)"
       },
       "collapse_all": "Thu gọn tất cả",
-      "copy_model_id_tooltip": "Nhấp để sao chép ID mô hình: {{id}}",
       "default_assistant_model": "Mô hình Trợ lý Mặc định",
       "default_assistant_model_description": "Dùng khi trợ lý chưa có mô hình",
       "docs": "Tài liệu mô hình",
@@ -6896,13 +6894,6 @@
             "description": "Công cụ OCR mã nguồn mở của Google chạy hoàn toàn cục bộ.",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "Xác thực",
-          "description": "Mô tả",
-          "language_packs": "Gói ngôn ngữ",
-          "model_parameters": "Tham số mô hình",
-          "status": "Trạng thái"
         },
         "title": "Phân tích tài liệu"
       },

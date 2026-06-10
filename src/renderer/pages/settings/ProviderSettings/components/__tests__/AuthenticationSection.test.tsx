@@ -106,6 +106,7 @@ describe('AuthenticationSection', () => {
 
   it('passes only minimal coordination props to child domains', () => {
     const showApiKeyError = vi.fn()
+    const openModelHealthCheck = vi.fn()
     useProviderConnectionCheckMock.mockReturnValue({
       apiKeyConnectivity: { status: 'failed', checking: false },
       connectionCheckOpen: true,
@@ -118,7 +119,9 @@ describe('AuthenticationSection', () => {
       showApiKeyError
     })
 
-    const { getByRole } = render(<AuthenticationSection providerId="openai" />)
+    const { getByRole } = render(
+      <AuthenticationSection providerId="openai" onOpenModelHealthCheck={openModelHealthCheck} />
+    )
 
     expect(apiKeyPropsSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -136,7 +139,8 @@ describe('AuthenticationSection', () => {
     expect(providerConnectionCheckDrawerPropsSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         open: true,
-        apiKeys: ['sk-test']
+        apiKeys: ['sk-test'],
+        onOpenModelHealthCheck: openModelHealthCheck
       })
     )
     expect(providerSpecificSettingsPropsSpy).toHaveBeenNthCalledWith(

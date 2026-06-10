@@ -73,7 +73,6 @@ describe('ModelListHeader', () => {
     render(<ModelListHeader {...baseProps} actions={<button type="button">external-action</button>} />)
 
     expect(screen.getByText('settings.models.list_title')).toBeInTheDocument()
-    expect(screen.queryByText('settings.models.available_count')).not.toBeInTheDocument()
     expect(screen.getByPlaceholderText('models.search.placeholder')).toBeInTheDocument()
     expect(screen.getByText('external-action')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'settings.models.bulk_enable' })).not.toBeInTheDocument()

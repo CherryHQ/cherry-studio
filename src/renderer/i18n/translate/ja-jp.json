@@ -6121,7 +6121,6 @@
         }
       },
       "api_key": "API キー",
-      "available_count": "{{count}}件利用可能",
       "base_url": "ベース URL",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6170,7 +6169,6 @@
         "use_all_keys": "キー"
       },
       "collapse_all": "すべて折りたたむ",
-      "copy_model_id_tooltip": "モデルIDをコピーするにはクリック: {{id}}",
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
       "docs": "モデルドキュメント",
@@ -6896,13 +6894,6 @@
             "description": "GoogleのオープンソースOCRエンジンで、完全にローカルで動作します。",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "認証",
-          "description": "説明",
-          "language_packs": "言語パック",
-          "model_parameters": "モデルパラメータ",
-          "status": "ステータス"
         },
         "title": "ドキュメント解析"
       },

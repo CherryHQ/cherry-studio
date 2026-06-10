@@ -6121,7 +6121,6 @@
         }
       },
       "api_key": "API Key",
-      "available_count": "{{count}} available",
       "base_url": "Base URL",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6170,7 +6169,6 @@
         "use_all_keys": "Key(s)"
       },
       "collapse_all": "Collapse all",
-      "copy_model_id_tooltip": "Click to copy model ID: {{id}}",
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Used when an assistant has no model.",
       "docs": "Model docs",
@@ -6896,13 +6894,6 @@
             "description": "Google's open-source OCR engine that runs fully locally.",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "Authentication",
-          "description": "Description",
-          "language_packs": "Language Packs",
-          "model_parameters": "Model Parameters",
-          "status": "Status"
         },
         "title": "Document Parsing"
       },

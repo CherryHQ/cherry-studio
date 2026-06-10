@@ -6121,7 +6121,6 @@
         }
       },
       "api_key": "API-Schlüssel",
-      "available_count": "{{count}} verfügbar",
       "base_url": "Basis-URL",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6170,7 +6169,6 @@
         "use_all_keys": "Schlüssel verwenden"
       },
       "collapse_all": "Alle einklappen",
-      "copy_model_id_tooltip": "Klicken, um Modell-ID zu kopieren: {{id}}",
       "default_assistant_model": "Standard-Assistent-Modell",
       "default_assistant_model_description": "Wird verwendet, wenn ein Assistent kein Modell hat.",
       "docs": "Modelldokumentation",
@@ -6896,13 +6894,6 @@
             "description": "Googles quelloffene OCR-Engine, die vollständig lokal läuft.",
             "name": "Tesseract-OCR"
           }
-        },
-        "sections": {
-          "authentication": "Authentifizierung",
-          "description": "Beschreibung",
-          "language_packs": "Sprachpakete",
-          "model_parameters": "Modellparameter",
-          "status": "Status"
         },
         "title": "Dokumentenanalyse"
       },

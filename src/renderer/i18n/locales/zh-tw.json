@@ -6121,7 +6121,6 @@
         }
       },
       "api_key": "API 金鑰",
-      "available_count": "可用模型 {{count}} 個",
       "base_url": "基礎 URL",
       "bulk_disable": "全部停用",
       "bulk_enable": "全部啟用",
@@ -6170,7 +6169,6 @@
         "use_all_keys": "使用金鑰"
       },
       "collapse_all": "全部折疊",
-      "copy_model_id_tooltip": "點選複製模型 ID：{{id}}",
       "default_assistant_model": "預設助手模型",
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "docs": "模型文件",
@@ -6896,13 +6894,6 @@
             "description": "Google 開源的光學字元辨識引擎，完全本機執行。",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "認證",
-          "description": "說明",
-          "language_packs": "語言套件",
-          "model_parameters": "模型參數",
-          "status": "狀態"
         },
         "title": "文件解析"
       },
