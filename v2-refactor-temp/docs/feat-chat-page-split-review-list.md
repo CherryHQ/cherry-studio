@@ -19,11 +19,13 @@ For the target system shape behind the split, see [feat/chat-page Architecture](
 
 The `src/main` portion is ready for review by split PR boundary. Reviewers do not need to wait for the remaining chat/page renderer slices before starting the backend review.
 
+A path audit of the split PR table finds direct `src/main` changes in `split-16`, `split-17`, `split-18`, `split-19`, `split-20`, `split-25`, `split-28`, `split-30`, `split-31`, `split-32`, `split-35`, `split-60`, `split-61`, `split-62`, `split-63`, `split-64`, `split-65`, `split-66`, and `split-67`. `split-59` is grouped with the builtin tool PRs because it is the shared contract prerequisite for `split-60` through `split-62`.
+
 Current backend review boundaries:
 
-- AI runtime and tool plumbing: `split-16` through `split-19`, plus `split-63` for AI SDK meta-tool hardening.
+- AI runtime, trace, and tool plumbing: `split-16` through `split-19`, `split-35`, and `split-63`.
 - Provider settings and runtime routing: `split-20` and `split-67`.
-- Agent/resource and DataApi workflows: `split-30`, `split-31`, `split-32`, `split-64`, `split-65`, and `split-66`.
+- Assistant/library, agent/resource, and DataApi workflows: `split-25`, `split-28`, `split-30`, `split-31`, `split-32`, `split-64`, `split-65`, and `split-66`.
 - Builtin tool exposure and lookup cores: `split-59` through `split-62`.
 
 Recent convergence decisions:
