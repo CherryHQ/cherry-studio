@@ -12,7 +12,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { mockList, mockGetById, mockSearch } = vi.hoisted(() => ({
   mockList: vi.fn<(query: unknown) => Promise<unknown>>(),
   mockGetById: vi.fn<(id: string) => Promise<unknown>>(),
-  mockSearch: vi.fn<(baseId: string, query: string) => Promise<unknown[]>>()
+  mockSearch: vi.fn<(baseId: string, query: string, options?: unknown) => Promise<unknown[]>>()
 }))
 
 vi.mock('@data/services/KnowledgeBaseService', () => ({
@@ -112,6 +112,26 @@ describe('knowledge routes (v2)', () => {
     expect(status).toBe(200)
     expect(body.results.map((r: any) => r.chunkId)).toEqual(['b', 'a'])
     expect(body.results[0].knowledge_base_id).toBe('kb-2')
+  })
+
+  it('POST /search forwards top_k to orchestrator.search as the per-base topK', async () => {
+    // Post per-call refactor the base no longer carries documentCount; the gateway must
+    // pass topK so a single base can return up to top_k results before the merge and
+    // slice. Without it search() defaults to topK=10 and a top_k above 10 (the schema
+    // cap is 50) could never be filled.
+    mockList.mockResolvedValue({ items: [kb('kb-1', 'KB 1')], total: 1, page: 1 })
+    mockSearch.mockResolvedValue([])
+    await call('POST', '/knowledge-bases/search', { query: 'hi', top_k: 15 })
+    expect(mockSearch).toHaveBeenCalledWith('kb-1', 'hi', { topK: 15 })
+  })
+
+  it('POST /search defaults top_k to the service default (10) when omitted', async () => {
+    // top_k mirrors kb__search topK: omitting it must behave like the agent path,
+    // i.e. the schema fills KNOWLEDGE_SEARCH_DEFAULT_TOP_K (10), not the old 5.
+    mockList.mockResolvedValue({ items: [kb('kb-1', 'KB 1')], total: 1, page: 1 })
+    mockSearch.mockResolvedValue([])
+    await call('POST', '/knowledge-bases/search', { query: 'hi' })
+    expect(mockSearch).toHaveBeenCalledWith('kb-1', 'hi', { topK: 10 })
   })
 
   it('POST /search warns when no knowledge bases are configured', async () => {

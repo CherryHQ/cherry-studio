@@ -17,7 +17,10 @@ const KnowledgeBaseIdSchema = z.string().min(1, 'Knowledge base ID is required')
 export const KnowledgeSearchSchema = z.object({
   query: z.string().min(1, 'Query is required').max(1000, 'Query must be at most 1000 characters'),
   knowledge_base_ids: z.array(z.string().min(1, 'Knowledge base ID cannot be empty')).optional(),
-  document_count: z.coerce.number().int().min(1).max(20).default(5)
+  // Mirrors the kb__search agent tool's `topK` contract: same ceiling (50) and the
+  // same default as KnowledgeService (`KNOWLEDGE_SEARCH_DEFAULT_TOP_K = 10`), so
+  // omitting `top_k` here behaves like omitting `topK` on the agent tool.
+  top_k: z.coerce.number().int().min(1).max(50).default(10)
 })
 
 /** `GET /` pagination query. */

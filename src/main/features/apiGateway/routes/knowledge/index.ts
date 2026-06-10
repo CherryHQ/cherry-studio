@@ -46,7 +46,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
   .post(
     '/search',
     async ({ body }) => {
-      const { query, knowledge_base_ids, document_count = 5 } = body
+      const { query, knowledge_base_ids, top_k } = body
 
       // Resolve target bases: the requested ids (must exist) or every base.
       let targetBases: { id: string; name: string }[]
@@ -88,7 +88,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
       const resultsPerBase = await Promise.all(
         targetBases.map(async (base) => {
           try {
-            const searchResults = await orchestrator.search(base.id, query)
+            const searchResults = await orchestrator.search(base.id, query, { topK: top_k })
             return {
               base,
               results: searchResults.map((result) => ({
@@ -123,7 +123,7 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
       const sortedResults = resultsPerBase
         .flatMap((r) => r.results)
         .sort((a, b) => b.score - a.score)
-        .slice(0, document_count)
+        .slice(0, top_k)
 
       return {
         query,
