@@ -26,14 +26,11 @@ describe('ProviderService reorder', () => {
   it('creates new providers at the end of the list', async () => {
     await seedProviders()
 
-    const created = await providerService.create({ providerId: 'grok', name: 'Grok' })
+    await providerService.create({ providerId: 'grok', name: 'Grok' })
 
     const rows = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'grok')).limit(1)
 
     expect(rows[0]?.orderKey).toBeTruthy()
-    // New providers are created disabled; the auto-enable flow turns them on once models exist.
-    expect(created.isEnabled).toBe(false)
-    expect(rows[0]?.isEnabled).toBe(false)
     expect(await readOrder()).toEqual(['openai', 'anthropic', 'gemini', 'grok'])
   })
 
