@@ -190,7 +190,7 @@ describe('PromptMigrator', () => {
       expect(ctx.db.transaction).toHaveBeenCalledTimes(1)
     })
 
-    it('should default title to Untitled when missing', async () => {
+    it('should default title to empty string when missing', async () => {
       const phrases = [makePhrase({ id: 'p1', title: '', content: 'c1' })]
       const ctx = createMockContext({ tableData: phrases })
       const migrator = new PromptMigrator()
@@ -215,7 +215,7 @@ describe('PromptMigrator', () => {
 
       // First insert call is the prompt row
       const [promptRow] = insertCalls[0] as Array<Record<string, unknown>>
-      expect(promptRow.title).toBe('Untitled')
+      expect(promptRow.title).toBe('')
     })
 
     it('should preserve legacy quick phrase order', async () => {

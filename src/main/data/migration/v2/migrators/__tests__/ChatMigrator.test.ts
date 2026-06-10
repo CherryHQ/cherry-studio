@@ -481,7 +481,7 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
   it('extracts topic metadata from state.defaultAssistant.topics[] and applies legacy id remap', async () => {
     // Topics under state.defaultAssistant.topics[] (a slot separate from
     // state.assistants[].topics[]) used to be silently dropped — they showed
-    // up as "Unnamed Topic" with no timestamps post-migration. With v2's
+    // up with empty name and no timestamps post-migration. With v2's
     // runtime-default architecture, AssistantMigrator remaps legacy 'default'
     // to a UUID; ChatMigrator must replay that remap so the topic →
     // assistantId lookup points at the new UUID, not the dead literal.
