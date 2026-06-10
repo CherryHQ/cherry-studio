@@ -1937,6 +1937,7 @@
       "to_file": "保存为图片"
     },
     "code": "代码",
+    "code_block_progress": "正在生成 {{language}} · {{lines}} 行 · {{characters}} 字符",
     "empty_preview": "无内容可展示",
     "generating": "生成中",
     "preview": "预览",

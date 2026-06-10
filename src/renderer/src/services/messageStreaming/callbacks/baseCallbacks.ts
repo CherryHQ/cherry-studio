@@ -40,6 +40,7 @@ interface BaseCallbacksDependencies {
   saveUpdatesToDB: any
   assistant: Assistant
   getCurrentThinkingInfo?: () => { blockId: string | null; millsec: number }
+  flushPendingText?: () => Promise<void>
 }
 
 export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
@@ -51,7 +52,8 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
     assistantMsgId,
     saveUpdatesToDB,
     assistant,
-    getCurrentThinkingInfo
+    getCurrentThinkingInfo,
+    flushPendingText
   } = deps
 
   const startTime = Date.now()
@@ -165,6 +167,7 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
       const possibleBlockId = findBlockIdForCompletion()
 
       if (possibleBlockId) {
+        await flushPendingText?.()
         // 更改上一个block的状态为ERROR/PAUSED
         const changes: Partial<ThinkingMessageBlock> = {
           status: isErrorTypeAbort ? MessageBlockStatus.PAUSED : MessageBlockStatus.ERROR
