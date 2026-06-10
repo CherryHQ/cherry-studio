@@ -82,6 +82,7 @@ All currently pushed `codex/split-*` branches now have non-draft PRs open agains
 | [#15912](https://github.com/CherryHQ/cherry-studio/pull/15912) | `codex/split-59-shared-builtin-tool-contracts` | Shared builtin AI tool contracts |
 | [#15913](https://github.com/CherryHQ/cherry-studio/pull/15913) | `codex/split-60-kb-tool-lookup-core` | Knowledge lookup core |
 | [#15914](https://github.com/CherryHQ/cherry-studio/pull/15914) | `codex/split-61-web-tool-lookup-core` | Web lookup core |
+| [#15915](https://github.com/CherryHQ/cherry-studio/pull/15915) | `codex/split-62-cherry-builtin-mcp-server` | Cherry builtin-tools MCP server |
 
 ## Dependency DAG
 
@@ -138,10 +139,11 @@ flowchart TD
   p59["#15912 split-59 builtin tool contracts"]
   p60["#15913 split-60 knowledge lookup core"]
   p61["#15914 split-61 web lookup core"]
+  p62["#15915 split-62 Cherry builtin MCP server"]
   f_clickable["future clickable file path renderer"]
   f_markdown["future markdown renderer"]
   f_agent_tools["future agent tool renderers"]
-  f_builtin_tools["future builtin tool adapters"]
+  f_builtin_tools["future builtin tool consumers"]
   f_pages["future chat/pages integration"]
 
   p02 --> p03
@@ -201,7 +203,8 @@ flowchart TD
 
   p59 --> p60
   p60 --> p61
-  p61 --> f_builtin_tools
+  p61 --> p62
+  p62 --> f_builtin_tools
 ```
 
 Dependency notes:
@@ -209,7 +212,7 @@ Dependency notes:
 - `split-25` is the broad library resource workflow. `split-26`, `split-27`, `split-28`, `split-29`, `split-30`, and `split-34` are independent prerequisites or extractable pieces that should be reviewed before finalizing the broad workflow.
 - `split-39` is the earlier combined message-flow split. `split-50` and `split-51` are the smaller replacement graph/layout slices, so reviewers should reconcile or supersede `split-39` rather than merge both shapes blindly.
 - `split-52` through `split-58` are chat tool-rendering foundation slices. `split-56`, `split-57`, and `split-58` form a stacked helper sequence on top of the response adapter; `split-55` is a parallel parent-metadata helper for future agent-tool renderers.
-- `split-59`, `split-60`, and `split-61` form the builtin tool contract and lookup-core chain. Review `split-59` before the knowledge and web lookup extraction PRs.
+- `split-59` through `split-62` form the builtin tool contract, lookup-core, and Cherry MCP exposure chain. Review `split-59` before the knowledge and web lookup extraction PRs, then `split-62` after those lookup cores are stable.
 
 ## Suggested Review Order
 
@@ -220,7 +223,7 @@ Dependency notes:
 5. Review message provider, selection, and file-path utilities: `split-45`, `split-46`, `split-47`, `split-48`, `split-49`.
 6. Review message flow: `split-50` and `split-51`; `split-39` is the earlier combined flow-model split and should be reconciled with those smaller PRs during review.
 7. Review chat tool foundation slices: `split-52` through `split-58`.
-8. Review builtin tool contract and lookup-core slices: `split-59`, `split-60`, `split-61`.
+8. Review builtin tool contract, lookup-core, and MCP exposure slices: `split-59`, `split-60`, `split-61`, `split-62`.
 
 ## Follow-up Split Backlog
 
@@ -229,7 +232,7 @@ These areas still need branch work after the pushed PR set above:
 - Clickable file path renderer, after provider runtime and file path utilities are available.
 - Markdown renderer slice.
 - Agent tool renderer set, after the chat tool foundations in `split-52` through `split-58`.
-- Builtin tool adapter consumers, after the shared contract and lookup cores in `split-59` through `split-61`.
+- Builtin tool adapter consumers, after the shared contract, lookup cores, and Cherry MCP server in `split-59` through `split-62`.
 - Remaining `src/renderer/components/chat/` and `src/renderer/pages/` slices that are not covered by the pushed branches.
 
 ## Reviewer Checklist

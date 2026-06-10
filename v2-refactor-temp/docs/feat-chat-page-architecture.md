@@ -54,7 +54,7 @@ Backend split areas:
 | Stream control | Queue steering and continuation events for active streams | `split-17` |
 | Agent runtime | Keep agent sessions warm and expose agent resource policy | `split-18`, `split-30` |
 | MCP tools | Add Claude MCP tool runtime and chat tool-rendering foundations | `split-19`, `split-52` through `split-58` |
-| Builtin tools | Keep builtin tool contracts shared and extract knowledge/web lookup cores | `split-59`, `split-60`, `split-61` |
+| Builtin tools | Keep builtin tool contracts shared, extract knowledge/web lookup cores, and expose Cherry builtin tools through MCP | `split-59`, `split-60`, `split-61`, `split-62` |
 | Topic operations | Copy a selected topic branch into a new topic | `split-32` |
 | Provider settings | Merge provider setting patches without losing fields | `split-20` |
 
@@ -197,7 +197,7 @@ The broad library resource workflow should be finalized after its extracted prer
 | Message list foundations | `split-40` through `split-49` |
 | Message flow | `split-50`, `split-51`; reconcile with `split-39` |
 | Chat tool foundations | `split-52` through `split-58` |
-| Builtin tool lookup foundations | `split-59`, `split-60`, `split-61` |
+| Builtin tool lookup foundations | `split-59`, `split-60`, `split-61`, `split-62` |
 
 ## Non-goals
 
@@ -215,5 +215,5 @@ The currently open follow-up areas should consume the foundations above:
 - clickable file path renderer should consume provider runtime and file path utilities
 - markdown renderer should consume tool response foundations only where needed
 - agent tool renderers should consume tool response adapter, parent metadata, activity/status helpers, arguments table, output truncation, and task data helpers
-- builtin AI tool adapters should consume shared builtin contracts plus the knowledge and web lookup cores
+- builtin AI tool adapters should consume shared builtin contracts plus the knowledge/web lookup cores and Cherry builtin-tools MCP server
 - remaining Home/Agent page integration should stay in page adapters and route components, not inside shared chat core
