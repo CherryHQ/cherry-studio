@@ -175,9 +175,6 @@ export enum IpcChannel {
   Knowledge_ReindexItems = 'knowledge:reindex-items',
   Knowledge_Search = 'knowledge:search',
   Knowledge_ListItemChunks = 'knowledge:list-item-chunks',
-  // v1 bridge: still invoked by the v1 Redux store/knowledge slice until that
-  // slice is removed in the unified step. Routed to the v2 KnowledgeService.
-  KnowledgeBase_Delete = 'knowledge-base:delete',
 
   FileProcessing_StartJob = 'file-processing:start-job',
   FileProcessing_ListAvailableProcessors = 'file-processing:list-available-processors',

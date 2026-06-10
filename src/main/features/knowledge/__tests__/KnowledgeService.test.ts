@@ -385,30 +385,8 @@ describe('KnowledgeService', () => {
       IpcChannel.Knowledge_DeleteItems,
       IpcChannel.Knowledge_ReindexItems,
       IpcChannel.Knowledge_Search,
-      IpcChannel.Knowledge_ListItemChunks,
-      IpcChannel.KnowledgeBase_Delete
+      IpcChannel.Knowledge_ListItemChunks
     ])
-  })
-
-  it('routes the v1 KnowledgeBase_Delete bridge to deleteBase and validates the id', async () => {
-    const service = new KnowledgeService()
-
-    ;(service as unknown as { onInit: () => void }).onInit()
-
-    const deleteBaseSpy = vi.spyOn(service, 'deleteBase').mockResolvedValue()
-    const ipcHandleMock = (service as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle
-    const handler = ipcHandleMock.mock.calls.find((call) => call[0] === IpcChannel.KnowledgeBase_Delete)?.[1] as (
-      event: unknown,
-      id: unknown
-    ) => Promise<void>
-
-    await handler(null, 'kb-1')
-    expect(deleteBaseSpy).toHaveBeenCalledWith('kb-1')
-
-    await expect(handler(null, '')).rejects.toThrow('non-empty base id')
-    await expect(handler(null, '   ')).rejects.toThrow('non-empty base id')
-    await expect(handler(null, 123)).rejects.toThrow('non-empty base id')
-    expect(deleteBaseSpy).toHaveBeenCalledTimes(1)
   })
 
   it('does not cancel knowledge jobs during service shutdown', async () => {

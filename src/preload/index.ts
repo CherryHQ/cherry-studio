@@ -355,12 +355,6 @@ const api = {
     listItemChunks: (baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> =>
       ipcRenderer.invoke(IpcChannel.Knowledge_ListItemChunks, { baseId, itemId })
   },
-  knowledgeBase: {
-    // v1 renderer knowledge path retired. Only base deletion remains, still
-    // invoked by the v1 Redux store/knowledge slice until that slice is removed
-    // in the unified step. v2 knowledge runs via window.api.knowledge.*.
-    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id)
-  },
   window: {
     setMinimumSize: (width: number, height: number) =>
       ipcRenderer.invoke(IpcChannel.MainWindow_SetMinimumSize, width, height),

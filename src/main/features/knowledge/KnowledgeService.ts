@@ -652,14 +652,5 @@ export class KnowledgeService extends BaseService {
       const { baseId, itemId } = KnowledgeItemChunksPayloadSchema.parse(payload)
       return await this.listItemChunks(baseId, itemId)
     })
-    // v1 bridge: the legacy Redux store/knowledge slice still calls
-    // window.api.knowledgeBase.delete(id) (a raw base id) until that slice is
-    // removed in the unified step. Route it to the v2 deletion path.
-    this.ipcHandle(IpcChannel.KnowledgeBase_Delete, async (_, id: unknown) => {
-      if (typeof id !== 'string' || id.trim().length === 0) {
-        throw new Error('KnowledgeBase_Delete requires a non-empty base id')
-      }
-      return await this.deleteBase(id)
-    })
   }
 }
