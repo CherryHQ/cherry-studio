@@ -31,6 +31,7 @@ import { loggerService } from '@logger'
 import { isProvisioned, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/ai/agents/cherryclaw/prompt'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
+import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import ClawServer from '@main/ai/mcp/servers/claw'
 import WorkspaceMemoryServer from '@main/ai/mcp/servers/workspaceMemory'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
@@ -493,6 +494,8 @@ async function buildToolPermissions(
   const isAssistant = agentConfig?.builtin_role === 'assistant'
   const toolPolicySnapshot = await createClaudeAgentToolPolicySnapshot(agent, {
     autoAllowRuntimeNamePrefixes: [
+      // cherry-tools is injected for every session and only exposes Cherry read-only builtin tools.
+      'mcp__cherry-tools__',
       ...(soulEnabled ? ['mcp__claw__'] : []),
       ...(isAssistant ? ['mcp__assistant__'] : [])
     ]
@@ -638,8 +641,12 @@ export async function buildMcpServers(
     }
   }
 
-  // 3. Exa — structured web search via HTTP (free tier, no API key)
-  mcpList.exa = { type: 'http', url: 'https://mcp.exa.ai/mcp' }
+  // 3. Cherry tools
+  mcpList['cherry-tools'] = {
+    type: 'sdk',
+    name: 'cherry-tools',
+    instance: new CherryBuiltinToolsServer().mcpServer
+  }
 
   // 4. Claw — agent autonomy tools (soul mode only). Use `agent.id` instead of
   // `session.agentId` so TS can see the value is non-null after the upstream
@@ -708,6 +715,10 @@ export function adjustAllowedToolsForMcp(
   if (!soulEnabled && !isAssistant) return allowedTools
 
   const result = allowedTools ? [...allowedTools] : []
+
+  if (!result.includes('mcp__cherry-tools__*')) {
+    result.push('mcp__cherry-tools__*')
+  }
 
   if (soulEnabled && !result.includes('mcp__claw__*')) {
     result.push('mcp__claw__*')
