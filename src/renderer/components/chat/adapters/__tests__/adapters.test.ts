@@ -1,0 +1,166 @@
+import type { Topic } from '@renderer/types'
+import { TopicType } from '@renderer/types'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { describe, expect, it, vi } from 'vitest'
+
+import { ComposerAdapter, createSessionComposerAdapter, ResourceListAdapter } from '../index'
+
+function createTopic(overrides: Partial<Topic> = {}): Topic {
+  return {
+    id: 'topic-1',
+    type: TopicType.Chat,
+    assistantId: 'assistant-1',
+    name: 'Topic title',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    messages: [],
+    ...overrides
+  }
+}
+
+function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessionEntity {
+  return {
+    id: 'session-1',
+    agentId: 'agent-1',
+    name: 'Session title',
+    description: 'Session description',
+    workspaceId: 'ws-1',
+    workspace: {
+      id: 'ws-1',
+      name: 'workspace',
+      path: '/tmp/workspace',
+      type: 'user',
+      orderKey: 'a0',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    },
+    orderKey: 'a0',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...overrides
+  }
+}
+
+function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
+  return {
+    id: 'assistant-1',
+    name: 'Assistant title',
+    prompt: '',
+    emoji: 'CS',
+    description: 'Assistant description',
+    settings: DEFAULT_ASSISTANT_SETTINGS,
+    modelId: null,
+    modelName: null,
+    mcpServerIds: [],
+    knowledgeBaseIds: [],
+    tags: [],
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:01.000Z',
+    ...overrides
+  }
+}
+
+describe('chat adapters', () => {
+  it('maps topics to stable resource items without leaking the raw message list', () => {
+    const item = ResourceListAdapter.fromTopic(createTopic({ pinned: true, prompt: 'Prompt text' }), {
+      active: true
+    })
+
+    expect(item).toMatchObject({
+      id: 'topic-1',
+      kind: 'topic',
+      title: 'Topic title',
+      subtitle: 'Prompt text',
+      status: 'active',
+      pinned: true,
+      active: true,
+      disabled: false
+    })
+    expect('messages' in item).toBe(false)
+  })
+
+  it('maps sessions to resource items with caller-owned state', () => {
+    const item = ResourceListAdapter.fromSession(createSession(), {
+      channel: 'terminal',
+      pinned: true,
+      streaming: true
+    })
+
+    expect(item).toMatchObject({
+      id: 'session-1',
+      kind: 'session',
+      title: 'Session title',
+      subtitle: 'Session description',
+      status: 'streaming',
+      pinned: true,
+      active: false,
+      disabled: false,
+      meta: {
+        agentId: 'agent-1',
+        accessiblePathCount: 1,
+        channel: 'terminal'
+      }
+    })
+  })
+
+  it('maps assistants to stable resource items', () => {
+    const item = ResourceListAdapter.fromAssistant(createAssistant(), {
+      active: true,
+      pinned: true
+    })
+
+    expect(item).toMatchObject({
+      id: 'assistant-1',
+      kind: 'assistant',
+      title: 'Assistant title',
+      subtitle: 'Assistant description',
+      status: 'active',
+      pinned: true,
+      active: true,
+      disabled: false,
+      meta: {
+        emoji: 'CS',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:01.000Z'
+      }
+    })
+    expect('settings' in item).toBe(false)
+    expect('prompt' in item).toBe(false)
+  })
+
+  it('creates composer contracts that only delegate send and stop', async () => {
+    const send = vi.fn()
+    const stop = vi.fn()
+    const adapter = ComposerAdapter.createChat({
+      assistantId: 'assistant-1',
+      topicId: 'topic-1',
+      draft: { text: 'hello', tokens: [{ id: 'file-1', kind: 'file', label: 'chat.ts' }] },
+      streaming: true,
+      capabilities: { stop: true },
+      send,
+      stop
+    })
+
+    await adapter.send({ target: adapter.target, draft: adapter.draft })
+    await adapter.stop?.(adapter.target)
+
+    expect(adapter.target).toEqual({ kind: 'chat', id: 'topic-1', assistantId: 'assistant-1' })
+    expect(send).toHaveBeenCalledWith({
+      target: adapter.target,
+      draft: { text: 'hello', tokens: [{ id: 'file-1', kind: 'file', label: 'chat.ts' }] }
+    })
+    expect(stop).toHaveBeenCalledWith(adapter.target)
+  })
+
+  it('creates session composer targets', () => {
+    const adapter = createSessionComposerAdapter({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      draft: { text: '' },
+      send: vi.fn()
+    })
+
+    expect(adapter.target).toEqual({ kind: 'session', id: 'session-1', agentId: 'agent-1' })
+  })
+})
