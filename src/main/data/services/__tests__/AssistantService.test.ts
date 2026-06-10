@@ -292,6 +292,29 @@ describe('AssistantDataService', () => {
       expect(result.items.map((a) => a.id)).toEqual(['ast-1'])
     })
 
+    it('should filter by updatedAtFrom and sort by updatedAt descending', async () => {
+      const cutoff = Date.parse('2026-05-01T00:00:00.000Z')
+      await seedAssistantRow([
+        { id: 'ast-old', name: 'Research old', updatedAt: cutoff - 1, orderKey: 'a0' },
+        { id: 'ast-newer', name: 'Research newer', updatedAt: cutoff + 2000, orderKey: 'a1' },
+        { id: 'ast-newest', name: 'Research newest', updatedAt: cutoff + 3000, orderKey: 'a2' },
+        { id: 'ast-other', name: 'Other', updatedAt: cutoff + 4000, orderKey: 'a3' }
+      ])
+
+      const result = await assistantDataService.list(
+        listQuery({
+          search: 'Research',
+          limit: 10,
+          updatedAtFrom: cutoff,
+          sortBy: 'updatedAt',
+          orderBy: 'desc'
+        })
+      )
+
+      expect(result.items.map((a) => a.id)).toEqual(['ast-newest', 'ast-newer'])
+      expect(result.total).toBe(2)
+    })
+
     it('should treat %/_ in search as literals, not wildcards', async () => {
       await seedAssistantRow([
         { id: 'ast-1', name: 'percent_100', description: '' },

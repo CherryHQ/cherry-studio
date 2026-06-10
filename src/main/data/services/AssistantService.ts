@@ -277,8 +277,30 @@ export class AssistantDataService {
       const assistantIds = await tagService.getEntityIdsByTagsTx(this.db, 'assistant', query.tagIds)
       conditions.push(assistantIds.length > 0 ? inArray(assistantTable.id, assistantIds) : sql`0 = 1`)
     }
+    if (query.updatedAtFrom !== undefined) {
+      conditions.push(gte(assistantTable.updatedAt, query.updatedAtFrom))
+    }
 
     const whereClause = and(...conditions)
+    const sortBy = query.sortBy ?? 'orderKey'
+    const orderBy = query.orderBy ?? (sortBy === 'orderKey' || sortBy === 'name' ? 'asc' : 'desc')
+    const orderFn = orderBy === 'asc' ? asc : desc
+    const sortByToColumn = {
+      createdAt: assistantTable.createdAt,
+      updatedAt: assistantTable.updatedAt,
+      name: assistantTable.name,
+      orderKey: assistantTable.orderKey
+    } as const
+    const sortColumn = sortByToColumn[sortBy] ?? assistantTable.orderKey
+    const orderByClauses =
+      sortBy === 'updatedAt'
+        ? [orderFn(sortColumn), asc(assistantTable.id)]
+        : [
+            sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
+            asc(pinTable.orderKey),
+            orderFn(sortColumn),
+            asc(assistantTable.createdAt)
+          ]
 
     // Pin-aware ordering: LEFT JOIN with the pin table, push pinned rows to
     // the top (sorted by pin.orderKey ASC), then unpinned rows sorted by the
@@ -292,15 +314,7 @@ export class AssistantDataService {
         .leftJoin(userModelTable, eq(assistantTable.modelId, userModelTable.id))
         .leftJoin(pinTable, and(eq(pinTable.entityType, 'assistant'), eq(pinTable.entityId, assistantTable.id)))
         .where(whereClause)
-        .orderBy(
-          sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
-          asc(pinTable.orderKey),
-          asc(assistantTable.orderKey),
-          // Production orderKeys are unique so this tiebreaker is rarely hit;
-          // tests that seed multiple rows with the same default key fall back
-          // to insertion-ordered createdAt instead of SQLite ROWID order.
-          asc(assistantTable.createdAt)
-        )
+        .orderBy(...orderByClauses)
         .limit(limit)
         .offset(offset),
       this.db.select({ count: sql<number>`count(*)` }).from(assistantTable).where(whereClause)
