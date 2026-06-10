@@ -1,47 +1,112 @@
 {
-  "generated_at": "2026-06-08T00:00:00Z",
-  "date": "2026-06-08",
-  "health_score": 55.0,
+  "generated_at": "2026-06-10T18:00:00Z",
+  "date": "2026-06-10",
+  "health_score": 53.0,
   "health_grade": "D",
-  "health_grade_rationale": "Large open backlog (912 issues), 3 P1s unresolved for 32–96 days, bulk-triage closure pattern in last 30d suggests reactive rather than proactive issue management.",
+  "health_grade_rationale": "928 open issues (up 16 from Jun 8), 3 P1s unresolved (two stale 83–97 days), 87 unlabeled (9.4%), 74% of closures from inactivity bot rather than real resolution.",
   "metrics": {
-    "total_open": 912,
-    "unlabeled_ratio": 0.13,
-    "zombie_ratio": null,
-    "zombie_ratio_note": "Cannot compute from API — sample sorted by most-recently-updated; full-repo zombie ratio requires paginated scan",
+    "total_open": 928,
+    "unlabeled_count": 87,
+    "unlabeled_ratio": 0.094,
+    "needs_triage_count": 4,
+    "p0_count": 0,
     "p1_count": 3,
-    "p1_unresolved_over_30d": 3,
-    "avg_age_days": 33.15,
-    "closed_last_30d": 100,
-    "closure_rate": "~100 issues/month (82% via inactive sweep, not organic resolution)",
+    "p1_unresolved_over_30d": 2,
+    "closed_last_30d": 398,
+    "closure_rate": "~398 issues/month (74% via inactive bot, not organic resolution)",
     "bulk_triage_detected": true,
-    "bulk_triage_note": "99 of 100 closed issues were closed Jun 1–8; 82% marked not_planned with inactive label"
+    "bulk_triage_note": "28 issues closed on 2026-06-07 and 22 on 2026-06-04 — batch triage sessions"
   },
   "age_distribution": {
-    "active": 100,
-    "aging": 0,
-    "stale": 0,
-    "zombie": 0,
-    "note": "Sample of 100 most-recently-updated only; full distribution requires all-pages fetch"
+    "active": 650,
+    "aging": 271,
+    "stale": 4,
+    "zombie": 3,
+    "active_pct": 70.0,
+    "aging_pct": 29.2,
+    "stale_pct": 0.4,
+    "zombie_pct": 0.3,
+    "method": "GitHub search API date filters: updated:<2026-04-11 (aging), updated:<2026-03-11 (stale), updated:<2025-12-11 (zombie)"
   },
   "score_breakdown": {
     "base": 100,
     "deductions": [
       {"reason": "open_total > 500", "points": -10},
       {"reason": "open_total > 200", "points": -5},
-      {"reason": "P1 #14899 unresolved > 30d", "points": -10},
-      {"reason": "P1 #13608 unresolved > 30d (82d)", "points": -10},
-      {"reason": "P1 #13193 unresolved > 30d (96d)", "points": -10}
+      {"reason": "P1 #14899 unresolved > 30d (34d, Planned)", "points": -7},
+      {"reason": "P1 #13608 unresolved > 30d (83d, stale+orphaned)", "points": -10},
+      {"reason": "P1 #13193 unresolved > 30d (97d, stale)", "points": -10},
+      {"reason": "security issue #15841 open", "points": -5}
     ],
-    "final_score": 55
+    "final_score": 53
   },
+  "priority_issues": {
+    "P0": [],
+    "P1": [
+      {
+        "number": 14899,
+        "title": "[Feature]: Unified Notification Center",
+        "health": "active",
+        "age_days": 34,
+        "assignee": null,
+        "milestone": "v2.4.0",
+        "action": "Track — in v2.4.0 milestone, owned by SiinXu",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
+      },
+      {
+        "number": 13608,
+        "title": "[Bug]: xiaomi mimo response only displays the last line",
+        "health": "stale",
+        "age_days": 83,
+        "assignee": null,
+        "milestone": "v1.8.1 (milestone is CLOSED)",
+        "action": "URGENT — milestone closed, bug orphaned; verify against latest or close",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+      },
+      {
+        "number": 13193,
+        "title": "[Bug]: Azure OpenAI defaults to responses API causing 404",
+        "health": "stale",
+        "age_days": 97,
+        "assignee": "DeJeune",
+        "milestone": null,
+        "action": "URGENT — P1 bug stale 97 days; DeJeune to verify if still reproducible in current build",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
+      }
+    ]
+  },
+  "security_issues": [
+    {
+      "number": 15841,
+      "title": "[Security] CherryClaw channel credentials stored in plaintext in agents.db",
+      "label": "module:security",
+      "state": "open",
+      "priority": "needs immediate security review",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/15841"
+    }
+  ],
+  "notable_new_issues": [
+    {
+      "number": 15826,
+      "title": "@cherrystudio/ai-core CJS/type exports point to missing dist files",
+      "label": "needs-triage",
+      "created_at": "2026-06-09",
+      "impact": "npm package breakage — affects external consumers of @cherrystudio/ai-core",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/15826"
+    },
+    {
+      "number": 15841,
+      "title": "[Security] CherryClaw credentials in plaintext",
+      "label": "module:security",
+      "created_at": "2026-06-09"
+    }
+  ],
   "action_items": [
-    "URGENT: Resolve P1 #13193 — Azure OpenAI API regression (96d, assignee: DeJeune)",
-    "URGENT: Resolve P1 #13608 — mimo response display bug (82d, no assignee)",
-    "TRACK: P1 #14899 — Unified Notification Center (32d, milestone v2.4.0, owner: SiinXu)",
-    "Review 3 zombie PRs (#11495 192d, #12032 170d, #12774 120d) — merge or close",
-    "Run full-repo age audit to get accurate stale/zombie issue counts (requires paginated fetch)",
-    "Label ~120 unlabeled issues (13% of 912 estimated)",
-    "Sustain organic closure cadence — target reducing backlog from 912 to <500"
+    "URGENT: Verify P1 #13193 (Azure OpenAI 404, 97d) — DeJeune assigned, no activity",
+    "URGENT: Re-triage or close P1 #13608 (mimo bug, 83d) — milestone closed, no assignee",
+    "SECURITY: Review #15841 — CherryClaw credentials in plaintext in agents.db",
+    "TRIAGE: #15826 — @cherrystudio/ai-core CJS/type export breakage (npm package)",
+    "Label 87 unlabeled issues (9.4% of open backlog)",
+    "4 issues need-triage label — assign owners"
   ]
 }

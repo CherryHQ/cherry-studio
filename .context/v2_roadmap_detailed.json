@@ -1,70 +1,145 @@
 {
-  "generated_at": "2026-06-08T00:00:00Z",
-  "date": "2026-06-08",
-  "data_notes": "v2 roadmap inferred from: (a) open/closed PRs with 'v2' label, (b) v2.4.0 milestone issues, (c) 'Planned' label issues. No dedicated v2 branch exists — all v2 work targets main branch.",
-  "summary": {
-    "milestone_v2_4_0_open_issues": 12,
-    "milestone_v2_4_0_closed_issues": 0,
-    "planned_label_issues_total": 16,
-    "v2_labeled_prs_open": 4,
-    "v2_labeled_prs_closed_30d": 6,
-    "merged_to_main_last_30d": 42,
-    "merged_v2_labeled_last_30d": 6
+  "generated_at": "2026-06-10T18:00:00Z",
+  "date": "2026-06-10",
+  "data_notes": "v2 work is on main branch (no separate v2 branch). Roadmap inferred from v2/Planned labels, milestones, and open PRs.",
+  "branch_strategy": {
+    "main": "Active v2 development (default branch)",
+    "v1": "v1 maintenance/hotfix branch",
+    "note": "v2 branch was merged into main; main IS now the v2 dev branch"
   },
-  "milestone_v2_4_0_issues": [
-    {"number": 15672, "title": "[Feature]: Skill Suite — Bundle Related Skills with Shared Setup, Auth, and Composition", "labels": ["internal_team"], "state": "open", "updatedAt": "2026-06-04T11:58:16Z"},
-    {"number": 15664, "title": "[Feature]: Unified @ and / Command System — Codex-Style Discoverable Mentions and Slash Actions", "labels": ["UI/UX", "internal_team"], "state": "open", "updatedAt": "2026-06-04T11:34:56Z"},
-    {"number": 15663, "title": "[Feature]: Support Anthropic Computer Use — OS-Level Mouse/Keyboard Automation", "labels": ["Assistant", "internal_team"], "state": "open", "updatedAt": "2026-06-04T11:58:12Z"},
-    {"number": 15634, "title": "[Feature]: Goal Mode — Long-Running Autonomous Agent Execution", "labels": ["Assistant", "internal_team"], "state": "open", "updatedAt": "2026-06-04T12:02:52Z"},
-    {"number": 15626, "title": "[Feature]: Quick Assistant Inline Assistant Picker", "labels": ["Assistant", "UI/UX", "internal_team"], "state": "open", "updatedAt": "2026-06-04T11:34:02Z"},
-    {"number": 15383, "title": "[Feature]: Real-Time Meeting Transcription and Smart Meeting Notes", "labels": [], "state": "open", "updatedAt": "2026-05-28T05:24:40Z"},
-    {"number": 15381, "title": "[Feature]: Knowledge Base Image Ingestion and Multimodal Retrieval", "labels": ["RAG", "Data"], "state": "open", "updatedAt": "2026-05-28T05:26:38Z"},
-    {"number": 15377, "title": "[Feature]: Multi-Window / Split-Screen for Agents and Assistants", "labels": ["UI/UX"], "state": "open", "updatedAt": "2026-05-28T06:02:38Z"},
-    {"number": 15340, "title": "[Feature]: Marketplace Connectors — Third-Party Integrations via OAuth or MCP", "labels": ["MCP", "Assistant"], "state": "open", "updatedAt": "2026-05-28T04:18:51Z"},
-    {"number": 15253, "title": "[Feature]: Add a Recycle Bin for all deletable content", "labels": ["UI/UX"], "state": "open", "updatedAt": "2026-06-04T04:16:41Z"},
-    {"number": 14899, "title": "[Feature]: Unified Notification Center", "labels": ["Planned", "P1", "feature", "UI/UX"], "state": "open", "updatedAt": "2026-05-07T05:52:49Z"},
-    {"number": 14896, "title": "[Feature]: Agent-Native Knowledge Library & File Manager", "labels": ["RAG", "Assistant", "Data"], "state": "open", "updatedAt": "2026-05-13T02:39:55Z"}
-  ],
-  "v2_milestone_progress": {
-    "milestone": "v2.4.0",
-    "open": 12,
-    "closed": 0,
-    "completion_pct": 0.0,
-    "feature_categories": {
-      "Agent/Assistant": [15663, 15634, 15626, 15340, 14896],
-      "UI/UX": [15664, 15377, 15253, 14899],
-      "Knowledge/Data": [15381, 15383],
-      "Platform/Dev": [15672]
-    }
-  },
-  "v2_labeled_open_prs": [
-    {"number": 15184, "title": "refactor(binary-manager): unify CLI binary acquisition behind mise-backed BinaryManager", "author": "vaayne", "draft": false, "createdAt": "2026-05-19", "base": "main", "url": "https://github.com/CherryHQ/cherry-studio/pull/15184"},
-    {"number": 15045, "title": "feat(agent): AI SDK Agent Runtime", "author": "DeJeune", "draft": true, "createdAt": "2026-05-12", "base": "main", "url": "https://github.com/CherryHQ/cherry-studio/pull/15045"},
-    {"number": 14997, "title": "chore(chat-page): scaffold chat component tree", "author": "DeJeune", "draft": true, "createdAt": "2026-05-11", "base": "main", "url": "https://github.com/CherryHQ/cherry-studio/pull/14997"},
-    {"number": 14160, "title": "feat: migrate agents data access to data api", "author": "vaayne", "draft": true, "createdAt": "2026-04-10", "base": "main", "url": "https://github.com/CherryHQ/cherry-studio/pull/14160"}
-  ],
-  "planned_label_issues": [
-    {"number": 14899, "title": "[Feature]: Unified Notification Center", "labels": ["Planned","P1","feature","UI/UX"], "milestone": "v2.4.0"},
-    {"number": 11906, "title": "[Feature]: Add video upload support", "labels": ["Planned","feature","Blocked: v2"], "milestone": "temp-siin"},
-    {"number": 6696, "title": "功能请求：重新生成回答时可保留以前信息并允许随时切换", "labels": ["Planned","Dev Team","UI/UX"], "milestone": "temp-siin"},
-    {"number": 12786, "title": "[Feature]: Add context progress indicator showing token usage", "labels": ["Planned","feature","Assistant","UI/UX","v2"], "milestone": "temp-siin"},
-    {"number": 12789, "title": "[Feature]: Open a topic in a separate window, allowing cross-reference", "labels": ["Planned","feature","UI/UX","v2"], "milestone": "temp-siin"},
-    {"number": 12718, "title": "[Feature]: Implement Tabbed Interface for Managing Multiple Assistants or Topics", "labels": ["Planned","feature","UI/UX","v2"], "milestone": "temp-siin"},
-    {"number": 11411, "title": "[Bug]: Multi-API rotation bug", "labels": ["BUG","Planned"], "milestone": "temp-siin"},
-    {"number": 12303, "title": "[Feature]: Add a shortcut key for 'quick switch reasoning effort'", "labels": ["Planned","feature","UI/UX","Models"], "milestone": "temp-siin"},
-    {"number": 11694, "title": "[Feature]: Prioritize providers with 'on' status in model service list", "labels": ["Planned","feature","UI/UX","Models"], "milestone": "temp-siin"},
-    {"number": 12085, "title": "[Feature]: Add 'Plugin Marketplace' feature for custom functionality", "labels": ["Planned","feature","Blocked: v2"], "milestone": "temp-siin"},
-    {"number": 13072, "title": "Proposal: Optional BoxLite sandbox backend (experimental)", "labels": ["Planned","P3"], "milestone": "temp-siin"},
-    {"number": 12784, "title": "Refactor: move mcpTrace and shared into src dir", "labels": ["Planned"], "milestone": null},
-    {"number": 14561, "title": "[Feature]: Preserve original message and its context when editing sent messages", "labels": ["Planned","UI/UX"], "milestone": null},
-    {"number": 13082, "title": "[Bug]: Frequent lag during normal operations", "labels": ["BUG","Planned","Performance","v2"], "milestone": null},
-    {"number": 13496, "title": "[Feature]: Cross-device session consistency", "labels": ["Planned"], "milestone": null},
-    {"number": 11376, "title": "[Feature]: Native backend tool support for large models", "labels": ["Planned","feature","Models"], "milestone": null}
-  ],
   "velocity": {
-    "v2_labeled_prs_merged_last_30d": 6,
-    "total_prs_merged_to_main_last_30d": 42,
-    "v2_share_of_merges_pct": 14.3,
-    "prs_per_week_last_4w": 1.5
-  }
+    "merged_prs_last_30d": 159,
+    "by_type": {"fix": 50, "feat": 25, "refactor": 12, "chore": 4, "ci": 2, "docs": 1, "hotfix": 1, "other": 5},
+    "peak_merge_day": "2026-06-02 (19 PRs)",
+    "prs_per_week_estimate": 25,
+    "merge_time_median_hours": 21.1
+  },
+  "open_prs": {
+    "total": 290,
+    "targeting_main": 284,
+    "targeting_v1": 6,
+    "targeting_v2_branch": 0,
+    "with_v2_label": 1,
+    "draft_count": 0,
+    "bottleneck": "DeJeune holds ~60 open PRs — 20% of all open PRs from one contributor"
+  },
+  "milestones": [
+    {
+      "title": "v2.0.0",
+      "state": "open",
+      "open_issues": 28,
+      "closed_issues": 105,
+      "completion_pct": 79,
+      "due_date": "2026-04-30",
+      "overdue_days": 41,
+      "url": "https://github.com/CherryHQ/cherry-studio/milestone/34"
+    },
+    {
+      "title": "v2.4.0",
+      "state": "open",
+      "open_issues": 13,
+      "closed_issues": 1,
+      "completion_pct": 7,
+      "url": "https://github.com/CherryHQ/cherry-studio/milestone/64"
+    },
+    {
+      "title": "1.9.12",
+      "state": "open",
+      "note": "v1 milestone still in flight"
+    }
+  ],
+  "v2_milestone_issues": [
+    {"number": 15944, "title": "Tracking: src/main chat-page split consolidated into 8 backend issues", "state": "open", "note": "v2 tracking issue"},
+    {"number": 15672, "title": "[Feature]: Skill Suite — Bundle Related Skills", "labels": ["internal_team"], "milestone": "v2.4.0"},
+    {"number": 15664, "title": "[Feature]: Unified @ and / Command System", "labels": ["UI/UX", "internal_team"], "milestone": "v2.4.0"},
+    {"number": 15663, "title": "[Feature]: Anthropic Computer Use — OS-Level Automation", "labels": ["Assistant", "internal_team"], "milestone": "v2.4.0"},
+    {"number": 15634, "title": "[Feature]: Goal Mode — Long-Running Autonomous Agent", "labels": ["Assistant", "internal_team"], "milestone": "v2.4.0"},
+    {"number": 15626, "title": "[Feature]: Quick Assistant Inline Picker", "labels": ["Assistant", "UI/UX", "internal_team"], "milestone": "v2.4.0"},
+    {"number": 15383, "title": "[Feature]: Real-Time Meeting Transcription", "labels": [], "milestone": "v2.4.0"},
+    {"number": 15381, "title": "[Feature]: Knowledge Base Image Ingestion & Multimodal Retrieval", "labels": ["RAG", "Data"], "milestone": "v2.4.0"},
+    {"number": 15377, "title": "[Feature]: Multi-Window / Split-Screen", "labels": ["UI/UX"], "milestone": "v2.4.0"},
+    {"number": 15340, "title": "[Feature]: Marketplace Connectors via OAuth/MCP", "labels": ["MCP", "Assistant"], "milestone": "v2.4.0"},
+    {"number": 15253, "title": "[Feature]: Recycle Bin for deletable content", "labels": ["UI/UX"], "milestone": "v2.4.0"},
+    {"number": 14899, "title": "[Feature]: Unified Notification Center", "labels": ["Planned", "P1", "feature", "UI/UX"], "milestone": "v2.4.0"},
+    {"number": 14896, "title": "[Feature]: Agent-Native Knowledge Library & File Manager", "labels": ["RAG", "Assistant", "Data"], "milestone": "v2.4.0"}
+  ],
+  "active_v2_prs": [
+    {"number": 15951, "title": "fix(data-api): message/temporary-chat flows + FTS rework", "author": "DeJeune", "state": "open", "created_at": "2026-06-10"},
+    {"number": 15942, "title": "AI-trace PR (FTS extracted)", "author": "DeJeune", "state": "open"},
+    {"number": 15184, "title": "refactor(binary-manager): mise-backed BinaryManager", "author": "vaayne", "label": "v2", "state": "open"},
+    {"number": 15045, "title": "feat(agent): AI SDK Agent Runtime", "author": "DeJeune", "label": "v2", "state": "draft"},
+    {"number": 14997, "title": "chore(chat-page): scaffold chat component tree", "author": "DeJeune", "label": "v2", "state": "draft"},
+    {"number": 14160, "title": "feat: migrate agents data access to DataApi", "author": "vaayne", "label": "v2", "state": "draft"}
+  ],
+  "data_layer_migration": {
+    "removing": ["Redux", "Dexie", "ElectronStore"],
+    "adopting": ["Cache", "Preference", "DataApi (SQLite + Drizzle ORM)"],
+    "status": "IN PROGRESS",
+    "schemas_dir": "src/main/data/db/schemas/",
+    "migrations_note": "Dev-only artifacts; will be wiped and regenerated as single clean migration before release"
+  },
+  "ui_layer_migration": {
+    "removing": ["antd", "HeroUI", "styled-components"],
+    "adopting": ["@cherrystudio/ui (packages/ui, Tailwind + Shadcn UI)"],
+    "status": "IN PROGRESS"
+  },
+  "key_open_technical_issues": [
+    {
+      "number": 14123,
+      "title": "[Feature]: Refactor MCPService — unify dual pipelines with McpServerService",
+      "assignee": "DeJeune",
+      "labels": ["MCP"],
+      "milestone": "v2.0.0",
+      "priority": "High — god class (1177 lines), dual pipeline causes atomicity bugs",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14123"
+    },
+    {
+      "number": 11578,
+      "title": "Upgrade to MCP protocol spec 2025-11-25",
+      "labels": ["MCP"],
+      "age_days": 193,
+      "state": "zombie",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/11578"
+    }
+  ],
+  "blockers_and_risks": [
+    {
+      "type": "milestone_overdue",
+      "description": "v2.0.0 milestone is 41+ days overdue (due 2026-04-30), 28 issues still open",
+      "severity": "high",
+      "action": "Review remaining 28 issues — close/defer or set new target date"
+    },
+    {
+      "type": "contributor_bottleneck",
+      "description": "DeJeune holds ~60 open PRs and is assigned 3 key issues — single point of failure",
+      "severity": "medium"
+    },
+    {
+      "type": "technical_debt",
+      "description": "MCPService god class (#14123): 1177 lines, dual pipeline, atomicity bugs",
+      "severity": "medium"
+    },
+    {
+      "type": "release_blocker",
+      "description": "PR #14493 (chore: version packages) open since 2026-04-22 — may block release automation",
+      "severity": "medium"
+    },
+    {
+      "type": "npm_breakage",
+      "description": "@cherrystudio/ai-core CJS/type exports broken in v2.0.1 (#15826)",
+      "severity": "medium",
+      "action": "Fix package.json exports or emit CJS/d.ts artifacts"
+    }
+  ],
+  "top_contributors_30d": [
+    {"author": "eeee0717", "merged": 12},
+    {"author": "ousugo", "merged": 12},
+    {"author": "kangfenmao", "merged": 11},
+    {"author": "DeJeune", "merged": 10, "open": 60},
+    {"author": "EurFelux", "merged": 9},
+    {"author": "AtomsH4", "merged": 6},
+    {"author": "zhangjiadi225", "merged": 5},
+    {"author": "LWWZH", "merged": 4},
+    {"author": "Cherry-Yiran", "merged": 4}
+  ]
 }

@@ -1,46 +1,53 @@
 {
-  "generated_at": "2026-06-08T00:00:00Z",
-  "date": "2026-06-08",
-  "data_notes": "Fetched via GitHub MCP API. Issue label/age stats from 100 most-recently-updated sample (of 912 total). PR stats from 100-item sample (of 231 total). Closed-30d from 100-item samples of 436 closed PRs.",
+  "generated_at": "2026-06-10T18:00:00Z",
+  "date": "2026-06-10",
+  "data_notes": "Fetched via GitHub MCP API. Issue label/age stats use search API with date filters for accuracy. Open PR total from search API. Closed-30d from search API (total_count).",
   "issues": {
-    "open_total": 912,
-    "opened_last_7d": 60,
-    "opened_last_30d": 74,
-    "closed_last_30d": 100,
+    "open_total": 928,
+    "opened_last_7d": 64,
+    "closed_last_30d": 398,
     "closed_last_30d_breakdown": {
-      "not_planned": 82,
-      "completed": 17,
-      "duplicate": 1
+      "not_planned": 77,
+      "completed": 22,
+      "duplicate": 1,
+      "inactive_bot_pct": 74
     },
     "label_distribution": {
-      "UI/UX": 36,
-      "inactive": 34,
-      "Models": 25,
-      "Assistant": 18,
-      "help wanted": 8,
-      "discussion": 8,
-      "needs-repro": 7,
-      "internal_team": 7,
-      "MCP": 5,
-      "Data": 4,
+      "UI/UX": 28,
+      "inactive": 25,
+      "internal_team": 19,
+      "Models": 18,
+      "Assistant": 15,
+      "help wanted": 9,
+      "discussion": 9,
+      "MCP": 6,
+      "feature": 4,
+      "community_feedback": 4,
       "RAG": 4,
-      "Connectivity": 3,
-      "Performance": 2,
-      "feature": 2,
-      "needs-more-info": 2,
-      "Planned": 1,
-      "P1": 1,
-      "Dev Team": 1
+      "needs-repro": 4,
+      "Performance": 3,
+      "Data": 2,
+      "Connectivity": 1,
+      "module:security": 1,
+      "needs-triage": 1,
+      "Dev Team": 1,
+      "note": "Sampled from 100 most-recently-updated issues"
     },
-    "unlabeled_count": 13,
-    "unlabeled_ratio_sample": 0.13,
+    "unlabeled_count": 87,
+    "unlabeled_ratio": 0.094,
+    "needs_triage_count": 4,
     "age_buckets": {
-      "active": 100,
-      "aging": 0,
-      "stale": 0,
-      "zombie": 0
+      "active": 650,
+      "aging": 271,
+      "stale": 4,
+      "zombie": 3,
+      "active_pct": 70.0,
+      "aging_pct": 29.2,
+      "stale_pct": 0.4,
+      "zombie_pct": 0.3,
+      "note": "Active=updated<60d; Aging=60-90d; Stale=90-180d; Zombie=>180d. Computed from GitHub search API total_counts."
     },
-    "age_buckets_note": "All 100 from most-recently-updated page; older pages contain stale/zombie items estimated ~400-500",
+    "p0_issues": [],
     "p1_issues": [
       {
         "number": 14899,
@@ -48,9 +55,9 @@
         "labels": ["Planned", "P1", "feature", "UI/UX"],
         "milestone": "v2.4.0",
         "author": "SiinXu",
-        "createdAt": "2026-05-07T05:01:00Z",
-        "updatedAt": "2026-05-07T05:52:49Z",
-        "age_days": 32,
+        "created_at": "2026-05-07T05:01:00Z",
+        "updated_at": "2026-05-07T05:52:49Z",
+        "age_days": 34,
         "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
       },
       {
@@ -59,10 +66,12 @@
         "labels": ["P1", "Models"],
         "milestone": "v1.8.1 (closed milestone)",
         "author": "lsy08",
-        "createdAt": "2026-03-18T14:34:38Z",
-        "updatedAt": "2026-03-19T14:22:09Z",
-        "age_days": 82,
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+        "assignee": null,
+        "created_at": "2026-03-18T14:34:38Z",
+        "updated_at": "2026-03-19T14:22:09Z",
+        "age_days": 83,
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608",
+        "action": "STALE — milestone closed, needs re-triage or close"
       },
       {
         "number": 13193,
@@ -71,100 +80,76 @@
         "milestone": null,
         "author": "simplezhao",
         "assignee": "DeJeune",
-        "createdAt": "2026-03-04T05:07:40Z",
-        "updatedAt": "2026-03-05T08:47:59Z",
-        "age_days": 96,
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
+        "created_at": "2026-03-04T05:07:40Z",
+        "updated_at": "2026-03-05T08:47:59Z",
+        "age_days": 97,
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193",
+        "action": "STALE P1 bug — 97 days no activity, needs verification against latest"
+      }
+    ],
+    "security_issues": [
+      {
+        "number": 15841,
+        "title": "[Security] CherryClaw channel credentials stored in plaintext in agents.db",
+        "label": "module:security",
+        "url": "https://github.com/CherryHQ/cherry-studio/issues/15841"
       }
     ],
     "top_commented": [
-      {"number": 6505, "title": "[FAQ & Feedback]: 划词助手 / Selection Assistant", "comments": 359},
-      {"number": 14362, "title": "[Bug]: The model list displays grouped garbled text", "comments": 15},
-      {"number": 14499, "title": "Agents (Cherry Claw) currently cannot use Mimo Token Plan", "comments": 6},
-      {"number": 15586, "title": "[Bug]: Error invoking remote method 'knowledge-base:search': 400 invalid", "comments": 6},
-      {"number": 13418, "title": "[Feature]: Smart Model Auto-Discovery & Auto-Add on Provider Setup", "comments": 5},
-      {"number": 14080, "title": "[Bug]: cannot scroll to search result", "comments": 4},
-      {"number": 11953, "title": "[Recruitment] Cherry Studio, Welcoming Fellow Travelers", "comments": 3},
-      {"number": 15751, "title": "[Feature]: Some UI display improvement suggestions under new architecture 1.9.10", "comments": 3},
-      {"number": 15740, "title": "Standardize pre-insert BO-schema validation across migrators and data services", "comments": 3},
-      {"number": 14020, "title": "[Bug]: Historical reasoning content cross-provider contamination", "comments": 2}
+      {"number": 6505, "title": "[FAQ]: 划词助手 / Selection Assistant", "comments": 360},
+      {"number": 14387, "title": "[Discussion]: Suspicious telemetry connection to cherry-ai.com", "comments": 15},
+      {"number": 15617, "title": "[Bug]: Streaming Output Issue with DeepSeek V4 Flash", "comments": 10},
+      {"number": 14699, "title": "[Bug]: Agent tool no response for a long time", "comments": 8}
     ]
   },
   "prs": {
-    "open_total": 231,
-    "opened_last_7d": 64,
-    "opened_last_30d": 88,
-    "merged_last_30d": 42,
-    "closed_without_merge_last_30d": 58,
-    "draft_count": 6,
-    "ready_count": 94,
-    "unique_authors_sample": 37,
+    "open_total": 290,
+    "merged_last_30d": 159,
+    "open_no_label_pct": 92,
     "base_branch_distribution": {
-      "main": 85,
-      "v1": 14,
-      "other": 1
+      "main": 284,
+      "v1": 6,
+      "v2": 0
     },
-    "label_distribution": {
-      "(no label)": 92,
-      "v2": 4,
-      "dependencies": 2,
-      "github_actions": 2,
-      "ready-to-merge": 1,
-      "Blocked: v2": 1
+    "open_label_distribution": {
+      "(no label)": 267,
+      "ready-to-merge": 6,
+      "v2": 1,
+      "needs-verified": 1
     },
-    "v2_labeled_open": [
-      {
-        "number": 15184,
-        "title": "refactor(binary-manager): unify CLI binary acquisition behind mise-backed BinaryManager",
-        "author": "vaayne",
-        "draft": false,
-        "createdAt": "2026-05-19",
-        "base": "main"
-      },
-      {
-        "number": 15045,
-        "title": "feat(agent): AI SDK Agent Runtime",
-        "author": "DeJeune",
-        "draft": true,
-        "createdAt": "2026-05-12",
-        "base": "main"
-      },
-      {
-        "number": 14997,
-        "title": "chore(chat-page): scaffold chat component tree",
-        "author": "DeJeune",
-        "draft": true,
-        "createdAt": "2026-05-11",
-        "base": "main"
-      },
-      {
-        "number": 14160,
-        "title": "feat: migrate agents data access to data api",
-        "author": "vaayne",
-        "draft": true,
-        "createdAt": "2026-04-10",
-        "base": "main"
-      }
-    ],
-    "stale_prs": [
-      {"number": 11495, "title": "feat: Implement shared provider utilities and Proxy Api Server", "author": "DeJeune", "age_days": 192},
-      {"number": 12032, "title": "Fix trace problems", "author": "alickreborn0", "age_days": 170},
-      {"number": 12774, "title": "fix: restore textarea resize handle visibility", "author": "EurFelux", "age_days": 120}
-    ],
-    "top_contributors_merged": [
-      {"author": "DeJeune", "count": 7},
-      {"author": "ousugo", "count": 6},
-      {"author": "eeee0717", "count": 5},
-      {"author": "zhangjiadi225", "count": 3},
-      {"author": "LWWZH", "count": 3},
-      {"author": "AtomsH4", "count": 3},
-      {"author": "EurFelux", "count": 2},
-      {"author": "kangfenmao", "count": 2}
+    "merged_last_30d_by_type": {
+      "fix": 50,
+      "feat": 25,
+      "refactor": 12,
+      "chore": 4,
+      "ci": 2,
+      "docs": 1,
+      "hotfix": 1,
+      "other": 5
+    },
+    "top_contributors_merged_30d": [
+      {"author": "eeee0717", "count": 12},
+      {"author": "ousugo", "count": 12},
+      {"author": "kangfenmao", "count": 11},
+      {"author": "DeJeune", "count": 10},
+      {"author": "EurFelux", "count": 9},
+      {"author": "AtomsH4", "count": 6},
+      {"author": "zhangjiadi225", "count": 5},
+      {"author": "LWWZH", "count": 4},
+      {"author": "Cherry-Yiran", "count": 4}
     ],
     "merge_time_stats": {
-      "avg_days": 6.83,
-      "median_days": 1.40,
-      "pct_merged_within_3d": 78
-    }
+      "avg_hours": 163.6,
+      "median_hours": 21.1,
+      "note": "Median ~21h; mean skewed by a few long-lived PRs"
+    },
+    "top_open_author": {"author": "DeJeune", "open_pr_count": 60, "pct_of_sample": 60},
+    "oldest_open": [
+      {"number": 14493, "title": "chore: version packages", "created_at": "2026-04-22", "base": "main"},
+      {"number": 14668, "title": "fix(file): restore leading dot in ext for saveBase64Image", "created_at": "2026-04-27", "base": "main"},
+      {"number": 14988, "title": "feat: Add 'embedding' endpoint type for NEWAPI", "created_at": "2026-05-11", "base": "main"},
+      {"number": 14997, "title": "chore(chat-page): scaffold chat component tree (v2 label)", "created_at": "2026-05-11", "base": "main"},
+      {"number": 15098, "title": "fix: remove unsupported 'includeServerSideToolInvocations'", "created_at": "2026-05-14", "base": "main"}
+    ]
   }
 }

@@ -1,12 +1,53 @@
 {
-  "generated_at": "2026-06-08T00:00:00Z",
-  "date": "2026-06-08",
-  "fetch_status": "skipped",
-  "fetch_error": "GitHub Discussions GraphQL API not accessible via current MCP toolset. Run scripts/analyze_discussions.py with gh CLI to populate.",
-  "total_discussions": null,
-  "unanswered_count": null,
-  "category_distribution": {},
-  "top_upvoted": [],
-  "recent_unanswered": [],
-  "label_distribution": {}
+  "generated_at": "2026-06-10T18:00:00Z",
+  "date": "2026-06-10",
+  "fetch_status": "partial",
+  "fetch_note": "GitHub Discussions GraphQL API not accessible via current MCP toolset. Data below inferred from issue tracker (discussion-labeled issues). For full discussion data run: gh api graphql -f query='{ repository(owner: \"CherryHQ\", name: \"cherry-studio\") { discussions(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { number title category { name } author { login } createdAt updatedAt upvoteCount comments { totalCount } answer { author { login } createdAt } } } } }'",
+  "issues_labeled_discussion": 9,
+  "top_engagement": {
+    "number": 6505,
+    "title": "[FAQ]: 划词助手 / Selection Assistant",
+    "comments": 360,
+    "url": "https://github.com/CherryHQ/cherry-studio/issues/6505",
+    "note": "Highest community engagement in all of cherry-studio — 360 comments, likely FAQ pinned"
+  },
+  "notable_closed_discussions": [
+    {
+      "number": 14387,
+      "title": "[Discussion]: Suspicious telemetry connection to cherry-ai.com persists",
+      "comments": 15,
+      "state": "closed",
+      "closed_as": "not_planned",
+      "note": "Privacy concern — high engagement; resolved/dismissed"
+    }
+  ],
+  "community_signals": {
+    "security_concern": {
+      "number": 15841,
+      "title": "[Security] CherryClaw channel credentials stored in plaintext in agents.db",
+      "state": "open",
+      "created_at": "2026-06-09",
+      "priority": "needs immediate triage"
+    },
+    "npm_package_issue": {
+      "number": 15826,
+      "title": "@cherrystudio/ai-core CJS/type exports point to missing dist files",
+      "state": "open",
+      "created_at": "2026-06-09",
+      "label": "needs-triage",
+      "impact": "External consumers of @cherrystudio/ai-core@2.0.1 cannot use CommonJS or TypeScript"
+    },
+    "high_reaction_issues": [
+      {"number": 13193, "title": "Azure OpenAI 404 regression", "reactions_plus1": 4},
+      {"number": 14899, "title": "Unified Notification Center (P1)", "reactions_plus1": 2},
+      {"number": 13608, "title": "mimo streaming display bug (P1)", "reactions_plus1": 2}
+    ]
+  },
+  "recruitment": {
+    "number": 11953,
+    "title": "[Recruitment] Cherry Studio, Welcoming Fellow Travelers",
+    "comments": 3,
+    "state": "open",
+    "url": "https://github.com/CherryHQ/cherry-studio/issues/11953"
+  }
 }
