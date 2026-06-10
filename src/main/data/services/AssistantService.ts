@@ -280,9 +280,6 @@ export class AssistantDataService {
       const assistantIds = await tagService.getEntityIdsByTagsTx(this.db, 'assistant', query.tagIds)
       conditions.push(assistantIds.length > 0 ? inArray(assistantTable.id, assistantIds) : sql`0 = 1`)
     }
-    if (query.updatedAtFrom !== undefined) {
-      conditions.push(gte(assistantTable.updatedAt, query.updatedAtFrom))
-    }
 
     const whereClause = and(...conditions)
     const sortBy = query.sortBy ?? 'orderKey'
