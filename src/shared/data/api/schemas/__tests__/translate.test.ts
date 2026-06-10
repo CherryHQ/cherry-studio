@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  CreateTranslateHistorySchema,
-  CreateTranslateLanguageSchema,
-  UpdateTranslateHistorySchema
-} from '../data/api/schemas/translate'
-import { PersistedLangCodeSchema, TranslateLangCodeSchema } from '../data/preference/preferenceTypes'
-import { TranslateHistorySchema, TranslateLanguageSchema } from '../data/types/translate'
+import { PersistedLangCodeSchema, TranslateLangCodeSchema } from '../../../preference/preferenceTypes'
+import { TranslateHistorySchema, TranslateLanguageSchema } from '../../../types/translate'
+import { CreateTranslateHistorySchema, CreateTranslateLanguageSchema, UpdateTranslateHistorySchema } from '../translate'
 
 describe('PersistedLangCodeSchema', () => {
   it.each(['en-us', 'zh-cn', 'ja', 'ja-jp', 'zh-tw', 'fr-fr'])('accepts %s', (code) => {

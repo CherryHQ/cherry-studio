@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import type { TopicStreamStatus } from '../ai/transport'
-import { classifyTurn, TURN_STATE, type TurnStateFlags } from '../ai/transport'
+import type { TopicStreamStatus } from '../stream'
+import { classifyTurn, TURN_STATE, type TurnStateFlags } from '../turnState'
 
 const ALL_STATUSES: TopicStreamStatus[] = ['pending', 'streaming', 'done', 'aborted', 'error', 'awaiting-approval']
 
