@@ -5,6 +5,7 @@
  */
 
 import type { NormalToolResponse } from '@renderer/types'
+import { KB_SEARCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 
 import { AgentExecutionTimeline } from './agent'
 import { AgentToolsType, isAskUserQuestionToolName } from './agent/types'
@@ -32,11 +33,14 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
     return <MessageMetaTool toolResponse={toolResponse} />
   }
 
-  // In-process cherry-tools (web/knowledge/memory) carry short wire names, not the `mcp__` prefix.
-  if (toolName === 'kb_search') {
+  // Builtin web/knowledge search title cards. Match the current wire names
+  // (`kb_search` / `web_search` from @shared/ai/builtinTools) AND the historical
+  // double-underscore literals (`kb__search` / `web__search`) still persisted in
+  // old messages, so renaming the constants doesn't drop the card for new calls.
+  if (toolName === KB_SEARCH_TOOL_NAME || toolName === 'kb__search') {
     return <MessageKnowledgeSearchToolTitle toolResponse={toolResponse} />
   }
-  if (toolName === 'web_search') {
+  if (toolName === WEB_SEARCH_TOOL_NAME || toolName === 'web__search') {
     return toolType === 'provider' ? null : <MessageWebSearchToolTitle toolResponse={toolResponse} />
   }
   // web_fetch / kb_list / memory have no bespoke card yet — render them through the standard
