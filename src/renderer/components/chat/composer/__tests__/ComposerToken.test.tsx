@@ -457,6 +457,29 @@ describe('ComposerToken', () => {
     expect(onPromptVariableEditRequest).toHaveBeenCalled()
   })
 
+  it('lets completed prompt variable tokens wrap without truncating their label', () => {
+    const longLabel = '上海市浦东新区世纪大道'.repeat(5)
+
+    const { container } = render(
+      <PromptVariableToken
+        token={{
+          ...promptVariableToken,
+          label: longLabel,
+          promptText: longLabel
+        }}
+        onCommit={vi.fn()}
+      />
+    )
+
+    const token = container.querySelector('[data-composer-token-kind="promptVariable"]')
+    const label = screen.getByText(longLabel)
+
+    expect(token).toHaveClass('max-w-full')
+    expect(token).not.toHaveClass('max-w-52')
+    expect(label).toHaveClass('min-w-0', 'whitespace-pre-wrap', 'wrap-anywhere')
+    expect(label).not.toHaveClass('truncate')
+  })
+
   it('renders a selected prompt variable as an editable input without committing IME intermediates', () => {
     const onPromptVariableCommit = vi.fn()
 

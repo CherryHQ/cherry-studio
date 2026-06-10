@@ -166,7 +166,7 @@ export function PromptVariableToken({
       token={token}
       selected={selected}
       className={className}
-      maxWidthClassName={isEditing ? 'max-w-none' : 'max-w-52'}
+      maxWidthClassName="max-w-full"
       onMouseDown={handleTokenMouseDown}>
       {isEditing ? (
         <input
@@ -179,7 +179,7 @@ export function PromptVariableToken({
           onMouseDown={(event) => event.stopPropagation()}
         />
       ) : (
-        <span className="min-w-0 truncate">{token.label}</span>
+        <span className="wrap-anywhere min-w-0 whitespace-pre-wrap">{token.label}</span>
       )}
     </ComposerToken>
   )
