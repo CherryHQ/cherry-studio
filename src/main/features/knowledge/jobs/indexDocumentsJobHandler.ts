@@ -182,7 +182,7 @@ async function buildRebuildMaterialInput(
       // A knowledge_item has no display name, and the rest need an extra fs.stat +
       // content-type sniff — and nothing consumes any of them yet (provenance
       // display is v2.x). The material scanner backfills them when it lands. See
-      // index-sqlite-schema-design.md §6.2.
+      // knowledge-technical-design.md §4.2.
     },
     content: {
       text: chunked.contentText,
@@ -211,7 +211,7 @@ function toMaterialRelativePath(item: IndexableKnowledgeItem): string {
  * Material provenance (the index store's `origin` enum). A file indexed through a
  * processor artifact — MinerU Markdown, addressed by `indexedRelativePath` — is a
  * 'processor' product; a file indexed directly is user-supplied; url/note are
- * 'captured' snapshots. See index-sqlite-schema-design.md §5.2.
+ * 'captured' snapshots. See knowledge-technical-design.md §4.2.
  */
 function toMaterialOrigin(item: IndexableKnowledgeItem): MaterialOrigin {
   if (item.type !== 'file') {
