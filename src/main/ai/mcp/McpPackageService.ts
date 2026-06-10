@@ -122,7 +122,9 @@ export interface McpPackageUploadResult {
   error?: string
 }
 
-type McpPackageFormat = 'dxt' | 'mcpb'
+export type McpPackageFormat = 'dxt' | 'mcpb'
+
+const MCP_PACKAGE_UPLOAD_MAX_BYTES = 100 * 1024 * 1024
 
 /**
  * Validate and sanitize a command to prevent path traversal attacks.
@@ -258,7 +260,8 @@ export function buildResolvedEnv(
     }
 
     // Denylist process-affecting variables (DYLD_* on macOS, plus exact matches above).
-    if (DXT_ENV_DENYLIST.includes(key) || key.startsWith('DYLD_')) {
+    const canonicalKey = key.toUpperCase()
+    if (DXT_ENV_DENYLIST.includes(canonicalKey) || canonicalKey.startsWith('DYLD_')) {
       throw new Error(`Invalid MCP package env: environment variable "${key}" is not allowed`)
     }
 
@@ -271,6 +274,51 @@ export function buildResolvedEnv(
   }
 
   return resolvedEnv
+}
+
+export function validatePackageUploadPayload(
+  fileBuffer: ArrayBuffer | NodeJS.ArrayBufferView,
+  fileName: string,
+  packageFormat: McpPackageFormat
+): Buffer {
+  if (typeof fileName !== 'string') {
+    throw new Error('Invalid MCP package upload: file name must be a string')
+  }
+
+  const trimmedFileName = fileName.trim()
+  if (!trimmedFileName) {
+    throw new Error('Invalid MCP package upload: file name cannot be empty')
+  }
+  if (trimmedFileName !== fileName) {
+    throw new Error('Invalid MCP package upload: file name cannot contain leading or trailing whitespace')
+  }
+  if (trimmedFileName.includes('\0') || /[/\\]/.test(trimmedFileName)) {
+    throw new Error('Invalid MCP package upload: file name cannot contain path separators')
+  }
+  if (!/^[A-Za-z0-9._ ()@+-]+$/.test(trimmedFileName)) {
+    throw new Error('Invalid MCP package upload: file name contains unsupported characters')
+  }
+  if (path.extname(trimmedFileName).toLowerCase() !== `.${packageFormat}`) {
+    throw new Error(`Invalid MCP package upload: expected a .${packageFormat} file`)
+  }
+
+  let buffer: Buffer
+  if (fileBuffer instanceof ArrayBuffer) {
+    buffer = Buffer.from(fileBuffer)
+  } else if (ArrayBuffer.isView(fileBuffer)) {
+    buffer = Buffer.from(fileBuffer.buffer, fileBuffer.byteOffset, fileBuffer.byteLength)
+  } else {
+    throw new Error('Invalid MCP package upload: file buffer must be an ArrayBuffer')
+  }
+
+  if (buffer.byteLength === 0) {
+    throw new Error('Invalid MCP package upload: file buffer cannot be empty')
+  }
+  if (buffer.byteLength > MCP_PACKAGE_UPLOAD_MAX_BYTES) {
+    throw new Error('Invalid MCP package upload: file exceeds the 100 MiB size limit')
+  }
+
+  return buffer
 }
 
 export function applyPlatformOverrides(mcpConfig: any, extractDir: string, userConfig?: Record<string, any>): any {
@@ -379,6 +427,44 @@ export class McpPackageService extends BaseService {
     }
   }
 
+  private async replacePackageDirectory(source: string, destination: string, serverDirName: string): Promise<void> {
+    const stagedDir = ensurePathWithin(this.mcpDir, path.join(this.mcpDir, `${serverDirName}.staged-${uuidv4()}`))
+    const backupDir = ensurePathWithin(this.mcpDir, path.join(this.mcpDir, `${serverDirName}.backup-${uuidv4()}`))
+    let hasBackup = false
+
+    try {
+      await this.moveDirectory(source, stagedDir)
+
+      if (fs.existsSync(destination)) {
+        logger.debug(`Moving existing server directory to backup: ${destination}`)
+        fs.renameSync(destination, backupDir)
+        hasBackup = true
+      }
+
+      fs.renameSync(stagedDir, destination)
+
+      if (hasBackup) {
+        try {
+          fs.rmSync(backupDir, { recursive: true, force: true })
+        } catch (error) {
+          logger.warn(`Failed to remove old MCP package backup: ${backupDir}`, error as Error)
+        }
+      }
+    } catch (error) {
+      if (hasBackup && !fs.existsSync(destination) && fs.existsSync(backupDir)) {
+        fs.renameSync(backupDir, destination)
+      }
+      if (fs.existsSync(stagedDir)) {
+        try {
+          fs.rmSync(stagedDir, { recursive: true, force: true })
+        } catch (cleanupError) {
+          logger.warn(`Failed to remove staged MCP package directory: ${stagedDir}`, cleanupError as Error)
+        }
+      }
+      throw error
+    }
+  }
+
   protected async onInit(): Promise<void> {
     this.registerIpcHandlers()
   }
@@ -390,8 +476,9 @@ export class McpPackageService extends BaseService {
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
       try {
+        const fileData = validatePackageUploadPayload(fileBuffer, fileName, 'dxt')
         const tempPath = await fileStorage.createTempFile(event, fileName)
-        await fileStorage.writeFile(event, tempPath, Buffer.from(fileBuffer))
+        await fileStorage.writeFile(event, tempPath, fileData)
         return await this.uploadDxt(event, tempPath)
       } catch (error) {
         logger.error('DXT upload error:', error as Error)
@@ -403,8 +490,9 @@ export class McpPackageService extends BaseService {
     })
     this.ipcHandle(IpcChannel.Mcp_UploadMcpb, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
       try {
+        const fileData = validatePackageUploadPayload(fileBuffer, fileName, 'mcpb')
         const tempPath = await fileStorage.createTempFile(event, fileName)
-        await fileStorage.writeFile(event, tempPath, Buffer.from(fileBuffer))
+        await fileStorage.writeFile(event, tempPath, fileData)
         return await this.uploadMcpb(event, tempPath)
       } catch (error) {
         logger.error('MCPB upload error:', error as Error)
@@ -495,15 +583,9 @@ export class McpPackageService extends BaseService {
       const serverDirName = `server-${manifest.name}`
       const finalExtractDir = ensurePathWithin(this.mcpDir, path.join(this.mcpDir, serverDirName))
 
-      // Clean up any existing version of this server
-      if (fs.existsSync(finalExtractDir)) {
-        logger.debug(`Removing existing server directory: ${finalExtractDir}`)
-        fs.rmSync(finalExtractDir, { recursive: true, force: true })
-      }
-
-      // Move the temporary directory to the final location
-      // Use recursive copy + remove instead of rename to handle cross-filesystem moves
-      await this.moveDirectory(tempExtractDir, finalExtractDir)
+      // Stage the new package first, then swap directories so a failed install
+      // does not destroy the last working version.
+      await this.replacePackageDirectory(tempExtractDir, finalExtractDir, serverDirName)
       logger.debug(`${packageLabel} server extracted to: ${finalExtractDir}`)
 
       // Clean up the uploaded package file if it's in temp directory

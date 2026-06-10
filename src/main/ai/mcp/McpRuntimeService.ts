@@ -483,6 +483,7 @@ export class McpRuntimeService extends BaseService {
             }
           } else if (server.command) {
             let cmd = server.command
+            let effectiveCommand = server.command
 
             // Build a local env for the transport instead of mutating `server.env`. getServerKey(server)
             // serializes server.env, so mutating it here would shift the key after connect — connect-time
@@ -500,6 +501,7 @@ export class McpRuntimeService extends BaseService {
               const resolvedConfig = this.mcpPackageService.getResolvedMcpConfig(server.dxtPath)
               if (resolvedConfig) {
                 cmd = resolvedConfig.command
+                effectiveCommand = resolvedConfig.command
                 args = resolvedConfig.args
                 // Merge resolved environment variables with existing ones
                 Object.assign(connectEnv, resolvedConfig.env)
@@ -512,7 +514,7 @@ export class McpRuntimeService extends BaseService {
               }
             }
 
-            if (server.command === 'npx') {
+            if (effectiveCommand === 'npx') {
               // First, check if npx is available in user's shell environment
               const npxPath = await findCommandInShellEnv('npx', loginShellEnv)
 
@@ -562,32 +564,32 @@ export class McpRuntimeService extends BaseService {
                   connectEnv.MCP_REGISTRY_PATH = path.join(binPath, '..', 'config', 'mcp-registry.json')
                 }
               }
-            } else if (server.command === 'uvx' || server.command === 'uv') {
+            } else if (effectiveCommand === 'uvx' || effectiveCommand === 'uv') {
               // First, check if uvx/uv is available in user's shell environment
-              const uvPath = await findCommandInShellEnv(server.command, loginShellEnv)
+              const uvPath = await findCommandInShellEnv(effectiveCommand, loginShellEnv)
 
               if (uvPath) {
                 // Use system uvx/uv
                 cmd = uvPath
-                getServerLogger(server).debug(`Using system ${server.command}`, { command: cmd })
+                getServerLogger(server).debug(`Using system ${effectiveCommand}`, { command: cmd })
               } else {
                 // System command not found, try bundled version as fallback
-                getServerLogger(server).debug(`System ${server.command} not found, checking for bundled version`)
+                getServerLogger(server).debug(`System ${effectiveCommand} not found, checking for bundled version`)
 
-                if (await isBinaryExists(server.command)) {
+                if (await isBinaryExists(effectiveCommand)) {
                   // Fall back to bundled version
-                  cmd = await getBinaryPath(server.command)
-                  getServerLogger(server).info(`Using bundled ${server.command} as fallback (not found in PATH)`, {
+                  cmd = await getBinaryPath(effectiveCommand)
+                  getServerLogger(server).info(`Using bundled ${effectiveCommand} as fallback (not found in PATH)`, {
                     command: cmd
                   })
                 } else {
                   // Neither system nor bundled available
                   throw new Error(
-                    `${server.command} not found in PATH and bundled version is not available. This may indicate an installation issue.\n` +
+                    `${effectiveCommand} not found in PATH and bundled version is not available. This may indicate an installation issue.\n` +
                       'Please either:\n' +
                       '1. Install uv from https://github.com/astral-sh/uv\n' +
                       '2. Run the MCP dependencies installer from Settings\n' +
-                      `3. Restart the application if you recently installed ${server.command}`
+                      `3. Restart the application if you recently installed ${effectiveCommand}`
                   )
                 }
               }

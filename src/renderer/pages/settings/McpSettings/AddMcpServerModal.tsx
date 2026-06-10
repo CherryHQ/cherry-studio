@@ -231,7 +231,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             name: manifest.display_name || manifest.name,
             description: `${manifest.description || manifest.long_description || ''}`,
             baseUrl: '',
-            command: resolveMcpPackagePathPlaceholders(manifest.server.mcp_config.command, extractDir),
+            command: manifest.server.mcp_config.command,
             args: processedArgs,
             env: manifest.server.mcp_config.env || {},
             isActive: false,
