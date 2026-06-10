@@ -63,7 +63,7 @@ function createClient(apiHost: string, apiKey: string) {
 }
 
 /** Extracts API credentials and model from config for document parsing. */
-function prepareContext(file: FileInfo, config: FileProcessorMerged, signal?: AbortSignal) {
+function prepareContext(_file: FileInfo, config: FileProcessorMerged, signal?: AbortSignal) {
   signal?.throwIfAborted()
   const capability = getRequiredCapability(config, 'document_to_markdown', 'paddleocr')
   return {
