@@ -14,13 +14,14 @@ import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
 
-import { runAgentTask } from './runAgentTask'
+import { type AgentTaskInput, runAgentTask } from './runAgentTask'
 
 declare module '@main/core/job/jobRegistry' {
   interface JobRegistry {
     'agent.task': {
       agentId: string
       prompt: string
+      workspace: AgentTaskInput['workspace']
       /** Per-task timeout in minutes. Enforced inside `runAgentTask`; handler-level
        *  `defaultTimeoutMs` is intentionally unset so each task may set its own value. */
       timeoutMinutes: number
@@ -32,7 +33,7 @@ const logger = loggerService.withContext('AgentTaskJobHandler')
 
 const RECENT_TERMINAL_WINDOW = 3
 
-export const AgentTaskJobHandler: JobHandler<{ agentId: string; prompt: string; timeoutMinutes: number }> = {
+export const AgentTaskJobHandler: JobHandler<AgentTaskInput> = {
   /**
    * 'retry': non-terminal jobs from a previous run are re-pended on startup
    * so the recovered job dispatches against the latest agent configuration.

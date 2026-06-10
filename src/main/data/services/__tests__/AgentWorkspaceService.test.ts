@@ -1,12 +1,10 @@
 import { application } from '@application'
-import { agentTable } from '@data/db/schemas/agent'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
-import { agentSessionService } from '@data/services/AgentSessionService'
 import { AgentWorkspaceService, agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { mkdtemp, rm, stat, writeFile } from 'fs/promises'
+import { mkdtemp, stat } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -18,34 +16,39 @@ describe('AgentWorkspaceService', () => {
     vi.restoreAllMocks()
   })
 
+  function workspacePath(...segments: string[]) {
+    return path.join('/tmp', 'cherry-workspace-service', ...segments)
+  }
+
+  async function findOrCreateWorkspace(rawPath: string, options: { name?: string } = {}) {
+    return await dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, rawPath, options))
+  }
+
   it('should export a module-level singleton of AgentWorkspaceService', () => {
     expect(agentWorkspaceService).toBeInstanceOf(AgentWorkspaceService)
   })
 
-  it('normalizes paths, creates the directory, and dedupes by path', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
-    const rawPath = path.join(root, 'project', '..', 'project')
-    const normalizedPath = path.join(root, 'project')
+  it('normalizes paths and dedupes rows by path', async () => {
+    const rawPath = workspacePath('project', '..', 'project')
+    const normalizedPath = workspacePath('project')
 
-    const first = await agentWorkspaceService.findOrCreateByPath(rawPath)
-    const second = await agentWorkspaceService.findOrCreateByPath(normalizedPath)
+    const first = await findOrCreateWorkspace(rawPath)
+    const second = await findOrCreateWorkspace(normalizedPath)
 
     expect(second.id).toBe(first.id)
     expect(first).toMatchObject({
       name: 'project',
-      path: normalizedPath
+      path: normalizedPath,
+      type: 'user'
     })
-    const stats = await stat(normalizedPath)
-    expect(stats.isDirectory()).toBe(true)
 
     const rows = await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.path, normalizedPath))
     expect(rows).toHaveLength(1)
   })
 
   it('inserts newly created workspaces at the front of the list', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
-    const first = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'first'))
-    const second = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'second'))
+    const first = await findOrCreateWorkspace(workspacePath('first'))
+    const second = await findOrCreateWorkspace(workspacePath('second'))
 
     const workspaces = await agentWorkspaceService.list()
 
@@ -53,7 +56,7 @@ describe('AgentWorkspaceService', () => {
   })
 
   it('rejects relative workspace paths', async () => {
-    await expect(agentWorkspaceService.findOrCreateByPath('relative/project')).rejects.toMatchObject({
+    await expect(findOrCreateWorkspace('relative/project')).rejects.toMatchObject({
       code: ErrorCode.VALIDATION_ERROR
     })
   })
@@ -64,53 +67,38 @@ describe('AgentWorkspaceService', () => {
     })
   })
 
-  it('returns database workspace data when the backing directory is missing', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
-    const workspacePath = path.join(root, 'deleted-on-disk')
-    const workspace = await agentWorkspaceService.findOrCreateByPath(workspacePath)
-    await dbh.db.insert(agentTable).values({
-      id: 'agent-with-missing-workspace-dir',
-      type: 'claude-code',
-      name: 'Missing Workspace Dir Agent',
-      instructions: 'Test instructions',
-      model: null,
-      orderKey: 'a0'
-    })
-    const session = await agentSessionService.createSession({
-      agentId: 'agent-with-missing-workspace-dir',
-      name: 'Session keeps DB workspace',
-      workspaceId: workspace.id
-    })
+  it('returns database workspace data without consulting the backing directory', async () => {
+    const workspace = await findOrCreateWorkspace(workspacePath('db-only'))
 
-    await rm(workspacePath, { recursive: true, force: true })
-
-    await expect(stat(workspacePath)).rejects.toThrow()
     await expect(agentWorkspaceService.getById(workspace.id)).resolves.toMatchObject({
       id: workspace.id,
-      path: workspacePath
-    })
-    await expect(agentSessionService.getById(session.id)).resolves.toMatchObject({
-      id: session.id,
-      workspaceId: workspace.id,
-      workspace: {
-        id: workspace.id,
-        path: workspacePath
-      }
+      path: workspace.path
     })
   })
 
-  it('surfaces directory creation failures', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
-    const filePath = path.join(root, 'not-a-directory')
-    await writeFile(filePath, 'file blocks recursive mkdir')
+  it('creates system workspace rows without creating the backing directory', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-system-workspace-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.agents.workspaces') {
+        return filename ? path.join(root, 'Agents', filename) : path.join(root, 'Agents')
+      }
+      return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
+    })
 
-    await expect(agentWorkspaceService.findOrCreateByPath(path.join(filePath, 'child'))).rejects.toThrow()
+    const workspace = await dbh.db.transaction((tx) =>
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'session-system' })
+    )
+
+    expect(workspace).toMatchObject({
+      path: path.join(root, 'Agents', 'session-system'),
+      type: 'system'
+    })
+    await expect(stat(workspace.path)).rejects.toThrow()
   })
 
   it('translates findOrCreateByPathTx unique races to conflict errors', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
-    const workspacePath = path.join(root, 'race')
-    await agentWorkspaceService.findOrCreateByPath(workspacePath)
+    const workspacePathValue = workspacePath('race')
+    await findOrCreateWorkspace(workspacePathValue)
 
     const emptyRows = { limit: async () => [] }
     const afterWhere = { ...emptyRows, orderBy: () => emptyRows }
@@ -125,16 +113,46 @@ describe('AgentWorkspaceService', () => {
       insert: dbh.db.insert.bind(dbh.db)
     }
 
-    await expect(agentWorkspaceService.findOrCreateByPathTx(racingTx as never, workspacePath)).rejects.toMatchObject({
+    await expect(
+      agentWorkspaceService.findOrCreateByPathTx(racingTx as never, workspacePathValue)
+    ).rejects.toMatchObject({
       code: ErrorCode.CONFLICT
     })
   })
 
+  it('rejects findOrCreateByPathTx when the existing path belongs to a system workspace', async () => {
+    const workspace = await dbh.db.transaction((tx) =>
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'session-system-collision' })
+    )
+
+    await expect(
+      dbh.db.transaction((tx) => agentWorkspaceService.findOrCreateByPathTx(tx, workspace.path))
+    ).rejects.toMatchObject({
+      code: ErrorCode.CONFLICT
+    })
+  })
+
+  it('rejects workspace rows whose type violates the database CHECK constraint', async () => {
+    const invalidPath = workspacePath('invalid-type')
+
+    await expect(
+      dbh.db.insert(agentWorkspaceTable).values({
+        id: 'workspace-invalid-type',
+        name: 'Invalid Type',
+        path: invalidPath,
+        type: 'invalid' as never,
+        orderKey: 'a0'
+      })
+    ).rejects.toThrow(/Failed query/)
+
+    const rows = await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.path, invalidPath))
+    expect(rows).toHaveLength(0)
+  })
+
   it('reorders workspaces with single and batch moves', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
-    const first = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'first'))
-    const second = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'second'))
-    const third = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'third'))
+    const first = await findOrCreateWorkspace(workspacePath('first'))
+    const second = await findOrCreateWorkspace(workspacePath('second'))
+    const third = await findOrCreateWorkspace(workspacePath('third'))
 
     await agentWorkspaceService.reorder(first.id, { position: 'first' })
     let workspaces = await agentWorkspaceService.list()
@@ -146,21 +164,5 @@ describe('AgentWorkspaceService', () => {
     ])
     workspaces = await agentWorkspaceService.list()
     expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id, third.id])
-  })
-
-  it('creates default workspaces under the agents workspace root', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-default-'))
-    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
-      if (key === 'feature.agents.workspaces') {
-        return filename ? path.join(root, filename) : root
-      }
-      return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
-    })
-
-    const workspace = await agentWorkspaceService.createDefaultWorkspace()
-
-    expect(workspace.path.startsWith(root)).toBe(true)
-    const stats = await stat(workspace.path)
-    expect(stats.isDirectory()).toBe(true)
   })
 })

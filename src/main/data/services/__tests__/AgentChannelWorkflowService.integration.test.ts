@@ -61,6 +61,7 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
       type: 'telegram',
       name: 'Original Name',
       agentId: 'agent-rollback-1',
+      workspace: { type: 'system' },
       config: TELEGRAM_CONFIG,
       isActive: true,
       activeChatIds: ['chat-1', 'chat-2'],
@@ -95,6 +96,7 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
     expect(after.type).toBe(snapshot.type)
     expect(after.agentId).toBe(snapshot.agentId)
     expect(after.sessionId).toBe(snapshot.sessionId)
+    expect(after.workspace).toEqual(snapshot.workspace)
     expect(after.config).toEqual(snapshot.config)
     expect(after.isActive).toBe(snapshot.isActive)
     expect(after.activeChatIds).toEqual(snapshot.activeChatIds)
@@ -114,6 +116,7 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
       type: 'telegram',
       name: 'Null-Field Channel',
       // agentId / sessionId / activeChatIds / permissionMode left NULL
+      workspace: { type: 'system' },
       config: TELEGRAM_CONFIG,
       isActive: true
     })

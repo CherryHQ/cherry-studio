@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5b474d22-ab0d-4653-a8e3-bdecf899da46",
-  "prevId": "42474ea0-ee52-400c-830d-844399281ff1",
+  "id": "d2e21411-4819-4025-88b6-037fa16e65b0",
+  "prevId": "5b474d22-ab0d-4653-a8e3-bdecf899da46",
   "tables": {
     "agent": {
       "name": "agent",
@@ -1891,7 +1891,7 @@
       "checkConstraints": {
         "knowledge_base_search_mode_check": {
           "name": "knowledge_base_search_mode_check",
-          "value": "\"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid')"
+          "value": "\"knowledge_base\".\"search_mode\" IN ('vector', 'bm25', 'hybrid')"
         },
         "knowledge_base_status_check": {
           "name": "knowledge_base_status_check",
