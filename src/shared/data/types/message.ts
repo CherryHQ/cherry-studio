@@ -482,8 +482,8 @@ export interface TreeNode {
  * Used for multi-model responses in tree view
  */
 export interface SiblingsGroup {
-  /** Parent message ID */
-  parentId: string
+  /** Parent message ID (null for root sibling groups) */
+  parentId: string | null
   /** Siblings group ID (non-zero) */
   siblingsGroupId: number
   /** Nodes in this group (parentId omitted to avoid redundancy) */
