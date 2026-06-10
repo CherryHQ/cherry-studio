@@ -114,6 +114,7 @@
     "sharp": "0.34.5",
     "tesseract.js": "6.0.1",
     "turndown": "7.2.0",
+    "virtua": "^0.49.1",
     "ws": "^8.18.2",
     "xxhash-wasm": "^1.1.0"
   },
