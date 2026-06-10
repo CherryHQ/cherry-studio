@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useAssistantMutations } from './adapters/assistantAdapter'
 import { DEFAULT_TAG_COLOR, getRandomTagColor, RESOURCE_TYPE_ORDER } from './constants'
-import SkillDetailPage from './detail/skill/SkillDetailPage'
+import SkillDetailDialog from './detail/skill/SkillDetailDialog'
 import AgentConfigPage from './editor/agent/AgentConfigPage'
 import AssistantConfigPage from './editor/assistant/AssistantConfigPage'
 import { serializeAssistantForExport } from './editor/assistant/transfer'
@@ -38,7 +38,6 @@ type ConfigView =
   | { type: 'assistant-edit'; assistant: Assistant }
   | { type: 'agent-edit'; agent: AgentDetail }
   | { type: 'agent-create' }
-  | { type: 'skill-detail'; skill: InstalledSkill }
   | { type: 'prompt-create' }
   | { type: 'prompt-edit'; prompt: Prompt }
 
@@ -81,6 +80,7 @@ export default function LibraryPage() {
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<ResourceItem | null>(null)
   const [configView, setConfigView] = useState<ConfigView>({ type: 'list' })
+  const [selectedSkill, setSelectedSkill] = useState<InstalledSkill | null>(null)
   const [assistantImportOpen, setAssistantImportOpen] = useState(false)
   const [skillImportOpen, setSkillImportOpen] = useState(false)
   const [activeAssistantCatalogTab, setActiveAssistantCatalogTab] = useState(ASSISTANT_CATALOG_MY_TAB)
@@ -218,7 +218,7 @@ export default function LibraryPage() {
     } else if (r.type === 'agent') {
       setConfigView({ type: 'agent-edit', agent: r.raw })
     } else if (r.type === 'skill') {
-      setConfigView({ type: 'skill-detail', skill: r.raw })
+      setSelectedSkill(r.raw)
     } else if (r.type === 'prompt') {
       setConfigView({ type: 'prompt-edit', prompt: r.raw })
     }
@@ -441,28 +441,6 @@ export default function LibraryPage() {
     )
   }
 
-  if (configView.type === 'skill-detail') {
-    return (
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={`skill-detail-${configView.skill.id}`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="flex min-h-0 flex-1 flex-col bg-background">
-          <SkillDetailPage
-            skill={configView.skill}
-            onBack={handleBackToList}
-            onUninstalled={() => {
-              refetch()
-              setConfigView({ type: 'list' })
-            }}
-          />
-        </motion.div>
-      </AnimatePresence>
-    )
-  }
-
   return (
     <div className="flex min-h-0 flex-1 bg-background">
       <LibrarySidebar
@@ -532,6 +510,11 @@ export default function LibraryPage() {
         adding={previewAssistantPresetAdding}
         onOpenChange={handlePreviewOpenChange}
         onAdd={handleAddPreviewAssistantPreset}
+      />
+      <SkillDetailDialog
+        skill={selectedSkill}
+        open={Boolean(selectedSkill)}
+        onOpenChange={(open) => !open && setSelectedSkill(null)}
       />
       <ImportAssistantDialog open={assistantImportOpen} onOpenChange={setAssistantImportOpen} onImported={refetch} />
       <ImportSkillDialog open={skillImportOpen} onOpenChange={setSkillImportOpen} onInstalled={refetch} />
