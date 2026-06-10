@@ -1,3 +1,4 @@
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { describe, expect, it } from 'vitest'
 
 import { transformLlmModelIds } from '../LlmModelTransforms'
@@ -22,11 +23,11 @@ describe('LlmModelTransforms', () => {
       })
     })
 
-    it('returns null for missing model objects', () => {
+    it('falls back chat default model to CherryAI when model objects are missing', () => {
       const result = transformLlmModelIds({})
 
       expect(result).toEqual({
-        'chat.default_model_id': null,
+        'chat.default_model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
         'topic.naming.model_id': null,
         'feature.quick_assistant.model_id': null,
         'feature.translate.model_id': null
@@ -56,7 +57,7 @@ describe('LlmModelTransforms', () => {
 
       const result = transformLlmModelIds(sources)
 
-      expect(result['chat.default_model_id']).toBeNull()
+      expect(result['chat.default_model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
       expect(result['topic.naming.model_id']).toBeNull()
     })
 
@@ -74,6 +75,32 @@ describe('LlmModelTransforms', () => {
         'feature.quick_assistant.model_id': null,
         'feature.translate.model_id': null
       })
+    })
+
+    it('maps legacy CherryAI model references to the seeded Qwen model', () => {
+      const result = transformLlmModelIds({
+        defaultModel: { id: 'old-default', provider: 'cherryai' },
+        topicNamingModel: { id: 'old-topic', provider: 'cherryai' },
+        quickModel: { id: 'old-quick', provider: 'cherryai' },
+        translateModel: { id: 'old-translate', provider: 'cherryai' }
+      })
+
+      expect(result).toEqual({
+        'chat.default_model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+        'topic.naming.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+        'feature.quick_assistant.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+        'feature.translate.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+      })
+    })
+
+    it('trims legacy CherryAI provider ids before remapping', () => {
+      const result = transformLlmModelIds({
+        defaultModel: { id: 'old-default', provider: ' cherryai ' },
+        topicNamingModel: { id: 'old-topic', provider: '\tcherryai\n' }
+      })
+
+      expect(result['chat.default_model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+      expect(result['topic.naming.model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
     })
   })
 })
