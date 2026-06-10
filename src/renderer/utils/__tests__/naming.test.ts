@@ -85,6 +85,8 @@ describe('naming', () => {
     it('should return true for pure emoji string', () => {
       // 验证纯表情符号字符串返回 true
       expect(isEmoji('😊')).toBe(true)
+      expect(isEmoji('🧛‍♂️')).toBe(true)
+      expect(isEmoji('1️⃣')).toBe(true)
     })
 
     it('should return false for mixed emoji and text string', () => {
@@ -95,6 +97,7 @@ describe('naming', () => {
     it('should return false for non-emoji string', () => {
       // 验证非表情符号字符串返回 false
       expect(isEmoji('Hello')).toBe(false)
+      expect(isEmoji('1')).toBe(false)
     })
 
     it('should return false for data URI or URL', () => {
