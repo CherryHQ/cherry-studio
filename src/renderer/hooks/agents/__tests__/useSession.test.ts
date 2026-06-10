@@ -133,6 +133,105 @@ describe('useSessions', () => {
 
     expect(result.current.hasMore).toBe(true)
   })
+
+  it('creates a session through DataApi and refreshes the session list', async () => {
+    const refresh = vi.fn().mockResolvedValue(undefined)
+    const mockSession = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: 'New session',
+      description: 'Notes',
+      workspaceId: 'workspace-1',
+      workspace: {
+        id: 'workspace-1',
+        name: 'Workspace',
+        path: '/tmp/workspace',
+        type: 'user',
+        orderKey: 'a0',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z'
+      },
+      orderKey: 'a0',
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z'
+    }
+    const createTrigger = vi.fn().mockResolvedValueOnce(mockSession)
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ refresh }) as never)
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions', createTrigger)
+
+    const { result } = renderHook(() => useSessions('agent-1'))
+    const created = await act(async () =>
+      result.current.createSession({
+        name: 'New session',
+        description: 'Notes',
+        workspace: { type: 'user', workspaceId: 'workspace-1' }
+      })
+    )
+
+    expect(createTrigger).toHaveBeenCalledWith({
+      body: {
+        agentId: 'agent-1',
+        name: 'New session',
+        description: 'Notes',
+        workspace: { type: 'user', workspaceId: 'workspace-1' }
+      }
+    })
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(created).toBe(mockSession)
+  })
+
+  it('returns the created session when refreshing the session list fails', async () => {
+    const refresh = vi.fn().mockRejectedValue(new Error('refresh failed'))
+    const mockSession = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: 'New session',
+      description: 'Notes',
+      workspaceId: 'workspace-1',
+      workspace: {
+        id: 'workspace-1',
+        name: 'Workspace',
+        path: '/tmp/workspace',
+        type: 'user',
+        orderKey: 'a0',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z'
+      },
+      orderKey: 'a0',
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z'
+    }
+    const createTrigger = vi.fn().mockResolvedValueOnce(mockSession)
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ refresh }) as never)
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions', createTrigger)
+
+    const { result } = renderHook(() => useSessions('agent-1'))
+    const created = await act(async () =>
+      result.current.createSession({
+        name: 'New session',
+        description: 'Notes',
+        workspace: { type: 'user', workspaceId: 'workspace-1' }
+      })
+    )
+
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(created).toBe(mockSession)
+    expect(mockToast.error).toHaveBeenCalled()
+  })
+
+  it('shows an error toast and returns null when DataApi session creation fails', async () => {
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn() as never)
+    const createTrigger = vi.fn().mockRejectedValueOnce(new Error('create failed'))
+    MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions', createTrigger)
+
+    const { result } = renderHook(() => useSessions('agent-1'))
+    const created = await act(async () =>
+      result.current.createSession({ name: 'New session', workspace: { type: 'system' } })
+    )
+
+    expect(created).toBeNull()
+    expect(mockToast.error).toHaveBeenCalled()
+  })
 })
 
 describe('useUpdateSession', () => {
@@ -158,7 +257,7 @@ describe('useUpdateSession', () => {
       updatedAt: '2024-01-01T00:00:00Z'
     }
     const mockTrigger = vi.fn().mockResolvedValue(mockResult)
-    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/sessions/:sessionId', mockTrigger)
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-sessions/:sessionId', mockTrigger)
 
     const { result } = renderHook(() => useUpdateSession('agent-1'))
     const updated = await act(async () => result.current.updateSession({ id: 'session-1', name: 'New name' }))
@@ -181,7 +280,7 @@ describe('useUpdateSession', () => {
       updatedAt: ''
     }
     const mockTrigger = vi.fn().mockResolvedValue(mockResult)
-    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/sessions/:sessionId', mockTrigger)
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-sessions/:sessionId', mockTrigger)
 
     const { result } = renderHook(() => useUpdateSession('agent-1'))
     await act(async () => result.current.updateSession({ id: 'session-1' }, { showSuccessToast: false }))
@@ -191,7 +290,7 @@ describe('useUpdateSession', () => {
 
   it('shows error toast and returns undefined on failure', async () => {
     const mockTrigger = vi.fn().mockRejectedValue(new Error('Update failed'))
-    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/sessions/:sessionId', mockTrigger)
+    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-sessions/:sessionId', mockTrigger)
 
     const { result } = renderHook(() => useUpdateSession('agent-1'))
     const updated = await act(async () => result.current.updateSession({ id: 'session-1' }))

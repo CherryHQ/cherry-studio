@@ -266,14 +266,23 @@ export class SelectionService extends BaseService implements Activatable {
     })
   }
 
-  protected async onReady(): Promise<void> {
+  protected onAllReady(): void {
     const preferenceService = application.get('PreferenceService')
-    if (preferenceService.get('feature.selection.enabled')) {
-      this.logInfo('Selection feature enabled, loading selection-hook module')
-      await this.activate()
-    } else {
+    if (!preferenceService.get('feature.selection.enabled')) {
       this.logInfo('Selection feature disabled, skipping selection-hook module loading')
+      return
     }
+
+    // Warm up off the boot critical path: onActivate() synchronously loads the native
+    // addon and builds the toolbar + action windows (~120ms). setImmediate defers it
+    // past the WhenReady phase so the main window paints first. A pre-fire stop is safe
+    // — _doActivate() no-ops unless the service is Ready.
+    this.logInfo('Selection feature enabled, scheduling selection-hook warm-up')
+    setImmediate(() => {
+      void this.activate().catch((error) => {
+        this.logError('Failed to activate selection feature on startup:', error as Error)
+      })
+    })
   }
 
   protected async onStop(): Promise<void> {

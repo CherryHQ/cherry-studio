@@ -127,7 +127,7 @@ export default function ModelSyncPreviewPanel({ preview, selections, isApplying 
                     <span className={modelSyncClasses.fetchContextValue}>{model.contextWindow}</span>
                   ) : null}
                   <div className={modelSyncClasses.fetchCapabilityStrip}>
-                    <ModelTagsWithLabel model={model as ModelTagsWithLabelModel} size={8} showLabel={false} />
+                    <ModelTagsWithLabel model={model as ModelTagsWithLabelModel} size={8} />
                   </div>
                 </div>
               )
@@ -202,7 +202,7 @@ export default function ModelSyncPreviewPanel({ preview, selections, isApplying 
                     <span className={modelSyncClasses.fetchContextValue}>{item.model.contextWindow}</span>
                   ) : null}
                   <div className={modelSyncClasses.fetchCapabilityStrip}>
-                    <ModelTagsWithLabel model={item.model as ModelTagsWithLabelModel} size={8} showLabel={false} />
+                    <ModelTagsWithLabel model={item.model as ModelTagsWithLabelModel} size={8} />
                   </div>
                 </div>
               )

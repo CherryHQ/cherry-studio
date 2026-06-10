@@ -483,7 +483,7 @@ beforeEach(() => {
 })
 
 // Import SUT after mocks are declared.
-const { FileProcessingOrchestrationService } = await import('../FileProcessingOrchestrationService')
+const { FileProcessingService } = await import('../FileProcessingService')
 ```
 
 #### Common Assertions
@@ -500,7 +500,7 @@ Drive lifecycle hooks (`onInit` / `onStart` / `onStop` / `onDestroy`) manually �
 
 #### Reference Implementations
 
-- `src/main/services/knowledge/__tests__/KnowledgeOrchestrationService.test.ts` — dispatch stub + phase/deps + per-channel handler inspection
+- `src/main/services/knowledge/__tests__/KnowledgeService.test.ts` — dispatch stub + phase/deps + per-channel handler inspection
 - `src/main/services/__tests__/ShortcutService.test.ts` — richer `MockBaseService` with `registerDisposable` + no-op decorator replacements
 
 ---

@@ -10,6 +10,5 @@ export const KNOWLEDGE_DATA_SOURCE_TYPES: ReadonlyArray<SourceTabDefinition> = [
   { value: 'file', labelKey: 'knowledge.data_source.add_dialog.sources.file' },
   { value: 'note', labelKey: 'knowledge.data_source.add_dialog.sources.note' },
   { value: 'directory', labelKey: 'knowledge.data_source.add_dialog.sources.directory' },
-  { value: 'url', labelKey: 'knowledge.data_source.add_dialog.sources.url' },
-  { value: 'sitemap', labelKey: 'knowledge.data_source.add_dialog.sources.sitemap' }
+  { value: 'url', labelKey: 'knowledge.data_source.add_dialog.sources.url' }
 ]

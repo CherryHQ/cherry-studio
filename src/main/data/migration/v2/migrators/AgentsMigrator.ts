@@ -490,7 +490,8 @@ export class AgentsMigrator extends BaseMigrator {
           jobInputTemplate: {
             agentId: v1.agent_id,
             prompt: v1.prompt,
-            timeoutMinutes: v1.timeout_minutes ?? 2
+            timeoutMinutes: v1.timeout_minutes ?? 2,
+            workspace: { type: 'system' }
           },
           catchUpPolicy: { kind: 'skip-missed' },
           enabled: v1.status === 'active',
@@ -576,6 +577,7 @@ type DerivedWorkspace = {
   id: string
   name: string
   path: string
+  type: 'user' | 'system'
   orderKey: string
   createdAt: number
   updatedAt: number
@@ -735,10 +737,11 @@ async function deriveSessionWorkspaces(
   const agentWorkspacesDir = ctx.paths.agentWorkspacesDir
 
   for (const row of rows) {
-    const workspacePath =
+    const explicitWorkspacePath =
       extractPrimaryWorkspacePath(row.session_accessible_paths, 'session') ??
-      extractPrimaryWorkspacePath(row.agent_accessible_paths, 'agent') ??
-      defaultWorkspacePathForSession(agentWorkspacesDir, row.session_id)
+      extractPrimaryWorkspacePath(row.agent_accessible_paths, 'agent')
+    const workspacePath = explicitWorkspacePath ?? defaultWorkspacePathForSession(agentWorkspacesDir, row.session_id)
+    const workspaceType = explicitWorkspacePath ? 'user' : 'system'
 
     let workspace = byPath.get(workspacePath)
     if (!workspace) {
@@ -747,6 +750,7 @@ async function deriveSessionWorkspaces(
         id: uuidv4(),
         name: workspaceNameFromPath(workspacePath),
         path: workspacePath,
+        type: workspaceType,
         orderKey: '',
         createdAt,
         updatedAt: legacyTimestampToMs(row.updated_at, createdAt)
@@ -772,8 +776,8 @@ async function stageSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsS
   const derived = await deriveSessionWorkspaces(ctx, schemaInfo)
   for (const workspace of derived.workspaces) {
     await db.run(
-      sql`INSERT INTO agent_workspace (id, name, path, order_key, created_at, updated_at)
-          VALUES (${workspace.id}, ${workspace.name}, ${workspace.path}, ${workspace.orderKey}, ${workspace.createdAt}, ${workspace.updatedAt})`
+      sql`INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+          VALUES (${workspace.id}, ${workspace.name}, ${workspace.path}, ${workspace.type}, ${workspace.orderKey}, ${workspace.createdAt}, ${workspace.updatedAt})`
     )
   }
   for (const mapping of derived.mappings) {

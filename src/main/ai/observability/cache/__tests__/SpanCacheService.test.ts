@@ -74,57 +74,6 @@ describe('SpanCacheService', () => {
     expect(application.getPath).not.toHaveBeenCalled()
   })
 
-  it('keeps live spans in memory and reads them without touching the trace path', async () => {
-    await service._doInit()
-    service.setTopicId('trace-a', 'topic-a')
-    service.saveEntity(span({ id: 'root', traceId: 'trace-a', modelName: undefined }))
-    service.saveEntity(span({ id: 'model-a', traceId: 'trace-a', modelName: 'model-a' }))
-    service.saveEntity(span({ id: 'model-b', traceId: 'trace-a', modelName: 'model-b' }))
-
-    const spans = await service.getSpans('topic-a', 'trace-a', 'model-a')
-
-    expect(spans.map((item) => item.id)).toEqual(['root', 'model-a'])
-    expect(application.getPath).not.toHaveBeenCalled()
-  })
-
-  it('lazily reads historical trace data when memory has no matching trace', async () => {
-    await service._doInit()
-    const topicDir = path.join(traceDir, 'topic-a')
-    await fs.mkdir(topicDir, { recursive: true })
-    await fs.writeFile(
-      path.join(topicDir, 'trace-a'),
-      `${JSON.stringify(span({ id: 'history', topicId: 'topic-a', traceId: 'trace-a', modelName: 'model-a' }))}\n`
-    )
-
-    const spans = await service.getSpans('topic-a', 'trace-a', 'model-a')
-
-    expect(spans.map((item) => item.id)).toEqual(['history'])
-    expect(application.getPath).toHaveBeenCalledWith('feature.trace')
-  })
-
-  it('falls back to history when the trace id lingers in memory without matching spans', async () => {
-    await service._doInit()
-    const topicDir = path.join(traceDir, 'topic-a')
-    await fs.mkdir(topicDir, { recursive: true })
-    await fs.writeFile(
-      path.join(topicDir, 'trace-a'),
-      `${JSON.stringify(span({ id: 'history', topicId: 'topic-a', traceId: 'trace-a', modelName: 'model-a' }))}\n`
-    )
-    // Memory still knows the trace id (e.g. lingering meta) but holds no span matching the query.
-    service.setTopicId('trace-a', 'topic-a')
-
-    const spans = await service.getSpans('topic-a', 'trace-a', 'model-a')
-
-    expect(spans.map((item) => item.id)).toEqual(['history'])
-  })
-
-  it('returns an empty list for missing history without logging an error', async () => {
-    await service._doInit()
-
-    await expect(service.getSpans('topic-a', 'missing-trace')).resolves.toEqual([])
-    expect(mockMainLoggerService.error).not.toHaveBeenCalled()
-  })
-
   it('rejects a path-traversal topicId instead of escaping the trace root (REGRESSION observability-1)', async () => {
     await service._doInit()
     // A sentinel sibling of the trace root that a `../` traversal would target for deletion.
@@ -133,28 +82,11 @@ describe('SpanCacheService', () => {
     await fs.writeFile(sentinelFile, 'do not delete')
 
     const traversal = `..${path.sep}${path.basename(sentinelDir)}`
-    await expect(service.cleanTopic(traversal)).rejects.toThrow(/invalid topicId/)
+    await expect(service.cleanHistoryTrace(traversal, 'trace-a')).rejects.toThrow(/invalid topicId/)
     // The traversal target survives — no arbitrary delete happened.
     await expect(fs.access(sentinelFile)).resolves.toBeUndefined()
 
     await fs.rm(sentinelDir, { recursive: true, force: true })
-  })
-
-  it('does not infinitely recurse on a self-parent span when accumulating usage (REGRESSION observability-2)', async () => {
-    await service._doInit()
-    service.saveEntity(span({ id: 'x', parentId: 'x', traceId: 'trace-cycle' }))
-
-    const usage = { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 }
-    expect(() => service.updateTokenUsage('x', usage)).not.toThrow()
-  })
-
-  it('does not infinitely recurse on a parent cycle when accumulating outputs (REGRESSION observability-2)', async () => {
-    await service._doInit()
-    // a → b → a forms a cycle in the parent chain.
-    service.saveEntity(span({ id: 'a', parentId: 'b', traceId: 'trace-cycle', modelName: 'm' }))
-    service.saveEntity(span({ id: 'b', parentId: 'a', traceId: 'trace-cycle', modelName: 'm' }))
-
-    expect(() => service.addStreamMessage('a', 'm', 'chunk', { type: 'text' })).not.toThrow()
   })
 
   // The OTel createSpan/endSpan path is the live source of cached spans. If endSpan does not

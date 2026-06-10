@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import { AgentPermissionModeSchema } from './agents'
+import { AgentSessionWorkspaceSourceSchema } from './agentWorkspaces'
 
 export const AgentChannelTypeSchema = z.enum(['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack'])
 export type AgentChannelType = z.infer<typeof AgentChannelTypeSchema>
@@ -85,6 +86,7 @@ const AgentChannelBaseFields = {
   name: z.string(),
   agentId: z.string().nullable().optional(),
   sessionId: z.string().nullable().optional(),
+  workspace: AgentSessionWorkspaceSourceSchema,
   isActive: z.boolean(),
   activeChatIds: z.array(z.string()).optional(),
   permissionMode: AgentPermissionModeSchema.nullable().optional(),
@@ -96,6 +98,7 @@ const MutableAgentChannelFields = {
   name: z.string(),
   agentId: z.string().nullable().optional(),
   sessionId: z.string().nullable().optional(),
+  workspace: AgentSessionWorkspaceSourceSchema,
   isActive: z.boolean(),
   activeChatIds: z.array(z.string()).optional(),
   permissionMode: AgentPermissionModeSchema.nullable().optional()
@@ -173,6 +176,7 @@ export const UpdateAgentChannelSchema = z.strictObject({
   name: z.string().optional(),
   agentId: z.string().nullable().optional(),
   sessionId: z.string().nullable().optional(),
+  workspace: AgentSessionWorkspaceSourceSchema.optional(),
   config: z
     .union([
       TelegramAgentChannelConfigSchema,
@@ -196,7 +200,7 @@ export const AgentChannelListQuerySchema = z.strictObject({
 export type AgentChannelListQuery = z.infer<typeof AgentChannelListQuerySchema>
 
 export type AgentChannelSchemas = {
-  '/channels': {
+  '/agent-channels': {
     GET: {
       query?: AgentChannelListQuery
       response: AgentChannelEntity[]
@@ -207,7 +211,7 @@ export type AgentChannelSchemas = {
     }
   }
 
-  '/channels/:channelId': {
+  '/agent-channels/:channelId': {
     GET: {
       params: { channelId: string }
       response: AgentChannelEntity

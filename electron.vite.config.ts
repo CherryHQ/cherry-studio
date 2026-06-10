@@ -15,6 +15,15 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
 
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
+
+// Bundle/externalize split for the main process: everything in `dependencies` is
+// marked `external` below (kept in node_modules of the packaged app), and everything
+// NOT in `dependencies` (i.e. in `devDependencies`) is bundled into the main bundle by
+// rollup. The API gateway's Elysia stack (`elysia`, `@elysia/*`) is intentionally in
+// `devDependencies` for exactly this reason — it is pure JS and bundles cleanly. Do NOT
+// move it to `dependencies`: that would externalize it, and since devDependencies are
+// pruned from production packages, the packaged app would fail at runtime with
+// MODULE_NOT_FOUND (no test catches this). See docs/references/api-gateway/README.md.
 const bundledMainDependencies = new Set(['@vectorstores/libsql'])
 const mainExternalDependencies = Object.keys(pkg.dependencies).filter(
   (dependency) => !bundledMainDependencies.has(dependency)
@@ -115,7 +124,6 @@ export default defineConfig({
         '@logger': resolve('src/renderer/services/LoggerService'),
         '@data': resolve('src/renderer/data'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
-        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web'),
         '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
         '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
         '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
@@ -146,7 +154,6 @@ export default defineConfig({
           quickAssistant: resolve(__dirname, 'src/renderer/windows/quickAssistant/index.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/windows/selection/toolbar/index.html'),
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
-          traceWindow: resolve(__dirname, 'src/renderer/windows/trace/index.html'),
           migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
           subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html')
         },

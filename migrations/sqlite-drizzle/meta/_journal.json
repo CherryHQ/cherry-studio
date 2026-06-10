@@ -29,6 +29,27 @@
       "when": 1780586439674,
       "tag": "0003_burly_tomorrow_man",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1780732250477,
+      "tag": "0004_tough_mephisto",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1780987715667,
+      "tag": "0005_lyrical_galactus",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1781008744179,
+      "tag": "0006_brave_chronomancer",
+      "breakpoints": true
     }
   ]
 }

@@ -15,7 +15,7 @@ export type {
   TaskRunLogEntity,
   UpdateTaskDto as UpdateTaskRequest
 } from '../api/schemas/agents'
-export type { AgentSessionMessageEntity } from '../api/schemas/sessions'
+export type { AgentSessionMessageEntity } from '../api/schemas/agentSessions'
 export type { InstalledSkill } from '../api/schemas/skills'
 
 // ============================================================================

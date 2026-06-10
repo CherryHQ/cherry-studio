@@ -3,9 +3,7 @@ import '@renderer/databases'
 import { usePreference } from '@data/hooks/usePreference'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { getToastUtilities, useToasts } from '@renderer/components/TopView/toast'
-import { persistor } from '@renderer/store'
 import { useEffect } from 'react'
-import { PersistGate } from 'redux-persist/integration/react'
 
 import AntdProvider from '../../context/AntdProvider'
 import { CodeStyleProvider } from '../../context/CodeStyleProvider'
@@ -44,30 +42,25 @@ function QuickAssistantContent(): React.ReactElement {
 
 /**
  * No react-redux `<Provider>` — the quick-assistant window intentionally stays
- * Redux-Provider-free (continuation of b5343606a). All legacy `state.*` accesses
- * downstream are routed through synchronous helpers (`getAssistantById`,
- * `getDefaultModel`, `getTranslateModel` in `AssistantService`) that read
- * `store.getState()` directly. That only requires the store singleton to be
- * rehydrated, which the single `<PersistGate>` below waits for — no nested
- * gate needed.
+ * Redux-Provider-free (continuation of b5343606a). Downstream assistant/model
+ * data now comes from the v2 Preference + DataApi layer (`usePreference`,
+ * `useQuery('/models/:id')` via `useDefaultAssistant` / `useDefaultModel`), so
+ * there is no dependency on Redux rehydration and no `<PersistGate>` is needed.
  *
  * Why not migrate further to DataApi `useQuery('/assistants/:id')`: see the
  * design note above `currentAssistant` in HomeWindow.
  */
 function QuickAssistantApp(): React.ReactElement {
   return (
-    // TODO: remove this persistgate after v2 refactor
-    <PersistGate loading={null} persistor={persistor}>
-      <ThemeProvider>
-        <AntdProvider>
-          <CodeStyleProvider>
-            <ErrorBoundary>
-              <QuickAssistantContent />
-            </ErrorBoundary>
-          </CodeStyleProvider>
-        </AntdProvider>
-      </ThemeProvider>
-    </PersistGate>
+    <ThemeProvider>
+      <AntdProvider>
+        <CodeStyleProvider>
+          <ErrorBoundary>
+            <QuickAssistantContent />
+          </ErrorBoundary>
+        </CodeStyleProvider>
+      </AntdProvider>
+    </ThemeProvider>
   )
 }
 

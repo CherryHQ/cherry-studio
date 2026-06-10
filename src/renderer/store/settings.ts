@@ -17,7 +17,7 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import { isMac } from '@renderer/config/constant'
-import type { ApiServerConfig, CodeStyleVarious, MathEngine, OpenAIServiceTier, S3Config } from '@renderer/types'
+import type { ApiGatewayConfig, CodeStyleVarious, MathEngine, OpenAIServiceTier, S3Config } from '@renderer/types'
 import { API_SERVER_DEFAULTS, DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
@@ -240,7 +240,7 @@ export interface SettingsState {
   // UI
   navbarPosition: 'left' | 'top'
   // API Server
-  apiServer: ApiServerConfig
+  apiServer: ApiGatewayConfig
   showMessageOutline: boolean
 }
 

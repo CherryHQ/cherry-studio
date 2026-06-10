@@ -28,7 +28,6 @@ const { mockLogger, mocks } = vi.hoisted(() => ({
     windowManager: null as {
       broadcastToType: Mock
       getWindowsByType: Mock
-      getAllWindows: Mock
     } | null
   }
 }))
@@ -112,8 +111,7 @@ describe('LanTransferService - Discovery', () => {
     }
     mocks.windowManager = {
       broadcastToType: vi.fn(),
-      getWindowsByType: vi.fn(() => [{ id: 'main-1' }]),
-      getAllWindows: vi.fn(() => [])
+      getWindowsByType: vi.fn(() => [{ id: 'main-1' }])
     }
 
     mocks.browser = Object.assign(new EventEmitter(), {

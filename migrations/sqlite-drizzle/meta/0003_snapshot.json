@@ -671,6 +671,11 @@
           "name": "agent_session_message_session_created_id_idx",
           "columns": ["session_id", "created_at", "id"],
           "isUnique": false
+        },
+        "agent_session_message_status_idx": {
+          "name": "agent_session_message_status_idx",
+          "columns": ["status"],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -2327,6 +2332,11 @@
         "message_trace_id_idx": {
           "name": "message_trace_id_idx",
           "columns": ["trace_id"],
+          "isUnique": false
+        },
+        "message_status_idx": {
+          "name": "message_status_idx",
+          "columns": ["status"],
           "isUnique": false
         }
       },

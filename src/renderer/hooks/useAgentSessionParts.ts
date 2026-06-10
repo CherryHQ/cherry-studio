@@ -1,7 +1,7 @@
 /**
  * Agent session history data source — returns CherryUIMessage[] for useChatWithHistory.
  *
- * Backed by DataApi (`/sessions/:sessionId/messages`) with cursor-based
+ * Backed by DataApi (`/agent-sessions/:sessionId/messages`) with cursor-based
  * infinite pagination so chat-style transcripts of arbitrary length load
  * incrementally as the virtual list scrolls up. Reads go through SWR's
  * shared cache (dedup, revalidation, cross-window consistency).
@@ -40,7 +40,7 @@ function toUIMessage(row: AgentSessionMessageEntity): CherryUIMessage | null {
 }
 
 export function useAgentSessionParts(_agentId: string, sessionId: string) {
-  const { pages, isLoading, hasNext, loadNext, mutate } = useInfiniteQuery('/sessions/:sessionId/messages', {
+  const { pages, isLoading, hasNext, loadNext, mutate } = useInfiniteQuery('/agent-sessions/:sessionId/messages', {
     params: { sessionId },
     limit: PAGE_SIZE,
     enabled: !!sessionId
