@@ -70,11 +70,12 @@ export interface AgentFormState {
   description: string
   /** `''` is the explicit "no model selected yet" draft sentinel; once chosen it is always a valid UniqueModelId. */
   model: UniqueModelId | ''
-  planModel: string
-  smallModel: string
+  planModel: UniqueModelId | ''
+  smallModel: UniqueModelId | ''
   instructions: string
   mcps: string[]
-  allowedTools: string[]
+  /** Opt-out list of disabled tool names (empty = all enabled). */
+  disabledTools: string[]
 
   // configuration.* derived fields we edit in the library UI.
   avatar: string
@@ -160,7 +161,7 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null): AgentFor
     smallModel: agent?.smallModel ?? '',
     instructions: agent?.instructions ?? '',
     mcps: [...(agent?.mcps ?? [])],
-    allowedTools: [...(agent?.allowedTools ?? [])],
+    disabledTools: [...(agent?.disabledTools ?? [])],
     avatar: asString(cfg.avatar),
     permissionMode: asString(cfg.permission_mode),
     maxTurns: asFormMaxTurns(cfg.max_turns),
@@ -238,7 +239,7 @@ export function buildCreateAgentPayload(form: AgentFormState, type: AgentType = 
     planModel: form.planModel || undefined,
     smallModel: form.smallModel || undefined,
     mcps: form.mcps.length > 0 ? form.mcps : undefined,
-    allowedTools: form.allowedTools.length > 0 ? form.allowedTools : undefined,
+    disabledTools: form.disabledTools.length > 0 ? form.disabledTools : undefined,
     configuration: buildConfigurationPayload(form)
   }
 }
@@ -319,8 +320,8 @@ export function diffAgentUpdate(
     dto.mcps = next.mcps
     dirty = true
   }
-  if (!arraysEqual(baseline.allowedTools, next.allowedTools)) {
-    dto.allowedTools = next.allowedTools
+  if (!arraysEqual(baseline.disabledTools, next.disabledTools)) {
+    dto.disabledTools = next.disabledTools
     dirty = true
   }
 

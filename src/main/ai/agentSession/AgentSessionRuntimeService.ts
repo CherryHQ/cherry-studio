@@ -273,7 +273,7 @@ export class AgentSessionRuntimeService extends BaseService {
     }
 
     if (
-      Object.prototype.hasOwnProperty.call(updates, 'allowedTools') ||
+      Object.prototype.hasOwnProperty.call(updates, 'disabledTools') ||
       Object.prototype.hasOwnProperty.call(updates, 'mcps')
     ) {
       await this.applyAgentPolicyUpdate(agentId, { type: 'tool-policy', agent })

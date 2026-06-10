@@ -58,7 +58,7 @@ vi.mock('@data/services/AgentChannelService', () => ({
 
 const {
   AgentSessionWorkspaceError,
-  adjustAllowedToolsForMcp,
+  buildInjectedMcpAllowedTools,
   assertClaudeCodeWorkspaceDirectory,
   buildMcpServers,
   formatNetworkProbeLine,
@@ -98,19 +98,19 @@ function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessi
   } as unknown as AgentSessionEntity
 }
 
-describe('adjustAllowedToolsForMcp', () => {
+describe('buildInjectedMcpAllowedTools', () => {
   it('adds the claw + agent-memory wildcards in Soul Mode', () => {
-    expect(adjustAllowedToolsForMcp([], true, false)).toEqual(
+    expect(buildInjectedMcpAllowedTools(true, false)).toEqual(
       expect.arrayContaining(['mcp__claw__*', 'mcp__agent-memory__*'])
     )
   })
 
   it('adds the assistant wildcard for the Cherry Assistant', () => {
-    expect(adjustAllowedToolsForMcp([], false, true)).toContain('mcp__assistant__*')
+    expect(buildInjectedMcpAllowedTools(false, true)).toContain('mcp__assistant__*')
   })
 
-  it('leaves allowed tools untouched when neither Soul nor Assistant', () => {
-    expect(adjustAllowedToolsForMcp(['existing'], false, false)).toEqual(['existing'])
+  it('returns undefined when neither Soul nor Assistant injects tools', () => {
+    expect(buildInjectedMcpAllowedTools(false, false)).toBeUndefined()
   })
 })
 
