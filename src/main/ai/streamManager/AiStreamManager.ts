@@ -22,6 +22,7 @@ import { type SerializedError, serializeError } from '@shared/types/error'
 import { type UIMessageChunk } from 'ai'
 import * as z from 'zod'
 
+import { isAgentSessionTopic } from '../agentSession/topic'
 import type { AiStreamRequest, CallOverrides } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context'
@@ -327,12 +328,19 @@ export class AiStreamManager extends BaseService {
       return { mode: 'injected', executionIds: [...existing.executions.keys()] }
     }
 
+    // Enqueue-only dispatch with no live stream to attach to: an agent-session follow-up can land
+    // in the inter-turn drain window (`isSessionBusy` true while the settled stream is terminal in
+    // grace, so `hasLiveStream` is false). The user row is already in the runtime's pendingTurns and
+    // the runtime will open the next turn, so no-op instead of throwing.
+    if (input.models.length === 0) {
+      logger.debug('send(): empty models with no live stream — enqueue-only, nothing to start', {
+        topicId: input.topicId
+      })
+      return { mode: 'injected', executionIds: [] }
+    }
+
     // Evict any grace-period stream so two streams never coexist on one topic.
     if (existing) this.evictStream(input.topicId)
-
-    if (input.models.length === 0) {
-      throw new Error(`send() requires at least one model when starting a new stream (topicId=${input.topicId})`)
-    }
 
     const isMultiModel = input.models.length > 1
     const executions = new Map<UniqueModelId, StreamExecution>()
@@ -568,11 +576,15 @@ export class AiStreamManager extends BaseService {
 
     // Compute topic status first so listeners get isTopicDone
     stream.status = this.resolveTerminalStatus(stream)
-    const isTopicDone = !isLiveStatus(stream.status)
+    const topicDone = !isLiveStatus(stream.status)
+    const agentChaining =
+      topicDone &&
+      isAgentSessionTopic(topicId) &&
+      application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
 
-    await this.broadcastExecutionDone(stream, exec, isTopicDone)
+    await this.broadcastExecutionDone(stream, exec, topicDone && !agentChaining)
 
-    if (isTopicDone) this.runTerminalLifecycle(stream)
+    if (topicDone && !agentChaining) this.runTerminalLifecycle(stream)
   }
 
   async onExecutionPaused(topicId: string, modelId: UniqueModelId): Promise<void> {

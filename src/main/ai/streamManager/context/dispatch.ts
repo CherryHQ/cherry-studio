@@ -92,9 +92,14 @@ export async function dispatchStreamRequest(
   })
 
   // Ids the renderer needs to join its optimistic bubbles.
-  const placeholderIds = prepared.models
-    .map((m) => m.request.messageId)
-    .filter((id): id is string => typeof id === 'string' && id.length > 0)
+  const placeholderIds =
+    prepared.reservedMessages
+      ?.filter((message) => message.role === 'assistant')
+      .map((message) => message.id)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0) ??
+    prepared.models
+      .map((m) => m.request.messageId)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0)
 
   // Multi-model topics are persistent-only with a placeholder per model, so the
   // filtered list must stay aligned with `executionIds`. Fail fast if a future
@@ -110,6 +115,7 @@ export async function dispatchStreamRequest(
     mode: result.mode,
     executionIds: prepared.isMultiModel ? result.executionIds : undefined,
     userMessageId: prepared.userMessageId ?? prepared.userMessage?.id,
+    reservedMessages: prepared.reservedMessages,
     placeholderIds: placeholderIds.length > 0 ? placeholderIds : undefined
   }
 }

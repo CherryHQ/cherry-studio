@@ -195,6 +195,12 @@ export type AiStreamOpenResponse =
        */
       userMessageId?: string
       /**
+       * Authoritative persisted message skeletons reserved before the stream
+       * starts. The renderer can seed these into history immediately, then lets
+       * DB refresh reconcile final content/status.
+       */
+      reservedMessages?: CherryUIMessage[]
+      /**
        * Authoritative DB ids of the assistant placeholder row(s) reserved for
        * this turn, one per execution (model order matches `executionIds`).
        * Created atomically with the user message, so the presence of any of
