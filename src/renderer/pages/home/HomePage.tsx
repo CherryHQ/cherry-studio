@@ -58,7 +58,7 @@ const HomePage: FC = () => {
   // Once `/topics` has loaded and turned out empty, there's no persisted topic
   // for `autoPickFirst` to fall back to.
   const { topics: persistedTopics, isLoading: topicsLoading } = useAllTopics()
-  const noPersistedTopic = !topicsLoading && persistedTopics.length === 0
+  const noPersistedTopics = !topicsLoading && persistedTopics.length === 0
 
   // Lease a temporary topic whenever there's nothing to show:
   //  - the first HomePage mount of the session (fresh-conversation UX), or
@@ -67,7 +67,7 @@ const HomePage: FC = () => {
   //    cleared `topic.active`, leaving the page with no topic to render).
   // The temp topic has no assistant attached — capabilities / model fall back
   // to the `chat.default_model_id` preference.
-  const shouldUseTemporary = !state?.topic && (firstMount || noPersistedTopic)
+  const shouldUseTemporary = !state?.topic && (firstMount || noPersistedTopics)
 
   const { topicId: tempTopicId, persist: persistTemporaryTopic } = useTemporaryTopic({
     enabled: shouldUseTemporary
@@ -95,10 +95,10 @@ const HomePage: FC = () => {
   // initial-topic effect only fills a *missing* id) and would keep rendering
   // the deleted topic. Steer it to the freshly-leased temp explicitly.
   useEffect(() => {
-    if (shouldUseTemporary && noPersistedTopic && tempTopicId && activeTopic?.id !== tempTopicId) {
+    if (shouldUseTemporary && noPersistedTopics && tempTopicId && activeTopic?.id !== tempTopicId) {
       setActiveTopic(buildPendingTemporaryTopic(tempTopicId))
     }
-  }, [shouldUseTemporary, noPersistedTopic, tempTopicId, activeTopic?.id, setActiveTopic])
+  }, [shouldUseTemporary, noPersistedTopics, tempTopicId, activeTopic?.id, setActiveTopic])
 
   const persistTemporaryTopicAndRefresh = useCallback(
     async (initialName?: string) => {
