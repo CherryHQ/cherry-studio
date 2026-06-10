@@ -87,6 +87,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     document.documentElement.style.setProperty('--sidebar-width', `${getSidebarDisplayWidth(activeSidebarWidth)}px`)
   }, [activeSidebarWidth])
 
+  // Migration, not dead code: the resize path only persists normalized widths,
+  // but older builds (three-state layout, default 65) persisted intermediate
+  // values that must be collapsed once on load. Writing derived state back
+  // cannot loop — normalizeSidebarWidth is idempotent and the write is guarded
+  // by the inequality check. Skip while a drag preview is active so the
+  // write-back does not clobber it.
   useEffect(() => {
     if (previewSidebarWidth !== null) return
 

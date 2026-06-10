@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react'
 
 import {
   getSidebarDisplayWidth,
+  isIntermediateSidebarWidth,
   SIDEBAR_FULL_THRESHOLD,
   SIDEBAR_HIDDEN_THRESHOLD,
   SIDEBAR_ICON_WIDTH,
@@ -35,7 +36,7 @@ export function useSidebarResize(
       const commitDragWidth = (nextWidth: number) => {
         lastWidth = nextWidth
 
-        if (nextWidth > SIDEBAR_ICON_WIDTH && nextWidth < SIDEBAR_FULL_THRESHOLD) {
+        if (isIntermediateSidebarWidth(nextWidth)) {
           onResizePreview?.(nextWidth)
           return
         }
@@ -68,7 +69,7 @@ export function useSidebarResize(
       }
 
       const onMouseUp = () => {
-        if (lastWidth !== null && lastWidth > SIDEBAR_ICON_WIDTH && lastWidth < SIDEBAR_FULL_THRESHOLD) {
+        if (lastWidth !== null && isIntermediateSidebarWidth(lastWidth)) {
           setWidth(lastWidth > startWidth ? SIDEBAR_FULL_THRESHOLD : SIDEBAR_ICON_WIDTH)
         }
         cleanup()
