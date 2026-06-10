@@ -55,6 +55,7 @@ Backend split areas:
 | Agent runtime | Keep agent sessions warm and expose agent resource policy | `split-18`, `split-30` |
 | MCP tools | Add Claude MCP tool runtime and chat tool-rendering foundations | `split-19`, `split-52` through `split-58` |
 | Builtin tools | Keep builtin tool contracts shared, extract knowledge/web lookup cores, and expose Cherry builtin tools through MCP | `split-59`, `split-60`, `split-61`, `split-62` |
+| AI SDK meta tools | Harden meta-tool search, inspect, invoke, and defer exposition behavior | `split-63` |
 | Topic operations | Copy a selected topic branch into a new topic | `split-32` |
 | Provider settings | Merge provider setting patches without losing fields | `split-20` |
 
@@ -198,6 +199,7 @@ The broad library resource workflow should be finalized after its extracted prer
 | Message flow | `split-50`, `split-51`; reconcile with `split-39` |
 | Chat tool foundations | `split-52` through `split-58` |
 | Builtin tool lookup foundations | `split-59`, `split-60`, `split-61`, `split-62` |
+| AI SDK meta-tool hardening | `split-63` |
 
 ## Non-goals
 
@@ -215,5 +217,5 @@ The currently open follow-up areas should consume the foundations above:
 - clickable file path renderer should consume provider runtime and file path utilities
 - markdown renderer should consume tool response foundations only where needed
 - agent tool renderers should consume tool response adapter, parent metadata, activity/status helpers, arguments table, output truncation, and task data helpers
-- builtin AI tool adapters should consume shared builtin contracts plus the knowledge/web lookup cores and Cherry builtin-tools MCP server
+- builtin AI tool adapters should consume shared builtin contracts plus the knowledge/web lookup cores, Cherry builtin-tools MCP server, and meta-tool hardening
 - remaining Home/Agent page integration should stay in page adapters and route components, not inside shared chat core
