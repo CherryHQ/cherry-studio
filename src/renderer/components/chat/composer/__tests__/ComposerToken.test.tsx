@@ -480,12 +480,13 @@ describe('ComposerToken', () => {
     expect(label).not.toHaveClass('truncate')
   })
 
-  it('renders a selected prompt variable as an editable input without committing IME intermediates', () => {
+  it('renders a selected prompt variable as an editable textarea without committing IME intermediates', () => {
     const onPromptVariableCommit = vi.fn()
 
     render(<PromptVariableToken token={promptVariableToken} selected editing onCommit={onPromptVariableCommit} />)
 
-    const input = screen.getByRole('textbox') as HTMLInputElement
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement
+    expect(input.tagName).toBe('TEXTAREA')
     expect(input.value).toBe('city')
 
     fireEvent.compositionStart(input)
@@ -500,17 +501,28 @@ describe('ComposerToken', () => {
     expect(onPromptVariableCommit).toHaveBeenCalledWith('上海', 'blur', { dirty: true })
   })
 
-  it('uses native content sizing for the prompt variable input with a max bound', () => {
+  it('lets prompt variable edit text wrap and grow without truncation', () => {
     render(<PromptVariableToken token={promptVariableToken} selected editing onCommit={vi.fn()} />)
 
-    const input = screen.getByRole('textbox') as HTMLInputElement
+    const input = screen.getByRole('textbox') as HTMLTextAreaElement
+    Object.defineProperty(input, 'scrollHeight', { configurable: true, value: 48 })
+
     expect(input.style.minWidth).toBe('2ch')
-    expect(input.style.maxWidth).toBe('56ch')
-    expect(input).toHaveClass('field-sizing-content')
+    expect(input.style.maxWidth).toBe('100%')
+    expect(input).toHaveClass(
+      'field-sizing-content',
+      'min-w-0',
+      'max-w-full',
+      'resize-none',
+      'overflow-hidden',
+      'whitespace-pre-wrap',
+      'wrap-anywhere'
+    )
     expect(input.style.width).toBe('')
 
     fireEvent.change(input, { target: { value: '上海市浦东新区世纪大道' } })
     expect(input.style.width).toBe('')
+    expect(input.style.height).toBe('48px')
   })
 
   it('does not enter prompt variable editing from selection alone', async () => {
@@ -537,7 +549,7 @@ describe('ComposerToken', () => {
 
     fireEvent.mouseDown(screen.getByText('city'))
 
-    const input = (await screen.findByLabelText('${city}')) as HTMLInputElement
+    const input = (await screen.findByLabelText('${city}')) as HTMLTextAreaElement
     await waitFor(() => expect(editor!.state.selection.from).toBe(promptVariablePosition))
     expect(input.value).toBe('city')
   })
@@ -553,20 +565,20 @@ describe('ComposerToken', () => {
     })
 
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('${from}')))
-    const fromInput = screen.getByLabelText('${from}') as HTMLInputElement
+    const fromInput = screen.getByLabelText('${from}') as HTMLTextAreaElement
     fireEvent.change(fromInput, { target: { value: '上海' } })
     fireEvent.keyDown(fromInput, { key: 'Tab' })
 
     await waitFor(() => expect(serializeComposerDocument(editor!).text).toBe('go 上海 to ${to}'))
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('${to}')))
-    const toInput = screen.getByLabelText('${to}') as HTMLInputElement
+    const toInput = screen.getByLabelText('${to}') as HTMLTextAreaElement
 
     fireEvent.change(toInput, { target: { value: '北京' } })
     fireEvent.keyDown(toInput, { key: 'Tab', shiftKey: true })
 
     await waitFor(() => expect(serializeComposerDocument(editor!).text).toBe('go 上海 to 北京'))
     await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText('${from}')))
-    const previousInput = screen.getByLabelText('${from}') as HTMLInputElement
+    const previousInput = screen.getByLabelText('${from}') as HTMLTextAreaElement
     expect(previousInput.value).toBe('上海')
   })
 

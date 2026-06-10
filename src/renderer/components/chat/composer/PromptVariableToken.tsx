@@ -8,8 +8,15 @@ export type PromptVariableCommitReason = 'blur' | 'enter' | 'tab'
 
 const promptVariableInputStyle = {
   minWidth: '2ch',
-  maxWidth: '56ch'
+  maxWidth: '100%'
 } as CSSProperties
+
+function resizePromptVariableInput(input: HTMLTextAreaElement | null) {
+  if (!input) return
+
+  input.style.height = 'auto'
+  if (input.scrollHeight > 0) input.style.height = `${input.scrollHeight}px`
+}
 
 export interface PromptVariableTokenProps {
   token: PromptVariableComposerInputToken
@@ -34,7 +41,7 @@ export function PromptVariableToken({
   onSelectAll,
   onEditRequest
 }: PromptVariableTokenProps) {
-  const inputRef = useRef<HTMLInputElement | null>(null)
+  const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const isComposingRef = useRef(false)
   const isDirtyRef = useRef(false)
   const hasFinishedCurrentDraftRef = useRef(false)
@@ -69,11 +76,13 @@ export function PromptVariableToken({
       const nextValue = compositionText && input.value === token.label ? compositionText : input.value
       if (input.value !== nextValue) input.value = nextValue
       if (nextValue !== token.label) isDirtyRef.current = true
+      resizePromptVariableInput(input)
     }
 
     const updateDraftState = () => {
       isDirtyRef.current = true
       hasFinishedCurrentDraftRef.current = false
+      resizePromptVariableInput(input)
     }
 
     const finishEditing = (reason: PromptVariableCommitReason, options: { direction?: 1 | -1 } = {}) => {
@@ -131,9 +140,11 @@ export function PromptVariableToken({
       hasFinishedCurrentDraftRef.current = false
       input.focus({ preventScroll: true })
       input.select()
+      resizePromptVariableInput(input)
       focusFrame = window.requestAnimationFrame(() => {
         input.focus({ preventScroll: true })
         input.select()
+        resizePromptVariableInput(input)
       })
     }
 
@@ -151,6 +162,7 @@ export function PromptVariableToken({
   const handleInputChange = () => {
     isDirtyRef.current = true
     hasFinishedCurrentDraftRef.current = false
+    resizePromptVariableInput(inputRef.current)
   }
   const handleTokenMouseDown: MouseEventHandler<HTMLSpanElement> | undefined =
     !isEditing && onEditRequest
@@ -169,11 +181,12 @@ export function PromptVariableToken({
       maxWidthClassName="max-w-full"
       onMouseDown={handleTokenMouseDown}>
       {isEditing ? (
-        <input
+        <textarea
           ref={inputRef}
           defaultValue={token.label}
           aria-label={token.description ?? token.label}
-          className="field-sizing-content m-0 border-0 bg-transparent p-0 font-[inherit] text-current leading-[inherit] outline-none"
+          rows={1}
+          className="field-sizing-content wrap-anywhere m-0 min-w-0 max-w-full resize-none overflow-hidden whitespace-pre-wrap border-0 bg-transparent p-0 font-[inherit] text-current leading-[inherit] outline-none"
           style={promptVariableInputStyle}
           onChange={handleInputChange}
           onMouseDown={(event) => event.stopPropagation()}
