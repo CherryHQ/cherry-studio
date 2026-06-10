@@ -80,17 +80,8 @@ export class TraceStorageService extends BaseService implements TraceCache, Acti
   }
 
   private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => this.saveSpans(topicId))
     this.ipcHandle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
       this.getSpans(topicId, traceId, modelName)
-    )
-    this.ipcHandle(IpcChannel.TRACE_SAVE_ENTITY, (_, entity: SpanEntity) => this.saveEntity(entity))
-    this.ipcHandle(IpcChannel.TRACE_GET_ENTITY, (_, spanId: string) => this.getEntity(spanId))
-    this.ipcHandle(IpcChannel.TRACE_BIND_TOPIC, (_, topicId: string, traceId: string) =>
-      this.setTopicId(traceId, topicId)
-    )
-    this.ipcHandle(IpcChannel.TRACE_CLEAN_HISTORY, (_, topicId: string, traceId: string, modelName?: string) =>
-      this.cleanHistoryTrace(topicId, traceId, modelName)
     )
     this.ipcHandle(IpcChannel.TRACE_CLEAN_LOCAL_DATA, () => this.cleanLocalData())
   }
@@ -150,10 +141,6 @@ export class TraceStorageService extends BaseService implements TraceCache, Acti
     this.store.registerTraceMeta(traceId, { topicId })
   }
 
-  getEntity(spanId: string): SpanEntity | undefined {
-    return this.store.getSpan(spanId)
-  }
-
   saveEntity(entity: SpanEntity) {
     if (!this.isActivated) return
     this.applyTraceMeta(entity)
@@ -188,28 +175,6 @@ export class TraceStorageService extends BaseService implements TraceCache, Acti
     const live = this.store.getSpans({ topicId, traceId, modelName })
     const history = await this.getHistoryData(topicId, traceId, modelName)
     return reparentClaudeCodeUnderTurns(mergeSpansById(history, live), traceId)
-  }
-
-  async cleanHistoryTrace(topicId: string, traceId: string, modelName?: string) {
-    this.store.clearTrace(traceId, modelName)
-
-    const filePath = this.traceFilePath(topicId, traceId)
-    if (!(await this.fileExists(filePath))) {
-      return
-    }
-
-    if (!modelName) {
-      await fs.rm(filePath, { force: true })
-      return
-    }
-
-    const allSpans = await this.getHistoryData(topicId, traceId)
-    const remainingSpans = allSpans.filter((span) => span.modelName !== modelName)
-    if (remainingSpans.length === 0) {
-      await fs.rm(filePath, { force: true })
-      return
-    }
-    await this.writeTraceFile(remainingSpans, topicId, traceId)
   }
 
   private addEntity(entity: SpanEntity): void {

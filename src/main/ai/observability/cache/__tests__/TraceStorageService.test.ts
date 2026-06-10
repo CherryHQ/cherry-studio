@@ -74,7 +74,7 @@ describe('TraceStorageService', () => {
     expect(application.getPath).not.toHaveBeenCalled()
   })
 
-  it('rejects a path-traversal topicId instead of escaping the trace root (REGRESSION observability-1)', async () => {
+  it('rejects a path-traversal topicId in getSpans instead of escaping the trace root (REGRESSION observability-1)', async () => {
     await service._doInit()
     // A sentinel sibling of the trace root that a `../` traversal would target for deletion.
     const sentinelDir = await fs.mkdtemp(path.join(os.tmpdir(), 'span-cache-sentinel-'))
@@ -82,7 +82,7 @@ describe('TraceStorageService', () => {
     await fs.writeFile(sentinelFile, 'do not delete')
 
     const traversal = `..${path.sep}${path.basename(sentinelDir)}`
-    await expect(service.cleanHistoryTrace(traversal, 'trace-a')).rejects.toThrow(/invalid topicId/)
+    await expect(service.getSpans(traversal, 'trace-a')).rejects.toThrow(/invalid topicId/)
     // The traversal target survives — no arbitrary delete happened.
     await expect(fs.access(sentinelFile)).resolves.toBeUndefined()
 
@@ -113,16 +113,16 @@ describe('TraceStorageService', () => {
 
     // 1. In-flight span from createSpan must not be ended.
     service.createSpan(readableSpan({ spanId: 'live', traceId: 'trace-live', ended: false }))
-    expect(service.getEntity('live')?.isEnd).toBe(false)
+    expect(service['store'].getSpan('live')?.isEnd).toBe(false)
 
     // 2. endSpan must mark the entity ended.
     service.endSpan(readableSpan({ spanId: 'live', traceId: 'trace-live', ended: true }))
-    expect(service.getEntity('live')?.isEnd).toBe(true)
+    expect(service['store'].getSpan('live')?.isEnd).toBe(true)
 
     // 3. Feed the real pipeline-produced entity into a small-cap store and confirm the
     //    fully-ended trace is evicted when the cap is exceeded. This is the end-to-end
     //    assertion that fails pre-fix (isEnd undefined → oldestEndedTraceId() skips it).
-    const endedEntity = service.getEntity('live') as SpanEntity
+    const endedEntity = service['store'].getSpan('live') as SpanEntity
     const cappedStore = new TraceSpanStore(1)
     cappedStore.setSpan({ ...endedEntity })
     cappedStore.setSpan(span({ id: 'newer', traceId: 'trace-newer' }))

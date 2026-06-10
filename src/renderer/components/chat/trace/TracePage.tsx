@@ -17,7 +17,10 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
   const [spans, setSpans] = useState<TraceModal[]>([])
   const [selectNode, setSelectNode] = useState<TraceModal | null>(null)
   const [showList, setShowList] = useState(true)
+  const [pollError, setPollError] = useState<string | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const failureCountRef = useRef(0)
+  const emptyCountRef = useRef(0)
   const { t } = useTranslation()
 
   const mergeTraceModals = useCallback((oldNodes: TraceModal[], newNodes: TraceModal[]): TraceModal[] => {
@@ -25,12 +28,10 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
     return newNodes.map((newNode) => {
       const oldNode = oldMap.get(newNode.id)
       if (oldNode) {
-        oldNode.children = mergeTraceModals(oldNode.children, newNode.children)
-        Object.assign(oldNode, newNode)
-        return oldNode
-      } else {
-        return newNode
+        const mergedChildren = mergeTraceModals(oldNode.children, newNode.children)
+        return { ...oldNode, ...newNode, children: mergedChildren }
       }
+      return newNode
     })
   }, [])
 
@@ -49,7 +50,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
     })
   }, [])
 
-  const getRootSpan = (spans: SpanEntity[]): TraceModal[] => {
+  const getRootSpan = useCallback((spans: SpanEntity[]): TraceModal[] => {
     const map: Map<string, TraceModal> = new Map()
 
     spans.map((span) => {
@@ -68,7 +69,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
         return true
       })
     )
-  }
+  }, [])
 
   const findNodeById = useCallback((nodes: TraceModal[], id: string): TraceModal | null => {
     for (const n of nodes) {
@@ -81,17 +82,9 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
     return null
   }, [])
 
-  const getTraceData = useCallback(async (): Promise<boolean> => {
-    const datas = topicId && traceId ? await window.api.trace.getData(topicId, traceId, modelName) : []
-    const matchedSpans = getRootSpan(datas)
-    updatePercentAndStart(matchedSpans)
-    setSpans((prev) => mergeTraceModals(prev, matchedSpans))
-    if (matchedSpans.length === 0) {
-      return false
-    }
-    const isEnded = !matchedSpans.find((e) => !e.endTime || e.endTime <= 0)
-    return isEnded
-  }, [topicId, traceId, modelName, updatePercentAndStart, mergeTraceModals])
+  const getTraceData = useCallback(async (): Promise<SpanEntity[]> => {
+    return topicId && traceId ? await window.api.trace.getData(topicId, traceId, modelName) : []
+  }, [topicId, traceId, modelName])
 
   const handleNodeClick = (nodeId: string) => {
     const latestNode = findNodeById(spans, nodeId)
@@ -118,13 +111,45 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
         clearInterval(intervalRef.current)
         intervalRef.current = null
       }
-      let endedCount = 0
+      failureCountRef.current = 0
+      emptyCountRef.current = 0
+      setPollError(null)
+
+      let lastSpanCount = 0
+      let consecutiveEnded = 0
       const poll = async () => {
-        const ended = await getTraceData()
-        endedCount = ended ? endedCount + 1 : 0
-        if (endedCount >= 3 && intervalRef.current) {
-          clearInterval(intervalRef.current)
-          intervalRef.current = null
+        try {
+          const datas = topicId && traceId ? await window.api.trace.getData(topicId, traceId, modelName) : []
+          failureCountRef.current = 0
+          const matchedSpans = getRootSpan(datas)
+
+          if (matchedSpans.length === 0) {
+            emptyCountRef.current++
+            if (emptyCountRef.current >= 30 && lastSpanCount === 0 && intervalRef.current) {
+              clearInterval(intervalRef.current)
+              intervalRef.current = null
+              return
+            }
+          } else {
+            emptyCountRef.current = 0
+            lastSpanCount = matchedSpans.length
+            updatePercentAndStart(matchedSpans)
+            setSpans((prev) => mergeTraceModals(prev, matchedSpans))
+          }
+
+          const allEnded = matchedSpans.length > 0 && matchedSpans.every((e) => e.endTime && e.endTime > 0)
+          consecutiveEnded = allEnded ? consecutiveEnded + 1 : 0
+          if (consecutiveEnded >= 20 && intervalRef.current) {
+            clearInterval(intervalRef.current)
+            intervalRef.current = null
+          }
+        } catch (error) {
+          failureCountRef.current++
+          if (failureCountRef.current >= 3 && intervalRef.current) {
+            clearInterval(intervalRef.current)
+            intervalRef.current = null
+            setPollError(error instanceof Error ? error.message : String(error))
+          }
         }
       }
       await poll()
@@ -137,7 +162,7 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
         intervalRef.current = null
       }
     }
-  }, [getTraceData, traceId, topicId, reload])
+  }, [getTraceData, topicId, traceId, modelName, reload, getRootSpan, updatePercentAndStart, mergeTraceModals])
 
   useEffect(() => {
     if (selectNode) {
@@ -159,7 +184,11 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
             <div
               data-testid="trace-list-scroll"
               className="min-h-0 w-full min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
-              {spans.length === 0 ? (
+              {pollError ? (
+                <div className="flex h-full min-h-40 items-center justify-center text-destructive text-xs">
+                  {t('trace.pollError')}: {pollError}
+                </div>
+              ) : spans.length === 0 ? (
                 <div className="flex h-full min-h-40 items-center justify-center text-muted-foreground text-xs">
                   {t('trace.noTraceList')}
                 </div>

@@ -1,8 +1,11 @@
 import type { FetchFunction } from '@ai-sdk/provider-utils'
+import { loggerService } from '@logger'
 import { context, SpanStatusCode, trace, type Tracer } from '@opentelemetry/api'
 import { KB } from '@shared/config/constant'
 
 import { TRACER_NAME } from './constants'
+
+const logger = loggerService.withContext('httpTraceFetch')
 
 /** Cap on how many bytes of a request/response body we capture into a span. */
 export const MAX_BODY_BYTES = 512 * KB
@@ -74,6 +77,9 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
     span.setAttribute('http.status', response.status)
     span.setAttribute('http.statusText', response.statusText)
     span.setAttribute('http.response.headers', JSON.stringify(redactHeaders(headersToRecord(response.headers))))
+    // Preserve response.url where available (Response.url is not always populated
+    // after a redirect, but when present it gives the final resolved URL).
+    if (response.url) span.setAttribute('http.response.url', response.url)
 
     // No body (GET/HEAD/204) → nothing to tee; settle the span now.
     if (!response.body) {
@@ -82,21 +88,35 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
     }
 
     // tee shares chunk references (no byte copy). Branch `a` goes to the SDK;
-    // branch `b` is accumulated in the background for the span. accumulateBody
-    // MUST cancel `b` at cap/abort/done — otherwise tee buffers the whole
-    // response for `b` and backpressures `a` (the real, latency-sensitive read).
-    const [a, b] = response.body.tee()
-    void accumulateBody(b, maxBodyBytes, init?.signal).then((body) => {
-      // `outputs` carries the response body only; status/headers are dedicated attributes.
-      if (body) span.setAttribute('outputs', body)
-      span.end()
-    })
+    // branch `b` is accumulated in the background for the span. The capture
+    // path MUST NEVER break the real AI streaming path: if tee() or the
+    // replacement Response constructor throw (e.g. a provider-supplied custom
+    // fetch whose body lacks `.tee()`), we log and return the original response
+    // untouched.
+    try {
+      const [a, b] = response.body.tee()
+      void accumulateBody(b, maxBodyBytes, init?.signal)
+        .then((body) => {
+          if (body) span.setAttribute('outputs', body)
+          span.end()
+        })
+        .catch((error) => {
+          logger.warn('httpTraceFetch body accumulation failed', { error })
+          span.recordException(error as Error)
+          span.end()
+        })
 
-    return new Response(a, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers
-    })
+      return new Response(a, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers
+      })
+    } catch (error) {
+      logger.warn('httpTraceFetch tee/Response construction failed, returning original response', { error })
+      span.setAttribute('http.trace.captureError', String(error))
+      span.end()
+      return response
+    }
   }
 }
 
