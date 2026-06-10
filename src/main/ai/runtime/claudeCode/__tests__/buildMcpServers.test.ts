@@ -52,6 +52,10 @@ vi.mock('@main/utils/language', () => ({
   t: vi.fn((key: string, vars?: { path?: string }) => `${key}:${vars?.path ?? ''}`)
 }))
 
+vi.mock('@main/ai/mcp/servers/cherryBuiltinTools', () => ({
+  default: vi.fn(() => ({ mcpServer: { id: 'cherry-tools' } }))
+}))
+
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: { listChannels: vi.fn().mockResolvedValue([]) }
 }))
@@ -100,19 +104,19 @@ function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessi
 
 describe('adjustAllowedToolsForMcp', () => {
   it('adds the cherry-tools + claw + agent-memory wildcards in Soul Mode', () => {
-    expect(adjustAllowedToolsForMcp(true, false)).toEqual(
+    expect(adjustAllowedToolsForMcp([], true, false)).toEqual(
       expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__claw__*', 'mcp__agent-memory__*'])
     )
   })
 
   it('adds the cherry-tools + assistant wildcards for the Cherry Assistant', () => {
-    expect(adjustAllowedToolsForMcp(false, true)).toEqual(
+    expect(adjustAllowedToolsForMcp([], false, true)).toEqual(
       expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__assistant__*'])
     )
   })
 
-  it('leaves the allowlist undefined for a plain agent (all tools permitted)', () => {
-    expect(adjustAllowedToolsForMcp(false, false)).toBeUndefined()
+  it('leaves allowed tools untouched when neither Soul nor Assistant', () => {
+    expect(adjustAllowedToolsForMcp(['existing'], false, false)).toEqual(['existing'])
   })
 })
 
