@@ -7,7 +7,12 @@ const DEFAULT_RUBBER_BAND_OPTIONS = {
 
 type RubberBandOptions = Partial<typeof DEFAULT_RUBBER_BAND_OPTIONS>
 
-const getRubberBandOffset = (overflow: number, boundaryWidth: number, resistance: number, maxOverdrag: number) => {
+const getRubberBandOffset = (
+  overflow: number,
+  boundaryWidth: number,
+  resistance: number,
+  maxOverdrag: number
+): number => {
   if (overflow <= 0 || boundaryWidth <= 0 || resistance <= 0 || maxOverdrag <= 0) {
     return 0
   }
@@ -21,7 +26,7 @@ export const applyHorizontalRubberBandTranslateX = (
   draggedRect: DOMRectReadOnly,
   boundaryRect: DOMRectReadOnly,
   options: RubberBandOptions = {}
-) => {
+): number => {
   const { resistance, maxOverdrag, leftInset, rightInset } = { ...DEFAULT_RUBBER_BAND_OPTIONS, ...options }
 
   const hardMinX = boundaryRect.left - draggedRect.left
