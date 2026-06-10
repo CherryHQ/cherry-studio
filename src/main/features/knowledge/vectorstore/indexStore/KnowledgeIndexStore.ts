@@ -1,4 +1,4 @@
-import { toFtsMatchQuery } from './ftsQuery'
+import { extractFtsTokens, needsLikeFallback, toFtsLikePattern, toFtsMatchQuery } from './ftsQuery'
 import { computeSearchTextId, computeUnitId, hashContentText, hashEmbeddingText } from './hashing'
 import type {
   KnowledgeIndexSearchInput,
@@ -11,6 +11,9 @@ import { encodeVectorBlob } from './vectorBlob'
 
 /** RRF constant (1-indexed rank), matching the legacy hybrid fusion. */
 const RRF_K = 60
+
+/** Max bound parameters per `listExistingEmbeddingHashes` query (SQLite's limit is ~999). */
+const EMBEDDING_HASH_QUERY_BATCH = 500
 
 /**
  * Engine-neutral store over a per-base `index.sqlite`. Written once; the storage
@@ -161,6 +164,36 @@ export class KnowledgeIndexStore {
     })
   }
 
+  /**
+   * Of the given embedding-text hashes, return those already stored. Lets the
+   * indexing job skip re-embedding unchanged chunks (decision A4): only the
+   * missing hashes need the paid embedding API, since a stored vector is reused
+   * for any unit whose body hashes to it.
+   *
+   * The job reads this outside the base mutation lock, then writes the rebuild
+   * under it. That is safe only because nothing deletes `embedding` rows today
+   * (orphans are left for a not-yet-implemented GC, §10). Whoever adds that GC
+   * MUST run it under the base mutation lock — otherwise it could drop a hash
+   * reported here as existing between this read and the rebuild write, leaving a
+   * unit with no vector (silently absent from vector search).
+   */
+  async listExistingEmbeddingHashes(hashes: string[]): Promise<Set<string>> {
+    const existing = new Set<string>()
+    // Chunk to stay well under SQLite's bound-parameter limit for large materials.
+    for (let i = 0; i < hashes.length; i += EMBEDDING_HASH_QUERY_BATCH) {
+      const batch = hashes.slice(i, i + EMBEDDING_HASH_QUERY_BATCH)
+      const placeholders = batch.map(() => '?').join(', ')
+      const result = await this.driver.execute(
+        `SELECT embedding_text_hash FROM embedding WHERE embedding_text_hash IN (${placeholders})`,
+        batch
+      )
+      for (const row of result.rows) {
+        existing.add(row.embedding_text_hash as string)
+      }
+    }
+    return existing
+  }
+
   /** Read back a material's units (with body text), ordered by unit index. */
   async listMaterialUnits(materialId: string): Promise<KnowledgeSearchUnit[]> {
     const result = await this.driver.execute(
@@ -247,6 +280,11 @@ export class KnowledgeIndexStore {
   }
 
   private async bm25Search(queryText: string, topK: number): Promise<KnowledgeIndexSearchMatch[]> {
+    // Short tokens (notably 1–2 char CJK words) produce no trigram, so MATCH would
+    // silently return nothing — route those queries to the LIKE fallback instead.
+    if (needsLikeFallback(queryText)) {
+      return this.bm25LikeSearch(extractFtsTokens(queryText), topK)
+    }
     const matchQuery = toFtsMatchQuery(queryText)
     if (!matchQuery) {
       return []
@@ -265,6 +303,34 @@ export class KnowledgeIndexStore {
     )
     // bm25() is lower-is-better; negate so the returned score is higher-is-better.
     return result.rows.map((row) => toMatch(row, -Number(row.score)))
+  }
+
+  /**
+   * Substring fallback for queries the trigram FTS can't index (decision A3).
+   * ANDs a `LIKE '%token%'` per token over the same body text. There is no bm25
+   * relevance here, so rank by ascending body length — a denser match (a shorter
+   * unit fully about the term) ranks first — and expose it as a higher-is-better
+   * score so it fuses sanely with the vector lane in hybrid mode.
+   */
+  private async bm25LikeSearch(tokens: string[], topK: number): Promise<KnowledgeIndexSearchMatch[]> {
+    if (tokens.length === 0) {
+      return []
+    }
+    const likeClauses = tokens.map(() => `st.text LIKE ? ESCAPE '\\'`).join(' AND ')
+    const args: SqlValue[] = [...tokens.map(toFtsLikePattern), topK]
+    const result = await this.driver.execute(
+      `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body, length(st.text) AS len
+       FROM search_text st
+       JOIN search_unit su ON su.unit_id = st.target_id
+       JOIN material m ON m.material_id = su.material_id
+       WHERE st.target_type = 'search_unit' AND st.kind = 'body'
+         AND ${likeClauses}
+         AND m.status = 'active' AND m.index_policy = 'index'
+       ORDER BY len ASC
+       LIMIT ?`,
+      args
+    )
+    return result.rows.map((row) => toMatch(row, -Number(row.len)))
   }
 
   private async deleteMaterialSearchText(tx: SqliteTransaction, materialId: string): Promise<void> {

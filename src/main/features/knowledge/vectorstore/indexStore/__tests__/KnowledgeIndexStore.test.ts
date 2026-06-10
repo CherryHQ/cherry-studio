@@ -191,4 +191,43 @@ describe('KnowledgeIndexStore', () => {
     expect(await count('content')).toBe(1)
     expect(await count('search_unit')).toBe(2)
   })
+
+  it('keeps a shared embedding reachable for the remaining material after deleting one sharer', async () => {
+    // m1 and m2 index the identical body → one embedding row, referenced by both.
+    await store.rebuildMaterial('m1', buildInput('shared body text', [[0, 16]], 'a.md'))
+    await store.rebuildMaterial('m2', buildInput('shared body text', [[0, 16]], 'b.md'))
+    expect(await count('embedding')).toBe(1)
+
+    await store.deleteMaterial('m1')
+
+    // The shared embedding must survive (m2 still references it) and m2 must stay
+    // reachable by vector search. A future inline GC that dropped a still-referenced
+    // embedding when m1 was deleted (§16) would fail this behavioral assertion —
+    // the bare row count in the GC test above cannot catch that.
+    expect(await count('embedding')).toBe(1)
+    const matches = await store.search({ queryText: '', queryEmbedding: [0.1, 0.2, 0.3], mode: 'vector', topK: 10 })
+    expect(matches.map((m) => m.materialId)).toEqual(['m2'])
+  })
+
+  it('listExistingEmbeddingHashes reports only the hashes already stored', async () => {
+    await store.rebuildMaterial(
+      'm1',
+      buildInput('alpha bravo', [
+        [0, 5],
+        [6, 11]
+      ])
+    )
+    const stored = hashEmbeddingText('alpha')
+    const absent = hashEmbeddingText('charlie')
+
+    const existing = await store.listExistingEmbeddingHashes([stored, absent])
+
+    expect(existing.has(stored)).toBe(true)
+    expect(existing.has(absent)).toBe(false)
+    expect(existing.size).toBe(1)
+  })
+
+  it('listExistingEmbeddingHashes returns an empty set for empty input', async () => {
+    expect((await store.listExistingEmbeddingHashes([])).size).toBe(0)
+  })
 })

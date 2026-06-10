@@ -25,6 +25,8 @@ const mocks = vi.hoisted(() => ({
   prepareKnowledgeItemMock: vi.fn(),
   rebuildMaterialMock: vi.fn(),
   deleteMaterialMock: vi.fn(),
+  listExistingEmbeddingHashesMock: vi.fn(),
+  embedKnowledgeTextsMock: vi.fn(),
   scheduleItemMock: vi.fn()
 }))
 
@@ -47,8 +49,24 @@ export const {
   prepareKnowledgeItemMock,
   rebuildMaterialMock,
   deleteMaterialMock,
+  listExistingEmbeddingHashesMock,
+  embedKnowledgeTextsMock,
   scheduleItemMock
 } = mocks
+
+/**
+ * Deterministic, text-distinguishable fake embedding: a hash↔vector mis-pairing
+ * in the handler produces a vector that no longer matches `fakeEmbedVector(body)`
+ * for the body its hash derives from, so tests can detect it. (The real embed
+ * call is mocked out; only ordering/pairing is under test here.)
+ */
+export function fakeEmbedVector(text: string): number[] {
+  let codePointSum = 0
+  for (const ch of text) {
+    codePointSum += ch.codePointAt(0) ?? 0
+  }
+  return [text.length, codePointSum, text.codePointAt(0) ?? 0]
+}
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -113,7 +131,7 @@ vi.mock('../../utils/storage/pathStorage', async () => {
 })
 
 vi.mock('../../utils/indexing/embed', () => ({
-  embedKnowledgeTexts: vi.fn(async (_base, values: string[]) => values.map(() => [0.1, 0.2, 0.3]))
+  embedKnowledgeTexts: embedKnowledgeTextsMock
 }))
 
 export const { createDeleteSubtreeJobHandler } = await import('../deleteSubtreeJobHandler')
@@ -282,11 +300,20 @@ beforeEach(() => {
     }
   ])
   prepareKnowledgeItemMock.mockResolvedValue([createNoteItem('leaf-1', 'dir-1')])
-  const indexStore = { rebuildMaterial: rebuildMaterialMock, deleteMaterial: deleteMaterialMock }
+  const indexStore = {
+    rebuildMaterial: rebuildMaterialMock,
+    deleteMaterial: deleteMaterialMock,
+    listExistingEmbeddingHashes: listExistingEmbeddingHashesMock
+  }
   getIndexStoreMock.mockResolvedValue(indexStore)
   getIndexStoreIfExistsMock.mockResolvedValue(indexStore)
   rebuildMaterialMock.mockResolvedValue(undefined)
   deleteMaterialMock.mockResolvedValue(undefined)
+  // No vectors stored yet by default → every chunk is embedded (prior behavior).
+  listExistingEmbeddingHashesMock.mockResolvedValue(new Set<string>())
+  embedKnowledgeTextsMock.mockImplementation(async (_base: KnowledgeBase, values: string[]) =>
+    values.map(fakeEmbedVector)
+  )
   listMock.mockResolvedValue([])
   getJobMock.mockResolvedValue(null)
   enqueueMock.mockResolvedValue({ id: 'job-index', snapshot: {}, finished: Promise.resolve({}) })

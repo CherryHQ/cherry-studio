@@ -68,6 +68,51 @@ describe('KnowledgeIndexStore.search', () => {
     expect(await store.search({ queryText: '!!!', mode: 'bm25', topK: 10 })).toEqual([])
   })
 
+  it('bm25 mode falls back to a LIKE substring scan for short CJK queries the trigram FTS cannot index', async () => {
+    await indexMaterial('m1', 'a.md', '今天天气很好', [1, 0, 0])
+    await indexMaterial('m2', 'b.md', '我喜欢编程', [0, 1, 0])
+
+    // '天气' is 2 characters → produces no trigram → a bare MATCH returns nothing.
+    const matches = await store.search({ queryText: '天气', mode: 'bm25', topK: 10 })
+
+    expect(matches.map((m) => m.materialId)).toEqual(['m1'])
+  })
+
+  it('LIKE fallback ANDs every token, so a mixed short+long query still filters correctly', async () => {
+    await indexMaterial('m1', 'a.md', '系统 architecture overview', [1, 0, 0])
+    await indexMaterial('m2', 'b.md', '系统 design notes', [0, 1, 0])
+
+    // The 2-char '系统' routes the whole query to LIKE; 'architecture' must still constrain it.
+    const matches = await store.search({ queryText: '系统 architecture', mode: 'bm25', topK: 10 })
+
+    expect(matches.map((m) => m.materialId)).toEqual(['m1'])
+  })
+
+  it('LIKE fallback excludes non-indexable materials like the MATCH path does', async () => {
+    await indexMaterial('m1', 'a.md', '天气预报', [1, 0, 0], 'index')
+    await indexMaterial('m2', 'b.md', '天气预报', [1, 0, 0], 'suppress')
+
+    expect((await store.search({ queryText: '天气', mode: 'bm25', topK: 10 })).map((m) => m.materialId)).toEqual(['m1'])
+  })
+
+  it('hybrid mode lifts a short-CJK LIKE-only hit above a closer vector-only competitor', async () => {
+    // m2 sits exactly on the query embedding but does NOT contain '天气'; m1 is
+    // orthogonal in vector space but matches '天气' via the LIKE fallback. The BM25
+    // contribution must lift m1 above m2 — drop the LIKE fallback and the order
+    // flips to ['m2', 'm1'], so this pins the fallback's effect on hybrid ranking.
+    await indexMaterial('m1', 'a.md', '今天天气', [0, 1, 0])
+    await indexMaterial('m2', 'b.md', 'sunny day', [1, 0, 0])
+
+    const matches = await store.search({
+      queryText: '天气',
+      queryEmbedding: [1, 0, 0],
+      mode: 'hybrid',
+      topK: 10
+    })
+
+    expect(matches.map((m) => m.materialId)).toEqual(['m1', 'm2'])
+  })
+
   it('hybrid fusion ranks a unit hit by both lanes above one hit by a single lane', async () => {
     // Vector favors m1; BM25 favors m2. RRF should lift m2 because it appears in both lanes.
     await indexMaterial('m1', 'a.md', 'apple pie', [1, 0, 0])

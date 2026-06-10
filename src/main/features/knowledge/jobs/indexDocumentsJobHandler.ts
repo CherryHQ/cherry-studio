@@ -5,6 +5,7 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
+import { getFileExt } from '@main/utils/file'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
@@ -15,7 +16,7 @@ import { type ChunkedKnowledgeContent, chunkKnowledgeDocuments } from '../utils/
 import { embedKnowledgeTexts } from '../utils/indexing/embed'
 import { isIndexableKnowledgeItem } from '../utils/items'
 import { hashEmbeddingText } from '../vectorstore/indexStore/hashing'
-import type { RebuildMaterialInput } from '../vectorstore/indexStore/model'
+import type { ContentTextFormat, MaterialOrigin, RebuildMaterialInput } from '../vectorstore/indexStore/model'
 import type { KnowledgeIndexDocumentsPayload } from './jobTypes'
 import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
 
@@ -146,18 +147,30 @@ async function buildRebuildMaterialInput(
   for (const chunk of chunked.chunks) {
     bodyByHash.set(hashEmbeddingText(chunk.text), chunk.text)
   }
-  const embeddingHashes = [...bodyByHash.keys()]
-  const vectors = await embedKnowledgeTexts(base, [...bodyByHash.values()], ctx.signal)
+
+  // Decision A4: reuse vectors already stored for unchanged chunks — only embed
+  // the hashes the index does not have yet, so reindexing unchanged content does
+  // not re-spend the paid embedding API. Existing hashes resolve to their stored
+  // vector at query time; rebuildMaterial keeps them.
+  const vectorStoreService = application.get('KnowledgeVectorStoreService')
+  const store = await vectorStoreService.getIndexStore(base)
+  const existingHashes = await store.listExistingEmbeddingHashes([...bodyByHash.keys()])
+  const missing = [...bodyByHash.entries()].filter(([hash]) => !existingHashes.has(hash))
+  const vectors = await embedKnowledgeTexts(
+    base,
+    missing.map(([, body]) => body),
+    ctx.signal
+  )
 
   return {
     material: {
       relativePath: toMaterialRelativePath(item),
-      origin: 'user',
+      origin: toMaterialOrigin(item),
       indexPolicy: 'index'
     },
     content: {
       text: chunked.contentText,
-      textFormat: item.type === 'file' ? 'extracted_text' : 'markdown',
+      textFormat: toContentTextFormat(item),
       normalizationVersion: 1
     },
     units: chunked.chunks.map((chunk) => ({
@@ -166,7 +179,7 @@ async function buildRebuildMaterialInput(
       charStart: chunk.charStart,
       charEnd: chunk.charEnd
     })),
-    embeddings: embeddingHashes.map((embeddingTextHash, index) => ({ embeddingTextHash, vector: vectors[index] }))
+    embeddings: missing.map(([embeddingTextHash], index) => ({ embeddingTextHash, vector: vectors[index] }))
   }
 }
 
@@ -176,6 +189,33 @@ function toMaterialRelativePath(item: IndexableKnowledgeItem): string {
     return item.data.indexedRelativePath ?? item.data.relativePath
   }
   return item.id
+}
+
+/**
+ * Material provenance (the index store's `origin` enum). A file indexed through a
+ * processor artifact — MinerU Markdown, addressed by `indexedRelativePath` — is a
+ * 'processor' product; a file indexed directly is user-supplied; url/note are
+ * 'captured' snapshots. See index-sqlite-schema-design.md §5.2.
+ */
+function toMaterialOrigin(item: IndexableKnowledgeItem): MaterialOrigin {
+  if (item.type !== 'file') {
+    return 'captured'
+  }
+  return item.data.indexedRelativePath ? 'processor' : 'user'
+}
+
+/**
+ * Format of the content that is actually indexed. The reader resolves a file to
+ * `indexedRelativePath ?? relativePath`, so a `.md` there (a processor's Markdown
+ * output or a Markdown upload) is 'markdown'; any other file is reader-extracted
+ * text; url/note snapshots are Markdown.
+ */
+function toContentTextFormat(item: IndexableKnowledgeItem): ContentTextFormat {
+  if (item.type !== 'file') {
+    return 'markdown'
+  }
+  const indexedPath = item.data.indexedRelativePath ?? item.data.relativePath
+  return getFileExt(indexedPath).toLowerCase() === '.md' ? 'markdown' : 'extracted_text'
 }
 
 async function writeItemMaterial(
