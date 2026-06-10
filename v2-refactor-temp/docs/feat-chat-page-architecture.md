@@ -53,7 +53,8 @@ Backend split areas:
 | Trace observability | Capture trace spans and expose container-owned trace IDs | `split-16`, `split-31`, `split-35` |
 | Stream control | Queue steering and continuation events for active streams | `split-17` |
 | Agent runtime | Keep agent sessions warm and expose agent resource policy | `split-18`, `split-30` |
-| MCP tools | Add Claude MCP tool runtime and tool-rendering foundations | `split-19`, `split-52`, `split-53`, `split-54` |
+| MCP tools | Add Claude MCP tool runtime and chat tool-rendering foundations | `split-19`, `split-52` through `split-58` |
+| Builtin tools | Keep builtin tool contracts shared and extract knowledge/web lookup cores | `split-59`, `split-60`, `split-61` |
 | Topic operations | Copy a selected topic branch into a new topic | `split-32` |
 | Provider settings | Merge provider setting patches without losing fields | `split-20` |
 
@@ -157,7 +158,7 @@ Message-list ownership:
 - `frame` owns message chrome, menus, attachments, and visible action affordances.
 - `blocks` owns message-part rendering.
 - `markdown` owns message markdown rendering only.
-- `tools` owns tool response rendering, approval controls, output truncation, task normalization, and future agent tool renderers.
+- `tools` owns tool response rendering, parent metadata, activity/status helpers, arguments tables, approval controls, output truncation, task normalization, and future agent tool renderers.
 - `flow` owns branch graph construction and React Flow layout.
 
 The virtual list and providers must not become a second source of truth for messages. They render projected data and call injected actions.
@@ -195,7 +196,8 @@ The broad library resource workflow should be finalized after its extracted prer
 | Composer | `split-38` |
 | Message list foundations | `split-40` through `split-49` |
 | Message flow | `split-50`, `split-51`; reconcile with `split-39` |
-| Tool foundations | `split-52`, `split-53`, `split-54` |
+| Chat tool foundations | `split-52` through `split-58` |
+| Builtin tool lookup foundations | `split-59`, `split-60`, `split-61` |
 
 ## Non-goals
 
@@ -212,5 +214,6 @@ The currently open follow-up areas should consume the foundations above:
 
 - clickable file path renderer should consume provider runtime and file path utilities
 - markdown renderer should consume tool response foundations only where needed
-- agent tool renderers should consume tool response adapter, output truncation, and task data helpers
+- agent tool renderers should consume tool response adapter, parent metadata, activity/status helpers, arguments table, output truncation, and task data helpers
+- builtin AI tool adapters should consume shared builtin contracts plus the knowledge and web lookup cores
 - remaining Home/Agent page integration should stay in page adapters and route components, not inside shared chat core
