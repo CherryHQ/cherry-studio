@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import { cacheService } from '@renderer/data/CacheService'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
+import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import type { DiagnosisResult } from '@renderer/services/ErrorDiagnosisService'
 import { classifyErrorByAI } from '@renderer/services/ErrorDiagnosisService'
 import type { SerializedError } from '@renderer/types/error'
@@ -59,7 +59,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
       return (
         <Trans
           i18nKey={i18nKey}
-          values={{ provider: getProviderLabel(providerId) }}
+          values={{ provider: t(getProviderLabelKey(providerId)) }}
           components={{
             provider: (
               <Link style={{ color: 'var(--color-link)' }} to="/settings/provider" search={{ id: providerId }} />
@@ -77,7 +77,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   if (typeof errorStatus === 'number' && HTTP_ERROR_CODES.includes(errorStatus)) {
     return (
       <span>
-        {getHttpMessageLabel(errorStatus.toString())} {error?.message}
+        {t(getHttpMessageLabelKey(errorStatus.toString()))} {error?.message}
       </span>
     )
   }
