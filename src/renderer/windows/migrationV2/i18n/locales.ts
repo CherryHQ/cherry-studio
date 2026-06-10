@@ -73,7 +73,8 @@ export const zhCN = {
     },
     migration_completed: {
       title: '数据迁移完成！',
-      description: '所有数据已成功迁移到新架构，请点击确定继续。'
+      description: '所有数据已成功迁移到新架构，请点击确定继续。',
+      warnings_title: '{{count}} 条迁移提示（数据已迁移，但部分内容需注意）'
     },
     completed: {
       title: '迁移完成',
@@ -173,7 +174,8 @@ export const enUS = {
     },
     migration_completed: {
       title: 'Data Migration Completed!',
-      description: 'All data has been successfully migrated to the new architecture. Please click OK to continue.'
+      description: 'All data has been successfully migrated to the new architecture. Please click OK to continue.',
+      warnings_title: '{{count}} migration notice(s) — data migrated, but some items need attention'
     },
     completed: {
       title: 'Migration Completed',

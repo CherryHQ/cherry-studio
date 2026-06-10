@@ -17,11 +17,13 @@ import {
   type JSONValue,
   type LanguageModelV3,
   type ProviderV3,
+  type RerankingModelV3,
   type SpeechModelV3,
   type TranscriptionModelV3
 } from '@ai-sdk/provider'
-import type { FetchFunction } from '@ai-sdk/provider-utils'
-import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+import { type FetchFunction, loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+
+import { OpenAICompatibleRerankingModel } from './openai-compatible-reranking-model'
 
 export const CHERRYIN_PROVIDER_NAME = 'cherryin' as const
 export const DEFAULT_CHERRYIN_BASE_URL = 'https://open.cherryin.net/v1'
@@ -89,6 +91,7 @@ export interface CherryInProvider extends ProviderV3 {
   transcriptionModel(modelId: string): TranscriptionModelV3
   speech(modelId: string): SpeechModelV3
   speechModel(modelId: string): SpeechModelV3
+  rerankingModel(modelId: string): RerankingModelV3
 }
 
 const resolveApiKey = (options: CherryInProviderSettings): string =>
@@ -418,6 +421,14 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
       fetch
     })
 
+  const createRerankingModel = (modelId: string) =>
+    new OpenAICompatibleRerankingModel(modelId, {
+      provider: `${CHERRYIN_PROVIDER_NAME}.rerank`,
+      url,
+      headers: getJsonHeaders,
+      fetch
+    })
+
   const provider = (modelId: string, settings?: OpenAIProviderSettings) => createChatModel(modelId, settings)
   provider.specificationVersion = 'v3' as const
   provider.languageModel = createChatModel
@@ -437,6 +448,8 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
 
   provider.speech = createSpeechModel
   provider.speechModel = createSpeechModel
+
+  provider.rerankingModel = createRerankingModel
 
   return provider as CherryInProvider
 }

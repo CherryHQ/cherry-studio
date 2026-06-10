@@ -1,26 +1,12 @@
-import { FileEntrySchema } from '@shared/data/types/file'
 import { describe, expect, it } from 'vitest'
 
 import { getItemStatus, getItemTitle, getReadyCount } from '../utils/selectors'
-import { createDirectoryItem, createFileItem, createNoteItem, createSitemapItem, createUrlItem } from './testUtils'
+import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
 
 describe('dataSourcePanel.selectors', () => {
   it('gets titles from the correct source field for each item type', () => {
     expect(getItemTitle(createFileItem({ id: 'file-1', source: '/tmp/季度报告.pdf' }))).toBe('季度报告.pdf')
-    expect(
-      getItemTitle(
-        createFileItem({ id: 'file-2', source: '/tmp/fallback.md' }),
-        FileEntrySchema.parse({
-          id: '019606a0-0000-7000-8000-000000000001',
-          name: '标准文件名',
-          ext: 'txt',
-          origin: 'external',
-          externalPath: '/tmp/fallback.md',
-          createdAt: 1776948000000,
-          updatedAt: 1776948000000
-        })
-      )
-    ).toBe('标准文件名.txt')
+    expect(getItemTitle(createFileItem({ id: 'file-2', source: '/tmp/fallback.md' }))).toBe('fallback.md')
     expect(getItemTitle(createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' }))).toBe(
       'https://example.com/product-docs'
     )
@@ -65,12 +51,6 @@ describe('dataSourcePanel.selectors', () => {
       icon: 'loader'
     })
     expect(getItemStatus(createDirectoryItem({ id: 'directory-1', status: 'processing' }))).toEqual({
-      kind: 'processing',
-      labelKey: 'knowledge.status.processing',
-      textClassName: 'text-yellow-500/70',
-      icon: 'loader'
-    })
-    expect(getItemStatus(createSitemapItem({ id: 'sitemap-1', status: 'processing' }))).toEqual({
       kind: 'processing',
       labelKey: 'knowledge.status.processing',
       textClassName: 'text-yellow-500/70',

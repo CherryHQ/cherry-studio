@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 
+import { FileEntrySchema } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -45,19 +46,20 @@ function makeInternalRow(overrides: Partial<FileMetadata> = {}): FileMetadata {
   }
 }
 
-function makeExternalRow(overrides: Partial<FileMetadata> = {}): FileMetadata {
-  return {
-    id: 'ext-file-v4-id-001',
-    name: 'notes.txt',
-    origin_name: 'notes.txt',
-    path: '/Users/alice/Documents/notes.txt',
-    size: 512,
-    ext: '.txt',
-    type: 'document',
-    created_at: '2024-03-01T00:00:00.000Z',
-    count: 1,
-    ...overrides
-  }
+// Desensitized from the reporter's actual DB row in #15733: an internal file
+// created on Windows whose data was then synced to a POSIX machine before
+// migrating. The prefix check is guaranteed to miss (different separators),
+// so physical presence in the local Files dir is the only reliable signal.
+const FIXTURE_WINDOWS_ROW: FileMetadata = {
+  id: '11111111-1111-4111-8111-111111111111',
+  name: '11111111-1111-4111-8111-111111111111.png',
+  origin_name: 'Screenshot_2025-03-13_21-25-45.png',
+  path: 'C:\\Users\\testuser\\AppData\\Roaming\\CherryStudio\\Data\\Files\\11111111-1111-4111-8111-111111111111.png',
+  size: 442074,
+  ext: '.png',
+  type: 'image',
+  created_at: '2025-03-13T13:34:04.480Z',
+  count: 1
 }
 
 function createMockContext(rows: FileMetadata[], overrides: Record<string, unknown> = {}) {
@@ -231,21 +233,6 @@ describe('FileMigrator origin discrimination', () => {
     expect(firstRow.externalPath).toBeNull()
     expect(typeof firstRow.size).toBe('number')
   })
-
-  it('absolute path outside userData → origin=external, externalPath = row.path', async () => {
-    const row = makeExternalRow()
-    const { ctx, insertValues } = createMockContext([row])
-    const m = new FileMigrator()
-    await m.prepare(ctx as never)
-    await m.execute(ctx as never)
-
-    expect(insertValues).toHaveBeenCalled()
-    const inserted = insertValues.mock.calls[0][0]
-    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
-    expect(firstRow.origin).toBe('external')
-    expect(firstRow.externalPath).toBe('/Users/alice/Documents/notes.txt')
-    expect(firstRow.size).toBeNull()
-  })
 })
 
 // ─── Ext normalization (Task 2.4) ────────────────────────────────────────────
@@ -320,12 +307,37 @@ describe('FileMigrator ext normalization', () => {
 describe('FileMigrator size handling', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(fs.existsSync).mockReset()
+    vi.mocked(fs.statSync).mockReset()
   })
 
-  it('non-numeric size: row treated as malformed and skipped, warning carries row id and raw value', async () => {
+  it('invalid size with a present physical file: size recovered from disk instead of skipping', async () => {
+    const row = makeInternalRow({
+      id: '550e8400-e29b-41d4-a716-446655440012',
+      size: 'big' as unknown as number
+    })
+    vi.mocked(fs.statSync).mockReturnValue({ size: 2048 } as fs.Stats)
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    expect(insertValues).toHaveBeenCalled()
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.size).toBe(2048)
+    const joined = (result.warnings ?? []).join('\n')
+    expect(joined).toContain('Invalid size')
+    expect(joined).toContain('recovered size=2048')
+  })
+
+  it('non-numeric size with no recoverable physical file: row skipped, warning carries row id and raw value', async () => {
     const row = makeInternalRow({
       id: '550e8400-e29b-41d4-a716-446655440010',
       size: 'big' as unknown as number
+    })
+    vi.mocked(fs.statSync).mockImplementation(() => {
+      throw new Error('ENOENT')
     })
     const { ctx, insertValues } = createMockContext([row])
     const m = new FileMigrator()
@@ -337,14 +349,17 @@ describe('FileMigrator size handling', () => {
     expect(joined).toContain('Invalid size')
     expect(joined).toContain(row.id)
     expect(joined).toContain('"big"')
-    expect(joined).toContain('treating row as malformed')
+    expect(joined).toContain('skipping row')
 
     // Row was skipped — no insert happened (single-row fixture).
     expect(insertValues).not.toHaveBeenCalled()
   })
 
-  it('negative size: row treated as malformed and skipped, warning carries raw value', async () => {
+  it('negative size with no recoverable physical file: row skipped, warning carries raw value', async () => {
     const row = makeInternalRow({ id: '550e8400-e29b-41d4-a716-446655440011', size: -1 })
+    vi.mocked(fs.statSync).mockImplementation(() => {
+      throw new Error('ENOENT')
+    })
     const { ctx, insertValues } = createMockContext([row])
     const m = new FileMigrator()
     const result = await m.prepare(ctx as never)
@@ -353,7 +368,7 @@ describe('FileMigrator size handling', () => {
     const joined = (result.warnings ?? []).join('\n')
     expect(joined).toContain('Invalid size')
     expect(joined).toContain('-1')
-    expect(joined).toContain('treating row as malformed')
+    expect(joined).toContain('skipping row')
 
     expect(insertValues).not.toHaveBeenCalled()
   })
@@ -589,7 +604,10 @@ describe('FileMigrator malformed row handling', () => {
 
   it('execute still succeeds after skipping malformed rows', async () => {
     const badRow = { ...makeInternalRow(), id: '' } as any
-    const goodRow = makeInternalRow({ id: 'ccccdddd-cccc-4ccc-cccc-cccccccccccc' })
+    // Note the RFC 4122 variant nibble must be [89ab] — the write-side
+    // read-schema probe rejects ids the runtime FileEntryIdSchema would
+    // reject anyway.
+    const goodRow = makeInternalRow({ id: 'ccccdddd-cccc-4ccc-8ccc-cccccccccccc' })
     const { ctx } = createMockContext([badRow, goodRow])
 
     const m = new FileMigrator()
@@ -598,5 +616,168 @@ describe('FileMigrator malformed row handling', () => {
 
     expect(result.success).toBe(true)
     expect(result.processedCount).toBe(1)
+  })
+})
+
+// ─── Cross-platform recovery (#15733) ────────────────────────────────────────
+
+describe('FileMigrator cross-platform recovery (#15733)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('recovers a Windows-origin internal row on POSIX when the physical file is present', async () => {
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === `${MOCK_USER_DATA}/Data/Files/${FIXTURE_WINDOWS_ROW.name}`)
+    const { ctx, insertValues } = createMockContext([FIXTURE_WINDOWS_ROW])
+    const m = new FileMigrator()
+    await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.origin).toBe('internal')
+    expect(firstRow.name).toBe('Screenshot_2025-03-13_21-25-45')
+    expect(firstRow.ext).toBe('png')
+    expect(firstRow.size).toBe(442074)
+    expect(firstRow.externalPath).toBeNull()
+  })
+
+  it('skips the same row as orphan when the physical file is absent', async () => {
+    vi.mocked(fs.existsSync).mockReturnValue(false)
+    const { ctx, insertValues } = createMockContext([FIXTURE_WINDOWS_ROW])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    expect(insertValues).not.toHaveBeenCalled()
+    const joined = (result.warnings ?? []).join('\n')
+    expect(joined).toContain('Orphan file row')
+    expect(joined).toContain(FIXTURE_WINDOWS_ROW.id)
+  })
+})
+
+// ─── Name degradation chain ──────────────────────────────────────────────
+
+describe('FileMigrator name degradation chain', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('derives name from origin_name with extension stripped (normal path, no warning)', async () => {
+    const row = makeInternalRow({ origin_name: 'My Report.v2.pdf' })
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.name).toBe('My Report.v2')
+    const joined = (result.warnings ?? []).join('\n')
+    expect(joined).not.toContain('Sanitized name')
+  })
+
+  it('sanitizes an origin_name containing separators instead of skipping the row', async () => {
+    const row = makeInternalRow({ origin_name: 'evil\\dir/report.pdf' })
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    expect(insertValues).toHaveBeenCalled()
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.name).toBe('report')
+    const joined = (result.warnings ?? []).join('\n')
+    expect(joined).toContain('Sanitized name')
+    expect(joined).toContain(row.id)
+  })
+
+  it('falls back to the row id when the name exceeds the 255-char SafeNameSchema limit', async () => {
+    // Sanitization (last segment + trim) cannot shorten a separator-free
+    // over-long name, so the chain must terminate at the row id.
+    const row = makeInternalRow({ origin_name: `${'x'.repeat(300)}.pdf` })
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    expect(insertValues).toHaveBeenCalled()
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.name).toBe(row.id)
+    const joined = (result.warnings ?? []).join('\n')
+    expect(joined).toContain('falling back to row id')
+  })
+
+  it('falls back to the row id when sanitization cannot produce a safe name', async () => {
+    const row = makeInternalRow({ origin_name: '..' })
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    expect(insertValues).toHaveBeenCalled()
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.name).toBe(row.id)
+    const joined = (result.warnings ?? []).join('\n')
+    expect(joined).toContain('falling back to row id')
+  })
+
+  it('falls back to v1 storage name when origin_name is empty', async () => {
+    const row = makeInternalRow({ origin_name: '' })
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    // makeInternalRow: name='report' (no dot) → stays as-is
+    expect(firstRow.name).toBe('report')
+  })
+})
+
+// ─── Write-side ≥ read-side validation invariant ────────────────────────────
+
+describe('FileMigrator write/read validation invariant', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('every prepared entry passes the runtime read schema', async () => {
+    const rows = [
+      makeInternalRow(),
+      makeInternalRow({
+        id: 'aaaabbbb-aaaa-4aaa-aaaa-aaaaaaaaaaaa',
+        path: `${MOCK_USER_DATA}/Data/Files/aaaabbbb-aaaa-4aaa-aaaa-aaaaaaaaaaaa.pdf`,
+        origin_name: 'evil\\dir/report.pdf'
+      }),
+      makeInternalRow({
+        id: 'bbbbcccc-bbbb-4bbb-bbbb-bbbbbbbbbbbb',
+        path: `${MOCK_USER_DATA}/Data/Files/bbbbcccc-bbbb-4bbb-bbbb-bbbbbbbbbbbb.txt`,
+        origin_name: '..',
+        ext: '.txt'
+      })
+    ]
+    const { ctx } = createMockContext(rows)
+    const m = new FileMigrator()
+    await m.prepare(ctx as never)
+
+    const prepared = (m as any).preparedEntries as Array<Record<string, unknown>>
+    expect(prepared).toHaveLength(3)
+    for (const e of prepared) {
+      const probe = FileEntrySchema.safeParse({
+        id: e.id,
+        origin: 'internal',
+        name: e.name,
+        ext: e.ext,
+        size: e.size,
+        createdAt: e.createdAt,
+        updatedAt: e.updatedAt
+      })
+      expect(probe.success).toBe(true)
+    }
   })
 })

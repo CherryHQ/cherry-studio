@@ -95,6 +95,8 @@ export const allHandlers: ApiImplementation = {
 - Domain workflows
 - Data access via Drizzle ORM
 
+**Scope limit:** A DataApi service is the **data** business-logic layer — its domain workflows orchestrate **SQLite reads/writes only**, never fs/network/process/external-service side effects, even alongside a legitimate DB write and no matter how deeply nested. See [Hard Rule: No Non-Data Side Effects](./api-design-guidelines.md#hard-rule-no-non-data-side-effects).
+
 ### Cross-Service Table Access
 
 Each table has exactly **one owning service** — the rule is split by access kind:

@@ -176,7 +176,7 @@ type FileProcessingJobCancelledResult = FileProcessingJobBase & {
 
 job 结果统一通过 `artifact` 表达，而不是为每个 feature 增加专用字段。
 
-当前最小 artifact 类型：
+当前最小 artifact 类型（当前实现）：
 
 ```ts
 type FileProcessingArtifact =
@@ -188,7 +188,7 @@ type FileProcessingArtifact =
   | {
       kind: 'file'
       format: 'markdown'
-      fileEntryId: FileEntryId
+      path: FilePath
     }
 ```
 
@@ -197,12 +197,17 @@ type FileProcessingArtifact =
 | Feature | Artifact |
 | --- | --- |
 | `image_to_text` | `{ kind: 'text', format: 'plain', text }` |
-| `document_to_markdown` | `{ kind: 'file', format: 'markdown', fileEntryId }` |
+| `document_to_markdown` | `{ kind: 'file', format: 'markdown', path }` |
+
+> **当前实现（supersedes 旧 FileEntry 落盘描述）**：file-processing 不再产出 managed / FileEntry artifact。
+> 产出只有两种：caller 指定路径的 markdown（`output: { kind: 'path', path }`，写到 caller 给的库内路径）或 inline text（OCR）。
+> caller `startJob` 传 `file: FileHandle`（`{ kind: 'path' }` 或 `{ kind: 'entry' }`）+ 可选 `output`；产 markdown 的 feature 必须给 path output，产 text 的 feature 忽略 output。
+> 不要为了"有 FileEntry 库"就把 markdown 再塞回 internal FileEntry——下游（知识库 / agent tool）要的是独立 path 产物。下文 §落盘语义里关于 `FileManager.createInternalEntry` 写 internal FileEntry 的描述已不适用。
 
 设计取向：
 
 1. OCR 文本以内联 text artifact 返回，避免翻译场景还要额外读文件。
-2. Markdown 文档以 file artifact 返回，因为大文档、图片资源和 zip 解包结果更适合落盘。
+2. Markdown 文档以 path artifact 返回，写到 caller 指定路径，由 caller 拥有该产物的生命周期。
 3. artifact 是统一结果容器，不等于所有结果都用同一种存储方式。
 4. 未来如果需要结构化 OCR、表格、图片资源或多文件输出，应扩展 artifact union，而不是把 provider-specific 字段塞进 job 顶层。
 
@@ -212,7 +217,7 @@ type FileProcessingArtifact =
 
 目标分层：
 
-1. `FileProcessingOrchestrationService`
+1. `FileProcessingService`
    - 生命周期 service
    - 注册 IPC handler 和 JobManager handler
    - 做 payload Zod 校验
@@ -236,7 +241,7 @@ type FileProcessingArtifact =
 
 `JobManager` / SQLite job table 是 job 状态的 source of truth。
 
-`FileProcessingOrchestrationService` 只是对外入口，不应该重复维护 job 状态或实现 provider 细节。
+`FileProcessingService` 只是对外入口，不应该重复维护 job 状态或实现 provider 细节。
 
 ### 7.1 Processor-first 目录结构
 
@@ -319,7 +324,7 @@ processorRegistry[processorId].capabilities[feature]
 4. 测试必须校验 `PRESETS_FILE_PROCESSORS` 声明的 capability 与 registry handler 一致：
    - preset 有 capability，registry 必须有 handler
    - registry 不应声明 preset 不支持的 capability
-5. `FileProcessingOrchestrationService` / job execution helper 解析 processor config 后，通过 registry 找到目标 capability handler。
+5. `FileProcessingService` / job execution helper 解析 processor config 后，通过 registry 找到目标 capability handler。
 
 ### 7.3 Capability Handler Contract
 
@@ -427,7 +432,7 @@ File-processing 不维护自己的 job event bus。
 
 1. job snapshot 由统一 Job API 查询。
 2. job progress 由 JobManager 写入 `jobs.progress.${jobId}` cache。
-3. `FileProcessingOrchestrationService` 不广播 Renderer IPC。
+3. `FileProcessingService` 不广播 Renderer IPC。
 4. 本轮不设计 Renderer 订阅协议、多窗口广播或 UI job center。
 
 如果后续需要实时 UI 推送，应复用统一 JobManager progress 机制或建立通用 job bridge，而不是为 file-processing 增加独立事件接口。
@@ -489,7 +494,7 @@ file-processing job 使用统一 JobManager 的保留和恢复语义。
 
 ## 12. Input Validation
 
-`FileProcessingOrchestrationService` / job service 必须做基础准入校验。
+`FileProcessingService` / job service 必须做基础准入校验。
 
 基础校验包括：
 
@@ -627,21 +632,21 @@ OCR text artifact 不落盘，直接以内联文本返回。
 
 服务选择：
 
-1. `FileProcessingOrchestrationService`：生命周期 service，因为它注册 IPC handler。
+1. `FileProcessingService`：生命周期 service，因为它注册 IPC handler。
 2. `processors/tesseract/runtime/TesseractRuntimeService`：继续作为生命周期 service，因为它管理长寿命 worker、队列和 idle release。
 3. file-processing task handlers：普通 JobManager handler，不是 lifecycle service。
 4. processor helper / pure utility：保持普通函数或 direct-import singleton，不引入无意义 lifecycle 层。
 
 依赖关系：
 
-1. `FileProcessingOrchestrationService` 依赖 `FileManager` 和 `JobManager`。
-2. `FileProcessingOrchestrationService.onInit` 注册 file-processing JobManager handlers。
+1. `FileProcessingService` 依赖 `FileManager` 和 `JobManager`。
+2. `FileProcessingService.onInit` 注册 file-processing JobManager handlers。
 3. Tesseract image-to-text handler 在执行时通过 `application.get('TesseractRuntimeService')` 获取 runtime。
 4. 不需要声明对 BeforeReady 服务的 cross-phase `@DependsOn`；Preference 等 BeforeReady 初始化顺序由 lifecycle 系统保证。
 
 清理要求：
 
-1. `FileProcessingOrchestrationService` 停止时由 lifecycle 自动清理 IPC handler。
+1. `FileProcessingService` 停止时由 lifecycle 自动清理 IPC handler。
 2. Job cancel / retry / timeout 由 JobManager 驱动。
 3. 长寿命 processor runtime 在自己的 lifecycle service 中清理资源。
 

@@ -1149,8 +1149,8 @@ const McpSettings: React.FC = () => {
               </div>
             </div>
           </div>
-          <Scrollbar className="min-h-0 flex-1 pt-2 pb-4">
-            <div className="mx-auto w-full max-w-3xl px-6">
+          <Scrollbar className="min-h-0 flex-1 px-6 pt-2 pb-4">
+            <div className="mx-auto w-full max-w-3xl">
               {tabs.map((tab) => (
                 <TabsContent key={tab.key} value={tab.key} className="mt-0 min-h-0">
                   {tab.children}
@@ -1197,7 +1197,7 @@ const McpSettings: React.FC = () => {
 }
 
 const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex h-full min-w-0 flex-col overflow-hidden', className)} {...props} />
+  <div className={cn('flex h-full w-full min-w-0 flex-1 flex-col overflow-hidden', className)} {...props} />
 )
 
 const ServerName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (

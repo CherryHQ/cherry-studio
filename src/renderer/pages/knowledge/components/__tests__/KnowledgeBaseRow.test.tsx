@@ -31,7 +31,8 @@ vi.mock('@cherrystudio/ui', () => ({
   MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Popover: ({ children }: { children: ReactNode }) => <>{children}</>,
   PopoverAnchor: () => null,
-  PopoverContent: () => null
+  PopoverContent: () => null,
+  PopoverTrigger: ({ children }: { children: ReactNode }) => children
 }))
 
 vi.mock('react-i18next', () => ({
@@ -135,9 +136,35 @@ describe('KnowledgeBaseRow', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /Base 1/ })).toHaveClass('min-h-11', 'rounded-xl', 'bg-secondary')
+    expect(screen.getByRole('button', { name: /Base 1/ }).parentElement).toHaveClass(
+      'min-h-11',
+      'rounded-xl',
+      'bg-secondary'
+    )
     expect(screen.getByText('Base 1')).toHaveClass('text-sm', 'font-medium')
     expect(screen.getByText('10 文档').parentElement).toHaveClass('text-xs', 'text-foreground-muted')
     expect(container.querySelector('img')).toBeInTheDocument()
+  })
+
+  it('reserves trailing action space so long names cannot overlap the more button', () => {
+    render(
+      <KnowledgeBaseRow
+        base={createKnowledgeBase({ name: 'A very long knowledge base name that should stay within the text column' })}
+        groups={[createGroup()]}
+        selected
+        onSelectBase={vi.fn()}
+        onMoveBase={vi.fn()}
+        onRenameBase={vi.fn()}
+        onDeleteBase={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /A very long knowledge base name/ }).parentElement).toHaveClass(
+      'grid',
+      'grid-cols-[minmax(0,1fr)_1.75rem]'
+    )
+    expect(screen.getByText('A very long knowledge base name that should stay within the text column')).toHaveClass(
+      'truncate'
+    )
   })
 })

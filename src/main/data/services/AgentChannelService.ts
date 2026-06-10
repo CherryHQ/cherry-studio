@@ -10,6 +10,7 @@ import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMapper
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { AgentChannelEntity, CreateAgentChannelDto } from '@shared/data/api/schemas/agentChannels'
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ChannelConfig } from '@shared/data/types/channel'
 import { and, eq, inArray } from 'drizzle-orm'
 
@@ -29,6 +30,7 @@ export class AgentChannelService {
       ...clean,
       type: row.type as AgentChannelEntity['type'],
       config: normalizeChannelConfig(row.config) as AgentChannelEntity['config'],
+      workspace: row.workspace,
       permissionMode: (row.permissionMode ?? undefined) as AgentChannelEntity['permissionMode'],
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)
@@ -42,6 +44,7 @@ export class AgentChannelService {
           type: ChannelConfig['type']
           name: string
           agentId?: string | null
+          workspace: AgentSessionWorkspaceSource
           config: ChannelConfig | Record<string, unknown>
           isActive?: boolean
           permissionMode?: string | null
@@ -53,6 +56,7 @@ export class AgentChannelService {
       type: data.type,
       name: data.name,
       agentId: data.agentId,
+      workspace: data.workspace,
       config: normalizeChannelConfig(data.config),
       isActive: data.isActive ?? true,
       permissionMode: data.permissionMode
@@ -111,7 +115,10 @@ export class AgentChannelService {
   async updateChannel(
     id: string,
     updates: Partial<
-      Pick<ChannelRow, 'name' | 'agentId' | 'sessionId' | 'config' | 'isActive' | 'activeChatIds' | 'permissionMode'>
+      Pick<
+        ChannelRow,
+        'name' | 'agentId' | 'sessionId' | 'config' | 'isActive' | 'activeChatIds' | 'permissionMode'
+      > & { workspace: AgentSessionWorkspaceSource }
     >
   ): Promise<AgentChannelEntity | null> {
     const database = application.get('DbService').getDb()

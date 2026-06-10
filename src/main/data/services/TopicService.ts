@@ -1,6 +1,7 @@
 // Topic CRUD, branch switching, ordering.
 
 import { application } from '@application'
+import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
@@ -9,10 +10,11 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { CreateTopicDto, ListTopicsQuery, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 
 import { pinService } from './PinService'
 import { tagService } from './TagService'
@@ -25,6 +27,7 @@ const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 
 type TopicRow = typeof topicTable.$inferSelect
+type TopicEntitySearchItem = Extract<EntitySearchItem, { type: 'topic' }>
 
 function rowToTopic(row: TopicRow): Topic {
   return {
@@ -352,6 +355,40 @@ export class TopicService {
     }
 
     return { items: items.map((i) => i.topic), nextCursor }
+  }
+
+  async search(query: { q: string; limit: number; updatedAtFrom?: number }): Promise<TopicEntitySearchItem[]> {
+    const db = application.get('DbService').getDb()
+    const limit = Math.min(query.limit, MAX_LIMIT)
+    const filters: SQL[] = [isNull(topicTable.deletedAt)]
+    const search = buildSearchPredicate(query.q)
+    if (search) filters.push(search)
+    if (query.updatedAtFrom !== undefined) {
+      filters.push(gte(topicTable.updatedAt, query.updatedAtFrom))
+    }
+
+    const rows = await db
+      .select({
+        id: topicTable.id,
+        name: topicTable.name,
+        assistantId: topicTable.assistantId,
+        assistantName: assistantTable.name,
+        updatedAt: topicTable.updatedAt
+      })
+      .from(topicTable)
+      .leftJoin(assistantTable, and(eq(topicTable.assistantId, assistantTable.id), isNull(assistantTable.deletedAt)))
+      .where(and(...filters))
+      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .limit(limit)
+
+    return rows.map((row) => ({
+      type: 'topic',
+      id: row.id,
+      title: row.name,
+      subtitle: row.assistantName ?? undefined,
+      updatedAt: timestampToISO(row.updatedAt),
+      target: { topicId: row.id, assistantId: row.assistantId ?? undefined }
+    }))
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {

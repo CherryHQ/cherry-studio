@@ -6,7 +6,7 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import type { FileProcessingArtifact, FileProcessingJobOutput } from '@shared/data/types/fileProcessing'
-import type { FilePath } from '@shared/file/types'
+import { createFilePathHandle, type FilePath } from '@shared/file/types'
 import type { FileMetadata } from '@types'
 import { CheckCircle2, CircleAlert, FileText, Image, Loader2, Play, Upload } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
@@ -96,7 +96,7 @@ function getDurationSeconds(durationMs: number | undefined): string {
 
 function getArtifactPreview(artifact: FileProcessingArtifact): string {
   if (artifact.kind === 'file') {
-    return artifact.fileEntryId
+    return artifact.path
   }
 
   return artifact.text.length > TEXT_PREVIEW_LIMIT ? `${artifact.text.slice(0, TEXT_PREVIEW_LIMIT)}...` : artifact.text
@@ -321,13 +321,20 @@ const ComponentLabFileProcessingSettings: FC = () => {
       setRuns((current) => ({ ...current, [section.feature]: {} }))
 
       const startedAt = Date.now()
-      const fileEntry = window.api.file.ensureExternalEntry({ externalPath: file.path as FilePath })
+      const filePath = file.path as FilePath
       const results = await Promise.allSettled(
         processorsForFeature.map(async (processor) => {
-          const entry = await fileEntry
+          const output =
+            section.feature === 'document_to_markdown'
+              ? {
+                  kind: 'path' as const,
+                  path: (await window.api.file.createTempFile(`lab-${processor.id}.md`)) as FilePath
+                }
+              : undefined
           const job = await window.api.fileProcessing.startJob({
             feature: section.feature,
-            fileEntryId: entry.id,
+            file: createFilePathHandle(filePath),
+            ...(output ? { output } : {}),
             processorId: processor.id
           })
           return { processorId: processor.id, jobId: job.id }

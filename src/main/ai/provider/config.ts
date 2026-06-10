@@ -6,7 +6,6 @@
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { providerService } from '@main/data/services/ProviderService'
-import { generateSignature } from '@main/integration/cherryai'
 import { copilotService } from '@main/services/CopilotService'
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
@@ -20,6 +19,7 @@ import { isEmpty } from 'lodash'
 import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
+import { generateSignature } from './cherryai'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from './endpoint'
 
@@ -93,6 +93,12 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
     { match: (p) => p.id === 'cherryai', build: buildCherryAIConfig },
     { match: (p) => isOllamaProvider(p), build: buildOllamaConfig },
     { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
+    // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.
+    // Only replace the OpenAI-compatible branch so other DashScope endpoint families stay routed normally.
+    {
+      match: (p, id) => p.id === SystemProviderIds.dashscope && id === 'openai-compatible',
+      build: buildDashScopeConfig
+    },
     { match: (_, id) => id === 'bedrock', build: buildBedrockConfig },
     // `google-vertex-anthropic` (Vertex on an anthropic-messages endpoint) must route here
     // too — `buildVertexConfig` branches on `isAnthropic`. Otherwise it falls through to the
@@ -409,6 +415,18 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
     providerSettings: {
       ...ctx.baseConfig,
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+    }
+  }
+}
+
+function buildDashScopeConfig(ctx: BuilderContext): ProviderConfig<'dashscope'> {
+  return {
+    providerId: 'dashscope',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+      includeUsage: ctx.actualProvider.apiFeatures.streamOptions
     }
   }
 }

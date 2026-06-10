@@ -22,7 +22,7 @@ const BaseNavigatorContent = ({
   const { t } = useTranslation()
 
   return (
-    <Scrollbar className="min-h-0 flex-1 px-3 pb-3 [scrollbar-gutter:auto]">
+    <Scrollbar className="min-h-0 flex-1 overflow-x-hidden px-3 pb-3">
       {sections.length === 0 ? (
         <EmptyState preset="no-knowledge" title={t('knowledge.empty')} compact className="h-full" />
       ) : (
