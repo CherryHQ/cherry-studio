@@ -89,6 +89,21 @@ describe('SpanCacheService', () => {
     await fs.rm(sentinelDir, { recursive: true, force: true })
   })
 
+  it('returns a merged view of flushed history and live spans for a trace', async () => {
+    await service._doInit()
+
+    service.saveEntity(span({ id: 'history', name: 'from-history', traceId: 'trace-a', topicId: 'topic-a' }))
+    await service.saveSpans('topic-a')
+
+    service.saveEntity(span({ id: 'live', name: 'from-live', traceId: 'trace-a', topicId: 'topic-a' }))
+    service.saveEntity(span({ id: 'history', name: 'live-wins', traceId: 'trace-a', topicId: 'topic-a' }))
+
+    await expect(service.getSpans('topic-a', 'trace-a')).resolves.toMatchObject([
+      { id: 'history', name: 'live-wins' },
+      { id: 'live', name: 'from-live' }
+    ])
+  })
+
   // The OTel createSpan/endSpan path is the live source of cached spans. If endSpan does not
   // mark the entity ended, TraceSpanStore can never evict the trace and memory grows unbounded
   // while developer_mode is on. Drive a span through the real pipeline and confirm a fully-ended
