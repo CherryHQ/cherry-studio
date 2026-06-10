@@ -1,64 +1,45 @@
+import { PaddleOCRClient } from '@paddleocr/api-sdk'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import { FILE_TYPE, type FileInfo } from '@shared/file/types'
+import { net } from 'electron'
 
 import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler } from '../../types'
-import type { PreparedPaddleQueryContext, PreparedPaddleStartContext } from '../types'
-import { createJob, resolveJsonlResult, waitForJobCompletion } from '../utils'
 
+/** Capability handler that extracts text from images via PaddleOCR. */
 export const paddleImageToTextHandler: FileProcessingCapabilityHandler<'image_to_text'> = {
   mode: 'background',
+  /** Validates inputs and returns a background executor that calls the OCR API. */
   prepare(file, config, signal) {
     signal?.throwIfAborted()
-    const startContext = prepareStartContext(file, config, signal)
+    const { apiHost, apiKey, model } = prepareContext(file, config, signal)
 
     return {
       mode: 'background',
       async execute(executionContext) {
-        const job = await createJob({
-          ...startContext,
-          signal: executionContext.signal
+        const client = new PaddleOCRClient({
+          token: apiKey,
+          baseUrl: apiHost,
+          fetch: net.fetch as typeof fetch
         })
-        const queryContext: PreparedPaddleQueryContext = {
-          apiHost: startContext.apiHost,
-          apiKey: startContext.apiKey,
-          signal: executionContext.signal
-        }
-        const jobResult = await waitForJobCompletion(job.jobId, queryContext)
-
-        if (jobResult.state === 'failed') {
-          throw new Error(jobResult.errorMsg || 'PaddleOCR text extraction failed')
-        }
-
-        return {
-          kind: 'text',
-          text: await resolveJsonlResult(job.jobId, jobResult, queryContext.apiHost, queryContext.signal)
-        }
+        const result = await client.ocr({ filePath: file.path, model }, { signal: executionContext.signal })
+        const text = result.pages.flatMap((p) => (p.prunedResult as any)?.rec_texts ?? []).join('\n')
+        return { kind: 'text', text }
       }
     }
   }
 }
 
-function prepareStartContext(
-  file: FileInfo,
-  config: FileProcessorMerged,
-  signal?: AbortSignal
-): PreparedPaddleStartContext {
+/** Extracts API credentials and model from config for image OCR. */
+function prepareContext(file: FileInfo, config: FileProcessorMerged, signal?: AbortSignal) {
   signal?.throwIfAborted()
-
   const capability = getRequiredCapability(config, 'image_to_text', 'paddleocr')
-
   if (file.type !== FILE_TYPE.IMAGE) {
     throw new Error('PaddleOCR text extraction only supports image files')
   }
-
-  const model = capability.modelId?.trim() || undefined
-
   return {
     apiHost: getRequiredApiHost(capability),
     apiKey: getRequiredApiKey(config, 'paddleocr'),
-    file,
-    model,
-    feature: 'image_to_text'
+    model: capability.modelId?.trim() || undefined
   }
 }
