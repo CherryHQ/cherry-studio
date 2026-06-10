@@ -367,6 +367,8 @@ CREATE INDEX material_indexable_idx ON material(status, index_policy, relative_p
 
 第一版不保存 `file_hash` 或 `fingerprint_hash`。即使未来为了去重或完整性校验增加文件哈希，也不能把它用于 App 关闭期间的离线移动推断，除非另行确认产品语义。
 
+> **As-built（2026-06-10，PR A）**：当前 `indexDocumentsJobHandler` 的 `rebuildMaterial` 只写入它能从 `knowledge_item` 无额外 IO 推导出的真值列——`relative_path`、`origin`、`index_policy`、`file_ext`（已索引文件的小写扩展名，url/note 为 NULL）。`title`、`mime_type`、`size_bytes`、`mtime_ms` 暂留 NULL：leaf `knowledge_item` 没有展示名，其余三列需要额外 `fs.stat` + content-type 嗅探，且当前没有任何消费方（来源信息展示是 v2.x）。这些列由 v2.x 的 material scanner 落地时回填，回填走 §11.2 的就地增量迁移（`ADD COLUMN` 早已建好结构，scanner 只补值，不重切分、不动 embedding，见 §11.3 的「新列要带真值给旧行」）。`rebuildMaterial` 是 upsert，重新索引会用最新真值纠正旧的占位值。
+
 ### 6.3 material_relation
 
 `material_relation` 记录材料来源关系，不绑定生命周期。

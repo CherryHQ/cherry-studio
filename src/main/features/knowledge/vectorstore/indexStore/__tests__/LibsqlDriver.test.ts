@@ -35,6 +35,35 @@ describe('LibsqlDriver', () => {
     expect(result.rows[0].foreign_keys).toBe(1)
   })
 
+  it('opens in WAL journal mode with a busy timeout so reads survive a concurrent write', async () => {
+    const journal = await driver.execute('PRAGMA journal_mode')
+    expect(String(journal.rows[0].journal_mode).toLowerCase()).toBe('wal')
+
+    const timeout = await driver.execute('PRAGMA busy_timeout')
+    expect(Number(timeout.rows[0].timeout)).toBeGreaterThan(0)
+  })
+
+  it('lets a read proceed while a write transaction is open instead of failing with SQLITE_BUSY', async () => {
+    // Under the default rollback journal the open write would hold a lock and the
+    // concurrent read would reject with SQLITE_BUSY. WAL lets the read see the last
+    // committed state (the in-flight insert is uncommitted) without blocking.
+    let release: () => void = () => undefined
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const write = driver.transaction(async (tx) => {
+      await tx.execute('INSERT INTO t (id, v) VALUES (?, ?)', [1, 'x'])
+      await held
+    })
+
+    const read = await driver.execute('SELECT COUNT(*) AS n FROM t')
+    expect(read.rows[0].n).toBe(0)
+
+    release()
+    await write
+    expect((await driver.execute('SELECT COUNT(*) AS n FROM t')).rows[0].n).toBe(1)
+  })
+
   it('maps rows to plain objects and reports rowsAffected', async () => {
     const insert = await driver.execute('INSERT INTO t (id, v) VALUES (?, ?)', [1, 'a'])
     expect(insert.rowsAffected).toBe(1)

@@ -12,7 +12,12 @@ import type { RebuildMaterialInput } from '../model'
 import { createKnowledgeIndexSchema } from '../schema'
 
 /** Build a rebuild input over `text`, one chunk per [start, end] range, with a vector per distinct slice. */
-function buildInput(text: string, ranges: Array<[number, number]>, relativePath = 'doc.md'): RebuildMaterialInput {
+function buildInput(
+  text: string,
+  ranges: Array<[number, number]>,
+  relativePath = 'doc.md',
+  vector: number[] = [0.1, 0.2, 0.3]
+): RebuildMaterialInput {
   const units = ranges.map(([charStart, charEnd], index) => ({
     unitType: 'chunk' as const,
     unitIndex: index,
@@ -24,7 +29,7 @@ function buildInput(text: string, ranges: Array<[number, number]>, relativePath 
     material: { relativePath, origin: 'user', indexPolicy: 'index' },
     content: { text, textFormat: 'markdown', normalizationVersion: 1 },
     units,
-    embeddings: hashes.map((embeddingTextHash) => ({ embeddingTextHash, vector: [0.1, 0.2, 0.3] }))
+    embeddings: hashes.map((embeddingTextHash) => ({ embeddingTextHash, vector }))
   }
 }
 
@@ -207,6 +212,25 @@ describe('KnowledgeIndexStore', () => {
     expect(await count('embedding')).toBe(1)
     const matches = await store.search({ queryText: '', queryEmbedding: [0.1, 0.2, 0.3], mode: 'vector', topK: 10 })
     expect(matches.map((m) => m.materialId)).toEqual(['m2'])
+  })
+
+  it('keeps a shared embedding reachable for the other material after rebuilding the one that introduced it', async () => {
+    // m1 and m2 index the identical body → one shared embedding row, referenced by both.
+    await store.rebuildMaterial('m1', buildInput('shared body text', [[0, 16]], 'a.md'))
+    await store.rebuildMaterial('m2', buildInput('shared body text', [[0, 16]], 'b.md'))
+    expect(await count('embedding')).toBe(1)
+
+    // Rebuild m1 with unrelated content carrying a distinct vector, so m1 no longer
+    // references the shared embedding — only m2 does now.
+    await store.rebuildMaterial('m1', buildInput('rebuilt unrelated body', [[0, 22]], 'a.md', [0.9, 0.8, 0.7]))
+
+    // The shared embedding must survive (m2 still references it), alongside m1's new
+    // one → 2 rows. A future inline GC that dropped the now-singly-referenced shared
+    // embedding on rebuild (§16) would unjoin m2 from vector search below — the bare
+    // row count cannot catch that, but searching the shared vector can.
+    expect(await count('embedding')).toBe(2)
+    const matches = await store.search({ queryText: '', queryEmbedding: [0.1, 0.2, 0.3], mode: 'vector', topK: 10 })
+    expect(matches.map((m) => m.materialId)).toContain('m2')
   })
 
   it('listExistingEmbeddingHashes reports only the hashes already stored', async () => {

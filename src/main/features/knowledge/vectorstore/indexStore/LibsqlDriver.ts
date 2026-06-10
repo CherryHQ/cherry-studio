@@ -86,14 +86,28 @@ export class LibsqlDriver implements SqliteDriver {
 }
 
 /**
- * Open a per-base index database driver at `filePath`. Enables foreign keys on
- * the connection — set here (outside any transaction, where the pragma would be
- * a no-op) so the schema's ON DELETE CASCADE / SET NULL actions are enforced.
+ * Open a per-base index database driver at `filePath`. Configures the connection
+ * PRAGMAs: foreign keys (so the schema's ON DELETE CASCADE / SET NULL fire), WAL
+ * journal mode + a busy timeout (so reads outside the write mutex don't hit
+ * SQLITE_BUSY against a concurrent write), and synchronous = NORMAL (WAL's safe
+ * pairing). Mirrors the main DbService PRAGMA setup.
  */
 export async function openLibsqlIndexDriver(filePath: string): Promise<LibsqlDriver> {
   const client = createClient({ url: pathToFileURL(filePath).toString() })
   try {
-    await client.execute('PRAGMA foreign_keys = ON')
+    // Per-connection PRAGMAs via the patched setPragma() so they replay onto every
+    // fresh connection @libsql/client opens after a transaction() — a bare
+    // `execute('PRAGMA foreign_keys = ON')` would only cover the first connection.
+    // The write mutex serializes writes within this driver, but reads run outside
+    // it: WAL lets a read (e.g. listExistingEmbeddingHashes mid-rebuild) proceed
+    // concurrently with a write instead of hitting SQLITE_BUSY, and busy_timeout
+    // makes the remaining contention windows wait rather than fail.
+    client.setPragma('PRAGMA busy_timeout = 5000')
+    client.setPragma('PRAGMA synchronous = NORMAL')
+    client.setPragma('PRAGMA foreign_keys = ON')
+    // WAL is persisted in the database file — run once. This also opens the first
+    // connection, replaying the per-connection PRAGMAs above onto it.
+    await client.execute('PRAGMA journal_mode = WAL')
   } catch (error) {
     // Close the just-opened client so a failed open never leaks the file handle
     // (on Windows a leaked handle would later block deleting the base directory).

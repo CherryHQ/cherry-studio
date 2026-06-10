@@ -143,6 +143,22 @@ describe('index-documents job handler', () => {
     expect(input.content.textFormat).toBe('markdown')
   })
 
+  it('records the indexed file extension on the material, and leaves it unset for virtual-path url/note materials', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+
+    const fileItem = createFileItem(FILE_ITEM_ID) // relativePath 'source.pdf'
+    knowledgeItemGetByIdMock.mockResolvedValue(fileItem)
+    knowledgeItemUpdateStatusMock.mockResolvedValue(fileItem)
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: FILE_ITEM_ID, parentJobId: null }))
+    expect(lastRebuildInput().material.fileExt).toBe('.pdf')
+
+    rebuildMaterialMock.mockClear()
+    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
+    knowledgeItemUpdateStatusMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+    expect(lastRebuildInput().material.fileExt).toBeUndefined()
+  })
+
   it('passes file items to the reader without a fileEntry override', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock.mockResolvedValue(createFileItem(FILE_ITEM_ID))

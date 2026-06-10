@@ -166,7 +166,13 @@ async function buildRebuildMaterialInput(
     material: {
       relativePath: toMaterialRelativePath(item),
       origin: toMaterialOrigin(item),
-      indexPolicy: 'index'
+      indexPolicy: 'index',
+      fileExt: toMaterialFileExt(item)
+      // title / mimeType / sizeBytes / mtimeMs are deliberately left unset here.
+      // A knowledge_item has no display name, and the rest need an extra fs.stat +
+      // content-type sniff — and nothing consumes any of them yet (provenance
+      // display is v2.x). The material scanner backfills them when it lands. See
+      // index-sqlite-schema-design.md §6.2.
     },
     content: {
       text: chunked.contentText,
@@ -216,6 +222,18 @@ function toContentTextFormat(item: IndexableKnowledgeItem): ContentTextFormat {
   }
   const indexedPath = item.data.indexedRelativePath ?? item.data.relativePath
   return getFileExt(indexedPath).toLowerCase() === '.md' ? 'markdown' : 'extracted_text'
+}
+
+/**
+ * Lower-cased extension of the indexed file (including the dot, e.g. `.pdf`), or
+ * undefined for url/note materials whose relative path is a virtual id, not a file.
+ */
+function toMaterialFileExt(item: IndexableKnowledgeItem): string | undefined {
+  if (item.type !== 'file') {
+    return undefined
+  }
+  const indexedPath = item.data.indexedRelativePath ?? item.data.relativePath
+  return getFileExt(indexedPath).toLowerCase() || undefined
 }
 
 async function writeItemMaterial(
