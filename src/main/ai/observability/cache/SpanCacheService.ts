@@ -15,6 +15,13 @@ import { TraceSpanStore } from './TraceSpanStore'
 
 const logger = loggerService.withContext('SpanCacheService')
 
+function mergeSpansById(base: SpanEntity[], overrides: SpanEntity[]): SpanEntity[] {
+  const byId = new Map<string, SpanEntity>()
+  for (const span of base) byId.set(span.id, span)
+  for (const span of overrides) byId.set(span.id, span)
+  return Array.from(byId.values())
+}
+
 @Injectable('SpanCacheService')
 @ServicePhase(Phase.WhenReady)
 export class SpanCacheService extends BaseService implements TraceCache, Activatable {
@@ -52,6 +59,9 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
 
   private registerIpcHandlers() {
     this.ipcHandle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => this.saveSpans(topicId))
+    this.ipcHandle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
+      this.getSpans(topicId, traceId, modelName)
+    )
     this.ipcHandle(IpcChannel.TRACE_SAVE_ENTITY, (_, entity: SpanEntity) => this.saveEntity(entity))
     this.ipcHandle(IpcChannel.TRACE_GET_ENTITY, (_, spanId: string) => this.getEntity(spanId))
     this.ipcHandle(IpcChannel.TRACE_BIND_TOPIC, (_, topicId: string, traceId: string) =>
@@ -144,6 +154,12 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
     const events = Array.isArray(span.events) ? [...span.events, event] : [event]
     span.events = events
     this.store.setSpan(span)
+  }
+
+  async getSpans(topicId: string, traceId: string, modelName?: string): Promise<SpanEntity[]> {
+    const live = this.store.getSpans({ topicId, traceId, modelName })
+    const history = await this.getHistoryData(topicId, traceId, modelName)
+    return mergeSpansById(history, live)
   }
 
   async cleanHistoryTrace(topicId: string, traceId: string, modelName?: string) {
