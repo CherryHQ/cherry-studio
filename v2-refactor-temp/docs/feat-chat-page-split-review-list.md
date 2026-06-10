@@ -86,6 +86,7 @@ All currently pushed `codex/split-*` branches now have non-draft PRs open agains
 | [#15917](https://github.com/CherryHQ/cherry-studio/pull/15917) | `codex/split-63-ai-sdk-meta-tools` | AI SDK meta-tool invocation hardening |
 | [#15918](https://github.com/CherryHQ/cherry-studio/pull/15918) | `codex/split-64-default-assistant-bootstrap` | Default assistant data bootstrap |
 | [#15919](https://github.com/CherryHQ/cherry-studio/pull/15919) | `codex/split-65-agent-workspace-management` | Agent workspace DataApi workflow |
+| [#15920](https://github.com/CherryHQ/cherry-studio/pull/15920) | `codex/split-66-knowledge-list-query` | Searchable knowledge list DataApi queries |
 
 ## Dependency DAG
 
@@ -146,10 +147,12 @@ flowchart TD
   p63["#15917 split-63 AI SDK meta tools"]
   p64["#15918 split-64 default assistant bootstrap"]
   p65["#15919 split-65 agent workspace workflow"]
+  p66["#15920 split-66 knowledge list queries"]
   f_clickable["future clickable file path renderer"]
   f_markdown["future markdown renderer"]
   f_agent_tools["future agent tool renderers"]
   f_builtin_tools["future builtin tool consumers"]
+  f_knowledge["future Knowledge page integration"]
   f_pages["future chat/pages integration"]
 
   p02 --> p03
@@ -184,6 +187,7 @@ flowchart TD
   p32 --> f_pages
   p35 --> f_pages
   p65 --> f_pages
+  p66 --> f_knowledge
 
   p40 --> p43
   p40 --> p46
@@ -222,6 +226,7 @@ Dependency notes:
 - `split-25` is the broad library resource workflow. `split-26`, `split-27`, `split-28`, `split-29`, `split-30`, and `split-34` are independent prerequisites or extractable pieces that should be reviewed before finalizing the broad workflow.
 - `split-64` is a default assistant DataApi/bootstrap contract stacked on `split-28`. Keep its schema, seeding, service, hook, migration transform, and immediate consumers together rather than splitting the contract across partial PRs.
 - `split-65` is an agent workspace DataApi contract. Review the schema, handler, services, shared API schemas, migrations, and tests together because they define one backend workflow boundary for future Agent page integration.
+- `split-66` is a Knowledge DataApi query contract. Review the shared request schema, handler tests, service query implementation, and service tests together before wiring Knowledge-page consumers to it.
 - `split-39` is the earlier combined message-flow split. `split-50` and `split-51` are the smaller replacement graph/layout slices, so reviewers should reconcile or supersede `split-39` rather than merge both shapes blindly.
 - `split-52` through `split-58` are chat tool-rendering foundation slices. `split-56`, `split-57`, and `split-58` form a stacked helper sequence on top of the response adapter; `split-55` is a parallel parent-metadata helper for future agent-tool renderers.
 - `split-59` through `split-63` form the builtin tool contract, lookup-core, Cherry MCP exposure, and AI SDK meta-tool hardening chain. Review `split-59` before the knowledge and web lookup extraction PRs, then `split-62` and `split-63` after those lookup cores are stable.
@@ -232,11 +237,12 @@ Dependency notes:
 2. Review chat shell and composer foundations: `split-21` through `split-24`, then `split-35` through `split-38`.
 3. Review the library/resource and assistant-data prerequisites: `split-26` through `split-34`, plus `split-64`, then finalize `split-25`. Keep DB API and consumers together when the contract boundary requires it.
 4. Review the agent workspace DataApi workflow: `split-65`.
-5. Review message-list foundations before renderer shells: `split-40`, `split-41`, `split-42`, `split-43`, `split-44`.
-6. Review message provider, selection, and file-path utilities: `split-45`, `split-46`, `split-47`, `split-48`, `split-49`.
-7. Review message flow: `split-50` and `split-51`; `split-39` is the earlier combined flow-model split and should be reconciled with those smaller PRs during review.
-8. Review chat tool foundation slices: `split-52` through `split-58`.
-9. Review builtin tool contract, lookup-core, MCP exposure, and meta-tool hardening slices: `split-59`, `split-60`, `split-61`, `split-62`, `split-63`.
+5. Review the Knowledge list DataApi query contract: `split-66`.
+6. Review message-list foundations before renderer shells: `split-40`, `split-41`, `split-42`, `split-43`, `split-44`.
+7. Review message provider, selection, and file-path utilities: `split-45`, `split-46`, `split-47`, `split-48`, `split-49`.
+8. Review message flow: `split-50` and `split-51`; `split-39` is the earlier combined flow-model split and should be reconciled with those smaller PRs during review.
+9. Review chat tool foundation slices: `split-52` through `split-58`.
+10. Review builtin tool contract, lookup-core, MCP exposure, and meta-tool hardening slices: `split-59`, `split-60`, `split-61`, `split-62`, `split-63`.
 
 ## Follow-up Split Backlog
 

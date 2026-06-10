@@ -55,6 +55,7 @@ Backend split areas:
 | Agent runtime | Keep agent sessions warm and expose agent resource policy | `split-18`, `split-30` |
 | Agent workspaces | Manage DataApi-backed agent workspace workflows and session links | `split-65` |
 | Assistant data bootstrap | Persist assistant source metadata and seed the v2 default assistant through DataApi/bootstrap consumers | `split-28`, `split-64` |
+| Knowledge data | Provide searchable Knowledge list queries through DataApi service and shared schemas | `split-66` |
 | MCP tools | Add Claude MCP tool runtime and chat tool-rendering foundations | `split-19`, `split-52` through `split-58` |
 | Builtin tools | Keep builtin tool contracts shared, extract knowledge/web lookup cores, and expose Cherry builtin tools through MCP | `split-59`, `split-60`, `split-61`, `split-62` |
 | AI SDK meta tools | Harden meta-tool search, inspect, invoke, and defer exposition behavior | `split-63` |
@@ -182,6 +183,7 @@ The resource library supports the chat page by making agents, assistants, prompt
 
 - selector/model infrastructure is shared before form workflows consume it
 - tag mutation hooks are independent reusable resource operations
+- searchable Knowledge list queries are DataApi-owned and should stay in the schema/handler/service contract
 - assistant catalog source metadata is DataApi-owned
 - default assistant bootstrap is DataApi-owned and should keep schema, seeding, migration transforms, service, hook, and immediate consumers together
 - library form adapters convert resource entities into form DTOs
@@ -197,6 +199,7 @@ The broad library resource workflow should be finalized after its extracted prer
 | Backend AI/runtime | `split-16` through `split-20` |
 | Shared chat contracts and shell | `split-21` through `split-24`, `split-36`, `split-37` |
 | Library/resource support | `split-25` through `split-30`, `split-34`, `split-64` |
+| Knowledge DataApi | `split-66` |
 | Trace and topic DataApi | `split-31`, `split-32`, `split-35` |
 | Agent workspace DataApi | `split-65` |
 | Composer | `split-38` |
@@ -225,3 +228,4 @@ The currently open follow-up areas should consume the foundations above:
 - builtin AI tool adapters should consume shared builtin contracts plus the knowledge/web lookup cores, Cherry builtin-tools MCP server, and meta-tool hardening
 - remaining Home/Agent page integration should stay in page adapters and route components, not inside shared chat core
 - Agent page integration should consume the agent workspace DataApi contract instead of duplicating workspace state inside shared chat components
+- Knowledge page integration should consume the Knowledge list DataApi contract instead of ad hoc renderer-side filtering over stale data
