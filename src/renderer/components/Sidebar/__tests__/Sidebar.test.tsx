@@ -7,6 +7,7 @@ import {
   getSidebarDisplayWidth,
   normalizeSidebarWidth,
   SIDEBAR_FULL_THRESHOLD,
+  SIDEBAR_HIDDEN_THRESHOLD,
   SIDEBAR_ICON_WIDTH,
   SIDEBAR_MAX_WIDTH
 } from '../constants'
@@ -29,9 +30,12 @@ const items: SidebarMenuItem[] = [
   }
 ]
 
-function dragResizeFrom(width: number, clientX: number) {
+const INTERMEDIATE_WIDTH = SIDEBAR_ICON_WIDTH + 30
+
+function dragResizeFrom(width: number, moves: number | number[]) {
   const setWidth = vi.fn()
   const onResizePreview = vi.fn()
+  const onHoverChange = vi.fn()
   const { container, unmount } = render(
     <Sidebar
       width={width}
@@ -39,23 +43,25 @@ function dragResizeFrom(width: number, clientX: number) {
       activeItem="chat"
       items={items}
       onItemClick={vi.fn()}
+      onHoverChange={onHoverChange}
       onResizePreview={onResizePreview}
     />
   )
   const resizeHandle = container.querySelector('.cursor-col-resize') as HTMLElement
 
   fireEvent.mouseDown(resizeHandle, { clientX: width })
-  fireEvent.mouseMove(document, { clientX })
+  for (const clientX of [moves].flat()) {
+    fireEvent.mouseMove(document, { clientX })
+  }
   fireEvent.mouseUp(document)
-  unmount()
 
-  return { setWidth, onResizePreview }
+  return { setWidth, onResizePreview, onHoverChange, unmount }
 }
 
 describe('Sidebar resize handle', () => {
   it('keeps the existing handle width and opts out of window drag regions', () => {
     const { container } = render(
-      <Sidebar width={50} setWidth={vi.fn()} activeItem="chat" items={items} onItemClick={vi.fn()} />
+      <Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} activeItem="chat" items={items} onItemClick={vi.fn()} />
     )
 
     const resizeHandle = container.querySelector('.cursor-col-resize')
@@ -67,62 +73,96 @@ describe('Sidebar resize handle', () => {
 
   it('previews intermediate widths and snaps release by drag direction', () => {
     const cases: Array<[number, number, number]> = [
-      [50, 80, SIDEBAR_FULL_THRESHOLD],
-      [120, 80, SIDEBAR_ICON_WIDTH],
-      [170, 110, SIDEBAR_ICON_WIDTH]
+      [SIDEBAR_ICON_WIDTH, INTERMEDIATE_WIDTH, SIDEBAR_FULL_THRESHOLD],
+      [SIDEBAR_FULL_THRESHOLD, INTERMEDIATE_WIDTH, SIDEBAR_ICON_WIDTH],
+      [SIDEBAR_FULL_THRESHOLD + 50, SIDEBAR_FULL_THRESHOLD - 10, SIDEBAR_ICON_WIDTH]
     ]
 
     for (const [start, moveTo, released] of cases) {
-      const { setWidth, onResizePreview } = dragResizeFrom(start, moveTo)
+      const { setWidth, onResizePreview, unmount } = dragResizeFrom(start, moveTo)
 
       expect(onResizePreview).toHaveBeenNthCalledWith(1, moveTo)
       expect(onResizePreview).toHaveBeenLastCalledWith(null)
       expect(setWidth).toHaveBeenCalledTimes(1)
       expect(setWidth).toHaveBeenLastCalledWith(released)
+      unmount()
     }
   })
 
   it('keeps non-intermediate drag behavior', () => {
     const cases: Array<[number, number]> = [
-      [10, 0],
-      [30, SIDEBAR_ICON_WIDTH],
-      [130, 130],
-      [300, SIDEBAR_MAX_WIDTH]
+      [SIDEBAR_HIDDEN_THRESHOLD - 10, 0],
+      [SIDEBAR_HIDDEN_THRESHOLD + 10, SIDEBAR_ICON_WIDTH],
+      [SIDEBAR_FULL_THRESHOLD + 10, SIDEBAR_FULL_THRESHOLD + 10],
+      [SIDEBAR_MAX_WIDTH + 20, SIDEBAR_MAX_WIDTH]
     ]
 
     for (const [moveTo, expected] of cases) {
-      const { setWidth } = dragResizeFrom(120, moveTo)
+      const { setWidth, unmount } = dragResizeFrom(SIDEBAR_FULL_THRESHOLD, moveTo)
 
       expect(setWidth).toHaveBeenCalledTimes(1)
       expect(setWidth).toHaveBeenLastCalledWith(expected)
+      unmount()
     }
+  })
+
+  it('clears the preview when a multi-step drag leaves the intermediate band', () => {
+    const { setWidth, onResizePreview } = dragResizeFrom(SIDEBAR_ICON_WIDTH, [
+      INTERMEDIATE_WIDTH,
+      SIDEBAR_FULL_THRESHOLD + 10
+    ])
+
+    expect(onResizePreview).toHaveBeenNthCalledWith(1, INTERMEDIATE_WIDTH)
+    expect(onResizePreview).toHaveBeenNthCalledWith(2, null)
+    expect(setWidth).toHaveBeenCalledTimes(1)
+    expect(setWidth).toHaveBeenLastCalledWith(SIDEBAR_FULL_THRESHOLD + 10)
+  })
+
+  it('stops tracking the mouse and restores the cursor after release', () => {
+    const { setWidth, onResizePreview } = dragResizeFrom(SIDEBAR_FULL_THRESHOLD, SIDEBAR_FULL_THRESHOLD + 10)
+
+    expect(document.body.style.cursor).toBe('')
+    expect(document.body.style.userSelect).toBe('')
+
+    const setWidthCalls = setWidth.mock.calls.length
+    const previewCalls = onResizePreview.mock.calls.length
+
+    fireEvent.mouseMove(document, { clientX: SIDEBAR_FULL_THRESHOLD + 40 })
+
+    expect(setWidth).toHaveBeenCalledTimes(setWidthCalls)
+    expect(onResizePreview).toHaveBeenCalledTimes(previewCalls)
   })
 
   it('renders intermediate widths with icon layout without menu text', () => {
     const { container, queryByText } = render(
-      <Sidebar width={80} setWidth={vi.fn()} activeItem="chat" items={items} onItemClick={vi.fn()} />
+      <Sidebar width={INTERMEDIATE_WIDTH} setWidth={vi.fn()} activeItem="chat" items={items} onItemClick={vi.fn()} />
     )
 
-    expect(container.firstElementChild).toHaveStyle({ width: '80px' })
+    expect(container.firstElementChild).toHaveStyle({ width: `${INTERMEDIATE_WIDTH}px` })
     expect(queryByText('Chat')).not.toBeInTheDocument()
   })
 
   it('resolves display widths for CSS variable consumers', () => {
-    expect(SIDEBAR_FULL_THRESHOLD).toBe(120)
-    expect(getSidebarDisplayWidth(30)).toBe(SIDEBAR_ICON_WIDTH)
-    expect(getSidebarDisplayWidth(80)).toBe(80)
-    expect(getSidebarDisplayWidth(120)).toBe(SIDEBAR_FULL_THRESHOLD)
+    expect(getSidebarDisplayWidth(SIDEBAR_HIDDEN_THRESHOLD + 10)).toBe(SIDEBAR_ICON_WIDTH)
+    expect(getSidebarDisplayWidth(INTERMEDIATE_WIDTH)).toBe(INTERMEDIATE_WIDTH)
+    expect(getSidebarDisplayWidth(SIDEBAR_FULL_THRESHOLD)).toBe(SIDEBAR_FULL_THRESHOLD)
   })
 
   it('normalizes persisted intermediate widths to icon width', () => {
-    expect(normalizeSidebarWidth(50)).toBe(SIDEBAR_ICON_WIDTH)
-    expect(normalizeSidebarWidth(80)).toBe(SIDEBAR_ICON_WIDTH)
-    expect(normalizeSidebarWidth(120)).toBe(SIDEBAR_FULL_THRESHOLD)
+    expect(normalizeSidebarWidth(SIDEBAR_ICON_WIDTH)).toBe(SIDEBAR_ICON_WIDTH)
+    expect(normalizeSidebarWidth(INTERMEDIATE_WIDTH)).toBe(SIDEBAR_ICON_WIDTH)
+    expect(normalizeSidebarWidth(SIDEBAR_FULL_THRESHOLD)).toBe(SIDEBAR_FULL_THRESHOLD)
   })
 
   it('keeps the hidden-state hot zone full height without moving the resize binding', () => {
     const { container } = render(
-      <Sidebar width={10} setWidth={vi.fn()} activeItem="chat" items={items} onItemClick={vi.fn()} />
+      <Sidebar
+        width={SIDEBAR_HIDDEN_THRESHOLD - 10}
+        setWidth={vi.fn()}
+        activeItem="chat"
+        items={items}
+        onItemClick={vi.fn()}
+      />
     )
 
     const resizeHandle = container.querySelector('.cursor-col-resize') as HTMLElement
@@ -133,18 +173,43 @@ describe('Sidebar resize handle', () => {
     expect(hotZone).toHaveClass('[-webkit-app-region:no-drag]')
   })
 
-  it('renders the full layout at the full threshold', () => {
-    const { container, getByText } = render(
-      <Sidebar width={120} setWidth={vi.fn()} activeItem="chat" items={items} onItemClick={vi.fn()} />
+  it('restores a hidden sidebar by dragging wider from the hot zone', () => {
+    const { setWidth, onResizePreview, onHoverChange } = dragResizeFrom(
+      SIDEBAR_HIDDEN_THRESHOLD - 10,
+      INTERMEDIATE_WIDTH
     )
 
-    expect(container.firstElementChild).toHaveStyle({ width: '120px' })
+    expect(onHoverChange).toHaveBeenCalledWith(false)
+    expect(onResizePreview).toHaveBeenNthCalledWith(1, INTERMEDIATE_WIDTH)
+    expect(setWidth).toHaveBeenCalledTimes(1)
+    expect(setWidth).toHaveBeenLastCalledWith(SIDEBAR_FULL_THRESHOLD)
+  })
+
+  it('renders the full layout at the full threshold', () => {
+    const { container, getByText } = render(
+      <Sidebar
+        width={SIDEBAR_FULL_THRESHOLD}
+        setWidth={vi.fn()}
+        activeItem="chat"
+        items={items}
+        onItemClick={vi.fn()}
+      />
+    )
+
+    expect(container.firstElementChild).toHaveStyle({ width: `${SIDEBAR_FULL_THRESHOLD}px` })
     expect(getByText('Chat')).toBeInTheDocument()
   })
 
   it('uses a solid sidebar background for the floating hidden-state panel', () => {
     const { container } = render(
-      <Sidebar width={10} setWidth={vi.fn()} activeItem="chat" items={items} isFloating onItemClick={vi.fn()} />
+      <Sidebar
+        width={SIDEBAR_HIDDEN_THRESHOLD - 10}
+        setWidth={vi.fn()}
+        activeItem="chat"
+        items={items}
+        isFloating
+        onItemClick={vi.fn()}
+      />
     )
 
     const panel = container.querySelector('.slide-in-from-left-2')

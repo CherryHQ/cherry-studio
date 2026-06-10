@@ -1,17 +1,10 @@
 import { usePersistCache } from '@data/hooks/useCache'
-import { usePreference } from '@data/hooks/usePreference'
 import { fireEvent, render } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { MockUseCacheUtils } from '../../../../../tests/__mocks__/renderer/useCache'
+import { MockUsePreferenceUtils } from '../../../../../tests/__mocks__/renderer/usePreference'
 import Sidebar from '../Sidebar'
-
-vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: vi.fn()
-}))
-
-vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: vi.fn()
-}))
 
 vi.mock('@renderer/config/env', () => ({
   AppLogo: 'app-logo.png'
@@ -57,37 +50,42 @@ vi.mock('../../Sidebar', () => ({
   )
 }))
 
+// Total writes through the setters returned for the 'ui.sidebar.width' key,
+// across every render of the component.
+function countSidebarWidthWrites() {
+  const mocked = vi.mocked(usePersistCache)
+  return mocked.mock.calls.reduce((total, call, index) => {
+    if (call[0] !== 'ui.sidebar.width') return total
+    const result = mocked.mock.results[index]
+    if (result.type !== 'return') return total
+    const [, setValue] = result.value as [unknown, ReturnType<typeof vi.fn>]
+    return total + setValue.mock.calls.length
+  }, 0)
+}
+
 describe('App Sidebar', () => {
-  afterEach(() => {
-    vi.clearAllMocks()
+  beforeEach(() => {
+    MockUseCacheUtils.resetMocks()
+    MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.icons.visible', ['assistants'])
     document.documentElement.style.removeProperty('--sidebar-width')
   })
 
-  it('normalizes persisted intermediate sidebar width to icon width', () => {
-    const setSidebarWidth = vi.fn()
+  it('migrates a persisted intermediate sidebar width to icon width and converges', () => {
+    MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', 80)
 
-    vi.mocked(usePersistCache).mockReturnValue([80, setSidebarWidth])
-    vi.mocked(usePreference).mockImplementation((key) => {
-      if (key === 'ui.sidebar.icons.visible') return [[], vi.fn()] as never
-      if (key === 'app.user.name') return ['', vi.fn()] as never
-      return [undefined, vi.fn()] as never
-    })
+    const { rerender } = render(<Sidebar />)
 
-    render(<Sidebar />)
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.sidebar.width')).toBe(50)
+    expect(countSidebarWidthWrites()).toBe(1)
 
-    expect(setSidebarWidth).toHaveBeenCalledWith(50)
+    rerender(<Sidebar />)
+
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.sidebar.width')).toBe(50)
+    expect(countSidebarWidthWrites()).toBe(1)
   })
 
   it('uses the resize preview width for rendering and CSS variable without persisting it', () => {
-    const setSidebarWidth = vi.fn()
-
-    vi.mocked(usePersistCache).mockReturnValue([50, setSidebarWidth])
-    vi.mocked(usePreference).mockImplementation((key) => {
-      if (key === 'ui.sidebar.icons.visible') return [[], vi.fn()] as never
-      if (key === 'app.user.name') return ['', vi.fn()] as never
-      return [undefined, vi.fn()] as never
-    })
-
     const { getByTestId } = render(<Sidebar />)
 
     expect(getByTestId('ui-sidebar')).toHaveAttribute('data-width', '50')
@@ -97,7 +95,8 @@ describe('App Sidebar', () => {
 
     expect(getByTestId('ui-sidebar')).toHaveAttribute('data-width', '80')
     expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('80px')
-    expect(setSidebarWidth).not.toHaveBeenCalled()
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.sidebar.width')).toBe(50)
+    expect(countSidebarWidthWrites()).toBe(0)
 
     fireEvent.click(getByTestId('preview-null'))
 
