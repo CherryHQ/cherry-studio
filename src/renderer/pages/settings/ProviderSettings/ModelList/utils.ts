@@ -1,3 +1,4 @@
+import { getSearchMatchScore } from '@renderer/utils/modelSearch'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 
 export const isValidNewApiModel = (model: Model): boolean => !!(model.endpointTypes && model.endpointTypes.length > 0)
@@ -14,18 +15,22 @@ export function getModelClipboardId(model: Pick<Model, 'apiModelId' | 'id' | 'na
 }
 
 export const filterProviderSettingModelsByKeywords = <T extends Model>(keywords: string, models: T[]): T[] => {
-  const parts = keywords
-    .toLowerCase()
-    .split(/\s+/)
-    .map((part) => part.trim())
-    .filter(Boolean)
+  if (!keywords.trim()) return models
 
-  if (parts.length === 0) return models
+  return models
+    .flatMap((model, index) => {
+      const searchScore = getSearchMatchScore(keywords, [
+        { value: model.name, weight: 0, allowAbbreviation: true },
+        { value: model.apiModelId, weight: 1, allowAbbreviation: true },
+        { value: model.id, weight: 1, allowAbbreviation: true },
+        { value: model.group, weight: 2, allowAbbreviation: true },
+        { value: model.description, weight: 30, allowAbbreviation: false }
+      ])
 
-  return models.filter((model) => {
-    const haystack = [model.id, model.name, model.group, model.description].filter(Boolean).join(' ').toLowerCase()
-    return parts.every((part) => haystack.includes(part))
-  })
+      return searchScore === null ? [] : [{ model, searchScore, index }]
+    })
+    .sort((a, b) => a.searchScore - b.searchScore || a.index - b.index)
+    .map(({ model }) => model)
 }
 
 export const getDuplicateProviderSettingModelNames = <T extends Pick<Model, 'name'>>(models: T[]): Set<string> => {

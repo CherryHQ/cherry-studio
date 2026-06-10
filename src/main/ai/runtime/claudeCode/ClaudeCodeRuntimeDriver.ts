@@ -17,7 +17,7 @@ import {
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { application } from '@main/core/application'
 import type { Tool } from '@shared/ai/tool'
-import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type {
   AgentRuntimeConnectInput,
@@ -28,7 +28,7 @@ import type {
   AgentSessionRuntimeDriver
 } from '../types'
 import { buildClaudeCodeQueryRequestForAgentSession } from './agentSessionWarmup'
-import { AgentSessionWorkspaceError, assertClaudeCodeWorkspaceDirectory } from './settingsBuilder'
+import { AgentSessionWorkspaceError, prepareClaudeCodeWorkspaceDirectory } from './settingsBuilder'
 import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage } from './streamAdapter'
 import type { McpToolDisplayMetadata, ToolApprovalEmitterHolder } from './types'
 
@@ -331,12 +331,12 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'claude-code'
   readonly capabilities = ['agent-session'] as const
 
-  validateSession(session: AgentSessionEntity): void {
+  async validateSession(session: AgentSessionEntity): Promise<void> {
     const cwd = session.workspace?.path
     if (!cwd) {
       throw new AgentSessionWorkspaceError(`Agent session ${session.id} has no workspace configured`)
     }
-    assertClaudeCodeWorkspaceDirectory(session.id, cwd)
+    await prepareClaudeCodeWorkspaceDirectory(session)
   }
 
   async listAvailableTools(mcpIds: string[]): Promise<Tool[]> {

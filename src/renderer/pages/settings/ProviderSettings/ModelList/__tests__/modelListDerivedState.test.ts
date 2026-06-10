@@ -78,6 +78,78 @@ describe('modelListDerivedState', () => {
     ])
   })
 
+  it('matches separator-insensitive model ids in provider settings search', () => {
+    const searchModels = [
+      {
+        id: 'openai::gpt-4',
+        name: 'GPT-4',
+        providerId: 'openai',
+        capabilities: [],
+        isEnabled: true
+      }
+    ]
+
+    expect(applyModelFilters(searchModels as any, 'gpt4', 'all').map((model) => model.id)).toEqual(['openai::gpt-4'])
+  })
+
+  it('ranks token-initial abbreviations before loose provider settings model matches', () => {
+    const searchModels = [
+      {
+        id: 'siliconflow::funaudio-cosyvoice',
+        name: 'FunAudioLLM/CosyVoice2-0.5',
+        providerId: 'siliconflow',
+        group: 'FunAudioLLM',
+        capabilities: [],
+        isEnabled: true
+      },
+      {
+        id: 'siliconflow::deepseek-v3',
+        name: 'Pro/deepseek-ai/DeepSeek-V3',
+        providerId: 'siliconflow',
+        group: 'Pro',
+        capabilities: [],
+        isEnabled: true
+      }
+    ]
+
+    expect(applyModelFilters(searchModels as any, 'dsv', 'all').map((model) => model.id)).toEqual([
+      'siliconflow::deepseek-v3',
+      'siliconflow::funaudio-cosyvoice'
+    ])
+
+    expect(Object.keys(calculateModelSections(searchModels as any, 'dsv', 'all').enabled)).toEqual([
+      'Pro',
+      'FunAudioLLM'
+    ])
+  })
+
+  it('ranks model-name initials before short description matches', () => {
+    const searchModels = [
+      {
+        id: 'zai::glm-air',
+        name: 'zai-org/GLM-4.5-Air',
+        providerId: 'zai',
+        group: 'zai-org',
+        description: 'A fast model family for agent workflows.',
+        capabilities: [],
+        isEnabled: true
+      },
+      {
+        id: 'siliconflow::funaudio-cosyvoice',
+        name: 'FunAudioLLM/CosyVoice2-0.5',
+        providerId: 'siliconflow',
+        group: 'FunAudioLLM',
+        capabilities: [],
+        isEnabled: true
+      }
+    ]
+
+    expect(applyModelFilters(searchModels as any, 'fa', 'all').map((model) => model.id)).toEqual([
+      'siliconflow::funaudio-cosyvoice',
+      'zai::glm-air'
+    ])
+  })
+
   it('derives counts, booleans, and status map', () => {
     const modelStatuses: ModelWithStatus[] = [
       {

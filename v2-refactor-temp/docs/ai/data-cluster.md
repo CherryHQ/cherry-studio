@@ -5,15 +5,15 @@
 | Subpath | What changed |
 |---|---|
 | `src/main/data/db/schemas/` | Agent / session / workspace / agent-message tables restructured |
-| `src/main/data/services/` | `SessionService.ts` + `WorkspaceService.ts` new; `AgentService.ts`, `AgentSessionMessageService.ts`, `MessageService.ts` heavy rewrites |
-| `src/main/data/api/handlers/` | `sessions.ts` + `workspaces.ts` new; `agents.ts` slimmed (~100 LOC); `messages.ts` extended; `assistants.ts` + `topics.ts` extended |
+| `src/main/data/services/` | `AgentSessionService.ts` + `AgentWorkspaceService.ts` new; `AgentService.ts`, `AgentSessionMessageService.ts`, `MessageService.ts` heavy rewrites |
+| `src/main/data/api/handlers/` | `agentSessions.ts` + workspace handlers new; `agents.ts` slimmed (~100 LOC); `messages.ts` extended; `assistants.ts` + `topics.ts` extended |
 | `src/main/data/migration/v2/migrators/` | `AgentsMigrator.ts` + `AgentsDbMappings.ts` rewrites; `ChatMigrator.ts` parts conversion; `ProviderModelMigrator.ts` `adapterFamily` backfill |
-| `packages/shared/data/types/` | `agentMessage.ts` + `uiParts.ts` new; `agent.ts` slimmed via Zod inference; `message.ts` heavy rewrite (parts model) |
-| `packages/shared/agents/` | `agentSlashCommands.ts` new (builtin SDK command list, off the data layer) |
-| `packages/shared/data/api/schemas/` | `sessions.ts` + `workspaces.ts` new; `agents.ts` slimmed by 126 LOC; `messages.ts` + `assistants.ts` + `providers.ts` extended |
+| `src/shared/data/types/` | `agentMessage.ts` + `uiParts.ts` new; `agent.ts` slimmed via Zod inference; `message.ts` heavy rewrite (parts model) |
+| `src/shared/agents/` | `agentSlashCommands.ts` new (builtin SDK command list, off the data layer) |
+| `src/shared/data/api/schemas/` | agent session + workspace schemas new; `agents.ts` slimmed by 126 LOC; `messages.ts` + `assistants.ts` + `providers.ts` extended |
 
 Total surface: ~94 files modified across `src/main/data/` and
-`packages/shared/data/`.
+`src/shared/data/`.
 
 ## Intent
 
@@ -40,8 +40,9 @@ The refactor:
   per-session state + workspace binding. Sessions reference their agent
   by FK with `onDelete: 'set null'` so orphan sessions can still render.
 - **Normalize.** `agent_workspace` is a separate table with unique
-  `path` index. Sessions FK to workspaces, also `set null` on delete so
-  removing a workspace doesn't cascade-delete sessions.
+  `path` index and a `type` discriminator (`user` or `system`). Sessions
+  FK to workspaces with `onDelete: 'cascade'`; deleting a workspace row
+  deletes sessions bound to it.
 - **Parts.** `agent_session_message.content` stores
   `AgentPersistedMessage` (AI-SDK-native `parts`) directly. The
   `blocks` field is gone end-to-end; the migrator converts legacy rows
@@ -93,9 +94,11 @@ env_vars). Unknown extras are preserved across read/write so older
 export const agentSessionTable = sqliteTable('agent_session', {
   id: uuidPrimaryKey(),
   agentId:     text().references(() => agentTable.id,     { onDelete: 'set null' }),
-  workspaceId: text().references(() => workspaceTable.id, { onDelete: 'set null' }),
   name: text().notNull(),
   description: text().notNull().default(''),
+  workspaceId: text()
+    .notNull()
+    .references(() => agentWorkspaceTable.id, { onDelete: 'cascade' }),
   ...orderKeyColumns,
   ...createUpdateTimestamps
 })
@@ -106,25 +109,33 @@ fetches them via `useAgent(session.agentId)`.
 
 **Insert-only workspace.** `UpdateSessionDto` deliberately does not
 include `workspaceId` — a running session can't be re-pointed at a new
-directory. Migrated sessions may have `workspaceId === null`; newly
-created sessions bind one (auto-derived from the most recent sibling, or
-a default created on demand).
+directory. Newly created sessions must bind an explicit workspace source:
+either `{ type: 'user', workspaceId }` for an existing user workspace, or
+`{ type: 'system' }` for a deterministic app-owned system workspace row.
 
-### `agent_workspace` (new — `workspace.ts`)
+### `agent_workspace` (new — `agentWorkspace.ts`)
 
 ```ts
-export const workspaceTable = sqliteTable('agent_workspace', {
+export const agentWorkspaceTable = sqliteTable('agent_workspace', {
   id: uuidPrimaryKey(),
   name: text().notNull(),
   path: text().notNull(),
+  type: text().notNull(), // CHECK type IN ('user', 'system')
   ...orderKeyColumns,
   ...createUpdateTimestamps
-}, t => [uniqueIndex('agent_workspace_path_unique_idx').on(t.path), ...])
+}, t => [
+  uniqueIndex('agent_workspace_path_unique_idx').on(t.path),
+  check('agent_workspace_type_check', sql`${t.type} IN (...)`),
+  ...
+])
 ```
 
-`path` is the unique key. `WorkspaceService.create` normalizes
-(absolute + `path.normalize`), creates the directory if missing
-(`fs.mkdirSync({ recursive: true })`), and validates it's not a file.
+`path` is the unique key. `AgentWorkspaceService` is DB-only: it
+normalizes paths, creates/reuses user workspace rows, creates deterministic
+system workspace rows, and never touches the filesystem. Filesystem
+directory validation and creation live on the Claude Code runtime consumer
+for user workspaces, and only app-owned system workspace directories are
+auto-created.
 
 ### `agent_session_message` (rewritten — `agentSessionMessage.ts`)
 
@@ -179,13 +190,16 @@ treat the two as complementary, not as a replacement.
 
 ### New services
 
-- **`SessionService.ts`** (188 LOC). Cursor-paginated list with order
-  keys, transactional create that joins workspace (selects most recent
-  sibling's workspace if none supplied, else creates a default), insert-
-  only workspace binding.
-- **`WorkspaceService.ts`** (164 LOC). CRUD + path normalization + dir
-  creation + reorder. `createDefaultWorkspaceTx` is the auto-create path
-  used when a session is created without a workspace.
+- **`AgentSessionService.ts`**. Cursor-paginated list with order keys,
+  transactional create that requires an explicit workspace source. User
+  sources must reference user workspace rows; system sources create a
+  deterministic session-owned workspace row. Workspace binding remains
+  insert-only.
+- **`AgentWorkspaceService.ts`**. DB-only workspace row access, path
+  normalization, find-or-create for user workspace rows, deterministic
+  system workspace row creation, and reorder. It owns no filesystem
+  side effects; runtime consumers validate user directories and create
+  only app-owned system directories when needed.
 
 ### Heavy rewrites
 
@@ -207,9 +221,9 @@ treat the two as complementary, not as a replacement.
 
 | Endpoint | Status | Notes |
 |---|---|---|
-| `GET/POST /sessions`, `/sessions/:id` | new | session CRUD |
-| `GET /sessions/:id/messages` | new | cursor-paginated |
-| `GET/POST /workspaces`, `/workspaces/:id`, `PATCH/DELETE` | new | workspace CRUD + reorder |
+| `GET/POST /agent-sessions`, `/agent-sessions/:id` | new | session CRUD |
+| `GET /agent-sessions/:id/messages` | new | cursor-paginated |
+| `GET /agent-workspaces`, `/agent-workspaces/:id`, reorder endpoints | new | workspace reads + reorder |
 | `/agents/*` | slimmed | ~100 LOC removed; legacy order endpoints gone |
 | `/messages/*` | extended | parts read/write, tree path, sibling helpers |
 | `/topics/*` | extended | branch-aware active-node tracking |
@@ -263,37 +277,37 @@ Backfills `adapterFamily` per endpoint config. See
 
 ## Shared types & API schemas
 
-### `packages/shared/data/types/agentMessage.ts` (new)
+### `src/shared/data/types/agentMessage.ts` (new)
 
 The `AgentPersistedMessage` shape stored on `agent_session_message.content`.
 
-### `packages/shared/data/types/uiParts.ts` (new)
+### `src/shared/data/types/uiParts.ts` (new)
 
 Lifted the UI part type definitions out of `message.ts` so the agents
 domain can consume them without taking the full chat-message dependency
 graph.
 
-### `packages/shared/data/types/agent.ts` (slimmed)
+### `src/shared/data/types/agent.ts` (slimmed)
 
 Replaced hand-written types with Zod-inferred types from `api/schemas/agents.ts`.
 
-### `packages/shared/data/types/message.ts` (rewritten)
+### `src/shared/data/types/message.ts` (rewritten)
 
 Removed the legacy `blocks` field and the type machinery built around
 it. `CherryMessagePart`, `CherryUIMessage`, `Message`,
 `AssistantMessageStatus` are the v2 vocabulary.
 
-### `packages/shared/data/api/schemas/sessions.ts` (new)
+### `src/shared/data/api/schemas/agentSessions.ts` (new)
 
 Entity + DTO schemas for sessions. `UpdateSessionSchema` deliberately
 omits `workspaceId` to enforce insert-only binding.
 
-### `packages/shared/data/api/schemas/workspaces.ts` (new)
+### `src/shared/data/api/schemas/agentWorkspaces.ts` (new)
 
 Entity + DTO schemas for workspaces. Path validation matches
-`WorkspaceService.normalizeWorkspacePath`.
+the shared main-process `normalizeWorkspacePath` helper.
 
-### `packages/shared/data/api/schemas/agents.ts` (slimmed)
+### `src/shared/data/api/schemas/agents.ts` (slimmed)
 
 `AgentEntity` derived from the new schema. The 126-LOC reduction comes
 from dropping per-session fields that moved to `sessions.ts`.
@@ -324,9 +338,10 @@ Three places where the data model now distinguishes models:
    `sessionService.update(id, { workspaceId: ... })`. The schema rejects
    this; reviewer should also catch any handler / hook that bypasses the
    schema.
-3. **Workspace deletion does not cascade to sessions.** FK is
-   `set null` — orphan sessions surface a "workspace removed" warning
-   instead of disappearing.
+3. **Workspace deletion cascades to sessions.** `agent_session.workspaceId`
+   is non-null and uses `onDelete: 'cascade'`. A system workspace row is
+   owned one-to-one by its session and is deleted with that session; user
+   workspace rows must not be deleted when deleting one bound session.
 4. **`blocks` field is gone.** Any newly added code that reads
    `data.blocks` or `message.blocks` is wrong. The migration is the only
    place legacy `blocks` ever appears, and it converts to `parts`.
@@ -341,7 +356,7 @@ Three places where the data model now distinguishes models:
 ## Validation
 
 - `services/__tests__/AgentService.test.ts`, `AgentSessionService.test.ts`,
-  `WorkspaceService.test.ts`, `SessionService.test.ts`,
+  `AgentWorkspaceService.test.ts`,
   `MessageService.test.ts`, `AgentChannelService.test.ts`,
   `AgentTaskService.test.ts`.
 - `migration/v2/migrators/__tests__/AgentsMigrator.test.ts`,
@@ -350,8 +365,8 @@ Three places where the data model now distinguishes models:
   `remapAgentPrefixIds.test.ts`.
 - `migration/v2/migrators/__tests__/ChatMigrator.test.ts` for
   `transformBlocksToParts`.
-- `packages/shared/data/api/schemas/__tests__/agents.test.ts`,
-  `workspaces.test.ts`.
+- `src/shared/data/api/schemas/__tests__/agents.test.ts`,
+  `agentWorkspaces.test.ts`.
 - `api/handlers/__tests__/agents.test.ts`,
   `temporaryChats.test.ts`, `temporaryChats.integration.test.ts`.
 

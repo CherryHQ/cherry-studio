@@ -31,7 +31,6 @@ export enum IpcChannel {
   App_InstallBunBinary = 'app:install-bun-binary',
   App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
-  App_GetDiskInfo = 'app:get-disk-info',
   App_GetSystemFonts = 'app:get-system-fonts',
   App_GetIpCountry = 'app:get-ip-country',
 
@@ -39,6 +38,10 @@ export enum IpcChannel {
   App_MacRequestProcessTrust = 'app:mac-request-process-trust',
 
   App_QuoteToMain = 'app:quote-to-main',
+
+  // StorageMonitor: main-process disk-space watcher for the user-data volume
+  StorageMonitor_GetHealth = 'storage-monitor:get-health',
+  StorageMonitor_HealthChanged = 'storage-monitor:health-changed',
 
   Notification_Send = 'notification:send',
   Notification_OnClick = 'notification:on-click',
@@ -155,6 +158,8 @@ export enum IpcChannel {
 
   Shortcut_RegistrationConflict = 'shortcut:registration-conflict',
 
+  NativeCommandPopupMenu_Show = 'native-command-popup-menu:show',
+
   // Tab
   Tab_Attach = 'tab:attach',
   Tab_Detach = 'tab:detach',
@@ -162,16 +167,18 @@ export enum IpcChannel {
   Tab_TryAttach = 'tab:try-attach',
   Tab_DragEnd = 'tab:drag-end',
 
+  Knowledge_CreateBase = 'knowledge:create-base',
+  Knowledge_RestoreBase = 'knowledge:restore-base',
+  Knowledge_DeleteBase = 'knowledge:delete-base',
+  Knowledge_AddItems = 'knowledge:add-items',
+  Knowledge_DeleteItems = 'knowledge:delete-items',
+  Knowledge_ReindexItems = 'knowledge:reindex-items',
+  Knowledge_Search = 'knowledge:search',
+  Knowledge_ListItemChunks = 'knowledge:list-item-chunks',
+  Knowledge_DeleteItemChunk = 'knowledge:delete-item-chunk',
+  // v1 bridge: still invoked by the v1 Redux store/knowledge slice until that
+  // slice is removed in the unified step. Routed to the v2 KnowledgeService.
   KnowledgeBase_Delete = 'knowledge-base:delete',
-  KnowledgeRuntime_CreateBase = 'knowledge-runtime:create-base',
-  KnowledgeRuntime_RestoreBase = 'knowledge-runtime:restore-base',
-  KnowledgeRuntime_DeleteBase = 'knowledge-runtime:delete-base',
-  KnowledgeRuntime_AddItems = 'knowledge-runtime:add-items',
-  KnowledgeRuntime_DeleteItems = 'knowledge-runtime:delete-items',
-  KnowledgeRuntime_ReindexItems = 'knowledge-runtime:reindex-items',
-  KnowledgeRuntime_Search = 'knowledge-runtime:search',
-  KnowledgeRuntime_ListItemChunks = 'knowledge-runtime:list-item-chunks',
-  KnowledgeRuntime_DeleteItemChunk = 'knowledge-runtime:delete-item-chunk',
 
   FileProcessing_StartJob = 'file-processing:start-job',
   FileProcessing_ListAvailableProcessors = 'file-processing:list-available-processors',
@@ -213,7 +220,7 @@ export enum IpcChannel {
   File_OpenWithRelativePath = 'file:openWithRelativePath',
   File_IsTextFile = 'file:isTextFile',
   File_IsDirectory = 'file:isDirectory',
-  File_CheckWorkspacePath = 'file:checkWorkspacePath',
+  File_GetMetadata = 'file:getMetadata',
   File_ListDirectory = 'file:listDirectory',
   File_CheckFileName = 'file:checkFileName',
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',
@@ -355,27 +362,16 @@ export enum IpcChannel {
 
   // TRACE
   TRACE_SAVE_DATA = 'trace:saveData',
-  TRACE_GET_DATA = 'trace:getData',
   TRACE_SAVE_ENTITY = 'trace:saveEntity',
   TRACE_GET_ENTITY = 'trace:getEntity',
   TRACE_BIND_TOPIC = 'trace:bindTopic',
-  TRACE_CLEAN_TOPIC = 'trace:cleanTopic',
-  TRACE_TOKEN_USAGE = 'trace:tokenUsage',
   TRACE_CLEAN_HISTORY = 'trace:cleanHistory',
-  TRACE_OPEN_WINDOW = 'trace:openWindow',
-  TRACE_SET_TITLE = 'trace:setTitle',
-  TRACE_ADD_END_MESSAGE = 'trace:addEndMessage',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
-  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage',
 
-  // API Server
-  ApiServer_Start = 'api-server:start',
-  ApiServer_Stop = 'api-server:stop',
-  ApiServer_Restart = 'api-server:restart',
-  ApiServer_GetStatus = 'api-server:get-status',
-  ApiServer_Ready = 'api-server:ready',
-  // NOTE: This api is not be used.
-  ApiServer_GetConfig = 'api-server:get-config',
+  // API Gateway
+  ApiGateway_Start = 'api-gateway:start',
+  ApiGateway_Stop = 'api-gateway:stop',
+  ApiGateway_Restart = 'api-gateway:restart',
 
   // ExternalApps
   ExternalApps_DetectInstalled = 'external-apps:detect-installed',

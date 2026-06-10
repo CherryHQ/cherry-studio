@@ -8,8 +8,13 @@ const IS_WORKER = typeof window === 'undefined'
 // check if we are in the dev env
 // DO NOT use `constants.ts` here, because the files contains other dependencies that will fail in worker process
 const IS_DEV = IS_WORKER ? false : window.electron?.process?.env?.NODE_ENV === 'development'
+// CS_DIAGNOSTICS makes a packaged build behave like dev for logging (verbose level,
+// console output, and the CSLOGGER_RENDERER_* overrides all turn on). Idempotent in dev.
+// The flag reaches the renderer via the preload-exposed process.env, same path as in main.
+const DIAGNOSTICS_ENABLED = IS_WORKER ? false : !!window.electron?.process?.env?.CS_DIAGNOSTICS
+const DEV_LOGGING = IS_DEV || DIAGNOSTICS_ENABLED
 
-const DEFAULT_LEVEL = IS_DEV ? LEVEL.SILLY : LEVEL.INFO
+const DEFAULT_LEVEL = DEV_LOGGING ? LEVEL.SILLY : LEVEL.INFO
 const MAIN_LOG_LEVEL = LEVEL.WARN
 
 /**
@@ -19,7 +24,7 @@ const MAIN_LOG_LEVEL = LEVEL.WARN
  *   Chinese: `docs/technical/how-to-use-logger-zh.md`
  */
 class LoggerService {
-  // env variables, only used in dev mode
+  // env variables, only used in dev / diagnostics (CS_DIAGNOSTICS) mode
   // only affect console output, not affect logToMain
   private envLevel: LogLevel = LEVEL.NONE
   private envShowModules: string[] = []
@@ -32,7 +37,7 @@ class LoggerService {
   private context: Record<string, any> = {}
 
   constructor() {
-    if (IS_DEV) {
+    if (DEV_LOGGING) {
       if (
         window.electron?.process?.env?.CSLOGGER_RENDERER_LEVEL &&
         Object.values(LEVEL).includes(window.electron?.process?.env?.CSLOGGER_RENDERER_LEVEL as LogLevel)
@@ -110,8 +115,8 @@ class LoggerService {
 
     const currentLevel = LEVEL_MAP[level]
 
-    // if in dev mode, check if the env variables are set and use the env level and show modules to skip logs
-    if (IS_DEV) {
+    // if in dev / diagnostics mode, check if the env variables are set and use the env level and show modules to skip logs
+    if (DEV_LOGGING) {
       if (this.envLevel !== LEVEL.NONE && currentLevel < LEVEL_MAP[this.envLevel]) {
         return
       }

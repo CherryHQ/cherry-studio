@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { WindowType } from '@main/core/window/types'
 import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
 
 const logger = loggerService.withContext('ProtocolService:navigate')
@@ -53,9 +54,9 @@ export function handleNavigateProtocolUrl(url: URL, retryAttempt = 0) {
   }
 
   const navigateMainWindow = async () => {
-    const mainWindow = application.get('MainWindowService').getMainWindow()
+    const mainWindow = application.get('WindowManager').getWindowsByType(WindowType.Main)[0]
 
-    if (!mainWindow || mainWindow.isDestroyed()) {
+    if (!mainWindow) {
       if (retryAttempt >= MAX_NAVIGATE_RETRY_ATTEMPTS) {
         logger.warn('Main window not available, dropping navigation URL after retry limit', { path: fullPath })
         return

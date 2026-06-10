@@ -3,8 +3,8 @@
  *
  * Links a FileEntry to a `knowledge_item` row in the v2 knowledge subsystem
  * (already on SQLite, UUIDv7 primary key via `uuidPrimaryKeyOrdered`). The
- * owning service writes refs when an item ingests a file (file / sitemap /
- * note / etc.). The corresponding `knowledgeItemChecker` (in
+ * owning service writes refs when an item ingests a file (file / note / etc.).
+ * The corresponding `knowledgeItemChecker` (in
  * `FileRefCheckerRegistry`) is a real DB-backed checker; this schema is the
  * type/validation half of the same wiring.
  *

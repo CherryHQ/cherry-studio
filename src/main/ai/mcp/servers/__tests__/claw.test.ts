@@ -77,9 +77,10 @@ vi.mock('@main/services/MainWindowService', () => ({
 
 const { default: ClawServer } = await import('../claw')
 type ClawServerInstance = InstanceType<typeof ClawServer>
+const WORKSPACE_SOURCE = { type: 'system' as const }
 
 function createServer(agentId = 'agent_test') {
-  return new ClawServer(agentId)
+  return new ClawServer(agentId, WORKSPACE_SOURCE)
 }
 
 // Helper to call tools via the Server's request handlers
@@ -135,6 +136,7 @@ describe('ClawServer', () => {
         name: 'Daily standup',
         prompt: 'Run standup check',
         trigger: { kind: 'cron', expr: '0 9 * * 1-5' },
+        workspace: WORKSPACE_SOURCE,
         timeoutMinutes: undefined,
         channelIds: undefined
       })
@@ -157,6 +159,7 @@ describe('ClawServer', () => {
         name: 'Health check',
         prompt: 'Check system health',
         trigger: { kind: 'interval', ms: 30 * 60_000 },
+        workspace: WORKSPACE_SOURCE,
         timeoutMinutes: undefined,
         channelIds: undefined
       })
@@ -439,6 +442,7 @@ describe('ClawServer', () => {
             type: 'telegram',
             name: 'Work Bot',
             agentId: 'agent_1',
+            workspace: WORKSPACE_SOURCE,
             isActive: true
           })
         )

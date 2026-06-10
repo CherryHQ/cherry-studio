@@ -18,9 +18,10 @@ import {
   OpenAICompatibleEmbeddingModel,
   OpenAICompatibleImageModel
 } from '@ai-sdk/openai-compatible'
-import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
+import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 
 export const NEWAPI_PROVIDER_NAME = 'newapi' as const
 
@@ -45,6 +46,7 @@ export interface NewApiProvider extends ProviderV3 {
   languageModel(modelId: string): LanguageModelV3
   embeddingModel(modelId: string): EmbeddingModelV3
   imageModel(modelId: string): ImageModelV3
+  rerankingModel(modelId: string): RerankingModelV3
 }
 
 export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvider {
@@ -142,6 +144,14 @@ export function createNewApi(options: NewApiProviderSettings = {}): NewApiProvid
   provider.imageModel = (modelId: string) =>
     new OpenAICompatibleImageModel(modelId, {
       provider: `${NEWAPI_PROVIDER_NAME}.image`,
+      url,
+      headers: authHeaders,
+      fetch: customFetch
+    })
+
+  provider.rerankingModel = (modelId: string) =>
+    new OpenAICompatibleRerankingModel(modelId, {
+      provider: `${NEWAPI_PROVIDER_NAME}.rerank`,
       url,
       headers: authHeaders,
       fetch: customFetch

@@ -9,7 +9,7 @@
  * target connection and invoke the TS-loop in isolation, asserting:
  *   - jobScheduleTable rows = N (v1 task count, NOT counting run logs)
  *   - trigger encoding is correct per discriminant
- *   - jobInputTemplate carries agent_id / prompt / timeoutMinutes verbatim
+ *   - jobInputTemplate carries agent_id / prompt / timeoutMinutes plus explicit workspace source
  *   - jobTable stays at 0 rows (run logs are discarded)
  *   - agent_channel_task points at the new schedule.id via idMap
  *   - retry-friendly: a second invocation against the same legacy data
@@ -151,6 +151,7 @@ describe('AgentsMigrator > migrateScheduledTasksTs', () => {
       type: 'telegram',
       name: 'TG channel',
       agentId: AGENT_ID,
+      workspace: { type: 'system' },
       config: { bot_token: 'x', allowed_chat_ids: [] },
       isActive: true
     })
@@ -195,7 +196,8 @@ describe('AgentsMigrator > migrateScheduledTasksTs', () => {
     expect(cron[0]?.jobInputTemplate).toEqual({
       agentId: AGENT_ID,
       prompt: 'Run standup',
-      timeoutMinutes: 5
+      timeoutMinutes: 5,
+      workspace: { type: 'system' }
     })
 
     const interval = await dbh.db
@@ -207,7 +209,8 @@ describe('AgentsMigrator > migrateScheduledTasksTs', () => {
     expect(interval[0]?.jobInputTemplate).toEqual({
       agentId: AGENT_ID,
       prompt: 'Ping',
-      timeoutMinutes: 2
+      timeoutMinutes: 2,
+      workspace: { type: 'system' }
     })
   })
 

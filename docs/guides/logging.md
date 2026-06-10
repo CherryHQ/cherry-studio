@@ -173,7 +173,7 @@ CSLOGGER_MAIN_SHOW_MODULES=McpService,SelectionService
 
 Note:
 
-- Environment variables are only effective in the development environment.
+- By default these variables are only effective in the development environment. To enable them in a packaged build, launch it with `CS_DIAGNOSTICS` set — the logger then behaves exactly as in dev (verbose file level, console output, and these overrides all turn on). See [Performance Diagnostics](./diagnostics.md).
 - These variables only affect the logs displayed in the terminal or DevTools. They do not affect file logging or the `logToMain` recording logic.
 
 ## Log Level Usage Guidelines

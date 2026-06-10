@@ -2,13 +2,14 @@
  * 运行时执行器
  * 专注于插件化的AI调用处理
  */
-import type { ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
+import type { ImageModelV3, JSONObject, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { LanguageModel } from 'ai'
 import {
   createProviderRegistry,
   embedMany as _embedMany,
   generateImage as _generateImage,
   generateText as _generateText,
+  rerank as _rerank,
   streamText as _streamText
 } from 'ai'
 
@@ -23,6 +24,8 @@ import type {
   generateImageParams,
   generateImageResult,
   generateTextParams,
+  RerankParams,
+  RerankResult,
   RuntimeConfig,
   streamTextParams
 } from './types'
@@ -183,6 +186,20 @@ export class RuntimeExecutor<
 
     return _embedMany({
       model: embeddingModel,
+      ...options
+    })
+  }
+
+  async rerank<VALUE extends JSONObject | string = string>(params: RerankParams<VALUE>): Promise<RerankResult<VALUE>> {
+    const { model: modelOrId, ...options } = params
+
+    const rerankingModel =
+      typeof modelOrId === 'string'
+        ? this.registry.rerankingModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
+        : modelOrId
+
+    return _rerank<VALUE>({
+      model: rerankingModel,
       ...options
     })
   }

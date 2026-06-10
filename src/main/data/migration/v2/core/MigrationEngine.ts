@@ -9,6 +9,7 @@ import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
@@ -27,7 +28,6 @@ import { translateHistoryTable } from '@data/db/schemas/translateHistory'
 import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { workspaceTable } from '@data/db/schemas/workspace'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import type {
@@ -236,13 +236,22 @@ export class MigrationEngine {
 
         logger.info(`${migrator.name} validation passed`, { stats: validateResult.stats })
 
+        // Non-fatal diagnostics from both phases. Prepare warnings were previously only
+        // read on prepare failure; surface them on the success path too, alongside any
+        // execute-phase warnings (e.g. knowledge files kept but not reindexable).
+        const warnings = [...(prepareResult.warnings ?? []), ...(executeResult.warnings ?? [])]
+        if (warnings.length > 0) {
+          logger.warn(`${migrator.name} completed with ${warnings.length} warning(s)`, { warnings })
+        }
+
         // Record result
         results.push({
           migratorId: migrator.id,
           migratorName: migrator.name,
           success: true,
           recordsProcessed: executeResult.processedCount,
-          duration: Date.now() - migratorStartTime
+          duration: Date.now() - migratorStartTime,
+          ...(warnings.length > 0 ? { warnings } : {})
         })
 
         // Update progress: migrator completed
@@ -325,7 +334,7 @@ export class MigrationEngine {
       // agent_task / agent_task_run_log dropped — migrated to JobManager (aac75929c5)
       { table: agentSkillTable, name: 'agent_skill' },
       { table: agentSessionTable, name: 'agent_session' }, // FK → agent_workspace (ON DELETE set null)
-      { table: workspaceTable, name: 'agent_workspace' },
+      { table: agentWorkspaceTable, name: 'agent_workspace' },
       { table: agentGlobalSkillTable, name: 'agent_global_skill' },
       { table: agentTable, name: 'agent' },
       // File-domain tables — child before parent (file_ref.fileEntryId CASCADEs from file_entry)

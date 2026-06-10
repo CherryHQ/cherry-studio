@@ -10,7 +10,12 @@ import BaseNavigator from '../navigator'
 vi.mock('@cherrystudio/ui', () => {
   const React = require('react') as typeof ReactModule
 
-  const PopoverContext = React.createContext(false)
+  const PopoverContext = React.createContext<{
+    open: boolean
+    onOpenChange?: (open: boolean) => void
+  }>({
+    open: false
+  })
   const AccordionContext = React.createContext<{
     openValues: string[]
     toggleValue: (value: string) => void
@@ -165,17 +170,44 @@ vi.mock('@cherrystudio/ui', () => {
       </button>
     ),
     MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-    Popover: ({ children, open }: { children: ReactNode; open?: boolean }) => (
-      <PopoverContext value={Boolean(open)}>{children}</PopoverContext>
-    ),
+    Popover: ({
+      children,
+      open,
+      onOpenChange
+    }: {
+      children: ReactNode
+      open?: boolean
+      onOpenChange?: (open: boolean) => void
+    }) => <PopoverContext value={{ open: Boolean(open), onOpenChange }}>{children}</PopoverContext>,
     PopoverAnchor: ({ children, ...props }: { children?: ReactNode; [key: string]: unknown }) => (
       <div {...props}>{children}</div>
     ),
-    PopoverContent: ({ children }: { children: ReactNode }) => {
-      const open = React.use(PopoverContext)
-      return open ? <div>{children}</div> : null
+    PopoverContent: ({ children, align }: { children: ReactNode; align?: string }) => {
+      const { open } = React.use(PopoverContext)
+      return open ? <div data-popover-align={align}>{children}</div> : null
     },
-    PopoverTrigger: ({ children }: { children: ReactNode }) => children,
+    PopoverTrigger: ({ children, asChild }: { children: ReactNode; asChild?: boolean }) => {
+      const { open, onOpenChange } = React.use(PopoverContext)
+
+      if (asChild && React.isValidElement(children)) {
+        const child = children as React.ReactElement<{
+          onClick?: (event: ReactMouseEvent) => void
+        }>
+
+        return React.cloneElement(child, {
+          onClick: (event: ReactMouseEvent) => {
+            child.props.onClick?.(event)
+            onOpenChange?.(!open)
+          }
+        })
+      }
+
+      return (
+        <button type="button" onClick={() => onOpenChange?.(!open)}>
+          {children}
+        </button>
+      )
+    },
     Scrollbar: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <div {...props}>{children}</div>
     ),
@@ -301,7 +333,7 @@ const getMenuButton = (name: string) => {
 }
 
 describe('BaseNavigator', () => {
-  it('keeps horizontal padding around the knowledge base list', () => {
+  it('keeps stable horizontal layout around the knowledge base list', () => {
     const { container } = render(
       <BaseNavigator
         bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha' })]}
@@ -320,7 +352,8 @@ describe('BaseNavigator', () => {
       />
     )
 
-    expect(container.querySelector('.min-h-0.flex-1')).toHaveClass('px-3', 'pb-3')
+    expect(container.querySelector('.min-h-0.flex-1')).toHaveClass('overflow-x-hidden', 'px-3', 'pb-3')
+    expect(container.querySelector('.min-h-0.flex-1')?.className).not.toContain('[scrollbar-gutter:auto]')
   })
 
   it('shows real group names and falls back to raw groupId when the mapping is missing', () => {
@@ -483,7 +516,7 @@ describe('BaseNavigator', () => {
       />
     )
 
-    fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }))
+    fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }), { clientX: 240, clientY: 320 })
 
     expect(screen.getByText('移动到')).toBeInTheDocument()
     fireEvent.click(getMenuButton('默认'))
@@ -517,7 +550,7 @@ describe('BaseNavigator', () => {
       />
     )
 
-    fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }))
+    fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }), { clientX: 240, clientY: 320 })
 
     expect(screen.getByRole('button', { name: '重命名' })).not.toBeDisabled()
     expect(screen.getByText('移动到')).toBeInTheDocument()
@@ -560,7 +593,7 @@ describe('BaseNavigator', () => {
       />
     )
 
-    fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }))
+    fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }), { clientX: 240, clientY: 320 })
 
     expect(screen.queryByText('移动到')).not.toBeInTheDocument()
     expect(screen.getByText('默认')).toBeInTheDocument()
@@ -588,8 +621,39 @@ describe('BaseNavigator', () => {
 
     fireEvent.click(getBaseMoreButton('Alpha'))
 
+    expect(screen.getByRole('button', { name: '重命名' }).parentElement?.parentElement).toHaveAttribute(
+      'data-popover-align',
+      'end'
+    )
     expect(screen.getByRole('button', { name: '重命名' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: '删除知识库' })).toBeInTheDocument()
+  })
+
+  it('keeps context menus anchored to the pointer position on right click', () => {
+    render(
+      <BaseNavigator
+        bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })]}
+        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
+        width={280}
+        selectedBaseId="base-1"
+        onSelectBase={vi.fn()}
+        onCreateGroup={vi.fn()}
+        onCreateBase={vi.fn()}
+        onMoveBase={vi.fn()}
+        onRenameBase={vi.fn()}
+        onRenameGroup={vi.fn()}
+        onDeleteGroup={vi.fn()}
+        onDeleteBase={vi.fn()}
+        onResizeStart={vi.fn()}
+      />
+    )
+
+    fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }), { clientX: 240, clientY: 320 })
+
+    expect(screen.getByRole('button', { name: '重命名' }).parentElement?.parentElement).toHaveAttribute(
+      'data-popover-align',
+      'start'
+    )
   })
 
   it('calls onRenameBase with the current knowledge base id and name', () => {
@@ -881,7 +945,7 @@ describe('BaseNavigator', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /Alpha/ })).toHaveClass('bg-secondary')
+    expect(screen.getByRole('button', { name: /Alpha/ }).parentElement).toHaveClass('bg-secondary')
 
     fireEvent.click(screen.getByRole('button', { name: /Beta/ }))
 
