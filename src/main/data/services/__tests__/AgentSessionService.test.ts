@@ -363,14 +363,17 @@ describe('AgentSessionService', () => {
     expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
   })
 
-  it('throws not found when deleting selected sessions with a missing id', async () => {
+  it('ignores missing ids when deleting selected sessions', async () => {
     const first = await createSession('First')
+    const second = await createSession('Second')
 
-    await expect(agentSessionService.deleteByIds([first.id, 'missing-session'])).rejects.toMatchObject({
-      code: ErrorCode.NOT_FOUND
-    })
+    await agentSessionService.deleteByIds([first.id])
 
-    await expect(agentSessionService.getById(first.id)).resolves.toMatchObject({ id: first.id })
+    const result = await agentSessionService.deleteByIds([first.id, second.id, 'missing-session'])
+
+    expect(result).toEqual({ deletedIds: [second.id] })
+    await expect(agentSessionService.getById(first.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(agentSessionService.getById(second.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
   })
 
   it('deletes selected system workspace sessions and their workspace rows by ids', async () => {

@@ -291,12 +291,6 @@ export class AgentSessionService {
         .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
         .where(inArray(sessionsTable.id, uniqueIds))
 
-      if (rows.length !== uniqueIds.length) {
-        const foundIds = new Set(rows.map((row) => row.session.id))
-        const missingId = uniqueIds.find((candidate) => !foundIds.has(candidate)) ?? uniqueIds[0]
-        throw DataApiErrorFactory.notFound('Session', missingId)
-      }
-
       return await this.cascadeDeleteSessionRowsTx(tx, rows)
     })
 

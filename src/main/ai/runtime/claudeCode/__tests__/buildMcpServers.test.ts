@@ -60,7 +60,7 @@ vi.mock('@main/utils/file/pathStatus', () => ({
 
 vi.mock('@main/utils/language', () => ({
   getAppLanguage: vi.fn(() => 'en-US'),
-  t: vi.fn((key: string, vars?: { path?: string }) => `${key}:${vars?.path ?? ''}`)
+  t: vi.fn((key: string, vars?: Record<string, string>) => `${key}:${Object.values(vars ?? {}).join(',')}`)
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -227,7 +227,12 @@ describe('buildClaudeCodeSessionSettings tool permissions', () => {
 
     const disabled = await runHooks('Bash')
     expect(disabled).toContainEqual(
-      expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
+      expect.objectContaining({
+        hookSpecificOutput: expect.objectContaining({
+          permissionDecision: 'deny',
+          permissionDecisionReason: 'agent.session.tool.disabled:Bash'
+        })
+      })
     )
 
     const enabled = await runHooks('Read')

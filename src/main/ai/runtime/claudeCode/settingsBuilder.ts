@@ -559,7 +559,7 @@ async function buildToolPermissions(
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: 'deny',
-        permissionDecisionReason: `The ${toolName} tool is disabled for this agent.`
+        permissionDecisionReason: t('agent.session.tool.disabled', { toolName })
       }
     }
   }

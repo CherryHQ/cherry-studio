@@ -47,6 +47,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   }
 }))
 
+import { AGENT_SESSION_DELETE_MAX_IDS } from '@shared/data/api/schemas/agentSessions'
+
 import { agentSessionHandlers } from '../agentSessions'
 
 describe('agentSessionHandlers', () => {
@@ -129,6 +131,18 @@ describe('agentSessionHandlers', () => {
       await expect(
         agentSessionHandlers['/agent-sessions'].DELETE({
           query: { ids: ' , , ' }
+        } as never)
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+
+      expect(deleteByIdsMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects too many selected session ids before calling the service', async () => {
+      const ids = Array.from({ length: AGENT_SESSION_DELETE_MAX_IDS + 1 }, (_, index) => `session-${index}`).join(',')
+
+      await expect(
+        agentSessionHandlers['/agent-sessions'].DELETE({
+          query: { ids }
         } as never)
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 

@@ -395,6 +395,9 @@
           "failed": "Không thể sắp xếp lại các phiên"
         }
       },
+      "tool": {
+        "disabled": "Công cụ {{toolName}} đã bị tắt cho agent này."
+      },
       "update": {
         "error": {
           "failed": "Không cập nhật được phiên"

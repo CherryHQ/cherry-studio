@@ -122,6 +122,8 @@ export interface DeleteAgentSessionsResult {
   deletedIds: string[]
 }
 
+export const AGENT_SESSION_DELETE_MAX_IDS = 200
+
 const DeleteAgentSessionsIdsQueryValueSchema = z
   .string()
   .transform((value) =>
@@ -130,7 +132,7 @@ const DeleteAgentSessionsIdsQueryValueSchema = z
       .map((id) => id.trim())
       .filter(Boolean)
   )
-  .pipe(z.array(z.string().min(1)).min(1))
+  .pipe(z.array(z.string().min(1)).min(1).max(AGENT_SESSION_DELETE_MAX_IDS))
 
 export const DeleteAgentSessionsQuerySchema = z.strictObject({
   ids: DeleteAgentSessionsIdsQueryValueSchema
@@ -152,7 +154,9 @@ export type AgentSessionSchemas = {
       response: AgentSessionEntity
     }
     /**
-     * Delete an explicit set of sessions (all-or-nothing — any missing id → NOT_FOUND).
+     * Delete an explicit set of sessions. Missing ids are ignored so overlapping
+     * multi-window deletes remain idempotent; `deletedIds` reports what was
+     * actually removed.
      *
      * Cascades: session pins are purged; if a requested session is backed by a
      * system workspace, that backing workspace row is removed too.
