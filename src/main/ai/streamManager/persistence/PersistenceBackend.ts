@@ -82,8 +82,8 @@ export function statsFromTerminal(
   const meta = finalMessage?.metadata
   if (meta && typeof meta === 'object') {
     if (typeof meta.totalTokens === 'number') stats.totalTokens = meta.totalTokens
-    if (typeof meta.prompt_tokens === 'number') stats.prompt_tokens = meta.prompt_tokens
-    if (typeof meta.completion_tokens === 'number') stats.completion_tokens = meta.completion_tokens
+    if (typeof meta.promptTokens === 'number') stats.promptTokens = meta.promptTokens
+    if (typeof meta.completionTokens === 'number') stats.completionTokens = meta.completionTokens
     if (typeof meta.thoughtsTokens === 'number') stats.thoughtsTokens = meta.thoughtsTokens
   }
 

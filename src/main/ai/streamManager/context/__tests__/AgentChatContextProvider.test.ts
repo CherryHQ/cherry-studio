@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   saveMessages: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
-  traceStorageSetTopicId: vi.fn(),
+  spanCacheSetTopicId: vi.fn(),
   runtimeBeginTurn: vi.fn(),
   runtimeEnqueueUserMessage: vi.fn(),
   runtimeIsSessionBusy: vi.fn()
@@ -82,7 +82,7 @@ describe('AgentChatContextProvider', () => {
     mocks.saveMessage.mockResolvedValue(undefined)
     mocks.saveMessages.mockResolvedValue(undefined)
     mocks.applicationGet.mockImplementation((name: string) => {
-      if (name === 'TraceStorageService') return { setTopicId: mocks.traceStorageSetTopicId }
+      if (name === 'TraceStorageService') return { setTopicId: mocks.spanCacheSetTopicId }
       if (name === 'AgentSessionRuntimeService') {
         return {
           beginTurn: mocks.runtimeBeginTurn,
@@ -127,7 +127,7 @@ describe('AgentChatContextProvider', () => {
     expect(prepared.models[0].request.messageId).toBe(prepared.models[0].request.messages?.[1]?.id)
     const beginInput = mocks.runtimeBeginTurn.mock.calls[0][0]
     expect(beginInput.traceId).toEqual(expect.any(String))
-    expect(mocks.traceStorageSetTopicId).toHaveBeenCalledWith(beginInput.traceId, 'agent-session:session-1')
+    expect(mocks.spanCacheSetTopicId).toHaveBeenCalledWith(beginInput.traceId, 'agent-session:session-1')
     expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith({
       sessionId: 'session-1',
       topicId: 'agent-session:session-1',

@@ -1088,14 +1088,14 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private buildMessageMetadata(usage: LanguageModelV3Usage): CherryUIMessageMetadata {
-    const prompt_tokens = usage.inputTokens.total ?? 0
-    const completion_tokens = usage.outputTokens.total ?? 0
+    const promptTokens = usage.inputTokens.total ?? 0
+    const completionTokens = usage.outputTokens.total ?? 0
     const thoughtsTokens = usage.outputTokens.reasoning
     return {
       modelId: this.modelId,
-      totalTokens: prompt_tokens + completion_tokens,
-      prompt_tokens,
-      completion_tokens,
+      totalTokens: promptTokens + completionTokens,
+      promptTokens,
+      completionTokens,
       ...(thoughtsTokens !== undefined ? { thoughtsTokens } : {})
     }
   }

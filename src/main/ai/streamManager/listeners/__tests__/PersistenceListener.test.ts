@@ -83,8 +83,8 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
       // agentLoop.messageMetadata projects AI SDK usage onto these legacy names.
       metadata: {
         totalTokens: 42,
-        prompt_tokens: 30,
-        completion_tokens: 12,
+        promptTokens: 30,
+        completionTokens: 12,
         thoughtsTokens: 3
       }
     } as unknown as CherryUIMessage
@@ -97,8 +97,8 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     // Cache/breakdown fields are tracked in the MessageStats redesign TODO.
     expect(payload.stats).toEqual({
       totalTokens: 42,
-      prompt_tokens: 30,
-      completion_tokens: 12,
+      promptTokens: 30,
+      completionTokens: 12,
       thoughtsTokens: 3
     })
   })
@@ -156,7 +156,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
       id: 'msg-w',
       role: 'assistant',
       parts: [{ type: 'text', text: 'hi' }],
-      metadata: { totalTokens: 7, prompt_tokens: 5, completion_tokens: 2 }
+      metadata: { totalTokens: 7, promptTokens: 5, completionTokens: 2 }
     } as unknown as CherryUIMessage
 
     await listener.onDone({
@@ -168,8 +168,8 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     const payload = appendMessageMock.mock.calls[0][1]
     expect(payload.stats).toEqual({
       totalTokens: 7,
-      prompt_tokens: 5,
-      completion_tokens: 2,
+      promptTokens: 5,
+      completionTokens: 2,
       timeFirstTokenMs: 100,
       timeCompletionMs: 500
     })

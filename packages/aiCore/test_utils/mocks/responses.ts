@@ -141,7 +141,7 @@ export const testTools: Record<string, Tool> = {
 
 /**
  * Mock complete responses for non-streaming scenarios
- * Note: AI SDK v5 uses inputTokens/outputTokens instead of prompt_tokens/completion_tokens
+ * Note: AI SDK v5 uses inputTokens/outputTokens instead of promptTokens/completionTokens
  */
 export const mockCompleteResponses = {
   simple: {

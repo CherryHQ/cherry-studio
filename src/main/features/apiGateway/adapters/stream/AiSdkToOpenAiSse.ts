@@ -192,8 +192,8 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
   /** Track cumulative usage from the `message-metadata` projection. */
   private applyUsageMetadata(metadata: GatewayUsageMetadata | undefined): void {
     if (!metadata) return
-    if (metadata.prompt_tokens !== undefined) this.state.inputTokens = metadata.prompt_tokens
-    if (metadata.completion_tokens !== undefined) this.state.outputTokens = metadata.completion_tokens
+    if (metadata.promptTokens !== undefined) this.state.inputTokens = metadata.promptTokens
+    if (metadata.completionTokens !== undefined) this.state.outputTokens = metadata.completionTokens
   }
 
   private emitContentDelta(content: string): void {

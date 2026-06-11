@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   startRuntimeTurn: vi.fn(),
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
-  traceStorageSetTopicId: vi.fn()
+  spanCacheSetTopicId: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -126,7 +126,7 @@ describe('AgentSessionRuntimeService', () => {
           broadcastTopicError: mocks.broadcastTopicError
         }
       }
-      if (name === 'TraceStorageService') return { setTopicId: mocks.traceStorageSetTopicId }
+      if (name === 'TraceStorageService') return { setTopicId: mocks.spanCacheSetTopicId }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -908,7 +908,7 @@ describe('AgentSessionRuntimeService', () => {
       turnId: request.runtime.turnId,
       modelName: 'claude-sonnet-4-5'
     })
-    expect(mocks.traceStorageSetTopicId).toHaveBeenCalledWith(trace!.traceId, 'agent-session:session-1')
+    expect(mocks.spanCacheSetTopicId).toHaveBeenCalledWith(trace!.traceId, 'agent-session:session-1')
   })
 
   it('surfaces the error and settles the turn when the next-turn placeholder save rejects (R3)', async () => {

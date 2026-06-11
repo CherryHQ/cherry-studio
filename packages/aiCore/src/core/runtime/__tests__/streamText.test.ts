@@ -59,7 +59,7 @@ describe('RuntimeExecutor.streamText', () => {
           yield { type: 'text-delta', textDelta: ' ' }
           yield { type: 'text-delta', textDelta: 'World' }
         })(),
-        usage: Promise.resolve({ prompt_tokens: 5, completion_tokens: 3, totalTokens: 8 })
+        usage: Promise.resolve({ promptTokens: 5, completionTokens: 3, totalTokens: 8 })
       }
 
       vi.mocked(streamText).mockResolvedValue(mockStream as any)
@@ -467,7 +467,7 @@ describe('RuntimeExecutor.streamText', () => {
           yield {
             type: 'finish',
             finishReason: 'stop',
-            usage: { prompt_tokens: 5, completion_tokens: 3, totalTokens: 8 }
+            usage: { promptTokens: 5, completionTokens: 3, totalTokens: 8 }
           }
         })()
       }
@@ -486,7 +486,7 @@ describe('RuntimeExecutor.streamText', () => {
       expect(fullChunks[1]).toEqual({
         type: 'finish',
         finishReason: 'stop',
-        usage: { prompt_tokens: 5, completion_tokens: 3, totalTokens: 8 }
+        usage: { promptTokens: 5, completionTokens: 3, totalTokens: 8 }
       })
     })
   })

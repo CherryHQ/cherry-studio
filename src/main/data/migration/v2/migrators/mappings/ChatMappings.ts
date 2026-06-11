@@ -632,8 +632,8 @@ export function normalizeStatus(oldStatus: OldMessage['status']): 'success' | 'e
  * ## Field Mapping:
  * | Source | Target |
  * |--------|--------|
- * | usage.prompt_tokens | prompt_tokens |
- * | usage.completion_tokens | completion_tokens |
+ * | usage.prompt_tokens | promptTokens |
+ * | usage.completion_tokens | completionTokens |
  * | usage.total_tokens | totalTokens |
  * | usage.thoughts_tokens | thoughtsTokens |
  * | usage.cost | cost |
@@ -648,8 +648,8 @@ export function mergeStats(usage?: OldUsage, metrics?: OldMetrics): MessageStats
 
   // Token usage
   if (usage) {
-    if (usage.prompt_tokens !== undefined) stats.prompt_tokens = usage.prompt_tokens
-    if (usage.completion_tokens !== undefined) stats.completion_tokens = usage.completion_tokens
+    if (usage.prompt_tokens !== undefined) stats.promptTokens = usage.prompt_tokens
+    if (usage.completion_tokens !== undefined) stats.completionTokens = usage.completion_tokens
     if (usage.total_tokens !== undefined) stats.totalTokens = usage.total_tokens
     if (usage.thoughts_tokens !== undefined) stats.thoughtsTokens = usage.thoughts_tokens
     if (usage.cost !== undefined) stats.cost = usage.cost

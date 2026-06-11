@@ -213,7 +213,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         type: 'chunk',
         chunk: {
           type: 'message-metadata',
-          messageMetadata: { totalTokens: 20, prompt_tokens: 15, completion_tokens: 5 }
+          messageMetadata: { totalTokens: 20, promptTokens: 15, completionTokens: 5 }
         }
       }
     })

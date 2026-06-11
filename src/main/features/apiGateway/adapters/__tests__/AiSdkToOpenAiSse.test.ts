@@ -21,8 +21,8 @@ const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: G
     usage !== undefined
       ? {
           totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-          prompt_tokens: usage.inputTokens ?? 0,
-          completion_tokens: usage.outputTokens ?? 0,
+          promptTokens: usage.inputTokens ?? 0,
+          completionTokens: usage.outputTokens ?? 0,
           thoughtsTokens: undefined
         }
       : undefined

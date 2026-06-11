@@ -15,14 +15,14 @@ import type { ToolSet, UIMessageChunk } from 'ai'
 /**
  * Token usage projection carried on `message-metadata` UIMessageChunks emitted
  * by main's `AiService.streamText`. Mirrors the Cherry `MessageStats` projection
- * (`prompt_tokens` = input, `completion_tokens` = output, `thoughtsTokens` =
+ * (`promptTokens` = input, `completionTokens` = output, `thoughtsTokens` =
  * reasoning). There is no raw input/output token field and no cache-token
  * breakdown on this channel.
  */
 export interface GatewayUsageMetadata {
   totalTokens?: number
-  prompt_tokens?: number
-  completion_tokens?: number
+  promptTokens?: number
+  completionTokens?: number
   thoughtsTokens?: number
 }
 
