@@ -103,7 +103,7 @@ Compatibility mapping: `materialId = knowledge_item.id`, `chunkId = search_unit.
 
 ### 5.2 rebuildMaterial atomic replace
 
-Inside one write transaction: upsert material/content → delete old `search_unit`/`search_text` → insert new → FTS synced by triggers → insert missing embeddings → verify every unit's embedding hash resolves to a vector → update material metadata. Old and new chunks are never visible mixed. Deleting old `search_text` must **not** delete embeddings directly (they may be shared); orphaned vectors are left to a later GC (PR B/C, which must run under the base mutation lock).
+Inside one write transaction: upsert material/content → delete old `search_unit`/`search_text` → insert new → FTS synced by triggers → insert missing embeddings → verify every unit's embedding hash resolves to a vector → update material metadata. Old and new chunks are never visible mixed. Deleting old `search_text` must **not** delete embeddings directly (they may be shared); orphaned vectors — and, on a content-changed reindex with no delete, the previous `content` row — are left to a later GC (PR B/C, which must run under the base mutation lock).
 
 **Decision A4 (embedding reuse)**: a stored vector is reused on exact "text fingerprint (`embedding_text_hash`) + model + dimensions" equality, and only hashes missing from the index get embedded — reindexing unchanged content no longer spends embedding API money.
 
@@ -150,4 +150,11 @@ A chunk body must be a verbatim slice of `content.text` (the offset-preserving s
 
 - **PR B** (hard blocker for v2 GA / enabling the v1 migration, see §1): migrator writes the 7-table final layout (replacing the transitional legacy-remnant detection at store open), url/note `.md` snapshots, conflict "keep copy (auto-rename)", restore copies processed md, orphan embedding/content GC, `chunker_config_hash` comparison + rebuild trigger.
 - **PR C (v2.x)**: material-level results + locator/read, editable index entries (with their `content_index_entry` table), kb__read / kb__tree / kb__manage tool surface, BM25-only degradation, per-result score semantics.
+- **Operational hardening (PR B / later, surfaced in the PR #15973 review)** — pre-existing main-process / concurrency behaviours the engine cutover inherits, not regressions introduced by PR A, deferred here on purpose:
+  - An intake file-size cap (`fs.stat`) before the synchronous main-process chunker — a large text file otherwise blocks the window for seconds and the job retry policy replays the freeze.
+  - An explicit `maxParallelCalls` (plus token-aware batching) for `AiService.embedMany`, so one large document cannot fan out unbounded batches, exceed provider per-request token limits, and discard embeddings already paid for in a failed attempt.
+  - Startup-recovery cross-cancellation: a crash-recovered delete-subtree job and the `recoverDeletingItems` re-enqueue get different idempotency keys and cancel each other via roots-intersection (`jobTouchesSubtree`); cancel only jobs whose roots are fully covered by the current job's roots.
+  - Hybrid search runs its two lanes as independent read snapshots; a rebuild committing between them can transiently return both copies of a chunk — close with a shared read transaction or a second dedupe by material id + unit index.
+  - `LibsqlDriver.close()` does not take the write mutex; shutdown safety currently rests on JobManager draining before the store service stops — wrapping close in `runExclusive` hardens it.
+  - Retrieval-surface follow-ups (PR C): the `searchMode` `default`→`vector` rename is externally visible through the gateway's pass-through base entity, and a permanent open failure (legacy layout) currently maps to a retryable 503.
 - PR A's full test matrix and risk notes live in this repo's test suites (`src/main/features/knowledge/**/__tests__`) and the PR #15973 description.
