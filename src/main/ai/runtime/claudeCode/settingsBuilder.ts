@@ -189,7 +189,6 @@ export async function buildClaudeCodeSessionSettings(
   // 1. Working directory (session-bound)
   const cwd = session.workspace.path
   await prepareClaudeCodeWorkspaceDirectory(session)
-  await skillService.reconcileAgentSkills(session.agentId, cwd)
 
   // 2. Environment variables
   const env = await buildEnvironment(provider, agent)
@@ -221,7 +220,11 @@ export async function buildClaudeCodeSessionSettings(
   // 8. Adjust allowedTools for injected MCP servers
   const finalAllowedTools = adjustAllowedToolsForMcp(allowedTools, soulEnabled, isAssistant)
 
-  // 9. Build settings
+  // 9. Skills — pass explicit SDK-readable directories instead of mutating
+  // workspaces with Cherry-managed symlinks.
+  const skills = await buildSkillWhitelist(agent.id)
+
+  // 10. Build settings
   const settings: ClaudeCodeSettings = {
     cwd,
     env,
@@ -234,6 +237,7 @@ export async function buildClaudeCodeSessionSettings(
     allowedTools: finalAllowedTools,
     disallowedTools,
     plugins,
+    ...(skills.length > 0 ? { skills } : {}),
     canUseTool,
     hooks,
     approvalEmitter,
@@ -453,6 +457,43 @@ async function buildEnvironment(
   }
 
   return env
+}
+
+async function filterReadableSkillDirectories(skillPaths: string[]): Promise<string[]> {
+  const directories: string[] = []
+  for (const skillPath of skillPaths) {
+    try {
+      await fs.promises.access(path.join(skillPath, 'SKILL.md'), fs.constants.R_OK)
+      directories.push(skillPath)
+    } catch {
+      // Not a readable skill directory.
+    }
+  }
+  return directories
+}
+
+async function readSkillDirectories(root: string): Promise<string[]> {
+  const entries = await fs.promises.readdir(root, { withFileTypes: true }).catch(() => [])
+  return filterReadableSkillDirectories(
+    entries.filter((entry) => entry.isDirectory() || entry.isSymbolicLink()).map((entry) => path.join(root, entry.name))
+  )
+}
+
+export async function buildSkillWhitelist(agentId: string): Promise<string[]> {
+  const configSkillsRoot = path.join(application.getPath('feature.agents.claude.root'), 'skills')
+  const installedSkills = await skillService.list({ agentId })
+  const disabledNames = new Set(
+    installedSkills.filter((skill) => !skill.isEnabled).flatMap((skill) => [skill.folderName, skill.name])
+  )
+  const enabledInstalledSkillPaths = await filterReadableSkillDirectories(
+    installedSkills.filter((skill) => skill.isEnabled).map((skill) => skillService.getSkillDirectory(skill.folderName))
+  )
+  const configSkillPaths = (await readSkillDirectories(configSkillsRoot)).filter((skillPath) => {
+    const folderName = path.basename(skillPath)
+    return !disabledNames.has(folderName)
+  })
+
+  return Array.from(new Set([...configSkillPaths, ...enabledInstalledSkillPaths]))
 }
 
 async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginConfig[] | undefined> {

@@ -6,7 +6,6 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
-import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { parseSkillMetadata } from '@main/utils/markdownParser'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -278,8 +277,6 @@ describe('SkillService', () => {
 
     beforeEach(() => {
       skillService = new SkillService()
-      vi.spyOn(skillService, 'linkSkill').mockResolvedValue(undefined)
-      vi.spyOn(skillService, 'unlinkSkill').mockResolvedValue(undefined)
     })
 
     it('returns null when skill does not exist', async () => {
@@ -308,47 +305,6 @@ describe('SkillService', () => {
       expect(result).toMatchObject({ id: SKILL_ID_1, isEnabled: false })
       const [row] = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_1))
       expect(row?.isEnabled).toBe(false)
-    })
-
-    it('reverses already-applied symlinks when a later workspace fails mid-loop', async () => {
-      await seedAgent()
-      await seedSkills()
-      vi.spyOn(skillService as never, 'getAgentSessionWorkspaces').mockResolvedValue(['/ws/one', '/ws/two'])
-      // First workspace links fine; second throws → the first must be unlinked.
-      const linkSpy = vi
-        .spyOn(skillService, 'linkSkill')
-        .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error('symlink failed'))
-      const unlinkSpy = vi.spyOn(skillService, 'unlinkSkill').mockResolvedValue(undefined)
-
-      await expect(skillService.toggle({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })).rejects.toThrow(
-        'symlink failed'
-      )
-
-      // The successfully-linked first workspace was reversed; the failed second was not.
-      expect(unlinkSpy).toHaveBeenCalledTimes(1)
-      expect(unlinkSpy).toHaveBeenCalledWith('skill-one', '/ws/one')
-      expect(linkSpy).toHaveBeenCalledTimes(2)
-
-      // DB row reverted back to disabled.
-      const [row] = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_1))
-      expect(row?.isEnabled).toBe(false)
-    })
-
-    it('rolls back DB and throws AggregateError when symlink + rollback both fail', async () => {
-      await seedAgent()
-      await seedSkills()
-      // Patch workspace lookup to return a fake workspace so linkSkill is attempted.
-      vi.spyOn(skillService as never, 'getAgentSessionWorkspaces').mockResolvedValue(['/fake/workspace'])
-      vi.spyOn(skillService, 'linkSkill').mockRejectedValue(new Error('symlink failed'))
-      // First call (enable) succeeds; second call (rollback) fails → AggregateError
-      vi.spyOn(agentGlobalSkillService, 'upsertJoin')
-        .mockResolvedValueOnce(undefined)
-        .mockRejectedValueOnce(new Error('rollback failed'))
-
-      await expect(
-        skillService.toggle({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })
-      ).rejects.toBeInstanceOf(AggregateError)
     })
   })
 
@@ -404,20 +360,6 @@ describe('SkillService', () => {
       const rows = await dbh.db.select().from(agentGlobalSkillTable).where(eq(agentGlobalSkillTable.id, SKILL_ID_1))
       expect(rows).toHaveLength(0)
       expect(skillService['installer'].uninstall).toHaveBeenCalledOnce()
-    })
-
-    it('removes symlinks for enabled agents before deleting', async () => {
-      const skillService = new SkillService()
-      await seedAgent()
-      await seedSkills()
-      await dbh.db.insert(agentSkillTable).values({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })
-      vi.spyOn(skillService['installer'], 'uninstall').mockResolvedValue(undefined)
-      vi.spyOn(skillService as never, 'getAgentSessionWorkspaces').mockResolvedValue(['/fake/workspace'])
-      const unlinkSpy = vi.spyOn(skillService, 'unlinkSkill').mockResolvedValue(undefined)
-
-      await skillService.uninstall(SKILL_ID_1)
-
-      expect(unlinkSpy).toHaveBeenCalledWith('skill-one', '/fake/workspace')
     })
   })
 
