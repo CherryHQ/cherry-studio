@@ -133,8 +133,7 @@ describe('PersistentChatContextProvider — steer-restart history (#B4)', () => 
 
   it('fans out @-mentioned siblings: shared siblingsGroupId, one placeholder per model, aligned placeholders[i]/turnRootSpans[i]', async () => {
     // Two @-mentioned models → two assistant placeholders sharing one siblings group.
-    // Each placeholder row persists ITS span's traceId; assert the per-model row, span,
-    // and traceId all line up by index so a fan-out never crosses streams.
+    // Assert the per-model row and span line up so a fan-out never crosses streams.
     const MODEL_A = createUniqueModelId('openai', 'gpt-4o') // already seeded in beforeEach
     const MODEL_B = createUniqueModelId('anthropic', 'claude-sonnet-4-5')
     // Placeholder rows FK to user_model(id) — seed the second @-mentioned model.
@@ -157,7 +156,7 @@ describe('PersistentChatContextProvider — steer-restart history (#B4)', () => 
       { id: MODEL_B, name: 'Claude Sonnet 4.5', providerId: 'anthropic', apiModelId: 'claude-sonnet-4-5' }
     ] as Awaited<ReturnType<typeof resolveModels>>)
     vi.mocked(resolvePersistentSiblingsGroupId).mockResolvedValueOnce(42)
-    // Distinct span + traceId per call so index alignment is observable.
+    // Distinct span per call so index alignment is observable.
     const spanA = { end: vi.fn() }
     const spanB = { end: vi.fn() }
     vi.mocked(startAiTurnTrace)
@@ -182,12 +181,12 @@ describe('PersistentChatContextProvider — steer-restart history (#B4)', () => 
     expect(prepared.models[1].rootSpan).toBe(spanB)
 
     // One persisted placeholder per model, both in the shared group, each routed to its
-    // own request — placeholders[i]/turnRootSpans[i] alignment proven via per-row traceId.
+    // own request — placeholders[i]/turnRootSpans[i] alignment proven via per-row modelId.
     const placeholders = await messageService.getChildrenByParentId(prepared.userMessageId!)
     expect(placeholders).toHaveLength(2)
-    const byTrace = new Map(placeholders.map((p) => [p.traceId, p]))
-    const phA = byTrace.get('trace-a')
-    const phB = byTrace.get('trace-b')
+    const byModel = new Map(placeholders.map((p) => [p.modelId, p]))
+    const phA = byModel.get(MODEL_A)
+    const phB = byModel.get(MODEL_B)
     expect(phA?.modelId).toBe(MODEL_A)
     expect(phB?.modelId).toBe(MODEL_B)
     expect(phA?.siblingsGroupId).toBe(42)
