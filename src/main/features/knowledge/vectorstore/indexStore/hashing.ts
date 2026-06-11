@@ -21,7 +21,7 @@ export function hashEmbeddingText(text: string): string {
  * same id on rebuild. Excludes `chunker_config_hash` by design — the chunker
  * contract is fingerprinted once in `index_meta.chunker_config_hash` (written at
  * store open), so a future contract change is resolved by a full rebuild rather
- * than by baking the config into every unit id. See knowledge-technical-design.md §4.5.
+ * than by baking the config into every unit id. See knowledge-technical-design.md §4.4.
  */
 export function computeUnitId(
   materialId: string,

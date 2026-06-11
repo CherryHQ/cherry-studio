@@ -1,52 +1,52 @@
-# Cherry Studio 知识库产品文档
+# Cherry Studio Knowledge Base — Product Spec
 
-## 1. 定位
+## 1. Positioning
 
-**知识库是一个「可搜索、可被 Agent 管理的资料文件夹」。** 从「先配检索模型再上传资料的 RAG」转向「先放资料、默认就能搜，embedding / rerank / 文件处理器越配越强」的资料空间。用户文案始终叫「知识库」,不暴露 File Mode 等内部概念。
+**A knowledge base is a "searchable folder of materials that an agent can manage."** It moves away from "configure retrieval models first, then upload (RAG)" toward a material space where you "drop materials in, search works by default, and embedding / rerank / file processors make it stronger as you configure them". User-facing copy always says "knowledge base"; internal concepts like File Mode are never exposed.
 
-## 2. 产品原则（四条）
+## 2. Product principles (four)
 
-1. **创建门槛要低** — 只输名称即可建库；不要求先懂向量 / RAG。（「未配 embedding 也能全文搜」为目标态,当前 v2 仍要求配置 embedding。）
-2. **导入即复制** — 上传 = 沉淀为知识库自有的稳定副本 / 快照；外部来源后续变化不自动改写库内内容。
-3. **真实目录是用户看到的事实** — UI 来自真实文件夹,不维护虚拟目录表；索引 / chunk / 缓存等系统资产不出现在材料目录中。
-4. **Agent 是帮手,不是无边界自动化** — 低风险整理执行后报告;刷新覆盖、删除、覆盖已有文件需确认。
+1. **Low creation barrier** — a name is enough to create a base; no vector/RAG knowledge required. ("Full-text search without embedding configured" is the target state; current v2 still requires an embedding model.)
+2. **Import means copy** — uploading creates the base's own stable copy/snapshot; later changes to the external source never rewrite the base's content automatically.
+3. **The real directory is the user-visible truth** — the UI reflects the real folder; no virtual directory table. Index/chunk/cache system assets never appear among the materials.
+4. **The agent is a helper, not unbounded automation** — low-risk tidying executes then reports; refresh-overwrite, delete, and overwriting existing files require confirmation.
 
-## 3. 资料行为速览
+## 3. Material behavior at a glance
 
-| 资料 | 核心口径 |
+| Material | Core rules |
 | --- | --- |
-| 本地文件 / 文件夹 | 复制进库、不改名、保留层级;删库内副本不删原文件;外部删除原文件 → UI 移除 + 清索引,不二次确认 |
-| URL | **快照**(抓取为 Markdown),非实时引用;刷新 = 重抓覆盖(需确认) |
-| 笔记 | 复制为库自有快照,默认用源文件名;不自动同步,刷新覆盖需确认 |
-| PDF 处理产物 | 生成的 Markdown 是**独立可见文件**;搜索索引/返回 Markdown;删 PDF 不删 md |
-| Agent 生成材料 | 写入库目录即普通可见材料,不设隐藏成果池;用户可自由编辑 |
+| Local file / folder | Copied into the base, name kept, hierarchy kept; deleting the in-base copy never deletes the original; external deletion of the original → UI removal + index cleanup, no second confirmation |
+| URL | A **snapshot** (fetched as Markdown), not a live reference; refresh = re-fetch and overwrite (confirmation required) |
+| Note | Copied as the base's own snapshot, default name from the source; no auto-sync, refresh-overwrite needs confirmation |
+| PDF processor output | The generated Markdown is an **independent, visible file**; search indexes/returns the Markdown; deleting the PDF keeps the md |
+| Agent-created material | Writing into the base directory makes an ordinary visible material — no hidden output pool; the user can edit freely |
 
-同路径冲突三选一(覆盖 / 保留副本 `_2` / 跳过)为目标态;内容重复不阻止(由 Agent 后续整理)。
+Same-path conflicts offer three choices (overwrite / keep copy `_2` / skip) as the target state; duplicate content is not blocked (the agent tidies it later).
 
-## 4. Agent 能力边界
+## 4. Agent capability boundaries
 
-- **list** 列出当前用户可见的**所有**知识库;**search** 必须显式传库 id,不限于候选;**read** 凭 search 返回的 locator 取上下文(不接受任意文件路径);**tree** 受可见范围约束;**manage**(add/delete/refresh)破坏性操作需确认。
-- **候选 id 是提示,不是权限边界** — Agent 绑定 / 对话 @ / 详情页进入三种方式只决定候选;单用户拥有自己的全部本地库,候选只缩小本轮对话的搜索范围,接入个人云源(飞书 / WebDAV)后能否读到某条材料还受该云源账号本人可见范围约束。
+- **list** shows **all** knowledge bases visible to the current user; **search** must receive an explicit base id and is not limited to candidates; **read** takes the locator a search returned (never an arbitrary file path); **tree** is bounded by visibility; **manage** (add/delete/refresh) requires confirmation for destructive operations.
+- **Candidate ids are hints, not a permission boundary** — agent binding / chat @-mention / detail-page entry only decide the candidates; a single user owns all of their local bases, candidates merely narrow this conversation's search scope, and once personal cloud sources (Feishu / WebDAV) are connected, readability of a given material is additionally bounded by that cloud account's own visibility.
 
-## 5. 已确定的产品决定
+## 5. Settled product decisions
 
-| # | 规则 |
+| # | Rule |
 | --- | --- |
-| 1 | 用户只输名称即可建库 |
-| 2 | 用户侧仍叫「知识库」 |
-| 3 | 内部对象统一叫 Knowledge Material / 资料 |
-| 4 | 文件管理器式主视图(列表/网格,无固定 raw/processed Tab) |
-| 5 | 上传复制不改名、文件夹保留原层级 |
-| 6 | URL 抓为 Markdown,刷新覆盖并更新索引 |
-| 7 | 云端文档存为本地快照、手动刷新(后续能力) |
-| 8 | PDF 生成的 Markdown 是独立可见文件;搜索返回 Markdown;删 PDF 不删 md |
-| 9 | Agent 写入即可见 |
-| 10 | 同路径冲突三选一,副本用 `_2`/`_3` 后缀(目标态,当前为 reject-on-conflict) |
-| 11 | 内容重复不阻止 |
-| 12 | 外部删除时 UI 移除、清索引、不二次确认 |
-| 13 | list 列可见全部库;search 必须传 id 但不限候选;候选 ≠ 权限边界 |
-| 14 | 旧知识库迁移建新副本、不原地转换、不自动改写 Agent 绑定;不可证明的部分跳过并记诊断,不猜 |
+| 1 | A name alone creates a base |
+| 2 | User-facing name stays "knowledge base" |
+| 3 | Internal objects are uniformly Knowledge Material |
+| 4 | File-manager-style main view (list/grid, no fixed raw/processed tabs) |
+| 5 | Uploads copy without renaming; folders keep their hierarchy |
+| 6 | URLs are fetched as Markdown; refresh overwrites and updates the index |
+| 7 | Cloud documents are stored as local snapshots with manual refresh (later capability) |
+| 8 | PDF-generated Markdown is an independent visible file; search returns the Markdown; deleting the PDF keeps the md |
+| 9 | Agent writes are immediately visible |
+| 10 | Same-path conflicts offer three choices, copies use `_2`/`_3` suffixes (target state; currently reject-on-conflict) |
+| 11 | Duplicate content is not blocked |
+| 12 | External deletion → UI removal, index cleanup, no second confirmation |
+| 13 | list shows all visible bases; search requires an id but is not candidate-limited; candidates ≠ permission boundary |
+| 14 | Legacy base migration builds a new copy — no in-place conversion, no automatic rewrite of agent bindings; unprovable parts are skipped with diagnostics recorded, never guessed |
 
-## 6. 难回滚决策
+## 6. Hard-to-roll-back decisions
 
-1. 新知识库默认是文件夹型;2. UI 以真实目录为准;3. 处理产物 Markdown 是可见独立文件;4. 候选知识库不是 search allowlist;5. 迁移是新副本、不是原地转换。
+1. New knowledge bases default to the folder model; 2. the UI is driven by the real directory; 3. processor-output Markdown is a visible independent file; 4. candidate bases are not a search allowlist; 5. migration creates a new copy, not an in-place conversion.

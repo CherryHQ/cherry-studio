@@ -74,7 +74,7 @@ Round 1 job types:
 
 `knowledge_base.fileProcessorId` controls source planning for supported file items. When a source needs conversion, the workflow starts FileProcessing, schedules `knowledge.check-file-processing-result`, records the converted markdown's location on the item via `updateIndexedRelativePath` (the `indexedRelativePath` leaf field, not a separate file-ref artifact row), then indexes that markdown.
 
-> 状态(2026-06-08): baseline 现状。`check-file-processing-result` 是一个轮询型 job:`scheduleFileProcessingCheck` 用 `FILE_PROCESSING_CHECK_DELAY_MS = 5_000`(5 秒)间隔重排,直到 FileProcessing job 终态;超过 `FILE_PROCESSING_MAX_WAIT_MS = 30 * 60 * 1000`(30 分钟)仍未完成则取消远端 job 并把 item 标 `failed`。完成后用 `updateIndexedRelativePath` 写入产物相对路径,再调度 `index-documents`。
+> Status (2026-06-08): baseline behavior. `check-file-processing-result` is a polling job: `scheduleFileProcessingCheck` reschedules it at `FILE_PROCESSING_CHECK_DELAY_MS = 5_000` (5s) intervals until the FileProcessing job reaches a terminal state; if it is still unfinished after `FILE_PROCESSING_MAX_WAIT_MS = 30 * 60 * 1000` (30 minutes), the remote job is cancelled and the item is marked `failed`. On success the output's relative path is recorded via `updateIndexedRelativePath`, then `index-documents` is scheduled.
 
 ## Mutation And Crash Semantics
 

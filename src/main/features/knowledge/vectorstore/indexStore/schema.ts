@@ -38,7 +38,7 @@ import type { SqliteExecutor } from './types'
  * - `search_text_id` is a TEXT business primary key, so it does NOT alias the
  *   SQLite rowid. The FTS table uses `search_text`'s implicit `rowid`; callers
  *   MUST join `search_text_fts.rowid = search_text.rowid` and never treat
- *   `search_text_id` as the FTS rowid (technical-design §4.9 / §6.2).
+ *   `search_text_id` as the FTS rowid (technical-design §4.7 / §6.2).
  *
  * Foreign keys: this schema relies on `ON DELETE CASCADE` / `SET NULL`. SQLite
  * enforces foreign keys only when `PRAGMA foreign_keys = ON` is set per

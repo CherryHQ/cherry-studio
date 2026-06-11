@@ -80,7 +80,12 @@ Workflow: call kb__list first to discover available bases and their contents, th
       id: index + 1,
       content: result.pageContent,
       // Clamp to the schema's [0, 1] range; AI SDK validates the final array
-      // against `outputSchema` after this returns.
+      // against `outputSchema` after this returns. Result ORDER is computed on
+      // the raw scores above, but the clamp flattens 'ranking'-kind magnitudes
+      // (BM25 scores > 1 tie at 1; LIKE-fallback negatives tie at 0), and the
+      // cross-base merge/dedupe mixes incompatible score scales while dropping
+      // scoreKind — the per-result score semantics redesign is PR C scope
+      // (knowledge-technical-design.md §6.2 / §7).
       score: Math.max(0, Math.min(1, result.score))
     }))
   },
