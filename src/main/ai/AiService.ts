@@ -234,9 +234,10 @@ export class AiService extends BaseService {
         // topic — a sibling exec in a multi-model turn, or another approved continuation already
         // running. The continue-conversation dispatch below would then hit send()'s inject path and
         // silently discard the approved turn (its models dropped, the tool never runs, the row stays
-        // `pending`) while still returning a success-shaped response. Refuse before mutating the row;
-        // the card stays actionable and the renderer can retry once the stream settles. (The Phase-3
-        // consolidation is the real fix.)
+        // `pending`) while still returning a success-shaped response. This cheap pre-check refuses the
+        // common case before mutating the row; the narrow TOCTOU that slips through (a submit starts a
+        // turn between here and the dispatch) is closed under the dispatch lock by send() throwing,
+        // caught below — the card stays actionable and the renderer can retry once the stream settles.
         if (application.get('AiStreamManager').hasLiveStream(payload.topicId)) {
           logger.warn(
             'Tool-approval response arrived while a stream is live — refusing to avoid a swallowed continuation',
@@ -288,13 +289,26 @@ export class AiService extends BaseService {
 
         const aiStreamManager = application.get('AiStreamManager')
         const subscriber = new WebContentsListener(event.sender, payload.topicId)
-        await aiStreamManager.dispatch(subscriber, {
-          trigger: 'continue-conversation',
-          topicId: payload.topicId,
-          parentAnchorId: payload.anchorId,
-          // Idempotent against the conditional write above; safety net when the part wasn't on the row.
-          approvalDecisions: [decision]
-        })
+        try {
+          await aiStreamManager.dispatch(subscriber, {
+            trigger: 'continue-conversation',
+            topicId: payload.topicId,
+            parentAnchorId: payload.anchorId,
+            // Idempotent against the conditional write above; safety net when the part wasn't on the row.
+            approvalDecisions: [decision]
+          })
+        } catch (error) {
+          // dispatch runs prepareDispatch+send under the per-topic dispatch lock. If a concurrent submit
+          // started a live turn after the hasLiveStream pre-check above, send() refuses to inject-drop the
+          // prepared continuation (throws) rather than swallowing it with a success shape. Resolve through
+          // the result shape so the card stays actionable for a retry once the live turn settles.
+          logger.warn('Tool-approval continuation dispatch failed (likely raced a live submit)', {
+            approvalId: payload.approvalId,
+            topicId: payload.topicId,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          return { ok: false }
+        }
         return { ok: true }
       }
     )

@@ -207,10 +207,6 @@ export class AiStreamManager extends BaseService {
   /** Topics whose steer continuation is mid-launch — dedups `scheduleNextChatTurn`, mirroring the
    *  agent runtime's `startingNextTurn`. */
   private readonly startingNextChatTopicIds = new Set<string>()
-  /** Last terminal disposition per topic. Gates the late-steer drain in `enqueuePendingSteer` so a
-   *  steer that lands after the turn already settled only auto-chains on a clean `done` — an
-   *  `aborted`/`error` settle drops it (the persisted user row stays for the user to resend). */
-  private readonly lastTerminalKind = new Map<string, 'done' | 'aborted' | 'error'>()
   /** Constructed once and reused — `dispatchStreamRequest` passes it through `send()`. */
   readonly chatLifecycle: StreamLifecycle
 
@@ -349,15 +345,19 @@ export class AiStreamManager extends BaseService {
 
     if (existing && isLiveStatus(existing.status)) {
       // Live topic → inject: a chat steer (busy submit) or an agent-session follow-up was already
-      // persisted/enqueued by its provider; just attach the new subscriber to the running stream.
-      // Models are intentionally ignored here (the running stream owns execution), but a non-empty
-      // `models` reaching this branch means a prepared turn (e.g. an approval `continue-conversation`
-      // racing a live continuation) is being silently discarded — that's a bug, not steering.
+      // persisted/enqueued by its provider; just attach the new subscriber to the running stream
+      // (those legitimate producers reach here with `models.length === 0`).
+      //
+      // A NON-EMPTY `models` here means a PREPARED turn (e.g. an approval `continue-conversation`)
+      // reached a live topic because a concurrent submit started a turn between the caller's liveness
+      // check and here. Injecting would silently discard the prepared models — the approved tool never
+      // runs — behind a success shape. Refuse instead: send() runs under the per-topic dispatch lock,
+      // so this throw is atomic w.r.t. the racing submit, and the caller (the approval handler) resolves
+      // through its result shape, leaving the card actionable for a retry once the live turn settles.
       if (input.models.length > 0) {
-        logger.error('send(): live topic discarding non-empty models on the inject path', {
-          topicId: input.topicId,
-          modelCount: input.models.length
-        })
+        throw new Error(
+          `send(): refusing to inject ${input.models.length} prepared model(s) onto live topic ${input.topicId} (raced a concurrent submit)`
+        )
       }
       for (const listener of input.listeners) this.addListener(input.topicId, listener)
       return { mode: 'injected', executionIds: [...existing.executions.keys()] }
@@ -381,10 +381,6 @@ export class AiStreamManager extends BaseService {
 
     // Evict any grace-period stream so two streams never coexist on one topic.
     if (existing) this.evictStream(input.topicId)
-
-    // A new live turn supersedes any recorded terminal of the prior turn; clear it so a later steer
-    // enqueue can't read a stale kind, and the per-topic map stays bounded across a session.
-    this.lastTerminalKind.delete(input.topicId)
 
     const isMultiModel = input.models.length > 1
     const executions = new Map<UniqueModelId, StreamExecution>()
@@ -513,29 +509,30 @@ export class AiStreamManager extends BaseService {
   /** Enqueue a steer user message (already persisted by the provider). If the topic settled before
    *  this landed, start the continuation immediately. Mirrors `AgentSessionRuntimeService.enqueueUserMessage`. */
   enqueuePendingSteer(topicId: string, userMessageId: string): void {
-    // If the turn already settled between `prepareDispatch` and here (the loop's terminal hooks don't
-    // hold the dispatch lock), no hook will fire to chain this steer — decide now based on HOW it
-    // settled, since the terminal flavor carries the drop-on-abort semantics the hooks enforce.
-    if (!this.hasLiveStream(topicId)) {
-      if (this.lastTerminalKind.get(topicId) === 'done') {
-        // Clean settle just before the steer landed → answer it now (the inter-turn drain race the
-        // agent runtime handles too).
-        this.appendPendingSteer(topicId, userMessageId)
-        this.scheduleNextChatTurn(topicId)
-      } else {
-        // Aborted/errored settle (e.g. the user pressed Stop as the steer landed) → drop-on-abort:
-        // leave the persisted user row dangling for the user to resend rather than starting a turn
-        // after Stop or letting a future unrelated turn chain onto it.
-        logger.warn('Steer landed after a non-clean terminal — dropping (row stays resendable)', {
-          topicId,
-          userMessageId,
-          terminal: this.lastTerminalKind.get(topicId) ?? 'none'
-        })
-      }
+    // The turn may have settled between `prepareDispatch` and here (the loop's terminal hooks don't
+    // hold the dispatch lock), so no hook would fire to chain this steer. Decide from the single
+    // authority — the resolved `status` on the still-in-grace stream — not a separate shadow flag:
+    //   • live              → queue; it yields at a step boundary and `onExecutionDone` chains it.
+    //   • done / no stream  → queue + start the continuation now (the inter-turn drain race; an idle
+    //                         topic with no stream is just a fresh turn).
+    //   • awaiting-approval → queue but DON'T start; the continuation the user's Approve dispatches
+    //                         drains it once that turn completes.
+    //   • aborted / error   → drop; the persisted user row stays for the user to resend.
+    const status = this.activeStreams.get(topicId)?.status
+    if (status && isLiveStatus(status)) {
+      this.appendPendingSteer(topicId, userMessageId)
       return
     }
-    // Turn still live → queue it; it yields at the next step boundary and `onExecutionDone` chains.
+    if (status === 'aborted' || status === 'error') {
+      logger.warn('Steer landed after a non-clean terminal — dropping (row stays resendable)', {
+        topicId,
+        userMessageId,
+        terminal: status
+      })
+      return
+    }
     this.appendPendingSteer(topicId, userMessageId)
+    if (status !== 'awaiting-approval') this.scheduleNextChatTurn(topicId)
   }
 
   private appendPendingSteer(topicId: string, userMessageId: string): void {
@@ -578,12 +575,10 @@ export class AiStreamManager extends BaseService {
         exec.abortController.abort(reason)
       }
     }
+    // Flip status to 'aborted' synchronously here, where Stop's fate is decided — `onExecutionPaused`
+    // only runs after the loop settles asynchronously. A steer enqueue landing in that window reads
+    // this 'aborted' off the in-grace stream and drops, instead of draining after Stop.
     stream.status = 'aborted'
-    // Record the terminal kind synchronously here, where the turn's fate is decided. `abort()` flips
-    // `status` now but `onExecutionPaused` (which would record 'aborted') only runs after the loop
-    // settles asynchronously. Without this, a steer enqueue landing in that window reads the stale
-    // prior 'done' and drains — starting a turn after Stop and evicting the still-settling stream.
-    this.lastTerminalKind.set(topicId, 'aborted')
   }
 
   // ── Execution loop callbacks ──────────────────────────────────────
@@ -662,27 +657,22 @@ export class AiStreamManager extends BaseService {
     stream.status = this.resolveTerminalStatus(stream)
     const topicDone = !isLiveStatus(stream.status)
 
-    // An execution parked on an approval request keeps the topic non-live (`awaiting-approval`) but
-    // must NOT chain: the user's Approve dispatches `continue-conversation`, and a live continuation
-    // would swallow it (the inject branch discards its models, the approved tool never runs). Wait —
-    // the continuation chains after the `continue-conversation` turn itself completes cleanly.
-    const approvalPending = [...stream.executions.values()].some((e) => e.awaitingApproval)
-
-    // Chain the next chat turn instead of finishing: broadcast this exec's done with isTopicDone=false
-    // (the bubble finalises, the topic stays busy — reusing multi-model semantics), skip the terminal
-    // lifecycle, and start the continuation with the carried renderer listeners.
-    const chatChaining = topicDone && !approvalPending && this.hasPendingSteer(topicId)
-
-    // Record the terminal kind synchronously, before the broadcast await: a steer enqueue landing
-    // during the await must see this turn's outcome, not a stale prior one. Only a clean `done` (no
-    // approval still pending, not chaining) records a drainable terminal — an approval-parked turn
-    // leaves the steer queued for the post-approval continuation.
-    if (topicDone && !chatChaining && !approvalPending) this.lastTerminalKind.set(topicId, 'done')
+    // Chain the next chat turn only on a CLEAN topic-done. Keying off the resolved status (not
+    // `topicDone`, which is also true for error/aborted/awaiting-approval) makes the decision
+    // independent of which execution settled last: a multi-model turn that resolved to 'error' never
+    // chains, in either settle order. An 'awaiting-approval' parked turn also doesn't chain — the
+    // steer stays queued for the continuation the user's Approve dispatches. Broadcast this exec's
+    // done with isTopicDone=false when chaining (the bubble finalises, the topic stays busy), skip the
+    // terminal lifecycle, and start the continuation with the carried renderer listeners.
+    const chatChaining = stream.status === 'done' && this.hasPendingSteer(topicId)
 
     await this.broadcastExecutionDone(stream, exec, topicDone && !chatChaining)
 
     if (chatChaining) this.scheduleNextChatTurn(topicId)
     else if (topicDone) {
+      // A sibling errored/aborted (this exec finished clean but the topic didn't): drop the queue,
+      // matching onExecutionError/onExecutionPaused. A clean 'done' or an approval-park keeps it.
+      if (stream.status === 'error' || stream.status === 'aborted') this.dropPendingSteers(topicId, stream.status)
       this.runTerminalLifecycle(stream)
     }
   }
@@ -706,10 +696,6 @@ export class AiStreamManager extends BaseService {
     endRootSpan(exec, 'aborted')
     stream.status = this.resolveTerminalStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
-
-    // Record the terminal kind before the broadcast await so a steer enqueue landing during it reads
-    // this turn's outcome, not a stale prior one. (Aborts also set it synchronously in `abort()`.)
-    if (isTopicDone) this.lastTerminalKind.set(topicId, 'aborted')
 
     await this.broadcastExecutionPaused(stream, exec, isTopicDone)
 
@@ -749,9 +735,6 @@ export class AiStreamManager extends BaseService {
       isTopicDone,
       timings: { ...exec.timings }
     }
-    // Record the terminal kind before the dispatch await so a steer enqueue landing during it reads
-    // this turn's outcome, not a stale prior one.
-    if (isTopicDone) this.lastTerminalKind.set(topicId, 'error')
 
     await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result))
 
@@ -877,7 +860,6 @@ export class AiStreamManager extends BaseService {
     }
     previous.status = 'error'
     previous.lifecycle.onTerminal(previous)
-    this.lastTerminalKind.set(previous.topicId, 'error')
     this.dropPendingSteers(previous.topicId, 'error')
   }
 

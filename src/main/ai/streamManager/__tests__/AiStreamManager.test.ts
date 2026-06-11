@@ -289,9 +289,11 @@ describe('AiStreamManager', () => {
       expect(mockStreamText).toHaveBeenCalledTimes(1)
 
       const l2 = new FakeListener('l:a') // same id → upsert
+      // A live-topic inject carries no models (the running stream owns execution; a steer / agent
+      // follow-up is enqueued separately by its provider). Non-empty models here is the refused race.
       const result = mgr.send({
         topicId: 'a',
-        models: [{ modelId: 'provider-a::model-a', request: req('a') }],
+        models: [],
         listeners: [l2]
       })
 
@@ -308,6 +310,25 @@ describe('AiStreamManager', () => {
       mgr.onChunk('a', 'provider-a::model-a', chunk('x'))
       expect(l1.chunks).toHaveLength(0)
       expect(l2.chunks).toHaveLength(1)
+    })
+
+    it('refuses to inject a prepared turn onto a live topic (approval continue-conversation race)', () => {
+      // A non-empty `models` reaching the inject path means a prepared turn (e.g. an approval
+      // `continue-conversation`) raced a concurrent submit that started a live turn. send() runs under
+      // the per-topic dispatch lock, so throwing here is atomic w.r.t. the racing submit — it must NOT
+      // silently inject-drop the prepared models behind a success shape (the approved tool never runs).
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [new FakeListener('wc:1')] })
+      expect(mockStreamText).toHaveBeenCalledTimes(1)
+
+      expect(() =>
+        mgr.send({
+          topicId: 'a',
+          models: [{ modelId: 'provider-a::model-a', request: req('a') }],
+          listeners: [new FakeListener('wc:2')]
+        })
+      ).toThrow(/refusing to inject/)
+      // No second stream launched; the live stream is untouched.
+      expect(mockStreamText).toHaveBeenCalledTimes(1)
     })
 
     it('upserts an agent-session follow-up subscriber without restarting the stream', () => {
@@ -870,13 +891,13 @@ describe('AiStreamManager', () => {
     })
 
     it('drops a steer landing after abort() but before the loop settles, even after a prior clean turn', async () => {
-      // The stale-`lastTerminalKind` race: an earlier turn finished cleanly (records 'done'), a new
-      // turn is live, the user presses Stop (`abort()` flips status synchronously), and the steer
-      // enqueue lands BEFORE `onExecutionPaused` records 'aborted'. Pre-fix, the enqueue read the
-      // stale 'done' and drained — starting a turn after Stop and evicting the still-settling stream.
+      // Stop race after a prior clean turn: a new turn is live, the user presses Stop (`abort()` flips
+      // the stream to 'aborted' synchronously), and the steer enqueue lands BEFORE `onExecutionPaused`
+      // runs. The enqueue reads 'aborted' off the in-grace stream and drops — it must not drain off
+      // the earlier turn's clean 'done'.
       const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
 
-      // 1) an earlier clean turn → lastTerminalKind = 'done'
+      // 1) an earlier clean turn (settles to 'done')
       startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
@@ -915,6 +936,65 @@ describe('AiStreamManager', () => {
       await flush()
       expect(dispatchSpy).not.toHaveBeenCalled()
       expect(mgr.hasPendingSteer('a')).toBe(true) // still queued, waiting for the approval to resolve
+    })
+
+    it('answers a steer that lands in the chaining window instead of dropping it (variant A)', async () => {
+      // A first steer is queued and the turn chains (status flips to 'done'); a SECOND steer lands in
+      // that chaining window. The old shadow flag wasn't recorded on the chaining settle, so the late
+      // steer read `undefined` and was dropped; now it reads 'done' off the in-grace stream and stays.
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [new FakeListener('wc:1')] })
+      mgr.enqueuePendingSteer('a', 's0') // queued while live
+      await mgr.onExecutionDone('a', 'provider-a::model-a') // clean done + queued steer → chains
+      mgr.enqueuePendingSteer('a', 's1') // lands in the chaining window
+
+      await flush()
+      expect(dispatchSpy).toHaveBeenCalled() // s0's continuation launched
+      expect(mgr.hasPendingSteer('a')).toBe(true) // s1 retained for the next drain, not dropped
+    })
+
+    it('queues a steer that lands after the turn parked on approval, without launching (variant B)', async () => {
+      // Same as blocker 3, but the steer lands AFTER the park (not before): it must still queue for the
+      // post-approval continuation, not read a non-live status and drop.
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [new FakeListener('wc:1')] })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'tool-approval-request' } as unknown as UIMessageChunk)
+      await mgr.onExecutionDone('a', 'provider-a::model-a') // parks → 'awaiting-approval', no steer queued yet
+      mgr.enqueuePendingSteer('a', 's1') // lands after the park
+
+      await flush()
+      expect(dispatchSpy).not.toHaveBeenCalled() // not launched while parked
+      expect(mgr.hasPendingSteer('a')).toBe(true) // queued for the continuation Approve dispatches
+    })
+
+    it('never chains a steer onto a multi-model turn that resolved to error, in either settle order', async () => {
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const twoModels = (topicId: string) => ({
+        topicId,
+        models: [
+          { modelId: 'provider-a::model-a' as const, request: req(topicId) },
+          { modelId: 'provider-b::model-b' as const, request: req(topicId) }
+        ],
+        listeners: [new FakeListener(`wc:${topicId}`)]
+      })
+
+      // topic 'a': error settles FIRST, the clean done LAST (the order that mis-recorded 'done' pre-fix).
+      mgr.send(twoModels('a'))
+      mgr.enqueuePendingSteer('a', 's-a')
+      await mgr.onExecutionError('a', 'provider-a::model-a', error('boom'))
+      await mgr.onExecutionDone('a', 'provider-b::model-b') // resolves topic to 'error'
+
+      // topic 'b': clean done FIRST, error LAST.
+      mgr.send(twoModels('b'))
+      mgr.enqueuePendingSteer('b', 's-b')
+      await mgr.onExecutionDone('b', 'provider-a::model-a') // topic still live (B streaming)
+      await mgr.onExecutionError('b', 'provider-b::model-b', error('boom'))
+
+      await flush()
+      // Neither order chains onto an errored topic; both drop the queued steer (rows stay resendable).
+      expect(dispatchSpy).not.toHaveBeenCalled()
+      expect(mgr.hasPendingSteer('a')).toBe(false)
+      expect(mgr.hasPendingSteer('b')).toBe(false)
     })
 
     it('writes a terminal error and notifies carried windows when the continuation fails to launch (blocker 1)', async () => {
