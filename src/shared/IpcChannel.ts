@@ -475,11 +475,13 @@ export enum IpcChannel {
   WindowManager_IsMaximized = 'window-manager:is-maximized',
   WindowManager_IsFullScreen = 'window-manager:is-full-screen',
   WindowManager_GetInitData = 'window-manager:get-init-data',
-  // All three below are sent only to the originating window's webContents.
+  // All four below are sent only to the originating window's webContents.
   // macOS unreliable for maximize/unmaximize (electron#3325, #28699) — use FullscreenChanged on macOS.
   WindowManager_MaximizedChanged = 'window-manager:maximized-changed',
   // OS-level only; does NOT cover HTML5 element.requestFullscreen() or macOS setSimpleFullScreen.
   WindowManager_FullscreenChanged = 'window-manager:fullscreen-changed',
+  // True window key state — unlike DOM focus/blur, unaffected by <webview> stealing page focus.
+  WindowManager_FocusChanged = 'window-manager:focus-changed',
   // Payload = the initData passed to open(); omitted if none supplied, not fired on fresh creation.
   WindowManager_Reused = 'window-manager:reused'
 

@@ -1529,6 +1529,15 @@ export class WindowManager extends BaseService {
     window.on('leave-full-screen', () => {
       window.webContents.send(IpcChannel.WindowManager_FullscreenChanged, false)
     })
+    // Real window key state — DOM focus/blur in the renderer cannot distinguish
+    // "a <webview> took page focus" from "the window deactivated". Transparent-
+    // window shells repaint between glass and opaque on this signal.
+    window.on('focus', () => {
+      window.webContents.send(IpcChannel.WindowManager_FocusChanged, true)
+    })
+    window.on('blur', () => {
+      window.webContents.send(IpcChannel.WindowManager_FocusChanged, false)
+    })
 
     // Intercept native close for warmup-tracked windows — hide and return to
     // the idle queue (pool) or preserve hidden state (singleton w/ retention).
