@@ -254,7 +254,7 @@ export type Usage = OpenAI.Completions.CompletionUsage & {
   cost?: number
   cost_source?: 'provider' | 'computed'
   cost_currency?: 'USD' | 'CNY'
-  cost_breakdown?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }
+  cost_breakdown?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; image?: number }
 }
 
 export type Metrics = {
