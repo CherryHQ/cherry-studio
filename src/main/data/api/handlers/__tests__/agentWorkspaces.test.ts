@@ -97,6 +97,27 @@ describe('agentWorkspaceHandlers', () => {
     expect(updateMock).toHaveBeenCalledWith(workspace.id, { name: 'Renamed' })
   })
 
+  it('rejects invalid create body before calling the service', async () => {
+    await expect(
+      agentWorkspaceHandlers['/agent-workspaces'].POST({
+        body: { name: workspace.name }
+      } as never)
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+
+    expect(findOrCreateByPathMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects invalid update body before calling the service', async () => {
+    await expect(
+      agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].PATCH({
+        params: { workspaceId: workspace.id },
+        body: {}
+      } as never)
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+
+    expect(updateMock).not.toHaveBeenCalled()
+  })
+
   it('deletes a user workspace and its sessions in one transaction', async () => {
     const tx = MockMainDbServiceUtils.getDefaultMockDb()
     getRowByIdTxMock.mockResolvedValueOnce(workspace)

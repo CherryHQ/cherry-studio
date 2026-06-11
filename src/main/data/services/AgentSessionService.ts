@@ -288,6 +288,9 @@ export class AgentSessionService {
       const normalSessionIds: string[] = []
       const systemWorkspaceIds = new Set<string>()
       for (const row of rows) {
+        // deleteByIds relies on AgentWorkspaceService.createSystemWorkspaceForSessionTx
+        // creating one system workspace per session; deleteByWorkspaceTx removes
+        // every session under that app-owned workspace before the row is deleted.
         if (row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
           systemWorkspaceIds.add(row.workspace.id)
         } else {
@@ -339,6 +342,9 @@ export class AgentSessionService {
       const normalSessionIds: string[] = []
       const systemWorkspaceIds = new Set<string>()
       for (const row of rows) {
+        // deleteByAgentId relies on AgentWorkspaceService.createSystemWorkspaceForSessionTx
+        // creating one system workspace per session; deleteByWorkspaceTx removes
+        // every session under that app-owned workspace before the row is deleted.
         if (row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
           systemWorkspaceIds.add(row.workspace.id)
         } else {

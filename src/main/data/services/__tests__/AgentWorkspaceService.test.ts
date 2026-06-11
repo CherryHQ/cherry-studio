@@ -46,6 +46,22 @@ describe('AgentWorkspaceService', () => {
     expect(rows).toHaveLength(1)
   })
 
+  it('keeps the existing name on find-or-create path hits', async () => {
+    const rawPath = workspacePath('idempotent')
+    const first = await findOrCreateWorkspace(rawPath, { name: 'Original' })
+    const second = await findOrCreateWorkspace(rawPath, { name: 'Ignored Rename' })
+
+    expect(second).toMatchObject({
+      id: first.id,
+      name: 'Original',
+      path: first.path
+    })
+
+    const rows = await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.path, first.path))
+    expect(rows).toHaveLength(1)
+    expect(rows[0].name).toBe('Original')
+  })
+
   it('inserts newly created workspaces at the front of the list', async () => {
     const first = await findOrCreateWorkspace(workspacePath('first'))
     const second = await findOrCreateWorkspace(workspacePath('second'))

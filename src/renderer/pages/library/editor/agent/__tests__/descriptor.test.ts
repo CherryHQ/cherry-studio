@@ -154,6 +154,18 @@ describe('agent create flow helpers', () => {
       heartbeat_enabled: false
     })
   })
+
+  it('deduplicates disabled tools in the create payload', () => {
+    const draft = buildInitialAgentFormState()
+    const payload = buildCreateAgentPayload({
+      ...draft,
+      name: 'Planner',
+      model: 'anthropic::claude-sonnet-4-5',
+      disabledTools: ['Bash', 'Read', 'Bash']
+    })
+
+    expect(payload.disabledTools).toEqual(['Bash', 'Read'])
+  })
 })
 
 describe('applyAgentFormPatch', () => {
@@ -206,6 +218,13 @@ describe('applyAgentFormPatch', () => {
 
     expect(next.permissionMode).toBe('default')
     expect(next.soulEnabled).toBe(false)
+  })
+
+  it('deduplicates disabled tools patches', () => {
+    const draft = buildInitialAgentFormState()
+    const next = applyAgentFormPatch(draft, { disabledTools: ['Bash', 'Read', 'Bash'] }, tools)
+
+    expect(next.disabledTools).toEqual(['Bash', 'Read'])
   })
 })
 
@@ -318,5 +337,21 @@ describe('diffAgentUpdate', () => {
     expect(result?.dto.configuration).toMatchObject({
       max_turns: 100
     })
+  })
+
+  it('treats disabled tools as an order-insensitive set', () => {
+    const agent = createAgent({ disabledTools: ['Bash', 'Read'] })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, disabledTools: ['Read', 'Bash'] }
+
+    expect(diffAgentUpdate(baseline, next, agent)).toBeNull()
+  })
+
+  it('emits deduplicated disabled tools when the set changes', () => {
+    const agent = createAgent({ disabledTools: ['Bash'] })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, disabledTools: ['Bash', 'Read', 'Read'] }
+
+    expect(diffAgentUpdate(baseline, next, agent)?.dto.disabledTools).toEqual(['Bash', 'Read'])
   })
 })

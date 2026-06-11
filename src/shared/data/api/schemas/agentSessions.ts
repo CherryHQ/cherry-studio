@@ -173,6 +173,12 @@ export type AgentSessionSchemas = {
       body: UpdateAgentSessionDto
       response: AgentSessionEntity
     }
+    /**
+     * Delete one session.
+     *
+     * Cascades: session pins are purged; if the session is backed by a system
+     * workspace, that system workspace row is removed too.
+     */
     DELETE: {
       params: { sessionId: string }
       response: void

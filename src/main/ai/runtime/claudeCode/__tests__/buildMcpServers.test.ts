@@ -17,6 +17,17 @@ const { mockGetPathStatus, mockMkdir, mockRealpath, mockGetPath } = vi.hoisted((
   mockGetPath: vi.fn(() => '/tmp/managed-workspaces')
 }))
 
+const settingsMocks = vi.hoisted(() => ({
+  mockGetAgent: vi.fn(),
+  mockGetModelByKey: vi.fn(),
+  mockReconcileAgentSkills: vi.fn(),
+  mockGetLoginShellEnvironment: vi.fn(),
+  mockGetBinaryPath: vi.fn(),
+  mockAutoDiscoverGitBash: vi.fn(),
+  mockGetProxyEnvironment: vi.fn(),
+  mockCreateToolPolicySnapshot: vi.fn()
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
@@ -52,12 +63,45 @@ vi.mock('@main/utils/language', () => ({
   t: vi.fn((key: string, vars?: { path?: string }) => `${key}:${vars?.path ?? ''}`)
 }))
 
+vi.mock('@data/services/AgentService', () => ({
+  agentService: { getAgent: settingsMocks.mockGetAgent }
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: { getByKey: settingsMocks.mockGetModelByKey }
+}))
+
 vi.mock('@data/services/AgentChannelService', () => ({
-  agentChannelService: { listChannels: vi.fn().mockResolvedValue([]) }
+  agentChannelService: {
+    listChannels: vi.fn().mockResolvedValue([]),
+    findBySessionId: vi.fn().mockResolvedValue(null)
+  }
+}))
+
+vi.mock('@main/ai/skills/SkillService', () => ({
+  skillService: { reconcileAgentSkills: settingsMocks.mockReconcileAgentSkills }
+}))
+
+vi.mock('@main/utils/shell-env', () => ({
+  default: settingsMocks.mockGetLoginShellEnvironment
+}))
+
+vi.mock('@main/utils/process', () => ({
+  getBinaryPath: settingsMocks.mockGetBinaryPath,
+  autoDiscoverGitBash: settingsMocks.mockAutoDiscoverGitBash
+}))
+
+vi.mock('@main/services/proxy/nodeProxy', () => ({
+  getProxyEnvironment: settingsMocks.mockGetProxyEnvironment
+}))
+
+vi.mock('@main/ai/tools/adapters/claudeCode/agentTools', () => ({
+  createClaudeAgentToolPolicySnapshot: settingsMocks.mockCreateToolPolicySnapshot
 }))
 
 const {
   AgentSessionWorkspaceError,
+  buildClaudeCodeSessionSettings,
   buildInjectedMcpAllowedTools,
   assertClaudeCodeWorkspaceDirectory,
   buildMcpServers,
@@ -123,6 +167,42 @@ describe('buildMcpServers', () => {
   it('does not inject agent-memory when Soul Mode is off', async () => {
     const result = await buildMcpServers(session, agent, false, false)
     expect(result?.['agent-memory']).toBeUndefined()
+  })
+})
+
+describe('buildClaudeCodeSessionSettings tool permissions', () => {
+  beforeEach(() => {
+    mockGetPathStatus.mockReset()
+    mockGetPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
+    settingsMocks.mockGetAgent.mockReset()
+    settingsMocks.mockGetModelByKey.mockReset()
+    settingsMocks.mockReconcileAgentSkills.mockReset()
+    settingsMocks.mockGetLoginShellEnvironment.mockReset()
+    settingsMocks.mockGetBinaryPath.mockReset()
+    settingsMocks.mockAutoDiscoverGitBash.mockReset()
+    settingsMocks.mockGetProxyEnvironment.mockReset()
+    settingsMocks.mockCreateToolPolicySnapshot.mockReset()
+
+    settingsMocks.mockGetAgent.mockResolvedValue({
+      ...agent,
+      model: 'anthropic::claude-sonnet-4-5',
+      disabledTools: ['Bash', 'Read'],
+      configuration: {}
+    })
+    settingsMocks.mockGetModelByKey.mockResolvedValue({ apiModelId: 'claude-sonnet-4-5' })
+    settingsMocks.mockReconcileAgentSkills.mockResolvedValue(undefined)
+    settingsMocks.mockGetLoginShellEnvironment.mockResolvedValue({})
+    settingsMocks.mockGetBinaryPath.mockResolvedValue('/usr/bin/bun')
+    settingsMocks.mockAutoDiscoverGitBash.mockReturnValue(null)
+    settingsMocks.mockGetProxyEnvironment.mockReturnValue({})
+    settingsMocks.mockCreateToolPolicySnapshot.mockResolvedValue({ resolve: vi.fn() })
+  })
+
+  it('passes agent disabledTools through to SDK disallowedTools', async () => {
+    const settings = await buildClaudeCodeSessionSettings(session, {} as never)
+
+    expect(settings.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Read']))
+    expect(settings.allowedTools).toBeUndefined()
   })
 })
 

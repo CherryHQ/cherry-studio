@@ -113,6 +113,8 @@ export class AgentWorkspaceService {
       .where(eq(agentWorkspaceTable.path, workspacePath))
       .limit(1)
     if (existing) {
+      // Idempotent find branch: POST/find-or-create never renames an existing workspace.
+      // Callers that want to rename must use PATCH /agent-workspaces/:workspaceId.
       if (AgentWorkspaceTypeSchema.parse(existing.type) === AGENT_WORKSPACE_TYPE.USER) return existing
       throw DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
     }
