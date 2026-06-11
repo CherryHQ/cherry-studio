@@ -120,6 +120,8 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
       setFilterFn(() => options.filterFn)
       setSortFn(() => options.sortFn)
 
+      // dispatchKeyDown is imperative and can run before React commits this state update.
+      isVisibleRef.current = true
       setIsVisible(true)
     },
     [ensureListItemIds]
@@ -129,6 +131,8 @@ export const QuickPanelProvider: React.FC<React.PropsWithChildren> = ({ children
     (action?: QuickPanelCloseAction, searchText?: string) => {
       if (!isMountedRef.current) return
 
+      // Keep imperative key dispatch in sync with close before React commits.
+      isVisibleRef.current = false
       setIsVisible(false)
       setManageListExternally(false)
       setTrackInputQuery(false)

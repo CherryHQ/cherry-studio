@@ -135,6 +135,31 @@ function CaptureQuickPanel({ onCapture }: { onCapture: (context: QuickPanelConte
   return null
 }
 
+function ImmediateOpenDispatchHarness({ onHandled }: { onHandled: (handled: boolean) => void }) {
+  const { dispatchKeyDown, open, registerKeyDownHandler } = useQuickPanel()
+
+  useEffect(() => {
+    return registerKeyDownHandler((event) => {
+      if (event.key !== 'Escape') return false
+
+      event.preventDefault()
+      event.stopPropagation()
+      return true
+    })
+  }, [registerKeyDownHandler])
+
+  useEffect(() => {
+    open({
+      list: [],
+      symbol: QuickPanelReservedSymbol.Root
+    })
+
+    onHandled(dispatchKeyDown(createKeyDownEvent('Escape').event))
+  }, [dispatchKeyDown, onHandled, open])
+
+  return null
+}
+
 describe('QuickPanelView', () => {
   beforeEach(() => {
     virtualListMocks.scrollToIndex.mockClear()
@@ -164,6 +189,20 @@ describe('QuickPanelView', () => {
     })
 
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('dispatches keydown immediately after opening in the same effect tick', async () => {
+    const onHandled = vi.fn()
+
+    render(
+      <QuickPanelProvider>
+        <ImmediateOpenDispatchHarness onHandled={onHandled} />
+      </QuickPanelProvider>
+    )
+
+    await waitFor(() => {
+      expect(onHandled).toHaveBeenCalledWith(true)
+    })
   })
 
   it('resets the virtual list scroll offset when a panel opens', async () => {
