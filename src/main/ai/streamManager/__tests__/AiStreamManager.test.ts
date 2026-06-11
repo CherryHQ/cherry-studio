@@ -317,7 +317,12 @@ describe('AiStreamManager', () => {
       // `continue-conversation`) raced a concurrent submit that started a live turn. send() runs under
       // the per-topic dispatch lock, so throwing here is atomic w.r.t. the racing submit — it must NOT
       // silently inject-drop the prepared models behind a success shape (the approved tool never runs).
-      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [new FakeListener('wc:1')] })
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('wc:1')]
+      })
       expect(mockStreamText).toHaveBeenCalledTimes(1)
 
       expect(() =>
@@ -943,7 +948,12 @@ describe('AiStreamManager', () => {
       // that chaining window. The old shadow flag wasn't recorded on the chaining settle, so the late
       // steer read `undefined` and was dropped; now it reads 'done' off the in-grace stream and stays.
       const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
-      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [new FakeListener('wc:1')] })
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('wc:1')]
+      })
       mgr.enqueuePendingSteer('a', 's0') // queued while live
       await mgr.onExecutionDone('a', 'provider-a::model-a') // clean done + queued steer → chains
       mgr.enqueuePendingSteer('a', 's1') // lands in the chaining window
@@ -957,7 +967,12 @@ describe('AiStreamManager', () => {
       // Same as blocker 3, but the steer lands AFTER the park (not before): it must still queue for the
       // post-approval continuation, not read a non-live status and drop.
       const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
-      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [new FakeListener('wc:1')] })
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('wc:1')]
+      })
       mgr.onChunk('a', 'provider-a::model-a', { type: 'tool-approval-request' } as unknown as UIMessageChunk)
       await mgr.onExecutionDone('a', 'provider-a::model-a') // parks → 'awaiting-approval', no steer queued yet
       mgr.enqueuePendingSteer('a', 's1') // lands after the park
