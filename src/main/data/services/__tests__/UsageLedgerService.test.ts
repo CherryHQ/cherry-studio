@@ -158,6 +158,57 @@ describe('UsageLedgerService', () => {
     })
   })
 
+  describe('recordRequest (billing funnel)', () => {
+    it('enriches cost from model pricing when the caller stats carry none', async () => {
+      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+      await dbh.db.insert(userModelTable).values({
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        presetModelId: 'gpt-4o',
+        name: 'gpt-4o',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: 'a0',
+        pricing: {
+          input: { perMillionTokens: 3, currency: 'USD' },
+          output: { perMillionTokens: 15, currency: 'USD' }
+        }
+      })
+
+      await usageLedgerService.recordRequest({
+        id: 'req-stateless',
+        modelId: 'openai::gpt-4o',
+        stats: { inputTokens: 1_000_000, outputTokens: 0, totalTokens: 1_000_000 }
+      })
+
+      const [row] = await dbh.db.select().from(usageLedgerTable)
+      expect(row).toMatchObject({
+        messageId: 'req-stateless',
+        topicId: null,
+        cost: 3,
+        costSource: 'computed',
+        costCurrency: 'USD'
+      })
+    })
+
+    it('never regresses topicId to null when funnel and persistence hook converge', async () => {
+      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+
+      // Persistence hook lands first (with topic context)…
+      await usageLedgerService.recordFromMessage(makeMessage({ id: 'msg-conv', topicId: 'topic-1' } as never))
+      // …then the billing funnel re-records the same request without it.
+      await usageLedgerService.recordRequest({
+        id: 'msg-conv',
+        modelId: 'openai::gpt-4o',
+        stats: { inputTokens: 100, outputTokens: 50, totalTokens: 150 }
+      })
+
+      const [row] = await dbh.db.select().from(usageLedgerTable)
+      expect(row).toMatchObject({ messageId: 'msg-conv', topicId: 'topic-1' })
+    })
+  })
+
   describe('resolveKeyAttribution', () => {
     it('is exact with a single enabled key, with label and masked key snapshot', async () => {
       await seedProvider([

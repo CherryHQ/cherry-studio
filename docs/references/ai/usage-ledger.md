@@ -28,8 +28,10 @@ so message-derived statistics simply cannot see it:
 | **Embeddings / knowledge** | `AiService.embedMany` | Vectors go to the knowledge index |
 | **Ephemeral temporary chats** | `TemporaryChatService` (in-memory) | Messages exist only in memory unless the user keeps the chat |
 
-Today these surfaces report (at most) to `AnalyticsService.trackUsage` —
-volatile telemetry, not a durable per-key billing record.
+Before the ledger, these surfaces reported (at most) to
+`AnalyticsService.trackUsage` — volatile telemetry, not a durable per-key
+billing record. The billing funnel (§2) now captures them at the request
+chokepoint.
 
 ### 1.2 Statistics die with their source data
 
@@ -54,27 +56,31 @@ everything they reference is deleted.
 ## 2. Architecture
 
 ```
-            AI pipeline (src/main/ai) — NOT ledger-aware
-  ┌───────────────────────────────────────────────────────────┐
-  │ stream runtimes → PersistenceListener → MessageServiceBackend │
-  │            (computes cost: enrichStatsWithCost)            │
-  └───────────────────────────┬───────────────────────────────┘
-                              │ messageService.update({ stats })
-  ════════════════════════════▼═══════════════ data layer ═════
-  ┌─────────────────────────────────────────────────────────┐
-  │ MessageService.update            TemporaryChatService    │
-  │   post-commit hook                 .persist()            │
-  │   (assistant + stats)              (kept temp chats)     │
-  └──────────────┬──────────────────────────┬───────────────┘
-                 │ fire-and-forget          │ fire-and-forget
-                 ▼                          ▼
-  ┌─────────────────────────────────────────────────────────┐
-  │ UsageLedgerService                                       │
-  │  recordFromMessage()  ← projects stats → ledger columns  │
-  │  resolveKeyAttribution()  ← ProviderService state        │
-  │  reconcileFromMessages()  ← lazy backfill on first read  │
-  │  list() / stats()                                        │
-  └──────────────────────────┬──────────────────────────────┘
+            AI pipeline (src/main/ai)
+  ┌─────────────────────────────────────────────────────────────────┐
+  │ AiService.streamText / generateText — the single chokepoint:    │
+  │   every aiSdk request (chat, gateway, translate, rename) builds │
+  │   its Agent here. billingHookPart(model, messageId?) fires once │
+  │   per request at onFinish ──────────────────────────┐           │
+  │                                                     │           │
+  │ stream runtimes → PersistenceListener →             │           │
+  │   MessageServiceBackend (enrichStatsWithCost)       │           │
+  └──────────────────────────┬──────────────────────────┼───────────┘
+                             │ messageService.update    │ recordRequest
+  ═══════════════════════════▼══════════════════════════▼═ data layer ═
+  ┌───────────────────────────────────────────────────────────────┐
+  │ MessageService.update hook    TemporaryChatService.persist()   │
+  │   (assistant + stats)           (kept temp chats)              │
+  └──────────────┬──────────────────────┬─────────────────────────┘
+                 ▼                      ▼            (all fire-and-forget)
+  ┌───────────────────────────────────────────────────────────────┐
+  │ UsageLedgerService                                             │
+  │  recordRequest()  ← upsert; enriches cost when absent          │
+  │  recordFromMessage()  ← delegates with messageId as row key    │
+  │  resolveKeyAttribution()  ← ProviderService state              │
+  │  reconcileFromMessages()  ← lazy backfill on first read        │
+  │  list() / stats()                                              │
+  └──────────────────────────┬────────────────────────────────────┘
                              ▼
                     usage_ledger (SQLite)
                              ▲
@@ -83,22 +89,34 @@ everything they reference is deleted.
 
 Design rules:
 
-1. **Non-invasive**: the AI pipeline never imports the ledger. The only live
-   capture point is a post-commit, fire-and-forget hook in
-   `MessageService.update` — a billing event *is* "an assistant message landed
-   token stats", and that fact is observable entirely inside the data layer.
-2. **Single-source derivation**: ledger numbers are *projected* from the
-   already-persisted `message.stats`, never recomputed. The two can't disagree
-   at write time by construction. Cost itself is resolved earlier, at message
-   persistence (`enrichStatsWithCost` in `MessageServiceBackend`: computed
-   from model pricing, or provider-reported when
-   `apiFeatures.reportsActualCost`).
-3. **Lifecycle decoupling**: no `.references()` anywhere. `messageId`,
+1. **One chokepoint for live capture**: every aiSdk request — chat stream,
+   API gateway, translate, topic rename — constructs its `Agent` in exactly
+   two methods (`AiService.streamText` / `generateText`). The billing funnel
+   (`billingHookPart`) hooks the request's `onFinish` there, deliberately
+   **separate from the telemetry hook** (`analyticsHookPart` →
+   `AnalyticsService`): billing and telemetry are different concerns. The
+   streaming internals (runtimes, listeners, persistence backends) stay
+   ledger-free.
+2. **Convergent dual write for chat**: the funnel records with the assistant
+   message id as the row key — the same key the durable data-layer hook
+   (`MessageService.update`, post-commit) writes after persistence. Both
+   paths upsert one row: usage columns are last-write-wins, key attribution
+   keeps the earliest non-`none` resolution, and `topicId` never regresses
+   to NULL. Stateless requests have no message — their row key is a
+   per-request id and the funnel is their only writer.
+3. **Single-source derivation**: ledger numbers are *projected* from the
+   accumulated usage / persisted `message.stats`, never recomputed. Cost is
+   resolved by one shared function (`enrichStatsWithCost`, data layer):
+   message persistence enriches `message.stats`; `recordRequest` enriches
+   ledger rows whose stats don't already carry a cost. Computed from model
+   pricing by default, provider-reported when `apiFeatures.reportsActualCost`.
+4. **Lifecycle decoupling**: no `.references()` anywhere. `messageId`,
    `topicId`, `providerId`, `modelId`, and the key snapshot are plain string
    columns. Deleting the message/topic/provider/key never touches ledger rows.
-4. **Best-effort by contract**: ledger writes are `void ...catch(log)` —
-   they must never disrupt message persistence. Losses are healed by
-   reconciliation (§5).
+5. **Best-effort by contract**: ledger writes are `void ...catch(log)` —
+   they must never disrupt the request or message persistence. Chat-row
+   losses are healed by reconciliation (§5); stateless rows have no durable
+   source to re-derive from.
 
 ### Division of labour vs `message.stats`
 
@@ -120,7 +138,7 @@ a replacement.
 
 | Group | Columns | Notes |
 | --- | --- | --- |
-| Identity | `messageId` (UNIQUE), `topicId`, `providerId`, `modelId` | Plain snapshots, no FKs. `messageId` is the idempotency key |
+| Identity | `messageId` (UNIQUE), `topicId`, `providerId`, `modelId` | Plain snapshots, no FKs. `messageId` is the idempotency key: the assistant message id for chat, a per-request id for stateless requests |
 | Key snapshot | `apiKeyId`, `apiKeyLabel`, `apiKeyMasked`, `apiKeyAttribution` | Denormalized at write time; masked value never contains the raw key (≤8-char keys clamp to `****`) |
 | Usage | `inputTokens`, `outputTokens`, `totalTokens`, `reasoningTokens`, `cacheReadTokens`, `cacheWriteTokens` | AI SDK v6 names, mirrors `MessageStats` |
 | Cost | `cost`, `costCurrency`, `costSource` (`provider`/`computed`) | Mirrors `MessageStats` cost fields |
@@ -159,14 +177,19 @@ time; a later re-resolution after a restart must not downgrade `exact` to
 
 | # | Path | Covers | Mechanism |
 | --- | --- | --- | --- |
-| 1 | `MessageService.update` hook | All live persistent-chat turns (the stream pipeline finalizes every assistant message through `update({ stats })`) | Post-commit, fire-and-forget `recordFromMessage` |
-| 2 | `TemporaryChatService.persist` | Temp chats the user keeps (raw-inserts bypass the hook) | Same projection, fired after the insert tx |
-| 3 | `reconcileFromMessages` | v1-migrated history; rows lost to crash/quit | Lazy backfill, §5 |
+| 1 | `AiService.billingHookPart` (billing funnel) | **Every aiSdk request**: chat streams, API gateway, translate, topic rename, ephemeral temp chats | Per-request `onFinish` → fire-and-forget `recordRequest`; row key = assistant message id (chat) or generated request id |
+| 2 | `MessageService.update` hook | All persisted assistant messages (durable confirmation; converges with path 1 on the same row key) | Post-commit, fire-and-forget `recordFromMessage` |
+| 3 | `TemporaryChatService.persist` | Temp chats the user keeps (raw-inserts bypass the hook) | Same projection, fired after the insert tx |
+| 4 | `reconcileFromMessages` | v1-migrated history; chat rows lost to crash/quit | Lazy backfill, §5 |
 
-`recordFromMessage` guards: assistant role, parseable `modelId`
-(`providerId::modelId`), and a usage signal (any of input/output/total
-tokens or cost) — timing-only stats don't create rows. Writes go through
+`recordRequest` guards: parseable `modelId` (`providerId::modelId`) and a
+usage signal (any of input/output/total tokens or cost) — timing-only stats
+and zero-usage runs don't create rows. Cost is enriched in-place when the
+caller's stats carry none (the funnel path). Writes go through
 `DbService.withWriteTx` with `onConflictDoUpdate` on `messageId`.
+
+Out of funnel reach: agent sessions (separate runtime + table) and
+embeddings/image generation (different SDK APIs).
 
 ---
 
@@ -211,35 +234,17 @@ summed into one number. Buckets are ordered by total cost descending.
 
 ---
 
-## 7. Coverage today & extension to stateless surfaces
+## 7. Coverage
 
 | Surface | Recorded | Notes |
 | --- | --- | --- |
-| Persistent chat (incl. multi-model, continue) | ✅ | Path 1 |
-| Kept temporary chats | ✅ | Path 2 |
-| v1-migrated history | ✅ (backfilled) | Path 3, `backfill`/`none` attribution |
-| Discarded temporary chats | ❌ | User chose ephemerality; in-memory only |
-| Agent sessions | ❌ | Separate table (`agent_session_message`); needs a sibling hook in `AgentSessionMessageService.saveMessage` |
-| **API Gateway / translate / rename / embeddings** | ❌ (the motivating gap) | See recipe below |
-
-### Recipe: recording a stateless request
-
-The ledger is already shaped for this — `messageId` is just a unique string,
-not a FK. A stateless caller records by synthesizing an id:
-
-1. At the call site (e.g. gateway request teardown, `generateText` finish),
-   build the input from the SDK usage result:
-   `{ id: requestId, topicId: null, role: 'assistant', modelId, stats }`.
-2. Fire `usageLedgerService.recordFromMessage(input)` (fire-and-forget),
-   or add a thin `recordStatelessUsage({ requestId, modelId, stats })`
-   wrapper if the `Message`-pick shape feels off.
-3. That's it — attribution, masking, idempotency, and aggregation come free.
-
-Caveats for that follow-up: those call sites live in `src/main/ai` /
-`src/main/features`, so unlike the chat hook this *does* touch the request
-side (one line at each teardown); reconciliation cannot heal lost stateless
-rows (there is no durable source to re-derive them from); and gateway streams
-should record once per request, not per chunk.
+| Persistent chat (incl. multi-model, continue) | ✅ | Funnel (path 1) + persistence hook (path 2) converging on the message id |
+| **API Gateway** | ✅ | Funnel — gateway requests carry no message id, so rows get a per-request id |
+| **Translate / topic rename** (`generateText`) | ✅ | Funnel |
+| Temporary chats (kept **and** discarded) | ✅ | Funnel records the spend either way; `persist()` (path 3) adds topic context for kept chats |
+| v1-migrated history | ✅ (backfilled) | Path 4, `backfill`/`none` attribution |
+| Agent sessions | ❌ | Separate runtime + table (`agent_session_message`); needs a sibling hook in `AgentSessionMessageService.saveMessage` |
+| Embeddings / image generation | ❌ | Different SDK APIs, no Agent run; would need their own `recordRequest` call sites |
 
 ---
 
@@ -254,11 +259,16 @@ should record once per request, not per chunk.
   (and therefore the ledger row) reflects the continuation leg only. The
   ledger faithfully mirrors the message — the fix belongs upstream in the
   stream pipeline.
-- **Quit-window loss**: a crash between message commit and the async ledger
-  write loses that row until the next reconciliation pass.
-- **Out-of-order double-persist**: two re-persists of the same message racing
+- **Quit-window loss**: a crash between request finish and the async ledger
+  write loses that row. Chat rows heal on the next reconciliation pass;
+  stateless rows (gateway, translate, rename) have no durable source to
+  re-derive from and stay lost.
+- **Out-of-order double-write**: two writes for the same row key racing
   through attribution can land usage values out of commit order
   (millisecond window, no monotonic guard).
+- **Errored/aborted stateless requests**: the funnel records at `onFinish`;
+  a request that errors mid-stream may not reach it, so its partial spend is
+  unrecorded (chat partials are still captured by the persistence hook).
 
 ---
 
@@ -269,10 +279,12 @@ should record once per request, not per chunk.
 | `src/main/data/db/schemas/usageLedger.ts` | Table, indexes, check constraints |
 | `src/shared/data/types/usageLedger.ts` | Entity zod schema, attribution enum |
 | `src/shared/data/api/schemas/usageLedger.ts` | Query DTOs, route table |
-| `src/main/data/services/UsageLedgerService.ts` | Record/attribution/reconcile/list/stats |
-| `src/main/data/services/MessageService.ts` | Live capture hook (`update`) |
-| `src/main/data/services/TemporaryChatService.ts` | Kept-temp-chat capture |
+| `src/main/data/services/UsageLedgerService.ts` | `recordRequest`/attribution/reconcile/list/stats |
+| `src/main/data/services/utils/costEnrichment.ts` | Shared cost resolution (pricing vs provider-reported) |
+| `src/main/ai/AiService.ts` | Billing funnel (`billingHookPart`) — the per-request chokepoint |
+| `src/main/data/services/MessageService.ts` | Durable capture hook (`update`) |
+| `src/main/data/services/TemporaryChatService.ts` | Kept-temp-chat topic context |
 | `src/main/data/services/ProviderService.ts` | `getLastUsedApiKeyId` (rotation pointer owner) |
 | `src/main/data/api/handlers/usageLedger.ts` | DataApi handlers |
 | `src/shared/utils/api/utils.ts` | `maskApiKey` (shared; ledger clamps short keys) |
-| `src/main/data/services/__tests__/UsageLedgerService.test.ts` | 23 tests: record/attribution/list/stats/reconcile |
+| `src/main/data/services/__tests__/UsageLedgerService.test.ts` | record/attribution/funnel/list/stats/reconcile tests |

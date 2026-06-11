@@ -1,23 +1,21 @@
 /**
- * Unit tests for `enrichStatsWithCost` — the cost-resolution step that runs at
- * assistant-message persistence. Default is computed-from-pricing; a
- * provider-reported figure is trusted only when the provider is flagged
+ * Unit tests for `enrichStatsWithCost` — the cost-resolution step shared by
+ * message persistence and the usage ledger. Default is computed-from-pricing;
+ * a provider-reported figure is trusted only when the provider is flagged
  * `apiFeatures.reportsActualCost`.
  */
 
-import type { CherryUIMessage, MessageStats } from '@shared/data/types/message'
+import type { MessageStats } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const getByKeyMock = vi.fn()
 const getByProviderIdMock = vi.fn()
-const updateMock = vi.fn()
 
-vi.mock('@main/data/services/MessageService', () => ({ messageService: { update: updateMock } }))
 vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: getByKeyMock } }))
 vi.mock('@main/data/services/ProviderService', () => ({ providerService: { getByProviderId: getByProviderIdMock } }))
 
-const { enrichStatsWithCost } = await import('../MessageServiceBackend')
+const { enrichStatsWithCost } = await import('../costEnrichment')
 
 const tokenStats: MessageStats = {
   inputTokens: 100,
@@ -34,9 +32,6 @@ const usdModel = {
     cacheWrite: { perMillionTokens: 3.75, currency: 'USD' }
   }
 }
-
-const withProviderCost = (cost: number): CherryUIMessage =>
-  ({ metadata: { providerCostUsd: cost } }) as unknown as CherryUIMessage
 
 beforeEach(() => {
   getByKeyMock.mockReset()
@@ -66,7 +61,7 @@ describe('enrichStatsWithCost', () => {
   it('trusts provider-reported cost when reportsActualCost is set', async () => {
     getByKeyMock.mockResolvedValue(usdModel)
     getByProviderIdMock.mockResolvedValue({ apiFeatures: { reportsActualCost: true } })
-    const result = await enrichStatsWithCost(tokenStats, 'openrouter::x' as UniqueModelId, withProviderCost(0.99))
+    const result = await enrichStatsWithCost(tokenStats, 'openrouter::x' as UniqueModelId, 0.99)
     expect(result?.cost).toBe(0.99)
     expect(result?.costSource).toBe('provider')
     expect(result?.costCurrency).toBe('USD')
@@ -78,11 +73,7 @@ describe('enrichStatsWithCost', () => {
   it('computes (not provider) when flagged reliable but no providerCostUsd is present', async () => {
     getByKeyMock.mockResolvedValue(usdModel)
     getByProviderIdMock.mockResolvedValue({ apiFeatures: { reportsActualCost: true } })
-    const result = await enrichStatsWithCost(
-      tokenStats,
-      'openrouter::x' as UniqueModelId,
-      { metadata: {} } as CherryUIMessage
-    )
+    const result = await enrichStatsWithCost(tokenStats, 'openrouter::x' as UniqueModelId, undefined)
     expect(result?.costSource).toBe('computed')
   })
 

@@ -37,13 +37,14 @@ import type {
   UsageLedgerStatsResponse
 } from '@shared/data/api/schemas/usageLedger'
 import type { Message } from '@shared/data/types/message'
-import { parseUniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { UsageLedgerAttribution, UsageLedgerEntry } from '@shared/data/types/usageLedger'
 import { maskApiKey } from '@shared/utils/api'
 import type { SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, gt, gte, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm'
 
 import { providerService } from './ProviderService'
+import { enrichStatsWithCost } from './utils/costEnrichment'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:UsageLedgerService')
@@ -149,45 +150,82 @@ function statsToColumns(stats: NonNullable<Message['stats']>) {
   }
 }
 
+export interface RecordRequestInput {
+  /**
+   * Ledger row key. For chat requests this is the assistant message id (the
+   * same key the `MessageService.update` hook writes, so the two capture
+   * paths converge on one row); for stateless requests (API gateway,
+   * translate, rename) it is a per-request id.
+   */
+  id: string
+  topicId?: string | null
+  /** UniqueModelId ("providerId::modelId"). */
+  modelId: string
+  stats: NonNullable<Message['stats']>
+  /** Provider-reported cost candidate from raw usage (e.g. OpenRouter). */
+  providerCostUsd?: number
+}
+
 export class UsageLedgerService {
   /**
    * Record (upsert) the ledger row for an assistant message that landed
-   * token stats. Idempotent on `messageId`: usage/cost columns are
-   * last-write-wins on re-persists (retries, continue-after-tool-approval);
-   * key-identity columns keep the earliest non-`none` attribution. No-op for
-   * rows without any usage signal.
-   *
-   * Known limitation: a continue-after-tool-approval run restarts the
-   * pipeline's usage accumulator, so the re-persisted `message.stats` (and
-   * therefore this row) reflects the continuation leg only — the same
-   * under-count is visible on the message itself. Fixing that belongs
-   * upstream in the stream pipeline, not here.
-   *
-   * Best-effort by contract: callers fire-and-forget; failures must never
-   * disrupt message persistence.
+   * token stats. Delegates to {@link recordRequest} with the message id as
+   * the row key.
    */
   async recordFromMessage(message: UsageLedgerMessageInput): Promise<void> {
     if (message.role !== 'assistant') return
+    if (!message.stats || !message.modelId) return
+    await this.recordRequest({
+      id: message.id,
+      topicId: message.topicId,
+      modelId: message.modelId,
+      stats: message.stats
+    })
+  }
 
-    const stats = message.stats
-    if (!stats || !hasUsageSignal(stats)) return
+  /**
+   * Record (upsert) the ledger row for one billable AI request. Idempotent
+   * on the row key: usage/cost columns are last-write-wins on re-records
+   * (retries, continue-after-tool-approval, funnel + persistence-hook
+   * convergence); key-identity columns keep the earliest non-`none`
+   * attribution; `topicId` never regresses to NULL. No-op for stats without
+   * any usage signal. Cost is enriched here (pricing/provider lookup) when
+   * the caller's stats don't already carry one.
+   *
+   * Known limitation: a continue-after-tool-approval run restarts the
+   * pipeline's usage accumulator, so a re-record reflects the continuation
+   * leg only — the same under-count is visible on the message itself.
+   * Fixing that belongs upstream in the stream pipeline, not here.
+   *
+   * Best-effort by contract: callers fire-and-forget; failures must never
+   * disrupt the request or message persistence.
+   */
+  async recordRequest(input: RecordRequestInput): Promise<void> {
+    if (!hasUsageSignal(input.stats)) return
 
-    if (!message.modelId) return
     let providerId: string
     try {
-      ;({ providerId } = parseUniqueModelId(message.modelId as `${string}::${string}`))
+      ;({ providerId } = parseUniqueModelId(input.modelId as `${string}::${string}`))
     } catch {
-      logger.warn('recordFromMessage: unparseable modelId, skipping', { modelId: message.modelId })
+      logger.warn('recordRequest: unparseable modelId, skipping', { modelId: input.modelId })
       return
     }
+
+    // Stateless requests skip the message-persistence cost step — resolve
+    // cost here when absent. Already-enriched stats pass through untouched.
+    const stats =
+      input.stats.cost === undefined
+        ? ((await enrichStatsWithCost(input.stats, input.modelId as UniqueModelId, input.providerCostUsd)) ??
+          input.stats)
+        : input.stats
 
     const key = await this.resolveKeyAttribution(providerId)
 
     const values = {
-      messageId: message.id,
-      topicId: message.topicId ?? null,
+      messageId: input.id,
+      topicId: input.topicId ?? null,
       providerId,
-      modelId: message.modelId ?? null,
+      modelId: input.modelId,
       apiKeyId: key.keyId ?? null,
       apiKeyLabel: key.label ?? null,
       apiKeyMasked: key.masked ?? null,
@@ -209,6 +247,10 @@ export class UsageLedgerService {
           target: usageLedgerTable.messageId,
           set: {
             ...values,
+            // The billing funnel records without topic context; the
+            // persistence hook records with it. Whichever lands second must
+            // not erase the topic.
+            topicId: sql`COALESCE(excluded.topic_id, ${usageLedgerTable.topicId})`,
             apiKeyId: sql`CASE WHEN ${keepStored} THEN ${usageLedgerTable.apiKeyId} ELSE excluded.api_key_id END`,
             apiKeyLabel: sql`CASE WHEN ${keepStored} THEN ${usageLedgerTable.apiKeyLabel} ELSE excluded.api_key_label END`,
             apiKeyMasked: sql`CASE WHEN ${keepStored} THEN ${usageLedgerTable.apiKeyMasked} ELSE excluded.api_key_masked END`,
@@ -220,7 +262,7 @@ export class UsageLedgerService {
     })
 
     logger.debug('Recorded usage ledger entry', {
-      messageId: message.id,
+      id: input.id,
       providerId,
       attribution: key.attribution
     })

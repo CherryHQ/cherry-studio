@@ -28,10 +28,12 @@ Known boundaries:
   rows carry the message's original timestamp; providers with exactly one
   configured key are attributed to it with the explicit `backfill` confidence,
   everything else is `none` (the serving key was never recorded).
-- The same reconciliation heals ledger rows lost to crashes/quits (the live
-  write is fire-and-forget).
-- Ephemeral temporary chats are recorded only when the user keeps them
-  (persist-to-topic); discarded temp chats leave no ledger rows.
+- The same reconciliation heals chat ledger rows lost to crashes/quits (the
+  live write is fire-and-forget). Stateless rows (gateway/translate/rename)
+  cannot be re-derived and stay lost in that window.
+- A billing funnel at the AI request chokepoint records every aiSdk request,
+  including API Gateway traffic, translation, topic auto-rename, and
+  ephemeral temporary chats (real spend even when the chat is discarded).
 - With multiple enabled keys and concurrent requests to the same provider,
   `rotation` attribution can name the wrong key; exact attribution would
   require threading the chosen key through the request pipeline.

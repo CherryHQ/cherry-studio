@@ -11,6 +11,7 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { messageService } from '@main/data/services/MessageService'
 import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
+import { usageLedgerService } from '@main/data/services/UsageLedgerService'
 import { type TranslateOpenRequest, translateService } from '@main/services/translate/translateService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
 import { applyApprovalDecisions } from '@shared/ai/transport'
@@ -19,6 +20,7 @@ import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Base64String } from '@shared/file/types/common'
 import { IpcChannel } from '@shared/IpcChannel'
+import { extractProviderCost } from '@shared/utils/cost'
 import { isEmbeddingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
@@ -34,7 +36,7 @@ import { resolveUIMessageFileUrls } from './messages/messageConverter'
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import { Agent } from './runtime/aiSdk/Agent'
 import type { AgentLoopHooks } from './runtime/aiSdk/loop'
-import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
+import { mergeUsage, usageToStats, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
 import { buildAgentParams } from './runtime/aiSdk/params/buildAgentParams'
 import type { RequestFeature } from './runtime/aiSdk/params/feature'
 import { WebContentsListener } from './streamManager/listeners/WebContentsListener'
@@ -335,7 +337,7 @@ export class AiService extends BaseService {
       tools,
       system,
       options,
-      hookParts: [this.analyticsHookPart(model), ...hookParts]
+      hookParts: [this.analyticsHookPart(model), this.billingHookPart(model, request.messageId), ...hookParts]
     })
 
     return agent.stream(preparedMessages, signal)
@@ -348,6 +350,41 @@ export class AiService extends BaseService {
         if (step.usage) total = mergeUsage(total, step.usage)
       },
       onFinish: () => this.trackUsage(model, total)
+    }
+  }
+
+  /**
+   * Billing funnel — the single per-request capture point for the usage
+   * ledger, deliberately separate from {@link analyticsHookPart} (telemetry
+   * and billing are different concerns with different lifecycles).
+   *
+   * Every aiSdk request (chat, API gateway, translate, rename, …) flows
+   * through `streamText`/`generateText`, so this one hook covers them all.
+   * For chat, `requestMessageId` is the assistant message id — the ledger
+   * write converges with the message-persistence hook on the same row;
+   * stateless requests get a per-request id.
+   */
+  private billingHookPart(model: Model, requestMessageId?: string): Partial<AgentLoopHooks> {
+    let total: LanguageModelUsage = ZERO_USAGE
+    const id = requestMessageId ?? crypto.randomUUID()
+    return {
+      onStepFinish: (step) => {
+        if (step.usage) total = mergeUsage(total, step.usage)
+      },
+      onFinish: () => {
+        const stats = usageToStats(total)
+        if (!total.inputTokens && !total.outputTokens && !total.totalTokens) return
+        void usageLedgerService
+          .recordRequest({
+            id,
+            modelId: model.id,
+            stats,
+            providerCostUsd: extractProviderCost(total.raw)
+          })
+          .catch((err) => {
+            logger.warn('usage ledger record failed', { id, modelId: model.id, err })
+          })
+      }
     }
   }
 
@@ -374,7 +411,7 @@ export class AiService extends BaseService {
       tools,
       system: request.system ?? system,
       options,
-      hookParts: [this.analyticsHookPart(model), ...hookParts]
+      hookParts: [this.analyticsHookPart(model), this.billingHookPart(model), ...hookParts]
     })
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
