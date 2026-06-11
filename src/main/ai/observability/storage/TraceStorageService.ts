@@ -5,6 +5,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
+import { SPAN_NAME_TURN } from '@mcp-trace/trace-core/core/spanNames'
 import type { TraceStore } from '@mcp-trace/trace-core/core/traceStore'
 import type { Attributes, AttributeValue, SpanEntity } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
@@ -34,7 +35,7 @@ function mergeSpansById(base: SpanEntity[], overrides: SpanEntity[]): SpanEntity
 function reparentClaudeCodeUnderTurns(spans: SpanEntity[], traceId: string): SpanEntity[] {
   const containerRoot = deriveRootSpanId(traceId)
   const turns = spans
-    .filter((s) => s.name === 'ai.turn' && s.parentId === containerRoot)
+    .filter((s) => s.name === SPAN_NAME_TURN && s.parentId === containerRoot)
     .map((s) => ({ id: s.id, start: s.startTime, end: s.endTime ?? Number.POSITIVE_INFINITY }))
   if (turns.length === 0) return spans
   return spans.map((s) => {
@@ -60,7 +61,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   protected async onReady() {
     const enabled = application.get('PreferenceService').get('app.developer_mode.enabled')
     logger.info(
-      `Developer mode is ${enabled ? 'enabled' : 'disabled'}, span caching ${enabled ? 'activated' : 'skipped'}`
+      `Developer mode is ${enabled ? 'enabled' : 'disabled'}, trace storage ${enabled ? 'activated' : 'skipped'}`
     )
     if (enabled) {
       await this.activate()
@@ -317,8 +318,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
     try {
       const text = await fs.readFile(filePath, 'utf8')
-      return this.parseSpanLines(text)
-        .filter((span) => span.topicId === topicId && span.traceId === traceId)
+      return this.parseSpanLines(text).filter((span) => span.topicId === topicId && span.traceId === traceId)
     } catch (err) {
       // Only fs.readFile reaches here (parseSpanLines tolerates per-line JSON errors itself).
       logger.error('Failed to read trace history file', err as Error, { filePath })

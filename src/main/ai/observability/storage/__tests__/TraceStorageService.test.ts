@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
+import { SPAN_NAME_TURN } from '@mcp-trace/trace-core/core/spanNames'
 import type { SpanEntity } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
@@ -162,10 +163,10 @@ describe('TraceStorageService', () => {
     const traceId = '1234567890abcdef1234567890abcdef'
     const root = '1234567890abcdef' // deriveRootSpanId(traceId)
     service.saveEntity(
-      span({ id: 'turn1', traceId, topicId: 't', name: 'ai.turn', parentId: root, startTime: 10, endTime: 20 })
+      span({ id: 'turn1', traceId, topicId: 't', name: SPAN_NAME_TURN, parentId: root, startTime: 10, endTime: 20 })
     )
     service.saveEntity(
-      span({ id: 'turn2', traceId, topicId: 't', name: 'ai.turn', parentId: root, startTime: 30, endTime: 40 })
+      span({ id: 'turn2', traceId, topicId: 't', name: SPAN_NAME_TURN, parentId: root, startTime: 30, endTime: 40 })
     )
     service.saveEntity(
       span({
