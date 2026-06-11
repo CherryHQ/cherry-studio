@@ -7,7 +7,7 @@ import type { SerializedError } from '@renderer/types/error'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
 import { Link } from '@tanstack/react-router'
-import { AlertTriangle, ChevronRight, Settings, X } from 'lucide-react'
+import { AlertTriangle, ChevronRight, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
@@ -174,19 +174,15 @@ const MessageErrorInfo: React.FC<{
   return (
     <div
       className={cn(
-        'group relative my-2 rounded-lg border px-3.5 py-3 text-[13px] transition-all duration-200 hover:border-[color-mix(in_srgb,var(--color-error-base)_35%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-error-base)_7%,transparent)]',
+        'group relative my-2 rounded-lg border border-border border-l-[3px] border-l-error-base bg-transparent px-3.5 py-3 text-[13px] transition-all duration-200',
         canOpenDetail && 'cursor-pointer'
       )}
-      style={{
-        borderColor: 'color-mix(in srgb, var(--color-error-base) 20%, transparent)',
-        background: 'color-mix(in srgb, var(--color-error-base) 4%, transparent)'
-      }}
       onClick={canOpenDetail ? showErrorDetail : undefined}>
       {/* Close button */}
       {canRemoveErrorPart && (
         <button
           type="button"
-          className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent opacity-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-error-base)_12%,transparent)] hover:text-error-text group-hover:opacity-100"
+          className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent text-foreground-muted opacity-0 transition-all duration-150"
           onClick={onRemoveErrorPart}
           aria-label="close"
           title={t('common.close')}>
@@ -196,12 +192,10 @@ const MessageErrorInfo: React.FC<{
 
       {/* Header: icon + title */}
       <div className="mb-1.5 flex items-center gap-2">
-        <div className="flex shrink-0 items-center justify-center" style={{ color: 'var(--color-error-base)' }}>
+        <div className="flex shrink-0 items-center justify-center text-error-base">
           <AlertTriangle size={15} />
         </div>
-        <div className="pr-5 font-semibold text-[13px] leading-[1.4]" style={{ color: 'var(--color-error-base)' }}>
-          {aiSummary || t(classification.i18nKey)}
-        </div>
+        <div className="pr-5 font-semibold text-[13px] leading-[1.4]">{aiSummary || t(classification.i18nKey)}</div>
       </div>
 
       {/* Description */}
@@ -217,15 +211,15 @@ const MessageErrorInfo: React.FC<{
           <Button
             size="sm"
             type="button"
-            className="inline-flex items-center gap-1 rounded-[5px] border-[color-mix(in_srgb,var(--color-error-base)_25%,transparent)] text-error-text text-xs hover:border-error-border"
+            variant="outline"
+            className="rounded-[5px] border-error-border bg-error-bg text-error-text hover:border-error-border-hover hover:bg-error-bg-hover hover:text-error-text-hover"
             onClick={onNavigate}>
-            <Settings size={12} />
             {t('error.diagnosis.go_to_settings')}
           </Button>
         )}
         {canOpenDetail && (
           <div
-            className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-error-text"
+            className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-foreground"
             style={{ color: 'var(--color-foreground-muted)' }}>
             {t('common.detail')}
             <ChevronRight size={14} />
