@@ -8,6 +8,7 @@ import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/p
 import { cn, compressImage, convertToBase64, generateColorFromChar, getForegroundColor, uuid } from '@renderer/utils'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, AuthType, EndpointConfig, Provider } from '@shared/data/types/provider'
+import { isEmpty } from 'lodash'
 import { ChevronRight, Eye, EyeOff, ImagePlus, RotateCcw } from 'lucide-react'
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -231,7 +232,7 @@ export default function ProviderEditorDrawer({
           endpointConfigs[defaultChatEndpoint] = { baseUrl: trimmedBaseUrl }
         }
         mergeSecondaryEndpoints(endpointConfigs, secondaryUrls, defaultChatEndpoint)
-        if (Object.keys(endpointConfigs).length > 0) {
+        if (!isEmpty(endpointConfigs)) {
           submit.endpointConfigs = endpointConfigs
         }
         if (apiKeysPayload) {
@@ -400,7 +401,7 @@ function AvatarSection({
   return (
     <div className="flex flex-col items-center gap-3">
       <div
-        className="flex h-[76px] w-[76px] items-center justify-center overflow-hidden rounded-full border border-border/70 bg-muted/50"
+        className="flex h-19 w-19 items-center justify-center overflow-hidden rounded-full border border-border/70 bg-muted/50"
         style={
           avatarBackgroundColor && avatarForegroundColor
             ? { backgroundColor: avatarBackgroundColor, color: avatarForegroundColor }

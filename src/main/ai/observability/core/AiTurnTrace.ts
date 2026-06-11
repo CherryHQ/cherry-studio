@@ -1,11 +1,16 @@
 import { loggerService } from '@logger'
 import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
 import type { Attributes, Span, SpanOptions, Tracer } from '@opentelemetry/api'
-import { SpanStatusCode, trace } from '@opentelemetry/api'
+import { ROOT_CONTEXT, SpanStatusCode, trace, TraceFlags } from '@opentelemetry/api'
 import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
+import { deriveRootSpanId } from '@shared/data/types/trace'
 
 import { TRACER_NAME } from '../constants'
 import { observabilitySinks } from '../sinks/ObservabilitySinkRegistry'
+
+// `deriveRootSpanId` now lives in `@shared/data/types/trace` so the renderer trace viewer can
+// share it; re-exported here for existing main-side import paths.
+export { deriveRootSpanId }
 
 const logger = loggerService.withContext('AiTurnTrace')
 
@@ -34,13 +39,32 @@ export interface AiTurnTraceHandle {
   toAgentRuntimeTraceContext(): AgentRuntimeTraceContext | undefined
 }
 
+/** Root turn span (no parent) — the container's first activity. */
 export function startAiTurnTrace(
   name: string,
   options: SpanOptions,
   meta: AiTurnTraceMeta,
   tracer: Tracer = trace.getTracer(TRACER_NAME)
 ): AiTurnTraceHandle {
-  const rootSpan = startTraceRootSpan(tracer, name, options, meta)
+  return buildTurnHandle(startTraceRootSpan(tracer, name, options, meta), meta)
+}
+
+/**
+ * Child turn span under a container trace's synthetic root. Inherits the container
+ * traceId, so every turn of a topic/session lands in one trace tree. The root span id
+ * is derived from `traceId` internally (callers pass only the traceId).
+ */
+export function startAiChildTurnSpan(
+  name: string,
+  options: SpanOptions,
+  meta: AiTurnTraceMeta,
+  traceId: string,
+  tracer: Tracer = trace.getTracer(TRACER_NAME)
+): AiTurnTraceHandle {
+  return buildTurnHandle(startTraceRootSpan(tracer, name, options, meta, traceId), meta)
+}
+
+function buildTurnHandle(rootSpan: Span, meta: AiTurnTraceMeta): AiTurnTraceHandle {
   const spanContext = rootSpan.spanContext()
   observabilitySinks.registerTraceMeta(spanContext.traceId, { topicId: meta.topicId, modelName: meta.modelName })
 
@@ -76,8 +100,25 @@ export function startAiTurnTrace(
   }
 }
 
-export function startTraceRootSpan(tracer: Tracer, name: string, options: SpanOptions, meta: AiTurnTraceMeta): Span {
-  const span = tracer.startSpan(name, options)
+export function startTraceRootSpan(
+  tracer: Tracer,
+  name: string,
+  options: SpanOptions,
+  meta: AiTurnTraceMeta,
+  parentTraceId?: string
+): Span {
+  const span = parentTraceId
+    ? tracer.startSpan(
+        name,
+        options,
+        trace.setSpanContext(ROOT_CONTEXT, {
+          traceId: parentTraceId,
+          spanId: deriveRootSpanId(parentTraceId),
+          traceFlags: TraceFlags.SAMPLED,
+          isRemote: true
+        })
+      )
+    : tracer.startSpan(name, options)
   if (meta.topicId) span.setAttribute('trace.topicId', meta.topicId)
   if (meta.modelName) span.setAttribute('trace.modelName', meta.modelName)
 

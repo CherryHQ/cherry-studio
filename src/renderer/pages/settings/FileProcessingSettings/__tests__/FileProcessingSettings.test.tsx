@@ -274,6 +274,16 @@ describe('FileProcessingSettings', () => {
     })
   })
 
+  it('shows feature group titles so processors shared by OCR and document parsing are not ambiguous', async () => {
+    render(<FileProcessingSettings />)
+
+    expect(await screen.findByText('settings.tool.file_processing.features.image_to_text.title')).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.features.document_to_markdown.title')).toBeInTheDocument()
+    expect(
+      screen.getAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    ).toHaveLength(2)
+  })
+
   it('shows the provider detail header with a default badge and hides the default button', async () => {
     preferencesMock.defaultImageProcessor = 'system'
 
@@ -510,14 +520,14 @@ describe('FileProcessingSettings', () => {
     )
 
     const apiKeyLabel = screen.getByText('settings.tool.file_processing.fields.api_key')
-    const modelSection = screen.getByText('settings.tool.file_processing.sections.model_parameters')
+    const parseModelLabel = screen.getByText('settings.tool.file_processing.processors.paddleocr.fields.parse_model')
     const deploymentDescription = screen.getByText(
       'settings.tool.file_processing.processors.paddleocr.deployment.description'
     )
 
     expect(deploymentDescription).toBeInTheDocument()
-    expect(apiKeyLabel.compareDocumentPosition(modelSection)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(modelSection.compareDocumentPosition(deploymentDescription)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(apiKeyLabel.compareDocumentPosition(parseModelLabel)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(parseModelLabel.compareDocumentPosition(deploymentDescription)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(
       screen.getByRole('link', { name: /settings.tool.file_processing.processors.paddleocr.deployment.docs/ })
     ).toHaveAttribute('href', PADDLEOCR_DEPLOYMENT_URL)

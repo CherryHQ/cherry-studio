@@ -55,8 +55,6 @@ export const CreateMessageSchema = z.strictObject({
   modelId: z.string().optional(),
   /** Model snapshot captured at message creation time */
   modelSnapshot: ModelSnapshotSchema.optional(),
-  /** Trace ID */
-  traceId: z.string().optional(),
   /** Statistics */
   stats: MessageStatsSchema.optional(),
   /** Set this message as the active node in the topic (default: true) */
@@ -76,8 +74,6 @@ export const UpdateMessageSchema = z.strictObject({
   siblingsGroupId: z.number().optional(),
   /** Update status */
   status: MessageStatusSchema.optional(),
-  /** Update trace ID */
-  traceId: z.string().nullable().optional(),
   /** Update statistics */
   stats: MessageStatsSchema.nullable().optional()
 })

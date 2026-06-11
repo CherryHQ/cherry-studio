@@ -145,8 +145,6 @@ export interface CherryUIMessageMetadata {
   modelSnapshot?: ModelSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
-  /** Trace id for the assistant execution that produced this message. */
-  traceId?: string | null
 
   /** Creation timestamp (ISO). */
   createdAt?: string
@@ -443,8 +441,6 @@ export const MessageSchema = z.strictObject({
   modelId: z.string().nullable().optional(),
   /** Snapshot of model at message creation time */
   modelSnapshot: ModelSnapshotSchema.nullable().optional(),
-  /** Trace ID for tracking */
-  traceId: z.string().nullable().optional(),
   /** Statistics: token usage, performance metrics */
   stats: MessageStatsSchema.nullable().optional(),
   /** Creation timestamp (ISO string) */

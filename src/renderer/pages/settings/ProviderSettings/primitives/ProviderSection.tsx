@@ -20,7 +20,7 @@ export default function ProviderSection({ id, title, description, action, childr
           <div className="min-w-0">
             {title && <div className={sectionHeadingClasses}>{title}</div>}
             {description && (
-              <div className="mt-1 text-[length:var(--font-size-body-xs)] text-foreground-muted leading-[var(--line-height-body-xs)]">
+              <div className="text-(length:--font-size-body-xs) mt-1 text-foreground-muted leading-(--line-height-body-xs)">
                 {description}
               </div>
             )}

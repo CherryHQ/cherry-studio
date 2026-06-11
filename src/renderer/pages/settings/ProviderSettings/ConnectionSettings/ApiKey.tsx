@@ -9,7 +9,7 @@ import { useAuthenticationApiKey } from '../hooks/providerSetting/useAuthenticat
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import ProviderField from '../primitives/ProviderField'
 import ProviderSection from '../primitives/ProviderSection'
-import { fieldClasses } from '../primitives/ProviderSettingsPrimitives'
+import { fieldClasses, ProviderHelpLink } from '../primitives/ProviderSettingsPrimitives'
 import ProviderApiKeyListDrawer from './ProviderApiKeyListDrawer'
 
 interface ApiKeyProps {
@@ -45,7 +45,20 @@ export default function ApiKey({
       <ProviderSection id={provider.id === 'cherryin' ? 'cherryin-api-key-section' : undefined}>
         <ProviderField
           className="space-y-2"
-          title={t('settings.provider.api_key.label')}
+          title={
+            <div className={fieldClasses.titleWithHelp}>
+              <span>{t('settings.provider.api_key.label')}</span>
+              {meta.apiKeyWebsite && !meta.isDmxapi ? (
+                <ProviderHelpLink
+                  target="_blank"
+                  rel="noreferrer"
+                  href={meta.apiKeyWebsite}
+                  className={fieldClasses.titleHelpLink}>
+                  {t('settings.provider.get_api_key')}
+                </ProviderHelpLink>
+              ) : null}
+            </div>
+          }
           titleClassName="text-foreground">
           <div className={fieldClasses.inputRow}>
             <InputGroup className={fieldClasses.inputGroup}>
@@ -58,7 +71,7 @@ export default function ApiKey({
                 disabled={provider.id === 'copilot'}
               />
               {provider.id !== 'copilot' && (
-                <InputGroupAddon align="inline-end" className="pr-1.5 has-[>button]:mr-0">
+                <InputGroupAddon align="inline-end" className="-mr-0.5 pr-0">
                   <Tooltip
                     content={
                       showApiKey ? t('settings.provider.api_key.hide_key') : t('settings.provider.api_key.show_key')
