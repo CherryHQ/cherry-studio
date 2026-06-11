@@ -9,8 +9,8 @@ const Riverflow = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <RiverflowDark {...props} className={className} />
   return (
     <>
-      <RiverflowLight className={cn('dark:hidden', className)} {...props} />
-      <RiverflowDark className={cn('hidden dark:block', className)} {...props} />
+      <RiverflowLight className={cn(className, 'dark:hidden')} {...props} />
+      <RiverflowDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

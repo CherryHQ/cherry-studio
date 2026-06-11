@@ -9,8 +9,8 @@ const Nousresearch = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <NousresearchDark {...props} className={className} />
   return (
     <>
-      <NousresearchLight className={cn('dark:hidden', className)} {...props} />
-      <NousresearchDark className={cn('hidden dark:block', className)} {...props} />
+      <NousresearchLight className={cn(className, 'dark:hidden')} {...props} />
+      <NousresearchDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

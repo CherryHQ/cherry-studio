@@ -9,8 +9,8 @@ const Zhipu = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <ZhipuDark {...props} className={className} />
   return (
     <>
-      <ZhipuLight className={cn('dark:hidden', className)} {...props} />
-      <ZhipuDark className={cn('hidden dark:block', className)} {...props} />
+      <ZhipuLight className={cn(className, 'dark:hidden')} {...props} />
+      <ZhipuDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

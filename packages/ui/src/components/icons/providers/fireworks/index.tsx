@@ -9,8 +9,8 @@ const Fireworks = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <FireworksDark {...props} className={className} />
   return (
     <>
-      <FireworksLight className={cn('dark:hidden', className)} {...props} />
-      <FireworksDark className={cn('hidden dark:block', className)} {...props} />
+      <FireworksLight className={cn(className, 'dark:hidden')} {...props} />
+      <FireworksDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

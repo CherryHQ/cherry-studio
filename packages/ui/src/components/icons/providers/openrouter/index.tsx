@@ -9,8 +9,8 @@ const Openrouter = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <OpenrouterDark {...props} className={className} />
   return (
     <>
-      <OpenrouterLight className={cn('dark:hidden', className)} {...props} />
-      <OpenrouterDark className={cn('hidden dark:block', className)} {...props} />
+      <OpenrouterLight className={cn(className, 'dark:hidden')} {...props} />
+      <OpenrouterDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

@@ -9,8 +9,8 @@ const Kimi = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <KimiDark {...props} className={className} />
   return (
     <>
-      <KimiLight className={cn('dark:hidden', className)} {...props} />
-      <KimiDark className={cn('hidden dark:block', className)} {...props} />
+      <KimiLight className={cn(className, 'dark:hidden')} {...props} />
+      <KimiDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

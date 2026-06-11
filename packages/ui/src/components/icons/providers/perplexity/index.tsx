@@ -9,8 +9,8 @@ const Perplexity = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <PerplexityDark {...props} className={className} />
   return (
     <>
-      <PerplexityLight className={cn('dark:hidden', className)} {...props} />
-      <PerplexityDark className={cn('hidden dark:block', className)} {...props} />
+      <PerplexityLight className={cn(className, 'dark:hidden')} {...props} />
+      <PerplexityDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

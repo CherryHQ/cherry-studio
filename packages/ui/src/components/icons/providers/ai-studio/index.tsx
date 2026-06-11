@@ -9,8 +9,8 @@ const AiStudio = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <AiStudioDark {...props} className={className} />
   return (
     <>
-      <AiStudioLight className={cn('dark:hidden', className)} {...props} />
-      <AiStudioDark className={cn('hidden dark:block', className)} {...props} />
+      <AiStudioLight className={cn(className, 'dark:hidden')} {...props} />
+      <AiStudioDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

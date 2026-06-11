@@ -9,8 +9,8 @@ const Recraft = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <RecraftDark {...props} className={className} />
   return (
     <>
-      <RecraftLight className={cn('dark:hidden', className)} {...props} />
-      <RecraftDark className={cn('hidden dark:block', className)} {...props} />
+      <RecraftLight className={cn(className, 'dark:hidden')} {...props} />
+      <RecraftDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

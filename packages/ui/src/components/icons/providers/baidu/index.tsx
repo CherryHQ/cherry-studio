@@ -9,8 +9,8 @@ const Baidu = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <BaiduDark {...props} className={className} />
   return (
     <>
-      <BaiduLight className={cn('dark:hidden', className)} {...props} />
-      <BaiduDark className={cn('hidden dark:block', className)} {...props} />
+      <BaiduLight className={cn(className, 'dark:hidden')} {...props} />
+      <BaiduDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

@@ -9,8 +9,8 @@ const Coze = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <CozeDark {...props} className={className} />
   return (
     <>
-      <CozeLight className={cn('dark:hidden', className)} {...props} />
-      <CozeDark className={cn('hidden dark:block', className)} {...props} />
+      <CozeLight className={cn(className, 'dark:hidden')} {...props} />
+      <CozeDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

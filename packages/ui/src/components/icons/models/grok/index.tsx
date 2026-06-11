@@ -9,8 +9,8 @@ const Grok = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <GrokDark {...props} className={className} />
   return (
     <>
-      <GrokLight className={cn('dark:hidden', className)} {...props} />
-      <GrokDark className={cn('hidden dark:block', className)} {...props} />
+      <GrokLight className={cn(className, 'dark:hidden')} {...props} />
+      <GrokDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

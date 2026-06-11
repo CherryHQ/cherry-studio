@@ -9,8 +9,8 @@ const Together = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <TogetherDark {...props} className={className} />
   return (
     <>
-      <TogetherLight className={cn('dark:hidden', className)} {...props} />
-      <TogetherDark className={cn('hidden dark:block', className)} {...props} />
+      <TogetherLight className={cn(className, 'dark:hidden')} {...props} />
+      <TogetherDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

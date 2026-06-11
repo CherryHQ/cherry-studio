@@ -9,8 +9,8 @@ const Openai = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <OpenaiDark {...props} className={className} />
   return (
     <>
-      <OpenaiLight className={cn('dark:hidden', className)} {...props} />
-      <OpenaiDark className={cn('hidden dark:block', className)} {...props} />
+      <OpenaiLight className={cn(className, 'dark:hidden')} {...props} />
+      <OpenaiDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }

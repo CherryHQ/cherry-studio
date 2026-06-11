@@ -9,8 +9,8 @@ const BoltNew = ({ variant, className, ...props }: CompoundIconProps) => {
   if (variant === 'dark') return <BoltNewDark {...props} className={className} />
   return (
     <>
-      <BoltNewLight className={cn('dark:hidden', className)} {...props} />
-      <BoltNewDark className={cn('hidden dark:block', className)} {...props} />
+      <BoltNewLight className={cn(className, 'dark:hidden')} {...props} />
+      <BoltNewDark className={cn(className, 'hidden dark:block')} {...props} />
     </>
   )
 }
