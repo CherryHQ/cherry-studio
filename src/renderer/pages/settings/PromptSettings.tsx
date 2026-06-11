@@ -147,7 +147,7 @@ const PromptSettings: FC = () => {
                 <Spinner text={t('common.loading')} />
               </div>
             ) : promptsError && reversedPrompts.length === 0 ? (
-              <div className="flex flex-1 items-center justify-center text-[var(--color-text-3)] text-sm">
+              <div className="flex flex-1 items-center justify-center text-foreground-muted text-sm">
                 {promptErrorText}
               </div>
             ) : (
@@ -164,7 +164,7 @@ const PromptSettings: FC = () => {
                         name: prompt.title,
                         ext: '.txt',
                         extra: (
-                          <div className="flex items-center gap-2 text-[var(--color-text-3)] text-xs">
+                          <div className="flex items-center gap-2 text-foreground-muted text-xs">
                             <span>
                               {prompt.content.slice(0, 80)}
                               {prompt.content.length > 80 ? '...' : ''}

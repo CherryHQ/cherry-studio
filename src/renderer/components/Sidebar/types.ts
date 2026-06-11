@@ -33,7 +33,7 @@ export interface SidebarRouteTab {
 
 export type SidebarTab = SidebarRouteTab | SidebarMiniAppTab
 
-export type SidebarLayout = 'hidden' | 'icon' | 'vertical-card' | 'full'
+export type SidebarLayout = 'hidden' | 'icon' | 'full'
 
 export type SidebarVisibleLayout = Exclude<SidebarLayout, 'hidden'>
 
