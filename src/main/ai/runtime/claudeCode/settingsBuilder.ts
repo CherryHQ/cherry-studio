@@ -636,7 +636,7 @@ async function buildToolPermissions(
   }
 }
 
-async function buildSystemPrompt(
+export async function buildSystemPrompt(
   session: AgentSessionEntity,
   agent: AgentEntity,
   cwd: string

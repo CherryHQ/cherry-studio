@@ -61,7 +61,7 @@ export const webLookupErrorSchema = z.object({ error: z.string() })
 export type WebLookupError = z.infer<typeof webLookupErrorSchema>
 export type WebLookupResult = WebSearchOutput | WebLookupError
 
-export const WEB_LOOKUP_ERROR_NOTE = 'Web search failed (network/provider error); retry or inform the user.'
+export const WEB_LOOKUP_ERROR_NOTE = 'Web lookup failed (network/provider error); retry or inform the user.'
 
 export function isWebLookupError(output: unknown): output is WebLookupError {
   return webLookupErrorSchema.safeParse(output).success
