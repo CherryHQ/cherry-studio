@@ -4,18 +4,32 @@ import { net } from 'electron'
 
 export const PADDLE_MAX_FILE_SIZE = 50 * MB
 
-let paddleOcrClientCtorPromise: Promise<(typeof import('@paddleocr/api-sdk'))['PaddleOCRClient']> | undefined
+type PaddleOcrClientLike = new (options?: unknown) => {
+  ocr: (...args: unknown[]) => Promise<unknown>
+  getStatus: (...args: unknown[]) => Promise<unknown>
+  submitDocumentParsing: (...args: unknown[]) => Promise<unknown>
+  waitDocumentParsingResult: (...args: unknown[]) => Promise<unknown>
+}
 
-async function getPaddleOcrClientCtor(): Promise<(typeof import('@paddleocr/api-sdk'))['PaddleOCRClient']> {
-  paddleOcrClientCtorPromise ??= import('@paddleocr/api-sdk')
-    .then((module) => module.PaddleOCRClient)
-    .catch((error) => {
-      throw new Error(
-        `PaddleOCR SDK is unavailable at runtime: ${error instanceof Error ? error.message : String(error)}`
-      )
-    })
+type PaddleOcrModuleLike = {
+  PaddleOCRClient: PaddleOcrClientLike
+}
 
-  return await paddleOcrClientCtorPromise
+let paddleOcrClientCtorPromise: Promise<PaddleOcrClientLike> | undefined
+
+async function getPaddleOcrClientCtor(): Promise<PaddleOcrClientLike> {
+  const ctorPromise =
+    paddleOcrClientCtorPromise ??
+    import('@paddleocr/api-sdk')
+      .then((module) => (module as PaddleOcrModuleLike).PaddleOCRClient)
+      .catch((error) => {
+        throw new Error(
+          `PaddleOCR SDK is unavailable at runtime: ${error instanceof Error ? error.message : String(error)}`
+        )
+      })
+
+  paddleOcrClientCtorPromise = ctorPromise
+  return await ctorPromise
 }
 
 /** Creates a PaddleOCR API client with SSRF-safe Electron fetch behavior. */
