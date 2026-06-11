@@ -948,6 +948,9 @@ export function getXAIReasoningParams(
       case 'high':
         return { reasoningEffort }
       default:
+        // grok-4.3 only accepts low/medium/high; anything else (e.g. the renderer's 'none' option)
+        // is dropped. Trace it so the silent omission is diagnosable while the UI still offers 'none'.
+        logger.debug('grok-4.3 dropping unsupported reasoning effort', { reasoningEffort })
         return {}
     }
   }

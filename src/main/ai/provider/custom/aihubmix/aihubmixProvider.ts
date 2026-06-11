@@ -22,9 +22,12 @@ import { createAihubmixImageModel } from './aihubmixImageModel'
 export const AIHUBMIX_PROVIDER_NAME = 'aihubmix' as const
 const APP_CODE_HEADER = { 'APP-Code': 'MLTG2087' }
 
-// AiHubMix dispatches on raw API model ids. Keep these predicates string-based
-// instead of fabricating a partial shared `Model`, whose helpers expect full
-// runtime metadata.
+// AiHubMix dispatches on raw API model ids. Keep these predicates string-based: the shared
+// `@shared/utils/model` helpers resolve the raw id via getRawModelId → parseUniqueModelId, which
+// THROWS ('Invalid UniqueModelId format') on a bare API id with no `::`. A fabricated
+// `{ id: modelId } as Model` would therefore CRASH on every OpenAI-routed model here — it doesn't
+// merely lack metadata. (The chat-completion-only list below has no shared string source, so it
+// stays local too.)
 const isOpenAILLM = (modelId: string): boolean => {
   const id = modelId.toLowerCase()
   return /\bgpt\b|^o[134]/.test(id) && !id.includes('gpt-4o-image')
