@@ -395,6 +395,9 @@
           "failed": "Nu s-a putut reordona sesiunile"
         }
       },
+      "tool": {
+        "disabled": "Instrumentul {{toolName}} este dezactivat pentru acest agent."
+      },
       "update": {
         "error": {
           "failed": "Nu s-a putut actualiza sesiunea"
