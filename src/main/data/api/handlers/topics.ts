@@ -9,20 +9,16 @@
  */
 
 import { topicService } from '@data/services/TopicService'
-import { loggerService } from '@logger'
-import { topicNamingService } from '@main/services/TopicNamingService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
-  CopyTopicBranchSchema,
   CreateTopicSchema,
+  DuplicateTopicSchema,
   ListTopicsQuerySchema,
   SetActiveNodeSchema,
   type TopicSchemas,
   UpdateTopicSchema
 } from '@shared/data/api/schemas/topics'
-
-const logger = loggerService.withContext('DataApi:TopicHandlers')
 
 export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics': {
@@ -60,14 +56,10 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     }
   },
 
-  '/topics/:id/branch-copies': {
+  '/topics/:id/duplicate': {
     POST: async ({ params, body }) => {
-      const parsed = CopyTopicBranchSchema.parse(body)
-      const topic = await topicService.copyBranchToNewTopic(params.id, parsed)
-      void topicNamingService.maybeRenameForkedTopic(topic.id, topic.assistantId).catch((err) => {
-        logger.warn('Failed to auto-name copied branch topic', { topicId: topic.id, err })
-      })
-      return topic
+      const parsed = DuplicateTopicSchema.parse(body)
+      return await topicService.duplicateTopic(params.id, parsed)
     }
   },
 

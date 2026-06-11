@@ -22,9 +22,6 @@ const BETA_KNOWLEDGE_BASE_ID = '66666666-6666-4666-8666-666666666666'
 const OTHER_KNOWLEDGE_BASE_ID = '77777777-7777-4777-8777-777777777777'
 const LITERAL_KNOWLEDGE_BASE_ID = '88888888-8888-4888-8888-888888888888'
 const EXPANDED_KNOWLEDGE_BASE_ID = '99999999-9999-4999-8999-999999999999'
-const OLD_KNOWLEDGE_BASE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
-const NEWER_KNOWLEDGE_BASE_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
-const NEWEST_KNOWLEDGE_BASE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 const FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abc'
 const OTHER_BASE_FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abd'
 const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000a01' as FileEntryId
@@ -149,26 +146,6 @@ describe('KnowledgeBaseService', () => {
 
       expect(result.total).toBe(1)
       expect(result.items.map((item) => item.id)).toEqual([LITERAL_KNOWLEDGE_BASE_ID])
-    })
-
-    it('filters by updatedAtFrom and can sort by updatedAt descending', async () => {
-      const cutoff = Date.parse('2026-05-01T00:00:00.000Z')
-      await seedKnowledgeBase({ id: OLD_KNOWLEDGE_BASE_ID, name: 'Research old', updatedAt: cutoff - 1 })
-      await seedKnowledgeBase({ id: NEWER_KNOWLEDGE_BASE_ID, name: 'Research newer', updatedAt: cutoff + 2000 })
-      await seedKnowledgeBase({ id: NEWEST_KNOWLEDGE_BASE_ID, name: 'Research newest', updatedAt: cutoff + 3000 })
-      await seedKnowledgeBase({ id: OTHER_KNOWLEDGE_BASE_ID, name: 'Other', updatedAt: cutoff + 4000 })
-
-      const result = await service.list({
-        page: 1,
-        limit: 10,
-        search: 'Research',
-        updatedAtFrom: cutoff,
-        sortBy: 'updatedAt',
-        orderBy: 'desc'
-      })
-
-      expect(result.items.map((item) => item.id)).toEqual([NEWEST_KNOWLEDGE_BASE_ID, NEWER_KNOWLEDGE_BASE_ID])
-      expect(result.total).toBe(2)
     })
 
     it('should include non-deleting item counts for each knowledge base', async () => {

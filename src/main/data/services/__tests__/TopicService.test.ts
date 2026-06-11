@@ -484,7 +484,7 @@ describe('TopicService', () => {
     })
   })
 
-  describe('copyBranchToNewTopic', () => {
+  describe('duplicateTopic', () => {
     it('copies the root-to-node path into a new topic and prunes siblings and descendants', async () => {
       const fileEntryId = '019606a0-0000-7000-8000-00000000fb01' as FileEntryId
       await dbh.db
@@ -568,7 +568,7 @@ describe('TopicService', () => {
         updatedAt: 2
       })
 
-      const result = await topicService.copyBranchToNewTopic('src-t', { nodeId: 'selected' })
+      const result = await topicService.duplicateTopic('src-t', { nodeId: 'selected' })
 
       expect(result.id).not.toBe('src-t')
       expect(result.name).toBe('Source')
@@ -611,8 +611,29 @@ describe('TopicService', () => {
       expect(sourceRows.map((row) => row.id).sort()).toEqual(['descendant', 'root', 'selected', 'sibling'])
     })
 
+    it('uses an explicit duplicate name when provided', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'src-t', name: 'Source', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(messageTable).values({
+        id: 'selected',
+        topicId: 'src-t',
+        parentId: null,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'root prompt' }] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      const result = await topicService.duplicateTopic('src-t', { nodeId: 'selected', name: 'Source (Copy)' })
+
+      expect(result.name).toBe('Source (Copy)')
+    })
+
     it('rejects a missing source topic', async () => {
-      await expect(topicService.copyBranchToNewTopic('missing-topic', { nodeId: 'node-1' })).rejects.toMatchObject({
+      await expect(topicService.duplicateTopic('missing-topic', { nodeId: 'node-1' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -633,7 +654,7 @@ describe('TopicService', () => {
         updatedAt: 1
       })
 
-      await expect(topicService.copyBranchToNewTopic('src-t', { nodeId: 'other-node' })).rejects.toMatchObject({
+      await expect(topicService.duplicateTopic('src-t', { nodeId: 'other-node' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })

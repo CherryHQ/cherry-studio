@@ -228,6 +228,9 @@ describe('Knowledge base schemas', () => {
     ).toBe(false)
 
     expect(ListKnowledgeBasesQuerySchema.safeParse({ page: 1, limit: 20, extra: true }).success).toBe(false)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ page: 1, limit: 20, updatedAtFrom: 1 }).success).toBe(false)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ page: 1, limit: 20, sortBy: 'updatedAt' }).success).toBe(false)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ page: 1, limit: 20, orderBy: 'desc' }).success).toBe(false)
     expect(ListKnowledgeItemsQuerySchema.safeParse({ page: 1, limit: 20, type: 'note', extra: true }).success).toBe(
       false
     )

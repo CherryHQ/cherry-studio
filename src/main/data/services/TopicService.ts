@@ -12,8 +12,8 @@ import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type {
-  CopyTopicBranchDto,
   CreateTopicDto,
+  DuplicateTopicDto,
   ListTopicsQuery,
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
@@ -157,7 +157,7 @@ export class TopicService {
     return rowToTopic(row)
   }
 
-  async copyBranchToNewTopic(sourceTopicId: string, dto: CopyTopicBranchDto): Promise<Topic> {
+  async duplicateTopic(sourceTopicId: string, dto: DuplicateTopicDto): Promise<Topic> {
     const dbService = application.get('DbService')
 
     const copiedTopic = await dbService.withWriteTx(async (tx) => {
@@ -172,15 +172,11 @@ export class TopicService {
       const { messageService } = await import('./MessageService')
       const sourcePathRows = await messageService.getPathRowsToNodeTx(tx, dto.nodeId, { topicId: sourceTopicId })
 
-      if (sourcePathRows.length === 0) {
-        throw DataApiErrorFactory.invalidOperation('copy topic branch', 'No messages to copy')
-      }
-
       const newTopicRow = (await insertWithOrderKey(
         tx,
         topicTable,
         {
-          name: sourceTopic.name,
+          name: dto.name ?? sourceTopic.name,
           assistantId: sourceTopic.assistantId,
           groupId: sourceTopic.groupId,
           activeNodeId: null
@@ -219,7 +215,7 @@ export class TopicService {
       await fileRefService.copyBySourceIdMapTx(tx, chatMessageSourceType, copiedMessageIds)
 
       if (!copiedActiveNodeId) {
-        throw DataApiErrorFactory.invalidOperation('copy topic branch', 'No active node copied')
+        throw DataApiErrorFactory.invalidOperation('duplicate topic', 'No active node copied')
       }
 
       const [updatedTopicRow] = await tx
@@ -232,7 +228,7 @@ export class TopicService {
       return rowToTopic(updatedTopicRow)
     })
 
-    logger.info('Copied topic branch into new topic', {
+    logger.info('Duplicated topic path into new topic', {
       sourceTopicId,
       nodeId: dto.nodeId,
       newTopicId: copiedTopic.id,

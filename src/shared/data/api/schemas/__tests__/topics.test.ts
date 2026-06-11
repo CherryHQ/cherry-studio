@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { CopyTopicBranchSchema, CreateTopicSchema, SetActiveNodeSchema, UpdateTopicSchema } from '../topics'
+import { CreateTopicSchema, DuplicateTopicSchema, SetActiveNodeSchema, UpdateTopicSchema } from '../topics'
 
 describe('CreateTopicSchema', () => {
   it('rejects sourceNodeId reference-fork input', () => {
@@ -42,14 +42,21 @@ describe('SetActiveNodeSchema', () => {
   })
 })
 
-describe('CopyTopicBranchSchema', () => {
+describe('DuplicateTopicSchema', () => {
   it('accepts nodeId only', () => {
-    expect(CopyTopicBranchSchema.parse({ nodeId: 'n1' })).toEqual({
+    expect(DuplicateTopicSchema.parse({ nodeId: 'n1' })).toEqual({
       nodeId: 'n1'
     })
   })
 
+  it('accepts an optional trimmed name', () => {
+    expect(DuplicateTopicSchema.parse({ nodeId: 'n1', name: '  Source (Copy)  ' })).toEqual({
+      nodeId: 'n1',
+      name: 'Source (Copy)'
+    })
+  })
+
   it('rejects unknown keys', () => {
-    expect(() => CopyTopicBranchSchema.parse({ nodeId: 'n1', includeDescendants: true })).toThrow()
+    expect(() => DuplicateTopicSchema.parse({ nodeId: 'n1', includeDescendants: true })).toThrow()
   })
 })
