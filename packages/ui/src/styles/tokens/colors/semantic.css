@@ -52,6 +52,11 @@
   --cs-sidebar: var(--cs-white);
   --cs-sidebar-accent: oklch(0 0 0 / 0.05);
 
+  /* Selected state — tab bar active tab, sidebar active menu item.
+   * Paired 0.5px inside-border (--cs-selected-border) for a quiet outline. */
+  --cs-selected: #f0f0ef;
+  --cs-selected-border: #eaebe8;
+
   /* Surface-paired foregrounds — all neutral surfaces share the app foreground.
    * These tokens exist so Tailwind utilities like `text-card-foreground`,
    * `text-popover-foreground`, `text-secondary-foreground`, `text-accent-foreground`
@@ -122,4 +127,8 @@
   /* Sidebar */
   --cs-sidebar: var(--cs-black);
   --cs-sidebar-accent: oklch(1 0 0 / 0.1);
+
+  /* Selected state (dark) — see :root note. */
+  --cs-selected: #1f201d;
+  --cs-selected-border: #343531;
 }
