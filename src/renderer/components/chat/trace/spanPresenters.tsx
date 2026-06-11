@@ -2,7 +2,7 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ReactNode } from 'react'
 
-import type { TraceModal } from './TraceModel'
+import type { TraceNode } from './traceNode'
 
 /**
  * Span-type presentation, table-driven instead of `if (isHttp)`.
@@ -36,15 +36,15 @@ export interface SpanView {
 }
 
 interface SpanPresenter {
-  match: (node: TraceModal) => boolean
-  build: (node: TraceModal, t: Translate) => SpanView
+  match: (node: TraceNode) => boolean
+  build: (node: TraceNode, t: Translate) => SpanView
 }
 
-const attrsOf = (node: TraceModal): Record<string, unknown> => (node.attributes ?? {}) as Record<string, unknown>
+const attrsOf = (node: TraceNode): Record<string, unknown> => (node.attributes ?? {}) as Record<string, unknown>
 const str = (value: unknown): string | undefined => (typeof value === 'string' && value ? value : undefined)
 
 /** Common tab set for spans without bespoke tabs: inputs / outputs / raw. */
-function defaultTabs(node: TraceModal, t: Translate): SpanTab[] {
+function defaultTabs(node: TraceNode, t: Translate): SpanTab[] {
   return [
     { value: 'inputs', label: t('trace.inputs'), data: getSpanInputs(node) },
     { value: 'outputs', label: t('trace.outputs'), data: getSpanOutputs(node) },
@@ -172,7 +172,7 @@ const genericPresenter: SpanPresenter = {
 
 const PRESENTERS: SpanPresenter[] = [httpPresenter, mcpPresenter, turnPresenter, modelPresenter, genericPresenter]
 
-export function buildSpanView(node: TraceModal, t: Translate): SpanView {
+export function buildSpanView(node: TraceNode, t: Translate): SpanView {
   const presenter = PRESENTERS.find((p) => p.match(node)) ?? genericPresenter
   return presenter.build(node, t)
 }
@@ -181,13 +181,13 @@ export function buildSpanView(node: TraceModal, t: Translate): SpanView {
  * A model row belongs only on spans that *are* a model call, detected by a real
  * model attribute, NOT the `trace.modelName` every span inherits from its turn.
  */
-function hasModelAttribute(node: TraceModal): boolean {
+function hasModelAttribute(node: TraceNode): boolean {
   const a = attrsOf(node)
   return Boolean(a['cs.model_id'] || a['ai.model.id'] || a['gen_ai.request.model'])
 }
 
 /** Model logo + name row, shared by the model-call and turn presenters. */
-function modelRow(node: TraceModal, t: Translate): SpanDetailRow | undefined {
+function modelRow(node: TraceNode, t: Translate): SpanDetailRow | undefined {
   const model = resolveSpanModel(node)
   if (!model) return undefined
   return {
@@ -202,7 +202,7 @@ function modelRow(node: TraceModal, t: Translate): SpanDetailRow | undefined {
 }
 
 /** Resolve a renderable model (id + name + providerId, for the avatar logo) from a span's attributes. */
-export function resolveSpanModel(node: TraceModal): { id: string; name: string; providerId?: string } | undefined {
+export function resolveSpanModel(node: TraceNode): { id: string; name: string; providerId?: string } | undefined {
   const attrs = attrsOf(node)
   const name = node.modelName ?? str(attrs.modelName) ?? str(attrs['ai.model.id'])
   if (!name) return undefined
@@ -238,7 +238,7 @@ function parseMcpCall(raw: unknown): McpCall | undefined {
   }
 }
 
-function rawData(node: TraceModal) {
+function rawData(node: TraceNode) {
   return {
     id: node.id,
     traceId: node.traceId,
@@ -255,7 +255,7 @@ function rawData(node: TraceModal) {
   }
 }
 
-function getSpanInputs(node: TraceModal) {
+function getSpanInputs(node: TraceNode) {
   const attrs = node.attributes ?? {}
   return (
     attrs.inputs ??
@@ -284,7 +284,7 @@ function getSpanInputs(node: TraceModal) {
   )
 }
 
-function getSpanOutputs(node: TraceModal) {
+function getSpanOutputs(node: TraceNode) {
   const attrs = node.attributes ?? {}
   return (
     attrs.outputs ??
@@ -306,7 +306,7 @@ function getSpanOutputs(node: TraceModal) {
   )
 }
 
-function getEventValue(node: TraceModal, eventNames: string[], keys: string[]) {
+function getEventValue(node: TraceNode, eventNames: string[], keys: string[]) {
   for (const event of node.events ?? []) {
     if (!eventNames.includes(getEventName(event))) continue
     for (const key of keys) {
@@ -317,12 +317,12 @@ function getEventValue(node: TraceModal, eventNames: string[], keys: string[]) {
   return undefined
 }
 
-function getEventName(event: NonNullable<TraceModal['events']>[number]) {
+function getEventName(event: NonNullable<TraceNode['events']>[number]) {
   const name = event.attributes?.['event.name']
   return typeof name === 'string' ? name : event.name
 }
 
-function pickAttributes(attributes: NonNullable<TraceModal['attributes']>, keys: string[]) {
+function pickAttributes(attributes: NonNullable<TraceNode['attributes']>, keys: string[]) {
   const picked: Record<string, unknown> = {}
   for (const key of keys) {
     const value = attributes[key]

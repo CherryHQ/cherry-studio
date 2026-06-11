@@ -291,17 +291,17 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private emitUsageMetadata(usage: BetaUsage | undefined): void {
     if (!usage) return
     const v3Usage = convertClaudeCodeUsage(usage)
-    const promptTokens = v3Usage.inputTokens.total ?? 0
-    const completionTokens = v3Usage.outputTokens.total ?? 0
+    const prompt_tokens = v3Usage.inputTokens.total ?? 0
+    const completion_tokens = v3Usage.outputTokens.total ?? 0
     const reasoningTokens = v3Usage.outputTokens.reasoning
     this.eventQueue.push({
       type: 'chunk',
       chunk: {
         type: 'message-metadata',
         messageMetadata: {
-          totalTokens: promptTokens + completionTokens,
-          promptTokens,
-          completionTokens,
+          totalTokens: prompt_tokens + completion_tokens,
+          prompt_tokens,
+          completion_tokens,
           ...(reasoningTokens !== undefined ? { thoughtsTokens: reasoningTokens } : {})
         }
       }

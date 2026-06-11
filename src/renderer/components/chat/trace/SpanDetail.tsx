@@ -17,15 +17,15 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { buildSpanView, type SpanDetailRow, type SpanTab } from './spanPresenters'
-import type { TraceModal } from './TraceModel'
+import type { TraceNode } from './traceNode'
 import { convertTime } from './TraceTree'
 
 interface SpanDetailProps {
-  node: TraceModal
-  clickShowModal: (input: boolean) => void
+  node: TraceNode
+  onShowList: (input: boolean) => void
 }
 
-const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
+const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
   const [activeTab, setActiveTab] = useState<string>('inputs')
   const { t } = useTranslation()
 
@@ -55,7 +55,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
           <div className="font-medium text-foreground text-sm">{t('trace.spanDetail')}</div>
           <div className="mt-1 truncate text-muted-foreground">{node.name}</div>
         </div>
-        <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2" onClick={() => clickShowModal(true)}>
+        <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2" onClick={() => onShowList(true)}>
           <ChevronsLeft size={14} />
           <span>{t('trace.backList')}</span>
         </Button>
@@ -118,7 +118,7 @@ function formatDate(timestamp: number | null): string {
 
 /** Resolve the active tab's payload (with the ERROR-exception override) and format it as JSON or text. */
 function formatTabData(
-  node: TraceModal,
+  node: TraceNode,
   tabs: SpanTab[],
   activeTab: string
 ): { content: string; contentLanguage: 'json' | 'text' } {

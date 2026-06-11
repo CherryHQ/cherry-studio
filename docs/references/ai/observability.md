@@ -33,7 +33,7 @@ The main-process observability boundary is `src/main/ai/observability`:
 ## Local history flush
 
 `Message.traceId` is persisted with the assistant message row, but the span
-tree is first collected in the main-process `SpanCacheService` memory store.
+tree is first collected in the main-process `TraceStorageService` memory store.
 The durable history file is written by the stream terminal path:
 
 - `PersistentChatContextProvider` attaches a `TraceFlushListener` to normal
@@ -41,11 +41,11 @@ The durable history file is written by the stream terminal path:
 - `AgentSessionRuntimeService` attaches the same listener to
   `agent-session:${sessionId}` turns, including queued follow-up turns.
 - On the topic-level terminal event (`done`, `paused`, or `error`),
-  `TraceFlushListener` calls `SpanCacheService.saveSpans(topicId)`.
+  `TraceFlushListener` calls `TraceStorageService.saveSpans(topicId)`.
 - Flush errors are logged as warnings and do not affect message completion.
 
 Collection and persistence are main-process only. Spans live in
-`SpanCacheService`'s in-memory store and are flushed to the JSONL history file
+`TraceStorageService`'s in-memory store and are flushed to the JSONL history file
 on the terminal event. There is no renderer-side span reader or viewer.
 
 ## AdapterTracer
@@ -56,7 +56,7 @@ by the global provider. On every `startSpan` / `startActiveSpan` it:
 1. Patches `span.end()` to also call `AiSdkSpanAdapter.convertToSpanEntity(...)`
    and hand the result to the observability sink registry.
 2. Stamps `trace.topicId` and `trace.modelName` so the main-side
-   `SpanCacheService` can key spans per topic.
+   `TraceStorageService` can key spans per topic.
 
 `AdapterTracer` is intentionally only for AI SDK child spans:
 
@@ -68,7 +68,7 @@ by the global provider. On every `startSpan` / `startActiveSpan` it:
 ## AiSdkSpanAdapter
 
 `src/main/ai/observability/adapters/aiSdk/aiSdkSpanAdapter.ts` converts an OTel span into the
-`SpanEntity` shape `SpanCacheService` stores and persists:
+`SpanEntity` shape `TraceStorageService` stores and persists:
 
 - Reads span name, attributes, events, status, links.
 - Recovers AI SDK's hierarchical attribute conventions:
@@ -92,7 +92,7 @@ it does, it intentionally turns on verbose Claude Code telemetry:
 - `OTEL_LOG_TOOL_DETAILS` / `OTEL_LOG_TOOL_CONTENT` — tool calls and their content
 - `OTEL_LOG_RAW_API_BODIES` — raw API request/response bodies
 
-These payloads land in span attributes that `SpanCacheService` persists as
+These payloads land in span attributes that `TraceStorageService` persists as
 **plaintext JSONL trace files on disk**, so a trace can contain secrets
 (authorization headers, API keys embedded in raw bodies) alongside the prompt
 and tool content.
@@ -105,7 +105,7 @@ guarantee is a deferred decision. Treat exported trace files as sensitive.
 
 ## Developer-mode gating
 
-Dev mode only. The span projection (`SpanCacheService`) is built and persisted
+Dev mode only. The span projection (`TraceStorageService`) is built and persisted
 entirely in the main process; nothing in the renderer reads or renders it.
 Outside developer mode `buildTelemetry` returns `undefined`, so **no tracer is
 attached at all** and the AI SDK emits no spans — there is nothing to project.
@@ -113,5 +113,5 @@ attached at all** and the AI SDK emits no spans — there is nothing to project.
 ## Where to read more
 
 - Code: `src/main/ai/observability/`
-- Span projection: `src/main/ai/observability/cache/SpanCacheService.ts`
+- Span projection: `src/main/ai/observability/storage/TraceStorageService.ts`
 - AI SDK telemetry docs: https://ai-sdk.dev/docs/reference/ai-sdk-core/telemetry

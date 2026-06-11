@@ -174,7 +174,7 @@ export class AiSdkSpanAdapter {
   /**
    * Extract token usage from AI SDK attributes.
    * Supports multiple formats:
-   * - AI SDK standard format: ai.usage.completionTokens, ai.usage.promptTokens
+   * - AI SDK standard format: ai.usage.completion_tokens, ai.usage.prompt_tokens
    * - Full usage object format: ai.usage (JSON string or object)
    */
   private static extractTokenUsage(attributes: Record<string, any>): TokenUsage | undefined {
@@ -188,11 +188,11 @@ export class AiSdkSpanAdapter {
       return undefined
     }
 
-    // AI SDK v6 emits `ai.usage.inputTokens`/`outputTokens`; `promptTokens`/`completionTokens` are
+    // AI SDK v6 emits `ai.usage.inputTokens`/`outputTokens`; `prompt_tokens`/`completion_tokens` are
     // legacy aliases and `gen_ai.usage.*` is the semantic-convention spelling. Reading only the legacy
     // names dropped the top-level `ai.streamText` totals. Embeddings emit a single `ai.usage.tokens`.
-    const input = read('ai.usage.inputTokens', 'ai.usage.promptTokens', 'gen_ai.usage.input_tokens', 'ai.usage.tokens')
-    const output = read('ai.usage.outputTokens', 'ai.usage.completionTokens', 'gen_ai.usage.output_tokens')
+    const input = read('ai.usage.inputTokens', 'ai.usage.prompt_tokens', 'gen_ai.usage.input_tokens', 'ai.usage.tokens')
+    const output = read('ai.usage.outputTokens', 'ai.usage.completion_tokens', 'gen_ai.usage.output_tokens')
     const total = read('ai.usage.totalTokens')
     const cached = read('ai.usage.cachedInputTokens')
     const reasoning = read('ai.usage.reasoningTokens')
@@ -210,9 +210,10 @@ export class AiSdkSpanAdapter {
 
     const prompt_tokens = input ?? 0
     const completion_tokens = output ?? 0
+    // Keys stay snake_case: this is the TokenUsage contract in trace-core/types/config.ts.
     return {
-      prompt_tokens,
-      completion_tokens,
+      prompt_tokens: prompt_tokens,
+      completion_tokens: completion_tokens,
       // Prefer the SDK's reported total (it accounts for reasoning/cached), else sum the two.
       total_tokens: total ?? prompt_tokens + completion_tokens,
       // cached input tokens are a subset of input; reasoning tokens a subset of output.

@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildSpanView } from '../spanPresenters'
-import type { TraceModal } from '../TraceModel'
+import type { TraceNode } from '../traceNode'
 
 const t = (key: string) => key
 
-/** Minimal TraceModal: presenters only read attributes / modelName / events. */
-function node(overrides: Partial<TraceModal>): TraceModal {
+/** Minimal TraceNode: presenters only read attributes / modelName / events. */
+function node(overrides: Partial<TraceNode>): TraceNode {
   return {
     id: 's1',
     traceId: 'tr',
@@ -21,7 +21,7 @@ function node(overrides: Partial<TraceModal>): TraceModal {
     percent: 100,
     start: 0,
     ...overrides
-  } as unknown as TraceModal
+  } as unknown as TraceNode
 }
 
 const labels = (view: { rows: { label: string }[] }) => view.rows.map((r) => r.label)

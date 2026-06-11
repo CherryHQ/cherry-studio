@@ -243,7 +243,7 @@ export function createRateLimitedProvider(limitPerSecond: number) {
       return {
         text: 'Rate limited response',
         finishReason: 'stop' as const,
-        usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 },
+        usage: { prompt_tokens: 10, completion_tokens: 5, totalTokens: 15 },
         rawCall: { rawPrompt: null, rawSettings: {} },
         rawResponse: { headers: {} },
         warnings: []

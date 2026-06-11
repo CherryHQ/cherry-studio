@@ -5,8 +5,8 @@
  * Vercel gateway shape bug handled by `gatewayUsageNormalizeFeature`.
  *
  * Projection (AI SDK `LanguageModelUsage` → Cherry `MessageStats`):
- *   inputTokens                         → promptTokens
- *   outputTokens                        → completionTokens
+ *   inputTokens                         → prompt_tokens
+ *   outputTokens                        → completion_tokens
  *   outputTokenDetails.reasoningTokens  → thoughtsTokens
  */
 
@@ -65,8 +65,8 @@ export function attachUsageObserver(agent: Agent): void {
       type: 'message-metadata',
       messageMetadata: {
         totalTokens: total.totalTokens,
-        promptTokens: total.inputTokens,
-        completionTokens: total.outputTokens,
+        prompt_tokens: total.inputTokens,
+        completion_tokens: total.outputTokens,
         thoughtsTokens: total.outputTokenDetails?.reasoningTokens
       }
     })

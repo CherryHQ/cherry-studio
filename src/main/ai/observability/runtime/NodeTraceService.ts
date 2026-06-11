@@ -97,7 +97,7 @@ export class NodeTraceService extends BaseService implements Activatable {
     ])
 
     this.nodeTracer = NodeTracer
-    const spanCacheService = application.get('TraceStorageService')
+    const traceStorageService = application.get('TraceStorageService')
     const exporter = new FunctionSpanExporter(async (spans) => {
       logger.info(`Spans length: ${spans.length}`)
     })
@@ -107,7 +107,7 @@ export class NodeTraceService extends BaseService implements Activatable {
         defaultTracerName: TRACER_NAME,
         serviceName: TRACER_NAME
       },
-      new CacheBatchSpanProcessor(exporter, spanCacheService)
+      new CacheBatchSpanProcessor(exporter, traceStorageService)
     )
   }
 

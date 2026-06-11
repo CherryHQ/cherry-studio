@@ -770,7 +770,7 @@ describe('mergeStats', () => {
 
   it('merges usage tokens', async () => {
     const stats = mergeStats({ prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 })
-    expect(stats).toEqual({ promptTokens: 10, completionTokens: 20, totalTokens: 30 })
+    expect(stats).toEqual({ prompt_tokens: 10, completion_tokens: 20, totalTokens: 30 })
   })
 
   it('merges metrics timing', async () => {
@@ -780,7 +780,7 @@ describe('mergeStats', () => {
 
   it('merges both usage and metrics', async () => {
     const stats = mergeStats({ prompt_tokens: 5 }, { time_thinking_millsec: 200 })
-    expect(stats).toEqual({ promptTokens: 5, timeThinkingMs: 200 })
+    expect(stats).toEqual({ prompt_tokens: 5, timeThinkingMs: 200 })
   })
 })
 

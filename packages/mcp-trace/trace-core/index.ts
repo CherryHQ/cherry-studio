@@ -1,5 +1,5 @@
 export * from './core/spanConvert'
-export * from './core/traceCache'
+export * from './core/traceStore'
 export * from './core/traceMethod'
 export * from './exporters/FuncSpanExporter'
 export * from './processors/CacheSpanProcessor'

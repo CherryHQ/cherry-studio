@@ -23,8 +23,8 @@ import type { MessageStats } from '@shared/data/types/message'
  */
 export function statsToUsage(stats: MessageStats): Usage {
   return {
-    prompt_tokens: stats.promptTokens ?? 0,
-    completion_tokens: stats.completionTokens ?? 0,
+    prompt_tokens: stats.prompt_tokens ?? 0,
+    completion_tokens: stats.completion_tokens ?? 0,
     total_tokens: stats.totalTokens ?? 0,
     ...(stats.thoughtsTokens !== undefined && { thoughts_tokens: stats.thoughtsTokens }),
     ...(stats.cost !== undefined && { cost: stats.cost })
@@ -40,7 +40,7 @@ export function statsToUsage(stats: MessageStats): Usage {
  */
 export function statsToMetrics(stats: MessageStats): Metrics {
   return {
-    completion_tokens: stats.completionTokens ?? 0,
+    completion_tokens: stats.completion_tokens ?? 0,
     time_completion_millsec: stats.timeCompletionMs ?? 0,
     time_first_token_millsec: stats.timeFirstTokenMs,
     time_thinking_millsec: stats.timeThinkingMs

@@ -1,7 +1,7 @@
 import type { SpanEntity } from '@mcp-trace/trace-core'
 
-export interface TraceModal extends SpanEntity {
-  children: TraceModal[]
+export interface TraceNode extends SpanEntity {
+  children: TraceNode[]
   start: number
   percent: number
 }

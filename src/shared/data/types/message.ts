@@ -35,13 +35,13 @@ export type MessageId = z.infer<typeof MessageIdSchema>
  * Known gaps, to be addressed in a dedicated follow-up:
  *
  *  1. Naming drift vs AI SDK v5
- *     - `promptTokens` / `completionTokens` → should be `inputTokens` / `outputTokens`
+ *     - `prompt_tokens` / `completion_tokens` → should be `inputTokens` / `outputTokens`
  *     - `thoughtsTokens` is Gemini-only phrasing; AI SDK uses `reasoningTokens`
  *
  *  2. Cache accounting entirely missing
  *     - AI SDK `inputTokenDetails` has `noCacheTokens` / `cacheReadTokens` / `cacheWriteTokens`
  *     - Claude prompt caching and Gemini context caching are currently folded
- *       into a single `promptTokens`, so users can't see cache hit-rate or
+ *       into a single `prompt_tokens`, so users can't see cache hit-rate or
  *       audit premium-rate cache writes
  *
  *  3. Output breakdown missing
@@ -75,14 +75,14 @@ export type MessageId = z.infer<typeof MessageIdSchema>
  *   }
  *
  * Redesign touches: renderer usage UI, DB column readers (old rows still
- * have promptTokens/completionTokens — need fallback), pricing subsystem,
+ * have prompt_tokens/completion_tokens — need fallback), pricing subsystem,
  * V1/V2 migration. Tracked as a separate PR series so this layer isn't
  * rushed alongside stream-manager changes.
  */
 export const MessageStatsSchema = z.strictObject({
   // Token consumption (from API response)
-  promptTokens: z.number().optional(),
-  completionTokens: z.number().optional(),
+  prompt_tokens: z.number().optional(),
+  completion_tokens: z.number().optional(),
   totalTokens: z.number().optional(),
   thoughtsTokens: z.number().optional(),
 
@@ -124,7 +124,7 @@ export interface MessageData {
  * accumulator writes a snapshot into `exec.finalMessage.metadata`, the
  * persistence backend can translate it 1:1 into the DB `stats` column
  * without inventing extra plumbing. Keep the names aligned with the
- * legacy `MessageStats` shape (promptTokens / completionTokens / ...)
+ * legacy `MessageStats` shape (prompt_tokens / completion_tokens / ...)
  * until the redesign tracked in `MessageStats` lands — the same names on
  * both sides make `statsFromMetadata()` a trivial projection.
  */
@@ -155,10 +155,10 @@ export interface CherryUIMessageMetadata {
   //    that only need a single counter can skip the nested object.
   /** Total tokens reported by the provider (mirrors `MessageStats.totalTokens`). */
   totalTokens?: number
-  /** Input / prompt tokens (AI SDK `inputTokens`, legacy `promptTokens`). */
-  promptTokens?: number
-  /** Output / completion tokens (AI SDK `outputTokens`, legacy `completionTokens`). */
-  completionTokens?: number
+  /** Input / prompt tokens (AI SDK `inputTokens`, legacy `prompt_tokens`). */
+  prompt_tokens?: number
+  /** Output / completion tokens (AI SDK `outputTokens`, legacy `completion_tokens`). */
+  completion_tokens?: number
   /**
    * Reasoning / thinking tokens — AI SDK `outputTokenDetails.reasoningTokens`
    * (Gemini thoughts, Anthropic extended thinking, OpenAI o-series).

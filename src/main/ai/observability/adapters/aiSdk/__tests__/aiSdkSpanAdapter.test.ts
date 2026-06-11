@@ -58,8 +58,8 @@ describe('AiSdkSpanAdapter.convertToSpanEntity — token usage (AI SDK v6 keys)'
     })
   })
 
-  it('still reads the legacy promptTokens/completionTokens aliases', () => {
-    expect(usage({ 'ai.usage.promptTokens': 5, 'ai.usage.completionTokens': 7 })).toMatchObject({
+  it('still reads the legacy prompt_tokens/completion_tokens aliases', () => {
+    expect(usage({ 'ai.usage.prompt_tokens': 5, 'ai.usage.completion_tokens': 7 })).toMatchObject({
       prompt_tokens: 5,
       completion_tokens: 7
     })

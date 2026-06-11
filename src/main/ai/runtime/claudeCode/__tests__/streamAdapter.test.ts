@@ -467,8 +467,8 @@ describe('ClaudeCodeStreamAdapter', () => {
         messageMetadata: expect.objectContaining({
           modelId: 'sonnet',
           totalTokens: 26,
-          promptTokens: 21,
-          completionTokens: 5
+          prompt_tokens: 21,
+          completion_tokens: 5
         })
       })
     ])

@@ -245,8 +245,8 @@ export function createProviderTestSuite(_providerId: string) {
         })
 
         expect(result).toBeDefined()
-        if (result.usage?.completionTokens) {
-          expect(result.usage.completionTokens).toBeLessThanOrEqual(maxTokens)
+        if (result.usage?.completion_tokens) {
+          expect(result.usage.completion_tokens).toBeLessThanOrEqual(maxTokens)
         }
       }
     },
@@ -307,23 +307,23 @@ export function createFinishReasonMocks() {
     stop: {
       text: 'Complete response.',
       finishReason: 'stop' as const,
-      usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 }
+      usage: { prompt_tokens: 10, completion_tokens: 5, totalTokens: 15 }
     },
     length: {
       text: 'Incomplete response due to',
       finishReason: 'length' as const,
-      usage: { promptTokens: 10, completionTokens: 100, totalTokens: 110 }
+      usage: { prompt_tokens: 10, completion_tokens: 100, totalTokens: 110 }
     },
     'tool-calls': {
       text: 'Calling tools',
       finishReason: 'tool-calls' as const,
       toolCalls: [{ toolCallId: 'call_1', toolName: 'getWeather', args: { location: 'SF' } }],
-      usage: { promptTokens: 10, completionTokens: 8, totalTokens: 18 }
+      usage: { prompt_tokens: 10, completion_tokens: 8, totalTokens: 18 }
     },
     'content-filter': {
       text: '',
       finishReason: 'content-filter' as const,
-      usage: { promptTokens: 10, completionTokens: 0, totalTokens: 10 }
+      usage: { prompt_tokens: 10, completion_tokens: 0, totalTokens: 10 }
     }
   }
 }

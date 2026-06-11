@@ -6,8 +6,8 @@ import { statsToMetrics, statsToUsage } from '../messageStats'
 describe('statsToUsage', () => {
   it('projects all token fields and keeps required fields defaulted to 0 when missing', () => {
     const stats: MessageStats = {
-      promptTokens: 30,
-      completionTokens: 12,
+      prompt_tokens: 30,
+      completion_tokens: 12,
       totalTokens: 42,
       thoughtsTokens: 3,
       cost: 0.000123
@@ -49,7 +49,7 @@ describe('statsToUsage', () => {
 describe('statsToMetrics', () => {
   it('projects all timing fields and completion tokens', () => {
     const stats: MessageStats = {
-      completionTokens: 12,
+      completion_tokens: 12,
       timeCompletionMs: 1501,
       timeFirstTokenMs: 250,
       timeThinkingMs: 400

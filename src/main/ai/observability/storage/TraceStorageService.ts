@@ -5,7 +5,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
-import type { TraceCache } from '@mcp-trace/trace-core/core/traceCache'
+import type { TraceStore } from '@mcp-trace/trace-core/core/traceStore'
 import type { Attributes, AttributeValue, SpanEntity } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
@@ -46,7 +46,7 @@ function reparentClaudeCodeUnderTurns(spans: SpanEntity[], traceId: string): Spa
 
 @Injectable('TraceStorageService')
 @ServicePhase(Phase.WhenReady)
-export class TraceStorageService extends BaseService implements TraceCache, Activatable {
+export class TraceStorageService extends BaseService implements TraceStore, Activatable {
   private readonly store = new TraceSpanStore()
 
   protected async onInit() {
