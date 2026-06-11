@@ -9,11 +9,11 @@ import { createDirectoryTree, type DirectoryTreeBuilder } from '../builder'
 
 // Production resolves ripgrep via BinaryManager (`getBinaryPath('rg')`), which
 // reads cherry.bin / mise shims — neither is populated under vitest. Point it
-// at the vendored binary so the underlying directory scan spawns a real ripgrep.
+// at the test ripgrep binary so the underlying directory scan spawns a real ripgrep.
 vi.mock('@main/utils/process', async () => {
-  const { vendoredRipgrepPath } = await import('./ripgrepTestUtils')
+  const { testRipgrepPath } = await import('./ripgrepTestUtils')
   return {
-    getBinaryPath: async (name?: string) => (name === 'rg' ? vendoredRipgrepPath() : (name ?? ''))
+    getBinaryPath: async (name?: string) => (name === 'rg' ? testRipgrepPath() : (name ?? ''))
   }
 })
 
