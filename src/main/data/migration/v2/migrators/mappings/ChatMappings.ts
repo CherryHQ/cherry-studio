@@ -635,7 +635,7 @@ export function normalizeStatus(oldStatus: OldMessage['status']): 'success' | 'e
  * | usage.prompt_tokens | inputTokens |
  * | usage.completion_tokens | outputTokens |
  * | usage.total_tokens | totalTokens |
- * | usage.thoughts_tokens | reasoningTokens |
+ * | usage.thoughts_tokens | outputTokenDetails.reasoningTokens |
  * | usage.cost | cost (costSource='provider') |
  * | metrics.time_first_token_millsec | timeFirstTokenMs |
  * | metrics.time_completion_millsec | timeCompletionMs |
@@ -654,7 +654,7 @@ export function mergeStats(usage?: OldUsage, metrics?: OldMetrics): MessageStats
     if (usage.prompt_tokens !== undefined) stats.inputTokens = usage.prompt_tokens
     if (usage.completion_tokens !== undefined) stats.outputTokens = usage.completion_tokens
     if (usage.total_tokens !== undefined) stats.totalTokens = usage.total_tokens
-    if (usage.thoughts_tokens !== undefined) stats.reasoningTokens = usage.thoughts_tokens
+    if (usage.thoughts_tokens !== undefined) stats.outputTokenDetails = { reasoningTokens: usage.thoughts_tokens }
     // v1 `Usage.cost` was only written by OpenRouter (provider-reported actual
     // spend); treat it as authoritative provider cost in USD.
     if (usage.cost !== undefined) {

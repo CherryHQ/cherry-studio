@@ -143,7 +143,7 @@ function statsToColumns(stats: NonNullable<Message['stats']>) {
     inputTokens: stats.inputTokens ?? null,
     outputTokens: stats.outputTokens ?? null,
     totalTokens: stats.totalTokens ?? null,
-    reasoningTokens: stats.reasoningTokens ?? null,
+    reasoningTokens: stats.outputTokenDetails?.reasoningTokens ?? null,
     cacheReadTokens: stats.inputTokenDetails?.cacheReadTokens ?? null,
     cacheWriteTokens: stats.inputTokenDetails?.cacheWriteTokens ?? null,
     cost: stats.cost ?? null,

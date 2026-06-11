@@ -45,17 +45,11 @@ export type MessageId = z.infer<typeof MessageIdSchema>
  * pricing later changes.
  */
 export const MessageStatsSchema = z.strictObject({
-  // ── Token usage (AI SDK v6 `LanguageModelUsage` names) ──
+  // ── Token usage (AI SDK v6 `LanguageModelUsage` names, minus its
+  //    deprecated flat mirrors — the nested breakdowns are the only truth) ──
   inputTokens: z.number().optional(),
   outputTokens: z.number().optional(),
   totalTokens: z.number().optional(),
-  /**
-   * Reasoning / thinking tokens. Convenience mirror of
-   * `outputTokenDetails.reasoningTokens` — same value, kept flat so callers
-   * that only need the single counter skip the nested object. Writers MUST
-   * populate both from the same source so they never diverge.
-   */
-  reasoningTokens: z.number().optional(),
 
   /** Input token breakdown (cache accounting). Mirrors v6 `inputTokenDetails`. */
   inputTokenDetails: z
@@ -133,10 +127,9 @@ export interface MessageData {
 /**
  * Metadata carried on a streamed `CherryUIMessage`.
  *
- * Token fields mirror `MessageStats` (AI SDK v6 names) so the stream
- * accumulator can write a snapshot into `exec.finalMessage.metadata` and the
- * persistence backend translates it 1:1 into the DB `stats` column
- * (`statsFromTerminal`).
+ * Token usage rides exclusively in the nested `stats` snapshot (the same
+ * `MessageStats` shape persisted to the DB) — there are deliberately no flat
+ * token mirrors; `statsFromTerminal` and all other consumers read `stats`.
  *
  * Shallow-merge invariant: the AI SDK merges each `message-metadata` chunk
  * into the accumulating message as `{ ...prev, ...next }` (shallow). The usage
@@ -168,19 +161,6 @@ export interface CherryUIMessageMetadata {
   /** Last modification timestamp (ISO). Mirrors v1 Message.updatedAt during migration. */
   updatedAt?: string
 
-  // ── Token stats. First four duplicate fields on `stats` so call-sites
-  //    that only need a single counter can skip the nested object.
-  /** Total tokens reported by the provider (mirrors `MessageStats.totalTokens`). */
-  totalTokens?: number
-  /** Input tokens (AI SDK `inputTokens`; mirrors `MessageStats.inputTokens`). */
-  inputTokens?: number
-  /** Output tokens (AI SDK `outputTokens`; mirrors `MessageStats.outputTokens`). */
-  outputTokens?: number
-  /**
-   * Reasoning / thinking tokens — AI SDK `outputTokenDetails.reasoningTokens`
-   * (Gemini thoughts, Anthropic extended thinking, OpenAI o-series).
-   */
-  reasoningTokens?: number
   /**
    * Transient provider-reported cost candidate (USD), extracted from
    * `LanguageModelUsage.raw` (e.g. OpenRouter `usage.cost`). NOT persisted to
@@ -188,7 +168,7 @@ export interface CherryUIMessageMetadata {
    * trust it based on `provider.apiFeatures.reportsActualCost`.
    */
   providerCostUsd?: number
-  /** Full persisted stats (tokens + durations) when available. */
+  /** Token usage + durations snapshot (the persisted `MessageStats` shape). */
   stats?: MessageStats
 }
 

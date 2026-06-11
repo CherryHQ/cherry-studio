@@ -64,12 +64,12 @@ export interface PersistenceBackend {
 }
 
 /**
- * Token counts come from `finalMessage.metadata` (populated by the usage
- * writers' `message-metadata` chunks): prefer the full nested `stats` snapshot
- * (carries the cache / output breakdown), falling back to the top-level scalar
- * mirrors. Durations come from the merged `StatsTimings`, rounded to integer
- * ms. Cost is NOT set here — it requires a DB pricing read and is added in the
- * async `MessageServiceBackend.enrichStatsWithCost`.
+ * Token counts come from the nested `finalMessage.metadata.stats` snapshot
+ * (populated by the usage writers' `message-metadata` chunks — the single
+ * carrier; there are no flat metadata mirrors). Durations come from the
+ * merged `StatsTimings`, rounded to integer ms. Cost is NOT set here — it
+ * requires a DB pricing read and is added in the async
+ * `MessageServiceBackend.enrichStatsWithCost`.
  *
  * `timeThinkingMs` is deliberately not projected: the
  * `reasoningStartedAt → reasoningEndedAt` wall-clock can include interleaved
@@ -79,19 +79,8 @@ export function statsFromTerminal(
   finalMessage: CherryUIMessage | undefined,
   timings: StatsTimings | undefined
 ): MessageStats | undefined {
-  const meta = finalMessage?.metadata
-
-  // Nested snapshot is the source of truth (tokens + breakdown); scalars are a
-  // fallback for any path that only set the top-level mirrors.
-  const stats: MessageStats = meta?.stats ? structuredClone(meta.stats) : {}
-  if (meta && typeof meta === 'object') {
-    if (stats.totalTokens === undefined && typeof meta.totalTokens === 'number') stats.totalTokens = meta.totalTokens
-    if (stats.inputTokens === undefined && typeof meta.inputTokens === 'number') stats.inputTokens = meta.inputTokens
-    if (stats.outputTokens === undefined && typeof meta.outputTokens === 'number')
-      stats.outputTokens = meta.outputTokens
-    if (stats.reasoningTokens === undefined && typeof meta.reasoningTokens === 'number')
-      stats.reasoningTokens = meta.reasoningTokens
-  }
+  const metaStats = finalMessage?.metadata?.stats
+  const stats: MessageStats = metaStats ? structuredClone(metaStats) : {}
 
   if (timings) {
     if (timings.firstTextAt != null) {

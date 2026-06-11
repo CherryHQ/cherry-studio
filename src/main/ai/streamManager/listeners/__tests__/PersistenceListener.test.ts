@@ -80,13 +80,14 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
       id: 'msg-x',
       role: 'assistant',
       parts: [{ type: 'text', text: 'hi' }],
-      // Usage writers project AI SDK v6 usage onto these scalar mirrors (and a
-      // nested `stats`); statsFromTerminal falls back to the scalars here.
+      // Usage writers emit a full nested `stats` snapshot — the single carrier.
       metadata: {
-        totalTokens: 42,
-        inputTokens: 30,
-        outputTokens: 12,
-        reasoningTokens: 3
+        stats: {
+          totalTokens: 42,
+          inputTokens: 30,
+          outputTokens: 12,
+          outputTokenDetails: { reasoningTokens: 3 }
+        }
       }
     } as unknown as CherryUIMessage
 
@@ -94,12 +95,12 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 
     expect(appendMessageMock).toHaveBeenCalledTimes(1)
     const payload = appendMessageMock.mock.calls[0][1]
-    // statsFromTerminal projects 1:1 from UIMessage.metadata to MessageStats.
+    // statsFromTerminal copies metadata.stats 1:1 (plus timings).
     expect(payload.stats).toEqual({
       totalTokens: 42,
       inputTokens: 30,
       outputTokens: 12,
-      reasoningTokens: 3
+      outputTokenDetails: { reasoningTokens: 3 }
     })
   })
 
@@ -156,7 +157,7 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
       id: 'msg-w',
       role: 'assistant',
       parts: [{ type: 'text', text: 'hi' }],
-      metadata: { totalTokens: 7, inputTokens: 5, outputTokens: 2 }
+      metadata: { stats: { totalTokens: 7, inputTokens: 5, outputTokens: 2 } }
     } as unknown as CherryUIMessage
 
     await listener.onDone({

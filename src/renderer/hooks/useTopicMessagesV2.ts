@@ -36,8 +36,7 @@ function toUIMessage(shared: SharedMessage): CherryUIMessage {
       status: shared.status,
       createdAt: shared.createdAt,
       updatedAt: shared.updatedAt,
-      stats: shared.stats ?? undefined,
-      ...(shared.stats?.totalTokens ? { totalTokens: shared.stats.totalTokens } : {})
+      stats: shared.stats ?? undefined
     }
   }
 }

@@ -770,7 +770,12 @@ describe('mergeStats', () => {
 
   it('merges usage tokens (AI SDK v6 names)', async () => {
     const stats = mergeStats({ prompt_tokens: 10, completion_tokens: 20, total_tokens: 30, thoughts_tokens: 4 })
-    expect(stats).toEqual({ inputTokens: 10, outputTokens: 20, totalTokens: 30, reasoningTokens: 4 })
+    expect(stats).toEqual({
+      inputTokens: 10,
+      outputTokens: 20,
+      totalTokens: 30,
+      outputTokenDetails: { reasoningTokens: 4 }
+    })
   })
 
   it('maps v1 cost to a provider-reported USD cost', async () => {

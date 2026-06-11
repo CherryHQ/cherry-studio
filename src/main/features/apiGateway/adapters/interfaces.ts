@@ -13,18 +13,17 @@ import type { Provider } from '@shared/data/types/provider'
 import type { ToolSet, UIMessageChunk } from 'ai'
 
 /**
- * Token usage projection carried on `message-metadata` UIMessageChunks emitted
- * by main's `AiService.streamText`. Mirrors the Cherry `MessageStats` token
- * fields (AI SDK v6 names: `inputTokens` = input, `outputTokens` = output,
- * `reasoningTokens` = reasoning). The full cache / output breakdown rides in
- * the nested `stats` object on the chunk; this scalar view is all the gateway
- * SSE adapters need.
+ * Token usage carried on `message-metadata` UIMessageChunks emitted by main's
+ * `AiService.streamText`: the nested `stats` snapshot (Cherry `MessageStats`,
+ * AI SDK v6 names) is the single carrier — the gateway SSE adapters read the
+ * input/output totals from it.
  */
 export interface GatewayUsageMetadata {
-  totalTokens?: number
-  inputTokens?: number
-  outputTokens?: number
-  reasoningTokens?: number
+  stats?: {
+    totalTokens?: number
+    inputTokens?: number
+    outputTokens?: number
+  }
 }
 
 /**

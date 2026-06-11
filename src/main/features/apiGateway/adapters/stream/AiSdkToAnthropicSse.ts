@@ -189,8 +189,8 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
   /** Track cumulative usage from the `message-metadata` projection. */
   private applyUsageMetadata(metadata: GatewayUsageMetadata | undefined): void {
     if (!metadata) return
-    if (metadata.inputTokens !== undefined) this.state.inputTokens = metadata.inputTokens
-    if (metadata.outputTokens !== undefined) this.state.outputTokens = metadata.outputTokens
+    if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
+    if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
   }
 
   private startTextBlock(): void {

@@ -26,7 +26,9 @@ export function statsToUsage(stats: MessageStats): Usage {
     prompt_tokens: stats.inputTokens ?? 0,
     completion_tokens: stats.outputTokens ?? 0,
     total_tokens: stats.totalTokens ?? 0,
-    ...(stats.reasoningTokens !== undefined && { thoughts_tokens: stats.reasoningTokens }),
+    ...(stats.outputTokenDetails?.reasoningTokens !== undefined && {
+      thoughts_tokens: stats.outputTokenDetails.reasoningTokens
+    }),
     ...(stats.inputTokenDetails?.cacheReadTokens !== undefined && {
       cache_read_tokens: stats.inputTokenDetails.cacheReadTokens
     }),

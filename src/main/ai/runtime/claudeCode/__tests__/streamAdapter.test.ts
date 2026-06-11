@@ -464,13 +464,10 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect.objectContaining({
         type: 'finish',
         finishReason: 'stop',
-        // v6 semantic: top-level inputTokens = NON-cache (3); cache lives in the
+        // v6 semantic: stats.inputTokens = NON-cache (3); cache lives in the
         // breakdown; totalTokens is the all-in figure (3 + 7 + 11 + 5 = 26).
         messageMetadata: expect.objectContaining({
           modelId: 'sonnet',
-          totalTokens: 26,
-          inputTokens: 3,
-          outputTokens: 5,
           stats: expect.objectContaining({
             inputTokens: 3,
             outputTokens: 5,

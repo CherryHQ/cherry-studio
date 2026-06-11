@@ -212,13 +212,8 @@ describe('Agent', () => {
 
     // Expect TWO metadata chunks (one per onStepFinish), with running cumulative sums.
     expect(collectedMetadata).toEqual([
-      { totalTokens: 8, inputTokens: 3, outputTokens: 5, stats: { inputTokens: 3, outputTokens: 5, totalTokens: 8 } },
-      {
-        totalTokens: 14,
-        inputTokens: 5,
-        outputTokens: 9,
-        stats: { inputTokens: 5, outputTokens: 9, totalTokens: 14 }
-      }
+      { stats: { inputTokens: 3, outputTokens: 5, totalTokens: 8 } },
+      { stats: { inputTokens: 5, outputTokens: 9, totalTokens: 14 } }
     ])
   })
 
@@ -285,28 +280,18 @@ describe('Agent', () => {
     // reasoningTokens must accumulate alongside the summed output tokens.
     expect(collectedMetadata).toEqual([
       {
-        totalTokens: 8,
-        inputTokens: 3,
-        outputTokens: 5,
-        reasoningTokens: 10,
         stats: {
           inputTokens: 3,
           outputTokens: 5,
           totalTokens: 8,
-          reasoningTokens: 10,
           outputTokenDetails: { reasoningTokens: 10 }
         }
       },
       {
-        totalTokens: 14,
-        inputTokens: 5,
-        outputTokens: 9,
-        reasoningTokens: 25,
         stats: {
           inputTokens: 5,
           outputTokens: 9,
           totalTokens: 14,
-          reasoningTokens: 25,
           outputTokenDetails: { reasoningTokens: 25 }
         }
       }

@@ -290,18 +290,11 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   private emitUsageMetadata(usage: BetaUsage | undefined): void {
     if (!usage) return
-    const stats = v3UsageToStats(convertClaudeCodeUsage(usage))
     this.eventQueue.push({
       type: 'chunk',
       chunk: {
         type: 'message-metadata',
-        messageMetadata: {
-          totalTokens: stats.totalTokens,
-          inputTokens: stats.inputTokens,
-          outputTokens: stats.outputTokens,
-          ...(stats.reasoningTokens !== undefined ? { reasoningTokens: stats.reasoningTokens } : {}),
-          stats
-        }
+        messageMetadata: { stats: v3UsageToStats(convertClaudeCodeUsage(usage)) }
       }
     })
   }

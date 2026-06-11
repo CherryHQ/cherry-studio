@@ -9,7 +9,7 @@ describe('statsToUsage', () => {
       inputTokens: 30,
       outputTokens: 12,
       totalTokens: 42,
-      reasoningTokens: 3,
+      outputTokenDetails: { reasoningTokens: 3 },
       cost: 0.000123
     }
 

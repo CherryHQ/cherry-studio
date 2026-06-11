@@ -9,7 +9,6 @@
  *   inputTokens / outputTokens / totalTokens               → same
  *   inputTokenDetails{noCache,cacheRead,cacheWrite}Tokens   → same
  *   outputTokenDetails{text,reasoning}Tokens                → same
- *   outputTokenDetails.reasoningTokens                      → reasoningTokens (flat mirror)
  *   raw.cost (provider-reported)                            → metadata.providerCostUsd
  *
  * A FULL cumulative snapshot is emitted every step: the AI SDK shallow-merges
@@ -74,7 +73,6 @@ function compact<T extends Record<string, number | undefined>>(obj: T): { [K in 
 
 /** Project cumulative AI SDK usage into the persisted `MessageStats` token shape (no cost — that lands at persistence time). */
 export function usageToStats(total: LanguageModelUsage): MessageStats {
-  const reasoningTokens = total.outputTokenDetails?.reasoningTokens
   const inputTokenDetails = compact({
     noCacheTokens: total.inputTokenDetails?.noCacheTokens,
     cacheReadTokens: total.inputTokenDetails?.cacheReadTokens,
@@ -82,13 +80,12 @@ export function usageToStats(total: LanguageModelUsage): MessageStats {
   })
   const outputTokenDetails = compact({
     textTokens: total.outputTokenDetails?.textTokens,
-    reasoningTokens
+    reasoningTokens: total.outputTokenDetails?.reasoningTokens
   })
   return {
     ...(total.inputTokens !== undefined ? { inputTokens: total.inputTokens } : {}),
     ...(total.outputTokens !== undefined ? { outputTokens: total.outputTokens } : {}),
     ...(total.totalTokens !== undefined ? { totalTokens: total.totalTokens } : {}),
-    ...(reasoningTokens !== undefined ? { reasoningTokens } : {}),
     ...(inputTokenDetails ? { inputTokenDetails } : {}),
     ...(outputTokenDetails ? { outputTokenDetails } : {})
   }
@@ -108,10 +105,6 @@ export function attachUsageObserver(agent: Agent): void {
     agent.write({
       type: 'message-metadata',
       messageMetadata: {
-        totalTokens: total.totalTokens,
-        inputTokens: total.inputTokens,
-        outputTokens: total.outputTokens,
-        reasoningTokens: total.outputTokenDetails?.reasoningTokens,
         stats: usageToStats(total),
         ...(providerCostUsd !== undefined ? { providerCostUsd } : {})
       }

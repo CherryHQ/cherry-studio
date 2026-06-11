@@ -166,7 +166,6 @@ function compactDetails<T extends Record<string, number | undefined>>(obj: T): {
 export function v3UsageToStats(usage: LanguageModelV3Usage): MessageStats {
   const inputTotal = usage.inputTokens.total ?? 0
   const outputTotal = usage.outputTokens.total ?? 0
-  const reasoningTokens = usage.outputTokens.reasoning
   const inputTokenDetails = compactDetails({
     noCacheTokens: usage.inputTokens.noCache,
     cacheReadTokens: usage.inputTokens.cacheRead,
@@ -174,13 +173,12 @@ export function v3UsageToStats(usage: LanguageModelV3Usage): MessageStats {
   })
   const outputTokenDetails = compactDetails({
     textTokens: usage.outputTokens.text,
-    reasoningTokens
+    reasoningTokens: usage.outputTokens.reasoning
   })
   return {
     inputTokens: usage.inputTokens.noCache ?? inputTotal,
     outputTokens: outputTotal,
     totalTokens: inputTotal + outputTotal,
-    ...(reasoningTokens !== undefined ? { reasoningTokens } : {}),
     ...(inputTokenDetails ? { inputTokenDetails } : {}),
     ...(outputTokenDetails ? { outputTokenDetails } : {})
   }
@@ -1130,14 +1128,9 @@ export class ClaudeCodeStreamAdapter {
     // cost (`total_cost_usd`) is deliberately NOT used here — it is unreliable
     // (session-cumulative / subscription-equivalent); cost is computed from
     // pricing at persistence time. See `enrichStatsWithCost`.
-    const stats = v3UsageToStats(usage)
     return {
       modelId: this.modelId,
-      totalTokens: stats.totalTokens,
-      inputTokens: stats.inputTokens,
-      outputTokens: stats.outputTokens,
-      ...(stats.reasoningTokens !== undefined ? { reasoningTokens: stats.reasoningTokens } : {}),
-      stats
+      stats: v3UsageToStats(usage)
     }
   }
 }
