@@ -180,7 +180,8 @@ time; a later re-resolution after a restart must not downgrade `exact` to
 | 1 | `AiService.billingHookPart` (billing funnel) | **Every aiSdk request**: chat streams, API gateway, translate, topic rename, ephemeral temp chats | Per-request `onFinish` → fire-and-forget `recordRequest`; row key = assistant message id (chat) or generated request id |
 | 2 | `MessageService.update` hook | All persisted assistant messages (durable confirmation; converges with path 1 on the same row key) | Post-commit, fire-and-forget `recordFromMessage` |
 | 3 | `TemporaryChatService.persist` | Temp chats the user keeps (raw-inserts bypass the hook) | Same projection, fired after the insert tx |
-| 4 | `reconcileFromMessages` | v1-migrated history; chat rows lost to crash/quit | Lazy backfill, §5 |
+| 4 | `AgentSessionMessageService.saveMessage(s)` | Agent sessions (Claude Code runtime — bypasses both the funnel and the `message` table) | Post-commit, fire-and-forget `recordRequest` keyed by the session message id |
+| 5 | `reconcileFromMessages` | v1-migrated history; chat rows lost to crash/quit | Lazy backfill, §5 |
 
 `recordRequest` guards: parseable `modelId` (`providerId::modelId`) and a
 usage signal (any of input/output/total tokens or cost) — timing-only stats
@@ -188,8 +189,8 @@ and zero-usage runs don't create rows. Cost is enriched in-place when the
 caller's stats carry none (the funnel path). Writes go through
 `DbService.withWriteTx` with `onConflictDoUpdate` on `messageId`.
 
-Out of funnel reach: agent sessions (separate runtime + table) and
-embeddings/image generation (different SDK APIs).
+Out of funnel reach: embeddings/image generation (different SDK APIs — no
+Agent run; they would need their own `recordRequest` call sites).
 
 ---
 
@@ -243,7 +244,8 @@ summed into one number. Buckets are ordered by total cost descending.
 | **Translate / topic rename** (`generateText`) | ✅ | Funnel |
 | Temporary chats (kept **and** discarded) | ✅ | Funnel records the spend either way; `persist()` (path 3) adds topic context for kept chats |
 | v1-migrated history | ✅ (backfilled) | Path 4, `backfill`/`none` attribution |
-| Agent sessions | ❌ | Separate runtime + table (`agent_session_message`); needs a sibling hook in `AgentSessionMessageService.saveMessage` |
+| **Agent sessions** (Claude Code runtime) | ✅ | Sibling hook in `AgentSessionMessageService.saveMessage`/`saveMessages` — sessions bypass the funnel (no aiSdk Agent) and the `message`-table hook (separate table). Rows have `topicId` NULL |
+| Claude Code as a chat provider | ✅ | Its adapter implements aiSdk `LanguageModelV3.doStream` → flows through the funnel + message hook like any provider |
 | Embeddings / image generation | ❌ | Different SDK APIs, no Agent run; would need their own `recordRequest` call sites |
 
 ---
