@@ -90,7 +90,7 @@ export const SettingHelpText = ({ className, ...props }: React.ComponentPropsWit
 )
 
 export const SettingHelpLink = ({ className, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-  <a className={cn('cursor-pointer text-[11px] text-primary hover:underline', className)} {...props} />
+  <a className={cn('cursor-pointer text-[11px] text-link hover:underline', className)} {...props} />
 )
 
 export const SettingTitleExternalLink = ({
@@ -102,7 +102,7 @@ export const SettingTitleExternalLink = ({
   <a
     target={target}
     rel={rel}
-    className={cn('inline-flex items-center text-primary hover:underline', className)}
+    className={cn('inline-flex items-center text-link hover:underline', className)}
     {...props}
   />
 )
