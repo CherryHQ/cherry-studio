@@ -29,6 +29,9 @@ export const usageLedgerTable = sqliteTable(
     providerId: text().notNull(),
     // UniqueModelId ("providerId::modelId") snapshot
     modelId: text(),
+    // What kind of request this row bills: language (chat/gateway/one-shot
+    // text), embedding (token-priced, input only), image (per-image priced).
+    modality: text().notNull().default('language'),
 
     // API key attribution snapshot (denormalized — key may be deleted later)
     apiKeyId: text(),
@@ -47,6 +50,8 @@ export const usageLedgerTable = sqliteTable(
     reasoningTokens: integer(),
     cacheReadTokens: integer(),
     cacheWriteTokens: integer(),
+    // Image-generation usage (modality 'image'): number of generated images
+    imageCount: integer(),
 
     // Cost (mirrors MessageStats cost fields)
     cost: real(),
@@ -65,7 +70,8 @@ export const usageLedgerTable = sqliteTable(
       sql`${t.apiKeyAttribution} IN ('exact', 'rotation', 'backfill', 'auth', 'none')`
     ),
     // NULL passes a CHECK in SQLite, so nullable columns need no IS NULL branch.
-    check('usage_ledger_cost_source_check', sql`${t.costSource} IN ('provider', 'computed')`)
+    check('usage_ledger_cost_source_check', sql`${t.costSource} IN ('provider', 'computed')`),
+    check('usage_ledger_modality_check', sql`${t.modality} IN ('language', 'embedding', 'image')`)
   ]
 )
 

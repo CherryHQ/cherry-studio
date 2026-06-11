@@ -89,6 +89,24 @@ export function computeLanguageCost(
 }
 
 /**
+ * Compute image-generation cost from the model's per-image pricing.
+ *
+ * Only the `'image'` unit (flat price per generated image; the default when
+ * `unit` is omitted) is supported — `'pixel'`-unit pricing needs the rendered
+ * dimensions, which the generation result does not carry; those models return
+ * `undefined` (no cost recorded) rather than a wrong number.
+ */
+export function computeImageCost(
+  imageCount: number,
+  pricing: RuntimeModelPricing
+): { cost: number; currency: Currency } | undefined {
+  const perImage = pricing.perImage
+  if (!perImage || imageCount <= 0) return undefined
+  if (perImage.unit !== undefined && perImage.unit !== 'image') return undefined
+  return { cost: imageCount * perImage.price, currency: pricing.input?.currency ?? CURRENCY.USD }
+}
+
+/**
  * Pull a provider-reported cost (USD) out of the raw usage blob
  * (`LanguageModelUsage.raw`). Probes the shapes seen in the wild
  * (`raw.cost`, `raw.usage.cost`, e.g. OpenRouter). Returns `undefined` when

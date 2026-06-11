@@ -30,8 +30,9 @@ so message-derived statistics simply cannot see it:
 
 Before the ledger, these surfaces reported (at most) to
 `AnalyticsService.trackUsage` — volatile telemetry, not a durable per-key
-billing record. The billing funnel (§2) now captures them at the request
-chokepoint.
+billing record. The billing funnel (§2) now captures the Agent-based ones at
+the request chokepoint; embeddings and image generation record at their
+`AiService` call sites (§4).
 
 ### 1.2 Statistics die with their source data
 
@@ -138,10 +139,10 @@ a replacement.
 
 | Group | Columns | Notes |
 | --- | --- | --- |
-| Identity | `messageId` (UNIQUE), `topicId`, `providerId`, `modelId` | Plain snapshots, no FKs. `messageId` is the idempotency key: the assistant message id for chat, a per-request id for stateless requests |
+| Identity | `messageId` (UNIQUE), `topicId`, `providerId`, `modelId`, `modality` | Plain snapshots, no FKs. `messageId` is the idempotency key: the assistant message id for chat, a per-request id for stateless requests. `modality`: `language`/`embedding`/`image` |
 | Key snapshot | `apiKeyId`, `apiKeyLabel`, `apiKeyMasked`, `apiKeyAttribution` | Denormalized at write time; masked value never contains the raw key (≤8-char keys clamp to `****`) |
-| Usage | `inputTokens`, `outputTokens`, `totalTokens`, `reasoningTokens`, `cacheReadTokens`, `cacheWriteTokens` | AI SDK v6 names, mirrors `MessageStats` |
-| Cost | `cost`, `costCurrency`, `costSource` (`provider`/`computed`) | Mirrors `MessageStats` cost fields |
+| Usage | `inputTokens`, `outputTokens`, `totalTokens`, `reasoningTokens`, `cacheReadTokens`, `cacheWriteTokens`, `imageCount` | AI SDK v6 names, mirrors `MessageStats`; `imageCount` for `image` rows |
+| Cost | `cost`, `costCurrency`, `costSource` (`provider`/`computed`) | Mirrors `MessageStats` cost fields; image rows priced via `pricing.perImage` (`costBreakdown.image`) |
 
 Indexes: unique `messageId`; `(providerId, createdAt)`; `(apiKeyId, createdAt)`;
 `createdAt` — the shapes the list filters and stats group-bys scan.
@@ -189,8 +190,9 @@ and zero-usage runs don't create rows. Cost is enriched in-place when the
 caller's stats carry none (the funnel path). Writes go through
 `DbService.withWriteTx` with `onConflictDoUpdate` on `messageId`.
 
-Out of funnel reach: embeddings/image generation (different SDK APIs — no
-Agent run; they would need their own `recordRequest` call sites).
+Embeddings and image generation don't run through the Agent (different SDK
+APIs) — they record directly at their `AiService` call sites (`embedMany`,
+`generateImage`) with modality `embedding`/`image`.
 
 ---
 
@@ -246,7 +248,8 @@ summed into one number. Buckets are ordered by total cost descending.
 | v1-migrated history | ✅ (backfilled) | Path 4, `backfill`/`none` attribution |
 | **Agent sessions** (Claude Code runtime) | ✅ | Sibling hook in `AgentSessionMessageService.saveMessage`/`saveMessages` — sessions bypass the funnel (no aiSdk Agent) and the `message`-table hook (separate table). Rows have `topicId` NULL |
 | Claude Code as a chat provider | ✅ | Its adapter implements aiSdk `LanguageModelV3.doStream` → flows through the funnel + message hook like any provider |
-| Embeddings / image generation | ❌ | Different SDK APIs, no Agent run; would need their own `recordRequest` call sites |
+| **Embeddings** (`AiService.embedMany`) | ✅ | Modality `embedding`; token-priced via the model's input rate (enriched in `recordRequest`) |
+| **Image generation** (`AiService.generateImage`) | ✅ | Modality `image`; priced per generated image via `pricing.perImage` (computed at the call site; `pixel`-unit pricing unsupported — rows record `imageCount` without cost) |
 
 ---
 

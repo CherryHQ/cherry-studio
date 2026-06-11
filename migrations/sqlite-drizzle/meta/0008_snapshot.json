@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "cb59cd3f-ffdd-499b-bf61-37c281f4bb1d",
+  "id": "ed4eeafc-e0b1-4415-a87c-ee9fa879a7bc",
   "prevId": "08483484-877c-40f7-bae0-9e214823d99a",
   "tables": {
     "agent": {
@@ -3313,6 +3313,14 @@
           "notNull": false,
           "autoincrement": false
         },
+        "modality": {
+          "name": "modality",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'language'"
+        },
         "api_key_id": {
           "name": "api_key_id",
           "type": "text",
@@ -3379,6 +3387,13 @@
         },
         "cache_write_tokens": {
           "name": "cache_write_tokens",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "image_count": {
+          "name": "image_count",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
@@ -3453,6 +3468,10 @@
         "usage_ledger_cost_source_check": {
           "name": "usage_ledger_cost_source_check",
           "value": "\"usage_ledger\".\"cost_source\" IN ('provider', 'computed')"
+        },
+        "usage_ledger_modality_check": {
+          "name": "usage_ledger_modality_check",
+          "value": "\"usage_ledger\".\"modality\" IN ('language', 'embedding', 'image')"
         }
       }
     },

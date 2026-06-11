@@ -192,6 +192,64 @@ describe('UsageLedgerService', () => {
       })
     })
 
+    it('records embedding requests and enriches cost from the input rate', async () => {
+      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+      await dbh.db.insert(userModelTable).values({
+        id: 'openai::text-embedding-3-small',
+        providerId: 'openai',
+        modelId: 'text-embedding-3-small',
+        presetModelId: 'text-embedding-3-small',
+        name: 'text-embedding-3-small',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: 'a0',
+        pricing: { input: { perMillionTokens: 0.02, currency: 'USD' }, output: { perMillionTokens: null } }
+      })
+
+      await usageLedgerService.recordRequest({
+        id: 'req-embed',
+        modelId: 'openai::text-embedding-3-small',
+        modality: 'embedding',
+        stats: { inputTokens: 1_000_000, totalTokens: 1_000_000 }
+      })
+
+      const [row] = await dbh.db.select().from(usageLedgerTable)
+      expect(row).toMatchObject({
+        messageId: 'req-embed',
+        modality: 'embedding',
+        inputTokens: 1_000_000,
+        cost: 0.02,
+        costSource: 'computed'
+      })
+    })
+
+    it('records image requests with imageCount and pre-computed per-image cost', async () => {
+      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+
+      await usageLedgerService.recordRequest({
+        id: 'req-image',
+        modelId: 'openai::gpt-image-1',
+        modality: 'image',
+        imageCount: 3,
+        stats: { cost: 0.12, costSource: 'computed', costCurrency: 'USD', costBreakdown: { image: 0.12 } }
+      })
+      // No pricing/cost: the row must still record the image count.
+      await usageLedgerService.recordRequest({
+        id: 'req-image-unpriced',
+        modelId: 'openai::gpt-image-1',
+        modality: 'image',
+        imageCount: 1,
+        stats: {}
+      })
+
+      const rows = await dbh.db.select().from(usageLedgerTable)
+      expect(rows).toHaveLength(2)
+      const priced = rows.find((r) => r.messageId === 'req-image')
+      expect(priced).toMatchObject({ modality: 'image', imageCount: 3, cost: 0.12, totalTokens: null })
+      const unpriced = rows.find((r) => r.messageId === 'req-image-unpriced')
+      expect(unpriced).toMatchObject({ modality: 'image', imageCount: 1, cost: null })
+    })
+
     it('never regresses topicId to null when funnel and persistence hook converge', async () => {
       await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
 

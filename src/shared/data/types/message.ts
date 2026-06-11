@@ -86,7 +86,9 @@ export const MessageStatsSchema = z.strictObject({
       input: z.number().optional(),
       output: z.number().optional(),
       cacheRead: z.number().optional(),
-      cacheWrite: z.number().optional()
+      cacheWrite: z.number().optional(),
+      /** Per-image cost (image-generation requests; priced via `pricing.perImage`). */
+      image: z.number().optional()
     })
     .optional(),
   /** Per-million-token rates captured at completion time, for historical audit. */

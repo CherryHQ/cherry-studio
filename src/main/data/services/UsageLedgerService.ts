@@ -38,7 +38,7 @@ import type {
 } from '@shared/data/api/schemas/usageLedger'
 import type { Message } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { UsageLedgerAttribution, UsageLedgerEntry } from '@shared/data/types/usageLedger'
+import type { UsageLedgerAttribution, UsageLedgerEntry, UsageLedgerModality } from '@shared/data/types/usageLedger'
 import { maskApiKey } from '@shared/utils/api'
 import type { SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, gt, gte, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm'
@@ -94,6 +94,7 @@ function rowToEntry(row: UsageLedgerRow): UsageLedgerEntry {
     topicId: row.topicId,
     providerId: row.providerId,
     modelId: row.modelId,
+    modality: row.modality as UsageLedgerModality,
     apiKeyId: row.apiKeyId,
     apiKeyLabel: row.apiKeyLabel,
     apiKeyMasked: row.apiKeyMasked,
@@ -104,6 +105,7 @@ function rowToEntry(row: UsageLedgerRow): UsageLedgerEntry {
     reasoningTokens: row.reasoningTokens,
     cacheReadTokens: row.cacheReadTokens,
     cacheWriteTokens: row.cacheWriteTokens,
+    imageCount: row.imageCount,
     cost: row.cost,
     costCurrency: row.costCurrency,
     costSource: row.costSource as UsageLedgerEntry['costSource'],
@@ -164,6 +166,10 @@ export interface RecordRequestInput {
   stats: NonNullable<Message['stats']>
   /** Provider-reported cost candidate from raw usage (e.g. OpenRouter). */
   providerCostUsd?: number
+  /** Request kind; defaults to `language`. */
+  modality?: UsageLedgerModality
+  /** Generated image count (modality `image`). */
+  imageCount?: number
 }
 
 export class UsageLedgerService {
@@ -201,7 +207,8 @@ export class UsageLedgerService {
    * disrupt the request or message persistence.
    */
   async recordRequest(input: RecordRequestInput): Promise<void> {
-    if (!hasUsageSignal(input.stats)) return
+    const modality = input.modality ?? 'language'
+    if (!hasUsageSignal(input.stats) && !input.imageCount) return
 
     let providerId: string
     try {
@@ -213,8 +220,10 @@ export class UsageLedgerService {
 
     // Stateless requests skip the message-persistence cost step — resolve
     // cost here when absent. Already-enriched stats pass through untouched.
+    // Image requests are priced per image at the call site (the token-based
+    // enrichment doesn't apply).
     const stats =
-      input.stats.cost === undefined
+      input.stats.cost === undefined && modality !== 'image'
         ? ((await enrichStatsWithCost(input.stats, input.modelId as UniqueModelId, input.providerCostUsd)) ??
           input.stats)
         : input.stats
@@ -226,11 +235,13 @@ export class UsageLedgerService {
       topicId: input.topicId ?? null,
       providerId,
       modelId: input.modelId,
+      modality,
       apiKeyId: key.keyId ?? null,
       apiKeyLabel: key.label ?? null,
       apiKeyMasked: key.masked ?? null,
       apiKeyAttribution: key.attribution,
-      ...statsToColumns(stats)
+      ...statsToColumns(stats),
+      imageCount: input.imageCount ?? null
     }
 
     // In the DO UPDATE branch, an unqualified/table-qualified column reads the

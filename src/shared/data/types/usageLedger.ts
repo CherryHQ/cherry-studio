@@ -24,6 +24,15 @@ import * as z from 'zod'
 export const UsageLedgerAttributionSchema = z.enum(['exact', 'rotation', 'backfill', 'auth', 'none'])
 export type UsageLedgerAttribution = z.infer<typeof UsageLedgerAttributionSchema>
 
+/**
+ * What kind of request a ledger row bills:
+ * - `language`: chat / gateway / one-shot text (token-priced, full breakdown)
+ * - `embedding`: embedding calls (token-priced, input only)
+ * - `image`: image generation (priced per image via `pricing.perImage`)
+ */
+export const UsageLedgerModalitySchema = z.enum(['language', 'embedding', 'image'])
+export type UsageLedgerModality = z.infer<typeof UsageLedgerModalitySchema>
+
 export const UsageLedgerEntrySchema = z.strictObject({
   /** UUIDv7 (time-ordered), auto-generated */
   id: z.uuidv7(),
@@ -35,6 +44,7 @@ export const UsageLedgerEntrySchema = z.strictObject({
   providerId: z.string(),
   /** UniqueModelId ("providerId::modelId") snapshot */
   modelId: z.string().nullable(),
+  modality: UsageLedgerModalitySchema,
 
   /** API key id snapshot (null when attribution is auth/none) */
   apiKeyId: z.string().nullable(),
@@ -51,6 +61,8 @@ export const UsageLedgerEntrySchema = z.strictObject({
   reasoningTokens: z.number().nullable(),
   cacheReadTokens: z.number().nullable(),
   cacheWriteTokens: z.number().nullable(),
+  /** Generated image count (modality `image`) */
+  imageCount: z.number().nullable(),
 
   // Cost (mirrors MessageStats cost fields)
   cost: z.number().nullable(),

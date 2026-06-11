@@ -1,5 +1,5 @@
 import type { RuntimeModelPricing } from '@shared/data/types/model'
-import { computeLanguageCost, extractProviderCost } from '@shared/utils/cost'
+import { computeImageCost, computeLanguageCost, extractProviderCost } from '@shared/utils/cost'
 import { describe, expect, it } from 'vitest'
 
 const pricing = (overrides: Partial<RuntimeModelPricing> = {}): RuntimeModelPricing => ({
@@ -66,6 +66,20 @@ describe('computeLanguageCost', () => {
       pricing({ input: { perMillionTokens: 3, currency: 'CNY' }, output: { perMillionTokens: 15, currency: 'CNY' } })
     )
     expect(result?.currency).toBe('CNY')
+  })
+})
+
+describe('computeImageCost', () => {
+  it('prices per generated image with the default/image unit', () => {
+    const p = pricing({ perImage: { price: 0.04 } })
+    expect(computeImageCost(3, p)).toEqual({ cost: 0.12, currency: 'USD' })
+    expect(computeImageCost(2, pricing({ perImage: { price: 0.04, unit: 'image' } }))?.cost).toBeCloseTo(0.08, 10)
+  })
+
+  it('returns undefined for pixel-unit pricing, missing pricing, or zero images', () => {
+    expect(computeImageCost(1, pricing({ perImage: { price: 0.000001, unit: 'pixel' } }))).toBeUndefined()
+    expect(computeImageCost(1, pricing())).toBeUndefined()
+    expect(computeImageCost(0, pricing({ perImage: { price: 0.04 } }))).toBeUndefined()
   })
 })
 

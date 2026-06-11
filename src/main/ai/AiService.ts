@@ -20,7 +20,7 @@ import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Base64String } from '@shared/file/types/common'
 import { IpcChannel } from '@shared/IpcChannel'
-import { extractProviderCost } from '@shared/utils/cost'
+import { computeImageCost, extractProviderCost } from '@shared/utils/cost'
 import { isEmbeddingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
@@ -424,7 +424,7 @@ export class AiService extends BaseService {
     logger.info('generateImage started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
     const signal = request.requestOptions?.signal
 
-    const { sdkConfig } = await this.buildAgentParamsFor(request, signal)
+    const { sdkConfig, model } = await this.buildAgentParamsFor(request, signal)
 
     const promptParam = request.inputImages
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
@@ -512,6 +512,30 @@ export class AiService extends BaseService {
     const fileManager = application.get('FileManager')
     const files = await Promise.all(dataUrls.map((data) => fileManager.createInternalEntry({ source: 'base64', data })))
 
+    // Usage ledger: image generation is priced per image (`pricing.perImage`),
+    // not tokens — cost is computed here where the resolved model is in scope.
+    if (files.length > 0) {
+      const imageCost = model.pricing ? computeImageCost(files.length, model.pricing) : undefined
+      void usageLedgerService
+        .recordRequest({
+          id: crypto.randomUUID(),
+          modelId: model.id,
+          modality: 'image',
+          imageCount: files.length,
+          stats: imageCost
+            ? {
+                cost: imageCost.cost,
+                costSource: 'computed',
+                costCurrency: imageCost.currency,
+                costBreakdown: { image: imageCost.cost }
+              }
+            : {}
+        })
+        .catch((err) => {
+          logger.warn('usage ledger record failed', { modelId: model.id, err })
+        })
+    }
+
     return { files }
   }
 
@@ -530,6 +554,23 @@ export class AiService extends BaseService {
     })
 
     this.trackUsage(model, { inputTokens: result.usage?.tokens ?? 0, outputTokens: 0 })
+
+    // Usage ledger: embeddings are token-priced (input rate only); cost is
+    // enriched inside recordRequest from the model's pricing.
+    if (result.usage?.tokens) {
+      const tokens = result.usage.tokens
+      void usageLedgerService
+        .recordRequest({
+          id: crypto.randomUUID(),
+          modelId: model.id,
+          modality: 'embedding',
+          stats: { inputTokens: tokens, totalTokens: tokens }
+        })
+        .catch((err) => {
+          logger.warn('usage ledger record failed', { modelId: model.id, err })
+        })
+    }
+
     return { embeddings: result.embeddings, usage: result.usage }
   }
 
