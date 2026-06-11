@@ -321,7 +321,14 @@ const api = {
     resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.MainWindow_ResetMinimumSize),
     // Pin/unpin the current sub-window (always-on-top).
     setAlwaysOnTop: (pinned: boolean): Promise<boolean> =>
-      ipcRenderer.invoke(IpcChannel.SubWindow_SetAlwaysOnTop, pinned)
+      ipcRenderer.invoke(IpcChannel.SubWindow_SetAlwaysOnTop, pinned),
+    // Standalone focus relay (the new IpcApi `window.*` has no focus event).
+    // True window key state — unlike DOM focus/blur, unaffected by <webview> stealing page focus.
+    onFocusChange: (callback: (isFocused: boolean) => void): (() => void) => {
+      const listener = (_: Electron.IpcRendererEvent, isFocused: boolean) => callback(isFocused)
+      ipcRenderer.on(IpcChannel.WindowManager_FocusChanged, listener)
+      return () => ipcRenderer.off(IpcChannel.WindowManager_FocusChanged, listener)
+    }
   },
   command: {
     showNativePopupMenu: (
