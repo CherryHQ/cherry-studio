@@ -1,3 +1,4 @@
+import { CURRENCY, objectValues } from '@cherrystudio/provider-registry'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type {
   DataUIPart,
@@ -27,69 +28,79 @@ export const MessageIdSchema = z.uuid()
 export type MessageId = z.infer<typeof MessageIdSchema>
 
 /**
- * Message Statistics - combines token usage and performance metrics
- * Replaces the separate `usage` and `metrics` fields
+ * Message Statistics — token usage, cost, and performance for one assistant
+ * message. Token fields mirror AI SDK v6 `LanguageModelUsage` 1:1 so the
+ * stream accumulator projects provider usage into this shape without
+ * translation.
  *
- * TODO(message-stats-redesign): This schema is flat, OpenAI-legacy-named, and
- * does not cover the actual modalities / billing dimensions we ship today.
- * Known gaps, to be addressed in a dedicated follow-up:
+ * Scope: language models only. Image generation (Painting subsystem) and
+ * embeddings (knowledge base) do not produce assistant messages and are not
+ * modelled here.
  *
- *  1. Naming drift vs AI SDK v5
- *     - `promptTokens` / `completionTokens` → should be `inputTokens` / `outputTokens`
- *     - `thoughtsTokens` is Gemini-only phrasing; AI SDK uses `reasoningTokens`
- *
- *  2. Cache accounting entirely missing
- *     - AI SDK `inputTokenDetails` has `noCacheTokens` / `cacheReadTokens` / `cacheWriteTokens`
- *     - Claude prompt caching and Gemini context caching are currently folded
- *       into a single `promptTokens`, so users can't see cache hit-rate or
- *       audit premium-rate cache writes
- *
- *  3. Output breakdown missing
- *     - AI SDK `outputTokenDetails` has `textTokens` / `reasoningTokens`;
- *       we only have a single `thoughtsTokens` patch
- *
- *  4. Non-text modalities not modelled
- *     - Embedding (single `tokens` field, no output concept)
- *     - Image generation (real billing is image count × size × quality, not tokens)
- *     - Audio (OpenAI audio tokens, Gemini per-second)
- *     - Video (Gemini, per-second or token-equivalent)
- *
- *  5. Cost auditability
- *     - Single `cost: number` loses per-bucket breakdown
- *     - No pricing snapshot — if provider pricing changes, historical
- *       stats drift. Need `{ costBreakdown, pricingSnapshot }` pair
- *
- * Target shape (draft):
- *   interface MessageStats {
- *     language?: LanguageUsage         // inputTokens, outputTokens, totalTokens,
- *                                      // inputBreakdown{noCache,cacheRead,cacheWrite},
- *                                      // outputBreakdown{text,reasoning}
- *     embedding?: EmbeddingUsage       // tokens, vectorCount
- *     image?: ImageUsage               // imageCount, size, quality, (tokens?)
- *     audio?: AudioUsage               // inputAmount/unit, outputAmount/unit
- *     video?: VideoUsage               // inputSeconds, (tokens?)
- *     timings?: { timeFirstTokenMs, timeCompletionMs, timeThinkingMs }
- *     cost?: number                    // aggregate
- *     costBreakdown?: Partial<Record<CostBucket, number>>
- *     pricingSnapshot?: { rates, capturedAt }
- *   }
- *
- * Redesign touches: renderer usage UI, DB column readers (old rows still
- * have promptTokens/completionTokens — need fallback), pricing subsystem,
- * V1/V2 migration. Tracked as a separate PR series so this layer isn't
- * rushed alongside stream-manager changes.
+ * Cost is resolved at persistence time (`MessageServiceBackend`): computed
+ * from the model's pricing (cache-aware) by default, or taken from the
+ * provider's reported figure when the provider is flagged
+ * `apiFeatures.reportsActualCost` (e.g. OpenRouter). `pricingSnapshot` freezes
+ * the per-million rates so historical cost stays auditable if the model's
+ * pricing later changes.
  */
 export const MessageStatsSchema = z.strictObject({
-  // Token consumption (from API response)
-  promptTokens: z.number().optional(),
-  completionTokens: z.number().optional(),
+  // ── Token usage (AI SDK v6 `LanguageModelUsage` names) ──
+  inputTokens: z.number().optional(),
+  outputTokens: z.number().optional(),
   totalTokens: z.number().optional(),
-  thoughtsTokens: z.number().optional(),
+  /**
+   * Reasoning / thinking tokens. Convenience mirror of
+   * `outputTokenDetails.reasoningTokens` — same value, kept flat so callers
+   * that only need the single counter skip the nested object. Writers MUST
+   * populate both from the same source so they never diverge.
+   */
+  reasoningTokens: z.number().optional(),
 
-  // Cost (calculated at message completion time)
+  /** Input token breakdown (cache accounting). Mirrors v6 `inputTokenDetails`. */
+  inputTokenDetails: z
+    .strictObject({
+      noCacheTokens: z.number().optional(),
+      cacheReadTokens: z.number().optional(),
+      cacheWriteTokens: z.number().optional()
+    })
+    .optional(),
+  /** Output token breakdown. Mirrors v6 `outputTokenDetails`. */
+  outputTokenDetails: z
+    .strictObject({
+      textTokens: z.number().optional(),
+      reasoningTokens: z.number().optional()
+    })
+    .optional(),
+
+  // ── Cost (resolved at message completion) ──
+  /** Aggregate cost in `costCurrency`. */
   cost: z.number().optional(),
+  /** Currency of `cost` / `costBreakdown` / `pricingSnapshot` rates. */
+  costCurrency: z.enum(objectValues(CURRENCY)).optional(),
+  /** Provider-reported actual spend vs locally computed from pricing. */
+  costSource: z.enum(['provider', 'computed']).optional(),
+  /** Per-bucket cost. For provider-reported cost this is a computed cross-check. */
+  costBreakdown: z
+    .strictObject({
+      input: z.number().optional(),
+      output: z.number().optional(),
+      cacheRead: z.number().optional(),
+      cacheWrite: z.number().optional()
+    })
+    .optional(),
+  /** Per-million-token rates captured at completion time, for historical audit. */
+  pricingSnapshot: z
+    .strictObject({
+      input: z.number().optional(),
+      output: z.number().optional(),
+      cacheRead: z.number().optional(),
+      cacheWrite: z.number().optional(),
+      capturedAt: z.iso.datetime()
+    })
+    .optional(),
 
-  // Performance metrics (measured locally)
+  // ── Performance metrics (measured locally) ──
   timeFirstTokenMs: z.number().optional(),
   timeCompletionMs: z.number().optional(),
   timeThinkingMs: z.number().optional()
@@ -120,13 +131,17 @@ export interface MessageData {
 /**
  * Metadata carried on a streamed `CherryUIMessage`.
  *
- * These fields mirror the token columns on `MessageStats` so that once the
- * accumulator writes a snapshot into `exec.finalMessage.metadata`, the
- * persistence backend can translate it 1:1 into the DB `stats` column
- * without inventing extra plumbing. Keep the names aligned with the
- * legacy `MessageStats` shape (promptTokens / completionTokens / ...)
- * until the redesign tracked in `MessageStats` lands — the same names on
- * both sides make `statsFromMetadata()` a trivial projection.
+ * Token fields mirror `MessageStats` (AI SDK v6 names) so the stream
+ * accumulator can write a snapshot into `exec.finalMessage.metadata` and the
+ * persistence backend translates it 1:1 into the DB `stats` column
+ * (`statsFromTerminal`).
+ *
+ * Shallow-merge invariant: the AI SDK merges each `message-metadata` chunk
+ * into the accumulating message as `{ ...prev, ...next }` (shallow). The usage
+ * writers emit a FULL cumulative snapshot of `stats` every step, so the nested
+ * breakdown survives. A writer MUST never emit a partial `stats` patch — a
+ * snapshot missing `inputTokenDetails` would replace the whole object and drop
+ * earlier steps' breakdown.
  */
 export interface CherryUIMessageMetadata {
   // ── DB-backed tree/ownership (populated by `toUIMessage` from the branch
@@ -155,15 +170,22 @@ export interface CherryUIMessageMetadata {
   //    that only need a single counter can skip the nested object.
   /** Total tokens reported by the provider (mirrors `MessageStats.totalTokens`). */
   totalTokens?: number
-  /** Input / prompt tokens (AI SDK `inputTokens`, legacy `promptTokens`). */
-  promptTokens?: number
-  /** Output / completion tokens (AI SDK `outputTokens`, legacy `completionTokens`). */
-  completionTokens?: number
+  /** Input tokens (AI SDK `inputTokens`; mirrors `MessageStats.inputTokens`). */
+  inputTokens?: number
+  /** Output tokens (AI SDK `outputTokens`; mirrors `MessageStats.outputTokens`). */
+  outputTokens?: number
   /**
    * Reasoning / thinking tokens — AI SDK `outputTokenDetails.reasoningTokens`
    * (Gemini thoughts, Anthropic extended thinking, OpenAI o-series).
    */
-  thoughtsTokens?: number
+  reasoningTokens?: number
+  /**
+   * Transient provider-reported cost candidate (USD), extracted from
+   * `LanguageModelUsage.raw` (e.g. OpenRouter `usage.cost`). NOT persisted to
+   * `stats`; only consumed by `enrichStatsWithCost`, which decides whether to
+   * trust it based on `provider.apiFeatures.reportsActualCost`.
+   */
+  providerCostUsd?: number
   /** Full persisted stats (tokens + durations) when available. */
   stats?: MessageStats
 }

@@ -5924,6 +5924,7 @@
       "system": "システム"
     },
     "messages": {
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "メッセージ間に区切り線を表示",
         "tooltip": "バブルスタイルのメッセージには適用されません"
@@ -5956,6 +5957,7 @@
         "none": "表示しない"
       },
       "prompt": "プロンプト表示",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "メッセージの概要を表示します",
       "title": "メッセージ設定",
       "use_serif_font": "セリフフォントを使用"

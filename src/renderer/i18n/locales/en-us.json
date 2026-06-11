@@ -5924,6 +5924,7 @@
       "system": "System"
     },
     "messages": {
+      "cache_read_tokens": "Cached input tokens read",
       "divider": {
         "label": "Show divider between messages",
         "tooltip": "Not applicable to bubble-style message"
@@ -5956,6 +5957,7 @@
         "none": "None"
       },
       "prompt": "Show prompt",
+      "reasoning_tokens": "Reasoning tokens",
       "show_message_outline": "Show message outline",
       "title": "Message Settings",
       "use_serif_font": "Use serif font"

@@ -632,27 +632,36 @@ export function normalizeStatus(oldStatus: OldMessage['status']): 'success' | 'e
  * ## Field Mapping:
  * | Source | Target |
  * |--------|--------|
- * | usage.prompt_tokens | promptTokens |
- * | usage.completion_tokens | completionTokens |
+ * | usage.prompt_tokens | inputTokens |
+ * | usage.completion_tokens | outputTokens |
  * | usage.total_tokens | totalTokens |
- * | usage.thoughts_tokens | thoughtsTokens |
- * | usage.cost | cost |
+ * | usage.thoughts_tokens | reasoningTokens |
+ * | usage.cost | cost (costSource='provider') |
  * | metrics.time_first_token_millsec | timeFirstTokenMs |
  * | metrics.time_completion_millsec | timeCompletionMs |
  * | metrics.time_thinking_millsec | timeThinkingMs |
+ *
+ * v1 carries no cache-token breakdown, so `inputTokenDetails` /
+ * `outputTokenDetails` stay unset.
  */
 export function mergeStats(usage?: OldUsage, metrics?: OldMetrics): MessageStats | null {
   if (!usage && !metrics) return null
 
   const stats: MessageStats = {}
 
-  // Token usage
+  // Token usage (AI SDK v6 names)
   if (usage) {
-    if (usage.prompt_tokens !== undefined) stats.promptTokens = usage.prompt_tokens
-    if (usage.completion_tokens !== undefined) stats.completionTokens = usage.completion_tokens
+    if (usage.prompt_tokens !== undefined) stats.inputTokens = usage.prompt_tokens
+    if (usage.completion_tokens !== undefined) stats.outputTokens = usage.completion_tokens
     if (usage.total_tokens !== undefined) stats.totalTokens = usage.total_tokens
-    if (usage.thoughts_tokens !== undefined) stats.thoughtsTokens = usage.thoughts_tokens
-    if (usage.cost !== undefined) stats.cost = usage.cost
+    if (usage.thoughts_tokens !== undefined) stats.reasoningTokens = usage.thoughts_tokens
+    // v1 `Usage.cost` was only written by OpenRouter (provider-reported actual
+    // spend); treat it as authoritative provider cost in USD.
+    if (usage.cost !== undefined) {
+      stats.cost = usage.cost
+      stats.costSource = 'provider'
+      stats.costCurrency = 'USD'
+    }
   }
 
   // Performance metrics

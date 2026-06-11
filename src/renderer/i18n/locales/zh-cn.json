@@ -5924,6 +5924,7 @@
       "system": "系统"
     },
     "messages": {
+      "cache_read_tokens": "缓存命中的输入 tokens",
       "divider": {
         "label": "消息分割线",
         "tooltip": "不适用于气泡样式消息"
@@ -5956,6 +5957,7 @@
         "none": "不显示"
       },
       "prompt": "显示提示词",
+      "reasoning_tokens": "推理 tokens",
       "show_message_outline": "显示消息大纲",
       "title": "消息设置",
       "use_serif_font": "使用衬线字体"

@@ -5924,6 +5924,7 @@
       "system": "Sistema"
     },
     "messages": {
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "Separador de mensajes",
         "tooltip": "No aplicable para mensajes de estilo burbuja"
@@ -5956,6 +5957,7 @@
         "none": "No mostrar"
       },
       "prompt": "Palabra de indicación",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "Mostrar esquema del mensaje",
       "title": "Configuración de mensajes",
       "use_serif_font": "Usar fuente serif"

@@ -212,8 +212,13 @@ describe('Agent', () => {
 
     // Expect TWO metadata chunks (one per onStepFinish), with running cumulative sums.
     expect(collectedMetadata).toEqual([
-      { totalTokens: 8, promptTokens: 3, completionTokens: 5, thoughtsTokens: undefined },
-      { totalTokens: 14, promptTokens: 5, completionTokens: 9, thoughtsTokens: undefined }
+      { totalTokens: 8, inputTokens: 3, outputTokens: 5, stats: { inputTokens: 3, outputTokens: 5, totalTokens: 8 } },
+      {
+        totalTokens: 14,
+        inputTokens: 5,
+        outputTokens: 9,
+        stats: { inputTokens: 5, outputTokens: 9, totalTokens: 14 }
+      }
     ])
   })
 
@@ -277,11 +282,88 @@ describe('Agent', () => {
       }
     }
 
-    // reasoningTokens (thoughtsTokens) must accumulate alongside the summed completion tokens.
+    // reasoningTokens must accumulate alongside the summed output tokens.
     expect(collectedMetadata).toEqual([
-      { totalTokens: 8, promptTokens: 3, completionTokens: 5, thoughtsTokens: 10 },
-      { totalTokens: 14, promptTokens: 5, completionTokens: 9, thoughtsTokens: 25 }
+      {
+        totalTokens: 8,
+        inputTokens: 3,
+        outputTokens: 5,
+        reasoningTokens: 10,
+        stats: {
+          inputTokens: 3,
+          outputTokens: 5,
+          totalTokens: 8,
+          reasoningTokens: 10,
+          outputTokenDetails: { reasoningTokens: 10 }
+        }
+      },
+      {
+        totalTokens: 14,
+        inputTokens: 5,
+        outputTokens: 9,
+        reasoningTokens: 25,
+        stats: {
+          inputTokens: 5,
+          outputTokens: 9,
+          totalTokens: 14,
+          reasoningTokens: 25,
+          outputTokenDetails: { reasoningTokens: 25 }
+        }
+      }
     ])
+  })
+
+  it('forwards a provider-reported cost candidate (raw.cost) onto metadata.providerCostUsd', async () => {
+    const fakeStep = {
+      stepType: 'tool-call',
+      content: [],
+      finishReason: 'stop',
+      usage: { inputTokens: 3, outputTokens: 5, totalTokens: 8, raw: { cost: 0.0042 } }
+    }
+
+    mockCreateAgent.mockImplementation(
+      async ({ agentSettings }: { agentSettings: { onStepFinish?: (s: unknown) => void | Promise<void> } }) => ({
+        stream: vi.fn().mockImplementation(async () => {
+          await agentSettings.onStepFinish?.(fakeStep)
+          return {
+            toUIMessageStream: () =>
+              new ReadableStream({
+                start(controller) {
+                  controller.close()
+                }
+              }),
+            totalUsage: Promise.resolve({
+              inputTokens: 0,
+              outputTokens: 0,
+              totalTokens: 0,
+              inputTokenDetails: {},
+              outputTokenDetails: {}
+            }),
+            steps: Promise.resolve([fakeStep]),
+            finishReason: Promise.resolve('stop'),
+            response: Promise.resolve({ id: 'r', modelId: 'p::m', timestamp: new Date(), messages: [] }),
+            sources: Promise.resolve([])
+          }
+        })
+      })
+    )
+
+    const { Agent } = await import('../../Agent')
+    const agent = new Agent({ providerId: 'openrouter' as never, providerSettings: {} as never, modelId: 'test-model' })
+
+    const stream = agent.stream([], new AbortController().signal)
+    const reader = stream.getReader()
+    const collectedMetadata: Array<Record<string, unknown>> = []
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value.type === 'message-metadata') {
+        collectedMetadata.push(value.messageMetadata as Record<string, unknown>)
+      }
+    }
+
+    expect(collectedMetadata).toHaveLength(1)
+    expect(collectedMetadata[0]).toMatchObject({ providerCostUsd: 0.0042 })
   })
 
   // ── Abort mid-stream: remaining chunks are dropped and the writer closes cleanly ──

@@ -5924,6 +5924,7 @@
       "system": "Hệ thống"
     },
     "messages": {
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "Hiển thị đường phân cách giữa các tin nhắn",
         "tooltip": "Không áp dụng cho tin nhắn kiểu bong bóng"
@@ -5956,6 +5957,7 @@
         "none": ""
       },
       "prompt": "Mostrar indicación",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "Hiển thị dàn bộ tin nhắn",
       "title": "Cài đặt tin nhắn",
       "use_serif_font": "Dùng phông chữ có chân"

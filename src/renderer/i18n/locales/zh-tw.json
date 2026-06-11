@@ -5924,6 +5924,7 @@
       "system": "系統"
     },
     "messages": {
+      "cache_read_tokens": "快取命中的輸入 tokens",
       "divider": {
         "label": "訊息間顯示分隔線",
         "tooltip": "不適用於氣泡樣式訊息"
@@ -5956,6 +5957,7 @@
         "none": "不顯示"
       },
       "prompt": "提示詞顯示",
+      "reasoning_tokens": "推理 tokens",
       "show_message_outline": "顯示訊息大綱",
       "title": "訊息設定",
       "use_serif_font": "使用襯線字型"
