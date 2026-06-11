@@ -33,14 +33,12 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
     return <MessageMetaTool toolResponse={toolResponse} />
   }
 
-  // Builtin web/knowledge search title cards. Match the current wire names
-  // (`kb_search` / `web_search` from @shared/ai/builtinTools) AND the historical
-  // double-underscore literals (`kb__search` / `web__search`) still persisted in
-  // old messages, so renaming the constants doesn't drop the card for new calls.
-  if (toolName === KB_SEARCH_TOOL_NAME || toolName === 'kb__search') {
+  // Builtin web/knowledge search title cards, matched by the wire names from
+  // @shared/ai/builtinTools.
+  if (toolName === KB_SEARCH_TOOL_NAME) {
     return <MessageKnowledgeSearchToolTitle toolResponse={toolResponse} />
   }
-  if (toolName === WEB_SEARCH_TOOL_NAME || toolName === 'web__search') {
+  if (toolName === WEB_SEARCH_TOOL_NAME) {
     return toolType === 'provider' ? null : <MessageWebSearchToolTitle toolResponse={toolResponse} />
   }
   // web_fetch / kb_list / memory have no bespoke card yet — render them through the standard
