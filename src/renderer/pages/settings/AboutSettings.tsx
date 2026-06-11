@@ -172,7 +172,7 @@ const AboutSettings: FC = () => {
           <button
             type="button"
             onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio')}
-            className="inline-flex items-center justify-center rounded-md p-1 text-(--color-foreground) transition-colors hover:bg-(--color-muted)">
+            className="inline-flex items-center justify-center rounded-md p-1 text-foreground transition-colors hover:bg-muted">
             <Github className="size-5" />
           </button>
         </SettingTitle>
@@ -200,9 +200,9 @@ const AboutSettings: FC = () => {
               <LogoAvatar logo={AppLogo} size={72} className="rounded-full" />
             </button>
 
-            <div className="flex min-h-[72px] flex-col items-start justify-center">
-              <div className="mb-1 font-bold text-(--color-foreground) text-lg">{APP_NAME}</div>
-              <div className="text-(--color-foreground-secondary) text-sm">{t('settings.about.description')}</div>
+            <div className="flex min-h-18 flex-col items-start justify-center">
+              <div className="mb-1 font-bold text-foreground text-lg">{APP_NAME}</div>
+              <div className="text-foreground-secondary text-sm">{t('settings.about.description')}</div>
               <button
                 type="button"
                 onClick={() => onOpenWebsite('https://github.com/CherryHQ/cherry-studio/releases')}
@@ -222,7 +222,7 @@ const AboutSettings: FC = () => {
                 loading={appUpdateState.checking}
                 onClick={onCheckUpdate}
                 disabled={appUpdateState.downloading}
-                className="!w-fit !min-w-0 shrink-0">
+                className="w-fit! min-w-0! shrink-0">
                 {appUpdateState.downloading
                   ? t('settings.about.downloading')
                   : appUpdateState.available
@@ -282,7 +282,7 @@ const AboutSettings: FC = () => {
               <IndicatorLight color="green" />
             </SettingRowTitle>
           </SettingRow>
-          <div className="markdown my-2 rounded-md bg-muted px-0 py-3 text-(--color-foreground-secondary) text-sm [&_p]:m-0">
+          <div className="markdown my-2 rounded-md bg-muted px-0 py-3 text-foreground-secondary text-sm [&_p]:m-0">
             <Markdown>
               {typeof appUpdateState.info.releaseNotes === 'string'
                 ? appUpdateState.info.releaseNotes.replace(/\n/g, '\n\n')

@@ -2,7 +2,7 @@ import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/compon
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils'
 import type { Provider } from '@shared/data/types/provider'
-import { MoreVertical } from 'lucide-react'
+import { GripVertical, MoreVertical } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { MouseEvent } from 'react'
 
@@ -53,15 +53,18 @@ export default function ProviderListItem({
         selected ? providerListClasses.itemSelected : providerListClasses.itemIdle,
         dragging && 'opacity-65'
       )}>
-      <div className="flex min-w-0 flex-1 items-center gap-2.5">
-        <ProviderAvatar provider={provider} size={22} className={providerListClasses.itemAvatar} />
+      <div className={providerListClasses.itemMain}>
         <span
-          className={cn(
-            providerListClasses.itemLabel,
-            selected ? 'font-medium text-foreground' : 'font-normal text-foreground'
-          )}>
-          {provider.name}
+          aria-hidden
+          data-testid={`provider-list-drag-handle-${provider.id}`}
+          data-dragging={dragging ? 'true' : 'false'}
+          className={providerListClasses.itemDragHandle}>
+          <GripVertical size={16} />
         </span>
+        <div className={providerListClasses.itemIdentity}>
+          <ProviderAvatar provider={provider} size={26} className={providerListClasses.itemAvatar} />
+          <span className={providerListClasses.itemLabel}>{provider.name}</span>
+        </div>
       </div>
       {provider.isEnabled && <span aria-hidden className={providerListClasses.itemEnabledDot} />}
       {onOpenMenu &&

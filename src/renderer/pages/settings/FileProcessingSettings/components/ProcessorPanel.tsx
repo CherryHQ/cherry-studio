@@ -7,16 +7,7 @@ import { List, SquareCheckBig } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  SettingDivider,
-  SettingHelpLink,
-  SettingHelpText,
-  SettingHelpTextRow,
-  SettingRow,
-  SettingRowTitle,
-  SettingSubtitle,
-  SettingTitle
-} from '../..'
+import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingRow, SettingRowTitle, SettingTitle } from '../..'
 import {
   type FileProcessingMenuEntry,
   getProcessorApiKeyWebsite,
@@ -175,7 +166,7 @@ export function ProcessorPanel({
   )
 
   return (
-    <div className="flex w-full flex-col gap-3">
+    <div className="flex w-full flex-col gap-2">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-2">
           <ProcessorAvatar processorId={processor.id} />
@@ -194,13 +185,10 @@ export function ProcessorPanel({
         )}
       </div>
 
-      <SettingDivider />
-
       {supportsApiSettings(processor) ? (
-        <>
-          <SettingSubtitle>{t('settings.tool.file_processing.sections.authentication')}</SettingSubtitle>
-          <SettingRow className="items-start gap-4 py-1">
-            <SettingRowTitle className="w-37.5 shrink-0 pt-2">
+        <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
+          <SettingRow className="items-start gap-4 py-0">
+            <SettingRowTitle className="w-24 shrink-0 pt-2">
               {t('settings.tool.file_processing.fields.api_key')}
             </SettingRowTitle>
             <div className="min-w-0 flex-1">
@@ -226,7 +214,7 @@ export function ProcessorPanel({
                 </Tooltip>
               </div>
               {apiKeyWebsite ? (
-                <SettingHelpTextRow className="justify-between">
+                <SettingHelpTextRow className="justify-start gap-4">
                   <SettingHelpLink target="_blank" href={apiKeyWebsite}>
                     {t('settings.provider.get_api_key')}
                   </SettingHelpLink>
@@ -236,22 +224,23 @@ export function ProcessorPanel({
             </div>
           </SettingRow>
           {entry.capability.apiHost !== undefined ? (
-            <>
-              <SettingDivider />
-              <SettingRow className="items-start gap-4 py-1">
-                <SettingRowTitle className="w-37.5 shrink-0 pt-2">
+            <div className="border-border-muted border-t pt-3">
+              <SettingRow className="items-center gap-4 py-0">
+                <SettingRowTitle className="w-24 shrink-0">
                   {t('settings.tool.file_processing.fields.api_base_url')}
                 </SettingRowTitle>
-                <Input
-                  value={apiHostInput}
-                  onChange={(event) => setApiHostInput(event.target.value)}
-                  onBlur={() => void handleApiHostBlur()}
-                  placeholder={t('settings.provider.api_host')}
-                />
+                <div className="min-w-0 flex-1">
+                  <Input
+                    value={apiHostInput}
+                    onChange={(event) => setApiHostInput(event.target.value)}
+                    onBlur={() => void handleApiHostBlur()}
+                    placeholder={t('settings.provider.api_host')}
+                  />
+                </div>
               </SettingRow>
-            </>
+            </div>
           ) : null}
-        </>
+        </div>
       ) : null}
 
       {processor.id === 'paddleocr' && entry.capability.modelId !== undefined ? (
@@ -261,8 +250,7 @@ export function ProcessorPanel({
       {processor.id === 'paddleocr' ? <PaddleOcrDeploymentInfo /> : null}
 
       {processor.id === 'system' ? (
-        <>
-          <SettingSubtitle>{t('settings.tool.file_processing.sections.status')}</SettingSubtitle>
+        <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
           <SettingRow className="items-start justify-start gap-2 py-1">
             <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-emerald-500" />
             <div>
@@ -274,7 +262,7 @@ export function ProcessorPanel({
               </SettingHelpText>
             </div>
           </SettingRow>
-        </>
+        </div>
       ) : null}
 
       {shouldShowLanguageOptions(processor.id) ? (
