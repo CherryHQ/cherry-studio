@@ -20,9 +20,11 @@ import type {
   UpdateMessageDto
 } from '@shared/data/api/schemas/messages'
 import type { TopicMessageContentSearchItem } from '@shared/data/api/schemas/search'
+import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import {
   type BranchMessage,
   type BranchMessagesResponse,
+  type CherryMessagePart,
   coerceSearchRole,
   type Message,
   type MessageData,
@@ -33,6 +35,7 @@ import {
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { buildSearchSnippet } from '@shared/utils/searchSnippet'
+import { isToolUIPart } from 'ai'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 
 import { topicService } from './TopicService'
@@ -1048,6 +1051,45 @@ export class MessageService {
       logger.info('Updated message', { id, changes: Object.keys(dto) })
 
       return rowToMessage(row)
+    })
+  }
+
+  /**
+   * Atomically apply tool-approval decisions to an anchor message's `parts` within a single write
+   * transaction. A multi-tool turn can request several approvals on one assistant row at once;
+   * without serialization two concurrent responses read the same stale parts, each writes the whole
+   * array back (the later write erasing the earlier decision), and each computes "still pending" from
+   * its own stale copy — so a decision is lost and the turn can wait forever. Reading + applying +
+   * writing inside one `withWriteTx` serializes them, and the returned committed parts let the caller
+   * compute the pending check from authoritative post-commit state.
+   *
+   * Returns the committed parts, or `null` when the anchor row no longer exists (stale click on a
+   * deleted message). When no decision targets a present `approval-requested` part (overlay-only —
+   * the part isn't persisted yet) the row is left untouched and the still-overlay parts are returned;
+   * the caller carries the decision to the continuation, which applies it authoritatively.
+   */
+  async applyToolApprovalDecisions(
+    anchorId: string,
+    decisions: ApprovalDecision[]
+  ): Promise<CherryMessagePart[] | null> {
+    return await application.get('DbService').withWriteTx(async (tx) => {
+      const [row] = await tx.select().from(messageTable).where(eq(messageTable.id, anchorId)).limit(1)
+      if (!row) return null
+
+      const existing = rowToMessage(row)
+      const parts = existing.data.parts ?? []
+      const after = applyApprovalDecisions(parts, decisions)
+      const targetPresent = parts.some(
+        (p) =>
+          isToolUIPart(p) && p.state === 'approval-requested' && decisions.some((d) => d.approvalId === p.approval?.id)
+      )
+      if (targetPresent) {
+        await tx
+          .update(messageTable)
+          .set({ data: { ...existing.data, parts: after } })
+          .where(eq(messageTable.id, anchorId))
+      }
+      return after
     })
   }
 

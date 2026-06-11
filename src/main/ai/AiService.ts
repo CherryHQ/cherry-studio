@@ -13,7 +13,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { type TranslateOpenRequest, translateService } from '@main/services/translate/translateService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
-import { type AiToolApprovalRespondResponse, applyApprovalDecisions } from '@shared/ai/transport'
+import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
@@ -245,35 +245,24 @@ export class AiService extends BaseService {
         // A stale click on a deleted message must resolve through the documented
         // result shape, not throw out of the handler (getById rejects when the
         // anchor is missing), consistent with the no-context branch above.
-        let anchor: Awaited<ReturnType<typeof messageService.getById>>
-        try {
-          anchor = await messageService.getById(payload.anchorId)
-        } catch {
+        // Serialize the parts mutation per anchor inside one write transaction: a multi-tool turn can
+        // request several approvals on one row, and two concurrent responses must not read the same
+        // stale parts and clobber each other's decision (or both compute a stale "still pending" and
+        // neither resume). Returns the committed parts, or null when the anchor row is gone — a stale
+        // click on a deleted message, resolved through the result shape instead of throwing.
+        const committedParts = await messageService.applyToolApprovalDecisions(payload.anchorId, [decision])
+        if (committedParts === null) {
           logger.warn('Tool-approval response anchor is missing or deleted', {
             approvalId: payload.approvalId,
             anchorId: payload.anchorId
           })
           return { ok: false }
         }
-        const beforeParts = anchor.data.parts ?? []
-        const targetPresent = beforeParts.some(
-          (p) => isToolUIPart(p) && p.state === 'approval-requested' && p.approval?.id === decision.approvalId
-        )
-        const afterParts = applyApprovalDecisions(beforeParts, [decision])
-        // Only write parts when this approval is present on the DB row.
-        // `applyApprovalDecisions` always returns a fresh array, so writing
-        // unconditionally would overwrite real (or not-yet-persisted) parts
-        // with an unchanged set. When the part is overlay-only (persist not
-        // landed yet), the continue dispatch below carries the decision and
-        // the continue provider applies it authoritatively where it reads parts.
-        if (targetPresent) {
-          await messageService.update(payload.anchorId, { data: { parts: afterParts } })
-        }
 
-        // Only resume once every approval on this turn is decided — a turn
-        // can request several tools at once; the not-yet-decided ones keep
-        // their cards.
-        const anyStillPending = afterParts.some((p) => isToolUIPart(p) && p.state === 'approval-requested')
+        // Only resume once every approval on this turn is decided — a turn can request several tools
+        // at once; the not-yet-decided ones keep their cards. Reading the committed post-write parts
+        // means concurrent responders agree on who fires the continuation.
+        const anyStillPending = committedParts.some((p) => isToolUIPart(p) && p.state === 'approval-requested')
         if (anyStillPending) {
           return { ok: true }
         }
