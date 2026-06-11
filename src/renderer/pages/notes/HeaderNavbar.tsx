@@ -274,7 +274,7 @@ const HeaderNavbar = ({
                         <span
                           className={cn(
                             'inline-block min-w-0 max-w-37.5 shrink overflow-hidden text-ellipsis whitespace-nowrap',
-                            item.isFolder && !isLastItem && 'cursor-pointer hover:text-primary hover:underline'
+                            item.isFolder && !isLastItem && 'cursor-pointer hover:text-link hover:underline'
                           )}
                           onClick={() => handleBreadcrumbClick(item)}>
                           {item.title}

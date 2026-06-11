@@ -26,7 +26,6 @@ export const LEGACY_VARS = [
   '--color-border-soft',
   '--color-border-mute',
   '--color-error',
-  '--color-link',
   '--color-primary-bg',
   '--color-fill-secondary',
   '--color-fill-2',

@@ -189,9 +189,12 @@ export const modelListClasses = {
   sectionTitle: cn(sectionHeadingBase, 'shrink-0 whitespace-nowrap font-semibold'),
   titleHelpRow: 'flex min-w-0 flex-wrap items-center gap-x-1 self-center text-foreground-muted',
   titleHelpText: 'shrink-0 opacity-60',
-  titleHelpLink: 'mx-0 inline-flex shrink-0 items-center leading-[1.3] text-primary hover:underline',
-  titleHelpSeparator: 'inline-flex shrink-0 items-center leading-[1.3] text-foreground-muted/50',
-  countMeta: 'text-xs leading-tight text-foreground-muted tabular-nums',
+  titleHelpLink:
+    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] text-link hover:underline',
+  titleHelpSeparator:
+    'inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] text-foreground-muted/50',
+  countMeta:
+    'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted tabular-nums',
   toolbarGhost:
     'h-auto rounded-3xs px-2.5 py-[5px] text-[13px] leading-tight text-muted-foreground/70 shadow-none hover:bg-accent/40 hover:text-foreground',
   /** Model-list title-row ghost: one step tighter than `toolbarGhost` (padding + body-xs + small icon). */
@@ -414,7 +417,8 @@ export const oauthCardClasses = {
     'h-auto min-h-0 p-0 text-xs text-muted-foreground/60 shadow-none hover:bg-transparent hover:text-foreground',
   loginFooterDivider: 'text-xs text-muted-foreground/50',
   /** CherryIN portal link — matches scoped caption + primary link treatment. */
-  externalLink: 'mt-1 inline-block text-xs leading-tight text-primary hover:underline',
+  externalLink:
+    'mt-1 inline-block text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-link hover:underline',
   /** Logged-in CherryIN: mock CherryIN account section — one row, no stat grid. */
   shellLoggedIn: 'w-full min-w-0 overflow-hidden rounded-xl border border-border-subtle px-3 py-2.5',
   loggedInRow: 'flex w-full min-w-0 flex-wrap items-center justify-between gap-3',
@@ -481,5 +485,9 @@ export const fieldClasses = {
   apiKeyVisibilityToggle:
     'flex size-5 shrink-0 items-center justify-center text-muted-foreground/70 transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
   titleWithHelp: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1',
+<<<<<<< HEAD
   titleHelpLink: 'mx-0 inline-flex shrink-0 items-center leading-5 text-primary hover:underline'
+=======
+  titleHelpLink: 'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-body-sm)] text-link hover:underline'
+>>>>>>> 68f78000f5 (feat(ui): add semantic link color following the control accent)
 } as const
