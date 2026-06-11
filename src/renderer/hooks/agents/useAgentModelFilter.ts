@@ -1,17 +1,21 @@
 /**
  * Filter that gates the model picker shown to an agent.
  *
- * **All agent types** now gate on the provider's `anthropic-messages` endpoint
- * availability. The gate is **provider-level**, not model-level: any model
- * exposed by a provider that serves Anthropic-shaped requests is fine — the
- * provider's `anthropic-messages` proxy may route to Qwen / GLM / Claude /
- * Gemini / GPT / whatever underneath (siliconflow, deepseek, bigmodel,
- * aihubmix, cherryin etc. all do this).
+ * `claude-code` agents now also require function-calling capability on top of
+ * the existing provider-level Anthropic-compatibility gate. The gate is
+ * **provider-level**, not model-level: any model exposed by a provider that
+ * serves Anthropic-shaped requests is fine — the provider's `anthropic-messages`
+ * proxy may route to Qwen / GLM / Claude / Gemini / GPT / whatever underneath
+ * (siliconflow, deepseek, bigmodel, aihubmix, cherryin etc. all do this).
  *
  * The API Gateway (proxyStream) handles cross-format protocol translation at
  * runtime via the adapter system (AnthropicMessageConverter → AI SDK →
  * AiSdkToAnthropicSse), so the model itself does NOT need to natively speak
  * Anthropic. See #14873 for the full protocol translation layer spec.
+ *
+ * Non-claude-code agents stay permissive (any chat-capable model) for backward
+ * compatibility. The editor filter (BasicSection.tsx) enforces strict model
+ * selection at agent creation time.
  */
 
 import { ENDPOINT_TYPE } from '@cherrystudio/provider-registry'
@@ -28,10 +32,6 @@ const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
 /**
  * Returns a memoized `(model) => boolean` predicate that matches the agent's
  * runtime constraints. Pair with `<ModelSelector filter={...}>`.
- *
- * All agent types now require the provider to have an Anthropic-compatible
- * endpoint AND the model to support function calling (tool use), since Agent
- * mode relies on tool-call round-trips regardless of agent type.
  */
 export function useAgentModelFilter(agentType: AgentType | undefined): (model: Model) => boolean {
   const { providers } = useProviders()
@@ -52,12 +52,17 @@ export function useAgentModelFilter(agentType: AgentType | undefined): (model: M
   return useCallback(
     (model: Model) => {
       if (!baseAgentFilter(model)) return false
-      // All agent types require Anthropic-compatible provider + function calling
-      return (
-        claudeCompatibleProviderIds.has(model.providerId) &&
-        isFunctionCallingModel(model)
-      )
+      if (agentType === 'claude-code') {
+        return (
+          claudeCompatibleProviderIds.has(model.providerId) &&
+          isFunctionCallingModel(model)
+        )
+      }
+      // Non-claude-code agents: keep permissive behavior for backward compat.
+      // The editor filter (BasicSection.tsx) enforces strict model selection
+      // at creation time; runtime allows any chat-capable model.
+      return true
     },
-    [claudeCompatibleProviderIds]
+    [agentType, claudeCompatibleProviderIds]
   )
 }
