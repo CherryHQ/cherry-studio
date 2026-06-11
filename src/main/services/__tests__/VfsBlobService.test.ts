@@ -94,4 +94,16 @@ describe('VfsBlobService', () => {
       expect(fs.existsSync(tmpRef.current)).toBe(true)
     })
   })
+
+  describe('onReady', () => {
+    it('schedules a daily sweep in addition to the boot sweep', () => {
+      const spy = vi.spyOn(
+        svc as unknown as { registerInterval: (cb: () => Promise<void>, ms: number) => unknown },
+        'registerInterval'
+      )
+      ;(svc as unknown as { onReady(): void }).onReady()
+      expect(spy).toHaveBeenCalledTimes(1)
+      expect(spy.mock.calls[0][1]).toBe(24 * 60 * 60 * 1000)
+    })
+  })
 })

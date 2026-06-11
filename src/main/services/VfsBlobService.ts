@@ -38,6 +38,9 @@ const logger = loggerService.withContext('VfsBlobService')
 /** Files older than this are unlinked at startup. 7 days. */
 const STALE_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
+/** Tray-resident sessions run for weeks — re-sweep daily, not just at boot. */
+const SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000
+
 @Injectable('VfsBlobService')
 // BeforeReady (not Background): init is sub-millisecond and the adapter must be
 // resolvable before the first AI request builds chef middleware options.
@@ -60,6 +63,13 @@ export class VfsBlobService extends BaseService {
     void this.sweepStale().catch((error) => {
       logger.warn('startup VFS sweep failed', error as Error)
     })
+    // Re-sweep daily: a boot-only sweep never fires in week-long tray
+    // sessions, and the periodic run also self-heals a storage dir removed
+    // by the OS temp cleaner mid-session (sweepStale recreates it on
+    // ENOENT). registerInterval handles exceptions and unrefs the timer.
+    this.registerInterval(async () => {
+      await this.sweepStale()
+    }, SWEEP_INTERVAL_MS)
   }
 
   /**
