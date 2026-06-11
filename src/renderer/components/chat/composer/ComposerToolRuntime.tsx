@@ -1,7 +1,6 @@
 import '@renderer/components/chat/composer/tools'
 
 import {
-  ContextMenuItemContent,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -38,12 +37,16 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import type { Assistant, FileMetadata } from '@renderer/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
-import { Plus } from 'lucide-react'
+import { ChevronRightIcon, Plus } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ComposerSerializedToken } from './tokens'
 import type { ComposerToolLauncher, ComposerToolLauncherActionOptions } from './toolLauncher'
+
+const TOOL_MENU_CONTENT_CLASS = 'min-w-52 w-max max-w-[calc(100vw-2rem)]'
+const TOOL_SUBMENU_CONTENT_CLASS = 'min-w-44 w-max max-w-[calc(100vw-2rem)] data-[state=closed]:hidden'
+const TOOL_MENU_BADGE_CLASS = 'shrink-0 whitespace-nowrap text-muted-foreground text-xs'
 
 interface ComposerToolRuntimeActions {
   addNewTopic: () => void
@@ -204,6 +207,28 @@ export const useComposerToolDispatch = useComposerToolProviderDispatch
 export { ComposerToolDerivedStateProvider }
 
 const NOOP_LAUNCHER: ToolRenderContext<any, any>['launcher'] = { registerLaunchers: () => () => undefined }
+
+interface ComposerToolMenuItemContentProps {
+  icon?: React.ReactNode
+  children: React.ReactNode
+  badge?: React.ReactNode
+  hasSubmenu?: boolean
+}
+
+function ComposerToolMenuItemContent({ icon, children, badge, hasSubmenu }: ComposerToolMenuItemContentProps) {
+  return (
+    <>
+      <span className="flex min-w-max items-center gap-2">
+        {icon && <span className="size-4 shrink-0">{icon}</span>}
+        <span className="whitespace-nowrap">{children}</span>
+      </span>
+      <span className="ml-auto flex shrink-0 items-center gap-1">
+        {badge}
+        {hasSubmenu && <ChevronRightIcon className="size-4 text-muted-foreground" />}
+      </span>
+    </>
+  )
+}
 
 interface ReconcileContextInputs {
   toolState: ComposerToolState
@@ -410,6 +435,11 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
     setActiveTooltipId(null)
   }, [])
 
+  const closeToolMenu = useCallback(() => {
+    setActiveTooltipId(null)
+    setOpen(false)
+  }, [])
+
   if (visibleEntries.length === 0) return null
 
   return (
@@ -422,7 +452,7 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
           <Plus size={18} />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side="top" sideOffset={4} className="w-52">
+      <DropdownMenuContent align="start" side="top" sideOffset={4} className={TOOL_MENU_CONTENT_CLASS}>
         {visibleEntries.map(({ launcher, source }) => {
           const tooltipContent = launcher.disabled
             ? (launcher.disabledReason ?? launcher.tooltip ?? launcher.description)
@@ -436,7 +466,7 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
             tooltipContent && 'data-[disabled]:pointer-events-auto'
           )
           const suffixBadge = launcher.suffix ? (
-            <span className="max-w-20 truncate text-muted-foreground text-xs">{launcher.suffix}</span>
+            <span className={TOOL_MENU_BADGE_CLASS}>{launcher.suffix}</span>
           ) : undefined
 
           if (hasSubmenu) {
@@ -445,18 +475,18 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
                 <DropdownMenuSubTrigger
                   aria-label={typeof launcher.label === 'string' ? launcher.label : undefined}
                   className={cn(!launcher.disabled && launcher.active && 'bg-accent text-accent-foreground')}>
-                  <ContextMenuItemContent icon={launcher.icon} badge={suffixBadge}>
+                  <ComposerToolMenuItemContent icon={launcher.icon} badge={suffixBadge}>
                     {launcher.label}
-                  </ContextMenuItemContent>
+                  </ComposerToolMenuItemContent>
                 </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-44">
+                <DropdownMenuSubContent className={TOOL_SUBMENU_CONTENT_CLASS}>
                   {submenuItems.map((item) => {
                     const tooltipId = `${launcher.id}:${item.id}`
                     const itemTooltipContent = item.disabled
                       ? (item.disabledReason ?? item.tooltip ?? item.description)
                       : item.tooltip
                     const itemSuffixBadge = item.suffix ? (
-                      <span className="max-w-20 truncate text-muted-foreground text-xs">{item.suffix}</span>
+                      <span className={TOOL_MENU_BADGE_CLASS}>{item.suffix}</span>
                     ) : undefined
                     const submenuItem = (
                       <DropdownMenuItem
@@ -472,13 +502,14 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
                           if (activeTooltipId === tooltipId) setActiveTooltipId(null)
                         }}
                         onSelect={(event) => {
+                          event.preventDefault()
                           event.stopPropagation()
+                          closeToolMenu()
                           dispatchLauncher(item, { source: 'popover', inputAdapter, quickPanel })
-                          setOpen(false)
                         }}>
-                        <ContextMenuItemContent icon={item.icon} badge={itemSuffixBadge}>
+                        <ComposerToolMenuItemContent icon={item.icon} badge={itemSuffixBadge}>
                           {item.label}
-                        </ContextMenuItemContent>
+                        </ComposerToolMenuItemContent>
                       </DropdownMenuItem>
                     )
 
@@ -516,16 +547,17 @@ export const ComposerToolMenu = ({ inputAdapter }: ComposerToolMenuProps) => {
                 if (activeTooltipId === launcher.id) setActiveTooltipId(null)
               }}
               onSelect={(event) => {
+                event.preventDefault()
                 event.stopPropagation()
+                closeToolMenu()
                 dispatchLauncher(launcher, { source, inputAdapter, quickPanel })
-                setOpen(false)
               }}>
-              <ContextMenuItemContent
+              <ComposerToolMenuItemContent
                 icon={launcher.icon}
                 badge={suffixBadge}
                 hasSubmenu={launcher.kind === 'panel' ? true : undefined}>
                 {launcher.label}
-              </ContextMenuItemContent>
+              </ComposerToolMenuItemContent>
             </DropdownMenuItem>
           )
 

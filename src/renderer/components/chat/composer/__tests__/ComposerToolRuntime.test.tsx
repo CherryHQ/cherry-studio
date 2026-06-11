@@ -5,21 +5,28 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ComposerToolLauncher } from '../toolLauncher'
 import type { ToolRenderContext } from '../tools/types'
 
-const { mockGetToolsForScope, mockQuickPanelValue, mockUseQuickPanel } = vi.hoisted(() => {
-  const mockQuickPanelValue = {
-    close: vi.fn(),
-    isVisible: false,
-    open: vi.fn(),
-    symbol: '',
-    updateList: vi.fn()
-  }
+const { mockDropdownMenuSelectEvents, mockGetToolsForScope, mockQuickPanelValue, mockUseQuickPanel } = vi.hoisted(
+  () => {
+    const mockQuickPanelValue = {
+      close: vi.fn(),
+      isVisible: false,
+      open: vi.fn(),
+      symbol: '',
+      updateList: vi.fn()
+    }
 
-  return {
-    mockGetToolsForScope: vi.fn(),
-    mockQuickPanelValue,
-    mockUseQuickPanel: vi.fn(() => mockQuickPanelValue)
+    return {
+      mockDropdownMenuSelectEvents: [] as Array<{
+        ariaLabel: string | undefined
+        preventDefault: ReturnType<typeof vi.fn>
+        stopPropagation: ReturnType<typeof vi.fn>
+      }>,
+      mockGetToolsForScope: vi.fn(),
+      mockQuickPanelValue,
+      mockUseQuickPanel: vi.fn(() => mockQuickPanelValue)
+    }
   }
-})
+)
 
 vi.mock('@renderer/components/chat/composer/tools', () => ({}))
 
@@ -60,7 +67,17 @@ vi.mock('@cherrystudio/ui', () => ({
       {hasSubmenu ? <svg aria-hidden="true" /> : null}
     </>
   ),
-  DropdownMenu: ({ children }: any) => <div>{children}</div>,
+  DropdownMenu: ({ children, onOpenChange, open }: any) => {
+    useEffect(() => {
+      onOpenChange?.(true)
+    }, [onOpenChange])
+
+    return (
+      <div data-open={open ? 'true' : 'false'} data-testid="composer-tool-dropdown-root">
+        {children}
+      </div>
+    )
+  },
   DropdownMenuContent: ({ children, className, sideOffset }: any) => (
     <div className={className} data-side-offset={sideOffset} data-testid="composer-tool-dropdown-content">
       {children}
@@ -73,7 +90,14 @@ vi.mock('@cherrystudio/ui', () => ({
       data-disabled={disabled ? '' : undefined}
       data-slot="dropdown-menu-item"
       data-testid={getMenuItemTestId(ariaLabel)}
-      onClick={(event) => onSelect?.(event)}
+      onClick={() => {
+        const selectEvent = {
+          preventDefault: vi.fn(),
+          stopPropagation: vi.fn()
+        }
+        mockDropdownMenuSelectEvents.push({ ariaLabel, ...selectEvent })
+        onSelect?.(selectEvent)
+      }}
       {...props}>
       {props.children}
     </div>
@@ -174,6 +198,7 @@ const LauncherActionReader = ({
 }
 
 beforeEach(() => {
+  mockDropdownMenuSelectEvents.length = 0
   mockGetToolsForScope.mockReset()
   mockUseQuickPanel.mockClear()
   mockQuickPanelValue.close.mockClear()
@@ -410,7 +435,7 @@ describe('ComposerToolMenu', () => {
     expect(screen.getByTestId('composer-tool-tooltip')).toHaveAttribute('data-tooltip-open', 'true')
   })
 
-  it('uses the ResourceList context menu visual density', async () => {
+  it('keeps the plus menu single-line while allowing content-sized width', async () => {
     renderRuntime(
       [
         {
@@ -424,6 +449,7 @@ describe('ComposerToolMenu', () => {
                   kind: 'command',
                   label: 'CompactTool',
                   icon: 'fake',
+                  suffix: 'Localized suffix',
                   sources: ['popover'],
                   action: vi.fn()
                 }
@@ -436,9 +462,16 @@ describe('ComposerToolMenu', () => {
     )
 
     await screen.findByText('CompactTool')
-    expect(screen.getByTestId('composer-tool-dropdown-content')).toHaveClass('w-52')
+    expect(screen.getByTestId('composer-tool-dropdown-content')).toHaveClass(
+      'min-w-52',
+      'w-max',
+      'max-w-[calc(100vw-2rem)]'
+    )
+    expect(screen.getByTestId('composer-tool-dropdown-content')).not.toHaveClass('w-52')
     expect(screen.getByTestId('composer-tool-dropdown-content')).toHaveAttribute('data-side-offset', '4')
     expect(screen.getByTestId(getMenuItemTestId('CompactTool'))).toHaveAttribute('data-slot', 'dropdown-menu-item')
+    expect(screen.getByText('CompactTool')).toHaveClass('whitespace-nowrap')
+    expect(screen.getByText('Localized suffix')).toHaveClass('shrink-0', 'whitespace-nowrap')
   })
 
   it('does not apply active styling to disabled launchers', async () => {
@@ -505,6 +538,8 @@ describe('ComposerToolMenu', () => {
   })
 
   it('renders only popover submenu items with shadcn dropdown sub components', async () => {
+    const popoverModeAction = vi.fn()
+
     renderRuntime(
       [
         {
@@ -527,7 +562,7 @@ describe('ComposerToolMenu', () => {
                       description: 'Popover mode description',
                       icon: 'fake',
                       sources: ['popover'],
-                      action: vi.fn()
+                      action: popoverModeAction
                     },
                     {
                       id: 'mode-child-root',
@@ -549,11 +584,30 @@ describe('ComposerToolMenu', () => {
     )
 
     expect(await screen.findByTestId('dropdown-menu-sub-trigger-ModeParent')).toBeInTheDocument()
-    expect(screen.getByTestId('dropdown-menu-sub-content')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId('composer-tool-dropdown-root')).toHaveAttribute('data-open', 'true')
+    })
+    expect(screen.getByTestId('dropdown-menu-sub-content')).toHaveClass(
+      'min-w-44',
+      'w-max',
+      'max-w-[calc(100vw-2rem)]',
+      'data-[state=closed]:hidden'
+    )
     expect(screen.getByText('PopoverMode')).toBeInTheDocument()
     expect(screen.queryByText('RootMode')).not.toBeInTheDocument()
     expect(screen.queryByText('Popover mode description')).not.toBeInTheDocument()
     expect(screen.queryByText('RootMode')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId(getMenuItemTestId('PopoverMode')))
+
+    expect(popoverModeAction).toHaveBeenCalledTimes(1)
+    const [selectEvent] = mockDropdownMenuSelectEvents
+    expect(selectEvent).toMatchObject({ ariaLabel: 'PopoverMode' })
+    expect(selectEvent.preventDefault).toHaveBeenCalledTimes(1)
+    expect(selectEvent.stopPropagation).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(screen.getByTestId('composer-tool-dropdown-root')).toHaveAttribute('data-open', 'false')
+    })
   })
 })
 
