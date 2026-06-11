@@ -2,6 +2,7 @@ import { CacheService } from '@data/CacheService'
 import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
+import { VfsBlobService } from '@data/services/VfsBlobService'
 import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
@@ -127,7 +128,8 @@ export const services = {
   ApiGatewayService,
   AppUpdaterService,
   SchedulerService,
-  JobManager
+  JobManager,
+  VfsBlobService
 } as const
 
 /** Auto-derived service name to instance type mapping */
