@@ -8,10 +8,10 @@ interface Props {
 // Define variants for the spinner animation
 const spinnerVariants = {
   defaultColor: {
-    color: '#2a2a2a'
+    color: 'var(--color-foreground)'
   },
   dimmed: {
-    color: '#8C9296'
+    color: 'var(--color-foreground-muted)'
   }
 }
 
