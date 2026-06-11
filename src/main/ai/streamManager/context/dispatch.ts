@@ -73,6 +73,16 @@ export async function dispatchStreamRequest(
   // the running turn yields at the next step boundary and the terminal hook chains a continuation;
   // agent sessions enqueue onto `pendingTurns`. Either way `prepareDispatch` must observe liveness.
   const hasLiveStream = manager.hasLiveStream(req.topicId)
+
+  // An approval `continue-conversation` must never race a live stream: `send` would take the inject
+  // branch and discard `prepared.models`, so the approved tool never executes and the anchor row is
+  // stranded `pending` while the renderer is told success. `onExecutionDone` gates steer chaining on
+  // pending approvals to prevent this, so reaching here means an unexpected race — surface it.
+  if (hasLiveStream && req.trigger === 'continue-conversation') {
+    logger.error('continue-conversation arrived while a stream is live — approval cannot inject onto a running turn', {
+      topicId: req.topicId
+    })
+  }
   const prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream }).catch((error: unknown) => {
     if (isAgentSessionWorkspaceError(error)) {
       return {
