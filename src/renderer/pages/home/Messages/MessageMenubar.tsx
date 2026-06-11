@@ -801,7 +801,6 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       cancelTranslate,
       confirmDeleteMessage,
       deleteMessage,
-      message,
       setShowDeleteTooltip,
       showDeleteTooltip,
       softHoverBg,
