@@ -55,34 +55,20 @@ describe('agentSessionHandlers', () => {
   })
 
   describe('/agent-sessions', () => {
-    it('forwards trimmed search to agentSessionService.listByCursor', async () => {
+    it('forwards the coerced limit to agentSessionService.listByCursor', async () => {
       const response = { items: [], nextCursor: undefined }
       listByCursorMock.mockResolvedValueOnce(response)
 
       const result = await agentSessionHandlers['/agent-sessions'].GET({
         query: {
-          search: '  deploy  ',
           limit: '10'
         }
       } as never)
 
       expect(listByCursorMock).toHaveBeenCalledWith({
-        search: 'deploy',
         limit: 10
       })
       expect(result).toBe(response)
-    })
-
-    it('rejects blank search before calling the service', async () => {
-      await expect(
-        agentSessionHandlers['/agent-sessions'].GET({
-          query: {
-            search: '   '
-          }
-        } as never)
-      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
-
-      expect(listByCursorMock).not.toHaveBeenCalled()
     })
   })
 

@@ -21,6 +21,7 @@ import { JobScheduleNameAtomSchema, TriggerSchema } from './jobs'
 export const AgentNameAtomSchema = z.string().min(1)
 export const ModelIdAtomSchema = z.string().min(1)
 export const TimeoutMinutesAtomSchema = z.number().min(1).nullable().optional()
+export const AgentToolNameSetSchema = z.array(z.string()).transform((items) => Array.from(new Set(items)))
 
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
@@ -98,8 +99,8 @@ export const AgentBaseSchema = z.strictObject({
   planModel: UniqueModelIdSchema.optional(),
   smallModel: UniqueModelIdSchema.optional(),
   mcps: z.array(z.string()).optional(),
-  /** Opt-out list of disabled tool names (empty = all enabled). Drives SDK disallowedTools. */
-  disabledTools: z.array(z.string()).optional(),
+  /** Opt-out list of disabled tool names (empty = all enabled). Drives SDK disallowedTools and PreToolUse denial. */
+  disabledTools: AgentToolNameSetSchema.optional(),
   configuration: AgentConfigurationSchema.optional()
 })
 export type AgentBase = z.infer<typeof AgentBaseSchema>

@@ -348,7 +348,6 @@ describe('orphanCheckerRegistry', () => {
             siblingsGroupId: 0,
             modelId: null,
             modelSnapshot: null,
-            traceId: null,
             stats: null,
             createdAt: Date.now(),
             updatedAt: Date.now()

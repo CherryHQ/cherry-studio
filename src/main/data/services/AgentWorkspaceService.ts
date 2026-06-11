@@ -18,6 +18,7 @@ import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
 type AgentWorkspaceLookupOptions = { includeSystem?: boolean }
+export type FindOrCreateAgentWorkspaceResult = { workspace: AgentWorkspaceEntity; created: boolean }
 
 export function rowToAgentWorkspace(row: AgentWorkspaceRow): AgentWorkspaceEntity {
   return {
@@ -77,8 +78,15 @@ export class AgentWorkspaceService {
   }
 
   async findOrCreateByPath(rawPath: string, options: { name?: string } = {}): Promise<AgentWorkspaceEntity> {
+    return (await this.findOrCreateByPathResult(rawPath, options)).workspace
+  }
+
+  async findOrCreateByPathResult(
+    rawPath: string,
+    options: { name?: string } = {}
+  ): Promise<FindOrCreateAgentWorkspaceResult> {
     const workspacePath = normalizeWorkspacePath(rawPath)
-    const row = await withSqliteErrors(
+    const result = await withSqliteErrors(
       () =>
         application
           .get('DbService')
@@ -88,7 +96,7 @@ export class AgentWorkspaceService {
         unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
       }
     )
-    return rowToAgentWorkspace(row)
+    return { workspace: rowToAgentWorkspace(result.row), created: result.created }
   }
 
   async findOrCreateByPathTx(
@@ -97,36 +105,41 @@ export class AgentWorkspaceService {
     options: { name?: string } = {}
   ): Promise<AgentWorkspaceEntity> {
     const workspacePath = normalizeWorkspacePath(rawPath)
-    const row = await withSqliteErrors(() => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options), {
+    const result = await withSqliteErrors(() => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options), {
       ...defaultHandlersFor('Workspace', workspacePath),
       unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
     })
-    return rowToAgentWorkspace(row)
+    return rowToAgentWorkspace(result.row)
   }
 
   private async findOrCreateRowByNormalizedPathTx(
     tx: DbOrTx,
     workspacePath: string,
     options: { name?: string } = {}
-  ): Promise<AgentWorkspaceRow> {
+  ): Promise<{ row: AgentWorkspaceRow; created: boolean }> {
     const [existing] = await tx
       .select()
       .from(agentWorkspaceTable)
       .where(eq(agentWorkspaceTable.path, workspacePath))
       .limit(1)
     if (existing) {
-      if (AgentWorkspaceTypeSchema.parse(existing.type) === AGENT_WORKSPACE_TYPE.USER) return existing
+      // Idempotent find branch: POST/find-or-create never renames an existing workspace.
+      // Callers that want to rename must use PATCH /agent-workspaces/:workspaceId.
+      if (AgentWorkspaceTypeSchema.parse(existing.type) === AGENT_WORKSPACE_TYPE.USER) {
+        return { row: existing, created: false }
+      }
       throw DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
     }
 
     const id = uuidv4()
     const name = options.name?.trim() || defaultWorkspaceName(workspacePath)
-    return (await insertWithOrderKey(
+    const row = (await insertWithOrderKey(
       tx,
       agentWorkspaceTable,
       { id, name, path: workspacePath, type: AGENT_WORKSPACE_TYPE.USER },
       { pkColumn: agentWorkspaceTable.id, position: 'first' }
     )) as AgentWorkspaceRow
+    return { row, created: true }
   }
 
   async createSystemWorkspaceForSessionTx(tx: DbOrTx, input: { sessionId: string }): Promise<AgentWorkspaceEntity> {

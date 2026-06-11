@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "141c1c92-9cbc-479f-9471-2eb60eda7734",
+  "id": "08483484-877c-40f7-bae0-9e214823d99a",
   "prevId": "12c31ab7-e458-418b-b498-1679e9a5bcbe",
   "tables": {
     "agent": {
@@ -72,8 +72,8 @@
           "autoincrement": false,
           "default": "'[]'"
         },
-        "disabled_tools": {
-          "name": "disabled_tools",
+        "allowed_tools": {
+          "name": "allowed_tools",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -828,8 +828,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'user'"
+          "autoincrement": false
         },
         "order_key": {
           "name": "order_key",
@@ -929,14 +928,6 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": false
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'user'"
         },
         "name": {
           "name": "name",
@@ -3107,9 +3098,9 @@
           "columns": ["updated_at"],
           "isUnique": false
         },
-        "topic_order_key_idx": {
-          "name": "topic_order_key_idx",
-          "columns": ["order_key"],
+        "topic_group_id_order_key_idx": {
+          "name": "topic_group_id_order_key_idx",
+          "columns": ["group_id", "order_key"],
           "isUnique": false
         },
         "topic_assistant_id_idx": {

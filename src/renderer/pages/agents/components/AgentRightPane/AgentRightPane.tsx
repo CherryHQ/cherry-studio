@@ -584,7 +584,7 @@ function AgentRightPaneSurface() {
       </Shell.Panel>
       {enableDeveloperMode && (
         <Shell.Panel value="trace">
-          <TracePane payload={{ topicId: traceTopicId, traceId: meta.traceId ?? '', modelName: undefined }} />
+          <TracePane payload={{ topicId: traceTopicId, traceId: meta.traceId ?? '' }} />
         </Shell.Panel>
       )}
     </Shell.Tabs>

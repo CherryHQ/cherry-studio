@@ -534,6 +534,9 @@
       "search": {
         "placeholder": "[to be translated]:Search sessions"
       },
+      "tool": {
+        "disabled": "Το εργαλείο {{toolName}} είναι απενεργοποιημένο για αυτόν τον agent."
+      },
       "unpin": {
         "title": "[to be translated]:Unpin task"
       },
@@ -1415,11 +1418,22 @@
       "pasted_text_file_name": "[to be translated]:Pasted text.txt",
       "pause": "Παύση",
       "placeholder": "Εισάγετε μήνυμα εδώ...",
+      "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",
       "resource_panel": {
+        "categories": {
+          "agents": "Πράκτορες",
+          "files": "Αρχεία",
+          "skills": "Δεξιότητες"
+        },
+        "description": "Επιλέξτε από αρχεία, πράκτορες ή δεξιότητες",
         "loading": "Φόρτωση...",
         "no_file_found": {
           "description": "Δεν υπάρχουν διαθέσιμα αρχεία στους προσβάσιμους καταλόγους",
           "label": "Δεν βρέθηκε αρχείο"
+        },
+        "no_items_found": {
+          "description": "Κανένα αρχείο, πράκτορας ή δεξιότητα δεν είναι διαθέσιμα",
+          "label": "Δεν βρέθηκαν στοιχεία"
         },
         "title": "Πόροι"
       },
@@ -2882,6 +2896,7 @@
             "placeholder": "Δώσε στον πράκτορα ένα όνομα"
           },
           "permission_mode": {
+            "help": "Η εναλλαγή στο bypassPermissions ισοδυναμεί με την ενεργοποίηση της λειτουργίας Soul",
             "label": "Λειτουργία δικαιωμάτων",
             "option": {
               "acceptEdits": "Αποδοχή επεξεργασιών",
@@ -3233,9 +3248,13 @@
     },
     "skill_detail": {
       "created_at": "Δημιουργήθηκε",
+      "delete_description": "Κατάργησε αυτή την ικανότητα και ολόκληρη τη διαμόρφωσή της. Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
+      "delete_title": "Διαγραφή δεξιότητας",
       "description": "Περιγραφή",
+      "file_preview": "Προεπισκόπηση αρχείου",
       "installed": "Εγκατεστημένο",
       "no_description": "Χωρίς περιγραφή",
+      "source_files": "Αρχεία πηγής",
       "updated_at": "Πρόσφατα ενημερώθηκε"
     },
     "sort": {
@@ -3273,6 +3292,7 @@
       "prompt": "Προτροπή",
       "skill": "Δεξιότητα"
     },
+    "uninstall_failed": "Αποτυχία απεγκατάστασης",
     "view": {
       "grid": "Προβολή πλέγματος",
       "list": "Προβολή λίστας"
@@ -5256,6 +5276,7 @@
       }
     },
     "advanced": {
+      "auto_switch_to_topics": "Αυτόματη μετάβαση σε θέματα",
       "title": "Ρυθμίσεις Ανώτερου Νiveau"
     },
     "assistant": {
@@ -6472,6 +6493,9 @@
       "input": {
         "confirm_delete_message": "Επιβεβαίωση πριν τη διαγραφή μηνύματος",
         "confirm_regenerate_message": "Επιβεβαίωση πριν από την επαναδημιουργία του μηνύματος",
+        "enable_quick_triggers": "Ενεργοποίηση των '/' και '@' για γρήγορη πρόσβαση σε μενού",
+        "paste_long_text_as_file": "Επικόλληση μεγάλου κειμένου ως αρχείο",
+        "paste_long_text_threshold": "Όριο μεγάλου κειμένου",
         "send_shortcuts": "Συντάγματα αποστολής",
         "show_estimated_tokens": "Εμφάνιση εκτιμώμενου αριθμού token",
         "title": "Ρυθμίσεις εισαγωγής"

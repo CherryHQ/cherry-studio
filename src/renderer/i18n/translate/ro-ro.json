@@ -534,6 +534,9 @@
       "search": {
         "placeholder": "[to be translated]:Search sessions"
       },
+      "tool": {
+        "disabled": "Instrumentul {{toolName}} este dezactivat pentru acest agent."
+      },
       "unpin": {
         "title": "[to be translated]:Unpin task"
       },
@@ -1415,11 +1418,22 @@
       "pasted_text_file_name": "[to be translated]:Pasted text.txt",
       "pause": "Pauză",
       "placeholder": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite - @ pentru a selecta modelul, / pentru a include instrumente",
+      "placeholder_without_triggers": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite",
       "resource_panel": {
+        "categories": {
+          "agents": "Agenți",
+          "files": "Fișiere",
+          "skills": "Abilități"
+        },
+        "description": "Selectați din fișiere, agenți sau competențe",
         "loading": "Se încarcă...",
         "no_file_found": {
           "description": "Nicio fișier disponibil în directoare accesibile",
           "label": "Niciun fișier găsit"
+        },
+        "no_items_found": {
+          "description": "Niciun fișier, agent sau abilitate disponibilă",
+          "label": "Niciun element găsit"
         },
         "title": "Resurse"
       },
@@ -2882,6 +2896,7 @@
             "placeholder": "Dă agentului un nume"
           },
           "permission_mode": {
+            "help": "Comutarea la bypassPermissions echivalează cu activarea modului Soul",
             "label": "Mod de permisiune",
             "option": {
               "acceptEdits": "Acceptă modificările",
@@ -3233,9 +3248,13 @@
     },
     "skill_detail": {
       "created_at": "Creat",
+      "delete_description": "Elimină această abilitate și toată configurația sa. Această acțiune nu poate fi anulată.",
+      "delete_title": "Șterge competență",
       "description": "Descriere",
+      "file_preview": "Previzualizare fișier",
       "installed": "Instalat",
       "no_description": "Fără descriere",
+      "source_files": "Fișiere sursă",
       "updated_at": "Actualizat recent"
     },
     "sort": {
@@ -3273,6 +3292,7 @@
       "prompt": "Prompt",
       "skill": "Abilitate"
     },
+    "uninstall_failed": "Dezinstalarea a eșuat",
     "view": {
       "grid": "Vizualizare grilă",
       "list": "Vizualizare listă"
@@ -5256,6 +5276,7 @@
       }
     },
     "advanced": {
+      "auto_switch_to_topics": "Comutare automată la subiect",
       "title": "Setări avansate"
     },
     "assistant": {
@@ -6472,6 +6493,9 @@
       "input": {
         "confirm_delete_message": "Confirmă înainte de ștergerea mesajelor",
         "confirm_regenerate_message": "Confirmă înainte de regenerarea mesajelor",
+        "enable_quick_triggers": "Activează declanșatoarele / și @",
+        "paste_long_text_as_file": "Lipește text lung ca fișier",
+        "paste_long_text_threshold": "Lungime lipire text lung",
         "send_shortcuts": "Comenzi rapide trimitere",
         "show_estimated_tokens": "Afișează numărul estimat de tokeni",
         "title": "Setări intrare"

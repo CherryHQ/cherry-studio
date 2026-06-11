@@ -193,7 +193,7 @@ describe('TopicBranchPanel', () => {
       trigger: mocks.setActiveNode
     })
     mocks.useMutation.mockImplementation((_method: string, path: string) => {
-      if (path === '/topics/:id/branch-copies') {
+      if (path === '/topics/:id/duplicate') {
         return { trigger: mocks.copyBranchToNewTopic }
       }
       return { trigger: mocks.setActiveNode }

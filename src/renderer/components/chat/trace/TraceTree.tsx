@@ -4,12 +4,12 @@ import * as React from 'react'
 import { useEffect, useState } from 'react'
 
 import { ProgressBar } from './ProgressBar'
-import { TRACE_ROW_GRID, type TraceModal } from './TraceModel'
+import { TRACE_ROW_GRID, type TraceNode } from './traceNode'
 
-interface TreeNodeProps {
-  node: TraceModal
+interface TraceTreeProps {
+  node: TraceNode
   handleClick: (nodeId: string) => void
-  treeData?: TraceModal[]
+  treeData?: TraceNode[]
   paddingLeft?: number
 }
 
@@ -35,12 +35,12 @@ export const convertTime = (time: number | null): string => {
   return time.toFixed(2) + 'ms'
 }
 
-const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddingLeft = 2 }) => {
+const TraceTree: React.FC<TraceTreeProps> = ({ node, handleClick, treeData, paddingLeft = 2 }) => {
   const [isOpen, setIsOpen] = useState(true)
   const hasChildren = node.children && node.children.length > 0
   const [usedTime, setUsedTime] = useState('--')
 
-  // 只在 endTime 或 node 变化时更新 usedTime
+  // Recalculate while the span is still running.
   useEffect(() => {
     const endTime = node.endTime || Date.now()
     setUsedTime(convertTime(endTime - node.startTime))
@@ -94,7 +94,7 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
             node.children
               .sort((a, b) => a.startTime - b.startTime)
               .map((childNode) => (
-                <TreeNode
+                <TraceTree
                   key={childNode.id}
                   treeData={treeData}
                   node={childNode}
@@ -108,4 +108,4 @@ const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddin
   )
 }
 
-export default TreeNode
+export default TraceTree

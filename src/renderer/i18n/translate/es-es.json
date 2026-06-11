@@ -534,6 +534,9 @@
       "search": {
         "placeholder": "[to be translated]:Search sessions"
       },
+      "tool": {
+        "disabled": "La herramienta {{toolName}} está deshabilitada para este agente."
+      },
       "unpin": {
         "title": "[to be translated]:Unpin task"
       },
@@ -1415,11 +1418,22 @@
       "pasted_text_file_name": "[to be translated]:Pasted text.txt",
       "pause": "Pausar",
       "placeholder": "Escribe aquí tu mensaje...",
+      "placeholder_without_triggers": "Escribe tu mensaje aquí, presiona {{key}} para enviar",
       "resource_panel": {
+        "categories": {
+          "agents": "Agentes",
+          "files": "Archivos",
+          "skills": "Habilidades"
+        },
+        "description": "Selecciona entre archivos, agentes o habilidades",
         "loading": "Cargando...",
         "no_file_found": {
           "description": "No hay archivos disponibles en los directorios accesibles",
           "label": "No se encontró ningún archivo"
+        },
+        "no_items_found": {
+          "description": "Sin archivos, agentes o habilidades disponibles",
+          "label": "No se encontraron elementos"
         },
         "title": "Recursos"
       },
@@ -2882,6 +2896,7 @@
             "placeholder": "Dale un nombre al agente"
           },
           "permission_mode": {
+            "help": "Cambiar a bypassPermissions es equivalente a activar el modo Soul",
             "label": "Modo de permiso",
             "option": {
               "acceptEdits": "Aceptar ediciones",
@@ -3233,9 +3248,13 @@
     },
     "skill_detail": {
       "created_at": "Creado",
+      "delete_description": "Elimina esta habilidad y toda su configuración. Esta acción no se puede deshacer.",
+      "delete_title": "Eliminar habilidad",
       "description": "Descripción",
+      "file_preview": "Vista previa del archivo",
       "installed": "Instalado",
       "no_description": "Sin descripción",
+      "source_files": "Archivos fuente",
       "updated_at": "Actualizado recientemente"
     },
     "sort": {
@@ -3273,6 +3292,7 @@
       "prompt": "Indicación",
       "skill": "Habilidad"
     },
+    "uninstall_failed": "Error al desinstalar",
     "view": {
       "grid": "Vista en cuadrícula",
       "list": "Vista de lista"
@@ -5256,6 +5276,7 @@
       }
     },
     "advanced": {
+      "auto_switch_to_topics": "Cambiar automáticamente a temas",
       "title": "Configuración avanzada"
     },
     "assistant": {
@@ -6472,6 +6493,9 @@
       "input": {
         "confirm_delete_message": "Confirmar antes de eliminar mensaje",
         "confirm_regenerate_message": "confirmar antes de regenerar el mensaje",
+        "enable_quick_triggers": "Habilitar menú rápido con '/' y '@'",
+        "paste_long_text_as_file": "Pegar texto largo como archivo",
+        "paste_long_text_threshold": "Límite de longitud de texto largo",
         "send_shortcuts": "Atajos de teclado para enviar",
         "show_estimated_tokens": "Mostrar número estimado de tokens",
         "title": "Configuración de entrada"

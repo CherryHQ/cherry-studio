@@ -917,7 +917,7 @@ export class AgentSessionRuntimeService extends BaseService {
         }
       },
       { topicId: entry.topicId, modelName: parseUniqueModelId(entry.modelId).modelId },
-      { traceId, spanId: deriveRootSpanId(traceId) }
+      traceId
     )
     return turnTrace.rootSpan
   }

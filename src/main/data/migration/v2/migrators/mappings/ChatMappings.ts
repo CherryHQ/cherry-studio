@@ -198,6 +198,8 @@ export interface OldMessage {
   enabledMCPs?: unknown[]
   agentSessionId?: string
   providerMetadata?: unknown
+  // Legacy span pointer; dropped because v1 span detail files are not migrated.
+  traceId?: string
 }
 
 /**
@@ -511,7 +513,7 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
  * | status | status | Normalized to success/error/paused |
  * | (computed) | siblingsGroupId | From multi-model detection |
  * | model/modelId | modelId | Composite (provider::modelId) or raw fallback |
- * | traceId | traceId | Dropped: legacy span detail files are not migrated |
+ * | traceId | - | Dropped: legacy span detail files are not migrated |
  * | usage + metrics | stats | Merged into single stats object |
  * | createdAt | createdAt | ISO string → timestamp |
  * | updatedAt | updatedAt | ISO string → timestamp |

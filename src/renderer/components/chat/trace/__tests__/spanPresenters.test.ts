@@ -1,12 +1,13 @@
+import { SPAN_NAME_TURN } from '@mcp-trace/trace-core'
 import { describe, expect, it } from 'vitest'
 
 import { buildSpanView } from '../spanPresenters'
-import type { TraceModal } from '../TraceModel'
+import type { TraceNode } from '../traceNode'
 
 const t = (key: string) => key
 
-/** Minimal TraceModal: presenters only read attributes / modelName / events. */
-function node(overrides: Partial<TraceModal>): TraceModal {
+/** Minimal TraceNode: presenters only read attributes / modelName / events. */
+function node(overrides: Partial<TraceNode>): TraceNode {
   return {
     id: 's1',
     traceId: 'tr',
@@ -21,7 +22,7 @@ function node(overrides: Partial<TraceModal>): TraceModal {
     percent: 100,
     start: 0,
     ...overrides
-  } as unknown as TraceModal
+  } as unknown as TraceNode
 }
 
 const labels = (view: { rows: { label: string }[] }) => view.rows.map((r) => r.label)
@@ -29,11 +30,11 @@ const tabValues = (view: { tabs: { value: string }[] }) => view.tabs.map((t) => 
 const tabData = (view: { tabs: { value: string; data: unknown }[] }, value: string) =>
   view.tabs.find((tab) => tab.value === value)?.data
 
-describe('buildSpanView — span-type registry', () => {
+describe('buildSpanView span-type registry', () => {
   it('HTTP span: url/method/status rows, header tabs, body-only input, no model', () => {
     const view = buildSpanView(
       node({
-        modelName: 'gpt-x', // inherited — must NOT produce a model row
+        modelName: 'gpt-x', // inherited; must NOT produce a model row
         attributes: {
           tags: 'HTTP',
           'http.method': 'POST',
@@ -98,7 +99,7 @@ describe('buildSpanView — span-type registry', () => {
   it('ai.turn span: identity/shape rows + boundary input/output tabs', () => {
     const view = buildSpanView(
       node({
-        name: 'ai.turn',
+        name: SPAN_NAME_TURN,
         status: 'OK',
         modelName: 'gpt-4',
         attributes: {

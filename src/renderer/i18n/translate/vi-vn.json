@@ -534,6 +534,9 @@
       "search": {
         "placeholder": "[to be translated]:Search sessions"
       },
+      "tool": {
+        "disabled": "Công cụ {{toolName}} đã bị tắt cho agent này."
+      },
       "unpin": {
         "title": "[to be translated]:Unpin task"
       },
@@ -1415,11 +1418,22 @@
       "pasted_text_file_name": "[to be translated]:Pasted text.txt",
       "pause": "Tạm dừng",
       "placeholder": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi - @ để Chọn Mô hình, / để Bao gồm Công cụ",
+      "placeholder_without_triggers": "Nhập tin nhắn của bạn ở đây, nhấn {{key}} để gửi",
       "resource_panel": {
+        "categories": {
+          "agents": "Đặc vụ",
+          "files": "Tệp tin",
+          "skills": "Kỹ năng"
+        },
+        "description": "Chọn từ tệp, tác nhân hoặc kỹ năng",
         "loading": "Đang tải...",
         "no_file_found": {
           "description": "Không có tệp nào có sẵn trong các thư mục có thể truy cập",
           "label": "Không tìm thấy tệp"
+        },
+        "no_items_found": {
+          "description": "Không có tệp nào, đại lý hoặc kỹ năng nào có sẵn",
+          "label": "Không tìm thấy mục nào"
         },
         "title": "Tài nguyên"
       },
@@ -2882,6 +2896,7 @@
             "placeholder": "Đặt tên cho đại lý"
           },
           "permission_mode": {
+            "help": "Chuyển sang bypassPermissions tương đương với việc bật chế độ Soul",
             "label": "Chế độ cấp phép",
             "option": {
               "acceptEdits": "Chấp nhận chỉnh sửa",
@@ -3233,9 +3248,13 @@
     },
     "skill_detail": {
       "created_at": "Đã tạo",
+      "delete_description": "Xóa kỹ năng này và toàn bộ cấu hình của nó. Hành động này không thể hoàn tác.",
+      "delete_title": "Xóa kỹ năng",
       "description": "Mô tả",
+      "file_preview": "Xem trước tệp",
       "installed": "Đã cài đặt",
       "no_description": "Không có mô tả",
+      "source_files": "Tệp nguồn",
       "updated_at": "Đã cập nhật gần đây"
     },
     "sort": {
@@ -3273,6 +3292,7 @@
       "prompt": "Lời nhắc",
       "skill": "Kỹ năng"
     },
+    "uninstall_failed": "Không gỡ cài đặt được",
     "view": {
       "grid": "Chế độ xem lưới",
       "list": "Chế độ xem danh sách"
@@ -5256,6 +5276,7 @@
       }
     },
     "advanced": {
+      "auto_switch_to_topics": "Tự động chuyển sang chủ đề",
       "title": "Cài đặt nâng cao"
     },
     "assistant": {
@@ -6472,6 +6493,9 @@
       "input": {
         "confirm_delete_message": "Xác nhận trước khi xóa tin nhắn",
         "confirm_regenerate_message": "Xác nhận trước khi tạo lại tin nhắn",
+        "enable_quick_triggers": "Kích hoạt các kích hoạt / và @",
+        "paste_long_text_as_file": "Dán văn bản dài dưới dạng tệp",
+        "paste_long_text_threshold": "I’m ready—please provide the long text you’d like translated.",
         "send_shortcuts": "Gửi phím tắt",
         "show_estimated_tokens": "Hiển thị số token ước tính",
         "title": "Cài đặt đầu vào"

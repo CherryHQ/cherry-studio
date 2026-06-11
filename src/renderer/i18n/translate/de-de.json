@@ -534,6 +534,9 @@
       "search": {
         "placeholder": "[to be translated]:Search sessions"
       },
+      "tool": {
+        "disabled": "Das Tool {{toolName}} ist für diesen Agenten deaktiviert."
+      },
       "unpin": {
         "title": "[to be translated]:Unpin task"
       },
@@ -1415,11 +1418,22 @@
       "pasted_text_file_name": "[to be translated]:Pasted text.txt",
       "pause": "Pause",
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
+      "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
       "resource_panel": {
+        "categories": {
+          "agents": "Agenten",
+          "files": "Dateien",
+          "skills": "Fähigkeiten"
+        },
+        "description": "Wählen Sie aus Dateien, Agenten oder Fähigkeiten",
         "loading": "Laden...",
         "no_file_found": {
           "description": "Keine Dateien in zugänglichen Verzeichnissen verfügbar",
           "label": "Keine Datei gefunden"
+        },
+        "no_items_found": {
+          "description": "Keine Dateien, Agenten oder Fähigkeiten verfügbar",
+          "label": "Keine Artikel gefunden"
         },
         "title": "Ressourcen"
       },
@@ -2882,6 +2896,7 @@
             "placeholder": "Gib dem Agenten einen Namen"
           },
           "permission_mode": {
+            "help": "Das Wechseln zu bypassPermissions entspricht dem Aktivieren des Soul-Modus",
             "label": "Berechtigungsmodus",
             "option": {
               "acceptEdits": "Änderungen übernehmen",
@@ -3233,9 +3248,13 @@
     },
     "skill_detail": {
       "created_at": "Erstellt",
+      "delete_description": "Entferne diese Fähigkeit und ihre gesamte Konfiguration. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "delete_title": "Fähigkeit löschen",
       "description": "Beschreibung",
+      "file_preview": "Dateivorschau",
       "installed": "Installiert",
       "no_description": "Keine Beschreibung",
+      "source_files": "Quelldateien",
       "updated_at": "Kürzlich aktualisiert"
     },
     "sort": {
@@ -3273,6 +3292,7 @@
       "prompt": "Aufforderung",
       "skill": "Fähigkeit"
     },
+    "uninstall_failed": "Deinstallation fehlgeschlagen",
     "view": {
       "grid": "Rasteransicht",
       "list": "Listenansicht"
@@ -5256,6 +5276,7 @@
       }
     },
     "advanced": {
+      "auto_switch_to_topics": "Automatisch zu Themenansicht wechseln",
       "title": "Erweiterte Einstellungen"
     },
     "assistant": {
@@ -6472,6 +6493,9 @@
       "input": {
         "confirm_delete_message": "Vor Löschen von Nachrichten bestätigen",
         "confirm_regenerate_message": "Nachrichten vor Neugenerierung bestätigen",
+        "enable_quick_triggers": "Aktivieren / und @ für Schnellmenü-Trigger",
+        "paste_long_text_as_file": "Langen Text als Datei einfügen",
+        "paste_long_text_threshold": "Länge langer Text",
         "send_shortcuts": "Senden-Shortcut",
         "show_estimated_tokens": "Geschätzte Token-Anzahl anzeigen",
         "title": "Eingabeeinstellungen"

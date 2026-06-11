@@ -943,11 +943,17 @@ export function getXAIReasoningParams(
 
   if (isGrok43) {
     switch (reasoningEffort) {
+      case 'none':
       case 'low':
       case 'medium':
       case 'high':
         return { reasoningEffort }
       default:
+        // grok-4.3 accepts none/low/medium/high — the xAI responses `reasoningEffort` enum, extended
+        // to include 'none' by #15137's `@ai-sdk/xai@3.0.83` patch (still in `patches/`); 'none'
+        // disables reasoning. Genuinely out-of-range values (auto/minimal/xhigh) are dropped — trace
+        // them so the omission is diagnosable.
+        logger.debug('grok-4.3 dropping unsupported reasoning effort', { reasoningEffort })
         return {}
     }
   }

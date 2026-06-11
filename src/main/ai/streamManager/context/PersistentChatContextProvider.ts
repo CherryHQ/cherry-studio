@@ -14,7 +14,7 @@ import type { Message as SharedMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
-import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../../observability'
+import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
 import type { AiStreamRequest } from '../../types/requests'
 import { PersistenceListener } from '../listeners/PersistenceListener'
@@ -31,7 +31,6 @@ function startTurnRootSpans(
   models: Model[],
   containerTraceId: string
 ): Array<{ model: Model; span: Span }> {
-  const parent = { traceId: containerTraceId, spanId: deriveRootSpanId(containerTraceId) }
   return models.map((model) => {
     const modelName = model.name ?? model.id
     const turnTrace = startAiChildTurnSpan(
@@ -45,7 +44,7 @@ function startTurnRootSpans(
         }
       },
       { topicId, modelName },
-      parent
+      containerTraceId
     )
     return { model, span: turnTrace.rootSpan }
   })

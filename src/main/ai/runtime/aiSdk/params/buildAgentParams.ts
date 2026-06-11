@@ -122,7 +122,7 @@ async function resolveSdkConfig(provider: Provider, model: Model): Promise<SdkCo
  * in the trace viewer. Off when developer mode is disabled — the wrapper is
  * never installed, so there's zero overhead on the normal path.
  */
-function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
+export function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
   if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
   const settings = sdkConfig.providerSettings as { fetch?: FetchFunction }
   settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, {
