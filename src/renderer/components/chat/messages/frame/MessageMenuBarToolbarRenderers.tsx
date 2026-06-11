@@ -2,7 +2,7 @@ import { ConfirmDialog, Tooltip } from '@cherrystudio/ui'
 import { actionsToCommandMenuExtraItems } from '@renderer/components/chat/actions/actionMenuItems'
 import { type CommandContextMenuExtraItem, CommandPopupMenu } from '@renderer/features/command'
 import type { ReactNode } from 'react'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { MessageActionButton } from './MessageActionButton'
@@ -228,23 +228,34 @@ const TranslateMenuPopover = ({
 const useMenuTooltipState = (onOpenChange?: (open: boolean) => void) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isTooltipOpen, setIsTooltipOpen] = useState(false)
+  const isMenuOpenRef = useRef(false)
+  const suppressTooltipRef = useRef(false)
 
   const handleMenuOpenChange = (open: boolean) => {
+    isMenuOpenRef.current = open
+    suppressTooltipRef.current = !open
     setIsMenuOpen(open)
-    if (open) {
-      setIsTooltipOpen(false)
-    }
+    setIsTooltipOpen(false)
     onOpenChange?.(open)
   }
 
   const handleTooltipOpenChange = (open: boolean) => {
-    setIsTooltipOpen(open && !isMenuOpen)
+    setIsTooltipOpen(open && !isMenuOpenRef.current && !suppressTooltipRef.current)
+  }
+
+  const releaseTooltipSuppression = () => {
+    suppressTooltipRef.current = false
   }
 
   return {
     tooltipOpen: !isMenuOpen && isTooltipOpen,
     handleMenuOpenChange,
-    handleTooltipOpenChange
+    handleTooltipOpenChange,
+    tooltipTriggerProps: {
+      onPointerEnter: releaseTooltipSuppression,
+      onPointerLeave: releaseTooltipSuppression,
+      onBlur: releaseTooltipSuppression
+    }
   }
 }
 
@@ -325,7 +336,8 @@ const TranslateToolbarAction = ({
   softHoverBg: boolean
   onMenuOpenChange?: (open: boolean) => void
 }) => {
-  const { handleMenuOpenChange, handleTooltipOpenChange, tooltipOpen } = useMenuTooltipState(onMenuOpenChange)
+  const { handleMenuOpenChange, handleTooltipOpenChange, tooltipOpen, tooltipTriggerProps } =
+    useMenuTooltipState(onMenuOpenChange)
   const label = typeof action.label === 'string' ? action.label : undefined
 
   return (
@@ -335,7 +347,8 @@ const TranslateToolbarAction = ({
           className="message-action-button"
           aria-label={label}
           onClick={(e) => e.stopPropagation()}
-          softHoverBg={softHoverBg}>
+          softHoverBg={softHoverBg}
+          {...tooltipTriggerProps}>
           {action.icon}
         </MessageActionButton>
       </TranslateMenuPopover>
@@ -376,7 +389,8 @@ const MoreMenuToolbarAction = ({
   softHoverBg: boolean
   onMenuOpenChange?: (open: boolean) => void
 }) => {
-  const { handleMenuOpenChange, handleTooltipOpenChange, tooltipOpen } = useMenuTooltipState(onMenuOpenChange)
+  const { handleMenuOpenChange, handleTooltipOpenChange, tooltipOpen, tooltipTriggerProps } =
+    useMenuTooltipState(onMenuOpenChange)
   const label = typeof action.label === 'string' ? action.label : undefined
 
   return (
@@ -390,7 +404,8 @@ const MoreMenuToolbarAction = ({
           className="message-action-button"
           aria-label={label}
           onClick={(e) => e.stopPropagation()}
-          softHoverBg={softHoverBg}>
+          softHoverBg={softHoverBg}
+          {...tooltipTriggerProps}>
           {action.icon}
         </MessageActionButton>
       </MessageActionMenuPopover>

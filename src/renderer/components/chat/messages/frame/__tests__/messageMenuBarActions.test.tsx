@@ -78,6 +78,14 @@ vi.mock('@renderer/features/command', async () => {
           {trigger}
           {open && (
             <div role="menu">
+              <button
+                type="button"
+                data-testid="mock-menu-close"
+                onClick={() => {
+                  setOpen(false)
+                  onOpenChange?.(false)
+                }}
+              />
               {extraItems.map((item) => (
                 <button
                   key={item.id}
@@ -382,6 +390,55 @@ describe('messageMenuBarActions', () => {
     expect(tooltipOpenValues).not.toContain(undefined)
   })
 
+  it('suppresses the more menu tooltip after the menu closes until the trigger is left', () => {
+    tooltipOpenValues.length = 0
+
+    const MessageMenuActionContext = createContext()
+    const action = resolveMessageMenuBarToolbarActions(MessageMenuActionContext).find((item) => item.id === 'more-menu')
+
+    expect(action).toBeTruthy()
+
+    render(
+      renderMoreMenuToolbarAction({
+        action: action!,
+        actionContext: MessageMenuActionContext,
+        executeAction: vi.fn(),
+        menuActions: [
+          {
+            id: 'copy',
+            label: 'Copy',
+            icon: null,
+            danger: false,
+            availability: { visible: true, enabled: true },
+            children: []
+          }
+        ],
+        softHoverBg: false,
+        translationItems: []
+      })
+    )
+
+    const trigger = screen.getByRole('button', { name: 'chat.message.more' })
+    const tooltipTrigger = screen.getByTestId('mock-tooltip-trigger')
+
+    fireEvent.click(tooltipTrigger)
+    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(true)
+
+    fireEvent.click(trigger)
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(false)
+
+    fireEvent.click(screen.getByTestId('mock-menu-close'))
+    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(false)
+
+    fireEvent.click(tooltipTrigger)
+    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(false)
+
+    fireEvent.pointerLeave(trigger)
+    fireEvent.click(tooltipTrigger)
+    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(true)
+  })
+
   it('keeps the translate tooltip controlled while opening the language menu with one click', () => {
     tooltipOpenValues.length = 0
 
@@ -422,6 +479,51 @@ describe('messageMenuBarActions', () => {
 
     expect(onSelect).toHaveBeenCalled()
     expect(tooltipOpenValues).not.toContain(undefined)
+  })
+
+  it('suppresses the translate tooltip after the language menu closes until a new trigger hover starts', () => {
+    tooltipOpenValues.length = 0
+
+    const MessageMenuActionContext = createContext({
+      actions: {
+        translateMessage: vi.fn()
+      } as unknown as MessageListActions,
+      translateLanguages: [{ langCode: 'fr', label: 'French' } as any]
+    })
+    const action = resolveMessageMenuBarToolbarActions(MessageMenuActionContext).find((item) => item.id === 'translate')
+
+    expect(action).toBeTruthy()
+
+    render(
+      renderTranslateToolbarAction({
+        action: action!,
+        actionContext: MessageMenuActionContext,
+        executeAction: vi.fn(),
+        menuActions: [],
+        softHoverBg: false,
+        translationItems: [{ key: 'fr', label: 'French', onSelect: vi.fn() }]
+      })
+    )
+
+    const trigger = screen.getByRole('button', { name: 'chat.translate' })
+    const tooltipTrigger = screen.getByTestId('mock-tooltip-trigger')
+
+    fireEvent.click(tooltipTrigger)
+    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(true)
+
+    fireEvent.click(trigger)
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(false)
+
+    fireEvent.click(screen.getByTestId('mock-menu-close'))
+    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(false)
+
+    fireEvent.click(tooltipTrigger)
+    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(false)
+
+    fireEvent.pointerEnter(trigger)
+    fireEvent.click(tooltipTrigger)
+    expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(true)
   })
 
   it('keeps session scope capability-driven for toolbar actions', () => {
