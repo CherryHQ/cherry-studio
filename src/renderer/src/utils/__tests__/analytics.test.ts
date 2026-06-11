@@ -29,7 +29,7 @@ describe('trackTokenUsage', () => {
     vi.stubGlobal('window', {
       api: { analytics: { trackTokenUsage: mockTrackTokenUsage } }
     })
-    // Default: system provider
+    // Default: system provider, data collection enabled
     mockGetProviderById.mockReturnValue({ id: 'openai', isSystem: true } as Provider)
     mockIsSystemProvider.mockReturnValue(true)
   })

@@ -333,6 +333,14 @@ describe('Claude & regional providers', () => {
     expect(isClaudeReasoningModel(createModel({ id: 'claude-3-haiku' }))).toBe(false)
   })
 
+  it('treats the whole Claude Fable line as reasoning models', () => {
+    expect(isClaudeReasoningModel(createModel({ id: 'claude-fable-5' }))).toBe(true)
+    expect(isClaudeReasoningModel(createModel({ id: 'claude-fable-5.7' }))).toBe(true)
+    expect(isClaudeReasoningModel(createModel({ id: 'anthropic.claude-fable-5-v1:0' }))).toBe(true)
+    // Not pinned to major 5 — future Fable releases stay covered.
+    expect(isClaudeReasoningModel(createModel({ id: 'claude-fable-6' }))).toBe(true)
+  })
+
   it('covers hunyuan reasoning heuristics', () => {
     expect(isHunyuanReasoningModel(createModel({ id: 'hunyuan-a13b', provider: 'hunyuan' }))).toBe(true)
     expect(isHunyuanReasoningModel(createModel({ id: 'hunyuan-lite', provider: 'hunyuan' }))).toBe(false)
@@ -352,6 +360,7 @@ describe('Claude & regional providers', () => {
     expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2-pro' }))).toBe(true)
     expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2.7' }))).toBe(true)
     expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2.7-highspeed' }))).toBe(true)
+    expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m3' }))).toBe(true)
   })
 })
 
@@ -2695,6 +2704,23 @@ describe('Claude Models', () => {
       expect(getThinkModelType(createModel({ id: 'anthropic.claude-opus-4-6-v1' }))).toBe('claude46')
     })
 
+    it('should return claude46 for Claude Opus 4.7 and newer models', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4-7' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4-8' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'anthropic.claude-opus-4-8-v1:0' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4-10' }))).toBe('claude46')
+    })
+
+    it('should return claude46 for the whole Claude Fable line (shares the 4.6 effort list)', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-fable-5' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'claude-fable-5-7' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'claude-fable-5.7' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'anthropic.claude-fable-5-v1:0' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'claude-fable-5-20260101' }))).toBe('claude46')
+      // Future Fable majors must keep working too (no hardcoded -5 anywhere in the chain).
+      expect(getThinkModelType(createModel({ id: 'claude-fable-6' }))).toBe('claude46')
+    })
+
     it('should return default for non-reasoning Claude models', () => {
       expect(getThinkModelType(createModel({ id: 'claude-3-opus' }))).toBe('default')
       expect(getThinkModelType(createModel({ id: 'claude-3-haiku' }))).toBe('default')
@@ -2762,17 +2788,22 @@ describe('Claude Models', () => {
     })
   })
 
-  describe('Claude 4.7 thinking model type and token limits', () => {
-    it('routes Opus 4.7 through the claude46 thinking type', () => {
+  describe('Claude Opus 4.7+ thinking model type and token limits', () => {
+    it('routes Opus 4.7+ through the claude46 thinking type', () => {
       expect(getThinkModelType(createModel({ id: 'claude-opus-4-7' }))).toBe('claude46')
       expect(getThinkModelType(createModel({ id: 'anthropic.claude-opus-4-7-v1' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4-8' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4-10' }))).toBe('claude46')
     })
 
-    it('returns 128K max tokens for Opus 4.7 models', () => {
+    it('returns 128K max tokens for Opus 4.7+ models', () => {
       expect(findTokenLimit('claude-opus-4-7')).toEqual({ min: 1024, max: 128_000 })
       expect(findTokenLimit('claude-opus-4.7')).toEqual({ min: 1024, max: 128_000 })
       expect(findTokenLimit('anthropic.claude-opus-4-7-v1')).toEqual({ min: 1024, max: 128_000 })
       expect(findTokenLimit('claude-opus-4-7@20260401')).toEqual({ min: 1024, max: 128_000 })
+      expect(findTokenLimit('claude-opus-4-8')).toEqual({ min: 1024, max: 128_000 })
+      expect(findTokenLimit('anthropic.claude-opus-4-8-v1:0')).toEqual({ min: 1024, max: 128_000 })
+      expect(findTokenLimit('claude-opus-4-10')).toEqual({ min: 1024, max: 128_000 })
     })
   })
 })

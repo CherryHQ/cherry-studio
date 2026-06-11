@@ -1,6 +1,6 @@
 import { LoadingIcon } from '@renderer/components/Icons'
 import { Button, Dropdown } from 'antd'
-import { ChevronDown, CirclePlay, CircleX, ShieldCheck } from 'lucide-react'
+import { Ban, ChevronDown, CirclePlay, ShieldCheck } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -33,9 +33,12 @@ export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
 }) => {
   const { t } = useTranslation()
 
-  // Stop event propagation to prevent collapse toggle
+  // Stop event propagation and prevent default to avoid triggering
+  // the parent AccordionTrigger's composeEventHandlers toggle when
+  // these buttons are rendered inside a collapsed group header.
   const handleClick = (e: MouseEvent, handler: () => void) => {
     e.stopPropagation()
+    e.preventDefault()
     handler()
   }
 
@@ -46,7 +49,10 @@ export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
   if (isExecuting) {
     if (showAbort && onAbort) {
       return (
-        <ActionsContainer $compact={compact} onClick={(e) => e.stopPropagation()}>
+        <ActionsContainer
+          $compact={compact}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}>
           <Button size="small" color="danger" variant="solid" onClick={(e) => handleClick(e, onAbort)}>
             {t('chat.input.pause')}
           </Button>
@@ -54,7 +60,10 @@ export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
       )
     }
     return (
-      <ActionsContainer $compact={compact} onClick={(e) => e.stopPropagation()}>
+      <ActionsContainer
+        $compact={compact}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}>
         <LoadingIndicator>
           <LoadingIcon />
           {!compact && <span>{t('message.tools.invoking')}</span>}
@@ -65,14 +74,16 @@ export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
 
   // Waiting state - show confirm/cancel buttons
   return (
-    <ActionsContainer $compact={compact} onClick={(e) => e.stopPropagation()}>
+    <ActionsContainer
+      $compact={compact}
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}>
       <Button
         size="small"
-        color="danger"
         variant={compact ? 'text' : 'outlined'}
         disabled={isSubmitting}
         onClick={(e) => handleClick(e, cancel)}>
-        <CircleX size={compact ? 13 : 14} className="lucide-custom" />
+        <Ban size={compact ? 13 : 14} className="lucide-custom" />
         {!compact && t('common.cancel')}
       </Button>
 

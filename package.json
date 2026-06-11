@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "1.9.6",
+  "version": "1.9.11",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "desktopName": "CherryStudio.desktop",
@@ -362,7 +362,7 @@
     "macos-release": "^3.4.0",
     "markdown-it": "^14.1.1",
     "md5": "2.3.0",
-    "mermaid": "^11.13.0",
+    "mermaid": "^11.15.0",
     "mime": "^4.0.4",
     "mime-types": "^3.0.1",
     "motion": "^12.10.5",

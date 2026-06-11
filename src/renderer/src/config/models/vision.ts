@@ -5,7 +5,7 @@ import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import { isFunctionCallingModel } from './tooluse'
 
-// Vision models
+// Vision models, used as regex
 const visionAllowedModels = [
   'llava',
   'moondream',
@@ -20,6 +20,7 @@ const visionAllowedModels = [
   'claude-haiku-4',
   'claude-sonnet-4',
   'claude-opus-4',
+  'claude-fable',
   'vision',
   'glm-4(?:\\.\\d+)?v(?:-[\\w-]+)?',
   'qwen-vl',
@@ -51,6 +52,7 @@ const visionAllowedModels = [
   'doubao-seed-1[.-][68](?:-[\\w-]+)?',
   'doubao-seed-2[.-]0(?:-[\\w-]+)?',
   'doubao-seed-code(?:-[\\w-]+)?',
+  'minimax-m3(?:-[\\w-]+)?',
   'kimi-thinking-preview',
   `gemma3(?:[-:\\w]+)?`,
   'kimi-vl-a3b-thinking(?:-[\\w-]+)?',
