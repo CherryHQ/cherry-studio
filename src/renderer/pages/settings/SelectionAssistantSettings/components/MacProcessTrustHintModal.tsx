@@ -38,10 +38,7 @@ const MacProcessTrustHintModal: FC<MacProcessTrustHintModalProps> = ({ open, onC
           </p>
         </div>
         <div className="flex w-full items-center justify-between">
-          <Button
-            variant="ghost"
-            className="text-[var(--color-foreground-muted)] text-xs"
-            onClick={handleOpenAccessibility}>
+          <Button variant="ghost" className="text-foreground-muted text-xs" onClick={handleOpenAccessibility}>
             {t('selection.settings.enable.mac_process_trust_hint.button.open_accessibility_settings')}
           </Button>
           <Button onClick={handleConfirm}>

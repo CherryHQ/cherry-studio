@@ -18,7 +18,6 @@ export function SidebarDocked({ layout, dockedTabs, ...props }: SidebarDockedPro
   if (dockedTabs.length === 0) return null
 
   if (layout === 'icon') return <IconDockedTabs dockedTabs={dockedTabs} {...props} />
-  if (layout === 'vertical-card') return <VerticalCardDockedTabs dockedTabs={dockedTabs} {...props} />
   return <FullDockedTabs dockedTabs={dockedTabs} {...props} />
 }
 
@@ -61,53 +60,6 @@ function IconDockedTabs({
                 onCloseDockedTab?.(dockedTab.id)
               }}
               className="-right-1 -top-1 absolute z-10 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-border bg-popover text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/dock:opacity-100">
-              <X size={7} />
-            </button>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function VerticalCardDockedTabs({
-  dockedTabs,
-  activeTabId,
-  onMiniAppTabClick,
-  onStartSidebarDrag,
-  onCloseDockedTab
-}: DockedTabsProps) {
-  return (
-    <div className="mt-1 flex flex-col items-center gap-0 border-border/30 border-t px-1 pt-1 [-webkit-app-region:no-drag]">
-      {dockedTabs.map((dockedTab) => {
-        const isActive = activeTabId === dockedTab.id
-
-        return (
-          <div key={dockedTab.id} className="group/dock relative w-full">
-            <button
-              type="button"
-              onClick={() => onMiniAppTabClick?.(dockedTab.id)}
-              onMouseDown={(event) => {
-                event.stopPropagation()
-                onStartSidebarDrag?.(event, dockedTab.id)
-              }}
-              className={`relative flex w-full cursor-grab flex-col items-center gap-0.5 rounded-md py-1.5 transition-all duration-150 active:cursor-grabbing ${
-                isActive ? 'bg-sidebar-active-bg' : 'hover:bg-accent/40'
-              }`}>
-              {isActive && <ActiveIndicator className="rounded-md" />}
-              <SidebarTabIcon tab={dockedTab} size={18} strokeWidth={1.6} miniAppSize="md" />
-              <span className="max-w-[50px] truncate text-[8px] text-muted-foreground leading-tight">
-                {dockedTab.title}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                onCloseDockedTab?.(dockedTab.id)
-              }}
-              className="absolute top-0.5 right-0.5 z-10 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-border bg-popover text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/dock:opacity-100">
               <X size={7} />
             </button>
           </div>
