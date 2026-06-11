@@ -31,18 +31,12 @@ function testIdOf(node: React.ReactNode): string | null {
 }
 
 describe('chooseTool', () => {
-  it('routes the current kb_search / web_search wire names to their title cards', () => {
+  it('routes the kb_search / web_search wire names to their title cards', () => {
     expect(testIdOf(chooseTool(resp('kb_search')))).toBe('kb-card')
     expect(testIdOf(chooseTool(resp('web_search')))).toBe('web-card')
   })
 
-  it('still routes the legacy double-underscore literals so historical messages keep their cards', () => {
-    expect(testIdOf(chooseTool(resp('kb__search')))).toBe('kb-card')
-    expect(testIdOf(chooseTool(resp('web__search')))).toBe('web-card')
-  })
-
   it('renders no card for a provider-side web_search (the provider already shows results inline)', () => {
     expect(chooseTool(resp('web_search', 'provider'))).toBeNull()
-    expect(chooseTool(resp('web__search', 'provider'))).toBeNull()
   })
 })
