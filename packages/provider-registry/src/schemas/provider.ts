@@ -32,7 +32,17 @@ export const ApiFeaturesSchema = z.object({
   /** Whether the provider supports service tier selection (OpenAI/Groq-specific) */
   serviceTier: z.boolean().default(false),
   /** Whether the provider supports verbosity settings (OpenAI-specific) */
-  verbosity: z.boolean().default(false)
+  verbosity: z.boolean().default(false),
+
+  // --- Response feature flags ---
+
+  /**
+   * Whether the provider returns the actual billed cost in its usage response
+   * (e.g. OpenRouter `usage.cost`). When true, that figure is trusted over
+   * locally computed pricing; otherwise cost is computed from the model's
+   * configured pricing. See `enrichStatsWithCost`.
+   */
+  reportsActualCost: z.boolean().default(false)
 })
 
 // ═══════════════════════════════════════════════════════════════════════════════
