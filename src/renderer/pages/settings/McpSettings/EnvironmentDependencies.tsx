@@ -50,7 +50,7 @@ interface EnvironmentDependenciesProps {
 }
 
 const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = false }) => {
-  const [miseState, setMiseState] = useState<BinaryState | null>(null)
+  const [binaryState, setBinaryState] = useState<BinaryState | null>(null)
   const [bundled, setBundled] = useState<Record<string, string | null>>({})
   const [installingTools, setInstallingTools] = useState<Set<string>>(new Set())
   const [customTools, setCustomTools] = usePreference('feature.binaries.tools')
@@ -74,17 +74,17 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         window.api.binaryManager.probeBundled()
       ])
       if (!mountedRef.current) return
-      setMiseState(state)
+      setBinaryState(state)
       setBundled(bundledMap)
     } catch (error) {
-      logger.error('Failed to refresh mise state', error as Error)
+      logger.error('Failed to refresh binary state', error as Error)
     }
   }, [])
 
   useEffect(() => {
     void refreshState()
     const unsub1 = window.api.binaryManager.onStateChanged((state) => {
-      setMiseState(state)
+      setBinaryState(state)
       // mise install may shadow a bundled binary; re-probe so the source label stays accurate.
       void window.api.binaryManager.probeBundled().then((b) => {
         if (mountedRef.current) setBundled(b)
@@ -143,8 +143,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const totalCount = PREDEFINED_BINARY_TOOLS.length + customTools.length
 
   if (mini) {
-    const uvAvailable = Boolean(miseState?.tools.uv) || 'uv' in bundled
-    const bunAvailable = Boolean(miseState?.tools.bun) || 'bun' in bundled
+    const uvAvailable = Boolean(binaryState?.tools.uv) || 'uv' in bundled
+    const bunAvailable = Boolean(binaryState?.tools.bun) || 'bun' in bundled
     if (uvAvailable && bunAvailable) {
       return null
     }
@@ -171,7 +171,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {PREDEFINED_BINARY_TOOLS.map((tool) => {
-          const installed = miseState?.tools[tool.name]
+          const installed = binaryState?.tools[tool.name]
           const bundledVersion = bundled[tool.name]
           const source: ToolSource = installed ? 'mise' : tool.name in bundled ? 'bundled' : 'none'
           return (
@@ -202,7 +202,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       {customTools.length > 0 && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {customTools.map((tool) => {
-            const installed = miseState?.tools[tool.name]
+            const installed = binaryState?.tools[tool.name]
             return (
               <CustomToolCard
                 key={tool.name}
