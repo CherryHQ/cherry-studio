@@ -9,7 +9,7 @@ import TraceTree from './TraceTree'
 export interface TracePageProps {
   topicId: string
   traceId: string
-  reload?: unknown
+  reload?: string | number | boolean
 }
 
 export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload = false }) => {

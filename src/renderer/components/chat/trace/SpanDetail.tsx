@@ -113,7 +113,7 @@ function formatDate(timestamp: number | null): string {
   if (timestamp == null) return ''
   const date = new Date(timestamp)
   const pad = (n: number) => n.toString().padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds())}`
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${date.getMilliseconds().toString().padStart(3, '0')}`
 }
 
 /** Resolve the active tab's payload (with the ERROR-exception override) and format it as JSON or text. */
