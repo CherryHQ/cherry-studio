@@ -37,6 +37,7 @@ import { buildSearchSnippet } from '@shared/utils/searchSnippet'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 
 import { topicService } from './TopicService'
+import { usageLedgerService } from './UsageLedgerService'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { timestampToISO } from './utils/rowMappers'
 
@@ -986,7 +987,7 @@ export class MessageService {
       }
     }
 
-    return await application.get('DbService').withWriteTx(async (tx) => {
+    const message = await application.get('DbService').withWriteTx(async (tx) => {
       // Get existing message within transaction
       const [existingRow] = await tx.select().from(messageTable).where(eq(messageTable.id, id)).limit(1)
 
@@ -1020,6 +1021,17 @@ export class MessageService {
 
       return rowToMessage(row)
     })
+
+    // Usage ledger: an assistant message landing token stats is a billing
+    // event. Recorded post-commit and fire-and-forget — the ledger is
+    // best-effort and must never disrupt message persistence.
+    if (dto.stats !== undefined && message.role === 'assistant') {
+      void usageLedgerService.recordFromMessage(message).catch((err) => {
+        logger.warn('usage ledger record failed', { id, err })
+      })
+    }
+
+    return message
   }
 
   /**
