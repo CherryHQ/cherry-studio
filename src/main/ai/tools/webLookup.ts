@@ -59,18 +59,34 @@ export const webLookupErrorSchema = z.object({ error: z.string() })
 export type WebLookupError = z.infer<typeof webLookupErrorSchema>
 export type WebLookupResult = WebSearchOutput | WebLookupError
 
-export const WEB_LOOKUP_ERROR_NOTE = 'Web search failed (network/provider error); retry or inform the user.'
+/** Transient failure (network/provider hiccup) — a retry can succeed. Covers web_search and web_fetch. */
+export const WEB_LOOKUP_ERROR_NOTE = 'Web lookup failed (network/provider error); retry or inform the user.'
 
-export function isWebLookupError(output: unknown): output is WebLookupError {
-  return webLookupErrorSchema.safeParse(output).success
+/**
+ * Permanent failure: no web-search provider is configured (`WebSearchService` throws
+ * "Default web search provider is not configured…"). Retrying can never succeed — the
+ * user has to configure one — so the note must steer away from a retry loop.
+ */
+export const WEB_PROVIDER_NOT_CONFIGURED_NOTE =
+  'No web search provider is configured. Tell the user to configure one in Settings (Web Search); do not retry — it cannot succeed until then.'
+
+/** Branch the model-facing note: a missing provider is permanent, everything else is worth a retry. */
+function webLookupNote(error: string): string {
+  return /provider is not configured/i.test(error) ? WEB_PROVIDER_NOT_CONFIGURED_NOTE : WEB_LOOKUP_ERROR_NOTE
 }
 
-/** Shared model-output projection: an error renders a retry note; results pass through as json. */
+export function isWebLookupError(output: WebLookupResult): output is WebLookupError {
+  // Success is always the results array; the error object is the only non-array shape. (A non-strict
+  // zod object-parse would misclassify a future object-shaped success that happened to carry `error`.)
+  return !Array.isArray(output)
+}
+
+/** Shared model-output projection: an error renders the matching note; results pass through as json. */
 export function webLookupModelOutput(
   output: WebLookupResult
 ): { type: 'text'; value: string } | { type: 'json'; value: WebSearchOutput } {
   if (isWebLookupError(output)) {
-    return { type: 'text', value: WEB_LOOKUP_ERROR_NOTE }
+    return { type: 'text', value: webLookupNote(output.error) }
   }
   return { type: 'json', value: output }
 }

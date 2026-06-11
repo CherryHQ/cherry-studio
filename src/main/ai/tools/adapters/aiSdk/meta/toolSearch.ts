@@ -7,14 +7,19 @@
  * request's ToolSet would be redundant in search results.
  */
 
-import { asSchema, type Tool, tool } from 'ai'
+import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
 import type { ToolRegistry } from '../registry'
+import { serializeToolSchema } from './schemaStub'
 
 export const TOOL_SEARCH_TOOL_NAME = 'tool_search'
 
-export function createToolSearchTool(registry: ToolRegistry, deferredNames: ReadonlySet<string>): Tool {
+export function createToolSearchTool(
+  registry: ToolRegistry,
+  deferredNames: ReadonlySet<string>,
+  inspectedNames: Set<string>
+): Tool {
   return tool({
     description:
       'Discover available tools by namespace. This is tool discovery (NOT web search). Tools are ' +
@@ -44,11 +49,18 @@ export function createToolSearchTool(registry: ToolRegistry, deferredNames: Read
         const filtered = entries.filter((e) => deferredNames.has(e.name))
         if (filtered.length === 0) continue
         const tools = await Promise.all(
-          filtered.map(async (e) => ({
-            name: e.name,
-            description: e.description,
-            ...(verbose ? { inputSchema: await serializeSchema(e.tool.inputSchema) } : {})
-          }))
+          filtered.map(async (e) => {
+            if (!verbose) return { name: e.name, description: e.description }
+            // Verbose search shows the model each tool's full input schema, so it has "seen" the
+            // signature — record it in the shared ledger exactly as `tool_inspect` would, so the
+            // first `tool_invoke` isn't bounced by Guard A (the deferred-tools prompt promises this).
+            inspectedNames.add(e.name)
+            return {
+              name: e.name,
+              description: e.description,
+              inputSchema: await serializeToolSchema(e.tool.inputSchema)
+            }
+          })
         )
         matchedNamespaces.push({ namespace: ns, tools })
       }
@@ -79,18 +91,4 @@ function formatSearchForModel(output: {
     }
   }
   return lines.join('\n')
-}
-
-async function serializeSchema(schema: unknown): Promise<unknown> {
-  if (!schema) return undefined
-  // Tools can carry Zod, jsonSchema wrappers, or raw JSONSchema. AI SDK's
-  // `asSchema` normalises all three into the canonical `Schema<T>` shape
-  // whose `.jsonSchema` is what the model actually sees inline. Stringifying
-  // a raw Zod object yields a non-JSONSchema blob.
-  try {
-    const normalised = asSchema(schema as Parameters<typeof asSchema>[0])
-    return await normalised.jsonSchema
-  } catch {
-    return undefined
-  }
 }
