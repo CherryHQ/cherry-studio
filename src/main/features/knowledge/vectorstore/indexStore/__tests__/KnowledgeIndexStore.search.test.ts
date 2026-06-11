@@ -4,6 +4,7 @@ import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { needsLikeFallback } from '../ftsQuery'
 import { hashEmbeddingText } from '../hashing'
 import { KnowledgeIndexStore } from '../KnowledgeIndexStore'
 import { type LibsqlDriver, openLibsqlIndexDriver } from '../LibsqlDriver'
@@ -86,6 +87,23 @@ describe('KnowledgeIndexStore.search', () => {
     const matches = await store.search({ queryText: '系统 architecture', mode: 'bm25', topK: 10 })
 
     expect(matches.map((m) => m.materialId)).toEqual(['m1'])
+  })
+
+  it('bm25 mode answers a 3+ character CJK query through the trigram MATCH path', async () => {
+    // The primary lane for Chinese content: a 4-char token produces trigrams, so
+    // the query takes FTS5 MATCH, not the LIKE fallback — pin the routing here so
+    // the real-DB expectations below provably exercise the trigram index.
+    expect(needsLikeFallback('天气预报')).toBe(false)
+
+    await indexMaterial('m1', 'a.md', '明天的天气预报说有雨', [1, 0, 0])
+    await indexMaterial('m2', 'b.md', '我喜欢户外编程活动', [0, 1, 0])
+
+    const matches = await store.search({ queryText: '天气预报', mode: 'bm25', topK: 10 })
+    expect(matches.map((m) => m.materialId)).toEqual(['m1'])
+
+    // A 3+ char CJK query whose trigrams appear nowhere must return empty via MATCH.
+    expect(needsLikeFallback('量子计算')).toBe(false)
+    expect(await store.search({ queryText: '量子计算', mode: 'bm25', topK: 10 })).toEqual([])
   })
 
   it('LIKE fallback excludes non-indexable materials like the MATCH path does', async () => {
