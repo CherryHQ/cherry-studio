@@ -7,8 +7,10 @@
  * functions; the provider is resolved inside `WebSearchService` from the
  * user's configured default for each capability.
  *
- * Never throws: a failed lookup returns `{ error }` so the surrounding
- * agentic loop (AI-SDK or Claude Code) keeps running instead of aborting.
+ * A failed lookup returns `{ error }` so the surrounding agentic loop (AI-SDK or
+ * Claude Code) keeps running instead of aborting — EXCEPT on cancellation (user
+ * Stop / aborted signal), which is rethrown so the loop stops per cancellation
+ * semantics instead of treating the abort as a recoverable tool result.
  */
 
 import { loggerService } from '@logger'
@@ -84,11 +86,21 @@ function mapResponse(response: WebSearchResponse): WebSearchOutput {
   }))
 }
 
+/**
+ * A user Stop / stream abort must propagate as cancellation, not be swallowed into
+ * a recoverable `{ error }` (which would let the agent loop treat the abort as a
+ * normal tool failure).
+ */
+function isCancellation(error: unknown, signal?: AbortSignal): boolean {
+  return Boolean(signal?.aborted) || (error instanceof Error && error.name === 'AbortError')
+}
+
 export async function searchWeb(query: string, signal?: AbortSignal): Promise<WebLookupResult> {
   try {
     const response = await application.get('WebSearchService').searchKeywords({ keywords: [query] }, { signal })
     return mapResponse(response)
   } catch (error) {
+    if (isCancellation(error, signal)) throw error
     logger.error('webSearchService.searchKeywords failed', error as Error, { query })
     return { error: error instanceof Error ? error.message : String(error) }
   }
@@ -99,6 +111,7 @@ export async function fetchWeb(urls: string[], signal?: AbortSignal): Promise<We
     const response = await application.get('WebSearchService').fetchUrls({ urls }, { signal })
     return mapResponse(response)
   } catch (error) {
+    if (isCancellation(error, signal)) throw error
     logger.error('webSearchService.fetchUrls failed', error as Error, { urls })
     return { error: error instanceof Error ? error.message : String(error) }
   }

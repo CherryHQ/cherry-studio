@@ -333,6 +333,11 @@ export class AiStreamManager extends BaseService {
     // grace, so `hasLiveStream` is false). The user row is already in the runtime's pendingTurns and
     // the runtime will open the next turn, so no-op instead of throwing.
     if (input.models.length === 0) {
+      // Attach this dispatch's subscriber to the grace-period stream so the follow-up
+      // window is carried into the next runtime turn (startRuntimeTurn keeps `wc:`
+      // listeners). The renderer normally re-attaches on its own, so this is belt-and-
+      // suspenders; addListener is idempotent by id and no-ops when no stream exists.
+      for (const listener of input.listeners) this.addListener(input.topicId, listener)
       logger.debug('send(): empty models with no live stream — enqueue-only, nothing to start', {
         topicId: input.topicId
       })

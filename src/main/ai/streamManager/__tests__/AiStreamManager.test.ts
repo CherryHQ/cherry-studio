@@ -322,6 +322,31 @@ describe('AiStreamManager', () => {
       expect(mockStreamText).toHaveBeenCalledTimes(1)
       expect(mgr.inspect('agent-session:s1')?.listenerIds).toEqual(['l:a', 'l:b'])
     })
+
+    it('attaches a follow-up subscriber to a grace-period stream so the next turn carries it', async () => {
+      // Drive an agent-session turn to terminal-but-kept-alive: the inter-turn
+      // drain/grace window where the runtime will open the next turn.
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:s1'
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [new FakeListener('l:a')]
+      })
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      // Settled stream is terminal-in-grace (not live), so a follow-up takes the
+      // enqueue-only branch (models: []), not the live inject branch.
+      expect(mgr.inspect(topicId)?.status).not.toBe('streaming')
+
+      const result = mgr.send({ topicId, models: [], listeners: [new FakeListener('l:b')] })
+
+      expect(result.mode).toBe('injected')
+      expect(result.executionIds).toEqual([]) // enqueue-only branch, not inject
+      // The follow-up subscriber must be attached to the grace stream so
+      // startRuntimeTurn carries it into the next runtime turn instead of dropping it.
+      expect(mgr.inspect(topicId)?.listenerIds).toContain('l:b')
+    })
   })
 
   // ── multi-model start ──────────────────────────────────────────────
