@@ -28,6 +28,7 @@ import {
   type WindowOptions
 } from '@main/core/window/types'
 import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
+import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, screen, shell } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -1465,6 +1466,15 @@ export class WindowManager extends BaseService {
     })
     window.on('leave-full-screen', () => {
       application.get('IpcApiService').send(windowId, 'window.fullscreen_changed', false)
+    })
+    // Real window key state — DOM focus/blur in the renderer cannot distinguish
+    // "a <webview> took page focus" from "the window deactivated". Transparent-
+    // window shells repaint between glass and opaque on this signal.
+    window.on('focus', () => {
+      window.webContents.send(IpcChannel.WindowManager_FocusChanged, true)
+    })
+    window.on('blur', () => {
+      window.webContents.send(IpcChannel.WindowManager_FocusChanged, false)
     })
 
     // Intercept native close for warmup-tracked windows — hide and return to
