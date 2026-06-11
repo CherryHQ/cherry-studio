@@ -54,6 +54,10 @@ vi.mock('@main/ai/agents/builtin/BuiltinAgentProvisioner', () => ({
   provisionBuiltinAgent: vi.fn()
 }))
 
+vi.mock('@main/ai/agents/cherryclaw/prompt', () => ({
+  PromptBuilder: vi.fn(() => ({ buildSystemPrompt: vi.fn().mockResolvedValue('SOUL_PROMPT') }))
+}))
+
 const { buildSystemPrompt } = await import('../settingsBuilder')
 
 const ARTIFACTS_MARKER = '## Reporting deliverables'
@@ -92,5 +96,16 @@ describe('buildSystemPrompt — report_artifacts prompt', () => {
     })
     const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
     expect(JSON.stringify(result)).not.toContain(ARTIFACTS_MARKER)
+  })
+
+  it('appends the report_artifacts prompt in soul mode (raw-string path)', async () => {
+    const agent = makeAgent({ instructions: 'Soul task.', configuration: { soul_enabled: true } as never })
+    const result = await buildSystemPrompt(makeSession(), agent, '/tmp/cwd')
+    // Soul mode returns a raw string (not the standard `{ type: 'preset', append }` object), so it's a
+    // distinct path that must still carry the soul prompt + user instructions + the artifacts block.
+    expect(typeof result).toBe('string')
+    expect(result as string).toContain('SOUL_PROMPT')
+    expect(result as string).toContain('Soul task.')
+    expect(result as string).toContain(ARTIFACTS_MARKER)
   })
 })
