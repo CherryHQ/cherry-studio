@@ -416,6 +416,18 @@
       },
       "info": {
         "artifacts": "产物",
+        "context_categories": {
+          "autocompact_buffer": "自动压缩缓冲区",
+          "custom_agents": "自定义智能体",
+          "free_space": "剩余空间",
+          "mcp_tools": "MCP 工具",
+          "memory_files": "记忆文件",
+          "messages": "消息",
+          "plugins": "插件",
+          "skills": "技能",
+          "system_prompt": "系统提示词",
+          "system_tools": "系统工具"
+        },
         "context_usage": "上下文用量",
         "label": "任务信息",
         "more": "还有 {{count}} 项",
@@ -1475,6 +1487,13 @@
       "send_failed": "消息发送失败",
       "settings": "设置",
       "slash_commands": {
+        "commands": {
+          "clear": "清空对话历史",
+          "compact": "压缩对话（可附带聚焦指令）",
+          "context": "以彩色网格可视化当前上下文使用情况",
+          "cost": "显示 token 用量统计（订阅相关详情见成本跟踪指南）",
+          "todos": "列出当前待办事项"
+        },
         "description": "智能体任务斜杠命令",
         "title": "斜杠命令"
       },

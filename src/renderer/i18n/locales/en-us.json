@@ -416,6 +416,18 @@
       },
       "info": {
         "artifacts": "Deliverables",
+        "context_categories": {
+          "autocompact_buffer": "Autocompact buffer",
+          "custom_agents": "Custom agents",
+          "free_space": "Free space",
+          "mcp_tools": "MCP tools",
+          "memory_files": "Memory files",
+          "messages": "Messages",
+          "plugins": "Plugins",
+          "skills": "Skills",
+          "system_prompt": "System prompt",
+          "system_tools": "System tools"
+        },
         "context_usage": "Context usage",
         "label": "Session information",
         "more": "+{{count}} more",
@@ -1475,6 +1487,13 @@
       "send_failed": "Failed to send message",
       "settings": "Settings",
       "slash_commands": {
+        "commands": {
+          "clear": "Clear conversation history",
+          "compact": "Compact conversation with optional focus instructions",
+          "context": "Visualize current context usage as a colored grid",
+          "cost": "Show token usage statistics (see cost tracking guide for subscription-specific details)",
+          "todos": "List current todo items"
+        },
         "description": "Agent task slash commands",
         "title": "Slash Commands"
       },

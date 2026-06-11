@@ -2,6 +2,21 @@ import { cn } from '@renderer/utils'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import { useTranslation } from 'react-i18next'
 
+// Category names are free-form English strings produced by the Claude Code CLI
+// (SDKControlGetContextUsageResponse); unknown names fall back to the raw value.
+const CATEGORY_NAME_KEYS: Record<string, string> = {
+  'Autocompact buffer': 'agent.right_pane.info.context_categories.autocompact_buffer',
+  'Custom agents': 'agent.right_pane.info.context_categories.custom_agents',
+  'Free space': 'agent.right_pane.info.context_categories.free_space',
+  'MCP tools': 'agent.right_pane.info.context_categories.mcp_tools',
+  'Memory files': 'agent.right_pane.info.context_categories.memory_files',
+  Messages: 'agent.right_pane.info.context_categories.messages',
+  Plugins: 'agent.right_pane.info.context_categories.plugins',
+  Skills: 'agent.right_pane.info.context_categories.skills',
+  'System prompt': 'agent.right_pane.info.context_categories.system_prompt',
+  'System tools': 'agent.right_pane.info.context_categories.system_tools'
+}
+
 interface AgentContextUsageSummaryProps {
   usage: AgentSessionContextUsage | null
   percentage: number | null
@@ -44,7 +59,9 @@ export function AgentContextUsageSummary({
             <div className="space-y-1 border-border-subtle border-t pt-2">
               {visibleCategories.map((category) => (
                 <div key={category.name} className="flex items-center justify-between gap-3 text-muted-foreground">
-                  <span className="min-w-0 truncate">{category.name}</span>
+                  <span className="min-w-0 truncate">
+                    {CATEGORY_NAME_KEYS[category.name] ? t(CATEGORY_NAME_KEYS[category.name]) : category.name}
+                  </span>
                   <span className="shrink-0 text-foreground-secondary">{category.tokens.toLocaleString()}</span>
                 </div>
               ))}

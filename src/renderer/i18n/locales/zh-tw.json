@@ -416,6 +416,18 @@
       },
       "info": {
         "artifacts": "產物",
+        "context_categories": {
+          "autocompact_buffer": "自動壓縮緩衝區",
+          "custom_agents": "自訂智能體",
+          "free_space": "剩餘空間",
+          "mcp_tools": "MCP 工具",
+          "memory_files": "記憶檔案",
+          "messages": "訊息",
+          "plugins": "外掛",
+          "skills": "技能",
+          "system_prompt": "系統提示詞",
+          "system_tools": "系統工具"
+        },
         "context_usage": "上下文用量",
         "label": "任務資訊",
         "more": "還有 {{count}} 項",
@@ -1475,6 +1487,13 @@
       "send_failed": "訊息傳送失敗",
       "settings": "設定",
       "slash_commands": {
+        "commands": {
+          "clear": "清空對話歷史",
+          "compact": "壓縮對話（可附帶聚焦指令）",
+          "context": "以彩色網格視覺化目前上下文使用情況",
+          "cost": "顯示 token 用量統計（訂閱相關詳情見成本追蹤指南）",
+          "todos": "列出目前待辦事項"
+        },
         "description": "Agent 任務斜線指令",
         "title": "斜線指令"
       },

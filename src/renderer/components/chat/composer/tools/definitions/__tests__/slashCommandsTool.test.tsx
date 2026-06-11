@@ -22,7 +22,7 @@ describe('slashCommandsTool', () => {
     const launchers = slashCommandsTool.composer?.menuItems?.createItems({
       actions: { onTextChange: vi.fn() },
       session: { agentType: 'claude-code' },
-      t: (key: string) => key
+      t: (key: string, fallback?: string) => fallback || key
     } as any)
 
     expect(launchers).toEqual([
@@ -52,5 +52,43 @@ describe('slashCommandsTool', () => {
         list: [expect.objectContaining({ label: '/clear', description: 'Clear context' })]
       })
     )
+  })
+
+  it('translates builtin command descriptions via renderer-local keys', () => {
+    mockGetBuiltinSlashCommands.mockReturnValue([
+      { command: '/clear', description: 'Clear conversation history' },
+      { command: '/custom', description: 'Custom command' }
+    ])
+    const t = vi.fn((key: string, fallback?: string) =>
+      key === 'chat.input.slash_commands.commands.clear' ? 'Translated clear command' : fallback || key
+    )
+
+    const launchers = slashCommandsTool.composer?.menuItems?.createItems({
+      actions: { onTextChange: vi.fn() },
+      session: { agentType: 'claude-code' },
+      t
+    } as any)
+
+    expect(launchers?.[0].submenu).toEqual([
+      expect.objectContaining({ label: '/clear', description: 'Translated clear command' }),
+      expect.objectContaining({ label: '/custom', description: 'Custom command' })
+    ])
+    expect(t).toHaveBeenCalledWith('chat.input.slash_commands.commands.clear', 'Clear conversation history')
+  })
+
+  it('falls back to command descriptions when a mapped translation is missing', () => {
+    mockGetBuiltinSlashCommands.mockReturnValue([{ command: '/clear', description: 'Clear conversation history' }])
+    const t = vi.fn((_: string, fallback?: string) => fallback || '')
+
+    const launchers = slashCommandsTool.composer?.menuItems?.createItems({
+      actions: { onTextChange: vi.fn() },
+      session: { agentType: 'claude-code' },
+      t
+    } as any)
+
+    expect(launchers?.[0].submenu).toEqual([
+      expect.objectContaining({ label: '/clear', description: 'Clear conversation history' })
+    ])
+    expect(t).toHaveBeenCalledWith('chat.input.slash_commands.commands.clear', 'Clear conversation history')
   })
 })

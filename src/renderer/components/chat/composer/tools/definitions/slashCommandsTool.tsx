@@ -8,6 +8,14 @@ import {
 import { getBuiltinSlashCommands } from '@shared/ai/agentSlashCommands'
 import { Terminal } from 'lucide-react'
 
+const SLASH_COMMAND_DESCRIPTION_KEYS: Record<string, string> = {
+  '/clear': 'chat.input.slash_commands.commands.clear',
+  '/compact': 'chat.input.slash_commands.commands.compact',
+  '/context': 'chat.input.slash_commands.commands.context',
+  '/cost': 'chat.input.slash_commands.commands.cost',
+  '/todos': 'chat.input.slash_commands.commands.todos'
+}
+
 /**
  * Helper function to insert slash command through the composer adapter.
  * @param command - The command to insert (e.g., "/clear")
@@ -60,18 +68,22 @@ const slashCommandsTool = defineTool({
           return []
         }
 
-        const commandLaunchers: ComposerToolLauncher[] = slashCommands.map((cmd, index) => ({
-          id: `slash-command:${cmd.command}`,
-          kind: 'command' as const,
-          sources: ['root-panel'] as const,
-          order: 20 + (index + 1) / 100,
-          label: cmd.command,
-          description: cmd.description || '',
-          icon: <Terminal size={16} />,
-          action: ({ inputAdapter }) => {
-            insertSlashCommand(cmd.command, actions.onTextChange, inputAdapter)
+        const commandLaunchers: ComposerToolLauncher[] = slashCommands.map((cmd, index) => {
+          const descriptionKey = SLASH_COMMAND_DESCRIPTION_KEYS[cmd.command]
+
+          return {
+            id: `slash-command:${cmd.command}`,
+            kind: 'command' as const,
+            sources: ['root-panel'] as const,
+            order: 20 + (index + 1) / 100,
+            label: cmd.command,
+            description: descriptionKey ? t(descriptionKey, cmd.description || '') : cmd.description || '',
+            icon: <Terminal size={16} />,
+            action: ({ inputAdapter }) => {
+              insertSlashCommand(cmd.command, actions.onTextChange, inputAdapter)
+            }
           }
-        }))
+        })
 
         const rootLaunchers: ComposerToolLauncher[] = [
           {
