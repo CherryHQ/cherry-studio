@@ -259,8 +259,9 @@ export class AgentSessionRuntimeService extends BaseService {
       promise: Promise<boolean> | boolean
     }> = []
     for (const entry of this.entries.values()) {
-      if (entry.agentId !== agentId || !entry.connection?.applyPolicyUpdate) continue
+      if (entry.agentId !== agentId) continue
       const { connection } = entry
+      if (!connection?.applyPolicyUpdate) continue
       updates.push({ entry, connection, promise: connection.applyPolicyUpdate(update) })
     }
     const results = await Promise.allSettled(updates.map(({ promise }) => promise))
