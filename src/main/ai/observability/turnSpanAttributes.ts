@@ -61,7 +61,8 @@ export function applyTurnOutputAttributes(span: Span, finalMessage: CherryUIMess
   }
 }
 
-/** Text of the last user message — the prompt that triggered the turn. */
+/** Text of the last user message that has text content — the prompt that triggered the turn.
+ *  (A trailing user message with no text parts, e.g. tool-result-only, is skipped.) */
 function lastUserText(messages: UIMessage[] | undefined): string | undefined {
   if (!messages?.length) return undefined
   for (let i = messages.length - 1; i >= 0; i--) {

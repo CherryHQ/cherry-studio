@@ -172,10 +172,10 @@ export class AiSdkSpanAdapter {
   }
 
   /**
-   * Extract token usage from AI SDK attributes.
-   * Supports multiple formats:
-   * - AI SDK standard format: ai.usage.completion_tokens, ai.usage.prompt_tokens
-   * - Full usage object format: ai.usage (JSON string or object)
+   * Extract token usage from AI SDK attributes. Reads AI SDK v6 keys
+   * (`ai.usage.inputTokens`/`outputTokens`/`totalTokens`/`cachedInputTokens`/`reasoningTokens`), the
+   * legacy `promptTokens`/`completionTokens` aliases, the `gen_ai.usage.*` semantic-convention
+   * spelling, and the single-value `ai.usage.tokens` embeddings shape. See the inline notes below.
    */
   private static extractTokenUsage(attributes: Record<string, any>): TokenUsage | undefined {
     const read = (...keys: string[]): number | undefined => {

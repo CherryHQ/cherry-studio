@@ -75,10 +75,13 @@ by the global provider. On every `startSpan` / `startActiveSpan` it:
 - Reads span name, attributes, events, status, links.
 - Recovers AI SDK's hierarchical attribute conventions:
   `ai.xxx` is a level, `ai.xxx.yyy` is a sub-level under it.
-- Normalises usage attributes across the base and LLM spans: input from
-  `ai.usage.promptTokens` / `gen_ai.usage.input_tokens`, output from
-  `ai.usage.completionTokens` / `gen_ai.usage.output_tokens`. (There is no
-  reasoning-token extraction.)
+- Normalises usage attributes across the base and LLM spans, preferring AI SDK v6 keys with legacy
+  and semantic-convention fallbacks: input from
+  `ai.usage.inputTokens` / `ai.usage.promptTokens` / `gen_ai.usage.input_tokens` (and the single
+  `ai.usage.tokens` embeddings shape), output from
+  `ai.usage.outputTokens` / `ai.usage.completionTokens` / `gen_ai.usage.output_tokens`, plus
+  `ai.usage.totalTokens`, `ai.usage.cachedInputTokens`, and `ai.usage.reasoningTokens` (emitted as
+  `completion_tokens_details.reasoning_tokens`).
 
 Claude Code Agent SDK spans do not go through `AiSdkSpanAdapter`; they are
 converted by `src/main/ai/observability/adapters/claudeCode/ClaudeCodeOtlpAdapter.ts`.

@@ -150,6 +150,7 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
       .catch((error) => {
         logger.warn('httpTraceFetch body accumulation failed', { error })
         span.recordException(error as Error)
+        span.setStatus({ code: SpanStatusCode.ERROR, message: 'body accumulation failed' })
         span.end()
       })
 
@@ -252,6 +253,13 @@ function redactUrl(rawUrl: string): string {
         u.searchParams.set(k, '***')
         changed = true
       }
+    }
+    // Userinfo (`user:pass@host`) carries the same credentials as a `?key=` — strip it too so a
+    // proxy URL like `https://user:secret@host/v1` never lands verbatim in the trace file.
+    if (u.username || u.password) {
+      u.username = ''
+      u.password = ''
+      changed = true
     }
     return changed ? u.toString() : rawUrl
   } catch {

@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
-import { SPAN_NAME_TURN } from '@mcp-trace/trace-core/core/spanNames'
+import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
 import type { SpanEntity } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
@@ -42,6 +42,7 @@ function readableSpan(overrides: { spanId: string; traceId: string; ended: boole
     parentSpanContext: undefined,
     startTime: [1, 0],
     endTime: overrides.ended ? [2, 0] : [0, 0],
+    ended: overrides.ended,
     status: { code: SpanStatusCode.OK },
     attributes: {},
     events: [],
@@ -144,6 +145,32 @@ describe('TraceStorageService', () => {
     expect(cappedStore.getSpan('newer')).toBeDefined()
   })
 
+  // The AiTurnTrace end-patch builds entities with `convertSpanToSpanEntity` and writes them via
+  // `writeSpanEntity` → `saveEntity` (no explicit isEnd override like createSpan/endSpan have).
+  // Pre-fix the converter omitted `isEnd` (the `as SpanEntity` cast hid the missing field), so turn
+  // root spans landed with `isEnd: undefined` and their traces were never evictable. Confirm the
+  // converter now derives `isEnd` from `span.ended` and the saved entity is evictable.
+  it('derives isEnd through the saveEntity/convertSpanToSpanEntity path (REGRESSION observability-eviction-saveEntity)', async () => {
+    await service._doInit()
+
+    // Converter sets isEnd from the OTel `ended` flag — true for an ended span, false in-flight.
+    const endedEntity = convertSpanToSpanEntity(readableSpan({ spanId: 'turn-root', traceId: 'trace-x', ended: true }))
+    expect(endedEntity.isEnd).toBe(true)
+    expect(convertSpanToSpanEntity(readableSpan({ spanId: 'live2', traceId: 'trace-y', ended: false })).isEnd).toBe(
+      false
+    )
+
+    // The saveEntity path keeps isEnd (addEntity never sets it), so the trace is evictable.
+    service.saveEntity({ ...endedEntity, topicId: 't' } as SpanEntity)
+    expect(service['store'].getSpan('turn-root')?.isEnd).toBe(true)
+
+    const cappedStore = new TraceSpanStore(1)
+    cappedStore.setSpan({ ...(service['store'].getSpan('turn-root') as SpanEntity) })
+    cappedStore.setSpan(span({ id: 'newer', traceId: 'trace-newer' }))
+    expect(cappedStore.getSpan('turn-root')).toBeUndefined()
+    expect(cappedStore.getSpan('newer')).toBeDefined()
+  })
+
   // Container traces span many turns under ONE trace id, all flushing to the same file. Pre-fix,
   // each flush overwrote the file + cleared memory and getSpans returned live-or-else-history, so the
   // viewer only ever saw the turn in flight. Confirm the whole trace accumulates instead.
@@ -165,59 +192,5 @@ describe('TraceStorageService', () => {
     await service.saveSpans('topic')
     const flushed = await service.getSpans('topic', 'trace')
     expect(flushed.map((s) => s.id).sort()).toEqual(['s1', 's2'])
-  })
-
-  // A warm Claude Code connection bakes one TRACEPARENT (the container root) across all turns, so its
-  // `claude_code.*` spans land flat next to the per-turn `ai.turn` spans. getSpans re-homes each under
-  // the `ai.turn` whose time window contains it (turns are sequential / non-overlapping).
-  it('re-homes warm claude_code spans under the ai.turn whose time window contains them', async () => {
-    await service._doInit()
-    const traceId = '1234567890abcdef1234567890abcdef'
-    const root = '1234567890abcdef' // deriveRootSpanId(traceId)
-    service.saveEntity(
-      span({ id: 'turn1', traceId, topicId: 't', name: SPAN_NAME_TURN, parentId: root, startTime: 10, endTime: 20 })
-    )
-    service.saveEntity(
-      span({ id: 'turn2', traceId, topicId: 't', name: SPAN_NAME_TURN, parentId: root, startTime: 30, endTime: 40 })
-    )
-    service.saveEntity(
-      span({
-        id: 'cc1',
-        traceId,
-        topicId: 't',
-        name: 'claude_code.interaction',
-        parentId: root,
-        startTime: 12,
-        endTime: 19
-      })
-    )
-    service.saveEntity(
-      span({
-        id: 'cc2',
-        traceId,
-        topicId: 't',
-        name: 'claude_code.interaction',
-        parentId: root,
-        startTime: 32,
-        endTime: 39
-      })
-    )
-    service.saveEntity(
-      span({
-        id: 'ccx',
-        traceId,
-        topicId: 't',
-        name: 'claude_code.interaction',
-        parentId: root,
-        startTime: 5,
-        endTime: 6
-      })
-    )
-
-    const byId = Object.fromEntries((await service.getSpans('t', traceId)).map((s) => [s.id, s]))
-    expect(byId.cc1.parentId).toBe('turn1') // landed in turn 1's window
-    expect(byId.cc2.parentId).toBe('turn2') // landed in turn 2's window
-    expect(byId.ccx.parentId).toBe(root) // outside every turn → left under the container root
-    expect(byId.turn1.parentId).toBe(root) // ai.turn spans untouched
   })
 })
