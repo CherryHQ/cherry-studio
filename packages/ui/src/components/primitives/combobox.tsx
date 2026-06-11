@@ -20,20 +20,21 @@ import * as React from 'react'
 
 const comboboxTriggerVariants = cva(
   cn(
-    'inline-flex items-center justify-between rounded-md border-1 text-sm transition-colors outline-none font-normal',
-    'bg-zinc-50 dark:bg-zinc-900',
+    'inline-flex items-center justify-between rounded-lg border-1 text-sm transition-colors outline-none font-normal',
+    'bg-transparent',
     'text-foreground'
   ),
   {
     variants: {
       state: {
-        default: 'border-border aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-primary/20',
-        error: 'border border-destructive! aria-expanded:ring-3 aria-expanded:ring-red-600/20',
+        default:
+          'border-[color:var(--color-border-fg-muted)] aria-expanded:border-ring aria-expanded:ring-[1px] aria-expanded:ring-ring/35',
+        error: 'border border-destructive! aria-expanded:ring-[1px] aria-expanded:ring-destructive/20',
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       },
       size: {
         sm: 'px-2 text-xs gap-1',
-        default: 'px-3 gap-2',
+        default: 'px-2.5 gap-2',
         lg: 'px-4 gap-2'
       }
     },
@@ -62,7 +63,7 @@ const comboboxItemVariants = cva(
 
 const comboboxInputSizeClasses = {
   sm: 'h-8 px-2 text-xs',
-  default: 'h-9 px-3 text-sm',
+  default: 'h-8 px-2.5 text-sm',
   lg: 'h-10 px-4 text-sm'
 }
 
@@ -397,9 +398,9 @@ export function Combobox<TExtra extends object = Record<never, never>>({
               onKeyDown={handleTriggerInputKeyDown}
               style={triggerStyle}
               className={cn(
-                'w-full rounded-md border-1 bg-zinc-50 pr-8 shadow-none transition-colors dark:bg-zinc-900',
-                'focus-visible:border-primary focus-visible:ring-3 focus-visible:ring-primary/20',
-                error && 'border-destructive! focus-visible:ring-red-600/20',
+                'w-full rounded-lg border-1 border-[color:var(--color-border-fg-muted)] bg-transparent pr-8 shadow-none transition-colors',
+                'focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35',
+                error && 'border-destructive! focus-visible:ring-destructive/20',
                 disabled && 'cursor-not-allowed opacity-50',
                 comboboxInputSizeClasses[inputSize],
                 className
