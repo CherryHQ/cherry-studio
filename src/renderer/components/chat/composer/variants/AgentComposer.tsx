@@ -431,6 +431,8 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
   return (
     <Tooltip
       placement="top"
+      sideOffset={8}
+      showArrow={false}
       classNames={{
         placeholder: 'inline-grid',
         content: 'w-64 max-w-64 rounded-md border border-border bg-card p-3 text-card-foreground shadow-md'
