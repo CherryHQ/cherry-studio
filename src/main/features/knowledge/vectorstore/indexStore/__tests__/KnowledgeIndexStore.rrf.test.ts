@@ -37,10 +37,10 @@ function createFakeDriver(vectorRows: Array<Record<string, SqlValue>>, bm25Rows:
     const limit = Number(args[args.length - 1])
     if (sql.includes('search_text_fts MATCH')) {
       limits.bm25 = limit
-      return { rows: bm25Rows, rowsAffected: 0 }
+      return { rows: bm25Rows }
     }
     limits.vector = limit
-    return { rows: vectorRows, rowsAffected: 0 }
+    return { rows: vectorRows }
   })
   const driver: SqliteDriver = {
     execute,
@@ -84,6 +84,18 @@ describe('KnowledgeIndexStore hybrid RRF fusion', () => {
     expect(scoreById.B).toBeCloseTo(scoreB, 12)
     // alpha favors the vector lane, so A (vector rank 1) ends up on top.
     expect(results.map((match) => match.unitId)).toEqual(['A', 'B'])
+  })
+
+  it('fails loud when a lane row is missing its body text (store corruption)', async () => {
+    // Unreachable through a healthy DB (the lanes INNER JOIN a NOT NULL column),
+    // so corruption is simulated via the fake driver. Fabricating '' here would
+    // hide the damage — toMatch must throw like listMaterialUnits does.
+    const { driver } = createFakeDriver([{ unit_id: 'A', material_id: 'mA', unit_index: 0, body: null, dist: 0 }], [])
+    const store = new KnowledgeIndexStore(driver, vectorIndex)
+
+    await expect(store.search({ queryText: '', queryEmbedding: [1, 0], mode: 'vector', topK: 5 })).rejects.toThrow(
+      'missing the body text for unit A'
+    )
   })
 
   it('defaults alpha to 0.5, weighting both lanes equally', async () => {

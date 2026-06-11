@@ -391,11 +391,17 @@ export class KnowledgeIndexStore {
 
 /** Shape a single result row (shared by both lanes) with a precomputed score. */
 function toMatch(row: Record<string, SqlValue>, score: number): KnowledgeIndexSearchMatch {
+  // Every lane selects `st.text AS body` through an INNER JOIN on a NOT NULL
+  // column, so a missing body is store corruption — fail loudly like
+  // listMaterialUnits does instead of fabricating an empty result.
+  if (row.body == null) {
+    throw new Error(`Knowledge index store is missing the body text for unit ${row.unit_id as string}`)
+  }
   return {
     unitId: row.unit_id as string,
     materialId: row.material_id as string,
     unitIndex: Number(row.unit_index),
-    text: (row.body as string | null) ?? '',
+    text: row.body as string,
     score
   }
 }

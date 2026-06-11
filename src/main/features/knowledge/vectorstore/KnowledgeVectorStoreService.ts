@@ -205,7 +205,13 @@ export class KnowledgeVectorStoreService extends BaseService {
     if (!opening) {
       return
     }
-    const store = await opening
+    // A store that never opened needs no close (the open path already closed its
+    // driver on failure) — swallow the rejection here instead of re-throwing the
+    // open error into an unrelated delete/shutdown operation.
+    const store = await opening.catch(() => undefined)
+    if (!store) {
+      return
+    }
     await store.close()
   }
 }

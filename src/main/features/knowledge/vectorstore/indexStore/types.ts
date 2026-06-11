@@ -13,7 +13,6 @@ export type SqlValue = string | number | bigint | boolean | Uint8Array | ArrayBu
 
 export interface SqlQueryResult {
   rows: Array<Record<string, SqlValue>>
-  rowsAffected: number
 }
 
 /** Runs a single statement. Implemented by both the driver and a transaction handle. */

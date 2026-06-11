@@ -16,7 +16,7 @@ function toQueryResult(result: ResultSet): SqlQueryResult {
     }
     return record
   })
-  return { rows, rowsAffected: result.rowsAffected }
+  return { rows }
 }
 
 /** SqliteDriver backed by a libsql Client (the only engine today, see §5.6). */

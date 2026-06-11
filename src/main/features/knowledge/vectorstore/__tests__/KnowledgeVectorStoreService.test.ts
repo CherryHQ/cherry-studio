@@ -288,6 +288,25 @@ describe('KnowledgeVectorStoreService', () => {
     expect(indexStoreCtorMock).toHaveBeenCalledTimes(2)
   })
 
+  it('deleteStore proceeds past a rejected in-flight open instead of re-throwing it', async () => {
+    const service = new KnowledgeVectorStoreService()
+    const base = createBase()
+    let rejectOpen: (error: Error) => void = () => {}
+    openDriverMock.mockImplementationOnce(() => new Promise((_, reject) => (rejectOpen = reject)))
+
+    // deleteStore grabs the still-pending open; when that open later fails, the
+    // delete must not inherit the open error — a store that never opened needs
+    // no close, and the directory removal has to go ahead.
+    const opening = service.getIndexStore(base)
+    const deleting = service.deleteStore(base.id)
+    await vi.waitFor(() => expect(openDriverMock).toHaveBeenCalled())
+    rejectOpen(new Error('open failed'))
+
+    await expect(opening).rejects.toThrow('open failed')
+    await expect(deleting).resolves.toBeUndefined()
+    expect(deleteDirMock).toHaveBeenCalledWith(base.id)
+  })
+
   it('evicts the cached store even when directory removal fails', async () => {
     const service = new KnowledgeVectorStoreService()
     const base = createBase()

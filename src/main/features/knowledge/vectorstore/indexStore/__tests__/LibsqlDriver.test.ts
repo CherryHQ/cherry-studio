@@ -64,9 +64,8 @@ describe('LibsqlDriver', () => {
     expect((await driver.execute('SELECT COUNT(*) AS n FROM t')).rows[0].n).toBe(1)
   })
 
-  it('maps rows to plain objects and reports rowsAffected', async () => {
-    const insert = await driver.execute('INSERT INTO t (id, v) VALUES (?, ?)', [1, 'a'])
-    expect(insert.rowsAffected).toBe(1)
+  it('maps rows to plain objects', async () => {
+    await driver.execute('INSERT INTO t (id, v) VALUES (?, ?)', [1, 'a'])
 
     const select = await driver.execute('SELECT id, v FROM t WHERE id = ?', [1])
     expect(select.rows).toEqual([{ id: 1, v: 'a' }])

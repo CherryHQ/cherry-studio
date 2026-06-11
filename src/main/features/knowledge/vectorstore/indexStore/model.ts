@@ -3,6 +3,8 @@
  * CHECK constraints in schema.ts (§4) and shape the store's write contract.
  */
 
+import type { KnowledgeSearchMode } from '@shared/data/types/knowledge'
+
 export type MaterialOrigin = 'user' | 'processor' | 'captured'
 export type MaterialIndexPolicy = 'index' | 'suppress' | 'ignore'
 export type ContentTextFormat = 'markdown' | 'plain' | 'extracted_text'
@@ -64,7 +66,9 @@ export interface KnowledgeSearchUnit {
   text: string
 }
 
-export type KnowledgeSearchMode = 'hybrid' | 'vector' | 'bm25'
+// Re-exported (not mirrored) from the shared types so the store's vocabulary
+// can never drift from the persisted base.searchMode enum.
+export type { KnowledgeSearchMode }
 
 export interface KnowledgeIndexSearchInput {
   queryText: string
