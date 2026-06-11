@@ -8,20 +8,21 @@ import { usePortalContainer } from './portal-container'
 
 const selectTriggerVariants = cva(
   cn(
-    'inline-flex items-center justify-between rounded-md border-1 text-sm transition-colors outline-none font-normal',
-    'bg-transparent dark:bg-input/30',
+    'inline-flex items-center justify-between rounded-lg border-1 text-sm transition-colors outline-none font-normal',
+    'bg-transparent',
     'text-foreground'
   ),
   {
     variants: {
       state: {
-        default: 'border-border aria-expanded:border-primary aria-expanded:ring-3 aria-expanded:ring-primary/20',
-        error: 'border border-destructive! aria-expanded:ring-3 aria-expanded:ring-red-600/20',
+        default:
+          'border-[color:var(--color-border-fg-muted)] aria-expanded:border-ring aria-expanded:ring-[1px] aria-expanded:ring-ring/35',
+        error: 'border border-destructive! aria-expanded:ring-[1px] aria-expanded:ring-destructive/20',
         disabled: 'opacity-50 cursor-not-allowed pointer-events-none'
       },
       size: {
-        sm: 'px-3 gap-2 h-8',
-        default: 'px-3 gap-2 h-9'
+        sm: 'px-2.5 gap-2 h-8',
+        default: 'px-2.5 gap-2 h-8'
       }
     },
     defaultVariants: {

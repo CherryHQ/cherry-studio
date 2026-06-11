@@ -4,9 +4,14 @@
  */
 
 :root {
-  /* Brand Colors */
-  --cs-primary: var(--cs-brand-500);
-  --cs-primary-hover: var(--cs-brand-300);
+  /* Theme Colors — primary is neutral (near-black light / near-white dark);
+   * the green brand scale remains only as the default control accent
+   * (switch/slider/checkbox fills derive from it). */
+  --cs-primary: var(--cs-neutral-900);
+  --cs-primary-hover: var(--cs-neutral-800);
+  --cs-control-accent: var(--cs-brand-500);
+  --cs-control-accent-hover: var(--cs-brand-600);
+  --cs-control-accent-foreground: var(--cs-white);
   --cs-destructive: var(--cs-red-500);
   --cs-destructive-hover: var(--cs-red-400);
   --cs-success: var(--cs-green-500);
@@ -36,7 +41,12 @@
   --cs-border-active: oklch(0 0 0 / 0.3);
   --cs-frame-border: oklch(0 0 0 / 0.12);
 
-  /* Ring (Focus) */
+  /* Foreground-derived soft border for form controls (input/select etc.).
+   * 12% foreground mix gives a slightly stronger outline than --cs-border (10%)
+   * while still reading as quiet against neutral surfaces. */
+  --cs-border-fg-muted: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
+
+  /* Ring (Focus) — neutral, derived from primary so focus matches selection/expanded states */
   --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
 
   /* UI Element Colors */
@@ -62,7 +72,8 @@
   --cs-accent-foreground: var(--cs-foreground);
 
   /* Inverted foregrounds — used on solid colored fills (primary/destructive buttons).
-   * Kept as pure white so they stay legible regardless of light/dark mode shifts on the fill. */
+   * primary-foreground flips per mode (white on near-black / near-black on near-white);
+   * destructive stays pure white on its red fill in both modes. */
   --cs-primary-foreground: var(--cs-white);
   --cs-destructive-foreground: var(--cs-white);
 
@@ -81,6 +92,12 @@
 
 /* Dark Mode */
 .dark {
+  --cs-primary: var(--cs-neutral-100);
+  --cs-primary-hover: var(--cs-neutral-200);
+  --cs-primary-foreground: var(--cs-neutral-900);
+  --cs-control-accent: var(--cs-brand-400);
+  --cs-control-accent-hover: var(--cs-brand-300);
+  --cs-control-accent-foreground: var(--cs-neutral-900);
   --cs-success: var(--cs-green-400);
   --cs-warning: var(--cs-amber-400);
   --cs-info: var(--cs-blue-400);
@@ -107,8 +124,11 @@
   --cs-border-active: oklch(1 0 0 / 0.3);
   --cs-frame-border: oklch(1 0 0 / 0.14);
 
-  /* Ring (Focus) - 保持不变 */
-  --cs-ring: oklch(0.76 0.204 131 / 0.4);
+  /* Foreground-derived soft border (dark) — see :root note. */
+  --cs-border-fg-muted: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
+
+  /* Ring (Focus) — neutral, derived from primary (was hardcoded lime) */
+  --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
 
   /* UI Element Colors - Dark Mode */
   --cs-secondary: oklch(1 0 0 / 0.1); /* Secondary Button Background */
