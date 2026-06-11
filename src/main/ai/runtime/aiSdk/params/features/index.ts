@@ -35,8 +35,8 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   simulateStreamingFeature,
   // Must precede anthropic-cache: middleware array order = transformParams
   // order, and truncation has to rewrite tool results BEFORE cache markers
-  // are placed on trailing messages (chef preserves providerOptions
-  // losslessly through its IR round-trip — see contextBuild.test.ts).
+  // are placed on trailing messages (part-level providerOptions survive
+  // chef's IR round-trip — pinned by contextBuild.test.ts).
   contextBuildFeature,
   anthropicCacheFeature,
   anthropicHeadersFeature,

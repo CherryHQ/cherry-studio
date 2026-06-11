@@ -15,7 +15,7 @@ import { application } from '@application'
 import { createMiddleware } from '@context-chef/ai-sdk-middleware'
 import { FileSystemAdapter } from '@context-chef/core'
 import type { LanguageModelMiddleware } from 'ai'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RequestScope } from '../../scope'
 import { buildChefOptions, contextBuildFeature } from '../contextBuild'
@@ -30,6 +30,10 @@ beforeEach(() => {
   // Global mock's application.get() throws for unknown services — stub the
   // VfsBlobService surface the feature consumes.
   vi.mocked(application.get).mockImplementation(() => ({ getAdapter: () => new FileSystemAdapter(tmpDir) }) as never)
+})
+
+afterEach(() => {
+  fs.rmSync(tmpDir, { recursive: true, force: true })
 })
 
 function makeScope(entries: Array<{ name: string; truncatable?: boolean }> = []): RequestScope {
@@ -83,11 +87,11 @@ describe('buildChefOptions → createMiddleware', () => {
   it('persists oversized tool results and points the marker at the file', async () => {
     const out = await runTransform(makePrompt('mcp__srv__dump', BIG), makeScope())
     const { value } = toolOutput(out)
-    expect(value).toContain('<persisted-output>')
-    expect(value).toContain(`Full output saved to: ${tmpDir}`)
-    expect(value.length).toBeLessThan(10_000)
     const files = fs.readdirSync(tmpDir)
     expect(files).toHaveLength(1)
+    expect(value).toContain('<persisted-output>')
+    expect(value).toContain(path.join(tmpDir, files[0]))
+    expect(value.length).toBeLessThan(10_000)
     expect(fs.readFileSync(path.join(tmpDir, files[0]), 'utf8')).toBe('x'.repeat(BIG))
   })
 

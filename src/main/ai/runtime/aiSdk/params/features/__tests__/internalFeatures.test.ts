@@ -55,7 +55,7 @@ function activeNames(scope: RequestScope): string[] {
 }
 
 describe('INTERNAL_FEATURES — decision matrix', () => {
-  it('produces nothing when there is no assistant and the resolver picks an "anthropic" adapter (no inline-tag extraction)', () => {
+  it('bare anthropic scope (no assistant): only the always-on features activate', () => {
     expect(activeNames(makeScope({ provider: { id: 'anthropic' }, model: {}, aiSdkProviderId: 'anthropic' }))).toEqual([
       'pdf-compatibility',
       'context-build'
