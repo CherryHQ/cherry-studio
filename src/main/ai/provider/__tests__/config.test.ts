@@ -440,6 +440,9 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(fetchMock).toHaveBeenCalledWith(
         `${CHERRYAI_API_BASE_URL}/chat/completions`,
         expect.objectContaining({
+          // `...init` must pass through — dropping method/body in the wrapper would break every request.
+          method: 'POST',
+          body: JSON.stringify({ model: CHERRYAI_MODEL_ID }),
           headers: expect.objectContaining({
             Existing: 'yes',
             'X-Client-ID': 'cherry-studio',

@@ -12,14 +12,14 @@ describe('getXAIReasoningParams', () => {
     name: 'grok-4.3'
   } as Model
 
-  it('does not send none for Grok 4.3 reasoning effort', () => {
+  it('sends none for Grok 4.3 (reasoning disabled — the xAI enum supports it, added by #15137)', () => {
     const assistant = {
       settings: {
         reasoning_effort: 'none'
       }
     } as Assistant
 
-    expect(getXAIReasoningParams(assistant, grok43Model)).toEqual({})
+    expect(getXAIReasoningParams(assistant, grok43Model)).toEqual({ reasoningEffort: 'none' })
   })
 
   it('keeps supported Grok 4.3 reasoning efforts', () => {

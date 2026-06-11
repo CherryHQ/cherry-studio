@@ -117,4 +117,39 @@ describe('ProviderService.update', () => {
       providerService.update('missing', { providerSettings: { serviceTier: 'auto' } })
     ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
   })
+
+  it('serializes concurrent PATCHes so neither clobbers the other (read-merge-write inside the tx)', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'p-concurrent',
+      name: 'P',
+      orderKey: 'a0',
+      providerSettings: {}
+    })
+
+    // Give the withWriteTx mock the production mutex (serialize callbacks). This is what the
+    // call-count assertion can't: it distinguishes read-merge-write INSIDE the tx from a partial
+    // revert that moves the SELECT outside it — if the read leaks out of serialization, both PATCHes
+    // read `{}` and the second write clobbers the first.
+    const withWriteTx = application.get('DbService').withWriteTx as Mock
+    let chain: Promise<unknown> = Promise.resolve()
+    withWriteTx.mockImplementation((fn: (tx: unknown) => Promise<unknown>) => {
+      const run = chain.then(() => fn(dbh.db))
+      chain = run.catch(() => {})
+      return run
+    })
+
+    try {
+      await Promise.all([
+        providerService.update('p-concurrent', { providerSettings: { serviceTier: 'auto' } }),
+        providerService.update('p-concurrent', { providerSettings: { verbosity: 'low' } })
+      ])
+    } finally {
+      // Restore the default passthrough so the mutex doesn't leak into other tests.
+      withWriteTx.mockImplementation((fn: (tx: unknown) => Promise<unknown>) => fn(dbh.db))
+    }
+
+    const [row] = await dbh.db.select().from(userProviderTable).where(eq(userProviderTable.providerId, 'p-concurrent'))
+    // Both keys survive — neither PATCH read a stale row and clobbered the other.
+    expect(row.providerSettings).toEqual({ serviceTier: 'auto', verbosity: 'low' })
+  })
 })
