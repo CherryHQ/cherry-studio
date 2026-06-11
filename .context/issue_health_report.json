@@ -1,112 +1,98 @@
 {
-  "generated_at": "2026-06-10T18:00:00Z",
-  "date": "2026-06-10",
-  "health_score": 53.0,
-  "health_grade": "D",
-  "health_grade_rationale": "928 open issues (up 16 from Jun 8), 3 P1s unresolved (two stale 83–97 days), 87 unlabeled (9.4%), 74% of closures from inactivity bot rather than real resolution.",
-  "metrics": {
-    "total_open": 928,
-    "unlabeled_count": 87,
-    "unlabeled_ratio": 0.094,
-    "needs_triage_count": 4,
-    "p0_count": 0,
-    "p1_count": 3,
-    "p1_unresolved_over_30d": 2,
-    "closed_last_30d": 398,
-    "closure_rate": "~398 issues/month (74% via inactive bot, not organic resolution)",
-    "bulk_triage_detected": true,
-    "bulk_triage_note": "28 issues closed on 2026-06-07 and 22 on 2026-06-04 — batch triage sessions"
-  },
-  "age_distribution": {
-    "active": 650,
-    "aging": 271,
-    "stale": 4,
-    "zombie": 3,
-    "active_pct": 70.0,
-    "aging_pct": 29.2,
-    "stale_pct": 0.4,
-    "zombie_pct": 0.3,
-    "method": "GitHub search API date filters: updated:<2026-04-11 (aging), updated:<2026-03-11 (stale), updated:<2025-12-11 (zombie)"
-  },
-  "score_breakdown": {
-    "base": 100,
-    "deductions": [
-      {"reason": "open_total > 500", "points": -10},
-      {"reason": "open_total > 200", "points": -5},
-      {"reason": "P1 #14899 unresolved > 30d (34d, Planned)", "points": -7},
-      {"reason": "P1 #13608 unresolved > 30d (83d, stale+orphaned)", "points": -10},
-      {"reason": "P1 #13193 unresolved > 30d (97d, stale)", "points": -10},
-      {"reason": "security issue #15841 open", "points": -5}
-    ],
-    "final_score": 53
-  },
-  "priority_issues": {
-    "P0": [],
-    "P1": [
-      {
-        "number": 14899,
-        "title": "[Feature]: Unified Notification Center",
-        "health": "active",
-        "age_days": 34,
-        "assignee": null,
-        "milestone": "v2.4.0",
-        "action": "Track — in v2.4.0 milestone, owned by SiinXu",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
-      },
-      {
-        "number": 13608,
-        "title": "[Bug]: xiaomi mimo response only displays the last line",
-        "health": "stale",
-        "age_days": 83,
-        "assignee": null,
-        "milestone": "v1.8.1 (milestone is CLOSED)",
-        "action": "URGENT — milestone closed, bug orphaned; verify against latest or close",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
-      },
-      {
-        "number": 13193,
-        "title": "[Bug]: Azure OpenAI defaults to responses API causing 404",
-        "health": "stale",
-        "age_days": 97,
-        "assignee": "DeJeune",
-        "milestone": null,
-        "action": "URGENT — P1 bug stale 97 days; DeJeune to verify if still reproducible in current build",
-        "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
-      }
-    ]
-  },
-  "security_issues": [
-    {
-      "number": 15841,
-      "title": "[Security] CherryClaw channel credentials stored in plaintext in agents.db",
-      "label": "module:security",
-      "state": "open",
-      "priority": "needs immediate security review",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/15841"
+  "report_date": "2026-06-11",
+  "generated_at": "2026-06-11T18:00:00Z",
+  "methodology": "Health categories based on createdAt age and presence of inactive label. Sample: 200 most-recently-updated open issues of 943 total.",
+  "total_open_issues": 943,
+  "sample_size": 200,
+  "health_summary": {
+    "active": {
+      "definition": "Created <30 days ago, no inactive label",
+      "count_sampled": 120,
+      "pct_sampled": 60.0,
+      "extrapolated_total": "~566"
+    },
+    "aging": {
+      "definition": "Created 30–90 days ago, no inactive label",
+      "count_sampled": 55,
+      "pct_sampled": 27.5,
+      "extrapolated_total": "~259"
+    },
+    "stale": {
+      "definition": "Created >90 days ago, no inactive label",
+      "count_sampled": 2,
+      "pct_sampled": 1.0,
+      "extrapolated_total": "~9"
+    },
+    "zombie": {
+      "definition": "Has inactive label (auto-close candidate)",
+      "count_sampled": 63,
+      "pct_sampled": 31.5,
+      "extrapolated_total": "~297 across full 943",
+      "note": "Zombie count overlaps with aging/stale age buckets"
     }
-  ],
-  "notable_new_issues": [
+  },
+  "inactive_label_analysis": {
+    "in_sample": 63,
+    "pct_of_sample": 31.5,
+    "insight": "Nearly 1/3 of recently-updated open issues carry the inactive label, suggesting a healthy auto-triage bot is running but many issues re-surface after being marked inactive."
+  },
+  "unlabeled_analysis": {
+    "in_sample": 24,
+    "pct_of_sample": 12.0,
+    "insight": "~12% of open issues have no labels — these need manual triage. Key unlabeled issues: #15982 (Sub-Agent mechanism), #15947 (auto-updater WAF loop), #15962 (API address bug)."
+  },
+  "top_categories_needing_attention": [
     {
-      "number": 15826,
-      "title": "@cherrystudio/ai-core CJS/type exports point to missing dist files",
-      "label": "needs-triage",
-      "created_at": "2026-06-09",
-      "impact": "npm package breakage — affects external consumers of @cherrystudio/ai-core",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/15826"
+      "category": "UI/UX",
+      "open_in_sample": 60,
+      "note": "Largest substantive category. High volume of feature requests and bugs."
     },
     {
-      "number": 15841,
-      "title": "[Security] CherryClaw credentials in plaintext",
-      "label": "module:security",
-      "created_at": "2026-06-09"
+      "category": "Models",
+      "open_in_sample": 36,
+      "note": "Provider compatibility and model capability issues."
+    },
+    {
+      "category": "Assistant",
+      "open_in_sample": 35,
+      "note": "Assistant settings, parameter passing, and behavior issues."
+    },
+    {
+      "category": "MCP",
+      "open_in_sample": 16,
+      "note": "MCP integration issues — active area of development."
     }
   ],
-  "action_items": [
-    "URGENT: Verify P1 #13193 (Azure OpenAI 404, 97d) — DeJeune assigned, no activity",
-    "URGENT: Re-triage or close P1 #13608 (mimo bug, 83d) — milestone closed, no assignee",
-    "SECURITY: Review #15841 — CherryClaw credentials in plaintext in agents.db",
-    "TRIAGE: #15826 — @cherrystudio/ai-core CJS/type export breakage (npm package)",
-    "Label 87 unlabeled issues (9.4% of open backlog)",
-    "4 issues need-triage label — assign owners"
-  ]
+  "stale_issues_detail": [
+    {
+      "number": 6505,
+      "created_at": "2025-05-27",
+      "age_days": 380,
+      "labels": [],
+      "title": "(page-1 oldest, exact title not captured)"
+    },
+    {
+      "number": 11953,
+      "created_at": "2025-12-16",
+      "age_days": 177,
+      "labels": ["Dev Team"],
+      "title": "Recruitment - Cherry Studio, Welcoming Fellow Travelers"
+    }
+  ],
+  "auto_close_candidates": {
+    "count_with_inactive_label": 63,
+    "recommendation": "Issues marked inactive that have not received a response in 7+ days should be candidates for closing. Review inactive-labeled issues monthly."
+  },
+  "health_score": {
+    "score": 72,
+    "max": 100,
+    "components": {
+      "active_ratio": {"value": 60, "weight": 0.4, "contribution": 24},
+      "low_stale_ratio": {"value": 97, "weight": 0.2, "contribution": 19.4},
+      "label_coverage": {"value": 88, "weight": 0.2, "contribution": 17.6},
+      "closure_velocity_30d": {"value": 398, "note": "closed in 30d", "weight": 0.2, "contribution": 11}
+    },
+    "trend": "stable",
+    "note": "Score is indicative; based on 200-issue sample. High zombie ratio (31.5%) is the primary drag."
+  }
 }

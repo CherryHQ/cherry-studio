@@ -1,53 +1,59 @@
 {
-  "generated_at": "2026-06-10T18:00:00Z",
-  "date": "2026-06-10",
-  "fetch_status": "partial",
-  "fetch_note": "GitHub Discussions GraphQL API not accessible via current MCP toolset. Data below inferred from issue tracker (discussion-labeled issues). For full discussion data run: gh api graphql -f query='{ repository(owner: \"CherryHQ\", name: \"cherry-studio\") { discussions(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { number title category { name } author { login } createdAt updatedAt upvoteCount comments { totalCount } answer { author { login } createdAt } } } } }'",
-  "issues_labeled_discussion": 9,
-  "top_engagement": {
-    "number": 6505,
-    "title": "[FAQ]: 划词助手 / Selection Assistant",
-    "comments": 360,
-    "url": "https://github.com/CherryHQ/cherry-studio/issues/6505",
-    "note": "Highest community engagement in all of cherry-studio — 360 comments, likely FAQ pinned"
+  "report_date": "2026-06-11",
+  "generated_at": "2026-06-11T18:00:00Z",
+  "data_source": "GitHub Discussions API (CherryHQ/cherry-studio)",
+  "note": "Discussions data not fetched in this run (GraphQL endpoint required separate query). Using issue-based community signal as proxy.",
+  "community_signal_from_issues": {
+    "issues_with_discussion_label": 16,
+    "issues_with_help_wanted_label": 16,
+    "issues_with_community_feedback_label": 4,
+    "insight": "Community-tagged issues are primarily in UI/UX and Models categories."
   },
-  "notable_closed_discussions": [
+  "high_engagement_issues": [
     {
-      "number": 14387,
-      "title": "[Discussion]: Suspicious telemetry connection to cherry-ai.com persists",
-      "comments": 15,
-      "state": "closed",
-      "closed_as": "not_planned",
-      "note": "Privacy concern — high engagement; resolved/dismissed"
+      "number": 15841,
+      "title": "CherryClaw channel credentials stored in plaintext in agents.db",
+      "labels": ["module:security"],
+      "type": "security",
+      "created_at": "2026-06-09",
+      "note": "Needs prompt attention — security vulnerability report"
+    },
+    {
+      "number": 15982,
+      "title": "[Feature]: Add Sub-Agent Calling Mechanism between Agents",
+      "labels": [],
+      "type": "feature-request",
+      "created_at": "2026-06-11",
+      "note": "New high-value feature request aligned with v2 agent work"
+    },
+    {
+      "number": 15949,
+      "title": "[Feature]: Autonomous Mode should clearly indicate it doesn't work offline",
+      "labels": [],
+      "type": "ux-improvement",
+      "created_at": "2026-06-10"
     }
   ],
-  "community_signals": {
-    "security_concern": {
-      "number": 15841,
-      "title": "[Security] CherryClaw channel credentials stored in plaintext in agents.db",
-      "state": "open",
-      "created_at": "2026-06-09",
-      "priority": "needs immediate triage"
-    },
-    "npm_package_issue": {
-      "number": 15826,
-      "title": "@cherrystudio/ai-core CJS/type exports point to missing dist files",
-      "state": "open",
-      "created_at": "2026-06-09",
-      "label": "needs-triage",
-      "impact": "External consumers of @cherrystudio/ai-core@2.0.1 cannot use CommonJS or TypeScript"
-    },
-    "high_reaction_issues": [
-      {"number": 13193, "title": "Azure OpenAI 404 regression", "reactions_plus1": 4},
-      {"number": 14899, "title": "Unified Notification Center (P1)", "reactions_plus1": 2},
-      {"number": 13608, "title": "mimo streaming display bug (P1)", "reactions_plus1": 2}
+  "closed_as_resolved_not_inactive": {
+    "count_in_sample": 28,
+    "examples": [
+      {"number": 15975, "title": "Insert current model name into chat system prompt via template variable", "labels": ["Assistant", "internal_team"]},
+      {"number": 15708, "title": "[Feature]: In-Conversation File Downloads for Agent-Generated Artifacts", "labels": ["Assistant", "UI/UX", "internal_team"]},
+      {"number": 15925, "title": "[Feature] Agent Skill Delete and Disable", "labels": ["internal_team", "community_feedback"]},
+      {"number": 15922, "title": "[Feature] Native PPTX/DOCX Parsing Support", "labels": ["internal_team", "community_feedback"]}
     ]
   },
-  "recruitment": {
-    "number": 11953,
-    "title": "[Recruitment] Cherry Studio, Welcoming Fellow Travelers",
-    "comments": 3,
-    "state": "open",
-    "url": "https://github.com/CherryHQ/cherry-studio/issues/11953"
-  }
+  "recommendations": [
+    "Fetch Discussions via GraphQL in next run to get direct community signal (upvotes, answer rates)",
+    "The security issue #15841 should be reviewed and addressed promptly",
+    "Issues with community_feedback label are good candidates for prioritization",
+    "16 help-wanted issues available for community contributors"
+  ],
+  "top_feature_themes_from_open_issues": [
+    "Agent/MCP tooling and sub-agent calling",
+    "File processing (DOCX/PPTX native parsing, OCR improvements)",
+    "Provider compatibility (Response API params, model capability detection)",
+    "Autonomous/offline mode clarity",
+    "Security hardening (credential storage)"
+  ]
 }

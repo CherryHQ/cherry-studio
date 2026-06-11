@@ -1,145 +1,142 @@
 {
-  "generated_at": "2026-06-10T18:00:00Z",
-  "date": "2026-06-10",
-  "data_notes": "v2 work is on main branch (no separate v2 branch). Roadmap inferred from v2/Planned labels, milestones, and open PRs.",
-  "branch_strategy": {
-    "main": "Active v2 development (default branch)",
-    "v1": "v1 maintenance/hotfix branch",
-    "note": "v2 branch was merged into main; main IS now the v2 dev branch"
+  "report_date": "2026-06-11",
+  "generated_at": "2026-06-11T18:00:00Z",
+  "v2_branch_status": {
+    "open_prs_targeting_v2": 0,
+    "note": "No open PRs target the v2 base branch directly. V2 development is merged into main."
   },
-  "velocity": {
-    "merged_prs_last_30d": 159,
-    "by_type": {"fix": 50, "feat": 25, "refactor": 12, "chore": 4, "ci": 2, "docs": 1, "hotfix": 1, "other": 5},
-    "peak_merge_day": "2026-06-02 (19 PRs)",
-    "prs_per_week_estimate": 25,
-    "merge_time_median_hours": 21.1
+  "v2_labeled_open_prs": {
+    "count": 3,
+    "prs": [
+      {
+        "number": 14997,
+        "title": "chore(chat-page): scaffold chat component tree",
+        "author": "DeJeune",
+        "created_at": "2026-05-11",
+        "base": "main",
+        "status": "open >30 days — needs review",
+        "labels": ["v2"]
+      },
+      {
+        "number": 15184,
+        "title": "refactor(binary-manager): unify CLI binary acquisition behind mise-backed BinaryManager",
+        "author": "vaayne",
+        "created_at": "2026-05-19",
+        "base": "main",
+        "status": "open ~23 days",
+        "labels": ["v2"]
+      },
+      {
+        "number": 15045,
+        "title": "feat(agent): AI SDK Agent Runtime",
+        "author": "DeJeune",
+        "created_at": "2026-05-12",
+        "base": "main",
+        "status": "open ~30 days",
+        "labels": ["v2"]
+      }
+    ]
   },
-  "open_prs": {
-    "total": 290,
-    "targeting_main": 284,
-    "targeting_v1": 6,
-    "targeting_v2_branch": 0,
-    "with_v2_label": 1,
-    "draft_count": 0,
-    "bottleneck": "DeJeune holds ~60 open PRs — 20% of all open PRs from one contributor"
-  },
-  "milestones": [
+  "recently_merged_v2_related_7d": [
     {
-      "title": "v2.0.0",
-      "state": "open",
-      "open_issues": 28,
-      "closed_issues": 105,
-      "completion_pct": 79,
-      "due_date": "2026-04-30",
-      "overdue_days": 41,
-      "url": "https://github.com/CherryHQ/cherry-studio/milestone/34"
+      "number": 15941,
+      "merged_at": "2026-06-11T15:52:31Z",
+      "author": "DeJeune",
+      "title": "feat(agent-data): agent resource API + agent workspace DataApi workflow",
+      "area": "DataApi / Agent"
     },
     {
-      "title": "v2.4.0",
-      "state": "open",
-      "open_issues": 13,
-      "closed_issues": 1,
-      "completion_pct": 7,
-      "url": "https://github.com/CherryHQ/cherry-studio/milestone/64"
+      "number": 15938,
+      "merged_at": "2026-06-11T15:34:40Z",
+      "author": "DeJeune",
+      "title": "fix(ai-provider): provider settings patch + CherryAI/AiHubMix runtime routing",
+      "area": "Provider"
     },
     {
-      "title": "1.9.12",
-      "state": "open",
-      "note": "v1 milestone still in flight"
+      "number": 15942,
+      "merged_at": "2026-06-11T10:10:51Z",
+      "author": "DeJeune",
+      "title": "feat(ai-trace): trace capture + container trace DataApi + chat trace pane",
+      "area": "DataApi / Trace"
+    },
+    {
+      "number": 15937,
+      "merged_at": "2026-06-11T11:07:42Z",
+      "author": "DeJeune",
+      "title": "feat(data-api): add topic duplicate endpoint",
+      "area": "DataApi"
+    },
+    {
+      "number": 15843,
+      "merged_at": "2026-06-09T13:06:34Z",
+      "author": "eeee0717",
+      "title": "fix(knowledge-migration): preserve v1 vector DB during v2 migration",
+      "area": "Migration"
+    },
+    {
+      "number": 15736,
+      "merged_at": "2026-06-09T09:50:32Z",
+      "author": "zhangjiadi225",
+      "title": "refactor(agent-session): make workspace binding explicit",
+      "area": "Agent"
+    },
+    {
+      "number": 15796,
+      "merged_at": "2026-06-09T06:04:29Z",
+      "author": "eeee0717",
+      "title": "feat(knowledge): route embeddings and reranking through the AI service",
+      "area": "Knowledge / AI Service"
     }
   ],
-  "v2_milestone_issues": [
-    {"number": 15944, "title": "Tracking: src/main chat-page split consolidated into 8 backend issues", "state": "open", "note": "v2 tracking issue"},
-    {"number": 15672, "title": "[Feature]: Skill Suite — Bundle Related Skills", "labels": ["internal_team"], "milestone": "v2.4.0"},
-    {"number": 15664, "title": "[Feature]: Unified @ and / Command System", "labels": ["UI/UX", "internal_team"], "milestone": "v2.4.0"},
-    {"number": 15663, "title": "[Feature]: Anthropic Computer Use — OS-Level Automation", "labels": ["Assistant", "internal_team"], "milestone": "v2.4.0"},
-    {"number": 15634, "title": "[Feature]: Goal Mode — Long-Running Autonomous Agent", "labels": ["Assistant", "internal_team"], "milestone": "v2.4.0"},
-    {"number": 15626, "title": "[Feature]: Quick Assistant Inline Picker", "labels": ["Assistant", "UI/UX", "internal_team"], "milestone": "v2.4.0"},
-    {"number": 15383, "title": "[Feature]: Real-Time Meeting Transcription", "labels": [], "milestone": "v2.4.0"},
-    {"number": 15381, "title": "[Feature]: Knowledge Base Image Ingestion & Multimodal Retrieval", "labels": ["RAG", "Data"], "milestone": "v2.4.0"},
-    {"number": 15377, "title": "[Feature]: Multi-Window / Split-Screen", "labels": ["UI/UX"], "milestone": "v2.4.0"},
-    {"number": 15340, "title": "[Feature]: Marketplace Connectors via OAuth/MCP", "labels": ["MCP", "Assistant"], "milestone": "v2.4.0"},
-    {"number": 15253, "title": "[Feature]: Recycle Bin for deletable content", "labels": ["UI/UX"], "milestone": "v2.4.0"},
-    {"number": 14899, "title": "[Feature]: Unified Notification Center", "labels": ["Planned", "P1", "feature", "UI/UX"], "milestone": "v2.4.0"},
-    {"number": 14896, "title": "[Feature]: Agent-Native Knowledge Library & File Manager", "labels": ["RAG", "Assistant", "Data"], "milestone": "v2.4.0"}
-  ],
-  "active_v2_prs": [
-    {"number": 15951, "title": "fix(data-api): message/temporary-chat flows + FTS rework", "author": "DeJeune", "state": "open", "created_at": "2026-06-10"},
-    {"number": 15942, "title": "AI-trace PR (FTS extracted)", "author": "DeJeune", "state": "open"},
-    {"number": 15184, "title": "refactor(binary-manager): mise-backed BinaryManager", "author": "vaayne", "label": "v2", "state": "open"},
-    {"number": 15045, "title": "feat(agent): AI SDK Agent Runtime", "author": "DeJeune", "label": "v2", "state": "draft"},
-    {"number": 14997, "title": "chore(chat-page): scaffold chat component tree", "author": "DeJeune", "label": "v2", "state": "draft"},
-    {"number": 14160, "title": "feat: migrate agents data access to DataApi", "author": "vaayne", "label": "v2", "state": "draft"}
-  ],
-  "data_layer_migration": {
-    "removing": ["Redux", "Dexie", "ElectronStore"],
-    "adopting": ["Cache", "Preference", "DataApi (SQLite + Drizzle ORM)"],
-    "status": "IN PROGRESS",
-    "schemas_dir": "src/main/data/db/schemas/",
-    "migrations_note": "Dev-only artifacts; will be wiped and regenerated as single clean migration before release"
-  },
-  "ui_layer_migration": {
-    "removing": ["antd", "HeroUI", "styled-components"],
-    "adopting": ["@cherrystudio/ui (packages/ui, Tailwind + Shadcn UI)"],
-    "status": "IN PROGRESS"
-  },
-  "key_open_technical_issues": [
-    {
-      "number": 14123,
-      "title": "[Feature]: Refactor MCPService — unify dual pipelines with McpServerService",
-      "assignee": "DeJeune",
-      "labels": ["MCP"],
-      "milestone": "v2.0.0",
-      "priority": "High — god class (1177 lines), dual pipeline causes atomicity bugs",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14123"
+  "v2_development_themes": {
+    "data_api": {
+      "status": "active",
+      "recent_work": ["agent-data resource API", "topic duplicate endpoint", "ai-trace DataApi", "container trace DataApi"],
+      "open_work": ["chat-page scaffold (#14997)"]
     },
+    "agent_runtime": {
+      "status": "active",
+      "recent_work": ["agent-session workspace binding", "agent resource API"],
+      "open_work": ["AI SDK Agent Runtime (#15045)"]
+    },
+    "knowledge": {
+      "status": "active",
+      "recent_work": ["embeddings/reranking through AI service", "v1→v2 vector DB migration fix"],
+      "open_work": []
+    },
+    "binary_manager": {
+      "status": "in-progress",
+      "recent_work": [],
+      "open_work": ["mise-backed BinaryManager (#15184)"]
+    },
+    "provider": {
+      "status": "active",
+      "recent_work": ["CherryAI/AiHubMix runtime routing", "auto-enable providers when models available"],
+      "open_work": []
+    },
+    "migration_v1_to_v2": {
+      "status": "active",
+      "recent_work": ["preserve v1 vector DB during v2 migration"],
+      "open_work": []
+    }
+  },
+  "v2_issues_open": [
     {
-      "number": 11578,
-      "title": "Upgrade to MCP protocol spec 2025-11-25",
-      "labels": ["MCP"],
-      "age_days": 193,
-      "state": "zombie",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/11578"
+      "number": 15944,
+      "title": "[Other]: Tracking — src/main chat-page split",
+      "created_at": "2026-06-10",
+      "labels": [],
+      "note": "Tracking issue for chat-page refactor — key v2 milestone"
     }
   ],
-  "blockers_and_risks": [
-    {
-      "type": "milestone_overdue",
-      "description": "v2.0.0 milestone is 41+ days overdue (due 2026-04-30), 28 issues still open",
-      "severity": "high",
-      "action": "Review remaining 28 issues — close/defer or set new target date"
-    },
-    {
-      "type": "contributor_bottleneck",
-      "description": "DeJeune holds ~60 open PRs and is assigned 3 key issues — single point of failure",
-      "severity": "medium"
-    },
-    {
-      "type": "technical_debt",
-      "description": "MCPService god class (#14123): 1177 lines, dual pipeline, atomicity bugs",
-      "severity": "medium"
-    },
-    {
-      "type": "release_blocker",
-      "description": "PR #14493 (chore: version packages) open since 2026-04-22 — may block release automation",
-      "severity": "medium"
-    },
-    {
-      "type": "npm_breakage",
-      "description": "@cherrystudio/ai-core CJS/type exports broken in v2.0.1 (#15826)",
-      "severity": "medium",
-      "action": "Fix package.json exports or emit CJS/d.ts artifacts"
-    }
-  ],
-  "top_contributors_30d": [
-    {"author": "eeee0717", "merged": 12},
-    {"author": "ousugo", "merged": 12},
-    {"author": "kangfenmao", "merged": 11},
-    {"author": "DeJeune", "merged": 10, "open": 60},
-    {"author": "EurFelux", "merged": 9},
-    {"author": "AtomsH4", "merged": 6},
-    {"author": "zhangjiadi225", "merged": 5},
-    {"author": "LWWZH", "merged": 4},
-    {"author": "Cherry-Yiran", "merged": 4}
-  ]
+  "v1_branch_prs": {
+    "count_open": 15,
+    "note": "15 open PRs target v1 branch (hotfixes/maintenance). These are separate from v2 development."
+  },
+  "momentum_summary": {
+    "active_contributors_7d": ["DeJeune", "Raymond8196", "eeee0717", "LWWZH", "AtomsH4", "EurFelux", "kangfenmao", "vaayne", "beyondkmp"],
+    "prs_merged_7d": 22,
+    "key_milestone_this_week": "DataApi + Agent workspace + AI trace infrastructure landed",
+    "blockers": ["#14997 chat-page scaffold open >30d", "#15045 AI SDK Agent Runtime open ~30d"]
+  }
 }
