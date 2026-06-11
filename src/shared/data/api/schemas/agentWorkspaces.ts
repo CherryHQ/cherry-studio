@@ -65,6 +65,12 @@ export type AgentWorkspaceSchemas = {
       body: UpdateAgentWorkspaceDto
       response: AgentWorkspaceEntity
     }
+    /**
+     * Delete a user workspace.
+     *
+     * Cascades: every session bound to this workspace, plus their messages
+     * and pins, are deleted in the same transaction.
+     */
     DELETE: {
       params: { workspaceId: string }
       response: void

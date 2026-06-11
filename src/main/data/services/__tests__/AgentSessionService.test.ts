@@ -223,6 +223,24 @@ describe('AgentSessionService', () => {
     })
   })
 
+  it('leaves a user workspace and sibling sessions intact when deleting one session', async () => {
+    const workspace = await createWorkspace('shared-user')
+    const first = await createSession('Shared first', workspace.id)
+    const second = await createSession('Shared second', workspace.id)
+
+    await agentSessionService.delete(first.id)
+
+    await expect(agentWorkspaceService.getById(workspace.id)).resolves.toMatchObject({
+      id: workspace.id,
+      type: 'user'
+    })
+    await expect(agentSessionService.getById(first.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(agentSessionService.getById(second.id)).resolves.toMatchObject({
+      id: second.id,
+      workspaceId: workspace.id
+    })
+  })
+
   it('deletes the system workspace row when deleting a no-project session', async () => {
     const session = await agentSessionService.create({
       agentId: 'agent-session-test',
@@ -406,116 +424,6 @@ describe('AgentSessionService', () => {
     const page2 = await agentSessionService.listByCursor({ limit: 2, cursor: page1.nextCursor })
     expect(page2.items.map((item) => item.id)).toEqual([first.id])
     expect(page2.nextCursor).toBeUndefined()
-  })
-
-  it('searches sessions by name and description', async () => {
-    const workspace = await createWorkspace('search-list')
-    await dbh.db.insert(agentSessionTable).values([
-      {
-        id: 'session-name-hit',
-        agentId: 'agent-session-test',
-        name: 'Deploy checklist',
-        description: '',
-        workspaceId: workspace.id,
-        orderKey: 'a0'
-      },
-      {
-        id: 'session-description-hit',
-        agentId: 'agent-session-test',
-        name: 'Notes',
-        description: 'Incident response drill',
-        workspaceId: workspace.id,
-        orderKey: 'a1'
-      },
-      {
-        id: 'session-miss',
-        agentId: 'agent-session-test',
-        name: 'Backlog',
-        description: '',
-        workspaceId: workspace.id,
-        orderKey: 'a2'
-      }
-    ])
-
-    await expect(agentSessionService.listByCursor({ search: 'Deploy' })).resolves.toMatchObject({
-      items: [{ id: 'session-name-hit' }]
-    })
-    await expect(agentSessionService.listByCursor({ search: 'response' })).resolves.toMatchObject({
-      items: [{ id: 'session-description-hit' }]
-    })
-  })
-
-  it('treats % and _ in session search as literal characters', async () => {
-    const workspace = await createWorkspace('wildcard-search')
-    await dbh.db.insert(agentSessionTable).values([
-      {
-        id: 'session-wildcard-literal',
-        agentId: 'agent-session-test',
-        name: 'Deploy 100%_done',
-        description: '',
-        workspaceId: workspace.id,
-        orderKey: 'a0'
-      },
-      {
-        id: 'session-wildcard-expanded',
-        agentId: 'agent-session-test',
-        name: 'Deploy 100xxdone',
-        description: '',
-        workspaceId: workspace.id,
-        orderKey: 'a1'
-      }
-    ])
-
-    const result = await agentSessionService.listByCursor({ search: '100%_' })
-
-    expect(result.items.map((item) => item.id)).toEqual(['session-wildcard-literal'])
-  })
-
-  it('lists recent search matches with updatedAtFrom applied in the session service', async () => {
-    const cutoff = Date.parse('2026-05-01T00:00:00.000Z')
-    const workspace = await createWorkspace('recent-search')
-    await dbh.db.insert(agentSessionTable).values([
-      {
-        id: 'session-old',
-        agentId: 'agent-session-test',
-        name: 'Research old',
-        workspaceId: workspace.id,
-        orderKey: 'a0',
-        updatedAt: cutoff - 1
-      },
-      {
-        id: 'session-newer',
-        agentId: 'agent-session-test',
-        name: 'Research newer',
-        workspaceId: workspace.id,
-        orderKey: 'a1',
-        updatedAt: cutoff + 2000
-      },
-      {
-        id: 'session-newest',
-        agentId: 'agent-session-test',
-        name: 'Research newest',
-        workspaceId: workspace.id,
-        orderKey: 'a2',
-        updatedAt: cutoff + 3000
-      },
-      {
-        id: 'session-other',
-        agentId: 'agent-session-test',
-        name: 'Other',
-        workspaceId: workspace.id,
-        orderKey: 'a3',
-        updatedAt: cutoff + 4000
-      }
-    ])
-
-    const result = await agentSessionService.listRecentSearchMatches({
-      search: 'Research',
-      limit: 10,
-      updatedAtFrom: cutoff
-    })
-
-    expect(result.map((session) => session.id)).toEqual(['session-newest', 'session-newer'])
   })
 
   it('deletes sessions when the workspace row is deleted', async () => {

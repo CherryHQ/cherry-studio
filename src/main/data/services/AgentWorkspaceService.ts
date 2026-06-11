@@ -31,8 +31,6 @@ export function rowToAgentWorkspace(row: AgentWorkspaceRow): AgentWorkspaceEntit
   }
 }
 
-export const rowToWorkspace = rowToAgentWorkspace
-
 function defaultWorkspaceName(workspacePath: string): string {
   return path.basename(workspacePath) || workspacePath
 }

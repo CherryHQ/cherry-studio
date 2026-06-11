@@ -20,15 +20,12 @@ import { AgentSessionWorkspaceSourceSchema, AgentWorkspaceEntitySchema } from '.
  *  newest-first; an absent `cursor` returns the most recent page, then each
  *  `nextCursor` walks one page older. Limit caps at 200 — the renderer
  *  flattens with `useInfiniteFlatItems` and the virtualizer scrolls older
- *  pages in on demand, so per-page size never has to cover a whole session.
- *  `messageId` anchors the first page at a known message for previews; cursor
- *  takes precedence for subsequent older pages. */
+ *  pages in on demand, so per-page size never has to cover a whole session. */
 export const AGENT_SESSION_MESSAGES_MAX_LIMIT = 200
 export const AGENT_SESSION_MESSAGES_DEFAULT_LIMIT = 50
 
 export const AgentSessionMessagesListQuerySchema = z.strictObject({
   cursor: z.string().optional(),
-  messageId: z.string().min(1).optional(),
   limit: z.coerce.number().int().positive().max(AGENT_SESSION_MESSAGES_MAX_LIMIT).optional()
 })
 export type AgentSessionMessagesListQuery = z.infer<typeof AgentSessionMessagesListQuerySchema>
@@ -115,8 +112,7 @@ export type UpdateAgentSessionDto = z.infer<typeof UpdateAgentSessionSchema>
 export const ListAgentSessionsQuerySchema = z.strictObject({
   agentId: z.string().optional(),
   cursor: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(200).optional(),
-  search: z.string().trim().min(1).optional()
+  limit: z.coerce.number().int().positive().max(200).optional()
 })
 export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
 export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
@@ -156,9 +152,10 @@ export type AgentSessionSchemas = {
       response: AgentSessionEntity
     }
     /**
-     * Delete an explicit set of sessions.
+     * Delete an explicit set of sessions (all-or-nothing — any missing id → NOT_FOUND).
      *
-     * Used by multi-select table flows where the selection can span agents.
+     * `deletedIds` may exceed the input set when system-workspace sibling sessions
+     * are cascade-deleted alongside the requested sessions.
      */
     DELETE: {
       query: DeleteAgentSessionsQuery
@@ -197,6 +194,11 @@ export type AgentSessionSchemas = {
     }
   }
   '/agents/:agentId/sessions': {
+    /**
+     * Delete every session belonging to an agent (all-or-nothing — missing agent → NOT_FOUND).
+     *
+     * Cascades: each system workspace row backing a deleted session is removed.
+     */
     DELETE: {
       params: { agentId: string }
       response: DeleteAgentSessionsResult

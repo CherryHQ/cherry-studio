@@ -233,6 +233,17 @@ describe('AgentService', () => {
       expect(agents.map((agent) => agent.id)).toEqual(['agent_order_a', 'agent_order_b', 'agent_order_c'])
     })
 
+    it('orders rows with equal updatedAt deterministically by id (tiebreaker)', async () => {
+      await insertAgent({ id: 'agent_aaa', name: 'A', updatedAt: 5000, createdAt: 5000 })
+      await insertAgent({ id: 'agent_zzz', name: 'Z', updatedAt: 5000, createdAt: 5000 })
+
+      const { agents } = await agentService.listAgents({ sortBy: 'updatedAt', orderBy: 'asc' })
+
+      const ids = agents.map((a) => a.id)
+      // asc(updatedAt), asc(id) → 'agent_aaa' must come before 'agent_zzz'.
+      expect(ids.indexOf('agent_aaa')).toBeLessThan(ids.indexOf('agent_zzz'))
+    })
+
     it('sorts by updatedAt without pin-first ordering', async () => {
       await insertAgent({ id: 'agent_updated_old', name: 'Old', updatedAt: 100, createdAt: 100 })
       await insertAgent({ id: 'agent_updated_new', name: 'New', updatedAt: 200, createdAt: 200 })
@@ -297,25 +308,6 @@ describe('AgentService', () => {
       const { agents } = await agentService.listAgents({ search: 'research' })
 
       expect(agents.map((agent) => agent.id).sort()).toEqual(['agent_search_1', 'agent_search_2'])
-    })
-
-    it('filters by updatedAtFrom while preserving service-owned search and sorting', async () => {
-      const cutoff = Date.parse('2026-05-01T00:00:00.000Z')
-      await insertAgent({ id: 'agent_old', name: 'Research old', updatedAt: cutoff - 1 })
-      await insertAgent({ id: 'agent_newer', name: 'Research newer', updatedAt: cutoff + 2000 })
-      await insertAgent({ id: 'agent_newest', name: 'Research newest', updatedAt: cutoff + 3000 })
-      await insertAgent({ id: 'agent_other', name: 'Other', updatedAt: cutoff + 4000 })
-
-      const { agents, total } = await agentService.listAgents({
-        search: 'research',
-        limit: 10,
-        updatedAtFrom: cutoff,
-        sortBy: 'updatedAt',
-        orderBy: 'desc'
-      })
-
-      expect(agents.map((agent) => agent.id)).toEqual(['agent_newest', 'agent_newer'])
-      expect(total).toBe(2)
     })
   })
 

@@ -29,7 +29,7 @@ const {
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     listByCursor: listByCursorMock,
-    createSession: createSessionMock,
+    create: createSessionMock,
     getById: getByIdMock,
     update: updateMock,
     delete: deleteMock,
@@ -55,34 +55,22 @@ describe('agentSessionHandlers', () => {
   })
 
   describe('/agent-sessions', () => {
-    it('forwards trimmed search to agentSessionService.listByCursor', async () => {
+    it('forwards query to agentSessionService.listByCursor', async () => {
       const response = { items: [], nextCursor: undefined }
       listByCursorMock.mockResolvedValueOnce(response)
 
       const result = await agentSessionHandlers['/agent-sessions'].GET({
         query: {
-          search: '  deploy  ',
+          agentId: 'agent-1',
           limit: '10'
         }
       } as never)
 
       expect(listByCursorMock).toHaveBeenCalledWith({
-        search: 'deploy',
+        agentId: 'agent-1',
         limit: 10
       })
       expect(result).toBe(response)
-    })
-
-    it('rejects blank search before calling the service', async () => {
-      await expect(
-        agentSessionHandlers['/agent-sessions'].GET({
-          query: {
-            search: '   '
-          }
-        } as never)
-      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
-
-      expect(listByCursorMock).not.toHaveBeenCalled()
     })
   })
 

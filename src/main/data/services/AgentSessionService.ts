@@ -114,10 +114,6 @@ export class AgentSessionService {
   }
 
   async create(dto: CreateAgentSessionDto): Promise<AgentSessionEntity> {
-    return await this.createSession(dto)
-  }
-
-  async createSession(dto: CreateAgentSessionDto): Promise<AgentSessionEntity> {
     const id = uuidv4()
     await withSqliteErrors(() => application.get('DbService').withWriteTx((tx) => this.createTx(tx, id, dto)), {
       ...defaultHandlersFor('Session', id),
@@ -185,18 +181,6 @@ export class AgentSessionService {
     return rowToSession(row)
   }
 
-  async findAgentWorkspacePath(agentId: string): Promise<string | null> {
-    const db = application.get('DbService').getDb()
-    const [row] = await db
-      .select({ path: agentWorkspaceTable.path })
-      .from(sessionsTable)
-      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .where(eq(sessionsTable.agentId, agentId))
-      .orderBy(desc(sessionsTable.createdAt))
-      .limit(1)
-    return row?.path ?? null
-  }
-
   async listByCursor(query: ListAgentSessionsQuery = {}): Promise<CursorPaginationResponse<AgentSessionEntity>> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
@@ -204,8 +188,6 @@ export class AgentSessionService {
 
     const filters: SQL[] = []
     if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
-    const search = buildSearchPredicate(query.search)
-    if (search) filters.push(search)
     if (cursor) {
       // Strict tuple: (orderKey, id) > (cursor.key, cursor.id)
       filters.push(
@@ -230,31 +212,6 @@ export class AgentSessionService {
     const nextCursor = hasNext && last ? `${last.orderKey}:${last.id}` : undefined
 
     return { items, nextCursor }
-  }
-
-  async listRecentSearchMatches(query: {
-    search: string
-    limit: number
-    updatedAtFrom?: number
-  }): Promise<AgentSessionEntity[]> {
-    const db = application.get('DbService').getDb()
-    const limit = Math.min(query.limit, MAX_LIMIT)
-    const filters: SQL[] = []
-    const search = buildSearchPredicate(query.search)
-    if (search) filters.push(search)
-    if (query.updatedAtFrom !== undefined) {
-      filters.push(gte(sessionsTable.updatedAt, query.updatedAtFrom))
-    }
-
-    const rows = await db
-      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
-      .from(sessionsTable)
-      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .where(filters.length > 0 ? and(...filters) : undefined)
-      .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
-      .limit(limit)
-
-    return rows.map(rowToSession)
   }
 
   async update(id: string, dto: UpdateAgentSessionDto): Promise<AgentSessionEntity> {
@@ -309,10 +266,6 @@ export class AgentSessionService {
     if (AgentWorkspaceTypeSchema.parse(session.workspaceType) === AGENT_WORKSPACE_TYPE.SYSTEM) {
       await agentWorkspaceService.deleteByIdTx(tx, session.workspaceId)
     }
-  }
-
-  async deleteByIdTx(tx: DbOrTx, id: string): Promise<void> {
-    await this.deleteByIdsTx(tx, [id], { requireAll: true })
   }
 
   async deleteByIds(ids: string[]): Promise<DeleteAgentSessionsResult> {

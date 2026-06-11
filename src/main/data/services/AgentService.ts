@@ -44,9 +44,7 @@ export interface AgentDeletedEvent {
 }
 
 type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
-type AgentListOptions = ListOptions & {
-  updatedAtFrom?: number
-}
+type AgentListOptions = ListOptions
 
 function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
@@ -171,9 +169,6 @@ export class AgentService {
       const searchClause = or(nameMatch, descMatch)
       if (searchClause) conditions.push(searchClause)
     }
-    if (options.updatedAtFrom !== undefined) {
-      conditions.push(gte(agentsTable.updatedAt, options.updatedAtFrom))
-    }
     const whereClause = and(...conditions)
 
     const totalResult = await database.select({ count: count() }).from(agentsTable).where(whereClause)
@@ -205,10 +200,11 @@ export class AgentService {
             asc(agentsTable.id)
           ]
 
-    // Pin-aware ordering: LEFT JOIN with the pin table, push pinned rows to
-    // the top (sorted by pin.orderKey ASC), then unpinned rows by the
-    // caller-specified sortBy/orderBy. Default ordering follows agent.orderKey
-    // so resource-list group reorders persist across reloads.
+    // Pin-aware ordering (skipped for sortBy=updatedAt): LEFT JOIN with the
+    // pin table, push pinned rows to the top (sorted by pin.orderKey ASC),
+    // then unpinned rows by the caller-specified sortBy/orderBy. Default
+    // ordering follows agent.orderKey so resource-list group reorders persist
+    // across reloads.
     const baseQuery = database
       .select({ agent: agentsTable, modelName: userModelTable.name, pinOrderKey: pinTable.orderKey })
       .from(agentsTable)
