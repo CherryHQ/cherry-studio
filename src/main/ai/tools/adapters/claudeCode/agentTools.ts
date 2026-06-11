@@ -1,6 +1,7 @@
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
+import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { claudeRegistrySdkDescriptors } from '@shared/ai/claudecode/toolRegistry'
 import {
   buildClaudeMcpToolName,
@@ -113,21 +114,27 @@ function injectedRuntimeTool(runtimeName: string): Tool {
 
 export interface ClaudeAgentToolPolicySnapshot {
   resolve(runtimeName: string, input?: unknown): Tool | undefined
+  isDisabled(runtimeName: string): boolean
   setPermissionMode(permissionMode: AgentPermissionMode | undefined): void
   update(agent: AgentEntity): Promise<void>
 }
 
 export async function createClaudeAgentToolPolicySnapshot(
   agent: AgentEntity,
-  options: { autoAllowRuntimeNamePrefixes?: readonly string[] } = {}
+  options: { autoAllowRuntimeNamePrefixes?: readonly string[]; conditionContext?: ClaudeToolContext } = {}
 ): Promise<ClaudeAgentToolPolicySnapshot> {
   let descriptors: ClaudeToolDescriptor[] = []
   let policy: ClaudeToolPolicy = {}
+  let disallowed = new Set<string>()
 
   const rebuild = async (nextAgent: AgentEntity) => {
     const catalog = await listClaudeAgentToolDescriptors(nextAgent)
     descriptors = catalog.descriptors
     policy = buildClaudeToolPolicy(nextAgent)
+    // Same derivation as the build-time SDK `disallowedTools`, recomputed on every live update so a
+    // mid-session disable is honored by `canUseTool` on the warm connection (registry exposure +
+    // user opt-out + dependency cascade).
+    disallowed = new Set(resolveDisallowedTools(nextAgent, options.conditionContext))
   }
 
   await rebuild(agent)
@@ -141,6 +148,10 @@ export async function createClaudeAgentToolPolicySnapshot(
       if (!descriptor) return undefined
       const access = resolveClaudeToolInvocationAccess(descriptor, policy, { toolName: runtimeName, input })
       return descriptorToToolWithAccess(descriptor, access)
+    },
+
+    isDisabled(runtimeName) {
+      return disallowed.has(runtimeName) || disallowed.has(normalizeClaudeBuiltinName(runtimeName))
     },
 
     setPermissionMode(permissionMode) {

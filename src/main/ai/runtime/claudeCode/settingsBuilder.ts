@@ -550,12 +550,19 @@ async function buildToolPermissions(
       'mcp__cherry-tools__',
       ...(soulEnabled ? ['mcp__claw__'] : []),
       ...(isAssistant ? ['mcp__assistant__'] : [])
-    ]
+    ],
+    conditionContext
   })
 
   const canUseTool: CanUseTool = async (toolName, input, opts) => {
     if (opts.signal.aborted) {
       return { behavior: 'deny', message: 'Tool request was cancelled' }
+    }
+
+    // Disabled tools are denied live: the snapshot's disallowed set is refreshed on every agent
+    // update, so a tool disabled mid-session is rejected on the warm connection without a rebuild.
+    if (toolPolicySnapshot.isDisabled(toolName)) {
+      return { behavior: 'deny', message: `The ${toolName} tool is disabled for this agent.` }
     }
 
     const access = toolPolicySnapshot.resolve(toolName, input)

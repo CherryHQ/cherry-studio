@@ -167,7 +167,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
     mocks.modelGetByKey.mockResolvedValue({ apiModelId: 'claude-api' })
     mocks.findBySessionId.mockResolvedValue(null)
-    mocks.createToolPolicySnapshot.mockResolvedValue({ resolve: vi.fn() })
+    mocks.createToolPolicySnapshot.mockResolvedValue({ resolve: vi.fn(), isDisabled: vi.fn() })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') {
         return { get: vi.fn(() => undefined) }
