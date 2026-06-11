@@ -925,10 +925,10 @@ describe('AiStreamManager', () => {
       // The continuation's dispatch subscriber is a renderer (wc) listener — never the prior turn's
       // persistence/trace listener (carrying that would write onto the old assistant row / re-flush).
       const [subscriber, sentReq] = dispatchSpy.mock.calls[0]
-      expect((subscriber as StreamListener).id.startsWith('wc:')).toBe(true)
+      expect(subscriber.id.startsWith('wc:')).toBe(true)
       expect(sentReq).toEqual(steerReq('a', 'u1'))
       // The other window is re-attached; persistence/trace listeners are not carried at all.
-      const reattachedIds = addSpy.mock.calls.map(([, l]) => (l as StreamListener).id)
+      const reattachedIds = addSpy.mock.calls.map(([, l]) => l.id)
       expect(reattachedIds).toContain('wc:2:a')
       expect(reattachedIds).not.toContain('persistence:sqlite:a:provider-a::model-a')
       expect(reattachedIds).not.toContain('trace:a')
@@ -946,8 +946,8 @@ describe('AiStreamManager', () => {
       // The null sentinel (isAlive() === false) drives the windowless continuation, not the
       // persistence listener.
       const [subscriber] = dispatchSpy.mock.calls[0]
-      expect((subscriber as StreamListener).isAlive()).toBe(false)
-      expect((subscriber as StreamListener).id.startsWith('persistence:')).toBe(false)
+      expect(subscriber.isAlive()).toBe(false)
+      expect(subscriber.id.startsWith('persistence:')).toBe(false)
     })
   })
 
