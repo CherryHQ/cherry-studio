@@ -9,6 +9,13 @@ import TraceTree from './TraceTree'
 export interface TracePageProps {
   topicId: string
   traceId: string
+  /**
+   * Opaque restart token. Each new value tears down the current poll loop and
+   * starts a fresh one, so callers must pass something that changes whenever
+   * polling should re-trigger (e.g. a turn counter or last-message id). A
+   * constant derived from `topicId`/`traceId` will never change on its own and
+   * therefore can never restart polling after it stops.
+   */
   reload?: string | number | boolean
 }
 
@@ -17,7 +24,6 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
   const [selectedNode, setSelectedNode] = useState<TraceNode | null>(null)
   const [showList, setShowList] = useState(true)
   const [pollError, setPollError] = useState<string | null>(null)
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const failureCountRef = useRef(0)
   const emptyCountRef = useRef(0)
   const { t } = useTranslation()
@@ -81,10 +87,6 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
     return null
   }, [])
 
-  const getTraceData = useCallback(async (): Promise<SpanEntity[]> => {
-    return topicId && traceId ? await window.api.trace.getData(topicId, traceId) : []
-  }, [topicId, traceId])
-
   const handleNodeClick = (nodeId: string) => {
     const latestNode = findNodeById(spans, nodeId)
     if (latestNode) {
@@ -105,63 +107,78 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
   }, [topicId, traceId])
 
   useEffect(() => {
-    const handleShowTrace = async () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
+    // Interval is local to this effect run, never a shared ref: an effect re-run
+    // during the first `await poll()` would otherwise let the new run's interval
+    // be created after this run's cleanup, leaking it (and let one run's stop
+    // logic clear the other run's interval).
+    let cancelled = false
+    let finished = false
+    let intervalId: ReturnType<typeof setInterval> | null = null
+
+    failureCountRef.current = 0
+    emptyCountRef.current = 0
+    setPollError(null)
+
+    const stop = () => {
+      finished = true
+      if (intervalId) {
+        clearInterval(intervalId)
+        intervalId = null
       }
-      failureCountRef.current = 0
-      emptyCountRef.current = 0
-      setPollError(null)
+    }
 
-      let lastSpanCount = 0
-      let consecutiveEnded = 0
-      const poll = async () => {
-        try {
-          const spans = topicId && traceId ? await window.api.trace.getData(topicId, traceId) : []
-          failureCountRef.current = 0
-          const matchedSpans = getRootSpans(spans)
+    let lastSpanCount = 0
+    let consecutiveEnded = 0
+    const poll = async () => {
+      try {
+        const spans = topicId && traceId ? await window.api.trace.getData(topicId, traceId) : []
+        if (cancelled) return
+        failureCountRef.current = 0
+        const matchedSpans = getRootSpans(spans)
 
-          if (matchedSpans.length === 0) {
-            emptyCountRef.current++
-            if (emptyCountRef.current >= 30 && lastSpanCount === 0 && intervalRef.current) {
-              clearInterval(intervalRef.current)
-              intervalRef.current = null
-              return
-            }
-          } else {
-            emptyCountRef.current = 0
-            lastSpanCount = matchedSpans.length
-            updatePercentAndStart(matchedSpans)
-            setSpans((prev) => mergeTraceNodes(prev, matchedSpans))
+        if (matchedSpans.length === 0) {
+          emptyCountRef.current++
+          if (emptyCountRef.current >= 30 && lastSpanCount === 0) {
+            stop()
+            return
           }
+        } else {
+          emptyCountRef.current = 0
+          lastSpanCount = matchedSpans.length
+          updatePercentAndStart(matchedSpans)
+          setSpans((prev) => mergeTraceNodes(prev, matchedSpans))
+        }
 
-          const allEnded = matchedSpans.length > 0 && matchedSpans.every((e) => e.endTime && e.endTime > 0)
-          consecutiveEnded = allEnded ? consecutiveEnded + 1 : 0
-          if (consecutiveEnded >= 20 && intervalRef.current) {
-            clearInterval(intervalRef.current)
-            intervalRef.current = null
-          }
-        } catch (error) {
-          failureCountRef.current++
-          if (failureCountRef.current >= 3 && intervalRef.current) {
-            clearInterval(intervalRef.current)
-            intervalRef.current = null
-            setPollError(error instanceof Error ? error.message : String(error))
-          }
+        const allEnded = matchedSpans.length > 0 && matchedSpans.every((e) => e.endTime && e.endTime > 0)
+        consecutiveEnded = allEnded ? consecutiveEnded + 1 : 0
+        if (consecutiveEnded >= 20) stop()
+      } catch (error) {
+        if (cancelled) return
+        failureCountRef.current++
+        if (failureCountRef.current >= 3) {
+          stop()
+          setPollError(error instanceof Error ? error.message : String(error))
         }
       }
-      await poll()
-      intervalRef.current = setInterval(poll, 300)
     }
-    void handleShowTrace()
+
+    const start = async () => {
+      await poll()
+      // Cleanup ran during the await, or poll already hit a stop condition — do
+      // not register an orphaned interval.
+      if (cancelled || finished) return
+      intervalId = setInterval(poll, 300)
+    }
+    void start()
+
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
+      cancelled = true
+      if (intervalId) {
+        clearInterval(intervalId)
+        intervalId = null
       }
     }
-  }, [getTraceData, topicId, traceId, reload, getRootSpans, updatePercentAndStart, mergeTraceNodes])
+  }, [topicId, traceId, reload, getRootSpans, updatePercentAndStart, mergeTraceNodes])
 
   useEffect(() => {
     if (selectedNode) {

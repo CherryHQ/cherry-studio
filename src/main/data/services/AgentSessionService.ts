@@ -8,7 +8,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentWorkspaceService, rowToWorkspace } from '@data/services/AgentWorkspaceService'
 import { pinService } from '@data/services/PinService'
-import { timestampToISO } from '@data/services/utils/rowMappers'
+import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
@@ -55,15 +55,12 @@ type JoinedSessionRow = {
 }
 
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
+  const clean = nullsToUndefined(row.session)
   return {
-    id: row.session.id,
+    ...clean,
+    // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
     agentId: row.session.agentId,
-    name: row.session.name,
-    description: row.session.description,
-    workspaceId: row.session.workspaceId,
     workspace: rowToWorkspace(row.workspace),
-    traceId: row.session.traceId ?? undefined,
-    orderKey: row.session.orderKey,
     createdAt: timestampToISO(row.session.createdAt),
     updatedAt: timestampToISO(row.session.updatedAt)
   }

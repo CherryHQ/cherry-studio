@@ -305,8 +305,14 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     // Write to a temp file then rename (atomic on the same filesystem) so a crash mid-write
     // can't truncate previously flushed history.
     const tmpPath = `${filePath}.${process.pid}.tmp`
-    await fs.writeFile(tmpPath, content ? `${content}\n` : '')
-    await fs.rename(tmpPath, filePath)
+    try {
+      await fs.writeFile(tmpPath, content ? `${content}\n` : '')
+      await fs.rename(tmpPath, filePath)
+    } catch (error) {
+      // Don't leave the partial temp file behind if write/rename fails.
+      await fs.unlink(tmpPath).catch(() => {})
+      throw error
+    }
   }
 
   private async getHistoryData(topicId: string, traceId: string) {

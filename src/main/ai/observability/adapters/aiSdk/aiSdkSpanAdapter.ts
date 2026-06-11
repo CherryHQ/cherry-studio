@@ -188,11 +188,11 @@ export class AiSdkSpanAdapter {
       return undefined
     }
 
-    // AI SDK v6 emits `ai.usage.inputTokens`/`outputTokens`; `prompt_tokens`/`completion_tokens` are
+    // AI SDK v6 emits `ai.usage.inputTokens`/`outputTokens`; `promptTokens`/`completionTokens` are
     // legacy aliases and `gen_ai.usage.*` is the semantic-convention spelling. Reading only the legacy
     // names dropped the top-level `ai.streamText` totals. Embeddings emit a single `ai.usage.tokens`.
-    const input = read('ai.usage.inputTokens', 'ai.usage.prompt_tokens', 'gen_ai.usage.input_tokens', 'ai.usage.tokens')
-    const output = read('ai.usage.outputTokens', 'ai.usage.completion_tokens', 'gen_ai.usage.output_tokens')
+    const input = read('ai.usage.inputTokens', 'ai.usage.promptTokens', 'gen_ai.usage.input_tokens', 'ai.usage.tokens')
+    const output = read('ai.usage.outputTokens', 'ai.usage.completionTokens', 'gen_ai.usage.output_tokens')
     const total = read('ai.usage.totalTokens')
     const cached = read('ai.usage.cachedInputTokens')
     const reasoning = read('ai.usage.reasoningTokens')
@@ -208,14 +208,14 @@ export class AiSdkSpanAdapter {
       return undefined
     }
 
-    const prompt_tokens = input ?? 0
-    const completion_tokens = output ?? 0
-    // Keys stay snake_case: this is the TokenUsage contract in trace-core/types/config.ts.
+    const promptTokens = input ?? 0
+    const completionTokens = output ?? 0
+    // Object keys stay snake_case: this is the TokenUsage contract in trace-core/types/config.ts.
     return {
-      prompt_tokens: prompt_tokens,
-      completion_tokens: completion_tokens,
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
       // Prefer the SDK's reported total (it accounts for reasoning/cached), else sum the two.
-      total_tokens: total ?? prompt_tokens + completion_tokens,
+      total_tokens: total ?? promptTokens + completionTokens,
       // cached input tokens are a subset of input; reasoning tokens a subset of output.
       ...(cached !== undefined ? { prompt_tokens_details: { cached_tokens: cached } } : {}),
       ...(reasoning !== undefined ? { completion_tokens_details: { reasoning_tokens: reasoning } } : {})

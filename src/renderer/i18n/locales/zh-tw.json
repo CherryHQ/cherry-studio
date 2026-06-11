@@ -7089,6 +7089,7 @@
     "noTraceList": "沒有找到 Trace 資訊",
     "operation": "操作",
     "outputs": "輸出",
+    "pollError": "輪詢失敗",
     "reasoningTokens": "推理",
     "requestHeaders": "請求標頭",
     "requestMethod": "請求方法",
