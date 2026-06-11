@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   createMock,
   deleteMock,
-  duplicateTopicMock,
+  duplicateMock,
   getByIdMock,
   listByCursorMock,
   reorderBatchMock,
@@ -13,7 +13,7 @@ const {
 } = vi.hoisted(() => ({
   createMock: vi.fn(),
   deleteMock: vi.fn(),
-  duplicateTopicMock: vi.fn(),
+  duplicateMock: vi.fn(),
   getByIdMock: vi.fn(),
   listByCursorMock: vi.fn(),
   reorderBatchMock: vi.fn(),
@@ -26,7 +26,7 @@ vi.mock('@data/services/TopicService', () => ({
   topicService: {
     create: createMock,
     delete: deleteMock,
-    duplicateTopic: duplicateTopicMock,
+    duplicate: duplicateMock,
     getById: getByIdMock,
     listByCursor: listByCursorMock,
     reorder: reorderMock,
@@ -55,16 +55,16 @@ describe('topicHandlers', () => {
         createdAt: '2026-06-03T00:00:00.000Z',
         updatedAt: '2026-06-03T00:00:00.000Z'
       }
-      duplicateTopicMock.mockResolvedValueOnce(topic)
+      duplicateMock.mockResolvedValueOnce(topic)
 
       await expect(
         topicHandlers['/topics/:id/duplicate'].POST({
           params: { id: 'source-topic' },
-          body: { nodeId: 'source-node', name: 'Source (Copy)' }
+          body: { nodeId: 'source-node', name: '  Source (Copy)  ' }
         } as never)
       ).resolves.toBe(topic)
 
-      expect(duplicateTopicMock).toHaveBeenCalledWith('source-topic', {
+      expect(duplicateMock).toHaveBeenCalledWith('source-topic', {
         nodeId: 'source-node',
         name: 'Source (Copy)'
       })

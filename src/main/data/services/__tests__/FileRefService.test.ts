@@ -179,7 +179,7 @@ describe('FileRefService', () => {
         { fileEntryId: entryB, sourceType: 'temp_session', sourceId: 'source-b', role: 'pending' }
       ])
 
-      const copied = await dbh.db.transaction((tx) =>
+      await dbh.db.transaction((tx) =>
         fileRefService.copyBySourceIdMapTx(
           tx,
           'temp_session',
@@ -190,15 +190,76 @@ describe('FileRefService', () => {
         )
       )
 
-      expect(copied).toHaveLength(1)
-      expect(copied[0]).toMatchObject({
-        fileEntryId: entryA,
-        sourceType: 'temp_session',
-        sourceId: 'copy-a',
-        role: 'pending'
-      })
-      expect(await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'copy-a' })).toHaveLength(1)
+      await expect(fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'copy-a' })).resolves.toEqual([
+        expect.objectContaining({
+          fileEntryId: entryA,
+          sourceType: 'temp_session',
+          sourceId: 'copy-a',
+          role: 'pending'
+        })
+      ])
       expect(await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'copy-missing' })).toEqual([])
+    })
+
+    it('fails the transaction when the copied target ref already exists', async () => {
+      const entryA = '019606a0-0000-7000-8000-00000000cc06' as FileEntryId
+      const entryB = '019606a0-0000-7000-8000-00000000cc07' as FileEntryId
+      await seedEntry(entryA)
+      await seedEntry(entryB)
+      await fileRefService.createMany([
+        { fileEntryId: entryA, sourceType: 'temp_session', sourceId: 'source-a', role: 'pending' },
+        { fileEntryId: entryA, sourceType: 'temp_session', sourceId: 'copy-a', role: 'pending' },
+        { fileEntryId: entryB, sourceType: 'temp_session', sourceId: 'source-b', role: 'pending' }
+      ])
+
+      await expect(
+        dbh.db.transaction((tx) =>
+          fileRefService.copyBySourceIdMapTx(
+            tx,
+            'temp_session',
+            new Map([
+              ['source-a', 'copy-a'],
+              ['source-b', 'copy-b']
+            ])
+          )
+        )
+      ).rejects.toThrow()
+
+      expect(await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'copy-b' })).toEqual([])
+    })
+
+    it('copies multiple refs for a mapped source id', async () => {
+      const entryA = '019606a0-0000-7000-8000-00000000cc08' as FileEntryId
+      const entryB = '019606a0-0000-7000-8000-00000000cc09' as FileEntryId
+      await seedEntry(entryA)
+      await seedEntry(entryB)
+      await fileRefService.createMany([
+        { fileEntryId: entryA, sourceType: 'temp_session', sourceId: 'source-a', role: 'pending' },
+        { fileEntryId: entryB, sourceType: 'temp_session', sourceId: 'source-a', role: 'pending' }
+      ])
+
+      await dbh.db.transaction((tx) =>
+        fileRefService.copyBySourceIdMapTx(tx, 'temp_session', new Map([['source-a', 'copy-a']]))
+      )
+
+      const copied = await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'copy-a' })
+      expect(copied).toHaveLength(2)
+      expect(copied).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            fileEntryId: entryA,
+            sourceType: 'temp_session',
+            sourceId: 'copy-a',
+            role: 'pending'
+          }),
+          expect.objectContaining({
+            fileEntryId: entryB,
+            sourceType: 'temp_session',
+            sourceId: 'copy-a',
+            role: 'pending'
+          })
+        ])
+      )
     })
   })
 

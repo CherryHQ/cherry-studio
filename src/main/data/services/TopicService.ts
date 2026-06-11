@@ -132,10 +132,10 @@ export class TopicService {
   }
 
   async create(dto: CreateTopicDto): Promise<Topic> {
-    const db = application.get('DbService').getDb()
+    const dbService = application.get('DbService')
     const groupId = dto.groupId ?? null
 
-    const row = (await db.transaction(async (tx) => {
+    const row = (await dbService.withWriteTx((tx) => {
       return insertWithOrderKey(
         tx,
         topicTable,
@@ -157,7 +157,7 @@ export class TopicService {
     return rowToTopic(row)
   }
 
-  async duplicateTopic(sourceTopicId: string, dto: DuplicateTopicDto): Promise<Topic> {
+  async duplicate(sourceTopicId: string, dto: DuplicateTopicDto): Promise<Topic> {
     const dbService = application.get('DbService')
     // Lazy import avoids a singleton cycle: MessageService already depends on TopicService for active-node updates.
     const { messageService } = await import('./MessageService')
@@ -180,6 +180,7 @@ export class TopicService {
         topicTable,
         {
           name: dto.name ?? sourceTopic.name,
+          isNameManuallyEdited: dto.name !== undefined ? true : sourceTopic.isNameManuallyEdited,
           assistantId: sourceTopic.assistantId,
           groupId: sourceTopic.groupId,
           activeNodeId: null
@@ -195,18 +196,15 @@ export class TopicService {
         topicId: newTopicRow.id
       })
 
+      // Intentionally copies only topic metadata, root-to-node messages, and chat-message file refs.
+      // Pins, tags, trace links, and pruned siblings/descendants stay with their original rows.
       await fileRefService.copyBySourceIdMapTx(tx, chatMessageSourceType, copiedMessageIds)
-
-      if (!copiedActiveNodeId) {
-        throw DataApiErrorFactory.invalidOperation('duplicate topic', 'No active node copied')
-      }
 
       const [updatedTopicRow] = await tx
         .update(topicTable)
         .set({ activeNodeId: copiedActiveNodeId })
         .where(eq(topicTable.id, newTopicRow.id))
         .returning()
-      if (!updatedTopicRow) throw DataApiErrorFactory.notFound('Topic', newTopicRow.id)
 
       return rowToTopic(updatedTopicRow)
     })

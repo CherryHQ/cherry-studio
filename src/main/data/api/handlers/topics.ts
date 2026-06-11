@@ -59,7 +59,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics/:id/duplicate': {
     POST: async ({ params, body }) => {
       const parsed = DuplicateTopicSchema.parse(body)
-      return await topicService.duplicateTopic(params.id, parsed)
+      return await topicService.duplicate(params.id, parsed)
     }
   },
 

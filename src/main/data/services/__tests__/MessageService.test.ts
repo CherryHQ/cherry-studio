@@ -283,6 +283,26 @@ describe('MessageService', () => {
         }
       }
     })
+
+    it('rejects an explicit node outside the requested topic', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-1', activeNodeId: null, orderKey: 'a0' },
+        { id: 'topic-2', activeNodeId: 'other-node', orderKey: 'a1' }
+      ])
+      await dbh.db.insert(messageTable).values({
+        id: 'other-node',
+        parentId: null,
+        topicId: 'topic-2',
+        role: 'user',
+        data: mainText('other'),
+        status: 'success',
+        siblingsGroupId: 0
+      })
+
+      await expect(messageService.getBranchMessages('topic-1', { nodeId: 'other-node' })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
   })
 
   describe('search', () => {

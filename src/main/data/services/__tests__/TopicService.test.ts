@@ -484,23 +484,42 @@ describe('TopicService', () => {
     })
   })
 
-  describe('duplicateTopic', () => {
+  describe('duplicate', () => {
     it('copies the root-to-node path into a new topic and prunes siblings and descendants', async () => {
       const fileEntryId = '019606a0-0000-7000-8000-00000000fb01' as FileEntryId
-      await dbh.db
-        .insert(topicTable)
-        .values({ id: 'src-t', name: 'Source', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
-      await dbh.db.insert(fileEntryTable).values({
-        id: fileEntryId,
-        origin: 'internal',
-        name: 'branch-attachment',
-        ext: 'txt',
-        size: 1,
-        externalPath: null,
-        deletedAt: null,
+      const previewEntryId = '019606a0-0000-7000-8000-00000000fb02' as FileEntryId
+      await dbh.db.insert(topicTable).values({
+        id: 'src-t',
+        name: 'Source',
+        isNameManuallyEdited: true,
+        orderKey: 'a0',
         createdAt: 1,
         updatedAt: 1
       })
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: fileEntryId,
+          origin: 'internal',
+          name: 'duplicate-attachment',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: previewEntryId,
+          origin: 'internal',
+          name: 'duplicate-preview',
+          ext: 'png',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
       await dbh.db.insert(messageTable).values([
         {
           id: 'root',
@@ -524,8 +543,8 @@ describe('TopicService', () => {
               {
                 type: 'file',
                 mediaType: 'text/plain',
-                url: 'file:///tmp/branch-attachment.txt',
-                filename: 'branch-attachment.txt',
+                url: 'file:///tmp/duplicate-attachment.txt',
+                filename: 'duplicate-attachment.txt',
                 providerMetadata: { cherry: { fileEntryId } }
               }
             ]
@@ -558,20 +577,32 @@ describe('TopicService', () => {
           updatedAt: 4
         }
       ])
-      await dbh.db.insert(fileRefTable).values({
-        id: '11111111-1111-4111-8111-123456789abc',
-        fileEntryId,
-        sourceType: chatMessageSourceType,
-        sourceId: 'selected',
-        role: 'attachment',
-        createdAt: 2,
-        updatedAt: 2
-      })
+      await dbh.db.insert(fileRefTable).values([
+        {
+          id: '11111111-1111-4111-8111-123456789abc',
+          fileEntryId,
+          sourceType: chatMessageSourceType,
+          sourceId: 'selected',
+          role: 'attachment',
+          createdAt: 2,
+          updatedAt: 2
+        },
+        {
+          id: '11111111-1111-4111-8111-123456789abd',
+          fileEntryId: previewEntryId,
+          sourceType: chatMessageSourceType,
+          sourceId: 'selected',
+          role: 'preview',
+          createdAt: 2,
+          updatedAt: 2
+        }
+      ])
 
-      const result = await topicService.duplicateTopic('src-t', { nodeId: 'selected' })
+      const result = await topicService.duplicate('src-t', { nodeId: 'selected' })
 
       expect(result.id).not.toBe('src-t')
       expect(result.name).toBe('Source')
+      expect(result.isNameManuallyEdited).toBe(true)
       expect(result.activeNodeId).toBeDefined()
       expect(result.activeNodeId).not.toBe('selected')
 
@@ -594,14 +625,34 @@ describe('TopicService', () => {
       })
 
       const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceType, chatMessageSourceType))
-      expect(refs).toHaveLength(2)
-      expect(refs).toContainEqual(
-        expect.objectContaining({
-          fileEntryId,
-          sourceType: chatMessageSourceType,
-          sourceId: copiedLeaf?.id,
-          role: 'attachment'
-        })
+      expect(refs).toHaveLength(4)
+      expect(refs).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            fileEntryId,
+            sourceType: chatMessageSourceType,
+            sourceId: 'selected',
+            role: 'attachment'
+          }),
+          expect.objectContaining({
+            fileEntryId,
+            sourceType: chatMessageSourceType,
+            sourceId: copiedLeaf?.id,
+            role: 'attachment'
+          }),
+          expect.objectContaining({
+            fileEntryId: previewEntryId,
+            sourceType: chatMessageSourceType,
+            sourceId: 'selected',
+            role: 'preview'
+          }),
+          expect.objectContaining({
+            fileEntryId: previewEntryId,
+            sourceType: chatMessageSourceType,
+            sourceId: copiedLeaf?.id,
+            role: 'preview'
+          })
+        ])
       )
 
       const sourceRows = await dbh.db
@@ -627,9 +678,34 @@ describe('TopicService', () => {
         updatedAt: 1
       })
 
-      const result = await topicService.duplicateTopic('src-t', { nodeId: 'selected', name: 'Source (Copy)' })
+      const result = await topicService.duplicate('src-t', { nodeId: 'selected', name: 'Source (Copy)' })
 
       expect(result.name).toBe('Source (Copy)')
+      const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, result.id))
+      expect(row?.isNameManuallyEdited).toBe(true)
+    })
+
+    it('normalizes copied pending messages to error', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'src-t', name: 'Source', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(messageTable).values({
+        id: 'selected',
+        topicId: 'src-t',
+        parentId: null,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'streaming' }] },
+        status: 'pending',
+        siblingsGroupId: 0,
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      const result = await topicService.duplicate('src-t', { nodeId: 'selected' })
+
+      const copiedRows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, result.id))
+      expect(copiedRows).toHaveLength(1)
+      expect(copiedRows[0].status).toBe('error')
     })
 
     it('copies group and assistant and inserts first in the source group partition', async () => {
@@ -669,7 +745,7 @@ describe('TopicService', () => {
         updatedAt: 1
       })
 
-      const result = await topicService.duplicateTopic('src-t', { nodeId: 'selected' })
+      const result = await topicService.duplicate('src-t', { nodeId: 'selected' })
 
       expect(result.groupId).toBe('grp')
       expect(result.assistantId).toBe('asst')
@@ -684,7 +760,7 @@ describe('TopicService', () => {
     })
 
     it('rejects a missing source topic', async () => {
-      await expect(topicService.duplicateTopic('missing-topic', { nodeId: 'node-1' })).rejects.toMatchObject({
+      await expect(topicService.duplicate('missing-topic', { nodeId: 'node-1' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -705,7 +781,7 @@ describe('TopicService', () => {
         updatedAt: 1
       })
 
-      await expect(topicService.duplicateTopic('src-t', { nodeId: 'selected' })).rejects.toMatchObject({
+      await expect(topicService.duplicate('src-t', { nodeId: 'selected' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -726,7 +802,7 @@ describe('TopicService', () => {
         updatedAt: 1
       })
 
-      await expect(topicService.duplicateTopic('src-t', { nodeId: 'other-node' })).rejects.toMatchObject({
+      await expect(topicService.duplicate('src-t', { nodeId: 'other-node' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
@@ -761,7 +837,7 @@ describe('TopicService', () => {
         }
       ])
 
-      await expect(topicService.duplicateTopic('src-t', { nodeId: 'orphan' })).rejects.toMatchObject({
+      await expect(topicService.duplicate('src-t', { nodeId: 'orphan' })).rejects.toMatchObject({
         code: ErrorCode.INVALID_OPERATION
       })
     })
@@ -783,7 +859,7 @@ describe('TopicService', () => {
         updatedAt: 1
       })
 
-      await expect(topicService.duplicateTopic('src-t', { nodeId: 'selected' })).rejects.toMatchObject({
+      await expect(topicService.duplicate('src-t', { nodeId: 'selected' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })

@@ -446,33 +446,7 @@ export class MessageService {
       return { items: [], nextCursor: undefined, activeNodeId: null, assistantId: topic.assistantId }
     }
 
-    // Use recursive CTE to collect path IDs from nodeId to root (single-column
-    // result is casing-safe), then fetch full rows via ORM to get camelCase
-    // mapping. See docs/references/data/database-patterns.md.
-    const pathIdRows = await db.all<{ id: string }>(sql`
-      WITH RECURSIVE path AS (
-        SELECT id, parent_id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
-        UNION ALL
-        SELECT m.id, m.parent_id FROM message m
-        INNER JOIN path p ON m.id = p.parent_id
-        WHERE m.deleted_at IS NULL
-      )
-      SELECT id FROM path
-    `)
-
-    if (pathIdRows.length === 0) {
-      throw DataApiErrorFactory.notFound('Message', nodeId)
-    }
-
-    const pathIds = pathIdRows.map((r) => r.id)
-    const pathRows = await db.select().from(messageTable).where(inArray(messageTable.id, pathIds))
-
-    // Preserve CTE order (nodeId → root); ORM IN-list does not guarantee order.
-    const pathOrder = new Map(pathIds.map((id, i) => [id, i]))
-    const pathMessages = pathRows.sort((a, b) => pathOrder.get(a.id)! - pathOrder.get(b.id)!)
-
-    // Reverse to get root->nodeId order
-    const fullPath = pathMessages.reverse()
+    const fullPath = await this.getPathRowsToNodeTx(db, nodeId, { topicId })
 
     // Apply pagination
     let startIndex = 0
@@ -523,6 +497,7 @@ export class MessageService {
         // `eq(col, null)` never matches in SQL — use `isNull` for root siblings.
         const orConditions = groupsToQuery.map((g) =>
           and(
+            eq(messageTable.topicId, topicId),
             g.parentId === null ? isNull(messageTable.parentId) : eq(messageTable.parentId, g.parentId),
             eq(messageTable.siblingsGroupId, g.siblingsGroupId)
           )
@@ -1258,9 +1233,13 @@ export class MessageService {
     tx: DbOrTx,
     rows: MessageRow[],
     options: { topicId: string }
-  ): Promise<{ copiedMessageIds: Map<string, string>; copiedActiveNodeId: string | null }> {
+  ): Promise<{ copiedMessageIds: Map<string, string>; copiedActiveNodeId: string }> {
+    if (rows.length === 0) {
+      throw DataApiErrorFactory.invalidOperation('copy message path', 'Source path is empty')
+    }
+
     const copiedMessageIds = new Map<string, string>()
-    let copiedActiveNodeId: string | null = null
+    let copiedActiveNodeId = ''
 
     for (const sourceMessage of rows) {
       let copiedParentId: string | null = null
@@ -1278,7 +1257,8 @@ export class MessageService {
           parentId: copiedParentId,
           role: sourceMessage.role,
           data: sourceMessage.data,
-          status: sourceMessage.status,
+          // A copied pending row has no stream owner; make it terminal.
+          status: sourceMessage.status === 'pending' ? 'error' : sourceMessage.status,
           siblingsGroupId: 0,
           modelId: sourceMessage.modelId,
           modelSnapshot: sourceMessage.modelSnapshot,
