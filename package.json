@@ -97,7 +97,6 @@
     "@libsql/client": "^0.15.15",
     "@napi-rs/canvas": "0.1.80",
     "@napi-rs/system-ocr": "1.0.2",
-    "@paddleocr/api-sdk": "^0.2.0",
     "@paymoapp/electron-shutdown-handler": "1.1.2",
     "@vectorstores/core": "^0.1.8",
     "@vectorstores/libsql": "workspace:*",
@@ -120,6 +119,7 @@
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",
+    "@paddleocr/api-sdk": "^0.2.0",
     "@agentic/searxng": "^7.3.3",
     "@agentic/tavily": "^7.3.3",
     "@ai-sdk/amazon-bedrock": "^4.0.96",

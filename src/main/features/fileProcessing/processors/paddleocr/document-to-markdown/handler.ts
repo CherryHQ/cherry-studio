@@ -28,7 +28,7 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
     return {
       mode: 'remote-poll',
       async startRemote(startSignal) {
-        const client = createPaddleClient(apiHost, apiKey)
+        const client = await createPaddleClient(apiHost, apiKey)
         const job = await client.submitDocumentParsing({ filePath: file.path, model }, { signal: startSignal })
         return {
           providerTaskId: job.jobId,
@@ -88,7 +88,7 @@ export async function buildPollResult(
   remoteContext: PaddleQueryContext,
   signal?: AbortSignal
 ): Promise<FileProcessingRemotePollResult<'document_to_markdown', PaddleQueryContext>> {
-  const client = createPaddleClient(remoteContext.apiHost, remoteContext.apiKey)
+  const client = await createPaddleClient(remoteContext.apiHost, remoteContext.apiKey)
   const status = await client.getStatus(providerTaskId, { signal })
 
   if (status.state === 'failed') {

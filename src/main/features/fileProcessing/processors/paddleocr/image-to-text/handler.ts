@@ -18,7 +18,7 @@ export const paddleImageToTextHandler: FileProcessingCapabilityHandler<'image_to
     return {
       mode: 'background',
       async execute(executionContext) {
-        const client = createPaddleClient(apiHost, apiKey)
+        const client = await createPaddleClient(apiHost, apiKey)
         const result = await client.ocr({ filePath: file.path, model }, { signal: executionContext.signal })
         const text = result.pages
           .flatMap((p) => {
