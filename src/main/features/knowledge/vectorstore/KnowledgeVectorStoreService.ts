@@ -1,22 +1,25 @@
 import fs from 'node:fs'
 
+import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CompletedKnowledgeBase, KnowledgeBase } from '@shared/data/types/knowledge'
 import { isCompletedKnowledgeBase } from '@shared/data/types/knowledge'
 
+import { isIndexableKnowledgeItem } from '../utils/items'
 import {
   deleteKnowledgeBaseDir,
   getKnowledgeVectorStoreFilePath,
   getKnowledgeVectorStoreFilePathSync
 } from '../utils/storage/pathStorage'
 import { hashChunkerConfig } from './indexStore/hashing'
-import { ensureIndexMeta } from './indexStore/indexMeta'
+import { ensureIndexMeta, hasLegacyVectorStoreTable } from './indexStore/indexMeta'
 import { KnowledgeIndexStore } from './indexStore/KnowledgeIndexStore'
 import { openLibsqlIndexDriver } from './indexStore/LibsqlDriver'
 import { libsqlVectorIndex } from './indexStore/LibsqlVectorIndex'
 import { createKnowledgeIndexSchema } from './indexStore/schema'
+import type { SqliteDriver } from './indexStore/types'
 
 const logger = loggerService.withContext('KnowledgeVectorStoreService')
 
@@ -75,8 +78,11 @@ export class KnowledgeVectorStoreService extends BaseService {
 
   /** Reuse or open the store only if its file already exists on disk; used by cleanup paths that must not create one. */
   async getIndexStoreIfExists(base: KnowledgeBase): Promise<KnowledgeIndexStore | undefined> {
-    assertVectorStoreReadyBase(base)
-
+    // No readiness assert here: cleanup must keep working on failed bases (see
+    // operation-guards.md — deleteItems intentionally skips the guard, so its
+    // delete-subtree job lands here for any base). A failed base never has a
+    // store file or cache entry, so it falls through to `undefined` and cleanup
+    // proceeds; if a file unexpectedly exists, getIndexStore still asserts.
     const cached = this.instanceCache.get(base.id)
     if (cached) {
       return cached
@@ -131,19 +137,55 @@ export class KnowledgeVectorStoreService extends BaseService {
     try {
       await createKnowledgeIndexSchema(driver)
       // Stamp + verify the index_meta identity row before handing out the store,
-      // so a swapped/corrupted index.sqlite is rejected here (§4.1).
+      // so an index.sqlite swapped in from another base is rejected here (§4.1).
+      // That is the only refusal — a blank/recreated file is stamped as fresh and
+      // mounts empty; reportInvisibleIndexContents below makes that state loud.
       await ensureIndexMeta(driver, {
         baseId: base.id,
         embeddingModelId: base.embeddingModelId,
         dimensions: base.dimensions,
         chunkerConfigHash: hashChunkerConfig(base.chunkSize, base.chunkOverlap)
       })
+      await this.reportInvisibleIndexContents(driver, base.id)
       return new KnowledgeIndexStore(driver, libsqlVectorIndex)
     } catch (error) {
       // Close the driver opened above so a failed open never leaks the libsql
       // file handle (which on Windows would later block deleting the base dir).
       await driver.close()
       throw error
+    }
+  }
+
+  /**
+   * Transitional loud-failure guard (until PR B). The v1 vector migrator — and
+   * the removed vendored store before it — wrote the legacy single-table layout
+   * into the same `index.sqlite` this store opens; the runtime layout mounts
+   * cleanly beside it but sees none of those vectors, so search would silently
+   * return empty forever. Detect that remnant, and the broader "base has
+   * completed items but the index holds nothing" state (deleted/blanked file),
+   * and log an error so the silent-empty symptom is diagnosable. PR B (migrator
+   * writes the final layout + legacy rewrite on open) replaces this detection.
+   */
+  private async reportInvisibleIndexContents(driver: SqliteDriver, baseId: string): Promise<void> {
+    if (await hasLegacyVectorStoreTable(driver)) {
+      logger.error(
+        'index.sqlite still holds the legacy single-table vector layout, which the runtime store cannot read — search will return empty results until the base is reindexed (legacy rewrite lands in PR B)',
+        { baseId }
+      )
+      return
+    }
+
+    const materialProbe = await driver.execute(`SELECT 1 FROM material LIMIT 1`)
+    if (materialProbe.rows.length > 0) {
+      return
+    }
+
+    const items = await knowledgeItemService.getItemsByBaseId(baseId)
+    if (items.some((item) => isIndexableKnowledgeItem(item) && item.status === 'completed')) {
+      logger.error(
+        'Index store mounted with zero materials while the base has completed items — the index file was deleted, blanked or replaced; search will return empty results until the base is reindexed',
+        { baseId }
+      )
     }
   }
 

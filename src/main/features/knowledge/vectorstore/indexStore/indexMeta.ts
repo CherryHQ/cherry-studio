@@ -25,9 +25,14 @@ export interface IndexMetaInput {
  * On first open it writes the single (`id = 1`) row with the schema version,
  * base id and contract snapshot; on a re-open it leaves the existing row intact
  * (`INSERT OR IGNORE`). Either way it then verifies the stored `base_id` equals
- * the expected one and rejects otherwise, so a mismatched or swapped
- * `index.sqlite` (another base's index, or a corrupted/empty file) is refused
- * rather than silently mounted (knowledge-technical-design.md §4.1).
+ * the expected one and rejects otherwise, so an `index.sqlite` swapped in from
+ * another base is refused rather than silently mounted
+ * (knowledge-technical-design.md §4.1).
+ *
+ * That base_id mismatch is the ONLY refusal here. A blank or recreated file has
+ * no row to mismatch — it is stamped as a fresh empty index and mounts cleanly;
+ * the store-open path logs an error when that happens under a base that already
+ * has completed items (see KnowledgeVectorStoreService).
  */
 export async function ensureIndexMeta(executor: SqliteExecutor, input: IndexMetaInput): Promise<void> {
   const now = Date.now()
@@ -58,4 +63,21 @@ export async function ensureIndexMeta(executor: SqliteExecutor, input: IndexMeta
       `index.sqlite belongs to a different base: expected base_id '${input.baseId}', found '${storedBaseId ?? '(none)'}'`
     )
   }
+}
+
+/**
+ * Table name of the legacy single-table vector layout — written by the removed
+ * vendored `@vectorstores/libsql` package and, until PR B, still written by
+ * `KnowledgeVectorMigrator` into the same `index.sqlite` the runtime opens. The
+ * runtime store never reads it, so its presence means the file holds vectors
+ * that are invisible to search.
+ */
+const LEGACY_VECTOR_TABLE_NAME = 'libsql_vectorstores_embedding'
+
+/** Whether the opened index database still contains the legacy single-table layout. */
+export async function hasLegacyVectorStoreTable(executor: SqliteExecutor): Promise<boolean> {
+  const result = await executor.execute(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`, [
+    LEGACY_VECTOR_TABLE_NAME
+  ])
+  return result.rows.length > 0
 }
