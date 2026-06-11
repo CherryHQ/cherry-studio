@@ -91,8 +91,18 @@ export function useAppInit() {
   }, [language])
 
   useEffect(() => {
-    window.root.style.background = navBackgroundColor
-  }, [navBackgroundColor])
+    const isMacTransparentWindow = windowStyle === 'transparent' && isMac
+
+    if (miniAppShow && isLeftNavbar) {
+      window.root.style.background = isMacTransparentWindow ? 'var(--color-background)' : navBackgroundColor
+      return
+    }
+
+    // In mac transparent mode the shell owns the wash (sidebar tint while the
+    // window is key, opaque sidebar when blurred — see AppShell); #root stays
+    // transparent so the native vibrancy can show through the tint.
+    window.root.style.background = isMacTransparentWindow ? 'transparent' : navBackgroundColor
+  }, [windowStyle, miniAppShow, theme, isLeftNavbar, navBackgroundColor])
 
   useEffect(() => {
     // set files path
