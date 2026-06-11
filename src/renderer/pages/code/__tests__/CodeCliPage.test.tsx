@@ -72,7 +72,7 @@ vi.mock('@renderer/config/constant', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useCache', () => ({
-  usePersistCache: () => [undefined, vi.fn()]
+  usePersistCache: () => [testState.isBunInstalled, vi.fn()]
 }))
 
 vi.mock('@renderer/hooks/useCodeCli', () => ({
