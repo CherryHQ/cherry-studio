@@ -6,6 +6,36 @@ export const audioExts = ['.mp3', '.wav', '.ogg', '.flac', '.aac']
 export const documentExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.odt', '.odp', '.ods']
 export const thirdPartyApplicationExts = ['.draftsExport']
 export const bookExts = ['.epub']
+export const knowledgeSupportedFileExts = [
+  '.txt',
+  '.markdown',
+  '.md',
+  '.mdx',
+  '.pdf',
+  '.html',
+  '.htm',
+  '.xlsx',
+  '.xls',
+  '.docx',
+  '.csv',
+  '.doc',
+  '.pptx',
+  '.epub',
+  '.draftsexport'
+] as const
+export const knowledgeFileProcessingExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls'] as const
+export const knowledgeFileDropzoneAccept = {
+  'text/plain': ['.txt', '.markdown', '.md', '.mdx', '.csv'],
+  'text/html': ['.html', '.htm'],
+  'application/pdf': ['.pdf'],
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+  'application/vnd.ms-excel': ['.xls'],
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+  'application/msword': ['.doc'],
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+  'application/epub+zip': ['.epub'],
+  'application/json': ['.draftsexport']
+} as const
 
 export const API_SERVER_DEFAULTS = {
   HOST: '127.0.0.1',

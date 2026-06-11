@@ -1,16 +1,19 @@
 import { Dropzone, DropzoneEmptyState } from '@cherrystudio/ui'
+import type { ComponentProps } from 'react'
 
 import type { DropzoneOnDrop } from '../types'
 
 interface DropzoneCardProps {
+  accept?: ComponentProps<typeof Dropzone>['accept']
   description: string
   onDrop: DropzoneOnDrop
   title: string
 }
 
-const DropzoneCard = ({ description, onDrop, title }: DropzoneCardProps) => {
+const DropzoneCard = ({ accept, description, onDrop, title }: DropzoneCardProps) => {
   return (
     <Dropzone
+      accept={accept}
       multiple
       maxFiles={0}
       onDrop={onDrop}

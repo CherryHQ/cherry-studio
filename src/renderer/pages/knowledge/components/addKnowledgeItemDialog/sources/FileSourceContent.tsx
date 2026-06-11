@@ -2,7 +2,7 @@ import { formatFileSize } from '@renderer/utils/file'
 import { FileText } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { KNOWLEDGE_SUPPORTED_FILE_TYPES } from '../constants'
+import { KNOWLEDGE_FILE_DROPZONE_ACCEPT, KNOWLEDGE_SUPPORTED_FILE_TYPES } from '../constants'
 import DropzoneCard from '../primitives/DropzoneCard'
 import SelectionListItem from '../primitives/SelectionListItem'
 import type { DropzoneOnDrop } from '../types'
@@ -37,6 +37,7 @@ const FileSourceContent = ({ files, onDrop, onRemove }: FileSourceContentProps) 
       </div>
 
       <DropzoneCard
+        accept={KNOWLEDGE_FILE_DROPZONE_ACCEPT}
         onDrop={onDrop}
         title={t('knowledge.drag_file')}
         description={t('knowledge.file_hint', { file_types: KNOWLEDGE_SUPPORTED_FILE_TYPES })}

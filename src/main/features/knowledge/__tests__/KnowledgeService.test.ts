@@ -778,6 +778,19 @@ describe('KnowledgeService', () => {
     expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
   })
 
+  it('rejects unsupported uploaded file extensions before copying files', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: null }))
+
+    await expect(
+      service.addItems('kb-1', [{ type: 'file', data: { source: '/Users/me/app.exe', path: '/Users/me/app.exe' } }])
+    ).rejects.toThrow('Unsupported knowledge file type: /Users/me/app.exe')
+
+    expect(knowledgeItemCreateMock).not.toHaveBeenCalled()
+    expect(copyFileIntoKnowledgeBaseMock).not.toHaveBeenCalled()
+    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+  })
+
   it('passes the parent job when starting file processing during reindex', async () => {
     const service = new KnowledgeService()
     const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')

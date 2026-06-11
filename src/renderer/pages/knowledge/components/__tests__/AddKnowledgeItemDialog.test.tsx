@@ -51,14 +51,16 @@ vi.mock('@cherrystudio/ui', async () => {
     ),
     Dropzone: ({
       children,
+      accept,
       onDrop,
       ...props
     }: {
+      accept?: Record<string, readonly string[]>
       children: React.ReactNode
       maxFiles?: number
       onDrop?: (files: File[]) => void
     }) => (
-      <div data-testid="file-dropzone" {...props}>
+      <div data-testid="file-dropzone" data-accept={JSON.stringify(accept)} {...props}>
         <button type="button" data-testid="mock-file-dropzone-trigger" onClick={() => onDrop?.(mockAcceptedFiles)}>
           触发选择
         </button>
@@ -233,7 +235,26 @@ describe('AddKnowledgeItemDialog', () => {
     expect(screen.getByRole('heading', { name: '添加数据源' })).toBeInTheDocument()
     expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
     expect(screen.getByText('拖拽文件到这里')).toBeInTheDocument()
-    expect(screen.getByText('支持 PDF, DOCX, MD, XLSX, TXT, CSV, EPUB 格式')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        '支持 TXT, MARKDOWN, MD, MDX, PDF, HTML, HTM, XLSX, XLS, DOCX, CSV, DOC, PPTX, EPUB, DRAFTSEXPORT 格式'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByTestId('file-dropzone')).toHaveAttribute(
+      'data-accept',
+      JSON.stringify({
+        'text/plain': ['.txt', '.markdown', '.md', '.mdx', '.csv'],
+        'text/html': ['.html', '.htm'],
+        'application/pdf': ['.pdf'],
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+        'application/vnd.ms-excel': ['.xls'],
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+        'application/msword': ['.doc'],
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+        'application/epub+zip': ['.epub'],
+        'application/json': ['.draftsexport']
+      })
+    )
     expect(screen.getByTestId('file-dropzone').querySelectorAll('img')).toHaveLength(0)
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
   })
@@ -261,12 +282,29 @@ describe('AddKnowledgeItemDialog', () => {
     expect(screen.getByText('已选 1 个文件')).toBeInTheDocument()
   })
 
+  it('keeps only supported files selected when files are dropped', () => {
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    setMockAcceptedFiles([
+      createMockFile('alpha.pdf', 1024),
+      createMockFile('notes.draftsExport', 1024),
+      createMockFile('beta.exe', 2048)
+    ])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    expect(screen.getByText('alpha.pdf')).toBeInTheDocument()
+    expect(screen.getByText('notes.draftsExport')).toBeInTheDocument()
+    expect(screen.queryByText('beta.exe')).not.toBeInTheDocument()
+    expect(screen.getByText('已选 2 个文件')).toBeInTheDocument()
+  })
+
   it('renders files passed from the external footer dropzone', () => {
-    setPendingAddFiles([createMockFile('external.pdf', 1024)])
+    setPendingAddFiles([createMockFile('external.pdf', 1024), createMockFile('external.exe', 1024)])
 
     render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
     expect(screen.getByText('external.pdf')).toBeInTheDocument()
+    expect(screen.queryByText('external.exe')).not.toBeInTheDocument()
     expect(screen.getByText('已选 1 个文件')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
   })

@@ -5,7 +5,7 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { getFileExt } from '@main/utils/file'
-import { documentExts } from '@shared/config/constant'
+import { knowledgeFileProcessingExts, knowledgeSupportedFileExts } from '@shared/config/constant'
 import { FileProcessorIdSchema } from '@shared/data/presets/file-processing'
 import type { CreateKnowledgeItemDto, KnowledgeAddItemInput, KnowledgeItem } from '@shared/data/types/knowledge'
 
@@ -39,6 +39,8 @@ import {
 const logger = loggerService.withContext('Knowledge:WorkflowService')
 // Keep poll jobs delayed enough to avoid hot-looping while remote processors are still working.
 const FILE_PROCESSING_CHECK_DELAY_MS = 5_000
+const KNOWLEDGE_SUPPORTED_FILE_EXT_SET = new Set<string>(knowledgeSupportedFileExts)
+const KNOWLEDGE_FILE_PROCESSING_EXT_SET = new Set<string>(knowledgeFileProcessingExts)
 
 export class KnowledgeWorkflowService {
   constructor(private readonly knowledgeLockManager: KnowledgeLockManager) {}
@@ -321,6 +323,7 @@ export class KnowledgeWorkflowService {
       return
     }
 
+    assertSupportedKnowledgeFilePath(input.data.path)
     const relativePath = getKnowledgeSourceRelativePath(input.data.path)
     this.reserveKnowledgeFilePath(reservedPaths, relativePath)
     if (needsProcessedArtifactReservation(fileProcessorId, relativePath)) {
@@ -409,5 +412,11 @@ function needsProcessedArtifactReservation(fileProcessorId: string | null | unde
     return false
   }
 
-  return documentExts.includes(getFileExt(relativePath).toLowerCase())
+  return KNOWLEDGE_FILE_PROCESSING_EXT_SET.has(getFileExt(relativePath).toLowerCase())
+}
+
+function assertSupportedKnowledgeFilePath(filePath: string): void {
+  if (!KNOWLEDGE_SUPPORTED_FILE_EXT_SET.has(getFileExt(filePath).toLowerCase())) {
+    throw new Error(`Unsupported knowledge file type: ${filePath}`)
+  }
 }

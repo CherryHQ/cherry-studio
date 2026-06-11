@@ -1,7 +1,9 @@
 import { Dialog, DialogContent } from '@cherrystudio/ui'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { getFileExtension } from '@renderer/utils/file'
 import { resolveKnowledgeFileData } from '@renderer/utils/knowledgeFileEntry'
+import { knowledgeSupportedFileExts } from '@shared/config/constant'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -44,6 +46,11 @@ const resolveSelectedFileEntryData = async (file: File) => {
   return resolveKnowledgeFileData(filePath, file.name)
 }
 
+const knowledgeSupportedFileExtSet = new Set<string>(knowledgeSupportedFileExts)
+
+const filterSupportedKnowledgeFiles = (files: File[]) =>
+  files.filter((file) => knowledgeSupportedFileExtSet.has(getFileExtension(file.name)))
+
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
   const { t } = useTranslation()
   const { selectedBaseId, pendingAddSource, pendingAddFiles } = useKnowledgePage()
@@ -66,7 +73,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
   const handleFileDrop = useCallback<DropzoneOnDrop>((acceptedFiles) => {
     setSubmitErrorMessage('')
-    setSelectedFiles(acceptedFiles)
+    setSelectedFiles(filterSupportedKnowledgeFiles(acceptedFiles))
   }, [])
 
   const handleDirectorySelect = useCallback(async () => {
@@ -112,7 +119,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
     if (pendingAddFiles?.length) {
       setActiveSource('file')
-      setSelectedFiles(pendingAddFiles)
+      setSelectedFiles(filterSupportedKnowledgeFiles(pendingAddFiles))
       return
     }
 
