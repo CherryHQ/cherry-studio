@@ -333,6 +333,14 @@ describe('Claude & regional providers', () => {
     expect(isClaudeReasoningModel(createModel({ id: 'claude-3-haiku' }))).toBe(false)
   })
 
+  it('treats the whole Claude Fable line as reasoning models', () => {
+    expect(isClaudeReasoningModel(createModel({ id: 'claude-fable-5' }))).toBe(true)
+    expect(isClaudeReasoningModel(createModel({ id: 'claude-fable-5.7' }))).toBe(true)
+    expect(isClaudeReasoningModel(createModel({ id: 'anthropic.claude-fable-5-v1:0' }))).toBe(true)
+    // Not pinned to major 5 — future Fable releases stay covered.
+    expect(isClaudeReasoningModel(createModel({ id: 'claude-fable-6' }))).toBe(true)
+  })
+
   it('covers hunyuan reasoning heuristics', () => {
     expect(isHunyuanReasoningModel(createModel({ id: 'hunyuan-a13b', provider: 'hunyuan' }))).toBe(true)
     expect(isHunyuanReasoningModel(createModel({ id: 'hunyuan-lite', provider: 'hunyuan' }))).toBe(false)
@@ -2701,6 +2709,16 @@ describe('Claude Models', () => {
       expect(getThinkModelType(createModel({ id: 'claude-opus-4-8' }))).toBe('claude46')
       expect(getThinkModelType(createModel({ id: 'anthropic.claude-opus-4-8-v1:0' }))).toBe('claude46')
       expect(getThinkModelType(createModel({ id: 'claude-opus-4-10' }))).toBe('claude46')
+    })
+
+    it('should return claude46 for the whole Claude Fable line (shares the 4.6 effort list)', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-fable-5' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'claude-fable-5-7' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'claude-fable-5.7' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'anthropic.claude-fable-5-v1:0' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'claude-fable-5-20260101' }))).toBe('claude46')
+      // Future Fable majors must keep working too (no hardcoded -5 anywhere in the chain).
+      expect(getThinkModelType(createModel({ id: 'claude-fable-6' }))).toBe('claude46')
     })
 
     it('should return default for non-reasoning Claude models', () => {

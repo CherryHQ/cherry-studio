@@ -28,6 +28,7 @@ import {
 } from './listModels/vertex'
 import {
   AIHubMixModelsResponseSchema,
+  AnthropicModelsResponseSchema,
   GeminiModelsResponseSchema,
   GitHubModelsResponseSchema,
   NewApiModelsResponseSchema,
@@ -198,6 +199,52 @@ const geminiFetcher: ModelFetcher = {
   }
 }
 
+const anthropicFetcher: ModelFetcher = {
+  match: (p) => p.id === SystemProviderIds.anthropic,
+  fetch: async (provider, signal) => {
+    const baseUrl = formatApiHost(provider.apiHost)
+    const apiKey = getApiKey(provider)
+    const headers = {
+      ...defaultAppHeaders(),
+      ...(apiKey ? { 'x-api-key': apiKey } : {}),
+      'anthropic-version': '2023-06-01',
+      ...provider.extra_headers
+    }
+    const models: z.infer<typeof AnthropicModelsResponseSchema>['data'] = []
+    let afterId: string | undefined
+    const seenCursors = new Set<string>()
+
+    do {
+      const searchParams = new URLSearchParams({ limit: '1000' })
+      if (afterId) searchParams.set('after_id', afterId)
+      const response = await getFromApi({
+        url: `${baseUrl}/models?${searchParams.toString()}`,
+        headers,
+        responseSchema: AnthropicModelsResponseSchema,
+        abortSignal: signal
+      })
+      models.push(...response.data)
+      const nextAfterId = response.has_more && response.last_id ? response.last_id : undefined
+      if (nextAfterId && seenCursors.has(nextAfterId)) {
+        logger.warn('Stopping Anthropic model pagination due to repeated cursor', {
+          providerId: provider.id,
+          cursor: nextAfterId
+        })
+        break
+      }
+      if (nextAfterId) seenCursors.add(nextAfterId)
+      afterId = nextAfterId
+    } while (afterId)
+
+    return dedup(models, (m) => m.id).map((m) =>
+      toModel(m.id, provider, {
+        name: m.display_name || m.id,
+        owned_by: 'anthropic'
+      })
+    )
+  }
+}
+
 const vertexFetcher: ModelFetcher = {
   match: (p) => isVertexProvider(p),
   fetch: async (provider, signal) => {
@@ -212,6 +259,7 @@ const vertexFetcher: ModelFetcher = {
         try {
           const publisherModels: z.infer<typeof VertexPublisherModelsResponseSchema>['publisherModels'] = []
           let pageToken: string | undefined
+          const seenTokens = new Set<string>()
 
           do {
             const searchParams = new URLSearchParams({
@@ -231,7 +279,17 @@ const vertexFetcher: ModelFetcher = {
             })
 
             publisherModels.push(...response.publisherModels)
-            pageToken = response.nextPageToken
+            const nextToken = response.nextPageToken
+            if (nextToken && seenTokens.has(nextToken)) {
+              logger.warn('Stopping Vertex model pagination due to repeated cursor', {
+                providerId: provider.id,
+                publisher,
+                cursor: nextToken
+              })
+              break
+            }
+            if (nextToken) seenTokens.add(nextToken)
+            pageToken = nextToken
           } while (pageToken)
 
           return publisherModels
@@ -503,6 +561,7 @@ const fetchers: ModelFetcher[] = [
   aiHubMixFetcher,
   ollamaFetcher,
   geminiFetcher,
+  anthropicFetcher,
   vertexFetcher,
   githubFetcher,
   copilotFetcher,
@@ -517,7 +576,7 @@ const fetchers: ModelFetcher[] = [
 
 // === Unsupported providers (skip before registry lookup) ===
 
-const UNSUPPORTED_PROVIDERS = new Set<string>([SystemProviderIds['aws-bedrock'], SystemProviderIds.anthropic])
+const UNSUPPORTED_PROVIDERS = new Set<string>([SystemProviderIds['aws-bedrock']])
 
 function isUnsupported(provider: Provider): boolean {
   return UNSUPPORTED_PROVIDERS.has(provider.id) || provider.type === 'vertex-anthropic'
