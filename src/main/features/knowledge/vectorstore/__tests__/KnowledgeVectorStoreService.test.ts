@@ -438,10 +438,10 @@ describe('KnowledgeVectorStoreService', () => {
       execute: vi.fn().mockResolvedValue({ rows: [] }),
       close: vi.fn().mockResolvedValue(undefined)
     }))
-    // A completed empty directory is legitimate without materials; pending leaves are too.
+    // A completed empty directory is legitimate without materials; in-flight leaves are too.
     getItemsByBaseIdMock.mockResolvedValueOnce([
       { id: 'item-1', type: 'directory', status: 'completed' },
-      { id: 'item-2', type: 'file', status: 'pending' }
+      { id: 'item-2', type: 'file', status: 'processing' }
     ])
 
     await service.getIndexStore(base)
