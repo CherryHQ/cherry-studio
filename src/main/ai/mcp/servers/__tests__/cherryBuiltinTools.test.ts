@@ -102,7 +102,18 @@ describe('cherryBuiltinTools', () => {
     const result = await callCherryBuiltinTool('web_search', { query: 'hello' }, signal)
 
     expect(result.isError).toBeFalsy()
-    expect(textOf(result)).toContain('No web search provider is configured')
+    expect(textOf(result)).toContain('No usable web search provider')
+    expect(textOf(result)).toContain('do not retry')
+  })
+
+  it('steers away from retrying when the configured provider lacks the capability', async () => {
+    // The second permanent failure from getProviderForCapability — equally non-retryable.
+    searchKeywords.mockRejectedValue(new Error('Web search provider tavily does not support capability searchKeywords'))
+
+    const result = await callCherryBuiltinTool('web_search', { query: 'hello' }, signal)
+
+    expect(result.isError).toBeFalsy()
+    expect(textOf(result)).toContain('No usable web search provider')
     expect(textOf(result)).toContain('do not retry')
   })
 

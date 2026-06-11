@@ -245,6 +245,40 @@ describe('tool_invoke meta-tool', () => {
       })
     })
 
+    it('feeds the inner toModelOutput the parsed params from execute (defaults applied), not the raw input', async () => {
+      innerExecute.mockReset().mockResolvedValue('ok')
+      innerToModelOutput.mockReset().mockReturnValue({ type: 'text', value: 'SUMMARY' })
+      const reg = new ToolRegistry()
+      reg.register({
+        name: 'web_search',
+        namespace: 'web',
+        description: 'search',
+        defer: 'auto',
+        tool: {
+          type: 'function',
+          description: 'search',
+          inputSchema: z.object({ query: z.string(), limit: z.number().default(10) }),
+          execute: innerExecute,
+          toModelOutput: innerToModelOutput
+        } as unknown as Tool
+      })
+      const tool = createToolInvokeTool(reg, allowAll('web_search'), inspected('web_search'))
+
+      // execute runs first on raw params (no `limit`) — the parsed value (limit defaulted to 10) is
+      // cached under the outer toolCallId.
+      await callInvoke(tool, { name: 'web_search', params: { query: 'mcp' } })
+
+      // toModelOutput on the SAME toolCallId must feed the inner formatter the cached PARSED params,
+      // not the raw `input.params`, so its view matches a native dispatch.
+      tool.toModelOutput!({
+        toolCallId: 'outer-1',
+        input: { name: 'web_search', params: { query: 'mcp' } },
+        output: { ok: true }
+      })
+      expect(innerToModelOutput).toHaveBeenCalledTimes(1)
+      expect(innerToModelOutput.mock.calls[0][0].input).toEqual({ query: 'mcp', limit: 10 })
+    })
+
     it('falls back to json output when the inner tool has no toModelOutput', () => {
       const reg = makeRegistry()
       const tool = createToolInvokeTool(reg, allowAll('mcp__s1__t'), inspected('mcp__s1__t'))
