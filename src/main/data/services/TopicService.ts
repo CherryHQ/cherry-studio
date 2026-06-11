@@ -17,10 +17,12 @@ import type {
   ListTopicsQuery,
   UpdateTopicDto
 } from '@shared/data/api/schemas/topics'
+import { chatMessageSourceType } from '@shared/data/types/file'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 
+import { fileRefService } from './FileRefService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -219,7 +221,7 @@ export class TopicService {
         tx,
         topicTable,
         {
-          name: dto.name ?? sourceTopic.name,
+          name: sourceTopic.name,
           assistantId: sourceTopic.assistantId,
           groupId: sourceTopic.groupId,
           activeNodeId: null
@@ -254,6 +256,8 @@ export class TopicService {
         copiedMessageIds.set(sourceMessage.id, copiedMessage.id)
         copiedActiveNodeId = copiedMessage.id
       }
+
+      await fileRefService.copyBySourceIdMapTx(tx, chatMessageSourceType, copiedMessageIds)
 
       if (!copiedActiveNodeId) {
         throw DataApiErrorFactory.invalidOperation('copy topic branch', 'No active node copied')

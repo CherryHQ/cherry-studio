@@ -69,13 +69,12 @@ describe('topicHandlers', () => {
       await expect(
         topicHandlers['/topics/:id/branch-copies'].POST({
           params: { id: 'source-topic' },
-          body: { nodeId: 'source-node', name: 'Copied' }
+          body: { nodeId: 'source-node' }
         } as never)
       ).resolves.toBe(topic)
 
       expect(copyBranchToNewTopicMock).toHaveBeenCalledWith('source-topic', {
-        nodeId: 'source-node',
-        name: 'Copied'
+        nodeId: 'source-node'
       })
       expect(maybeRenameForkedTopicMock).toHaveBeenCalledWith('copy-topic', 'assistant-1')
     })

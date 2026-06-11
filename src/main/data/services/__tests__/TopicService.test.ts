@@ -1,4 +1,5 @@
 import { assistantTable } from '@data/db/schemas/assistant'
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { groupTable } from '@data/db/schemas/group'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
@@ -7,6 +8,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { TopicService, topicService } from '@data/services/TopicService'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { chatMessageSourceType, type FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -524,9 +526,21 @@ describe('TopicService', () => {
 
   describe('copyBranchToNewTopic', () => {
     it('copies the root-to-node path into a new topic and prunes siblings and descendants', async () => {
+      const fileEntryId = '019606a0-0000-7000-8000-00000000fb01' as FileEntryId
       await dbh.db
         .insert(topicTable)
         .values({ id: 'src-t', name: 'Source', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(fileEntryTable).values({
+        id: fileEntryId,
+        origin: 'internal',
+        name: 'branch-attachment',
+        ext: 'txt',
+        size: 1,
+        externalPath: null,
+        deletedAt: null,
+        createdAt: 1,
+        updatedAt: 1
+      })
       await dbh.db.insert(messageTable).values([
         {
           id: 'root',
@@ -544,7 +558,18 @@ describe('TopicService', () => {
           topicId: 'src-t',
           parentId: 'root',
           role: 'assistant',
-          data: { parts: [{ type: 'text', text: 'selected answer' }] },
+          data: {
+            parts: [
+              { type: 'text', text: 'selected answer' },
+              {
+                type: 'file',
+                mediaType: 'text/plain',
+                url: 'file:///tmp/branch-attachment.txt',
+                filename: 'branch-attachment.txt',
+                providerMetadata: { cherry: { fileEntryId } }
+              }
+            ]
+          },
           status: 'success',
           siblingsGroupId: 77,
           createdAt: 2,
@@ -573,11 +598,20 @@ describe('TopicService', () => {
           updatedAt: 4
         }
       ])
+      await dbh.db.insert(fileRefTable).values({
+        id: '11111111-1111-4111-8111-123456789abc',
+        fileEntryId,
+        sourceType: chatMessageSourceType,
+        sourceId: 'selected',
+        role: 'attachment',
+        createdAt: 2,
+        updatedAt: 2
+      })
 
-      const result = await topicService.copyBranchToNewTopic('src-t', { nodeId: 'selected', name: 'Copied' })
+      const result = await topicService.copyBranchToNewTopic('src-t', { nodeId: 'selected' })
 
       expect(result.id).not.toBe('src-t')
-      expect(result.name).toBe('Copied')
+      expect(result.name).toBe('Source')
       expect(result.activeNodeId).toBeDefined()
       expect(result.activeNodeId).not.toBe('selected')
 
@@ -594,6 +628,21 @@ describe('TopicService', () => {
       expect(copiedLeaf?.data.parts?.[0]).toEqual({ type: 'text', text: 'selected answer' })
       expect(copiedLeaf?.siblingsGroupId).toBe(0)
       expect(result.activeNodeId).toBe(copiedLeaf?.id)
+      expect(copiedLeaf?.data.parts?.[1]).toMatchObject({
+        type: 'file',
+        providerMetadata: { cherry: { fileEntryId } }
+      })
+
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceType, chatMessageSourceType))
+      expect(refs).toHaveLength(2)
+      expect(refs).toContainEqual(
+        expect.objectContaining({
+          fileEntryId,
+          sourceType: chatMessageSourceType,
+          sourceId: copiedLeaf?.id,
+          role: 'attachment'
+        })
+      )
 
       const sourceRows = await dbh.db
         .select({ id: messageTable.id })

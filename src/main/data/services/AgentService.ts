@@ -45,10 +45,6 @@ export interface AgentDeletedEvent {
 
 type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
 
-type AgentListOptions = ListOptions & {
-  updatedAtFrom?: number
-}
-
 function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
   if (invalidKeys.length > 0) {
@@ -157,7 +153,7 @@ export class AgentService {
     return rowToAgent(row.agent, row.modelName || null)
   }
 
-  async listAgents(options: AgentListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
+  async listAgents(options: ListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
     const database = application.get('DbService').getDb()
 
     // AND-compose deletedAt-null + optional search. Search runs LIKE against
@@ -169,9 +165,6 @@ export class AgentService {
       const descMatch = sql`${agentsTable.description} LIKE ${pattern} ESCAPE '\\'`
       const searchClause = or(nameMatch, descMatch)
       if (searchClause) conditions.push(searchClause)
-    }
-    if (options.updatedAtFrom !== undefined) {
-      conditions.push(gte(agentsTable.updatedAt, options.updatedAtFrom))
     }
     const whereClause = and(...conditions)
 

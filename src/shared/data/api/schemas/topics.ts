@@ -7,7 +7,7 @@
 
 import * as z from 'zod'
 
-import { type Topic, TopicNameEntitySchema, TopicSchema } from '../../types/topic'
+import { type Topic, TopicSchema } from '../../types/topic'
 import type { CursorPaginationResponse } from '../apiTypes'
 import type { OrderEndpoints } from './_endpointHelpers'
 
@@ -87,9 +87,7 @@ export type SetActiveNodeDto = z.infer<typeof SetActiveNodeSchema>
  */
 export const CopyTopicBranchSchema = z.strictObject({
   /** Message node to copy up to. Must belong to the source topic. */
-  nodeId: z.string().min(1),
-  /** Optional explicit name for the copied topic. Defaults to the source topic name. */
-  name: TopicNameEntitySchema.optional()
+  nodeId: z.string().min(1)
 })
 export type CopyTopicBranchDto = z.infer<typeof CopyTopicBranchSchema>
 

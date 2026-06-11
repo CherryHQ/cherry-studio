@@ -37,10 +37,9 @@ describe('SetActiveNodeSchema', () => {
 })
 
 describe('CopyTopicBranchSchema', () => {
-  it('accepts nodeId with optional name', () => {
-    expect(CopyTopicBranchSchema.parse({ nodeId: 'n1', name: 'Copied branch' })).toEqual({
-      nodeId: 'n1',
-      name: 'Copied branch'
+  it('accepts nodeId only', () => {
+    expect(CopyTopicBranchSchema.parse({ nodeId: 'n1' })).toEqual({
+      nodeId: 'n1'
     })
   })
 
