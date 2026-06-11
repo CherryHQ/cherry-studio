@@ -2327,7 +2327,7 @@
         "bm25": "全文检索",
         "hybrid": "混合检索（推荐）",
         "title": "检索模式",
-        "vector": "向量检索"
+        "vector": "向量檢索"
       },
       "separator_rule": "分隔符规则",
       "threshold": "相似度阈值",
