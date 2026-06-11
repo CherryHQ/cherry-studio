@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
+import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
 import type { SpanEntity } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
@@ -41,6 +42,7 @@ function readableSpan(overrides: { spanId: string; traceId: string; ended: boole
     parentSpanContext: undefined,
     startTime: [1, 0],
     endTime: overrides.ended ? [2, 0] : [0, 0],
+    ended: overrides.ended,
     status: { code: SpanStatusCode.OK },
     attributes: {},
     events: [],
@@ -140,6 +142,32 @@ describe('TraceStorageService', () => {
     cappedStore.setSpan(span({ id: 'newer', traceId: 'trace-newer' }))
 
     expect(cappedStore.getSpan('live')).toBeUndefined()
+    expect(cappedStore.getSpan('newer')).toBeDefined()
+  })
+
+  // The AiTurnTrace end-patch builds entities with `convertSpanToSpanEntity` and writes them via
+  // `writeSpanEntity` → `saveEntity` (no explicit isEnd override like createSpan/endSpan have).
+  // Pre-fix the converter omitted `isEnd` (the `as SpanEntity` cast hid the missing field), so turn
+  // root spans landed with `isEnd: undefined` and their traces were never evictable. Confirm the
+  // converter now derives `isEnd` from `span.ended` and the saved entity is evictable.
+  it('derives isEnd through the saveEntity/convertSpanToSpanEntity path (REGRESSION observability-eviction-saveEntity)', async () => {
+    await service._doInit()
+
+    // Converter sets isEnd from the OTel `ended` flag — true for an ended span, false in-flight.
+    const endedEntity = convertSpanToSpanEntity(readableSpan({ spanId: 'turn-root', traceId: 'trace-x', ended: true }))
+    expect(endedEntity.isEnd).toBe(true)
+    expect(convertSpanToSpanEntity(readableSpan({ spanId: 'live2', traceId: 'trace-y', ended: false })).isEnd).toBe(
+      false
+    )
+
+    // The saveEntity path keeps isEnd (addEntity never sets it), so the trace is evictable.
+    service.saveEntity({ ...endedEntity, topicId: 't' } as SpanEntity)
+    expect(service['store'].getSpan('turn-root')?.isEnd).toBe(true)
+
+    const cappedStore = new TraceSpanStore(1)
+    cappedStore.setSpan({ ...(service['store'].getSpan('turn-root') as SpanEntity) })
+    cappedStore.setSpan(span({ id: 'newer', traceId: 'trace-newer' }))
+    expect(cappedStore.getSpan('turn-root')).toBeUndefined()
     expect(cappedStore.getSpan('newer')).toBeDefined()
   })
 
