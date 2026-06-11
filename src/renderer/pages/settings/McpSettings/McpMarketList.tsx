@@ -135,7 +135,7 @@ const MarketHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'d
 )
 
 const MarketLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img'>) => (
-  <img className={cn('h-[18px] w-[18px] rounded object-cover', className)} {...props} />
+  <img className={cn('h-4.5 w-4.5 rounded object-cover', className)} {...props} />
 )
 
 const MarketName = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (

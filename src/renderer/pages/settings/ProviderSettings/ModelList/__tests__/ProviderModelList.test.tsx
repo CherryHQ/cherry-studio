@@ -5,6 +5,17 @@ import { MODEL_LIST_CAPABILITY_FILTERS } from '../modelListDerivedState'
 import ProviderModelList from '../ProviderModelList'
 
 const onToggleVisibleModelsMock = vi.fn()
+const { loggerErrorMock } = vi.hoisted(() => ({
+  loggerErrorMock: vi.fn()
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      error: loggerErrorMock
+    })
+  }
+}))
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
@@ -12,6 +23,7 @@ vi.mock('react-i18next', async (importOriginal) => {
   return {
     ...actual,
     useTranslation: () => ({
+      i18n: { language: 'en-US' },
       t: (key: string) => key
     })
   }
@@ -27,6 +39,16 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         {children}
       </button>
     ),
+    MenuItem: ({ icon, label, onClick, ...props }: any) => (
+      <button type="button" onClick={onClick} {...props}>
+        {icon}
+        {label}
+      </button>
+    ),
+    MenuList: ({ children }: any) => <div>{children}</div>,
+    Popover: ({ children }: any) => <div>{children}</div>,
+    PopoverContent: ({ children }: any) => <div>{children}</div>,
+    PopoverTrigger: ({ children }: any) => <>{children}</>,
     Tooltip: ({ children }: any) => <>{children}</>
   }
 })
@@ -36,7 +58,18 @@ vi.mock('../ModelDrawer', () => ({
 }))
 
 vi.mock('../ModelListGroup', () => ({
-  default: ({ groupName }: { groupName: string }) => <div>{groupName}</div>
+  default: ({
+    expansionCommand,
+    groupName
+  }: {
+    expansionCommand?: { expanded: boolean; version: number }
+    groupName: string
+  }) => (
+    <div>
+      {groupName}
+      {expansionCommand ? `:${String(expansionCommand.expanded)}:${expansionCommand.version}` : null}
+    </div>
+  )
 }))
 
 vi.mock('../useProviderModelList', () => ({
@@ -69,7 +102,8 @@ vi.mock('../useProviderModelList', () => ({
       disabled: false,
       pendingModelIds: new Set<string>(),
       onEditModel: vi.fn(),
-      onToggleModel: vi.fn()
+      onToggleModel: vi.fn(),
+      onToggleModels: vi.fn()
     },
     editDrawer: {
       open: false,
@@ -89,7 +123,7 @@ describe('ProviderModelList', () => {
     onToggleVisibleModelsMock.mockResolvedValue(undefined)
   })
 
-  it('renders enabled-section actions and closes visible models from the section row', () => {
+  it('renders enabled-section actions and closes visible models from the action menu', () => {
     render(
       <ProviderModelList
         providerId="openai"
@@ -99,6 +133,7 @@ describe('ProviderModelList', () => {
     )
 
     expect(screen.getByText('health-action')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'settings.models.more_actions' })).toHaveLength(2)
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.bulk_disable' }))
 
@@ -115,13 +150,29 @@ describe('ProviderModelList', () => {
     await waitFor(() => {
       expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
     })
+    expect(loggerErrorMock).toHaveBeenCalledWith(
+      'Failed to disable visible provider models',
+      expect.objectContaining({
+        providerId: 'openai',
+        error: expect.any(Error)
+      })
+    )
   })
 
-  it('enables visible disabled models from the disabled section row', () => {
+  it('enables visible disabled models from the action menu', () => {
     render(<ProviderModelList providerId="openai" disabled={false} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.bulk_enable' }))
 
     expect(onToggleVisibleModelsMock).toHaveBeenCalledWith(true)
+  })
+
+  it('collapses and expands all groups from the action menu', () => {
+    render(<ProviderModelList providerId="openai" disabled={false} />)
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'settings.models.expand_all' })[0])
+    expect(screen.getAllByText(/:true:1/).length).toBeGreaterThan(0)
+    fireEvent.click(screen.getAllByRole('button', { name: 'settings.models.collapse_all' })[0])
+    expect(screen.getAllByText(/:false:2/).length).toBeGreaterThan(0)
   })
 })

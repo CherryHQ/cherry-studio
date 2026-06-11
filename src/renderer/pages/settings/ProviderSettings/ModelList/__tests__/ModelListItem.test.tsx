@@ -30,8 +30,14 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     Avatar: ({ children }: any) => <span>{children}</span>,
     AvatarFallback: ({ children }: any) => <span>{children}</span>,
     RowFlex: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    Switch: ({ checked, onCheckedChange, ...props }: any) => (
-      <button type="button" role="switch" aria-checked={checked} onClick={() => onCheckedChange(!checked)} {...props}>
+    Switch: ({ checked, onCheckedChange, size, ...props }: any) => (
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        data-size={size}
+        onClick={() => onCheckedChange(!checked)}
+        {...props}>
         {String(checked)}
       </button>
     ),
@@ -93,7 +99,27 @@ describe('ModelListItem', () => {
     })
   })
 
-  it('opens the model drawer from the model name and only copies from the copy button', async () => {
+  it('uses the smallest switch size for the model row action', () => {
+    render(
+      <ModelListItem
+        model={
+          {
+            id: 'openai::alpha',
+            providerId: 'openai',
+            name: 'Alpha',
+            isEnabled: true,
+            capabilities: []
+          } as any
+        }
+        onEdit={vi.fn()}
+        onToggleEnabled={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('switch')).toHaveAttribute('data-size', 'xs')
+  })
+
+  it('opens the model drawer from the model name and settings button', async () => {
     const onEdit = vi.fn()
 
     render(
@@ -118,9 +144,9 @@ describe('ModelListItem', () => {
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
 
     onEdit.mockClear()
-    fireEvent.click(screen.getByLabelText('settings.models.copy_model_id_tooltip'))
+    fireEvent.click(screen.getByLabelText('common.settings'))
 
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('alpha')
-    expect(onEdit).not.toHaveBeenCalled()
+    expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::alpha' }))
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
   })
 })
