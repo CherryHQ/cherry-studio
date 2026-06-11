@@ -9,11 +9,11 @@
  *   A. unseen-schema guard — the first invoke of a tool whose signature the
  *      model hasn't seen is rejected with that signature; the name is then
  *      recorded so the corrected retry passes (no inspect loop). This is the
- *      only protection for raw-JSONSchema tools, where B is a no-op.
+ *      only protection for `jsonSchema()`-wrapped tools (e.g. MCP), where B is a no-op.
  *   B. param validation — arguments are validated against the tool input
  *      schema; a mismatch is rejected with the signature. (Tools backed by a
- *      raw JSONSchema carry no validator, so B is a no-op for them — same as
- *      the SDK's native dispatch path.)
+ *      `jsonSchema()`-wrapped schema (e.g. MCP) carry no validator, so B is a
+ *      no-op for them — same as the SDK's native dispatch path.)
  *
  * Forwards the AI SDK execution options (messages, abortSignal,
  * experimental_context) onto the inner tool's `execute` so the per-request
@@ -44,6 +44,11 @@ export function createToolInvokeTool(
   allowedNames: ReadonlySet<string>,
   inspectedNames: Set<string>
 ): Tool {
+  // Per-request cache of the Guard-B-parsed params keyed by the tool_invoke call id, so the
+  // `toModelOutput` hook below can feed the inner formatter the SAME input `execute` ran on
+  // (defaults / coercions applied) — native dispatch keeps execute's and toModelOutput's input
+  // identical, and the inner formatter (e.g. kb_list) keys its output off those params.
+  const parsedParamsByCallId = new Map<string, Record<string, unknown>>()
   return tool({
     description:
       'Call a single tool discovered via `tool_search` by name, passing arguments under `params`. ' +
@@ -90,6 +95,7 @@ export function createToolInvokeTool(
 
       // Guard B: validate params against the tool input schema.
       const finalParams = await validateParams(entry, params ?? {})
+      parsedParamsByCallId.set(options.toolCallId, finalParams)
 
       return entry.tool.execute(finalParams, {
         ...options,
@@ -103,7 +109,10 @@ export function createToolInvokeTool(
       const entry = allowedNames.has(input.name) ? registry.getByName(input.name) : undefined
       const innerToModelOutput = entry?.tool.toModelOutput
       if (innerToModelOutput) {
-        return innerToModelOutput({ toolCallId: `${toolCallId}::${input.name}`, input: input.params ?? {}, output })
+        // Feed the inner formatter the parsed params `execute` ran on, not the raw `input.params`,
+        // so its view matches native dispatch. Falls back to raw input if no parse was recorded.
+        const innerInput = parsedParamsByCallId.get(toolCallId) ?? input.params ?? {}
+        return innerToModelOutput({ toolCallId: `${toolCallId}::${input.name}`, input: innerInput, output })
       }
       return { type: 'json', value: output }
     }
@@ -113,8 +122,8 @@ export function createToolInvokeTool(
 /**
  * Validate `params` against the tool input schema, returning the parsed value
  * (Zod defaults/coercions applied) on success. Throws with the tool signature
- * on mismatch. Schemas without a validator (raw JSONSchema, e.g. MCP tools)
- * pass through unchanged — Guard A is their protection.
+ * on mismatch. Schemas without a validator (`jsonSchema()`-wrapped, e.g. MCP
+ * tools) pass through unchanged — Guard A is their protection.
  */
 async function validateParams(entry: ToolEntry, params: Record<string, unknown>): Promise<Record<string, unknown>> {
   const validate = asSchema(entry.tool.inputSchema as Parameters<typeof asSchema>[0]).validate
