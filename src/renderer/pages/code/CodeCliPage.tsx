@@ -485,7 +485,7 @@ const CodeCliPage: FC = () => {
   const launchSuccess = launchStatus === 'success'
 
   return (
-    <div className="flex flex-1 flex-col text-foreground">
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden text-foreground">
       <Navbar>
         <NavbarCenter className="border-r-0">{t('code.title')}</NavbarCenter>
       </Navbar>
