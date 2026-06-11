@@ -26,17 +26,19 @@ KnowledgeBase/{baseId}/
 
 ## 4. index.sqlite 表结构（9 张表）
 
-| 表 | 当前用法 | 用途 |
+| 表 | 当前用法 | 做什么 |
 | --- | --- | --- |
-| `index_meta` | 使用 | 单行索引库元信息与契约快照 |
-| `material` | 使用 | 材料稳定身份、路径、状态与失败摘要 |
-| `material_relation` | 只建表 | 材料来源关系（v2.x 记录 PDF→Markdown） |
-| `content` | 使用 | 规范化索引文本，按内容哈希保存（整份 material 文本，非每 chunk） |
-| `search_unit` | 使用 | 检索单元（chunk），带 `char_start/char_end` offset |
-| `content_index_entry` | 只建表 | 可编辑内容索引条目（v2.x） |
-| `search_text` | 使用 | 统一检索文本投影，FTS 与 embedding 共用 |
-| `embedding` | 使用 | 当前 embedding 文本的向量（裸 BLOB） |
-| `search_text_fts` | 创建并同步 | FTS5 虚表（trigram） |
+| `index_meta` | 使用 | 索引库的「身份证 + 契约」固定单行：记录此索引属于哪个 base、当前向量 / chunk 是按哪个 embedding 模型·维度·chunker 配置建的；打开时校验 base_id，契约变化触发重建 |
+| `material` | 使用 | 每条材料（文件 / URL / 笔记）的稳定身份行：相对路径、状态（active/missing）、来源、索引策略；其余表都按 `material_id` 关联到它 |
+| `material_relation` | 只建表 | 材料间的派生关系（如 PDF → 生成的 Markdown）；当前只建表，v2.x 启用 |
+| `content` | 使用 | 每份材料规范化后的整份正文，按内容哈希存一份（相同正文跨材料复用）；是 chunk 切片的源文本 |
+| `search_unit` | 使用 | 由 `content` 切出的检索单元（chunk），用 `char_start/char_end` 标记它在正文中的位置；`unit_id` 稳定 |
+| `content_index_entry` | 只建表 | 可人工编辑 / 校正的索引条目；当前只建表，是 v2.x「越用越准」的增强层 |
+| `search_text` | 使用 | 真正进入检索的文本投影：FTS 与 embedding 都从这里取文本，与原始 `content` 解耦 |
+| `embedding` | 使用 | 检索文本的向量，按文本哈希存（裸 BLOB）；同一段文字只嵌一次、可被多条 `search_text` 复用 |
+| `search_text_fts` | 创建并同步 | `search_text` 的 FTS5 全文索引（trigram）；关键词 / BM25 检索走这条 lane |
+
+数据流：`material`（材料）→ `content`（整份正文）→ `search_unit`（切出的 chunk）→ `search_text`（每个 chunk 实际入索引的文本）→ `embedding`（向量）+ `search_text_fts`（全文索引）两条检索 lane；`index_meta` 锚定这套索引建立时的契约，`material_relation` / `content_index_entry` 为 v2.x 预留。
 
 DDL 在 `indexStore/schema.ts`（per-base 库，不进主 DB drizzle 迁移链）。
 
