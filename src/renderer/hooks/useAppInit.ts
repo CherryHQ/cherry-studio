@@ -105,7 +105,10 @@ export function useAppInit() {
       return
     }
 
-    window.root.style.background = navBackgroundColor
+    // In mac transparent mode the shell owns the wash (sidebar tint while the
+    // window is key, opaque sidebar when blurred — see AppShell); #root stays
+    // transparent so the native vibrancy can show through the tint.
+    window.root.style.background = isMacTransparentWindow ? 'transparent' : navBackgroundColor
   }, [windowStyle, miniAppShow, theme, isLeftNavbar, navBackgroundColor])
 
   useEffect(() => {
