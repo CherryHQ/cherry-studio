@@ -38,8 +38,6 @@ export const messageTable = sqliteTable(
     modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     // Snapshot of model at message creation time
     modelSnapshot: text({ mode: 'json' }).$type<ModelSnapshot>(),
-    // Trace for tracking
-    traceId: text(),
     // Statistics: token usage, performance metrics, etc.
     stats: text({ mode: 'json' }).$type<MessageStats>(),
 
@@ -51,7 +49,6 @@ export const messageTable = sqliteTable(
     // Indexes
     index('message_parent_id_idx').on(t.parentId),
     index('message_topic_created_idx').on(t.topicId, t.createdAt),
-    index('message_trace_id_idx').on(t.traceId),
     // Backs findPendingAssistantMessageIds (boot reconcile); without it that lookup full-SCANs.
     // Plain, not partial — Drizzle binds `status = ?`, which SQLite can't match to a partial index.
     index('message_status_idx').on(t.status),

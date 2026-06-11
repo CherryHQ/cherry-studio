@@ -29,7 +29,8 @@ interface SpanWithInternals extends Span {
   status?: { code: SpanStatusCode; message?: string }
   kind?: SpanKind
   ended?: boolean
-  parentSpanId?: string
+  /** OTel SDK v2 ReadableSpan parent. (v1's `parentSpanId` string was removed.) */
+  parentSpanContext?: { spanId?: string }
   links?: any[]
 }
 
@@ -92,8 +93,11 @@ export class AiSdkSpanAdapter {
     if (spanWithInternals.ended !== undefined) {
       ended = spanWithInternals.ended
     }
-    if (spanWithInternals.parentSpanId) {
-      parentSpanId = spanWithInternals.parentSpanId
+    // OTel SDK v2 exposes the parent as `parentSpanContext`; v1's `parentSpanId` string was removed
+    // (always undefined here). Reading only the old field left every AI SDK span with an empty parent,
+    // so `ai.streamText` & co. rendered as trace roots instead of nesting under `ai.turn`.
+    if (spanWithInternals.parentSpanContext?.spanId) {
+      parentSpanId = spanWithInternals.parentSpanContext.spanId
     }
     // Fallback: read the parent info we injected from attributes.
     if (!parentSpanId && attributes['trace.parentSpanId']) {
@@ -168,53 +172,54 @@ export class AiSdkSpanAdapter {
   }
 
   /**
-   * Extract token usage from AI SDK attributes.
-   * Supports multiple formats:
-   * - AI SDK standard format: ai.usage.completionTokens, ai.usage.promptTokens
-   * - Full usage object format: ai.usage (JSON string or object)
+   * Extract token usage from AI SDK attributes. Reads AI SDK v6 keys
+   * (`ai.usage.inputTokens`/`outputTokens`/`totalTokens`/`cachedInputTokens`/`reasoningTokens`), the
+   * legacy `promptTokens`/`completionTokens` aliases, the `gen_ai.usage.*` semantic-convention
+   * spelling, and the single-value `ai.usage.tokens` embeddings shape. See the inline notes below.
    */
   private static extractTokenUsage(attributes: Record<string, any>): TokenUsage | undefined {
-    const inputsTokenKeys = [
-      // base span
-      'ai.usage.promptTokens',
-      // LLM span
-      'gen_ai.usage.input_tokens'
-    ]
-    const outputTokenKeys = [
-      // base span
-      'ai.usage.completionTokens',
-      // LLM span
-      'gen_ai.usage.output_tokens'
-    ]
-
-    const promptTokens = attributes[inputsTokenKeys.find((key) => attributes[key]) || '']
-    const completionTokens = attributes[outputTokenKeys.find((key) => attributes[key]) || '']
-
-    if (completionTokens !== undefined || promptTokens !== undefined) {
-      const usage: TokenUsage = {
-        prompt_tokens: Number(promptTokens) || 0,
-        completion_tokens: Number(completionTokens) || 0,
-        total_tokens: (Number(promptTokens) || 0) + (Number(completionTokens) || 0)
+    const read = (...keys: string[]): number | undefined => {
+      for (const key of keys) {
+        const value = attributes[key]
+        if (value === undefined || value === null || value === '') continue
+        const n = Number(value)
+        if (!Number.isNaN(n)) return n
       }
-
-      logger.debug('Extracted token usage from AI SDK standard attributes', {
-        usage,
-        foundStandardAttributes: {
-          'ai.usage.completionTokens': completionTokens,
-          'ai.usage.promptTokens': promptTokens
-        }
-      })
-
-      return usage
+      return undefined
     }
 
-    // Spans without token usage (e.g. tool calls) are expected.
-    logger.debug('No token usage found in span attributes (normal for tool calls)', {
-      availableKeys: Object.keys(attributes),
-      usageKeys: Object.keys(attributes).filter((key) => key.includes('usage') || key.includes('token'))
-    })
+    // AI SDK v6 emits `ai.usage.inputTokens`/`outputTokens`; `promptTokens`/`completionTokens` are
+    // legacy aliases and `gen_ai.usage.*` is the semantic-convention spelling. Reading only the legacy
+    // names dropped the top-level `ai.streamText` totals. Embeddings emit a single `ai.usage.tokens`.
+    const input = read('ai.usage.inputTokens', 'ai.usage.promptTokens', 'gen_ai.usage.input_tokens', 'ai.usage.tokens')
+    const output = read('ai.usage.outputTokens', 'ai.usage.completionTokens', 'gen_ai.usage.output_tokens')
+    const total = read('ai.usage.totalTokens')
+    const cached = read('ai.usage.cachedInputTokens')
+    const reasoning = read('ai.usage.reasoningTokens')
 
-    return undefined
+    if (
+      input === undefined &&
+      output === undefined &&
+      total === undefined &&
+      cached === undefined &&
+      reasoning === undefined
+    ) {
+      // Spans without token usage (e.g. tool calls) are expected.
+      return undefined
+    }
+
+    const promptTokens = input ?? 0
+    const completionTokens = output ?? 0
+    // Object keys stay snake_case: this is the TokenUsage contract in trace-core/types/config.ts.
+    return {
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      // Prefer the SDK's reported total (it accounts for reasoning/cached), else sum the two.
+      total_tokens: total ?? promptTokens + completionTokens,
+      // cached input tokens are a subset of input; reasoning tokens a subset of output.
+      ...(cached !== undefined ? { prompt_tokens_details: { cached_tokens: cached } } : {}),
+      ...(reasoning !== undefined ? { completion_tokens_details: { reasoning_tokens: reasoning } } : {})
+    }
   }
 
   /**

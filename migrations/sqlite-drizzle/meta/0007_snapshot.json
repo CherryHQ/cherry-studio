@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "61f08f22-2bed-4683-8da1-64dbad4556f4",
+  "id": "08483484-877c-40f7-bae0-9e214823d99a",
   "prevId": "12c31ab7-e458-418b-b498-1679e9a5bcbe",
   "tables": {
     "agent": {
@@ -72,8 +72,8 @@
           "autoincrement": false,
           "default": "'[]'"
         },
-        "disabled_tools": {
-          "name": "disabled_tools",
+        "allowed_tools": {
+          "name": "allowed_tools",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -524,6 +524,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "trace_id": {
+          "name": "trace_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "order_key": {
           "name": "order_key",
           "type": "text",
@@ -632,13 +639,6 @@
         },
         "model_snapshot": {
           "name": "model_snapshot",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "trace_id": {
-          "name": "trace_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -828,8 +828,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'user'"
+          "autoincrement": false
         },
         "order_key": {
           "name": "order_key",
@@ -2365,13 +2364,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "trace_id": {
-          "name": "trace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
         "stats": {
           "name": "stats",
           "type": "text",
@@ -2410,11 +2402,6 @@
         "message_topic_created_idx": {
           "name": "message_topic_created_idx",
           "columns": ["topic_id", "created_at"],
-          "isUnique": false
-        },
-        "message_trace_id_idx": {
-          "name": "message_trace_id_idx",
-          "columns": ["trace_id"],
           "isUnique": false
         },
         "message_status_idx": {
@@ -3059,6 +3046,13 @@
         },
         "group_id": {
           "name": "group_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "trace_id": {
+          "name": "trace_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
