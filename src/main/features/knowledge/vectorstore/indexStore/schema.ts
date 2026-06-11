@@ -1,13 +1,20 @@
 import type { SqliteExecutor } from './types'
 
 /**
- * Per-base knowledge `index.sqlite` schema (9-table material model).
+ * Per-base knowledge `index.sqlite` schema (7-table material model).
  *
  * This is the schema for the per-knowledge-base index database located at
  * `KnowledgeBase/{baseId}/.cherry/index.sqlite` — a SEPARATE file per base,
  * created fresh at runtime. It is NOT the main app DB and is intentionally
  * NOT managed by drizzle-kit (whose schema glob `src/main/data/db/schemas/**`
  * targets the main DB migration chain). See knowledge-technical-design.md §4.
+ *
+ * Demand-first surface: tables and enum values ship together with their first
+ * writer. Planned v2.x surface (material provenance relations, editable index
+ * entries, watcher-driven origins/states) is NOT pre-created — since this DDL
+ * replays under `IF NOT EXISTS` on every open and the index is a rebuildable
+ * derived artifact, adding a table or widening a CHECK later is a zero-cost
+ * additive change, while pre-created vocabulary would lock in guesses.
  *
  * Engine portability (technical-design §5.6 / decision A1):
  * - All DDL is plain, engine-neutral SQLite — no engine-specific column types
@@ -84,7 +91,7 @@ export const KNOWLEDGE_INDEX_SCHEMA_STATEMENTS: readonly string[] = [
     material_id TEXT PRIMARY KEY,
     relative_path TEXT NOT NULL UNIQUE,
     status TEXT NOT NULL CHECK (status IN ('active', 'missing')),
-    origin TEXT NOT NULL CHECK (origin IN ('user', 'processor', 'agent', 'captured', 'discovered')),
+    origin TEXT NOT NULL CHECK (origin IN ('user', 'processor', 'captured')),
     index_policy TEXT NOT NULL CHECK (index_policy IN ('index', 'suppress', 'ignore')),
     current_content_hash TEXT,
     title TEXT,
@@ -112,32 +119,13 @@ export const KNOWLEDGE_INDEX_SCHEMA_STATEMENTS: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS material_content_idx ON material(current_content_hash)`,
   `CREATE INDEX IF NOT EXISTS material_indexable_idx ON material(status, index_policy, relative_path)`,
 
-  // material_relation — provenance between materials. PR A: DDL only, no write logic.
-  `CREATE TABLE IF NOT EXISTS material_relation (
-    relation_id TEXT PRIMARY KEY,
-    relation_type TEXT NOT NULL CHECK (
-      relation_type IN ('processed_from', 'summarized_from', 'captured_from', 'refreshed_from')
-    ),
-    source_material_id TEXT,
-    target_material_id TEXT NOT NULL,
-    source_ref_json TEXT,
-    metadata_json TEXT,
-    created_at INTEGER NOT NULL,
-    FOREIGN KEY (source_material_id) REFERENCES material(material_id) ON DELETE SET NULL,
-    FOREIGN KEY (target_material_id) REFERENCES material(material_id) ON DELETE CASCADE
-  )`,
-  `CREATE INDEX IF NOT EXISTS material_relation_source_idx ON material_relation(source_material_id)`,
-  `CREATE INDEX IF NOT EXISTS material_relation_target_idx ON material_relation(target_material_id)`,
-  `CREATE INDEX IF NOT EXISTS material_relation_type_idx ON material_relation(relation_type)`,
-
-  // search_unit — agent-readable retrieval unit (chunk/heading section) with offsets.
+  // search_unit — agent-readable retrieval unit with offsets. unit_type carries a
+  // single value today; new granularities join the CHECK with their first writer.
   `CREATE TABLE IF NOT EXISTS search_unit (
     unit_id TEXT PRIMARY KEY,
     material_id TEXT NOT NULL,
     content_hash TEXT NOT NULL,
-    unit_type TEXT NOT NULL CHECK (
-      unit_type IN ('chunk', 'heading_section', 'page', 'paragraph', 'manual')
-    ),
+    unit_type TEXT NOT NULL CHECK (unit_type IN ('chunk')),
     unit_index INTEGER NOT NULL,
     title TEXT,
     char_start INTEGER NOT NULL,
@@ -154,26 +142,14 @@ export const KNOWLEDGE_INDEX_SCHEMA_STATEMENTS: readonly string[] = [
   `CREATE INDEX IF NOT EXISTS search_unit_content_idx ON search_unit(content_hash)`,
   `CREATE INDEX IF NOT EXISTS search_unit_material_idx ON search_unit(material_id)`,
 
-  // content_index_entry — editable index entries (question/summary/keyword/tag). PR A: DDL only.
-  `CREATE TABLE IF NOT EXISTS content_index_entry (
-    entry_id TEXT PRIMARY KEY,
-    unit_id TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('question', 'summary', 'keyword', 'tag')),
-    origin TEXT NOT NULL CHECK (origin IN ('manual', 'agent', 'imported', 'system')),
-    text TEXT NOT NULL,
-    created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    FOREIGN KEY (unit_id) REFERENCES search_unit(unit_id) ON DELETE CASCADE
-  )`,
-  `CREATE INDEX IF NOT EXISTS content_index_entry_unit_idx ON content_index_entry(unit_id)`,
-  `CREATE INDEX IF NOT EXISTS content_index_entry_kind_idx ON content_index_entry(kind)`,
-
   // search_text — unified retrieval-text projection shared by FTS and embedding.
+  // target_type/kind each carry a single value today (unit body text); richer
+  // projections (titles, editable index entries) join the CHECKs with their writers.
   `CREATE TABLE IF NOT EXISTS search_text (
     search_text_id TEXT PRIMARY KEY,
-    target_type TEXT NOT NULL CHECK (target_type IN ('search_unit', 'content_index_entry')),
+    target_type TEXT NOT NULL CHECK (target_type IN ('search_unit')),
     target_id TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('body', 'title', 'question', 'summary', 'keyword', 'tag')),
+    kind TEXT NOT NULL CHECK (kind IN ('body')),
     text TEXT NOT NULL,
     embedding_text_hash TEXT NOT NULL,
     created_at INTEGER NOT NULL

@@ -70,14 +70,12 @@ describe('knowledge index schema', () => {
   }
 
   describe('schema creation', () => {
-    it('creates all 9 schema objects', async () => {
+    it('creates all 7 schema objects', async () => {
       const expected = [
         'index_meta',
         'content',
         'material',
-        'material_relation',
         'search_unit',
-        'content_index_entry',
         'search_text',
         'embedding',
         'search_text_fts'
@@ -177,23 +175,6 @@ describe('knowledge index schema', () => {
 
       const remaining = await client.execute(`SELECT COUNT(*) AS n FROM search_unit`)
       expect(remaining.rows[0].n).toBe(0)
-    })
-
-    it('nulls material_relation.source_material_id when the source material is deleted', async () => {
-      await insertMaterial('m_src', 'src.md')
-      await insertMaterial('m_tgt', 'tgt.md')
-      await client.execute({
-        sql: `INSERT INTO material_relation (relation_id, relation_type, source_material_id, target_material_id, created_at)
-              VALUES ('r1', 'processed_from', ?, ?, ?)`,
-        args: ['m_src', 'm_tgt', TS]
-      })
-
-      await client.execute({ sql: `DELETE FROM material WHERE material_id = ?`, args: ['m_src'] })
-
-      const relation = await client.execute(`SELECT source_material_id, target_material_id FROM material_relation`)
-      expect(relation.rows).toHaveLength(1)
-      expect(relation.rows[0].source_material_id).toBeNull()
-      expect(relation.rows[0].target_material_id).toBe('m_tgt')
     })
 
     it('rejects a search_unit referencing a missing material', async () => {

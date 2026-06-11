@@ -3,10 +3,10 @@
  * CHECK constraints in schema.ts (§4) and shape the store's write contract.
  */
 
-export type MaterialOrigin = 'user' | 'processor' | 'agent' | 'captured' | 'discovered'
+export type MaterialOrigin = 'user' | 'processor' | 'captured'
 export type MaterialIndexPolicy = 'index' | 'suppress' | 'ignore'
 export type ContentTextFormat = 'markdown' | 'plain' | 'extracted_text'
-export type SearchUnitType = 'chunk' | 'heading_section' | 'page' | 'paragraph' | 'manual'
+export type SearchUnitType = 'chunk'
 
 /** One retrieval unit (chunk/section) with its offsets into the material's content. */
 export interface RebuildMaterialUnitInput {
