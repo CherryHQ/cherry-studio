@@ -724,41 +724,17 @@
     },
     "tools": {
       "builtin": {
-        "AgentMemory": {
-          "description": "[to be translated]:Stores and recalls cross-session memory",
-          "label": "[to be translated]:Memory"
-        },
         "Bash": {
-          "description": "Thực thi các lệnh shell trong môi trường của bạn",
-          "label": "[to be translated]:Bash"
-        },
-        "CherryKbSearch": {
-          "description": "[to be translated]:Searches your knowledge bases",
-          "label": "[to be translated]:Knowledge Search"
-        },
-        "CherryWebFetch": {
-          "description": "[to be translated]:Fetches and reads a web page",
-          "label": "[to be translated]:Web Fetch"
-        },
-        "CherryWebSearch": {
-          "description": "[to be translated]:Searches the web via your configured provider",
-          "label": "[to be translated]:Web Search"
-        },
-        "ClawCron": {
-          "description": "[to be translated]:Manages the in-app scheduler",
-          "label": "[to be translated]:Scheduler"
+          "description": "Thực thi các lệnh shell trong môi trường của bạn"
         },
         "Edit": {
-          "description": "Thực hiện chỉnh sửa có mục tiêu trên các tập tin cụ thể",
-          "label": "[to be translated]:Edit"
+          "description": "Thực hiện chỉnh sửa có mục tiêu trên các tập tin cụ thể"
         },
         "Glob": {
-          "description": "Tìm các tập tin dựa trên khớp mẫu",
-          "label": "[to be translated]:Glob"
+          "description": "Tìm các tập tin dựa trên khớp mẫu"
         },
         "Grep": {
-          "description": "Tìm kiếm các mẫu trong nội dung tập tin",
-          "label": "[to be translated]:Grep"
+          "description": "Tìm kiếm các mẫu trong nội dung tập tin"
         },
         "MultiEdit": {
           "description": "Thực hiện nhiều chỉnh sửa trên một tệp duy nhất một cách nguyên tử"
@@ -770,8 +746,7 @@
           "description": "Đọc và hiển thị nội dung Jupyter notebook"
         },
         "Read": {
-          "description": "Đọc nội dung của các tệp",
-          "label": "[to be translated]:Read"
+          "description": "Đọc nội dung của các tệp"
         },
         "Task": {
           "description": "Chạy một phụ tác nhân để xử lý các nhiệm vụ phức tạp, nhiều bước"
@@ -788,13 +763,8 @@
         "WebSearch": {
           "description": "Thực hiện tìm kiếm web với bộ lọc tên miền"
         },
-        "Workflow": {
-          "description": "[to be translated]:Runs a multi-step workflow that orchestrates subagents",
-          "label": "[to be translated]:Workflow"
-        },
         "Write": {
-          "description": "Tạo hoặc ghi đè lên các tệp",
-          "label": "[to be translated]:Write"
+          "description": "Tạo hoặc ghi đè lên các tệp"
         }
       }
     },
@@ -2579,14 +2549,6 @@
           },
           "tools": {
             "add": "Thêm",
-            "category": {
-              "context": "[to be translated]:Context",
-              "file": "[to be translated]:File",
-              "media": "[to be translated]:Media",
-              "orchestration": "[to be translated]:Orchestration",
-              "search": "[to be translated]:Search",
-              "shell": "[to be translated]:Shell"
-            },
             "desc": "Các máy chủ MCP, công cụ được phép và cài đặt thời gian chạy",
             "label": "Công cụ & thời gian chạy",
             "no_builtin_enabled": "Không có công cụ tích hợp nào được kích hoạt",
@@ -2674,21 +2636,6 @@
         "unlimited": "Không giới hạn"
       },
       "breadcrumb": "Thư viện",
-      "dialogs": {
-        "create": {
-          "agent_title": "[to be translated]:New agent",
-          "assistant_title": "[to be translated]:New assistant",
-          "avatar_aria": "[to be translated]:Pick avatar",
-          "description_placeholder": "[to be translated]:Describe this resource",
-          "dialog_description": "[to be translated]:Create a resource from the library.",
-          "model_placeholder": "[to be translated]:Select a model",
-          "model_required": "[to be translated]:Please select a model",
-          "name_placeholder": "[to be translated]:Name this resource",
-          "name_required": "[to be translated]:Please enter a name",
-          "submit": "[to be translated]:Create",
-          "submit_failed": "[to be translated]:Failed to create resource"
-        }
-      },
       "knowledge": {
         "add": "Thêm cơ sở kiến thức",
         "desc": "Liên kết một hoặc nhiều cơ sở kiến thức; các đoạn trích liên quan sẽ được truy xuất trong quá trình trò chuyện",

@@ -97,10 +97,10 @@ export function useAssistantMutationsById(id: string) {
   const path = `/assistants/${id}` as const
 
   const { trigger: updateTrigger } = useMutation('PATCH', path, {
-    refresh: ['/assistants', '/assistants/*']
+    refresh: ['/assistants']
   })
   const { trigger: deleteTrigger } = useMutation('DELETE', path, {
-    refresh: ['/assistants', '/assistants/*']
+    refresh: ['/assistants']
   })
 
   const updateAssistant = useCallback(

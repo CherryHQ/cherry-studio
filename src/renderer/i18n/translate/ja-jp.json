@@ -724,41 +724,17 @@
     },
     "tools": {
       "builtin": {
-        "AgentMemory": {
-          "description": "[to be translated]:Stores and recalls cross-session memory",
-          "label": "[to be translated]:Memory"
-        },
         "Bash": {
-          "description": "環境でシェルコマンドを実行します",
-          "label": "[to be translated]:Bash"
-        },
-        "CherryKbSearch": {
-          "description": "[to be translated]:Searches your knowledge bases",
-          "label": "[to be translated]:Knowledge Search"
-        },
-        "CherryWebFetch": {
-          "description": "[to be translated]:Fetches and reads a web page",
-          "label": "[to be translated]:Web Fetch"
-        },
-        "CherryWebSearch": {
-          "description": "[to be translated]:Searches the web via your configured provider",
-          "label": "[to be translated]:Web Search"
-        },
-        "ClawCron": {
-          "description": "[to be translated]:Manages the in-app scheduler",
-          "label": "[to be translated]:Scheduler"
+          "description": "環境でシェルコマンドを実行します"
         },
         "Edit": {
-          "description": "特定のファイルに対してターゲットを絞った編集を行う",
-          "label": "[to be translated]:Edit"
+          "description": "特定のファイルに対してターゲットを絞った編集を行う"
         },
         "Glob": {
-          "description": "パターンマッチングに基づいてファイルを検索する",
-          "label": "[to be translated]:Glob"
+          "description": "パターンマッチングに基づいてファイルを検索する"
         },
         "Grep": {
-          "description": "ファイルの内容内でパターンを検索します",
-          "label": "[to be translated]:Grep"
+          "description": "ファイルの内容内でパターンを検索します"
         },
         "MultiEdit": {
           "description": "単一のファイルに対して複数の編集をアトミックに実行します"
@@ -770,8 +746,7 @@
           "description": "Jupyterノートブックの内容を読み取って表示します"
         },
         "Read": {
-          "description": "ファイルの内容を読み取ります",
-          "label": "[to be translated]:Read"
+          "description": "ファイルの内容を読み取ります"
         },
         "Task": {
           "description": "複雑な複数ステップのタスクを処理するためにサブエージェントを実行します"
@@ -788,13 +763,8 @@
         "WebSearch": {
           "description": "ドメインフィルタリング付きのウェブ検索を実行します"
         },
-        "Workflow": {
-          "description": "[to be translated]:Runs a multi-step workflow that orchestrates subagents",
-          "label": "[to be translated]:Workflow"
-        },
         "Write": {
-          "description": "ファイルを作成または上書きします",
-          "label": "[to be translated]:Write"
+          "description": "ファイルを作成または上書きします"
         }
       }
     },
@@ -2579,14 +2549,6 @@
           },
           "tools": {
             "add": "追加",
-            "category": {
-              "context": "[to be translated]:Context",
-              "file": "[to be translated]:File",
-              "media": "[to be translated]:Media",
-              "orchestration": "[to be translated]:Orchestration",
-              "search": "[to be translated]:Search",
-              "shell": "[to be translated]:Shell"
-            },
             "desc": "MCPサーバー、許可されたツール、およびランタイム設定",
             "label": "ツールとランタイム",
             "no_builtin_enabled": "組み込みツールは有効になっていません",
@@ -2674,21 +2636,6 @@
         "unlimited": "無制限"
       },
       "breadcrumb": "図書館",
-      "dialogs": {
-        "create": {
-          "agent_title": "[to be translated]:New agent",
-          "assistant_title": "[to be translated]:New assistant",
-          "avatar_aria": "[to be translated]:Pick avatar",
-          "description_placeholder": "[to be translated]:Describe this resource",
-          "dialog_description": "[to be translated]:Create a resource from the library.",
-          "model_placeholder": "[to be translated]:Select a model",
-          "model_required": "[to be translated]:Please select a model",
-          "name_placeholder": "[to be translated]:Name this resource",
-          "name_required": "[to be translated]:Please enter a name",
-          "submit": "[to be translated]:Create",
-          "submit_failed": "[to be translated]:Failed to create resource"
-        }
-      },
       "knowledge": {
         "add": "ナレッジベースを追加",
         "desc": "1つ以上のナレッジベースをリンクしてください。チャット中に関連するスニペットが取得されます。",

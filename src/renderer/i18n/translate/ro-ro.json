@@ -724,41 +724,17 @@
     },
     "tools": {
       "builtin": {
-        "AgentMemory": {
-          "description": "[to be translated]:Stores and recalls cross-session memory",
-          "label": "[to be translated]:Memory"
-        },
         "Bash": {
-          "description": "Execută comenzi shell în mediul tău",
-          "label": "[to be translated]:Bash"
-        },
-        "CherryKbSearch": {
-          "description": "[to be translated]:Searches your knowledge bases",
-          "label": "[to be translated]:Knowledge Search"
-        },
-        "CherryWebFetch": {
-          "description": "[to be translated]:Fetches and reads a web page",
-          "label": "[to be translated]:Web Fetch"
-        },
-        "CherryWebSearch": {
-          "description": "[to be translated]:Searches the web via your configured provider",
-          "label": "[to be translated]:Web Search"
-        },
-        "ClawCron": {
-          "description": "[to be translated]:Manages the in-app scheduler",
-          "label": "[to be translated]:Scheduler"
+          "description": "Execută comenzi shell în mediul tău"
         },
         "Edit": {
-          "description": "Efectuează editări țintite asupra fișierelor specifice",
-          "label": "[to be translated]:Edit"
+          "description": "Efectuează editări țintite asupra fișierelor specifice"
         },
         "Glob": {
-          "description": "Găsește fișiere pe baza potrivirii modelelor",
-          "label": "[to be translated]:Glob"
+          "description": "Găsește fișiere pe baza potrivirii modelelor"
         },
         "Grep": {
-          "description": "Caută modele în conținutul fișierelor",
-          "label": "[to be translated]:Grep"
+          "description": "Caută modele în conținutul fișierelor"
         },
         "MultiEdit": {
           "description": "Efectuează mai multe modificări într-un singur fișier atomic"
@@ -770,8 +746,7 @@
           "description": "Citește și afișează conținutul notebook-urilor Jupyter"
         },
         "Read": {
-          "description": "Citește conținutul fișierelor",
-          "label": "[to be translated]:Read"
+          "description": "Citește conținutul fișierelor"
         },
         "Task": {
           "description": "Rulează un sub-agent pentru a gestiona sarcini complexe, cu mai mulți pași"
@@ -788,13 +763,8 @@
         "WebSearch": {
           "description": "Efectuează căutări pe web cu filtrare pe domeniu"
         },
-        "Workflow": {
-          "description": "[to be translated]:Runs a multi-step workflow that orchestrates subagents",
-          "label": "[to be translated]:Workflow"
-        },
         "Write": {
-          "description": "Creează sau suprascrie fișiere",
-          "label": "[to be translated]:Write"
+          "description": "Creează sau suprascrie fișiere"
         }
       }
     },
@@ -2579,14 +2549,6 @@
           },
           "tools": {
             "add": "Adaugă",
-            "category": {
-              "context": "[to be translated]:Context",
-              "file": "[to be translated]:File",
-              "media": "[to be translated]:Media",
-              "orchestration": "[to be translated]:Orchestration",
-              "search": "[to be translated]:Search",
-              "shell": "[to be translated]:Shell"
-            },
             "desc": "servere MCP, instrumente permise și setări de runtime",
             "label": "Instrumente și runtime",
             "no_builtin_enabled": "Niciun instrument încorporat activat",
@@ -2674,21 +2636,6 @@
         "unlimited": "Nelimitat"
       },
       "breadcrumb": "Bibliotecă",
-      "dialogs": {
-        "create": {
-          "agent_title": "[to be translated]:New agent",
-          "assistant_title": "[to be translated]:New assistant",
-          "avatar_aria": "[to be translated]:Pick avatar",
-          "description_placeholder": "[to be translated]:Describe this resource",
-          "dialog_description": "[to be translated]:Create a resource from the library.",
-          "model_placeholder": "[to be translated]:Select a model",
-          "model_required": "[to be translated]:Please select a model",
-          "name_placeholder": "[to be translated]:Name this resource",
-          "name_required": "[to be translated]:Please enter a name",
-          "submit": "[to be translated]:Create",
-          "submit_failed": "[to be translated]:Failed to create resource"
-        }
-      },
       "knowledge": {
         "add": "Adaugă bază de cunoștințe",
         "desc": "Conectează una sau mai multe baze de cunoștințe; fragmentele relevante vor fi recuperate în timpul conversației",

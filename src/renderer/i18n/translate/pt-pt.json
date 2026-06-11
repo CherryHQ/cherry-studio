@@ -724,41 +724,17 @@
     },
     "tools": {
       "builtin": {
-        "AgentMemory": {
-          "description": "[to be translated]:Stores and recalls cross-session memory",
-          "label": "[to be translated]:Memory"
-        },
         "Bash": {
-          "description": "Executa comandos shell no seu ambiente",
-          "label": "[to be translated]:Bash"
-        },
-        "CherryKbSearch": {
-          "description": "[to be translated]:Searches your knowledge bases",
-          "label": "[to be translated]:Knowledge Search"
-        },
-        "CherryWebFetch": {
-          "description": "[to be translated]:Fetches and reads a web page",
-          "label": "[to be translated]:Web Fetch"
-        },
-        "CherryWebSearch": {
-          "description": "[to be translated]:Searches the web via your configured provider",
-          "label": "[to be translated]:Web Search"
-        },
-        "ClawCron": {
-          "description": "[to be translated]:Manages the in-app scheduler",
-          "label": "[to be translated]:Scheduler"
+          "description": "Executa comandos shell no seu ambiente"
         },
         "Edit": {
-          "description": "Faz edições direcionadas em arquivos específicos",
-          "label": "[to be translated]:Edit"
+          "description": "Faz edições direcionadas em arquivos específicos"
         },
         "Glob": {
-          "description": "Encontra arquivos com base na correspondência de padrões",
-          "label": "[to be translated]:Glob"
+          "description": "Encontra arquivos com base na correspondência de padrões"
         },
         "Grep": {
-          "description": "Procura por padrões no conteúdo dos arquivos",
-          "label": "[to be translated]:Grep"
+          "description": "Procura por padrões no conteúdo dos arquivos"
         },
         "MultiEdit": {
           "description": "Realiza várias edições em um único arquivo de forma atômica"
@@ -770,8 +746,7 @@
           "description": "Lê e exibe o conteúdo de notebooks Jupyter"
         },
         "Read": {
-          "description": "Lê o conteúdo dos arquivos",
-          "label": "[to be translated]:Read"
+          "description": "Lê o conteúdo dos arquivos"
         },
         "Task": {
           "description": "Executa um sub-agente para lidar com tarefas complexas de várias etapas"
@@ -788,13 +763,8 @@
         "WebSearch": {
           "description": "Realiza pesquisas na web com filtragem de domínio"
         },
-        "Workflow": {
-          "description": "[to be translated]:Runs a multi-step workflow that orchestrates subagents",
-          "label": "[to be translated]:Workflow"
-        },
         "Write": {
-          "description": "Cria ou sobrescreve arquivos",
-          "label": "[to be translated]:Write"
+          "description": "Cria ou sobrescreve arquivos"
         }
       }
     },
@@ -2579,14 +2549,6 @@
           },
           "tools": {
             "add": "Adicionar",
-            "category": {
-              "context": "[to be translated]:Context",
-              "file": "[to be translated]:File",
-              "media": "[to be translated]:Media",
-              "orchestration": "[to be translated]:Orchestration",
-              "search": "[to be translated]:Search",
-              "shell": "[to be translated]:Shell"
-            },
             "desc": "servidores MCP, ferramentas permitidas e configurações de tempo de execução",
             "label": "Ferramentas e tempo de execução",
             "no_builtin_enabled": "Nenhuma ferramenta integrada ativada",
@@ -2674,21 +2636,6 @@
         "unlimited": "Ilimitado"
       },
       "breadcrumb": "Biblioteca",
-      "dialogs": {
-        "create": {
-          "agent_title": "[to be translated]:New agent",
-          "assistant_title": "[to be translated]:New assistant",
-          "avatar_aria": "[to be translated]:Pick avatar",
-          "description_placeholder": "[to be translated]:Describe this resource",
-          "dialog_description": "[to be translated]:Create a resource from the library.",
-          "model_placeholder": "[to be translated]:Select a model",
-          "model_required": "[to be translated]:Please select a model",
-          "name_placeholder": "[to be translated]:Name this resource",
-          "name_required": "[to be translated]:Please enter a name",
-          "submit": "[to be translated]:Create",
-          "submit_failed": "[to be translated]:Failed to create resource"
-        }
-      },
       "knowledge": {
         "add": "Adicionar base de conhecimento",
         "desc": "Vincule uma ou mais bases de conhecimento; trechos relevantes serão recuperados durante o chat",

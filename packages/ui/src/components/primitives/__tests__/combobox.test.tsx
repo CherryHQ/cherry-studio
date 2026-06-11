@@ -146,23 +146,4 @@ describe('Combobox', () => {
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
     expect(screen.queryByText('Beta')).not.toBeInTheDocument()
   })
-
-  it('exposes selected multi-value removal as an accessible button', () => {
-    const onChange = vi.fn()
-
-    render(
-      <Combobox
-        multiple
-        options={options}
-        value={['alpha', 'beta']}
-        placeholder="Pick values"
-        emptyText="No results"
-        onChange={onChange}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'Remove Alpha' }))
-
-    expect(onChange).toHaveBeenCalledWith(['beta'])
-  })
 })

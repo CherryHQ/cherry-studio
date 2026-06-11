@@ -1,29 +1,20 @@
-import { CreateAssistantSchema } from '@shared/data/api/schemas/assistants'
 import { describe, expect, it } from 'vitest'
 
-import agentsEn from '../../../../../../resources/data/agents-en.json'
-import agentsZh from '../../../../../../resources/data/agents-zh.json'
 import {
   ASSISTANT_CATALOG_MY_TAB,
-  type AssistantCatalogPreset,
   buildAssistantCatalogTabs,
   filterAssistantCatalogPresets,
   getAssistantPresetCatalogKey,
   toCreateAssistantDtoFromCatalogPreset
 } from '../useAssistantPresetCatalog'
 
-const shippedCatalogs: Array<{ name: string; presets: AssistantCatalogPreset[] }> = [
-  { name: 'agents-en.json', presets: agentsEn },
-  { name: 'agents-zh.json', presets: agentsZh }
-]
-
 describe('assistant preset catalog helpers', () => {
   it('keeps my assistants first and orders known system groups before custom groups', () => {
     const tabs = buildAssistantCatalogTabs(
       [
-        { id: 'preset-business', name: 'Business helper', group: ['Business'] },
-        { id: 'preset-career', name: 'Career helper', group: ['Career'] },
-        { id: 'preset-custom', name: 'Custom helper', group: ['Custom'] }
+        { name: 'Business helper', group: ['Business'] },
+        { name: 'Career helper', group: ['Career'] },
+        { name: 'Custom helper', group: ['Custom'] }
       ],
       2,
       'Mine'
@@ -36,9 +27,9 @@ describe('assistant preset catalog helpers', () => {
   it('filters only the active system group by name or description', () => {
     const presets = filterAssistantCatalogPresets(
       [
-        { id: 'preset-product', name: 'Product Manager', description: 'Plan requirements', group: ['Career'] },
-        { id: 'preset-marketing', name: 'Marketing Planner', description: 'Campaign ideas', group: ['Business'] },
-        { id: 'preset-research', name: 'Research Writer', description: 'Long-form product analysis', group: ['Career'] }
+        { name: 'Product Manager', description: 'Plan requirements', group: ['Career'] },
+        { name: 'Marketing Planner', description: 'Campaign ideas', group: ['Business'] },
+        { name: 'Research Writer', description: 'Long-form product analysis', group: ['Career'] }
       ],
       'Career',
       'product'
@@ -50,7 +41,6 @@ describe('assistant preset catalog helpers', () => {
 
   it('builds a DataApi create payload from a catalog preset without legacy fields', () => {
     const dto = toCreateAssistantDtoFromCatalogPreset({
-      id: '550e8400-e29b-41d4-a716-446655440000',
       name: 'Product Manager',
       prompt: 'You are a product manager.',
       description: 'Plan requirements',
@@ -67,24 +57,14 @@ describe('assistant preset catalog helpers', () => {
     expect(dto).toEqual({
       name: 'Product Manager',
       prompt: 'You are a product manager.',
-      source: '550e8400-e29b-41d4-a716-446655440000',
       description: 'Plan requirements',
       emoji: '🧑‍💼',
       modelId: 'openai::gpt-4o'
     })
   })
 
-  it.each(shippedCatalogs)('builds valid DataApi create payloads from shipped $name presets', ({ presets }) => {
-    const invalidPresetIds = presets
-      .filter((preset) => !CreateAssistantSchema.safeParse(toCreateAssistantDtoFromCatalogPreset(preset)).success)
-      .map((preset) => preset.id)
-
-    expect(invalidPresetIds).toEqual([])
-  })
-
-  it('uses the preset id as the stable catalog key', () => {
-    expect(getAssistantPresetCatalogKey({ id: '550e8400-e29b-41d4-a716-446655440000' })).toBe(
-      '550e8400-e29b-41d4-a716-446655440000'
-    )
+  it('uses name and prompt as the stable catalog key', () => {
+    expect(getAssistantPresetCatalogKey({ name: 'A', prompt: 'P', description: 'D' })).toBe('A\nP')
+    expect(getAssistantPresetCatalogKey({ name: 'A', description: 'D' })).toBe('A\nD')
   })
 })

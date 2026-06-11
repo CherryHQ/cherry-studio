@@ -23,10 +23,9 @@ export function AssistantCatalogTabRail({ tabs, activeTab, onTabChange }: Assist
     <div className="flex items-center gap-1 px-5 pb-3">
       <Button
         variant="ghost"
-        size="icon-sm"
         aria-label={t('library.assistant_catalog.scroll_left')}
         onClick={() => scrollRail(-1)}
-        className="shrink-0 rounded-full text-foreground-muted hover:text-foreground">
+        className="h-7 min-h-0 w-7 shrink-0 rounded-full p-0 text-muted-foreground/45 shadow-none hover:bg-accent/55 hover:text-foreground focus-visible:ring-0">
         <ChevronLeft size={14} />
       </Button>
       <div className="relative min-w-0 flex-1">
@@ -39,7 +38,7 @@ export function AssistantCatalogTabRail({ tabs, activeTab, onTabChange }: Assist
                   <TabsTrigger key={tab.id} value={tab.id} className="h-10 shrink-0 gap-2 px-0 text-sm">
                     <AssistantPresetGroupIcon groupName={groupIconName} size={15} />
                     <span>{tab.label}</span>
-                    <span className="rounded-full bg-secondary px-1.5 py-px text-foreground-muted text-xs tabular-nums">
+                    <span className="rounded-full bg-accent/70 px-1.5 py-px text-[11px] text-muted-foreground/45 tabular-nums">
                       {tab.count}
                     </span>
                   </TabsTrigger>
@@ -52,10 +51,9 @@ export function AssistantCatalogTabRail({ tabs, activeTab, onTabChange }: Assist
       </div>
       <Button
         variant="ghost"
-        size="icon-sm"
         aria-label={t('library.assistant_catalog.scroll_right')}
         onClick={() => scrollRail(1)}
-        className="shrink-0 rounded-full text-foreground-muted hover:text-foreground">
+        className="h-7 min-h-0 w-7 shrink-0 rounded-full p-0 text-muted-foreground/45 shadow-none hover:bg-accent/55 hover:text-foreground focus-visible:ring-0">
         <ChevronRight size={14} />
       </Button>
     </div>

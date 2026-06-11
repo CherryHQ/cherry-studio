@@ -1,10 +1,12 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { refetchPinsMock, togglePinMock, usePinsMock, useQueryMock } = vi.hoisted(() => ({
+const { openTabMock, refetchPinsMock, tabsContextMock, togglePinMock, usePinsMock, useQueryMock } = vi.hoisted(() => ({
+  openTabMock: vi.fn(),
   refetchPinsMock: vi.fn(),
+  tabsContextMock: vi.fn(),
   togglePinMock: vi.fn(),
   usePinsMock: vi.fn(),
   useQueryMock: vi.fn()
@@ -21,6 +23,10 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
 
 vi.mock('@renderer/hooks/usePins', () => ({
   usePins: usePinsMock
+}))
+
+vi.mock('@renderer/context/TabsContext', () => ({
+  useOptionalTabsContext: tabsContextMock
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -113,6 +119,9 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  tabsContextMock.mockReturnValue({
+    openTab: openTabMock
+  })
   useQueryMock.mockReturnValue({
     data: ASSISTANTS_RESPONSE,
     isLoading: false,
@@ -145,7 +154,7 @@ function openPopover() {
   fireEvent.click(screen.getByRole('button', { name: 'Open' }))
 }
 
-describe('AssistantSelector', () => {
+describe('AssistantSelector library navigation', () => {
   it('renders assistant tag chips and filters rows by selected tag', () => {
     renderSelector()
     openPopover()
@@ -157,12 +166,39 @@ describe('AssistantSelector', () => {
     expect(screen.queryByRole('option', { name: /Beta Assistant/ })).not.toBeInTheDocument()
   })
 
-  it('hides library navigation actions while selector dialog migration is pending', () => {
+  it('renders without tab context and hides library navigation actions', () => {
+    tabsContextMock.mockReturnValue(null)
+
     renderSelector()
     openPopover()
 
     expect(screen.getByRole('option', { name: /Alpha Assistant/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Create assistant' })).not.toBeInTheDocument()
+  })
+
+  it('navigates to the resource library assistant editor from the row edit action', async () => {
+    renderSelector()
+    openPopover()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0])
+
+    await waitFor(() =>
+      expect(openTabMock).toHaveBeenCalledWith(
+        `/app/library?resourceType=assistant&action=edit&id=${BETA_ASSISTANT_ID}`,
+        { forceNew: true }
+      )
+    )
+  })
+
+  it('navigates to the resource library assistant create flow from the footer action', async () => {
+    renderSelector()
+    openPopover()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create assistant' }))
+
+    await waitFor(() =>
+      expect(openTabMock).toHaveBeenCalledWith('/app/library?resourceType=assistant&action=create', { forceNew: true })
+    )
   })
 })
