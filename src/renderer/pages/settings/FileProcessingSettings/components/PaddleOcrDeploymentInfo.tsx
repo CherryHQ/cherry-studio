@@ -1,7 +1,7 @@
 import { ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingHelpLink, SettingHelpText, SettingHelpTextRow, SettingSubtitle } from '../..'
+import { SettingHelpLink, SettingHelpText, SettingHelpTextRow } from '../..'
 
 export const PADDLEOCR_DEPLOYMENT_URL = 'https://github.com/PaddlePaddle/PaddleOCR'
 
@@ -9,12 +9,11 @@ export function PaddleOcrDeploymentInfo() {
   const { t } = useTranslation()
 
   return (
-    <>
-      <SettingSubtitle>{t('settings.tool.file_processing.sections.description')}</SettingSubtitle>
-      <SettingHelpText className="text-xs leading-relaxed">
-        {t('settings.tool.file_processing.processors.paddleocr.deployment.description')}
-      </SettingHelpText>
-      <SettingHelpTextRow>
+    <div className="border-border-muted border-t pt-4">
+      <SettingHelpTextRow className="flex-wrap gap-x-1.5 gap-y-1 py-0">
+        <SettingHelpText className="text-xs leading-relaxed">
+          {t('settings.tool.file_processing.processors.paddleocr.deployment.description')}
+        </SettingHelpText>
         <SettingHelpLink
           href={PADDLEOCR_DEPLOYMENT_URL}
           target="_blank"
@@ -24,6 +23,6 @@ export function PaddleOcrDeploymentInfo() {
           <ExternalLink size={10} />
         </SettingHelpLink>
       </SettingHelpTextRow>
-    </>
+    </div>
   )
 }

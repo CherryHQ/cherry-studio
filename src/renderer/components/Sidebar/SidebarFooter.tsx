@@ -15,7 +15,6 @@ export interface SidebarFooterProps {
 
 export function SidebarFooter({ layout, ...props }: SidebarFooterProps) {
   if (layout === 'icon') return <IconFooter {...props} />
-  if (layout === 'vertical-card') return <VerticalCardFooter {...props} />
   return <FullFooter {...props} />
 }
 
@@ -33,28 +32,6 @@ function IconFooter({ user, actions, extensionsLabel, onExtensionsClick }: Foote
             <Columns2 size={18} strokeWidth={1.6} />
           </button>
         </SidebarTooltip>
-      )}
-      {actions}
-      {user && (
-        <div className="cursor-pointer" onClick={user.onClick}>
-          <UserAvatar user={user} className="h-7 w-7" />
-        </div>
-      )}
-    </div>
-  )
-}
-
-function VerticalCardFooter({ user, actions, extensionsLabel, onExtensionsClick }: FooterProps) {
-  return (
-    <div className="flex flex-col items-center gap-0 px-1 pt-1 pb-5 [-webkit-app-region:no-drag]">
-      {extensionsLabel && (
-        <button
-          type="button"
-          onClick={onExtensionsClick}
-          className="flex w-full flex-col items-center gap-0.5 rounded-lg py-2 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground">
-          <Columns2 size={18} strokeWidth={1.6} />
-          <span className="text-[9px] leading-tight">{extensionsLabel}</span>
-        </button>
       )}
       {actions}
       {user && (
