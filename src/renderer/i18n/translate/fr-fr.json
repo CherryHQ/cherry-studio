@@ -1071,12 +1071,7 @@
         "titleLabel": "Titre",
         "titlePlaceholder": "Entrez le titre"
       },
-      "title": "Paramètres de l'assistant",
-      "tool_use_mode": {
-        "function": "Fonction",
-        "label": "Mode d'appel des outils",
-        "prompt": "Mot-clé d'invite"
-      }
+      "title": "Paramètres de l'assistant"
     },
     "tags": {
       "add": "Ajouter un tag",

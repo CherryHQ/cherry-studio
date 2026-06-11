@@ -1071,12 +1071,7 @@
         "titleLabel": "Titlu",
         "titlePlaceholder": "Introduceți titlul"
       },
-      "title": "Setări asistent",
-      "tool_use_mode": {
-        "function": "Funcție",
-        "label": "Mod utilizare instrumente",
-        "prompt": "Prompt"
-      }
+      "title": "Setări asistent"
     },
     "tags": {
       "add": "Adaugă etichetă",

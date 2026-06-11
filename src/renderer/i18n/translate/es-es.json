@@ -1071,12 +1071,7 @@
         "titleLabel": "Título",
         "titlePlaceholder": "Introducir título"
       },
-      "title": "Configuración del Asistente",
-      "tool_use_mode": {
-        "function": "Función",
-        "label": "Modo de uso de herramientas",
-        "prompt": "Palabra de indicación"
-      }
+      "title": "Configuración del Asistente"
     },
     "tags": {
       "add": "Agregar etiqueta",

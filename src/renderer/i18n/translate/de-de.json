@@ -1071,12 +1071,7 @@
         "titleLabel": "Titel",
         "titlePlaceholder": "Titel eingeben"
       },
-      "title": "Assistenteneinstellungen",
-      "tool_use_mode": {
-        "function": "Funktion",
-        "label": "Tool-Aufrufmethode",
-        "prompt": "Prompt"
-      }
+      "title": "Assistenteneinstellungen"
     },
     "tags": {
       "add": "Tag hinzufügen",

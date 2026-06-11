@@ -1071,12 +1071,7 @@
         "titleLabel": "標題",
         "titlePlaceholder": "輸入標題"
       },
-      "title": "助手設定",
-      "tool_use_mode": {
-        "function": "函式",
-        "label": "工具呼叫方式",
-        "prompt": "提示詞"
-      }
+      "title": "助手設定"
     },
     "tags": {
       "add": "新增標籤",
