@@ -116,7 +116,7 @@ async function resolveSdkConfig(provider: Provider, model: Model): Promise<SdkCo
   }
 }
 
-function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
+export function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
   if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
   const settings = sdkConfig.providerSettings as { fetch?: FetchFunction }
   settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, {

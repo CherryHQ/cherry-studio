@@ -5,14 +5,12 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
-import { SPAN_NAME_TURN } from '@mcp-trace/trace-core/core/spanNames'
 import type { TraceStore } from '@mcp-trace/trace-core/core/traceStore'
 import type { Attributes, AttributeValue, SpanEntity } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
 import { IpcChannel } from '@shared/IpcChannel'
 
-import { deriveRootSpanId } from '../core/AiTurnTrace'
 import { TraceSpanStore } from './TraceSpanStore'
 
 const logger = loggerService.withContext('TraceStorageService')
@@ -23,26 +21,6 @@ function mergeSpansById(base: SpanEntity[], overrides: SpanEntity[]): SpanEntity
   for (const span of base) byId.set(span.id, span)
   for (const span of overrides) byId.set(span.id, span)
   return Array.from(byId.values())
-}
-
-/**
- * A warm Claude Code connection bakes one `TRACEPARENT` (the container root) at spawn and reuses it
- * across every turn, so each `claude_code.*` span parents to the container root — a sibling of the
- * per-turn `ai.turn` spans, not a child. Turns run sequentially with non-overlapping time windows,
- * so re-home each container-root `claude_code` span under the `ai.turn` whose [start, end] contains
- * its start. Display-only re-parenting at read; the stored spans stay OTel-faithful.
- */
-function reparentClaudeCodeUnderTurns(spans: SpanEntity[], traceId: string): SpanEntity[] {
-  const containerRoot = deriveRootSpanId(traceId)
-  const turns = spans
-    .filter((s) => s.name === SPAN_NAME_TURN && s.parentId === containerRoot)
-    .map((s) => ({ id: s.id, start: s.startTime, end: s.endTime ?? Number.POSITIVE_INFINITY }))
-  if (turns.length === 0) return spans
-  return spans.map((s) => {
-    if (s.parentId !== containerRoot || !s.name?.startsWith('claude_code')) return s
-    const turn = turns.find((t) => s.startTime >= t.start && s.startTime <= t.end)
-    return turn ? { ...s, parentId: turn.id } : s
-  })
 }
 
 @Injectable('TraceStorageService')
@@ -182,7 +160,9 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   async getSpans(topicId: string, traceId: string) {
     const live = this.store.getSpans({ topicId, traceId })
     const history = await this.getHistoryData(topicId, traceId)
-    return reparentClaudeCodeUnderTurns(mergeSpansById(history, live), traceId)
+    // Return OTel-faithful spans merged across history + live; display-only re-parenting of warm
+    // claude_code spans under their owning ai.turn is done in the renderer trace viewer.
+    return mergeSpansById(history, live)
   }
 
   private addEntity(entity: SpanEntity): void {

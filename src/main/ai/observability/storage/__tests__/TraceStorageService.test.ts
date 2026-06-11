@@ -4,7 +4,6 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
-import { SPAN_NAME_TURN } from '@mcp-trace/trace-core/core/spanNames'
 import type { SpanEntity } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
@@ -165,59 +164,5 @@ describe('TraceStorageService', () => {
     await service.saveSpans('topic')
     const flushed = await service.getSpans('topic', 'trace')
     expect(flushed.map((s) => s.id).sort()).toEqual(['s1', 's2'])
-  })
-
-  // A warm Claude Code connection bakes one TRACEPARENT (the container root) across all turns, so its
-  // `claude_code.*` spans land flat next to the per-turn `ai.turn` spans. getSpans re-homes each under
-  // the `ai.turn` whose time window contains it (turns are sequential / non-overlapping).
-  it('re-homes warm claude_code spans under the ai.turn whose time window contains them', async () => {
-    await service._doInit()
-    const traceId = '1234567890abcdef1234567890abcdef'
-    const root = '1234567890abcdef' // deriveRootSpanId(traceId)
-    service.saveEntity(
-      span({ id: 'turn1', traceId, topicId: 't', name: SPAN_NAME_TURN, parentId: root, startTime: 10, endTime: 20 })
-    )
-    service.saveEntity(
-      span({ id: 'turn2', traceId, topicId: 't', name: SPAN_NAME_TURN, parentId: root, startTime: 30, endTime: 40 })
-    )
-    service.saveEntity(
-      span({
-        id: 'cc1',
-        traceId,
-        topicId: 't',
-        name: 'claude_code.interaction',
-        parentId: root,
-        startTime: 12,
-        endTime: 19
-      })
-    )
-    service.saveEntity(
-      span({
-        id: 'cc2',
-        traceId,
-        topicId: 't',
-        name: 'claude_code.interaction',
-        parentId: root,
-        startTime: 32,
-        endTime: 39
-      })
-    )
-    service.saveEntity(
-      span({
-        id: 'ccx',
-        traceId,
-        topicId: 't',
-        name: 'claude_code.interaction',
-        parentId: root,
-        startTime: 5,
-        endTime: 6
-      })
-    )
-
-    const byId = Object.fromEntries((await service.getSpans('t', traceId)).map((s) => [s.id, s]))
-    expect(byId.cc1.parentId).toBe('turn1') // landed in turn 1's window
-    expect(byId.cc2.parentId).toBe('turn2') // landed in turn 2's window
-    expect(byId.ccx.parentId).toBe(root) // outside every turn → left under the container root
-    expect(byId.turn1.parentId).toBe(root) // ai.turn spans untouched
   })
 })
