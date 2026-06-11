@@ -32,10 +32,10 @@ export const providerSettingsTypography = {
  * (`.provider-settings-default-scope` — `--border`, `--foreground`, `--cherry-*`).
  * The provider detail shell should include `provider-settings-default-scope` so these inherit correctly.
  */
-/** Connection — `bg-muted/50` strip + `border-section-border` (`provider-settings-scoped-theme.css`).
+/** Connection — transparent input body + same muted border as model search.
  * Fixed `h-8` (32px) so all input groups in this page line up regardless of trailing-control height. */
 const providerSettingsInputGroupBase =
-  'h-8 rounded-lg border border-[color:var(--section-border)] bg-muted/50 px-2.5 shadow-none'
+  'h-8 rounded-lg border border-[color:var(--color-border-fg-muted)] bg-transparent px-2.5 shadow-none'
 
 /** Softer focus ring than `@cherrystudio/ui` InputGroup default (`ring-[3px]`) — business-layer override only. */
 const providerSettingsInputGroupFocusOverride =
@@ -45,13 +45,11 @@ const providerSettingsInputGroupFocusOverride =
 const sectionHeadingBase =
   'm-0 text-[length:var(--font-size-body-md)] text-foreground leading-[var(--line-height-section-label)]'
 
-export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-[weight:var(--font-weight-medium)]')
+export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-medium')
 
-/**
- * Authentication card: bordered container + section title.
- */
+/** Authentication section layout: slot stack only; fields provide their own surfaces. */
 export const authConnectionClasses = {
-  shell: 'rounded-[length:var(--radius-xl)] border border-[color:var(--section-border)] px-3.5 py-3',
+  shell: '',
   body: 'flex flex-col gap-2'
 } as const
 
@@ -59,12 +57,12 @@ export const authConnectionClasses = {
  * Provider detail column (`ProviderSetting.tsx`) — padding + gap between Authentication + ModelList.
  */
 export const providerDetailColumnClasses = {
-  headerPad: 'shrink-0 px-6 pt-3',
-  scrollStrip: 'min-h-0 flex-1 overflow-x-hidden px-6 pt-8 pb-4',
+  headerPad: 'shrink-0 px-6 pt-2',
+  scrollStrip: 'min-h-0 flex-1 overflow-x-hidden px-6 pt-6 pb-4',
   contentMaxWidth: 'mx-auto w-full max-w-3xl',
   /** Header inner wrapper: same max-width as body content + bottom divider aligned to content edges. */
   headerContentMaxWidth: 'mx-auto w-full max-w-3xl border-b border-border pb-2',
-  sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-8'
+  sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-5'
 } as const
 
 /** Connection-field actions; composes atomic `--space-*`, `--font-size-caption`, `--color-*-soft` from scope CSS. */
@@ -78,16 +76,19 @@ export const actionClasses = {
     'border-[color:var(--color-border-default-soft)] bg-transparent text-[color:var(--color-fg-subtle)] hover:bg-[var(--accent)] hover:text-[color:var(--foreground)]'
 } as const
 
+const providerListItemFrame =
+  'relative flex h-8 w-full items-center justify-between rounded-[10px] border border-transparent py-0 pr-2.5 pl-0.5 text-left shadow-none outline-none transition-colors focus-visible:ring-0'
+
 /** Provider list rows + detached menus. */
 export const providerListClasses = {
-  shell: 'flex h-full w-[200px] shrink-0 basis-[200px] flex-col border-r border-[color:var(--section-border)]',
+  shell: 'flex h-full w-[232px] shrink-0 basis-[232px] flex-col border-r border-[color:var(--section-border)]',
   headerIconButton:
     'flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
   searchInlineAddButton:
     'flex size-6 shrink-0 items-center justify-center rounded-[8px] bg-muted text-foreground transition-colors hover:bg-[var(--color-surface-hover-soft)] disabled:pointer-events-none disabled:opacity-30',
-  searchRow: 'flex items-center gap-1.5 px-3 pb-2.5',
+  searchRow: 'flex items-center gap-1.5 px-2.5 pb-2.5',
   searchWrap:
-    'flex h-8 items-center gap-1 rounded-xl border border-[color:var(--section-border)] bg-background py-1 pl-2.5 pr-1',
+    'flex h-8 items-center gap-1 rounded-[10px] border border-[color:var(--section-border)] bg-background py-1 pl-2.5 pr-1',
   searchIcon: 'size-4 shrink-0 text-muted-foreground/60',
   searchInput:
     'min-w-0 flex-1 bg-transparent text-sm leading-none text-foreground/80 outline-none placeholder:text-muted-foreground/60',
@@ -101,16 +102,21 @@ export const providerListClasses = {
   addWrap: 'shrink-0 border-t border-[color:var(--section-border)] px-2.5 py-2',
   addButton:
     'flex w-full items-center justify-center gap-1.5 rounded-lg border border-[color:var(--section-border)] border-dashed bg-transparent py-[5px] text-xs text-foreground-muted shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
-  item: 'relative flex h-8 w-full items-center justify-between rounded-[10px] border border-transparent px-2.5 text-left shadow-none outline-none transition-colors focus-visible:ring-0',
+  item: providerListItemFrame,
   itemSelected: 'bg-muted',
   itemIdle: 'hover:bg-muted',
-  itemAvatar: 'shrink-0 rounded-lg border border-border/30',
-  itemLabel: 'truncate text-sm leading-[1.35]',
+  itemMain: 'flex min-w-0 flex-1 items-center gap-0',
+  itemIdentity: 'flex min-w-0 flex-1 items-center gap-2.5',
+  itemDragHandle:
+    'flex w-2.5 shrink-0 items-center justify-center text-muted-foreground/40 opacity-0 transition-opacity duration-150 group-hover/row:opacity-100 group-focus-within/row:opacity-100 data-[dragging=true]:opacity-100',
+  itemDragHandleSpacer: 'flex w-2.5 shrink-0',
+  itemAvatar:
+    'shrink-0 rounded-md border border-border/30 [&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]',
+  itemLabel: 'truncate text-sm leading-[1.35] text-foreground font-[weight:500]',
   itemMenuContent: 'w-fit min-w-32 rounded-xl p-1.5',
   itemMenuEntry: 'h-8 rounded-lg px-2.5 text-sm',
-  groupHeader:
-    'relative flex w-full items-center justify-between rounded-xl border border-transparent pl-2 pr-1.5 py-2 text-left shadow-none outline-none transition-colors hover:bg-accent/50 focus-visible:ring-0',
-  groupHeaderHasSelected: 'bg-muted/30 dark:bg-muted/25',
+  groupHeader: cn(providerListItemFrame, 'hover:bg-muted'),
+  groupHeaderHasSelected: 'bg-muted',
   groupChevron: 'shrink-0 text-muted-foreground/60 transition-transform duration-150',
   groupChevronOpen: 'rotate-90',
   groupCount: 'shrink-0 text-[length:var(--font-size-body-xs)] leading-none text-muted-foreground/60 tabular-nums',
@@ -119,9 +125,9 @@ export const providerListClasses = {
     'absolute right-1.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 data-[active=true]:opacity-100',
   /** Enabled-state dot — shown when `provider.isEnabled` is true; hidden on row hover or focus so the kebab takes the slot. */
   itemEnabledDot:
-    'pointer-events-none absolute right-2 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
+    'pointer-events-none absolute right-[13px] top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
   groupAddRow:
-    'flex w-full items-center gap-2 rounded-xl border border-dashed border-[color:var(--section-border)] bg-transparent px-2 py-[6px] text-[length:var(--font-size-body-xs)] leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/40 hover:text-foreground',
+    'flex w-full items-center gap-2 rounded-[10px] border border-dashed border-[color:var(--section-border)] bg-transparent px-2 py-[6px] text-[length:var(--font-size-body-xs)] leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/40 hover:text-foreground',
   disclosureToggle:
     'flex w-full items-center gap-1.5 rounded-md bg-transparent px-1 py-1 text-left text-[length:var(--font-size-body-xs)] leading-none text-muted-foreground/80 shadow-none outline-none transition-colors hover:text-foreground focus-visible:ring-0',
   disclosureChevron: 'size-3 shrink-0 text-muted-foreground/60 transition-transform duration-150',
@@ -133,7 +139,7 @@ export const providerListClasses = {
  * — custom request headers side panel: one compact key/value row per header.
  */
 export const customHeaderDrawerClasses = {
-  bodyScroll: 'flex flex-col gap-4 py-3',
+  bodyScroll: 'flex flex-col gap-4',
   /** JSON mode — matches structured monospace block for custom headers. */
   headersJsonEditor:
     'min-h-[120px] w-full resize-y rounded-xl border border-[color:var(--section-border)] bg-muted/50 px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground shadow-none outline-none focus-visible:ring-[1px] focus-visible:ring-ring/35 placeholder:text-muted-foreground/45',
@@ -169,11 +175,8 @@ export const drawerClasses = {
   errorText: 'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-destructive',
   emptyInline:
     'rounded-[length:var(--radius-md)] border border-dashed border-[color:var(--color-border-fg-muted)] px-3 py-2 text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/70',
-  toggleButton: cn(
-    actionClasses.btnBase,
-    actionClasses.btnNeutral,
-    'justify-center gap-1.5 rounded-lg border-[color:var(--color-border-fg-muted)] px-3 py-2 text-foreground/75 hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground'
-  ),
+  toggleButton:
+    'h-auto justify-start gap-1.5 px-0 py-0 text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground-muted shadow-none hover:bg-transparent hover:text-foreground',
   inlineRow: 'flex flex-wrap items-center gap-2',
   valueRow: 'flex min-w-0 items-center gap-2',
   responsiveValueRow: 'flex min-w-0 flex-col items-stretch gap-2 sm:flex-row sm:items-center',
@@ -183,7 +186,12 @@ export const drawerClasses = {
   switchCard:
     'rounded-[length:var(--radius-md)] border border-border bg-background px-3 py-3 [&_[data-slot=switch]]:mt-0.5',
   endpointChipRow: 'flex min-w-0 flex-wrap items-center gap-2',
+  splitFooter: 'flex w-full items-center justify-between gap-3',
   footer: 'flex items-center justify-end gap-2',
+  footerTextButton:
+    'h-auto min-h-0 rounded-md px-0 py-0 text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted/60 shadow-none hover:bg-transparent hover:text-foreground-muted',
+  healthCostWarning:
+    'shrink-0 rounded-[length:var(--radius-lg)] border-[color:var(--color-warning-base)] bg-[color:var(--color-warning-bg)] px-3 py-2.5 text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-[color:var(--color-warning-base)] shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-4 [&_[data-slot=alert-message]]:font-[weight:var(--font-weight-medium)]',
   /** Model health-check drawer: determinate progress (scoped neutral track + primary fill). */
   healthProgressTrack:
     'h-1.5 w-full overflow-hidden rounded-full bg-[color:color-mix(in_srgb,var(--muted-foreground)_12%,transparent)]',
@@ -197,17 +205,24 @@ export const modelListClasses = {
   /** Inline-size container for `@container model-list` rules in `provider-settings-scoped-theme.css` (replaces JS width measurement). */
   cqRoot: 'ps-model-list-cq flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-[length:var(--space-stack-sm)]',
   section: 'flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-[length:var(--space-stack-sm)]',
-  headerBlock: 'flex min-h-0 min-w-0 w-full flex-1 flex-col gap-[length:var(--space-stack-lg)]',
-  titleRow: 'flex min-w-0 w-full flex-wrap items-center justify-between gap-3',
+  headerBlock: 'flex min-h-0 min-w-0 w-full flex-1 flex-col gap-3',
+  titleRow: 'flex min-w-0 w-full flex-wrap items-center justify-between gap-2.5',
   /** Model list header stack — matches model list block. */
-  headerToolStack: 'flex min-w-0 w-full flex-col gap-[length:var(--space-stack-lg)]',
-  titleWrap: 'flex min-w-0 items-baseline gap-[length:var(--space-inline-md)]',
-  titleActions: 'flex max-w-full flex-1 flex-wrap items-center justify-end gap-2',
+  headerToolStack: 'flex min-w-0 w-full flex-col gap-2',
+  titleWrap: 'flex w-full min-w-0 items-center gap-[length:var(--space-inline-md)]',
+  titleActions: 'flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2',
   toolbarDesignIcon: 'size-4 shrink-0',
   /** Connected top-row model list actions; uses shared ButtonGroup + Button outline primitives. */
   toolbarButtonGroup: 'max-w-full shrink-0',
   /** Model-list section title: same size, line-height, and color; scoped weight `--font-weight-semibold` (600). */
-  sectionTitle: cn(sectionHeadingBase, 'font-[weight:var(--font-weight-semibold)]'),
+  sectionTitleLine: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1',
+  sectionTitle: cn(sectionHeadingBase, 'shrink-0 whitespace-nowrap font-semibold'),
+  titleHelpRow: 'flex min-w-0 flex-wrap items-center gap-x-1 self-center text-foreground-muted',
+  titleHelpText: 'shrink-0 opacity-60',
+  titleHelpLink:
+    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] text-primary hover:underline',
+  titleHelpSeparator:
+    'inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] text-foreground-muted/50',
   countMeta:
     'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted tabular-nums',
   toolbarGhost:
@@ -223,44 +238,50 @@ export const modelListClasses = {
   searchRow: 'flex min-w-0 w-full flex-wrap items-center gap-2',
   searchActions: 'flex max-w-full shrink-0 flex-wrap items-center gap-2',
   searchWrap:
-    'flex h-[26px] w-full min-w-[160px] max-w-[200px] items-center gap-1 rounded-[10px] border border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-1',
+    'flex h-8 min-w-0 flex-1 items-center gap-1 rounded-[10px] border border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-1',
   searchIcon: 'size-3 shrink-0 text-muted-foreground/65',
   searchInput:
-    'min-w-0 flex-1 border-none bg-transparent text-xs leading-4 text-foreground/80 outline-none placeholder:text-muted-foreground/75 disabled:cursor-not-allowed disabled:opacity-60',
+    'min-w-0 flex-1 border-none bg-transparent text-sm leading-5 text-foreground/80 outline-none placeholder:text-muted-foreground/75 disabled:cursor-not-allowed disabled:opacity-60',
   searchClear:
     'flex h-[18px] w-[18px] items-center justify-center rounded-full text-foreground/45 transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground/65',
   fetchActionButton:
-    'h-[26px] min-h-0 gap-1.5 rounded-[length:var(--cs-radius-md)] border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-0 text-xs leading-4 text-foreground shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'h-8 min-h-0 gap-1.5 rounded-[length:var(--cs-radius-md)] border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-0 text-sm leading-5 text-foreground shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   addModelIconButton:
-    'size-[26px] min-h-0 rounded-[length:var(--cs-radius-md)] border-[color:var(--color-border-fg-muted)] bg-background p-0 text-foreground shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
+    'size-8 min-h-0 rounded-[length:var(--cs-radius-md)] border-[color:var(--color-border-fg-muted)] bg-background p-0 text-foreground shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   addIconButton:
     'size-8 rounded-lg border-[color:var(--color-border-fg-muted)] bg-transparent text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
-  capabilityTabsRoot: 'relative block min-w-0 w-full overflow-hidden',
-  capabilityTabsList:
-    'flex h-[30px] min-w-0 max-w-full items-center justify-start gap-3 overflow-x-auto overflow-y-hidden p-0 pr-8 scroll-ps-[100px] scroll-pe-[100px] scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
-  capabilityTabActive:
-    'ps-model-list-cap-chip relative h-[30px] min-h-0 min-w-0 max-w-full shrink-0 gap-1.5 rounded-none px-1.5 py-1.5 text-foreground shadow-none hover:bg-transparent hover:text-foreground after:absolute after:bottom-0 after:left-1.5 after:right-1.5 after:h-[2px] after:bg-foreground after:content-[""]',
-  capabilityTabIdle:
-    'ps-model-list-cap-chip relative h-[30px] min-h-0 min-w-0 max-w-full shrink-0 gap-1.5 rounded-none px-1.5 py-1.5 text-foreground-muted shadow-none hover:bg-transparent hover:text-foreground/80 after:absolute after:bottom-0 after:left-1.5 after:right-1.5 after:h-[2px] after:bg-transparent after:content-[""]',
+  capabilityFilterRoot: 'flex min-w-0 shrink-0 items-center gap-1',
+  capabilityFilterButton:
+    'h-7 min-h-0 max-w-[170px] gap-1.5 rounded-[length:var(--cs-radius-md)] border-[color:var(--color-border-fg-muted)] bg-background px-2 py-0 text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40',
+  capabilityFilterButtonIconOnly: 'size-7 px-0',
+  capabilityFilterButtonActive: 'border-[color:var(--color-border-active)] bg-[var(--color-surface-fg-subtle)]',
+  capabilityFilterLabel: 'min-w-0 truncate',
+  capabilityFilterClear:
+    'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/45 transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-muted-foreground/80',
+  capabilityFilterMenu: 'w-fit min-w-40 rounded-xl p-1.5',
+  capabilityFilterMenuItem: 'h-8 rounded-lg px-2.5 text-sm',
   capabilityTabIcon: 'size-3 shrink-0',
-  capabilityTabLabel: 'min-w-0 truncate text-xs leading-4',
-  capabilityTabsFadeMask:
-    'pointer-events-none absolute inset-y-0 right-0 w-[100px] bg-[linear-gradient(to_right,transparent_0%,var(--background)_85%)]',
-  subsectionRow: 'flex min-w-0 items-center justify-between gap-2',
+  subsectionRow: 'flex min-w-0 items-center gap-2 px-1',
   subsectionTitleWrap: 'flex min-w-0 items-center gap-2',
-  subsectionActions: 'flex shrink-0 items-center gap-2 pr-1',
+  subsectionActions: 'ml-1 flex shrink-0 items-center gap-2',
   subsectionIconButton:
     'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40',
   subsectionIcon: 'size-4 shrink-0',
+  listActionTriggerButton:
+    'inline-flex size-6 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/55 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground/80 disabled:opacity-40',
+  listActionTriggerIcon: 'size-4 shrink-0',
+  listActionMenu: 'w-fit min-w-40 rounded-xl p-1.5',
+  listActionMenuItem: 'h-9 rounded-lg px-3 text-sm',
+  listActionMenuIcon: 'size-3.5 text-muted-foreground/70',
   subsectionTooltipTrigger: 'inline-flex size-5 min-h-0 shrink-0 items-center justify-center leading-none',
   subsectionTitleEnabled:
-    'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted',
+    'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground font-[weight:var(--font-weight-semibold)]',
   subsectionCountEnabled:
-    'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted tabular-nums',
+    'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground-muted tabular-nums font-[weight:var(--font-weight-medium)]',
   subsectionTitleDisabled:
-    'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted',
+    'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground font-[weight:var(--font-weight-semibold)]',
   subsectionCountDisabled:
-    'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted tabular-nums',
+    'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground-muted tabular-nums font-[weight:var(--font-weight-medium)]',
   emptyState:
     'flex min-h-40 items-center justify-center rounded-2xl border border-(--color-border) border-dashed bg-[var(--color-surface-fg-sunken)] px-4 text-center text-[length:var(--font-size-body-md)] leading-[var(--line-height-body-md)] text-foreground-muted',
   listScroller: 'min-h-0 min-w-0 w-full flex-1 overflow-x-hidden pr-1',
@@ -292,40 +313,36 @@ export const modelListClasses = {
   manageDrawerBulkGhostEnableHover: 'hover:!text-primary',
   /** Disable-all hover — destructive (design draft). */
   manageDrawerBulkGhostDisableHover: 'hover:!text-destructive',
-  /**
-   * Provider-grouped card (design: bordered shell with collapsible header — provider name + chevron at end).
-   * Replaces the antd-coupled wrapper; rows render inside the same card on expand.
-   */
+  /** Provider-grouped card: bordered shell with leading chevron; rows render inside the same card on expand. */
   groupCard:
-    'min-w-0 w-full rounded-[length:var(--radius-lg)] border border-[color:var(--color-border-fg-muted)] bg-transparent px-3 py-2',
+    'group/modelGroup min-w-0 w-full rounded-[length:var(--radius-md)] border border-[color:var(--color-border-fg-hairline)] bg-transparent px-2 py-1',
   groupHeader:
-    'group/groupRow flex w-full items-center justify-between gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
+    'group/groupRow flex min-h-7 w-full items-center justify-between gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
   groupToggleButton:
-    'flex min-w-0 flex-1 items-center bg-transparent text-left outline-none focus-visible:outline-none',
-  groupHeaderActions: 'flex shrink-0 items-center gap-1',
+    'flex min-w-0 flex-1 items-center gap-1 bg-transparent text-left outline-none focus-visible:outline-none',
+  groupHeaderActions: 'flex h-6 shrink-0 items-center gap-1',
+  groupSwitchTooltipTrigger: 'inline-flex h-6 shrink-0 items-center justify-center leading-none',
   groupTitle:
-    'min-w-0 flex-1 truncate text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted font-[weight:var(--font-weight-normal)] transition-colors group-hover/groupRow:text-foreground',
-  groupChevronButton:
-    'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/65 shadow-none transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground focus-visible:outline-none disabled:opacity-40',
+    'min-w-0 flex-1 truncate text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground font-[weight:var(--font-weight-medium)]',
   groupChevron:
     'size-4 shrink-0 text-muted-foreground/65 transition-[transform,color] duration-150 group-hover/groupRow:text-foreground',
   groupChevronOpen: 'rotate-90',
-  groupBody: 'mt-1.5 flex flex-col gap-0.5',
+  groupBody: 'mt-0.5 flex flex-col gap-0.5',
   groupOverflowHint:
     'mt-1 rounded-lg px-3 py-2 text-left text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/70 transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
-  row: 'group flex items-center gap-3 rounded-xl px-3 py-[10px] text-foreground leading-none transition-colors hover:bg-[var(--color-surface-fg-subtle)]',
-  rowMain: 'min-w-0 flex-1 items-center gap-3',
+  row: 'group flex min-h-11 items-center gap-3 py-2 text-foreground leading-none',
+  rowMain: 'min-w-0 flex-1 items-center gap-3 self-center',
   rowAvatar: 'h-[26px] w-[26px] shrink-0 rounded-lg',
-  rowBody: 'min-w-0 max-w-full flex-1 overflow-hidden',
-  /** Model name opens the edit drawer; copy stays on explicit trailing controls. */
-  rowNameCopyable: 'cursor-pointer transition-colors hover:text-primary',
+  rowBody: 'flex min-w-0 max-w-full flex-1 items-center overflow-hidden',
+  /** Model name opens the edit drawer; the settings icon is the explicit secondary action. */
+  rowNameCopyable: 'cursor-pointer',
   /** Shown when model id !== name; hidden in narrow container via `.ps-model-list-id` rule. */
   modelIdBadge:
     'ps-model-list-id min-w-0 max-w-[50%] shrink truncate rounded-md bg-foreground/[0.05] px-1.5 py-[1px] font-mono text-[length:var(--font-size-body-xs)] text-foreground-muted leading-[var(--line-height-body-xs)]',
   rowBadges: 'mt-1 flex min-h-[18px] min-w-0 max-w-full flex-wrap items-center gap-1.5',
   /** Capability / trial tags to the left of the enable switch; design: single line with the toggle. */
   rowCapabilityStrip:
-    'flex min-w-0 max-w-[min(100%,20rem)] shrink items-center gap-1.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
+    'flex h-7 min-w-0 max-w-[min(100%,20rem)] shrink items-center gap-1.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
   /** Wraps `ModelTagsWithLabel` only; pairs with `.ps-model-list-cap-strip` rules in `provider-settings-scoped-theme.css`. */
   rowCapabilityTagCluster: 'ps-compact-cap-strip flex min-w-0 shrink items-center',
   rowMeta:
@@ -333,7 +350,7 @@ export const modelListClasses = {
   /** Wraps `HealthStatusIndicator` so latency (antd Typography) can be hidden via container query. */
   healthStatusSlot: 'ps-model-list-health shrink-0',
   /** Trailing column: health + (capability strip + enable) on one row. */
-  rowActionsCluster: 'flex min-w-0 items-center gap-2',
+  rowActionsCluster: 'flex min-h-7 min-w-0 items-center gap-2',
   rowActions: 'min-w-0 shrink-0 items-center gap-1.5 self-center',
   rowIconButton:
     'size-7 rounded-lg border border-[color:var(--color-border-fg-muted)] bg-transparent text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground'
@@ -361,7 +378,7 @@ export const modelSyncClasses = {
   toggleButton: cn(
     actionClasses.btnBase,
     actionClasses.btnNeutral,
-    'rounded-lg border-[color:var(--color-border-fg-muted)] px-3 py-[5px] text-foreground/70 hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground'
+    'rounded-lg border-(--color-border-fg-muted) px-3 py-1.25 text-foreground/70 hover:bg-(--color-surface-fg-subtle) hover:text-foreground'
   ),
   list: 'mt-4 space-y-2',
   row: 'flex items-start gap-3 rounded-xl border border-[color:var(--color-border-fg-hairline)] bg-[var(--color-surface-fg-sunken)] px-3 py-3',
@@ -426,29 +443,38 @@ export const modelSyncClasses = {
 } as const
 
 export const apiKeyListClasses = {
-  shell: 'provider-settings-default-scope space-y-4',
   summaryMeta:
     'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted tabular-nums',
   helperText: 'text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-foreground-muted',
-  listWrap: 'overflow-hidden rounded-lg border border-[color:var(--color-border-fg-muted)] bg-transparent',
+  listWrap: 'overflow-hidden rounded-lg border border-[color:var(--color-border-fg-muted)]',
   listScroller: 'max-h-[60vh] overflow-x-hidden',
   keyRow: 'flex flex-col gap-2 border-b border-[color:var(--color-border-fg-hairline)] px-4 py-3 last:border-b-0',
-  keyRowHeader: 'flex items-start justify-between gap-3',
+  keyDisplayRow: 'flex min-w-0 items-center gap-3',
+  keyTextBlock: 'min-w-0 flex-1',
+  keyRowActions: 'flex shrink-0 items-center gap-1.5',
   keyLabel:
     'min-w-0 truncate text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-foreground font-[weight:var(--font-weight-medium)]',
   keyValue:
     'min-w-0 flex-1 truncate font-mono text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted',
-  keyInputRow: 'grid gap-2 sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]',
-  actionRow: 'flex items-center justify-between gap-3',
-  actionCluster: 'flex items-center gap-1'
+  keyDraftRow: 'flex min-w-0 items-center gap-2',
+  keyDraftInputs: 'grid min-w-0 flex-1 gap-2 sm:grid-cols-[minmax(4.5rem,6rem)_minmax(0,1fr)]',
+  keyDraftInput:
+    'h-8 rounded-[length:var(--radius-md)] bg-background px-2.5 text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)]',
+  keyIconButton:
+    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-muted-foreground/70 disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3',
+  keySaveIconButton:
+    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-success/10 hover:text-success disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3',
+  keyDestructiveIconButton:
+    'inline-flex size-5 shrink-0 items-center justify-center rounded-md text-muted-foreground/40 transition-colors hover:bg-destructive/10 hover:text-destructive/70 disabled:pointer-events-none disabled:opacity-30 [&_svg]:size-3',
+  actionRow: 'flex items-center justify-between gap-3'
 } as const
 
 export const oauthCardClasses = {
   /** Fills the auth column; no max-width so the card tracks the detail pane (fluid layout). */
   container: 'w-full min-w-0',
-  /** Aligned with `authConnectionClasses.shell`: `--section-border` hairline, `--radius-xl` (large card), no shadow / fill. */
+  /** Large bordered auth card, no shadow or filled background. */
   shell:
-    'w-full min-w-0 overflow-hidden rounded-[length:var(--radius-xl)] border border-[color:var(--section-border)] px-3.5 py-3',
+    'w-full min-w-0 overflow-hidden rounded-[length:var(--radius-xl)] border border-[color:var(--color-border-fg-hairline)] px-3 py-2.5',
   loginFooterRow: 'mt-2.5 flex items-center justify-center gap-4',
   loginFooterLink:
     'h-auto min-h-0 p-0 text-[length:var(--font-size-body-xs)] text-muted-foreground/60 shadow-none hover:bg-transparent hover:text-foreground',
@@ -458,7 +484,7 @@ export const oauthCardClasses = {
     'mt-1 inline-block text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-primary hover:underline',
   /** Logged-in CherryIN: mock CherryIN account section — one row, no stat grid. */
   shellLoggedIn:
-    'w-full min-w-0 overflow-hidden rounded-[length:var(--radius-xl)] border border-[color:var(--section-border)] p-3.5',
+    'w-full min-w-0 overflow-hidden rounded-[length:var(--radius-xl)] border border-[color:var(--color-border-fg-hairline)] px-3 py-2.5',
   loggedInRow: 'flex w-full min-w-0 flex-wrap items-center justify-between gap-3',
   profileMeta: 'flex min-w-0 flex-1 items-center gap-3',
   /** Avatar: 32px round avatar, primary fill, initials (/ CherryIN row). */
@@ -523,5 +549,8 @@ export const fieldClasses = {
   inputActionButton: cn(fieldIconButtonBase, 'size-8'),
   /** Inline show/hide control kept inside the field without adding another border. */
   apiKeyVisibilityToggle:
-    'flex size-5 shrink-0 items-center justify-center text-[var(--cherry-text-muted)] transition-colors hover:text-[var(--cherry-primary-hover)] disabled:pointer-events-none disabled:opacity-40'
+    'flex size-5 shrink-0 items-center justify-center text-[var(--cherry-text-muted)] transition-colors hover:text-[var(--cherry-primary-hover)] disabled:pointer-events-none disabled:opacity-40',
+  titleWithHelp: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1',
+  titleHelpLink:
+    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-body-sm)] text-primary hover:underline'
 } as const

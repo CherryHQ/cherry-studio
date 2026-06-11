@@ -13,7 +13,14 @@ import {
   KnowledgeItemSchema,
   RestoreKnowledgeBaseSchema
 } from '../../../types/knowledge'
-import { ListKnowledgeBasesQuerySchema, ListKnowledgeItemsQuerySchema, UpdateKnowledgeBaseSchema } from '../knowledges'
+import {
+  KNOWLEDGE_BASES_DEFAULT_LIMIT,
+  KNOWLEDGE_BASES_DEFAULT_PAGE,
+  KNOWLEDGE_BASES_MAX_LIMIT,
+  ListKnowledgeBasesQuerySchema,
+  ListKnowledgeItemsQuerySchema,
+  UpdateKnowledgeBaseSchema
+} from '../knowledges'
 
 const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const SECOND_KNOWLEDGE_BASE_ID = '22222222-2222-4222-8222-222222222222'
@@ -221,9 +228,28 @@ describe('Knowledge base schemas', () => {
     ).toBe(false)
 
     expect(ListKnowledgeBasesQuerySchema.safeParse({ page: 1, limit: 20, extra: true }).success).toBe(false)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ page: 1, limit: 20, updatedAtFrom: 1 }).success).toBe(false)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ page: 1, limit: 20, sortBy: 'updatedAt' }).success).toBe(false)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ page: 1, limit: 20, orderBy: 'desc' }).success).toBe(false)
     expect(ListKnowledgeItemsQuerySchema.safeParse({ page: 1, limit: 20, type: 'note', extra: true }).success).toBe(
       false
     )
+  })
+
+  it('trims knowledge base search and applies pagination defaults', () => {
+    expect(ListKnowledgeBasesQuerySchema.parse({ search: '  docs  ' })).toEqual({
+      page: KNOWLEDGE_BASES_DEFAULT_PAGE,
+      limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
+      search: 'docs'
+    })
+  })
+
+  it('accepts knowledge base max limit and rejects blank search', () => {
+    expect(ListKnowledgeBasesQuerySchema.parse({ page: 2, limit: KNOWLEDGE_BASES_MAX_LIMIT })).toEqual({
+      page: 2,
+      limit: KNOWLEDGE_BASES_MAX_LIMIT
+    })
+    expect(() => ListKnowledgeBasesQuerySchema.parse({ search: '   ' })).toThrow()
   })
 
   it('rejects invalid numeric tuning fields in update schema', () => {

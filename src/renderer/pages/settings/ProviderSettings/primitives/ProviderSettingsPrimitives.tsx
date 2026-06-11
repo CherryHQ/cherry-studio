@@ -37,7 +37,7 @@ export function ProviderHelpText({ children, className }: { children: ReactNode;
 }
 
 export function ProviderHelpTextRow({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('flex flex-row items-center py-[5px]', className)}>{children}</div>
+  return <div className={cn('flex flex-row items-center py-1.25', className)}>{children}</div>
 }
 
 export function ProviderHelpLink({ children, className, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
