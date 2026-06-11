@@ -1,3 +1,4 @@
+import { DEFAULT_MODEL_PREFERENCE_KEYS } from '@data/db/cherryaiDefaultModel'
 import { preferenceTable } from '@data/db/schemas/preference'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -19,7 +20,22 @@ import { describe, expect, it } from 'vitest'
 describe('CherryAIDefaultModelSeeder', () => {
   const dbh = setupTestDatabase()
 
-  it('seeds CherryAI provider, Qwen model, and missing chat default model preference', async () => {
+  async function readPreferenceValue(key: string) {
+    const [preference] = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, key)))
+      .limit(1)
+    return preference?.value
+  }
+
+  async function expectSeededDefaultModelPreferences() {
+    for (const key of DEFAULT_MODEL_PREFERENCE_KEYS) {
+      expect(await readPreferenceValue(key)).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+    }
+  }
+
+  it('seeds CherryAI provider, Qwen model, and missing default model preferences', async () => {
     await new CherryAIDefaultModelSeeder().run(dbh.db)
 
     const [provider] = await dbh.db
@@ -31,11 +47,6 @@ describe('CherryAIDefaultModelSeeder', () => {
       .select()
       .from(userModelTable)
       .where(eq(userModelTable.id, CHERRYAI_DEFAULT_UNIQUE_MODEL_ID))
-      .limit(1)
-    const [preference] = await dbh.db
-      .select()
-      .from(preferenceTable)
-      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'chat.default_model_id')))
       .limit(1)
 
     expect(provider).toMatchObject({
@@ -55,58 +66,61 @@ describe('CherryAIDefaultModelSeeder', () => {
       isEnabled: true,
       isHidden: false
     })
-    expect(preference?.value).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+    await expectSeededDefaultModelPreferences()
   })
 
-  it('does not overwrite an existing non-empty chat default model preference', async () => {
-    await dbh.db.insert(preferenceTable).values({
-      scope: 'default',
-      key: 'chat.default_model_id',
-      value: 'openai::gpt-4o'
-    })
+  it('does not overwrite existing non-empty default model preferences', async () => {
+    await dbh.db.insert(preferenceTable).values([
+      {
+        scope: 'default',
+        key: 'chat.default_model_id',
+        value: 'openai::gpt-4o'
+      },
+      {
+        scope: 'default',
+        key: 'feature.quick_assistant.model_id',
+        value: 'anthropic::claude-3-haiku'
+      },
+      {
+        scope: 'default',
+        key: 'feature.translate.model_id',
+        value: 'google::gemini-2.5-flash'
+      }
+    ])
 
     await new CherryAIDefaultModelSeeder().run(dbh.db)
 
-    const [preference] = await dbh.db
-      .select()
-      .from(preferenceTable)
-      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'chat.default_model_id')))
-      .limit(1)
-    expect(preference?.value).toBe('openai::gpt-4o')
+    expect(await readPreferenceValue('chat.default_model_id')).toBe('openai::gpt-4o')
+    expect(await readPreferenceValue('feature.quick_assistant.model_id')).toBe('anthropic::claude-3-haiku')
+    expect(await readPreferenceValue('feature.translate.model_id')).toBe('google::gemini-2.5-flash')
   })
 
-  it('backfills null chat default model preferences', async () => {
-    await dbh.db.insert(preferenceTable).values({
-      scope: 'default',
-      key: 'chat.default_model_id',
-      value: null
-    })
+  it('backfills null default model preferences', async () => {
+    await dbh.db.insert(preferenceTable).values(
+      DEFAULT_MODEL_PREFERENCE_KEYS.map((key) => ({
+        scope: 'default',
+        key,
+        value: null
+      }))
+    )
 
     await new CherryAIDefaultModelSeeder().run(dbh.db)
 
-    const [preference] = await dbh.db
-      .select()
-      .from(preferenceTable)
-      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'chat.default_model_id')))
-      .limit(1)
-    expect(preference?.value).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+    await expectSeededDefaultModelPreferences()
   })
 
-  it('backfills empty chat default model preferences', async () => {
-    await dbh.db.insert(preferenceTable).values({
-      scope: 'default',
-      key: 'chat.default_model_id',
-      value: ''
-    })
+  it('backfills empty default model preferences', async () => {
+    await dbh.db.insert(preferenceTable).values(
+      DEFAULT_MODEL_PREFERENCE_KEYS.map((key) => ({
+        scope: 'default',
+        key,
+        value: ''
+      }))
+    )
 
     await new CherryAIDefaultModelSeeder().run(dbh.db)
 
-    const [preference] = await dbh.db
-      .select()
-      .from(preferenceTable)
-      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'chat.default_model_id')))
-      .limit(1)
-    expect(preference?.value).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+    await expectSeededDefaultModelPreferences()
   })
 
   it('preserves an existing CherryAI provider row', async () => {

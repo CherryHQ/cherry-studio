@@ -23,14 +23,14 @@ describe('LlmModelTransforms', () => {
       })
     })
 
-    it('falls back chat default model to CherryAI when model objects are missing', () => {
+    it('falls back setting model preferences to CherryAI when model objects are missing', () => {
       const result = transformLlmModelIds({})
 
       expect(result).toEqual({
         'chat.default_model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
         'topic.naming.model_id': null,
-        'feature.quick_assistant.model_id': null,
-        'feature.translate.model_id': null
+        'feature.quick_assistant.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+        'feature.translate.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
       })
     })
 
@@ -45,8 +45,8 @@ describe('LlmModelTransforms', () => {
 
       expect(result['chat.default_model_id']).toBe('openai::gpt-4')
       expect(result['topic.naming.model_id']).toBeNull()
-      expect(result['feature.quick_assistant.model_id']).toBeNull()
-      expect(result['feature.translate.model_id']).toBeNull()
+      expect(result['feature.quick_assistant.model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+      expect(result['feature.translate.model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
     })
 
     it('handles model with incomplete data (missing provider)', () => {
@@ -72,8 +72,8 @@ describe('LlmModelTransforms', () => {
       expect(result).toEqual({
         'chat.default_model_id': 'openai::gpt-4',
         'topic.naming.model_id': 'openai::gpt-4o-mini',
-        'feature.quick_assistant.model_id': null,
-        'feature.translate.model_id': null
+        'feature.quick_assistant.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+        'feature.translate.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
       })
     })
 

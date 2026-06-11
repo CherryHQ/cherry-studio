@@ -3,6 +3,7 @@ import { preferenceTable } from '@data/db/schemas/preference'
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
+import type { DbType } from '@data/db/types'
 import { providerService } from '@data/services/ProviderService'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import {
@@ -17,10 +18,12 @@ import {
 import type { ModelCapability } from '@shared/data/types/model'
 import { and, eq } from 'drizzle-orm'
 
-import type { DbType } from './db/types'
-
-export const CHAT_DEFAULT_MODEL_PREFERENCE_SCOPE = 'default' as const
-export const CHAT_DEFAULT_MODEL_PREFERENCE_KEY = 'chat.default_model_id' as const
+const DEFAULT_MODEL_PREFERENCE_SCOPE = 'default' as const
+export const DEFAULT_MODEL_PREFERENCE_KEYS = [
+  'chat.default_model_id',
+  'feature.quick_assistant.model_id',
+  'feature.translate.model_id'
+] as const
 
 type TxLike = Pick<DbType, 'select' | 'insert' | 'update'>
 type CherryAIProviderRow = Omit<InsertUserProviderRow, 'orderKey'>
@@ -90,43 +93,43 @@ export async function ensureCherryAIDefaultProviderAndModelTx(tx: TxLike): Promi
   })
 }
 
-export async function ensureDefaultChatModelPreferenceTx(tx: TxLike): Promise<void> {
-  const [existing] = await tx
-    .select({ value: preferenceTable.value })
-    .from(preferenceTable)
-    .where(
-      and(
-        eq(preferenceTable.scope, CHAT_DEFAULT_MODEL_PREFERENCE_SCOPE),
-        eq(preferenceTable.key, CHAT_DEFAULT_MODEL_PREFERENCE_KEY)
-      )
-    )
-    .limit(1)
+export function createDefaultModelPreferenceRows() {
+  return DEFAULT_MODEL_PREFERENCE_KEYS.map((key) => ({
+    scope: DEFAULT_MODEL_PREFERENCE_SCOPE,
+    key,
+    value: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+  }))
+}
 
-  if (!existing) {
-    await tx.insert(preferenceTable).values({
-      scope: CHAT_DEFAULT_MODEL_PREFERENCE_SCOPE,
-      key: CHAT_DEFAULT_MODEL_PREFERENCE_KEY,
-      value: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
-    })
-    return
+export async function ensureDefaultModelPreferencesTx(tx: TxLike): Promise<void> {
+  for (const { scope, key, value } of createDefaultModelPreferenceRows()) {
+    const [existing] = await tx
+      .select({ value: preferenceTable.value })
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, scope), eq(preferenceTable.key, key)))
+      .limit(1)
+
+    if (!existing) {
+      await tx.insert(preferenceTable).values({
+        scope,
+        key,
+        value
+      })
+      continue
+    }
+
+    if (existing.value !== null && existing.value !== '') {
+      continue
+    }
+
+    await tx
+      .update(preferenceTable)
+      .set({ value, updatedAt: Date.now() })
+      .where(and(eq(preferenceTable.scope, scope), eq(preferenceTable.key, key)))
   }
-
-  if (existing.value !== null && existing.value !== '') {
-    return
-  }
-
-  await tx
-    .update(preferenceTable)
-    .set({ value: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, updatedAt: Date.now() })
-    .where(
-      and(
-        eq(preferenceTable.scope, CHAT_DEFAULT_MODEL_PREFERENCE_SCOPE),
-        eq(preferenceTable.key, CHAT_DEFAULT_MODEL_PREFERENCE_KEY)
-      )
-    )
 }
 
 export async function ensureCherryAIDefaultModelSetupTx(tx: TxLike): Promise<void> {
   await ensureCherryAIDefaultProviderAndModelTx(tx)
-  await ensureDefaultChatModelPreferenceTx(tx)
+  await ensureDefaultModelPreferencesTx(tx)
 }

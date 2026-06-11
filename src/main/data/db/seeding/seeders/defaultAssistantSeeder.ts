@@ -1,4 +1,4 @@
-import { ensureCherryAIDefaultModelSetupTx } from '@data/cherryaiDefaultModel'
+import { ensureCherryAIDefaultProviderAndModelTx } from '@data/db/cherryaiDefaultModel'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
@@ -28,7 +28,7 @@ export class DefaultAssistantSeeder implements ISeeder {
         return
       }
 
-      await ensureCherryAIDefaultModelSetupTx(tx)
+      await ensureCherryAIDefaultProviderAndModelTx(tx)
 
       await insertWithOrderKey(tx, assistantTable, DEFAULT_ASSISTANT_SEED, {
         pkColumn: assistantTable.id,

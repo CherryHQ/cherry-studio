@@ -25,9 +25,11 @@ export function transformLlmModelIds(sources: Record<string, unknown>): Transfor
       legacyChatModelToUniqueId(sources.defaultModel as LegacyModelRef | null | undefined) ??
       CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
     'topic.naming.model_id': legacyChatModelToUniqueId(sources.topicNamingModel as LegacyModelRef | null | undefined),
-    'feature.quick_assistant.model_id': legacyChatModelToUniqueId(
-      sources.quickModel as LegacyModelRef | null | undefined
-    ),
-    'feature.translate.model_id': legacyChatModelToUniqueId(sources.translateModel as LegacyModelRef | null | undefined)
+    'feature.quick_assistant.model_id':
+      legacyChatModelToUniqueId(sources.quickModel as LegacyModelRef | null | undefined) ??
+      CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+    'feature.translate.model_id':
+      legacyChatModelToUniqueId(sources.translateModel as LegacyModelRef | null | undefined) ??
+      CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
   }
 }

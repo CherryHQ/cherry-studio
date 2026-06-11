@@ -22,7 +22,7 @@ describe('DefaultAssistantSeeder', () => {
   const dbh = setupTestDatabase()
   const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
-  it('seeds the default assistant only for a fresh database', async () => {
+  it('seeds the default assistant and required CherryAI model only for a fresh database', async () => {
     await new DefaultAssistantSeeder().run(dbh.db)
 
     const [assistant] = await dbh.db.select().from(assistantTable).limit(1)
@@ -55,7 +55,7 @@ describe('DefaultAssistantSeeder', () => {
       isEnabled: true
     })
     expect(model?.id).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
-    expect(preference?.value).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+    expect(preference).toBeUndefined()
   })
 
   it('does not seed the default assistant when any seed journal already exists', async () => {
