@@ -5390,7 +5390,7 @@
         },
         "token_placeholder": "請輸入思源筆記權杖"
       },
-      "title": "資料設定",
+      "title": "資料",
       "webdav": {
         "autoSync": {
           "label": "自動備份",
@@ -5550,7 +5550,7 @@
         },
         "visible": "顯示的圖示"
       },
-      "title": "顯示設定",
+      "title": "顯示",
       "topic": {
         "title": "話題設定"
       },
@@ -5580,10 +5580,10 @@
           "privacy_advanced": "隱私與進階",
           "system_startup": "系統與啟動"
         },
-        "title": "通用設定"
+        "title": "通用"
       },
       "display": {
-        "title": "顯示設定"
+        "title": "顯示"
       },
       "emoji_picker": "表情選擇器",
       "image_upload": "圖片上傳",
@@ -5859,8 +5859,7 @@
           "bailian": "阿里雲百鍊平台 MCP 服務",
           "lanyun": "藍雲科技雲平台 MCP 服務",
           "mcprouter": "MCP 路由器平台 MCP 服務",
-          "modelscope": "ModelScope平台MCP服務",
-          "tokenflux": "TokenFlux 平台 MCP 服務"
+          "modelscope": "ModelScope平台MCP服務"
         },
         "selectProvider": "選擇提供者：",
         "setToken": "輸入權杖",
@@ -6122,16 +6121,15 @@
         }
       },
       "api_key": "API 金鑰",
-      "available_count": "可用模型 {{count}} 個",
       "base_url": "基礎 URL",
-      "bulk_disable": "全部關閉",
-      "bulk_enable": "全選",
+      "bulk_disable": "全部停用",
+      "bulk_enable": "全部啟用",
       "check": {
         "all": "所有",
         "all_models_passed": "所有模型檢查皆成功",
         "button_caption": "健康檢查",
         "disabled": "未啟用",
-        "disclaimer": "健康檢查需要傳送請求，請謹慎使用。按次收費的模型可能產生更多費用，請自行承擔。",
+        "disclaimer": "健康檢查會向選中的模型和 API Key 傳送真實請求。按次計費或並行檢查可能產生高額費用，請確認後再開始。",
         "drawer_result_hint": "檢測結果會保留在此面板中，關閉抽屜或點擊「重新檢測」前不會消失。",
         "enable_concurrent": "並行檢查",
         "enabled": "已啟用",
@@ -6141,6 +6139,7 @@
         "generation_output_image": "圖片",
         "generation_output_video": "影片",
         "keys_status_count": "成功：{{count_passed}} 個金鑰，失敗：{{count_failed}} 個金鑰",
+        "model_button_caption": "檢查所有模型",
         "model_status_failed": "{{count}} 個模型完全無法存取",
         "model_status_partial": "其中 {{count}} 個模型用某些金鑰無法存取",
         "model_status_passed": "{{count}} 個模型健康檢查成功",
@@ -6169,11 +6168,18 @@
         "title": "模型健康檢查",
         "use_all_keys": "使用金鑰"
       },
-      "copy_model_id_tooltip": "點選複製模型 ID：{{id}}",
+      "collapse_all": "全部折疊",
       "default_assistant_model": "預設助手模型",
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
+      "docs": "模型文件",
       "empty": "找不到模型",
-      "group_disable": "關閉此分組",
+      "enabled_models": "已啟用",
+      "expand_all": "全部展開",
+      "filter": {
+        "clear": "清除模型篩選",
+        "label": "篩選模型"
+      },
+      "group_disable": "停用此分組",
       "group_enable": "開啟此分組",
       "list_title": "模型列表",
       "manage": {
@@ -6240,6 +6246,8 @@
         "sync_switch_to_deprecate": "改為標記棄用",
         "sync_will_deprecate": "將標記為棄用"
       },
+      "more_actions": "更多模型列表操作",
+      "not_enabled_models": "已停用",
       "provider_id": "提供者 ID",
       "provider_key_add_confirm": "是否要為 {{provider}} 新增 API 金鑰？",
       "provider_key_add_failed_by_empty_data": "新增提供者 API 金鑰失敗，資料為空",
@@ -6382,7 +6390,7 @@
             "title": "API 金鑰管理"
           },
           "new_key": {
-            "placeholder": "輸入一個或多個金鑰"
+            "placeholder": "輸入 API 金鑰"
           }
         },
         "options": {
@@ -6439,10 +6447,10 @@
         "label": "API 金鑰",
         "label_placeholder": "標籤",
         "list_description": "管理目前供應商的多個 API Key",
-        "placeholder": "多個金鑰使用逗號分隔",
+        "placeholder": "輸入 API 金鑰",
         "save_failed": "API 金鑰儲存失敗",
         "show_key": "顯示金鑰",
-        "tip": "多個金鑰使用逗號分隔",
+        "tip": "每次新增一個 API 金鑰",
         "unnamed": "API Key"
       },
       "api_version": "API 版本",
@@ -6759,7 +6767,9 @@
       "show_app": "顯示 / 隱藏應用程式",
       "show_settings": "開啟設定",
       "title": "快捷鍵",
+      "toggle_left_sidebar": "切換左側邊欄",
       "toggle_new_context": "清除上下文",
+      "toggle_right_sidebar": "切換右側邊欄",
       "toggle_show_topics": "切換話題顯示",
       "toggle_sidebar": "切換側邊欄",
       "zoom_in": "放大介面",
@@ -6835,8 +6845,8 @@
           }
         },
         "fields": {
-          "api_base_url": "API 位址 (Base URL)",
-          "api_key": "API 金鑰 (API Key)",
+          "api_base_url": "API 位址",
+          "api_key": "API 金鑰",
           "api_keys_placeholder": "多個金鑰可用逗號分隔",
           "languages": "語言"
         },
@@ -6884,13 +6894,6 @@
             "description": "Google 開源的光學字元辨識引擎，完全本機執行。",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "認證",
-          "description": "說明",
-          "language_packs": "語言套件",
-          "model_parameters": "模型參數",
-          "status": "狀態"
         },
         "title": "文件解析"
       },
