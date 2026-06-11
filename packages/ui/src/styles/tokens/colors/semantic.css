@@ -62,6 +62,13 @@
   --cs-sidebar: #f7f8f7;
   --cs-sidebar-accent: oklch(0 0 0 / 0.05);
 
+  /* Sidebar glass tint — the opaque sidebar color at partial alpha. The gaussian
+   * blur underneath comes from native vibrancy (transparent windows, while
+   * focused) or CSS backdrop-blur (floating hover sidebar). Alpha balances two
+   * failure modes: too high hides the blur entirely (~60%+ reads opaque), too
+   * low lets the tone drift fully to the raw material. */
+  --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 35%, transparent);
+
   /* Surface-paired foregrounds — all neutral surfaces share the app foreground.
    * These tokens exist so Tailwind utilities like `text-card-foreground`,
    * `text-popover-foreground`, `text-secondary-foreground`, `text-accent-foreground`
@@ -142,4 +149,7 @@
   /* Sidebar */
   --cs-sidebar: #090a05;
   --cs-sidebar-accent: oklch(1 0 0 / 0.1);
+
+  /* Sidebar glass tint (dark) — see :root note. */
+  --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 50%, transparent);
 }
