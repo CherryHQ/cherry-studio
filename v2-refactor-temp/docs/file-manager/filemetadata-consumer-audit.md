@@ -67,13 +67,13 @@ v2 把消费者分为三桶，对应不同的迁移目标：
 
 4. **旧 `FileStorage` IPC 是一个"超大杂货铺单例"**（2043 行、47+ 方法），混合了：受管文件 CRUD（`upload/delete/read/copy`）、外部文件 CRUD（`deleteExternalFile/readExternal/moveDir`）、特殊文件生成（`saveBase64Image/savePastedImage/download`）、格式分析（`pdfPageCount/isTextFile/isDirectory`）、对话框（`open/save/selectFolder`）、目录列表（ripgrep-based `listDirectory`、`getDirectoryStructure`）、chokidar watcher（6 个方法）、Notes 专用（`fileNameGuard/validateNotesDirectory/batchUploadMarkdown/renameDir`）和数据 URL 编解码（`base64Image/binaryImage/base64File`）。v2 新 `FileIpcApi` 只暴露 18 个方法 + `FileHandle` 多态，很多旧方法被折叠、移除或委托给 `ops/*`（详见 `handler-mapping.md`）。
 
-5. **Knowledge 域已经有完整 migrator，其他域尚未规划。** `src/main/data/migration/v2/migrators/KnowledgeMigrator.ts` + `mappings/KnowledgeMappings.ts` 已经处理了从旧 Dexie `files` 表到新 `KnowledgeItemData.file` 的转换（保留了 `FileMetadata` 形态作为 `FileItemData.file` 的 schema）。但 **message/painting/translate/notes 的迁移均未落地**。更糟的是，新 `KnowledgeItemData.file` 仍然用 `FileMetadataSchema`（`packages/shared/data/types/knowledge.ts:42`）表示，也就是说：**v2 的 SQLite 里会保留 FileMetadata 这个旧形状的持久化痕迹**——这是"migrator-only 存量"，不是长久之计。
+5. **Knowledge 域已经有完整 migrator，其他域尚未规划。** `src/main/data/migration/v2/migrators/KnowledgeMigrator.ts` + `mappings/KnowledgeMappings.ts` 已经处理了从旧 Dexie `files` 表到新 `KnowledgeItemData.file` 的转换（保留了 `FileMetadata` 形态作为 `FileItemData.file` 的 schema）。但 **message/painting/translate/notes 的迁移均未落地**。更糟的是，新 `KnowledgeItemData.file` 仍然用 `FileMetadataSchema`（`src/shared/data/types/knowledge.ts:42`）表示，也就是说：**v2 的 SQLite 里会保留 FileMetadata 这个旧形状的持久化痕迹**——这是"migrator-only 存量"，不是长久之计。
 
 ### 1.3 建议的迁移策略（分阶段）
 
 | 阶段                 | 目标                                                                                                                                | 风险                                                 |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| **Phase 1**          | 新 FileEntry/FileManager/FileRef/IPC 架构落地（`src/main/file/**`、`packages/shared/file/types/**`）；旧 FileStorage 不动           | 低（已完成于 PR #13451）                             |
+| **Phase 1**          | 新 FileEntry/FileManager/FileRef/IPC 架构落地（`src/main/file/**`、`src/shared/file/types/**`）；旧 FileStorage 不动           | 低（已完成于 PR #13451）                             |
 | **Batch 0**          | Dexie `files` 表 + 旧 `FileStorage` 双读双写 shim；renderer 侧 `services/FileManager.ts` 改为同时操作两侧                           | 中，双写期需测试一致性                               |
 | **Batch A-E**        | 按域切换：**Messages 优先**（影响最大但数据结构最规整），其次 Knowledge（已有 migrator），然后 Painting，最后 Translate/Paste/Video | 高，业务域的 `FileMetadata` 字段内嵌需要全域 UI 改造 |
 | **Cleanup Batch**    | 删除 Dexie `files` 表、`FileStorage.ts`、`services/FileManager.ts`；清理 `FileMetadata` 类型；OCR/remotefile 域独立迁移             | 中，清理期需全回归                                   |
@@ -82,7 +82,7 @@ v2 把消费者分为三桶，对应不同的迁移目标：
 
 ## 2. FileMetadata 字段级使用统计
 
-旧 `FileMetadata`（定义在 `packages/shared/data/types/file/file.ts:17` 与 `src/renderer/src/types/file.ts:83`，两份完全同形）：
+旧 `FileMetadata`（定义在 `src/shared/data/types/file/file.ts:17` 与 `src/renderer/types/file.ts:83`，两份完全同形）：
 
 ```ts
 interface FileMetadata {
@@ -128,58 +128,58 @@ interface FileMetadata {
 
 | 文件                                         | 角色                                                                                           |
 | -------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `packages/shared/data/types/file/file.ts:17` | shared 侧定义（带"need be refactored"注释），此文件 index.ts 通过 `export *` 对外暴露          |
-| `src/renderer/src/types/file.ts:83`          | renderer 侧定义（重复实现，字段一致）                                                          |
-| `packages/shared/data/types/knowledge.ts:42` | **v2 Schema 复用旧形状**：`FileMetadataSchema: z.ZodType<FileMetadata>` 被 `FileItemData` 引用 |
-| `packages/shared/file/types/common.ts`       | 新 `PhysicalFileMetadata` 类型（与旧 `FileMetadata` 完全不同，是物理层 stat 信息）             |
+| `src/shared/data/types/file/file.ts:17` | shared 侧定义（带"need be refactored"注释），此文件 index.ts 通过 `export *` 对外暴露          |
+| `src/renderer/types/file.ts:83`          | renderer 侧定义（重复实现，字段一致）                                                          |
+| `src/shared/data/types/knowledge.ts:42` | **v2 Schema 复用旧形状**：`FileMetadataSchema: z.ZodType<FileMetadata>` 被 `FileItemData` 引用 |
+| `src/shared/file/types/common.ts`       | 新 `PhysicalFileMetadata` 类型（与旧 `FileMetadata` 完全不同，是物理层 stat 信息）             |
 
-两份定义同形但不共用，`renderer/src/types/file.ts` 额外导出 `ImageFileMetadata`、`PdfFileMetadata`、`isImageFileMetadata`。
+两份定义同形但不共用，`renderer/types/file.ts` 额外导出 `ImageFileMetadata`、`PdfFileMetadata`、`isImageFileMetadata`。
 
 ### 3.2 Renderer Services（8 个文件）
 
 | 文件                                                     | 角色                                | 对 FileMetadata 操作                                                          |
 | -------------------------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------- |
-| `src/renderer/src/services/FileManager.ts`               | **核心消费者**。18 次引用，静态类   | Dexie CRUD + IPC 调用，是所有 renderer 侧 FileMetadata 操作的入口             |
-| `src/renderer/src/services/FileAction.ts`                | FilesPage 的 delete/rename/sort     | `handleDelete` 会清理 `db.message_blocks.where('file.id')` 和 topics.messages |
-| `src/renderer/src/services/MessagesService.ts`           | 消息创建时构造 FileBlock/ImageBlock | 构造 `FileMessageBlock.file` 和 `ImageMessageBlock.file`                      |
-| `src/renderer/src/services/KnowledgeService.ts`          | 知识库搜索结果附加 file 元信息      | 返回 `KnowledgeSearchResult & { file: FileMetadata \| null }`                 |
-| `src/renderer/src/services/TokenService.ts`              | 文件 tokens 计数                    | 读 file，写回 `file.tokens`                                                   |
-| `src/renderer/src/services/PasteService.ts`              | 剪贴板粘贴文件 → FileMetadata       | 通过 `file.createTempFile+get` 构造                                           |
-| `src/renderer/src/services/db/DexieMessageDataSource.ts` | 消息 DB 旧数据源                    | 包含 `db.files.get/update/delete` 做引用计数维护                              |
-| `src/renderer/src/services/import/utils/database.ts`     | 导入数据库时处理 files 表           | Dexie 级 schema 操作                                                          |
+| `src/renderer/services/FileManager.ts`               | **核心消费者**。18 次引用，静态类   | Dexie CRUD + IPC 调用，是所有 renderer 侧 FileMetadata 操作的入口             |
+| `src/renderer/services/FileAction.ts`                | FilesPage 的 delete/rename/sort     | `handleDelete` 会清理 `db.message_blocks.where('file.id')` 和 topics.messages |
+| `src/renderer/services/MessagesService.ts`           | 消息创建时构造 FileBlock/ImageBlock | 构造 `FileMessageBlock.file` 和 `ImageMessageBlock.file`                      |
+| `src/renderer/services/KnowledgeService.ts`          | 知识库搜索结果附加 file 元信息      | 返回 `KnowledgeSearchResult & { file: FileMetadata \| null }`                 |
+| `src/renderer/services/TokenService.ts`              | 文件 tokens 计数                    | 读 file，写回 `file.tokens`                                                   |
+| `src/renderer/services/PasteService.ts`              | 剪贴板粘贴文件 → FileMetadata       | 通过 `file.createTempFile+get` 构造                                           |
+| `src/renderer/services/db/DexieMessageDataSource.ts` | 消息 DB 旧数据源                    | 包含 `db.files.get/update/delete` 做引用计数维护                              |
+| `src/renderer/services/import/utils/database.ts`     | 导入数据库时处理 files 表           | Dexie 级 schema 操作                                                          |
 
 ### 3.3 Renderer Hooks（5 个文件）
 
 | 文件                                           | 用途                                                     |
 | ---------------------------------------------- | -------------------------------------------------------- |
-| `src/renderer/src/hooks/useFiles.ts`           | 选择文件（Electron dialog），state 持有 `FileMetadata[]` |
-| `src/renderer/src/hooks/useKnowledgeFiles.tsx` | 从 `KnowledgeBase.items` 收集 file 条目                  |
-| `src/renderer/src/hooks/useKnowledge.ts`       | 知识库 delete（`window.api.file.delete(file.name)`）     |
-| `src/renderer/src/hooks/useTopic.ts`           | 清空 topic messages 时暂存要删除的 files                 |
-| `src/renderer/src/hooks/useOcr.ts`             | OCR（消费 `ImageFileMetadata`）                          |
+| `src/renderer/hooks/useFiles.ts`           | 选择文件（Electron dialog），state 持有 `FileMetadata[]` |
+| `src/renderer/hooks/useKnowledgeFiles.tsx` | 从 `KnowledgeBase.items` 收集 file 条目                  |
+| `src/renderer/hooks/useKnowledge.ts`       | 知识库 delete（`window.api.file.delete(file.name)`）     |
+| `src/renderer/hooks/useTopic.ts`           | 清空 topic messages 时暂存要删除的 files                 |
+| `src/renderer/hooks/useOcr.ts`             | OCR（消费 `ImageFileMetadata`）                          |
 
 ### 3.4 Renderer Pages（按子域）
 
 **Chat / Home（8 个文件）**：
 
-- `src/renderer/src/pages/home/Inputbar/Inputbar.tsx` — 主入口，用 `files: FileMetadata[]` state
-- `src/renderer/src/pages/home/Inputbar/AttachmentPreview.tsx` — 附件预览 UI，7 次引用
-- `src/renderer/src/pages/home/Inputbar/components/InputbarCore.tsx` — 核心输入组件
-- `src/renderer/src/pages/home/Inputbar/context/InputbarToolsProvider.tsx` — Provider，5 次引用
-- `src/renderer/src/pages/home/Inputbar/hooks/usePasteHandler.ts` / `useFileDragDrop.ts` — paste/drag 处理器
-- `src/renderer/src/pages/home/Inputbar/tools/components/AttachmentButton.tsx` / `useMentionModelsPanel.tsx` / `MentionModelsButton.tsx` — 工具栏
-- `src/renderer/src/pages/home/Messages/MessageEditor.tsx` — 编辑消息时复用 files
+- `src/renderer/pages/home/Inputbar/Inputbar.tsx` — 主入口，用 `files: FileMetadata[]` state
+- `src/renderer/pages/home/Inputbar/AttachmentPreview.tsx` — 附件预览 UI，7 次引用
+- `src/renderer/pages/home/Inputbar/components/InputbarCore.tsx` — 核心输入组件
+- `src/renderer/pages/home/Inputbar/context/InputbarToolsProvider.tsx` — Provider，5 次引用
+- `src/renderer/pages/home/Inputbar/hooks/usePasteHandler.ts` / `useFileDragDrop.ts` — paste/drag 处理器
+- `src/renderer/pages/home/Inputbar/tools/components/AttachmentButton.tsx` / `useMentionModelsPanel.tsx` / `MentionModelsButton.tsx` — 工具栏
+- `src/renderer/pages/home/Messages/MessageEditor.tsx` — 编辑消息时复用 files
 
 **Knowledge（8 个文件）**：
 
-- `src/renderer/src/pages/knowledge/items/KnowledgeFiles.tsx:93,124` — 文件 ingestion 主入口
-- `src/renderer/src/pages/knowledge/components/KnowledgeSearchPopup.tsx` — 搜索弹窗
-- `src/renderer/src/pages/knowledge/components/KnowledgeSearchItem/{index,TextItem,VideoItem,components}.tsx` — 搜索结果子组件（均 `{...item, file: FileMetadata|null}`）
+- `src/renderer/pages/knowledge/items/KnowledgeFiles.tsx:93,124` — 文件 ingestion 主入口
+- `src/renderer/pages/knowledge/components/KnowledgeSearchPopup.tsx` — 搜索弹窗
+- `src/renderer/pages/knowledge/components/KnowledgeSearchItem/{index,TextItem,VideoItem,components}.tsx` — 搜索结果子组件（均 `{...item, file: FileMetadata|null}`）
 
 **Files（3 个文件）**：
 
-- `src/renderer/src/pages/files/FilesPage.tsx:50` — 主页，`useLiveQuery<FileMetadata[]>`
-- `src/renderer/src/pages/files/FileList.tsx` / `ContentView.tsx` — 表格与详情
+- `src/renderer/pages/files/FilesPage.tsx:50` — 主页，`useLiveQuery<FileMetadata[]>`
+- `src/renderer/pages/files/FileList.tsx` / `ContentView.tsx` — 表格与详情
 
 **Paintings（8 个文件）**：
 
@@ -189,24 +189,24 @@ interface FileMetadata {
 
 **Translate（1 个文件）**：
 
-- `src/renderer/src/pages/translate/TranslatePage.tsx:24` — 6 次引用，支持文件翻译
+- `src/renderer/pages/translate/TranslatePage.tsx:24` — 6 次引用，支持文件翻译
 
 **Agents（1 个文件）**：
 
-- `src/renderer/src/pages/agents/components/AgentSessionInputbar.tsx` — 代理会话输入栏
+- `src/renderer/pages/agents/components/AgentSessionInputbar.tsx` — 代理会话输入栏
 
 ### 3.5 Renderer Store & Utils（11 个文件）
 
 | 文件                                                              | 用途                                                          |
 | ----------------------------------------------------------------- | ------------------------------------------------------------- |
-| `src/renderer/src/store/thunk/messageThunk.ts:34,602,1764`        | 消息 thunk（复制消息、清理 block）                            |
-| `src/renderer/src/store/thunk/knowledgeThunk.ts:60,101`           | 知识库 thunk（addFiles, addVideo）                            |
-| `src/renderer/src/store/knowledge.ts:46`                          | knowledge slice 删除时转发给 `FileManager.deleteFiles`        |
-| `src/renderer/src/types/{index,file,newMessage,knowledge,ocr}.ts` | 类型层                                                        |
-| `src/renderer/src/utils/{file,knowledge,input}.ts`                | 工具函数                                                      |
-| `src/renderer/src/utils/messageUtils/{create,find}.ts`            | 消息块创建/查找                                               |
-| `src/renderer/src/aiCore/prepareParams/fileProcessor.ts`          | **核心**：把 FileMetadata 转 FilePart/TextPart，处理上传/读取 |
-| `src/renderer/src/databases/index.ts:34,45-136`                   | Dexie Schema（`files: EntityTable<FileMetadata, 'id'>`）      |
+| `src/renderer/store/thunk/messageThunk.ts:34,602,1764`        | 消息 thunk（复制消息、清理 block）                            |
+| `src/renderer/store/thunk/knowledgeThunk.ts:60,101`           | 知识库 thunk（addFiles, addVideo）                            |
+| `src/renderer/store/knowledge.ts:46`                          | knowledge slice 删除时转发给 `FileManager.deleteFiles`        |
+| `src/renderer/types/{index,file,newMessage,knowledge,ocr}.ts` | 类型层                                                        |
+| `src/renderer/utils/{file,knowledge,input}.ts`                | 工具函数                                                      |
+| `src/renderer/utils/messageUtils/{create,find}.ts`            | 消息块创建/查找                                               |
+| `src/renderer/aiCore/prepareParams/fileProcessor.ts`          | **核心**：把 FileMetadata 转 FilePart/TextPart，处理上传/读取 |
+| `src/renderer/databases/index.ts:34,45-136`                   | Dexie Schema（`files: EntityTable<FileMetadata, 'id'>`）      |
 
 ### 3.6 Main Process（17 个文件）
 
@@ -310,7 +310,7 @@ v2 建议：AI SDK Files Upload API **Phase 1 暂不做**（`src/main/data/db/sc
 
 ### 5.1 Dexie `files` 表
 
-定义：`src/renderer/src/databases/index.ts`。`files` 从 v1~v10 每一版都存在，schema 全程未变：
+定义：`src/renderer/databases/index.ts`。`files` 从 v1~v10 每一版都存在，schema 全程未变：
 
 ```
 files: 'id, name, origin_name, path, size, ext, type, created_at, count'
@@ -399,7 +399,7 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 - `KnowledgeFileItem.content: FileMetadata`（`types/knowledge.ts:26`）
 - `KnowledgeVideoItem.content: FileMetadata[]`（`types/knowledge.ts:35`）
 - `KnowledgeReference.file?: FileMetadata`（`types/knowledge.ts:150`）
-- v2 目标 schema：`FileItemData.file: FileMetadata`（`packages/shared/data/types/knowledge.ts:60`）— **仍保留 FileMetadata 形状**
+- v2 目标 schema：`FileItemData.file: FileMetadata`（`src/shared/data/types/knowledge.ts:60`）— **仍保留 FileMetadata 形状**
 
 **关键入口点**：
 
@@ -487,7 +487,7 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 
 **新模型映射**：
 
-- 临时文本/粘贴图片应作为 `origin='internal'`（Cherry 全权管理），并通过 `tempSessionFileRef`（`packages/shared/data/types/file/ref/tempSession.ts`）持有引用，session 结束或真正挂到 message 时 promote 为 `chat_message` ref
+- 临时文本/粘贴图片应作为 `origin='internal'`（Cherry 全权管理），并通过 `tempSessionFileRef`（`src/shared/data/types/file/ref/tempSession.ts`）持有引用，session 结束或真正挂到 message 时 promote 为 `chat_message` ref
 
 **迁移复杂度**：**M**
 
@@ -585,16 +585,16 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 
 | 代码位置                                                                                                                               | 原因                                                                                                        |
 | -------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `packages/shared/data/types/file/file.ts`                                                                                              | 新类型替换后整份文件删除；index.ts 中 `export * from './file'` 改为 `export * from './fileEntry'`（已经有） |
-| `src/renderer/src/types/file.ts` 中的 `FileMetadata`/`ImageFileMetadata`/`PdfFileMetadata`/`isImageFileMetadata`                       | 全 renderer 切换后删除                                                                                      |
-| `src/renderer/src/types/file.ts:134 PdfFileMetadata`                                                                                   | **已经是死代码**（grep 未发现任何消费点）                                                                   |
-| `src/renderer/src/databases/index.ts` 中的 `files: EntityTable<FileMetadata, 'id'>` 和所有版本的 `files: 'id, name, origin_name, ...'` | Dexie files 表废弃                                                                                          |
-| `src/renderer/src/services/FileManager.ts` 整个文件                                                                                    | 用 `useQuery('/files/entries/:id')` + FileIpc 替代                                                          |
-| `src/renderer/src/services/FileAction.ts:handleDelete` 中遍历 topics/messages 删 block 的部分                                          | v2 由 file_ref 级联删除                                                                                     |
+| `src/shared/data/types/file/file.ts`                                                                                              | 新类型替换后整份文件删除；index.ts 中 `export * from './file'` 改为 `export * from './fileEntry'`（已经有） |
+| `src/renderer/types/file.ts` 中的 `FileMetadata`/`ImageFileMetadata`/`PdfFileMetadata`/`isImageFileMetadata`                       | 全 renderer 切换后删除                                                                                      |
+| `src/renderer/types/file.ts:134 PdfFileMetadata`                                                                                   | **已经是死代码**（grep 未发现任何消费点）                                                                   |
+| `src/renderer/databases/index.ts` 中的 `files: EntityTable<FileMetadata, 'id'>` 和所有版本的 `files: 'id, name, origin_name, ...'` | Dexie files 表废弃                                                                                          |
+| `src/renderer/services/FileManager.ts` 整个文件                                                                                    | 用 `useQuery('/files/entries/:id')` + FileIpc 替代                                                          |
+| `src/renderer/services/FileAction.ts:handleDelete` 中遍历 topics/messages 删 block 的部分                                          | v2 由 file_ref 级联删除                                                                                     |
 | `src/main/services/FileStorage.ts` 整个文件                                                                                            | 2043 行全删；功能拆分到 `src/main/file/{FileManager,ops/*}`                                                 |
 | `src/main/services/remotefile/*` 的 `FileMetadata` 参数                                                                                | Phase 2+ 切为 FileEntryId                                                                                   |
-| `src/renderer/src/services/db/DexieMessageDataSource.ts:400-416`（引用计数维护）                                                       | file_ref 取代                                                                                               |
-| `src/preload/index.ts:218-286` 的 `file: {...}` 47 个方法                                                                              | 改用新 FileIpcApi（接口已在 `packages/shared/file/types/ipc.ts`）                                           |
+| `src/renderer/services/db/DexieMessageDataSource.ts:400-416`（引用计数维护）                                                       | file_ref 取代                                                                                               |
+| `src/preload/index.ts:218-286` 的 `file: {...}` 47 个方法                                                                              | 改用新 FileIpcApi（接口已在 `src/shared/file/types/ipc.ts`）                                           |
 
 ### 8.2 需要分阶段清理（中置信）
 
@@ -609,7 +609,7 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 
 ### 8.3 `knowledge.ts` 中的 FileMetadataSchema
 
-`packages/shared/data/types/knowledge.ts:42` 定义 `FileMetadataSchema: z.ZodType<FileMetadata>`，并在 `FileItemData` 里复用。这是 **最顽固的 FileMetadata 化石**，因为它同时：
+`src/shared/data/types/knowledge.ts:42` 定义 `FileMetadataSchema: z.ZodType<FileMetadata>`，并在 `FileItemData` 里复用。这是 **最顽固的 FileMetadata 化石**，因为它同时：
 
 - 被 SQLite `knowledge_item.data` 当 JSON 存
 - 是 KnowledgeMigrator 的终点 shape
@@ -644,7 +644,7 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
    - 旧 Dexie `files` 表和新 SQLite `file_entry` 并存多久？建议两个发布周期（双写 → 只读旧 → 删）。
 
 8. **临时文件（tempSessionFileRef）的 GC 策略**
-   - `packages/shared/data/types/file/ref/tempSession.ts` 已经定义了 `sourceType='temp_session'`, `role='pending'`。但具体谁在什么时机清理这些 temp ref？建议：session 结束时主动清理 + 启动时扫 "无任何 ref 的 internal entry" 做 sweep。
+   - `src/shared/data/types/file/ref/tempSession.ts` 已经定义了 `sourceType='temp_session'`, `role='pending'`。但具体谁在什么时机清理这些 temp ref？建议：session 结束时主动清理 + 启动时扫 "无任何 ref 的 internal entry" 做 sweep。
 
 9. **Painting state 的 Redux-persist 迁移**
    - paintings state 持久化到 electron-store 或类似，里面内嵌 FileMetadata。v2-refactor-temp 的 classification.json 是否覆盖 paintings？需要 data-classify migrator 也处理这层。
@@ -657,22 +657,22 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 
 | 文件                                                                                  | 引用次数 |
 | ------------------------------------------------------------------------------------- | -------- |
-| `src/renderer/src/services/FileManager.ts`                                            | 18       |
+| `src/renderer/services/FileManager.ts`                                            | 18       |
 | `src/main/services/FileStorage.ts`                                                    | 11       |
 | `src/main/data/migration/v2/migrators/mappings/KnowledgeMappings.ts`                  | 11       |
-| `src/renderer/src/components/Popups/VideoPopup.tsx`                                   | 9        |
-| `src/renderer/src/pages/home/Inputbar/AttachmentPreview.tsx`                          | 7        |
+| `src/renderer/components/Popups/VideoPopup.tsx`                                   | 9        |
+| `src/renderer/pages/home/Inputbar/AttachmentPreview.tsx`                          | 7        |
 | `src/main/services/KnowledgeService.ts`                                               | 6        |
-| `src/renderer/src/pages/paintings/DmxapiPage.tsx`                                     | 6        |
-| `src/renderer/src/preload/index.ts`                                                   | 6        |
-| `src/renderer/src/pages/home/Inputbar/context/InputbarToolsProvider.tsx`              | 5        |
+| `src/renderer/pages/paintings/DmxapiPage.tsx`                                     | 6        |
+| `src/renderer/preload/index.ts`                                                   | 6        |
+| `src/renderer/pages/home/Inputbar/context/InputbarToolsProvider.tsx`              | 5        |
 | `src/main/knowledge/preprocess/{Doc2x,Mistral}PreprocessProvider.ts`                  | 5        |
-| `src/renderer/src/services/{Messages,Token}Service.ts`                                | 5        |
-| `src/renderer/src/types/{newMessage,ocr,knowledge,file}.ts`                           | 4-6      |
-| `src/renderer/src/store/thunk/messageThunk.ts`                                        | 4        |
-| `src/renderer/src/pages/paintings/AihubmixPage.tsx`                                   | 4        |
-| `src/renderer/src/aiCore/prepareParams/fileProcessor.ts`                              | 4        |
-| `src/renderer/src/hooks/{useFiles,useKnowledge,useOcr,useKnowledgeFiles,useTopic}.ts` | 2-4      |
+| `src/renderer/services/{Messages,Token}Service.ts`                                | 5        |
+| `src/renderer/types/{newMessage,ocr,knowledge,file}.ts`                           | 4-6      |
+| `src/renderer/store/thunk/messageThunk.ts`                                        | 4        |
+| `src/renderer/pages/paintings/AihubmixPage.tsx`                                   | 4        |
+| `src/renderer/aiCore/prepareParams/fileProcessor.ts`                              | 4        |
+| `src/renderer/hooks/{useFiles,useKnowledge,useOcr,useKnowledgeFiles,useTopic}.ts` | 2-4      |
 | …（省略余下 60+）                                                                     |          |
 
 完整列表请 `grep "FileMetadata\\b" -r src packages`。

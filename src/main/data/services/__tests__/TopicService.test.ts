@@ -14,13 +14,87 @@ import { describe, expect, it } from 'vitest'
 describe('TopicService', () => {
   const dbh = setupTestDatabase()
 
+  describe('search', () => {
+    it('returns lean topic items with assistant names resolved inline', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(assistantTable).values({
+        id: 'asst-search',
+        name: 'Needle Assistant',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(topicTable).values([
+        {
+          id: 'topic-search-old',
+          name: 'Needle Old Topic',
+          assistantId: 'asst-search',
+          orderKey: 'a0',
+          updatedAt: 100
+        },
+        {
+          id: 'topic-search-new',
+          name: 'Needle New Topic',
+          assistantId: 'asst-search',
+          orderKey: 'a1',
+          updatedAt: 200
+        },
+        {
+          id: 'topic-search-miss',
+          name: 'Other Topic',
+          assistantId: 'asst-search',
+          orderKey: 'a2',
+          updatedAt: 300
+        }
+      ])
+
+      const result = await service.search({ q: 'Needle', limit: 5 })
+
+      expect(result).toEqual([
+        {
+          type: 'topic',
+          id: 'topic-search-new',
+          title: 'Needle New Topic',
+          subtitle: 'Needle Assistant',
+          updatedAt: '1970-01-01T00:00:00.200Z',
+          target: { topicId: 'topic-search-new', assistantId: 'asst-search' }
+        },
+        {
+          type: 'topic',
+          id: 'topic-search-old',
+          title: 'Needle Old Topic',
+          subtitle: 'Needle Assistant',
+          updatedAt: '1970-01-01T00:00:00.100Z',
+          target: { topicId: 'topic-search-old', assistantId: 'asst-search' }
+        }
+      ])
+      expect(result[0]).not.toHaveProperty('orderKey')
+    })
+  })
+
   describe('listByCursor', () => {
     it('returns all non-deleted topics across assistants ordered by orderKey', async () => {
       const service = new TopicService()
       // FK: topic.assistantId → assistant.id — seed both assistants first.
       await dbh.db.insert(assistantTable).values([
-        { id: 'asst-1', name: 'A', emoji: '🌟', settings: DEFAULT_ASSISTANT_SETTINGS, createdAt: 1, updatedAt: 1 },
-        { id: 'asst-2', name: 'B', emoji: '🌟', settings: DEFAULT_ASSISTANT_SETTINGS, createdAt: 1, updatedAt: 1 }
+        {
+          id: 'asst-1',
+          name: 'A',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: 'asst-2',
+          name: 'B',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1',
+          createdAt: 1,
+          updatedAt: 1
+        }
       ])
       await dbh.db.insert(topicTable).values({
         id: 't1',
@@ -240,7 +314,7 @@ describe('TopicService', () => {
       await dbh.db.insert(messageTable).values({
         topicId: 'topic-1',
         role: 'user',
-        data: { blocks: [] } as never,
+        data: { parts: [] },
         status: 'success',
         siblingsGroupId: 0,
         createdAt: 1,
@@ -349,6 +423,7 @@ describe('TopicService', () => {
         name: 'A',
         emoji: '🌟',
         settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0',
         createdAt: 1,
         updatedAt: 1
       })
@@ -399,7 +474,7 @@ describe('TopicService', () => {
   describe('create', () => {
     it('without sourceNodeId: inserts topic with activeNodeId=null and a fresh orderKey', async () => {
       const result = await topicService.create({ name: 'fresh' })
-      expect(result.activeNodeId).toBeNull()
+      expect(result.activeNodeId).toBeUndefined()
       expect(result.name).toBe('fresh')
       const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, result.id))
       expect(row?.orderKey).toBeDefined()
@@ -412,7 +487,7 @@ describe('TopicService', () => {
         id: 'src-msg',
         topicId: 'src-t',
         role: 'user',
-        data: { blocks: [] },
+        data: { parts: [] },
         status: 'success',
         siblingsGroupId: 0,
         createdAt: 1,
@@ -434,7 +509,7 @@ describe('TopicService', () => {
         id: 'gone-msg',
         topicId: 'src-t',
         role: 'user',
-        data: { blocks: [] },
+        data: { parts: [] },
         status: 'success',
         siblingsGroupId: 0,
         deletedAt: 999,
@@ -537,7 +612,7 @@ describe('TopicService', () => {
           id: 'm1',
           topicId: 't1',
           role: 'user',
-          data: { blocks: [] },
+          data: { parts: [] },
           status: 'success',
           siblingsGroupId: 0,
           createdAt: 1,
@@ -547,7 +622,7 @@ describe('TopicService', () => {
           id: 'm2',
           topicId: 't1',
           role: 'assistant',
-          data: { blocks: [] },
+          data: { parts: [] },
           status: 'success',
           siblingsGroupId: 0,
           createdAt: 2,
@@ -571,7 +646,7 @@ describe('TopicService', () => {
         id: 'other',
         topicId: 't2',
         role: 'user',
-        data: { blocks: [] },
+        data: { parts: [] },
         status: 'success',
         siblingsGroupId: 0,
         createdAt: 1,
@@ -601,7 +676,7 @@ describe('TopicService', () => {
         id: 'm-gone',
         topicId: 't1',
         role: 'user',
-        data: { blocks: [] },
+        data: { parts: [] },
         status: 'success',
         siblingsGroupId: 0,
         deletedAt: 999,
@@ -626,7 +701,7 @@ describe('TopicService', () => {
         id: 'm1',
         topicId: 't-gone',
         role: 'user',
-        data: { blocks: [] },
+        data: { parts: [] },
         status: 'success',
         siblingsGroupId: 0,
         createdAt: 1,

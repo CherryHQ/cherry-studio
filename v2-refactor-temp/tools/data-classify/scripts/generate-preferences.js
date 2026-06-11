@@ -6,7 +6,7 @@ const path = require('path')
 class PreferencesGenerator {
   constructor() {
     this.dataDir = path.resolve(__dirname, '../data')
-    this.targetFile = path.resolve(__dirname, '../../../../packages/shared/data/preference/preferenceSchemas.ts')
+    this.targetFile = path.resolve(__dirname, '../../../../src/shared/data/preference/preferenceSchemas.ts')
     this.classificationFile = path.join(this.dataDir, 'classification.json')
     this.targetKeyDefinitionsFile = path.join(this.dataDir, 'target-key-definitions.json')
   }

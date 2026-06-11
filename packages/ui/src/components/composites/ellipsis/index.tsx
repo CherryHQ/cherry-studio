@@ -1,4 +1,4 @@
-// Original: src/renderer/src/components/ellipsis/index.tsx
+// Original: src/renderer/components/ellipsis/index.tsx
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { HTMLAttributes } from 'react'
 

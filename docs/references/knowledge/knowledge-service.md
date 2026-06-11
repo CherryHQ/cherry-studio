@@ -13,14 +13,14 @@ The current implementation is split into four responsibility areas:
 1. `KnowledgeBaseService` / `KnowledgeItemService`
    - Persist SQLite-backed knowledge base and knowledge item data.
    - Persist `knowledge_base.status` and `error`; migrated bases with missing embedding models remain as recoverable `failed` bases.
-   - Persist `knowledge_base.groupId`, `emoji`, and `dimensions`; `dimensions` is nullable only for failed bases whose embedding contract is unknown.
+   - Persist `knowledge_base.groupId` and `dimensions`; `dimensions` is nullable only for failed bases whose embedding contract is unknown.
    - Validate item `type` / `data` consistency.
    - Persist `knowledge_item.status` and `error`.
    - Reconcile container item status from child item state.
 2. Data API knowledge handlers
    - Expose database-backed list/get operations and base metadata/config patch.
    - Do not perform vector-store mutations.
-3. `KnowledgeOrchestrationService`
+3. `KnowledgeService`
    - Owns caller-facing runtime IPC workflow.
    - Creates/deletes/restores bases through data services and vector store services.
    - Registers Knowledge JobManager handlers.
@@ -37,8 +37,8 @@ caller
      -> KnowledgeBaseService / KnowledgeItemService
 
 caller
-  -> preload knowledgeRuntime IPC
-     -> KnowledgeOrchestrationService
+  -> preload knowledge IPC
+     -> KnowledgeService
         -> KnowledgeWorkflowService
         -> JobManager
            -> knowledge.prepare-root / knowledge.index-documents
@@ -60,7 +60,7 @@ Current Data API knowledge endpoints are read/update-only for database state tha
 - `GET /knowledge-bases/:id/items`
 - `GET /knowledge-items/:id`
 
-Caller-facing create/delete/index/search operations go through `KnowledgeOrchestrationService` IPC.
+Caller-facing create/delete/index/search operations go through `KnowledgeService` IPC.
 
 The caller-facing add model is payload-based:
 
@@ -78,7 +78,7 @@ caller
     -> enqueue knowledge.index-documents
 ```
 
-For container items (`directory`, `sitemap`):
+For container items (`directory`):
 
 ```text
 caller
@@ -91,7 +91,7 @@ caller
     -> workflow service schedules each child
 ```
 
-Callers should not create item records through Data API and then call runtime IPC with item ids. `add-items` accepts `KnowledgeRuntimeAddItemInput[]` and returns after root items are accepted and first jobs are queued, not after indexing completes.
+Callers should not create item records through Data API and then call runtime IPC with item ids. `add-items` accepts `KnowledgeAddItemInput[]` and returns after root items are accepted and first jobs are queued, not after indexing completes.
 
 Delete and reindex remain id-based because they operate on existing persisted items:
 
@@ -100,33 +100,35 @@ delete-items(baseId, itemIds)
 reindex-items(baseId, itemIds)
 ```
 
-`KnowledgeOrchestrationService` collapses nested selected ids to top-level roots before calling the workflow service.
+`KnowledgeService` collapses nested selected ids to top-level roots before calling the workflow service.
 
 ## IPC Surface
 
-`KnowledgeOrchestrationService` currently owns these public IPC entrypoints:
+`KnowledgeService` currently owns these public IPC entrypoints:
 
-- `knowledge-runtime:create-base`
-- `knowledge-runtime:restore-base`
-- `knowledge-runtime:delete-base`
-- `knowledge-runtime:add-items`
-- `knowledge-runtime:delete-items`
-- `knowledge-runtime:reindex-items`
-- `knowledge-runtime:search`
-- `knowledge-runtime:list-item-chunks`
-- `knowledge-runtime:delete-item-chunk`
+- `knowledge:create-base`
+- `knowledge:restore-base`
+- `knowledge:delete-base`
+- `knowledge:add-items`
+- `knowledge:delete-items`
+- `knowledge:reindex-items`
+- `knowledge:search`
+- `knowledge:list-item-chunks`
+- `knowledge:delete-item-chunk`
 
 These IPC handlers are workflow-oriented. They validate payloads, call data services, and enqueue or execute runtime work internally.
+
+`KnowledgeService` also owns one v1 bridge entrypoint, `knowledge-base:delete`, still invoked by the legacy Redux `store/knowledge` slice until that slice is removed in the unified step. It routes to the same `delete-base` path.
 
 Chunk IPC entrypoints are runtime inspection/mutation helpers:
 
 - `list-item-chunks` and `delete-item-chunk` reject failed bases.
 - Both require the requested item to be `completed`.
-- Listing chunks for a completed `directory` / `sitemap` also rejects when the subtree still contains `deleting` descendants, because container status reconciliation ignores deleting children.
+- Listing chunks for a completed `directory` also rejects when the subtree still contains `deleting` descendants, because container status reconciliation ignores deleting children.
 
 ## Runtime Behavior
 
-Knowledge runtime work is persisted in JobManager. `KnowledgeOrchestrationService.onInit` registers:
+Knowledge runtime work is persisted in JobManager. `KnowledgeService.onInit` registers:
 
 - `knowledge.prepare-root`
 - `knowledge.index-documents`
@@ -150,7 +152,7 @@ There is no separate persisted `phase` field. `preparing`, `reading`, and `embed
 
 Current status writes are:
 
-- `preparing` for active `directory` / `sitemap` preparation.
+- `preparing` for active `directory` preparation.
 - `processing` for accepted leaf roots before indexing starts, and for containers that still have active children.
 - `reading` while a leaf item reads source documents.
 - `embedding` while a leaf item embeds chunks.
@@ -163,7 +165,6 @@ Current status writes are:
 Current persisted `knowledge_base` columns include:
 
 - `groupId`: nullable group assignment; `null` means ungrouped.
-- `emoji`: user-visible base icon, filled by service/migration defaults.
 - `dimensions`: positive embedding vector width for completed bases; nullable for failed migrated bases with unknown dimensions.
 - `status`: `completed` for runnable bases, `failed` for recoverable base-level migration failures.
 - `error`: nullable `KnowledgeBaseErrorCode`; currently `missing_embedding_model` for recoverable failed bases.
@@ -241,7 +242,7 @@ In that case, migration must preserve the user-created knowledge data instead of
 
 This means the migrated base is visible as recoverable data, but it is not usable for search/index operations until the user chooses a valid embedding model.
 
-The failed-base recovery path is `knowledge-runtime:restore-base`, not an in-place rebuild:
+The failed-base recovery path is `knowledge:restore-base`, not an in-place rebuild:
 
 ```text
 user selects a valid embedding model for the failed base
@@ -251,11 +252,11 @@ user selects a valid embedding model for the failed base
  -> add-items triggers the normal workflow indexing flow for the new base
 ```
 
-Only root items (`groupId = null`) are copied. Expanded directory/sitemap children are intentionally not copied because they belong to the old base hierarchy and can be regenerated by the normal container preparation flow. The old failed base is left intact; product/UI code can decide whether to keep it for confirmation or delete it after a successful restore.
+Only root items (`groupId = null`) are copied. Expanded directory children are intentionally not copied because they belong to the old base hierarchy and can be regenerated by the normal container preparation flow. The old failed base is left intact; product/UI code can decide whether to keep it for confirmation or delete it after a successful restore.
 
 ## Search
 
-Search is executed by `KnowledgeOrchestrationService.search(baseId, query)`:
+Search is executed by `KnowledgeService.search(baseId, query)`:
 
 1. Reject failed bases.
 2. Reject queries without searchable tokens.

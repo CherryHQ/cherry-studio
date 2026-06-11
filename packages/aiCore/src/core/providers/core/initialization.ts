@@ -26,6 +26,7 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { customProvider } from 'ai'
 
 import type { OpenRouterSearchConfig } from '../../plugins/built-in/webSearchPlugin'
+import { createOpenAICompatibleRerankingModel } from '../openaiCompatible/rerankingModel'
 import type {
   ExtensionConfigToIdResolutionMap,
   ExtractExtensionIds,
@@ -172,6 +173,12 @@ const OpenAICompatibleExtension = ProviderExtension.create({
       throw new Error('OpenAI Compatible provider requires settings')
     }
     return createOpenAICompatible(settings)
+  },
+  createRerankingModel: (modelId, settings) => {
+    if (!settings) {
+      throw new Error('OpenAI Compatible provider requires settings')
+    }
+    return createOpenAICompatibleRerankingModel(modelId, settings)
   }
 } as const satisfies ProviderExtensionConfig<OpenAICompatibleProviderSettings, ProviderV3, 'openai-compatible'>)
 
@@ -205,8 +212,6 @@ const OpenAIExtension = ProviderExtension.create({
 
 const OpenRouterExtension = ProviderExtension.create({
   name: 'openrouter',
-  // TODO: 实现注册后修改拓展配置
-  aliases: ['tokenflux'] as const,
   supportsImageGeneration: true,
   create: createOpenRouter,
   toolFactories: {

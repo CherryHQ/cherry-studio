@@ -95,6 +95,8 @@ export const allHandlers: ApiImplementation = {
 - Domain workflows
 - Data access via Drizzle ORM
 
+**Scope limit:** A DataApi service is the **data** business-logic layer — its domain workflows orchestrate **SQLite reads/writes only**, never fs/network/process/external-service side effects, even alongside a legitimate DB write and no matter how deeply nested. See [Hard Rule: No Non-Data Side Effects](./api-design-guidelines.md#hard-rule-no-non-data-side-effects).
+
 ### Cross-Service Table Access
 
 Each table has exactly **one owning service** — the rule is split by access kind:
@@ -120,15 +122,6 @@ import { topicTable } from '@data/db/schemas/topic'
 import { DataApiErrorFactory } from '@shared/data/api'
 
 export class TopicService {
-  private static instance: TopicService
-
-  static getInstance(): TopicService {
-    if (!this.instance) {
-      this.instance = new TopicService()
-    }
-    return this.instance
-  }
-
   private get db() {
     return application.get('DbService').getDb()
   }
@@ -181,7 +174,7 @@ export class TopicService {
   }
 }
 
-export const topicService = TopicService.getInstance()
+export const topicService = new TopicService()
 ```
 
 ### Write-path defaults
@@ -210,12 +203,12 @@ Each Entity Service provides a `rowToEntity` function that bridges a Drizzle row
 ```ts
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
-function rowToMCPServer(row: typeof mcpServerTable.$inferSelect): MCPServer {
+function rowToMcpServer(row: typeof mcpServerTable.$inferSelect): McpServer {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
-    type: clean.type as MCPServer['type'], // narrow enum
-    installSource: clean.installSource as MCPServer['installSource'],
+    type: clean.type as McpServer['type'], // narrow enum
+    installSource: clean.installSource as McpServer['installSource'],
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -250,7 +243,7 @@ Some `rowToEntity` functions do too much to benefit from spread. Keep them hand-
 - **Field renaming**: `row.parameters → domain parameterSupport` (ModelService)
 - **Computed / merged fields**: `authType` derivation, `apiFeatures` merging from defaults (ProviderService)
 - **Sensitive data sanitization**: `apiKeys` stripping — `...clean` would leak unsanitized values
-- **Discriminator-driven field stripping with brand validation**: branded discriminated union where each variant declares only its own fields — `nullsToUndefined + spread` would emit absent fields as `undefined` and break the BO shape. Dispatch on the discriminator and call `schema.parse` per variant. Example: `FileEntryService.rowToFileEntry` for `FileEntry` (variants on `origin`); see `packages/shared/data/types/file/fileEntry.ts` header (§"DB row vs Business Object") for the full DB-CHECK / BO-narrow rationale.
+- **Discriminator-driven field stripping with brand validation**: branded discriminated union where each variant declares only its own fields — `nullsToUndefined + spread` would emit absent fields as `undefined` and break the BO shape. Dispatch on the discriminator and call `schema.parse` per variant. Example: `FileEntryService.rowToFileEntry` for `FileEntry` (variants on `origin`); see `src/shared/data/types/file/fileEntry.ts` header (§"DB row vs Business Object") for the full DB-CHECK / BO-narrow rationale.
 
 **Anti-pattern — `??` fallbacks for fabricated defaults:**
 
@@ -414,7 +407,7 @@ throw DataApiErrorFactory.timeout('fetch topics', 3000)
 
 ### Step-by-Step
 
-1. **Define schema** in `packages/shared/data/api/schemas/`
+1. **Define schema** in `src/shared/data/api/schemas/`
 
 ```typescript
 // schemas/topic.ts

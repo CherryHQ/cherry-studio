@@ -47,16 +47,12 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       expect(shouldAutoEnsure('feature.files.data')).toBe(true)
     })
 
-    it('returns true for feature.file_processing.results', () => {
-      expect(shouldAutoEnsure('feature.file_processing.results')).toBe(true)
-    })
-
     it('returns true for feature.mcp', () => {
       expect(shouldAutoEnsure('feature.mcp')).toBe(true)
     })
 
-    it('returns true for feature.binaries.data', () => {
-      expect(shouldAutoEnsure('feature.binaries.data')).toBe(true)
+    it('returns true for feature.file_processing.temp', () => {
+      expect(shouldAutoEnsure('feature.file_processing.temp')).toBe(true)
     })
 
     it('returns true for the new feature.agents.workspaces key', () => {
@@ -87,10 +83,6 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns true for app.database.file', () => {
       expect(shouldAutoEnsure('app.database.file')).toBe(true)
-    })
-
-    it('returns true for feature.binaries.state_file', () => {
-      expect(shouldAutoEnsure('feature.binaries.state_file')).toBe(true)
     })
 
     it('returns true for the new feature.copilot.token_file key', () => {

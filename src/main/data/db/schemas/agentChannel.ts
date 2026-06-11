@@ -1,10 +1,11 @@
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
 import { agentSessionTable } from './agentSession'
-import { agentTaskTable } from './agentTask'
+import { jobScheduleTable } from './job'
 
 export const agentChannelTable = sqliteTable(
   'agent_channel',
@@ -14,6 +15,7 @@ export const agentChannelTable = sqliteTable(
     name: text().notNull(),
     agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
     sessionId: text().references(() => agentSessionTable.id, { onDelete: 'set null' }),
+    workspace: text({ mode: 'json' }).$type<AgentSessionWorkspaceSource>().notNull(),
     config: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull(),
     isActive: integer({ mode: 'boolean' }).notNull().default(true),
     activeChatIds: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
@@ -38,9 +40,12 @@ export const agentChannelTaskTable = sqliteTable(
     channelId: text()
       .notNull()
       .references(() => agentChannelTable.id, { onDelete: 'cascade' }),
+    // FK target switched to jobScheduleTable as part of the agent.task → JobManager
+    // migration. Column name stays `task_id` to keep the renderer / channel API
+    // field access unchanged (the value semantically is the schedule id now).
     taskId: text()
       .notNull()
-      .references(() => agentTaskTable.id, { onDelete: 'cascade' })
+      .references(() => jobScheduleTable.id, { onDelete: 'cascade' })
   },
   (t) => [
     primaryKey({ columns: [t.channelId, t.taskId] }),

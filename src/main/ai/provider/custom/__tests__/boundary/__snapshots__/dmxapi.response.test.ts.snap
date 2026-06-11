@@ -1,0 +1,27 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`DMXAPI response boundary > async qwen-image → extra.output.results[].url: matches the inbound contract and parses to snapshot 1`] = `
+[
+  "https://img/q1.png",
+  "https://img/q2.png",
+]
+`;
+
+exports[`DMXAPI response boundary > openai-flat → data[].url / b64_json: matches the inbound contract and parses to snapshot 1`] = `
+[
+  "https://img/a.png",
+  "data:image/png;base64,QUJD",
+]
+`;
+
+exports[`DMXAPI response boundary > responses-messages (wan) → output[].content[].image: matches the inbound contract and parses to snapshot 1`] = `
+[
+  "https://img/w.png",
+]
+`;
+
+exports[`DMXAPI response boundary > responses-string (doubao) → markdown URLs in output[].content[].text: matches the inbound contract and parses to snapshot 1`] = `
+[
+  "https://img/seed.png",
+]
+`;

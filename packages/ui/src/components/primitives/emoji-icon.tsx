@@ -1,4 +1,4 @@
-// Original path: src/renderer/src/components/EmojiIcon.tsx
+// Original path: src/renderer/components/EmojiIcon.tsx
 import type { FC } from 'react'
 
 interface EmojiIconProps {

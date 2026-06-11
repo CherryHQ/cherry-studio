@@ -43,4 +43,12 @@ describe('PageHeader', () => {
     expect(heading.className).toMatch(/\btext-foreground-muted\b/)
     expect(heading.className).toMatch(/\bfont-normal\b/)
   })
+
+  it('omits bottom border by default and adds it when bordered is true', () => {
+    const { rerender } = render(<PageHeader title="Default" data-testid="page-header" />)
+    expect(screen.getByTestId('page-header').className).not.toMatch(/\bborder-b\b/)
+
+    rerender(<PageHeader title="Bordered" data-testid="page-header" bordered />)
+    expect(screen.getByTestId('page-header').className).toMatch(/\bborder-b\b/)
+  })
 })

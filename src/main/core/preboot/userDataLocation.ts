@@ -35,7 +35,7 @@ const logger = loggerService.withContext('Preboot')
  * by the running process on Windows) from the rest, and copy them in two
  * separate phases. v2 abandons that distinction: the entire directory is
  * copied at startup, when the previous process has fully exited and no
- * file is locked. See `packages/shared/config/constant.ts:occupiedDirs`
+ * file is locked. See `src/shared/config/constant.ts:occupiedDirs`
  * for the deprecated v1 constant.
  */
 

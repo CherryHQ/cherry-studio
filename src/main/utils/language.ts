@@ -3,19 +3,19 @@ import { defaultLanguage } from '@shared/config/constant'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import { app } from 'electron'
 
-import EnUs from '../../renderer/src/i18n/locales/en-us.json'
-import ZhCn from '../../renderer/src/i18n/locales/zh-cn.json'
-import ZhTw from '../../renderer/src/i18n/locales/zh-tw.json'
+import EnUs from '../../renderer/i18n/locales/en-us.json'
+import ZhCn from '../../renderer/i18n/locales/zh-cn.json'
+import ZhTw from '../../renderer/i18n/locales/zh-tw.json'
 // Machine translation
-import deDE from '../../renderer/src/i18n/translate/de-de.json'
-import elGR from '../../renderer/src/i18n/translate/el-gr.json'
-import esES from '../../renderer/src/i18n/translate/es-es.json'
-import frFR from '../../renderer/src/i18n/translate/fr-fr.json'
-import JaJP from '../../renderer/src/i18n/translate/ja-jp.json'
-import ptPT from '../../renderer/src/i18n/translate/pt-pt.json'
-import roRO from '../../renderer/src/i18n/translate/ro-ro.json'
-import RuRu from '../../renderer/src/i18n/translate/ru-ru.json'
-import viVN from '../../renderer/src/i18n/translate/vi-vn.json'
+import deDE from '../../renderer/i18n/translate/de-de.json'
+import elGR from '../../renderer/i18n/translate/el-gr.json'
+import esES from '../../renderer/i18n/translate/es-es.json'
+import frFR from '../../renderer/i18n/translate/fr-fr.json'
+import JaJP from '../../renderer/i18n/translate/ja-jp.json'
+import ptPT from '../../renderer/i18n/translate/pt-pt.json'
+import roRO from '../../renderer/i18n/translate/ro-ro.json'
+import RuRu from '../../renderer/i18n/translate/ru-ru.json'
+import viVN from '../../renderer/i18n/translate/vi-vn.json'
 
 export const locales = Object.fromEntries(
   [
@@ -52,9 +52,13 @@ export const getI18n = (): Record<string, any> => {
 
 /**
  * Get translation by key path (e.g., 'dialog.save_file')
- * This is a simplified version for main process, similar to i18next's t() function
+ * This is a simplified version for main process, similar to i18next's t() function.
+ *
+ * Supports i18next-style `{{var}}` interpolation: pass `params` and any
+ * `{{name}}` placeholder in the resolved string is replaced with `params.name`.
+ * Placeholders without a matching param are left intact.
  */
-export const t = (key: string): string => {
+export const t = (key: string, params?: Record<string, string | number>): string => {
   const locale = getI18n()
   const keys = key.split('.')
   let result: any = locale.translation
@@ -64,5 +68,13 @@ export const t = (key: string): string => {
       return key
     }
   }
-  return typeof result === 'string' ? result : key
+  if (typeof result !== 'string') {
+    return key
+  }
+  if (!params) {
+    return result
+  }
+  return result.replace(/\{\{\s*(\w+)\s*\}\}/g, (match: string, name: string) =>
+    name in params ? String(params[name]) : match
+  )
 }

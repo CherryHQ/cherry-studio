@@ -1,0 +1,432 @@
+/**
+ * Database entity types for Agent, Session, and SessionMessage
+ * Shared between main and renderer processes
+ *
+ * WARNING: Any null value will be converted to undefined from api.
+ */
+import { type SlashCommand, SlashCommandSchema } from '@shared/ai/slashCommands'
+import { ToolSchema } from '@shared/ai/tool'
+import {
+  type AgentConfiguration,
+  AgentConfigurationSchema,
+  type CreateTaskDto as CreateTaskRequest,
+  CreateTaskSchema as CreateTaskRequestSchema,
+  type ScheduledTaskEntity,
+  ScheduledTaskEntitySchema,
+  type TaskRunLogEntity,
+  TaskRunLogEntitySchema,
+  type UpdateTaskDto as UpdateTaskRequest,
+  UpdateTaskSchema as UpdateTaskRequestSchema
+} from '@shared/data/api/schemas/agents'
+import type { ModelMessage, TextStreamPart } from 'ai'
+import * as z from 'zod'
+
+import type { Message, MessageBlock } from './newMessage'
+import { PluginMetadataSchema } from './plugin'
+
+// ------------------ Core enums and helper types ------------------
+export const PermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
+export type PermissionMode = z.infer<typeof PermissionModeSchema>
+
+export type SessionMessageRole = ModelMessage['role']
+
+const sessionMessageRoles = ['assistant', 'user', 'system', 'tool'] as const satisfies readonly [
+  SessionMessageRole,
+  ...SessionMessageRole[]
+]
+
+export const SessionMessageRoleSchema = z.enum(sessionMessageRoles)
+
+export type SessionMessageType = TextStreamPart<Record<string, any>>['type']
+
+export const AgentTypeSchema = z.enum(['claude-code'])
+export type AgentType = z.infer<typeof AgentTypeSchema>
+
+// ------------------ CherryClaw-specific types ------------------
+export const SchedulerTypeSchema = z.enum(['cron', 'interval', 'one-time'])
+export type SchedulerType = z.infer<typeof SchedulerTypeSchema>
+
+export type FeishuDomain = 'feishu' | 'lark'
+export type FeishuChannelConfig = {
+  type: 'feishu'
+  app_id: string
+  app_secret: string
+  encrypt_key: string
+  verification_token: string
+  allowed_chat_ids: string[]
+  domain: FeishuDomain
+}
+
+export const isAgentType = (type: unknown): type is AgentType => {
+  return AgentTypeSchema.safeParse(type).success
+}
+
+// ------------------ Agent configuration & base schema ------------------
+export { type AgentConfiguration, AgentConfigurationSchema }
+
+// ------------------ Scheduled Task types ------------------
+// Re-exports from @shared/data/api/schemas/agents: ScheduledTaskEntity, TaskRunLogEntity,
+// CreateTaskRequest (=CreateTaskDto), UpdateTaskRequest (=UpdateTaskDto).
+// The v1-era TaskScheduleType / TaskStatus enums no longer exist as standalone atoms —
+// task.trigger is now a discriminated union (cron / interval / once), and status is derived
+// on the read side from `enabled + trigger + nextRun`.
+export { ScheduledTaskEntitySchema, TaskRunLogEntitySchema }
+export type { ScheduledTaskEntity, TaskRunLogEntity }
+
+// Shared configuration interface for both agents and sessions
+export const AgentBaseSchema = z.object({
+  name: z.string().optional(),
+  description: z.string().optional(),
+  instructions: z.string().optional(),
+  model: z.string(),
+  planModel: z.string().optional(),
+  smallModel: z.string().optional(),
+  mcps: z.array(z.string()).optional(),
+  allowedTools: z.array(z.string()).optional(),
+  configuration: AgentConfigurationSchema.optional()
+})
+
+export type AgentBase = z.infer<typeof AgentBaseSchema>
+
+export const isAgentBase = (value: unknown): value is AgentBase => {
+  return AgentBaseSchema.safeParse(value).success
+}
+
+export const AgentBaseWithIdSchema = AgentBaseSchema.extend({
+  id: z.string()
+})
+
+export type AgentBaseWithId = z.infer<typeof AgentBaseWithIdSchema>
+
+export const isAgentBaseWithId = (value: unknown): value is AgentBaseWithId => {
+  return AgentBaseWithIdSchema.safeParse(value).success
+}
+
+// ------------------ Persistence entities ------------------
+
+// Agent entity representing an autonomous agent configuration
+export const AgentEntitySchema = AgentBaseSchema.extend({
+  id: z.string(),
+  type: AgentTypeSchema,
+  name: z.string(),
+  modelName: z.string().nullable(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
+})
+
+export type AgentEntity = z.infer<typeof AgentEntitySchema>
+
+export const isAgentEntity = (value: unknown): value is AgentEntity => {
+  return AgentEntitySchema.safeParse(value).success
+}
+
+export interface ListOptions {
+  limit?: number
+  offset?: number
+  sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'sortOrder'
+  orderBy?: 'asc' | 'desc'
+  /** LIKE %kw% match against name OR description (case-insensitive). */
+  search?: string
+}
+
+// AgentSession entity representing a conversation session with one or more agents
+export const AgentSessionEntitySchema = AgentBaseSchema.extend({
+  id: z.string(),
+  agentId: z.string(),
+  agentType: AgentTypeSchema,
+  slashCommands: z.array(SlashCommandSchema).optional(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
+})
+
+export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
+
+export const isAgentSessionEntity = (value: unknown): value is AgentSessionEntity => {
+  return AgentSessionEntitySchema.safeParse(value).success
+}
+
+// AgentSessionMessageEntity representing a message within a session
+export const AgentSessionMessageEntitySchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  role: SessionMessageRoleSchema,
+  content: z.unknown(),
+  agentSessionId: z.string().nullable(),
+  metadata: z.record(z.string(), z.any()).optional(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
+})
+
+export type AgentSessionMessageEntity = z.infer<typeof AgentSessionMessageEntitySchema>
+
+export interface AgentPersistedMessage {
+  message: Message
+  blocks: MessageBlock[]
+}
+
+export interface AgentMessageUserPersistPayload {
+  payload: AgentPersistedMessage
+  metadata?: Record<string, unknown>
+  createdAt?: string
+}
+
+export interface AgentMessageAssistantPersistPayload {
+  payload: AgentPersistedMessage
+  metadata?: Record<string, unknown>
+  createdAt?: string
+}
+
+export interface AgentMessagePersistExchangePayload {
+  sessionId: string
+  agentSessionId: string
+  user?: AgentMessageUserPersistPayload
+  assistant?: AgentMessageAssistantPersistPayload
+}
+
+export interface AgentMessagePersistExchangeResult {
+  userMessage?: AgentSessionMessageEntity
+  assistantMessage?: AgentSessionMessageEntity
+}
+
+// ------------------ Session message payload ------------------
+
+// Not implemented fields:
+// - plan_model: Optional model for planning/thinking tasks
+// - small_model: Optional lightweight model for quick responses
+// - configuration: Optional agent settings (temperature, top_p, etc.)
+// ------------------ Form models ------------------
+export type BaseAgentForm = {
+  id?: string
+  type: AgentType
+  name: string
+  description?: string
+  instructions?: string
+  model: string
+  allowedTools: string[]
+  mcps?: string[]
+  configuration?: AgentConfiguration
+}
+
+export type AddAgentForm = Omit<BaseAgentForm, 'id'> & { id?: never }
+
+export type UpdateAgentForm = Partial<Omit<BaseAgentForm, 'type'>> & {
+  id: string
+  type?: never
+}
+
+export type AgentForm = AddAgentForm | UpdateAgentForm
+
+export type BaseSessionForm = AgentBase
+
+export type CreateSessionForm = BaseSessionForm & { id?: never }
+
+export type UpdateSessionForm = Partial<BaseSessionForm> & { id: string }
+
+export type SessionForm = CreateSessionForm | UpdateSessionForm
+
+export type UpdateAgentBaseForm = Partial<AgentBase> & { id: string }
+
+// --------------------- Components & Hooks ----------------------
+
+export type UpdateAgentBaseOptions = {
+  /** Whether to show success toast after updating. Defaults to true. */
+  showSuccessToast?: boolean
+}
+
+export type UpdateAgentFunction = (
+  form: UpdateAgentForm,
+  options?: UpdateAgentBaseOptions
+) => Promise<AgentEntity | undefined>
+
+export type UpdateAgentSessionFunction = (
+  form: UpdateSessionForm,
+  options?: UpdateAgentBaseOptions
+) => Promise<AgentSessionEntity | undefined>
+
+export type UpdateAgentFunctionUnion = UpdateAgentFunction | UpdateAgentSessionFunction
+
+// ------------------ API data transfer objects ------------------
+export interface CreateAgentRequest extends AgentBase {
+  type: AgentType
+}
+
+export const CreateAgentResponseSchema = AgentEntitySchema
+
+export type CreateAgentResponse = AgentEntity
+
+export interface UpdateAgentRequest extends Partial<AgentBase> {}
+
+export type ReplaceAgentRequest = AgentBase
+
+export const GetAgentResponseSchema = AgentEntitySchema.extend({
+  tools: z.array(ToolSchema).optional() // All tools available to the agent (including built-in and custom)
+})
+
+export type GetAgentResponse = z.infer<typeof GetAgentResponseSchema>
+
+export const ListAgentsResponseSchema = z.object({
+  data: z.array(GetAgentResponseSchema),
+  total: z.int(),
+  limit: z.int(),
+  offset: z.int()
+})
+
+export type ListAgentsResponse = z.infer<typeof ListAgentsResponseSchema>
+
+export const UpdateAgentResponseSchema = GetAgentResponseSchema
+
+export type UpdateAgentResponse = GetAgentResponse
+
+export type CreateSessionRequest = z.infer<typeof CreateSessionRequestSchema>
+
+export interface UpdateSessionRequest extends Partial<AgentBase> {
+  slashCommands?: SlashCommand[]
+}
+
+export const GetAgentSessionResponseSchema = AgentSessionEntitySchema.extend({
+  tools: z.array(ToolSchema).optional(), // All tools available to the session (including built-in and custom)
+  messages: z.array(AgentSessionMessageEntitySchema).optional(), // Messages in the session
+  plugins: z
+    .array(
+      z.object({
+        filename: z.string(),
+        type: z.enum(['agent', 'command', 'skill']),
+        metadata: PluginMetadataSchema
+      })
+    )
+    .optional() // Installed plugins from workdir
+})
+
+export const CreateAgentSessionResponseSchema = GetAgentSessionResponseSchema
+
+export type GetAgentSessionResponse = z.infer<typeof GetAgentSessionResponseSchema>
+
+export type CreateAgentSessionResponse = GetAgentSessionResponse
+
+export const ListAgentSessionsResponseSchema = z.object({
+  data: z.array(AgentSessionEntitySchema),
+  total: z.int(),
+  limit: z.int(),
+  offset: z.int()
+})
+
+export type ListAgentSessionsResponse = z.infer<typeof ListAgentSessionsResponseSchema>
+
+export type CreateSessionMessageRequest = z.infer<typeof CreateSessionMessageRequestSchema>
+
+export type UpdateSessionResponse = GetAgentSessionResponse
+
+export const AgentServerErrorSchema = z.object({
+  error: z.object({
+    message: z.string(),
+    type: z.string(),
+    code: z.string()
+  })
+})
+
+export type AgentServerError = z.infer<typeof AgentServerErrorSchema>
+
+// ------------------ Task API types ------------------
+export { CreateTaskRequestSchema, UpdateTaskRequestSchema }
+export type { CreateTaskRequest, UpdateTaskRequest }
+
+export const ListTasksResponseSchema = z.object({
+  data: z.array(ScheduledTaskEntitySchema),
+  total: z.int(),
+  limit: z.int(),
+  offset: z.int()
+})
+
+export type ListTasksResponse = z.infer<typeof ListTasksResponseSchema>
+
+export const ListTaskLogsResponseSchema = z.object({
+  data: z.array(TaskRunLogEntitySchema),
+  total: z.int(),
+  limit: z.int(),
+  offset: z.int()
+})
+
+export type ListTaskLogsResponse = z.infer<typeof ListTaskLogsResponseSchema>
+
+export const TaskIdParamSchema = z.object({
+  taskId: z.string().min(1, 'Task ID is required')
+})
+
+// ------------------ API validation schemas ------------------
+
+// Parameter validation schemas
+export const AgentIdParamSchema = z.object({
+  agentId: z.string().min(1, 'Agent ID is required')
+})
+
+export const SessionIdParamSchema = z.object({
+  sessionId: z.string().min(1, 'Session ID is required')
+})
+
+export const SessionMessageIdParamSchema = z.object({
+  messageId: z.string().min(1, 'Message ID is required')
+})
+
+// Query validation schemas
+export const PaginationQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(1000).optional().default(20),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+  status: z.enum(['idle', 'running', 'completed', 'failed', 'stopped']).optional()
+})
+
+// Request body validation schemas derived from shared bases
+const agentCreatableSchema = AgentBaseSchema.extend({
+  name: z.string().min(1, 'Name is required'),
+  model: z.string().min(1, 'Model is required')
+})
+
+export const CreateAgentRequestSchema = agentCreatableSchema.extend({
+  type: AgentTypeSchema
+})
+
+export const UpdateAgentRequestSchema = AgentBaseSchema.partial()
+
+export const ReplaceAgentRequestSchema = AgentBaseSchema
+
+const sessionCreatableSchema = AgentBaseSchema.extend({
+  model: z.string().min(1, 'Model is required'),
+  slashCommands: z.array(SlashCommandSchema).optional()
+})
+
+export const CreateSessionRequestSchema = sessionCreatableSchema
+
+export const UpdateSessionRequestSchema = sessionCreatableSchema.partial()
+
+export const ReplaceSessionRequestSchema = sessionCreatableSchema
+
+export type ReplaceSessionRequest = z.infer<typeof ReplaceSessionRequestSchema>
+
+const AgentEffortSchema = z.enum(['low', 'medium', 'high', 'xhigh', 'max'])
+
+const AgentThinkingConfigSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('enabled'), budgetTokens: z.number().optional() }),
+  z.object({ type: z.literal('disabled') }),
+  z.object({
+    type: z.literal('adaptive'),
+    display: z.enum(['omitted', 'summarized']).optional()
+  })
+])
+
+export type AgentEffort = z.infer<typeof AgentEffortSchema>
+export type AgentThinkingConfig = z.infer<typeof AgentThinkingConfigSchema>
+
+export const CreateSessionMessageRequestSchema = z.object({
+  content: z.string().min(1, 'Content must be a valid string'),
+  effort: AgentEffortSchema.optional(),
+  thinking: AgentThinkingConfigSchema.optional()
+})
+
+export type PermissionModeCard = {
+  mode: PermissionMode
+  titleKey: string
+  titleFallback: string
+  descriptionKey: string
+  descriptionFallback: string
+  caution?: boolean
+  unsupported?: boolean
+}

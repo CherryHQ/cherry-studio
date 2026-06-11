@@ -79,6 +79,17 @@ describe('listDirectory (list mode, no searchPattern)', () => {
     expect(results.length).toBe(75)
   })
 
+  it('uses the BinaryManager-resolved ripgrep path', async () => {
+    await writeFile(path.join(tmp, 'root.md'), 'root')
+
+    await listDirectory(tmp as FilePath)
+
+    const checkedPaths = mockExistsSync.mock.calls.map(([p]) => String(p).replace(/\\/g, '/'))
+    expect(checkedPaths.some((p) => p.includes('node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/'))).toBe(
+      true
+    )
+  })
+
   it('lists nested directories and files alongside top-level entries', async () => {
     await writeFile(path.join(tmp, 'root.md'), 'root')
     await mkdir(path.join(tmp, 'sub'))

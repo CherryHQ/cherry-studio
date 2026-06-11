@@ -8,7 +8,6 @@ import { visualizer } from 'rollup-plugin-visualizer'
 // assert not supported by biome
 // import pkg from './package.json' assert { type: 'json' }
 import pkg from './package.json'
-import { buildProxyBootstrapPlugin } from './scripts/buildProxyBootstrapPlugin'
 
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
@@ -16,6 +15,15 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
 
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
+
+// Bundle/externalize split for the main process: everything in `dependencies` is
+// marked `external` below (kept in node_modules of the packaged app), and everything
+// NOT in `dependencies` (i.e. in `devDependencies`) is bundled into the main bundle by
+// rollup. The API gateway's Elysia stack (`elysia`, `@elysia/*`) is intentionally in
+// `devDependencies` for exactly this reason — it is pure JS and bundles cleanly. Do NOT
+// move it to `dependencies`: that would externalize it, and since devDependencies are
+// pruned from production packages, the packaged app would fail at runtime with
+// MODULE_NOT_FOUND (no test catches this). See docs/references/api-gateway/README.md.
 const bundledMainDependencies = new Set(['@vectorstores/libsql'])
 const mainExternalDependencies = Object.keys(pkg.dependencies).filter(
   (dependency) => !bundledMainDependencies.has(dependency)
@@ -23,24 +31,21 @@ const mainExternalDependencies = Object.keys(pkg.dependencies).filter(
 
 export default defineConfig({
   main: {
-    plugins: [
-      ...visualizerPlugin('main'),
-      buildProxyBootstrapPlugin({
-        dependencies: Object.keys(pkg.dependencies),
-        isProd,
-        rootDir: __dirname
-      })
-    ],
+    plugins: [...visualizerPlugin('main')],
     resolve: {
       alias: {
         '@main': resolve('src/main'),
         '@application': resolve('src/main/core/application'),
-        '@types': resolve('src/renderer/src/types'),
+        '@types': resolve('src/renderer/types'),
         '@data': resolve('src/main/data'),
-        '@shared': resolve('packages/shared'),
+        '@shared': resolve('src/shared'),
         '@logger': resolve('src/main/core/logger/LoggerService'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
         '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node'),
+        '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
+        '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
+        '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
+        '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
         '@vectorstores/libsql': resolve('packages/vectorstores/libsql/src/index.ts'),
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
@@ -75,7 +80,7 @@ export default defineConfig({
     ],
     resolve: {
       alias: {
-        '@shared': resolve('packages/shared'),
+        '@shared': resolve('src/shared'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core')
       }
     },
@@ -101,8 +106,8 @@ export default defineConfig({
       tanstackRouter({
         target: 'react',
         autoCodeSplitting: true,
-        routesDirectory: resolve('src/renderer/src/routes'),
-        generatedRouteTree: resolve('src/renderer/src/routeTree.gen.ts')
+        routesDirectory: resolve('src/renderer/routes'),
+        generatedRouteTree: resolve('src/renderer/routeTree.gen.ts')
       }),
       (async () => (await import('@tailwindcss/vite')).default())(),
       react({
@@ -113,13 +118,12 @@ export default defineConfig({
     ],
     resolve: {
       alias: {
-        '@renderer': resolve('src/renderer/src'),
-        '@shared': resolve('packages/shared'),
-        '@types': resolve('src/renderer/src/types'),
-        '@logger': resolve('src/renderer/src/services/LoggerService'),
-        '@data': resolve('src/renderer/src/data'),
+        '@renderer': resolve('src/renderer'),
+        '@shared': resolve('src/shared'),
+        '@types': resolve('src/renderer/types'),
+        '@logger': resolve('src/renderer/services/LoggerService'),
+        '@data': resolve('src/renderer/data'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
-        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web'),
         '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
         '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
         '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
@@ -145,14 +149,13 @@ export default defineConfig({
       target: 'esnext', // for build
       rollupOptions: {
         input: {
-          index: resolve(__dirname, 'src/renderer/index.html'),
-          settings: resolve(__dirname, 'src/renderer/settings.html'),
-          quickAssistant: resolve(__dirname, 'src/renderer/quickAssistant.html'),
-          selectionToolbar: resolve(__dirname, 'src/renderer/selectionToolbar.html'),
-          selectionAction: resolve(__dirname, 'src/renderer/selectionAction.html'),
-          traceWindow: resolve(__dirname, 'src/renderer/traceWindow.html'),
-          migrationV2: resolve(__dirname, 'src/renderer/migrationV2.html'),
-          subWindow: resolve(__dirname, 'src/renderer/subWindow.html')
+          index: resolve(__dirname, 'src/renderer/windows/main/index.html'),
+          settings: resolve(__dirname, 'src/renderer/windows/settings/index.html'),
+          quickAssistant: resolve(__dirname, 'src/renderer/windows/quickAssistant/index.html'),
+          selectionToolbar: resolve(__dirname, 'src/renderer/windows/selection/toolbar/index.html'),
+          selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
+          migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
+          subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html')
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return

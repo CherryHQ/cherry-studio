@@ -13,7 +13,7 @@ import { vi } from 'vitest'
 /**
  * Mock useDataApi hooks for testing
  * Provides comprehensive mocks for all data API hooks with realistic SWR-like behavior
- * Matches the actual interface from src/renderer/src/data/hooks/useDataApi.ts
+ * Matches the actual interface from src/renderer/data/hooks/useDataApi.ts
  */
 
 /** Mirror of ParamsOption from useDataApi so callers can pass `params` on template paths */
@@ -67,6 +67,14 @@ function createMockDataForPath(path: string): any {
         { id: 'msg2', content: 'Mock message 2', role: 'assistant' }
       ],
       total: 2
+    }
+  }
+
+  if (path.includes('/paintings')) {
+    return {
+      items: [],
+      total: 0,
+      nextCursor: undefined
     }
   }
 
@@ -230,6 +238,45 @@ export const mockUsePaginatedQuery = vi.fn(
 )
 
 /**
+ * Mock useInfiniteQuery hook (cursor pagination).
+ * Default returns an empty single page; tests override per-call via
+ * mockUseInfiniteQuery.mockImplementation(...) or mockReturnValue(...).
+ */
+export const mockUseInfiniteQuery = vi.fn(
+  <TPath extends ApiPath>(
+    _path: TPath,
+    _options?: ParamsOption<TPath, 'GET'> & {
+      query?: Record<string, unknown>
+      limit?: number
+      enabled?: boolean
+      swrOptions?: any
+    }
+  ) => ({
+    pages: [] as Array<{ items: unknown[]; nextCursor?: string }>,
+    isLoading: false,
+    isRefreshing: false,
+    error: undefined as Error | undefined,
+    hasNext: false,
+    loadNext: vi.fn(),
+    refresh: vi.fn().mockResolvedValue(undefined),
+    reset: vi.fn(),
+    mutate: vi.fn().mockResolvedValue(undefined)
+  })
+)
+
+/**
+ * Mock useInfiniteFlatItems helper.
+ * Mirrors production: flattens `pages[].items` honoring optional reverse flags.
+ */
+export const mockUseInfiniteFlatItems = vi.fn(
+  <T>(pages: Array<{ items: T[] }> | undefined, options?: { reversePages?: boolean; reverseItems?: boolean }): T[] => {
+    if (!pages || pages.length === 0) return []
+    const ordered = options?.reversePages ? [...pages].reverse() : pages
+    return ordered.flatMap((p) => (options?.reverseItems ? [...p.items].reverse() : p.items))
+  }
+)
+
+/**
  * Mock useInvalidateCache hook
  * Matches actual signature: useInvalidateCache() => (keys?) => Promise<any>
  */
@@ -316,6 +363,8 @@ export const mockUseWriteCache = vi.fn(() => {
 export const MockUseDataApi = {
   useQuery: mockUseQuery,
   useMutation: mockUseMutation,
+  useInfiniteQuery: mockUseInfiniteQuery,
+  useInfiniteFlatItems: mockUseInfiniteFlatItems,
   usePaginatedQuery: mockUsePaginatedQuery,
   useInvalidateCache: mockUseInvalidateCache,
   useReadCache: mockUseReadCache,
@@ -333,6 +382,8 @@ export const MockUseDataApiUtils = {
   resetMocks: () => {
     mockUseQuery.mockClear()
     mockUseMutation.mockClear()
+    mockUseInfiniteQuery.mockClear()
+    mockUseInfiniteFlatItems.mockClear()
     mockUsePaginatedQuery.mockClear()
     mockUseInvalidateCache.mockClear()
     mockUseReadCache.mockClear()

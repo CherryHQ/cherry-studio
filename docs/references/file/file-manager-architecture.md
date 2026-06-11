@@ -57,7 +57,7 @@ CREATE UNIQUE INDEX fe_external_path_lower_unique_idx
 
 **Canonical invariant of `externalPath`**: SQLite performs **byte-level** comparison on the raw `externalPath` column and cannot natively detect NFC ≡ NFD (Unicode). The functional index above handles case folding via `lower()` but does **not** apply Unicode normalization, so `externalPath` **must** be normalized via `canonicalizeExternalPath(raw)` before persistence—this is an application-layer invariant, with `ensureExternalEntry` and `fileEntryService.findByExternalPath` as mandatory call sites.
 
-**Compile-time enforcement via `CanonicalExternalPath` brand**: `canonicalizeExternalPath()` returns a branded `CanonicalExternalPath` (TS phantom type, zero runtime cost; see `packages/shared/data/types/file/fileEntry.ts`). Every DB read/write surface that filters by `externalPath` — today `findByExternalPath`, and any future DataApi endpoint or repository method — MUST accept this type, not a plain `string`. The type system then guarantees callers routed their input through the normalization function, eliminating the "forgot to canonicalize" class of bug that would silently miss all matches.
+**Compile-time enforcement via `CanonicalExternalPath` brand**: `canonicalizeExternalPath()` returns a branded `CanonicalExternalPath` (TS phantom type, zero runtime cost; see `src/shared/data/types/file/fileEntry.ts`). Every DB read/write surface that filters by `externalPath` — today `findByExternalPath`, and any future DataApi endpoint or repository method — MUST accept this type, not a plain `string`. The type system then guarantees callers routed their input through the normalization function, eliminating the "forgot to canonicalize" class of bug that would silently miss all matches.
 
 | Source | Natively canonical | Relies on normalization to disambiguate |
 |---|---|---|
@@ -258,7 +258,7 @@ export interface FileManagerDeps {
 // internal/entry/create.ts — two APIs, corresponding to two public methods on the FileManager facade
 // Note: CreateInternalEntryParams is a source-discriminated union
 //   (source: 'path' | 'url' | 'base64' | 'bytes'); each branch only exposes content
-//   that name/ext cannot be derived from. Full matrix in `packages/shared/file/types/ipc.ts`.
+//   that name/ext cannot be derived from. Full matrix in `src/shared/file/types/ipc.ts`.
 export async function createInternalEntry(
   deps: FileManagerDeps,
   params: CreateInternalEntryParams
@@ -374,7 +374,7 @@ private registerIpcHandlers() {
 
 **Impact of adding a new handle kind** (e.g., `virtual` pointing into archive members, `remote` pointing to an S3 URI):
 
-1. `packages/shared/file/types/handle.ts` — add variant to handle union
+1. `src/shared/file/types/handle.ts` — add variant to handle union
 2. Relevant `internal/*/*.ts` — add corresponding `*Virtual` / `*Remote` pure functions
 3. `FileManager.ts` — add a callback parameter to the `dispatchHandle` signature; each IPC handler explicitly handles that kind (or throws "unsupported")
 
@@ -1418,7 +1418,7 @@ This checklist is the canonical addition procedure. A PR introducing a new origi
 
 | Location | Change required |
 |---|---|
-| `packages/shared/data/types/file/fileEntry.ts` → `FileEntryOriginSchema` | Add the new enum value |
+| `src/shared/data/types/file/fileEntry.ts` → `FileEntryOriginSchema` | Add the new enum value |
 | Same file → new `XxxEntrySchema` | Define the row shape for the new variant (which columns are nullable / required / branded) |
 | Same file → `FileEntrySchema` discriminated union | Add the new schema as a union member |
 | Same file → any type guard helpers (`isInternalEntry`, etc.) | Add `isXxxEntry` helper if code needs to narrow |

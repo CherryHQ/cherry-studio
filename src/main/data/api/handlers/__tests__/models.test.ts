@@ -13,7 +13,9 @@ const {
   createMock,
   bulkUpdateMock,
   lookupModelMock,
-  resolveModelsMock
+  resolveModelsMock,
+  listProviderRegistryModelsMock,
+  getImageGenerationSupportMock
 } = vi.hoisted(() => ({
   listMock: vi.fn(),
   getByKeyMock: vi.fn(),
@@ -22,7 +24,9 @@ const {
   createMock: vi.fn(),
   bulkUpdateMock: vi.fn(),
   lookupModelMock: vi.fn(),
-  resolveModelsMock: vi.fn()
+  resolveModelsMock: vi.fn(),
+  listProviderRegistryModelsMock: vi.fn(),
+  getImageGenerationSupportMock: vi.fn()
 }))
 
 vi.mock('@data/services/ModelService', () => ({
@@ -39,7 +43,9 @@ vi.mock('@data/services/ModelService', () => ({
 vi.mock('@data/services/ProviderRegistryService', () => ({
   providerRegistryService: {
     lookupModel: lookupModelMock,
-    resolveModels: resolveModelsMock
+    resolveModels: resolveModelsMock,
+    listProviderRegistryModels: listProviderRegistryModelsMock,
+    getImageGenerationSupport: getImageGenerationSupportMock
   }
 }))
 
@@ -353,15 +359,29 @@ describe('/providers/:providerId/models:resolve', () => {
     expect(resolveModelsMock).toHaveBeenCalledWith('openai', ['gpt-4o', 'o3'])
   })
 
-  it('rejects missing ids before calling the registry service', async () => {
-    await expect(
-      modelHandlers['/providers/:providerId/models:resolve'].GET({
-        params: { providerId: 'openai' },
-        query: {}
-      } as never)
-    ).rejects.toThrow()
+  it('lists active registry provider models when ids are omitted', async () => {
+    listProviderRegistryModelsMock.mockResolvedValueOnce([{ id: 'openai::gpt-4o' }])
 
+    const result = await modelHandlers['/providers/:providerId/models:resolve'].GET({
+      params: { providerId: 'openai' },
+      query: {}
+    } as never)
+
+    expect(listProviderRegistryModelsMock).toHaveBeenCalledWith({ providerId: 'openai' })
     expect(resolveModelsMock).not.toHaveBeenCalled()
+    expect(result).toEqual([{ id: 'openai::gpt-4o' }])
+  })
+
+  it('lists active registry provider models when query is omitted', async () => {
+    listProviderRegistryModelsMock.mockResolvedValueOnce([{ id: 'openai::gpt-4o' }])
+
+    const result = await modelHandlers['/providers/:providerId/models:resolve'].GET({
+      params: { providerId: 'openai' }
+    } as never)
+
+    expect(listProviderRegistryModelsMock).toHaveBeenCalledWith({ providerId: 'openai' })
+    expect(resolveModelsMock).not.toHaveBeenCalled()
+    expect(result).toEqual([{ id: 'openai::gpt-4o' }])
   })
 
   it('rejects empty ids arrays before calling the registry service', async () => {
@@ -373,5 +393,36 @@ describe('/providers/:providerId/models:resolve', () => {
     ).rejects.toThrow()
 
     expect(resolveModelsMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('/providers/:providerId/models/:modelId*/image-generation-support', () => {
+  it('forwards (providerId, modelId) to the registry service and returns the block', async () => {
+    const block = {
+      modes: ['generate'],
+      sizes: ['1024x1024'],
+      sizeMode: 'pixel',
+      defaultSize: '1024x1024',
+      batch: { min: 1, max: 4, default: 1 },
+      supports: { seed: true }
+    }
+    getImageGenerationSupportMock.mockResolvedValueOnce(block)
+
+    const result = await modelHandlers['/providers/:providerId/models/:modelId*/image-generation-support'].GET({
+      params: { providerId: 'silicon', modelId: 'Kwai-Kolors/Kolors' }
+    } as never)
+
+    expect(getImageGenerationSupportMock).toHaveBeenCalledWith('silicon', 'Kwai-Kolors/Kolors')
+    expect(result).toBe(block)
+  })
+
+  it('returns null when the registry has no metadata for the pair', async () => {
+    getImageGenerationSupportMock.mockResolvedValueOnce(null)
+
+    const result = await modelHandlers['/providers/:providerId/models/:modelId*/image-generation-support'].GET({
+      params: { providerId: 'silicon', modelId: 'unknown-model' }
+    } as never)
+
+    expect(result).toBeNull()
   })
 })

@@ -207,6 +207,7 @@ See [App State Overview](./app-state-overview.md) for full rules and the key reg
 | Using DataApi for window/process control          | No database backing, pure side effects, retry is harmful | **IPC handler**          |
 | Using DataApi for external service calls          | Side effects, no CRUD semantics, timeout mismatch | **IPC handler**                |
 | Using DataApi to wrap existing IPC calls          | Adds indirection without value, confuses layering | **Keep as IPC**                |
+| Side effects bundled into a DataApi write         | Data business-logic layer only — side effects must not ride along, however deeply nested | **IPC handler** (+ Entity Service for DB part) |
 | Storing migration/seed state in Cache            | Lost on restart → user re-runs a one-time flow   | **`app_state` table**           |
 
 ## Edge Cases
@@ -255,10 +256,10 @@ See [App State Overview](./app-state-overview.md) for full rules and the key reg
 ## Related Source Code
 
 ### Type Definitions
-- `packages/shared/data/api/` - API type system
-- `packages/shared/data/bootConfig/` - Boot config type definitions and schemas
-- `packages/shared/data/cache/` - Cache type definitions and schemas (`cacheSchemas.ts`, `cacheTypes.ts`, `cacheValueTypes.ts`, `templateKey.ts`)
-- `packages/shared/data/preference/` - Preference type definitions
+- `src/shared/data/api/` - API type system
+- `src/shared/data/bootConfig/` - Boot config type definitions and schemas
+- `src/shared/data/cache/` - Cache type definitions and schemas (`cacheSchemas.ts`, `cacheTypes.ts`, `cacheValueTypes.ts`, `templateKey.ts`)
+- `src/shared/data/preference/` - Preference type definitions
 
 ### Main Process Implementation
 - `src/main/data/bootConfig/` - Boot config service
@@ -268,8 +269,8 @@ See [App State Overview](./app-state-overview.md) for full rules and the key reg
 - `src/main/data/db/` - Database schemas
 
 ### Renderer Process Implementation
-- `src/renderer/src/data/DataApiService.ts` - API client
-- `src/renderer/src/data/CacheService.ts` - Cache service
-- `src/renderer/src/data/PreferenceService.ts` - Preference service
-- `src/renderer/src/data/hooks/` - React hooks
+- `src/renderer/data/DataApiService.ts` - API client
+- `src/renderer/data/CacheService.ts` - Cache service
+- `src/renderer/data/PreferenceService.ts` - Preference service
+- `src/renderer/data/hooks/` - React hooks
 

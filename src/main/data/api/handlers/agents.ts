@@ -4,30 +4,20 @@
  * Thin routing layer between the DataApi transport and the existing agent
  * service singletons. Each handler validates required inputs and delegates
  * to the appropriate service method.
- *
- * Service layer: src/main/services/agents/services/
- * Skills layer:  src/main/services/agents/skills/SkillService
  */
 
 import { agentService } from '@data/services/AgentService'
-import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'
-import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
-import { agentTaskWorkflowService } from '@data/services/AgentTaskWorkflowService'
-import { skillService } from '@main/services/agents/skills/SkillService'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {
   type AgentSchemas,
   CreateAgentSchema,
-  CreateSessionSchema,
   CreateTaskSchema,
   ListAgentsQuerySchema,
   type ListQuery,
   ListQuerySchema,
-  ListSkillsQuerySchema,
   UpdateAgentSchema,
-  UpdateSessionSchema,
   UpdateTaskSchema
 } from '@shared/data/api/schemas/agents'
 
@@ -84,64 +74,6 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     }
   },
 
-  '/agents/:agentId/sessions': {
-    GET: async ({ params, query }) => {
-      const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
-      const { sessions, total } = await sessionService.listSessions(params.agentId, { limit, offset })
-      return { items: sessions, total, page }
-    },
-
-    POST: async ({ params, body }) => {
-      const parsed = CreateSessionSchema.safeParse(body ?? {})
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      const session = await sessionService.createSession(params.agentId, parsed.data)
-      if (!session) {
-        throw DataApiErrorFactory.invalidOperation('create session', 'service returned a falsy result')
-      }
-      return session
-    }
-  },
-
-  '/agents/:agentId/sessions/:sessionId': {
-    GET: async ({ params }) => {
-      const session = await sessionService.getSession(params.agentId, params.sessionId)
-      if (!session) throw DataApiErrorFactory.notFound('Session', params.sessionId)
-      return session
-    },
-
-    PATCH: async ({ params, body }) => {
-      const parsed = UpdateSessionSchema.safeParse(body)
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      const session = await sessionService.updateSession(params.agentId, params.sessionId, parsed.data)
-      if (!session) throw DataApiErrorFactory.notFound('Session', params.sessionId)
-      return session
-    },
-
-    DELETE: async ({ params }) => {
-      const deleted = await sessionService.deleteSession(params.agentId, params.sessionId)
-      if (!deleted) throw DataApiErrorFactory.notFound('Session', params.sessionId)
-      return undefined
-    }
-  },
-
-  '/agents/:agentId/sessions/:sessionId/messages': {
-    GET: async ({ params, query }) => {
-      const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
-      const { messages, total } = await sessionMessageService.listSessionMessages(params.agentId, params.sessionId, {
-        limit,
-        offset
-      })
-      return { items: messages, total, page }
-    }
-  },
-
-  '/agents/:agentId/sessions/:sessionId/messages/:messageId': {
-    DELETE: async ({ params }) => {
-      await sessionMessageService.deleteSessionMessage(params.agentId, params.sessionId, params.messageId)
-      return undefined
-    }
-  },
-
   '/agents/:agentId/tasks': {
     GET: async ({ params, query }) => {
       const { page, limit, offset } = paginationFromQuery(parseListQuery(query))
@@ -152,7 +84,7 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     POST: async ({ params, body }) => {
       const parsed = CreateTaskSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await agentTaskWorkflowService.createTask(params.agentId, parsed.data)
+      return await taskService.createTask(params.agentId, parsed.data)
     }
   },
 
@@ -166,38 +98,15 @@ export const agentHandlers: HandlersFor<AgentSchemas> = {
     PATCH: async ({ params, body }) => {
       const parsed = UpdateTaskSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const task = await agentTaskWorkflowService.updateTask(params.agentId, params.taskId, parsed.data)
+      const task = await taskService.updateTask(params.agentId, params.taskId, parsed.data)
       if (!task) throw DataApiErrorFactory.notFound('Task', params.taskId)
       return task
     },
 
     DELETE: async ({ params }) => {
-      const deleted = await agentTaskWorkflowService.deleteTask(params.agentId, params.taskId)
+      const deleted = await taskService.deleteTask(params.agentId, params.taskId)
       if (!deleted) throw DataApiErrorFactory.notFound('Task', params.taskId)
       return undefined
-    }
-  },
-
-  '/skills': {
-    GET: async ({ query }) => {
-      const parsed = ListSkillsQuerySchema.safeParse(query ?? {})
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      const { agentId } = parsed.data
-
-      if (agentId) {
-        const agent = await agentService.getAgent(agentId)
-        if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
-      }
-
-      return await skillService.list(parsed.data)
-    }
-  },
-
-  '/skills/:skillId': {
-    GET: async ({ params }) => {
-      const skill = await skillService.getById(params.skillId)
-      if (!skill) throw DataApiErrorFactory.notFound('Skill', params.skillId)
-      return skill
     }
   },
 

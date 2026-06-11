@@ -27,6 +27,7 @@ src/main/data/db/
 
 - **Table names**: Singular snake_case (`topic`, `message`, `app_state`)
 - **Export names**: `xxxTable` pattern (`topicTable`, `messageTable`)
+- **Inferred row types**: `XxxRow` (`$inferSelect`) / `InsertXxxRow` (`$inferInsert`) — e.g. `McpServerRow`, `InsertMcpServerRow`. The `Row` suffix keeps the DB-row type distinct from the API `XxxEntity`. See [naming-conventions.md §5.3](../../../../docs/references/naming-conventions.md#53-drizzle-schema-inferred-row-types)
 
 ### Common Commands
 

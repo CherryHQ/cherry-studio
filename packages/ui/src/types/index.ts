@@ -11,5 +11,5 @@
  * type UserWithName = RequireSome<User, 'name'>
  * // Result: { name: string; age?: number; }
  */
-// The type is copied from src/renderer/src/types/index.ts.
+// The type is copied from src/renderer/types/index.ts.
 export type RequireSome<T, K extends keyof T> = Omit<T, K> & Required<Pick<T, K>>

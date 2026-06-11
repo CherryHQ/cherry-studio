@@ -232,5 +232,5 @@ reasoning = extractRuntimeReasoning(presetModel.reasoning, reasoningFormatType)
 | Service (merge queries) | `src/main/data/services/ProviderRegistryService.ts` |
 | Model service | `src/main/data/services/ModelService.ts` |
 | Provider service | `src/main/data/services/ProviderService.ts` |
-| Merge utilities | `packages/shared/data/utils/modelMerger.ts` |
+| Merge utilities | `src/shared/data/utils/modelMerger.ts` |
 | DB schemas | `src/main/data/db/schemas/userModel.ts`, `userProvider.ts` |

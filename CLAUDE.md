@@ -58,6 +58,7 @@ Project-specific tools, paths, and conventions.
 - **Write conventional commits**: Commit small, focused changes using Conventional Commit messages (e.g., `feat(data-api):`, `fix(lifecycle):`, `refactor(quick-assistant):`, `docs(testing):`, `chore(deps):`, `test(window-manager):`). Scope must be a specific kebab-case module, never generic like `main` — when `git log` conflicts with this rule, this rule wins.
 - **Keep history linear**: On shared branches, never use plain `git pull` — it creates merge commits. Always `git pull --rebase` (or `git fetch && git rebase origin/<branch>`). Before `git push`, run `git fetch`; if `origin/<branch>` has advanced, rebase your local commits onto it first. If you notice a merge commit in local history that hasn't been pushed yet, rebase it away — cleaning one up after it's public requires a risky force-push on a shared branch.
 - **Sign commits**: Use `git commit --signoff` as required by contributor guidelines.
+- **Target the right branch**: `main` is the default branch for active development — submit features, refactors, optimizations, and fixes for the current codebase here. v1 maintenance fixes (hotfixes and subsequent v1 releases) must branch from and target the `v1` branch (never `main`); a v1 fix does not auto-carry to `main`, so forward-port it with a separate PR if the bug also exists on `main`. See [v2 Refactoring](#v2-refactoring-in-progress).
 
 ## Development
 
@@ -99,7 +100,7 @@ Use the `gh-create-issue` skill. Fallback: read `.agents/skills/gh-create-issue/
 
 ### TypeScript
 
-- Place shared type definitions in `src/renderer/src/types/` or `packages/shared/`.
+- Place shared type definitions in `src/renderer/types/` or `src/shared/`.
 
 ### Naming Conventions
 
@@ -126,7 +127,7 @@ logger.error("message", error);
 
 - All user-visible strings must use `i18next` — never hardcode UI strings
 - Run `pnpm i18n:check` to validate; `pnpm i18n:sync` to add missing keys
-- Locale files in `src/renderer/src/i18n/`
+- Locale files in `src/renderer/i18n/`
 
 ### UI Design
 
@@ -199,6 +200,8 @@ All third-party CLI binary acquisition (uv, bun, ripgrep, claude-code, gh, …) 
 
 ## v2 Refactoring (In Progress)
 
+> **Current state — read before contributing.** The former `v2` branch has been **merged into `main`**; `main` is now the default branch for active development, with v1 and v2 code **coexisting**. Expect large, frequent, breaking changes — code you touch today may be deleted or reshaped tomorrow. Before touching subsystems being replaced, read [docs/references/data](docs/references/data/README.md) to learn which are being deleted, and heed `@deprecated` annotations in the code — they mark call sites slated for removal. v1 maintenance fixes (hotfixes and subsequent v1 releases) go to the `v1` branch, not `main`; forward-port to `main` with a separate PR if the bug also exists there.
+
 ### Data Layer
 
 - **Removing**: Redux, Dexie, ElectronStore
@@ -217,14 +220,16 @@ Two things on this branch are throwaway — do not defend them.
 
 **Schemas and drizzle SQL are throwaway.** `src/main/data/db/schemas/` may change freely; `migrations/sqlite-drizzle/*.sql` are dev-only artifacts overwritten by `drizzle-kit generate` on every schema change. Mid-development DB drift is acceptable — do not author patch migrations to "fix" it. `migrations/sqlite-drizzle/` will be wiped and regenerated from the final schemas as a single clean initial migration before release; only that regenerated migration must be correct.
 
+**Resolving migration merge conflicts: regenerate, never rename.** When a merge/rebase brings in an upstream migration that conflicts with your local one, delete your local migration `.sql` + its `meta/*_snapshot.json` and re-run `pnpm db:migrations:generate`. Never just rename/renumber the `.sql` or hand-edit the snapshot to make room — renaming silently reuses the snapshot's random `id`, which forks the chain and makes `pnpm db:migrations:generate` abort for everyone (#15438), and leaves the schema source diverged from the migration SQL. Note `drizzle-kit generate` exits `0` even on a forked chain, so it will not warn you; only `pnpm db:migrations:check` (`drizzle-kit check`) does. CI enforces both — chain integrity via `db:migrations:check` and schema↔migration drift via a generate-and-diff step.
+
 ### Data Classification Toolchain
 
 The `v2-refactor-temp/tools/data-classify/` directory is the code generation pipeline for the v2 data layer. `classification.json` is the single source of truth.
 
 The following four files are **auto-generated — NEVER edit them by hand**:
 
-- `packages/shared/data/preference/preferenceSchemas.ts`
-- `packages/shared/data/bootConfig/bootConfigSchemas.ts`
+- `src/shared/data/preference/preferenceSchemas.ts`
+- `src/shared/data/bootConfig/bootConfigSchemas.ts`
 - `src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts`
 - `src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts`
 

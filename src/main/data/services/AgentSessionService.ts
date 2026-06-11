@@ -1,257 +1,300 @@
 import { application } from '@application'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
-import {
-  type AgentSessionRow as SessionRow,
-  agentSessionTable as sessionsTable,
-  type InsertAgentSessionRow as InsertSessionRow
-} from '@data/db/schemas/agentSession'
+import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
+import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
+import type { DbOrTx } from '@data/db/types'
+import { agentWorkspaceService, rowToWorkspace } from '@data/services/AgentWorkspaceService'
+import { pinService } from '@data/services/PinService'
+import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
-import {
-  type AgentConfiguration,
-  type AgentSessionEntity,
-  type CreateSessionDto,
-  sanitizeAgentConfiguration,
-  SESSION_MUTABLE_FIELDS,
-  type UpdateSessionDto
-} from '@shared/data/api/schemas/agents'
-import type { AgentType, ListOptions } from '@types'
-import { and, asc, count, desc, eq, isNull, type SQL, sql } from 'drizzle-orm'
+import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import type {
+  AgentSessionEntity,
+  CreateAgentSessionDto,
+  ListAgentSessionsQuery,
+  UpdateAgentSessionDto
+} from '@shared/data/api/schemas/agentSessions'
+import { AGENT_WORKSPACE_TYPE, AgentWorkspaceTypeSchema } from '@shared/data/api/schemas/agentWorkspaces'
+import type { EntitySearchItem } from '@shared/data/api/schemas/search'
+import { and, asc, desc, eq, gt, gte, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
-const logger = loggerService.withContext('SessionService')
+import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 
-function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
-  const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
-  if (invalidKeys.length > 0) {
-    logger.warn('Session configuration drift detected; dropping invalid keys', { invalidKeys })
+const logger = loggerService.withContext('AgentSessionService')
+
+const DEFAULT_LIMIT = 50
+const MAX_LIMIT = 200
+type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
+
+// Cursor wire format: `<orderKey>:<id>`. Stale/legacy cursors fall back
+// to first page (warn) instead of throwing — opaque server-issued tokens.
+function decodeSessionCursor(raw: string): { key: string; id: string } | null {
+  const sep = raw.indexOf(':')
+  if (sep < 0) {
+    logger.warn('decodeSessionCursor: missing separator, falling back to first page', { cursor: raw })
+    return null
   }
-  return data
+  const key = raw.slice(0, sep)
+  const id = raw.slice(sep + 1)
+  if (!key || !id) {
+    logger.warn('decodeSessionCursor: empty key or id, falling back to first page', { cursor: raw })
+    return null
+  }
+  return { key, id }
 }
 
-function agentRowToSessionDefaults(row: Record<string, unknown>): {
-  type: AgentType
-  model: string
-  name: string
-  accessiblePaths: string[]
-  mcps?: string[]
-  allowedTools?: string[]
-  configuration?: AgentConfiguration
-  description?: string
-  instructions?: string
-  planModel?: string
-  smallModel?: string
-} {
-  const clean = nullsToUndefined(row)
+type JoinedSessionRow = {
+  session: SessionRow
+  workspace: AgentWorkspaceRow
+}
+
+function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
   return {
-    ...clean,
-    type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
-    name: (row.name as string) || '',
-    model: row.model as string,
-    accessiblePaths: row.accessiblePaths as string[],
-    configuration: parseConfiguration(row.configuration)
+    id: row.session.id,
+    agentId: row.session.agentId,
+    name: row.session.name,
+    description: row.session.description,
+    workspaceId: row.session.workspaceId,
+    workspace: rowToWorkspace(row.workspace),
+    orderKey: row.session.orderKey,
+    createdAt: timestampToISO(row.session.createdAt),
+    updatedAt: timestampToISO(row.session.updatedAt)
   }
 }
 
-function rowToSession(row: SessionRow): AgentSessionEntity {
-  const clean = nullsToUndefined(row)
-  return {
-    ...clean,
-    agentType: (row.agentType === 'cherry-claw' ? 'claude-code' : row.agentType) as AgentType,
-    accessiblePaths: row.accessiblePaths,
-    configuration: parseConfiguration(row.configuration),
-    createdAt: timestampToISO(row.createdAt),
-    updatedAt: timestampToISO(row.updatedAt)
-  }
-}
+function buildSearchPredicate(search: string | undefined): SQL | undefined {
+  const trimmed = search?.trim()
+  if (!trimmed) return undefined
 
-export function buildSessionUpdateData(updates: UpdateSessionDto, updatedAt = Date.now()): Partial<SessionRow> {
-  const updateData: Partial<SessionRow> = { updatedAt }
-  const replaceableEntityFields = Object.keys(SESSION_MUTABLE_FIELDS)
+  const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
+  const nameMatch = sql`${sessionsTable.name} LIKE ${pattern} ESCAPE '\\'`
+  const descriptionMatch = sql`${sessionsTable.description} LIKE ${pattern} ESCAPE '\\'`
 
-  for (const field of replaceableEntityFields) {
-    if (Object.prototype.hasOwnProperty.call(updates, field)) {
-      const value = updates[field as keyof typeof updates]
-      ;(updateData as Record<string, unknown>)[field] = value ?? null
-    }
-  }
-
-  return updateData
+  return or(nameMatch, descriptionMatch)
 }
 
 export class AgentSessionService {
-  async createSession(agentId: string, req: CreateSessionDto = {}): Promise<AgentSessionEntity | null> {
-    const database = application.get('DbService').getDb()
-    const agents = await database
-      .select()
-      .from(agentsTable)
-      .where(and(eq(agentsTable.id, agentId), isNull(agentsTable.deletedAt)))
-      .limit(1)
-    if (!agents[0]) {
-      throw DataApiErrorFactory.notFound('Agent', agentId)
-    }
-    const agent = agentRowToSessionDefaults(agents[0] as Record<string, unknown>)
-
-    const id = uuidv4()
-
-    const sessionData: CreateSessionDto = {
-      ...agent,
-      ...req
-    }
-
-    // Omit undefined fields so DB DEFAULTs (e.g. '', '[]', '{}') apply.
-    // instructions has no DB DEFAULT — supply the same product-strategic default
-    // AgentService.createAgent uses, so a session created from an agent missing
-    // instructions still satisfies NOT NULL.
-    const insertData: Omit<InsertSessionRow, 'sortOrder'> = {
-      id,
-      agentId,
-      agentType: agent.type,
-      name: sessionData.name || agent.name || 'New Session',
-      description: sessionData.description,
-      accessiblePaths: sessionData.accessiblePaths,
-      instructions: sessionData.instructions || 'You are a helpful assistant.',
-      model: sessionData.model || agent.model,
-      planModel: sessionData.planModel,
-      smallModel: sessionData.smallModel,
-      mcps: sessionData.mcps,
-      allowedTools: sessionData.allowedTools,
-      slashCommands: sessionData.slashCommands,
-      configuration: sessionData.configuration
-    }
-
+  async search(query: { q: string; limit: number; updatedAtFrom?: number }): Promise<SessionEntitySearchItem[]> {
     const db = application.get('DbService').getDb()
-    await withSqliteErrors(
-      () =>
-        db.transaction(async (tx) => {
-          // Prepend: place new session ahead of existing rows for this agent.
-          // Avoids the prior O(N) `sort_order = sort_order + 1` rewrite while
-          // preserving the user-visible "newest at top" ordering.
-          const [minRow] = await tx
-            .select({ min: sql<number>`COALESCE(MIN(${sessionsTable.sortOrder}), 0)` })
-            .from(sessionsTable)
-            .where(eq(sessionsTable.agentId, agentId))
-          const sortOrder = (minRow?.min ?? 0) - 1
-          await tx.insert(sessionsTable).values({ ...insertData, sortOrder })
-        }),
-      {
-        ...defaultHandlersFor('Session', id),
-        foreignKey: () => DataApiErrorFactory.notFound('Agent', agentId)
-      }
-    )
-
-    const result = await db.select().from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
-
-    if (!result[0]) {
-      throw DataApiErrorFactory.invalidOperation('create session', 'insert succeeded but select returned no row')
+    const limit = Math.min(query.limit, MAX_LIMIT)
+    const filters: SQL[] = []
+    const search = buildSearchPredicate(query.q)
+    if (search) filters.push(search)
+    if (query.updatedAtFrom !== undefined) {
+      filters.push(gte(sessionsTable.updatedAt, query.updatedAtFrom))
     }
 
-    return rowToSession(result[0])
-  }
-
-  async getSession(agentId: string, id: string): Promise<AgentSessionEntity | null> {
-    const database = application.get('DbService').getDb()
-    const result = await database
-      .select()
+    const rows = await db
+      .select({
+        id: sessionsTable.id,
+        agentId: sessionsTable.agentId,
+        agentName: agentsTable.name,
+        name: sessionsTable.name,
+        updatedAt: sessionsTable.updatedAt
+      })
       .from(sessionsTable)
-      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agentId, agentId)))
-      .limit(1)
+      .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
+      .where(filters.length > 0 ? and(...filters) : undefined)
+      .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
+      .limit(limit)
 
-    if (!result[0]) return null
-    return rowToSession(result[0])
+    return rows.map((row) => ({
+      type: 'session',
+      id: row.id,
+      title: row.name,
+      subtitle: row.agentName ?? undefined,
+      updatedAt: timestampToISO(row.updatedAt),
+      target: { sessionId: row.id, agentId: row.agentId }
+    }))
   }
 
-  async listSessions(
-    agentId?: string,
-    options: ListOptions = {}
-  ): Promise<{ sessions: AgentSessionEntity[]; total: number }> {
-    const whereConditions: SQL[] = []
-    if (agentId) {
-      whereConditions.push(eq(sessionsTable.agentId, agentId))
-    }
-
-    const whereClause =
-      whereConditions.length > 1
-        ? and(...whereConditions)
-        : whereConditions.length === 1
-          ? whereConditions[0]
-          : undefined
-
-    const database = application.get('DbService').getDb()
-    const totalResult = await database.select({ count: count() }).from(sessionsTable).where(whereClause)
-
-    const total = totalResult[0].count
-
-    const baseQuery = database
-      .select()
-      .from(sessionsTable)
-      .where(whereClause)
-      .orderBy(asc(sessionsTable.sortOrder), desc(sessionsTable.createdAt))
-
-    const result =
-      options.limit !== undefined
-        ? options.offset !== undefined
-          ? await baseQuery.limit(options.limit).offset(options.offset)
-          : await baseQuery.limit(options.limit)
-        : await baseQuery
-
-    const sessions = result.map((row) => rowToSession(row))
-
-    return { sessions, total }
-  }
-
-  async updateSession(agentId: string, id: string, updates: UpdateSessionDto): Promise<AgentSessionEntity | null> {
-    const existing = await this.getSession(agentId, id)
-    if (!existing) return null
-
-    if (updates.accessiblePaths !== undefined && updates.accessiblePaths.length === 0) {
-      throw DataApiErrorFactory.validation({ accessiblePaths: ['must not be empty'] })
-    }
-
-    const updateData = buildSessionUpdateData(updates)
-
-    const database = application.get('DbService').getDb()
-    await withSqliteErrors(
-      () => database.update(sessionsTable).set(updateData).where(eq(sessionsTable.id, id)),
-      defaultHandlersFor('Session', id)
-    )
-
-    return await this.getSession(agentId, id)
-  }
-
-  async deleteSession(agentId: string, id: string): Promise<boolean> {
-    const database = application.get('DbService').getDb()
-    const result = await withSqliteErrors(
-      () => database.delete(sessionsTable).where(and(eq(sessionsTable.id, id), eq(sessionsTable.agentId, agentId))),
-      defaultHandlersFor('Session', id)
-    )
-    return result.rowsAffected > 0
-  }
-
-  async reorderSessions(agentId: string, orderedIds: string[]): Promise<void> {
-    const database = application.get('DbService').getDb()
-    await database.transaction(async (tx) => {
-      for (let i = 0; i < orderedIds.length; i++) {
-        await tx
-          .update(sessionsTable)
-          .set({ sortOrder: i })
-          .where(and(eq(sessionsTable.id, orderedIds[i]), eq(sessionsTable.agentId, agentId)))
-      }
+  async create(dto: CreateAgentSessionDto): Promise<AgentSessionEntity> {
+    const id = uuidv4()
+    await withSqliteErrors(() => application.get('DbService').withWriteTx((tx) => this.createTx(tx, id, dto)), {
+      ...defaultHandlersFor('Session', id),
+      foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
     })
-    logger.info('Sessions reordered', { agentId, count: orderedIds.length })
+    return await this.getById(id)
   }
 
-  async sessionExists(agentId: string, id: string): Promise<boolean> {
-    const database = application.get('DbService').getDb()
-    const result = await database
+  private async createTx(tx: DbOrTx, id: string, dto: CreateAgentSessionDto): Promise<void> {
+    await this.assertAgentExistsTx(tx, dto.agentId)
+
+    let workspaceId: string
+    switch (dto.workspace.type) {
+      case AGENT_WORKSPACE_TYPE.USER: {
+        const workspace = await agentWorkspaceService.getByIdTx(tx, dto.workspace.workspaceId)
+        if (workspace.type !== AGENT_WORKSPACE_TYPE.USER) {
+          throw DataApiErrorFactory.invalidOperation(
+            'create session',
+            'workspace source must reference a user workspace'
+          )
+        }
+        workspaceId = workspace.id
+        break
+      }
+      case AGENT_WORKSPACE_TYPE.SYSTEM: {
+        workspaceId = (await agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: id })).id
+        break
+      }
+      default: {
+        const exhaustive: never = dto.workspace
+        throw DataApiErrorFactory.invalidOperation(
+          'create session',
+          `unsupported workspace source: ${String(exhaustive)}`
+        )
+      }
+    }
+
+    await this.insertTx(tx, {
+      id,
+      agentId: dto.agentId,
+      name: dto.name,
+      description: dto.description,
+      workspaceId
+    })
+  }
+
+  private async assertAgentExistsTx(tx: DbOrTx, agentId: string): Promise<void> {
+    const [agent] = await tx
+      .select({ id: agentsTable.id })
+      .from(agentsTable)
+      .where(eq(agentsTable.id, agentId))
+      .limit(1)
+    if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
+  }
+
+  async getById(id: string): Promise<AgentSessionEntity> {
+    const db = application.get('DbService').getDb()
+    const [row] = await db
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .where(eq(sessionsTable.id, id))
+      .limit(1)
+    if (!row) throw DataApiErrorFactory.notFound('Session', id)
+    return rowToSession(row)
+  }
+
+  async listByCursor(query: ListAgentSessionsQuery = {}): Promise<CursorPaginationResponse<AgentSessionEntity>> {
+    const db = application.get('DbService').getDb()
+    const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
+    const cursor = query.cursor ? decodeSessionCursor(query.cursor) : null
+
+    const filters: SQL[] = []
+    if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
+    if (cursor) {
+      // Strict tuple: (orderKey, id) > (cursor.key, cursor.id)
+      filters.push(
+        or(
+          gt(sessionsTable.orderKey, cursor.key),
+          and(eq(sessionsTable.orderKey, cursor.key), gt(sessionsTable.id, cursor.id))
+        )!
+      )
+    }
+
+    const rows = await db
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .where(filters.length > 0 ? and(...filters) : undefined)
+      .orderBy(asc(sessionsTable.orderKey), asc(sessionsTable.id))
+      .limit(limit + 1)
+
+    const hasNext = rows.length > limit
+    const items = (hasNext ? rows.slice(0, limit) : rows).map(rowToSession)
+    const last = items[items.length - 1]
+    const nextCursor = hasNext && last ? `${last.orderKey}:${last.id}` : undefined
+
+    return { items, nextCursor }
+  }
+
+  async update(id: string, dto: UpdateAgentSessionDto): Promise<AgentSessionEntity> {
+    const patch: UpdateAgentSessionDto = {}
+    if (dto.name !== undefined) patch.name = dto.name
+    if (dto.description !== undefined) patch.description = dto.description
+    if (dto.agentId !== undefined) patch.agentId = dto.agentId
+    if (Object.keys(patch).length === 0) return this.getById(id)
+
+    const row = await withSqliteErrors(
+      () => application.get('DbService').withWriteTx((tx) => this.updateTx(tx, id, patch)),
+      defaultHandlersFor('Session', id)
+    )
+    if (!row) throw DataApiErrorFactory.notFound('Session', id)
+    return await this.getById(id)
+  }
+
+  async updateTx(tx: DbOrTx, id: string, patch: UpdateAgentSessionDto): Promise<SessionRow | undefined> {
+    const [row] = await tx.update(sessionsTable).set(patch).where(eq(sessionsTable.id, id)).returning()
+    return row
+  }
+
+  private async insertTx(
+    tx: DbOrTx,
+    values: {
+      id: string
+      agentId: string
+      name: string
+      description?: string
+      workspaceId: string
+    }
+  ): Promise<void> {
+    await insertWithOrderKey(tx, sessionsTable, values, { pkColumn: sessionsTable.id, position: 'first' })
+  }
+
+  async delete(id: string): Promise<void> {
+    await application.get('DbService').withWriteTx((tx) => this.deleteTx(tx, id))
+  }
+
+  async deleteTx(tx: DbOrTx, id: string): Promise<void> {
+    const [session] = await tx
+      .select({ id: sessionsTable.id, workspaceId: sessionsTable.workspaceId, workspaceType: agentWorkspaceTable.type })
+      .from(sessionsTable)
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+      .where(eq(sessionsTable.id, id))
+      .limit(1)
+    if (!session) throw DataApiErrorFactory.notFound('Session', id)
+
+    const [row] = await tx.delete(sessionsTable).where(eq(sessionsTable.id, id)).returning({ id: sessionsTable.id })
+    if (!row) throw DataApiErrorFactory.notFound('Session', id)
+    await pinService.purgeForEntityTx(tx, 'session', id)
+    if (AgentWorkspaceTypeSchema.parse(session.workspaceType) === AGENT_WORKSPACE_TYPE.SYSTEM) {
+      await tx.delete(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, session.workspaceId))
+    }
+  }
+
+  async reorder(id: string, anchor: OrderRequest): Promise<void> {
+    await application.get('DbService').withWriteTx((tx) => this.reorderTx(tx, id, anchor))
+  }
+
+  async reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): Promise<void> {
+    const [target] = await tx
       .select({ id: sessionsTable.id })
       .from(sessionsTable)
-      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agentId, agentId)))
+      .where(eq(sessionsTable.id, id))
       .limit(1)
+    if (!target) throw DataApiErrorFactory.notFound('Session', id)
 
-    return result.length > 0
+    await applyMoves(tx, sessionsTable, [{ id, anchor }], { pkColumn: sessionsTable.id })
+  }
+
+  async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+    if (moves.length === 0) return
+    await application.get('DbService').withWriteTx((tx) => this.reorderBatchTx(tx, moves))
+  }
+
+  async reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+    await applyMoves(tx, sessionsTable, moves, { pkColumn: sessionsTable.id })
+  }
+
+  async exists(id: string): Promise<boolean> {
+    const db = application.get('DbService').getDb()
+    const [row] = await db.select({ id: sessionsTable.id }).from(sessionsTable).where(eq(sessionsTable.id, id)).limit(1)
+    return !!row
   }
 }
 

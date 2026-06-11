@@ -3,8 +3,12 @@ import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// `@logger` is mocked globally by tests/main.setup.ts with the unified
+// MockMainLoggerService singleton — assert on `mockMainLoggerService.warn`.
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -949,6 +953,127 @@ describe('FileEntryService', () => {
 
       const result = await fileEntryService.findUnreferenced()
       expect(result.find((e) => e.id === id)).toBeUndefined()
+    })
+  })
+
+  describe('bulk-read fault isolation (#15733)', () => {
+    const goodId = '019606a0-0000-7000-8000-00000000aa01' as FileEntryId
+    const badId = '019606a0-0000-7000-8000-00000000aa02' as FileEntryId
+
+    async function seedOneGoodOneBad() {
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: goodId,
+          origin: 'internal',
+          name: 'good',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          // Simulates pre-fix FileMigrator output: a name carrying path
+          // separators. No DB CHECK guards `name`, so it inserts cleanly
+          // and only SafeNameSchema rejects it at read time.
+          id: badId,
+          origin: 'internal',
+          name: 'C:\\Users\\x\\bad',
+          ext: 'png',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        }
+      ])
+    }
+
+    it('findMany returns parseable rows and warns once per bad row', async () => {
+      await seedOneGoodOneBad()
+      mockMainLoggerService.warn.mockClear()
+
+      const entries = await fileEntryService.findMany()
+      expect(entries.map((e) => e.id)).toEqual([goodId])
+      expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        expect.stringContaining('un-parseable'),
+        expect.objectContaining({ id: badId })
+      )
+    })
+
+    it('findById still throws for the bad row; good rows unaffected', async () => {
+      await seedOneGoodOneBad()
+      await expect(fileEntryService.findById(badId)).rejects.toThrow()
+      await expect(fileEntryService.findById(goodId)).resolves.toMatchObject({ id: goodId })
+    })
+
+    it('listPaged excludes bad rows from items while total still counts them', async () => {
+      await seedOneGoodOneBad()
+      const page = await fileEntryService.listPaged()
+      expect(page.items.map((e) => e.id)).toEqual([goodId])
+      expect(page.total).toBe(2)
+    })
+
+    it('findUnreferenced skips bad rows', async () => {
+      await seedOneGoodOneBad()
+      const entries = await fileEntryService.findUnreferenced()
+      expect(entries.map((e) => e.id)).toEqual([goodId])
+    })
+
+    it('findCaseInsensitivePeers isolates a corrupt external row instead of throwing', async () => {
+      // The functional unique index `fe_external_path_lower_unique_idx`
+      // makes "a good and a bad row sharing a case-insensitive
+      // externalPath" unrepresentable, so the corrupt row IS the only
+      // possible match for its path: fault isolation must turn the
+      // would-be throw into an empty result plus one warning.
+      const badExternalId = '019606a0-0000-7000-8000-00000000aa03' as FileEntryId
+      const goodExternalId = '019606a0-0000-7000-8000-00000000aa04' as FileEntryId
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: badExternalId,
+          origin: 'external',
+          name: 'C:\\Users\\x\\bad-peer',
+          ext: 'txt',
+          size: null,
+          externalPath: '/Users/me/BAD-PEER.TXT',
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: goodExternalId,
+          origin: 'external',
+          name: 'good-peer',
+          ext: 'txt',
+          size: null,
+          externalPath: '/Users/me/GOOD-PEER.TXT',
+          deletedAt: null,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        }
+      ])
+      mockMainLoggerService.warn.mockClear()
+
+      // Corrupt match → excluded with one warning, not a throw.
+      const badPeers = await fileEntryService.findCaseInsensitivePeers(
+        '/users/me/bad-peer.txt' as CanonicalExternalPath
+      )
+      expect(badPeers).toEqual([])
+      expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        expect.stringContaining('un-parseable'),
+        expect.objectContaining({ id: badExternalId })
+      )
+
+      // Good rows still surface through the same method.
+      const goodPeers = await fileEntryService.findCaseInsensitivePeers(
+        '/users/me/good-peer.txt' as CanonicalExternalPath
+      )
+      expect(goodPeers.map((e) => e.id)).toEqual([goodExternalId])
     })
   })
 })

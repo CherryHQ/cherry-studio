@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
+import type { JobScheduleSnapshot } from '@shared/data/api/schemas/jobs'
 
-import type { JobScheduleSnapshot } from '../scheduleTypes'
 import type { JobHandler, JobMissEvent } from '../types'
 
 const logger = loggerService.withContext('JobCatchUp')

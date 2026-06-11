@@ -74,18 +74,16 @@ The Test Plan aims to provide users with a more stable application experience an
 
 Please review the following critical information before submitting your Pull Request:
 
-### Branch Strategy Change (Effective April 3, 2026) 🚨
+### Branch Strategy 🚨
 
-**The `main` branch is now under code freeze.** The merge strategy is as follows:
+**The v2 refactor has merged into `main`.** `main` is now the default branch for active development, where v1 and v2 code coexist. Expect large, frequent, and breaking changes during this phase.
 
-*   **`main` branch**: Only accepts **critical bug fixes**. Fix PRs must be submitted via `hotfix/*` branches (e.g., `hotfix/fix-crash-on-startup`), kept minimal in scope, and must not include any refactoring code.
-*   **`v2` branch**: All new feature development, refactoring, and optimizations should be done on the `v2` branch.
+*   **`main` branch**: New feature development, refactoring, optimizations, and fixes for the current codebase go here. Before touching subsystems being replaced, read [docs/references/data](./docs/references/data/README.md) to learn which are being deleted, and heed `@deprecated` annotations in the code — they mark call sites slated for removal.
+*   **`v1` branch**: Maintenance line for the shipped v1 release — its hotfixes and subsequent v1 releases go here, via `hotfix/*` branches (e.g., `hotfix/fix-crash-on-startup`), kept minimal in scope. Target your PR to `v1`, not `main`. A v1 fix does **not** auto-carry to `main`; if the same bug exists on `main`, open a separate forward-port PR targeting `main`.
 
 ### Participate in v2 Development 🚀
 
-v2 is the next major milestone for Cherry Studio, and we invite every developer to actively participate! Whether it's new feature development, architecture optimization, or code refactoring, your contributions on the `v2` branch are welcome. Let's build a better Cherry Studio together!
-
-> **Note**: The `v2` branch will only accept new feature submissions after all current features have been fully refactored.
+v2 is the next major milestone for Cherry Studio, and we invite every developer to actively participate! Whether it's new feature development, architecture optimization, or code refactoring, your contributions on `main` are welcome. Let's build a better Cherry Studio together!
 
 We appreciate your understanding and continued support during this important development phase. Thank you!
 

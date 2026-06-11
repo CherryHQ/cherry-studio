@@ -188,7 +188,7 @@ The **same physical external file** can therefore be reached by either handle va
 
 ### 2.2 `FileHandle`: the Polymorphic Reference
 
-`FileHandle = FileEntryHandle | FilePathHandle` (see [`packages/shared/file/types/handle.ts`](../../../packages/shared/file/types/handle.ts)) is the first-class reference type crossing the IPC boundary. Every IPC method that makes sense regardless of which subsystem is in the loop accepts a `FileHandle`; handlers dispatch internally on `handle.kind`. See §3.3 for the full dispatch table.
+`FileHandle = FileEntryHandle | FilePathHandle` (see [`src/shared/file/types/handle.ts`](../../../src/shared/file/types/handle.ts)) is the first-class reference type crossing the IPC boundary. Every IPC method that makes sense regardless of which subsystem is in the loop accepts a `FileHandle`; handlers dispatch internally on `handle.kind`. See §3.3 for the full dispatch table.
 
 Use `FileHandle` whenever a signature does not *inherently* require an entry row (e.g. anything that isn't a lifecycle op on a FileEntry).
 
@@ -257,11 +257,11 @@ Other services in the main process can call the FS primitives (`@main/utils/file
 
 > **Phase 1 vs Phase 2 wiring.** Only `getDanglingState` and
 > `batchGetDanglingStates` have a registered IPC channel in this PR
-> (see `packages/shared/IpcChannel.ts:258-259`); every other row in
+> (see `src/shared/IpcChannel.ts:258-259`); every other row in
 > the tables below is type-declared on `FileIpcApi` but its channel
 > lands in a Phase 2 PR alongside the first FileManager consumer of
 > that method. The matching `@phase` JSDoc tag on each method in
-> `packages/shared/file/types/ipc.ts` is the source of truth for the
+> `src/shared/file/types/ipc.ts` is the source of truth for the
 > wiring status; treat the tables here as the design roadmap.
 
 All operations that can act on any file (FileEntry or arbitrary path) **accept a `FileHandle` tagged union** (`{ kind: 'entry', entryId } | { kind: 'path', path }`). Handlers dispatch by `handle.kind` to FileManager (entry branch) or the FS primitives (path branch).
@@ -816,8 +816,8 @@ To avoid the governance pitfall of "added a sourceType but forgot to wire up som
 
 | Step | Location | Action | Enforcement |
 |---|---|---|---|
-| 1 | `packages/shared/data/types/file/ref/<name>.ts` | Create the variant file: declare `xxxSourceType` / `xxxRoles` / `xxxRefFields` + `xxxFileRefSchema = createRefSchema(...)` | Code review |
-| 2 | `packages/shared/data/types/file/ref/index.ts` | Add the variant to `allSourceTypes` (type aggregation) + `FileRefSchema` discriminated union | Type system narrow failure |
+| 1 | `src/shared/data/types/file/ref/<name>.ts` | Create the variant file: declare `xxxSourceType` / `xxxRoles` / `xxxRefFields` + `xxxFileRefSchema = createRefSchema(...)` | Code review |
+| 2 | `src/shared/data/types/file/ref/index.ts` | Add the variant to `allSourceTypes` (type aggregation) + `FileRefSchema` discriminated union | Type system narrow failure |
 | 3 | `src/main/data/services/orphan/FileRefCheckerRegistry.ts` | Add a checker in `Record<FileRefSourceType, SourceTypeChecker>` | **Compile-time enforced** (missing Record key → TS error) |
 | 4 | Business service (delete flow) | Call `fileRefService.cleanupBySource(sourceType, id)` when the object is deleted | Code review + unit tests + step 3 as fallback |
 

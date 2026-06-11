@@ -1,0 +1,34 @@
+import { cn } from '@renderer/utils'
+import type { ReactNode } from 'react'
+
+import { sectionHeadingClasses } from './ProviderSettingsPrimitives'
+
+interface ProviderSectionProps {
+  id?: string
+  title?: ReactNode
+  description?: ReactNode
+  action?: ReactNode
+  children: ReactNode
+  className?: string
+}
+
+export default function ProviderSection({ id, title, description, action, children, className }: ProviderSectionProps) {
+  return (
+    <section id={id} className={cn('space-y-2.5', className)}>
+      {(title || description || action) && (
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            {title && <div className={sectionHeadingClasses}>{title}</div>}
+            {description && (
+              <div className="mt-1 text-[length:var(--font-size-body-xs)] text-foreground-muted leading-[var(--line-height-body-xs)]">
+                {description}
+              </div>
+            )}
+          </div>
+          {action}
+        </div>
+      )}
+      {children}
+    </section>
+  )
+}

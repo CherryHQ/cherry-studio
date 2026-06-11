@@ -4,7 +4,7 @@
 
 import fs from 'node:fs/promises'
 
-import type { MiniAppInsert, MiniAppStatus } from '@data/db/schemas/miniApp'
+import type { InsertMiniAppRow, MiniAppStatus } from '@data/db/schemas/miniApp'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { loggerService } from '@logger'
 import { MINI_APP_ID_REGEX } from '@shared/data/api/schemas/miniApps'
@@ -16,7 +16,7 @@ import { assignOrderKeysByScope } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import { transformMiniApp } from './mappings/MiniAppMappings'
 
-type MiniAppRowWithoutOrderKey = Omit<MiniAppInsert, 'orderKey'>
+type MiniAppRowWithoutOrderKey = Omit<InsertMiniAppRow, 'orderKey'>
 
 const logger = loggerService.withContext('MiniAppMigrator')
 
@@ -26,7 +26,7 @@ export class MiniAppMigrator extends BaseMigrator {
   readonly description = 'Migrate miniapp configurations from Redux to SQLite'
   readonly order = 1.2
 
-  private preparedRows: MiniAppInsert[] = []
+  private preparedRows: InsertMiniAppRow[] = []
   private skippedCount = 0
   private originalSourceCount = 0
 
@@ -65,7 +65,7 @@ export class MiniAppMigrator extends BaseMigrator {
       this.originalSourceCount = groups.reduce((total, group) => total + group.data.length, 0)
 
       // v1 strips `logo` to undefined before persisting custom apps to Redux state
-      // (see v1 src/renderer/src/store/minapps.ts reducers). The full custom-app
+      // (see v1 src/renderer/store/minapps.ts reducers). The full custom-app
       // record — including logo — lives in `customMiniAppsFile` (resolved by
       // MigrationPaths from {userData}/Data/Files/custom-minapps.json) and is
       // reattached at runtime. Re-read it here so logos survive migration.
@@ -138,7 +138,10 @@ export class MiniAppMigrator extends BaseMigrator {
 
       // Stamp orderKey within each status partition (data-ordering-guide.md §5)
       const rowsWithoutOrder: MiniAppRowWithoutOrderKey[] = [...seenIds.values()]
-      this.preparedRows = assignOrderKeysByScope(rowsWithoutOrder, (row) => row.status ?? 'enabled') as MiniAppInsert[]
+      this.preparedRows = assignOrderKeysByScope(
+        rowsWithoutOrder,
+        (row) => row.status ?? 'enabled'
+      ) as InsertMiniAppRow[]
 
       const byStatus = {
         enabled: this.preparedRows.filter((r) => r.status === 'enabled').length,
