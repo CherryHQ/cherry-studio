@@ -17,6 +17,7 @@ const {
   createSchemaMock,
   ensureIndexMetaMock,
   hasLegacyTableMock,
+  hasAnyMaterialMock,
   getItemsByBaseIdMock,
   indexStoreCtorMock,
   getPathMock,
@@ -32,6 +33,7 @@ const {
   createSchemaMock: vi.fn(),
   ensureIndexMetaMock: vi.fn(),
   hasLegacyTableMock: vi.fn(),
+  hasAnyMaterialMock: vi.fn(),
   getItemsByBaseIdMock: vi.fn(),
   indexStoreCtorMock: vi.fn(),
   getPathMock: vi.fn(),
@@ -84,7 +86,8 @@ vi.mock('../indexStore/schema', () => ({
 
 vi.mock('../indexStore/indexMeta', () => ({
   ensureIndexMeta: ensureIndexMetaMock,
-  hasLegacyVectorStoreTable: hasLegacyTableMock
+  hasLegacyVectorStoreTable: hasLegacyTableMock,
+  hasAnyMaterial: hasAnyMaterialMock
 }))
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
@@ -128,16 +131,16 @@ describe('KnowledgeVectorStoreService', () => {
     getPathMock.mockImplementation(async (baseId: string) => `/tmp/${baseId}/index.sqlite`)
     getPathSyncMock.mockImplementation((baseId: string) => `/tmp/${baseId}/index.sqlite`)
     // Each open returns a fresh closeable driver so failure paths can assert close().
-    // The default execute answers the open-time material probe with one row, so the
-    // invisible-contents diagnostic stays quiet unless a test opts in.
     openDriverMock.mockImplementation(async () => ({
       kind: 'driver',
-      execute: vi.fn().mockResolvedValue({ rows: [{ 1: 1 }] }),
       close: vi.fn().mockResolvedValue(undefined)
     }))
     createSchemaMock.mockResolvedValue(undefined)
     ensureIndexMetaMock.mockResolvedValue(undefined)
     hasLegacyTableMock.mockResolvedValue(false)
+    // A non-empty material probe keeps the invisible-contents diagnostic quiet
+    // unless a test opts in.
+    hasAnyMaterialMock.mockResolvedValue(true)
     getItemsByBaseIdMock.mockResolvedValue([])
     deleteDirMock.mockResolvedValue(undefined)
     indexStoreCtorMock.mockImplementation(() => ({ close: vi.fn().mockResolvedValue(undefined) }))
@@ -411,11 +414,7 @@ describe('KnowledgeVectorStoreService', () => {
   it('logs an error when an empty index mounts under a base with completed items', async () => {
     const service = new KnowledgeVectorStoreService()
     const base = createBase()
-    openDriverMock.mockImplementationOnce(async () => ({
-      kind: 'driver',
-      execute: vi.fn().mockResolvedValue({ rows: [] }),
-      close: vi.fn().mockResolvedValue(undefined)
-    }))
+    hasAnyMaterialMock.mockResolvedValueOnce(false)
     getItemsByBaseIdMock.mockResolvedValueOnce([
       { id: 'item-1', type: 'directory', status: 'completed' },
       { id: 'item-2', type: 'file', status: 'completed' }
@@ -433,11 +432,7 @@ describe('KnowledgeVectorStoreService', () => {
   it('stays quiet when an empty index mounts under a base with no completed indexable items', async () => {
     const service = new KnowledgeVectorStoreService()
     const base = createBase()
-    openDriverMock.mockImplementationOnce(async () => ({
-      kind: 'driver',
-      execute: vi.fn().mockResolvedValue({ rows: [] }),
-      close: vi.fn().mockResolvedValue(undefined)
-    }))
+    hasAnyMaterialMock.mockResolvedValueOnce(false)
     // A completed empty directory is legitimate without materials; in-flight leaves are too.
     getItemsByBaseIdMock.mockResolvedValueOnce([
       { id: 'item-1', type: 'directory', status: 'completed' },
@@ -447,5 +442,25 @@ describe('KnowledgeVectorStoreService', () => {
     await service.getIndexStore(base)
 
     expect(loggerErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('fails the open and closes the driver when the empty-index diagnostic cannot read the base items', async () => {
+    const service = new KnowledgeVectorStoreService()
+    const base = createBase()
+    let openedDriver: { close: ReturnType<typeof vi.fn> } | undefined
+    openDriverMock.mockImplementationOnce(async () => {
+      openedDriver = { kind: 'driver', close: vi.fn().mockResolvedValue(undefined) } as never
+      return openedDriver
+    })
+    hasAnyMaterialMock.mockResolvedValueOnce(false)
+    getItemsByBaseIdMock.mockRejectedValueOnce(new Error('app database unavailable'))
+
+    // Deliberate fail-loud: swallowing the lookup failure would re-silence the
+    // deleted-base race (open racing deleteBase recreates an empty file, and the
+    // lookup's NOT_FOUND is what makes that loud instead of caching an empty store).
+    await expect(service.getIndexStore(base)).rejects.toThrow('app database unavailable')
+
+    expect(openedDriver?.close).toHaveBeenCalledTimes(1)
+    expect(indexStoreCtorMock).not.toHaveBeenCalled()
   })
 })

@@ -81,3 +81,9 @@ export async function hasLegacyVectorStoreTable(executor: SqliteExecutor): Promi
   ])
   return result.rows.length > 0
 }
+
+/** Whether the index database holds at least one material row (store-open diagnostics probe). */
+export async function hasAnyMaterial(executor: SqliteExecutor): Promise<boolean> {
+  const result = await executor.execute(`SELECT 1 FROM material LIMIT 1`)
+  return result.rows.length > 0
+}

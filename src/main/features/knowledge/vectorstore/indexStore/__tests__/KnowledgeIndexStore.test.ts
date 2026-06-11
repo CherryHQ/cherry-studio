@@ -236,6 +236,33 @@ describe('KnowledgeIndexStore', () => {
     expect(units.map((u) => u.text)).toEqual(['keep'])
   })
 
+  it('checks embedding coverage across query batches (>500 distinct hashes)', async () => {
+    // 501 distinct unit bodies cross the EMBEDDING_HASH_QUERY_BATCH (500)
+    // boundary, so a slice off-by-one in the batched coverage query would either
+    // falsely throw (a supplied hash dropped from a query) or falsely pass (a
+    // missing hash never checked). Pin both directions on a real database.
+    const words = Array.from({ length: 501 }, (_, i) => `w${String(i).padStart(3, '0')}`)
+    const text = words.join(' ')
+    const ranges: Array<[number, number]> = []
+    let offset = 0
+    for (const word of words) {
+      ranges.push([offset, offset + word.length])
+      offset += word.length + 1
+    }
+
+    // The 501st hash lands in the second batch; dropping its vector must fail.
+    const missingOne = buildInput(text, ranges)
+    missingOne.embeddings = missingOne.embeddings.filter(
+      (embedding) => embedding.embeddingTextHash !== hashEmbeddingText(words[500])
+    )
+    await expect(store.rebuildMaterial('m1', missingOne)).rejects.toThrow('without a vector')
+    expect(await count('material')).toBe(0)
+
+    await expect(store.rebuildMaterial('m1', buildInput(text, ranges))).resolves.toBeUndefined()
+    expect(await count('search_unit')).toBe(501)
+    expect(await count('embedding')).toBe(501)
+  })
+
   it('deletes a material and its derived rows, leaving embeddings for GC', async () => {
     await store.rebuildMaterial('m1', buildInput('the knowledge base', [[0, 18]]))
     expect(await ftsMatchCount('knowledge')).toBe(1)

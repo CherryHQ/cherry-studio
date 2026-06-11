@@ -14,7 +14,7 @@ import {
   getKnowledgeVectorStoreFilePathSync
 } from '../utils/storage/pathStorage'
 import { hashChunkerConfig } from './indexStore/hashing'
-import { ensureIndexMeta, hasLegacyVectorStoreTable } from './indexStore/indexMeta'
+import { ensureIndexMeta, hasAnyMaterial, hasLegacyVectorStoreTable } from './indexStore/indexMeta'
 import { KnowledgeIndexStore } from './indexStore/KnowledgeIndexStore'
 import { openLibsqlIndexDriver } from './indexStore/LibsqlDriver'
 import { libsqlVectorIndex } from './indexStore/LibsqlVectorIndex'
@@ -165,6 +165,12 @@ export class KnowledgeVectorStoreService extends BaseService {
    * completed items but the index holds nothing" state (deleted/blanked file),
    * and log an error so the silent-empty symptom is diagnosable. PR B (migrator
    * writes the final layout + legacy rewrite on open) replaces this detection.
+   *
+   * Probe failures propagate and fail the open on purpose: swallowing them here
+   * would re-silence the deleted-base race this guard exists to expose (an open
+   * racing a base deletion recreates an empty file, and the item lookup's
+   * NOT_FOUND is what turns that into a loud failure instead of a cached
+   * forever-empty store).
    */
   private async reportInvisibleIndexContents(driver: SqliteDriver, baseId: string): Promise<void> {
     if (await hasLegacyVectorStoreTable(driver)) {
@@ -175,8 +181,7 @@ export class KnowledgeVectorStoreService extends BaseService {
       return
     }
 
-    const materialProbe = await driver.execute(`SELECT 1 FROM material LIMIT 1`)
-    if (materialProbe.rows.length > 0) {
+    if (await hasAnyMaterial(driver)) {
       return
     }
 
