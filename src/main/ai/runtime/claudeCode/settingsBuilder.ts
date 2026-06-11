@@ -502,6 +502,12 @@ async function buildToolPermissions(
       return { behavior: 'deny', message: 'Tool request was cancelled' }
     }
 
+    // Disabled tools are denied live: the snapshot is refreshed on every agent update, so a tool
+    // disabled mid-session is rejected on the warm connection without waiting for a rebuild.
+    if (toolPolicySnapshot.isDisabled(toolName)) {
+      return { behavior: 'deny', message: `The ${toolName} tool is disabled for this agent.` }
+    }
+
     const access = toolPolicySnapshot.resolve(toolName, input)
     if (access?.approval === 'auto') {
       return { behavior: 'allow', updatedInput: input }

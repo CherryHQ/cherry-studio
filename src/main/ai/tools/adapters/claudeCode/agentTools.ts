@@ -7,6 +7,7 @@ import {
   type ClaudeToolDecision,
   type ClaudeToolDescriptor,
   type ClaudeToolPolicy,
+  isClaudeToolDisabled,
   normalizeClaudeBuiltinName,
   resolveClaudeToolAccess,
   resolveClaudeToolInvocationAccess
@@ -34,9 +35,12 @@ function descriptorToToolWithAccess(descriptor: ClaudeToolDescriptor, access: Cl
   }
 }
 
-export function buildClaudeToolPolicy(agent: Partial<Pick<AgentEntity, 'configuration'>>): ClaudeToolPolicy {
+export function buildClaudeToolPolicy(
+  agent: Partial<Pick<AgentEntity, 'configuration' | 'disabledTools'>>
+): ClaudeToolPolicy {
   return {
-    permissionMode: agent.configuration?.permission_mode
+    permissionMode: agent.configuration?.permission_mode,
+    disabledTools: agent.disabledTools
   }
 }
 
@@ -113,6 +117,7 @@ function injectedRuntimeTool(runtimeName: string): Tool {
 
 export interface ClaudeAgentToolPolicySnapshot {
   resolve(runtimeName: string, input?: unknown): Tool | undefined
+  isDisabled(runtimeName: string): boolean
   setPermissionMode(permissionMode: AgentPermissionMode | undefined): void
   update(agent: AgentEntity): Promise<void>
 }
@@ -141,6 +146,11 @@ export async function createClaudeAgentToolPolicySnapshot(
       if (!descriptor) return undefined
       const access = resolveClaudeToolInvocationAccess(descriptor, policy, { toolName: runtimeName, input })
       return descriptorToToolWithAccess(descriptor, access)
+    },
+
+    isDisabled(runtimeName) {
+      const descriptor = findRuntimeDescriptor(descriptors, runtimeName)
+      return descriptor ? isClaudeToolDisabled(descriptor, policy) : false
     },
 
     setPermissionMode(permissionMode) {

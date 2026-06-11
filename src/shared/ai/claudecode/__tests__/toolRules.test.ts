@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildClaudeMcpToolName,
   type ClaudeToolDescriptor,
+  isClaudeToolDisabled,
   matchesClaudeToolRule,
   resolveClaudeToolAccess,
   resolveClaudeToolInvocationAccess
@@ -47,6 +48,22 @@ describe('Claude Code tool rules', () => {
     expect(matchesClaudeToolRule('mcp__docs__*', mcpSearch)).toBe(true)
     expect(matchesClaudeToolRule('search_docs', mcpSearch)).toBe(false)
     expect(matchesClaudeToolRule('mcp__other__searchDocs', mcpSearch)).toBe(false)
+  })
+
+  it('flags tools the agent has disabled (builtin + MCP rules)', () => {
+    expect(isClaudeToolDisabled(read, { disabledTools: ['Read'] })).toBe(true)
+    expect(isClaudeToolDisabled(read, { disabledTools: ['builtin_Read'] })).toBe(true)
+    expect(isClaudeToolDisabled(mcpSearch, { disabledTools: ['mcp__docs__*'] })).toBe(true)
+    expect(isClaudeToolDisabled(read, { disabledTools: ['Edit'] })).toBe(false)
+    expect(isClaudeToolDisabled(read, {})).toBe(false)
+  })
+
+  it('reports disabled independently of allow rules so canUseTool can deny first', () => {
+    // The tool still resolves to `auto` via allowedTools, but isClaudeToolDisabled flags it; the
+    // canUseTool gate checks isDisabled before approval, so a disabled+allowed tool is denied.
+    const policy = { allowedTools: ['Read'], disabledTools: ['Read'] }
+    expect(resolveClaudeToolInvocationAccess(read, policy, { toolName: 'Read' }).approval).toBe('auto')
+    expect(isClaudeToolDisabled(read, policy)).toBe(true)
   })
 
   it('lets source force-prompt override explicit preapproval', () => {

@@ -195,7 +195,7 @@ describe('buildClaudeCodeSessionSettings tool permissions', () => {
     settingsMocks.mockGetBinaryPath.mockResolvedValue('/usr/bin/bun')
     settingsMocks.mockAutoDiscoverGitBash.mockReturnValue(null)
     settingsMocks.mockGetProxyEnvironment.mockReturnValue({})
-    settingsMocks.mockCreateToolPolicySnapshot.mockResolvedValue({ resolve: vi.fn() })
+    settingsMocks.mockCreateToolPolicySnapshot.mockResolvedValue({ resolve: vi.fn(), isDisabled: vi.fn() })
   })
 
   it('passes agent disabledTools through to SDK disallowedTools', async () => {
