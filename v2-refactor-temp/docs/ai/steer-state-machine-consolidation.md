@@ -1,11 +1,39 @@
 # Steer-Queue State-Machine Consolidation (design)
 
-Status: **proposed** — diagnosis + target design, no code yet. Surfaced by the
-fresh-eyes review of the steer-queue PR (#15935 / `codex/main-3-ai-stream-steer-queue`,
-at `e3dcc0e9a`). Required review items **1–3 share one root cause**; item 4 and
-secondary items S2/S5 fold into the same consolidation. Dovetails with
+Status: **blockers 1–3 implemented** on `codex/main-3-ai-stream-steer-queue`
+(`71ffd6f88d`, CI green); **blocker 4 handed off** to the renderer slice.
+Surfaced by the fresh-eyes review of the steer-queue PR (#15935, at `e3dcc0e9a`).
+Required review items **1–3 share one root cause**; secondary item S5 was removed
+for free with `lastTerminalKind`. Dovetails with
 [`tool-approval-state-consolidation.md`](./tool-approval-state-consolidation.md) —
 the approve-gate (item 2) is that doc's "Phase 3" seen from the steer side.
+
+**What landed** (`refactor(ai-stream): consolidate steer state machine on stream.status`):
+
+- Deleted `lastTerminalKind`; `enqueuePendingSteer` reads `stream.status` on the in-grace
+  stream (live→queue; done/no-stream→queue+schedule; awaiting-approval→queue without
+  scheduling; aborted/error→drop) — closes the late-steer drops (blocker 1, variants A/B/C).
+- The chaining gate keys off `stream.status === 'done'`, not `topicDone` — a multi-model
+  turn that resolved to error never chains, in either settle order (blocker 3).
+- `send()` throws instead of inject-dropping a prepared turn onto a live topic; under the
+  per-topic dispatch lock this closes the approve-gate TOCTOU, and the approval handler
+  catches it → `{ ok: false }` (blocker 2). The cheap `hasLiveStream` pre-check stays.
+- Removing `lastTerminalKind` also drops its unbounded per-prompt-stream growth (secondary S5).
+- Tests: variant A (chaining-window late steer), variant B (post-park steer), multi-model
+  error in both settle orders, the inject-refusal.
+
+**Handed off — blocker 4** (a chained same-model continuation reuses the prior turn's
+`executionId`, so the renderer's terminal-replay map + readers collide and drop the
+continuation's live chunks): unreachable in this slice (the composer blocks busy submits),
+and it lives in `useExecutionOverlay` / `TopicStreamSubscription`, which are byte-identical
+on `feat/chat-page`. Fix it in the renderer slice (key replay/readers by
+`executionId + anchorMessageId`, or unregister-and-recreate on the chained `onCreated`, or
+mint a turn-unique `executionId`).
+
+**Not done — secondary S2** (track pending-approval `toolCallId`s as a set rather than the
+single `exec.awaitingApproval` bool): left as a follow-up; the consolidation didn't require it.
+
+The target design below is what shipped for blockers 1–3.
 
 ## Problem
 

@@ -62,10 +62,11 @@ docs above reference them:
   (DB parts) model, collapsing the main-side multi-write into one authoritative write
   (Phase 1 = CR-002, done).
 - [`steer-state-machine-consolidation.md`](./steer-state-machine-consolidation.md) —
-  diagnosis + target design for the steer-queue state machine (#15935 fresh-eyes
-  review items 1–4 + S2/S5): delete the `lastTerminalKind` shadow, drive chaining /
-  enqueue / approve-gate off the single authority (`stream.status` on the in-grace
-  stream) + a turn-unique `executionId`.
+  steer-queue state machine (#15935 fresh-eyes review): delete the `lastTerminalKind`
+  shadow, drive chaining / enqueue / approve-gate off the single authority
+  (`stream.status` on the in-grace stream). **Blockers 1–3 implemented** on
+  `codex/main-3` (+ S5 removed for free); blocker 4 (renderer `executionId` reuse)
+  handed off to the renderer slice.
 - [`channel-ingress-security.md`](./channel-ingress-security.md) — security
   model + gaps for externally-triggered (inbound IM) agent runs (review D1).
 - [`stream-ipc-validation.md`](./stream-ipc-validation.md) — scheme to validate
