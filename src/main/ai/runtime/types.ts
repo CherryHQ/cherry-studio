@@ -1,5 +1,5 @@
 import type { Tool } from '@shared/ai/tool'
-import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
@@ -32,9 +32,7 @@ export interface AgentRuntimeUserInput {
   message: AgentSessionMessageEntity
 }
 
-export type AgentRuntimePolicyUpdate =
-  | { type: 'permission-mode'; permissionMode: AgentPermissionMode | undefined }
-  | { type: 'tool-policy'; agent: AgentEntity }
+export type AgentRuntimePolicyUpdate = { type: 'permission-mode'; permissionMode: AgentPermissionMode | undefined }
 
 export type AgentRuntimeEvent =
   | { type: 'chunk'; chunk: UIMessageChunk }
