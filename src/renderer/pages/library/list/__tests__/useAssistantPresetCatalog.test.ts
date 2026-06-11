@@ -1,12 +1,21 @@
+import { CreateAssistantSchema } from '@shared/data/api/schemas/assistants'
 import { describe, expect, it } from 'vitest'
 
+import agentsEn from '../../../../../../resources/data/agents-en.json'
+import agentsZh from '../../../../../../resources/data/agents-zh.json'
 import {
   ASSISTANT_CATALOG_MY_TAB,
+  type AssistantCatalogPreset,
   buildAssistantCatalogTabs,
   filterAssistantCatalogPresets,
   getAssistantPresetCatalogKey,
   toCreateAssistantDtoFromCatalogPreset
 } from '../useAssistantPresetCatalog'
+
+const shippedCatalogs: Array<{ name: string; presets: AssistantCatalogPreset[] }> = [
+  { name: 'agents-en.json', presets: agentsEn },
+  { name: 'agents-zh.json', presets: agentsZh }
+]
 
 describe('assistant preset catalog helpers', () => {
   it('keeps my assistants first and orders known system groups before custom groups', () => {
@@ -63,6 +72,14 @@ describe('assistant preset catalog helpers', () => {
       emoji: '🧑‍💼',
       modelId: 'openai::gpt-4o'
     })
+  })
+
+  it.each(shippedCatalogs)('builds valid DataApi create payloads from shipped $name presets', ({ presets }) => {
+    const invalidPresetIds = presets
+      .filter((preset) => !CreateAssistantSchema.safeParse(toCreateAssistantDtoFromCatalogPreset(preset)).success)
+      .map((preset) => preset.id)
+
+    expect(invalidPresetIds).toEqual([])
   })
 
   it('uses the preset id as the stable catalog key', () => {

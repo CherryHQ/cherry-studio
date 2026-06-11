@@ -49,12 +49,11 @@ describe('AssistantSchema', () => {
     expect(AssistantSchema.parse(baseAssistant)).toMatchObject({ tags, modelName })
   })
 
-  it('accepts any non-empty string as source', () => {
+  it('accepts user marker or bundled preset UUIDs as source', () => {
     expect(AssistantSourceSchema.safeParse('user').success).toBe(true)
     expect(AssistantSourceSchema.safeParse('550e8400-e29b-41d4-a716-446655440000').success).toBe(true)
-    expect(AssistantSourceSchema.safeParse('custom').success).toBe(true)
-    expect(AssistantSourceSchema.safeParse('1').success).toBe(true)
-    expect(AssistantSourceSchema.safeParse('780').success).toBe(true)
+    expect(AssistantSourceSchema.safeParse('custom').success).toBe(false)
+    expect(AssistantSourceSchema.safeParse('1').success).toBe(false)
   })
 
   it('rejects empty string as source', () => {

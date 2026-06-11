@@ -76,10 +76,10 @@ export const ASSISTANT_SOURCE_USER = 'user' as const
 /**
  * Assistant source marker.
  *
- * Bundled assistant-library entries use their preset ID. User-created,
+ * Bundled assistant-library entries use their preset UUID. User-created,
  * imported, or otherwise custom assistants use {@link ASSISTANT_SOURCE_USER}.
  */
-export const AssistantSourceSchema = z.string().min(1)
+export const AssistantSourceSchema = z.union([z.uuidv4(), z.literal(ASSISTANT_SOURCE_USER)])
 export type AssistantSource = z.infer<typeof AssistantSourceSchema>
 
 /** Renderer-side sentinel for "default assistant" routing in runtime */
