@@ -174,8 +174,8 @@ export class AgentSessionRuntimeService extends BaseService {
     await this.reconcileStalePendingMessages()
 
     this.registerDisposable(
-      agentService.onAgentUpdated(({ agentId, updates, agent }) => {
-        void this.handleAgentUpdated(agentId, updates, agent).catch((error) => {
+      agentService.onAgentUpdated(({ agentId, updates }) => {
+        void this.handleAgentUpdated(agentId, updates).catch((error) => {
           logger.warn('Failed to apply live agent policy update', { agentId, error })
         })
       })
