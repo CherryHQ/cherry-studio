@@ -69,6 +69,11 @@
    * low lets the tone drift fully to the raw material. */
   --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 35%, transparent);
 
+  /* Selected state — tab bar active tab, sidebar active menu item.
+   * Paired 0.5px inside-border (--cs-selected-border) for a quiet outline. */
+  --cs-selected: #f0f0ef;
+  --cs-selected-border: #eaebe8;
+
   /* Surface-paired foregrounds — all neutral surfaces share the app foreground.
    * These tokens exist so Tailwind utilities like `text-card-foreground`,
    * `text-popover-foreground`, `text-secondary-foreground`, `text-accent-foreground`
@@ -152,4 +157,8 @@
 
   /* Sidebar glass tint (dark) — see :root note. */
   --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 50%, transparent);
+
+  /* Selected state (dark) — see :root note. */
+  --cs-selected: #1f201d;
+  --cs-selected-border: #343531;
 }
