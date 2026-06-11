@@ -220,7 +220,7 @@ export const modelListClasses = {
   titleHelpRow: 'flex min-w-0 flex-wrap items-center gap-x-1 self-center text-foreground-muted',
   titleHelpText: 'shrink-0 opacity-60',
   titleHelpLink:
-    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] text-primary hover:underline',
+    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] text-link hover:underline',
   titleHelpSeparator:
     'inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] text-foreground-muted/50',
   countMeta:
@@ -481,7 +481,7 @@ export const oauthCardClasses = {
   loginFooterDivider: 'text-[length:var(--font-size-body-xs)] text-muted-foreground/50',
   /** CherryIN portal link — matches scoped caption + primary link treatment. */
   externalLink:
-    'mt-1 inline-block text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-primary hover:underline',
+    'mt-1 inline-block text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-link hover:underline',
   /** Logged-in CherryIN: mock CherryIN account section — one row, no stat grid. */
   shellLoggedIn:
     'w-full min-w-0 overflow-hidden rounded-[length:var(--radius-xl)] border border-[color:var(--color-border-fg-hairline)] px-3 py-2.5',
@@ -551,6 +551,5 @@ export const fieldClasses = {
   apiKeyVisibilityToggle:
     'flex size-5 shrink-0 items-center justify-center text-[var(--cherry-text-muted)] transition-colors hover:text-[var(--cherry-primary-hover)] disabled:pointer-events-none disabled:opacity-40',
   titleWithHelp: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1',
-  titleHelpLink:
-    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-body-sm)] text-primary hover:underline'
+  titleHelpLink: 'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-body-sm)] text-link hover:underline'
 } as const

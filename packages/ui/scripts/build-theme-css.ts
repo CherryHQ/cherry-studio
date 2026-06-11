@@ -9,18 +9,27 @@ const STYLES_DIR = path.resolve(__dirname, '../src/styles')
 const THEME_OUTPUT_PATH = path.join(STYLES_DIR, 'theme.css')
 
 const RUNTIME_THEME_INPUT_LINES = [
+  '/* --cs-theme-primary is the user-chosen theme color (overridable by useUserTheme).',
+  ' * It only feeds --color-control-accent (switch/slider/etc.) and --color-link;',
+  ' * --color-primary and --color-ring stay anchored to the neutral --cs-primary so',
+  ' * inputs/selects/focus never follow the theme color. */',
   '--cs-theme-primary: var(--cs-primary);',
-  '--cs-theme-ring: color-mix(in srgb, var(--cs-theme-primary) 40%, transparent);'
+  '--cs-theme-control-accent: var(--cs-theme-primary);',
+  '--cs-theme-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);'
 ]
 
 const COMPATIBILITY_ALIAS_LINES = ['--primary: var(--color-primary);', '--ring: var(--color-ring);']
 
 const PRIMARY_SEMANTIC_LINES = [
-  '--color-primary: var(--cs-theme-primary);',
+  '--color-primary: var(--cs-primary);',
   '--color-primary-hover: var(--cs-primary-hover);',
   '--color-primary-soft: color-mix(in srgb, var(--color-primary) 60%, transparent);',
   '--color-primary-mute: color-mix(in srgb, var(--color-primary) 30%, transparent);',
-  '--color-ring: var(--cs-theme-ring);'
+  '--color-control-accent: var(--cs-theme-control-accent);',
+  '--color-control-accent-hover: var(--cs-control-accent-hover);',
+  '--color-control-accent-foreground: var(--cs-control-accent-foreground);',
+  '--color-ring: var(--cs-theme-ring);',
+  '--color-link: var(--cs-theme-control-accent);'
 ]
 
 const SPACING_COMMENT_LINES = [
@@ -75,7 +84,15 @@ function buildSection(title: string, lines: string[]): string {
 
 export function buildThemeContractCss(inputs: ThemeContractInputs): string {
   const semanticContractTokens = inputs.semanticColors.filter(
-    (token) => !['primary', 'primary-hover', 'ring'].includes(token)
+    (token) =>
+      ![
+        'primary',
+        'primary-hover',
+        'ring',
+        'control-accent',
+        'control-accent-hover',
+        'control-accent-foreground'
+      ].includes(token)
   )
 
   const sections = [
