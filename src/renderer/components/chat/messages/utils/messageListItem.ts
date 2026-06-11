@@ -1,11 +1,13 @@
 import type { Model } from '@renderer/types'
 import type { MessageExportView } from '@renderer/types/messageExport'
+import { resolveUniqueModelId } from '@renderer/utils/messageUtils/modelIdentity'
 import type { CherryMessagePart, CherryUIMessage, MessageStats, ModelSnapshot } from '@shared/data/types/message'
 import {
   createUniqueModelId,
   isUniqueModelId,
   type Model as SharedModel,
-  parseUniqueModelId
+  parseUniqueModelId,
+  type UniqueModelId
 } from '@shared/data/types/model'
 import { isToolUIPart } from 'ai'
 
@@ -96,6 +98,45 @@ export function getMessageListItemModel(message: MessageListItem): Model | undef
     provider: providerId,
     group: ''
   }
+}
+
+export function getDirectAssistantModelsByUserId(messages: MessageListItem[]): Map<string, SharedModel[]> {
+  const modelsByUserId = new Map<string, SharedModel[]>()
+  const seenModelIdsByUserId = new Map<string, Set<UniqueModelId>>()
+
+  for (const message of messages) {
+    if (message.role !== 'assistant' || !message.parentId) continue
+
+    const model = getMessageListItemModel(message)
+    const uniqueModelId = model
+      ? resolveUniqueModelId(message.modelId, { provider: model.provider, id: model.id })
+      : undefined
+    if (!model || !uniqueModelId) continue
+
+    let seenModelIds = seenModelIdsByUserId.get(message.parentId)
+    if (!seenModelIds) {
+      seenModelIds = new Set()
+      seenModelIdsByUserId.set(message.parentId, seenModelIds)
+    }
+    if (seenModelIds.has(uniqueModelId)) continue
+
+    seenModelIds.add(uniqueModelId)
+    const userModels = modelsByUserId.get(message.parentId) ?? []
+    userModels.push({
+      id: uniqueModelId,
+      providerId: model.provider,
+      apiModelId: model.id,
+      name: model.name,
+      group: model.group || undefined,
+      capabilities: [],
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    })
+    modelsByUserId.set(message.parentId, userModels)
+  }
+
+  return modelsByUserId
 }
 
 export function getMessageListItemModelName(message: MessageListItem): string {

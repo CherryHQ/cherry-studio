@@ -1,18 +1,24 @@
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
 import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useMemo, useRef, useState } from 'react'
 
 export interface EditingMessageSnapshot {
   message: MessageListItem
   parts: CherryMessagePart[]
+  lockedMentionedModels?: Model[]
   editingSessionId: number
 }
 
 interface MessageEditingContextType {
   editingMessageId: string | null
   editingMessage: EditingMessageSnapshot | null
-  startEditing: (message: MessageListItem, parts: CherryMessagePart[]) => void
+  startEditing: (
+    message: MessageListItem,
+    parts: CherryMessagePart[],
+    options?: { lockedMentionedModels?: Model[] }
+  ) => void
   cancelEditing: () => void
   stopEditing: () => void
 }
@@ -24,10 +30,18 @@ export function MessageEditingProvider({ children }: { children: ReactNode }) {
   const [editingMessage, setEditingMessage] = useState<EditingMessageSnapshot | null>(null)
   const editingSessionIdRef = useRef(0)
 
-  const startEditing = useCallback((message: MessageListItem, parts: CherryMessagePart[]) => {
-    editingSessionIdRef.current += 1
-    setEditingMessage({ message, parts, editingSessionId: editingSessionIdRef.current })
-  }, [])
+  const startEditing = useCallback(
+    (message: MessageListItem, parts: CherryMessagePart[], options?: { lockedMentionedModels?: Model[] }) => {
+      editingSessionIdRef.current += 1
+      setEditingMessage({
+        message,
+        parts,
+        lockedMentionedModels: options?.lockedMentionedModels,
+        editingSessionId: editingSessionIdRef.current
+      })
+    },
+    []
+  )
 
   const stopEditing = useCallback(() => {
     setEditingMessage(null)

@@ -1,5 +1,6 @@
 import type { Topic } from '@renderer/types'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
+import type { Model } from '@shared/data/types/model'
 import { act, createEvent, fireEvent, render, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -552,6 +553,81 @@ describe('MessageGroup', () => {
     expect(container).not.toHaveTextContent('chat.message.editing_current')
     expect(container.querySelector('#message-user-editing-1 .message-editing-hint')).toBeNull()
     expect(container.querySelector('#message-user-editing-1 .message-menubar')).toBeNull()
+  })
+
+  it('passes locked mentioned models into the editing snapshot', async () => {
+    const startEditing = vi.fn()
+    let runtime: { startEditing: () => void } | undefined
+    mocks.useMessageEditing.mockReturnValue({
+      editingMessageId: null,
+      editingMessage: null,
+      startEditing,
+      cancelEditing: vi.fn(),
+      stopEditing: vi.fn()
+    })
+    mocks.messageListActions.mockReturnValue({
+      setActiveBranch: vi.fn(),
+      deleteMessageGroup: vi.fn(),
+      editMessage: vi.fn(),
+      regenerateMessage: vi.fn(),
+      updateMessageUiState: vi.fn(),
+      bindMessageRuntime: vi.fn((_id, nextRuntime) => {
+        runtime = nextRuntime as { startEditing: () => void }
+        return vi.fn()
+      })
+    })
+    const userMessage = {
+      ...createMessage('user-1', 0, 'vertical'),
+      parentId: 'root',
+      role: 'user'
+    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+    const lockedMentionedModels = [
+      {
+        id: 'provider-a::model-a',
+        name: 'Model A',
+        providerId: 'provider-a',
+        apiModelId: 'model-a',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      },
+      {
+        id: 'provider-b::model-b',
+        name: 'Model B',
+        providerId: 'provider-b',
+        apiModelId: 'model-b',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+    ] satisfies Model[]
+
+    render(
+      <MessageGroup
+        directAssistantModelsByUserId={new Map([['user-1', lockedMentionedModels]])}
+        messages={[userMessage]}
+        topic={{ id: 'topic-1' } as Topic}
+      />
+    )
+    await waitFor(() => expect(runtime).toBeDefined())
+
+    act(() => {
+      runtime?.startEditing()
+    })
+
+    expect(startEditing).toHaveBeenCalledWith(
+      userMessage,
+      expect.any(Array),
+      expect.objectContaining({
+        lockedMentionedModels: [
+          expect.objectContaining({ id: 'provider-a::model-a', name: 'Model A', providerId: 'provider-a' }),
+          expect.objectContaining({ id: 'provider-b::model-b', name: 'Model B', providerId: 'provider-b' })
+        ]
+      })
+    )
+    expect(startEditing.mock.calls[0][2].lockedMentionedModels).toHaveLength(2)
   })
 
   it('wraps the edited bubble user message region with an editing outline', () => {

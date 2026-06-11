@@ -6,6 +6,7 @@ import type { Topic } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
+import type { Model } from '@shared/data/types/model'
 import type { ComponentProps, ReactNode, WheelEvent as ReactWheelEvent } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -28,6 +29,7 @@ interface Props {
   captureMode?: boolean
   registerMessageElement?: (id: string, element: HTMLElement | null) => void
   isLatestAssistantGroup?: boolean
+  directAssistantModelsByUserId?: ReadonlyMap<string, Model[]>
   onMultiModelMessageStyleChange?: (style: MultiModelMessageStyle) => void
 }
 
@@ -48,6 +50,7 @@ const MessageGroup = ({
   captureMode = false,
   registerMessageElement,
   isLatestAssistantGroup = false,
+  directAssistantModelsByUserId,
   onMultiModelMessageStyleChange
 }: Props) => {
   const messageLength = messages.length
@@ -64,13 +67,13 @@ const MessageGroup = ({
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
-    [messageUi.getMessageUiState]
+    [messageUi]
   )
   const updateMessageUiState = useCallback(
     (messageId: string, updates: MessageUiState) => {
       actions.updateMessageUiState?.(messageId, updates)
     },
-    [actions.updateMessageUiState]
+    [actions]
   )
 
   const isGrouped = isMultiSelectMode ? false : isAssistantMultiModelGroup(messages)
@@ -300,6 +303,7 @@ const MessageGroup = ({
         isGrouped,
         isHorizontalMultiModelLayout: multiModelMessageStyle === 'horizontal',
         isLatestAssistantMessage: isLatestAssistantGroup && message.role === 'assistant',
+        lockedMentionedModels: directAssistantModelsByUserId?.get(message.id),
         message,
         topic,
         index
@@ -351,8 +355,10 @@ const MessageGroup = ({
       isGrid,
       isGrouped,
       topic,
+      isLatestAssistantGroup,
       multiModelMessageStyle,
       messages,
+      directAssistantModelsByUserId,
       selectedMessageId,
       onUpdateUseful,
       groupContextMessageId,
@@ -497,8 +503,8 @@ function messageArrayShallowEqual(a: MessageListItem[], b: MessageListItem[]): b
   return true
 }
 
-// Custom comparator: bail out only when topic / latest flag / per-message refs
-// are all identical. Inline callback props (onMultiModelMessageStyleChange,
+// Custom comparator: bail out only when topic / latest flag / derived model map /
+// per-message refs are all identical. Inline callback props (onMultiModelMessageStyleChange,
 // registerMessageElement) are intentionally ignored — they close over
 // per-key state in the parent and behave identically across renders for the
 // same key, so treating them as equal lets the memo actually do its job in
@@ -512,6 +518,7 @@ export default memo(MessageGroup, (prev, next) => {
     prev.topic === next.topic &&
     prev.captureMode === next.captureMode &&
     prev.isLatestAssistantGroup === next.isLatestAssistantGroup &&
+    prev.directAssistantModelsByUserId === next.directAssistantModelsByUserId &&
     messageArrayShallowEqual(prev.messages, next.messages)
   )
 })

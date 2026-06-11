@@ -17,6 +17,7 @@ import { loggerService } from '@logger'
 import type { ChatWriteActions } from '@renderer/hooks/ChatWriteContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import type { Topic } from '@renderer/types'
+import { resolveUniqueModelId } from '@renderer/utils/messageUtils/modelIdentity'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type {
   BranchMessagesResponse,
@@ -31,6 +32,20 @@ import { useCallback, useMemo } from 'react'
 import type { useTopicMessagesCache } from './useTopicMessagesCache'
 
 const logger = loggerService.withContext('useChatWriteActions')
+
+function getDirectAssistantModelIds(messages: CherryUIMessage[], userMessageId: string): UniqueModelId[] {
+  const modelIds = new Set<UniqueModelId>()
+
+  for (const message of messages) {
+    if (message.role !== 'assistant') continue
+    if (message.metadata?.parentId !== userMessageId) continue
+
+    const modelId = resolveUniqueModelId(message.metadata?.modelId, message.metadata?.modelSnapshot)
+    if (modelId) modelIds.add(modelId)
+  }
+
+  return Array.from(modelIds)
+}
 
 interface Params {
   topic: Topic
@@ -192,6 +207,7 @@ export function useChatWriteActions(params: Params): Result {
 
   const handleForkAndResend = useCallback<ChatWriteActions['forkAndResend']>(
     async (messageId, editedParts) => {
+      const inheritedModelIds = getDirectAssistantModelIds(uiMessages, messageId)
       const newMessage = await createSiblingTrigger({
         params: { id: messageId },
         body: { parts: editedParts }
@@ -223,7 +239,8 @@ export function useChatWriteActions(params: Params): Result {
       const ack = await window.api.ai.streamOpen({
         trigger: 'regenerate-message',
         topicId: topic.id,
-        parentAnchorId: newMessage.id
+        parentAnchorId: newMessage.id,
+        ...(inheritedModelIds.length > 1 && { mentionedModelIds: inheritedModelIds })
       })
 
       if (ack.mode === 'blocked') {
@@ -232,7 +249,7 @@ export function useChatWriteActions(params: Params): Result {
 
       await seedReservedMessages(ack.reservedMessages ?? [])
     },
-    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id]
+    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, uiMessages]
   )
 
   const handleResend = useCallback<ChatWriteActions['resend']>(

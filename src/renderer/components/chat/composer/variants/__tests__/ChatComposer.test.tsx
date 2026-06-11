@@ -218,6 +218,7 @@ vi.mock('../SelectedModelsTrigger', () => ({
     fallbackLabel,
     iconOnly,
     className,
+    disabled,
     suppressSelectionPopover,
     onModelsChange,
     onRestore
@@ -227,6 +228,7 @@ vi.mock('../SelectedModelsTrigger', () => ({
       className={className}
       data-assistant-model-id={assistantModel?.id ?? ''}
       data-model-count={String(models.length)}
+      data-disabled={String(Boolean(disabled))}
       data-suppress-selection-popover={String(Boolean(suppressSelectionPopover))}>
       <span className={iconOnly ? 'sr-only' : undefined}>
         {models.length === 0 ? fallbackLabel : `${models[0].name} | Provider`}
@@ -448,6 +450,24 @@ const StartEditingOnMount = ({ enabled = true, message, parts }: { enabled?: boo
     if (!enabled) return
     startEditing(message, parts)
   }, [enabled, message, parts, startEditing])
+
+  return null
+}
+
+const StartEditingWithLockedModelsOnMount = ({
+  message,
+  parts,
+  lockedMentionedModels
+}: {
+  message: any
+  parts: any
+  lockedMentionedModels: Model[]
+}) => {
+  const { startEditing } = useMessageEditing()
+
+  useEffect(() => {
+    startEditing(message, parts, { lockedMentionedModels })
+  }, [lockedMentionedModels, message, parts, startEditing])
 
   return null
 }
@@ -1119,6 +1139,65 @@ describe('ChatComposer', () => {
         userMessageParts: [{ type: 'text', text: 'hello' }]
       })
     )
+  })
+
+  it('shows locked mentioned models while editing a multi-model user message', async () => {
+    mocks.mentionedModels = []
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const parts = [{ type: 'text', text: 'old prompt' }] as any[]
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingWithLockedModelsOnMount
+          message={message as any}
+          parts={parts}
+          lockedMentionedModels={[model, modelB]}
+        />
+        <ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    const trigger = screen.getByTestId('selected-models-trigger')
+
+    expect(trigger).toHaveAttribute('data-model-count', '2')
+    expect(trigger).toHaveAttribute('data-disabled', 'true')
+    expect(trigger).toHaveAttribute('data-suppress-selection-popover', 'true')
+    expect(screen.queryByTestId('model-selector')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByText('trigger clear models'))
+    fireEvent.click(screen.getByText('trigger restore model'))
+
+    expect(mocks.setMentionedModels).not.toHaveBeenCalled()
+  })
+
+  it('does not lock the model selector while editing without a multi-model cohort', async () => {
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const parts = [{ type: 'text', text: 'old prompt' }] as any[]
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} useMentionedModelSelector />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+
+    expect(screen.getByTestId('model-selector')).toBeInTheDocument()
+    expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-disabled', 'false')
   })
 
   it('hydrates Composer from an edited message and restores the previous draft on cancel', async () => {

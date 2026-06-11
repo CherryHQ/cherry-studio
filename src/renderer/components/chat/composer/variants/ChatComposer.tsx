@@ -129,6 +129,7 @@ interface ChatComposerContextControlsProps {
   providers: Provider[]
   mentionedModels: Model[]
   mentionedModelSelectorValue: Model[]
+  lockedMentionedModels: Model[]
   mentionedModelMultiSelectMode: boolean
   selectModelLabel: string
   useMentionedModelSelector?: boolean
@@ -152,6 +153,7 @@ const ChatComposerContextControls = ({
   providers,
   mentionedModels,
   mentionedModelSelectorValue,
+  lockedMentionedModels,
   mentionedModelMultiSelectMode,
   selectModelLabel,
   useMentionedModelSelector,
@@ -170,7 +172,12 @@ const ChatComposerContextControls = ({
   const labelClassName = cn('truncate', iconOnly && COMPOSER_ICON_ONLY_LABEL_CLASS)
   const modelTriggerClassName = cn(triggerClassName, iconOnly && model && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
   const modelLabelClassName = cn('truncate', iconOnly && model && COMPOSER_ICON_ONLY_LABEL_CLASS)
-  const selectedMentionedModels = useMentionedModelSelector ? mentionedModelSelectorValue : mentionedModels
+  const isMentionedModelSelectorLocked = lockedMentionedModels.length > 1
+  const selectedMentionedModels = isMentionedModelSelectorLocked
+    ? lockedMentionedModels
+    : useMentionedModelSelector
+      ? mentionedModelSelectorValue
+      : mentionedModels
   const mentionedModelTriggerClassName = cn(
     triggerClassName,
     iconOnly && selectedMentionedModels.length > 0 && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS
@@ -215,7 +222,20 @@ const ChatComposerContextControls = ({
           </Button>
         }
       />
-      {useMentionedModelSelector ? (
+      {useMentionedModelSelector && isMentionedModelSelectorLocked ? (
+        <SelectedModelsTrigger
+          className={mentionedModelTriggerClassName}
+          disabled
+          iconOnly={iconOnly}
+          models={selectedMentionedModels}
+          assistantModel={model}
+          providers={providers}
+          fallbackLabel={selectModelLabel}
+          suppressSelectionPopover
+          onModelsChange={() => undefined}
+          onRestore={() => undefined}
+        />
+      ) : useMentionedModelSelector ? (
         <ModelSelector
           multiple
           value={mentionedModelSelectorValue}
@@ -449,11 +469,21 @@ const ChatComposerInner = ({
 
   const selectedModelForMissingAssistantDefault =
     assistant && !assistant.modelId ? mentionedModelSelectorValue[0] : undefined
+  const lockedMentionedModels =
+    editingMessageForCurrentTopic?.lockedMentionedModels &&
+    editingMessageForCurrentTopic.lockedMentionedModels.length > 1
+      ? editingMessageForCurrentTopic.lockedMentionedModels
+      : []
+  const isMentionedModelSelectorLocked = lockedMentionedModels.length > 1
   const missingAssistantMessage = hasMissingPersistedAssistant ? selectAssistantMessage : undefined
   const missingModelMessage =
-    assistant && isModelMissing && !selectedModelForMissingAssistantDefault ? t('code.model_required') : undefined
+    assistant && isModelMissing && !selectedModelForMissingAssistantDefault && !isMentionedModelSelectorLocked
+      ? t('code.model_required')
+      : undefined
   const missingSelectedModelMessage =
-    useMentionedModelSelector && mentionedModelSelectorValue.length === 0 ? t('code.model_required') : undefined
+    useMentionedModelSelector && !isMentionedModelSelectorLocked && mentionedModelSelectorValue.length === 0
+      ? t('code.model_required')
+      : undefined
 
   useEffect(() => {
     if (isPending) setIsSending(false)
@@ -863,6 +893,7 @@ const ChatComposerInner = ({
     providers,
     mentionedModels,
     mentionedModelSelectorValue,
+    lockedMentionedModels,
     mentionedModelMultiSelectMode,
     useMentionedModelSelector,
     shouldAutoSelectCreatedAssistant: Boolean(onDraftAssistantChange),

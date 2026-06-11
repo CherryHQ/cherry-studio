@@ -40,6 +40,7 @@ import {
 import { defaultMessageRenderConfig } from './types'
 import { getLatestAssistantGroupKey } from './utils/messageGroupKey'
 import { shouldUseWideLayoutForMessageGroup } from './utils/messageGroupLayout'
+import { getDirectAssistantModelsByUserId } from './utils/messageListItem'
 import { createStableGroupedMessagesCache, stableGroupedMessages } from './utils/stableGroupedMessages'
 
 const MULTI_SELECT_BOTTOM_PADDING_PX = 96
@@ -114,6 +115,7 @@ const MessageList = () => {
   const groupedMessagesCacheRef = useRef(createStableGroupedMessagesCache())
   const groupedMessages = useMemo(() => stableGroupedMessages(messages, groupedMessagesCacheRef.current), [messages])
   const messageById = useMemo(() => new Map(messages.map((message) => [message.id, message])), [messages])
+  const directAssistantModelsByUserId = useMemo(() => getDirectAssistantModelsByUserId(messages), [messages])
   const messageByIdRef = useRef(messageById)
   messageByIdRef.current = messageById
   const latestAssistantGroupKey = useMemo(() => getLatestAssistantGroupKey(messages), [messages])
@@ -495,6 +497,7 @@ const MessageList = () => {
                     <MessageGroup
                       key={key}
                       isLatestAssistantGroup={key === latestAssistantGroupKey}
+                      directAssistantModelsByUserId={directAssistantModelsByUserId}
                       messages={groupMessages}
                       topic={topic}
                       registerMessageElement={registerMessageElement}
@@ -534,6 +537,7 @@ const MessageList = () => {
               <MessageGroup
                 captureMode
                 isLatestAssistantGroup={key === latestAssistantGroupKey}
+                directAssistantModelsByUserId={directAssistantModelsByUserId}
                 messages={groupMessages}
                 topic={topic}
                 onMultiModelMessageStyleChange={(style) => {

@@ -5,7 +5,7 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import type { Topic } from '@renderer/types'
 import { classNames, cn } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, type Model } from '@shared/data/types/model'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
@@ -49,6 +49,7 @@ interface Props {
   isGroupContextMessage?: boolean
   isHorizontalMultiModelLayout?: boolean
   isLatestAssistantMessage?: boolean
+  lockedMentionedModels?: Model[]
 }
 
 const MessageItem: FC<Props> = ({
@@ -61,7 +62,8 @@ const MessageItem: FC<Props> = ({
   onUpdateUseful,
   isGroupContextMessage,
   isHorizontalMultiModelLayout = false,
-  isLatestAssistantMessage = false
+  isLatestAssistantMessage = false,
+  lockedMentionedModels
 }) => {
   const { t } = useTranslation()
   const actions = useMessageListActions()
@@ -88,10 +90,13 @@ const MessageItem: FC<Props> = ({
   const handleStartEditing = useCallback(
     (messageId: string) => {
       if (canEditMessage && messageId === message.id) {
-        startEditing(message, messageParts)
+        startEditing(message, messageParts, {
+          lockedMentionedModels:
+            lockedMentionedModels && lockedMentionedModels.length > 1 ? lockedMentionedModels : undefined
+        })
       }
     },
-    [canEditMessage, message, messageParts, startEditing]
+    [canEditMessage, lockedMentionedModels, message, messageParts, startEditing]
   )
 
   const isLastMessage = index === 0 || !!isGrouped

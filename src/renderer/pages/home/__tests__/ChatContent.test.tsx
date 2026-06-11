@@ -842,6 +842,104 @@ describe('ChatContent', () => {
     })
   })
 
+  it('preserves direct multi-model replies when resending an edited user message', async () => {
+    const editedParts = [{ type: 'text', text: 'edited multi-model prompt' } as CherryMessagePart]
+    const historyUser = {
+      ...createUiMessage('history-user', 'user'),
+      metadata: { parentId: 'branch-a', createdAt: '2026-01-01T00:00:00.000Z' }
+    } as CherryUIMessage
+    const firstModelReply = {
+      ...createUiMessage('reply-model-a', 'assistant'),
+      metadata: {
+        parentId: 'history-user',
+        modelId: 'provider-a::model-a',
+        status: 'success',
+        createdAt: '2026-01-01T00:00:01.000Z'
+      }
+    } as CherryUIMessage
+    const secondModelReply = {
+      ...createUiMessage('reply-model-b', 'assistant'),
+      metadata: {
+        parentId: 'history-user',
+        modelId: 'legacy-model-b',
+        modelSnapshot: { id: 'model-b', name: 'Model B', provider: 'provider-b' },
+        status: 'success',
+        createdAt: '2026-01-01T00:00:02.000Z'
+      }
+    } as CherryUIMessage
+    const followUpUser = {
+      ...createUiMessage('follow-up-user', 'user'),
+      metadata: { parentId: 'reply-model-a', createdAt: '2026-01-01T00:00:03.000Z' }
+    } as CherryUIMessage
+    const laterModelReply = {
+      ...createUiMessage('later-reply-model-c', 'assistant'),
+      metadata: {
+        parentId: 'follow-up-user',
+        modelId: 'provider-c::model-c',
+        status: 'success',
+        createdAt: '2026-01-01T00:00:04.000Z'
+      }
+    } as CherryUIMessage
+    const createSiblingTrigger = vi.fn().mockResolvedValue({
+      id: 'forked-user',
+      topicId: 'topic-1',
+      parentId: 'branch-a',
+      role: 'user',
+      data: { parts: editedParts },
+      searchableText: '',
+      status: 'success',
+      siblingsGroupId: 19,
+      modelId: null,
+      modelSnapshot: null,
+      traceId: null,
+      stats: null,
+      createdAt: '2026-01-01T00:00:05.000Z',
+      updatedAt: '2026-01-01T00:00:05.000Z'
+    })
+    const refresh = vi.fn().mockResolvedValue([])
+
+    ;(window.api.ai.streamOpen as any).mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    mockUseMutation.mockImplementation((method: string, path: string) => ({
+      trigger: method === 'POST' && path === '/messages/:id/siblings' ? createSiblingTrigger : vi.fn(),
+      isLoading: false,
+      error: undefined
+    }))
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [historyUser, firstModelReply, secondModelReply, followUpUser, laterModelReply],
+      siblingsMap: {},
+      isLoading: false,
+      refresh,
+      activeNodeId: 'later-reply-model-c',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate: vi.fn(),
+      stop: vi.fn(),
+      error: null,
+      status: 'ready',
+      setMessages: vi.fn(),
+      activeExecutions: []
+    })
+
+    render(<ChatContent topic={topic} />)
+
+    await act(async () => {
+      await mockChatWriteValue.current?.forkAndResend('history-user', editedParts)
+    })
+
+    expect(window.api.ai.streamOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'forked-user',
+        mentionedModelIds: ['provider-a::model-a', 'provider-b::model-b']
+      })
+    )
+  })
+
   it('resends an edited root user message by creating a root sibling', async () => {
     const editedParts = [{ type: 'text', text: 'edited root prompt' } as CherryMessagePart]
     const createSiblingTrigger = vi.fn().mockResolvedValue({
@@ -868,7 +966,12 @@ describe('ChatContent', () => {
     } as CherryUIMessage
     const rootAssistant = {
       ...createUiMessage('root-assistant', 'assistant'),
-      metadata: { parentId: 'root-user', status: 'success', createdAt: '2026-01-01T00:00:01.000Z' }
+      metadata: {
+        parentId: 'root-user',
+        modelId: 'provider::root-model',
+        status: 'success',
+        createdAt: '2026-01-01T00:00:01.000Z'
+      }
     } as CherryUIMessage
 
     const refresh = vi.fn().mockResolvedValue([
@@ -949,6 +1052,7 @@ describe('ChatContent', () => {
         parentAnchorId: 'forked-root-user'
       })
     )
+    expect((window.api.ai.streamOpen as any).mock.calls.at(-1)?.[0]).not.toHaveProperty('mentionedModelIds')
     expect(regenerate).not.toHaveBeenCalled()
   })
 
