@@ -5859,8 +5859,7 @@
           "bailian": "Alibaba Cloud Bailian Plataforma Serviço MCP",
           "lanyun": "Plataforma Cloud da Lanyun Technology - Serviço MCP",
           "mcprouter": "Plataforma de Roteamento MCP Serviço MCP",
-          "modelscope": "Serviço MCP da Plataforma ModelScope",
-          "tokenflux": "Serviço MCP da Plataforma TokenFlux"
+          "modelscope": "Serviço MCP da Plataforma ModelScope"
         },
         "selectProvider": "Selecione o provedor:",
         "setToken": "Digite seu token",
@@ -6122,7 +6121,6 @@
         }
       },
       "api_key": "Chave API",
-      "available_count": "{{count}} disponíveis",
       "base_url": "URL Base",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6141,6 +6139,7 @@
         "generation_output_image": "uma imagem",
         "generation_output_video": "um vídeo",
         "keys_status_count": "Passou: {{count_passed}} chaves, falhou: {{count_failed}} chaves",
+        "model_button_caption": "Verificar todos os modelos",
         "model_status_failed": "{{count}} modelos completamente inacessíveis",
         "model_status_partial": "Desses, {{count}} modelos são inacessíveis com certas chaves",
         "model_status_passed": "{{count}} modelos passaram na verificação de saúde",
@@ -6169,11 +6168,18 @@
         "title": "Verificação de saúde do modelo",
         "use_all_keys": "Use chaves"
       },
-      "copy_model_id_tooltip": "Clique para copiar o ID do modelo: {{id}}",
+      "collapse_all": "Recolher tudo",
       "default_assistant_model": "Modelo de assistente padrão",
       "default_assistant_model_description": "Usado quando um assistente não tem modelo.",
+      "docs": "Documentação do modelo",
       "empty": "Sem modelos",
-      "group_disable": "Feche este grupo",
+      "enabled_models": "Ativados",
+      "expand_all": "Expandir tudo",
+      "filter": {
+        "clear": "Limpar filtro de modelos",
+        "label": "Filtrar modelos"
+      },
+      "group_disable": "Desativar este grupo",
       "group_enable": "Ativar este grupo",
       "list_title": "Model list",
       "manage": {
@@ -6240,6 +6246,8 @@
         "sync_switch_to_deprecate": "Mark deprecated instead",
         "sync_will_deprecate": "Will be marked deprecated"
       },
+      "more_actions": "Mais ações da lista de modelos",
+      "not_enabled_models": "Desativados",
       "provider_id": "ID do Provedor",
       "provider_key_add_confirm": "Deseja adicionar uma chave API para {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Falha ao adicionar chave API do provedor: dados vazios",
@@ -6759,7 +6767,9 @@
       "show_app": "Exibir aplicativo",
       "show_settings": "Abrir configurações",
       "title": "Atalhos",
+      "toggle_left_sidebar": "Alternar barra lateral esquerda",
       "toggle_new_context": "Limpar contexto",
+      "toggle_right_sidebar": "Alternar barra lateral direita",
       "toggle_show_topics": "Alternar exibição de tópicos",
       "toggle_sidebar": "Alternar Barra Lateral",
       "zoom_in": "Ampliar interface",
@@ -6884,13 +6894,6 @@
             "description": "O motor OCR de código aberto da Google que funciona totalmente localmente.",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "Autenticação",
-          "description": "Descrição",
-          "language_packs": "Pacotes de Idioma",
-          "model_parameters": "Parâmetros do Modelo",
-          "status": "Estado"
         },
         "title": "Análise de Documentos"
       },

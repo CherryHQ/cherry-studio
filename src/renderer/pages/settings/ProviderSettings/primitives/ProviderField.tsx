@@ -24,7 +24,7 @@ export default function ProviderField({
       <div className="flex items-center justify-between gap-3">
         <div
           className={cn(
-            'font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-sm)] text-foreground-secondary leading-[var(--line-height-body-sm)]',
+            'text-(length:--font-size-body-sm) font-medium text-foreground-secondary leading-(--line-height-body-sm)',
             titleClassName
           )}>
           {title}

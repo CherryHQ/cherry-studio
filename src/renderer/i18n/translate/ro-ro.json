@@ -5859,8 +5859,7 @@
           "bailian": "Serviciul MCP al Platformei Bailian Alibaba Cloud",
           "lanyun": "Platforma Cloud Lanyun Technology - Serviciul MCP",
           "mcprouter": "Platformă Router MCP Serviciu MCP",
-          "modelscope": "Serviciul MCP al Platformei ModelScope",
-          "tokenflux": "Serviciul MCP al Platformei TokenFlux"
+          "modelscope": "Serviciul MCP al Platformei ModelScope"
         },
         "selectProvider": "Selectează furnizor:",
         "setToken": "Introdu tokenul tău",
@@ -6122,7 +6121,6 @@
         }
       },
       "api_key": "Cheie API",
-      "available_count": "{{count}} disponibile",
       "base_url": "URL de bază",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6141,6 +6139,7 @@
         "generation_output_image": "o imagine",
         "generation_output_video": "un videoclip",
         "keys_status_count": "Reușite: {{count_passed}} chei, eșuate: {{count_failed}} chei",
+        "model_button_caption": "Verifică toate modelele",
         "model_status_failed": "{{count}} modele complet inaccesibile",
         "model_status_partial": "{{count}} modele au avut chei inaccesibile",
         "model_status_passed": "{{count}} modele au trecut verificările de sănătate",
@@ -6169,11 +6168,18 @@
         "title": "Verificare sănătate model",
         "use_all_keys": "Cheie(i)"
       },
-      "copy_model_id_tooltip": "Click pentru a copia ID-ul modelului: {{id}}",
+      "collapse_all": "Restrânge tot",
       "default_assistant_model": "Model asistent implicit",
       "default_assistant_model_description": "Folosit când un asistent nu are model.",
+      "docs": "Documentația modelului",
       "empty": "Nu s-au găsit modele",
-      "group_disable": "Închide acest grup",
+      "enabled_models": "Activate",
+      "expand_all": "Extinde tot",
+      "filter": {
+        "clear": "Șterge filtrul de modele",
+        "label": "Filtrează modelele"
+      },
+      "group_disable": "Dezactivează acest grup",
       "group_enable": "Activează acest grup",
       "list_title": "Model list",
       "manage": {
@@ -6240,6 +6246,8 @@
         "sync_switch_to_deprecate": "Mark deprecated instead",
         "sync_will_deprecate": "Will be marked deprecated"
       },
+      "more_actions": "Mai multe acțiuni pentru lista de modele",
+      "not_enabled_models": "Dezactivate",
       "provider_id": "ID furnizor",
       "provider_key_add_confirm": "Vrei să adaugi cheia API pentru {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Adăugarea cheii API a furnizorului a eșuat, datele sunt goale",
@@ -6759,7 +6767,9 @@
       "show_app": "Afișează/Ascunde aplicația",
       "show_settings": "Deschide setările",
       "title": "Comenzi rapide de la tastatură",
+      "toggle_left_sidebar": "Comută bara laterală stângă",
       "toggle_new_context": "Șterge contextul",
+      "toggle_right_sidebar": "Comută bara laterală dreaptă",
       "toggle_show_topics": "Comută subiectele",
       "toggle_sidebar": "Comutare bară laterală",
       "zoom_in": "Mărește",
@@ -6884,13 +6894,6 @@
             "description": "Motorul OCR open-source de la Google care rulează complet local.",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "Autentificare",
-          "description": "Descriere",
-          "language_packs": "Pachete de limbă",
-          "model_parameters": "Parametrii modelului",
-          "status": "Stare"
         },
         "title": "Analiza documentelor"
       },
