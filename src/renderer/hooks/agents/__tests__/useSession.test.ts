@@ -180,6 +180,18 @@ describe('useSessions', () => {
     expect(created).toBe(mockSession)
   })
 
+  it('deletes selected sessions through comma-separated query ids', async () => {
+    const response = { deletedIds: ['session-a', 'session-b'], deletedCount: 2 }
+    const deleteTrigger = vi.fn().mockResolvedValue(response)
+    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agent-sessions', deleteTrigger)
+
+    const { result } = renderHook(() => useSessions('agent-1'))
+    const deleted = await act(async () => result.current.deleteSessions(['session-a', 'session-b']))
+
+    expect(deleteTrigger).toHaveBeenCalledWith({ query: { ids: 'session-a,session-b' } })
+    expect(deleted).toBe(response)
+  })
+
   it('returns the created session when refreshing the session list fails', async () => {
     const refresh = vi.fn().mockRejectedValue(new Error('refresh failed'))
     const mockSession = {

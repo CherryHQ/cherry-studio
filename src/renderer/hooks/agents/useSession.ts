@@ -26,6 +26,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type {
   AgentSessionEntity,
   CreateAgentSessionDto,
+  DeleteAgentSessionsResult,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -140,6 +141,9 @@ export const useSessions = (agentId?: string | null, pageSize = DEFAULT_SESSION_
   const { trigger: deleteTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId', {
     refresh: ['/agent-sessions']
   })
+  const { trigger: deleteManyTrigger } = useMutation('DELETE', '/agent-sessions', {
+    refresh: ['/agent-sessions']
+  })
   const deleteSession = useCallback(
     async (id: string): Promise<boolean> => {
       try {
@@ -151,6 +155,18 @@ export const useSessions = (agentId?: string | null, pageSize = DEFAULT_SESSION_
       }
     },
     [deleteTrigger, t]
+  )
+
+  const deleteSessions = useCallback(
+    async (ids: string[]): Promise<DeleteAgentSessionsResult | null> => {
+      try {
+        return await deleteManyTrigger({ query: { ids: ids.join(',') } })
+      } catch (error) {
+        window.toast.error(formatErrorMessageWithPrefix(error, t('agent.session.delete.error.failed')))
+        return null
+      }
+    },
+    [deleteManyTrigger, t]
   )
 
   const reorderSessions = useCallback(
@@ -199,6 +215,7 @@ export const useSessions = (agentId?: string | null, pageSize = DEFAULT_SESSION_
     loadMore,
     createSession,
     deleteSession,
+    deleteSessions,
     reorderSessions,
     togglePin
   }

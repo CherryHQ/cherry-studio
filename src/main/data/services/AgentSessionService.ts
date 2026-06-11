@@ -14,12 +14,13 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   AgentSessionEntity,
   CreateAgentSessionDto,
+  DeleteAgentSessionsResult,
   ListAgentSessionsQuery,
   UpdateAgentSessionDto
 } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, AgentWorkspaceTypeSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
-import { and, asc, desc, eq, gt, gte, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -265,6 +266,78 @@ export class AgentSessionService {
     if (AgentWorkspaceTypeSchema.parse(session.workspaceType) === AGENT_WORKSPACE_TYPE.SYSTEM) {
       await tx.delete(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, session.workspaceId))
     }
+  }
+
+  async deleteByIds(ids: string[]): Promise<DeleteAgentSessionsResult> {
+    const uniqueIds = Array.from(new Set(ids))
+    if (uniqueIds.length === 0) return { deletedIds: [], deletedCount: 0 }
+
+    const deletedIds = await application.get('DbService').withWriteTx(async (tx) => {
+      const rows = await tx
+        .select({ session: sessionsTable, workspace: agentWorkspaceTable })
+        .from(sessionsTable)
+        .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
+        .where(inArray(sessionsTable.id, uniqueIds))
+
+      if (rows.length !== uniqueIds.length) {
+        const foundIds = new Set(rows.map((row) => row.session.id))
+        const missingId = uniqueIds.find((candidate) => !foundIds.has(candidate)) ?? uniqueIds[0]
+        throw DataApiErrorFactory.notFound('Session', missingId)
+      }
+
+      const normalSessionIds: string[] = []
+      const systemWorkspaceIds = new Set<string>()
+      for (const row of rows) {
+        if (AgentWorkspaceTypeSchema.parse(row.workspace.type) === AGENT_WORKSPACE_TYPE.SYSTEM) {
+          systemWorkspaceIds.add(row.workspace.id)
+        } else {
+          normalSessionIds.push(row.session.id)
+        }
+      }
+
+      const deleted = new Set(await this.deleteByIdsTx(tx, normalSessionIds))
+      for (const workspaceId of systemWorkspaceIds) {
+        const workspaceSessionIds = await this.deleteByWorkspaceTx(tx, workspaceId)
+        for (const sessionId of workspaceSessionIds) {
+          deleted.add(sessionId)
+        }
+        await tx.delete(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, workspaceId))
+      }
+
+      return Array.from(deleted)
+    })
+
+    logger.info('Deleted sessions', { count: deletedIds.length })
+    return { deletedIds, deletedCount: deletedIds.length }
+  }
+
+  async deleteByWorkspaceTx(tx: DbOrTx, workspaceId: string): Promise<string[]> {
+    const deletedSessions = await tx
+      .delete(sessionsTable)
+      .where(eq(sessionsTable.workspaceId, workspaceId))
+      .returning({ id: sessionsTable.id })
+    const sessionIds = deletedSessions.map((session) => session.id)
+    await pinService.purgeForEntitiesTx(tx, 'session', sessionIds)
+    return sessionIds
+  }
+
+  private async deleteByIdsTx(tx: DbOrTx, ids: string[], options: { requireAll?: boolean } = {}): Promise<string[]> {
+    const uniqueIds = Array.from(new Set(ids))
+    if (uniqueIds.length === 0) return []
+
+    const rows = await tx.delete(sessionsTable).where(inArray(sessionsTable.id, uniqueIds)).returning({
+      id: sessionsTable.id
+    })
+    const deletedIds = rows.map((row) => row.id)
+
+    if (options.requireAll && deletedIds.length !== uniqueIds.length) {
+      const foundIds = new Set(deletedIds)
+      const missingId = uniqueIds.find((candidate) => !foundIds.has(candidate)) ?? uniqueIds[0]
+      throw DataApiErrorFactory.notFound('Session', missingId)
+    }
+
+    await pinService.purgeForEntitiesTx(tx, 'session', deletedIds)
+    return deletedIds
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
