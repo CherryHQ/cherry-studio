@@ -393,9 +393,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       const { placeholders } = await messageService.createUserMessageWithPlaceholders({
         topicId: req.topicId,
         userMessage: { mode: 'existing', id: req.userMessageId },
-        placeholders: [
-          { role: 'assistant', data: { parts: [] }, status: 'pending', modelId: model.id, modelSnapshot }
-        ]
+        placeholders: [{ role: 'assistant', data: { parts: [] }, status: 'pending', modelId: model.id, modelSnapshot }]
       })
       const placeholder = placeholders[0]
 
