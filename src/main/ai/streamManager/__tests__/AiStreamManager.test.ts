@@ -987,17 +987,43 @@ describe('AiStreamManager', () => {
         listeners: [listener]
       })
 
-      // The approval-request chunk flows through the loop's onChunk callback,
-      // which calls `idle.cleanup()`. The stream then stays open with no further
-      // chunks (the human is deliberating).
+      // The approval-request chunk flows through the loop's onChunk callback, which re-arms the
+      // idle watchdog to the generous approval bound (default 2 h). The stream then stays open with
+      // no further chunks (the human is deliberating).
       controlled.enqueue({ type: 'start' } as UIMessageChunk)
       controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' } as UIMessageChunk)
 
-      // Wait well past the 30ms idle timeout — with the timer paused, no abort.
+      // Wait well past the 30ms idle timeout — the approval re-arm uses the 2 h bound, so no abort.
       await new Promise((resolve) => setTimeout(resolve, 90))
 
       expect(listener.pausedResults).toHaveLength(0)
       expect(mgr.inspect('a')!.status).not.toBe('aborted')
+    })
+
+    it('still bounds an approval wait — an unresponsive renderer is aborted after the approval timeout', async () => {
+      vi.useRealTimers()
+      // Tight approval bound so the test doesn't wait 2 h; the normal idle timeout stays longer so it
+      // can't be what fires.
+      const boundedMgr = createManager({ approvalIdleTimeoutMs: 40 })
+
+      const controlled = controlledStream()
+      mockStreamText.mockImplementationOnce(async () => controlled.stream)
+
+      const listener = new FakeListener('l:a')
+      startSingle(boundedMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: { ...req('a'), requestOptions: { timeout: 10_000 } },
+        listeners: [listener]
+      })
+
+      controlled.enqueue({ type: 'start' } as UIMessageChunk)
+      controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' } as UIMessageChunk)
+
+      // No approval response ever arrives (window closed/crashed) → the approval bound fires.
+      await new Promise((resolve) => setTimeout(resolve, 120))
+
+      expect(boundedMgr.inspect('a')!.status).toBe('aborted')
     })
   })
 
