@@ -3,6 +3,7 @@ import '@renderer/databases'
 import { AppShellTabBar } from '@renderer/components/layout/AppShellTabBar'
 import { TabRouter } from '@renderer/components/layout/TabRouter'
 import MiniAppTabsPool from '@renderer/components/MiniApp/MiniAppTabsPool'
+import { isMac } from '@renderer/config/constant'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
@@ -82,7 +83,9 @@ export const SubWindowAppShell = () => {
       />
 
       {/* Zone 2: Content Area - Multi MemoryRouter Architecture */}
-      <main className="relative flex-1 overflow-hidden bg-background">
+      <main
+        data-page-side-panel-root={isMac ? undefined : 'true'}
+        className="relative flex-1 overflow-hidden bg-background">
         {/* Route Tabs: Only render non-dormant tabs */}
         {tabs
           .filter((t) => t.type === 'route' && !t.isDormant)
