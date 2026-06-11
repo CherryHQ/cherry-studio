@@ -36,6 +36,7 @@ import ClawServer from '@main/ai/mcp/servers/claw'
 import WorkspaceMemoryServer from '@main/ai/mcp/servers/workspaceMemory'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
 import { skillService } from '@main/ai/skills/SkillService'
+import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { type ClaudeToolContext, resolveDisallowedTools } from '@main/ai/tools/adapters/claudeCode/toolConditions'
 import { application } from '@main/core/application'
@@ -64,8 +65,9 @@ import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import type { McpTool } from '@types'
 import { app } from 'electron'
 
+import type { AgentRuntimeUserInput } from '../types'
 import { toolApprovalRegistry } from './ToolApprovalRegistry'
-import type { ClaudeCodeSettings, McpToolDisplayMetadata, ToolApprovalEmitterHolder } from './types'
+import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 const require_ = createRequire(import.meta.url)
@@ -97,6 +99,36 @@ function getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHol
     toolApprovalEmitters.set(sessionId, holder)
   }
   return holder
+}
+
+// Session-keyed so a warm-pooled query's PreToolUse steer hook and the live connection's
+// `redirect()` reference the SAME holder (the warm pool strips closures from its signature, so the
+// query carries prewarm-time hooks — they must resolve session state by id, not by closure).
+const steerHolders = new Map<string, SteerHolder>()
+
+function getSteerHolder(sessionId: string): SteerHolder {
+  let holder = steerHolders.get(sessionId)
+  if (!holder) {
+    const nextHolder: SteerHolder = {
+      pending: [],
+      dispose: () => {
+        nextHolder.pending = []
+        if (steerHolders.get(sessionId) === nextHolder) steerHolders.delete(sessionId)
+      }
+    }
+    holder = nextHolder
+    steerHolders.set(sessionId, holder)
+  }
+  return holder
+}
+
+function extractSteerText(input: AgentRuntimeUserInput): string {
+  return (
+    input.message.data?.parts
+      ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text' && 'text' in part)
+      .map((part) => part.text)
+      .join('\n') ?? ''
+  )
 }
 
 /**
@@ -208,10 +240,12 @@ export async function buildClaudeCodeSessionSettings(
   // `dispose` drops any approval still pending for this session when the
   // stream exits abnormally.
   const approvalEmitter = getToolApprovalEmitterHolder(session.id)
+  const steerHolder = getSteerHolder(session.id)
   const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
     session,
     agent,
-    approvalEmitter
+    approvalEmitter,
+    steerHolder
   )
 
   // 5. System prompt
@@ -243,6 +277,7 @@ export async function buildClaudeCodeSessionSettings(
     canUseTool,
     hooks,
     approvalEmitter,
+    steerHolder,
     toolPolicySnapshot,
     warmQueryKey: session.id,
     ...(mcpToolMetadata ? { mcpToolMetadata } : {}),
@@ -487,7 +522,8 @@ async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginC
 async function buildToolPermissions(
   session: AgentSessionEntity,
   agent: AgentEntity,
-  approvalEmitter: ToolApprovalEmitterHolder
+  approvalEmitter: ToolApprovalEmitterHolder,
+  steerHolder: SteerHolder
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -561,9 +597,34 @@ async function buildToolPermissions(
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
 
+  // Real mid-turn steer (the agent SDK has no native steer API): when a steer is stashed via the
+  // connection's `redirect()`, inject it as `additionalContext` before the next tool runs so the
+  // model can change direction without aborting. If the turn ends with no tool call, the connection
+  // emits `steer-undelivered` and the host queues it as the next turn instead.
+  const steerHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const taken = steerHolder.pending.splice(0)
+    if (taken.length === 0) return {}
+    const text = taken
+      .map(extractSteerText)
+      .filter((t) => t.trim())
+      .join('\n\n')
+    if (!text) return {}
+    logger.info('Injecting steer into the running turn via PreToolUse hook', {
+      sessionId: session.id,
+      count: taken.length
+    })
+    // Arm the connection's `steer-boundary` (rolls A1a + A2) — fired only when we actually inject.
+    steerHolder.onInjected?.(taken)
+    return {
+      continue: true,
+      hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: wrapSteerReminder(text) }
+    }
+  }
+
   return {
     canUseTool,
-    hooks: { PreToolUse: [{ hooks: [rtkRewriteHook] }] },
+    hooks: { PreToolUse: [{ hooks: [rtkRewriteHook, steerHook] }] },
     disallowedTools: [
       ...new Set([
         ...resolveDisallowedTools({ disabledTools: [] }, conditionContext),

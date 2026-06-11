@@ -198,4 +198,43 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(mocks.reconcileAgentSkills).toHaveBeenCalledWith('agent-1', '/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
   })
+
+  it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    // The session-scoped steer holder is wired onto the settings — the driver reads it from here and
+    // the connection's redirect() fills `pending`. Without it the whole agent steer is inert.
+    expect(settings.steerHolder).toBeDefined()
+
+    const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
+    expect(preToolUse).toHaveLength(2) // rtkRewriteHook + steerHook
+
+    const steerHook = preToolUse![1] as unknown as (input: {
+      hook_event_name: string
+    }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
+
+    // No queued steer → the hook no-ops.
+    expect(await steerHook({ hook_event_name: 'PreToolUse' })).toEqual({})
+
+    // A steer stashed mid-turn is drained and injected as additionalContext (model redirects without
+    // aborting); `onInjected` fires so the connection can arm its steer-boundary.
+    const onInjected = vi.fn()
+    settings.steerHolder!.onInjected = onInjected
+    settings.steerHolder!.pending.push({
+      message: { data: { parts: [{ type: 'text', text: 'change direction now' }] } }
+    } as never)
+
+    const output = await steerHook({ hook_event_name: 'PreToolUse' })
+
+    expect(output.continue).toBe(true)
+    expect(output.hookSpecificOutput?.additionalContext).toContain('change direction now')
+    expect(settings.steerHolder!.pending).toHaveLength(0) // drained in place
+    expect(onInjected).toHaveBeenCalledTimes(1)
+  })
 })
