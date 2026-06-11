@@ -327,6 +327,8 @@
   --color-ghost-active: var(--cs-ghost-active);
   --color-sidebar: var(--cs-sidebar);
   --color-sidebar-accent: var(--cs-sidebar-accent);
+  --color-selected: var(--cs-selected);
+  --color-selected-border: var(--cs-selected-border);
   --color-card-foreground: var(--cs-card-foreground);
   --color-popover-foreground: var(--cs-popover-foreground);
   --color-secondary-foreground: var(--cs-secondary-foreground);
