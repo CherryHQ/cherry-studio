@@ -7,7 +7,12 @@ import { TRACER_NAME } from './constants'
 
 const logger = loggerService.withContext('httpTraceFetch')
 
-/** Cap on how many bytes of a request/response body we capture into a span. */
+/**
+ * Soft cap on how much of a request/response body we capture into a span.
+ * Compared against JS string `.length` (UTF-16 code units after decoding), not
+ * raw byte length — an approximation that bounds span size without re-encoding
+ * every chunk.
+ */
 export const MAX_BODY_BYTES = 512 * KB
 
 /**
@@ -50,19 +55,28 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
 
   return async (input: RequestInfo | URL, init?: RequestInit) => {
     const span = tracer.startSpan('http.request', {}, context.active())
-    if (opts.topicId) span.setAttribute('trace.topicId', opts.topicId)
-    if (opts.modelName) span.setAttribute('trace.modelName', opts.modelName)
-    span.setAttribute('tags', 'HTTP')
+    // Capturing request metadata must never break the real request: if any of the
+    // url/header/body helpers throw, drop tracing for this call and fall back to
+    // the untraced fetch.
+    try {
+      if (opts.topicId) span.setAttribute('trace.topicId', opts.topicId)
+      if (opts.modelName) span.setAttribute('trace.modelName', opts.modelName)
+      span.setAttribute('tags', 'HTTP')
 
-    const url = normalizeUrl(input)
-    const method = normalizeMethod(input, init)
-    span.setAttribute('http.url', redactUrl(url))
-    span.setAttribute('http.method', method)
-    span.setAttribute('http.request.headers', JSON.stringify(redactHeaders(headersToRecord(init?.headers))))
-    // `inputs` carries the request body only — url/method/headers are dedicated attributes so the
-    // viewer can render them as detail rows / their own tabs instead of cramming them into the body.
-    const requestBody = readRequestBody(init?.body, maxBodyBytes)
-    if (requestBody !== undefined) span.setAttribute('inputs', stringifyBody(requestBody))
+      const url = normalizeUrl(input)
+      const method = normalizeMethod(input, init)
+      span.setAttribute('http.url', redactUrl(url))
+      span.setAttribute('http.method', method)
+      span.setAttribute('http.request.headers', JSON.stringify(redactHeaders(headersToRecord(init?.headers))))
+      // `inputs` carries the request body only — url/method/headers are dedicated attributes so the
+      // viewer can render them as detail rows / their own tabs instead of cramming them into the body.
+      const requestBody = readRequestBody(init?.body, maxBodyBytes)
+      if (requestBody !== undefined) span.setAttribute('inputs', stringifyBody(requestBody))
+    } catch (error) {
+      logger.warn('httpTraceFetch request-span setup failed; proceeding untraced', { error })
+      span.end()
+      return innerFetch(input, init)
+    }
 
     let response: Response
     try {
@@ -77,9 +91,9 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
     span.setAttribute('http.status', response.status)
     span.setAttribute('http.statusText', response.statusText)
     span.setAttribute('http.response.headers', JSON.stringify(redactHeaders(headersToRecord(response.headers))))
-    // Preserve response.url where available (Response.url is not always populated
-    // after a redirect, but when present it gives the final resolved URL).
-    if (response.url) span.setAttribute('http.response.url', response.url)
+    // response.url is not always populated after a redirect, but when present it
+    // carries the same `?key=`/userinfo secrets as the request url — redact it too.
+    if (response.url) span.setAttribute('http.response.url', redactUrl(response.url))
 
     // No body (GET/HEAD/204) → nothing to tee; settle the span now.
     if (!response.body) {
@@ -88,35 +102,58 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
     }
 
     // tee shares chunk references (no byte copy). Branch `a` goes to the SDK;
-    // branch `b` is accumulated in the background for the span. The capture
-    // path MUST NEVER break the real AI streaming path: if tee() or the
-    // replacement Response constructor throw (e.g. a provider-supplied custom
-    // fetch whose body lacks `.tee()`), we log and return the original response
-    // untouched.
+    // branch `b` is accumulated in the background for the span. The capture path
+    // MUST NEVER break the real AI streaming path, so tee() and the replacement
+    // Response constructor are guarded separately.
+    let branches: [ReadableStream<Uint8Array>, ReadableStream<Uint8Array>]
     try {
-      const [a, b] = response.body.tee()
-      void accumulateBody(b, maxBodyBytes, init?.signal)
-        .then((body) => {
-          if (body) span.setAttribute('outputs', body)
-          span.end()
-        })
-        .catch((error) => {
-          logger.warn('httpTraceFetch body accumulation failed', { error })
-          span.recordException(error as Error)
-          span.end()
-        })
+      branches = response.body.tee()
+    } catch (error) {
+      // tee() unavailable (e.g. a custom-fetch body) — original body is untouched.
+      logger.warn('httpTraceFetch tee failed, returning original response', { error })
+      span.setAttribute('http.trace.captureError', String(error))
+      span.end()
+      return response
+    }
 
-      return new Response(a, {
+    const [sdkBranch, captureBranch] = branches
+    // Build the SDK-facing response BEFORE kicking off the background accumulate,
+    // so a constructor failure here can't double-end the span the accumulate
+    // chain owns, nor return the original body that tee() has already locked.
+    let tracedResponse: Response
+    try {
+      tracedResponse = new Response(sdkBranch, {
         status: response.status,
         statusText: response.statusText,
         headers: response.headers
       })
     } catch (error) {
-      logger.warn('httpTraceFetch tee/Response construction failed, returning original response', { error })
+      logger.warn('httpTraceFetch Response construction failed after tee', { error })
       span.setAttribute('http.trace.captureError', String(error))
       span.end()
-      return response
+      void captureBranch.cancel().catch(() => {})
+      // tee locked the original body; hand the SDK a minimal Response over `a`.
+      return new Response(sdkBranch)
     }
+
+    void accumulateBody(captureBranch, maxBodyBytes, init?.signal)
+      .then(({ body, error }) => {
+        if (body) span.setAttribute('outputs', body)
+        if (error) {
+          span.recordException(error as Error)
+          span.setStatus({ code: SpanStatusCode.ERROR, message: (error as Error)?.message })
+        } else if (init?.signal?.aborted) {
+          span.setStatus({ code: SpanStatusCode.ERROR, message: 'request aborted before body completed' })
+        }
+        span.end()
+      })
+      .catch((error) => {
+        logger.warn('httpTraceFetch body accumulation failed', { error })
+        span.recordException(error as Error)
+        span.end()
+      })
+
+    return tracedResponse
   }
 }
 
@@ -125,25 +162,28 @@ async function accumulateBody(
   stream: ReadableStream<Uint8Array>,
   maxBytes: number,
   signal?: AbortSignal | null
-): Promise<string> {
+): Promise<{ body: string; error?: unknown }> {
   const reader = stream.getReader()
   const onAbort = () => void reader.cancel().catch(() => {})
   signal?.addEventListener('abort', onAbort, { once: true })
   const decoder = new TextDecoder()
   let acc = ''
+  let streamError: unknown
   try {
     while (acc.length < maxBytes) {
       const { done, value } = await reader.read()
       if (done) break
       if (value) acc += decoder.decode(value, { stream: true })
     }
-  } catch {
-    // Stream errored mid-read — keep whatever we accumulated.
+  } catch (error) {
+    // Stream errored mid-read — keep whatever we accumulated, but surface the
+    // error so the span is marked failed instead of looking like a clean exchange.
+    streamError = error
   } finally {
     void reader.cancel().catch(() => {})
     signal?.removeEventListener('abort', onAbort)
   }
-  return truncate(acc, maxBytes)
+  return { body: truncate(acc, maxBytes), error: streamError }
 }
 
 function readRequestBody(body: BodyInit | null | undefined, maxBytes: number): unknown {

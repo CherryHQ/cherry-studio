@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   saveMessages: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
-  spanCacheSetTopicId: vi.fn(),
+  traceStorageSetTopicId: vi.fn(),
   runtimeBeginTurn: vi.fn(),
   runtimeEnqueueUserMessage: vi.fn(),
   runtimeIsSessionBusy: vi.fn(),
@@ -116,7 +116,7 @@ describe('AgentChatContextProvider', () => {
       }))
     )
     mocks.applicationGet.mockImplementation((name: string) => {
-      if (name === 'TraceStorageService') return { setTopicId: mocks.spanCacheSetTopicId }
+      if (name === 'TraceStorageService') return { setTopicId: mocks.traceStorageSetTopicId }
       if (name === 'AgentSessionRuntimeService') {
         return {
           beginTurn: mocks.runtimeBeginTurn,

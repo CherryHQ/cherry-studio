@@ -21,7 +21,7 @@ import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, notInArray, or, sql }
 import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
-import { timestampToISO } from './utils/rowMappers'
+import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:TopicService')
 
@@ -32,17 +32,12 @@ type TopicRow = typeof topicTable.$inferSelect
 type TopicEntitySearchItem = Extract<EntitySearchItem, { type: 'topic' }>
 
 function rowToTopic(row: TopicRow): Topic {
+  // DB NULL ↔ domain `undefined` boundary — all of Topic's nullable columns are
+  // `.optional()` (no `T | null`), so the `{...nullsToUndefined(row)}` skeleton
+  // from data-api-in-main.md applies cleanly.
+  const clean = nullsToUndefined(row)
   return {
-    id: row.id,
-    name: row.name,
-    isNameManuallyEdited: row.isNameManuallyEdited,
-    // DB NULL ↔ domain `undefined` boundary — the domain shape uses
-    // optional fields rather than `T | null`, per data-api-in-main.md.
-    assistantId: row.assistantId ?? undefined,
-    activeNodeId: row.activeNodeId ?? undefined,
-    groupId: row.groupId ?? undefined,
-    traceId: row.traceId ?? undefined,
-    orderKey: row.orderKey,
+    ...clean,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }

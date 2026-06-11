@@ -7089,6 +7089,7 @@
     "noTraceList": "No trace information found",
     "operation": "Operation",
     "outputs": "Outputs",
+    "pollError": "Polling failed",
     "reasoningTokens": "Reasoning",
     "requestHeaders": "Request Headers",
     "requestMethod": "Request Method",

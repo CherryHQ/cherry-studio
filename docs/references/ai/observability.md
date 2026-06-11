@@ -27,13 +27,14 @@ The main-process observability boundary is `src/main/ai/observability`:
 - `core/` creates Cherry-owned turn roots and common `cs.*` attributes.
 - `adapters/aiSdk/` interprets AI SDK child spans.
 - `adapters/claudeCode/` interprets Claude Code OTLP spans and logs.
-- `cache/` keeps the in-memory span projection and JSONL-compatible history.
+- `storage/` keeps the in-memory span projection and JSONL-compatible history.
 - `sinks/` defines the extension point for local and future external export.
 
 ## Local history flush
 
-`Message.traceId` is persisted with the assistant message row, but the span
-tree is first collected in the main-process `TraceStorageService` memory store.
+The container `traceId` is persisted on the topic / agent-session row (one trace
+tree per container), but the span tree is first collected in the main-process
+`TraceStorageService` memory store.
 The durable history file is written by the stream terminal path:
 
 - `PersistentChatContextProvider` attaches a `TraceFlushListener` to normal
@@ -46,7 +47,8 @@ The durable history file is written by the stream terminal path:
 
 Collection and persistence are main-process only. Spans live in
 `TraceStorageService`'s in-memory store and are flushed to the JSONL history file
-on the terminal event. There is no renderer-side span reader or viewer.
+on the terminal event. The renderer trace viewer (`TracePage`) reads the persisted
+spans on demand through the `trace.getData` IPC — it never collects spans itself.
 
 ## AdapterTracer
 
@@ -106,9 +108,10 @@ guarantee is a deferred decision. Treat exported trace files as sensitive.
 ## Developer-mode gating
 
 Dev mode only. The span projection (`TraceStorageService`) is built and persisted
-entirely in the main process; nothing in the renderer reads or renders it.
-Outside developer mode `buildTelemetry` returns `undefined`, so **no tracer is
-attached at all** and the AI SDK emits no spans — there is nothing to project.
+in the main process; the renderer trace viewer (`TracePage`) reads it on demand via
+the `trace.getData` IPC. Outside developer mode `buildTelemetry` returns `undefined`,
+so **no tracer is attached at all** and the AI SDK emits no spans — there is nothing
+to project, and the viewer shows an empty trace.
 
 ## Where to read more
 

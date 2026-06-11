@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   broadcastTopicError: vi.fn(),
   cacheSetShared: vi.fn(),
   cacheMergePersist: vi.fn(),
-  spanCacheSetTopicId: vi.fn()
+  traceStorageSetTopicId: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -131,7 +131,7 @@ describe('AgentSessionRuntimeService', () => {
         }
       }
       if (name === 'CacheService') return { mergePersist: mocks.cacheMergePersist, setShared: mocks.cacheSetShared }
-      if (name === 'TraceStorageService') return { setTopicId: mocks.spanCacheSetTopicId }
+      if (name === 'TraceStorageService') return { setTopicId: mocks.traceStorageSetTopicId }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
