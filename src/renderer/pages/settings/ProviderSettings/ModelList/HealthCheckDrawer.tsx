@@ -1,4 +1,5 @@
 import {
+  Alert,
   Avatar,
   AvatarFallback,
   Button,
@@ -155,7 +156,13 @@ export default function HealthCheckDrawer({
 
   return (
     <ProviderSettingsDrawer open={open} onClose={onClose} title={title} footer={footer}>
-      <p className={cn(drawerClasses.helpText, 'shrink-0')}>{t('settings.models.check.disclaimer')}</p>
+      <Alert
+        type="warning"
+        showIcon
+        role="alert"
+        message={t('settings.models.check.disclaimer')}
+        className={drawerClasses.healthCostWarning}
+      />
 
       {showPipeline && progressStats ? (
         <div className="flex min-h-0 flex-1 flex-col gap-0">
@@ -184,7 +191,7 @@ export default function HealthCheckDrawer({
           ) : null}
 
           {!isChecking && showPipeline ? (
-            <div className="mx-4 mt-3 mb-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border/60 bg-muted/50 px-3.5 py-2.5">
+            <div className="mx-4 mt-3 mb-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border-muted bg-muted/50 px-3.5 py-2.5">
               <div className="flex shrink-0 items-center gap-1.5">
                 <div className="flex size-3.5 items-center justify-center rounded-full bg-muted">
                   <CheckCircle2 size={9} className="text-foreground-muted" />
@@ -220,7 +227,7 @@ export default function HealthCheckDrawer({
           ) : null}
 
           <Scrollbar className="min-h-0 flex-1 px-2 pb-0">
-            <ul className="divide-y divide-border/50 pt-1 pb-0">
+            <ul className="divide-y divide-border-muted pt-1 pb-0">
               {modelStatuses.map((row) => {
                 const { model, checking, status, latency, error } = row
                 const Icon = getModelLogo(model)
@@ -302,14 +309,14 @@ export default function HealthCheckDrawer({
                   <li
                     key={model.id}
                     className={cn(
-                      'flex min-h-[44px] min-w-0 items-center gap-3 rounded-lg px-2 py-2.5',
+                      'flex min-h-11 min-w-0 items-center gap-3 rounded-lg px-2 py-2.5',
                       status === HealthStatus.FAILED ? 'bg-destructive/[0.03]' : ''
                     )}>
                     <div className="flex w-5 shrink-0 justify-center">{statusCell}</div>
                     {Icon ? (
                       <Icon.Avatar size={22} />
                     ) : (
-                      <Avatar className="size-[22px] shrink-0 rounded-md text-[10px]">
+                      <Avatar className="size-5.5 shrink-0 rounded-md text-[10px]">
                         <AvatarFallback className="rounded-md">{model.name?.[0]?.toUpperCase()}</AvatarFallback>
                       </Avatar>
                     )}
@@ -366,7 +373,7 @@ export default function HealthCheckDrawer({
 
             <div className="flex items-center justify-between gap-3">
               <span className="font-medium text-foreground text-sm">{t('settings.models.check.timeout')}</span>
-              <div className="flex w-[112px] items-center gap-2">
+              <div className="flex w-28 items-center gap-2">
                 <Input
                   type="number"
                   min={5}
@@ -380,7 +387,7 @@ export default function HealthCheckDrawer({
           </div>
 
           {keyCheckMode === 'single' && hasMultipleKeys ? (
-            <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
+            <div className="space-y-3 rounded-xl border border-border-muted bg-muted/20 p-4">
               <div className="font-medium text-[13px] text-foreground/85">
                 {t('settings.models.check.select_api_key')}
               </div>

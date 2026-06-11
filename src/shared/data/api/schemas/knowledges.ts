@@ -1,8 +1,8 @@
 /**
  * Knowledge DataApi schemas.
  *
- * Runtime/index operations are exposed through KnowledgeOrchestrationService
- * IPC contracts in `src/main/services/knowledge/types/ipc`, not through DataApi.
+ * Runtime/index operations are exposed through KnowledgeService
+ * IPC contracts in `src/main/features/knowledge/types/ipc`, not through DataApi.
  */
 
 import type { OffsetPaginationResponse } from '@shared/data/api'
@@ -51,7 +51,8 @@ export const KNOWLEDGE_BASES_MAX_LIMIT = 100
 
 export const ListKnowledgeBasesQuerySchema = z.strictObject({
   page: z.int().positive().default(KNOWLEDGE_BASES_DEFAULT_PAGE),
-  limit: z.int().positive().max(KNOWLEDGE_BASES_MAX_LIMIT).default(KNOWLEDGE_BASES_DEFAULT_LIMIT)
+  limit: z.int().positive().max(KNOWLEDGE_BASES_MAX_LIMIT).default(KNOWLEDGE_BASES_DEFAULT_LIMIT),
+  search: z.string().trim().min(1).optional()
 })
 
 export type ListKnowledgeBasesQueryParams = z.input<typeof ListKnowledgeBasesQuerySchema>

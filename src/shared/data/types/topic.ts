@@ -7,6 +7,8 @@
 
 import * as z from 'zod'
 
+import { TraceIdSchema } from './trace'
+
 export const TopicIdSchema = z.uuidv4()
 export const TopicNameSchema = z.string().min(1).max(255)
 /** Entity-side name validator: DB DEFAULT '' means a stored row may have an empty name. */
@@ -33,6 +35,8 @@ export const TopicSchema = z.strictObject({
   activeNodeId: z.string().optional(),
   /** Group ID for organization */
   groupId: z.string().optional(),
+  /** Container-level OTel trace id */
+  traceId: TraceIdSchema.optional(),
   /** Fractional-indexing order key, partitioned by groupId. */
   orderKey: z.string(),
   /** Creation timestamp (ISO string) */

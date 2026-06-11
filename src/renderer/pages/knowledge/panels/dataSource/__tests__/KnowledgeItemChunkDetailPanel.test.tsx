@@ -162,7 +162,7 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
-        knowledgeRuntime: {
+        knowledge: {
           listItemChunks: listItemChunksMock,
           deleteItemChunk: deleteItemChunkMock
         }
@@ -190,15 +190,7 @@ describe('KnowledgeItemChunkDetailPanel', () => {
       }
 
       return {
-        data: {
-          id: '019606a0-0000-7000-8000-000000000001',
-          name: 'RAG 技术指南',
-          ext: 'pdf',
-          origin: 'external',
-          externalPath: '/tmp/RAG 技术指南.pdf',
-          createdAt: 1776948000000,
-          updatedAt: 1776948000000
-        },
+        data: undefined,
         isLoading: false,
         error: undefined
       }
@@ -206,8 +198,8 @@ describe('KnowledgeItemChunkDetailPanel', () => {
 
     renderPanel()
 
-    expect(screen.getByText('RAG 技术指南.pdf')).toBeInTheDocument()
-    expect(screen.getByText('pdf')).toBeInTheDocument()
+    expect(screen.getByText('fallback.md')).toBeInTheDocument()
+    expect(screen.getByText('md')).toBeInTheDocument()
     expect(screen.getByText('0 chunks')).toBeInTheDocument()
     expect(screen.getByText('加载中')).toBeInTheDocument()
 
@@ -218,10 +210,7 @@ describe('KnowledgeItemChunkDetailPanel', () => {
       params: { id: 'file-1' },
       enabled: true
     })
-    expect(mockUseQuery).toHaveBeenCalledWith('/files/entries/:id', {
-      params: { id: '019606a0-0000-7000-8000-000000000001' },
-      enabled: true
-    })
+    expect(mockUseQuery).not.toHaveBeenCalledWith('/files/entries/:id', expect.anything())
     expect(listItemChunksMock).toHaveBeenCalledWith('base-1', 'file-1')
     expect(screen.getByText('145 tokens')).toBeInTheDocument()
     expect(screen.getByText('88 tokens')).toBeInTheDocument()

@@ -112,7 +112,7 @@ function createForm(overrides: Partial<AgentFormState> = {}): AgentFormState {
     smallModel: '',
     instructions: '',
     mcps: [],
-    allowedTools: [],
+    disabledTools: [],
     avatar: '',
     permissionMode: '',
     maxTurns: 0,

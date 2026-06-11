@@ -177,6 +177,12 @@ async function openCodeToolDialog() {
 }
 
 describe('CodeCliPage', () => {
+  it('constrains the page height so the gallery can scroll', () => {
+    const { container } = render(<CodeCliPage />)
+
+    expect(container.firstElementChild).toHaveClass('h-full', 'min-h-0', 'overflow-hidden')
+  })
+
   it('keeps the auto-update checkbox neutral instead of primary themed', async () => {
     await openCodeToolDialog()
 

@@ -28,7 +28,7 @@ import type {
   AgentSessionRuntimeDriver
 } from '../types'
 import { buildClaudeCodeQueryRequestForAgentSession } from './agentSessionWarmup'
-import { AgentSessionWorkspaceError, assertClaudeCodeWorkspaceDirectory } from './settingsBuilder'
+import { AgentSessionWorkspaceError, prepareClaudeCodeWorkspaceDirectory } from './settingsBuilder'
 import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage } from './streamAdapter'
 import type { McpToolDisplayMetadata, ToolApprovalEmitterHolder } from './types'
 
@@ -198,8 +198,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       await this.toolPolicySnapshot?.update(update.agent)
       return true
     }
-    this.toolPolicySnapshot?.setPermissionMode(update.permissionMode)
+    if (this.toolPolicySnapshot?.getPermissionMode() === update.permissionMode) return true
     await this.query.setPermissionMode(update.permissionMode ?? 'default')
+    this.toolPolicySnapshot?.setPermissionMode(update.permissionMode)
     return true
   }
 
@@ -336,7 +337,7 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
     if (!cwd) {
       throw new AgentSessionWorkspaceError(`Agent session ${session.id} has no workspace configured`)
     }
-    await assertClaudeCodeWorkspaceDirectory(session.id, cwd)
+    await prepareClaudeCodeWorkspaceDirectory(session)
   }
 
   async listAvailableTools(mcpIds: string[]): Promise<Tool[]> {

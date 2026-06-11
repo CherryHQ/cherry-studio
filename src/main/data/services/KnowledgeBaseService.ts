@@ -15,6 +15,7 @@ import type {
   ListKnowledgeBasesQuery,
   UpdateKnowledgeBaseDto
 } from '@shared/data/api/schemas/knowledges'
+import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import {
   type CreateKnowledgeBaseDto,
@@ -25,13 +26,14 @@ import {
   type KnowledgeBase,
   KnowledgeBaseSchema
 } from '@shared/data/types/knowledge'
-import { and, count as sqlCount, desc, eq, ne, sql } from 'drizzle-orm'
+import { and, asc, count as sqlCount, desc, eq, gte, ne, type SQL, sql } from 'drizzle-orm'
 
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 
 type KnowledgeBaseRow = typeof knowledgeBaseTable.$inferSelect
+type KnowledgeBaseEntitySearchItem = Extract<EntitySearchItem, { type: 'knowledge-base' }>
 
 function validateKnowledgeBaseConfig(config: {
   chunkSize: number
@@ -67,15 +69,54 @@ function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
   })
 }
 
+function buildSearchPredicate(search: string | undefined): SQL | undefined {
+  const trimmed = search?.trim()
+  if (!trimmed) return undefined
+
+  const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
+  return sql`${knowledgeBaseTable.name} LIKE ${pattern} ESCAPE '\\'`
+}
+
 export class KnowledgeBaseService {
   private get db() {
     return application.get('DbService').getDb()
   }
 
+  async search(query: { q: string; limit: number; updatedAtFrom?: number }): Promise<KnowledgeBaseEntitySearchItem[]> {
+    const conditions: SQL[] = []
+    const search = buildSearchPredicate(query.q)
+    if (search) conditions.push(search)
+    if (query.updatedAtFrom !== undefined) {
+      conditions.push(gte(knowledgeBaseTable.updatedAt, query.updatedAtFrom))
+    }
+
+    const rows = await this.db
+      .select({
+        id: knowledgeBaseTable.id,
+        name: knowledgeBaseTable.name,
+        updatedAt: knowledgeBaseTable.updatedAt
+      })
+      .from(knowledgeBaseTable)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(knowledgeBaseTable.updatedAt), asc(knowledgeBaseTable.id))
+      .limit(query.limit)
+
+    return rows.map((row) => ({
+      type: 'knowledge-base',
+      id: row.id,
+      title: row.name,
+      updatedAt: timestampToISO(row.updatedAt),
+      target: { knowledgeBaseId: row.id }
+    }))
+  }
+
   async list(query: ListKnowledgeBasesQuery): Promise<OffsetPaginationResponse<KnowledgeBaseListItem>> {
     const { page, limit } = query
     const offset = (page - 1) * limit
-
+    const conditions: SQL[] = []
+    const search = buildSearchPredicate(query.search)
+    if (search) conditions.push(search)
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined
     const [rows, [{ count }]] = await Promise.all([
       this.db
         .select({
@@ -88,10 +129,11 @@ export class KnowledgeBaseService {
           and(eq(knowledgeItemTable.baseId, knowledgeBaseTable.id), ne(knowledgeItemTable.status, 'deleting'))
         )
         .groupBy(knowledgeBaseTable.id)
+        .where(whereClause)
         .orderBy(desc(knowledgeBaseTable.createdAt), desc(knowledgeBaseTable.id))
         .limit(limit)
         .offset(offset),
-      this.db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable)
+      this.db.select({ count: sql<number>`count(*)` }).from(knowledgeBaseTable).where(whereClause)
     ])
 
     return {

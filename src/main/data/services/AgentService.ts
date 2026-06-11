@@ -20,9 +20,10 @@ import {
   sanitizeAgentConfiguration,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
+import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
-import { and, asc, count, desc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
@@ -42,6 +43,8 @@ export interface AgentDeletedEvent {
   agentId: string
 }
 
+type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
+
 function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
   if (invalidKeys.length > 0) {
@@ -50,12 +53,20 @@ function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
   return data
 }
 
+function getAgentAvatar(configuration: unknown): string | undefined {
+  if (!configuration || typeof configuration !== 'object') return undefined
+  const avatar = (configuration as { avatar?: unknown }).avatar
+  return typeof avatar === 'string' ? avatar : undefined
+}
+
 function rowToAgent(row: AgentRow, modelName: string | null = null): AgentEntity {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     model: (clean.model ?? null) as UniqueModelId | null,
+    planModel: clean.planModel as UniqueModelId | undefined,
+    smallModel: clean.smallModel as UniqueModelId | undefined,
     configuration: parseConfiguration(row.configuration),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
@@ -89,7 +100,7 @@ export class AgentService {
       planModel: req.planModel,
       smallModel: req.smallModel,
       mcps: req.mcps,
-      allowedTools: req.allowedTools,
+      disabledTools: req.disabledTools,
       configuration: req.configuration
     }
 
@@ -161,40 +172,45 @@ export class AgentService {
 
     const totalResult = await database.select({ count: count() }).from(agentsTable).where(whereClause)
 
-    // Default to `createdAt desc` so the most recently created agent shows up
-    // first; callers can opt into `orderKey` to honour user-defined ordering.
-    const sortBy = options.sortBy ?? 'createdAt'
-    const orderBy = options.orderBy ?? 'desc'
+    const sortBy = options.sortBy ?? 'orderKey'
+    const orderBy = options.orderBy ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
 
     const sortByToColumn: Record<
       string,
-      typeof agentsTable.createdAt | typeof agentsTable.name | typeof agentsTable.updatedAt
+      | typeof agentsTable.createdAt
+      | typeof agentsTable.name
+      | typeof agentsTable.updatedAt
+      | typeof agentsTable.orderKey
     > = {
       createdAt: agentsTable.createdAt,
       updatedAt: agentsTable.updatedAt,
-      name: agentsTable.name
+      name: agentsTable.name,
+      orderKey: agentsTable.orderKey
     }
     const sortField = sortByToColumn[sortBy] ?? agentsTable.createdAt
     const orderFn = orderBy === 'asc' ? asc : desc
+    const orderByClauses =
+      sortBy === 'updatedAt'
+        ? [orderFn(sortField), orderFn(agentsTable.id)]
+        : [
+            sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
+            asc(pinTable.orderKey),
+            orderFn(sortField),
+            orderFn(agentsTable.id)
+          ]
 
-    // Pin-aware ordering: LEFT JOIN with the pin table, push pinned rows to
-    // the top (sorted by pin.orderKey ASC), then unpinned rows by the
-    // caller-specified sortBy/orderBy. Same shape as AssistantService.list.
+    // Pin-aware ordering (skipped for sortBy=updatedAt): LEFT JOIN with the
+    // pin table, push pinned rows to the top (sorted by pin.orderKey ASC),
+    // then unpinned rows by the caller-specified sortBy/orderBy. Default
+    // ordering follows agent.orderKey so resource-list group reorders persist
+    // across reloads.
     const baseQuery = database
       .select({ agent: agentsTable, modelName: userModelTable.name, pinOrderKey: pinTable.orderKey })
       .from(agentsTable)
       .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
       .leftJoin(pinTable, and(eq(pinTable.entityType, 'agent'), eq(pinTable.entityId, agentsTable.id)))
       .where(whereClause)
-      .orderBy(
-        sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
-        asc(pinTable.orderKey),
-        orderFn(sortField),
-        // Deterministic tiebreaker: createdAt is Date.now() (ms) and can collide across
-        // rapid inserts, so equal-sortField rows would otherwise fall back to query-plan
-        // order. Matches the house pattern (JobService/KnowledgeItemService list).
-        orderFn(agentsTable.id)
-      )
+      .orderBy(...orderByClauses)
 
     const result =
       options.limit !== undefined
@@ -208,6 +224,42 @@ export class AgentService {
     return { agents, total: totalResult[0].count }
   }
 
+  async search(options: { q: string; limit: number; updatedAtFrom?: number }): Promise<AgentEntitySearchItem[]> {
+    const database = application.get('DbService').getDb()
+    const pattern = `%${options.q.replace(/[\\%_]/g, '\\$&')}%`
+    const nameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
+    const descMatch = sql`${agentsTable.description} LIKE ${pattern} ESCAPE '\\'`
+    const searchClause = or(nameMatch, descMatch)
+    const conditions: SQL[] = [isNull(agentsTable.deletedAt)]
+    if (searchClause) conditions.push(searchClause)
+    if (options.updatedAtFrom !== undefined) {
+      conditions.push(gte(agentsTable.updatedAt, options.updatedAtFrom))
+    }
+
+    const rows = await database
+      .select({
+        id: agentsTable.id,
+        name: agentsTable.name,
+        description: agentsTable.description,
+        configuration: agentsTable.configuration,
+        updatedAt: agentsTable.updatedAt
+      })
+      .from(agentsTable)
+      .where(and(...conditions))
+      .orderBy(desc(agentsTable.updatedAt), asc(agentsTable.id))
+      .limit(options.limit)
+
+    return rows.map((row) => ({
+      type: 'agent',
+      id: row.id,
+      title: row.name,
+      subtitle: row.description || undefined,
+      emoji: getAgentAvatar(row.configuration),
+      updatedAt: timestampToISO(row.updatedAt),
+      target: { agentId: row.id }
+    }))
+  }
+
   async updateAgent(id: string, updates: UpdateAgentDto): Promise<AgentEntity | null> {
     const existing = await this.getAgent(id)
     if (!existing) return null
@@ -217,7 +269,7 @@ export class AgentService {
     }
 
     // Several mutable fields map to NOT NULL columns with DB defaults
-    // (description, instructions, mcps, allowedTools, configuration). Writing
+    // (description, instructions, mcps, disabledTools, configuration). Writing
     // literal NULL when the DTO omits a field would violate the constraint.
     // Skip undefined values so Drizzle preserves the column's current value.
     for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {

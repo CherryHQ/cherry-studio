@@ -87,7 +87,7 @@ const OvmsSettings: FC = () => {
   }
 
   const bannerClasses = cn(
-    'w-full rounded-[var(--list-item-border-radius)] border px-3 py-3 text-sm',
+    'w-full rounded-lg border px-3 py-3 text-sm',
     ovmsStatus === 'running' && 'border-emerald-500/40 bg-emerald-500/10 text-foreground',
     ovmsStatus === 'not-running' && 'border-amber-500/40 bg-amber-500/10 text-foreground',
     ovmsStatus === 'not-installed' && 'border-destructive/40 bg-destructive/10 text-foreground'

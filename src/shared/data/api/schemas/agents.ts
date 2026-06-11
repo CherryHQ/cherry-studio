@@ -10,6 +10,8 @@ import { UniqueModelIdSchema } from '@shared/data/types/model'
 import * as z from 'zod'
 
 import type { OffsetPaginationResponse } from '../apiTypes'
+import type { OrderEndpoints } from './_endpointHelpers'
+import { AgentSessionWorkspaceSourceSchema } from './agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from './jobs'
 
 // ============================================================================
@@ -19,6 +21,7 @@ import { JobScheduleNameAtomSchema, TriggerSchema } from './jobs'
 export const AgentNameAtomSchema = z.string().min(1)
 export const ModelIdAtomSchema = z.string().min(1)
 export const TimeoutMinutesAtomSchema = z.number().min(1).nullable().optional()
+export const AgentToolNameSetSchema = z.array(z.string()).transform((items) => Array.from(new Set(items)))
 
 export const AgentPermissionModeSchema = z.enum(['default', 'acceptEdits', 'bypassPermissions', 'plan'])
 export type AgentPermissionMode = z.infer<typeof AgentPermissionModeSchema>
@@ -93,10 +96,11 @@ export const AgentBaseSchema = z.strictObject({
   description: z.string().optional(),
   instructions: z.string().optional(),
   model: UniqueModelIdSchema,
-  planModel: z.string().optional(),
-  smallModel: z.string().optional(),
+  planModel: UniqueModelIdSchema.optional(),
+  smallModel: UniqueModelIdSchema.optional(),
   mcps: z.array(z.string()).optional(),
-  allowedTools: z.array(z.string()).optional(),
+  /** Opt-out list of disabled tool names (empty = all enabled). Drives SDK disallowedTools and PreToolUse denial. */
+  disabledTools: AgentToolNameSetSchema.optional(),
   configuration: AgentConfigurationSchema.optional()
 })
 export type AgentBase = z.infer<typeof AgentBaseSchema>
@@ -110,7 +114,7 @@ export const AGENT_MUTABLE_FIELDS = {
   planModel: true,
   smallModel: true,
   mcps: true,
-  allowedTools: true,
+  disabledTools: true,
   configuration: true
 } as const
 
@@ -119,6 +123,8 @@ export const AgentEntitySchema = AgentBaseSchema.extend({
   type: z.enum(['claude-code']),
   createdAt: z.string(),
   updatedAt: z.string(),
+  /** Persistent ordering key. Read-only; modified only through order endpoints. */
+  orderKey: z.string(),
   model: UniqueModelIdSchema.nullable(),
   /**
    * Human-readable primary model name resolved from `user_model.name` at read
@@ -137,6 +143,7 @@ export const ScheduledTaskEntitySchema = z.strictObject({
   /** Discriminated union — see TriggerSchema for {cron|interval|once} shape. */
   trigger: TriggerSchema,
   timeoutMinutes: z.number(),
+  workspace: AgentSessionWorkspaceSourceSchema,
   channelIds: z.array(z.string()).optional(),
   nextRun: z.string().nullable().optional(),
   lastRun: z.string().nullable().optional(),
@@ -181,6 +188,7 @@ export const CreateTaskSchema = z.strictObject({
   name: JobScheduleNameAtomSchema,
   prompt: z.string().min(1),
   trigger: TriggerSchema,
+  workspace: AgentSessionWorkspaceSourceSchema,
   timeoutMinutes: TimeoutMinutesAtomSchema,
   channelIds: z.array(z.string()).optional()
 })
@@ -295,4 +303,4 @@ export type AgentSchemas = {
       response: OffsetPaginationResponse<TaskRunLogEntity>
     }
   }
-}
+} & OrderEndpoints<'/agents'>

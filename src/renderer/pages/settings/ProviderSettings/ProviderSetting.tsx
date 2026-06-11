@@ -8,11 +8,25 @@ import { useProviderAutoModelSync } from './hooks/providerSetting/useProviderAut
 import { useProviderLegacyWebSearchSync } from './hooks/providerSetting/useProviderLegacyWebSearchSync'
 import { useProviderOnboardingAutoEnable } from './hooks/providerSetting/useProviderOnboardingAutoEnable'
 import { ModelList } from './ModelList'
+import { ModelListHealthProvider, useModelListHealth } from './ModelList/modelListHealthContext'
 import { providerDetailColumnClasses, ProviderSettingsContainer } from './primitives/ProviderSettingsPrimitives'
 
 interface ProviderSettingProps {
   providerId: string
   isOnboarding?: boolean
+}
+
+function ProviderSettingSections({ providerId }: { providerId: string }) {
+  const health = useModelListHealth()
+
+  return (
+    <Scrollbar className={providerDetailColumnClasses.scrollStrip}>
+      <div className={providerDetailColumnClasses.sectionStack}>
+        <AuthenticationSection providerId={providerId} onOpenModelHealthCheck={health.openHealthCheck} />
+        <ModelList providerId={providerId} />
+      </div>
+    </Scrollbar>
+  )
 }
 
 export default function ProviderSetting({ providerId, isOnboarding = false }: ProviderSettingProps) {
@@ -42,12 +56,9 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
               <ProviderHeader providerId={providerId} />
             </div>
           </div>
-          <Scrollbar className={providerDetailColumnClasses.scrollStrip}>
-            <div className={providerDetailColumnClasses.sectionStack}>
-              <AuthenticationSection providerId={providerId} />
-              <ModelList providerId={providerId} />
-            </div>
-          </Scrollbar>
+          <ModelListHealthProvider providerId={providerId}>
+            <ProviderSettingSections providerId={providerId} />
+          </ModelListHealthProvider>
         </div>
       </div>
     </ProviderSettingsContainer>

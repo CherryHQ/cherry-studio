@@ -102,6 +102,32 @@ describe('MigrationEngine', () => {
     ])
   })
 
+  it('aggregates prepare and execute warnings into the migrator result on success', async () => {
+    const events: string[] = []
+    const migrator = createTestMigrator('knowledge', 1, events)
+    migrator.prepare.mockResolvedValueOnce({ success: true, itemCount: 0, warnings: ['prepare warn'] } as any)
+    migrator.execute.mockResolvedValueOnce({ success: true, processedCount: 0, warnings: ['execute warn'] } as any)
+
+    engine.registerMigrators([migrator as any])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result.success).toBe(true)
+    expect(result.migratorResults).toHaveLength(1)
+    expect(result.migratorResults[0].warnings).toEqual(['prepare warn', 'execute warn'])
+  })
+
+  it('omits the warnings field when a migrator reports none', async () => {
+    const events: string[] = []
+    const migrator = createTestMigrator('clean', 1, events)
+
+    engine.registerMigrators([migrator as any])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result.migratorResults[0].warnings).toBeUndefined()
+  })
+
   it('logs failed runs with an Error object so stack/cause are preserved', async () => {
     const errorSpy = vi.spyOn(mockMainLoggerService, 'error').mockImplementation(() => {})
     const events: string[] = []

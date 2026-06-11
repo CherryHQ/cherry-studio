@@ -395,6 +395,9 @@
           "failed": "Не удалось изменить порядок сеансов"
         }
       },
+      "tool": {
+        "disabled": "Инструмент {{toolName}} отключен для этого агента."
+      },
       "update": {
         "error": {
           "failed": "Не удалось обновить сеанс"
@@ -2162,16 +2165,10 @@
           "supported_formats": "Поддерживает PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Нажмите, чтобы выбрать файлы, или перетащите их сюда"
         },
-        "sitemap": {
-          "description": "Введите URL карты сайта:",
-          "help": "Страницы, перечисленные в карте сайта, будут прочитаны и проиндексированы",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
-        },
         "sources": {
           "directory": "Папка",
           "file": "Файл",
           "note": "Примечание",
-          "sitemap": "Веб-сайт",
           "url": "URL"
         },
         "submit": {
@@ -2209,9 +2206,6 @@
           "file": {
             "title": "Файл"
           },
-          "sitemap": {
-            "title": "Синхронизация веб-сайта"
-          },
           "url": {
             "title": "URL"
           }
@@ -2224,7 +2218,6 @@
         "directory": "Папки",
         "file": "Файлы",
         "note": "Заметки",
-        "sitemap": "Веб-сайты",
         "url": "URL-адреса"
       },
       "preview": {
@@ -5869,8 +5862,7 @@
           "bailian": "Сервис MCP платформы Alibaba Cloud Bailian",
           "lanyun": "Lanyun Technology Cloud Platform MCP Service",
           "mcprouter": "Платформа маршрутизатора MCP Сервис MCP",
-          "modelscope": "Служба MCP платформы ModelScope",
-          "tokenflux": "Сервис MCP платформы TokenFlux"
+          "modelscope": "Служба MCP платформы ModelScope"
         },
         "selectProvider": "Выберите провайдера:",
         "setToken": "Введите ваш токен",
@@ -6132,7 +6124,6 @@
         }
       },
       "api_key": "API ключ",
-      "available_count": "{{count}} доступно",
       "base_url": "Базовый URL",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6147,7 +6138,11 @@
         "enabled": "Включено",
         "failed": "Не прошло",
         "failed_to_start": "Не удалось запустить проверку работоспособности",
+        "generation_output_audio": "аудио",
+        "generation_output_image": "изображение",
+        "generation_output_video": "видео",
         "keys_status_count": "Прошло: {{count_passed}} ключей, Не прошло: {{count_failed}} ключей",
+        "model_button_caption": "Проверить все модели",
         "model_status_failed": "{{count}} моделей полностью недоступны",
         "model_status_partial": "{{count}} моделей недоступны с некоторыми ключами",
         "model_status_passed": "{{count}} моделей прошли проверку состояния",
@@ -6155,6 +6150,7 @@
         "no_api_keys": "API ключи не найдены, пожалуйста, добавьте API ключи.",
         "no_results": "нет результатов",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "{{count}} пропущено",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Прошло",
@@ -6166,16 +6162,28 @@
         "retry": "Check again",
         "select_api_key": "Выберите API ключ для использования:",
         "single": "Один",
+        "skip_reason_generation_cost": "Проверка работоспособности этой модели сгенерирует {{output}} и потратит квоту, поэтому по умолчанию она пропускается.",
+        "skip_reason_unsupported_probe": "У этой модели пока нет недорогой проверки состояния, поэтому она по умолчанию пропускается.",
         "start": "Начать",
         "status_checking": "Checking…",
+        "status_skipped": "Пропущено",
         "timeout": "Тайм-аут",
         "title": "Проверка состояния моделей",
         "use_all_keys": "Использовать все ключи"
       },
-      "copy_model_id_tooltip": "Н to copy model ID: {{id}}",
+      "collapse_all": "Свернуть все",
       "default_assistant_model": "Модель ассистента по умолчанию",
       "default_assistant_model_description": "Используется, если у ассистента нет модели.",
+      "docs": "Документация модели",
       "empty": "Модели не найдены",
+      "enabled_models": "Включены",
+      "expand_all": "Развернуть все",
+      "filter": {
+        "clear": "Очистить фильтр моделей",
+        "label": "Фильтровать модели"
+      },
+      "group_disable": "Отключить эту группу",
+      "group_enable": "Включить эту группу",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",
@@ -6241,6 +6249,8 @@
         "sync_switch_to_deprecate": "Mark deprecated instead",
         "sync_will_deprecate": "Will be marked deprecated"
       },
+      "more_actions": "Дополнительные действия со списком моделей",
+      "not_enabled_models": "Отключены",
       "provider_id": "ID провайдера",
       "provider_key_add_confirm": "Добавить API ключ для {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Не удалось добавить API ключ для {{provider}}, данные пусты",
@@ -6760,7 +6770,9 @@
       "show_app": "Показать/скрыть приложение",
       "show_settings": "Открыть настройки",
       "title": "Горячие клавиши",
+      "toggle_left_sidebar": "Переключить левую боковую панель",
       "toggle_new_context": "Очистить контекст",
+      "toggle_right_sidebar": "Переключить правую боковую панель",
       "toggle_show_topics": "Переключить отображение топиков",
       "toggle_sidebar": "Свернуть боковую панель",
       "zoom_in": "Увеличить",
@@ -6885,13 +6897,6 @@
             "description": "Открытый OCR-движок от Google, работающий полностью локально.",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "Аутентификация",
-          "description": "Описание",
-          "language_packs": "Языковые пакеты",
-          "model_parameters": "Параметры модели",
-          "status": "Статус"
         },
         "title": "Разбор документов"
       },

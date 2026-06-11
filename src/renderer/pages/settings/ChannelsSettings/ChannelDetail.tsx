@@ -25,6 +25,7 @@ import { isSoulModeEnabled } from '@renderer/hooks/agents/agentConfiguration'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
+import type { CreateAgentChannelDto } from '@shared/data/api/schemas/agentChannels'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 import { FileText, Pencil, Plus, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -147,7 +148,7 @@ const ChannelLogModal: FC<{
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="max-w-[600px]">
+      <DialogContent className="max-w-150">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span>{`${channelName} — ${t('agent.cherryClaw.channels.logs')}`}</span>
@@ -232,7 +233,7 @@ const ChannelEditModal: FC<
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="max-w-[500px]">
+      <DialogContent className="max-w-125">
         {channel && (
           <>
             <DialogHeader>
@@ -325,7 +326,7 @@ const ChannelInstanceRow: FC<{
   }
 
   return (
-    <div className="flex items-center gap-3 border-(--color-border) border-b-[0.5px] px-1 py-2.5 last:border-b-0">
+    <div className="flex items-center gap-3 border-border border-b-[0.5px] px-1 py-2.5 last:border-b-0">
       <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 font-medium text-sm">
@@ -351,7 +352,7 @@ const ChannelInstanceRow: FC<{
         <Button
           variant="ghost"
           size="icon-sm"
-          className="hover:!text-destructive"
+          className="hover:text-destructive!"
           onClick={() => setDeleteConfirmOpen(true)}>
           <Trash2 className="size-4" />
         </Button>
@@ -415,6 +416,8 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
 
   // Log modal
   const [logChannel, setLogChannel] = useState<{ id: string; name: string } | null>(null)
+  // TODO(agent-workspace-picker): wire the workspace picker before re-enabling channel creation.
+  const [workspaceSource] = useState<CreateAgentChannelDto['workspace'] | null>(null)
 
   // Fetch initial statuses + subscribe to real-time changes
   useEffect(() => {
@@ -443,17 +446,19 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   }, [mutate])
 
   const handleAdd = useCallback(async () => {
+    if (!workspaceSource) return
     const existingCount = channels?.length ?? 0
     const newChannel = await createChannel({
       type: channelDef.type,
       name: existingCount > 0 ? `${channelDef.name} ${existingCount + 1}` : channelDef.name,
+      workspace: workspaceSource,
       config: channelDef.defaultConfig,
       isActive: true
     } as never)
     if (newChannel) {
       setEditingChannelId(newChannel.id)
     }
-  }, [channels?.length, createChannel, channelDef])
+  }, [channels?.length, createChannel, channelDef, workspaceSource])
 
   const handleSave = useCallback(
     async (channelId: string, updates: Partial<ChannelData>) => {
@@ -507,11 +512,11 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
               {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}
               <span className="truncate">{channelDef.name}</span>
             </SettingTitle>
-            <p className="mt-1.5 mb-0 text-(--color-foreground-muted) text-xs">
+            <p className="mt-1.5 mb-0 text-foreground-muted text-xs">
               {channelDef.available ? t(channelDef.description) : t('agent.cherryClaw.channels.comingSoon')}
             </p>
           </div>
-          <Button size="sm" disabled={!channelDef.available} variant="outline" onClick={handleAdd}>
+          <Button size="sm" disabled={!channelDef.available || !workspaceSource} variant="outline" onClick={handleAdd}>
             <Plus className="size-4" />
             {t('agent.cherryClaw.channels.add')}
           </Button>
