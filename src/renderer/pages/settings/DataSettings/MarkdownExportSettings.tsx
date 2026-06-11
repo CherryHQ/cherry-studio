@@ -78,8 +78,8 @@ const MarkdownExportSettings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.markdown_export.path')}</SettingRowTitle>
-        <RowFlex className="w-[315px] items-center gap-1.25">
-          <InputGroup className="h-8 w-[250px]">
+        <RowFlex className="w-78.75 items-center gap-1.25">
+          <InputGroup className="h-8 w-62.5">
             <InputGroupInput
               type="text"
               value={markdownExportPath || ''}
