@@ -588,6 +588,31 @@ describe('QuickPanelView', () => {
     expect(firstRow?.className).not.toContain('hover:bg-accent')
   })
 
+  it('blocks pointer events only while the panel is visible', async () => {
+    const items: QuickPanelListItem[] = [{ id: 'first', label: 'First action', icon: '1', action: vi.fn() }]
+
+    const { rerender } = render(
+      <QuickPanelProvider>
+        <QuickPanelView />
+      </QuickPanelProvider>
+    )
+
+    const hiddenPanel = screen.getByTestId('quick-panel')
+    expect(hiddenPanel.className).toContain('pointer-events-none')
+    expect(hiddenPanel.className).not.toContain('pointer-events-auto')
+
+    rerender(
+      <QuickPanelProvider>
+        <PanelHarness captureDispatch={vi.fn()} items={items} />
+      </QuickPanelProvider>
+    )
+
+    await screen.findByText('First action')
+    const visiblePanel = screen.getByTestId('quick-panel')
+    expect(visiblePanel.className).toContain('pointer-events-auto')
+    expect(visiblePanel.className).not.toContain('pointer-events-none')
+  })
+
   it('does not select always-visible items with Tab when the panel is collapsed', async () => {
     const action = vi.fn()
     const captureDispatch = vi.fn()
