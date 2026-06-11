@@ -6,6 +6,7 @@
  */
 
 import { topicService } from '@data/services/TopicService'
+import { application } from '@main/core/application'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
@@ -151,6 +152,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         listeners: [subscriber],
         userMessage,
         userMessageId: userMessage.id,
+        pendingSteerUserMessageId: userMessage.id,
         reservedMessages: [toReservedUIMessage(userMessage)],
         isMultiModel: false
       }
@@ -252,7 +254,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
                 : undefined
             }),
             onPersistFailed: (error) =>
-              void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
+              application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
           })
         )
       }
@@ -333,7 +335,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             }
           }),
           onPersistFailed: (error) =>
-            void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
+            application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
         }),
         new TraceFlushListener(req.topicId)
       ]
@@ -404,7 +406,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           modelId: model.id,
           backend: new MessageServiceBackend({ assistantMessageId: placeholder.id, modelSnapshot }),
           onPersistFailed: (error) =>
-            void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
+            application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
         }),
         new TraceFlushListener(req.topicId)
       ]

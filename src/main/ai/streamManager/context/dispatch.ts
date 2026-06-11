@@ -67,11 +67,13 @@ export async function dispatchStreamRequest(
 
   logger.debug('Dispatching stream request', { topicId: req.topicId, provider: provider.name })
 
-  // A busy chat submit no longer aborts the live turn. Both chat and agent sessions now absorb a
-  // mid-flight user message by persisting it and enqueuing a follow-up: chat persists the steer
-  // user row (PersistentChatContextProvider's `hasLiveStream` branch) and we enqueue it below so
-  // the running turn yields at the next step boundary and the terminal hook chains a continuation;
-  // agent sessions enqueue onto `pendingTurns`. Either way `prepareDispatch` must observe liveness.
+  // A busy submit no longer aborts the live turn — but only persistent chat and agent sessions
+  // absorb it. Persistent chat persists the steer user row (PersistentChatContextProvider's
+  // `hasLiveStream` branch) and we enqueue it below so the running turn yields at the next step
+  // boundary and the terminal hook chains a continuation; agent sessions enqueue onto `pendingTurns`.
+  // Temporary chats are the third case — they have no queue, so their provider throws on a live
+  // submit rather than letting the message be silently swallowed. Either way `prepareDispatch` must
+  // observe liveness.
   const hasLiveStream = manager.hasLiveStream(req.topicId)
 
   // An approval `continue-conversation` must never race a live stream: `send` would take the inject
@@ -98,18 +100,32 @@ export async function dispatchStreamRequest(
     return { mode: 'blocked', ...prepared.blocked }
   }
 
-  // Inject-steer: a live persistent-chat submit took the `hasLiveStream` branch (persisted the
-  // user row, no models → `send` will only attach the subscriber). Enqueue it so the running turn
-  // yields (`hasPendingSteer`) and `onExecutionDone` chains a `steer-continuation` to answer it.
-  if (provider.name === persistentChatContextProvider.name && prepared.models.length === 0 && prepared.userMessage) {
-    manager.enqueuePendingSteer(req.topicId, prepared.userMessage.id)
+  // Inject-steer: a live persistent-chat submit took the `hasLiveStream` branch, which sets an
+  // explicit `pendingSteerUserMessageId`. Enqueue it so the running turn yields (`hasPendingSteer`)
+  // and `onExecutionDone` chains a `steer-continuation` to answer it.
+  if (prepared.pendingSteerUserMessageId) {
+    manager.enqueuePendingSteer(req.topicId, prepared.pendingSteerUserMessageId)
+  } else if (
+    provider.name === persistentChatContextProvider.name &&
+    prepared.models.length === 0 &&
+    req.trigger === 'submit-message'
+  ) {
+    // A persistent submit that resolved to zero models without taking the steer branch is a
+    // regression: `send` persists nothing new, returns a success-shaped ack, and answers nothing.
+    // Surface it loudly. (Agent-session injects legitimately have empty models — absorbed by the
+    // runtime's pendingTurns — so they're excluded by the provider check.)
+    logger.error(
+      'Persistent submit resolved to zero models and is not an enqueue-only steer — nothing will be answered',
+      {
+        topicId: req.topicId
+      }
+    )
   }
 
   const result = manager.send({
     topicId: prepared.topicId,
     models: prepared.models,
     listeners: prepared.listeners,
-    userMessage: prepared.userMessage,
     siblingsGroupId: prepared.siblingsGroupId,
     lifecycle: prepared.lifecycle
   })
@@ -117,7 +133,7 @@ export async function dispatchStreamRequest(
   return {
     mode: result.mode,
     executionIds: prepared.isMultiModel ? result.executionIds : undefined,
-    userMessageId: prepared.userMessageId ?? prepared.userMessage?.id,
+    userMessageId: prepared.userMessageId,
     reservedMessages: prepared.reservedMessages,
     placeholderIds: prepared.reservedMessages
       ?.filter((message) => message.role === 'assistant')
