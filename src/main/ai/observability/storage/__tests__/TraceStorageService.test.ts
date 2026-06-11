@@ -90,6 +90,18 @@ describe('TraceStorageService', () => {
     await fs.rm(sentinelDir, { recursive: true, force: true })
   })
 
+  it.each([
+    ['empty', ''],
+    ['dot', '.'],
+    ['dot-dot', '..'],
+    ['forward slash', 'a/b'],
+    ['back slash', 'a\\b'],
+    ['absolute', '/abs']
+  ])('rejects an unsafe traceId segment (%s) on the read path', async (_label, badTraceId) => {
+    await service._doInit()
+    await expect(service.getSpans('topic-a', badTraceId)).rejects.toThrow(/invalid traceId/)
+  })
+
   it('returns a merged view of flushed history and live spans for a trace', async () => {
     await service._doInit()
 
