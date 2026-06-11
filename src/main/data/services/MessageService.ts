@@ -9,8 +9,9 @@
  */
 
 import { application } from '@application'
-import { messageTable } from '@data/db/schemas/message'
+import { type MessageRow, messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type {
@@ -99,7 +100,7 @@ const MESSAGE_SEARCH_CURSOR_CONFIG = {
  * Also handles JSON columns: ORM returns parsed objects; the parseJson
  * helper covers any legacy code path that still hands in JSON strings.
  */
-function rowToMessage(row: typeof messageTable.$inferSelect): Message {
+function rowToMessage(row: MessageRow): Message {
   // Handle JSON strings from raw SQL queries (db.all with sql``)
   // ORM queries (.select().from()) return already-parsed objects
   const parseJson = <T>(value: T | string | null | undefined): T | null => {
@@ -444,33 +445,7 @@ export class MessageService {
       return { items: [], nextCursor: undefined, activeNodeId: null, assistantId: topic.assistantId }
     }
 
-    // Use recursive CTE to collect path IDs from nodeId to root (single-column
-    // result is casing-safe), then fetch full rows via ORM to get camelCase
-    // mapping. See docs/references/data/database-patterns.md.
-    const pathIdRows = await db.all<{ id: string }>(sql`
-      WITH RECURSIVE path AS (
-        SELECT id, parent_id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
-        UNION ALL
-        SELECT m.id, m.parent_id FROM message m
-        INNER JOIN path p ON m.id = p.parent_id
-        WHERE m.deleted_at IS NULL
-      )
-      SELECT id FROM path
-    `)
-
-    if (pathIdRows.length === 0) {
-      throw DataApiErrorFactory.notFound('Message', nodeId)
-    }
-
-    const pathIds = pathIdRows.map((r) => r.id)
-    const pathRows = await db.select().from(messageTable).where(inArray(messageTable.id, pathIds))
-
-    // Preserve CTE order (nodeId → root); ORM IN-list does not guarantee order.
-    const pathOrder = new Map(pathIds.map((id, i) => [id, i]))
-    const pathMessages = pathRows.sort((a, b) => pathOrder.get(a.id)! - pathOrder.get(b.id)!)
-
-    // Reverse to get root->nodeId order
-    const fullPath = pathMessages.reverse()
+    const fullPath = await this.getPathRowsToNodeTx(db, nodeId, { topicId })
 
     // Apply pagination
     let startIndex = 0
@@ -521,6 +496,7 @@ export class MessageService {
         // `eq(col, null)` never matches in SQL — use `isNull` for root siblings.
         const orConditions = groupsToQuery.map((g) =>
           and(
+            eq(messageTable.topicId, topicId),
             g.parentId === null ? isNull(messageTable.parentId) : eq(messageTable.parentId, g.parentId),
             eq(messageTable.siblingsGroupId, g.siblingsGroupId)
           )
@@ -1196,32 +1172,109 @@ export class MessageService {
    */
   async getPathToNode(nodeId: string): Promise<Message[]> {
     const db = application.get('DbService').getDb()
+    const pathRows = await this.getPathRowsToNodeTx(db, nodeId)
+    return pathRows.map(rowToMessage)
+  }
 
+  /**
+   * Transaction-aware root -> node path helper. When `topicId` is provided, the
+   * full ancestor walk is scoped to that topic so copy/navigation callers keep
+   * the same-topic message-tree invariant.
+   */
+  async getPathRowsToNodeTx(tx: DbOrTx, nodeId: string, options: { topicId?: string } = {}): Promise<MessageRow[]> {
     // Recursive CTE collects ancestor IDs (single-column, casing-safe);
     // full rows fetched via ORM for camelCase mapping.
-    const ancestorIdRows = await db.all<{ id: string }>(sql`
-      WITH RECURSIVE ancestors AS (
-        SELECT id, parent_id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
-        UNION ALL
-        SELECT m.id, m.parent_id FROM message m
-        INNER JOIN ancestors a ON m.id = a.parent_id
-        WHERE m.deleted_at IS NULL
-      )
-      SELECT id FROM ancestors
-    `)
+    const ancestorIdRows = options.topicId
+      ? await tx.all<{ id: string }>(sql`
+          WITH RECURSIVE ancestors AS (
+            SELECT id, parent_id FROM message
+            WHERE id = ${nodeId} AND topic_id = ${options.topicId} AND deleted_at IS NULL
+            UNION ALL
+            SELECT m.id, m.parent_id FROM message m
+            INNER JOIN ancestors a ON m.id = a.parent_id
+            WHERE m.topic_id = ${options.topicId} AND m.deleted_at IS NULL
+          )
+          SELECT id FROM ancestors
+        `)
+      : await tx.all<{ id: string }>(sql`
+          WITH RECURSIVE ancestors AS (
+            SELECT id, parent_id FROM message WHERE id = ${nodeId} AND deleted_at IS NULL
+            UNION ALL
+            SELECT m.id, m.parent_id FROM message m
+            INNER JOIN ancestors a ON m.id = a.parent_id
+            WHERE m.deleted_at IS NULL
+          )
+          SELECT id FROM ancestors
+        `)
 
     if (ancestorIdRows.length === 0) {
       throw DataApiErrorFactory.notFound('Message', nodeId)
     }
 
     const ancestorIds = ancestorIdRows.map((r) => r.id)
-    const ancestorRows = await db.select().from(messageTable).where(inArray(messageTable.id, ancestorIds))
+    const whereClause = options.topicId
+      ? and(inArray(messageTable.id, ancestorIds), eq(messageTable.topicId, options.topicId))
+      : inArray(messageTable.id, ancestorIds)
+    const ancestorRows = await tx.select().from(messageTable).where(whereClause)
 
     // Preserve CTE order (nodeId → root) before reversing to root → nodeId.
     const ancestorOrder = new Map(ancestorIds.map((id, i) => [id, i]))
     const ordered = ancestorRows.sort((a, b) => ancestorOrder.get(a.id)! - ancestorOrder.get(b.id)!)
 
-    return ordered.reverse().map(rowToMessage)
+    return ordered.reverse()
+  }
+
+  /**
+   * Copy one contiguous root -> node path into another topic.
+   *
+   * `rows` must be the ordered chain returned by `getPathRowsToNodeTx`; callers
+   * should not pass arbitrary or forked message sets. The copy preserves the
+   * renderable message content and terminal runtime metadata, but intentionally
+   * does not copy `traceId`: trace links describe the original conversation run,
+   * while the duplicated topic starts without trace linkage.
+   */
+  async copyPathRowsTx(
+    tx: DbOrTx,
+    rows: MessageRow[],
+    options: { topicId: string }
+  ): Promise<{ copiedMessageIds: Map<string, string>; copiedActiveNodeId: string }> {
+    if (rows.length === 0) {
+      throw DataApiErrorFactory.invalidOperation('copy message path', 'Source path is empty')
+    }
+
+    const copiedMessageIds = new Map<string, string>()
+    let copiedActiveNodeId = ''
+
+    for (const sourceMessage of rows) {
+      let copiedParentId: string | null = null
+      if (sourceMessage.parentId) {
+        const copiedParent = copiedMessageIds.get(sourceMessage.parentId)
+        if (!copiedParent) {
+          throw DataApiErrorFactory.invalidOperation('copy message path', 'Parent message has not been copied')
+        }
+        copiedParentId = copiedParent
+      }
+      const [copiedMessage] = await tx
+        .insert(messageTable)
+        .values({
+          topicId: options.topicId,
+          parentId: copiedParentId,
+          role: sourceMessage.role,
+          data: sourceMessage.data,
+          // A copied pending row has no stream owner; make it terminal.
+          status: sourceMessage.status === 'pending' ? 'error' : sourceMessage.status,
+          siblingsGroupId: 0,
+          modelId: sourceMessage.modelId,
+          modelSnapshot: sourceMessage.modelSnapshot,
+          stats: sourceMessage.stats
+        })
+        .returning()
+
+      copiedMessageIds.set(sourceMessage.id, copiedMessage.id)
+      copiedActiveNodeId = copiedMessage.id
+    }
+
+    return { copiedMessageIds, copiedActiveNodeId }
   }
 
   /**
@@ -1254,18 +1307,19 @@ export class MessageService {
         UNION ALL
         SELECT m.id, m.created_at FROM message m
           INNER JOIN subtree s ON m.parent_id = s.id
-          WHERE m.deleted_at IS NULL
+          WHERE m.topic_id = ${topicId} AND m.deleted_at IS NULL
       )
       SELECT s.id FROM subtree s
       WHERE NOT EXISTS (
         SELECT 1 FROM message c
-        WHERE c.parent_id = s.id AND c.deleted_at IS NULL
+        WHERE c.parent_id = s.id AND c.topic_id = ${topicId} AND c.deleted_at IS NULL
       )
       ORDER BY s.created_at DESC
       LIMIT 1
     `)
 
-    return await this.getPathToNode(leaf?.id ?? nodeId)
+    const pathRows = await this.getPathRowsToNodeTx(db, leaf?.id ?? nodeId, { topicId })
+    return pathRows.map(rowToMessage)
   }
 }
 

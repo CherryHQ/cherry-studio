@@ -67,11 +67,6 @@ export class TemporaryChatService {
   private messages = new Map<string, TemporaryMessageRow[]>()
 
   async createTopic(dto: CreateTopicDto): Promise<Topic> {
-    if (dto.sourceNodeId != null) {
-      throw DataApiErrorFactory.validation({
-        sourceNodeId: ['fork (sourceNodeId) is not supported for temporary chats']
-      })
-    }
     const now = Date.now()
     const row: TemporaryTopicRow = {
       id: uuidv4(),

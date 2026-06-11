@@ -1,4 +1,5 @@
 import { assistantTable } from '@data/db/schemas/assistant'
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { groupTable } from '@data/db/schemas/group'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
@@ -7,6 +8,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { TopicService, topicService } from '@data/services/TopicService'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { chatMessageSourceType, type FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -482,7 +484,7 @@ describe('TopicService', () => {
   })
 
   describe('create', () => {
-    it('without sourceNodeId: inserts topic with activeNodeId=null and a fresh orderKey', async () => {
+    it('inserts topic with activeNodeId=null and a fresh orderKey', async () => {
       const result = await topicService.create({ name: 'fresh' })
       expect(result.activeNodeId).toBeUndefined()
       expect(result.name).toBe('fresh')
@@ -490,12 +492,297 @@ describe('TopicService', () => {
       expect(row?.orderKey).toBeDefined()
       expect(row?.orderKey).not.toBe('')
     })
+  })
 
-    it('with sourceNodeId: inserts topic pointing to source message', async () => {
-      await dbh.db.insert(topicTable).values({ id: 'src-t', name: 'S', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+  describe('duplicate', () => {
+    it('copies the root-to-node path into a new topic and prunes siblings and descendants', async () => {
+      const fileEntryId = '019606a0-0000-7000-8000-00000000fb01' as FileEntryId
+      const previewEntryId = '019606a0-0000-7000-8000-00000000fb02' as FileEntryId
+      await dbh.db.insert(topicTable).values({
+        id: 'src-t',
+        name: 'Source',
+        isNameManuallyEdited: true,
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: fileEntryId,
+          origin: 'internal',
+          name: 'duplicate-attachment',
+          ext: 'txt',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: previewEntryId,
+          origin: 'internal',
+          name: 'duplicate-preview',
+          ext: 'png',
+          size: 1,
+          externalPath: null,
+          deletedAt: null,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'root',
+          topicId: 'src-t',
+          parentId: null,
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'root prompt' }] },
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: 'selected',
+          topicId: 'src-t',
+          parentId: 'root',
+          role: 'assistant',
+          data: {
+            parts: [
+              { type: 'text', text: 'selected answer' },
+              {
+                type: 'file',
+                mediaType: 'text/plain',
+                url: 'file:///tmp/duplicate-attachment.txt',
+                filename: 'duplicate-attachment.txt',
+                providerMetadata: { cherry: { fileEntryId } }
+              }
+            ]
+          },
+          status: 'success',
+          siblingsGroupId: 77,
+          createdAt: 2,
+          updatedAt: 2
+        },
+        {
+          id: 'sibling',
+          topicId: 'src-t',
+          parentId: 'root',
+          role: 'assistant',
+          data: { parts: [{ type: 'text', text: 'sibling answer' }] },
+          status: 'success',
+          siblingsGroupId: 77,
+          createdAt: 3,
+          updatedAt: 3
+        },
+        {
+          id: 'descendant',
+          topicId: 'src-t',
+          parentId: 'selected',
+          role: 'user',
+          data: { parts: [{ type: 'text', text: 'descendant prompt' }] },
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 4,
+          updatedAt: 4
+        }
+      ])
+      await dbh.db.insert(fileRefTable).values([
+        {
+          id: '11111111-1111-4111-8111-123456789abc',
+          fileEntryId,
+          sourceType: chatMessageSourceType,
+          sourceId: 'selected',
+          role: 'attachment',
+          createdAt: 2,
+          updatedAt: 2
+        },
+        {
+          id: '11111111-1111-4111-8111-123456789abd',
+          fileEntryId: previewEntryId,
+          sourceType: chatMessageSourceType,
+          sourceId: 'selected',
+          role: 'preview',
+          createdAt: 2,
+          updatedAt: 2
+        }
+      ])
+
+      const result = await topicService.duplicate('src-t', { nodeId: 'selected' })
+
+      expect(result.id).not.toBe('src-t')
+      expect(result.name).toBe('Source')
+      expect(result.isNameManuallyEdited).toBe(true)
+      expect(result.activeNodeId).toBeDefined()
+      expect(result.activeNodeId).not.toBe('selected')
+
+      const copiedRows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, result.id))
+      expect(copiedRows).toHaveLength(2)
+      expect(copiedRows.map((row) => row.id)).not.toContain('root')
+      expect(copiedRows.map((row) => row.id)).not.toContain('selected')
+
+      const copiedRoot = copiedRows.find((row) => row.parentId === null)
+      expect(copiedRoot?.data.parts?.[0]).toEqual({ type: 'text', text: 'root prompt' })
+      expect(copiedRoot?.siblingsGroupId).toBe(0)
+
+      const copiedLeaf = copiedRows.find((row) => row.parentId === copiedRoot?.id)
+      expect(copiedLeaf?.data.parts?.[0]).toEqual({ type: 'text', text: 'selected answer' })
+      expect(copiedLeaf?.siblingsGroupId).toBe(0)
+      expect(result.activeNodeId).toBe(copiedLeaf?.id)
+      expect(copiedLeaf?.data.parts?.[1]).toMatchObject({
+        type: 'file',
+        providerMetadata: { cherry: { fileEntryId } }
+      })
+
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceType, chatMessageSourceType))
+      expect(refs).toHaveLength(4)
+      expect(refs).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            fileEntryId,
+            sourceType: chatMessageSourceType,
+            sourceId: 'selected',
+            role: 'attachment'
+          }),
+          expect.objectContaining({
+            fileEntryId,
+            sourceType: chatMessageSourceType,
+            sourceId: copiedLeaf?.id,
+            role: 'attachment'
+          }),
+          expect.objectContaining({
+            fileEntryId: previewEntryId,
+            sourceType: chatMessageSourceType,
+            sourceId: 'selected',
+            role: 'preview'
+          }),
+          expect.objectContaining({
+            fileEntryId: previewEntryId,
+            sourceType: chatMessageSourceType,
+            sourceId: copiedLeaf?.id,
+            role: 'preview'
+          })
+        ])
+      )
+
+      const sourceRows = await dbh.db
+        .select({ id: messageTable.id })
+        .from(messageTable)
+        .where(eq(messageTable.topicId, 'src-t'))
+      expect(sourceRows.map((row) => row.id).sort()).toEqual(['descendant', 'root', 'selected', 'sibling'])
+    })
+
+    it('uses an explicit duplicate name when provided', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'src-t', name: 'Source', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
       await dbh.db.insert(messageTable).values({
-        id: 'src-msg',
+        id: 'selected',
         topicId: 'src-t',
+        parentId: null,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'root prompt' }] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      const result = await topicService.duplicate('src-t', { nodeId: 'selected', name: 'Source (Copy)' })
+
+      expect(result.name).toBe('Source (Copy)')
+      const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, result.id))
+      expect(row?.isNameManuallyEdited).toBe(true)
+    })
+
+    it('normalizes copied pending messages to error', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'src-t', name: 'Source', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(messageTable).values({
+        id: 'selected',
+        topicId: 'src-t',
+        parentId: null,
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'streaming' }] },
+        status: 'pending',
+        siblingsGroupId: 0,
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      const result = await topicService.duplicate('src-t', { nodeId: 'selected' })
+
+      const copiedRows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, result.id))
+      expect(copiedRows).toHaveLength(1)
+      expect(copiedRows[0].status).toBe('error')
+    })
+
+    it('copies group and assistant and inserts first in the source group partition', async () => {
+      await dbh.db.insert(assistantTable).values({
+        id: 'asst',
+        name: 'A',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await dbh.db
+        .insert(groupTable)
+        .values({ id: 'grp', entityType: 'topic', name: 'grp', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(topicTable).values([
+        { id: 'sibling-t', name: 'Sibling', groupId: 'grp', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        {
+          id: 'src-t',
+          name: 'Source',
+          assistantId: 'asst',
+          groupId: 'grp',
+          orderKey: 'a1',
+          createdAt: 2,
+          updatedAt: 2
+        }
+      ])
+      await dbh.db.insert(messageTable).values({
+        id: 'selected',
+        topicId: 'src-t',
+        parentId: null,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'root prompt' }] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      const result = await topicService.duplicate('src-t', { nodeId: 'selected' })
+
+      expect(result.groupId).toBe('grp')
+      expect(result.assistantId).toBe('asst')
+
+      const groupRows = await dbh.db
+        .select({ id: topicTable.id, orderKey: topicTable.orderKey })
+        .from(topicTable)
+        .where(eq(topicTable.groupId, 'grp'))
+        .orderBy(asc(topicTable.orderKey))
+      expect(groupRows.map((row) => row.id)).toEqual([result.id, 'sibling-t', 'src-t'])
+      expect(groupRows[0]?.orderKey < groupRows[1].orderKey).toBe(true)
+    })
+
+    it('rejects a missing source topic', async () => {
+      await expect(topicService.duplicate('missing-topic', { nodeId: 'node-1' })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('rejects a soft-deleted source topic', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'src-t', name: 'Source', orderKey: 'a0', deletedAt: 999, createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(messageTable).values({
+        id: 'selected',
+        topicId: 'src-t',
+        parentId: null,
         role: 'user',
         data: { parts: [] },
         status: 'success',
@@ -503,21 +790,76 @@ describe('TopicService', () => {
         createdAt: 1,
         updatedAt: 1
       })
-      const result = await topicService.create({ name: 'fork', sourceNodeId: 'src-msg' })
-      expect(result.activeNodeId).toBe('src-msg')
-    })
 
-    it('rejects sourceNodeId pointing to a missing message', async () => {
-      await expect(topicService.create({ name: 'fork', sourceNodeId: 'no-such' })).rejects.toMatchObject({
+      await expect(topicService.duplicate('src-t', { nodeId: 'selected' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
 
-    it('rejects sourceNodeId pointing to a soft-deleted message', async () => {
-      await dbh.db.insert(topicTable).values({ id: 'src-t', name: 'S', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+    it('rejects a node outside the source topic', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'src-t', name: 'Source', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'other-t', name: 'Other', orderKey: 'a1', createdAt: 1, updatedAt: 1 }
+      ])
       await dbh.db.insert(messageTable).values({
-        id: 'gone-msg',
+        id: 'other-node',
+        topicId: 'other-t',
+        role: 'user',
+        data: { parts: [] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      await expect(topicService.duplicate('src-t', { nodeId: 'other-node' })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('rejects a source path that does not start at a live root message', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'src-t', name: 'Source', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'deleted-parent',
+          topicId: 'src-t',
+          parentId: null,
+          role: 'user',
+          data: { parts: [] },
+          status: 'success',
+          siblingsGroupId: 0,
+          deletedAt: 999,
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: 'orphan',
+          topicId: 'src-t',
+          parentId: 'deleted-parent',
+          role: 'assistant',
+          data: { parts: [] },
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 2,
+          updatedAt: 2
+        }
+      ])
+
+      await expect(topicService.duplicate('src-t', { nodeId: 'orphan' })).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION
+      })
+    })
+
+    it('rejects a soft-deleted node in the source topic', async () => {
+      await dbh.db
+        .insert(topicTable)
+        .values({ id: 'src-t', name: 'Source', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(messageTable).values({
+        id: 'selected',
         topicId: 'src-t',
+        parentId: null,
         role: 'user',
         data: { parts: [] },
         status: 'success',
@@ -526,7 +868,8 @@ describe('TopicService', () => {
         createdAt: 1,
         updatedAt: 1
       })
-      await expect(topicService.create({ name: 'fork', sourceNodeId: 'gone-msg' })).rejects.toMatchObject({
+
+      await expect(topicService.duplicate('src-t', { nodeId: 'selected' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
