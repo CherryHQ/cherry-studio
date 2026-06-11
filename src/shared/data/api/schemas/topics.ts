@@ -17,22 +17,12 @@ import type { OrderEndpoints } from './_endpointHelpers'
 
 /**
  * DTO for creating a new topic.
- *
- * `sourceNodeId` is a transient request-only field (not a Topic column): when
- * present, the service initializes the new topic's active node from an
- * existing message. Use `/topics/:id/branch-copies` when the message path
- * itself must be copied into a new topic.
  */
 export const CreateTopicSchema = TopicSchema.pick({
   name: true,
   assistantId: true,
   groupId: true
-})
-  .partial()
-  .extend({
-    /** Source node ID for fork operation. */
-    sourceNodeId: z.string().optional()
-  })
+}).partial()
 export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
 
 /**
@@ -83,7 +73,9 @@ export type SetActiveNodeDto = z.infer<typeof SetActiveNodeSchema>
  * DTO for copying a pruned branch into a new topic.
  *
  * `nodeId` is the pruning point: the service copies only the root → node path
- * into the new topic and drops siblings / descendants outside that path.
+ * into the new topic and drops siblings / descendants outside that path. For
+ * in-place edit-and-resend branching within the same topic, use
+ * `POST /messages/:id/siblings` instead.
  */
 export const CopyTopicBranchSchema = z.strictObject({
   /** Message node to copy up to. Must belong to the source topic. */

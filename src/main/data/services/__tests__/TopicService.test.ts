@@ -474,53 +474,13 @@ describe('TopicService', () => {
   })
 
   describe('create', () => {
-    it('without sourceNodeId: inserts topic with activeNodeId=null and a fresh orderKey', async () => {
+    it('inserts topic with activeNodeId=null and a fresh orderKey', async () => {
       const result = await topicService.create({ name: 'fresh' })
       expect(result.activeNodeId).toBeUndefined()
       expect(result.name).toBe('fresh')
       const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, result.id))
       expect(row?.orderKey).toBeDefined()
       expect(row?.orderKey).not.toBe('')
-    })
-
-    it('with sourceNodeId: inserts topic pointing to source message', async () => {
-      await dbh.db.insert(topicTable).values({ id: 'src-t', name: 'S', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
-      await dbh.db.insert(messageTable).values({
-        id: 'src-msg',
-        topicId: 'src-t',
-        role: 'user',
-        data: { parts: [] },
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 1,
-        updatedAt: 1
-      })
-      const result = await topicService.create({ name: 'fork', sourceNodeId: 'src-msg' })
-      expect(result.activeNodeId).toBe('src-msg')
-    })
-
-    it('rejects sourceNodeId pointing to a missing message', async () => {
-      await expect(topicService.create({ name: 'fork', sourceNodeId: 'no-such' })).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND
-      })
-    })
-
-    it('rejects sourceNodeId pointing to a soft-deleted message', async () => {
-      await dbh.db.insert(topicTable).values({ id: 'src-t', name: 'S', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
-      await dbh.db.insert(messageTable).values({
-        id: 'gone-msg',
-        topicId: 'src-t',
-        role: 'user',
-        data: { parts: [] },
-        status: 'success',
-        siblingsGroupId: 0,
-        deletedAt: 999,
-        createdAt: 1,
-        updatedAt: 1
-      })
-      await expect(topicService.create({ name: 'fork', sourceNodeId: 'gone-msg' })).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND
-      })
     })
   })
 

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { CopyTopicBranchSchema, SetActiveNodeSchema, UpdateTopicSchema } from '../topics'
+import { CopyTopicBranchSchema, CreateTopicSchema, SetActiveNodeSchema, UpdateTopicSchema } from '../topics'
+
+describe('CreateTopicSchema', () => {
+  it('rejects sourceNodeId reference-fork input', () => {
+    expect(() => CreateTopicSchema.parse({ sourceNodeId: 'n1' })).toThrow()
+  })
+})
 
 describe('UpdateTopicSchema', () => {
   // Pin state and ordering must NOT be mutable through PATCH /topics/:id —

@@ -228,7 +228,7 @@ const _n6_old: OldTopicHandlers = {
 
 // ============================================================================
 // N7 — NEGATIVE: wrong body field. POST /topics has body: CreateTopicDto
-// (fields: name/assistantId/groupId/sourceNodeId, all optional). Accessing
+// (fields: name/assistantId/groupId, all optional). Accessing
 // a field that is not in the DTO must be rejected.
 // ============================================================================
 

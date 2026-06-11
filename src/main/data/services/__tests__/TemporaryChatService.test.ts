@@ -23,13 +23,6 @@ describe('TemporaryChatService', () => {
     service = new TemporaryChatService()
   })
 
-  describe('createTopic — input validation', () => {
-    it('rejects sourceNodeId (fork not supported)', async () => {
-      const err = await service.createTopic({ sourceNodeId: 'some-msg-id' }).catch((e) => e)
-      expect(fieldsOf(err).sourceNodeId).toBeDefined()
-    })
-  })
-
   describe('appendMessage — input validation', () => {
     let topicId: string
     beforeEach(async () => {

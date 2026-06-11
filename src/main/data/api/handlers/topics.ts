@@ -33,13 +33,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 
     POST: async ({ body }) => {
       const parsed = CreateTopicSchema.parse(body)
-      const topic = await topicService.create(parsed)
-      if (parsed.sourceNodeId) {
-        void topicNamingService.maybeRenameForkedTopic(topic.id, topic.assistantId).catch((err) => {
-          logger.warn('Failed to auto-name forked topic', { topicId: topic.id, err })
-        })
-      }
-      return topic
+      return await topicService.create(parsed)
     }
   },
 

@@ -53,7 +53,7 @@ describe('topicHandlers', () => {
   })
 
   describe('/topics/:id/branch-copies', () => {
-    it('delegates branch copy to TopicService and schedules forked topic naming', async () => {
+    it('delegates branch copy to TopicService and schedules copied topic naming', async () => {
       const topic = {
         id: 'copy-topic',
         name: 'Copied',

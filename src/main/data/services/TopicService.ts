@@ -136,17 +136,6 @@ export class TopicService {
     const groupId = dto.groupId ?? null
 
     const row = (await db.transaction(async (tx) => {
-      // In-tx so a concurrent delete can't slip between check and insert;
-      // inlined because messageService.getById has no tx-aware overload.
-      if (dto.sourceNodeId) {
-        const [src] = await tx
-          .select({ id: messageTable.id })
-          .from(messageTable)
-          .where(and(eq(messageTable.id, dto.sourceNodeId), isNull(messageTable.deletedAt)))
-          .limit(1)
-        if (!src) throw DataApiErrorFactory.notFound('Message', dto.sourceNodeId)
-      }
-
       return insertWithOrderKey(
         tx,
         topicTable,
@@ -154,7 +143,7 @@ export class TopicService {
           name: dto.name,
           assistantId: dto.assistantId,
           groupId,
-          activeNodeId: dto.sourceNodeId ?? null
+          activeNodeId: null
         },
         {
           pkColumn: topicTable.id,
@@ -163,11 +152,7 @@ export class TopicService {
       )
     })) as TopicRow
 
-    if (dto.sourceNodeId) {
-      logger.info('Created forked topic', { id: row.id, sourceNodeId: dto.sourceNodeId })
-    } else {
-      logger.info('Created empty topic', { id: row.id })
-    }
+    logger.info('Created empty topic', { id: row.id })
 
     return rowToTopic(row)
   }
@@ -183,35 +168,9 @@ export class TopicService {
         .limit(1)
       if (!sourceTopic) throw DataApiErrorFactory.notFound('Topic', sourceTopicId)
 
-      const [sourceNode] = await tx
-        .select({ id: messageTable.id })
-        .from(messageTable)
-        .where(
-          and(eq(messageTable.id, dto.nodeId), eq(messageTable.topicId, sourceTopicId), isNull(messageTable.deletedAt))
-        )
-        .limit(1)
-      if (!sourceNode) throw DataApiErrorFactory.notFound('Message', dto.nodeId)
-
-      const pathIdRows = await tx.all<{ id: string }>(sql`
-        WITH RECURSIVE ancestors AS (
-          SELECT id, parent_id FROM message
-          WHERE id = ${dto.nodeId} AND topic_id = ${sourceTopicId} AND deleted_at IS NULL
-          UNION ALL
-          SELECT m.id, m.parent_id FROM message m
-          INNER JOIN ancestors a ON m.id = a.parent_id
-          WHERE m.topic_id = ${sourceTopicId} AND m.deleted_at IS NULL
-        )
-        SELECT id FROM ancestors
-      `)
-      const pathIds = pathIdRows.map((row) => row.id)
-      if (pathIds.length === 0) throw DataApiErrorFactory.notFound('Message', dto.nodeId)
-
-      const sourceMessageRows = await tx.select().from(messageTable).where(inArray(messageTable.id, pathIds))
-      const sourceMessageById = new Map(sourceMessageRows.map((row) => [row.id, row]))
-      const sourcePathRows = [...pathIds]
-        .reverse()
-        .map((id) => sourceMessageById.get(id))
-        .filter((row): row is typeof messageTable.$inferSelect => Boolean(row))
+      // Lazy import avoids a singleton cycle: MessageService already depends on TopicService for active-node updates.
+      const { messageService } = await import('./MessageService')
+      const sourcePathRows = await messageService.getPathRowsToNodeTx(tx, dto.nodeId, { topicId: sourceTopicId })
 
       if (sourcePathRows.length === 0) {
         throw DataApiErrorFactory.invalidOperation('copy topic branch', 'No messages to copy')
