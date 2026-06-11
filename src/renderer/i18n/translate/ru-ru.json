@@ -5924,6 +5924,7 @@
       "system": "Система"
     },
     "messages": {
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "Показывать разделитель между сообщениями",
         "tooltip": "Не применимо к сообщениям в стиле пузырей"
@@ -5956,6 +5957,7 @@
         "none": "Не показывать"
       },
       "prompt": "Показывать подсказки",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "Показать наброски сообщения",
       "title": "Настройки сообщений",
       "use_serif_font": "Использовать serif шрифт"

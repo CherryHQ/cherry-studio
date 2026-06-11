@@ -5924,6 +5924,7 @@
       "system": "Système"
     },
     "messages": {
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "Séparateur de messages",
         "tooltip": "Non applicable aux messages de style bulle"
@@ -5956,6 +5957,7 @@
         "none": "Ne pas afficher"
       },
       "prompt": "Mot-clé d'affichage",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "Afficher le plan du message",
       "title": "Paramètres des messages",
       "use_serif_font": "Utiliser une police serif"

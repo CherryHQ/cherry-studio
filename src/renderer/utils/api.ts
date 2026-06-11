@@ -7,6 +7,7 @@ export {
   formatApiKeys,
   hasAPIVersion,
   isWithTrailingSharp,
+  maskApiKey,
   splitApiKeyString,
   withoutTrailingSharp,
   withoutTrailingSlash
@@ -108,30 +109,5 @@ export function validateApiHost(apiHost: string): boolean {
     return true
   } catch {
     return false
-  }
-}
-
-/**
- * API key 脱敏函数。仅保留部分前后字符，中间用星号代替。
- *
- * - 长度大于 24，保留前、后 8 位。
- * - 长度大于 16，保留前、后 4 位。
- * - 长度大于 8，保留前、后 2 位。
- * - 其余情况，返回原始密钥。
- *
- * @param {string} key - 需要脱敏的 API 密钥。
- * @returns {string} 脱敏后的密钥字符串。
- */
-export function maskApiKey(key: string): string {
-  if (!key) return ''
-
-  if (key.length > 24) {
-    return `${key.slice(0, 8)}****${key.slice(-8)}`
-  } else if (key.length > 16) {
-    return `${key.slice(0, 4)}****${key.slice(-4)}`
-  } else if (key.length > 8) {
-    return `${key.slice(0, 2)}****${key.slice(-2)}`
-  } else {
-    return key
   }
 }

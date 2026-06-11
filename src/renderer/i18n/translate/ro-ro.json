@@ -5924,6 +5924,7 @@
       "system": "Sistem"
     },
     "messages": {
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "Afișează divizor între mesaje",
         "tooltip": "Nu se aplică mesajelor stil bulă"
@@ -5956,6 +5957,7 @@
         "none": "Niciunul"
       },
       "prompt": "Afișează prompt",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "Afișează conturul mesajului",
       "title": "Setări mesaje",
       "use_serif_font": "Folosește font serif"

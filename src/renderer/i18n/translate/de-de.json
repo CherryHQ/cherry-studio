@@ -5924,6 +5924,7 @@
       "system": "System"
     },
     "messages": {
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "Nachrichtentrennlinie",
         "tooltip": "Nicht für Blasenstil-Nachrichten"
@@ -5956,6 +5957,7 @@
         "none": "Nicht anzeigen"
       },
       "prompt": "Prompt anzeigen",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "Nachrichtenübersicht anzeigen",
       "title": "Nachrichteneinstellungen",
       "use_serif_font": "Serifenschrift verwenden"

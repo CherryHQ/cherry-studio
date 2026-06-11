@@ -1,6 +1,7 @@
 /** Finalizes a pending assistant placeholder via `messageService.update`. */
 
 import { messageService } from '@main/data/services/MessageService'
+import { enrichStatsWithCost } from '@main/data/services/utils/costEnrichment'
 import type { CherryMessagePart, CherryUIMessage, MessageStats, ModelSnapshot } from '@shared/data/types/message'
 
 import { finalizeInterruptedParts, type PersistAssistantInput, type PersistenceBackend } from '../PersistenceBackend'
@@ -24,12 +25,14 @@ export class MessageServiceBackend implements PersistenceBackend {
   }
 
   async persistAssistant(input: PersistAssistantInput): Promise<void> {
-    const { finalMessage, status, stats } = input
+    const { finalMessage, status, stats, modelId } = input
     const parts = finalizeInterruptedParts((finalMessage?.parts ?? []) as CherryMessagePart[], status)
+    const baseStats = this.opts.stats ?? stats
+    const enrichedStats = await enrichStatsWithCost(baseStats, modelId, finalMessage?.metadata?.providerCostUsd)
     await messageService.update(this.opts.assistantMessageId, {
       data: { parts },
       status,
-      stats: this.opts.stats ?? stats
+      stats: enrichedStats
     })
   }
 

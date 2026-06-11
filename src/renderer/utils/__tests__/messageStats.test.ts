@@ -6,10 +6,10 @@ import { statsToMetrics, statsToUsage } from '../messageStats'
 describe('statsToUsage', () => {
   it('projects all token fields and keeps required fields defaulted to 0 when missing', () => {
     const stats: MessageStats = {
-      promptTokens: 30,
-      completionTokens: 12,
+      inputTokens: 30,
+      outputTokens: 12,
       totalTokens: 42,
-      thoughtsTokens: 3,
+      reasoningTokens: 3,
       cost: 0.000123
     }
 
@@ -19,6 +19,28 @@ describe('statsToUsage', () => {
       total_tokens: 42,
       thoughts_tokens: 3,
       cost: 0.000123
+    })
+  })
+
+  it('projects cache breakdown and cost metadata', () => {
+    const stats: MessageStats = {
+      inputTokens: 100,
+      outputTokens: 50,
+      totalTokens: 900,
+      inputTokenDetails: { noCacheTokens: 100, cacheReadTokens: 700, cacheWriteTokens: 100 },
+      cost: 0.0042,
+      costSource: 'computed',
+      costCurrency: 'USD',
+      costBreakdown: { input: 0.001, output: 0.002, cacheRead: 0.0012 }
+    }
+
+    expect(statsToUsage(stats)).toMatchObject({
+      cache_read_tokens: 700,
+      cache_write_tokens: 100,
+      cost: 0.0042,
+      cost_source: 'computed',
+      cost_currency: 'USD',
+      cost_breakdown: { input: 0.001, output: 0.002, cacheRead: 0.0012 }
     })
   })
 
@@ -49,7 +71,7 @@ describe('statsToUsage', () => {
 describe('statsToMetrics', () => {
   it('projects all timing fields and completion tokens', () => {
     const stats: MessageStats = {
-      completionTokens: 12,
+      outputTokens: 12,
       timeCompletionMs: 1501,
       timeFirstTokenMs: 250,
       timeThinkingMs: 400

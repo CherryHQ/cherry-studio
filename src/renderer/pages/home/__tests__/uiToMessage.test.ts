@@ -24,7 +24,7 @@ describe('uiToMessage', () => {
           modelSnapshot: GEMINI,
           status: 'success',
           createdAt: '2026-04-24T12:00:00.000Z',
-          stats: { promptTokens: 10, completionTokens: 20, totalTokens: 30 }
+          stats: { inputTokens: 10, outputTokens: 20, totalTokens: 30 }
         }
       }),
       CTX

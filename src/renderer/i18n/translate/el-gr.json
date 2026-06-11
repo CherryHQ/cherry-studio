@@ -5924,6 +5924,7 @@
       "system": "Σύστημα"
     },
     "messages": {
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "Διαχωριστική γραμμή μηνυμάτων",
         "tooltip": "Δεν ισχύει για μηνύματα με στυλ φυσαλίδας"
@@ -5956,6 +5957,7 @@
         "none": "Χωρίς εμφάνιση"
       },
       "prompt": "Λήμμα προτροπής",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "Εμφάνιση πλαισίου μηνύματος",
       "title": "Ρυθμίσεις μηνυμάτων",
       "use_serif_font": "Χρήση μορφής Serif"

@@ -38,6 +38,7 @@ import { tagHandlers } from './tags'
 import { temporaryChatHandlers } from './temporaryChats'
 import { topicHandlers } from './topics'
 import { translateHandlers } from './translate'
+import { usageLedgerHandlers } from './usageLedger'
 
 /**
  * Complete API handlers implementation
@@ -70,5 +71,6 @@ export const apiHandlers: ApiImplementation = {
   ...promptHandlers,
   ...agentWorkspaceHandlers,
   ...jobHandlers,
-  ...searchHandlers
+  ...searchHandlers,
+  ...usageLedgerHandlers
 }

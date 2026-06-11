@@ -247,8 +247,14 @@ export type LegacyMessage = {
 
 export type Usage = OpenAI.Completions.CompletionUsage & {
   thoughts_tokens?: number
-  // OpenRouter specific fields
+  // Cache token breakdown (AI SDK v6 `inputTokenDetails`)
+  cache_read_tokens?: number
+  cache_write_tokens?: number
+  // Cost (provider-reported or computed from pricing at message completion)
   cost?: number
+  cost_source?: 'provider' | 'computed'
+  cost_currency?: 'USD' | 'CNY'
+  cost_breakdown?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }
 }
 
 export type Metrics = {

@@ -33,9 +33,9 @@ const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: G
     usage !== undefined
       ? {
           totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-          promptTokens: usage.inputTokens ?? 0,
-          completionTokens: usage.outputTokens ?? 0,
-          thoughtsTokens: undefined
+          inputTokens: usage.inputTokens ?? 0,
+          outputTokens: usage.outputTokens ?? 0,
+          reasoningTokens: undefined
         }
       : undefined
   return {

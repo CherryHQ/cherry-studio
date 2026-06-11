@@ -768,9 +768,14 @@ describe('mergeStats', () => {
     expect(mergeStats(undefined, undefined)).toBeNull()
   })
 
-  it('merges usage tokens', async () => {
-    const stats = mergeStats({ prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 })
-    expect(stats).toEqual({ promptTokens: 10, completionTokens: 20, totalTokens: 30 })
+  it('merges usage tokens (AI SDK v6 names)', async () => {
+    const stats = mergeStats({ prompt_tokens: 10, completion_tokens: 20, total_tokens: 30, thoughts_tokens: 4 })
+    expect(stats).toEqual({ inputTokens: 10, outputTokens: 20, totalTokens: 30, reasoningTokens: 4 })
+  })
+
+  it('maps v1 cost to a provider-reported USD cost', async () => {
+    const stats = mergeStats({ prompt_tokens: 10, completion_tokens: 20, cost: 0.0042 })
+    expect(stats).toMatchObject({ cost: 0.0042, costSource: 'provider', costCurrency: 'USD' })
   })
 
   it('merges metrics timing', async () => {
@@ -780,7 +785,7 @@ describe('mergeStats', () => {
 
   it('merges both usage and metrics', async () => {
     const stats = mergeStats({ prompt_tokens: 5 }, { time_thinking_millsec: 200 })
-    expect(stats).toEqual({ promptTokens: 5, timeThinkingMs: 200 })
+    expect(stats).toEqual({ inputTokens: 5, timeThinkingMs: 200 })
   })
 })
 
