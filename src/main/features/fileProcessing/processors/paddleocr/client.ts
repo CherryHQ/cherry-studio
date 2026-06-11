@@ -4,7 +4,9 @@ import { net } from 'electron'
 
 export const PADDLE_MAX_FILE_SIZE = 50 * MB
 
-type PaddleOcrClientLike = new (options?: unknown) => {
+type PaddleOcrClientLike = new (
+  options?: unknown
+) => {
   ocr: (...args: unknown[]) => Promise<unknown>
   getStatus: (...args: unknown[]) => Promise<unknown>
   submitDocumentParsing: (...args: unknown[]) => Promise<unknown>
