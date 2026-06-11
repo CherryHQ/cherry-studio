@@ -1,17 +1,11 @@
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+import type { PaddleOCRClient as PaddleOCRClientType } from '@paddleocr/api-sdk'
 import { MB } from '@shared/config/constant'
 import { net } from 'electron'
 
 export const PADDLE_MAX_FILE_SIZE = 50 * MB
 
-type PaddleOcrClientLike = new (
-  options?: unknown
-) => {
-  ocr: (...args: unknown[]) => Promise<unknown>
-  getStatus: (...args: unknown[]) => Promise<unknown>
-  submitDocumentParsing: (...args: unknown[]) => Promise<unknown>
-  waitDocumentParsingResult: (...args: unknown[]) => Promise<unknown>
-}
+type PaddleOcrClientLike = typeof PaddleOCRClientType
 
 type PaddleOcrModuleLike = {
   PaddleOCRClient: PaddleOcrClientLike
