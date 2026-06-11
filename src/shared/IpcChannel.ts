@@ -361,11 +361,7 @@ export enum IpcChannel {
   AgentSession_AutoRenamed = 'agent-session:auto-renamed',
 
   // TRACE
-  TRACE_SAVE_DATA = 'trace:saveData',
-  TRACE_SAVE_ENTITY = 'trace:saveEntity',
-  TRACE_GET_ENTITY = 'trace:getEntity',
-  TRACE_BIND_TOPIC = 'trace:bindTopic',
-  TRACE_CLEAN_HISTORY = 'trace:cleanHistory',
+  TRACE_GET_DATA = 'trace:getData',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
 
   // API Gateway

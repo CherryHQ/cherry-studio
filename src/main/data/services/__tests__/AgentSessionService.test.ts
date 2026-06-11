@@ -184,6 +184,17 @@ describe('AgentSessionService', () => {
     })
   })
 
+  it('creates and reuses a session-level trace id', async () => {
+    const session = await createSession('Trace')
+    expect(session.traceId ?? null).toBeNull()
+
+    const traceId = await agentSessionService.ensureTraceId(session.id)
+
+    expect(traceId).toMatch(/^[0-9a-f]{32}$/)
+    expect(await agentSessionService.ensureTraceId(session.id)).toBe(traceId)
+    expect((await agentSessionService.getById(session.id)).traceId).toBe(traceId)
+  })
+
   it('updates a session and returns the updated entity', async () => {
     const session = await createSession('Before update')
 

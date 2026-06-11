@@ -19,7 +19,7 @@ interface TraceContextEntry {
 
 @Injectable('ClaudeCodeTraceBridgeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['SpanCacheService'])
+@DependsOn(['TraceStorageService'])
 export class ClaudeCodeTraceBridgeService extends BaseService implements Activatable {
   private server?: Server
   private endpoint?: string
@@ -79,7 +79,7 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
     // enabled (see onReady), and these flags ask Claude Code to emit verbose telemetry —
     // user prompts (OTEL_LOG_USER_PROMPTS), tool details/content, and raw API request/response
     // bodies (OTEL_LOG_RAW_API_BODIES). Those payloads land in span attributes that
-    // SpanCacheService persists as plaintext JSONL trace files on disk, so they may contain
+    // TraceStorageService persists as plaintext JSONL trace files on disk, so they may contain
     // secrets (e.g. authorization headers, API keys embedded in raw bodies). We do NOT redact
     // here: redaction would require parsing arbitrary OTLP attribute structures across the
     // ingest path and risk dropping legitimate trace data. The accepted tradeoff (local-only,
