@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   saveMessages: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
-  spanCacheSetTopicId: vi.fn(),
+  traceStorageSetTopicId: vi.fn(),
   runtimeBeginTurn: vi.fn(),
   runtimeEnqueueUserMessage: vi.fn(),
   runtimeIsSessionBusy: vi.fn()
@@ -82,7 +82,7 @@ describe('AgentChatContextProvider', () => {
     mocks.saveMessage.mockResolvedValue(undefined)
     mocks.saveMessages.mockResolvedValue(undefined)
     mocks.applicationGet.mockImplementation((name: string) => {
-      if (name === 'SpanCacheService') return { setTopicId: mocks.spanCacheSetTopicId }
+      if (name === 'TraceStorageService') return { setTopicId: mocks.traceStorageSetTopicId }
       if (name === 'AgentSessionRuntimeService') {
         return {
           beginTurn: mocks.runtimeBeginTurn,
@@ -110,10 +110,8 @@ describe('AgentChatContextProvider', () => {
     const savedMessages = mocks.saveMessages.mock.calls[0][0].messages
     expect(savedMessages[1]).toMatchObject({
       role: 'assistant',
-      modelId: 'anthropic::claude-sonnet',
-      traceId: expect.any(String)
+      modelId: 'anthropic::claude-sonnet'
     })
-    expect(mocks.spanCacheSetTopicId).toHaveBeenCalledWith(savedMessages[1].traceId, 'agent-session:session-1')
 
     expect(prepared.models).toHaveLength(1)
     expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet')
@@ -127,6 +125,9 @@ describe('AgentChatContextProvider', () => {
       { id: expect.any(String), role: 'assistant', parts: [] }
     ])
     expect(prepared.models[0].request.messageId).toBe(prepared.models[0].request.messages?.[1]?.id)
+    const beginInput = mocks.runtimeBeginTurn.mock.calls[0][0]
+    expect(beginInput.traceId).toEqual(expect.any(String))
+    expect(mocks.traceStorageSetTopicId).toHaveBeenCalledWith(beginInput.traceId, 'agent-session:session-1')
     expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith({
       sessionId: 'session-1',
       topicId: 'agent-session:session-1',
@@ -135,7 +136,7 @@ describe('AgentChatContextProvider', () => {
       modelId: 'anthropic::claude-sonnet',
       assistantMessageId: prepared.models[0].request.messageId,
       userMessage: expect.objectContaining({ id: prepared.userMessageId, role: 'user', sessionId: 'session-1' }),
-      traceId: savedMessages[1].traceId,
+      traceId: beginInput.traceId,
       rootSpanId: expect.any(String)
     })
     expect(prepared.listeners).toEqual([
