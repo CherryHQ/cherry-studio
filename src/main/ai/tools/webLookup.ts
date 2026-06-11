@@ -13,6 +13,7 @@
 
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
+import { isAbortError } from '@main/services/webSearch/utils/errors'
 import type { WebSearchOutput } from '@shared/ai/builtinTools'
 import type { WebSearchResponse } from '@shared/data/types/webSearch'
 import * as z from 'zod'
@@ -105,6 +106,9 @@ export async function searchWeb(query: string, signal?: AbortSignal): Promise<We
     const response = await application.get('WebSearchService').searchKeywords({ keywords: [query] }, { signal })
     return mapResponse(response)
   } catch (error) {
+    // A cancellation isn't a provider failure — rethrow so it propagates instead of looking like a
+    // retryable error that keeps the tool loop running after the request was already aborted.
+    if (signal?.aborted || isAbortError(error)) throw error
     logger.error('webSearchService.searchKeywords failed', error as Error, { query })
     return { error: error instanceof Error ? error.message : String(error) }
   }
@@ -115,6 +119,9 @@ export async function fetchWeb(urls: string[], signal?: AbortSignal): Promise<We
     const response = await application.get('WebSearchService').fetchUrls({ urls }, { signal })
     return mapResponse(response)
   } catch (error) {
+    // A cancellation isn't a provider failure — rethrow so it propagates instead of looking like a
+    // retryable error that keeps the tool loop running after the request was already aborted.
+    if (signal?.aborted || isAbortError(error)) throw error
     logger.error('webSearchService.fetchUrls failed', error as Error, { urls })
     return { error: error instanceof Error ? error.message : String(error) }
   }
