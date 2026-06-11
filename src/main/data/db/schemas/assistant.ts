@@ -1,4 +1,4 @@
-import { ASSISTANT_SOURCE_USER, type AssistantSettings } from '@shared/data/types/assistant'
+import type { AssistantSettings } from '@shared/data/types/assistant'
 import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
@@ -14,8 +14,6 @@ export const assistantTable = sqliteTable(
   'assistant',
   {
     id: uuidPrimaryKey(),
-    // Bundled assistant-library preset UUID, or 'user' for custom assistants.
-    source: text().notNull().default(ASSISTANT_SOURCE_USER),
     name: text().notNull(),
     // Type-level empty: DB DEFAULT is the single source of truth
     prompt: text().notNull().default(''),

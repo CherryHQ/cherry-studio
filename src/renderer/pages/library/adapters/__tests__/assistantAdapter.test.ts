@@ -37,7 +37,6 @@ function createTag(id: string, name: string): Tag {
 function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
   return {
     id: 'ast-source',
-    source: 'user',
     orderKey: 'a0',
     name: '原助手',
     prompt: 'prompt',

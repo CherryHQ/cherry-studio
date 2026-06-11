@@ -13,7 +13,7 @@ import {
   DEFAULT_ASSISTANT_NAME,
   DEFAULT_ASSISTANT_PROMPT
 } from '@shared/data/presets/default-assistant'
-import { ASSISTANT_SOURCE_USER, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -44,7 +44,6 @@ describe('DefaultAssistantSeeder', () => {
 
     expect(assistant?.id).toMatch(UUID_V4_PATTERN)
     expect(assistant).toMatchObject({
-      source: ASSISTANT_SOURCE_USER,
       name: DEFAULT_ASSISTANT_NAME,
       emoji: DEFAULT_ASSISTANT_EMOJI,
       prompt: DEFAULT_ASSISTANT_PROMPT,
@@ -71,7 +70,6 @@ describe('DefaultAssistantSeeder', () => {
   it('does not seed the default assistant when an active assistant already exists', async () => {
     await dbh.db.insert(assistantTable).values({
       id: '11111111-1111-4111-8111-111111111111',
-      source: ASSISTANT_SOURCE_USER,
       name: 'Existing Assistant',
       emoji: '🌟',
       settings: DEFAULT_ASSISTANT_SETTINGS,

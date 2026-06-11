@@ -1,1 +1,0 @@
-ALTER TABLE `assistant` ADD `source` text DEFAULT 'user' NOT NULL;

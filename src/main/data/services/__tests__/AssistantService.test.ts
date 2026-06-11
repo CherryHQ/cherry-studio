@@ -11,7 +11,7 @@ import { pinService } from '@data/services/PinService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
 import { type ListAssistantsQuery, ListAssistantsQuerySchema } from '@shared/data/api/schemas/assistants'
-import { ASSISTANT_SOURCE_USER, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
@@ -597,7 +597,6 @@ describe('AssistantDataService', () => {
 
       expect(result.id).toBeTruthy()
       expect(result.name).toBe('test-assistant')
-      expect(result.source).toBe(ASSISTANT_SOURCE_USER)
       expect(result.modelId).toBeNull()
       expect(result.orderKey.length).toBeGreaterThan(0)
       expect(typeof result.createdAt).toBe('string')
@@ -624,17 +623,6 @@ describe('AssistantDataService', () => {
       const [row] = await dbh.db.select().from(assistantTable)
       expect(row.id).toBe(created.id)
       expect(row.name).toBe('test-assistant')
-      expect(row.source).toBe(ASSISTANT_SOURCE_USER)
-    })
-
-    it('should persist bundled preset source when provided', async () => {
-      const source = '550e8400-e29b-41d4-a716-446655440000'
-      const created = await assistantDataService.create({ name: 'preset-assistant', source })
-
-      expect(created.source).toBe(source)
-
-      const [row] = await dbh.db.select().from(assistantTable).where(eq(assistantTable.id, created.id))
-      expect(row.source).toBe(source)
     })
 
     it('should apply default settings when settings are omitted', async () => {

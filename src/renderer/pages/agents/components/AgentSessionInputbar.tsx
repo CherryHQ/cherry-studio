@@ -30,7 +30,7 @@ import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { getBuiltinSlashCommands } from '@shared/ai/agentSlashCommands'
 import { documentExts, imageExts, textExts } from '@shared/config/constant'
-import { ASSISTANT_SOURCE_USER, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { FC } from 'react'
@@ -95,7 +95,6 @@ const AgentSessionInputbar = ({
     const now = new Date().toISOString()
     return {
       id: session.agentId ?? agentId,
-      source: ASSISTANT_SOURCE_USER,
       name: session.name ?? t('common.unnamed'),
       prompt: agent.instructions ?? '',
       emoji: '🌟',

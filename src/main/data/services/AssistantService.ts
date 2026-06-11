@@ -356,11 +356,10 @@ export class AssistantDataService {
       // defaults; prompt/description stay omitted when undefined so DB DEFAULTs apply.
       // orderKey is omitted — `insertWithOrderKey` computes the next fractional
       // key from the existing max and injects it before the DB write.
-      const { mcpServerIds, knowledgeBaseIds, tagIds, source, ...columnDto } = dto
+      const { mcpServerIds, knowledgeBaseIds, tagIds, ...columnDto } = dto
       const insertValues: Omit<typeof assistantTable.$inferInsert, 'orderKey'> = {
         ...columnDto,
         modelId,
-        ...(source !== undefined ? { source } : {}),
         emoji: dto.emoji ?? '🌟',
         settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS
       } satisfies Omit<typeof assistantTable.$inferInsert, 'orderKey'>

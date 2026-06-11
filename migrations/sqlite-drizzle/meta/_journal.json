@@ -50,13 +50,6 @@
       "when": 1781008744179,
       "tag": "0006_brave_chronomancer",
       "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1781087268386,
-      "tag": "0007_swift_magdalene",
-      "breakpoints": true
     }
   ]
 }

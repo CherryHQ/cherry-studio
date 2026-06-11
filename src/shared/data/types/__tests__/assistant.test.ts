@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { AssistantIdSchema, AssistantSchema, AssistantSourceSchema, DEFAULT_ASSISTANT_SETTINGS } from '../assistant'
+import { AssistantIdSchema, AssistantSchema, DEFAULT_ASSISTANT_SETTINGS } from '../assistant'
 
 describe('AssistantIdSchema', () => {
   it.each([
@@ -26,7 +26,6 @@ describe('AssistantIdSchema', () => {
 describe('AssistantSchema', () => {
   const baseAssistant = {
     id: '550e8400-e29b-41d4-a716-446655440000',
-    source: 'user',
     name: 'Test Assistant',
     prompt: '',
     emoji: '🌟',
@@ -47,16 +46,5 @@ describe('AssistantSchema', () => {
 
     expect(AssistantSchema.safeParse(missingEmbeds).success).toBe(false)
     expect(AssistantSchema.parse(baseAssistant)).toMatchObject({ tags, modelName })
-  })
-
-  it('accepts user marker or bundled preset UUIDs as source', () => {
-    expect(AssistantSourceSchema.safeParse('user').success).toBe(true)
-    expect(AssistantSourceSchema.safeParse('550e8400-e29b-41d4-a716-446655440000').success).toBe(true)
-    expect(AssistantSourceSchema.safeParse('custom').success).toBe(false)
-    expect(AssistantSourceSchema.safeParse('1').success).toBe(false)
-  })
-
-  it('rejects empty string as source', () => {
-    expect(AssistantSourceSchema.safeParse('').success).toBe(false)
   })
 })

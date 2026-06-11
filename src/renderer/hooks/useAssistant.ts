@@ -27,7 +27,7 @@ import type { Assistant, AssistantSettings } from '@renderer/types'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/modelReconcile'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
-import { ASSISTANT_SOURCE_USER, DEFAULT_ASSISTANT_ID, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { DEFAULT_ASSISTANT_ID, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo } from 'react'
@@ -49,7 +49,6 @@ const DEFAULT_ASSISTANT_TIMESTAMP = new Date(0).toISOString()
 export function composeDefaultAssistant(modelId: UniqueModelId | null): Assistant {
   return {
     id: DEFAULT_ASSISTANT_ID,
-    source: ASSISTANT_SOURCE_USER,
     name: i18n.t('chat.default.name'),
     emoji: '😀',
     prompt: '',

@@ -27,7 +27,6 @@ import { assistantHandlers } from '../assistants'
 const ASSISTANT_ID = '11111111-1111-4111-8111-111111111111'
 const OTHER_ASSISTANT_ID = '33333333-3333-4333-8333-333333333333'
 const TAG_ID = '22222222-2222-4222-8222-222222222222'
-const PRESET_SOURCE_ID = '550e8400-e29b-41d4-a716-446655440000'
 
 describe('assistantHandlers', () => {
   beforeEach(() => {
@@ -70,21 +69,6 @@ describe('assistantHandlers', () => {
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(createMock).not.toHaveBeenCalled()
-    })
-
-    it('should forward bundled preset source on create', async () => {
-      createMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'Preset Assistant' })
-
-      await expect(
-        assistantHandlers['/assistants'].POST({
-          body: { name: 'Preset Assistant', source: PRESET_SOURCE_ID }
-        } as never)
-      ).resolves.toMatchObject({ id: ASSISTANT_ID })
-
-      expect(createMock).toHaveBeenCalledWith({
-        name: 'Preset Assistant',
-        source: PRESET_SOURCE_ID
-      })
     })
   })
 
@@ -160,17 +144,6 @@ describe('assistantHandlers', () => {
         assistantHandlers['/assistants/:id'].PATCH({
           params: { id: ASSISTANT_ID },
           body: { orderKey: 'a0' }
-        } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
-
-      expect(updateMock).not.toHaveBeenCalled()
-    })
-
-    it('should reject source rewrites on update', async () => {
-      await expect(
-        assistantHandlers['/assistants/:id'].PATCH({
-          params: { id: ASSISTANT_ID },
-          body: { source: PRESET_SOURCE_ID }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
