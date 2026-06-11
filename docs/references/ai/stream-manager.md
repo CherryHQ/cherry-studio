@@ -75,7 +75,7 @@ reference for that Main-side design.
 │      • TemporaryChatBackend   (in-memory)                    │
 │      • AgentSessionMessageBackend (agent-session DB)         │
 │      • TranslationBackend     (translate row)                │
-│    TraceFlushListener    → SpanCacheService.saveSpans(topicId)
+│    TraceFlushListener    → TraceStorageService.saveSpans(topicId)
 │    ChannelAdapterListener → adapter.onStreamComplete         │
 │    SseListener            → res.write('[DONE]')              │
 └──────────────────────────────────────────────────────────────┘
@@ -150,7 +150,7 @@ Choose by **consumer / producer fanout**:
   need chunk bandwidth → not added via `attach`; the provider includes
   it in the `listeners` array passed to `send()`.
 - **`TraceFlushListener` placement.** Terminal-only consumer that flushes
-  `SpanCacheService.saveSpans(topicId)` after a chat / agent turn completes.
+  `TraceStorageService.saveSpans(topicId)` after a chat / agent turn completes.
   It belongs with the turn owner (`PersistentChatContextProvider` or
   `AgentSessionRuntimeService`), not inside `AiStreamManager` and not in
   trace viewer UI.

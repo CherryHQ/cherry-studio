@@ -13,8 +13,7 @@ const mocks = vi.hoisted(() => ({
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
   cacheSetShared: vi.fn(),
-  cacheMergePersist: vi.fn(),
-  spanCacheSetTopicId: vi.fn()
+  cacheMergePersist: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -131,7 +130,6 @@ describe('AgentSessionRuntimeService', () => {
         }
       }
       if (name === 'CacheService') return { mergePersist: mocks.cacheMergePersist, setShared: mocks.cacheSetShared }
-      if (name === 'SpanCacheService') return { setTopicId: mocks.spanCacheSetTopicId }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -1207,7 +1205,6 @@ describe('AgentSessionRuntimeService', () => {
         modelId: 'claude-code::claude-sonnet-4-5'
       }
     })
-    expect(mocks.spanCacheSetTopicId).toHaveBeenCalledWith(expect.any(String), 'agent-session:session-1')
     expect(mocks.startRuntimeTurn).toHaveBeenCalledWith({
       topicId: 'agent-session:session-1',
       modelId: 'claude-code::claude-sonnet-4-5',

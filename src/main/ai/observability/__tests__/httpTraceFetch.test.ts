@@ -120,4 +120,139 @@ describe('createHttpTraceFetch', () => {
     expect(attributes['http.statusText']).toBe('No Content')
     expect(attributes.outputs).toBeUndefined()
   })
+
+  // Real providers send `Authorization` capitalized, sometimes as a Headers instance or tuple init.
+  // A future loss of `.toLowerCase()` in redaction must fail tests instead of writing API keys to disk.
+  it.each([
+    ['plain object, capitalized key', { Authorization: 'Bearer sk-secret', 'Content-Type': 'application/json' }],
+    ['Headers instance', new Headers({ Authorization: 'Bearer sk-secret' })],
+    ['tuple-array init', [['Authorization', 'Bearer sk-secret']] as [string, string][]]
+  ])('redacts the Authorization header regardless of init form (%s)', async (_label, headers) => {
+    const { tracer, attributes, state } = fakeTracer()
+    const innerFetch = vi.fn(async () => new Response(null, { status: 204 }))
+
+    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    await f('https://api.example.com', { method: 'POST', headers: headers as HeadersInit, body: '{}' })
+    await vi.waitFor(() => expect(state.ended).toBe(true))
+
+    const requestHeaders = JSON.parse(attributes['http.request.headers'] as string)
+    const authKey = Object.keys(requestHeaders).find((k) => k.toLowerCase() === 'authorization')!
+    expect(requestHeaders[authKey]).toBe('***')
+  })
+
+  it('redacts sensitive query-string secrets from http.url', async () => {
+    const { tracer, attributes, state } = fakeTracer()
+    const innerFetch = vi.fn(async () => new Response(null, { status: 204 }))
+
+    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    await f('https://generativelanguage.googleapis.com/v1/models/gemini:generateContent?key=AIzaSECRET&alt=sse', {
+      method: 'POST',
+      body: '{}'
+    })
+    await vi.waitFor(() => expect(state.ended).toBe(true))
+
+    const url = attributes['http.url'] as string
+    expect(url).not.toContain('AIzaSECRET')
+    const parsed = new URL(url)
+    expect(parsed.searchParams.get('key')).toBe('***')
+    expect(parsed.searchParams.get('alt')).toBe('sse')
+  })
+
+  it('strips user:pass@ userinfo from http.url (proxy credentials)', async () => {
+    const { tracer, attributes, state } = fakeTracer()
+    const innerFetch = vi.fn(async () => new Response(null, { status: 204 }))
+
+    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    await f('https://user:s3cret@proxy.internal/v1/chat?key=AIzaSECRET', { method: 'POST', body: '{}' })
+    await vi.waitFor(() => expect(state.ended).toBe(true))
+
+    const url = attributes['http.url'] as string
+    expect(url).not.toContain('s3cret')
+    expect(url).not.toContain('AIzaSECRET')
+    const parsed = new URL(url)
+    expect(parsed.username).toBe('')
+    expect(parsed.password).toBe('')
+    expect(parsed.searchParams.get('key')).toBe('***')
+  })
+
+  // ── Guard paths: capturing the body MUST NEVER break the real fetch ──
+
+  it('passthrough: falls back to the untraced fetch when request-span setup throws', async () => {
+    const innerFetch = vi.fn(async () => new Response('inner', { status: 200 }))
+    const ended = vi.fn()
+    // A span whose setAttribute throws drives the setup try/catch → passthrough.
+    const span = {
+      setAttribute: () => {
+        throw new Error('attr boom')
+      },
+      setStatus: () => {},
+      recordException: vi.fn(),
+      end: ended
+    } as unknown as Span
+    const tracer = { startSpan: () => span } as unknown as Tracer
+
+    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    const res = await f('https://api.example.com/v1', { method: 'POST', body: '{}' })
+
+    expect(await res.text()).toBe('inner') // the untraced inner response, intact
+    expect(innerFetch).toHaveBeenCalledTimes(1)
+    expect(ended).toHaveBeenCalled() // span settled, not leaked
+  })
+
+  it('tee failure: returns the original response untouched when body.tee() throws', async () => {
+    const { tracer, attributes, state } = fakeTracer()
+    const real = new Response('real-body', { status: 200 })
+    // A custom-fetch body without a working tee() — keep `body` truthy but throw on tee().
+    Object.defineProperty(real, 'body', {
+      get: () => ({
+        tee: () => {
+          throw new Error('no tee')
+        }
+      })
+    })
+    const innerFetch = vi.fn(async () => real)
+
+    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    const res = await f('https://api.example.com/v1', { method: 'POST', body: '{}' })
+
+    expect(res).toBe(real) // original handed back untouched — real streaming path preserved
+    expect(attributes['http.trace.captureError']).toContain('no tee')
+    expect(state.ended).toBe(true)
+  })
+
+  it('post-tee constructor failure: hands the SDK a minimal Response over the SDK branch', async () => {
+    const { tracer, attributes, state } = fakeTracer()
+    const real = new Response('body-x', { status: 200 })
+    // tee() works, but an out-of-range status makes the SECOND `new Response(sdkBranch, {status})` throw.
+    Object.defineProperty(real, 'status', { get: () => 199 })
+    const innerFetch = vi.fn(async () => real)
+
+    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    const res = await f('https://api.example.com/v1', { method: 'POST', body: '{}' })
+
+    expect(await res.text()).toBe('body-x') // SDK still gets the body via the minimal Response
+    expect(attributes['http.trace.captureError']).toBeDefined()
+    await vi.waitFor(() => expect(state.ended).toBe(true))
+  })
+
+  it('mid-stream error: marks the span ERROR when the captured response body errors', async () => {
+    const { tracer, state } = fakeTracer()
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('partial'))
+        controller.error(new Error('stream boom'))
+      }
+    })
+    const innerFetch = vi.fn(
+      async () => new Response(body, { status: 200, headers: { 'content-type': 'application/json' } })
+    )
+
+    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    const res = await f('https://api.example.com/v1', { method: 'POST', body: '{}' })
+    // The SDK branch reads the same tee'd source and also errors — we only assert the span.
+    await res.text().catch(() => {})
+    await vi.waitFor(() => expect(state.ended).toBe(true))
+
+    expect(state.status?.code).toBe(SpanStatusCode.ERROR)
+  })
 })

@@ -534,6 +534,9 @@
       "search": {
         "placeholder": "[to be translated]:Search sessions"
       },
+      "tool": {
+        "disabled": "{{toolName}} ツールはこのエージェントで無効になっています。"
+      },
       "unpin": {
         "title": "[to be translated]:Unpin task"
       },
@@ -1415,11 +1418,22 @@
       "pasted_text_file_name": "[to be translated]:Pasted text.txt",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
+      "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
       "resource_panel": {
+        "categories": {
+          "agents": "エージェント",
+          "files": "ファイル",
+          "skills": "スキル"
+        },
+        "description": "ファイル、エージェント、またはスキルから選択",
         "loading": "読み込み中...",
         "no_file_found": {
           "description": "アクセス可能なディレクトリに利用可能なファイルがありません",
           "label": "ファイルが見つかりません"
+        },
+        "no_items_found": {
+          "description": "ファイル、エージェント、スキルは利用できません",
+          "label": "アイテムが見つかりません"
         },
         "title": "リソース"
       },
@@ -2882,6 +2896,7 @@
             "placeholder": "エージェントに名前を付けてください"
           },
           "permission_mode": {
+            "help": "bypassPermissionsに切り替えることは、Soulモードを有効にすることと同等です。",
             "label": "パーミッションモード",
             "option": {
               "acceptEdits": "編集を承認する",
@@ -3233,9 +3248,13 @@
     },
     "skill_detail": {
       "created_at": "作成済",
+      "delete_description": "このスキルとそのすべての設定を削除します。この操作は元に戻せません",
+      "delete_title": "スキルを削除",
       "description": "説明",
+      "file_preview": "ファイルプレビュー",
       "installed": "インストール済み",
       "no_description": "説明なし",
+      "source_files": "ソースファイル",
       "updated_at": "最近更新"
     },
     "sort": {
@@ -3273,6 +3292,7 @@
       "prompt": "プロンプト",
       "skill": "スキル"
     },
+    "uninstall_failed": "アンインストールに失敗しました",
     "view": {
       "grid": "グリッドビュー",
       "list": "リストビュー"
@@ -5256,6 +5276,7 @@
       }
     },
     "advanced": {
+      "auto_switch_to_topics": "トピックに自動的に切り替える",
       "title": "詳細設定"
     },
     "assistant": {
@@ -6472,6 +6493,9 @@
       "input": {
         "confirm_delete_message": "メッセージ削除前に確認",
         "confirm_regenerate_message": "メッセージ再生成前に確認",
+        "enable_quick_triggers": "/ と @ を有効にしてクイックメニューを表示します。",
+        "paste_long_text_as_file": "長いテキストをファイルとして貼り付け",
+        "paste_long_text_threshold": "長いテキストの長さ",
         "send_shortcuts": "送信ショートカット",
         "show_estimated_tokens": "推定トークン数を表示",
         "title": "入力設定"

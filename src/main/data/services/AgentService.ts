@@ -44,9 +44,6 @@ export interface AgentDeletedEvent {
 }
 
 type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
-type AgentListOptions = ListOptions & {
-  updatedAtFrom?: number
-}
 
 function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
@@ -158,7 +155,7 @@ export class AgentService {
     return rowToAgent(row.agent, row.modelName || null)
   }
 
-  async listAgents(options: AgentListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
+  async listAgents(options: ListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
     const database = application.get('DbService').getDb()
 
     // AND-compose deletedAt-null + optional search. Search runs LIKE against
@@ -170,9 +167,6 @@ export class AgentService {
       const descMatch = sql`${agentsTable.description} LIKE ${pattern} ESCAPE '\\'`
       const searchClause = or(nameMatch, descMatch)
       if (searchClause) conditions.push(searchClause)
-    }
-    if (options.updatedAtFrom !== undefined) {
-      conditions.push(gte(agentsTable.updatedAt, options.updatedAtFrom))
     }
     const whereClause = and(...conditions)
 
@@ -197,18 +191,19 @@ export class AgentService {
     const orderFn = orderBy === 'asc' ? asc : desc
     const orderByClauses =
       sortBy === 'updatedAt'
-        ? [orderFn(sortField), asc(agentsTable.id)]
+        ? [orderFn(sortField), orderFn(agentsTable.id)]
         : [
             sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
             asc(pinTable.orderKey),
             orderFn(sortField),
-            asc(agentsTable.id)
+            orderFn(agentsTable.id)
           ]
 
-    // Pin-aware ordering: LEFT JOIN with the pin table, push pinned rows to
-    // the top (sorted by pin.orderKey ASC), then unpinned rows by the
-    // caller-specified sortBy/orderBy. Default ordering follows agent.orderKey
-    // so resource-list group reorders persist across reloads.
+    // Pin-aware ordering (skipped for sortBy=updatedAt): LEFT JOIN with the
+    // pin table, push pinned rows to the top (sorted by pin.orderKey ASC),
+    // then unpinned rows by the caller-specified sortBy/orderBy. Default
+    // ordering follows agent.orderKey so resource-list group reorders persist
+    // across reloads.
     const baseQuery = database
       .select({ agent: agentsTable, modelName: userModelTable.name, pinOrderKey: pinTable.orderKey })
       .from(agentsTable)
@@ -274,7 +269,7 @@ export class AgentService {
     }
 
     // Several mutable fields map to NOT NULL columns with DB defaults
-    // (description, instructions, mcps, allowedTools, configuration). Writing
+    // (description, instructions, mcps, disabledTools, configuration). Writing
     // literal NULL when the DTO omits a field would violate the constraint.
     // Skip undefined values so Drizzle preserves the column's current value.
     for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {

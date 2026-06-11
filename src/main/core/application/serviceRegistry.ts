@@ -10,8 +10,8 @@ import { DxtService } from '@main/ai/mcp/DxtService'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService } from '@main/ai/observability/adapters/claudeCode/ClaudeCodeTraceBridgeService'
-import { SpanCacheService } from '@main/ai/observability/cache/SpanCacheService'
 import { NodeTraceService } from '@main/ai/observability/runtime/NodeTraceService'
+import { TraceStorageService } from '@main/ai/observability/storage/TraceStorageService'
 import { ClaudeCodeWarmQueryManager } from '@main/ai/runtime/claudeCode/ClaudeCodeWarmQueryManager'
 import { AiStreamManager } from '@main/ai/streamManager/AiStreamManager'
 import { JobManager } from '@main/core/job/JobManager'
@@ -96,7 +96,7 @@ export const services = {
   SettingsWindowService,
   ShortcutService,
   ThemeService,
-  SpanCacheService,
+  TraceStorageService,
   NodeTraceService,
   ClaudeCodeTraceBridgeService,
   OcrService,

@@ -128,7 +128,7 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({
     AiService: { streamText: mockStreamText },
     CacheService: fakeCacheService,
-    SpanCacheService: { saveSpans: mockSaveSpans },
+    TraceStorageService: { saveSpans: mockSaveSpans },
     AgentSessionRuntimeService: { willContinueTopic: mockWillContinueTopic }
   } as Parameters<typeof mockApplicationFactory>[0])
 })

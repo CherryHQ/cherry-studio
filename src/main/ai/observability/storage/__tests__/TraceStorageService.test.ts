@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
+import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
 import type { SpanEntity } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
@@ -11,8 +12,8 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { SpanCacheService } from '../SpanCacheService'
 import { TraceSpanStore } from '../TraceSpanStore'
+import { TraceStorageService } from '../TraceStorageService'
 
 function span(overrides: Partial<SpanEntity>): SpanEntity {
   return {
@@ -41,6 +42,7 @@ function readableSpan(overrides: { spanId: string; traceId: string; ended: boole
     parentSpanContext: undefined,
     startTime: [1, 0],
     endTime: overrides.ended ? [2, 0] : [0, 0],
+    ended: overrides.ended,
     status: { code: SpanStatusCode.OK },
     attributes: {},
     events: [],
@@ -48,8 +50,8 @@ function readableSpan(overrides: { spanId: string; traceId: string; ended: boole
   } as unknown as ReadableSpan
 }
 
-describe('SpanCacheService', () => {
-  let service: SpanCacheService
+describe('TraceStorageService', () => {
+  let service: TraceStorageService
   let traceDir: string
 
   beforeEach(async () => {
@@ -60,7 +62,7 @@ describe('SpanCacheService', () => {
     vi.mocked(application.getPath).mockReset()
     vi.mocked(application.getPath).mockReturnValue(traceDir)
     mockMainLoggerService.error.mockClear()
-    service = new SpanCacheService()
+    service = new TraceStorageService()
   })
 
   afterEach(async () => {
@@ -74,7 +76,7 @@ describe('SpanCacheService', () => {
     expect(application.getPath).not.toHaveBeenCalled()
   })
 
-  it('rejects a path-traversal topicId instead of escaping the trace root (REGRESSION observability-1)', async () => {
+  it('rejects a path-traversal topicId in getSpans instead of escaping the trace root (REGRESSION observability-1)', async () => {
     await service._doInit()
     // A sentinel sibling of the trace root that a `../` traversal would target for deletion.
     const sentinelDir = await fs.mkdtemp(path.join(os.tmpdir(), 'span-cache-sentinel-'))
@@ -82,11 +84,38 @@ describe('SpanCacheService', () => {
     await fs.writeFile(sentinelFile, 'do not delete')
 
     const traversal = `..${path.sep}${path.basename(sentinelDir)}`
-    await expect(service.cleanHistoryTrace(traversal, 'trace-a')).rejects.toThrow(/invalid topicId/)
+    await expect(service.getSpans(traversal, 'trace-a')).rejects.toThrow(/invalid topicId/)
     // The traversal target survives — no arbitrary delete happened.
     await expect(fs.access(sentinelFile)).resolves.toBeUndefined()
 
     await fs.rm(sentinelDir, { recursive: true, force: true })
+  })
+
+  it.each([
+    ['empty', ''],
+    ['dot', '.'],
+    ['dot-dot', '..'],
+    ['forward slash', 'a/b'],
+    ['back slash', 'a\\b'],
+    ['absolute', '/abs']
+  ])('rejects an unsafe traceId segment (%s) on the read path', async (_label, badTraceId) => {
+    await service._doInit()
+    await expect(service.getSpans('topic-a', badTraceId)).rejects.toThrow(/invalid traceId/)
+  })
+
+  it('returns a merged view of flushed history and live spans for a trace', async () => {
+    await service._doInit()
+
+    service.saveEntity(span({ id: 'history', name: 'from-history', traceId: 'trace-a', topicId: 'topic-a' }))
+    await service.saveSpans('topic-a')
+
+    service.saveEntity(span({ id: 'live', name: 'from-live', traceId: 'trace-a', topicId: 'topic-a' }))
+    service.saveEntity(span({ id: 'history', name: 'live-wins', traceId: 'trace-a', topicId: 'topic-a' }))
+
+    await expect(service.getSpans('topic-a', 'trace-a')).resolves.toMatchObject([
+      { id: 'history', name: 'live-wins' },
+      { id: 'live', name: 'from-live' }
+    ])
   })
 
   // The OTel createSpan/endSpan path is the live source of cached spans. If endSpan does not
@@ -98,21 +127,47 @@ describe('SpanCacheService', () => {
 
     // 1. In-flight span from createSpan must not be ended.
     service.createSpan(readableSpan({ spanId: 'live', traceId: 'trace-live', ended: false }))
-    expect(service.getEntity('live')?.isEnd).toBe(false)
+    expect(service['store'].getSpan('live')?.isEnd).toBe(false)
 
     // 2. endSpan must mark the entity ended.
     service.endSpan(readableSpan({ spanId: 'live', traceId: 'trace-live', ended: true }))
-    expect(service.getEntity('live')?.isEnd).toBe(true)
+    expect(service['store'].getSpan('live')?.isEnd).toBe(true)
 
     // 3. Feed the real pipeline-produced entity into a small-cap store and confirm the
     //    fully-ended trace is evicted when the cap is exceeded. This is the end-to-end
     //    assertion that fails pre-fix (isEnd undefined → oldestEndedTraceId() skips it).
-    const endedEntity = service.getEntity('live') as SpanEntity
+    const endedEntity = service['store'].getSpan('live') as SpanEntity
     const cappedStore = new TraceSpanStore(1)
     cappedStore.setSpan({ ...endedEntity })
     cappedStore.setSpan(span({ id: 'newer', traceId: 'trace-newer' }))
 
     expect(cappedStore.getSpan('live')).toBeUndefined()
+    expect(cappedStore.getSpan('newer')).toBeDefined()
+  })
+
+  // The AiTurnTrace end-patch builds entities with `convertSpanToSpanEntity` and writes them via
+  // `writeSpanEntity` → `saveEntity` (no explicit isEnd override like createSpan/endSpan have).
+  // Pre-fix the converter omitted `isEnd` (the `as SpanEntity` cast hid the missing field), so turn
+  // root spans landed with `isEnd: undefined` and their traces were never evictable. Confirm the
+  // converter now derives `isEnd` from `span.ended` and the saved entity is evictable.
+  it('derives isEnd through the saveEntity/convertSpanToSpanEntity path (REGRESSION observability-eviction-saveEntity)', async () => {
+    await service._doInit()
+
+    // Converter sets isEnd from the OTel `ended` flag — true for an ended span, false in-flight.
+    const endedEntity = convertSpanToSpanEntity(readableSpan({ spanId: 'turn-root', traceId: 'trace-x', ended: true }))
+    expect(endedEntity.isEnd).toBe(true)
+    expect(convertSpanToSpanEntity(readableSpan({ spanId: 'live2', traceId: 'trace-y', ended: false })).isEnd).toBe(
+      false
+    )
+
+    // The saveEntity path keeps isEnd (addEntity never sets it), so the trace is evictable.
+    service.saveEntity({ ...endedEntity, topicId: 't' } as SpanEntity)
+    expect(service['store'].getSpan('turn-root')?.isEnd).toBe(true)
+
+    const cappedStore = new TraceSpanStore(1)
+    cappedStore.setSpan({ ...(service['store'].getSpan('turn-root') as SpanEntity) })
+    cappedStore.setSpan(span({ id: 'newer', traceId: 'trace-newer' }))
+    expect(cappedStore.getSpan('turn-root')).toBeUndefined()
     expect(cappedStore.getSpan('newer')).toBeDefined()
   })
 
@@ -137,59 +192,5 @@ describe('SpanCacheService', () => {
     await service.saveSpans('topic')
     const flushed = await service.getSpans('topic', 'trace')
     expect(flushed.map((s) => s.id).sort()).toEqual(['s1', 's2'])
-  })
-
-  // A warm Claude Code connection bakes one TRACEPARENT (the container root) across all turns, so its
-  // `claude_code.*` spans land flat next to the per-turn `ai.turn` spans. getSpans re-homes each under
-  // the `ai.turn` whose time window contains it (turns are sequential / non-overlapping).
-  it('re-homes warm claude_code spans under the ai.turn whose time window contains them', async () => {
-    await service._doInit()
-    const traceId = '1234567890abcdef1234567890abcdef'
-    const root = '1234567890abcdef' // deriveRootSpanId(traceId)
-    service.saveEntity(
-      span({ id: 'turn1', traceId, topicId: 't', name: 'ai.turn', parentId: root, startTime: 10, endTime: 20 })
-    )
-    service.saveEntity(
-      span({ id: 'turn2', traceId, topicId: 't', name: 'ai.turn', parentId: root, startTime: 30, endTime: 40 })
-    )
-    service.saveEntity(
-      span({
-        id: 'cc1',
-        traceId,
-        topicId: 't',
-        name: 'claude_code.interaction',
-        parentId: root,
-        startTime: 12,
-        endTime: 19
-      })
-    )
-    service.saveEntity(
-      span({
-        id: 'cc2',
-        traceId,
-        topicId: 't',
-        name: 'claude_code.interaction',
-        parentId: root,
-        startTime: 32,
-        endTime: 39
-      })
-    )
-    service.saveEntity(
-      span({
-        id: 'ccx',
-        traceId,
-        topicId: 't',
-        name: 'claude_code.interaction',
-        parentId: root,
-        startTime: 5,
-        endTime: 6
-      })
-    )
-
-    const byId = Object.fromEntries((await service.getSpans('t', traceId)).map((s) => [s.id, s]))
-    expect(byId.cc1.parentId).toBe('turn1') // landed in turn 1's window
-    expect(byId.cc2.parentId).toBe('turn2') // landed in turn 2's window
-    expect(byId.ccx.parentId).toBe(root) // outside every turn → left under the container root
-    expect(byId.turn1.parentId).toBe(root) // ai.turn spans untouched
   })
 })

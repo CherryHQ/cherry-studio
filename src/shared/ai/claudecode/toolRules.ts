@@ -1,6 +1,6 @@
 import type { AgentPermissionMode } from '../../data/api/schemas/agents'
 import type { ToolApproval, ToolOrigin } from '../tool'
-import { buildMcpWireToolId } from '../tools/mcpSourcePolicy'
+import { buildMcpWireToolId, buildMcpWireWildcard } from '../tools/mcpSourcePolicy'
 
 export interface ClaudeToolDescriptor {
   id: string
@@ -23,9 +23,9 @@ export interface ClaudeToolInvocation {
   input?: unknown
 }
 
-/** Approval is governed solely by the permission mode + the built-in safe/edit defaults. */
 export interface ClaudeToolPolicy {
   permissionMode?: AgentPermissionMode
+  disabledTools?: readonly string[]
 }
 
 const DEFAULT_SAFE_TOOLS = new Set(['Read', 'Glob', 'Grep', 'NotebookRead', 'Task', 'TodoWrite'])
@@ -40,11 +40,50 @@ export function buildClaudeMcpToolName(serverName: string, toolName: string): st
   return buildMcpWireToolId(serverName, toolName)
 }
 
+export function buildClaudeMcpWildcard(serverName: string): string {
+  return buildMcpWireWildcard(serverName)
+}
+
+function rawClaudeMcpToolName(serverName: string, toolName: string): string {
+  return `mcp__${serverName}__${toolName}`
+}
+
+export function matchesClaudeToolRule(rule: string, descriptor: ClaudeToolDescriptor): boolean {
+  if (rule === descriptor.id) return true
+
+  if (descriptor.origin === 'builtin') {
+    return normalizeClaudeBuiltinName(rule) === normalizeClaudeBuiltinName(descriptor.id)
+  }
+
+  if (descriptor.origin === 'mcp') {
+    if (descriptor.sourceName && rule === buildClaudeMcpWildcard(descriptor.sourceName)) return true
+    if (descriptor.sourceName && descriptor.sourceToolName) {
+      if (rule === rawClaudeMcpToolName(descriptor.sourceName, descriptor.sourceToolName)) return true
+      if (rule === rawClaudeMcpToolName(descriptor.sourceName, '*')) return true
+    }
+  }
+
+  return false
+}
+
+function hasRuleMatch(values: readonly string[] | undefined, descriptor: ClaudeToolDescriptor): boolean {
+  return values?.some((value) => matchesClaudeToolRule(value, descriptor)) ?? false
+}
+
 function sourceDecision(descriptor: ClaudeToolDescriptor): ClaudeToolDecision | undefined {
   if (descriptor.sourceApproval === 'prompt') {
     return { id: descriptor.id, approval: 'prompt' }
   }
   return undefined
+}
+
+/**
+ * A tool the agent has explicitly disabled is denied outright — it overrides permission mode and
+ * auto-approval resolution. Evaluated live per invocation (via the policy snapshot), so disabling a
+ * tool takes effect on the current warm connection without a rebuild.
+ */
+export function isClaudeToolDisabled(descriptor: ClaudeToolDescriptor, policy: ClaudeToolPolicy): boolean {
+  return hasRuleMatch(policy.disabledTools, descriptor)
 }
 
 export function resolveClaudeToolAccess(

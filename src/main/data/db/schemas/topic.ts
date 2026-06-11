@@ -29,7 +29,7 @@ export const topicTable = sqliteTable(
 
     traceId: text(),
 
-    // Fractional-indexing order key for the global topic order.
+    // Fractional-indexing order key, partitioned by groupId.
     ...orderKeyColumns,
 
     ...createUpdateDeleteTimestamps

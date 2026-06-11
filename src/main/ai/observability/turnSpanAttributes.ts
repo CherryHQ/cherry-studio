@@ -1,9 +1,12 @@
+import { loggerService } from '@logger'
 import type { Span } from '@opentelemetry/api'
 import { KB } from '@shared/config/constant'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { UIMessage } from 'ai'
 
 import type { CherryUIMessage } from '../streamManager/types'
+
+const logger = loggerService.withContext('turnSpanAttributes')
 
 /**
  * Turn-level attributes for the `ai.turn` root span (OTel GenAI conventions).
@@ -32,16 +35,18 @@ export interface TurnInputInfo {
 
 export function applyTurnInputAttributes(span: Span, info: TurnInputInfo): void {
   try {
-    const { providerId, modelId } = parseUniqueModelId(info.modelId)
     span.setAttribute('gen_ai.operation.name', info.operation)
     span.setAttribute('gen_ai.conversation.id', info.topicId)
-    if (providerId) span.setAttribute('gen_ai.provider.name', providerId)
-    if (modelId) span.setAttribute('gen_ai.request.model', modelId)
     if (info.agentName) span.setAttribute('gen_ai.agent.name', info.agentName)
     const prompt = lastUserText(info.messages)
     if (prompt) span.setAttribute('inputs', truncate(prompt, MAX_CONTENT_CHARS))
-  } catch {
-    // best-effort; never break the stream
+    // Parse model id AFTER unconditional attributes — a malformed model id
+    // must not wipe the attributes already set.
+    const { providerId, modelId } = parseUniqueModelId(info.modelId)
+    if (providerId) span.setAttribute('gen_ai.provider.name', providerId)
+    if (modelId) span.setAttribute('gen_ai.request.model', modelId)
+  } catch (error) {
+    logger.warn('applyTurnInputAttributes failed', { error })
   }
 }
 
@@ -51,12 +56,13 @@ export function applyTurnOutputAttributes(span: Span, finalMessage: CherryUIMess
     if (text) span.setAttribute('outputs', truncate(text, MAX_CONTENT_CHARS))
     const toolCalls = countToolParts(finalMessage.parts)
     if (toolCalls > 0) span.setAttribute('cs.tool_calls', toolCalls)
-  } catch {
-    // best-effort
+  } catch (error) {
+    logger.warn('applyTurnOutputAttributes failed', { error })
   }
 }
 
-/** Text of the last user message — the prompt that triggered the turn. */
+/** Text of the last user message that has text content — the prompt that triggered the turn.
+ *  (A trailing user message with no text parts, e.g. tool-result-only, is skipped.) */
 function lastUserText(messages: UIMessage[] | undefined): string | undefined {
   if (!messages?.length) return undefined
   for (let i = messages.length - 1; i >= 0; i--) {

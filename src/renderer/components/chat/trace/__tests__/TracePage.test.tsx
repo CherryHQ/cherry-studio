@@ -15,7 +15,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key
   }),
-  // SpanDetail → ModelAvatar → @renderer/utils → i18n/index runs `i18n.use(initReactI18next)` at load.
+  // SpanDetail -> ModelAvatar -> @renderer/utils -> i18n/index runs `i18n.use(initReactI18next)` at load.
   initReactI18next: { type: '3rdParty', init: () => {} }
 }))
 
@@ -64,7 +64,7 @@ describe('TracePage', () => {
 
     render(
       <div style={{ height: 240, width: 360 }}>
-        <TracePage topicId="topic-a" traceId="trace-a" modelName="model-a" />
+        <TracePage topicId="topic-a" traceId="trace-a" />
       </div>
     )
 

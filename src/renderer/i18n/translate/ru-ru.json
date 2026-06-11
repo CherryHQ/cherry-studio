@@ -534,6 +534,9 @@
       "search": {
         "placeholder": "[to be translated]:Search sessions"
       },
+      "tool": {
+        "disabled": "Инструмент {{toolName}} отключен для этого агента."
+      },
       "unpin": {
         "title": "[to be translated]:Unpin task"
       },
@@ -1415,11 +1418,22 @@
       "pasted_text_file_name": "[to be translated]:Pasted text.txt",
       "pause": "Остановить",
       "placeholder": "Введите ваше сообщение здесь, нажмите {{key}} для отправки...",
+      "placeholder_without_triggers": "Напишите сообщение здесь, нажмите {{key}} для отправки",
       "resource_panel": {
+        "categories": {
+          "agents": "Агенты",
+          "files": "Файлы",
+          "skills": "Навыки"
+        },
+        "description": "Выберите из файлов, агентов или навыков",
         "loading": "Загрузка...",
         "no_file_found": {
           "description": "Нет доступных файлов в доступных каталогах",
           "label": "Файл не найден"
+        },
+        "no_items_found": {
+          "description": "Нет доступных файлов, агентов или навыков",
+          "label": "Элементы не найдены"
         },
         "title": "Ресурсы"
       },
@@ -2882,6 +2896,7 @@
             "placeholder": "Дайте агенту имя"
           },
           "permission_mode": {
+            "help": "Переключение на bypassPermissions эквивалентно включению режима Soul.",
             "label": "Режим разрешений",
             "option": {
               "acceptEdits": "Принять правки",
@@ -3233,9 +3248,13 @@
     },
     "skill_detail": {
       "created_at": "Создано",
+      "delete_description": "Удалить этот навык и всю его конфигурацию. Это действие нельзя отменить.",
+      "delete_title": "Удалить навык",
       "description": "Описание",
+      "file_preview": "Предварительный просмотр файла",
       "installed": "Установлено",
       "no_description": "Нет описания",
+      "source_files": "Исходные файлы",
       "updated_at": "Недавно обновлено"
     },
     "sort": {
@@ -3273,6 +3292,7 @@
       "prompt": "Подсказка",
       "skill": "Навык"
     },
+    "uninstall_failed": "Не удалось удалить",
     "view": {
       "grid": "Сетка",
       "list": "Просмотр списком"
@@ -5256,6 +5276,7 @@
       }
     },
     "advanced": {
+      "auto_switch_to_topics": "Автоматически переключаться на топик",
       "title": "Расширенные настройки"
     },
     "assistant": {
@@ -6472,6 +6493,9 @@
       "input": {
         "confirm_delete_message": "Подтверждать перед удалением сообщений",
         "confirm_regenerate_message": "Подтверждать перед пересозданием сообщений",
+        "enable_quick_triggers": "Включите / и @, чтобы вызвать быстрое меню.",
+        "paste_long_text_as_file": "Вставлять длинный текст как файл",
+        "paste_long_text_threshold": "Длина вставки длинного текста",
         "send_shortcuts": "Горячие клавиши для отправки",
         "show_estimated_tokens": "Показывать затраты токенов",
         "title": "Настройки ввода"

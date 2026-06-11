@@ -172,10 +172,10 @@ export class AiSdkSpanAdapter {
   }
 
   /**
-   * Extract token usage from AI SDK attributes.
-   * Supports multiple formats:
-   * - AI SDK standard format: ai.usage.completionTokens, ai.usage.promptTokens
-   * - Full usage object format: ai.usage (JSON string or object)
+   * Extract token usage from AI SDK attributes. Reads AI SDK v6 keys
+   * (`ai.usage.inputTokens`/`outputTokens`/`totalTokens`/`cachedInputTokens`/`reasoningTokens`), the
+   * legacy `promptTokens`/`completionTokens` aliases, the `gen_ai.usage.*` semantic-convention
+   * spelling, and the single-value `ai.usage.tokens` embeddings shape. See the inline notes below.
    */
   private static extractTokenUsage(attributes: Record<string, any>): TokenUsage | undefined {
     const read = (...keys: string[]): number | undefined => {
@@ -208,13 +208,14 @@ export class AiSdkSpanAdapter {
       return undefined
     }
 
-    const prompt_tokens = input ?? 0
-    const completion_tokens = output ?? 0
+    const promptTokens = input ?? 0
+    const completionTokens = output ?? 0
+    // Object keys stay snake_case: this is the TokenUsage contract in trace-core/types/config.ts.
     return {
-      prompt_tokens,
-      completion_tokens,
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
       // Prefer the SDK's reported total (it accounts for reasoning/cached), else sum the two.
-      total_tokens: total ?? prompt_tokens + completion_tokens,
+      total_tokens: total ?? promptTokens + completionTokens,
       // cached input tokens are a subset of input; reasoning tokens a subset of output.
       ...(cached !== undefined ? { prompt_tokens_details: { cached_tokens: cached } } : {}),
       ...(reasoning !== undefined ? { completion_tokens_details: { reasoning_tokens: reasoning } } : {})

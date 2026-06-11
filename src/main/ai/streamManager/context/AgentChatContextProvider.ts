@@ -15,7 +15,7 @@ import type { UIMessage } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
-import { applyTurnInputAttributes, deriveRootSpanId, startAiChildTurnSpan } from '../../observability'
+import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime'
 import type { StreamListener } from '../types'
 import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
@@ -138,7 +138,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         }
       },
       { topicId: req.topicId, modelName: parseUniqueModelId(uniqueModelId).modelId },
-      { traceId, spanId: deriveRootSpanId(traceId) }
+      traceId
     )
 
     // Atomic user + pending-assistant write so `useAgentSessionParts` observes both at once.

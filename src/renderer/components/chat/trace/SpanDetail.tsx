@@ -17,19 +17,19 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { buildSpanView, type SpanDetailRow, type SpanTab } from './spanPresenters'
-import type { TraceModal } from './TraceModel'
+import type { TraceNode } from './traceNode'
 import { convertTime } from './TraceTree'
 
 interface SpanDetailProps {
-  node: TraceModal
-  clickShowModal: (input: boolean) => void
+  node: TraceNode
+  onShowList: (input: boolean) => void
 }
 
-const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
+const SpanDetail: FC<SpanDetailProps> = ({ node, onShowList }) => {
   const [activeTab, setActiveTab] = useState<string>('inputs')
   const { t } = useTranslation()
 
-  // Span-type-specific rows + tabs come from the presenter registry — no `if (isHttp)` here.
+  // Span-type-specific rows and tabs come from the presenter registry.
   const view = useMemo(() => buildSpanView(node, t), [node, t])
   const { tabs } = view
   // Switching to a span that lacks the current tab (e.g. an AI span while on a header tab) falls back.
@@ -55,7 +55,7 @@ const SpanDetail: FC<SpanDetailProps> = ({ node, clickShowModal }) => {
           <div className="font-medium text-foreground text-sm">{t('trace.spanDetail')}</div>
           <div className="mt-1 truncate text-muted-foreground">{node.name}</div>
         </div>
-        <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2" onClick={() => clickShowModal(true)}>
+        <Button variant="ghost" size="sm" className="h-7 shrink-0 px-2" onClick={() => onShowList(true)}>
           <ChevronsLeft size={14} />
           <span>{t('trace.backList')}</span>
         </Button>
@@ -113,12 +113,12 @@ function formatDate(timestamp: number | null): string {
   if (timestamp == null) return ''
   const date = new Date(timestamp)
   const pad = (n: number) => n.toString().padStart(2, '0')
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds())}`
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${date.getMilliseconds().toString().padStart(3, '0')}`
 }
 
 /** Resolve the active tab's payload (with the ERROR-exception override) and format it as JSON or text. */
 function formatTabData(
-  node: TraceModal,
+  node: TraceNode,
   tabs: SpanTab[],
   activeTab: string
 ): { content: string; contentLanguage: 'json' | 'text' } {
@@ -131,7 +131,7 @@ function formatTabData(
     try {
       return { content: JSON.stringify(JSON.parse(data), null, 2), contentLanguage: 'json' }
     } catch {
-      // not JSON — render the raw string as text
+      // Not JSON; render the raw string as text.
     }
   } else if (data && typeof data === 'object') {
     return { content: JSON.stringify(data, null, 2), contentLanguage: 'json' }

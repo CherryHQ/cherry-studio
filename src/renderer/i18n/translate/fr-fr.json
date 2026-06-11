@@ -534,6 +534,9 @@
       "search": {
         "placeholder": "[to be translated]:Search sessions"
       },
+      "tool": {
+        "disabled": "L'outil {{toolName}} est désactivé pour cet agent."
+      },
       "unpin": {
         "title": "[to be translated]:Unpin task"
       },
@@ -1415,11 +1418,22 @@
       "pasted_text_file_name": "[to be translated]:Pasted text.txt",
       "pause": "Pause",
       "placeholder": "Entrez votre message ici...",
+      "placeholder_without_triggers": "Tapez votre message ici, appuyez sur {{key}} pour envoyer",
       "resource_panel": {
+        "categories": {
+          "agents": "Agents",
+          "files": "Fichiers",
+          "skills": "Compétences"
+        },
+        "description": "Sélectionner parmi les fichiers, les agents ou les compétences",
         "loading": "Chargement...",
         "no_file_found": {
           "description": "Aucun fichier disponible dans les répertoires accessibles",
           "label": "Aucun fichier trouvé"
+        },
+        "no_items_found": {
+          "description": "Aucun fichier, agent ou compétence disponible",
+          "label": "Aucun élément trouvé"
         },
         "title": "Ressources"
       },
@@ -2882,6 +2896,7 @@
             "placeholder": "Donnez un nom à l'agent"
           },
           "permission_mode": {
+            "help": "Passer à bypassPermissions équivaut à activer le mode Soul",
             "label": "Mode d'autorisation",
             "option": {
               "acceptEdits": "Accepter les modifications",
@@ -3233,9 +3248,13 @@
     },
     "skill_detail": {
       "created_at": "Créé",
+      "delete_description": "Supprimer cette compétence et toute sa configuration. Cette action ne peut pas être annulée.",
+      "delete_title": "Supprimer la compétence",
       "description": "Description",
+      "file_preview": "Aperçu du fichier",
       "installed": "Installé",
       "no_description": "Aucune description",
+      "source_files": "Fichiers source",
       "updated_at": "Récemment mis à jour"
     },
     "sort": {
@@ -3273,6 +3292,7 @@
       "prompt": "Invite",
       "skill": "Compétence"
     },
+    "uninstall_failed": "Échec de la désinstallation",
     "view": {
       "grid": "Vue grille",
       "list": "Vue en liste"
@@ -5256,6 +5276,7 @@
       }
     },
     "advanced": {
+      "auto_switch_to_topics": "Basculer automatiquement vers les sujets",
       "title": "Paramètres avancés"
     },
     "assistant": {
@@ -6472,6 +6493,9 @@
       "input": {
         "confirm_delete_message": "Confirmer avant de supprimer le message",
         "confirm_regenerate_message": "Confirmer avant de régénérer le message",
+        "enable_quick_triggers": "Activer les menus rapides avec '/' et '@'",
+        "paste_long_text_as_file": "Coller le texte long sous forme de fichier",
+        "paste_long_text_threshold": "Seuil de longueur de texte",
         "send_shortcuts": "Raccourcis d'envoi",
         "show_estimated_tokens": "Afficher le nombre estimatif de tokens",
         "title": "Paramètres d'entrée"

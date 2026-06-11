@@ -116,7 +116,7 @@ export interface ClaudeAgentToolPolicySnapshot {
   resolve(runtimeName: string, input?: unknown): Tool | undefined
   isDisabled(runtimeName: string): boolean
   setPermissionMode(permissionMode: AgentPermissionMode | undefined): void
-  update(agent: AgentEntity): Promise<void>
+  update(agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>): Promise<void>
 }
 
 export async function createClaudeAgentToolPolicySnapshot(
@@ -127,7 +127,7 @@ export async function createClaudeAgentToolPolicySnapshot(
   let policy: ClaudeToolPolicy = {}
   let disallowed = new Set<string>()
 
-  const rebuild = async (nextAgent: AgentEntity) => {
+  const rebuild = async (nextAgent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>) => {
     const catalog = await listClaudeAgentToolDescriptors(nextAgent)
     descriptors = catalog.descriptors
     policy = buildClaudeToolPolicy(nextAgent)

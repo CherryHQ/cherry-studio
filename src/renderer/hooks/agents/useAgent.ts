@@ -2,7 +2,7 @@
  * DataApi-backed agent queries and mutations.
  *
  * `agent` is the canonical reusable blueprint — sessions are pure instances of
- * it. Config (model / instructions / mcps / allowedTools /
+ * it. Config (model / instructions / mcps / disabledTools /
  * configuration) lives here, not on sessions.
  */
 

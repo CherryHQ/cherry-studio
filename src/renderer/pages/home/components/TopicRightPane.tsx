@@ -156,7 +156,7 @@ function TopicRightPaneSurface({
       </Shell.Panel>
       {enableDeveloperMode && (
         <Shell.Panel value="trace">
-          <TracePane payload={{ topicId, traceId: traceId ?? '', modelName: undefined }} />
+          <TracePane payload={{ topicId, traceId: traceId ?? '' }} />
         </Shell.Panel>
       )}
     </Shell.Tabs>

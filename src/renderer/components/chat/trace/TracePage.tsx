@@ -3,38 +3,44 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import SpanDetail from './SpanDetail'
-import { TRACE_ROW_GRID, type TraceModal } from './TraceModel'
+import { TRACE_ROW_GRID, type TraceNode } from './traceNode'
 import TraceTree from './TraceTree'
 
-export interface TracePageProp {
+export interface TracePageProps {
   topicId: string
   traceId: string
-  modelName?: string
-  reload?: unknown
+  /**
+   * Opaque restart token. Each new value tears down the current poll loop and
+   * starts a fresh one, so callers must pass something that changes whenever
+   * polling should re-trigger (e.g. a turn counter or last-message id). A
+   * constant derived from `topicId`/`traceId` will never change on its own and
+   * therefore can never restart polling after it stops.
+   */
+  reload?: string | number | boolean
 }
 
-export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName, reload = false }) => {
-  const [spans, setSpans] = useState<TraceModal[]>([])
-  const [selectNode, setSelectNode] = useState<TraceModal | null>(null)
+export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload = false }) => {
+  const [spans, setSpans] = useState<TraceNode[]>([])
+  const [selectedNode, setSelectedNode] = useState<TraceNode | null>(null)
   const [showList, setShowList] = useState(true)
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const [pollError, setPollError] = useState<string | null>(null)
+  const failureCountRef = useRef(0)
+  const emptyCountRef = useRef(0)
   const { t } = useTranslation()
 
-  const mergeTraceModals = useCallback((oldNodes: TraceModal[], newNodes: TraceModal[]): TraceModal[] => {
+  const mergeTraceNodes = useCallback((oldNodes: TraceNode[], newNodes: TraceNode[]): TraceNode[] => {
     const oldMap = new Map(oldNodes.map((n) => [n.id, n]))
     return newNodes.map((newNode) => {
       const oldNode = oldMap.get(newNode.id)
       if (oldNode) {
-        oldNode.children = mergeTraceModals(oldNode.children, newNode.children)
-        Object.assign(oldNode, newNode)
-        return oldNode
-      } else {
-        return newNode
+        const mergedChildren = mergeTraceNodes(oldNode.children, newNode.children)
+        return { ...oldNode, ...newNode, children: mergedChildren }
       }
+      return newNode
     })
   }, [])
 
-  const updatePercentAndStart = useCallback((nodes: TraceModal[], rootStart?: number, rootEnd?: number) => {
+  const updatePercentAndStart = useCallback((nodes: TraceNode[], rootStart?: number, rootEnd?: number) => {
     nodes.forEach((node) => {
       const _rootStart = rootStart || node.startTime
       const _rootEnd = rootEnd || node.endTime || Date.now()
@@ -49,8 +55,8 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
     })
   }, [])
 
-  const getRootSpan = (spans: SpanEntity[]): TraceModal[] => {
-    const map: Map<string, TraceModal> = new Map()
+  const getRootSpans = useCallback((spans: SpanEntity[]): TraceNode[] => {
+    const map: Map<string, TraceNode> = new Map()
 
     spans.map((span) => {
       map.set(span.id, { ...span, children: [], percent: 100, start: 0 })
@@ -68,9 +74,9 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
         return true
       })
     )
-  }
+  }, [])
 
-  const findNodeById = useCallback((nodes: TraceModal[], id: string): TraceModal | null => {
+  const findNodeById = useCallback((nodes: TraceNode[], id: string): TraceNode | null => {
     for (const n of nodes) {
       if (n.id === id) return n
       if (n.children) {
@@ -81,75 +87,110 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
     return null
   }, [])
 
-  const getTraceData = useCallback(async (): Promise<boolean> => {
-    const datas = topicId && traceId ? await window.api.trace.getData(topicId, traceId, modelName) : []
-    const matchedSpans = getRootSpan(datas)
-    updatePercentAndStart(matchedSpans)
-    setSpans((prev) => mergeTraceModals(prev, matchedSpans))
-    if (matchedSpans.length === 0) {
-      return false
-    }
-    const isEnded = !matchedSpans.find((e) => !e.endTime || e.endTime <= 0)
-    return isEnded
-  }, [topicId, traceId, modelName, updatePercentAndStart, mergeTraceModals])
-
   const handleNodeClick = (nodeId: string) => {
     const latestNode = findNodeById(spans, nodeId)
     if (latestNode) {
-      setSelectNode(latestNode)
+      setSelectedNode(latestNode)
       setShowList(false)
     }
   }
 
   const handleShowList = () => {
     setShowList(true)
-    setSelectNode(null)
+    setSelectedNode(null)
   }
 
   useEffect(() => {
     setSpans([])
-    setSelectNode(null)
+    setSelectedNode(null)
     setShowList(true)
-  }, [topicId, traceId, modelName])
+  }, [topicId, traceId])
 
   useEffect(() => {
-    const handleShowTrace = async () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
+    // Interval is local to this effect run, never a shared ref: an effect re-run
+    // during the first `await poll()` would otherwise let the new run's interval
+    // be created after this run's cleanup, leaking it (and let one run's stop
+    // logic clear the other run's interval).
+    let cancelled = false
+    let finished = false
+    let intervalId: ReturnType<typeof setInterval> | null = null
+
+    failureCountRef.current = 0
+    emptyCountRef.current = 0
+    setPollError(null)
+
+    const stop = () => {
+      finished = true
+      if (intervalId) {
+        clearInterval(intervalId)
+        intervalId = null
       }
-      let endedCount = 0
-      const poll = async () => {
-        const ended = await getTraceData()
-        endedCount = ended ? endedCount + 1 : 0
-        if (endedCount >= 3 && intervalRef.current) {
-          clearInterval(intervalRef.current)
-          intervalRef.current = null
+    }
+
+    let lastSpanCount = 0
+    let consecutiveEnded = 0
+    const poll = async () => {
+      try {
+        const spans = topicId && traceId ? await window.api.trace.getData(topicId, traceId) : []
+        if (cancelled) return
+        failureCountRef.current = 0
+        const matchedSpans = getRootSpans(spans)
+
+        if (matchedSpans.length === 0) {
+          emptyCountRef.current++
+          if (emptyCountRef.current >= 30 && lastSpanCount === 0) {
+            stop()
+            return
+          }
+        } else {
+          emptyCountRef.current = 0
+          lastSpanCount = matchedSpans.length
+          updatePercentAndStart(matchedSpans)
+          setSpans((prev) => mergeTraceNodes(prev, matchedSpans))
+        }
+
+        const allEnded = matchedSpans.length > 0 && matchedSpans.every((e) => e.endTime && e.endTime > 0)
+        consecutiveEnded = allEnded ? consecutiveEnded + 1 : 0
+        if (consecutiveEnded >= 20) stop()
+      } catch (error) {
+        if (cancelled) return
+        failureCountRef.current++
+        if (failureCountRef.current >= 3) {
+          stop()
+          setPollError(error instanceof Error ? error.message : String(error))
         }
       }
-      await poll()
-      intervalRef.current = setInterval(poll, 300)
     }
-    void handleShowTrace()
+
+    const start = async () => {
+      await poll()
+      // Cleanup ran during the await, or poll already hit a stop condition — do
+      // not register an orphaned interval.
+      if (cancelled || finished) return
+      intervalId = setInterval(poll, 300)
+    }
+    void start()
+
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
+      cancelled = true
+      if (intervalId) {
+        clearInterval(intervalId)
+        intervalId = null
       }
     }
-  }, [getTraceData, traceId, topicId, reload])
+  }, [topicId, traceId, reload, getRootSpans, updatePercentAndStart, mergeTraceNodes])
 
   useEffect(() => {
-    if (selectNode) {
-      const latest = findNodeById(spans, selectNode.id)
+    if (selectedNode) {
+      const latest = findNodeById(spans, selectedNode.id)
       if (!latest) {
         setShowList(true)
-        setSelectNode(null)
-      } else if (latest !== selectNode) {
-        setSelectNode(latest)
+        setSelectedNode(null)
+      } else if (latest !== selectedNode) {
+        setSelectedNode(latest)
       }
     }
-  }, [spans, selectNode, findNodeById])
+  }, [spans, selectedNode, findNodeById])
 
   return (
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-card text-card-foreground">
@@ -159,7 +200,11 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
             <div
               data-testid="trace-list-scroll"
               className="min-h-0 w-full min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-3">
-              {spans.length === 0 ? (
+              {pollError ? (
+                <div className="flex h-full min-h-40 items-center justify-center text-destructive text-xs">
+                  {t('trace.pollError')}: {pollError}
+                </div>
+              ) : spans.length === 0 ? (
                 <div className="flex h-full min-h-40 items-center justify-center text-muted-foreground text-xs">
                   {t('trace.noTraceList')}
                 </div>
@@ -178,14 +223,14 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
                     </div>
                     <div className="flex h-8 min-w-0 items-center bg-background-subtle px-2 max-[520px]:px-1" />
                   </div>
-                  {spans.map((node: TraceModal) => (
+                  {spans.map((node: TraceNode) => (
                     <TraceTree key={node.id} treeData={node.children} node={node} handleClick={handleNodeClick} />
                   ))}
                 </div>
               )}
             </div>
           ) : (
-            selectNode && <SpanDetail node={selectNode} clickShowModal={handleShowList} />
+            selectedNode && <SpanDetail node={selectedNode} onShowList={handleShowList} />
           )}
         </div>
       </div>

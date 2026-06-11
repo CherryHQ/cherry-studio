@@ -67,7 +67,7 @@ const TopicBranchPanel: FC<Props> = ({
   const { trigger: setActiveNode } = useMutation('PUT', '/topics/:id/active-node', {
     refresh: [messagesCachePath, treeCachePath]
   })
-  const { trigger: copyBranchToNewTopic } = useMutation('POST', '/topics/:id/branch-copies', {
+  const { trigger: copyBranchToNewTopic } = useMutation('POST', '/topics/:id/duplicate', {
     refresh: ['/topics']
   })
 

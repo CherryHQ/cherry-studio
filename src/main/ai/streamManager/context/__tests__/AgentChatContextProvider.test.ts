@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
   saveMessages: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
-  spanCacheSetTopicId: vi.fn(),
   runtimeBeginTurn: vi.fn(),
   runtimeEnqueueUserMessage: vi.fn(),
   runtimeIsSessionBusy: vi.fn(),
@@ -118,7 +117,6 @@ describe('AgentChatContextProvider', () => {
       }))
     )
     mocks.applicationGet.mockImplementation((name: string) => {
-      if (name === 'SpanCacheService') return { setTopicId: mocks.spanCacheSetTopicId }
       if (name === 'AgentSessionRuntimeService') {
         return {
           beginTurn: mocks.runtimeBeginTurn,
@@ -151,8 +149,6 @@ describe('AgentChatContextProvider', () => {
       role: 'assistant',
       modelId: 'anthropic::claude-sonnet'
     })
-    expect(mocks.spanCacheSetTopicId).toHaveBeenCalledWith(expect.any(String), 'agent-session:session-1')
-
     expect(prepared.models).toHaveLength(1)
     expect(prepared.models[0].modelId).toBe('anthropic::claude-sonnet')
     expect(prepared.models[0].request.runtime).toEqual({
