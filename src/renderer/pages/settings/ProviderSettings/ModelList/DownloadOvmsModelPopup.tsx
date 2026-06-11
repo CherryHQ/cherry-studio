@@ -1,5 +1,6 @@
 import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { useTopViewClose } from '@renderer/components/Popups/useTopViewClose'
 import { TopView } from '@renderer/components/TopView'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { Provider } from '@shared/data/types/provider'
@@ -103,6 +104,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const [error, setError] = useState<string | null>(null)
   const { t } = useTranslation()
   const { setIntervalTimer, clearIntervalTimer, setTimeoutTimer } = useTimer()
+  const close = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
 
   const getPresetTooltipLabel = (model: PresetModel) =>
     `${model.modelName} (${t(OVMS_DOWNLOAD_TASK_LABEL_KEYS[model.task])})`
@@ -183,8 +185,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       }
       return
     }
-    setOpen(false)
-    resolve({})
+    close({})
   }
 
   const onFinish = async () => {
@@ -216,8 +217,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       if (result.success) {
         stopFakeProgress(true) // Complete the progress bar
         window.toast.success(t('ovms.download.success_desc', { modelName: modelName, modelId: modelId }))
-        setOpen(false)
-        resolve({})
+        close({})
       } else {
         stopFakeProgress(false) // Reset progress on error
         logger.error(`Download failed, is it cancelled? ${cancelled}`)
@@ -345,23 +345,16 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   )
 }
 
+const TopViewKey = 'DownloadOvmsModelPopup'
+
 export default class DownloadOvmsModelPopup {
   static topviewId = 0
   static hide() {
-    TopView.hide('DownloadOvmsModelPopup')
+    TopView.hide(TopViewKey)
   }
   static show(props: ShowParams) {
     return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            this.hide()
-          }}
-        />,
-        'DownloadOvmsModelPopup'
-      )
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }
