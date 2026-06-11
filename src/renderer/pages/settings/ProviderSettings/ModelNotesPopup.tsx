@@ -1,5 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import MarkdownEditor from '@renderer/components/MarkdownEditor'
+import { useTopViewClose } from '@renderer/components/Popups/useTopViewClose'
 import { TopView } from '@renderer/components/TopView'
 import { useProvider } from '@renderer/hooks/useProvider'
 import type { FC } from 'react'
@@ -24,6 +25,7 @@ const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
   const [notes, setNotes] = useState<string>(provider?.settings?.notes || '')
   const [edited, setEdited] = useState(false)
   const [saving, setSaving] = useState(false)
+  const close = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
 
   useEffect(() => {
     if (edited) {
@@ -37,8 +39,7 @@ const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
     setSaving(true)
     try {
       await updateProvider({ providerSettings: { ...provider?.settings, notes } })
-      setOpen(false)
-      resolve({})
+      close({})
     } catch {
       window.toast.error(t('blocks.edit.save.failed.label'))
     } finally {
@@ -47,8 +48,7 @@ const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
   }
 
   const onCancel = () => {
-    setOpen(false)
-    resolve({})
+    close({})
   }
 
   const footer = (
@@ -84,22 +84,15 @@ const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
   )
 }
 
+const TopViewKey = 'ModelNotesPopup'
+
 export default class ModelNotesPopup {
   static hide() {
-    TopView.hide('ModelNotesPopup')
+    TopView.hide(TopViewKey)
   }
   static show(props: ShowParams) {
     return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            this.hide()
-          }}
-        />,
-        'ModelNotesPopup'
-      )
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }

@@ -8,6 +8,7 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
+import { useTopViewClose } from '@renderer/components/Popups/useTopViewClose'
 import { TopView } from '@renderer/components/TopView'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
@@ -15,7 +16,7 @@ import type { ProviderType } from '@renderer/types'
 import { maskApiKey } from '@renderer/utils'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
 import { Eye, EyeOff } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface ShowParams {
@@ -48,8 +49,8 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
   const { t } = useTranslation()
   const { providers: rawProviders } = useProviders()
   const [open, setOpen] = useState(true)
-  const resolvedRef = useRef(false)
   const [showFullKey, setShowFullKey] = useState(false)
+  const close = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
   const providers = useMemo(() => (Array.isArray(rawProviders) ? rawProviders : []), [rawProviders])
 
   const foundProvider = providers.find((p) => p.id === id)
@@ -88,12 +89,7 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
   const okText = apiKeysLoading ? t('common.loading') : keyAlreadyExists ? t('common.confirm') : t('common.add')
 
   const closeWithResult = (result: PopupResult) => {
-    if (resolvedRef.current) {
-      return
-    }
-    resolvedRef.current = true
-    setOpen(false)
-    resolve(result)
+    close(result)
   }
 
   const handleOk = () => {
@@ -183,16 +179,7 @@ export default class UrlSchemaInfoPopup {
   }
   static show(props: ShowParams) {
     return new Promise<PopupResult>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            this.hide()
-          }}
-        />,
-        TopViewKey
-      )
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }
