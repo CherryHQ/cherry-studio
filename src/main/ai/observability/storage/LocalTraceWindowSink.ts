@@ -8,15 +8,15 @@ class LocalTraceWindowSink implements ObservabilitySink {
   readonly id = 'localTraceWindow'
 
   registerTraceMeta(traceId: string, meta: { topicId: string; modelName?: string }): void {
-    application.get('SpanCacheService').setTopicId(traceId, meta.topicId)
+    application.get('TraceStorageService').setTopicId(traceId, meta.topicId)
   }
 
   writeSpanEntity(span: SpanEntity): void {
-    application.get('SpanCacheService').saveEntity(span)
+    application.get('TraceStorageService').saveEntity(span)
   }
 
   writeSpanEvent(traceId: string, spanId: string, event: TimedEvent): void {
-    application.get('SpanCacheService').addSpanEvent(traceId, spanId, event)
+    application.get('TraceStorageService').addSpanEvent(traceId, spanId, event)
   }
 }
 

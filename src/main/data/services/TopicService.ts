@@ -1,5 +1,7 @@
 // Topic CRUD, branch switching, ordering.
 
+import { randomBytes } from 'node:crypto'
+
 import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
@@ -26,7 +28,7 @@ import { fileRefService } from './FileRefService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
-import { timestampToISO } from './utils/rowMappers'
+import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:TopicService')
 
@@ -37,16 +39,12 @@ type TopicRow = typeof topicTable.$inferSelect
 type TopicEntitySearchItem = Extract<EntitySearchItem, { type: 'topic' }>
 
 function rowToTopic(row: TopicRow): Topic {
+  // DB NULL ↔ domain `undefined` boundary — all of Topic's nullable columns are
+  // `.optional()` (no `T | null`), so the `{...nullsToUndefined(row)}` skeleton
+  // from data-api-in-main.md applies cleanly.
+  const clean = nullsToUndefined(row)
   return {
-    id: row.id,
-    name: row.name,
-    isNameManuallyEdited: row.isNameManuallyEdited,
-    // DB NULL ↔ domain `undefined` boundary — the domain shape uses
-    // optional fields rather than `T | null`, per data-api-in-main.md.
-    assistantId: row.assistantId ?? undefined,
-    activeNodeId: row.activeNodeId ?? undefined,
-    groupId: row.groupId ?? undefined,
-    orderKey: row.orderKey,
+    ...clean,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -129,6 +127,27 @@ export class TopicService {
     }
 
     return rowToTopic(row)
+  }
+
+  async ensureTraceId(topicId: string): Promise<string> {
+    return application.get('DbService').withWriteTx(async (tx) => {
+      const [row] = await tx
+        .select({ traceId: topicTable.traceId })
+        .from(topicTable)
+        .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+        .limit(1)
+
+      if (!row) {
+        throw DataApiErrorFactory.notFound('Topic', topicId)
+      }
+      if (row.traceId) {
+        return row.traceId
+      }
+
+      const traceId = randomBytes(16).toString('hex')
+      await tx.update(topicTable).set({ traceId }).where(eq(topicTable.id, topicId))
+      return traceId
+    })
   }
 
   async create(dto: CreateTopicDto): Promise<Topic> {

@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto'
+
 import { application } from '@application'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
@@ -6,7 +8,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentWorkspaceService, rowToWorkspace } from '@data/services/AgentWorkspaceService'
 import { pinService } from '@data/services/PinService'
-import { timestampToISO } from '@data/services/utils/rowMappers'
+import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
@@ -53,14 +55,12 @@ type JoinedSessionRow = {
 }
 
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
+  const clean = nullsToUndefined(row.session)
   return {
-    id: row.session.id,
+    ...clean,
+    // agentId is legitimately nullable (orphans only via cascade) — preserve T | null.
     agentId: row.session.agentId,
-    name: row.session.name,
-    description: row.session.description,
-    workspaceId: row.session.workspaceId,
     workspace: rowToWorkspace(row.workspace),
-    orderKey: row.session.orderKey,
     createdAt: timestampToISO(row.session.createdAt),
     updatedAt: timestampToISO(row.session.updatedAt)
   }
@@ -178,6 +178,23 @@ export class AgentSessionService {
       .limit(1)
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
     return rowToSession(row)
+  }
+
+  async ensureTraceId(sessionId: string): Promise<string> {
+    return application.get('DbService').withWriteTx(async (tx) => {
+      const [row] = await tx
+        .select({ traceId: sessionsTable.traceId })
+        .from(sessionsTable)
+        .where(eq(sessionsTable.id, sessionId))
+        .limit(1)
+
+      if (!row) throw DataApiErrorFactory.notFound('Session', sessionId)
+      if (row.traceId) return row.traceId
+
+      const traceId = randomBytes(16).toString('hex')
+      await tx.update(sessionsTable).set({ traceId }).where(eq(sessionsTable.id, sessionId))
+      return traceId
+    })
   }
 
   async listByCursor(query: ListAgentSessionsQuery = {}): Promise<CursorPaginationResponse<AgentSessionEntity>> {

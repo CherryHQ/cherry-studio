@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   startRuntimeTurn: vi.fn(),
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
-  spanCacheSetTopicId: vi.fn()
+  traceStorageSetTopicId: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -126,7 +126,7 @@ describe('AgentSessionRuntimeService', () => {
           broadcastTopicError: mocks.broadcastTopicError
         }
       }
-      if (name === 'SpanCacheService') return { setTopicId: mocks.spanCacheSetTopicId }
+      if (name === 'TraceStorageService') return { setTopicId: mocks.traceStorageSetTopicId }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -868,18 +868,15 @@ describe('AgentSessionRuntimeService', () => {
 
     await (service as any).startNextTurn(entry)
 
-    const savedMessage = mocks.saveMessage.mock.calls[0][0].message
     expect(mocks.saveMessage).toHaveBeenCalledWith({
       sessionId: 'session-1',
       message: {
         role: 'assistant',
         status: 'pending',
         data: { parts: [] },
-        modelId: 'claude-code::claude-sonnet-4-5',
-        traceId: expect.any(String)
+        modelId: 'claude-code::claude-sonnet-4-5'
       }
     })
-    expect(mocks.spanCacheSetTopicId).toHaveBeenCalledWith(savedMessage.traceId, 'agent-session:session-1')
     expect(mocks.startRuntimeTurn).toHaveBeenCalledWith({
       topicId: 'agent-session:session-1',
       modelId: 'claude-code::claude-sonnet-4-5',
@@ -902,14 +899,16 @@ describe('AgentSessionRuntimeService', () => {
     })
     const request = mocks.startRuntimeTurn.mock.calls[0][0].request
     expect(request.messageId).toBe(request.messages[1].id)
-    expect(getEntry(service).currentTurn.trace).toMatchObject({
+    const trace = getEntry(service).currentTurn.trace
+    expect(trace).toMatchObject({
       topicId: 'agent-session:session-1',
-      traceId: savedMessage.traceId,
+      traceId: expect.any(String),
       rootSpanId: expect.any(String),
       sessionId: 'session-1',
       turnId: request.runtime.turnId,
       modelName: 'claude-sonnet-4-5'
     })
+    expect(mocks.traceStorageSetTopicId).toHaveBeenCalledWith(trace!.traceId, 'agent-session:session-1')
   })
 
   it('surfaces the error and settles the turn when the next-turn placeholder save rejects (R3)', async () => {
