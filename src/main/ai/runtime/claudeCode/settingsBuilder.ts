@@ -237,7 +237,7 @@ export async function buildClaudeCodeSessionSettings(
     allowedTools: finalAllowedTools,
     disallowedTools,
     plugins,
-    ...(skills.length > 0 ? { skills } : {}),
+    skills,
     canUseTool,
     hooks,
     approvalEmitter,
@@ -480,7 +480,7 @@ async function readSkillDirectories(root: string): Promise<string[]> {
 }
 
 export async function buildSkillWhitelist(agentId: string): Promise<string[]> {
-  const configSkillsRoot = path.join(application.getPath('feature.agents.claude.root'), 'skills')
+  const configSkillsRoot = application.getPath('feature.agents.claude.root', 'skills')
   const installedSkills = await skillService.list({ agentId })
   const disabledNames = new Set(
     installedSkills.filter((skill) => !skill.isEnabled).flatMap((skill) => [skill.folderName, skill.name])

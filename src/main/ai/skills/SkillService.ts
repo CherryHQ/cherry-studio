@@ -83,7 +83,7 @@ export class SkillService {
    * Every skill marked `source = 'builtin'` is auto-enabled for the new agent.
    */
   async initSkillsForAgent(agentId: string, _workspace: string | undefined): Promise<void> {
-    void _workspace
+    void _workspace // Retained for API compatibility after workspace symlink removal.
     const allSkills = await agentGlobalSkillService.listAll()
     const builtinSkills = allSkills.filter((s) => s.source === 'builtin')
     if (builtinSkills.length === 0) return
@@ -96,7 +96,7 @@ export class SkillService {
 
   /** Enable a skill across every existing agent. Used when a new builtin skill is installed. */
   async enableForAllAgents(skillId: string, _folderName: string): Promise<void> {
-    void _folderName
+    void _folderName // Retained for API compatibility after workspace symlink removal.
     const agentIds = await agentGlobalSkillService.upsertJoinForAllAgents(skillId, true)
 
     logger.info('Enabled skill for all agents', { skillId, agentCount: agentIds.length })
