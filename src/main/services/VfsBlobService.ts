@@ -12,7 +12,7 @@
  *
  * Responsibilities:
  * - Own one shared `FileSystemAdapter` pointed at
- *   `application.getPath('feature.context_chef.vfs.temp')`. Wired into
+ *   `application.getPath('feature.context_build.vfs.temp')`. Wired into
  *   chef middleware via `truncate.storage` in the context-build feature.
  * - There is NO IPC channel and NO retrieval tool here. The absolute
  *   path chef writes into the `<persisted-output>` marker is NOT yet
@@ -50,7 +50,7 @@ export class VfsBlobService extends BaseService {
   private adapter!: FileSystemAdapter
 
   protected onInit(): void {
-    this.rootDir = application.getPath('feature.context_chef.vfs.temp')
+    this.rootDir = application.getPath('feature.context_build.vfs.temp')
     // Redundant with getPath auto-ensure, kept as fail-fast: auto-ensure only
     // warns on failure, while a throw here fails service init loudly.
     fs.mkdirSync(this.rootDir, { recursive: true })

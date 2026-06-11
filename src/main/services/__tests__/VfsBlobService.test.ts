@@ -14,7 +14,7 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   const mod = mockApplicationFactory()
   mod.application.getPath = vi.fn((key: string) => {
-    if (key === 'feature.context_chef.vfs.temp') return tmpRef.current
+    if (key === 'feature.context_build.vfs.temp') return tmpRef.current
     throw new Error(`Unexpected getPath('${key}') in vfs blob service test`)
   })
   return mod
