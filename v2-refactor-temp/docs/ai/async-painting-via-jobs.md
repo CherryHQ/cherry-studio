@@ -28,7 +28,7 @@
 
 `onSubmitTaskId` 这个回调本来就是为「跨重启把 task id 交给上层持久化」而存在的——正好喂给 §2 的 `ctx.patchMetadata({ providerTaskId })`。
 
-JobManager 在本仓已有成熟先例(`KnowledgeOrchestrationService`、`fileProcessing/tasks/*JobHandler`),不是新基建。
+JobManager 在本仓已有成熟先例(`KnowledgeService`、`fileProcessing/tasks/*JobHandler`),不是新基建。
 
 ## 落地映射(迁移到 main 之后)
 

@@ -390,6 +390,18 @@ const MigrationApp: React.FC = () => {
                 <div style={{ marginTop: '20px', height: '200px', overflowY: 'auto' }}>
                   <MigratorProgressList migrators={progress.migrators} overallProgress={progress.overallProgress} />
                 </div>
+                {progress.warnings && progress.warnings.length > 0 && (
+                  <InfoCard variant="warning" style={{ marginTop: '16px' }}>
+                    <InfoTitle>
+                      {t('migration.migration_completed.warnings_title', { count: progress.warnings.length })}
+                    </InfoTitle>
+                    <WarningList>
+                      {progress.warnings.map((warning, index) => (
+                        <li key={index}>{warning}</li>
+                      ))}
+                    </WarningList>
+                  </InfoCard>
+                )}
               </div>
             )}
 
@@ -569,6 +581,22 @@ const InfoDescription = styled.p`
   max-width: 420px;
   margin: 0 auto;
   text-align: center;
+`
+
+const WarningList = styled.ul`
+  margin: 12px auto 0;
+  max-width: 520px;
+  max-height: 160px;
+  overflow-y: auto;
+  padding-left: 20px;
+  color: rgba(0, 0, 0, 0.68);
+  line-height: 1.6;
+  font-size: 13px;
+
+  li {
+    margin-bottom: 6px;
+    word-break: break-word;
+  }
 `
 
 const SpinningIcon = styled.div`

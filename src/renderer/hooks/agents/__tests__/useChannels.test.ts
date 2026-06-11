@@ -71,7 +71,13 @@ describe('useChannels', () => {
       MockUseDataApiUtils.mockQueryResult('/agent-channels', { data: [] as any })
 
       const { result } = renderHook(() => useChannels())
-      const channelData = { type: 'telegram' as const, name: 'New Bot', config: { bot_token: 'tok' }, isActive: true }
+      const channelData = {
+        type: 'telegram' as const,
+        name: 'New Bot',
+        workspace: { type: 'system' as const },
+        config: { bot_token: 'tok' },
+        isActive: true
+      }
       const created = await act(async () => result.current.createChannel(channelData))
 
       expect(mockTrigger).toHaveBeenCalledWith({ body: channelData })
@@ -88,6 +94,7 @@ describe('useChannels', () => {
         result.current.createChannel({
           type: 'telegram',
           name: 'New Bot',
+          workspace: { type: 'system' },
           config: { bot_token: 'tok' },
           isActive: true
         })

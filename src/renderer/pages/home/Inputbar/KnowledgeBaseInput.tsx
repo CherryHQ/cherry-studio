@@ -1,13 +1,13 @@
 import { FileSearchOutlined } from '@ant-design/icons'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import CustomTag from '@renderer/components/Tags/CustomTag'
-import type { KnowledgeBase } from '@renderer/types'
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { FC } from 'react'
 import styled from 'styled-components'
 
 const KnowledgeBaseInput: FC<{
-  selectedKnowledgeBases: KnowledgeBase[]
-  onRemoveKnowledgeBase: (knowledgeBase: KnowledgeBase) => void
+  selectedKnowledgeBases: KnowledgeBaseListItem[]
+  onRemoveKnowledgeBase: (knowledgeBase: KnowledgeBaseListItem) => void
 }> = ({ selectedKnowledgeBases, onRemoveKnowledgeBase }) => {
   return (
     <Container>

@@ -131,33 +131,31 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
           handleCancel()
         }
       }}>
-      <DialogContent className="provider-settings-default-scope gap-5 rounded-2xl border-[color:var(--color-border-fg-muted)] bg-popover p-5 sm:max-w-md">
+      <DialogContent className="provider-settings-default-scope gap-5 rounded-2xl border-(--color-border-fg-muted) bg-popover p-5 sm:max-w-md">
         <DialogHeader className="gap-1.5 pr-6">
-          <DialogTitle className="text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
+          <DialogTitle className="text-(length:--font-size-body-md) text-foreground/90 leading-(--line-height-body-md)">
             {t('settings.models.provider_key_confirm_title', { provider: displayName })}
           </DialogTitle>
-          <DialogDescription className="text-[length:var(--font-size-body-sm)] text-muted-foreground/80 leading-[var(--line-height-body-sm)]">
+          <DialogDescription className="text-(length:--font-size-body-sm) text-muted-foreground/80 leading-(--line-height-body-sm)">
             {confirmMessage}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="overflow-hidden rounded-xl border border-[color:var(--color-border-fg-muted)] bg-transparent">
+          <div className="overflow-hidden rounded-xl border border-(--color-border-fg-muted) bg-transparent">
             {rows.map((row) => (
               <div
                 key={row.label}
-                className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 border-[color:var(--color-border-fg-hairline)] border-b px-3 py-2.5 last:border-b-0">
-                <div className="text-[length:var(--font-size-body-xs)] text-foreground-muted">{row.label}</div>
-                <div className="min-w-0 truncate text-[length:var(--font-size-body-sm)] text-foreground/85">
-                  {row.value}
-                </div>
+                className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 border-(--color-border-fg-hairline) border-b px-3 py-2.5 last:border-b-0">
+                <div className="text-(length:--font-size-body-xs) text-foreground-muted">{row.label}</div>
+                <div className="text-(length:--font-size-body-sm) min-w-0 truncate text-foreground/85">{row.value}</div>
               </div>
             ))}
             <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 px-3 py-2.5">
-              <div className="text-[length:var(--font-size-body-xs)] text-foreground-muted">
+              <div className="text-(length:--font-size-body-xs) text-foreground-muted">
                 {t('settings.models.api_key')}
               </div>
               <div className="flex min-w-0 items-center justify-between gap-2">
-                <span className="min-w-0 truncate font-mono text-[length:var(--font-size-body-sm)] text-foreground/85">
+                <span className="text-(length:--font-size-body-sm) min-w-0 truncate font-mono text-foreground/85">
                   {showFullKey ? newApiKey : maskApiKey(newApiKey)}
                 </span>
                 <Button variant="ghost" size="icon-sm" onClick={() => setShowFullKey((prev) => !prev)}>

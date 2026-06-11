@@ -21,18 +21,27 @@ interface Props extends ShowParams {
   resolve: (data: any) => unknown
 }
 
+type OvmsDownloadTask = 'embeddings' | 'image_generation' | 'rerank' | 'text_generation'
+
 type FieldType = {
   modelName: string
   modelId: string
   modelSource: string
-  task: string
+  task: OvmsDownloadTask
 }
 
 interface PresetModel {
   modelId: string
   modelName: string
   modelSource: string
-  task: string
+  task: OvmsDownloadTask
+}
+
+const OVMS_DOWNLOAD_TASK_LABEL_KEYS: Record<OvmsDownloadTask, string> = {
+  embeddings: 'ovms.download.task.embeddings',
+  image_generation: 'ovms.download.task.image_generation',
+  rerank: 'ovms.download.task.rerank',
+  text_generation: 'ovms.download.task.text_generation'
 }
 
 const PRESET_MODELS: PresetModel[] = [
@@ -95,7 +104,8 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
   const { t } = useTranslation()
   const { setIntervalTimer, clearIntervalTimer, setTimeoutTimer } = useTimer()
 
-  const getPresetTooltipLabel = (model: PresetModel) => `${model.modelName} (${t(`ovms.download.task.${model.task}`)})`
+  const getPresetTooltipLabel = (model: PresetModel) =>
+    `${model.modelName} (${t(OVMS_DOWNLOAD_TASK_LABEL_KEYS[model.task])})`
 
   const updateField = <K extends keyof FieldType>(field: K, value: FieldType[K]) => {
     setFormValues((current) => ({ ...current, [field]: value }))
@@ -304,7 +314,10 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
         </div>
         <div className="space-y-2">
           <label className="font-medium text-[13px] text-foreground/85">{t('ovms.download.model_task')}</label>
-          <Select value={formValues.task} onValueChange={(value) => updateField('task', value)} disabled={loading}>
+          <Select
+            value={formValues.task}
+            onValueChange={(value) => updateField('task', value as OvmsDownloadTask)}
+            disabled={loading}>
             <SelectTrigger className={drawerClasses.selectTrigger}>
               <SelectValue />
             </SelectTrigger>

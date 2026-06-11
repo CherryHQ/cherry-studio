@@ -59,7 +59,6 @@ const SettingsPage: FC = () => {
           <PageHeader title={t('settings.menuGroups.appSettings')} />
           <Scrollbar className="min-h-0 flex-1 select-none">
             <MenuList className={settingsSubmenuListClassName}>
-              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.integrations')}</div>
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
@@ -80,9 +79,9 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Server />}
-                label={t('apiServer.title')}
-                active={isActive('/settings/api-server')}
-                onClick={() => go('/settings/api-server')}
+                label={t('apiGateway.title')}
+                active={isActive('/settings/api-gateway')}
+                onClick={() => go('/settings/api-gateway')}
               />
               <MenuDivider className={settingsSubmenuDividerClassName} />
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.services')}</div>

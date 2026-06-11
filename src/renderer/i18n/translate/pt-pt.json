@@ -785,7 +785,7 @@
       "server_not_running_description": "O servidor da API precisa estar em execução para que os agentes funcionem. Você pode iniciá-lo diretamente ou verificar as configurações."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "Copiar",
       "regenerate": "Regenerar",
@@ -2162,16 +2162,10 @@
           "supported_formats": "Suporta PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Clique para selecionar arquivos ou arraste-os aqui"
         },
-        "sitemap": {
-          "description": "Insira um URL de sitemap:",
-          "help": "As páginas listadas no mapa do site serão lidas e indexadas",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
-        },
         "sources": {
           "directory": "Pasta",
           "file": "Arquivo",
           "note": "Nota",
-          "sitemap": "Site",
           "url": "URL"
         },
         "submit": {
@@ -2209,9 +2203,6 @@
           "file": {
             "title": "Arquivo"
           },
-          "sitemap": {
-            "title": "Sincronização do Site"
-          },
           "url": {
             "title": "URL"
           }
@@ -2224,7 +2215,6 @@
         "directory": "Pastas",
         "file": "Arquivos",
         "note": "Notas",
-        "sitemap": "Sites",
         "url": "URLs"
       },
       "preview": {
@@ -5869,8 +5859,7 @@
           "bailian": "Alibaba Cloud Bailian Plataforma Serviço MCP",
           "lanyun": "Plataforma Cloud da Lanyun Technology - Serviço MCP",
           "mcprouter": "Plataforma de Roteamento MCP Serviço MCP",
-          "modelscope": "Serviço MCP da Plataforma ModelScope",
-          "tokenflux": "Serviço MCP da Plataforma TokenFlux"
+          "modelscope": "Serviço MCP da Plataforma ModelScope"
         },
         "selectProvider": "Selecione o provedor:",
         "setToken": "Digite seu token",
@@ -6132,7 +6121,6 @@
         }
       },
       "api_key": "Chave API",
-      "available_count": "{{count}} disponíveis",
       "base_url": "URL Base",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6147,7 +6135,11 @@
         "enabled": "Habilitado",
         "failed": "Falhou",
         "failed_to_start": "Falha ao iniciar a verificação de saúde",
+        "generation_output_audio": "áudio",
+        "generation_output_image": "uma imagem",
+        "generation_output_video": "um vídeo",
         "keys_status_count": "Passou: {{count_passed}} chaves, falhou: {{count_failed}} chaves",
+        "model_button_caption": "Verificar todos os modelos",
         "model_status_failed": "{{count}} modelos completamente inacessíveis",
         "model_status_partial": "Desses, {{count}} modelos são inacessíveis com certas chaves",
         "model_status_passed": "{{count}} modelos passaram na verificação de saúde",
@@ -6155,6 +6147,7 @@
         "no_api_keys": "Nenhuma chave API encontrada, adicione uma chave API primeiro.",
         "no_results": "Sem resultados",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "{{count}} ignorado",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Passou",
@@ -6166,16 +6159,28 @@
         "retry": "Check again",
         "select_api_key": "Selecione a chave API a ser usada:",
         "single": "Individual",
+        "skip_reason_generation_cost": "A verificação de integridade deste modelo geraria {{output}} e consumiria cota, por isso é ignorada por padrão.",
+        "skip_reason_unsupported_probe": "Este tipo de modelo ainda não possui uma verificação de saúde de baixo custo, portanto é ignorado por padrão.",
         "start": "Começar",
         "status_checking": "Checking…",
+        "status_skipped": "Ignorado",
         "timeout": "tempo expirado",
         "title": "Verificação de saúde do modelo",
         "use_all_keys": "Use chaves"
       },
-      "copy_model_id_tooltip": "Clique para copiar o ID do modelo: {{id}}",
+      "collapse_all": "Recolher tudo",
       "default_assistant_model": "Modelo de assistente padrão",
       "default_assistant_model_description": "Usado quando um assistente não tem modelo.",
+      "docs": "Documentação do modelo",
       "empty": "Sem modelos",
+      "enabled_models": "Ativados",
+      "expand_all": "Expandir tudo",
+      "filter": {
+        "clear": "Limpar filtro de modelos",
+        "label": "Filtrar modelos"
+      },
+      "group_disable": "Desativar este grupo",
+      "group_enable": "Ativar este grupo",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",
@@ -6241,6 +6246,8 @@
         "sync_switch_to_deprecate": "Mark deprecated instead",
         "sync_will_deprecate": "Will be marked deprecated"
       },
+      "more_actions": "Mais ações da lista de modelos",
+      "not_enabled_models": "Desativados",
       "provider_id": "ID do Provedor",
       "provider_key_add_confirm": "Deseja adicionar uma chave API para {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Falha ao adicionar chave API do provedor: dados vazios",
@@ -6760,7 +6767,9 @@
       "show_app": "Exibir aplicativo",
       "show_settings": "Abrir configurações",
       "title": "Atalhos",
+      "toggle_left_sidebar": "Alternar barra lateral esquerda",
       "toggle_new_context": "Limpar contexto",
+      "toggle_right_sidebar": "Alternar barra lateral direita",
       "toggle_show_topics": "Alternar exibição de tópicos",
       "toggle_sidebar": "Alternar Barra Lateral",
       "zoom_in": "Ampliar interface",
@@ -6885,13 +6894,6 @@
             "description": "O motor OCR de código aberto da Google que funciona totalmente localmente.",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "Autenticação",
-          "description": "Descrição",
-          "language_packs": "Pacotes de Idioma",
-          "model_parameters": "Parâmetros do Modelo",
-          "status": "Estado"
         },
         "title": "Análise de Documentos"
       },

@@ -15,7 +15,6 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsWebsearchRouteImport } from './routes/settings/websearch'
-import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
 import { Route as SettingsShortcutRouteImport } from './routes/settings/shortcut'
 import { Route as SettingsSelectionAssistantRouteImport } from './routes/settings/selection-assistant'
 import { Route as SettingsScheduledTasksRouteImport } from './routes/settings/scheduled-tasks'
@@ -31,7 +30,7 @@ import { Route as SettingsFileProcessingRouteImport } from './routes/settings/fi
 import { Route as SettingsDataRouteImport } from './routes/settings/data'
 import { Route as SettingsComponentLabRouteImport } from './routes/settings/component-lab'
 import { Route as SettingsChannelsRouteImport } from './routes/settings/channels'
-import { Route as SettingsApiServerRouteImport } from './routes/settings/api-server'
+import { Route as SettingsApiGatewayRouteImport } from './routes/settings/api-gateway'
 import { Route as SettingsAboutRouteImport } from './routes/settings/about'
 import { Route as AppTranslateRouteImport } from './routes/app/translate'
 import { Route as AppOpenclawRouteImport } from './routes/app/openclaw'
@@ -83,11 +82,6 @@ const SettingsIndexRoute = SettingsIndexRouteImport.update({
 const SettingsWebsearchRoute = SettingsWebsearchRouteImport.update({
   id: '/websearch',
   path: '/websearch',
-  getParentRoute: () => SettingsRoute,
-} as any)
-const SettingsSkillsRoute = SettingsSkillsRouteImport.update({
-  id: '/skills',
-  path: '/skills',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsShortcutRoute = SettingsShortcutRouteImport.update({
@@ -166,9 +160,9 @@ const SettingsChannelsRoute = SettingsChannelsRouteImport.update({
   path: '/channels',
   getParentRoute: () => SettingsRoute,
 } as any)
-const SettingsApiServerRoute = SettingsApiServerRouteImport.update({
-  id: '/api-server',
-  path: '/api-server',
+const SettingsApiGatewayRoute = SettingsApiGatewayRouteImport.update({
+  id: '/api-gateway',
+  path: '/api-gateway',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsAboutRoute = SettingsAboutRouteImport.update({
@@ -298,7 +292,7 @@ export interface FileRoutesByFullPath {
   '/app/openclaw': typeof AppOpenclawRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
-  '/settings/api-server': typeof SettingsApiServerRoute
+  '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
@@ -314,7 +308,6 @@ export interface FileRoutesByFullPath {
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
-  '/settings/skills': typeof SettingsSkillsRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings/': typeof SettingsIndexRoute
   '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
@@ -344,7 +337,7 @@ export interface FileRoutesByTo {
   '/app/openclaw': typeof AppOpenclawRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
-  '/settings/api-server': typeof SettingsApiServerRoute
+  '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
@@ -359,7 +352,6 @@ export interface FileRoutesByTo {
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
-  '/settings/skills': typeof SettingsSkillsRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings': typeof SettingsIndexRoute
   '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
@@ -391,7 +383,7 @@ export interface FileRoutesById {
   '/app/openclaw': typeof AppOpenclawRoute
   '/app/translate': typeof AppTranslateRoute
   '/settings/about': typeof SettingsAboutRoute
-  '/settings/api-server': typeof SettingsApiServerRoute
+  '/settings/api-gateway': typeof SettingsApiGatewayRoute
   '/settings/channels': typeof SettingsChannelsRoute
   '/settings/component-lab': typeof SettingsComponentLabRoute
   '/settings/data': typeof SettingsDataRoute
@@ -407,7 +399,6 @@ export interface FileRoutesById {
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
   '/settings/selection-assistant': typeof SettingsSelectionAssistantRoute
   '/settings/shortcut': typeof SettingsShortcutRoute
-  '/settings/skills': typeof SettingsSkillsRoute
   '/settings/websearch': typeof SettingsWebsearchRoute
   '/settings/': typeof SettingsIndexRoute
   '/app/mini-app/$appId': typeof AppMiniAppAppIdRoute
@@ -440,7 +431,7 @@ export interface FileRouteTypes {
     | '/app/openclaw'
     | '/app/translate'
     | '/settings/about'
-    | '/settings/api-server'
+    | '/settings/api-gateway'
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
@@ -456,7 +447,6 @@ export interface FileRouteTypes {
     | '/settings/scheduled-tasks'
     | '/settings/selection-assistant'
     | '/settings/shortcut'
-    | '/settings/skills'
     | '/settings/websearch'
     | '/settings/'
     | '/app/mini-app/$appId'
@@ -486,7 +476,7 @@ export interface FileRouteTypes {
     | '/app/openclaw'
     | '/app/translate'
     | '/settings/about'
-    | '/settings/api-server'
+    | '/settings/api-gateway'
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
@@ -501,7 +491,6 @@ export interface FileRouteTypes {
     | '/settings/scheduled-tasks'
     | '/settings/selection-assistant'
     | '/settings/shortcut'
-    | '/settings/skills'
     | '/settings/websearch'
     | '/settings'
     | '/app/mini-app/$appId'
@@ -532,7 +521,7 @@ export interface FileRouteTypes {
     | '/app/openclaw'
     | '/app/translate'
     | '/settings/about'
-    | '/settings/api-server'
+    | '/settings/api-gateway'
     | '/settings/channels'
     | '/settings/component-lab'
     | '/settings/data'
@@ -548,7 +537,6 @@ export interface FileRouteTypes {
     | '/settings/scheduled-tasks'
     | '/settings/selection-assistant'
     | '/settings/shortcut'
-    | '/settings/skills'
     | '/settings/websearch'
     | '/settings/'
     | '/app/mini-app/$appId'
@@ -614,13 +602,6 @@ declare module '@tanstack/react-router' {
       path: '/websearch'
       fullPath: '/settings/websearch'
       preLoaderRoute: typeof SettingsWebsearchRouteImport
-      parentRoute: typeof SettingsRoute
-    }
-    '/settings/skills': {
-      id: '/settings/skills'
-      path: '/skills'
-      fullPath: '/settings/skills'
-      preLoaderRoute: typeof SettingsSkillsRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/shortcut': {
@@ -728,11 +709,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsChannelsRouteImport
       parentRoute: typeof SettingsRoute
     }
-    '/settings/api-server': {
-      id: '/settings/api-server'
-      path: '/api-server'
-      fullPath: '/settings/api-server'
-      preLoaderRoute: typeof SettingsApiServerRouteImport
+    '/settings/api-gateway': {
+      id: '/settings/api-gateway'
+      path: '/api-gateway'
+      fullPath: '/settings/api-gateway'
+      preLoaderRoute: typeof SettingsApiGatewayRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/about': {
@@ -954,7 +935,7 @@ const SettingsMcpRouteWithChildren = SettingsMcpRoute._addFileChildren(
 
 interface SettingsRouteChildren {
   SettingsAboutRoute: typeof SettingsAboutRoute
-  SettingsApiServerRoute: typeof SettingsApiServerRoute
+  SettingsApiGatewayRoute: typeof SettingsApiGatewayRoute
   SettingsChannelsRoute: typeof SettingsChannelsRoute
   SettingsComponentLabRoute: typeof SettingsComponentLabRoute
   SettingsDataRoute: typeof SettingsDataRoute
@@ -970,14 +951,13 @@ interface SettingsRouteChildren {
   SettingsScheduledTasksRoute: typeof SettingsScheduledTasksRoute
   SettingsSelectionAssistantRoute: typeof SettingsSelectionAssistantRoute
   SettingsShortcutRoute: typeof SettingsShortcutRoute
-  SettingsSkillsRoute: typeof SettingsSkillsRoute
   SettingsWebsearchRoute: typeof SettingsWebsearchRoute
   SettingsIndexRoute: typeof SettingsIndexRoute
 }
 
 const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsAboutRoute: SettingsAboutRoute,
-  SettingsApiServerRoute: SettingsApiServerRoute,
+  SettingsApiGatewayRoute: SettingsApiGatewayRoute,
   SettingsChannelsRoute: SettingsChannelsRoute,
   SettingsComponentLabRoute: SettingsComponentLabRoute,
   SettingsDataRoute: SettingsDataRoute,
@@ -993,7 +973,6 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsScheduledTasksRoute: SettingsScheduledTasksRoute,
   SettingsSelectionAssistantRoute: SettingsSelectionAssistantRoute,
   SettingsShortcutRoute: SettingsShortcutRoute,
-  SettingsSkillsRoute: SettingsSkillsRoute,
   SettingsWebsearchRoute: SettingsWebsearchRoute,
   SettingsIndexRoute: SettingsIndexRoute,
 }

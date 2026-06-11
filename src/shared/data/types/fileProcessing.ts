@@ -1,7 +1,7 @@
 import * as z from 'zod'
 
 import { FILE_PROCESSOR_IDS } from '../preference/preferenceTypes'
-import { FileEntryIdSchema } from './file'
+import { AbsolutePathSchema } from './file'
 
 export const FileProcessingTextArtifactSchema = z
   .object({
@@ -15,7 +15,7 @@ export const FileProcessingFileArtifactSchema = z
   .object({
     kind: z.literal('file'),
     format: z.literal('markdown'),
-    fileEntryId: FileEntryIdSchema
+    path: AbsolutePathSchema
   })
   .strict()
 
@@ -24,6 +24,9 @@ export const FileProcessingArtifactSchema = z.discriminatedUnion('kind', [
   FileProcessingFileArtifactSchema
 ])
 export type FileProcessingArtifact = z.infer<typeof FileProcessingArtifactSchema>
+
+export const FileProcessingOutputTargetSchema = z.object({ kind: z.literal('path'), path: AbsolutePathSchema }).strict()
+export type FileProcessingOutputTarget = z.infer<typeof FileProcessingOutputTargetSchema>
 
 export const FileProcessingJobOutputSchema = z
   .object({

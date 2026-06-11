@@ -11,7 +11,6 @@ import {
   TableRow
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { useQuery } from '@data/hooks/useDataApi'
 import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
@@ -243,11 +242,7 @@ const KnowledgeItemRow = ({
     i18n: { language },
     t
   } = useTranslation()
-  const { data: fileEntry } = useQuery('/files/entries/:id', {
-    params: { id: item.type === 'file' ? item.data.fileEntryId : '' },
-    enabled: item.type === 'file'
-  })
-  const { icon, metaParts, status, suffix, title } = toKnowledgeItemRowViewModel(item, language, fileEntry)
+  const { icon, metaParts, status, suffix, title } = toKnowledgeItemRowViewModel(item, language)
   const Icon = icon.icon
   const failureReason = item.status === 'failed' ? item.error : null
   const canReindex = item.status === 'completed' || item.status === 'failed'

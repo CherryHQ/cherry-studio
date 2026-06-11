@@ -1,13 +1,12 @@
 import type { FileMetadata } from '@renderer/types'
-import { AbsolutePathSchema, type FileEntryId } from '@shared/data/types/file'
-import type { FilePath } from '@shared/file/types'
+import { AbsolutePathSchema } from '@shared/data/types/file'
 
 export interface KnowledgeFileItemData {
   source: string
-  fileEntryId: FileEntryId
+  path: string
 }
 
-export const resolveKnowledgeFileEntryData = async (
+export const resolveKnowledgeFileData = async (
   externalPath: string,
   displayName = externalPath
 ): Promise<KnowledgeFileItemData> => {
@@ -21,13 +20,11 @@ export const resolveKnowledgeFileEntryData = async (
     throw new Error(`Failed to resolve an absolute local path for "${displayName}"`)
   }
 
-  const entry = await window.api.file.ensureExternalEntry({ externalPath: source as FilePath })
-
   return {
     source,
-    fileEntryId: entry.id
+    path: source
   }
 }
 
 export const resolveKnowledgeFileMetadataEntryData = async (file: FileMetadata): Promise<KnowledgeFileItemData> =>
-  resolveKnowledgeFileEntryData(file.path, file.origin_name || file.name)
+  resolveKnowledgeFileData(file.path, file.origin_name || file.name)
