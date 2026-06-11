@@ -25,6 +25,7 @@ import { isSoulModeEnabled } from '@renderer/hooks/agents/agentConfiguration'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
+import type { CreateAgentChannelDto } from '@shared/data/api/schemas/agentChannels'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 import { FileText, Pencil, Plus, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -415,6 +416,8 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
 
   // Log modal
   const [logChannel, setLogChannel] = useState<{ id: string; name: string } | null>(null)
+  // TODO(agent-workspace-picker): wire the workspace picker before re-enabling channel creation.
+  const [workspaceSource] = useState<CreateAgentChannelDto['workspace'] | null>(null)
 
   // Fetch initial statuses + subscribe to real-time changes
   useEffect(() => {
@@ -443,17 +446,19 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   }, [mutate])
 
   const handleAdd = useCallback(async () => {
+    if (!workspaceSource) return
     const existingCount = channels?.length ?? 0
     const newChannel = await createChannel({
       type: channelDef.type,
       name: existingCount > 0 ? `${channelDef.name} ${existingCount + 1}` : channelDef.name,
+      workspace: workspaceSource,
       config: channelDef.defaultConfig,
       isActive: true
     } as never)
     if (newChannel) {
       setEditingChannelId(newChannel.id)
     }
-  }, [channels?.length, createChannel, channelDef])
+  }, [channels?.length, createChannel, channelDef, workspaceSource])
 
   const handleSave = useCallback(
     async (channelId: string, updates: Partial<ChannelData>) => {
@@ -511,7 +516,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
               {channelDef.available ? t(channelDef.description) : t('agent.cherryClaw.channels.comingSoon')}
             </p>
           </div>
-          <Button size="sm" disabled={!channelDef.available} variant="outline" onClick={handleAdd}>
+          <Button size="sm" disabled={!channelDef.available || !workspaceSource} variant="outline" onClick={handleAdd}>
             <Plus className="size-4" />
             {t('agent.cherryClaw.channels.add')}
           </Button>

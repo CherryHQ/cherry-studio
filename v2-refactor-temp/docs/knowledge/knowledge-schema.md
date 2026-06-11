@@ -74,7 +74,7 @@ This document records the current V2 knowledge target schema, migration constrai
 - Current runtime read flows use:
   - `GET /knowledge-bases/:id/items` for flat item listing
   - optional query filters: `type`, `groupId`
-- Current runtime write workflows use `KnowledgeOrchestrationService` IPC, not DataApi endpoints:
+- Current runtime write workflows use `KnowledgeService` IPC, not DataApi endpoints:
   - add items: normalize caller-friendly inputs, create SQLite rows, and enqueue prepare/index tasks
   - delete items: interrupt runtime work, delete vectors, then delete SQLite roots
   - reindex items: interrupt runtime work, delete old vectors, rebuild expanded children when needed, then enqueue indexing

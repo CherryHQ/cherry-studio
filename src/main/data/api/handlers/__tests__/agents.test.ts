@@ -253,11 +253,15 @@ describe('agentHandlers', () => {
         body: {
           name: 'Daily',
           prompt: 'Hello',
-          trigger: { kind: 'cron', expr: '0 9 * * *' }
+          trigger: { kind: 'cron', expr: '0 9 * * *' },
+          workspace: { type: 'system' }
         }
       } as never)
 
-      expect(createTaskMock).toHaveBeenCalledWith(AGENT_ID, expect.objectContaining({ name: 'Daily', prompt: 'Hello' }))
+      expect(createTaskMock).toHaveBeenCalledWith(
+        AGENT_ID,
+        expect.objectContaining({ name: 'Daily', prompt: 'Hello', workspace: { type: 'system' } })
+      )
       expect(result).toMatchObject({ id: TASK_ID })
     })
 

@@ -64,13 +64,11 @@ export const createNoteItem = ({
 
 export const createFileItem = ({
   id,
-  fileEntryId = '019606a0-0000-7000-8000-000000000001',
   originName = 'internal.pdf',
   source = `/tmp/${originName}`,
   status = 'completed'
 }: {
   id: string
-  fileEntryId?: string
   originName?: string
   source?: string
   status?: KnowledgeItemOf<'file'>['status']
@@ -81,7 +79,7 @@ export const createFileItem = ({
   type: 'file',
   data: {
     source,
-    fileEntryId
+    relativePath: originName
   }
 })
 

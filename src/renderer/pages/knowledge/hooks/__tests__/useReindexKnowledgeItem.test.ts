@@ -21,7 +21,7 @@ describe('useReindexKnowledgeItem', () => {
     mockInvalidateCache.mockResolvedValue(undefined)
     mockReindexItems.mockResolvedValue(undefined)
     ;(window as any).api = {
-      knowledgeRuntime: {
+      knowledge: {
         reindexItems: mockReindexItems
       }
     }

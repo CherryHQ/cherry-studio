@@ -2162,16 +2162,10 @@
           "supported_formats": "Prend en charge les formats PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Cliquez pour sélectionner des fichiers ou faites-les glisser ici"
         },
-        "sitemap": {
-          "description": "Entrez une URL de sitemap :",
-          "help": "Les pages répertoriées dans le plan du site seront lues et indexées",
-          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
-        },
         "sources": {
           "directory": "Dossier",
           "file": "Fichier",
           "note": "Remarque",
-          "sitemap": "Site web",
           "url": "URL"
         },
         "submit": {
@@ -2209,9 +2203,6 @@
           "file": {
             "title": "Fichier"
           },
-          "sitemap": {
-            "title": "Synchronisation du site web"
-          },
           "url": {
             "title": "URL"
           }
@@ -2224,7 +2215,6 @@
         "directory": "Dossiers",
         "file": "Fichiers",
         "note": "Notes",
-        "sitemap": "Sites web",
         "url": "URL"
       },
       "preview": {
@@ -6147,6 +6137,9 @@
         "enabled": "Activé",
         "failed": "Échec",
         "failed_to_start": "Échec du démarrage de la vérification de santé",
+        "generation_output_audio": "audio",
+        "generation_output_image": "une image",
+        "generation_output_video": "une vidéo",
         "keys_status_count": "Passé : {{count_passed}} clés, échoué : {{count_failed}} clés",
         "model_status_failed": "{{count}} modèles sont totalement inaccessibles",
         "model_status_partial": "Parmi eux, {{count}} modèles sont inaccessibles avec certaines clés",
@@ -6155,6 +6148,7 @@
         "no_api_keys": "Aucune clé API trouvée, veuillez en ajouter une première.",
         "no_results": "Aucun résultat",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "{{count}} ignoré",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Passé",
@@ -6166,8 +6160,11 @@
         "retry": "Check again",
         "select_api_key": "Sélectionner la clé API à utiliser :",
         "single": "Unique",
+        "skip_reason_generation_cost": "La vérification d'état de ce modèle générerait {{output}} et consommerait du quota, elle est donc ignorée par défaut.",
+        "skip_reason_unsupported_probe": "Ce type de modèle ne dispose pas encore de vérification d’intégrité à faible coût, il est donc ignoré par défaut.",
         "start": "Commencer",
         "status_checking": "Checking…",
+        "status_skipped": "Ignoré",
         "timeout": "Délai dépassé",
         "title": "Test de santé des modèles",
         "use_all_keys": "Utiliser toutes les clés"
@@ -6176,6 +6173,8 @@
       "default_assistant_model": "Modèle d'assistant par défaut",
       "default_assistant_model_description": "Utilisé lorsqu'un assistant n'a pas de modèle.",
       "empty": "Aucun modèle",
+      "group_disable": "Fermer ce groupe",
+      "group_enable": "Activer ce groupe",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",

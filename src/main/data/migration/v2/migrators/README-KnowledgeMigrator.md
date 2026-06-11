@@ -155,7 +155,7 @@ The base and its `knowledge_item` rows are preserved. `KnowledgeVectorMigrator` 
 User recovery is handled by runtime restore, not by mutating the failed base in place:
 
 ```text
-knowledge-runtime:restore-base
+knowledge:restore-base
  -> create a new knowledge base with the source base config and selected embedding model
  -> copy source root items only
  -> run the normal createBase + addItems indexing flow
