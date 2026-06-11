@@ -28,6 +28,11 @@ export const DEFAULT_MODEL_PREFERENCE_KEYS = [
 type TxLike = Pick<DbType, 'select' | 'insert' | 'update'>
 type CherryAIProviderRow = Omit<InsertUserProviderRow, 'orderKey'>
 type CherryAIDefaultModelRow = Omit<InsertUserModelRow, 'orderKey'>
+type DefaultModelPreferenceRow = {
+  scope: typeof DEFAULT_MODEL_PREFERENCE_SCOPE
+  key: (typeof DEFAULT_MODEL_PREFERENCE_KEYS)[number]
+  value: typeof CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+}
 
 export function createCherryAIProviderRow(): CherryAIProviderRow {
   return {
@@ -93,7 +98,7 @@ export async function ensureCherryAIDefaultProviderAndModelTx(tx: TxLike): Promi
   })
 }
 
-export function createDefaultModelPreferenceRows() {
+export function createDefaultModelPreferenceRows(): DefaultModelPreferenceRow[] {
   return DEFAULT_MODEL_PREFERENCE_KEYS.map((key) => ({
     scope: DEFAULT_MODEL_PREFERENCE_SCOPE,
     key,

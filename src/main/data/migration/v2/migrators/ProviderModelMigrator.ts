@@ -71,13 +71,22 @@ function createModelId(providerId: string, modelId: string): UniqueModelId | nul
   }
 }
 
+function normalizePinnedProviderModelId(providerId: string, modelId: string): UniqueModelId | null {
+  const normalizedProviderId = providerId.trim()
+  if (normalizedProviderId === CHERRYAI_PROVIDER_ID) {
+    return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+  }
+
+  return createModelId(normalizedProviderId, modelId.trim())
+}
+
 function normalizePinnedModelObject(value: unknown): UniqueModelId | null {
   if (!value || typeof value !== 'object') return null
 
   const { id, provider } = value as { id?: unknown; provider?: unknown }
   if (typeof provider !== 'string' || typeof id !== 'string') return null
 
-  return createModelId(provider.trim(), id.trim())
+  return normalizePinnedProviderModelId(provider, id)
 }
 
 function normalizePinnedModelId(value: unknown): UniqueModelId | null {
@@ -88,7 +97,9 @@ function normalizePinnedModelId(value: unknown): UniqueModelId | null {
 
   const trimmed = value.trim()
   if (!trimmed) return null
-  if (isUniqueModelId(trimmed)) return trimmed
+  if (isUniqueModelId(trimmed)) {
+    return trimmed.startsWith(`${CHERRYAI_PROVIDER_ID}::`) ? CHERRYAI_DEFAULT_UNIQUE_MODEL_ID : trimmed
+  }
 
   if (trimmed.startsWith('{')) {
     try {
@@ -105,7 +116,7 @@ function normalizePinnedModelId(value: unknown): UniqueModelId | null {
   const modelId = trimmed.slice(separatorIndex + 1).trim()
   if (!providerId || !modelId) return null
 
-  return createModelId(providerId, modelId)
+  return normalizePinnedProviderModelId(providerId, modelId)
 }
 
 function normalizePinnedModelIds(rawValue: unknown, validModelIds: ReadonlySet<string>): UniqueModelId[] {
