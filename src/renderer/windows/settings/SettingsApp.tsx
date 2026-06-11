@@ -7,6 +7,7 @@ import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
 import { CommandProvider, ContextKeyProvider } from '@renderer/features/command'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import useWindowFocus from '@renderer/hooks/useWindowFocus'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n'
 import { routeTree } from '@renderer/routeTree.gen'
@@ -70,6 +71,7 @@ function SettingsWindowRouter({ initialPath }: { initialPath: string }) {
 function SettingsApp({ initialPath }: { initialPath: string }): React.ReactElement {
   const shellStyle = { '--navbar-height': '0px', '--settings-width': '200px' } as CSSProperties
   const isMacTransparentWindow = useMacTransparentWindow()
+  const isWindowFocused = useWindowFocus()
 
   return (
     <Provider store={store}>
@@ -84,8 +86,9 @@ function SettingsApp({ initialPath }: { initialPath: string }): React.ReactEleme
                       <TopViewContainer>
                         <div
                           className={cn(
-                            'flex h-screen w-screen overflow-hidden text-foreground',
-                            isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
+                            'flex h-screen w-screen overflow-hidden text-foreground transition-colors duration-200',
+                            // Glass only while the window is key — see AppShell.
+                            isMacTransparentWindow && isWindowFocused ? 'bg-sidebar-translucent' : 'bg-sidebar'
                           )}
                           style={shellStyle}>
                           <SettingsWindowRouter initialPath={initialPath} />

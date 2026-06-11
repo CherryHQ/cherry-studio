@@ -1,7 +1,8 @@
-import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
+import { MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { isDev } from '@renderer/config/constant'
+import WindowControls from '@renderer/components/WindowControls'
+import { isDev, isMac } from '@renderer/config/constant'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn } from '@renderer/utils/style'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
@@ -45,20 +46,26 @@ const SettingsPage: FC = () => {
   const go = (path: string) => navigate({ to: path })
 
   return (
-    <div
-      className={cn(
-        'flex min-h-0 flex-1 flex-col',
-        isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
-      )}>
+    <div className={cn('flex min-h-0 flex-1 flex-col', isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar')}>
+      <div
+        className={cn(
+          'flex h-11 shrink-0 items-center [-webkit-app-region:drag]',
+          isMac ? 'pl-[max(env(titlebar-area-x),1.25rem)]' : 'pl-5',
+          isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
+        )}>
+        <h2 className="min-w-0 flex-1 select-none truncate font-medium text-foreground text-sm leading-4">
+          {t('settings.menuGroups.appSettings')}
+        </h2>
+        <WindowControls />
+      </div>
       <div className="flex min-h-0 flex-1 flex-row">
         <div
           className={cn(
             'flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col',
-            isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
+            isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
           )}>
-          <PageHeader title={t('settings.menuGroups.appSettings')} />
           <Scrollbar className="min-h-0 flex-1 select-none">
-            <MenuList className={settingsSubmenuListClassName}>
+            <MenuList className={cn(settingsSubmenuListClassName, 'pt-2')}>
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
@@ -208,8 +215,8 @@ const SettingsPage: FC = () => {
             </MenuList>
           </Scrollbar>
         </div>
-        <div className="flex h-full min-h-0 min-w-0 flex-1">
-          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden border-border/40 border-l bg-white text-foreground dark:bg-background">
+        <div className="flex h-full min-h-0 min-w-0 flex-1 pr-2 pb-2">
+          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-[16px] border border-frame-border bg-background text-foreground">
             <Outlet />
           </div>
         </div>
