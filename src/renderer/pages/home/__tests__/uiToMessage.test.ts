@@ -23,7 +23,6 @@ describe('uiToMessage', () => {
           modelId: 'google::gemini-3',
           modelSnapshot: GEMINI,
           status: 'success',
-          traceId: 'trace-1',
           createdAt: '2026-04-24T12:00:00.000Z',
           stats: { promptTokens: 10, completionTokens: 20, totalTokens: 30 }
         }
@@ -39,7 +38,6 @@ describe('uiToMessage', () => {
       createdAt: '2026-04-24T12:00:00.000Z',
       askId: 'user-1',
       modelId: 'google::gemini-3',
-      traceId: 'trace-1',
       siblingsGroupId: 42,
       status: AssistantMessageStatus.SUCCESS
     })

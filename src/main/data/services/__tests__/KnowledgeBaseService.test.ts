@@ -17,6 +17,11 @@ const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const SECOND_KNOWLEDGE_BASE_ID = '22222222-2222-4222-8222-222222222222'
 const FAILED_NULL_ERROR_BASE_ID = '33333333-3333-4333-8333-333333333333'
 const FAILED_EMPTY_ERROR_BASE_ID = '44444444-4444-4444-8444-444444444444'
+const ALPHA_KNOWLEDGE_BASE_ID = '55555555-5555-4555-8555-555555555555'
+const BETA_KNOWLEDGE_BASE_ID = '66666666-6666-4666-8666-666666666666'
+const OTHER_KNOWLEDGE_BASE_ID = '77777777-7777-4777-8777-777777777777'
+const LITERAL_KNOWLEDGE_BASE_ID = '88888888-8888-4888-8888-888888888888'
+const EXPANDED_KNOWLEDGE_BASE_ID = '99999999-9999-4999-8999-999999999999'
 const FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abc'
 const OTHER_BASE_FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abd'
 const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000a01' as FileEntryId
@@ -118,6 +123,29 @@ describe('KnowledgeBaseService', () => {
       expect(result.total).toBe(2)
       expect(result.page).toBe(2)
       expect(result.items).toHaveLength(1)
+    })
+
+    it('should search knowledge bases by name and keep pagination total scoped to the search', async () => {
+      await seedKnowledgeBase({ id: ALPHA_KNOWLEDGE_BASE_ID, name: 'Alpha Research' })
+      await seedKnowledgeBase({ id: BETA_KNOWLEDGE_BASE_ID, name: 'Beta Research' })
+      await seedKnowledgeBase({ id: OTHER_KNOWLEDGE_BASE_ID, name: 'Operations' })
+
+      const result = await service.list({ page: 1, limit: 1, search: 'Research' })
+
+      expect(result.total).toBe(2)
+      expect(result.page).toBe(1)
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0].name).toContain('Research')
+    })
+
+    it('treats % and _ in knowledge base search as literal characters', async () => {
+      await seedKnowledgeBase({ id: LITERAL_KNOWLEDGE_BASE_ID, name: 'Vector 100%_notes' })
+      await seedKnowledgeBase({ id: EXPANDED_KNOWLEDGE_BASE_ID, name: 'Vector 100xxnotes' })
+
+      const result = await service.list({ page: 1, limit: 10, search: '100%_' })
+
+      expect(result.total).toBe(1)
+      expect(result.items.map((item) => item.id)).toEqual([LITERAL_KNOWLEDGE_BASE_ID])
     })
 
     it('should include non-deleting item counts for each knowledge base', async () => {

@@ -34,7 +34,6 @@ function toUIMessage(shared: SharedMessage): CherryUIMessage {
       modelId: shared.modelId ?? undefined,
       modelSnapshot: shared.modelSnapshot ?? undefined,
       status: shared.status,
-      traceId: shared.traceId ?? undefined,
       createdAt: shared.createdAt,
       updatedAt: shared.updatedAt,
       stats: shared.stats ?? undefined,
