@@ -1265,12 +1265,12 @@ function mapLogLevelClass(level: McpServerLogEntry['level']) {
   switch (level) {
     case 'error':
     case 'stderr':
-      return 'border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400'
+      return 'border-destructive/30 bg-destructive/10 text-destructive'
     case 'warn':
-      return 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+      return 'border-warning/30 bg-warning/10 text-warning'
     case 'info':
     case 'stdout':
-      return 'border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400'
+      return 'border-info/30 bg-info/10 text-info'
     default:
       return 'border-border/60 bg-muted text-muted-foreground'
   }
