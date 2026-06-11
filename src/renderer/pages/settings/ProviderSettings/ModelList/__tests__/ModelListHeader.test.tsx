@@ -25,6 +25,17 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         {children}
       </button>
     ),
+    MenuItem: ({ icon, label, onClick, suffix, ...props }: any) => (
+      <button type="button" onClick={onClick} {...props}>
+        {icon}
+        <span>{label}</span>
+        {suffix}
+      </button>
+    ),
+    MenuList: ({ children }: any) => <div>{children}</div>,
+    Popover: ({ children }: any) => <div>{children}</div>,
+    PopoverContent: ({ children }: any) => <div>{children}</div>,
+    PopoverTrigger: ({ children }: any) => <>{children}</>,
     Tooltip: ({ children }: any) => <>{children}</>
   }
 })
@@ -53,8 +64,6 @@ const baseProps = {
 describe('ModelListHeader', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    // jsdom does not implement scrollIntoView; the capability filter calls it on click.
-    Element.prototype.scrollIntoView = vi.fn()
     ;(window as any).toast = {
       error: vi.fn()
     }
@@ -64,11 +73,28 @@ describe('ModelListHeader', () => {
     render(<ModelListHeader {...baseProps} actions={<button type="button">external-action</button>} />)
 
     expect(screen.getByText('settings.models.list_title')).toBeInTheDocument()
-    expect(screen.getByText('settings.models.available_count')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('models.search.placeholder')).toBeInTheDocument()
     expect(screen.getByText('external-action')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'settings.models.bulk_enable' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'settings.models.bulk_disable' })).not.toBeInTheDocument()
+  })
+
+  it('renders provider documentation links when websites are available', () => {
+    render(
+      <ModelListHeader
+        {...baseProps}
+        docsWebsite="https://docs.github.com/en/github-models"
+        modelsWebsite="https://github.com/marketplace/models"
+      />
+    )
+
+    expect(screen.getByRole('link', { name: 'settings.models.docs' })).toHaveAttribute(
+      'href',
+      'https://github.com/marketplace/models'
+    )
+    expect(screen.getAllByRole('link')).toHaveLength(1)
+    expect(screen.queryByText('settings.provider.docs_check')).not.toBeInTheDocument()
+    expect(screen.queryByText('settings.provider.docs_more_details')).not.toBeInTheDocument()
   })
 
   it('updates and clears the persistent search input', () => {
@@ -81,13 +107,14 @@ describe('ModelListHeader', () => {
     expect(baseProps.setSearchText).toHaveBeenCalledWith('')
   })
 
-  it('renders capability filters by default when models exist', () => {
+  it('renders the compact capability filter when models exist', () => {
     render(<ModelListHeader {...baseProps} />)
 
-    expect(screen.getByRole('button', { name: /models\.all/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'settings.models.filter.label' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.models.filter.clear' })).not.toBeInTheDocument()
   })
 
-  it('selects a capability filter from the line-style filter row', () => {
+  it('selects a capability filter from the filter menu', () => {
     render(
       <ModelListHeader
         {...baseProps}
@@ -98,8 +125,26 @@ describe('ModelListHeader', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /models\.type\.reasoning/ }))
+    fireEvent.click(screen.getByRole('button', { name: /models\.type\.reasoning \(2\)/ }))
 
     expect(baseProps.setSelectedCapabilityFilter).toHaveBeenCalledWith('reasoning')
+  })
+
+  it('clears the selected capability filter from the header', () => {
+    render(
+      <ModelListHeader
+        {...baseProps}
+        selectedCapabilityFilter="reasoning"
+        capabilityModelCounts={{
+          ...baseProps.capabilityModelCounts,
+          reasoning: 2
+        }}
+      />
+    )
+
+    expect(screen.getAllByText('models.type.reasoning (2)').length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.filter.clear' }))
+
+    expect(baseProps.setSelectedCapabilityFilter).toHaveBeenCalledWith('all')
   })
 })

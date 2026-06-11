@@ -16,7 +16,7 @@ import { cn, validateApiHost } from '@renderer/utils'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig } from '@shared/data/types/provider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
-import { trim } from 'lodash'
+import { isEmpty, trim } from 'lodash'
 import { Braces, List, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -137,7 +137,7 @@ export function mergeEndpointConfigs(
     } else if (type === primary) {
       const rest = { ...out[type] }
       delete rest.baseUrl
-      if (Object.keys(rest).length > 0) {
+      if (!isEmpty(rest)) {
         out[type] = rest
       } else {
         delete out[type]

@@ -17,6 +17,7 @@ import { cn } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
 import { type BinaryToolPreset, PREDEFINED_BINARY_TOOLS } from '@shared/data/presets/binary-tools'
+import { useNavigate } from '@tanstack/react-router'
 import {
   Download,
   ExternalLink,
@@ -26,7 +27,8 @@ import {
   RefreshCw,
   SquareArrowOutUpRight,
   Terminal,
-  Trash2
+  Trash2,
+  TriangleAlert
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -43,7 +45,11 @@ const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }
 
 type ToolSource = 'mise' | 'bundled' | 'none'
 
-const EnvironmentDependencies: FC = () => {
+interface EnvironmentDependenciesProps {
+  mini?: boolean
+}
+
+const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = false }) => {
   const [miseState, setMiseState] = useState<BinaryState | null>(null)
   const [bundled, setBundled] = useState<Record<string, string | null>>({})
   const [installingTools, setInstallingTools] = useState<Set<string>>(new Set())
@@ -51,6 +57,7 @@ const EnvironmentDependencies: FC = () => {
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const mountedRef = useRef(true)
 
   useEffect(() => {
@@ -134,6 +141,23 @@ const EnvironmentDependencies: FC = () => {
   }
 
   const totalCount = PREDEFINED_BINARY_TOOLS.length + customTools.length
+
+  if (mini) {
+    const uvAvailable = Boolean(miseState?.tools.uv) || 'uv' in bundled
+    const bunAvailable = Boolean(miseState?.tools.bun) || 'bun' in bundled
+    if (uvAvailable && bunAvailable) {
+      return null
+    }
+
+    return (
+      <Button
+        className="nodrag h-8 rounded-lg px-2 text-destructive shadow-none hover:text-destructive"
+        variant="ghost"
+        onClick={() => navigate({ to: '/settings/plugins' })}>
+        <TriangleAlert size={14} />
+      </Button>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-5">

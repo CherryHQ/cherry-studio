@@ -138,7 +138,7 @@ const McpServersList: FC = () => {
   }, [])
 
   return (
-    <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 py-4">
+    <div className="flex h-[calc(100vh-var(--navbar-height))] w-full min-w-0 flex-1 flex-col gap-2 overflow-hidden px-6 py-4 pt-2">
       <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-2">
         <div className="flex w-full flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
@@ -161,14 +161,15 @@ const McpServersList: FC = () => {
             <EnvironmentDependencies mini />
             <Button
               variant="ghost"
-              className="h-8 rounded-lg px-2.5 text-xs shadow-none"
+              size="sm"
+              className="rounded-lg text-xs shadow-none"
               onClick={() => setIsEditing((value) => !value)}>
               <EditIcon size={14} />
               {isEditing ? t('common.completed') : t('common.edit')}
             </Button>
             <Popover open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
               <PopoverTrigger asChild>
-                <Button variant="secondary" className="h-8 rounded-lg px-2.5 text-xs shadow-none">
+                <Button variant="secondary" size="sm" className="rounded-lg text-xs shadow-none">
                   <Plus size={15} />
                   {t('common.add')}
                 </Button>
@@ -207,7 +208,7 @@ const McpServersList: FC = () => {
             </TabsList>
           </Tabs>
         </div>
-        <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-xl border border-border/70">
+        <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
               <Scrollbar ref={scrollRef} className="min-h-0 flex-1">
