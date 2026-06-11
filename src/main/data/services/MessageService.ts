@@ -1224,6 +1224,15 @@ export class MessageService {
     return ordered.reverse()
   }
 
+  /**
+   * Copy one contiguous root -> node path into another topic.
+   *
+   * `rows` must be the ordered chain returned by `getPathRowsToNodeTx`; callers
+   * should not pass arbitrary or forked message sets. The copy preserves the
+   * renderable message content and terminal runtime metadata, but intentionally
+   * does not copy `traceId`: trace links describe the original conversation run,
+   * while the duplicated topic starts without trace linkage.
+   */
   async copyPathRowsTx(
     tx: DbOrTx,
     rows: MessageRow[],

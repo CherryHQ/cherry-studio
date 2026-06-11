@@ -206,6 +206,7 @@ export class TopicService {
         },
         {
           pkColumn: topicTable.id,
+          // Keep duplicated conversations aligned with newly created agent sessions: newest active work appears first.
           position: 'first',
           scope: topicScopePredicate(sourceTopic.groupId ?? null)
         }

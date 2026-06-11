@@ -204,6 +204,7 @@ describe('FileRefService', () => {
     it('fails the transaction when the copied target ref already exists', async () => {
       const entryA = '019606a0-0000-7000-8000-00000000cc06' as FileEntryId
       const entryB = '019606a0-0000-7000-8000-00000000cc07' as FileEntryId
+      const sentinelSourceId = 'same-tx-sentinel'
       await seedEntry(entryA)
       await seedEntry(entryB)
       await fileRefService.createMany([
@@ -213,8 +214,19 @@ describe('FileRefService', () => {
       ])
 
       await expect(
-        dbh.db.transaction((tx) =>
-          fileRefService.copyBySourceIdMapTx(
+        dbh.db.transaction(async (tx) => {
+          const now = Date.now()
+          await tx.insert(fileRefTable).values({
+            id: uuidv4(),
+            fileEntryId: entryB,
+            sourceType: 'temp_session',
+            sourceId: sentinelSourceId,
+            role: 'pending',
+            createdAt: now,
+            updatedAt: now
+          })
+
+          await fileRefService.copyBySourceIdMapTx(
             tx,
             'temp_session',
             new Map([
@@ -222,9 +234,10 @@ describe('FileRefService', () => {
               ['source-b', 'copy-b']
             ])
           )
-        )
+        })
       ).rejects.toThrow()
 
+      expect(await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: sentinelSourceId })).toEqual([])
       expect(await fileRefService.findBySource({ sourceType: 'temp_session', sourceId: 'copy-b' })).toEqual([])
     })
 

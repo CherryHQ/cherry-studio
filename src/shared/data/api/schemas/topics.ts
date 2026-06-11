@@ -1,7 +1,7 @@
 /**
  * Topic API Schema definitions
  *
- * Contains all topic-related endpoints for CRUD operations and branch switching.
+ * Contains all topic-related endpoints for CRUD, duplication, branch switching, and ordering.
  * Entity schemas and types live in `@shared/data/types/topic`.
  */
 

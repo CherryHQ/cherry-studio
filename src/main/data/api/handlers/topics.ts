@@ -4,6 +4,7 @@
  * Implements all topic-related API endpoints including:
  * - Cursor-paginated topic list with optional name search
  * - Topic CRUD operations
+ * - Topic path duplication
  * - Active node switching for branch navigation
  * - Scoped reorder (single + batch) via OrderEndpoints
  */
