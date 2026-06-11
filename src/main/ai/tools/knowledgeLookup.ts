@@ -49,6 +49,7 @@ Returns each base's name, group, item count, and a few sample sources (filenames
 export const knowledgeLookupErrorSchema = z.object({ error: z.string() })
 export type KnowledgeLookupError = z.infer<typeof knowledgeLookupErrorSchema>
 export type KnowledgeSearchResultOrError = KbSearchOutput | KnowledgeLookupError
+export type KnowledgeListResultOrError = KbListOutput | KnowledgeLookupError
 
 /**
  * Every targeted base failed (revoked embedding key, corrupt vector DB, deleted base): a real
@@ -57,7 +58,13 @@ export type KnowledgeSearchResultOrError = KbSearchOutput | KnowledgeLookupError
 export const KNOWLEDGE_LOOKUP_ERROR_NOTE =
   'Knowledge base search failed (the embedding provider or vector store errored); tell the user instead of retrying.'
 
-export function isKnowledgeLookupError(output: KnowledgeSearchResultOrError): output is KnowledgeLookupError {
+/** kb_list infra failure (e.g. `KnowledgeService.listBases()` threw) — a fixed note, not a raw error string. */
+export const KNOWLEDGE_LIST_ERROR_NOTE =
+  'Listing the knowledge bases failed (a knowledge-service error); tell the user instead of retrying.'
+
+export function isKnowledgeLookupError(
+  output: KnowledgeSearchResultOrError | KnowledgeListResultOrError
+): output is KnowledgeLookupError {
   // Success is always the results array; the error object is the only non-array shape.
   return !Array.isArray(output)
 }
@@ -137,29 +144,40 @@ export async function listKnowledgeBases(
   query: string | undefined,
   groupId: string | undefined,
   allowedIds: string[]
-): Promise<KbListOutput> {
-  const knowledgeService = application.get('KnowledgeService')
-  const allBases = await knowledgeService.listBases()
-  const scopedBases = allowedIds.length > 0 ? allBases.filter((base) => allowedIds.includes(base.id)) : allBases
+): Promise<KnowledgeListResultOrError> {
+  try {
+    const knowledgeService = application.get('KnowledgeService')
+    const allBases = await knowledgeService.listBases()
+    const scopedBases = allowedIds.length > 0 ? allBases.filter((base) => allowedIds.includes(base.id)) : allBases
 
-  const groupFiltered = groupId !== undefined ? scopedBases.filter((base) => base.groupId === groupId) : scopedBases
+    const groupFiltered = groupId !== undefined ? scopedBases.filter((base) => base.groupId === groupId) : scopedBases
 
-  // Cap concurrency: a user with 50+ KBs would otherwise fire 50 concurrent listRootItems queries on
-  // every kb_list call. listRootItems is a pure Drizzle/SQLite read (no vector store), so 8 in-flight
-  // is plenty to keep the agent loop responsive without overwhelming the knowledge service.
-  const items: KbListOutputItem[] = await mapWithConcurrency(groupFiltered, 8, (base) =>
-    buildOutputItem(base, knowledgeService)
-  )
+    // Cap concurrency: a user with 50+ KBs would otherwise fire 50 concurrent listRootItems queries on
+    // every kb_list call. listRootItems is a pure Drizzle/SQLite read (no vector store), so 8 in-flight
+    // is plenty to keep the agent loop responsive without overwhelming the knowledge service.
+    const items: KbListOutputItem[] = await mapWithConcurrency(groupFiltered, 8, (base) =>
+      buildOutputItem(base, knowledgeService)
+    )
 
-  const lowered = query?.toLowerCase()
-  if (!lowered) return items
-  return items.filter((item) => matchesQuery(item, lowered))
+    const lowered = query?.toLowerCase()
+    if (!lowered) return items
+    return items.filter((item) => matchesQuery(item, lowered))
+  } catch (error) {
+    // `listBases()` (or the service lookup) threw — surface a fixed note instead of leaking the raw
+    // error string through the MCP catch-all, mirroring kb_search's all-bases-failed path.
+    const message = error instanceof Error ? error.message : String(error)
+    logger.warn('KnowledgeService.listBases failed', { error: message })
+    return { error: message }
+  }
 }
 
 export function knowledgeListModelOutput(
-  output: KbListOutput,
+  output: KnowledgeListResultOrError,
   input: { query?: string; groupId?: string }
 ): { type: 'text'; value: string } | { type: 'json'; value: KbListOutput } {
+  if (isKnowledgeLookupError(output)) {
+    return { type: 'text', value: KNOWLEDGE_LIST_ERROR_NOTE }
+  }
   if (output.length === 0) {
     const filtered = Boolean(input?.query) || Boolean(input?.groupId)
     return {
