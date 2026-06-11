@@ -6,7 +6,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { topicNamingService } from '@main/services/TopicNamingService'
 import type { Span } from '@opentelemetry/api'
 import { SpanStatusCode } from '@opentelemetry/api'
-import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -253,23 +253,45 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   async applyAgentPolicyUpdate(agentId: string, update: AgentRuntimePolicyUpdate): Promise<void> {
-    const updates: Array<Promise<boolean> | boolean> = []
+    const updates: Array<{
+      entry: AgentSessionRuntimeEntry
+      connection: AgentRuntimeConnection
+      promise: Promise<boolean> | boolean
+    }> = []
     for (const entry of this.entries.values()) {
       if (entry.agentId !== agentId || !entry.connection?.applyPolicyUpdate) continue
-      updates.push(entry.connection.applyPolicyUpdate(update))
+      const { connection } = entry
+      updates.push({ entry, connection, promise: connection.applyPolicyUpdate(update) })
     }
-    await Promise.allSettled(updates)
+    const results = await Promise.allSettled(updates.map(({ promise }) => promise))
+    for (const [index, result] of results.entries()) {
+      const updateTarget = updates[index]
+      if (!updateTarget) continue
+      const { entry, connection } = updateTarget
+      const { sessionId } = entry
+
+      if (result.status === 'rejected') {
+        logger.error('Failed to apply live agent policy update; closing runtime connection', {
+          agentId,
+          sessionId,
+          error: result.reason
+        })
+        this.closePolicyUpdateConnection(entry, connection)
+        continue
+      }
+
+      if (result.value === false) {
+        logger.error('Live agent policy update was not applied; closing runtime connection', { agentId, sessionId })
+        this.closePolicyUpdateConnection(entry, connection)
+      }
+    }
   }
 
   private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
-    const configuration = updates.configuration as { permission_mode?: unknown } | undefined
-    const hasPermissionModeUpdate =
-      configuration !== undefined && Object.prototype.hasOwnProperty.call(configuration, 'permission_mode')
-
-    if (hasPermissionModeUpdate) {
+    if (updates.configuration !== undefined) {
       await this.applyAgentPolicyUpdate(agentId, {
         type: 'permission-mode',
-        permissionMode: configuration.permission_mode as AgentPermissionMode | undefined
+        permissionMode: agent.configuration?.permission_mode
       })
     }
 
@@ -792,6 +814,12 @@ export class AgentSessionRuntimeService extends BaseService {
     void Promise.resolve(connection?.close()).catch((error) =>
       logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
     )
+  }
+
+  private closePolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
+    if (entry.connection !== connection) return
+    if (this.entries.get(entry.sessionId) === entry) this.entries.delete(entry.sessionId)
+    this.closeEntry(entry)
   }
 
   private closeConnection(entry: AgentSessionRuntimeEntry): AgentRuntimeConnection | undefined {

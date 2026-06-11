@@ -116,6 +116,22 @@ describe('AgentWorkspaceService', () => {
     })
   })
 
+  it('rejects updates to hidden system workspaces without mutating the row', async () => {
+    const systemWorkspace = await dbh.db.transaction((tx) =>
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'system-update-session' })
+    )
+
+    await expect(agentWorkspaceService.update(systemWorkspace.id, { name: 'Renamed' })).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+
+    await expect(agentWorkspaceService.getById(systemWorkspace.id, { includeSystem: true })).resolves.toMatchObject({
+      id: systemWorkspace.id,
+      name: systemWorkspace.name,
+      type: 'system'
+    })
+  })
+
   it('creates system workspace rows without creating the backing directory', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'cherry-system-workspace-'))
     vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {

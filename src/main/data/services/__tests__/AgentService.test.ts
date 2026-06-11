@@ -3,7 +3,8 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { pinService } from '@data/services/PinService'
-import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
+import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { ErrorCode } from '@shared/data/api'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -233,6 +234,18 @@ describe('AgentService', () => {
       expect(agents.map((agent) => agent.id)).toEqual(['agent_order_a', 'agent_order_b', 'agent_order_c'])
     })
 
+    it('surfaces pinned agents ahead of unpinned agents under the default orderKey sort', async () => {
+      await insertAgent({ id: 'agent_pin_a', name: 'A', orderKey: 'a' })
+      await insertAgent({ id: 'agent_pin_b', name: 'B', orderKey: 'b' })
+      await insertAgent({ id: 'agent_pin_c', name: 'C', orderKey: 'c' })
+      await pinService.pin({ entityType: 'agent', entityId: 'agent_pin_c' })
+      await pinService.pin({ entityType: 'agent', entityId: 'agent_pin_b' })
+
+      const { agents } = await agentService.listAgents()
+
+      expect(agents.map((agent) => agent.id)).toEqual(['agent_pin_c', 'agent_pin_b', 'agent_pin_a'])
+    })
+
     it('orders rows with equal updatedAt by id using the requested direction (tiebreaker)', async () => {
       await insertAgent({ id: 'agent_aaa', name: 'A', updatedAt: 5000, createdAt: 5000 })
       await insertAgent({ id: 'agent_zzz', name: 'Z', updatedAt: 5000, createdAt: 5000 })
@@ -351,6 +364,62 @@ describe('AgentService', () => {
         }
       ])
       expect(result[0]).not.toHaveProperty('modelName')
+    })
+  })
+
+  describe('reorder', () => {
+    async function listAgentIds() {
+      const { agents } = await agentService.listAgents()
+      return agents.map((agent) => agent.id)
+    }
+
+    it('moves a single active agent by orderKey', async () => {
+      const [firstKey, secondKey, thirdKey] = generateOrderKeySequence(3)
+      await insertAgent({ id: 'agent_reorder_a', name: 'A', orderKey: firstKey })
+      await insertAgent({ id: 'agent_reorder_b', name: 'B', orderKey: secondKey })
+      await insertAgent({ id: 'agent_reorder_c', name: 'C', orderKey: thirdKey })
+
+      await agentService.reorder('agent_reorder_c', { before: 'agent_reorder_a' })
+
+      expect(await listAgentIds()).toEqual(['agent_reorder_c', 'agent_reorder_a', 'agent_reorder_b'])
+    })
+
+    it('rejects a soft-deleted single target without mutating active order', async () => {
+      const [firstKey, secondKey, deletedKey] = generateOrderKeySequence(3)
+      await insertAgent({ id: 'agent_reorder_a', name: 'A', orderKey: firstKey })
+      await insertAgent({ id: 'agent_reorder_b', name: 'B', orderKey: secondKey })
+      await insertAgent({ id: 'agent_reorder_deleted', name: 'Deleted', orderKey: deletedKey, deletedAt: 123 })
+
+      const beforeRejectedMove = await listAgentIds()
+      await expect(agentService.reorder('agent_reorder_deleted', { position: 'first' })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+      expect(await listAgentIds()).toEqual(beforeRejectedMove)
+    })
+
+    it('applies batch moves and rejects soft-deleted targets without mutating active order', async () => {
+      const [firstKey, secondKey, thirdKey, deletedKey] = generateOrderKeySequence(4)
+      await insertAgent({ id: 'agent_reorder_a', name: 'A', orderKey: firstKey })
+      await insertAgent({ id: 'agent_reorder_b', name: 'B', orderKey: secondKey })
+      await insertAgent({ id: 'agent_reorder_c', name: 'C', orderKey: thirdKey })
+      await insertAgent({ id: 'agent_reorder_deleted', name: 'Deleted', orderKey: deletedKey, deletedAt: 123 })
+
+      await agentService.reorderBatch([
+        { id: 'agent_reorder_b', anchor: { position: 'first' } },
+        { id: 'agent_reorder_c', anchor: { after: 'agent_reorder_b' } }
+      ])
+      expect(await listAgentIds()).toEqual(['agent_reorder_b', 'agent_reorder_c', 'agent_reorder_a'])
+
+      const beforeRejectedMove = await listAgentIds()
+      await expect(
+        agentService.reorderBatch([
+          { id: 'agent_reorder_a', anchor: { position: 'first' } },
+          { id: 'agent_reorder_deleted', anchor: { position: 'last' } }
+        ])
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+      expect(await listAgentIds()).toEqual(beforeRejectedMove)
     })
   })
 })

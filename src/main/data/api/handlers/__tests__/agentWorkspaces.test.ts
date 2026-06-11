@@ -4,35 +4,26 @@ const {
   listMock,
   findOrCreateByPathMock,
   getByIdMock,
-  getRowByIdTxMock,
   updateMock,
-  deleteByWorkspaceTxMock,
-  deleteByIdTxMock,
+  deleteWorkspaceCascadeMock,
   reorderMock,
   reorderBatchMock
 } = vi.hoisted(() => ({
   listMock: vi.fn(),
   findOrCreateByPathMock: vi.fn(),
   getByIdMock: vi.fn(),
-  getRowByIdTxMock: vi.fn(),
   updateMock: vi.fn(),
-  deleteByWorkspaceTxMock: vi.fn(),
-  deleteByIdTxMock: vi.fn(),
+  deleteWorkspaceCascadeMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn()
 }))
-
-import { application } from '@application'
-import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 
 vi.mock('@data/services/AgentWorkspaceService', () => ({
   agentWorkspaceService: {
     list: listMock,
     findOrCreateByPath: findOrCreateByPathMock,
     getById: getByIdMock,
-    getRowByIdTx: getRowByIdTxMock,
     update: updateMock,
-    deleteByIdTx: deleteByIdTxMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
   }
@@ -40,7 +31,7 @@ vi.mock('@data/services/AgentWorkspaceService', () => ({
 
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
-    deleteByWorkspaceTx: deleteByWorkspaceTxMock
+    deleteWorkspaceCascade: deleteWorkspaceCascadeMock
   }
 }))
 
@@ -59,7 +50,6 @@ const workspace = {
 describe('agentWorkspaceHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    MockMainDbServiceUtils.resetMocks()
   })
 
   it('delegates list and get to AgentWorkspaceService', async () => {
@@ -118,11 +108,8 @@ describe('agentWorkspaceHandlers', () => {
     expect(updateMock).not.toHaveBeenCalled()
   })
 
-  it('deletes a user workspace and its sessions in one transaction', async () => {
-    const tx = MockMainDbServiceUtils.getDefaultMockDb()
-    getRowByIdTxMock.mockResolvedValueOnce(workspace)
-    deleteByWorkspaceTxMock.mockResolvedValueOnce(['session-1'])
-    deleteByIdTxMock.mockResolvedValueOnce(undefined)
+  it('delegates workspace deletion cascade to AgentSessionService', async () => {
+    deleteWorkspaceCascadeMock.mockResolvedValueOnce(undefined)
 
     await expect(
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].DELETE({
@@ -130,10 +117,7 @@ describe('agentWorkspaceHandlers', () => {
       } as never)
     ).resolves.toBeUndefined()
 
-    expect(application.get('DbService').withWriteTx).toHaveBeenCalledOnce()
-    expect(getRowByIdTxMock).toHaveBeenCalledWith(tx, workspace.id)
-    expect(deleteByWorkspaceTxMock).toHaveBeenCalledWith(tx, workspace.id)
-    expect(deleteByIdTxMock).toHaveBeenCalledWith(tx, workspace.id)
+    expect(deleteWorkspaceCascadeMock).toHaveBeenCalledWith(workspace.id)
   })
 
   it('delegates order mutations', async () => {

@@ -18,6 +18,8 @@ import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/
 
 const logger = loggerService.withContext('ClaudeCodeAgentTools')
 
+type ClaudeToolPolicyAgent = Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>
+
 export function descriptorToTool(descriptor: ClaudeToolDescriptor, policy: ClaudeToolPolicy): Tool {
   const access = resolveClaudeToolAccess(descriptor, policy)
   return descriptorToToolWithAccess(descriptor, access)
@@ -119,17 +121,17 @@ export interface ClaudeAgentToolPolicySnapshot {
   resolve(runtimeName: string, input?: unknown): Tool | undefined
   isDisabled(runtimeName: string): boolean
   setPermissionMode(permissionMode: AgentPermissionMode | undefined): void
-  update(agent: AgentEntity): Promise<void>
+  update(agent: ClaudeToolPolicyAgent): Promise<void>
 }
 
 export async function createClaudeAgentToolPolicySnapshot(
-  agent: AgentEntity,
+  agent: ClaudeToolPolicyAgent,
   options: { autoAllowRuntimeNamePrefixes?: readonly string[] } = {}
 ): Promise<ClaudeAgentToolPolicySnapshot> {
   let descriptors: ClaudeToolDescriptor[] = []
   let policy: ClaudeToolPolicy = {}
 
-  const rebuild = async (nextAgent: AgentEntity) => {
+  const rebuild = async (nextAgent: ClaudeToolPolicyAgent) => {
     const catalog = await listClaudeAgentToolDescriptors(nextAgent)
     descriptors = catalog.descriptors
     policy = buildClaudeToolPolicy(nextAgent)

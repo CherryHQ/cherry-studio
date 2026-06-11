@@ -72,4 +72,34 @@ describe('agentWorkspaceHandlers integration', () => {
     expect(await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, first.id))).toEqual([])
     await expect(agentSessionService.getById(second.id)).rejects.toMatchObject({ code: 'NOT_FOUND' })
   })
+
+  it('rejects system workspace deletes and preserves the backing session and pin', async () => {
+    const session = await agentSessionService.create({
+      agentId,
+      name: 'System Session',
+      workspace: { type: 'system' }
+    })
+    await dbh.db.insert(pinTable).values({
+      id: 'pin-system-session',
+      entityType: 'session',
+      entityId: session.id,
+      orderKey: 'a0',
+      createdAt: 1,
+      updatedAt: 1
+    })
+
+    await expect(
+      agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].DELETE({
+        params: { workspaceId: session.workspace.id }
+      } as never)
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+
+    const workspaceRows = await dbh.db
+      .select()
+      .from(agentWorkspaceTable)
+      .where(eq(agentWorkspaceTable.id, session.workspace.id))
+    expect(workspaceRows).toHaveLength(1)
+    expect(await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))).toHaveLength(1)
+    expect(await dbh.db.select().from(pinTable).where(eq(pinTable.entityId, session.id))).toHaveLength(1)
+  })
 })

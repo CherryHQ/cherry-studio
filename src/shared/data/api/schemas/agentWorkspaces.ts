@@ -2,7 +2,7 @@ import * as z from 'zod'
 
 import type { OrderEndpoints } from './_endpointHelpers'
 
-export const AgentWorkspaceNameSchema = z.string().min(1)
+export const AgentWorkspaceNameSchema = z.string().trim().min(1)
 export const AgentWorkspacePathSchema = z.string().min(1)
 export const AGENT_WORKSPACE_TYPES = ['user', 'system'] as const
 export type AgentWorkspaceType = (typeof AGENT_WORKSPACE_TYPES)[number]
@@ -48,7 +48,7 @@ export type AgentWorkspaceSchemas = {
     GET: {
       response: AgentWorkspaceEntity[]
     }
-    // find-or-create by path: idempotent on the `agent_AgentWorkspace.path` unique index.
+    // find-or-create by path: idempotent on the `agent_workspace.path` unique index.
     POST: {
       body: CreateAgentWorkspaceDto
       response: AgentWorkspaceEntity

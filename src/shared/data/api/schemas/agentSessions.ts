@@ -136,7 +136,7 @@ const DeleteAgentSessionsIdsQueryValueSchema = z
 export const DeleteAgentSessionsQuerySchema = z.strictObject({
   ids: DeleteAgentSessionsIdsQueryValueSchema
 })
-export type DeleteAgentSessionsQuery = z.input<typeof DeleteAgentSessionsQuerySchema>
+export type DeleteAgentSessionsQueryParams = z.input<typeof DeleteAgentSessionsQuerySchema>
 
 // ============================================================================
 // API Schema definitions
@@ -155,11 +155,11 @@ export type AgentSessionSchemas = {
     /**
      * Delete an explicit set of sessions (all-or-nothing — any missing id → NOT_FOUND).
      *
-     * `deletedIds` may exceed the input set when system-workspace sibling sessions
-     * are cascade-deleted alongside the requested sessions.
+     * Cascades: session pins are purged; if a requested session is backed by a
+     * system workspace, that one-to-one backing workspace row is removed too.
      */
     DELETE: {
-      query: DeleteAgentSessionsQuery
+      query: DeleteAgentSessionsQueryParams
       response: DeleteAgentSessionsResult
     }
   }

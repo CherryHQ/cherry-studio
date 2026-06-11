@@ -4,6 +4,7 @@ import { AgentSessionEntitySchema, CreateAgentSessionSchema, UpdateAgentSessionS
 import {
   AgentSessionWorkspaceSourceSchema,
   AgentWorkspaceEntitySchema,
+  CreateAgentWorkspaceSchema,
   UpdateAgentWorkspaceSchema
 } from '../agentWorkspaces'
 
@@ -24,6 +25,11 @@ describe('AgentWorkspaceEntitySchema', () => {
 
   it('accepts workspace display-name updates only', () => {
     expect(UpdateAgentWorkspaceSchema.parse({ name: 'Renamed workspace' })).toEqual({ name: 'Renamed workspace' })
+    expect(CreateAgentWorkspaceSchema.parse({ path: '/tmp/workspace', name: '  Renamed workspace  ' })).toEqual({
+      path: '/tmp/workspace',
+      name: 'Renamed workspace'
+    })
+    expect(UpdateAgentWorkspaceSchema.safeParse({ name: '   ' }).success).toBe(false)
     expect(UpdateAgentWorkspaceSchema.safeParse({ path: '/tmp/renamed' }).success).toBe(false)
   })
 

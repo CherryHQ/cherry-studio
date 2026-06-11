@@ -218,10 +218,10 @@ export async function buildClaudeCodeSessionSettings(
   const isAssistant = agentConfig?.builtin_role === 'assistant'
   const mcpServers = await buildMcpServers(session, agent, soulEnabled, isAssistant)
 
-  // 8. Auto-approve injected MCP server tools
+  // 7. Auto-approve injected MCP server tools
   const finalAllowedTools = buildInjectedMcpAllowedTools(soulEnabled, isAssistant)
 
-  // 9. Build settings
+  // 8. Build settings
   const settings: ClaudeCodeSettings = {
     cwd,
     env,
@@ -715,7 +715,8 @@ async function resolveSourceChannel(agentId: string, sessionId: string): Promise
 
 /**
  * Auto-approve MCP tools for injected built-in servers.
- * Claw and assistant tools must be in allowedTools for canUseTool to pass them.
+ * Claw and assistant are also auto-allowed by policy snapshot prefixes; agent-memory
+ * has no such canUseTool shortcut, so its wildcard must stay in the SDK allow list.
  */
 export function buildInjectedMcpAllowedTools(soulEnabled: boolean, isAssistant: boolean): string[] | undefined {
   const result: string[] = []

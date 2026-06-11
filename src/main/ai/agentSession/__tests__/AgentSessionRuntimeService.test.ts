@@ -362,6 +362,113 @@ describe('AgentSessionRuntimeService', () => {
     expect(connection.close).not.toHaveBeenCalled()
   })
 
+  it('applies permission-mode updates when configuration replacement drops the key', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      applyPolicyUpdate: vi.fn()
+    }
+    entry.connection = connection
+
+    await (service as any).handleAgentUpdated('agent-1', { configuration: {} }, { id: 'agent-1', configuration: {} })
+
+    expect(connection.applyPolicyUpdate).toHaveBeenCalledWith({
+      type: 'permission-mode',
+      permissionMode: undefined
+    })
+    expect(connection.close).not.toHaveBeenCalled()
+  })
+
+  it('closes and logs when a live policy update rejects', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const failure = new Error('policy update failed')
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      applyPolicyUpdate: vi.fn().mockRejectedValue(failure)
+    }
+    entry.connection = connection
+
+    await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
+
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+      'Failed to apply live agent policy update; closing runtime connection',
+      {
+        agentId: 'agent-1',
+        sessionId: 'session-1',
+        error: failure
+      }
+    )
+    expect(connection.close).toHaveBeenCalledOnce()
+    expect(service.inspect('session-1')).toBeUndefined()
+  })
+
+  it('does not close a replacement runtime when an old policy update rejects late', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const deferred = createDeferred<boolean>()
+    const oldEntry = getEntry(service)
+    const oldConnection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      applyPolicyUpdate: vi.fn(() => deferred.promise)
+    }
+    oldEntry.connection = oldConnection
+
+    const updatePromise = (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
+    expect(oldConnection.applyPolicyUpdate).toHaveBeenCalledOnce()
+
+    service.closeSession('session-1')
+    service.beginTurn(baseTurnInput)
+    const newConnection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      applyPolicyUpdate: vi.fn()
+    }
+    getEntry(service).connection = newConnection
+
+    deferred.reject(new Error('late policy update failure'))
+    await updatePromise
+
+    expect(oldConnection.close).toHaveBeenCalledOnce()
+    expect(newConnection.close).not.toHaveBeenCalled()
+    expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1', status: 'active' })
+  })
+
+  it('closes and logs when a live policy update returns false', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      applyPolicyUpdate: vi.fn().mockResolvedValue(false)
+    }
+    entry.connection = connection
+
+    await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
+
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+      'Live agent policy update was not applied; closing runtime connection',
+      {
+        agentId: 'agent-1',
+        sessionId: 'session-1'
+      }
+    )
+    expect(connection.close).toHaveBeenCalledOnce()
+    expect(service.inspect('session-1')).toBeUndefined()
+  })
+
   it('ignores per-execution terminal events until the topic is done', () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn(baseTurnInput)

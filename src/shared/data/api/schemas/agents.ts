@@ -99,7 +99,7 @@ export const AgentBaseSchema = z.strictObject({
   planModel: UniqueModelIdSchema.optional(),
   smallModel: UniqueModelIdSchema.optional(),
   mcps: z.array(z.string()).optional(),
-  /** Opt-out list of disabled tool names (empty = all enabled). Drives SDK disallowedTools. */
+  /** Opt-out list of disabled tool names (empty = all enabled). Drives SDK disallowedTools and PreToolUse denial. */
   disabledTools: AgentToolNameSetSchema.optional(),
   configuration: AgentConfigurationSchema.optional()
 })

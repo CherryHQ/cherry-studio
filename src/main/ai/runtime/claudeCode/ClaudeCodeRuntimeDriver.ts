@@ -198,8 +198,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       await this.toolPolicySnapshot?.update(update.agent)
       return true
     }
-    this.toolPolicySnapshot?.setPermissionMode(update.permissionMode)
     await this.query.setPermissionMode(update.permissionMode ?? 'default')
+    this.toolPolicySnapshot?.setPermissionMode(update.permissionMode)
     return true
   }
 

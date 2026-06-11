@@ -1,6 +1,6 @@
 /**
  * disabledTools must take effect on a warm Claude Code connection. The driver pushes
- * `snapshot.update(agent)` on every agent change and `canUseTool` consults `snapshot.isDisabled`
+ * `snapshot.update(agent)` on every agent change and the PreToolUse hook consults `snapshot.isDisabled`
  * per invocation — so a tool disabled mid-session is denied without rebuilding the connection.
  * This asserts that live behavior at the snapshot layer.
  */

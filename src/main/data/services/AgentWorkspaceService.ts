@@ -155,12 +155,6 @@ export class AgentWorkspaceService {
     return rowToAgentWorkspace(row)
   }
 
-  async createSystemAgentWorkspaceForSession(sessionId: string): Promise<AgentWorkspaceEntity> {
-    return await application
-      .get('DbService')
-      .withWriteTx((tx) => this.createSystemWorkspaceForSessionTx(tx, { sessionId }))
-  }
-
   async update(id: string, dto: UpdateAgentWorkspaceDto): Promise<AgentWorkspaceEntity> {
     const row = await withSqliteErrors(
       () =>

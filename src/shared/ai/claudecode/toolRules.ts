@@ -25,7 +25,6 @@ export interface ClaudeToolInvocation {
 
 export interface ClaudeToolPolicy {
   permissionMode?: AgentPermissionMode
-  allowedTools?: readonly string[]
   disabledTools?: readonly string[]
 }
 
@@ -80,8 +79,8 @@ function sourceDecision(descriptor: ClaudeToolDescriptor): ClaudeToolDecision | 
 
 /**
  * A tool the agent has explicitly disabled is denied outright — it overrides permission mode and
- * allow rules. Evaluated live per invocation (via the policy snapshot), so disabling a tool takes
- * effect on the current warm connection without a rebuild.
+ * auto-approval resolution. Evaluated live per invocation (via the policy snapshot), so disabling a
+ * tool takes effect on the current warm connection without a rebuild.
  */
 export function isClaudeToolDisabled(descriptor: ClaudeToolDescriptor, policy: ClaudeToolPolicy): boolean {
   return hasRuleMatch(policy.disabledTools, descriptor)
@@ -95,10 +94,6 @@ export function resolveClaudeToolAccess(
   if (source) return source
 
   if (policy.permissionMode === 'bypassPermissions') {
-    return { id: descriptor.id, approval: 'auto' }
-  }
-
-  if (hasRuleMatch(policy.allowedTools, descriptor)) {
     return { id: descriptor.id, approval: 'auto' }
   }
 
@@ -124,39 +119,6 @@ function matchesAcceptEditsBashInvocation(descriptor: ClaudeToolDescriptor, invo
   return ACCEPT_EDITS_BASH_COMMANDS.has(command)
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function matchesGlob(pattern: string, value: string): boolean {
-  const source = pattern
-    .split('*')
-    .map((part) => escapeRegExp(part))
-    .join('.*')
-  return new RegExp(`^${source}$`).test(value)
-}
-
-function matchesBashInvocationRule(
-  rule: string,
-  descriptor: ClaudeToolDescriptor,
-  invocation: ClaudeToolInvocation
-): boolean {
-  if (normalizeClaudeBuiltinName(descriptor.id) !== 'Bash') return false
-  const match = rule.match(/^Bash\((.*)\)$/)
-  if (!match) return false
-  const command = commandFromInput(invocation.input)
-  if (!command) return false
-  return matchesGlob(match[1].trim(), command)
-}
-
-function hasInvocationRuleMatch(
-  values: readonly string[] | undefined,
-  descriptor: ClaudeToolDescriptor,
-  invocation: ClaudeToolInvocation
-): boolean {
-  return values?.some((value) => matchesBashInvocationRule(value, descriptor, invocation)) ?? false
-}
-
 export function resolveClaudeToolInvocationAccess(
   descriptor: ClaudeToolDescriptor,
   policy: ClaudeToolPolicy,
@@ -166,13 +128,6 @@ export function resolveClaudeToolInvocationAccess(
   if (source) return source
 
   if (policy.permissionMode === 'bypassPermissions') {
-    return { id: descriptor.id, approval: 'auto' }
-  }
-
-  if (
-    hasRuleMatch(policy.allowedTools, descriptor) ||
-    hasInvocationRuleMatch(policy.allowedTools, descriptor, invocation)
-  ) {
     return { id: descriptor.id, approval: 'auto' }
   }
 
