@@ -145,6 +145,12 @@ export interface CherryUIMessageMetadata {
   modelSnapshot?: ModelSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
+  /**
+   * Whether this message is on the currently-active branch of the topic tree. Seeded `true` on
+   * locally-reserved skeletons (the row being created is the active leaf); the DB refresh recomputes
+   * it from the tree.
+   */
+  isActiveBranch?: boolean
   /** Trace id for the assistant execution that produced this message. */
   traceId?: string | null
 

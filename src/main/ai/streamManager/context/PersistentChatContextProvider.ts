@@ -109,7 +109,7 @@ function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
       isActiveBranch: true,
       ...(message.stats?.totalTokens ? { totalTokens: message.stats.totalTokens } : {})
     }
-  } as CherryUIMessage
+  } satisfies CherryUIMessage
 }
 
 export class PersistentChatContextProvider implements ChatContextProvider {
@@ -141,14 +141,18 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     }
 
     if (ctx.hasLiveStream && req.trigger === 'submit-message') {
+      // Stamp the row with the model the user selected for this steer so the continuation answers
+      // with it — `prepareSteerContinuation` reads `userMessage.modelId`. Steer is single-model: if
+      // multiple models were @-mentioned, only the first is used (multi-model steer is unsupported).
+      const steerModelId = req.mentionedModelIds?.[0] ?? defaultModelId
       const userMessage = await messageService.create(req.topicId, {
         role: 'user',
         parentId: req.parentAnchorId,
         data: { parts: req.userMessageParts },
         status: 'success',
-        modelId: defaultModelId,
+        modelId: steerModelId,
         modelSnapshot: (() => {
-          const { providerId, modelId: rawModelId } = parseUniqueModelId(defaultModelId)
+          const { providerId, modelId: rawModelId } = parseUniqueModelId(steerModelId)
           return { id: rawModelId, name: rawModelId, provider: providerId }
         })()
       })

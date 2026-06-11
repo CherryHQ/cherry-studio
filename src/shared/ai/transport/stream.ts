@@ -219,7 +219,11 @@ export type AiStreamOpenResponse =
        * reconcile final content/status from a DB refresh.
        */
       reservedMessages?: CherryUIMessage[]
-      /** Backward-compatible assistant placeholder ids derived from reservedMessages. */
+      /**
+       * Backward-compatible assistant placeholder ids derived from `reservedMessages`.
+       * @deprecated Derive from `reservedMessages` at the call site; remove with the legacy home page
+       *   (its `usePendingMessages` is the only remaining reader).
+       */
       placeholderIds?: string[]
     }
   | {

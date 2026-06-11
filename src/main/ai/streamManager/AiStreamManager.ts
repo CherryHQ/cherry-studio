@@ -27,7 +27,7 @@ import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context'
 import { KeyedMutex } from './KeyedMutex'
 import { createChatStreamLifecycle, promptStreamLifecycle, type StreamLifecycle } from './lifecycle'
-import { WebContentsListener } from './listeners/WebContentsListener'
+import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
 import { pipeStreamLoop } from './pipeStreamLoop'
 import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 import type {
@@ -822,7 +822,7 @@ export class AiStreamManager extends BaseService {
     queue.shift()
     if (queue.length === 0) this.pendingSteers.delete(topicId)
 
-    const carried = previous ? [...previous.listeners.values()].filter((listener) => listener.id.startsWith('wc:')) : []
+    const carried = previous ? [...previous.listeners.values()].filter(isRendererListener) : []
     if (previous) this.evictStream(topicId)
 
     const req: MainDispatchRequest = { trigger: 'steer-continuation', topicId, userMessageId }
