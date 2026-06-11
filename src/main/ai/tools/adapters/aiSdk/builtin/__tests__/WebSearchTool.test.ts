@@ -100,7 +100,7 @@ describe('web_search', () => {
     const errorView = toModelOutput({ output: { error: 'upstream 503' } } as never)
     expect(errorView).toEqual({
       type: 'text',
-      value: 'Web search failed (network/provider error); retry or inform the user.'
+      value: 'Web lookup failed (network/provider error); retry or inform the user.'
     })
   })
 
@@ -175,7 +175,7 @@ describe('web_fetch', () => {
     const errorView = toModelOutput({ output: { error: 'upstream 503' } } as never)
     expect(errorView).toEqual({
       type: 'text',
-      value: 'Web search failed (network/provider error); retry or inform the user.'
+      value: 'Web lookup failed (network/provider error); retry or inform the user.'
     })
   })
 
