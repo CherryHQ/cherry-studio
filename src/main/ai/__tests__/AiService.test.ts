@@ -10,6 +10,7 @@ const mockDownloadImageAsBase64 = vi.fn()
 const mockApplicationGet = vi.fn()
 const mockMessageGetById = vi.fn()
 const mockMessageUpdate = vi.fn()
+const mockMessageApplyApproval = vi.fn()
 const mockProviderGetByProviderId = vi.fn()
 const mockProviderGetRotatedApiKey = vi.fn()
 const mockModelGetByKey = vi.fn()
@@ -40,7 +41,8 @@ vi.mock('@main/utils/downloadAsBase64', () => ({
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
     getById: mockMessageGetById,
-    update: mockMessageUpdate
+    update: mockMessageUpdate,
+    applyToolApprovalDecisions: mockMessageApplyApproval
   }
 }))
 
@@ -314,7 +316,7 @@ describe('AiService tool approval', () => {
     expect(getById).not.toHaveBeenCalled()
   })
 
-  it('persists the flipped parts and dispatches continue-conversation for an MCP approval present on the row', async () => {
+  it('applies the decision atomically and dispatches continue-conversation when nothing is left pending', async () => {
     const respondToolApproval = vi.fn(() => false)
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
@@ -323,9 +325,13 @@ describe('AiService tool approval', () => {
       return undefined
     })
 
-    const beforeParts = [{ type: 'text', text: 'hello' }, pendingToolPart('mcp-approval-1')]
-    vi.spyOn(messageService, 'getById').mockResolvedValue({ data: { parts: beforeParts } } as never)
-    const update = vi.spyOn(messageService, 'update').mockResolvedValue({} as never)
+    // The serialized atomic mutation returns the committed parts with the decision applied; the
+    // handler computes "still pending" from THESE committed parts, not a local stale copy.
+    const committed = [
+      { type: 'text', text: 'hello' },
+      { ...pendingToolPart('mcp-approval-1'), state: 'approval-responded', input: { command: 'pwd' } }
+    ]
+    const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions').mockResolvedValue(committed as never)
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -337,13 +343,10 @@ describe('AiService tool approval', () => {
     })
 
     expect(result).toEqual({ ok: true })
-    // Target part was on the row → write the flipped parts.
-    expect(update).toHaveBeenCalledTimes(1)
-    const [updatedId, updateDto] = update.mock.calls[0]
-    expect(updatedId).toBe('anchor-1')
-    const writtenParts = (updateDto as { data: { parts: Array<{ state?: string }> } }).data.parts
-    expect(writtenParts[1].state).toBe('approval-responded')
-    expect(writtenParts[1]).toMatchObject({ input: { command: 'pwd' } })
+    // The decision goes through the serialized read-modify-write, not an ad-hoc getById+update.
+    expect(apply).toHaveBeenCalledWith('anchor-1', [
+      { approvalId: 'mcp-approval-1', approved: true, updatedInput: { command: 'pwd' } }
+    ])
     // Nothing left pending → resume via continue-conversation.
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(dispatch).toHaveBeenCalledWith(
@@ -357,7 +360,7 @@ describe('AiService tool approval', () => {
     )
   })
 
-  it('does not write parts when the approval is overlay-only (not present on the row) but still dispatches', async () => {
+  it('still dispatches when the committed parts report nothing pending (overlay-only decision)', async () => {
     const respondToolApproval = vi.fn(() => false)
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
@@ -366,11 +369,10 @@ describe('AiService tool approval', () => {
       return undefined
     })
 
-    // Row carries no approval-requested part matching this approvalId.
-    vi.spyOn(messageService, 'getById').mockResolvedValue({
-      data: { parts: [{ type: 'text', text: 'hello' }] }
-    } as never)
-    const update = vi.spyOn(messageService, 'update').mockResolvedValue({} as never)
+    // Overlay-only: the target part isn't on the row, so the committed parts carry no pending approval.
+    const apply = vi
+      .spyOn(messageService, 'applyToolApprovalDecisions')
+      .mockResolvedValue([{ type: 'text', text: 'hello' }] as never)
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -381,9 +383,8 @@ describe('AiService tool approval', () => {
     })
 
     expect(result).toEqual({ ok: true })
-    // Part absent on the row → no overwrite of the persisted parts...
-    expect(update).not.toHaveBeenCalled()
-    // ...but the decision still rides the continue dispatch idempotently.
+    expect(apply).toHaveBeenCalledWith('anchor-1', [{ approvalId: 'mcp-approval-missing', approved: false }])
+    // The decision still rides the continue dispatch idempotently.
     expect(dispatch).toHaveBeenCalledTimes(1)
     expect(dispatch).toHaveBeenCalledWith(
       expect.anything(),
@@ -403,10 +404,11 @@ describe('AiService tool approval', () => {
       return undefined
     })
 
-    // Two outstanding approvals on the same row; we only decide the first.
-    const beforeParts = [pendingToolPart('mcp-approval-1'), pendingToolPart('mcp-approval-2', 'mcp_read')]
-    vi.spyOn(messageService, 'getById').mockResolvedValue({ data: { parts: beforeParts } } as never)
-    const update = vi.spyOn(messageService, 'update').mockResolvedValue({} as never)
+    // Committed parts: this approval decided, but a sibling is still approval-requested.
+    vi.spyOn(messageService, 'applyToolApprovalDecisions').mockResolvedValue([
+      { ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' },
+      pendingToolPart('mcp-approval-2', 'mcp_read')
+    ] as never)
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -417,9 +419,7 @@ describe('AiService tool approval', () => {
     })
 
     expect(result).toEqual({ ok: true })
-    // The decided part is persisted...
-    expect(update).toHaveBeenCalledTimes(1)
-    // ...but the still-pending sibling gates the resume.
+    // The still-pending sibling gates the resume.
     expect(dispatch).not.toHaveBeenCalled()
   })
 
@@ -432,9 +432,8 @@ describe('AiService tool approval', () => {
       return undefined
     })
 
-    // A stale click on a deleted message: getById rejects.
-    const getById = vi.spyOn(messageService, 'getById').mockRejectedValue(new Error('Message not found'))
-    const update = vi.spyOn(messageService, 'update')
+    // A stale click on a deleted message: the atomic mutation reports the anchor is gone (null).
+    const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions').mockResolvedValue(null)
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -446,8 +445,7 @@ describe('AiService tool approval', () => {
 
     // Resolves gracefully through the documented result shape instead of throwing.
     expect(result).toEqual({ ok: false })
-    expect(getById).toHaveBeenCalledWith('deleted-anchor')
-    expect(update).not.toHaveBeenCalled()
+    expect(apply).toHaveBeenCalledWith('deleted-anchor', [{ approvalId: 'mcp-approval-1', approved: true }])
     expect(dispatch).not.toHaveBeenCalled()
   })
 
