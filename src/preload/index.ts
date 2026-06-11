@@ -583,6 +583,11 @@ const api = {
       const listener = (_: Electron.IpcRendererEvent, isFullscreen: boolean) => callback(isFullscreen)
       ipcRenderer.on(IpcChannel.WindowManager_FullscreenChanged, listener)
       return () => ipcRenderer.off(IpcChannel.WindowManager_FullscreenChanged, listener)
+    },
+    onFocusChange: (callback: (isFocused: boolean) => void): (() => void) => {
+      const listener = (_: Electron.IpcRendererEvent, isFocused: boolean) => callback(isFocused)
+      ipcRenderer.on(IpcChannel.WindowManager_FocusChanged, listener)
+      return () => ipcRenderer.off(IpcChannel.WindowManager_FocusChanged, listener)
     }
   },
   selection: {
