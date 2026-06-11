@@ -58,7 +58,7 @@ describe('ProviderListItem', () => {
       />
     )
 
-    expect(container.querySelector('span[aria-hidden].bg-green-500')).toBeInTheDocument()
+    expect(container.querySelector('span[aria-hidden].bg-success')).toBeInTheDocument()
   })
 
   it('omits the enabled-state dot when provider.isEnabled is false', () => {
@@ -71,6 +71,6 @@ describe('ProviderListItem', () => {
       />
     )
 
-    expect(container.querySelector('span[aria-hidden].bg-green-500')).not.toBeInTheDocument()
+    expect(container.querySelector('span[aria-hidden].bg-success')).not.toBeInTheDocument()
   })
 })

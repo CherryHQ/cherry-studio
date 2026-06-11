@@ -137,7 +137,7 @@ const TaskChannelSelector: FC<{
           renderOption={(option) => (
             <span className="flex min-w-0 items-center gap-2">
               <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${option.isActive ? 'bg-green-500' : 'bg-gray-400'}`}
+                className={`inline-block h-1.5 w-1.5 rounded-full ${option.isActive ? 'bg-success' : 'bg-gray-400'}`}
               />
               <span className="truncate">{option.label}</span>
             </span>
@@ -574,7 +574,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
           return (
             <div className="flex items-center gap-1">
               <span
-                className={isErrorStatus ? 'text-red-500' : ''}
+                className={isErrorStatus ? 'text-destructive' : ''}
                 style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {text}
               </span>
@@ -677,9 +677,9 @@ const badgeColorClass = (value: string) => {
 }
 
 const statusDotColors: Record<string, string> = {
-  active: 'bg-green-500',
-  paused: 'bg-yellow-500',
-  completed: 'bg-blue-500'
+  active: 'bg-success',
+  paused: 'bg-warning',
+  completed: 'bg-info'
 }
 
 // --------------- Create Form (right panel) ---------------
