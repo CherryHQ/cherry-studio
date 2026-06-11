@@ -106,6 +106,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     } catch (error) {
       logger.error('Failed to install tool', error as Error)
       window.toast.error(`${t('settings.plugins.installError')}: ${formatErrorMessage(error)}`)
+      throw error
     } finally {
       setInstallingTools((prev) => {
         const next = new Set(prev)
@@ -123,17 +124,21 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       throw new Error('duplicate')
     }
 
-    const updated = [...customTools, tool]
-    await setCustomTools(updated)
     await installTool(tool)
+    await setCustomTools([...customTools, tool])
   }
 
   const handleRemoveCustomTool = async (toolName: string) => {
-    await window.api.binaryManager.removeTool(toolName)
-    const updated = customTools.filter((t) => t.name !== toolName)
-    await setCustomTools(updated)
-    await refreshState()
-    setDeleteTarget(null)
+    try {
+      await window.api.binaryManager.removeTool(toolName)
+      const updated = customTools.filter((t) => t.name !== toolName)
+      await setCustomTools(updated)
+      await refreshState()
+      setDeleteTarget(null)
+    } catch (error) {
+      logger.error('Failed to remove tool', error as Error)
+      window.toast.error(formatErrorMessage(error))
+    }
   }
 
   const openToolDir = (toolName: string) => {
@@ -228,8 +233,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         title={t('settings.plugins.removeConfirmTitle')}
         description={t('settings.plugins.removeConfirmMessage', { name: deleteTarget })}
         destructive
-        onConfirm={() => {
-          if (deleteTarget) void handleRemoveCustomTool(deleteTarget)
+        onConfirm={async () => {
+          if (deleteTarget) await handleRemoveCustomTool(deleteTarget)
         }}
       />
     </div>

@@ -7,10 +7,10 @@ BinaryManager is the single lifecycle service responsible for acquiring and mana
 ## Quick links
 
 - Implementation: `src/main/services/BinaryManager.ts`
-- IPC channels: `packages/shared/IpcChannel.ts` (`Binary_*`)
+- IPC channels: `src/shared/IpcChannel.ts` (`Binary_*`)
 - Persisted state: `feature.binaries.tools` preference + `feature.binaries.state_file` path
-- Preset catalog: `packages/shared/data/presets/binary-tools.ts`
-- Renderer entry point: `src/renderer/src/pages/settings/McpSettings/EnvironmentDependencies.tsx`
+- Preset catalog: `src/shared/data/presets/binary-tools.ts`
+- Renderer entry point: `src/renderer/pages/settings/McpSettings/EnvironmentDependencies.tsx`
 
 ## Scope: what belongs and what doesn't
 
@@ -37,7 +37,7 @@ These are the stable boundaries that survive across versions and renderer reload
 | Path key | `cherry.bin` → `~/.cherrystudio/bin` | Bundled-binary extraction target |
 | IPC | `binary:reconcile`, `binary:install-tool`, `binary:remove-tool`, `binary:get-state`, `binary:search-registry`, `binary:get-tool-dir`, `binary:probe-bundled` | Renderer → main |
 | IPC events | `binary:state-changed`, `binary:reconcile-failed` | Main → renderer |
-| Types | `ManagedBinary`, `BinaryState`, `ToolInstallState` (`packages/shared/data/preference/preferenceTypes.ts`) | Both sides |
+| Types | `ManagedBinary`, `BinaryState`, `ToolInstallState` (`src/shared/data/preference/preferenceTypes.ts`) | Both sides |
 
 `ManagedBinary` is `{ name, tool, version? }` where `tool` is a mise tool spec (`npm:foo`, `pipx:bar`, `gh`, `claude`, …). Adding new fields requires regenerating preference schemas via `cd v2-refactor-temp/tools/data-classify && npm run generate`.
 
@@ -45,7 +45,7 @@ These are the stable boundaries that survive across versions and renderer reload
 
 ## Path resolution: one resolver, two sources
 
-```
+```text
 getBinaryPath(name)  →  mise shim → cherry.bin → binary name (PATH fallback)
                         ────────   ──────────   ─────────────────────────────
                         mise-managed bundled     resolved by user shell at exec
@@ -92,7 +92,7 @@ These are passthrough — if the user already has either var in their shell env,
 
 **Preset (built-in tool, appears in the predefined list):**
 
-1. Add an entry to `PREDEFINED_BINARY_TOOLS` in `packages/shared/data/presets/binary-tools.ts`:
+1. Add an entry to `PREDEFINED_BINARY_TOOLS` in `src/shared/data/presets/binary-tools.ts`:
    ```ts
    {
      name: 'gh',           // executable name (also the mise shim name)
@@ -102,7 +102,7 @@ These are passthrough — if the user already has either var in their shell env,
      repoUrl: 'https://github.com/cli/cli'
    }
    ```
-2. Add a description translation key under `settings.plugins.tools.<name>` in `src/renderer/src/i18n/locales/en-us.json`, then run `pnpm i18n:sync`.
+2. Add a description translation key under `settings.plugins.tools.<name>` in `src/renderer/i18n/locales/en-us.json`, then run `pnpm i18n:sync`.
 3. No code change in BinaryManager — the renderer picks it up via the preset list.
 
 **Custom (user-added from the settings UI):**

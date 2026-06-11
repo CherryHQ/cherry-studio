@@ -124,6 +124,13 @@ const TOOLS = [
         binaries: ['bun.exe'],
         strip: 'bun-windows-x64',
         sha256: '0a0620930b6675d7ba440e81f4e0e00d3cfbe096c4b140d3fff02205e9e18922'
+      },
+      'win32-arm64': {
+        url: bunUrl('bun-windows-aarch64'),
+        archive: 'zip',
+        binaries: ['bun.exe'],
+        strip: 'bun-windows-aarch64',
+        sha256: '89841f5a57f2348b67ec0839b718f4bf4ea7d07c371c9ba4b77b6c790f918953'
       }
     }
   },
@@ -160,14 +167,12 @@ const TOOLS = [
         url: uvUrl('uv-x86_64-pc-windows-msvc', 'zip'),
         archive: 'zip',
         binaries: ['uv.exe', 'uvx.exe'],
-        strip: 'uv-x86_64-pc-windows-msvc',
         sha256: 'dd9d6d6554bfab265bfa98aa8e8a406c5c3a7b97582f93de1f4d48d9154a0395'
       },
       'win32-arm64': {
         url: uvUrl('uv-aarch64-pc-windows-msvc', 'zip'),
         archive: 'zip',
         binaries: ['uv.exe', 'uvx.exe'],
-        strip: 'uv-aarch64-pc-windows-msvc',
         sha256: 'e4f8e70eb21f0f4efd2eeb159ab289f9a16057d59881a4475758be4ce39bc8c5'
       }
     }
@@ -226,8 +231,9 @@ function chmodExec(filePath) {
   if (process.platform !== 'win32') fs.chmodSync(filePath, 0o755)
 }
 
-function isUpToDate(destPath, versionPath, expectedVersion) {
-  if (!fs.existsSync(destPath) || !fs.existsSync(versionPath)) return false
+function isUpToDate(binaryPaths, versionPath, expectedVersion) {
+  if (!fs.existsSync(versionPath)) return false
+  if (binaryPaths.some((binaryPath) => !fs.existsSync(binaryPath))) return false
   return fs.readFileSync(versionPath, 'utf8').trim() === expectedVersion
 }
 
@@ -255,7 +261,7 @@ function extract(archivePath, archive, outputDir, pkg) {
         fs.rmSync(tmpExtract, { recursive: true, force: true })
       }
     } else {
-      const globs = pkg.binaries.map((b) => `${pkg.strip}/${b}`)
+      const globs = pkg.binaries.map((b) => (pkg.strip ? `${pkg.strip}/${b}` : b))
       execFileSync('unzip', ['-o', '-j', archivePath, ...globs, '-d', outputDir], { stdio: 'inherit' })
     }
   } else if (archive === 'tar.gz') {
@@ -285,11 +291,12 @@ function downloadTool(tool, platformKey, outputDir) {
     return
   }
 
-  const primaryDest = path.join(outputDir, pkg.binaries[0])
+  const binaryPaths = pkg.binaries.map((binary) => path.join(outputDir, binary))
+  const primaryDest = binaryPaths[0]
   const versionPath = path.join(outputDir, tool.versionFile)
 
-  if (isUpToDate(primaryDest, versionPath, tool.version)) {
-    for (const b of pkg.binaries) chmodExec(path.join(outputDir, b))
+  if (isUpToDate(binaryPaths, versionPath, tool.version)) {
+    for (const binaryPath of binaryPaths) chmodExec(binaryPath)
     console.log(`[${tool.name}] ${tool.version} already installed`)
     return
   }
