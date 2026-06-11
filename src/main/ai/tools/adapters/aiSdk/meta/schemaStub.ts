@@ -11,9 +11,9 @@ import type { ToolEntry } from '../types'
 import { schemaToJSDoc } from './formatJsDoc'
 
 /**
- * Normalise a tool's `inputSchema` to canonical JSONSchema. Tools carry Zod,
- * a `jsonSchema` wrapper, or raw JSONSchema; `asSchema(...).jsonSchema` is the
- * shape the model actually sees inline. Returns undefined on any failure so
+ * Normalise a tool's `inputSchema` to canonical JSONSchema. Tools carry either
+ * Zod or a `jsonSchema()`-wrapped schema (e.g. MCP tools); `asSchema(...).jsonSchema`
+ * is the shape the model actually sees inline. Returns undefined on any failure so
  * the stub degrades to a description-only signature.
  */
 export async function serializeToolSchema(schema: unknown): Promise<unknown> {
