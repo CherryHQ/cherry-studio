@@ -4,7 +4,7 @@ import { cn } from '@renderer/utils'
 import { Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef } from 'react'
 
-import { getSidebarLayout, SIDEBAR_ICON_WIDTH, SIDEBAR_VERTICAL_CARD_WIDTH } from './constants'
+import { getSidebarDisplayWidth, getSidebarLayout } from './constants'
 import { DefaultLogo } from './primitives'
 import { SidebarDocked } from './SidebarDocked'
 import { SidebarFooter } from './SidebarFooter'
@@ -29,6 +29,7 @@ export interface SidebarProps {
   actions?: React.ReactNode
   onItemClick: (id: string) => void
   onHoverChange?: (visible: boolean) => void
+  onResizePreview?: (width: number | null) => void
   onSearchClick?: () => void
   onExtensionsClick?: () => void
   onMiniAppTabClick?: (tabId: string) => void
@@ -53,6 +54,7 @@ export function Sidebar({
   actions,
   onItemClick,
   onHoverChange,
+  onResizePreview,
   onSearchClick,
   onExtensionsClick,
   onMiniAppTabClick,
@@ -61,7 +63,7 @@ export function Sidebar({
   onDismiss
 }: SidebarProps) {
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { sidebarRef, startResizing } = useSidebarResize(setWidth)
+  const { sidebarRef, startResizing } = useSidebarResize(width, setWidth, onResizePreview)
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const layout = getSidebarLayout(width)
   const showFooter = Boolean(extensionsLabel || user || onExtensionsClick || actions)
@@ -98,7 +100,7 @@ export function Sidebar({
       <div className="fixed inset-0 z-40" onClick={handleDismiss}>
         <div
           className={cn(
-            'slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar/70 shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
+            'slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
             isMac && 'pt-[env(titlebar-area-height)]'
           )}
           onClick={(event) => event.stopPropagation()}
@@ -148,7 +150,7 @@ export function Sidebar({
     return (
       <div ref={sidebarRef} className="relative h-full w-2 shrink-0">
         <div
-          className="absolute top-0 bottom-0 left-0 z-50 w-4"
+          className="absolute inset-y-0 left-0 z-50 w-4 [-webkit-app-region:no-drag]"
           onMouseEnter={() => {
             if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
             hoverTimeout.current = setTimeout(() => onHoverChange?.(true), 200)
@@ -169,9 +171,8 @@ export function Sidebar({
     )
   }
 
-  // --- Visible sidebar (icon / vertical-card / full) ---
-  const actualWidth =
-    layout === 'icon' ? SIDEBAR_ICON_WIDTH : layout === 'vertical-card' ? SIDEBAR_VERTICAL_CARD_WIDTH : width
+  // --- Visible sidebar (icon / full) ---
+  const actualWidth = getSidebarDisplayWidth(width)
 
   return (
     <div
@@ -228,7 +229,7 @@ export function Sidebar({
       {/* Resize handle */}
       <div
         onMouseDown={startResizing}
-        className="group/handle absolute top-0 right-0 bottom-0 z-50 w-0.75 cursor-col-resize">
+        className="group/handle absolute top-0 right-0 bottom-0 z-50 w-0.75 cursor-col-resize [-webkit-app-region:no-drag]">
         <div className="h-full w-full bg-primary/20 opacity-0 transition-opacity group-hover/handle:opacity-100" />
       </div>
     </div>

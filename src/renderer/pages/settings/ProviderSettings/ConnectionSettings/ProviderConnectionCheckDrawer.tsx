@@ -15,6 +15,7 @@ interface ProviderConnectionCheckDrawerProps {
   isSubmitting: boolean
   onClose: () => void
   onStart: (config: { model: Model; apiKey: string }) => Promise<void>
+  onOpenModelHealthCheck?: () => void
 }
 
 export default function ProviderConnectionCheckDrawer({
@@ -23,7 +24,8 @@ export default function ProviderConnectionCheckDrawer({
   apiKeys,
   isSubmitting,
   onClose,
-  onStart
+  onStart,
+  onOpenModelHealthCheck
 }: ProviderConnectionCheckDrawerProps) {
   const { t } = useTranslation()
   const sortedModels = useMemo(() => sortBy(models, 'name'), [models])
@@ -46,18 +48,31 @@ export default function ProviderConnectionCheckDrawer({
 
   const selectedApiKey = apiKeys[selectedKeyIndex] ?? apiKeys[0] ?? ''
   const hasMultipleKeys = apiKeys.length > 1
+  const handleOpenModelHealthCheck = () => {
+    onClose()
+    onOpenModelHealthCheck?.()
+  }
 
   const footer = (
-    <div className={drawerClasses.footer}>
-      <Button variant="outline" onClick={onClose}>
-        {t('common.cancel')}
-      </Button>
-      <Button
-        disabled={!selectedModel || !selectedApiKey}
-        loading={isSubmitting}
-        onClick={() => selectedModel && void onStart({ model: selectedModel, apiKey: selectedApiKey })}>
-        {t('settings.models.check.start')}
-      </Button>
+    <div className={drawerClasses.splitFooter}>
+      <div>
+        {onOpenModelHealthCheck ? (
+          <Button variant="ghost" className={drawerClasses.footerTextButton} onClick={handleOpenModelHealthCheck}>
+            {t('settings.models.check.model_button_caption')}
+          </Button>
+        ) : null}
+      </div>
+      <div className={drawerClasses.footer}>
+        <Button variant="outline" onClick={onClose}>
+          {t('common.cancel')}
+        </Button>
+        <Button
+          disabled={!selectedModel || !selectedApiKey}
+          loading={isSubmitting}
+          onClick={() => selectedModel && void onStart({ model: selectedModel, apiKey: selectedApiKey })}>
+          {t('settings.models.check.start')}
+        </Button>
+      </div>
     </div>
   )
 
@@ -84,7 +99,7 @@ export default function ProviderConnectionCheckDrawer({
           </div>
 
           {hasMultipleKeys ? (
-            <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
+            <div className="space-y-3 rounded-xl border border-border-muted bg-muted/20 p-4">
               <div className="font-medium text-[13px] text-foreground/85">
                 {t('settings.models.check.select_api_key')}
               </div>
@@ -104,7 +119,7 @@ export default function ProviderConnectionCheckDrawer({
           ) : (
             <div className="space-y-2">
               <div className="font-medium text-[13px] text-foreground/85">{t('settings.provider.api_key.label')}</div>
-              <div className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2.5 font-mono text-[12px] text-foreground/70">
+              <div className="rounded-xl border border-border-muted bg-muted/20 px-3 py-2.5 font-mono text-[12px] text-foreground/70">
                 {selectedApiKey ? maskApiKey(selectedApiKey) : '—'}
               </div>
             </div>

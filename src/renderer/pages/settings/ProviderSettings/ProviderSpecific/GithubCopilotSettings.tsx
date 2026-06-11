@@ -258,7 +258,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
       case AuthStatus.CODE_GENERATED:
         return (
           <div className="mb-5 flex flex-col gap-4 md:flex-row md:gap-6">
-            <div className="flex min-w-[200px] flex-1 flex-col gap-2">
+            <div className="flex min-w-50 flex-1 flex-col gap-2">
               {getSteps().map((step, idx) => (
                 <div key={idx} className="flex gap-2">
                   <span className={stepDotClass(step.status)} />
@@ -270,7 +270,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
               ))}
             </div>
 
-            <div className="flex min-w-0 flex-[2] flex-col gap-4">
+            <div className="flex min-w-0 flex-2 flex-col gap-4">
               {currentStep >= 1 && (
                 <div className="rounded-lg border border-border bg-muted/40 p-4 transition-colors hover:border-border/80">
                   <div className="mb-3 flex items-start gap-3">
@@ -372,7 +372,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
   }
 
   return (
-    <div className="pt-[15px]">
+    <div className="pt-3.75">
       {renderAuthContent()}
       {authStatus === AuthStatus.AUTHENTICATED && (
         <div className="mt-5 flex min-h-6 flex-row items-center justify-between">
@@ -380,7 +380,7 @@ const GithubCopilotSettings: FC<GithubCopilotSettingsProps> = ({ providerId }) =
             {t('settings.provider.copilot.rate_limit')}
           </ProviderSettingsSubtitle>
           <div
-            className="w-[200px]"
+            className="w-50"
             onPointerUp={() => {
               void handleRateLimitChange(rateLimitRef.current)
             }}>

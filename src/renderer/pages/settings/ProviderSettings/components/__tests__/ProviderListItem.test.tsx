@@ -22,22 +22,30 @@ afterEach(() => {
 describe('ProviderListItem', () => {
   const provider = { id: 'silicon-flow', name: '硅基流动' } as any
 
-  it('uses one font-weight step between idle and selected labels', () => {
+  it('keeps the same medium font weight for idle and selected labels', () => {
     const { rerender } = render(
       <ProviderListItem provider={provider} selected={false} dragging={false} onClick={vi.fn()} />
     )
 
-    expect(screen.getByText('硅基流动')).toHaveClass('font-normal')
+    expect(screen.getByText('硅基流动')).toHaveClass('font-[weight:500]')
+    expect(screen.getByText('硅基流动')).not.toHaveClass('font-normal')
 
     rerender(<ProviderListItem provider={provider} selected dragging={false} onClick={vi.fn()} />)
 
-    expect(screen.getByText('硅基流动')).toHaveClass('font-medium')
+    expect(screen.getByText('硅基流动')).toHaveClass('font-[weight:500]')
+    expect(screen.getByText('硅基流动')).not.toHaveClass('font-medium')
   })
 
-  it('renders provider logos at 22px in the list', () => {
+  it('renders provider logos at 26px in the list', () => {
     render(<ProviderListItem provider={provider} selected={false} dragging={false} onClick={vi.fn()} />)
 
-    expect(providerAvatarMock).toHaveBeenCalledWith(expect.objectContaining({ size: 22 }))
+    expect(providerAvatarMock).toHaveBeenCalledWith(expect.objectContaining({ size: 26 }))
+  })
+
+  it('renders a drag handle before the provider logo', () => {
+    render(<ProviderListItem provider={provider} selected={false} dragging={false} onClick={vi.fn()} />)
+
+    expect(screen.getByTestId('provider-list-drag-handle-silicon-flow')).toBeInTheDocument()
   })
 
   it('shows an enabled-state dot when provider.isEnabled is true', () => {

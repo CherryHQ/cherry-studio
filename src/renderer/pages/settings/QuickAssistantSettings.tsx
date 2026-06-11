@@ -145,7 +145,7 @@ const QuickAssistantSettings: FC = () => {
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className="h-[34px] w-[300px] justify-between px-2 shadow-none"
+                        className="h-8.5 w-75 justify-between px-2 shadow-none"
                         aria-expanded={assistantSelectOpen}>
                         <AssistantOption
                           assistant={selectedAssistant}
@@ -156,7 +156,7 @@ const QuickAssistantSettings: FC = () => {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
-                      className="w-[300px] p-0"
+                      className="w-75 p-0"
                       align="end"
                       onFocusOutside={(event) => {
                         // The embedded quick assistant preview auto-focuses its input on render.
@@ -213,7 +213,7 @@ const QuickAssistantSettings: FC = () => {
         </SettingGroup>
       )}
       {enableQuickAssistant && (
-        <div className="mx-auto mt-5 h-[460px] w-full overflow-hidden rounded-[10px] border-[0.5px] border-border bg-background">
+        <div className="mx-auto mt-5 h-115 w-full overflow-hidden rounded-[10px] border-[0.5px] border-border bg-background">
           <HomeWindow draggable={false} />
         </div>
       )}
