@@ -42,6 +42,11 @@
   --cs-border-hover: oklch(0 0 0 / 0.2);
   --cs-border-active: oklch(0 0 0 / 0.3);
   --cs-frame-border: #eaebe8;
+  /* Frame border on translucent (macOS vibrancy) windows — when the window is
+   * key, the edge must stay clearly legible against the blurred wallpaper, so
+   * this is a solid step darker than the opaque --cs-frame-border (which would
+   * read too faint over glass). */
+  --cs-frame-border-translucent: #dadcd6;
 
   /* Foreground-derived soft border for form controls (input/select etc.).
    * 12% foreground mix gives a slightly stronger outline than --cs-border (10%)
@@ -70,10 +75,17 @@
   --cs-sidebar: #f7f8f7;
   --cs-sidebar-accent: oklch(0 0 0 / 0.05);
 
+  /* Sidebar glass tint — the opaque sidebar color at partial alpha over native
+   * vibrancy. Kept fairly opaque (70%, matching dark): at a lower alpha the
+   * wallpaper gradient bled through and the sidebar read uneven/disjointed
+   * against the flat content surface. */
+  --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 70%, transparent);
+
   /* Selected state — tab bar active tab, sidebar active menu item.
    * Paired 0.5px inside-border (--cs-selected-border) for a quiet outline. */
   --cs-selected: #f0f0ef;
   --cs-selected-border: #eaebe8;
+
   /* Surface-paired foregrounds — all neutral surfaces share the app foreground.
    * These tokens exist so Tailwind utilities like `text-card-foreground`,
    * `text-popover-foreground`, `text-secondary-foreground`, `text-accent-foreground`
@@ -100,6 +112,20 @@
   --cs-sidebar-accent-foreground: var(--cs-foreground);
   --cs-sidebar-border: var(--cs-border);
   --cs-sidebar-ring: var(--cs-ring);
+
+  /* Feature-highlight pill (Badge "highlight" variant — New / PRO / Beta tags).
+   * A bright mint accent, deliberately distinct from the success status family. */
+  --cs-highlight: #8fd944;
+  --cs-highlight-surface: #c2ec80;
+  --cs-highlight-foreground: #2e4d18;
+
+  /* Elevated "metallic" CTA (Button default variant) — vertical gradient that
+   * flips light-on-dark per mode. (The rim-light box-shadow lives inline in
+   * button.tsx; a box-shadow can't be a --color-* token without breaking the
+   * Tailwind @theme color namespace.) */
+  --cs-button-elevated-from: #323232;
+  --cs-button-elevated-to: #222222;
+  --cs-button-elevated-foreground: #fcfcfc;
 }
 
 /* Dark Mode */
@@ -136,6 +162,10 @@
   --cs-border-hover: oklch(1 0 0 / 0.2);
   --cs-border-active: oklch(1 0 0 / 0.3);
   --cs-frame-border: #32332c;
+  /* Translucent-window frame border (dark) — key windows need a clearly legible
+   * edge over the blurred wallpaper, so this sits a step lighter than the opaque
+   * --cs-frame-border. */
+  --cs-frame-border-translucent: #3c3d35;
 
   /* Foreground-derived soft border (dark) — see :root note. */
   --cs-border-fg-muted: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
@@ -161,7 +191,22 @@
   --cs-sidebar: #1c1d1a;
   --cs-sidebar-accent: oklch(1 0 0 / 0.1);
 
+  /* Sidebar glass tint (dark) — intentionally more opaque than light (70 vs 35%):
+   * over a dark wallpaper the blurred bleed-through crushes sidebar legibility,
+   * so we keep only a hint of glass. See :root note for the alpha tradeoffs. */
+  --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 70%, transparent);
+
   /* Selected state (dark) — see :root note. */
   --cs-selected: #1f201d;
   --cs-selected-border: #343531;
+
+  /* Feature-highlight pill (dark) — deep forest invert of the light mint. */
+  --cs-highlight: #a0d958;
+  --cs-highlight-surface: #2a4514;
+  --cs-highlight-foreground: #c0ec7c;
+
+  /* Elevated CTA (dark) — inverted light gradient with dark text. */
+  --cs-button-elevated-from: #f5f5f5;
+  --cs-button-elevated-to: #e8e8e8;
+  --cs-button-elevated-foreground: #1a1c1f;
 }
