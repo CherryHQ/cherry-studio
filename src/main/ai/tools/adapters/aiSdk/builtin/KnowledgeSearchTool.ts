@@ -99,6 +99,7 @@ Workflow: call kb__list first to discover available bases and their contents, th
 export function createKbSearchToolEntry(): ToolEntry {
   return {
     name: KB_SEARCH_TOOL_NAME,
+    truncatable: false,
     namespace: 'kb',
     description: "Search the user's private knowledge base",
     defer: 'auto',

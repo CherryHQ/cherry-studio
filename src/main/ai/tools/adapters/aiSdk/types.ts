@@ -31,6 +31,17 @@ export interface ToolEntry {
   name: string
 
   /**
+   * Whether the context-build truncate/persist layer may rewrite this
+   * tool's results. `false` exempts the tool (chef `perTool` preserve):
+   *   - citation tools (kb__search, web__search) — truncation breaks the
+   *     inline `[id]` anchors the model cites in its reply
+   *   - read-style tools — persisting their output would route the model
+   *     right back through the same tool to read the persisted file (loop)
+   * Default (undefined) = truncatable.
+   */
+  truncatable?: boolean
+
+  /**
    * Grouping for `tool_search`. NOT part of the wire-name.
    *   builtin: 'web', 'kb'
    *   mcp:     'mcp:{serverName}'  (raw display name, not camelCased)
