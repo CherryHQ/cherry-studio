@@ -32,7 +32,6 @@ const LEGACY_RENDERER_CSS_VARS = [
   '--color-inline-code-text',
   '--color-hover',
   '--color-active',
-  '--color-frame-border',
   '--color-group-background',
   '--color-reference',
   '--color-reference-text',

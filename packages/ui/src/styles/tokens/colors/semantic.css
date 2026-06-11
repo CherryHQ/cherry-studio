@@ -19,7 +19,7 @@
   --cs-info: var(--cs-blue-500);
 
   /* Background & Foreground */
-  --cs-background: var(--cs-white);
+  --cs-background: #ffffff;
   --cs-background-subtle: oklch(0 0 0 / 0.02);
   --cs-foreground: oklch(0 0 0 / 0.9);
   --cs-foreground-secondary: oklch(0 0 0 / 0.6);
@@ -39,7 +39,7 @@
   --cs-border-subtle: oklch(0 0 0 / 0.04);
   --cs-border-hover: oklch(0 0 0 / 0.2);
   --cs-border-active: oklch(0 0 0 / 0.3);
-  --cs-frame-border: oklch(0 0 0 / 0.12);
+  --cs-frame-border: #eaebe8;
 
   /* Foreground-derived soft border for form controls (input/select etc.).
    * 12% foreground mix gives a slightly stronger outline than --cs-border (10%)
@@ -59,7 +59,7 @@
   --cs-ghost-active: oklch(0 0 0 / 0.1); /* Ghost Button Active */
 
   /* Sidebar */
-  --cs-sidebar: oklch(0.9672 0 0);
+  --cs-sidebar: #f7f8f7;
   --cs-sidebar-accent: oklch(0 0 0 / 0.05);
 
   /* Surface-paired foregrounds — all neutral surfaces share the app foreground.
@@ -103,7 +103,7 @@
   --cs-info: var(--cs-blue-400);
 
   /* Background & Foreground */
-  --cs-background: oklch(0.209 0 0 / 0.55);
+  --cs-background: #1515148c; /* #151514 @ 0.55 alpha — alpha lets macOS transparent windows blur the wallpaper through */
   --cs-background-subtle: oklch(1 0 0 / 0.02);
   --cs-foreground: oklch(1 0 0 / 0.9);
   --cs-foreground-secondary: oklch(1 0 0 / 0.6);
@@ -122,7 +122,7 @@
   --cs-border-subtle: oklch(1 0 0 / 0.05);
   --cs-border-hover: oklch(1 0 0 / 0.2);
   --cs-border-active: oklch(1 0 0 / 0.3);
-  --cs-frame-border: oklch(1 0 0 / 0.14);
+  --cs-frame-border: #1f201d;
 
   /* Foreground-derived soft border (dark) — see :root note. */
   --cs-border-fg-muted: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
@@ -140,6 +140,6 @@
   --cs-ghost-active: oklch(1 0 0 / 0.15); /* Ghost Button Active */
 
   /* Sidebar */
-  --cs-sidebar: oklch(0.2393 0 0);
+  --cs-sidebar: #090a05;
   --cs-sidebar-accent: oklch(1 0 0 / 0.1);
 }
