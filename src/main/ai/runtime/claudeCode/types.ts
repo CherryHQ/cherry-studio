@@ -30,6 +30,8 @@ export type {
  * are managed by the language model internally.
  */
 export type ClaudeCodeSettings = Omit<Options, 'model' | 'abortController' | 'prompt' | 'outputFormat'> & {
+  /** Skill directories to expose to the Claude Agent SDK for this session. */
+  skills?: string[]
   /**
    * Per-stream holder for the controller's `enqueue` binding. `canUseTool`
    * calls `emit` to inject a `tool-approval-request` part into the live
