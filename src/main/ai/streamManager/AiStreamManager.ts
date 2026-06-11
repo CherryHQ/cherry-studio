@@ -29,7 +29,6 @@ import { KeyedMutex } from './KeyedMutex'
 import { createChatStreamLifecycle, promptStreamLifecycle, type StreamLifecycle } from './lifecycle'
 import { isRendererListener, WebContentsListener } from './listeners/WebContentsListener'
 import { pipeStreamLoop } from './pipeStreamLoop'
-import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 import type {
   ActiveStream,
   AiStreamManagerConfig,
@@ -41,6 +40,7 @@ import type {
   StreamListener,
   TransportTimings
 } from './types'
+import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 
 const logger = loggerService.withContext('AiStreamManager')
 
