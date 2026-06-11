@@ -42,6 +42,15 @@ export class KnowledgeIndexStore {
     // Derive each unit's stable id and its body text + embedding hash from the
     // content offsets, so `content.text.slice(start, end) === body text` holds.
     const units = input.units.map((unit) => {
+      // slice() clamps out-of-range offsets silently, which would persist a lying
+      // charEnd alongside a shorter body — fail loud at write time instead of in
+      // whatever later reads the offsets (charStart bounds are covered by the
+      // schema CHECKs inside this same transaction).
+      if (unit.charEnd > input.content.text.length) {
+        throw new Error(
+          `Knowledge index unit ${unit.unitIndex} of material ${materialId} has charEnd ${unit.charEnd} beyond the content length ${input.content.text.length}`
+        )
+      }
       const bodyText = input.content.text.slice(unit.charStart, unit.charEnd)
       return {
         ...unit,
@@ -140,6 +149,12 @@ export class KnowledgeIndexStore {
         )
       }
 
+      // 6b. Coverage check: every unit's re-derived embedding hash must resolve to
+      // a vector. The caller hashes its chunk text while this store hashes the
+      // re-sliced body, so an offset/hash mismatch would otherwise surface as
+      // units silently absent from vector search — roll the rebuild back instead.
+      await this.assertEmbeddingCoverage(tx, materialId, [...new Set(units.map((unit) => unit.embeddingTextHash))])
+
       // 7. Mark the material indexed and clear any prior failure summary.
       await tx.execute(
         `UPDATE material
@@ -153,9 +168,10 @@ export class KnowledgeIndexStore {
 
   /**
    * Delete a material and everything derived from it. Removing the material row
-   * cascades to its `search_unit` (and `content_index_entry`); the units' body
-   * `search_text` is deleted explicitly first (no FK), which also clears the FTS
-   * index via the delete trigger. Orphaned `embedding` rows are left for GC (§10).
+   * cascades to its `search_unit`; the units' body `search_text` is deleted
+   * explicitly first (no FK), which also clears the FTS index via the delete
+   * trigger. Orphaned `embedding` rows are left for a not-yet-implemented GC
+   * (deferred past PR A — see listExistingEmbeddingHashes for its lock contract).
    */
   async deleteMaterial(materialId: string): Promise<void> {
     await this.driver.transaction(async (tx) => {
@@ -172,7 +188,7 @@ export class KnowledgeIndexStore {
    *
    * The job reads this outside the base mutation lock, then writes the rebuild
    * under it. That is safe only because nothing deletes `embedding` rows today
-   * (orphans are left for a not-yet-implemented GC, §10). Whoever adds that GC
+   * (orphans are left for a not-yet-implemented GC). Whoever adds that GC
    * MUST run it under the base mutation lock — otherwise it could drop a hash
    * reported here as existing between this read and the rebuild write, leaving a
    * unit with no vector (silently absent from vector search).
@@ -340,6 +356,27 @@ export class KnowledgeIndexStore {
       args
     )
     return result.rows.map((row) => toMatch(row, -Number(row.len)))
+  }
+
+  /** Throw (rolling back the surrounding rebuild) if any unit hash has no embedding row. */
+  private async assertEmbeddingCoverage(tx: SqliteTransaction, materialId: string, hashes: string[]): Promise<void> {
+    const missing = new Set(hashes)
+    for (let i = 0; i < hashes.length; i += EMBEDDING_HASH_QUERY_BATCH) {
+      const batch = hashes.slice(i, i + EMBEDDING_HASH_QUERY_BATCH)
+      const placeholders = batch.map(() => '?').join(', ')
+      const result = await tx.execute(
+        `SELECT embedding_text_hash FROM embedding WHERE embedding_text_hash IN (${placeholders})`,
+        batch
+      )
+      for (const row of result.rows) {
+        missing.delete(row.embedding_text_hash as string)
+      }
+    }
+    if (missing.size > 0) {
+      throw new Error(
+        `Knowledge index rebuild for material ${materialId} left ${missing.size} unit embedding hash(es) without a vector (first: ${[...missing][0]})`
+      )
+    }
   }
 
   private async deleteMaterialSearchText(tx: SqliteTransaction, materialId: string): Promise<void> {
