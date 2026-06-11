@@ -495,7 +495,12 @@ async function buildToolPermissions(
   const isAssistant = agentConfig?.builtin_role === 'assistant'
   const toolPolicySnapshot = await createClaudeAgentToolPolicySnapshot(agent, {
     autoAllowRuntimeNamePrefixes: [
-      // cherry-tools is injected for every session and only exposes Cherry read-only builtin tools.
+      // cherry-tools is injected for every session. Auto-allowing it (no per-call approval) is a
+      // deliberate decision (matches feat/chat-page): none of its tools have side effects in the
+      // main process — web_search/web_fetch read the network, kb_search/kb_list read the user's
+      // knowledge bases, report_artifacts only records a declaration. The untrusted-channel exposure
+      // this creates (approval-free kb reads + web_fetch URL egress for channel-linked sessions) is
+      // bounded by the system-level channel security policy (CHANNEL_SECURITY_PROMPT).
       'mcp__cherry-tools__',
       ...(soulEnabled ? ['mcp__claw__'] : []),
       ...(isAssistant ? ['mcp__assistant__'] : [])
@@ -594,7 +599,10 @@ export async function buildSystemPrompt(
     try {
       const context = await buildAssistantContext()
       return instructions ? `${instructions}\n\n${context}` : context
-    } catch {
+    } catch (error) {
+      // Don't silently degrade to generic behavior: a DB/fs/preference read failure here drops the
+      // entire assistant context, so surface it before falling back to the base instructions.
+      logger.error('buildAssistantContext failed; falling back to base instructions', error as Error)
       return instructions
     }
   }
