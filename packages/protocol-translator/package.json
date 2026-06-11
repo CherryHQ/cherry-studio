@@ -1,0 +1,10 @@
+{
+  "name": "@cherrystudio/protocol-translator",
+  "version": "0.1.0",
+  "description": "Protocol translation layer: OpenAI ↔ Anthropic ↔ Gemini format conversion",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {},
+  "dependencies": {},
+  "devDependencies": {}
+}
