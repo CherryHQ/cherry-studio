@@ -153,4 +153,11 @@ export interface AiStreamManagerConfig {
   readonly backgroundMode: 'continue' | 'abort'
   /** Per-execution buffer cap; exceeding stops buffering, not streaming. */
   readonly maxBufferChunks: number
+  /**
+   * Idle bound while a tool is awaiting human approval. The normal idle timeout is far too short for
+   * a human, so on `tool-approval-request` the watchdog re-arms to this generous value instead of the
+   * default — bounded so a renderer that never responds (window closed/crashed) can't leave the
+   * stream and its subprocess hanging until app quit.
+   */
+  readonly approvalIdleTimeoutMs: number
 }

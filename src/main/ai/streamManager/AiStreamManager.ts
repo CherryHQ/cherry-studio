@@ -147,7 +147,10 @@ export interface TopicSnapshot {
 const DEFAULT_CONFIG: AiStreamManagerConfig = {
   gracePeriodMs: 30_000,
   backgroundMode: 'continue',
-  maxBufferChunks: 10_000
+  maxBufferChunks: 10_000,
+  // Generous (2 h) but bounded: a human can deliberate, yet a renderer that never responds (window
+  // closed/crashed) can't leave the stream + subprocess hanging until app quit.
+  approvalIdleTimeoutMs: 2 * 60 * 60 * 1000
 }
 
 /** `pending` covers the pre-first-chunk window — don't compare against `'streaming'` alone. */
@@ -1058,7 +1061,10 @@ export class AiStreamManager extends BaseService {
     const result = await pipeStreamLoop(stream, signal, {
       onChunk: (chunk) => {
         this.onChunk(topicId, modelId, chunk)
-        if (chunk.type === 'tool-approval-request') idle.cleanup()
+        // A tool awaiting human approval emits no chunks while it waits, so the normal (short) idle
+        // timeout would kill a legitimate deliberation. Re-arm with the generous approval bound
+        // instead of pausing entirely — an unresponsive renderer still can't hang the stream forever.
+        if (chunk.type === 'tool-approval-request') idle.reset(this.config.approvalIdleTimeoutMs)
       },
       accumulatorSeed,
       onAccumulatedSnapshot: (msg) => {
