@@ -1,5 +1,6 @@
+import { application } from '@application'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
-import { workspaceWorkflowService } from '@data/services/WorkspaceWorkflowService'
 import { toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
@@ -31,7 +32,11 @@ export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
       return await agentWorkspaceService.update(params.workspaceId, parsed.data)
     },
     DELETE: async ({ params }) => {
-      await workspaceWorkflowService.deleteWorkspace(params.workspaceId)
+      await application.get('DbService').withWriteTx(async (tx) => {
+        await agentWorkspaceService.getRowByIdTx(tx, params.workspaceId)
+        await agentSessionService.deleteByWorkspaceTx(tx, params.workspaceId)
+        await agentWorkspaceService.deleteByIdTx(tx, params.workspaceId)
+      })
       return undefined
     }
   },
