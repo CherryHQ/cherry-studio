@@ -276,7 +276,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn()
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
       return undefined
     })
     const getById = vi.spyOn(messageService, 'getById')
@@ -321,7 +321,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -360,12 +360,42 @@ describe('AiService tool approval', () => {
     )
   })
 
+  it('refuses (ok:false) without mutating the row when a stream is still live on the topic', async () => {
+    // The approval card is clickable the moment the chunk arrives (live overlay), so a response can
+    // land while a sibling exec / another continuation is still live. Dispatching continue-conversation
+    // then would hit send()'s inject path and silently swallow the approved turn. Gate it: refuse
+    // before touching the row, so the card stays actionable and the renderer can retry post-settle.
+    const respondToolApproval = vi.fn(() => false)
+    const dispatch = vi.fn().mockResolvedValue(undefined)
+    const hasLiveStream = vi.fn(() => true)
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream }
+      return undefined
+    })
+    const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions')
+
+    const handler = getApprovalHandler()
+    const result = await handler(fakeEvent(), {
+      approvalId: 'mcp-approval-1',
+      approved: true,
+      topicId: 'topic-1',
+      anchorId: 'anchor-1'
+    })
+
+    expect(result).toEqual({ ok: false })
+    expect(hasLiveStream).toHaveBeenCalledWith('topic-1')
+    // Row is NOT mutated and no continuation is dispatched.
+    expect(apply).not.toHaveBeenCalled()
+    expect(dispatch).not.toHaveBeenCalled()
+  })
+
   it('still dispatches when the committed parts report nothing pending (overlay-only decision)', async () => {
     const respondToolApproval = vi.fn(() => false)
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -400,7 +430,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -428,7 +458,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn().mockResolvedValue(undefined)
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
       return undefined
     })
 
@@ -454,7 +484,7 @@ describe('AiService tool approval', () => {
     const dispatch = vi.fn()
     mockApplicationGet.mockImplementation((name: string) => {
       if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
-      if (name === 'AiStreamManager') return { dispatch }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
       return undefined
     })
     const getById = vi.spyOn(messageService, 'getById')

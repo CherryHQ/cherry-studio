@@ -869,6 +869,38 @@ describe('AiStreamManager', () => {
       expect(mgr.hasPendingSteer('a')).toBe(false)
     })
 
+    it('drops a steer landing after abort() but before the loop settles, even after a prior clean turn', async () => {
+      // The stale-`lastTerminalKind` race: an earlier turn finished cleanly (records 'done'), a new
+      // turn is live, the user presses Stop (`abort()` flips status synchronously), and the steer
+      // enqueue lands BEFORE `onExecutionPaused` records 'aborted'. Pre-fix, the enqueue read the
+      // stale 'done' and drained — starting a turn after Stop and evicting the still-settling stream.
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+
+      // 1) an earlier clean turn → lastTerminalKind = 'done'
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l1')]
+      })
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      dispatchSpy.mockClear()
+
+      // 2) a new live turn, 3) Stop (abort is synchronous), 4) steer lands before onExecutionPaused runs
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l2')]
+      })
+      mgr.abort('a', 'user-requested')
+      mgr.enqueuePendingSteer('a', 'u1')
+
+      await flush()
+      expect(dispatchSpy).not.toHaveBeenCalled()
+      expect(mgr.hasPendingSteer('a')).toBe(false)
+    })
+
     it('does not chain while an execution is awaiting approval (blocker 3)', async () => {
       // A turn that ends `awaiting-approval` with a steer queued must NOT launch a continuation: the
       // user's Approve dispatches `continue-conversation`, which a live continuation would swallow.

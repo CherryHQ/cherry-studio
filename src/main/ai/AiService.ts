@@ -229,6 +229,25 @@ export class AiService extends BaseService {
           return { ok: false }
         }
 
+        // The approval card is clickable the moment the `tool-approval-request` chunk arrives (the live
+        // overlay), not only at terminal. So a response can land while a stream is still live on this
+        // topic — a sibling exec in a multi-model turn, or another approved continuation already
+        // running. The continue-conversation dispatch below would then hit send()'s inject path and
+        // silently discard the approved turn (its models dropped, the tool never runs, the row stays
+        // `pending`) while still returning a success-shaped response. Refuse before mutating the row;
+        // the card stays actionable and the renderer can retry once the stream settles. (The Phase-3
+        // consolidation is the real fix.)
+        if (application.get('AiStreamManager').hasLiveStream(payload.topicId)) {
+          logger.warn(
+            'Tool-approval response arrived while a stream is live — refusing to avoid a swallowed continuation',
+            {
+              approvalId: payload.approvalId,
+              topicId: payload.topicId
+            }
+          )
+          return { ok: false }
+        }
+
         // Main is the single authority for the approval mutation: the
         // renderer no longer PATCHes (it sourced parts from a DB projection
         // that didn't carry the overlay-only `approval-requested` part and

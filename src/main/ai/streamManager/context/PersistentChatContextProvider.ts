@@ -154,7 +154,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         models: [],
         listeners: [subscriber],
-        userMessage,
         userMessageId: userMessage.id,
         pendingSteerUserMessageId: userMessage.id,
         reservedMessages: [toReservedUIMessage(userMessage)],
@@ -169,6 +168,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     if (isRegenerate && !req.parentAnchorId) {
       throw new Error(`'regenerate-message' requires parentAnchorId`)
+    }
+
+    // A regenerate while the topic is still live would build placeholder rows that send()'s inject
+    // path discards — orphaning them as `pending`. The renderer gates regenerate on a non-busy topic,
+    // so reject this should-not-happen state before any DB write instead of failing silently.
+    if (isRegenerate && ctx.hasLiveStream) {
+      throw new Error('Cannot regenerate while a stream is live on this topic')
     }
 
     // Pure compute; backfill happens inside the reservation tx. Resolver short-circuits

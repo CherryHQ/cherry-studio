@@ -458,7 +458,6 @@ interface SendInput {
   topicId: string
   models: ReadonlyArray<{ modelId: UniqueModelId; request: AiStreamRequest; rootSpan?: Span }>
   listeners: StreamListener[]
-  userMessage?: Message              // persisted user row; not consumed by send() — callers' bookkeeping
   siblingsGroupId?: number
   lifecycle?: StreamLifecycle        // omit → chatLifecycle; streamPrompt passes promptStreamLifecycle
 }
@@ -753,17 +752,18 @@ interface PreparedDispatch {
   topicId: string
   models: ReadonlyArray<{ modelId: UniqueModelId; request: AiStreamRequest; rootSpan?: Span }>
   listeners: StreamListener[]   // subscriber + per-execution PersistenceListener(s)
-  userMessage?: Message
   userMessageId?: string
+  pendingSteerUserMessageId?: string   // persistent steer branch only; marks the dispatch enqueue-only
+  reservedMessages?: CherryUIMessage[] // user/assistant skeletons created for this dispatch
   siblingsGroupId?: number
   isMultiModel: boolean
   lifecycle?: StreamLifecycle
 }
 
-// dispatch.ts also accepts a Main-internal `continue-conversation`
-// variant synthesised by the tool-approval IPC handler — not exposed
-// over the renderer ↔ main contract.
-type MainDispatchRequest = AiStreamOpenRequest | MainContinueConversationRequest
+// dispatch.ts also accepts two Main-internal variants synthesised internally —
+// `continue-conversation` (tool-approval IPC handler) and `steer-continuation`
+// (chat steer drain) — neither exposed over the renderer ↔ main contract.
+type MainDispatchRequest = AiStreamOpenRequest | MainContinueConversationRequest | MainSteerContinuationRequest
 ```
 
 ### Built-in providers
