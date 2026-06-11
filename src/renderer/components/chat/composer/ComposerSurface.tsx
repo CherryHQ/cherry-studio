@@ -1051,6 +1051,15 @@ export default function ComposerSurface({
       },
       handleDOMEvents: {
         copy: (view, event) => handleComposerCopy(view, event, tokenByIdRef.current),
+        cut: (view, event) => {
+          if (!handleComposerCopy(view, event, tokenByIdRef.current)) return false
+
+          const editor = editorRef.current
+          if (editor && !editor.isDestroyed && editor.isEditable) {
+            editor.chain().focus().deleteSelection().run()
+          }
+          return true
+        },
         compositionstart: () => {
           const editor = editorRef.current
           if (!editor || editor.isDestroyed) return false

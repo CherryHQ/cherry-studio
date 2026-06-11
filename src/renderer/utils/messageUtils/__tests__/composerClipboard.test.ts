@@ -156,6 +156,36 @@ describe('composer clipboard', () => {
     }
   })
 
+  it('stops resolving file restoration handles after the handle TTL expires', () => {
+    vi.useFakeTimers()
+    try {
+      const token = {
+        id: 'file:source-expiring',
+        kind: 'file' as const,
+        label: 'report.pdf',
+        payload: {
+          fileTokenSourceId: 'source-expiring',
+          name: 'report.pdf',
+          path: '/Users/example/private/report.pdf'
+        }
+      }
+      const fragment = readComposerClipboardFragment(
+        createComposerClipboardFragment([{ type: 'token', token, fallbackText: token.label }])
+      )
+      const segment = fragment?.segments[0]
+      expect(segment?.type).toBe('token')
+      if (segment?.type !== 'token') return
+
+      expect(createFileMetadataFromComposerClipboardToken(segment.token)).not.toBeNull()
+
+      vi.advanceTimersByTime(30 * 60 * 1000 + 1)
+
+      expect(createFileMetadataFromComposerClipboardToken(segment.token)).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('does not reuse incoming file handles when writing private fragments', () => {
     const token = {
       id: 'file:source-image',

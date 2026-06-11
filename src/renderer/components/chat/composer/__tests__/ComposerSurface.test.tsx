@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   insertContent: vi.fn(),
   insertComposerToken: vi.fn(),
   deleteRange: vi.fn(),
+  deleteSelection: vi.fn(),
   setContent: vi.fn(),
   setNodeSelection: vi.fn(),
   chainRun: vi.fn(),
@@ -103,6 +104,7 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
     mocks.editorOptions = options
     return {
       isDestroyed: false,
+      isEditable: true,
       getJSON: mocks.getJSON,
       commands: {
         focus: mocks.focus,
@@ -123,6 +125,10 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
           },
           setNodeSelection: (...args: unknown[]) => {
             mocks.setNodeSelection(...args)
+            return { run: mocks.chainRun }
+          },
+          deleteSelection: () => {
+            mocks.deleteSelection()
             return { run: mocks.chainRun }
           },
           insertContent: (...args: unknown[]) => {
@@ -328,6 +334,7 @@ describe('ComposerSurface', () => {
     mocks.insertContent.mockReset()
     mocks.insertComposerToken.mockReset()
     mocks.deleteRange.mockReset()
+    mocks.deleteSelection.mockReset()
     mocks.setContent.mockReset()
     mocks.setNodeSelection.mockReset()
     mocks.chainRun.mockReset()
@@ -1430,6 +1437,77 @@ describe('ComposerSurface', () => {
       },
       { type: 'text', text: ' now' }
     ])
+  })
+
+  it('writes rich clipboard data and deletes the selection when cutting composer tokens', async () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const clipboardData = createClipboardDataMock()
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData
+    }
+    const view = createComposerCopyView([
+      {
+        type: 'paragraph',
+        content: [
+          {
+            type: 'composerToken',
+            attrs: {
+              id: 'skill:pdf',
+              kind: 'skill',
+              label: 'PDF',
+              promptText: 'Use PDF'
+            }
+          },
+          { type: 'text', text: ' now' }
+        ]
+      }
+    ])
+
+    const handled = mocks.editorOptions.editorProps.handleDOMEvents.cut(view, event)
+
+    expect(handled).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(clipboardData.getData('text/plain')).toBe('/pdf/ now')
+    expect(
+      readComposerClipboardFragment(clipboardData.getData(COMPOSER_CLIPBOARD_FRAGMENT_MIME))?.segments
+    ).toContainEqual({
+      type: 'token',
+      fallbackText: '/pdf/',
+      token: {
+        id: 'skill:pdf',
+        kind: 'skill',
+        label: 'PDF',
+        promptText: 'Use PDF'
+      }
+    })
+    expect(mocks.deleteSelection).toHaveBeenCalled()
+    expect(mocks.chainRun).toHaveBeenCalled()
+  })
+
+  it('lets ProseMirror handle plain text composer cut selections', async () => {
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+    const clipboardData = createClipboardDataMock()
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData
+    }
+    const view = createComposerCopyView([
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: 'plain text' }]
+      }
+    ])
+
+    const handled = mocks.editorOptions.editorProps.handleDOMEvents.cut(view, event)
+
+    expect(handled).toBe(false)
+    expect(clipboardData.setData).not.toHaveBeenCalled()
+    expect(mocks.deleteSelection).not.toHaveBeenCalled()
   })
 
   it('lets ProseMirror handle plain text composer copy selections', async () => {

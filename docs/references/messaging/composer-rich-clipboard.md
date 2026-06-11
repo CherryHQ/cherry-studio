@@ -105,8 +105,10 @@ markers.
 - `composerClipboard.ts` owns private fragment parsing, serialization, HTML
   escaping, the restoration context (file restoration handles and the session
   cache), and system clipboard write helpers.
-- `ComposerSurface` owns editor copy/paste event handling and delegates fragment
-  parsing/projection to utilities.
+- `ComposerSurface` owns editor copy/cut/paste event handling and delegates
+  fragment parsing/projection to utilities. Cut performs the same rich copy and
+  then deletes the selection, so cut tokens stay restorable instead of degrading
+  to the default token-stripped clipboard HTML.
 - Normal OS file paste and drag/drop are separate flows that use the browser or
   Electron file APIs. They do not restore files from private composer fragments.
 - File restoration does not re-read the file or re-run supported-extension
