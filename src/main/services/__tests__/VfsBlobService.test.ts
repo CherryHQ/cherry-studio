@@ -2,8 +2,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { VfsBlobService } from '@data/services/VfsBlobService'
 import { BaseService } from '@main/core/lifecycle'
+import { VfsBlobService } from '@main/services/VfsBlobService'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { tmpRef } = vi.hoisted(() => ({
@@ -14,7 +14,7 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   const mod = mockApplicationFactory()
   mod.application.getPath = vi.fn((key: string) => {
-    if (key === 'feature.context_chef.vfs') return tmpRef.current
+    if (key === 'feature.context_chef.vfs.temp') return tmpRef.current
     throw new Error(`Unexpected getPath('${key}') in vfs blob service test`)
   })
   return mod

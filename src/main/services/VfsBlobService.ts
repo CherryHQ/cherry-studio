@@ -12,7 +12,7 @@
  *
  * Responsibilities:
  * - Own one shared `FileSystemAdapter` pointed at
- *   `application.getPath('feature.context_chef.vfs')`. Wired into
+ *   `application.getPath('feature.context_chef.vfs.temp')`. Wired into
  *   chef middleware via `truncate.storage` in the contextChef feature.
  * - The model retrieves the full content by calling `fs__read` with
  *   the absolute path that chef writes into the marker — there is NO
@@ -36,13 +36,17 @@ const logger = loggerService.withContext('VfsBlobService')
 const STALE_AGE_MS = 7 * 24 * 60 * 60 * 1000
 
 @Injectable('VfsBlobService')
+// BeforeReady (not Background): init is sub-millisecond and the adapter must be
+// resolvable before the first AI request builds chef middleware options.
 @ServicePhase(Phase.BeforeReady)
 export class VfsBlobService extends BaseService {
   private rootDir!: string
   private adapter!: FileSystemAdapter
 
   protected onInit(): void {
-    this.rootDir = application.getPath('feature.context_chef.vfs')
+    this.rootDir = application.getPath('feature.context_chef.vfs.temp')
+    // Redundant with getPath auto-ensure, kept as fail-fast: auto-ensure only
+    // warns on failure, while a throw here fails service init loudly.
     fs.mkdirSync(this.rootDir, { recursive: true })
     this.adapter = new FileSystemAdapter(this.rootDir)
   }
