@@ -3,7 +3,8 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentService } from '@data/services/AgentService'
 import { pinService } from '@data/services/PinService'
-import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
+import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
+import { ErrorCode } from '@shared/data/api'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -111,11 +112,25 @@ describe('AgentService', () => {
       expect(agent.id).toMatch(uuidV4Pattern)
     })
 
-    it('places newly created agents first under default sort (createdAt desc)', async () => {
-      // Explicit, distinct, older timestamps so the newly created agent is
-      // unambiguously first without relying on wall-clock spacing.
-      await insertAgent({ id: 'agent_existing_a', createdAt: 100, updatedAt: 100 })
-      await insertAgent({ id: 'agent_existing_b', createdAt: 200, updatedAt: 200 })
+    it('persists plan and small models when provided', async () => {
+      const agent = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'Model Roles Test',
+        model: TEST_MODEL_ID,
+        planModel: TEST_MODEL_ID,
+        smallModel: TEST_MODEL_ID
+      })
+
+      expect(agent).toMatchObject({
+        model: TEST_MODEL_ID,
+        planModel: TEST_MODEL_ID,
+        smallModel: TEST_MODEL_ID
+      })
+    })
+
+    it('places newly created agents by default orderKey sort', async () => {
+      await insertAgent({ id: 'agent_existing_a' })
+      await insertAgent({ id: 'agent_existing_b' })
 
       const created = await agentService.createAgent({
         type: 'claude-code',
@@ -124,22 +139,35 @@ describe('AgentService', () => {
       })
 
       const { agents } = await agentService.listAgents()
-      expect(agents[0]?.id).toBe(created.id)
+      expect(agents.at(-1)?.id).toBe(created.id)
     })
 
-    it('orders rows with equal createdAt deterministically by id (tiebreaker)', async () => {
-      // createdAt is Date.now() (ms) and can collide across rapid inserts. Without a
-      // deterministic tiebreaker, equal-createdAt rows fall back to query-plan order,
-      // making the default `createdAt desc` listing unstable. Pin both rows to the
-      // same createdAt and assert the id-desc tiebreaker decides the order.
-      await insertAgent({ id: 'agent_aaa', createdAt: 5000 })
-      await insertAgent({ id: 'agent_zzz', createdAt: 5000 })
+    it('defaults disabledTools to an empty array (opt-out, backward-safe)', async () => {
+      const agent = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'Disabled Tools Default',
+        model: TEST_MODEL_ID
+      })
+      const reloaded = await agentService.getAgent(agent.id)
+      expect(reloaded?.disabledTools).toEqual([])
+    })
+  })
 
-      const { agents } = await agentService.listAgents()
-      const ids = agents.map((a) => a.id)
+  describe('disabledTools round-trip', () => {
+    it('persists disabledTools on create and update', async () => {
+      const created = await agentService.createAgent({
+        type: 'claude-code',
+        name: 'Disabled Tools',
+        model: TEST_MODEL_ID,
+        disabledTools: ['Bash']
+      })
+      expect(created.disabledTools).toEqual(['Bash'])
 
-      // desc(createdAt), desc(id) -> 'agent_zzz' must come before 'agent_aaa'.
-      expect(ids.indexOf('agent_zzz')).toBeLessThan(ids.indexOf('agent_aaa'))
+      const updated = await agentService.updateAgent(created.id, { disabledTools: ['Bash', 'Workflow'] })
+      expect(updated?.disabledTools).toEqual(['Bash', 'Workflow'])
+
+      const reloaded = await agentService.getAgent(created.id)
+      expect(reloaded?.disabledTools).toEqual(['Bash', 'Workflow'])
     })
   })
 
@@ -196,6 +224,48 @@ describe('AgentService', () => {
       expect(names).toEqual([...names].sort())
     })
 
+    it('sorts unpinned agents by orderKey by default', async () => {
+      await insertAgent({ id: 'agent_order_c', name: 'C', orderKey: 'c' })
+      await insertAgent({ id: 'agent_order_a', name: 'A', orderKey: 'a' })
+      await insertAgent({ id: 'agent_order_b', name: 'B', orderKey: 'b' })
+
+      const { agents } = await agentService.listAgents()
+
+      expect(agents.map((agent) => agent.id)).toEqual(['agent_order_a', 'agent_order_b', 'agent_order_c'])
+    })
+
+    it('surfaces pinned agents ahead of unpinned agents under the default orderKey sort', async () => {
+      await insertAgent({ id: 'agent_pin_a', name: 'A', orderKey: 'a' })
+      await insertAgent({ id: 'agent_pin_b', name: 'B', orderKey: 'b' })
+      await insertAgent({ id: 'agent_pin_c', name: 'C', orderKey: 'c' })
+      await pinService.pin({ entityType: 'agent', entityId: 'agent_pin_c' })
+      await pinService.pin({ entityType: 'agent', entityId: 'agent_pin_b' })
+
+      const { agents } = await agentService.listAgents()
+
+      expect(agents.map((agent) => agent.id)).toEqual(['agent_pin_c', 'agent_pin_b', 'agent_pin_a'])
+    })
+
+    it('orders rows with equal updatedAt by id using the requested direction (tiebreaker)', async () => {
+      await insertAgent({ id: 'agent_aaa', name: 'A', updatedAt: 5000, createdAt: 5000 })
+      await insertAgent({ id: 'agent_zzz', name: 'Z', updatedAt: 5000, createdAt: 5000 })
+
+      const { agents } = await agentService.listAgents({ sortBy: 'updatedAt', orderBy: 'desc' })
+
+      const ids = agents.map((a) => a.id)
+      expect(ids.indexOf('agent_zzz')).toBeLessThan(ids.indexOf('agent_aaa'))
+    })
+
+    it('sorts by updatedAt without pin-first ordering', async () => {
+      await insertAgent({ id: 'agent_updated_old', name: 'Old', updatedAt: 100, createdAt: 100 })
+      await insertAgent({ id: 'agent_updated_new', name: 'New', updatedAt: 200, createdAt: 200 })
+      await pinService.pin({ entityType: 'agent', entityId: 'agent_updated_old' })
+
+      const { agents } = await agentService.listAgents({ sortBy: 'updatedAt', orderBy: 'desc' })
+
+      expect(agents.map((agent) => agent.id).slice(0, 2)).toEqual(['agent_updated_new', 'agent_updated_old'])
+    })
+
     it('does not expose tags in agent rows', async () => {
       const { id: taggedId } = await insertAgent({ id: 'agent_tag_test_1', name: 'tagged' })
       const { id: untaggedId } = await insertAgent({ id: 'agent_tag_test_2', name: 'untagged' })
@@ -226,7 +296,7 @@ describe('AgentService', () => {
         name: 'bound',
         model: 'anthropic::claude-sonnet-4-5'
       })
-      const missing = await insertAgent({
+      const unbound = await insertAgent({
         id: 'agent_model_test_2',
         name: 'missing',
         model: deletedModelId
@@ -239,7 +309,7 @@ describe('AgentService', () => {
       const byId = new Map(agents.map((agent) => [agent.id, agent]))
 
       expect(byId.get(bound.id)?.modelName).toBe('Claude Sonnet 4.5')
-      expect(byId.get(missing.id)?.modelName).toBeNull()
+      expect(byId.get(unbound.id)?.modelName).toBeNull()
     })
 
     it('filters by search against name OR description', async () => {
@@ -294,6 +364,62 @@ describe('AgentService', () => {
         }
       ])
       expect(result[0]).not.toHaveProperty('modelName')
+    })
+  })
+
+  describe('reorder', () => {
+    async function listAgentIds() {
+      const { agents } = await agentService.listAgents()
+      return agents.map((agent) => agent.id)
+    }
+
+    it('moves a single active agent by orderKey', async () => {
+      const [firstKey, secondKey, thirdKey] = generateOrderKeySequence(3)
+      await insertAgent({ id: 'agent_reorder_a', name: 'A', orderKey: firstKey })
+      await insertAgent({ id: 'agent_reorder_b', name: 'B', orderKey: secondKey })
+      await insertAgent({ id: 'agent_reorder_c', name: 'C', orderKey: thirdKey })
+
+      await agentService.reorder('agent_reorder_c', { before: 'agent_reorder_a' })
+
+      expect(await listAgentIds()).toEqual(['agent_reorder_c', 'agent_reorder_a', 'agent_reorder_b'])
+    })
+
+    it('rejects a soft-deleted single target without mutating active order', async () => {
+      const [firstKey, secondKey, deletedKey] = generateOrderKeySequence(3)
+      await insertAgent({ id: 'agent_reorder_a', name: 'A', orderKey: firstKey })
+      await insertAgent({ id: 'agent_reorder_b', name: 'B', orderKey: secondKey })
+      await insertAgent({ id: 'agent_reorder_deleted', name: 'Deleted', orderKey: deletedKey, deletedAt: 123 })
+
+      const beforeRejectedMove = await listAgentIds()
+      await expect(agentService.reorder('agent_reorder_deleted', { position: 'first' })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+      expect(await listAgentIds()).toEqual(beforeRejectedMove)
+    })
+
+    it('applies batch moves and rejects soft-deleted targets without mutating active order', async () => {
+      const [firstKey, secondKey, thirdKey, deletedKey] = generateOrderKeySequence(4)
+      await insertAgent({ id: 'agent_reorder_a', name: 'A', orderKey: firstKey })
+      await insertAgent({ id: 'agent_reorder_b', name: 'B', orderKey: secondKey })
+      await insertAgent({ id: 'agent_reorder_c', name: 'C', orderKey: thirdKey })
+      await insertAgent({ id: 'agent_reorder_deleted', name: 'Deleted', orderKey: deletedKey, deletedAt: 123 })
+
+      await agentService.reorderBatch([
+        { id: 'agent_reorder_b', anchor: { position: 'first' } },
+        { id: 'agent_reorder_c', anchor: { after: 'agent_reorder_b' } }
+      ])
+      expect(await listAgentIds()).toEqual(['agent_reorder_b', 'agent_reorder_c', 'agent_reorder_a'])
+
+      const beforeRejectedMove = await listAgentIds()
+      await expect(
+        agentService.reorderBatch([
+          { id: 'agent_reorder_a', anchor: { position: 'first' } },
+          { id: 'agent_reorder_deleted', anchor: { position: 'last' } }
+        ])
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+      expect(await listAgentIds()).toEqual(beforeRejectedMove)
     })
   })
 })
