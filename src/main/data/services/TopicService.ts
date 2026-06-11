@@ -13,11 +13,18 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
-import type { CreateTopicDto, ListTopicsQuery, UpdateTopicDto } from '@shared/data/api/schemas/topics'
+import type {
+  CreateTopicDto,
+  DuplicateTopicDto,
+  ListTopicsQuery,
+  UpdateTopicDto
+} from '@shared/data/api/schemas/topics'
+import { chatMessageSourceType } from '@shared/data/types/file'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 
+import { fileRefService } from './FileRefService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -144,21 +151,10 @@ export class TopicService {
   }
 
   async create(dto: CreateTopicDto): Promise<Topic> {
-    const db = application.get('DbService').getDb()
+    const dbService = application.get('DbService')
     const groupId = dto.groupId ?? null
 
-    const row = (await db.transaction(async (tx) => {
-      // In-tx so a concurrent delete can't slip between check and insert;
-      // inlined because messageService.getById has no tx-aware overload.
-      if (dto.sourceNodeId) {
-        const [src] = await tx
-          .select({ id: messageTable.id })
-          .from(messageTable)
-          .where(and(eq(messageTable.id, dto.sourceNodeId), isNull(messageTable.deletedAt)))
-          .limit(1)
-        if (!src) throw DataApiErrorFactory.notFound('Message', dto.sourceNodeId)
-      }
-
+    const row = (await dbService.withWriteTx((tx) => {
       return insertWithOrderKey(
         tx,
         topicTable,
@@ -166,7 +162,7 @@ export class TopicService {
           name: dto.name,
           assistantId: dto.assistantId,
           groupId,
-          activeNodeId: dto.sourceNodeId ?? null
+          activeNodeId: null
         },
         {
           pkColumn: topicTable.id,
@@ -175,13 +171,72 @@ export class TopicService {
       )
     })) as TopicRow
 
-    if (dto.sourceNodeId) {
-      logger.info('Created forked topic', { id: row.id, sourceNodeId: dto.sourceNodeId })
-    } else {
-      logger.info('Created empty topic', { id: row.id })
-    }
+    logger.info('Created empty topic', { id: row.id })
 
     return rowToTopic(row)
+  }
+
+  async duplicate(sourceTopicId: string, dto: DuplicateTopicDto): Promise<Topic> {
+    const dbService = application.get('DbService')
+    // Lazy import avoids a singleton cycle: MessageService already depends on TopicService for active-node updates.
+    const { messageService } = await import('./MessageService')
+
+    const copiedTopic = await dbService.withWriteTx(async (tx) => {
+      const [sourceTopic] = await tx
+        .select()
+        .from(topicTable)
+        .where(and(eq(topicTable.id, sourceTopicId), isNull(topicTable.deletedAt)))
+        .limit(1)
+      if (!sourceTopic) throw DataApiErrorFactory.notFound('Topic', sourceTopicId)
+
+      const sourcePathRows = await messageService.getPathRowsToNodeTx(tx, dto.nodeId, { topicId: sourceTopicId })
+      if (sourcePathRows[0]?.parentId !== null) {
+        throw DataApiErrorFactory.invalidOperation('duplicate topic', 'Source path does not start at root message')
+      }
+
+      const newTopicRow = (await insertWithOrderKey(
+        tx,
+        topicTable,
+        {
+          name: dto.name ?? sourceTopic.name,
+          isNameManuallyEdited: dto.name !== undefined ? true : sourceTopic.isNameManuallyEdited,
+          assistantId: sourceTopic.assistantId,
+          groupId: sourceTopic.groupId,
+          activeNodeId: null
+        },
+        {
+          pkColumn: topicTable.id,
+          // Keep duplicated conversations aligned with newly created agent sessions: newest active work appears first.
+          position: 'first',
+          scope: topicScopePredicate(sourceTopic.groupId ?? null)
+        }
+      )) as TopicRow
+
+      const { copiedMessageIds, copiedActiveNodeId } = await messageService.copyPathRowsTx(tx, sourcePathRows, {
+        topicId: newTopicRow.id
+      })
+
+      // Intentionally copies only topic metadata, root-to-node messages, and chat-message file refs.
+      // Pins, tags, trace links, and pruned siblings/descendants stay with their original rows.
+      await fileRefService.copyBySourceIdMapTx(tx, chatMessageSourceType, copiedMessageIds)
+
+      const [updatedTopicRow] = await tx
+        .update(topicTable)
+        .set({ activeNodeId: copiedActiveNodeId })
+        .where(eq(topicTable.id, newTopicRow.id))
+        .returning()
+
+      return rowToTopic(updatedTopicRow)
+    })
+
+    logger.info('Duplicated topic path into new topic', {
+      sourceTopicId,
+      nodeId: dto.nodeId,
+      newTopicId: copiedTopic.id,
+      activeNodeId: copiedTopic.activeNodeId
+    })
+
+    return copiedTopic
   }
 
   /** Pin state and ordering go through `/pins` and `/topics/:id/order` — not this DTO. */
