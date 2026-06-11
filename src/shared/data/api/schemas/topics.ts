@@ -7,7 +7,7 @@
 
 import * as z from 'zod'
 
-import { type Topic, TopicSchema } from '../../types/topic'
+import { type Topic, TopicNameSchema, TopicSchema } from '../../types/topic'
 import type { CursorPaginationResponse } from '../apiTypes'
 import type { OrderEndpoints } from './_endpointHelpers'
 
@@ -87,7 +87,7 @@ export const DuplicateTopicSchema = z.strictObject({
   /** Message node to copy up to. Must belong to the source topic. */
   nodeId: z.string().min(1),
   /** Optional localized name for the duplicated topic. */
-  name: z.string().trim().min(1).optional()
+  name: z.string().trim().pipe(TopicNameSchema).optional()
 })
 export type DuplicateTopicDto = z.infer<typeof DuplicateTopicSchema>
 

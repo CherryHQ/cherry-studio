@@ -56,6 +56,11 @@ describe('DuplicateTopicSchema', () => {
     })
   })
 
+  it('rejects blank or overlong names', () => {
+    expect(() => DuplicateTopicSchema.parse({ nodeId: 'n1', name: '   ' })).toThrow()
+    expect(() => DuplicateTopicSchema.parse({ nodeId: 'n1', name: 'x'.repeat(256) })).toThrow()
+  })
+
   it('rejects unknown keys', () => {
     expect(() => DuplicateTopicSchema.parse({ nodeId: 'n1', includeDescendants: true })).toThrow()
   })
