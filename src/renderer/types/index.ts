@@ -22,6 +22,7 @@ import type {
   McpMode as DataApiMcpMode
 } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import type { MessageStats } from '@shared/data/types/message'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 
 export type { TranslateLanguage }
@@ -252,8 +253,8 @@ export type Usage = OpenAI.Completions.CompletionUsage & {
   cache_write_tokens?: number
   // Cost (provider-reported or computed from pricing at message completion)
   cost?: number
-  cost_source?: 'provider' | 'computed'
-  cost_currency?: 'USD' | 'CNY'
+  cost_source?: MessageStats['costSource']
+  cost_currency?: MessageStats['costCurrency']
   cost_breakdown?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; image?: number }
 }
 
