@@ -12,6 +12,7 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import { useModels } from '@renderer/hooks/useModel'
+import { useProviders } from '@renderer/hooks/useProvider'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
@@ -123,7 +124,9 @@ const CreateKnowledgeBaseDialogRoot = ({
     capability: MODEL_CAPABILITY.EMBEDDING,
     enabled: true
   })
+  const { providers: enabledProviders } = useProviders({ enabled: true })
   const groupIds = useMemo(() => new Set(groups.map((group) => group.id)), [groups])
+  const enabledProviderIds = useMemo(() => new Set(enabledProviders.map((provider) => provider.id)), [enabledProviders])
   const normalizedInitialGroupId = initialGroupId && groupIds.has(initialGroupId) ? initialGroupId : undefined
   const [values, setValues] = useState<CreateKnowledgeBaseFormValues>(() =>
     createInitialInput(normalizedInitialGroupId)
@@ -154,10 +157,16 @@ const CreateKnowledgeBaseDialogRoot = ({
     })
   }, [groupIds])
 
-  const embeddingModelOptions: KnowledgeSelectOption[] = embeddingModels.map((model) => ({
-    value: model.id,
-    label: formatKnowledgeModelOptionLabel(model.id)
-  }))
+  const embeddingModelOptions = useMemo<KnowledgeSelectOption[]>(
+    () =>
+      embeddingModels
+        .filter((model) => enabledProviderIds.has(model.providerId))
+        .map((model) => ({
+          value: model.id,
+          label: formatKnowledgeModelOptionLabel(model.id)
+        })),
+    [embeddingModels, enabledProviderIds]
+  )
   const manualDimensions = parseKnowledgeDimensions(values.dimensions)
   const isManualDimensionsInvalid = isManualDimensionsVisible && hasAttemptedManualDimensionsSubmit && !manualDimensions
 

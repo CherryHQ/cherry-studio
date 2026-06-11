@@ -1,5 +1,6 @@
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,10 +8,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import CreateKnowledgeBaseDialog from '../CreateKnowledgeBaseDialog'
 
 const mockUseModels = vi.fn()
+const mockUseProviders = vi.fn()
 const mockEmbedMany = vi.fn()
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
+}))
+
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: (...args: unknown[]) => mockUseProviders(...args)
 }))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
@@ -144,7 +150,10 @@ describe('CreateKnowledgeBaseDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockUseModels.mockReturnValue({
-      models: [{ id: 'openai::text-embedding-3-small' }]
+      models: [{ id: 'openai::text-embedding-3-small', providerId: 'openai' }]
+    })
+    mockUseProviders.mockReturnValue({
+      providers: [{ id: 'openai', isEnabled: true }]
     })
     mockEmbedMany.mockResolvedValue({ embeddings: [new Array(1536).fill(0)] })
   })
@@ -228,6 +237,34 @@ describe('CreateKnowledgeBaseDialog', () => {
     expect(screen.getByRole('button', { name: '未设置' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '取消' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '创建' })).toBeInTheDocument()
+  })
+
+  it('renders only embedding models from enabled providers', () => {
+    mockUseModels.mockReturnValue({
+      models: [
+        { id: 'openai::text-embedding-3-small', providerId: 'openai' },
+        { id: 'disabled-provider::embedding-model', providerId: 'disabled-provider' }
+      ]
+    })
+    mockUseProviders.mockReturnValue({
+      providers: [{ id: 'openai', isEnabled: true }]
+    })
+
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[]}
+        isCreating={false}
+        createBase={vi.fn().mockResolvedValue(createKnowledgeBase())}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: 'text-embedding-3-small · openai' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'embedding-model · disabled-provider' })).not.toBeInTheDocument()
+    expect(mockUseModels).toHaveBeenCalledWith({ capability: MODEL_CAPABILITY.EMBEDDING, enabled: true })
+    expect(mockUseProviders).toHaveBeenCalledWith({ enabled: true })
   })
 
   it('closes the dialog on cancel without sending a request', () => {

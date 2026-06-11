@@ -6,10 +6,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import RestoreKnowledgeBaseDialog from '../RestoreKnowledgeBaseDialog'
 
 const mockUseModels = vi.fn()
+const mockUseProviders = vi.fn()
 const mockEmbedMany = vi.fn()
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
+}))
+
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviders: (...args: unknown[]) => mockUseProviders(...args)
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -129,6 +134,9 @@ describe('RestoreKnowledgeBaseDialog', () => {
     vi.clearAllMocks()
     mockUseModels.mockReturnValue({
       models: [{ id: 'openai::text-embedding-3-small' }]
+    })
+    mockUseProviders.mockReturnValue({
+      providers: [{ id: 'openai', isEnabled: true }]
     })
     mockEmbedMany.mockResolvedValue({ embeddings: [new Array(1536).fill(0)] })
     Object.assign(window, {
