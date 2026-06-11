@@ -245,7 +245,7 @@ summed into one number. Buckets are ordered by total cost descending.
 | **API Gateway** | ✅ | Funnel — gateway requests carry no message id, so rows get a per-request id |
 | **Translate / topic rename** (`generateText`) | ✅ | Funnel |
 | Temporary chats (kept **and** discarded) | ✅ | Funnel records the spend either way; `persist()` (path 3) adds topic context for kept chats |
-| v1-migrated history | ✅ (backfilled) | Path 4, `backfill`/`none` attribution |
+| v1-migrated history | ✅ (backfilled) | Path 5, `backfill`/`none` attribution |
 | **Agent sessions** (Claude Code runtime) | ✅ | Sibling hook in `AgentSessionMessageService.saveMessage`/`saveMessages` — sessions bypass the funnel (no aiSdk Agent) and the `message`-table hook (separate table). Rows have `topicId` NULL |
 | Claude Code as a chat provider | ✅ | Its adapter implements aiSdk `LanguageModelV3.doStream` → flows through the funnel + message hook like any provider |
 | **Embeddings** (`AiService.embedMany`) | ✅ | Modality `embedding`; token-priced via the model's input rate (enriched in `recordRequest`) |
