@@ -71,7 +71,7 @@ const ObsidianSettings: FC = () => {
             <Spinner text={t('common.loading')} />
           ) : vaults.length > 0 ? (
             <Select value={defaultObsidianVault || undefined} onValueChange={handleChange}>
-              <SelectTrigger className="w-[300px] max-w-full">
+              <SelectTrigger className="w-75 max-w-full">
                 <SelectValue placeholder={t('settings.data.obsidian.default_vault_placeholder')} />
               </SelectTrigger>
               <SelectContent>

@@ -1,7 +1,7 @@
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
-import { Bolt, BookOpen, ExternalLink } from 'lucide-react'
+import { Bolt, ExternalLink } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -49,7 +49,7 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
           <ProviderAvatar provider={provider} size={32} className="shrink-0 rounded-xl" />
           <div className="min-w-0 self-center">
             <div className="flex min-w-0 flex-wrap items-center gap-1">
-              <h1 className="truncate font-semibold text-(--color-foreground) text-[16px] leading-[1.25]">
+              <h1 className="truncate font-semibold text-[16px] text-foreground leading-tight">
                 {meta.fancyProviderName}
               </h1>
               {meta.docsWebsite && (
@@ -59,7 +59,7 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
                     variant="ghost"
                     size="icon"
                     asChild
-                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground">
+                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-(--color-surface-fg-subtle) hover:text-foreground">
                     <a
                       href={meta.docsWebsite}
                       target="_blank"
@@ -70,31 +70,13 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
                   </Button>
                 </Tooltip>
               )}
-              {meta.modelsWebsite && (
-                <Tooltip content={t('settings.models.list_title')}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    asChild
-                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground">
-                    <a
-                      href={meta.modelsWebsite}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label={`${meta.fancyProviderName} · ${t('settings.models.list_title')}`}>
-                      <BookOpen className="size-3.5" aria-hidden />
-                    </a>
-                  </Button>
-                </Tooltip>
-              )}
               {meta.showApiOptionsButton && (
                 <Tooltip content={t('settings.provider.api.options.label')}>
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground"
+                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-(--color-surface-fg-subtle) hover:text-foreground"
                     aria-label={t('settings.provider.api.options.label')}
                     onClick={() => setApiOptionsOpen(true)}>
                     <Bolt className="size-3.5" aria-hidden />
