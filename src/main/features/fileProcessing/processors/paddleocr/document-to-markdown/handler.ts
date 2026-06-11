@@ -1,11 +1,15 @@
-import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
-import { type JobStatus, PaddleOCRClient } from '@paddleocr/api-sdk'
+import fs from 'node:fs/promises'
+
+import { type JobStatus } from '@paddleocr/api-sdk'
+import { MB } from '@shared/config/constant'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileInfo } from '@shared/file/types'
-import { net } from 'electron'
 
 import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler, FileProcessingRemotePollResult } from '../../types'
+import { createPaddleClient } from '../client'
+
+const PADDLE_MAX_FILE_SIZE = 50 * MB
 
 /** API host and key used to authenticate PaddleOCR requests. */
 type PaddleQueryContext = {
@@ -20,14 +24,14 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
 > = {
   mode: 'remote-poll',
   /** Submits the document for parsing and sets up polling and rehydration. */
-  prepare(file, config, signal) {
+  async prepare(file, config, signal) {
     signal?.throwIfAborted()
-    const { apiHost, apiKey, model } = prepareContext(file, config, signal)
+    const { apiHost, apiKey, model } = await prepareContext(file, config, signal)
 
     return {
       mode: 'remote-poll',
       async startRemote(startSignal) {
-        const client = createClient(apiHost, apiKey)
+        const client = createPaddleClient(apiHost, apiKey)
         const job = await client.submitDocumentParsing({ filePath: file.path, model }, { signal: startSignal })
         return {
           providerTaskId: job.jobId,
@@ -58,24 +62,15 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
   }
 }
 
-/** Creates a PaddleOCR API client with Electron's net.fetch. */
-function createClient(apiHost: string, apiKey: string) {
-  const safeFetch: typeof fetch = (input, init) => {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
-
-    return net.fetch(sanitizeRemoteUrl(url, apiHost), {
-      ...init,
-      redirect: 'error'
-    } as RequestInit) as unknown as ReturnType<typeof fetch>
-  }
-
-  return new PaddleOCRClient({ token: apiKey, baseUrl: apiHost, fetch: safeFetch })
-}
-
 /** Extracts API credentials and model from config for document parsing. */
-function prepareContext(_file: FileInfo, config: FileProcessorMerged, signal?: AbortSignal) {
+async function prepareContext(file: FileInfo, config: FileProcessorMerged, signal?: AbortSignal) {
   signal?.throwIfAborted()
   const capability = getRequiredCapability(config, 'document_to_markdown', 'paddleocr')
+  const stat = await fs.stat(file.path)
+  if (stat.size >= PADDLE_MAX_FILE_SIZE) {
+    throw new Error('PaddleOCR file is too large (must be smaller than 50MB)')
+  }
+
   return {
     apiHost: getRequiredApiHost(capability),
     apiKey: getRequiredApiKey(config, 'paddleocr'),
@@ -96,7 +91,7 @@ export async function buildPollResult(
   remoteContext: PaddleQueryContext,
   signal?: AbortSignal
 ): Promise<FileProcessingRemotePollResult<'document_to_markdown', PaddleQueryContext>> {
-  const client = createClient(remoteContext.apiHost, remoteContext.apiKey)
+  const client = createPaddleClient(remoteContext.apiHost, remoteContext.apiKey)
   const status = await client.getStatus(providerTaskId, { signal })
 
   if (status.state === 'failed') {

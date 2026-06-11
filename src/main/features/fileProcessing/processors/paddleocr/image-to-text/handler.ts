@@ -1,13 +1,12 @@
 import fs from 'node:fs/promises'
 
-import { PaddleOCRClient } from '@paddleocr/api-sdk'
 import { MB } from '@shared/config/constant'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import { FILE_TYPE, type FileInfo } from '@shared/file/types'
-import { net } from 'electron'
 
 import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler } from '../../types'
+import { createPaddleClient } from '../client'
 
 const PADDLE_MAX_FILE_SIZE = 50 * MB
 
@@ -22,11 +21,7 @@ export const paddleImageToTextHandler: FileProcessingCapabilityHandler<'image_to
     return {
       mode: 'background',
       async execute(executionContext) {
-        const client = new PaddleOCRClient({
-          token: apiKey,
-          baseUrl: apiHost,
-          fetch: net.fetch as typeof fetch
-        })
+        const client = createPaddleClient(apiHost, apiKey)
         const result = await client.ocr({ filePath: file.path, model }, { signal: executionContext.signal })
         const text = result.pages
           .flatMap((p) => {
