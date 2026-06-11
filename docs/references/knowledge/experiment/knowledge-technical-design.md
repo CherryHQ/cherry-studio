@@ -1,12 +1,4 @@
-# Cherry Studio 知识库技术方案（精简版）
-
-> 本文只保留实现与维护代码所**必需**的契约与决策。完整版（含全部 as-built 注记、数据模型细节、迁移步骤、文件处理、Connector 纲要、PR 路线图、测试矩阵与风险清单）以飞书为准：
->
-> - 产品文档：<https://mcnnox2fhjfq.feishu.cn/docx/IizAdfdPkoQ9L3xAiwbcENfmnab>
-> - **技术方案（本文完整版）**：<https://mcnnox2fhjfq.feishu.cn/docx/Q3yVd2TXHoP8pyxXIZZciiOlndg>
-> - 调研报告：<https://mcnnox2fhjfq.feishu.cn/docx/WCAzdZhyWoW5ObxVulEcqyFonSg>
->
-> 章节编号与完整版保持一致（代码注释以 `knowledge-technical-design.md §x.y` 引用这些锚点），故部分编号在本文中只有一句话占位。
+# Cherry Studio 知识库技术方案
 
 ## 1. 范围
 

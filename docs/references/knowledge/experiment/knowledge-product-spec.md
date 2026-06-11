@@ -1,10 +1,4 @@
-# Cherry Studio 知识库产品文档（精简版）
-
-> 本文只保留产品语义的**核心口径**。完整版（含使用流程细节、UI 展示规则、验收 checklist、非目标与待定项）以飞书为准：
->
-> - **产品文档（本文完整版）**：<https://mcnnox2fhjfq.feishu.cn/docx/IizAdfdPkoQ9L3xAiwbcENfmnab>
-> - 技术方案：<https://mcnnox2fhjfq.feishu.cn/docx/Q3yVd2TXHoP8pyxXIZZciiOlndg>
-> - 调研报告：<https://mcnnox2fhjfq.feishu.cn/docx/WCAzdZhyWoW5ObxVulEcqyFonSg>
+# Cherry Studio 知识库产品文档
 
 ## 1. 定位
 
