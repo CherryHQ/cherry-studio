@@ -188,7 +188,6 @@ describe('TemporaryChatContextProvider', () => {
 
     expect(prepared.topicId).toBe('1')
     expect(prepared.isMultiModel).toBe(false)
-    expect(prepared.userMessage).toBeUndefined()
 
     // user message was appended (service allocates the id)
     expect(appendMessageMock).toHaveBeenCalledTimes(1)

@@ -19,7 +19,7 @@ import { loggerService } from '@logger'
 import { type CherryReasoningMeta, CherryReasoningMetaSchema } from '@shared/data/types/uiParts'
 import type { ProviderMetadata, UIMessageChunk } from 'ai'
 
-const logger = loggerService.withContext('reasoningTimingTransform')
+const logger = loggerService.withContext('withReasoningTimingMetadata')
 
 export function withReasoningTimingMetadata(stream: ReadableStream<UIMessageChunk>): ReadableStream<UIMessageChunk> {
   const reasoningById = new Map<

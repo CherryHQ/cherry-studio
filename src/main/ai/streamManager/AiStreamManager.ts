@@ -15,7 +15,6 @@ import type {
   AiStreamOpenResponse
 } from '@shared/ai/transport'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
-import type { Message } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { type SerializedError, serializeError } from '@shared/types/error'
@@ -98,8 +97,6 @@ export interface SendInput {
   models: ReadonlyArray<SendModelSpec>
   /** Upserted by id. */
   listeners: StreamListener[]
-  /** Persisted user row for the turn. Not consumed by `send()`; callers carry it for their own bookkeeping. */
-  userMessage?: Message
   siblingsGroupId?: number
   /** Defaults to chat lifecycle. `streamPrompt` passes `promptStreamLifecycle`. */
   lifecycle?: StreamLifecycle
@@ -385,6 +382,10 @@ export class AiStreamManager extends BaseService {
     // Evict any grace-period stream so two streams never coexist on one topic.
     if (existing) this.evictStream(input.topicId)
 
+    // A new live turn supersedes any recorded terminal of the prior turn; clear it so a later steer
+    // enqueue can't read a stale kind, and the per-topic map stays bounded across a session.
+    this.lastTerminalKind.delete(input.topicId)
+
     const isMultiModel = input.models.length > 1
     const executions = new Map<UniqueModelId, StreamExecution>()
 
@@ -578,6 +579,11 @@ export class AiStreamManager extends BaseService {
       }
     }
     stream.status = 'aborted'
+    // Record the terminal kind synchronously here, where the turn's fate is decided. `abort()` flips
+    // `status` now but `onExecutionPaused` (which would record 'aborted') only runs after the loop
+    // settles asynchronously. Without this, a steer enqueue landing in that window reads the stale
+    // prior 'done' and drains — starting a turn after Stop and evicting the still-settling stream.
+    this.lastTerminalKind.set(topicId, 'aborted')
   }
 
   // ── Execution loop callbacks ──────────────────────────────────────
@@ -667,13 +673,16 @@ export class AiStreamManager extends BaseService {
     // lifecycle, and start the continuation with the carried renderer listeners.
     const chatChaining = topicDone && !approvalPending && this.hasPendingSteer(topicId)
 
+    // Record the terminal kind synchronously, before the broadcast await: a steer enqueue landing
+    // during the await must see this turn's outcome, not a stale prior one. Only a clean `done` (no
+    // approval still pending, not chaining) records a drainable terminal — an approval-parked turn
+    // leaves the steer queued for the post-approval continuation.
+    if (topicDone && !chatChaining && !approvalPending) this.lastTerminalKind.set(topicId, 'done')
+
     await this.broadcastExecutionDone(stream, exec, topicDone && !chatChaining)
 
     if (chatChaining) this.scheduleNextChatTurn(topicId)
     else if (topicDone) {
-      // Only a clean `done` (no approval still pending) records a drainable terminal — an
-      // approval-parked turn leaves the steer queued for the post-approval continuation.
-      if (!approvalPending) this.lastTerminalKind.set(topicId, 'done')
       this.runTerminalLifecycle(stream)
     }
   }
@@ -698,12 +707,15 @@ export class AiStreamManager extends BaseService {
     stream.status = this.resolveTerminalStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
 
+    // Record the terminal kind before the broadcast await so a steer enqueue landing during it reads
+    // this turn's outcome, not a stale prior one. (Aborts also set it synchronously in `abort()`.)
+    if (isTopicDone) this.lastTerminalKind.set(topicId, 'aborted')
+
     await this.broadcastExecutionPaused(stream, exec, isTopicDone)
 
     if (isTopicDone) {
       // Aborted (stop button / idle timeout), not a clean steer-yield — drop any queued steer
       // instead of chaining. Its persisted user row stays as a dangling message the user can resend.
-      this.lastTerminalKind.set(topicId, 'aborted')
       this.dropPendingSteers(topicId, 'aborted')
       this.runTerminalLifecycle(stream)
     }
@@ -737,11 +749,14 @@ export class AiStreamManager extends BaseService {
       isTopicDone,
       timings: { ...exec.timings }
     }
+    // Record the terminal kind before the dispatch await so a steer enqueue landing during it reads
+    // this turn's outcome, not a stale prior one.
+    if (isTopicDone) this.lastTerminalKind.set(topicId, 'error')
+
     await this.dispatchToListeners(stream, 'onError', (listener) => listener.onError(result))
 
     if (isTopicDone) {
       // Errored turn — drop any queued steer rather than chaining onto a failed turn.
-      this.lastTerminalKind.set(topicId, 'error')
       this.dropPendingSteers(topicId, 'error')
       this.runTerminalLifecycle(stream)
     }
@@ -1039,7 +1054,7 @@ export class AiStreamManager extends BaseService {
     const timeoutMs = request.requestOptions?.timeout ?? DEFAULT_TIMEOUT
     const { stream: idleStream, idle } = withIdleTimeout(rawStream, exec.abortController, timeoutMs)
     // Wrap before pipeStreamLoop's tee() so broadcast + accumulator share one
-    // thinkingMs measurement (see reasoningTimingTransform).
+    // thinkingMs measurement (see withReasoningTimingMetadata).
     const stream = withReasoningTimingMetadata(idleStream)
 
     // `continue-conversation` chunks reference toolCallIds on the anchor
@@ -1055,6 +1070,9 @@ export class AiStreamManager extends BaseService {
         // A tool awaiting human approval emits no chunks while it waits, so the normal (short) idle
         // timeout would kill a legitimate deliberation. Re-arm with the generous approval bound
         // instead of pausing entirely — an unresponsive renderer still can't hang the stream forever.
+        // Known edge: a later chunk on the same turn (e.g. a parallel tool's output) runs the default
+        // per-chunk `idle.reset()` and shrinks the window back to the short timeout; acceptable for now
+        // since such a chunk means the turn is making progress again.
         if (chunk.type === 'tool-approval-request') idle.reset(this.config.approvalIdleTimeoutMs)
       },
       accumulatorSeed,
