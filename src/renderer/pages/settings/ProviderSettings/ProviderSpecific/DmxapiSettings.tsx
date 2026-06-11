@@ -38,7 +38,7 @@ const DmxapiSettings: FC<DmxapiSettingsProps> = ({ providerId }) => {
     {
       label: t('settings.provider.dmxapi.platform_official'),
       value: PlatformDomain.OFFICIAL,
-      apiKeyWebsite: 'https://www.dmxapi.cn/register?aff=bwwY'
+      apiKeyWebsite: 'https://www.dmxapi.cn/register'
     },
     {
       label: t('settings.provider.dmxapi.platform_international'),
