@@ -5,7 +5,8 @@ import { useWebSearchPersist } from '@renderer/pages/settings/WebSearchSettings/
 import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT } from '@shared/data/types/webSearch'
 import { useTranslation } from 'react-i18next'
 
-const INPUT_BOX_WIDTH = '200px'
+const settingRowClassName = 'items-center justify-between gap-6 py-1'
+const settingLabelClassName = 'min-w-0 flex-1'
 
 const CutoffSettings = () => {
   const { t } = useTranslation()
@@ -20,8 +21,8 @@ const CutoffSettings = () => {
   }
 
   return (
-    <SettingRow className="py-2">
-      <SettingRowTitle>
+    <SettingRow className={settingRowClassName}>
+      <SettingRowTitle className={settingLabelClassName}>
         {t('settings.tool.websearch.compression.cutoff.limit.label')}
         <InfoTooltip
           placement="right"
@@ -33,10 +34,11 @@ const CutoffSettings = () => {
           }}
         />
       </SettingRowTitle>
-      <div className="flex" style={{ width: INPUT_BOX_WIDTH }}>
+      <div className="flex w-56 shrink-0">
         <Input
           placeholder={t('settings.tool.websearch.compression.cutoff.limit.placeholder')}
           value={compressionConfig?.cutoffLimit === undefined ? '' : compressionConfig.cutoffLimit}
+          className="h-8 text-sm"
           onChange={(e) => {
             const value = e.target.value
             if (value === '') {

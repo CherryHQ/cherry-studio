@@ -236,31 +236,10 @@
   container-name: provider-settings;
 }
 
-/*
- * Model list — inline-size container (replaces ResizeObserver + containerWidth in TS).
- * Breakpoints match prior JS: meta/id/latency @ 760 / 920; chip max width bands @ 520 / 860.
- */
+/* Model list — inline-size container for compact row rules. */
 .provider-settings-default-scope .ps-model-list-cq {
   container-type: inline-size;
   container-name: model-list;
-}
-
-@container model-list (min-width: 860px) {
-  .provider-settings-default-scope .ps-model-list-cq .ps-model-list-cap-chip {
-    max-width: max(32cqi, 7.5rem);
-  }
-}
-
-@container model-list (max-width: 859px) and (min-width: 520px) {
-  .provider-settings-default-scope .ps-model-list-cq .ps-model-list-cap-chip {
-    max-width: max(calc((100cqi - 1.25rem) / 2), 6rem);
-  }
-}
-
-@container model-list (max-width: 519px) {
-  .provider-settings-default-scope .ps-model-list-cq .ps-model-list-cap-chip {
-    max-width: max(calc(100cqi - 0.75rem), 6rem);
-  }
 }
 
 @container model-list (max-width: 759px) {

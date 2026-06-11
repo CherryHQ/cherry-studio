@@ -148,7 +148,7 @@ const ChannelLogModal: FC<{
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="max-w-[600px]">
+      <DialogContent className="max-w-150">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span>{`${channelName} — ${t('agent.cherryClaw.channels.logs')}`}</span>
@@ -233,7 +233,7 @@ const ChannelEditModal: FC<
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
-      <DialogContent className="max-w-[500px]">
+      <DialogContent className="max-w-125">
         {channel && (
           <>
             <DialogHeader>
@@ -326,7 +326,7 @@ const ChannelInstanceRow: FC<{
   }
 
   return (
-    <div className="flex items-center gap-3 border-(--color-border) border-b-[0.5px] px-1 py-2.5 last:border-b-0">
+    <div className="flex items-center gap-3 border-border border-b-[0.5px] px-1 py-2.5 last:border-b-0">
       <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 font-medium text-sm">
@@ -352,7 +352,7 @@ const ChannelInstanceRow: FC<{
         <Button
           variant="ghost"
           size="icon-sm"
-          className="hover:!text-destructive"
+          className="hover:text-destructive!"
           onClick={() => setDeleteConfirmOpen(true)}>
           <Trash2 className="size-4" />
         </Button>
@@ -512,7 +512,7 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
               {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}
               <span className="truncate">{channelDef.name}</span>
             </SettingTitle>
-            <p className="mt-1.5 mb-0 text-(--color-foreground-muted) text-xs">
+            <p className="mt-1.5 mb-0 text-foreground-muted text-xs">
               {channelDef.available ? t(channelDef.description) : t('agent.cherryClaw.channels.comingSoon')}
             </p>
           </div>

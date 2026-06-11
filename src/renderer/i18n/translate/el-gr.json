@@ -5859,8 +5859,7 @@
           "bailian": "Υπηρεσία MCP Πλατφόρμας Bailian της Alibaba Cloud",
           "lanyun": "Υπηρεσία MCP της Πλατφόρμας Cloud Τεχνολογίας Lanyun",
           "mcprouter": "Πλατφόρμα Δρομολογητή MCP Υπηρεσία MCP",
-          "modelscope": "Υπηρεσία MCP Πλατφόρμας ModelScope",
-          "tokenflux": "Υπηρεσία MCP της Πλατφόρμας TokenFlux"
+          "modelscope": "Υπηρεσία MCP Πλατφόρμας ModelScope"
         },
         "selectProvider": "Επιλέξτε Πάροχο:",
         "setToken": "Εισαγάγετε το τοκεν σας",
@@ -6122,7 +6121,6 @@
         }
       },
       "api_key": "Κλειδί API",
-      "available_count": "{{count}} διαθέσιμα",
       "base_url": "Βασικό URL",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6141,6 +6139,7 @@
         "generation_output_image": "μια εικόνα",
         "generation_output_video": "ένα βίντεο",
         "keys_status_count": "Επιτυχημένοι: {{count_passed}} κλειδιά, αποτυχημένοι: {{count_failed}} κλειδιά",
+        "model_button_caption": "Έλεγχος όλων των μοντέλων",
         "model_status_failed": "{{count}} μοντέλα είναι εντελώς απρόσιτα",
         "model_status_partial": "Από αυτά, {{count}} μοντέλα είναι απρόσιτα με ορισμένα κλειδιά",
         "model_status_passed": "{{count}} μοντέλα πέρασαν τον έλεγχο υγείας",
@@ -6169,11 +6168,18 @@
         "title": "Ελεγχος υγείας μοντέλου",
         "use_all_keys": "Χρήση όλων των κλειδιών"
       },
-      "copy_model_id_tooltip": "Κάντε κλικ για αντιγραφή του αναγνωριστικού μοντέλου: {{id}}",
+      "collapse_all": "Σύμπτυξη όλων",
       "default_assistant_model": "Πρόεδρος Υπηρεσίας προεπιλεγμένου μοντέλου",
       "default_assistant_model_description": "Χρησιμοποιείται όταν ένας βοηθός δεν έχει μοντέλο.",
+      "docs": "Τεκμηρίωση μοντέλου",
       "empty": "Δεν υπάρχουν μοντέλα",
-      "group_disable": "Κλείσε αυτήν την ομάδα",
+      "enabled_models": "Ενεργοποιημένα",
+      "expand_all": "Ανάπτυξη όλων",
+      "filter": {
+        "clear": "Εκκαθάριση φίλτρου μοντέλων",
+        "label": "Φιλτράρισμα μοντέλων"
+      },
+      "group_disable": "Απενεργοποίηση αυτής της ομάδας",
       "group_enable": "Ενεργοποίηση αυτής της ομάδας",
       "list_title": "Model list",
       "manage": {
@@ -6240,6 +6246,8 @@
         "sync_switch_to_deprecate": "Mark deprecated instead",
         "sync_will_deprecate": "Will be marked deprecated"
       },
+      "more_actions": "Περισσότερες ενέργειες λίστας μοντέλων",
+      "not_enabled_models": "Απενεργοποιημένα",
       "provider_id": "Αναγνωριστικό Παρόχου",
       "provider_key_add_confirm": "Θέλετε να προσθέσετε κλειδί API για τον {{provider}};",
       "provider_key_add_failed_by_empty_data": "Η προσθήκη κλειδιού API παρόχου απέτυχε, τα δεδομένα είναι κενά",
@@ -6759,7 +6767,9 @@
       "show_app": "Εμφάνιση εφαρμογής",
       "show_settings": "Άνοιγμα των ρυθμίσεων",
       "title": "Συντομοί δρομολόγια",
+      "toggle_left_sidebar": "Εναλλαγή αριστερής πλευρικής γραμμής",
       "toggle_new_context": "Άδειασμα σενάριων",
+      "toggle_right_sidebar": "Εναλλαγή δεξιάς πλευρικής γραμμής",
       "toggle_show_topics": "Εναλλαγή εμφάνισης θεμάτων",
       "toggle_sidebar": "Εναλλαγή πλευρικής γραμμής",
       "zoom_in": "Μεγέθυνση εμφάνισης",
@@ -6884,13 +6894,6 @@
             "description": "Η μηχανή OCR ανοιχτού κώδικα της Google που λειτουργεί πλήρως τοπικά.",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "Πιστοποίηση",
-          "description": "Περιγραφή",
-          "language_packs": "Γλωσσικά Πακέτα",
-          "model_parameters": "Παράμετροι Μοντέλου",
-          "status": "Κατάσταση"
         },
         "title": "Ανάλυση Εγγράφων"
       },

@@ -5859,8 +5859,7 @@
           "bailian": "Alibaba Cloud Bailian Platform MCP Service",
           "lanyun": "Lanyun Technology Cloud Platform MCP Service",
           "mcprouter": "MCPルータープラットフォーム MCPサービス",
-          "modelscope": "ModelScopeプラットフォームMCPサービス",
-          "tokenflux": "TokenFlux Platform MCP Service"
+          "modelscope": "ModelScopeプラットフォームMCPサービス"
         },
         "selectProvider": "プロバイダーを選択：",
         "setToken": "トークンを入力してください",
@@ -6122,7 +6121,6 @@
         }
       },
       "api_key": "API キー",
-      "available_count": "{{count}}件利用可能",
       "base_url": "ベース URL",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6141,6 +6139,7 @@
         "generation_output_image": "画像",
         "generation_output_video": "動画",
         "keys_status_count": "合格：{{count_passed}}個のキー、不合格：{{count_failed}}個のキー",
+        "model_button_caption": "すべてのモデルをチェック",
         "model_status_failed": "{{count}} 個のモデルが完全にアクセスできません",
         "model_status_partial": "{{count}} 個のモデルが一部のキーでアクセスできません",
         "model_status_passed": "{{count}} 個のモデルが健康チェックを通過しました",
@@ -6169,12 +6168,19 @@
         "title": "モデル健康チェック",
         "use_all_keys": "キー"
       },
-      "copy_model_id_tooltip": "モデルIDをコピーするにはクリック: {{id}}",
+      "collapse_all": "すべて折りたたむ",
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
+      "docs": "モデルドキュメント",
       "empty": "モデルが見つかりません",
-      "group_disable": "このグループを閉じる",
-      "group_enable": "このグループを有効にする",
+      "enabled_models": "有効",
+      "expand_all": "すべて展開",
+      "filter": {
+        "clear": "モデルフィルターをクリア",
+        "label": "モデルをフィルター"
+      },
+      "group_disable": "このグループを無効化",
+      "group_enable": "このグループを有効化",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",
@@ -6240,6 +6246,8 @@
         "sync_switch_to_deprecate": "Mark deprecated instead",
         "sync_will_deprecate": "Will be marked deprecated"
       },
+      "more_actions": "モデル一覧のその他の操作",
+      "not_enabled_models": "無効",
       "provider_id": "プロバイダー ID",
       "provider_key_add_confirm": "{{provider}} の API キーを追加しますか？",
       "provider_key_add_failed_by_empty_data": "{{provider}} の API キーを追加できませんでした。データが空です。",
@@ -6759,7 +6767,9 @@
       "show_app": "アプリを表示/非表示",
       "show_settings": "設定を開く",
       "title": "ショートカット",
+      "toggle_left_sidebar": "左サイドバーを切り替え",
       "toggle_new_context": "コンテキストをクリア",
+      "toggle_right_sidebar": "右サイドバーを切り替え",
       "toggle_show_topics": "トピックの表示を切り替え",
       "toggle_sidebar": "サイドバーを切り替える",
       "zoom_in": "ズームイン",
@@ -6884,13 +6894,6 @@
             "description": "GoogleのオープンソースOCRエンジンで、完全にローカルで動作します。",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "認証",
-          "description": "説明",
-          "language_packs": "言語パック",
-          "model_parameters": "モデルパラメータ",
-          "status": "ステータス"
         },
         "title": "ドキュメント解析"
       },

@@ -98,7 +98,7 @@ const NpxSearch: FC = () => {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-2 pt-5">
       <Center>
-        <div className="mb-[25px] flex w-full max-w-[500px] flex-col px-4">
+        <div className="mb-6.25 flex w-full max-w-125 flex-col px-4">
           <Center className="mb-3.75">
             <img src={logo} alt="npm" width={120} />
           </Center>
@@ -137,7 +137,7 @@ const NpxSearch: FC = () => {
         </Center>
       )}
       {!searchLoading && (
-        <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col gap-2 overflow-y-auto pr-1">
+        <div className="mx-auto flex w-full max-w-300 flex-1 flex-col gap-2 overflow-y-auto pr-1">
           {searchResults?.map((record) => {
             const isInstalled = mcpServers.some((server) => server.name === record.name)
             return (

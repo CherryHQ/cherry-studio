@@ -13,7 +13,7 @@ function PageHeader({ title, titleClassName, action, bordered, className, ...pro
     <div
       data-slot="page-header"
       className={cn(
-        'mt-3 mb-2 flex h-8 shrink-0 items-center justify-between gap-2 pr-3 pl-5',
+        'mt-2 mb-2 flex h-8 shrink-0 items-center justify-between gap-2 pr-3 pl-5',
         bordered && 'border-border border-b',
         className
       )}
