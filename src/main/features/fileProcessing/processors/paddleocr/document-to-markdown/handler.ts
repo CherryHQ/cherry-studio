@@ -1,15 +1,12 @@
 import fs from 'node:fs/promises'
 
 import { type JobStatus } from '@paddleocr/api-sdk'
-import { MB } from '@shared/config/constant'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileInfo } from '@shared/file/types'
 
 import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler, FileProcessingRemotePollResult } from '../../types'
-import { createPaddleClient } from '../client'
-
-const PADDLE_MAX_FILE_SIZE = 50 * MB
+import { createPaddleClient, PADDLE_MAX_FILE_SIZE } from '../client'
 
 /** API host and key used to authenticate PaddleOCR requests. */
 type PaddleQueryContext = {

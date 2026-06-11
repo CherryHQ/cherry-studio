@@ -1,14 +1,11 @@
 import fs from 'node:fs/promises'
 
-import { MB } from '@shared/config/constant'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import { FILE_TYPE, type FileInfo } from '@shared/file/types'
 
 import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler } from '../../types'
-import { createPaddleClient } from '../client'
-
-const PADDLE_MAX_FILE_SIZE = 50 * MB
+import { createPaddleClient, PADDLE_MAX_FILE_SIZE } from '../client'
 
 /** Capability handler that extracts text from images via PaddleOCR. */
 export const paddleImageToTextHandler: FileProcessingCapabilityHandler<'image_to_text'> = {

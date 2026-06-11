@@ -1,6 +1,9 @@
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { PaddleOCRClient } from '@paddleocr/api-sdk'
+import { MB } from '@shared/config/constant'
 import { net } from 'electron'
+
+export const PADDLE_MAX_FILE_SIZE = 50 * MB
 
 /** Creates a PaddleOCR API client with SSRF-safe Electron fetch behavior. */
 export function createPaddleClient(apiHost: string, apiKey: string) {

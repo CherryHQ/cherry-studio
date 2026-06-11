@@ -4,7 +4,14 @@ import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import { type FileInfo, FileInfoSchema } from '@shared/file/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getStatusMock, waitDocumentParsingResultMock, ocrMock, netFetchMock, PaddleOCRClientMock } = vi.hoisted(() => {
+const {
+  getStatusMock,
+  submitDocumentParsingMock,
+  waitDocumentParsingResultMock,
+  ocrMock,
+  netFetchMock,
+  PaddleOCRClientMock
+} = vi.hoisted(() => {
   const getStatusMock = vi.fn()
   const submitDocumentParsingMock = vi.fn()
   const waitDocumentParsingResultMock = vi.fn()
@@ -13,6 +20,7 @@ const { getStatusMock, waitDocumentParsingResultMock, ocrMock, netFetchMock, Pad
 
   return {
     getStatusMock,
+    submitDocumentParsingMock,
     waitDocumentParsingResultMock,
     ocrMock,
     netFetchMock,
@@ -148,6 +156,33 @@ describe('paddleocr handlers', () => {
     ).rejects.toThrow('PaddleOCR file is too large (must be smaller than 50MB)')
   })
 
+  it('starts remote document parsing with the configured model', async () => {
+    const prepared = await paddleDocumentToMarkdownHandler.prepare(
+      documentFile,
+      createConfig('document_to_markdown', 'PaddleOCR-VL-1.5')
+    )
+    if (prepared.mode !== 'remote-poll') {
+      throw new Error('Expected paddle document handler to prepare a remote-poll task')
+    }
+
+    submitDocumentParsingMock.mockResolvedValueOnce({ jobId: 'job-1' })
+
+    await expect(prepared.startRemote(new AbortController().signal)).resolves.toEqual({
+      providerTaskId: 'job-1',
+      status: 'pending',
+      progress: 0,
+      remoteContext: {
+        apiHost: 'https://paddleocr.aistudio-app.com',
+        apiKey: 'secret-key'
+      }
+    })
+
+    expect(submitDocumentParsingMock).toHaveBeenCalledWith(
+      { filePath: '/tmp/input.pdf', model: 'PaddleOCR-VL-1.5' },
+      { signal: expect.any(AbortSignal) }
+    )
+  })
+
   it('persists only the public apiHost for remote-poll paddleocr jobs', async () => {
     const prepared = await paddleDocumentToMarkdownHandler.prepare(
       documentFile,
@@ -211,28 +246,27 @@ describe('paddleocr handlers', () => {
     ).toThrow('paddleocr rehydrate: missing apiHost in persisted remote state')
   })
 
-  it('sanitizes image OCR result fetches and forbids redirects', async () => {
+  it('sanitizes image OCR result fetches and forbids redirects during the real ocr flow', async () => {
     PaddleOCRClientMock.mockImplementationOnce((options?: { fetch?: typeof fetch }) => {
       const safeFetch = options?.fetch
       if (!safeFetch) {
         throw new Error('Expected PaddleOCR client to receive a fetch implementation')
       }
 
-      void safeFetch('https://paddleocr.aistudio-app.com/results/job-1', { method: 'GET' })
-      void safeFetch('http://127.0.0.1/results/job-1', { method: 'GET' })
+      ocrMock.mockImplementationOnce(async () => {
+        void safeFetch('https://paddleocr.aistudio-app.com/results/job-1', { method: 'GET' })
+        return safeFetch('http://127.0.0.1/results/job-1', { method: 'GET' }) as never
+      })
 
       return {
         getStatus: getStatusMock,
-        submitDocumentParsing: vi.fn(),
+        submitDocumentParsing: submitDocumentParsingMock,
         waitDocumentParsingResult: waitDocumentParsingResultMock,
         ocr: ocrMock
       }
     })
 
     netFetchMock.mockResolvedValue({ ok: true } as never)
-    ocrMock.mockResolvedValueOnce({
-      pages: [{ prunedResult: { rec_texts: ['hello'] } }]
-    })
 
     const prepared = await paddleImageToTextHandler.prepare(imageFile, createConfig('image_to_text', 'PP-OCRv6'))
     if (prepared.mode !== 'background') {
@@ -246,6 +280,7 @@ describe('paddleocr handlers', () => {
       })
     ).rejects.toThrow('Unsafe remote url: local or private addresses are not allowed (127.0.0.1)')
 
+    expect(ocrMock).toHaveBeenCalledTimes(1)
     expect(netFetchMock).toHaveBeenCalledWith('https://paddleocr.aistudio-app.com/results/job-1', {
       method: 'GET',
       redirect: 'error'
