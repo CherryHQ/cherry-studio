@@ -120,7 +120,6 @@ export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchem
 
 export interface DeleteAgentSessionsResult {
   deletedIds: string[]
-  deletedCount: number
 }
 
 const DeleteAgentSessionsIdsQueryValueSchema = z
@@ -156,7 +155,7 @@ export type AgentSessionSchemas = {
      * Delete an explicit set of sessions (all-or-nothing — any missing id → NOT_FOUND).
      *
      * Cascades: session pins are purged; if a requested session is backed by a
-     * system workspace, that one-to-one backing workspace row is removed too.
+     * system workspace, that backing workspace row is removed too.
      */
     DELETE: {
       query: DeleteAgentSessionsQueryParams
@@ -178,7 +177,7 @@ export type AgentSessionSchemas = {
      * Delete one session.
      *
      * Cascades: session pins are purged; if the session is backed by a system
-     * workspace, that system workspace row is removed too.
+     * workspace, that backing workspace row is removed too.
      */
     DELETE: {
       params: { sessionId: string }
@@ -204,7 +203,8 @@ export type AgentSessionSchemas = {
     /**
      * Delete every session belonging to an agent (all-or-nothing — missing agent → NOT_FOUND).
      *
-     * Cascades: each system workspace row backing a deleted session is removed.
+     * Cascades: session pins are purged; system workspaces backing deleted
+     * sessions are removed too.
      */
     DELETE: {
       params: { agentId: string }

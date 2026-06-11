@@ -277,13 +277,13 @@ export class AgentSessionRuntimeService extends BaseService {
           sessionId,
           error: result.reason
         })
-        this.closePolicyUpdateConnection(entry, connection)
+        this.closeFailedPolicyUpdateConnection(entry, connection)
         continue
       }
 
       if (result.value === false) {
-        logger.error('Live agent policy update was not applied; closing runtime connection', { agentId, sessionId })
-        this.closePolicyUpdateConnection(entry, connection)
+        logger.warn('Live agent policy update had no live query; detaching runtime connection', { agentId, sessionId })
+        this.detachPolicyUpdateConnection(entry, connection)
       }
     }
   }
@@ -817,10 +817,22 @@ export class AgentSessionRuntimeService extends BaseService {
     )
   }
 
-  private closePolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
+  private closeFailedPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
     if (entry.connection !== connection) return
-    if (this.entries.get(entry.sessionId) === entry) this.entries.delete(entry.sessionId)
-    this.closeEntry(entry)
+    const turn = entry.currentTurn
+    if (turn && !turn.terminalStatus) {
+      turn.interruptRequested = true
+      application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-policy-update-failed')
+    }
+    this.detachPolicyUpdateConnection(entry, connection)
+  }
+
+  private detachPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
+    if (entry.connection !== connection) return
+    this.closeConnection(entry)
+    void Promise.resolve(connection.close()).catch((error) =>
+      logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
+    )
   }
 
   private closeConnection(entry: AgentSessionRuntimeEntry): AgentRuntimeConnection | undefined {

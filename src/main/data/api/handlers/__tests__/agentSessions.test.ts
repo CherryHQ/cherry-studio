@@ -76,7 +76,7 @@ describe('agentSessionHandlers', () => {
 
   describe('/agents/:agentId/sessions', () => {
     it('delegates agent-scoped session delete to AgentSessionService', async () => {
-      const response = { deletedIds: ['session-a'], deletedCount: 1 }
+      const response = { deletedIds: ['session-a'] }
       deleteByAgentIdMock.mockResolvedValueOnce(response)
 
       const result = await agentSessionHandlers['/agents/:agentId/sessions'].DELETE({
@@ -101,7 +101,7 @@ describe('agentSessionHandlers', () => {
 
   describe('/agent-sessions', () => {
     it('delegates selected session delete to AgentSessionService', async () => {
-      const response = { deletedIds: ['session-a', 'session-b'], deletedCount: 2 }
+      const response = { deletedIds: ['session-a', 'session-b'] }
       deleteByIdsMock.mockResolvedValueOnce(response)
 
       const result = await agentSessionHandlers['/agent-sessions'].DELETE({
@@ -114,7 +114,7 @@ describe('agentSessionHandlers', () => {
     })
 
     it('trims comma-separated session ids before delegating', async () => {
-      const response = { deletedIds: ['session-a', 'session-b'], deletedCount: 2 }
+      const response = { deletedIds: ['session-a', 'session-b'] }
       deleteByIdsMock.mockResolvedValueOnce(response)
 
       const result = await agentSessionHandlers['/agent-sessions'].DELETE({

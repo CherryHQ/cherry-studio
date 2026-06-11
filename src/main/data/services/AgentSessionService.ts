@@ -282,7 +282,7 @@ export class AgentSessionService {
 
   async deleteByIds(ids: string[]): Promise<DeleteAgentSessionsResult> {
     const uniqueIds = Array.from(new Set(ids))
-    if (uniqueIds.length === 0) return { deletedIds: [], deletedCount: 0 }
+    if (uniqueIds.length === 0) return { deletedIds: [] }
 
     const deletedIds = await application.get('DbService').withWriteTx(async (tx) => {
       const rows = await tx
@@ -301,7 +301,7 @@ export class AgentSessionService {
     })
 
     logger.info('Deleted sessions', { count: deletedIds.length })
-    return { deletedIds, deletedCount: deletedIds.length }
+    return { deletedIds }
   }
 
   async deleteWorkspaceCascade(workspaceId: string): Promise<void> {
@@ -341,15 +341,15 @@ export class AgentSessionService {
     })
 
     logger.info('Deleted agent sessions', { agentId, count: deletedIds.length })
-    return { deletedIds, deletedCount: deletedIds.length }
+    return { deletedIds }
   }
 
   private async cascadeDeleteSessionRowsTx(tx: DbOrTx, rows: JoinedSessionRow[]): Promise<string[]> {
     const normalSessionIds: string[] = []
     const systemWorkspaceIds = new Set<string>()
     for (const row of rows) {
-      // System workspaces are created one-to-one for sessions. Deleting through
-      // the workspace path removes any tied session rows before the workspace row.
+      // Deleting through a system workspace removes its tied session rows before
+      // the backing workspace row.
       if (row.workspace.type === AGENT_WORKSPACE_TYPE.SYSTEM) {
         systemWorkspaceIds.add(row.workspace.id)
       } else {

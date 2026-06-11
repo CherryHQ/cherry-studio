@@ -29,7 +29,7 @@ describe('AgentWorkspaceService', () => {
   })
 
   it('normalizes paths and dedupes rows by path', async () => {
-    const rawPath = workspacePath('project', '..', 'project')
+    const rawPath = `${workspacePath('project', '..', 'project')}${path.sep}`
     const normalizedPath = workspacePath('project')
 
     const first = await findOrCreateWorkspace(rawPath)

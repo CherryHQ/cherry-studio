@@ -383,7 +383,7 @@ describe('AgentSessionRuntimeService', () => {
     expect(connection.close).not.toHaveBeenCalled()
   })
 
-  it('closes and logs when a live policy update rejects', async () => {
+  it('detaches and logs when a live policy update rejects without an open stream', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const failure = new Error('policy update failed')
@@ -407,7 +407,52 @@ describe('AgentSessionRuntimeService', () => {
       }
     )
     expect(connection.close).toHaveBeenCalledOnce()
-    expect(service.inspect('session-1')).toBeUndefined()
+    expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1', status: 'active' })
+    expect(getEntry(service).connection).toBeUndefined()
+  })
+
+  it('pauses the active stream and preserves queued turns when a live policy update rejects', async () => {
+    const events = createAsyncQueue<any>()
+    const failure = new Error('policy update failed')
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      applyPolicyUpdate: vi.fn().mockRejectedValue(failure)
+    }
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: new AbortController().signal
+    })
+    const reader = stream.getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() => expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1') }))
+    getEntry(service).pendingTurns.push(userMessage('user-2'))
+
+    await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
+
+    expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1', 'agent-policy-update-failed')
+    expect(connection.close).toHaveBeenCalledOnce()
+    expect(service.inspect('session-1')).toMatchObject({
+      sessionId: 'session-1',
+      status: 'active',
+      pendingMessageCount: 1,
+      interruptRequested: true
+    })
+    expect(getEntry(service).connection).toBeUndefined()
+
+    await reader.cancel().catch(() => undefined)
   })
 
   it('does not close a replacement runtime when an old policy update rejects late', async () => {
@@ -444,7 +489,7 @@ describe('AgentSessionRuntimeService', () => {
     expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1', status: 'active' })
   })
 
-  it('closes and logs when a live policy update returns false', async () => {
+  it('detaches without tearing down the session when a live policy update returns false', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
@@ -458,15 +503,16 @@ describe('AgentSessionRuntimeService', () => {
 
     await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
 
-    expect(mockMainLoggerService.error).toHaveBeenCalledWith(
-      'Live agent policy update was not applied; closing runtime connection',
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Live agent policy update had no live query; detaching runtime connection',
       {
         agentId: 'agent-1',
         sessionId: 'session-1'
       }
     )
     expect(connection.close).toHaveBeenCalledOnce()
-    expect(service.inspect('session-1')).toBeUndefined()
+    expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1', status: 'active' })
+    expect(getEntry(service).connection).toBeUndefined()
   })
 
   it('ignores per-execution terminal events until the topic is done', () => {

@@ -44,7 +44,6 @@ export interface AgentDeletedEvent {
 }
 
 type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
-type AgentListOptions = ListOptions
 
 function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
@@ -156,7 +155,7 @@ export class AgentService {
     return rowToAgent(row.agent, row.modelName || null)
   }
 
-  async listAgents(options: AgentListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
+  async listAgents(options: ListOptions = {}): Promise<{ agents: AgentEntity[]; total: number }> {
     const database = application.get('DbService').getDb()
 
     // AND-compose deletedAt-null + optional search. Search runs LIKE against

@@ -548,9 +548,9 @@ async function buildToolPermissions(
 
   // disabledTools enforcement runs as a PreToolUse hook, not in `canUseTool`: the SDK skips
   // `canUseTool` for auto-approved paths (bypassPermissions / acceptEdits / default safe-tools), but
-  // PreToolUse hooks fire on every tool call regardless of permission mode. The snapshot's disabled
-  // set is refreshed on every agent update, so a mid-session disable is denied on the warm
-  // connection in all modes with no reconnect.
+  // PreToolUse hooks fire on every tool call regardless of permission mode. When the snapshot
+  // refresh succeeds, a mid-session disable is denied on the warm connection in all modes; the
+  // runtime service fail-closes the connection if that refresh cannot be applied.
   const disabledToolHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')

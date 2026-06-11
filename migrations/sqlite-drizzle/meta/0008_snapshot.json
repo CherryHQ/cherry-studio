@@ -828,8 +828,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'user'"
+          "autoincrement": false
         },
         "order_key": {
           "name": "order_key",

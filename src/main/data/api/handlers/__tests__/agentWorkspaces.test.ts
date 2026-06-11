@@ -1,8 +1,9 @@
+import { SuccessStatus } from '@shared/data/api/apiTypes'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   listMock,
-  findOrCreateByPathMock,
+  findOrCreateByPathResultMock,
   getByIdMock,
   updateMock,
   deleteWorkspaceCascadeMock,
@@ -10,7 +11,7 @@ const {
   reorderBatchMock
 } = vi.hoisted(() => ({
   listMock: vi.fn(),
-  findOrCreateByPathMock: vi.fn(),
+  findOrCreateByPathResultMock: vi.fn(),
   getByIdMock: vi.fn(),
   updateMock: vi.fn(),
   deleteWorkspaceCascadeMock: vi.fn(),
@@ -21,7 +22,7 @@ const {
 vi.mock('@data/services/AgentWorkspaceService', () => ({
   agentWorkspaceService: {
     list: listMock,
-    findOrCreateByPath: findOrCreateByPathMock,
+    findOrCreateByPathResult: findOrCreateByPathResultMock,
     getById: getByIdMock,
     update: updateMock,
     reorder: reorderMock,
@@ -68,14 +69,14 @@ describe('agentWorkspaceHandlers', () => {
   })
 
   it('delegates create and update to AgentWorkspaceService', async () => {
-    findOrCreateByPathMock.mockResolvedValueOnce(workspace)
+    findOrCreateByPathResultMock.mockResolvedValueOnce({ workspace, created: true })
     updateMock.mockResolvedValueOnce({ ...workspace, name: 'Renamed' })
 
     await expect(
       agentWorkspaceHandlers['/agent-workspaces'].POST({
         body: { path: workspace.path, name: workspace.name }
       } as never)
-    ).resolves.toBe(workspace)
+    ).resolves.toEqual({ data: workspace, status: SuccessStatus.CREATED })
     await expect(
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].PATCH({
         params: { workspaceId: workspace.id },
@@ -83,8 +84,18 @@ describe('agentWorkspaceHandlers', () => {
       } as never)
     ).resolves.toMatchObject({ name: 'Renamed' })
 
-    expect(findOrCreateByPathMock).toHaveBeenCalledWith(workspace.path, { name: workspace.name })
+    expect(findOrCreateByPathResultMock).toHaveBeenCalledWith(workspace.path, { name: workspace.name })
     expect(updateMock).toHaveBeenCalledWith(workspace.id, { name: 'Renamed' })
+  })
+
+  it('returns 200 OK when POST finds an existing workspace', async () => {
+    findOrCreateByPathResultMock.mockResolvedValueOnce({ workspace, created: false })
+
+    await expect(
+      agentWorkspaceHandlers['/agent-workspaces'].POST({
+        body: { path: workspace.path, name: 'Ignored Rename' }
+      } as never)
+    ).resolves.toEqual({ data: workspace, status: SuccessStatus.OK })
   })
 
   it('rejects invalid create body before calling the service', async () => {
@@ -94,7 +105,7 @@ describe('agentWorkspaceHandlers', () => {
       } as never)
     ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
-    expect(findOrCreateByPathMock).not.toHaveBeenCalled()
+    expect(findOrCreateByPathResultMock).not.toHaveBeenCalled()
   })
 
   it('rejects invalid update body before calling the service', async () => {

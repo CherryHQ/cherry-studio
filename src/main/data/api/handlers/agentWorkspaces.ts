@@ -1,7 +1,7 @@
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { toDataApiError } from '@shared/data/api'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
+import { type HandlersFor, SuccessStatus } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   type AgentWorkspaceSchemas,
@@ -17,7 +17,11 @@ export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
     POST: async ({ body }) => {
       const parsed = CreateAgentWorkspaceSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await agentWorkspaceService.findOrCreateByPath(parsed.data.path, { name: parsed.data.name })
+      const result = await agentWorkspaceService.findOrCreateByPathResult(parsed.data.path, { name: parsed.data.name })
+      return {
+        data: result.workspace,
+        status: result.created ? SuccessStatus.CREATED : SuccessStatus.OK
+      }
     }
   },
 
