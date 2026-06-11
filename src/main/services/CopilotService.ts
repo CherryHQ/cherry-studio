@@ -131,7 +131,7 @@ class CopilotService {
   /**
    * 获取GitHub登录信息
    */
-  public getUser = async (_: Electron.IpcMainInvokeEvent, token: string): Promise<UserResponse> => {
+  public getUser = async (token: string): Promise<UserResponse> => {
     try {
       const response = await net.fetch(CONFIG.API_URLS.GITHUB_USER, {
         method: 'GET',
@@ -164,10 +164,7 @@ class CopilotService {
   /**
    * 获取GitHub设备授权信息
    */
-  public getAuthMessage = async (
-    _: Electron.IpcMainInvokeEvent,
-    headers?: Record<string, string>
-  ): Promise<AuthResponse> => {
+  public getAuthMessage = async (headers?: Record<string, string>): Promise<AuthResponse> => {
     try {
       this.updateHeaders(headers)
 
@@ -197,11 +194,7 @@ class CopilotService {
   /**
    * 使用设备码获取访问令牌 - 优化轮询逻辑
    */
-  public getCopilotToken = async (
-    _: Electron.IpcMainInvokeEvent,
-    device_code: string,
-    headers?: Record<string, string>
-  ): Promise<TokenResponse> => {
+  public getCopilotToken = async (device_code: string, headers?: Record<string, string>): Promise<TokenResponse> => {
     this.updateHeaders(headers)
 
     let currentDelay = CONFIG.POLLING.INITIAL_DELAY_MS
@@ -250,7 +243,7 @@ class CopilotService {
   /**
    * 保存Copilot令牌到本地文件
    */
-  public saveCopilotToken = async (_: Electron.IpcMainInvokeEvent, token: string): Promise<void> => {
+  public saveCopilotToken = async (token: string): Promise<void> => {
     try {
       const encryptedToken = safeStorage.encryptString(token)
       // 确保目录存在
@@ -269,10 +262,7 @@ class CopilotService {
   /**
    * 从本地文件读取令牌并获取Copilot令牌
    */
-  public getToken = async (
-    _: Electron.IpcMainInvokeEvent,
-    headers?: Record<string, string>
-  ): Promise<CopilotTokenResponse> => {
+  public getToken = async (headers?: Record<string, string>): Promise<CopilotTokenResponse> => {
     try {
       this.updateHeaders(headers)
 
