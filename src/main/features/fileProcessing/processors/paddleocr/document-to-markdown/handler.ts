@@ -1,3 +1,4 @@
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { type JobStatus, PaddleOCRClient } from '@paddleocr/api-sdk'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileInfo } from '@shared/file/types'
@@ -59,7 +60,16 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
 
 /** Creates a PaddleOCR API client with Electron's net.fetch. */
 function createClient(apiHost: string, apiKey: string) {
-  return new PaddleOCRClient({ token: apiKey, baseUrl: apiHost, fetch: net.fetch as typeof fetch })
+  const safeFetch: typeof fetch = (input, init) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+
+    return net.fetch(sanitizeRemoteUrl(url, apiHost), {
+      ...init,
+      redirect: 'error'
+    } as RequestInit) as unknown as ReturnType<typeof fetch>
+  }
+
+  return new PaddleOCRClient({ token: apiKey, baseUrl: apiHost, fetch: safeFetch })
 }
 
 /** Extracts API credentials and model from config for document parsing. */
@@ -99,6 +109,14 @@ export async function buildPollResult(
       .map((p) => p.markdownText)
       .join('\n\n')
       .trim()
+
+    if (!markdownContent) {
+      return {
+        status: 'failed',
+        error: `PaddleOCR task ${providerTaskId} completed but returned empty markdown content`
+      }
+    }
+
     return { status: 'completed', output: { kind: 'markdown', markdownContent } }
   }
 
