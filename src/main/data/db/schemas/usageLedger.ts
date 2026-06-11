@@ -12,12 +12,14 @@ import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
  * time, and provider/key identity is denormalized (label, masked key) so rows
  * stay readable after the referenced key is deleted.
  *
- * Rows are written by `UsageLedgerService.recordFromMessage`, fired from the
- * data layer (`MessageService.update` and `TemporaryChatService.persist`)
- * when an assistant message lands token stats — the AI streaming pipeline is
- * not involved. One row per assistant message (`messageId` unique);
+ * Rows are written by `recordRequest`/`recordFromMessage` from two converging
+ * sources: a billing funnel in the AI pipeline (`AiService.billingHookPart`,
+ * plus the `embedMany`/`generateImage` call sites) and post-commit data-layer
+ * hooks (`MessageService.update`, `TemporaryChatService.persist`,
+ * `AgentSessionMessageService.saveMessage`). One row per `messageId` (the
+ * assistant message id for chat, a per-request id for stateless requests);
  * re-persists upsert with last-write-wins usage/cost and earliest-wins key
- * attribution (see `UsageLedgerService.recordFromMessage`).
+ * attribution (see `UsageLedgerService.recordRequest`).
  */
 export const usageLedgerTable = sqliteTable(
   'usage_ledger',
