@@ -40,15 +40,32 @@ function makeScope(entries: Array<{ name: string; truncatable?: boolean }> = [])
   return { registry: { getAll: () => entries } } as never
 }
 
+/**
+ * Fixture deliberately covers the shapes chef's adapter handles specially:
+ * a multimodal file part (mapped through chef's attachments), a multi-call
+ * assistant turn, a two-part tool message (split into per-part IR messages
+ * and re-merged on the way back), and a `json`-typed tool output (rewritten
+ * to text only when truncated — it must survive as `json` under the
+ * threshold). A well-formed history must also pass chef's boundary
+ * sanitization (`ensureValidHistory`) completely untouched; the round-trip
+ * deep-equality pins all of this.
+ */
 function makePrompt(toolName: string, chars: number): LanguageModelV3Prompt {
   return [
     { role: 'system', content: 'You are helpful.' },
-    { role: 'user', content: [{ type: 'text', text: 'fetch and summarize' }] },
+    {
+      role: 'user',
+      content: [
+        { type: 'text', text: 'fetch and summarize' },
+        { type: 'file', mediaType: 'image/png', data: 'aGVsbG8=', filename: 'screen.png' }
+      ]
+    },
     {
       role: 'assistant',
       content: [
         { type: 'reasoning', text: 'thinking...', providerOptions: { google: { thoughtSignature: 'sig-1' } } },
-        { type: 'tool-call', toolCallId: 'c1', toolName, input: { q: 'x' } }
+        { type: 'tool-call', toolCallId: 'c1', toolName, input: { q: 'x' } },
+        { type: 'tool-call', toolCallId: 'c2', toolName: 'data__query', input: { sql: 'select 1' } }
       ]
     },
     {
@@ -60,6 +77,12 @@ function makePrompt(toolName: string, chars: number): LanguageModelV3Prompt {
           toolName,
           output: { type: 'text', value: 'x'.repeat(chars) },
           providerOptions: CACHE_MARK
+        },
+        {
+          type: 'tool-result',
+          toolCallId: 'c2',
+          toolName: 'data__query',
+          output: { type: 'json', value: { rows: [1, 2], ok: true } }
         }
       ]
     },
@@ -93,6 +116,15 @@ describe('buildChefOptions → createMiddleware', () => {
     expect(value).toContain(path.join(tmpDir, files[0]))
     expect(value.length).toBeLessThan(10_000)
     expect(fs.readFileSync(path.join(tmpDir, files[0]), 'utf8')).toBe('x'.repeat(BIG))
+    // The sibling json result in the same tool message is under threshold —
+    // it must survive untouched, still typed `json`.
+    const toolMsg = out.find((m) => m.role === 'tool') as Extract<LanguageModelV3Prompt[number], { role: 'tool' }>
+    expect(toolMsg.content[1]).toEqual({
+      type: 'tool-result',
+      toolCallId: 'c2',
+      toolName: 'data__query',
+      output: { type: 'json', value: { rows: [1, 2], ok: true } }
+    })
   })
 
   it('keeps part-level providerOptions on a truncated tool result', async () => {
