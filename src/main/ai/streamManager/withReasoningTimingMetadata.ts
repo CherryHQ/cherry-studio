@@ -1,5 +1,5 @@
 /**
- * reasoningTimingTransform.ts
+ * withReasoningTimingMetadata.ts
  *
  * This module stabilizes the reasoning thinking time by calculating it before the stream
  * is split into broadcast (live renderer) and accumulated branches.

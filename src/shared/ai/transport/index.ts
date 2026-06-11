@@ -10,8 +10,6 @@ export interface AiChatRequestBody {
   mentionedModels?: UniqueModelId[]
   /** User message parts to persist/display for submit-message turns. */
   userMessageParts?: CherryMessagePart[]
-  /** Knowledge base ids selected by composer tokens. */
-  knowledgeBaseIds?: string[]
   /** Uploaded file metadata. */
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
 }

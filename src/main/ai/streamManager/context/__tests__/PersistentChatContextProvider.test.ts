@@ -46,12 +46,12 @@ function flatten(messages: { role: string; parts: Array<{ type: string; text?: s
   }))
 }
 
-describe('PersistentChatContextProvider — steer-restart history (#B4)', () => {
+describe('PersistentChatContextProvider — steer continuation history', () => {
   const dbh = setupTestDatabase()
   const provider = new PersistentChatContextProvider()
 
-  // The text the model was mid-producing when the user steered; persisted on the
-  // assistant row as `paused` by `abortAndAwait` before the prompt is rebuilt.
+  // The text a prior turn produced before it yielded to the steer; the steer continuation's
+  // history must include it (it was persisted on the assistant row by the normal terminal path).
   const PARTIAL = 'partial answer so far'
 
   beforeEach(async () => {
@@ -184,8 +184,10 @@ describe('PersistentChatContextProvider — steer-restart history (#B4)', () => 
 
   it('fans out @-mentioned siblings: shared siblingsGroupId, one placeholder per model, aligned placeholders[i]/turnRootSpans[i]', async () => {
     // Two @-mentioned models → two assistant placeholders sharing one siblings group.
-    // All placeholders share the container traceId now; assert the per-model row and span
-    // line up by index (keyed on modelId) so a fan-out never crosses streams.
+    // On this branch each model gets its OWN trace (startTurnRootSpans calls startAiTurnTrace per
+    // model), and that per-model traceId is persisted on the matching placeholder row. Assert the
+    // per-model row, span, and traceId line up by index (keyed on modelId) so a fan-out never
+    // crosses streams — the trace viewer keys off Message.traceId.
     const MODEL_A = createUniqueModelId('openai', 'gpt-4o') // already seeded in beforeEach
     const MODEL_B = createUniqueModelId('anthropic', 'claude-sonnet-4-5')
     // Placeholder rows FK to user_model(id) — seed the second @-mentioned model.
@@ -245,6 +247,9 @@ describe('PersistentChatContextProvider — steer-restart history (#B4)', () => 
     const phB = byModel.get(MODEL_B)
     expect(phA?.modelId).toBe(MODEL_A)
     expect(phB?.modelId).toBe(MODEL_B)
+    // Per-row traceId alignment: each placeholder carries its own model's trace, not a shared one.
+    expect(phA?.traceId).toBe('trace-a')
+    expect(phB?.traceId).toBe('trace-b')
     expect(phA?.siblingsGroupId).toBe(42)
     expect(phB?.siblingsGroupId).toBe(42)
     expect(prepared.models[0].request.messageId).toBe(phA?.id)

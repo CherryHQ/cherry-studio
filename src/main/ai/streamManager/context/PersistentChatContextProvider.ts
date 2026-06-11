@@ -26,6 +26,13 @@ import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './C
 import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
+/**
+ * Open one OTel root span per model for a turn. Each model gets its OWN trace (its own `traceId`),
+ * which is persisted on that model's assistant placeholder row — the trace viewer keys off
+ * `Message.traceId`, so per-model traces keep a multi-model fan-out's streams from crossing. The
+ * caller is responsible for ending every returned span (handed to `send()` on success, or ended
+ * explicitly if anything throws before the handoff).
+ */
 function startTurnRootSpans(
   topicId: string,
   trigger: string,

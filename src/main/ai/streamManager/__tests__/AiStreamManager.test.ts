@@ -752,39 +752,6 @@ describe('AiStreamManager', () => {
     })
   })
 
-  // ── abortAndAwait ───────────────────────────────────────────────
-  // Used by the dispatcher to restart a chat turn: abort the live stream,
-  // wait for its execution loop to settle (persist as paused), then evict
-  // so the next `send()` starts fresh with no orphan stream on the topic.
-
-  describe('abortAndAwait', () => {
-    it('aborts a live stream, settles its loop, and evicts the topic', async () => {
-      // readUIMessageStream's accumulator needs real microtask/timer
-      // scheduling; fake timers starve it (see live finalMessage test).
-      vi.useRealTimers()
-
-      const listener = new FakeListener('l:a')
-      startSingle(mgr, {
-        topicId: 'a',
-        modelId: 'provider-a::model-a',
-        request: req('a'),
-        listeners: [listener]
-      })
-      expect(mgr.inspect('a')!.status).toBe('pending')
-
-      await mgr.abortAndAwait('a', 'steer-restart')
-
-      // The loop settled as paused (partial persisted) and the stream was evicted.
-      expect(listener.pausedResults).toHaveLength(1)
-      expect(mgr.inspect('a')).toBeUndefined()
-    })
-
-    it('is a no-op when the topic has no live stream', async () => {
-      await expect(mgr.abortAndAwait('missing', 'steer-restart')).resolves.toBeUndefined()
-      expect(mgr.inspect('missing')).toBeUndefined()
-    })
-  })
-
   // ── steer chaining ──────────────────────────────────────────────
   // Chat mirrors the agent runtime: a busy submit is persisted and enqueued here; the running turn
   // yields (`hasPendingSteer` → stop condition) and `onExecutionDone` chains a `steer-continuation`
@@ -1219,7 +1186,6 @@ describe('AiStreamManager', () => {
           ([, value]) =>
             value as {
               status: string
-              turnId?: string
               activeExecutions: Array<{ executionId: string; anchorMessageId?: string }>
               lastCompletedAt?: number
             } | null
@@ -1257,8 +1223,6 @@ describe('AiStreamManager', () => {
 
       await mgr.onExecutionDone('t', 'p::m')
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
-      expect(new Set(statusWritesFor('t').map((entry) => entry?.turnId)).size).toBe(1)
-      expect(statusWritesFor('t')[0]?.turnId).toMatch(/^\d+:\d+$/)
 
       // Grace-period cleanup does not write again — the `done` value
       // lingers in SharedCache so renderers can observe the terminal
