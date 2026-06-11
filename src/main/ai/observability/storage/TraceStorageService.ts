@@ -176,8 +176,8 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   /**
    * Spans for a trace, MERGING the flushed history file with the live in-memory store. A container
    * trace spans many turns: earlier turns are flushed to the file and cleared from memory, while the
-   * in-flight turn lives in memory. Returning only one (the old "live-or-else-history") showed just the
-   * turn in flight; the viewer needs the whole tree, so union both (live wins on shared ids).
+   * in-flight turn lives in memory. Returning only one would show just the turn in flight; the viewer
+   * needs the whole tree, so union both (live wins on shared ids).
    */
   async getSpans(topicId: string, traceId: string) {
     const live = this.store.getSpans({ topicId, traceId })

@@ -25,12 +25,6 @@ export interface AgentRuntimeTraceContext {
   rootSpanId: string
 }
 
-/** A parent span to attach a turn span under — the container trace's root. */
-export interface TraceParent {
-  traceId: string
-  spanId: string
-}
-
 export interface AiTurnTraceHandle {
   traceId: string
   rootSpanId: string
@@ -44,8 +38,8 @@ export interface AiTurnTraceHandle {
  * Deterministic synthetic root span id for a container trace: the first 16 hex
  * of the traceId (a span id is 16 hex; a trace id is 32). Falls back to a fixed
  * non-zero id when those happen to be all-zero. Stable across reconnects /
- * restarts, so every turn span and the Claude Code subprocess parent to the
- * same root.
+ * restarts, so once the wiring emits per-turn child spans under it, every turn
+ * span and the Claude Code subprocess parent to the same container root.
  */
 export function deriveRootSpanId(traceId: string): string {
   const head = traceId.slice(0, 16).toLowerCase()
@@ -63,18 +57,18 @@ export function startAiTurnTrace(
 }
 
 /**
- * Child turn span under a container trace's synthetic root `parent`. Inherits the
- * container traceId, so every turn of a topic/session lands in one trace tree
- * Build `parent.spanId` with {@link deriveRootSpanId}.
+ * Child turn span under a container trace's synthetic root. Inherits the container
+ * traceId, so every turn of a topic/session lands in one trace tree. The root span id
+ * is derived from `traceId` internally (callers pass only the traceId).
  */
 export function startAiChildTurnSpan(
   name: string,
   options: SpanOptions,
   meta: AiTurnTraceMeta,
-  parent: TraceParent,
+  traceId: string,
   tracer: Tracer = trace.getTracer(TRACER_NAME)
 ): AiTurnTraceHandle {
-  return buildTurnHandle(startTraceRootSpan(tracer, name, options, meta, parent), meta)
+  return buildTurnHandle(startTraceRootSpan(tracer, name, options, meta, traceId), meta)
 }
 
 function buildTurnHandle(rootSpan: Span, meta: AiTurnTraceMeta): AiTurnTraceHandle {
@@ -118,15 +112,15 @@ export function startTraceRootSpan(
   name: string,
   options: SpanOptions,
   meta: AiTurnTraceMeta,
-  parent?: TraceParent
+  parentTraceId?: string
 ): Span {
-  const span = parent
+  const span = parentTraceId
     ? tracer.startSpan(
         name,
         options,
         trace.setSpanContext(ROOT_CONTEXT, {
-          traceId: parent.traceId,
-          spanId: parent.spanId,
+          traceId: parentTraceId,
+          spanId: deriveRootSpanId(parentTraceId),
           traceFlags: TraceFlags.SAMPLED,
           isRemote: true
         })

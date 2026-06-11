@@ -62,7 +62,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     description: row.session.description,
     workspaceId: row.session.workspaceId,
     workspace: rowToWorkspace(row.workspace),
-    traceId: row.session.traceId,
+    traceId: row.session.traceId ?? undefined,
     orderKey: row.session.orderKey,
     createdAt: timestampToISO(row.session.createdAt),
     updatedAt: timestampToISO(row.session.updatedAt)

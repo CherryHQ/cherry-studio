@@ -9,6 +9,7 @@ import {
   MessageStatusSchema,
   ModelSnapshotSchema
 } from '@shared/data/types/message'
+import { TraceIdSchema } from '@shared/data/types/trace'
 import * as z from 'zod'
 
 import type { CursorPaginationResponse } from '../apiTypes'
@@ -84,7 +85,7 @@ export const AgentSessionEntitySchema = z.strictObject({
   workspaceId: z.string(),
   workspace: AgentWorkspaceEntitySchema,
   /** Container-level OTel trace id — one trace tree per session. */
-  traceId: z.string().nullable().optional(),
+  traceId: TraceIdSchema.optional(),
   orderKey: z.string(),
   createdAt: z.string(),
   updatedAt: z.string()
