@@ -20,6 +20,11 @@ import {
   ListAgentSessionsQuerySchema,
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
+import * as z from 'zod'
+
+const AgentSessionsParamsSchema = z.strictObject({
+  agentId: z.string().min(1)
+})
 
 export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   '/agent-sessions': {
@@ -76,7 +81,9 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
 
   '/agents/:agentId/sessions': {
     DELETE: async ({ params }) => {
-      return await agentSessionService.deleteByAgentId(params.agentId)
+      const parsed = AgentSessionsParamsSchema.safeParse(params)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return await agentSessionService.deleteByAgentId(parsed.data.agentId)
     }
   },
 

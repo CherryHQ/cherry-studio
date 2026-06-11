@@ -194,6 +194,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
 
   async applyPolicyUpdate(update: AgentRuntimePolicyUpdate): Promise<boolean> {
     if (!this.query) return false
+    if (update.type === 'tool-policy') {
+      await this.toolPolicySnapshot?.update(update.agent)
+      return true
+    }
     this.toolPolicySnapshot?.setPermissionMode(update.permissionMode)
     await this.query.setPermissionMode(update.permissionMode ?? 'default')
     return true

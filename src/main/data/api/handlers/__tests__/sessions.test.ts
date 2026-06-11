@@ -87,6 +87,16 @@ describe('agentSessionHandlers', () => {
       expect(deleteMock).not.toHaveBeenCalled()
       expect(result).toEqual(response)
     })
+
+    it('rejects invalid agent id before calling the service', async () => {
+      await expect(
+        agentSessionHandlers['/agents/:agentId/sessions'].DELETE({
+          params: { agentId: '' }
+        } as never)
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+
+      expect(deleteByAgentIdMock).not.toHaveBeenCalled()
+    })
   })
 
   describe('/agent-sessions', () => {
