@@ -199,4 +199,44 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.cwd).toBe('/workspace/project')
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
   })
+
+  it('denies a disabled tool via a PreToolUse hook so the gate fires in all permission modes', async () => {
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: vi.fn(),
+      isDisabled: vi.fn((tool: string) => tool === 'Bash')
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
+    const runHooks = (toolName: string) =>
+      Promise.all(
+        hooks.map((hook) =>
+          hook(
+            { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: {} } as never,
+            'tool-use-1',
+            {} as never
+          )
+        )
+      )
+
+    const disabled = await runHooks('Bash')
+    expect(disabled).toContainEqual(
+      expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
+    )
+
+    const enabled = await runHooks('Read')
+    expect(
+      enabled.every(
+        (out) =>
+          (out as { hookSpecificOutput?: { permissionDecision?: string } })?.hookSpecificOutput?.permissionDecision !==
+          'deny'
+      )
+    ).toBe(true)
+  })
 })

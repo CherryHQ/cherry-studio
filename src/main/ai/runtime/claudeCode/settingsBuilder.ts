@@ -559,12 +559,6 @@ async function buildToolPermissions(
       return { behavior: 'deny', message: 'Tool request was cancelled' }
     }
 
-    // Disabled tools are denied live: the snapshot's disallowed set is refreshed on every agent
-    // update, so a tool disabled mid-session is rejected on the warm connection without a rebuild.
-    if (toolPolicySnapshot.isDisabled(toolName)) {
-      return { behavior: 'deny', message: `The ${toolName} tool is disabled for this agent.` }
-    }
-
     const access = toolPolicySnapshot.resolve(toolName, input)
     if (access?.approval === 'auto') {
       return { behavior: 'allow', updatedInput: input }
@@ -633,9 +627,27 @@ async function buildToolPermissions(
     }
   }
 
+  // disabledTools enforcement runs as a PreToolUse hook, not in `canUseTool`: the SDK skips
+  // `canUseTool` for auto-approved paths (bypassPermissions / acceptEdits / default safe-tools), but
+  // PreToolUse hooks fire on every tool call regardless of permission mode. The snapshot's disabled
+  // set is refreshed on every agent update, so a mid-session disable is denied on the warm
+  // connection in all modes with no reconnect.
+  const disabledToolHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (!toolName || !toolPolicySnapshot.isDisabled(toolName)) return {}
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: `The ${toolName} tool is disabled for this agent.`
+      }
+    }
+  }
+
   return {
     canUseTool,
-    hooks: { PreToolUse: [{ hooks: [rtkRewriteHook, steerHook] }] },
+    hooks: { PreToolUse: [{ hooks: [disabledToolHook, rtkRewriteHook, steerHook] }] },
     // `disabled`-exposure tools (incl. WebSearch/WebFetch) come from the declarative
     // registry; soul/assistant overlays stay until they migrate to per-tool exposure (PR-7).
     disallowedTools: [
