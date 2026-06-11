@@ -132,8 +132,9 @@ export interface CherryUIMessageMetadata {
   // ── DB-backed tree/ownership (populated by `toUIMessage` from the branch
   //    response, or seeded locally when pushing a placeholder before the
   //    first refresh completes). Keeping these on the message itself means
-  //    shared message-list consumers can read directly from `message.metadata`
-  //    without a parallel `metadataMap` lookup that lags behind state.messages.
+  //    `adaptedMessages` and every other consumer can read directly from
+  //    `message.metadata` without a parallel `metadataMap` lookup that
+  //    lags behind state.messages.
   /** `parent_id` of the persisted row; drives `askId` / tree walks. */
   parentId?: string | null
   /** Non-zero for messages that belong to a regenerate/multi-model cohort. */
@@ -144,6 +145,12 @@ export interface CherryUIMessageMetadata {
   modelSnapshot?: ModelSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
+  /**
+   * Whether this message is on the currently-active branch of the topic tree. Seeded `true` on
+   * locally-reserved skeletons (the row being created is the active leaf). The full branch-tree
+   * recompute is owned by the chat-page renderer slice.
+   */
+  isActiveBranch?: boolean
 
   /** Creation timestamp (ISO). */
   createdAt?: string
@@ -165,8 +172,6 @@ export interface CherryUIMessageMetadata {
   thoughtsTokens?: number
   /** Full persisted stats (tokens + durations) when available. */
   stats?: MessageStats
-  /** Whether this projected message is the on-path member for its sibling group. */
-  isActiveBranch?: boolean
 }
 
 /** Cherry Studio's UIMessage with custom metadata and data part types. */
@@ -429,9 +434,9 @@ export const MessageSchema = z.strictObject({
   parentId: z.string().nullable(),
   /** Message role */
   role: MessageRoleSchema,
-  /** Message content stored as AI SDK UIMessage.parts */
+  /** Message content (blocks with inline references) */
   data: MessageDataSchema,
-  /** Searchable text extracted from data.parts (DB DEFAULT ''; trigger fills on insert/update) */
+  /** Searchable text extracted from data.blocks (DB DEFAULT ''; trigger fills on insert/update) */
   searchableText: z.string(),
   /** Message status */
   status: MessageStatusSchema,
@@ -483,8 +488,8 @@ export interface TreeNode {
  * Used for multi-model responses in tree view
  */
 export interface SiblingsGroup {
-  /** Parent message ID (null for root sibling groups) */
-  parentId: string | null
+  /** Parent message ID */
+  parentId: string
   /** Siblings group ID (non-zero) */
   siblingsGroupId: number
   /** Nodes in this group (parentId omitted to avoid redundancy) */

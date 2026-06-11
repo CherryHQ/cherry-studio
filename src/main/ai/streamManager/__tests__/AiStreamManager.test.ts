@@ -902,6 +902,53 @@ describe('AiStreamManager', () => {
       expect(mgr.hasPendingSteer('a')).toBe(false)
       expect(mgr.hasLiveStream('a')).toBe(false)
     })
+
+    // The single line that prevents the prior turn's PersistenceListener from being carried into the
+    // continuation (and writing onto the OLD assistant row) is the renderer-listener filter — cover it.
+    it('carries only renderer listeners into the continuation; persistence/trace are dropped', async () => {
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const addSpy = vi.spyOn(mgr, 'addListener')
+      const wc1 = new FakeListener('wc:1:a')
+      const wc2 = new FakeListener('wc:2:a')
+      const persist = new FakeListener('persistence:sqlite:a:provider-a::model-a')
+      const trace = new FakeListener('trace:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [wc1, persist, trace, wc2]
+      })
+      mgr.enqueuePendingSteer('a', 'u1')
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      await flush()
+
+      // The continuation's dispatch subscriber is a renderer (wc) listener — never the prior turn's
+      // persistence/trace listener (carrying that would write onto the old assistant row / re-flush).
+      const [subscriber, sentReq] = dispatchSpy.mock.calls[0]
+      expect((subscriber as StreamListener).id.startsWith('wc:')).toBe(true)
+      expect(sentReq).toEqual(steerReq('a', 'u1'))
+      // The other window is re-attached; persistence/trace listeners are not carried at all.
+      const reattachedIds = addSpy.mock.calls.map(([, l]) => (l as StreamListener).id)
+      expect(reattachedIds).toContain('wc:2:a')
+      expect(reattachedIds).not.toContain('persistence:sqlite:a:provider-a::model-a')
+      expect(reattachedIds).not.toContain('trace:a')
+    })
+
+    it('falls back to the null listener when the finished turn had no renderer windows', async () => {
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      // Only a persistence listener (e.g. every window closed mid-turn) — nothing to carry.
+      const persist = new FakeListener('persistence:sqlite:a:provider-a::model-a')
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [persist] })
+      mgr.enqueuePendingSteer('a', 'u1')
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      await flush()
+
+      // The null sentinel (isAlive() === false) drives the windowless continuation, not the
+      // persistence listener.
+      const [subscriber] = dispatchSpy.mock.calls[0]
+      expect((subscriber as StreamListener).isAlive()).toBe(false)
+      expect((subscriber as StreamListener).id.startsWith('persistence:')).toBe(false)
+    })
   })
 
   // ── idle timeout terminal classification ────────────────────────
