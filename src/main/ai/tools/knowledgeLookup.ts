@@ -7,19 +7,28 @@
  * `knowledgeBaseIds`; an empty array means "no scope" (all user bases),
  * which is what the Claude Code agent path passes since agents have no
  * per-assistant knowledge scope.
+ *
+ * `searchKnowledge` never throws: an infrastructure failure (every targeted
+ * base errored) returns `{ error }` so it is distinguishable from "ran fine,
+ * found nothing" (`[]`) — mirroring the web core.
+ *
+ * Cancellation: `KnowledgeService` exposes no `AbortSignal` plumbing, so these
+ * functions intentionally take no signal (unlike the web core, whose
+ * `WebSearchService` honours one). Add one here only once the service does.
  */
 
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import type { KbListOutput, KbListOutputItem, KbSearchOutput } from '@shared/ai/builtinTools'
 import type { KnowledgeBase, KnowledgeItem, KnowledgeSearchResult } from '@shared/data/types/knowledge'
+import * as z from 'zod'
 
-const logger = loggerService.withContext('KbLookup')
+const logger = loggerService.withContext('KnowledgeLookup')
 
 const SAMPLE_LIMIT = 8
 const NOTE_SNIPPET_MAX_CHARS = 80
 
-export const KB_SEARCH_DESCRIPTION = `Search the user's private knowledge base — local documents, notes, web clippings.
+export const KNOWLEDGE_SEARCH_DESCRIPTION = `Search the user's private knowledge base — local documents, notes, web clippings.
 
 Use this when:
 - The user references "my notes" / "my documents" / their own materials
@@ -28,37 +37,68 @@ Use this when:
 
 Workflow: call kb_list first to discover available bases and their contents, then call this tool with the chosen baseIds. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite sources by [id] in your final answer.`
 
-export const KB_LIST_DESCRIPTION = `Browse the user's available knowledge bases before searching.
+export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's available knowledge bases before searching.
 
 Returns each base's name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what topics it likely covers. Call this first when the user asks about their materials and you don't already know which base is relevant — then call kb_search with the chosen baseIds.`
 
-export async function searchKb(query: string, baseIds: string[], allowedIds: string[]): Promise<KbSearchOutput> {
+/**
+ * A failed search must be distinguishable from "ran fine, found nothing": both
+ * would otherwise be `[]`. Success returns the results array (matching
+ * `kbSearchOutputSchema`); an all-bases-failed infrastructure error returns `{ error }`.
+ */
+export const knowledgeLookupErrorSchema = z.object({ error: z.string() })
+export type KnowledgeLookupError = z.infer<typeof knowledgeLookupErrorSchema>
+export type KnowledgeSearchResultOrError = KbSearchOutput | KnowledgeLookupError
+
+/**
+ * Every targeted base failed (revoked embedding key, corrupt vector DB, deleted base): a real
+ * infrastructure error, NOT "no matches". Steer the model to tell the user rather than retry.
+ */
+export const KNOWLEDGE_LOOKUP_ERROR_NOTE =
+  'Knowledge base search failed (the embedding provider or vector store errored); tell the user instead of retrying.'
+
+export function isKnowledgeLookupError(output: KnowledgeSearchResultOrError): output is KnowledgeLookupError {
+  // Success is always the results array; the error object is the only non-array shape.
+  return !Array.isArray(output)
+}
+
+export async function searchKnowledge(
+  query: string,
+  baseIds: string[],
+  allowedIds: string[]
+): Promise<KnowledgeSearchResultOrError> {
   const targetIds = allowedIds.length > 0 ? baseIds.filter((id) => allowedIds.includes(id)) : baseIds
 
-  if (targetIds.length === 0) return []
-
+  // Warn about dropped baseIds BEFORE the empty-target early return, so the all-dropped case (the
+  // most confusing one — the model picked only out-of-scope bases) is logged rather than silent.
   if (allowedIds.length > 0 && targetIds.length < baseIds.length) {
     const rejected = baseIds.filter((id) => !allowedIds.includes(id))
     logger.warn('Dropped baseIds outside the assistant scope', { rejected, allowedIds })
   }
 
+  if (targetIds.length === 0) return []
+
   const knowledgeService = application.get('KnowledgeService')
-  const perBaseResults = await Promise.all(
+  const perBase = await Promise.all(
     targetIds.map(async (baseId) => {
       try {
-        return await knowledgeService.search(baseId, query)
+        return { ok: true as const, results: await knowledgeService.search(baseId, query) }
       } catch (error) {
-        logger.warn('KnowledgeService.search failed', {
-          baseId,
-          query,
-          error: error instanceof Error ? error.message : String(error)
-        })
-        return [] as KnowledgeSearchResult[]
+        const message = error instanceof Error ? error.message : String(error)
+        logger.warn('KnowledgeService.search failed', { baseId, query, error: message })
+        return { ok: false as const, error: message }
       }
     })
   )
 
-  const merged = perBaseResults.flat()
+  // Every targeted base errored → surface the failure so the model doesn't claim the KB has nothing
+  // on the topic (and waste retries). A partial failure still returns whatever bases succeeded.
+  if (perBase.every((r) => !r.ok)) {
+    const firstError = perBase.find((r): r is { ok: false; error: string } => !r.ok)
+    return { error: firstError?.error ?? 'All targeted knowledge bases failed to search.' }
+  }
+
+  const merged = perBase.flatMap((r) => (r.ok ? r.results : []))
   const dedupedByContent = new Map<string, KnowledgeSearchResult>()
   for (const result of merged) {
     const existing = dedupedByContent.get(result.pageContent)
@@ -71,15 +111,18 @@ export async function searchKb(query: string, baseIds: string[], allowedIds: str
   return sorted.map((result, index) => ({
     id: index + 1,
     content: result.pageContent,
-    // Clamp to the schema's [0, 1] range; the AI-SDK path validates the final
-    // array against `kbSearchOutputSchema` after this returns.
+    // Clamp to the schema's [0, 1] range. This is the ONLY enforcement of that contract: ai@6.0.143
+    // does not validate a tool's `outputSchema` on the execute path, and the MCP bridge doesn't either.
     score: Math.max(0, Math.min(1, result.score))
   }))
 }
 
-export function kbSearchModelOutput(
-  output: KbSearchOutput
+export function knowledgeSearchModelOutput(
+  output: KnowledgeSearchResultOrError
 ): { type: 'text'; value: string } | { type: 'json'; value: KbSearchOutput } {
+  if (isKnowledgeLookupError(output)) {
+    return { type: 'text', value: KNOWLEDGE_LOOKUP_ERROR_NOTE }
+  }
   if (output.length === 0) {
     return {
       type: 'text',
@@ -90,7 +133,7 @@ export function kbSearchModelOutput(
   return { type: 'json', value: output }
 }
 
-export async function listKb(
+export async function listKnowledgeBases(
   query: string | undefined,
   groupId: string | undefined,
   allowedIds: string[]
@@ -101,10 +144,9 @@ export async function listKb(
 
   const groupFiltered = groupId !== undefined ? scopedBases.filter((base) => base.groupId === groupId) : scopedBases
 
-  // Cap concurrency: a user with 50+ KBs would otherwise fire 50 concurrent
-  // listRootItems queries against SQLite + the vector store on every kb_list
-  // call. 8 in-flight is enough to keep the agent loop responsive without
-  // overwhelming the knowledge service.
+  // Cap concurrency: a user with 50+ KBs would otherwise fire 50 concurrent listRootItems queries on
+  // every kb_list call. listRootItems is a pure Drizzle/SQLite read (no vector store), so 8 in-flight
+  // is plenty to keep the agent loop responsive without overwhelming the knowledge service.
   const items: KbListOutputItem[] = await mapWithConcurrency(groupFiltered, 8, (base) =>
     buildOutputItem(base, knowledgeService)
   )
@@ -114,7 +156,7 @@ export async function listKb(
   return items.filter((item) => matchesQuery(item, lowered))
 }
 
-export function kbListModelOutput(
+export function knowledgeListModelOutput(
   output: KbListOutput,
   input: { query?: string; groupId?: string }
 ): { type: 'text'; value: string } | { type: 'json'; value: KbListOutput } {
