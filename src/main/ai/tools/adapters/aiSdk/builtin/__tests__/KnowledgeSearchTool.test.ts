@@ -3,6 +3,9 @@ import type { Assistant } from '@shared/data/types/assistant'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const knowledgeServiceSearch = vi.fn()
+// Hoisted: the SUT calls `loggerService.withContext()` at module load (before the plain consts run),
+// so the mock below must reference an already-initialized fn.
+const loggerWarn = vi.hoisted(() => vi.fn())
 
 vi.mock('@main/core/application', () => ({
   application: {
@@ -10,6 +13,12 @@ vi.mock('@main/core/application', () => ({
       if (name === 'KnowledgeService') return { search: knowledgeServiceSearch }
       throw new Error(`unexpected service: ${name}`)
     }
+  }
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({ info: vi.fn(), warn: loggerWarn, error: vi.fn(), debug: vi.fn(), silly: vi.fn() })
   }
 }))
 
@@ -47,6 +56,7 @@ function callExecute(
 describe('kb_search', () => {
   beforeEach(() => {
     knowledgeServiceSearch.mockReset()
+    loggerWarn.mockReset()
   })
 
   it('builds an entry with the agreed namespace + defer policy', () => {
@@ -62,6 +72,21 @@ describe('kb_search', () => {
     )
     expect(result).toEqual([])
     expect(knowledgeServiceSearch).not.toHaveBeenCalled()
+  })
+
+  it('warns about dropped baseIds even when the whole set is out of scope (warn before the early return)', async () => {
+    const result = await callExecute(
+      { query: 'foo', baseIds: ['kb-other', 'kb-gone'] },
+      { assistant: makeAssistant({ knowledgeBaseIds: ['kb-1'] }) }
+    )
+    expect(result).toEqual([])
+    expect(knowledgeServiceSearch).not.toHaveBeenCalled()
+    // The all-dropped case must still surface the rejection — the warn fires before the empty-target
+    // early return, not after it.
+    expect(loggerWarn).toHaveBeenCalledWith('Dropped baseIds outside the assistant scope', {
+      rejected: ['kb-other', 'kb-gone'],
+      allowedIds: ['kb-1']
+    })
   })
 
   it('drops out-of-scope baseIds but still searches the in-scope ones', async () => {

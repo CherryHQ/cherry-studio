@@ -22,7 +22,7 @@ export type ToolDefer = 'never' | 'always' | 'auto'
 export interface ToolEntry {
   /**
    * Unique wire-name the LLM emits.
-   *   builtin: 'web__search', 'web__fetch', 'kb__search'
+   *   builtin: 'web_search', 'web_fetch', 'kb_search'
    *   mcp:     'mcp__{camelCase(serverName)}__{camelCase(toolName)}' (see `buildFunctionCallToolName`)
    *   meta:    'tool_search', 'tool_invoke', 'exec'
    *

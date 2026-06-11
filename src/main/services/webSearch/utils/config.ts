@@ -142,3 +142,13 @@ export async function getProviderForCapability(
 
   return provider
 }
+
+/**
+ * The two permanent (non-retryable) failures `getProviderForCapability` throws above: no default
+ * provider configured for the capability, or the configured provider doesn't support it. Exported
+ * so model-facing callers (the web-lookup tools) can branch their note off these instead of
+ * re-matching the strings out-of-band — reword the throws above and this predicate together.
+ */
+export function isPermanentWebSearchConfigError(message: string): boolean {
+  return /is not configured for capability|does not support capability/i.test(message)
+}
