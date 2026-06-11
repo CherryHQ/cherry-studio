@@ -90,7 +90,6 @@ vi.mock('react-i18next', () => ({
           'knowledge.name_required': '知识库名称为必填项',
           'knowledge.embedding_model_required': '知识库嵌入模型是必需的',
           'knowledge.dimensions': '嵌入维度',
-          'knowledge.dimensions_error_invalid': '无效的嵌入维度',
           'knowledge.error.failed_to_create': '知识库创建失败',
           'knowledge.groups.default': '默认',
           'message.error.get_embedding_dimensions': '获取嵌入维度失败'
