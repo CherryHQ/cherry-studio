@@ -159,6 +159,8 @@ export class TopicService {
 
   async duplicateTopic(sourceTopicId: string, dto: DuplicateTopicDto): Promise<Topic> {
     const dbService = application.get('DbService')
+    // Lazy import avoids a singleton cycle: MessageService already depends on TopicService for active-node updates.
+    const { messageService } = await import('./MessageService')
 
     const copiedTopic = await dbService.withWriteTx(async (tx) => {
       const [sourceTopic] = await tx
@@ -168,9 +170,10 @@ export class TopicService {
         .limit(1)
       if (!sourceTopic) throw DataApiErrorFactory.notFound('Topic', sourceTopicId)
 
-      // Lazy import avoids a singleton cycle: MessageService already depends on TopicService for active-node updates.
-      const { messageService } = await import('./MessageService')
       const sourcePathRows = await messageService.getPathRowsToNodeTx(tx, dto.nodeId, { topicId: sourceTopicId })
+      if (sourcePathRows[0]?.parentId !== null) {
+        throw DataApiErrorFactory.invalidOperation('duplicate topic', 'Source path does not start at root message')
+      }
 
       const newTopicRow = (await insertWithOrderKey(
         tx,
@@ -188,29 +191,9 @@ export class TopicService {
         }
       )) as TopicRow
 
-      const copiedMessageIds = new Map<string, string>()
-      let copiedActiveNodeId: string | null = null
-
-      for (const sourceMessage of sourcePathRows) {
-        const copiedParentId = sourceMessage.parentId ? (copiedMessageIds.get(sourceMessage.parentId) ?? null) : null
-        const [copiedMessage] = await tx
-          .insert(messageTable)
-          .values({
-            topicId: newTopicRow.id,
-            parentId: copiedParentId,
-            role: sourceMessage.role,
-            data: sourceMessage.data,
-            status: sourceMessage.status,
-            siblingsGroupId: 0,
-            modelId: sourceMessage.modelId,
-            modelSnapshot: sourceMessage.modelSnapshot,
-            stats: sourceMessage.stats
-          })
-          .returning()
-
-        copiedMessageIds.set(sourceMessage.id, copiedMessage.id)
-        copiedActiveNodeId = copiedMessage.id
-      }
+      const { copiedMessageIds, copiedActiveNodeId } = await messageService.copyPathRowsTx(tx, sourcePathRows, {
+        topicId: newTopicRow.id
+      })
 
       await fileRefService.copyBySourceIdMapTx(tx, chatMessageSourceType, copiedMessageIds)
 

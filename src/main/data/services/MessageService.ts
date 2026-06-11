@@ -9,7 +9,7 @@
  */
 
 import { application } from '@application'
-import { messageTable } from '@data/db/schemas/message'
+import { type MessageRow, messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -41,8 +41,6 @@ import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MessageService')
-
-type MessageRow = typeof messageTable.$inferSelect
 
 /**
  * Input for `createUserMessageWithPlaceholders` — one chat turn (user
@@ -102,7 +100,7 @@ const MESSAGE_SEARCH_CURSOR_CONFIG = {
  * Also handles JSON columns: ORM returns parsed objects; the parseJson
  * helper covers any legacy code path that still hands in JSON strings.
  */
-function rowToMessage(row: typeof messageTable.$inferSelect): Message {
+function rowToMessage(row: MessageRow): Message {
   // Handle JSON strings from raw SQL queries (db.all with sql``)
   // ORM queries (.select().from()) return already-parsed objects
   const parseJson = <T>(value: T | string | null | undefined): T | null => {
@@ -1254,6 +1252,45 @@ export class MessageService {
     const ordered = ancestorRows.sort((a, b) => ancestorOrder.get(a.id)! - ancestorOrder.get(b.id)!)
 
     return ordered.reverse()
+  }
+
+  async copyPathRowsTx(
+    tx: DbOrTx,
+    rows: MessageRow[],
+    options: { topicId: string }
+  ): Promise<{ copiedMessageIds: Map<string, string>; copiedActiveNodeId: string | null }> {
+    const copiedMessageIds = new Map<string, string>()
+    let copiedActiveNodeId: string | null = null
+
+    for (const sourceMessage of rows) {
+      let copiedParentId: string | null = null
+      if (sourceMessage.parentId) {
+        const copiedParent = copiedMessageIds.get(sourceMessage.parentId)
+        if (!copiedParent) {
+          throw DataApiErrorFactory.invalidOperation('copy message path', 'Parent message has not been copied')
+        }
+        copiedParentId = copiedParent
+      }
+      const [copiedMessage] = await tx
+        .insert(messageTable)
+        .values({
+          topicId: options.topicId,
+          parentId: copiedParentId,
+          role: sourceMessage.role,
+          data: sourceMessage.data,
+          status: sourceMessage.status,
+          siblingsGroupId: 0,
+          modelId: sourceMessage.modelId,
+          modelSnapshot: sourceMessage.modelSnapshot,
+          stats: sourceMessage.stats
+        })
+        .returning()
+
+      copiedMessageIds.set(sourceMessage.id, copiedMessage.id)
+      copiedActiveNodeId = copiedMessage.id
+    }
+
+    return { copiedMessageIds, copiedActiveNodeId }
   }
 
   /**

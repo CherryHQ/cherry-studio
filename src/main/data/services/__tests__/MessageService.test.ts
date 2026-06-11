@@ -4,7 +4,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { DataApiError } from '@shared/data/api'
+import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { MessageData } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -763,6 +763,46 @@ describe('MessageService', () => {
       expect(path[1].siblingsGroupId).toBe(1)
       expect(path[1].modelId).toBe(createUniqueModelId('provider-b', 'model-B'))
       expect(path[2].parentId).toBe('m-a2')
+    })
+  })
+
+  describe('copyPathRowsTx', () => {
+    it('rejects rows whose parent has not been copied', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'source-topic', orderKey: 'a0' },
+        { id: 'target-topic', orderKey: 'a1' }
+      ])
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'source-root',
+          parentId: null,
+          topicId: 'source-topic',
+          role: 'user',
+          data: mainText('root'),
+          status: 'success',
+          siblingsGroupId: 0
+        },
+        {
+          id: 'source-child',
+          parentId: 'source-root',
+          topicId: 'source-topic',
+          role: 'assistant',
+          data: mainText('child'),
+          status: 'success',
+          siblingsGroupId: 0
+        }
+      ])
+      const childRows = await dbh.db.select().from(messageTable).where(eq(messageTable.id, 'source-child'))
+      expect(childRows).toHaveLength(1)
+
+      await expect(
+        dbh.db.transaction((tx) => messageService.copyPathRowsTx(tx, childRows, { topicId: 'target-topic' }))
+      ).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION
+      })
+
+      const targetRows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'target-topic'))
+      expect(targetRows).toHaveLength(0)
     })
   })
 

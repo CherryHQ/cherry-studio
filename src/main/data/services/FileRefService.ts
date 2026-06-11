@@ -57,8 +57,10 @@ export interface FileRefService {
   createMany(values: readonly CreateFileRefRow[]): Promise<FileRef[]>
 
   /**
-   * Transaction-aware source duplication helper. Used when a business entity is
-   * copied and its existing file ownership rows must move to the new source ids.
+   * Transaction-aware source clone helper. Used when a business entity is
+   * copied and its existing file ownership rows must be cloned to the new source
+   * ids. Original source rows are not removed or reassigned. Rows that conflict
+   * with an existing entry + source + role are skipped via onConflictDoNothing.
    */
   copyBySourceIdMapTx(
     tx: Pick<DbType, 'select' | 'insert'>,

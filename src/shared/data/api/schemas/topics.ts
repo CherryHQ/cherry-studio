@@ -131,7 +131,7 @@ export type TopicSchemas = {
       query?: ListTopicsQuery
       response: CursorPaginationResponse<Topic>
     }
-    /** Create a new topic (optionally fork from existing node) */
+    /** Create a new topic. */
     POST: {
       body: CreateTopicDto
       response: Topic
