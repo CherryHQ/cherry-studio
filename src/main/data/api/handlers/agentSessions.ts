@@ -2,7 +2,7 @@
  * Agent session domain API handlers.
  *
  * Sessions are pure agent instances. Cognitive config (model / instructions /
- * mcps / allowedTools / configuration) lives on the parent agent and is
+ * mcps / disabledTools / configuration) lives on the parent agent and is
  * fetched separately; the selected workspace is exposed as a normalized
  * session relation.
  */
@@ -16,9 +16,15 @@ import {
   AgentSessionMessagesListQuerySchema,
   type AgentSessionSchemas,
   CreateAgentSessionSchema,
+  DeleteAgentSessionsQuerySchema,
   ListAgentSessionsQuerySchema,
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
+import * as z from 'zod'
+
+const AgentSessionsParamsSchema = z.strictObject({
+  agentId: z.string().min(1)
+})
 
 export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
   '/agent-sessions': {
@@ -32,6 +38,12 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
       const parsed = CreateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
       return await agentSessionService.create(parsed.data)
+    },
+
+    DELETE: async ({ query }) => {
+      const parsed = DeleteAgentSessionsQuerySchema.safeParse(query)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return await agentSessionService.deleteByIds(parsed.data.ids)
     }
   },
 
@@ -64,6 +76,14 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     DELETE: async ({ params }) => {
       await agentSessionMessageService.deleteSessionMessage(params.sessionId, params.messageId)
       return undefined
+    }
+  },
+
+  '/agents/:agentId/sessions': {
+    DELETE: async ({ params }) => {
+      const parsed = AgentSessionsParamsSchema.safeParse(params)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return await agentSessionService.deleteByAgentId(parsed.data.agentId)
     }
   },
 

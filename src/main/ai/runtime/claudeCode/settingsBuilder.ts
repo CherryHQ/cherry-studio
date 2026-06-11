@@ -177,7 +177,7 @@ export async function buildClaudeCodeSessionSettings(
   provider: Provider,
   options?: ClaudeCodeSessionOptions
 ): Promise<ClaudeCodeSettings> {
-  // Agent owns cognitive config (model, instructions, mcps, allowedTools,
+  // Agent owns cognitive config (model, instructions, mcps, disabledTools,
   // configuration); workspace lives on the session (CMA Environment binding).
   // An orphan session (`agentId === null`, agent was deleted) cannot run.
   if (!session.agentId) {
@@ -205,7 +205,7 @@ export async function buildClaudeCodeSessionSettings(
   // `dispose` drops any approval still pending for this session when the
   // stream exits abnormally.
   const approvalEmitter = getToolApprovalEmitterHolder(session.id)
-  const { canUseTool, hooks, allowedTools, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
+  const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
     session,
     agent,
     approvalEmitter
@@ -220,10 +220,10 @@ export async function buildClaudeCodeSessionSettings(
   const isAssistant = agentConfig?.builtin_role === 'assistant'
   const mcpServers = await buildMcpServers(session, agent, soulEnabled, isAssistant)
 
-  // 8. Adjust allowedTools for injected MCP servers
-  const finalAllowedTools = adjustAllowedToolsForMcp(allowedTools, soulEnabled, isAssistant)
+  // 7. Auto-approve injected MCP server tools
+  const finalAllowedTools = buildInjectedMcpAllowedTools(soulEnabled, isAssistant)
 
-  // 9. Build settings
+  // 8. Build settings
   const settings: ClaudeCodeSettings = {
     cwd,
     env,
@@ -486,7 +486,6 @@ async function buildToolPermissions(
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
-  allowedTools: string[] | undefined
   disallowedTools: string[]
   toolPolicySnapshot: Awaited<ReturnType<typeof createClaudeAgentToolPolicySnapshot>>
 }> {
@@ -556,11 +555,29 @@ async function buildToolPermissions(
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
 
+  // disabledTools enforcement runs as a PreToolUse hook, not in `canUseTool`: the SDK skips
+  // `canUseTool` for auto-approved paths (bypassPermissions / acceptEdits / default safe-tools), but
+  // PreToolUse hooks fire on every tool call regardless of permission mode. When the snapshot
+  // refresh succeeds, a mid-session disable is denied on the warm connection in all modes; the
+  // runtime service fail-closes the connection if that refresh cannot be applied.
+  const disabledToolHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (!toolName || !toolPolicySnapshot.isDisabled(toolName)) return {}
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: t('agent.session.tool.disabled', { toolName })
+      }
+    }
+  }
+
   return {
     canUseTool,
-    hooks: { PreToolUse: [{ hooks: [rtkRewriteHook] }] },
-    allowedTools: agent.allowedTools,
+    hooks: { PreToolUse: [{ hooks: [disabledToolHook, rtkRewriteHook] }] },
     disallowedTools: [
+      ...(agent.disabledTools ?? []),
       ...GLOBALLY_DISALLOWED_TOOLS,
       ...(soulEnabled ? SOUL_MODE_DISALLOWED_TOOLS : []),
       ...(isAssistant ? ['AskUserQuestion'] : [])
@@ -716,18 +733,16 @@ async function resolveSourceChannel(agentId: string, sessionId: string): Promise
 
 /**
  * Auto-approve MCP tools for injected built-in servers.
- * Claw and assistant tools must be in allowedTools for canUseTool to pass them.
+ * Claw and assistant are also auto-allowed by policy snapshot prefixes; agent-memory
+ * has no such canUseTool shortcut, so its wildcard must stay in the SDK allow list.
  */
-export function adjustAllowedToolsForMcp(
-  allowedTools: string[] | undefined,
-  soulEnabled: boolean,
-  isAssistant: boolean
-): string[] | undefined {
-  if (!soulEnabled && !isAssistant) return allowedTools
+export function buildInjectedMcpAllowedTools(soulEnabled: boolean, isAssistant: boolean): string[] | undefined {
+  const result: string[] = []
 
-  const result = allowedTools ? [...allowedTools] : []
-
-  if (!result.includes('mcp__cherry-tools__*')) {
+  // cherry-tools is wildcarded alongside the role servers for soul + assistant agents. Plain agents
+  // get it auto-approved via the always-on `mcp__cherry-tools__` autoAllowRuntimeNamePrefixes entry
+  // instead, so they need no SDK allow-list wildcard (keeping their allowedTools undefined).
+  if ((soulEnabled || isAssistant) && !result.includes('mcp__cherry-tools__*')) {
     result.push('mcp__cherry-tools__*')
   }
 

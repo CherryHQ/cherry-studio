@@ -395,6 +395,9 @@
           "failed": "Falha ao reordenar as sessões"
         }
       },
+      "tool": {
+        "disabled": "A ferramenta {{toolName}} está desativada para este agente."
+      },
       "update": {
         "error": {
           "failed": "Falha ao atualizar a sessão"

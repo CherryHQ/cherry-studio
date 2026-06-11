@@ -395,6 +395,9 @@
           "failed": "Échec du réordonnancement des sessions"
         }
       },
+      "tool": {
+        "disabled": "L'outil {{toolName}} est désactivé pour cet agent."
+      },
       "update": {
         "error": {
           "failed": "Échec de la mise à jour de la session"

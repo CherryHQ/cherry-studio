@@ -82,7 +82,7 @@ export const AgentBaseSchema = z.object({
   planModel: z.string().optional(),
   smallModel: z.string().optional(),
   mcps: z.array(z.string()).optional(),
-  allowedTools: z.array(z.string()).optional(),
+  disabledTools: z.array(z.string()).optional(),
   configuration: AgentConfigurationSchema.optional()
 })
 
@@ -202,7 +202,7 @@ export type BaseAgentForm = {
   description?: string
   instructions?: string
   model: string
-  allowedTools: string[]
+  disabledTools: string[]
   mcps?: string[]
   configuration?: AgentConfiguration
 }
