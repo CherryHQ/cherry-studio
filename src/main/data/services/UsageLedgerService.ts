@@ -5,9 +5,12 @@
  * survive deletion of the message, topic, provider, and API key they
  * describe (the table has no foreign keys by design).
  *
- * Rows are recorded from the DATA layer — `MessageService.update` fires
- * `recordFromMessage` when an assistant message lands token stats. The AI
- * streaming pipeline is not involved and never imports this service.
+ * Rows are recorded from two converging sources: a billing funnel in the AI
+ * pipeline (`AiService.billingHookPart`, plus the `embedMany`/`generateImage`
+ * call sites) fires `recordRequest` per request, and post-commit data-layer
+ * hooks (`MessageService.update`, `TemporaryChatService.persist`,
+ * `AgentSessionMessageService.saveMessage`) fire `recordFromMessage` /
+ * `recordRequest`. Both paths upsert on the same `messageId`.
  *
  * API key attribution is resolved here, best-effort, from ProviderService
  * state at write time (the pipeline does not thread the chosen key through):

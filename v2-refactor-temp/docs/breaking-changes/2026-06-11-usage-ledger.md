@@ -46,6 +46,8 @@ an upcoming usage dashboard.)
 ## Notes for release manager
 
 Companion of the message-stats cost engine (see
-2026-06-11-message-stats-cost-and-cache.md). The ledger is written from the
-data layer only (`MessageService.update`, `TemporaryChatService.persist`); the
-AI streaming pipeline is untouched.
+2026-06-11-message-stats-cost-and-cache.md). The ledger is written from a
+billing funnel in the AI pipeline (`AiService.billingHookPart`, plus the
+`embedMany`/`generateImage` call sites) and from post-commit data-layer hooks
+(`MessageService.update`, `TemporaryChatService.persist`,
+`AgentSessionMessageService.saveMessage`), all converging by `messageId`.
