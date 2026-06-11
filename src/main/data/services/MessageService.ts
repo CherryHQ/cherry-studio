@@ -12,6 +12,7 @@ import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
+import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type {
   ActiveNodeStrategy,
@@ -20,7 +21,6 @@ import type {
   UpdateMessageDto
 } from '@shared/data/api/schemas/messages'
 import type { TopicMessageContentSearchItem } from '@shared/data/api/schemas/search'
-import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import {
   type BranchMessage,
   type BranchMessagesResponse,
