@@ -26,6 +26,12 @@ export interface PreparedDispatch {
   userMessage?: Message
   /** DB id of the user message row this dispatch created, surfaced back to renderer for optimistic join. */
   userMessageId?: string
+  /**
+   * Set only by the persistent provider's live-submit (steer) branch: the id of the steer user row to
+   * enqueue. Its presence is the explicit signal that this dispatch is enqueue-only — the dispatcher
+   * reads it instead of structurally inferring the steer branch from `models.length === 0 && userMessage`.
+   */
+  pendingSteerUserMessageId?: string
   /** Persisted user/assistant skeletons created for this dispatch. */
   reservedMessages?: CherryUIMessage[]
   /** Shared sibling group for multi-model parallel responses. */
