@@ -47,15 +47,15 @@
     {
       "idx": 6,
       "version": "6",
-      "when": 1781002486101,
-      "tag": "0006_wonderful_dagger",
+      "when": 1781008744179,
+      "tag": "0006_brave_chronomancer",
       "breakpoints": true
     },
     {
       "idx": 7,
       "version": "6",
-      "when": 1781003221421,
-      "tag": "0007_supreme_paibok",
+      "when": 1781152178792,
+      "tag": "0007_tiny_red_shift",
       "breakpoints": true
     }
   ]

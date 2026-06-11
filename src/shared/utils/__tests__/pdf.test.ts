@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { extractPdfText } from '../utils/pdf'
+import { extractPdfText } from '../pdf'
 
 // Minimal valid PDF with text "Hello"
 // Generated from: %PDF-1.0 with a single page containing "Hello"

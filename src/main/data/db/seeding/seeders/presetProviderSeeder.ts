@@ -70,7 +70,8 @@ function toDbRow(p: ProtoProviderConfig) {
     endpointConfigs: buildRuntimeEndpointConfigs(p.endpointConfigs),
     defaultChatEndpoint: getSeedDefaultChatEndpoint(p.id, p.defaultChatEndpoint),
     authConfig: getSeedAuthConfig(p.id),
-    apiFeatures
+    apiFeatures,
+    isEnabled: false
   }
 }
 

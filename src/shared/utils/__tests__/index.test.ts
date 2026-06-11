@@ -8,7 +8,7 @@ import {
   parseDataUrl,
   parseJSONC,
   sanitizeEnvForLogging
-} from '../utils'
+} from '../index'
 
 describe('parseDataUrl', () => {
   it('parses a standard base64 image data URL', () => {

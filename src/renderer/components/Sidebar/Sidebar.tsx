@@ -1,13 +1,15 @@
 import { isMac } from '@renderer/config/constant'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn } from '@renderer/utils'
+import { Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef } from 'react'
 
-import { getSidebarLayout, SIDEBAR_ICON_WIDTH, SIDEBAR_VERTICAL_CARD_WIDTH } from './constants'
+import { getSidebarDisplayWidth, getSidebarLayout } from './constants'
 import { DefaultLogo } from './primitives'
 import { SidebarDocked } from './SidebarDocked'
 import { SidebarFooter } from './SidebarFooter'
 import { SidebarMenu } from './SidebarMenu'
+import { SidebarTooltip } from './Tooltip'
 import type { SidebarMenuItem, SidebarTab, SidebarUser } from './types'
 import { useSidebarResize } from './useSidebarResize'
 
@@ -22,11 +24,13 @@ export interface SidebarProps {
   dockedTabs?: SidebarTab[]
   user?: SidebarUser
   isFloating?: boolean
-  isFloatingClosing?: boolean
+  searchLabel?: string
   extensionsLabel?: string
   actions?: React.ReactNode
   onItemClick: (id: string) => void
   onHoverChange?: (visible: boolean) => void
+  onResizePreview?: (width: number | null) => void
+  onSearchClick?: () => void
   onExtensionsClick?: () => void
   onMiniAppTabClick?: (tabId: string) => void
   onStartSidebarDrag?: (e: React.MouseEvent, tabId: string) => void
@@ -45,11 +49,13 @@ export function Sidebar({
   dockedTabs = [],
   user,
   isFloating = false,
-  isFloatingClosing = false,
+  searchLabel = '',
   extensionsLabel = '',
   actions,
   onItemClick,
   onHoverChange,
+  onResizePreview,
+  onSearchClick,
   onExtensionsClick,
   onMiniAppTabClick,
   onStartSidebarDrag,
@@ -57,10 +63,11 @@ export function Sidebar({
   onDismiss
 }: SidebarProps) {
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { sidebarRef, startResizing } = useSidebarResize(setWidth)
+  const { sidebarRef, startResizing } = useSidebarResize(width, setWidth, onResizePreview)
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const layout = getSidebarLayout(width)
   const showFooter = Boolean(extensionsLabel || user || onExtensionsClick || actions)
+  const showSearch = Boolean(onSearchClick)
   const logoNode = logo ?? <DefaultLogo title={title} />
 
   const renderLogo = (size: 'sm' | 'default' = 'default') => (
@@ -83,22 +90,6 @@ export function Sidebar({
     onDismiss?.()
   }, [onDismiss])
 
-  const handleFloatingItemClick = useCallback(
-    (id: string) => {
-      onItemClick(id)
-      handleDismiss()
-    },
-    [handleDismiss, onItemClick]
-  )
-
-  const handleFloatingMiniAppTabClick = useCallback(
-    (tabId: string) => {
-      onMiniAppTabClick?.(tabId)
-      handleDismiss()
-    },
-    [handleDismiss, onMiniAppTabClick]
-  )
-
   const menuProps = { items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }
   const dockedProps = { dockedTabs, activeTabId, onMiniAppTabClick, onStartSidebarDrag, onCloseDockedTab }
   const footerProps = { user, actions, extensionsLabel, onExtensionsClick }
@@ -109,8 +100,7 @@ export function Sidebar({
       <div className="fixed inset-0 z-40" onClick={handleDismiss}>
         <div
           className={cn(
-            'fixed top-0 bottom-0 left-0 flex w-43.5 select-none flex-col rounded-r-sm rounded-br-2xl bg-card shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
-            isFloatingClosing ? 'slide-out-to-left-2 animate-out' : 'slide-in-from-left-2 animate-in',
+            'slide-in-from-left-2 fixed top-0 bottom-0 left-0 flex w-43.5 animate-in select-none flex-col rounded-r-sm rounded-br-2xl bg-sidebar shadow-2xl backdrop-blur-2xl backdrop-saturate-150 duration-200 [-webkit-app-region:drag]',
             isMac && 'pt-[env(titlebar-area-height)]'
           )}
           onClick={(event) => event.stopPropagation()}
@@ -126,14 +116,23 @@ export function Sidebar({
             <span className="truncate text-sidebar-foreground text-sm">{title}</span>
           </div>
 
+          {showSearch && (
+            <div className="px-3 py-2">
+              <div
+                onClick={() => {
+                  onSearchClick?.()
+                  handleDismiss()
+                }}
+                className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent/50 px-2.5 py-1.5 text-muted-foreground text-xs transition-colors [-webkit-app-region:no-drag] hover:bg-accent">
+                <Search size={13} />
+                <span>{searchLabel}</span>
+              </div>
+            </div>
+          )}
+
           <div className="flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
-            <SidebarMenu
-              layout="full"
-              {...menuProps}
-              onItemClick={handleFloatingItemClick}
-              onMiniAppTabClick={handleFloatingMiniAppTabClick}
-            />
-            <SidebarDocked layout="full" {...dockedProps} onMiniAppTabClick={handleFloatingMiniAppTabClick} />
+            <SidebarMenu layout="full" {...menuProps} />
+            <SidebarDocked layout="full" {...dockedProps} />
           </div>
 
           {showFooter && (
@@ -151,7 +150,7 @@ export function Sidebar({
     return (
       <div ref={sidebarRef} className="relative h-full w-2 shrink-0">
         <div
-          className="absolute top-0 bottom-0 left-0 z-50 w-4"
+          className="absolute inset-y-0 left-0 z-50 w-4 [-webkit-app-region:no-drag]"
           onMouseEnter={() => {
             if (hoverTimeout.current) clearTimeout(hoverTimeout.current)
             hoverTimeout.current = setTimeout(() => onHoverChange?.(true), 200)
@@ -172,9 +171,8 @@ export function Sidebar({
     )
   }
 
-  // --- Visible sidebar (icon / vertical-card / full) ---
-  const actualWidth =
-    layout === 'icon' ? SIDEBAR_ICON_WIDTH : layout === 'vertical-card' ? SIDEBAR_VERTICAL_CARD_WIDTH : width
+  // --- Visible sidebar (icon / full) ---
+  const actualWidth = getSidebarDisplayWidth(width)
 
   return (
     <div
@@ -186,10 +184,34 @@ export function Sidebar({
       )}>
       {/* Header */}
       <div
-        className={`mb-2 flex shrink-0 items-center [-webkit-app-region:drag] ${layout === 'full' ? 'gap-2.5 px-4' : 'justify-center'}`}>
+        className={`flex shrink-0 items-center [-webkit-app-region:drag] ${layout === 'full' ? 'h-14 gap-2.5 px-4' : 'h-14 justify-center'}`}>
         {renderLogo(layout === 'icon' ? 'sm' : 'default')}
         {layout === 'full' && <span className="truncate text-sidebar-foreground text-sm">{title}</span>}
       </div>
+
+      {/* Search */}
+      {showSearch &&
+        (layout === 'full' ? (
+          <div className="px-3 py-2">
+            <div
+              onClick={onSearchClick}
+              className="flex cursor-pointer items-center gap-2 rounded-md bg-sidebar-accent px-2.5 py-1.5 text-muted-foreground text-xs transition-colors [-webkit-app-region:no-drag] hover:bg-accent">
+              <Search size={13} />
+              <span>{searchLabel}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-center py-1.5 [-webkit-app-region:no-drag]">
+            <SidebarTooltip content={searchLabel}>
+              <button
+                type="button"
+                onClick={onSearchClick}
+                className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground">
+                <Search size={16} strokeWidth={1.6} />
+              </button>
+            </SidebarTooltip>
+          </div>
+        ))}
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto py-1 [&::-webkit-scrollbar]:hidden">
@@ -207,7 +229,7 @@ export function Sidebar({
       {/* Resize handle */}
       <div
         onMouseDown={startResizing}
-        className="group/handle absolute top-0 right-0 bottom-0 z-50 w-0.75 cursor-col-resize">
+        className="group/handle absolute top-0 right-0 bottom-0 z-50 w-0.75 cursor-col-resize [-webkit-app-region:no-drag]">
         <div className="h-full w-full bg-primary/20 opacity-0 transition-opacity group-hover/handle:opacity-100" />
       </div>
     </div>

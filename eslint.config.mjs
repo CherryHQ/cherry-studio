@@ -123,7 +123,6 @@ export default defineConfig([
       '.conductor/**',
       'scripts/cloudflare-worker.js',
       'src/main/services/nutstore/sso/lib/**',
-      'src/main/integration/cherryai/index.js',
       'src/renderer/ui/**',
       'src/renderer/routeTree.gen.ts',
       'packages/**/dist',

@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5848bfd3-5a47-4186-b3ca-6aa301223b47",
-  "prevId": "b1a16c1c-eddf-4464-a51f-015daf494adb",
+  "id": "141c1c92-9cbc-479f-9471-2eb60eda7734",
+  "prevId": "12c31ab7-e458-418b-b498-1679e9a5bcbe",
   "tables": {
     "agent": {
       "name": "agent",
@@ -3591,7 +3591,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": true
+          "default": false
         },
         "order_key": {
           "name": "order_key",

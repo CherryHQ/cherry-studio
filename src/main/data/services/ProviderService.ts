@@ -211,7 +211,8 @@ class ProviderService {
       apiKeys: dto.apiKeys ?? [],
       authConfig: dto.authConfig ?? null,
       apiFeatures: dto.apiFeatures ?? null,
-      providerSettings: dto.providerSettings ?? null
+      providerSettings: dto.providerSettings ?? null,
+      isEnabled: false
     }
 
     const row = await withSqliteErrors(

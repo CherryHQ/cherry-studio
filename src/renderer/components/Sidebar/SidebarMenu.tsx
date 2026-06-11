@@ -15,7 +15,6 @@ export interface SidebarMenuProps {
 
 export function SidebarMenu({ layout, ...props }: SidebarMenuProps) {
   if (layout === 'icon') return <IconMenuItems {...props} />
-  if (layout === 'vertical-card') return <VerticalCardMenuItems {...props} />
   return <FullMenuItems {...props} />
 }
 
@@ -57,51 +56,6 @@ function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
                   <MiniAppIcon tab={miniTab} size="md" />
                 </button>
               </SidebarTooltip>
-            ))}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function VerticalCardMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppTabClick }: MenuItemsProps) {
-  return (
-    <div className="flex flex-col items-center gap-1 px-1.5 [-webkit-app-region:no-drag]">
-      {items.map((item) => {
-        const isActive = activeItem === item.id
-        const Icon = item.icon
-        const miniTabs = item.miniAppTabs ?? []
-
-        return (
-          <div key={item.id} className="flex w-full flex-col gap-1">
-            <button
-              type="button"
-              onClick={() => void onItemClick(item.id)}
-              className={`relative flex w-full flex-col items-center gap-0.5 rounded-lg py-2.5 transition-all duration-150 ${
-                isActive
-                  ? 'bg-sidebar-active-bg text-foreground'
-                  : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
-              }`}>
-              {isActive && <ActiveIndicator className="rounded-lg" />}
-              <Icon size={18} strokeWidth={1.6} />
-              <span className="text-[9px] leading-tight">{item.label}</span>
-            </button>
-
-            {miniTabs.map((miniTab) => (
-              <button
-                type="button"
-                key={miniTab.id}
-                onClick={() => onMiniAppTabClick?.(miniTab.id)}
-                className={`relative flex w-full flex-col items-center gap-0.5 rounded-lg py-2 transition-all duration-150 ${
-                  activeTabId === miniTab.id
-                    ? 'bg-sidebar-active-bg text-foreground'
-                    : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground'
-                }`}>
-                {activeTabId === miniTab.id && <ActiveIndicator className="rounded-lg" />}
-                <MiniAppIcon tab={miniTab} size="md" />
-                <span className="max-w-[50px] truncate text-[8px] leading-tight">{miniTab.title}</span>
-              </button>
             ))}
           </div>
         )

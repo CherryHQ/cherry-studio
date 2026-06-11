@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 type FakeTab = {
@@ -199,27 +199,6 @@ describe('app Sidebar', () => {
         metadata: { instanceAppId: 'assistants', instanceKey: 'stale-topic' }
       })
     ).toBe('/app/chat?topicId=t-1&view=message')
-  })
-
-  it('keeps the floating sidebar mounted for its closing animation before unmounting', () => {
-    vi.useFakeTimers()
-    render(<Sidebar />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'reveal' }))
-    expect(screen.getByTestId('floating-sidebar')).toHaveClass('animate-in', 'slide-in-from-left-2')
-
-    fireEvent.click(screen.getByRole('button', { name: 'dismiss' }))
-    expect(screen.getByTestId('floating-sidebar')).toHaveClass('animate-out', 'slide-out-to-left-2')
-
-    act(() => {
-      vi.advanceTimersByTime(199)
-    })
-    expect(screen.getByTestId('floating-sidebar')).toBeInTheDocument()
-
-    act(() => {
-      vi.advanceTimersByTime(1)
-    })
-    expect(screen.queryByTestId('floating-sidebar')).not.toBeInTheDocument()
   })
 
   it('renders sidebar menu items in visible preference order', () => {

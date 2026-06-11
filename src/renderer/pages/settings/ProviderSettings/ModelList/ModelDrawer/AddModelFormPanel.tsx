@@ -210,7 +210,7 @@ export default function AddModelFormPanel({
     <form
       id={formId}
       data-testid={dataTestId}
-      className={drawerClasses.form}
+      className="flex min-h-0 flex-col gap-4 py-0"
       onSubmit={(event) => void handleFormSubmit(event)}>
       <ProviderSection className={drawerClasses.section}>
         <div className={drawerClasses.fieldList}>
@@ -232,7 +232,7 @@ export default function AddModelFormPanel({
       <ProviderActions>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           className={drawerClasses.toggleButton}
           onClick={() => setShowMoreSettings((current) => !current)}>
           {t('settings.moresetting.label')}

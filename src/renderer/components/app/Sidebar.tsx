@@ -21,18 +21,16 @@ import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
 import type { Ref } from 'react'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import UserPopup from '../Popups/UserPopup'
 import { Sidebar as UISidebar } from '../Sidebar'
-import { getSidebarLayout } from '../Sidebar/constants'
+import { getSidebarDisplayWidth, getSidebarLayout, normalizeSidebarWidth } from '../Sidebar/constants'
 import type { SidebarMenuItem, SidebarUser } from '../Sidebar/types'
 
 const APP_LOGO = <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />
 const noop = () => {}
-const FLOATING_SIDEBAR_EXIT_MS = 200
-type FloatingSidebarState = 'closed' | 'open' | 'closing'
 
 function getResourceListRevealSource(menuItemId: SidebarIconType): ResourceListRevealSource | null {
   if (menuItemId === 'assistants' || menuItemId === 'agents') return menuItemId
@@ -46,17 +44,31 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { activeTab, tabs, updateTab, openTab, setActiveTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
 
-  // Sidebar width — persisted across restarts. Drive the CSS variable
-  // straight from the cached value so:
-  //   (1) cross-window updates flow without a local-state mirror
-  //   (2) the resize handler writes to the cache directly (event-handler
-  //       semantics) instead of via an effect on derived state, which
-  //       would loop on revalidation per the SWR write-back antipattern.
+  // Sidebar width — persisted across restarts. Dragging through the
+  // intermediate 50-120px range uses a local preview width so the UI can
+  // follow the cursor without persisting unstable widths.
   const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
+  const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
+  const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
 
   useLayoutEffect(() => {
-    document.documentElement.style.setProperty('--sidebar-width', `${sidebarWidth}px`)
-  }, [sidebarWidth])
+    document.documentElement.style.setProperty('--sidebar-width', `${getSidebarDisplayWidth(activeSidebarWidth)}px`)
+  }, [activeSidebarWidth])
+
+  // Migration, not dead code: the resize path only persists normalized widths,
+  // but older builds (three-state layout, default 65) persisted intermediate
+  // values that must be collapsed once on load. Writing derived state back
+  // cannot loop — normalizeSidebarWidth is idempotent and the write is guarded
+  // by the inequality check. Skip while a drag preview is active so the
+  // write-back does not clobber it.
+  useEffect(() => {
+    if (previewSidebarWidth !== null) return
+
+    const normalizedWidth = normalizeSidebarWidth(sidebarWidth)
+    if (normalizedWidth !== sidebarWidth) {
+      setSidebarWidth(normalizedWidth)
+    }
+  }, [previewSidebarWidth, setSidebarWidth, sidebarWidth])
 
   // User avatar
   const avatar = useAvatar()
@@ -70,38 +82,8 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   )
 
   // Floating sidebar (hover reveal when hidden)
-  const [floatingSidebarState, setFloatingSidebarState] = useState<FloatingSidebarState>('closed')
-  const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const layout = getSidebarLayout(sidebarWidth)
-  const hoverVisible = floatingSidebarState !== 'closed'
-  const hoverClosing = floatingSidebarState === 'closing'
-
-  const clearHoverCloseTimer = useCallback(() => {
-    if (!hoverCloseTimerRef.current) return
-    clearTimeout(hoverCloseTimerRef.current)
-    hoverCloseTimerRef.current = null
-  }, [])
-
-  const setFloatingSidebarVisible = useCallback(
-    (visible: boolean) => {
-      if (visible) {
-        clearHoverCloseTimer()
-        setFloatingSidebarState('open')
-        return
-      }
-
-      if (floatingSidebarState !== 'open') return
-
-      setFloatingSidebarState('closing')
-      hoverCloseTimerRef.current = setTimeout(() => {
-        setFloatingSidebarState('closed')
-        hoverCloseTimerRef.current = null
-      }, FLOATING_SIDEBAR_EXIT_MS)
-    },
-    [clearHoverCloseTimer, floatingSidebarState]
-  )
-
-  useEffect(() => clearHoverCloseTimer, [clearHoverCloseTimer])
+  const [hoverVisible, setHoverVisible] = useState(false)
+  const layout = getSidebarLayout(activeSidebarWidth)
 
   // Menu items
   const pathname = activeTab?.url || '/'
@@ -195,18 +177,18 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   return (
     <div ref={ref} id="app-sidebar" className="relative h-full [-webkit-app-region:no-drag]">
       <UISidebar
-        width={sidebarWidth}
+        width={activeSidebarWidth}
         setWidth={setSidebarWidth}
-        onHoverChange={setFloatingSidebarVisible}
+        onHoverChange={setHoverVisible}
+        onResizePreview={setPreviewSidebarWidth}
         {...sidebarProps}
       />
       {hoverVisible && layout === 'hidden' && (
         <UISidebar
-          width={sidebarWidth}
+          width={activeSidebarWidth}
           setWidth={setSidebarWidth}
           isFloating
-          isFloatingClosing={hoverClosing}
-          onDismiss={() => setFloatingSidebarVisible(false)}
+          onDismiss={() => setHoverVisible(false)}
           {...sidebarProps}
         />
       )}

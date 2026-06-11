@@ -1,141 +1,220 @@
-import { fireEvent, render, screen } from '@testing-library/react'
-import { Home } from 'lucide-react'
-import type { ComponentProps } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, render } from '@testing-library/react'
+import { Search } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { describe, expect, it, vi } from 'vitest'
 
+import {
+  getSidebarDisplayWidth,
+  normalizeSidebarWidth,
+  SIDEBAR_FULL_THRESHOLD,
+  SIDEBAR_HIDDEN_THRESHOLD,
+  SIDEBAR_ICON_WIDTH,
+  SIDEBAR_MAX_WIDTH
+} from '../constants'
 import { Sidebar } from '../Sidebar'
-import type { SidebarMenuItem, SidebarTab } from '../types'
+import type { SidebarMenuItem } from '../types'
 
-vi.mock('@cherrystudio/ui', () => ({
-  MenuItem: ({ active, className, icon, label, onClick }: any) => (
-    <button className={className} data-active={active} type="button" onClick={onClick}>
-      {icon}
-      {label}
-    </button>
-  )
+vi.mock('../Tooltip', () => ({
+  SidebarTooltip: ({ children }: { children: ReactNode }) => children
 }))
 
-vi.mock('@renderer/config/constant', () => ({ isMac: false }))
 vi.mock('@renderer/hooks/useMacTransparentWindow', () => ({
   default: () => false
 }))
 
-const miniApp = {
-  id: 'mini-app-1',
-  type: 'miniapp' as const,
-  title: 'Mini App',
-  miniApp: { id: 'mini-app' }
-}
-
 const items: SidebarMenuItem[] = [
   {
-    id: 'home',
-    label: 'Home',
-    icon: Home,
-    miniAppTabs: [miniApp]
+    id: 'chat',
+    label: 'Chat',
+    icon: Search
   }
 ]
 
-const dockedTabs: SidebarTab[] = [
-  {
-    id: 'docked-mini-app',
-    type: 'miniapp',
-    title: 'Docked App',
-    miniApp: { id: 'docked' }
+const INTERMEDIATE_WIDTH = SIDEBAR_ICON_WIDTH + 30
+
+function dragResizeFrom(width: number, moves: number | number[]) {
+  const setWidth = vi.fn()
+  const onResizePreview = vi.fn()
+  const onHoverChange = vi.fn()
+  const { container, unmount } = render(
+    <Sidebar
+      width={width}
+      setWidth={setWidth}
+      activeItem="chat"
+      items={items}
+      onItemClick={vi.fn()}
+      onHoverChange={onHoverChange}
+      onResizePreview={onResizePreview}
+    />
+  )
+  const resizeHandle = container.querySelector('.cursor-col-resize') as HTMLElement
+
+  fireEvent.mouseDown(resizeHandle, { clientX: width })
+  for (const clientX of [moves].flat()) {
+    fireEvent.mouseMove(document, { clientX })
   }
-]
+  fireEvent.mouseUp(document)
 
-function renderFloatingSidebar(overrides: Partial<ComponentProps<typeof Sidebar>> = {}) {
-  const props: ComponentProps<typeof Sidebar> = {
-    width: 200,
-    setWidth: vi.fn(),
-    activeItem: 'home',
-    items,
-    title: 'Cherry Studio',
-    activeTabId: undefined,
-    dockedTabs,
-    isFloating: true,
-    onItemClick: vi.fn(),
-    onMiniAppTabClick: vi.fn(),
-    onDismiss: vi.fn(),
-    ...overrides
-  }
-
-  render(<Sidebar {...props} />)
-
-  return props
+  return { setWidth, onResizePreview, onHoverChange, unmount }
 }
 
-describe('Sidebar', () => {
-  afterEach(() => {
-    document.body.style.cursor = ''
-    document.body.style.userSelect = ''
-    vi.restoreAllMocks()
-  })
-
-  it('uses card background for the floating panel', () => {
-    renderFloatingSidebar()
-
-    expect(screen.getByText('Cherry Studio').closest('.fixed')).toHaveClass('bg-card')
-    expect(screen.getByText('Cherry Studio').closest('.fixed')).not.toHaveClass('bg-sidebar/70')
-  })
-
-  it('uses exit animation while the floating panel is closing', () => {
-    renderFloatingSidebar({ isFloatingClosing: true })
-
-    expect(screen.getByText('Cherry Studio').closest('.fixed')).toHaveClass('animate-out', 'slide-out-to-left-2')
-    expect(screen.getByText('Cherry Studio').closest('.fixed')).not.toHaveClass('animate-in', 'slide-in-from-left-2')
-  })
-
-  it('dismisses the floating panel after menu items are selected', () => {
-    const props = renderFloatingSidebar()
-
-    fireEvent.click(screen.getByRole('button', { name: /Home/ }))
-    expect(props.onItemClick).toHaveBeenCalledWith('home')
-    expect(props.onDismiss).toHaveBeenCalledTimes(1)
-
-    fireEvent.click(screen.getByRole('button', { name: /Mini App/ }))
-    expect(props.onMiniAppTabClick).toHaveBeenCalledWith('mini-app-1')
-    expect(props.onDismiss).toHaveBeenCalledTimes(2)
-
-    fireEvent.click(screen.getByText('Docked App').closest('div')!)
-    expect(props.onMiniAppTabClick).toHaveBeenCalledWith('docked-mini-app')
-    expect(props.onDismiss).toHaveBeenCalledTimes(3)
-  })
-
-  it('cleans the visible sidebar resize state on window blur', () => {
-    const setWidth = vi.fn()
+describe('Sidebar resize handle', () => {
+  it('keeps the existing handle width and opts out of window drag regions', () => {
     const { container } = render(
-      <Sidebar
-        width={200}
-        setWidth={setWidth}
-        activeItem="home"
-        items={items}
-        title="Cherry Studio"
-        dockedTabs={dockedTabs}
-        onItemClick={vi.fn()}
-      />
+      <Sidebar width={SIDEBAR_ICON_WIDTH} setWidth={vi.fn()} activeItem="chat" items={items} onItemClick={vi.fn()} />
     )
+
     const resizeHandle = container.querySelector('.cursor-col-resize')
 
-    if (!resizeHandle) {
-      throw new Error('Expected sidebar resize handle')
+    expect(resizeHandle).toBeInTheDocument()
+    expect(resizeHandle).toHaveClass('w-0.75')
+    expect(resizeHandle).toHaveClass('[-webkit-app-region:no-drag]')
+  })
+
+  it('previews intermediate widths and snaps release by drag direction', () => {
+    const cases: Array<[number, number, number]> = [
+      [SIDEBAR_ICON_WIDTH, INTERMEDIATE_WIDTH, SIDEBAR_FULL_THRESHOLD],
+      [SIDEBAR_FULL_THRESHOLD, INTERMEDIATE_WIDTH, SIDEBAR_ICON_WIDTH],
+      [SIDEBAR_FULL_THRESHOLD + 50, SIDEBAR_FULL_THRESHOLD - 10, SIDEBAR_ICON_WIDTH]
+    ]
+
+    for (const [start, moveTo, released] of cases) {
+      const { setWidth, onResizePreview, unmount } = dragResizeFrom(start, moveTo)
+
+      expect(onResizePreview).toHaveBeenNthCalledWith(1, moveTo)
+      expect(onResizePreview).toHaveBeenLastCalledWith(null)
+      expect(setWidth).toHaveBeenCalledTimes(1)
+      expect(setWidth).toHaveBeenLastCalledWith(released)
+      unmount()
     }
+  })
 
-    fireEvent.mouseDown(resizeHandle, { clientX: 200 })
-    expect(document.body.style.cursor).toBe('col-resize')
-    expect(document.body.style.userSelect).toBe('none')
+  it('keeps non-intermediate drag behavior', () => {
+    const cases: Array<[number, number]> = [
+      [SIDEBAR_HIDDEN_THRESHOLD - 10, 0],
+      [SIDEBAR_HIDDEN_THRESHOLD + 10, SIDEBAR_ICON_WIDTH],
+      [SIDEBAR_FULL_THRESHOLD + 10, SIDEBAR_FULL_THRESHOLD + 10],
+      [SIDEBAR_MAX_WIDTH + 20, SIDEBAR_MAX_WIDTH]
+    ]
 
-    fireEvent.mouseMove(document, { clientX: 260 })
+    for (const [moveTo, expected] of cases) {
+      const { setWidth, unmount } = dragResizeFrom(SIDEBAR_FULL_THRESHOLD, moveTo)
+
+      expect(setWidth).toHaveBeenCalledTimes(1)
+      expect(setWidth).toHaveBeenLastCalledWith(expected)
+      unmount()
+    }
+  })
+
+  it('clears the preview when a multi-step drag leaves the intermediate band', () => {
+    const { setWidth, onResizePreview } = dragResizeFrom(SIDEBAR_ICON_WIDTH, [
+      INTERMEDIATE_WIDTH,
+      SIDEBAR_FULL_THRESHOLD + 10
+    ])
+
+    expect(onResizePreview).toHaveBeenNthCalledWith(1, INTERMEDIATE_WIDTH)
+    expect(onResizePreview).toHaveBeenNthCalledWith(2, null)
     expect(setWidth).toHaveBeenCalledTimes(1)
+    expect(setWidth).toHaveBeenLastCalledWith(SIDEBAR_FULL_THRESHOLD + 10)
+  })
 
-    fireEvent.blur(window)
+  it('stops tracking the mouse and restores the cursor after release', () => {
+    const { setWidth, onResizePreview } = dragResizeFrom(SIDEBAR_FULL_THRESHOLD, SIDEBAR_FULL_THRESHOLD + 10)
 
     expect(document.body.style.cursor).toBe('')
     expect(document.body.style.userSelect).toBe('')
 
-    fireEvent.mouseMove(document, { clientX: 320 })
+    const setWidthCalls = setWidth.mock.calls.length
+    const previewCalls = onResizePreview.mock.calls.length
 
+    fireEvent.mouseMove(document, { clientX: SIDEBAR_FULL_THRESHOLD + 40 })
+
+    expect(setWidth).toHaveBeenCalledTimes(setWidthCalls)
+    expect(onResizePreview).toHaveBeenCalledTimes(previewCalls)
+  })
+
+  it('renders intermediate widths with icon layout without menu text', () => {
+    const { container, queryByText } = render(
+      <Sidebar width={INTERMEDIATE_WIDTH} setWidth={vi.fn()} activeItem="chat" items={items} onItemClick={vi.fn()} />
+    )
+
+    expect(container.firstElementChild).toHaveStyle({ width: `${INTERMEDIATE_WIDTH}px` })
+    expect(queryByText('Chat')).not.toBeInTheDocument()
+  })
+
+  it('resolves display widths for CSS variable consumers', () => {
+    expect(getSidebarDisplayWidth(SIDEBAR_HIDDEN_THRESHOLD + 10)).toBe(SIDEBAR_ICON_WIDTH)
+    expect(getSidebarDisplayWidth(INTERMEDIATE_WIDTH)).toBe(INTERMEDIATE_WIDTH)
+    expect(getSidebarDisplayWidth(SIDEBAR_FULL_THRESHOLD)).toBe(SIDEBAR_FULL_THRESHOLD)
+  })
+
+  it('normalizes persisted intermediate widths to icon width', () => {
+    expect(normalizeSidebarWidth(SIDEBAR_ICON_WIDTH)).toBe(SIDEBAR_ICON_WIDTH)
+    expect(normalizeSidebarWidth(INTERMEDIATE_WIDTH)).toBe(SIDEBAR_ICON_WIDTH)
+    expect(normalizeSidebarWidth(SIDEBAR_FULL_THRESHOLD)).toBe(SIDEBAR_FULL_THRESHOLD)
+  })
+
+  it('keeps the hidden-state hot zone full height without moving the resize binding', () => {
+    const { container } = render(
+      <Sidebar
+        width={SIDEBAR_HIDDEN_THRESHOLD - 10}
+        setWidth={vi.fn()}
+        activeItem="chat"
+        items={items}
+        onItemClick={vi.fn()}
+      />
+    )
+
+    const resizeHandle = container.querySelector('.cursor-col-resize') as HTMLElement
+    const hotZone = resizeHandle.parentElement
+
+    expect(resizeHandle).toHaveClass('h-full', 'w-full', 'cursor-col-resize')
+    expect(hotZone).toHaveClass('absolute', 'inset-y-0', 'left-0', 'z-50', 'w-4')
+    expect(hotZone).toHaveClass('[-webkit-app-region:no-drag]')
+  })
+
+  it('restores a hidden sidebar by dragging wider from the hot zone', () => {
+    const { setWidth, onResizePreview, onHoverChange } = dragResizeFrom(
+      SIDEBAR_HIDDEN_THRESHOLD - 10,
+      INTERMEDIATE_WIDTH
+    )
+
+    expect(onHoverChange).toHaveBeenCalledWith(false)
+    expect(onResizePreview).toHaveBeenNthCalledWith(1, INTERMEDIATE_WIDTH)
     expect(setWidth).toHaveBeenCalledTimes(1)
+    expect(setWidth).toHaveBeenLastCalledWith(SIDEBAR_FULL_THRESHOLD)
+  })
+
+  it('renders the full layout at the full threshold', () => {
+    const { container, getByText } = render(
+      <Sidebar
+        width={SIDEBAR_FULL_THRESHOLD}
+        setWidth={vi.fn()}
+        activeItem="chat"
+        items={items}
+        onItemClick={vi.fn()}
+      />
+    )
+
+    expect(container.firstElementChild).toHaveStyle({ width: `${SIDEBAR_FULL_THRESHOLD}px` })
+    expect(getByText('Chat')).toBeInTheDocument()
+  })
+
+  it('uses a solid sidebar background for the floating hidden-state panel', () => {
+    const { container } = render(
+      <Sidebar
+        width={SIDEBAR_HIDDEN_THRESHOLD - 10}
+        setWidth={vi.fn()}
+        activeItem="chat"
+        items={items}
+        isFloating
+        onItemClick={vi.fn()}
+      />
+    )
+
+    const panel = container.querySelector('.slide-in-from-left-2')
+
+    expect(panel).toHaveClass('bg-sidebar')
+    expect(panel).not.toHaveClass('bg-sidebar/70')
   })
 })

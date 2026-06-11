@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import type { PreferenceSchemas } from '../data/preference/preferenceSchemas'
-import { DefaultPreferences } from '../data/preference/preferenceSchemas'
+import type { PreferenceSchemas } from '../preferenceSchemas'
+import { DefaultPreferences } from '../preferenceSchemas'
 
 describe('DefaultPreferences', () => {
   it('uses flat file processing default keys', () => {
