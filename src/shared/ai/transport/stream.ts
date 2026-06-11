@@ -69,8 +69,6 @@ export interface ComposerQueuedMessagePayload {
  */
 export interface TopicStatusSnapshotEntry {
   status: TopicStreamStatus
-  /** Unique per stream lifecycle; lets per-window seen state distinguish repeated turns on the same topic. */
-  turnId?: string
   activeExecutions: ActiveExecution[]
   awaitingApprovalAnchors: ActiveExecution[]
   lastCompletedAt?: number
@@ -216,9 +214,9 @@ export type AiStreamOpenResponse =
        */
       userMessageId?: string
       /**
-       * Authoritative persisted message skeletons reserved before the stream
-       * starts. The renderer seeds these into history immediately, then lets
-       * DB refresh reconcile final content/status.
+       * Authoritative persisted message skeletons reserved before the stream starts. Contract
+       * intent: a consumer may seed these into its view immediately for an optimistic render, then
+       * reconcile final content/status from a DB refresh.
        */
       reservedMessages?: CherryUIMessage[]
       /** Backward-compatible assistant placeholder ids derived from reservedMessages. */

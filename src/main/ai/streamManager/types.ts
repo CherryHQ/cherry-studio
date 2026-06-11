@@ -128,8 +128,6 @@ export interface StreamExecution {
  */
 export interface ActiveStream {
   topicId: string
-  /** Unique per stream lifecycle for renderer-side unread/seen tracking. */
-  turnId: string
   /** Key = `UniqueModelId`. */
   executions: Map<UniqueModelId, StreamExecution>
   /** Shared across all executions. Key = `listener.id`. */

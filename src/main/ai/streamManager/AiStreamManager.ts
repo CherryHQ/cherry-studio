@@ -29,7 +29,7 @@ import { KeyedMutex } from './KeyedMutex'
 import { createChatStreamLifecycle, promptStreamLifecycle, type StreamLifecycle } from './lifecycle'
 import { WebContentsListener } from './listeners/WebContentsListener'
 import { pipeStreamLoop } from './pipeStreamLoop'
-import { withReasoningTimingMetadata } from './reasoningTimingTransform'
+import { withReasoningTimingMetadata } from './withReasoningTimingMetadata'
 import type {
   ActiveStream,
   AiStreamManagerConfig,
@@ -204,13 +204,12 @@ export class AiStreamManager extends BaseService {
    *  the `hasLiveStream` snapshot and orphan a PENDING placeholder row. */
   private readonly dispatchLock = new KeyedMutex()
   private readonly config: AiStreamManagerConfig
-  private nextStreamTurnSequence = 0
   /** Per-topic FIFO of steer user-message ids persisted while a turn was live. Chat's analogue of
    *  the agent runtime's `pendingTurns`; drained one continuation turn at a time. */
   private readonly pendingSteers = new Map<string, string[]>()
   /** Topics whose steer continuation is mid-launch — dedups `scheduleNextChatTurn`, mirroring the
    *  agent runtime's `startingNextTurn`. */
-  private readonly startingNextChat = new Set<string>()
+  private readonly startingNextChatTopicIds = new Set<string>()
   /** Last terminal disposition per topic. Gates the late-steer drain in `enqueuePendingSteer` so a
    *  steer that lands after the turn already settled only auto-chains on a clean `done` — an
    *  `aborted`/`error` settle drops it (the persisted user row stays for the user to resend). */
@@ -367,11 +366,15 @@ export class AiStreamManager extends BaseService {
       return { mode: 'injected', executionIds: [...existing.executions.keys()] }
     }
 
-    // Enqueue-only dispatch with no live stream to attach to: an agent-session follow-up landing in
-    // the inter-turn drain window (`isSessionBusy` true while the settled stream is terminal-in-grace,
-    // so `hasLiveStream` is false). The user row is already in the runtime's `pendingTurns` and the
-    // runtime will open the next turn — there's nothing to start here, so no-op instead of throwing
-    // (and leave the grace-period stream untouched for late renderer reads).
+    // Enqueue-only dispatch with no live stream to attach to. Two legitimate producers reach here,
+    // both with the user row already persisted/enqueued, so there's nothing to START — no-op instead
+    // of throwing (and leave any grace-period stream untouched for late renderer reads):
+    //   1. an agent-session follow-up landing in the inter-turn drain window (`isSessionBusy` true
+    //      while the settled stream is terminal-in-grace, so `hasLiveStream` is false); the runtime's
+    //      `pendingTurns` opens the next turn.
+    //   2. a chat steer whose live stream went terminal between `prepareDispatch` and here (the race
+    //      `enqueuePendingSteer` handles); the steer continuation is chained separately.
+    // Do NOT re-add a throw for chat — case 2 is reachable and correct.
     if (input.models.length === 0) {
       logger.debug('send(): empty models with no live stream — enqueue-only, nothing to start', {
         topicId: input.topicId
@@ -395,7 +398,6 @@ export class AiStreamManager extends BaseService {
 
     const stream: ActiveStream = {
       topicId: input.topicId,
-      turnId: `${Date.now()}:${++this.nextStreamTurnSequence}`,
       executions,
       listeners: new Map(input.listeners.map((l) => [l.id, l])),
       // `pending` → `streaming` on first chunk.
@@ -576,17 +578,6 @@ export class AiStreamManager extends BaseService {
       }
     }
     stream.status = 'aborted'
-  }
-
-  /** Abort a live turn and wait for its executions to fully settle (persist as
-   *  paused) before the caller re-dispatches — used by the dispatcher to restart
-   *  a chat turn when a new message arrives mid-stream. */
-  async abortAndAwait(topicId: string, reason: string): Promise<void> {
-    const stream = this.activeStreams.get(topicId)
-    if (!stream || !isLiveStatus(stream.status)) return
-    this.abort(topicId, reason)
-    await Promise.allSettled([...stream.executions.values()].map((exec) => exec.loopPromise))
-    this.evictStream(topicId)
   }
 
   // ── Execution loop callbacks ──────────────────────────────────────
@@ -799,12 +790,12 @@ export class AiStreamManager extends BaseService {
 
   /** Drain-dedup + microtask defer for the steer continuation. Mirrors `scheduleNextTurn`. */
   private scheduleNextChatTurn(topicId: string): void {
-    if (this.startingNextChat.has(topicId)) return
-    this.startingNextChat.add(topicId)
+    if (this.startingNextChatTopicIds.has(topicId)) return
+    this.startingNextChatTopicIds.add(topicId)
     queueMicrotask(() => {
       void this.startNextChatTurn(topicId)
         .catch((error) => logger.error('Failed to start chat steer continuation', { topicId, error }))
-        .finally(() => this.startingNextChat.delete(topicId))
+        .finally(() => this.startingNextChatTopicIds.delete(topicId))
     })
   }
 

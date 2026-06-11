@@ -9,8 +9,8 @@ import type { RequestFeature } from '../feature'
  * topic. The step cap and this condition are OR'd into `stopWhen`; when it fires the turn stops
  * cleanly (persisted as success) and `AiStreamManager` chains a continuation that answers the steer.
  *
- * Chat-only: agent sessions absorb mid-flight messages natively via the SDK streaming-input queue,
- * so they neither run through this params path with a real topic nor need a yield condition.
+ * Chat-only: the `applies` guard excludes agent-session topics — they absorb mid-flight messages
+ * through their own runtime queue (`pendingTurns`), not this params-path yield condition.
  */
 export const steerYieldFeature: RequestFeature = {
   name: 'steer-yield',

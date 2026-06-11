@@ -94,9 +94,9 @@ src/main/ai/
    the user message, builds listeners, and returns a `PreparedDispatch`.
 4. `AiStreamManager.send(input)` **starts** a turn (no active stream): creates
    an `ActiveStream`, launches one `StreamExecution` per model. (A chat
-   resubmit on a live topic is restarted upstream — `dispatch` calls
-   `abortAndAwait` first; only an agent-session follow-up takes the
-   **inject** path, which just upserts listeners.)
+   resubmit on a live topic is persisted + queued as a steer and takes the
+   **inject** path — the running turn yields and `onExecutionDone` chains a
+   continuation; an agent-session follow-up also injects, upserting listeners.)
 5. Each execution's `runExecutionLoop` calls `AiService.streamText(request,
    signal)`, which builds params (`buildAgentParams`) and constructs an `Agent`
    composing hooks from `RequestFeature[]` (anthropic cache, gateway usage

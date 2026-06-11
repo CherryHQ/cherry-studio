@@ -27,7 +27,6 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
     const lastCompletedAt = status === 'done' ? Date.now() : prev?.lastCompletedAt
     cacheService.setShared(key, {
       status,
-      turnId: stream.turnId,
       activeExecutions,
       awaitingApprovalAnchors,
       lastCompletedAt
