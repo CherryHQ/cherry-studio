@@ -56,7 +56,7 @@ export function createHttpTraceFetch(innerFetch: FetchFunction, opts: HttpTraceO
 
     const url = normalizeUrl(input)
     const method = normalizeMethod(input, init)
-    span.setAttribute('http.url', url)
+    span.setAttribute('http.url', redactUrl(url))
     span.setAttribute('http.method', method)
     span.setAttribute('http.request.headers', JSON.stringify(redactHeaders(headersToRecord(init?.headers))))
     // `inputs` carries the request body only — url/method/headers are dedicated attributes so the
@@ -197,6 +197,27 @@ function normalizeUrl(input: RequestInfo | URL): string {
   if (typeof input === 'string') return input
   if (input instanceof URL) return input.toString()
   return input.url
+}
+
+// Some providers carry the API key in the query string (Gemini `?key=`, proxies `?api-key=`).
+// Redact those so secrets don't reach the NDJSON trace file, the way header redaction prevents.
+const SENSITIVE_QUERY_KEYS = new Set(['key', 'api_key', 'api-key', 'apikey', 'access_token', 'token', 'x-goog-api-key'])
+
+function redactUrl(rawUrl: string): string {
+  try {
+    const u = new URL(rawUrl)
+    let changed = false
+    for (const k of [...u.searchParams.keys()]) {
+      if (SENSITIVE_QUERY_KEYS.has(k.toLowerCase())) {
+        u.searchParams.set(k, '***')
+        changed = true
+      }
+    }
+    return changed ? u.toString() : rawUrl
+  } catch {
+    // Relative or malformed URL (no host) — nothing to parse safely; leave it untouched.
+    return rawUrl
+  }
 }
 
 function normalizeMethod(input: RequestInfo | URL, init?: RequestInit): string {

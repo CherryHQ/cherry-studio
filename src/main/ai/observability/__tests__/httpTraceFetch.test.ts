@@ -120,4 +120,41 @@ describe('createHttpTraceFetch', () => {
     expect(attributes['http.statusText']).toBe('No Content')
     expect(attributes.outputs).toBeUndefined()
   })
+
+  // Real providers send `Authorization` capitalized, sometimes as a Headers instance or tuple init.
+  // A future loss of `.toLowerCase()` in redaction must fail tests instead of writing API keys to disk.
+  it.each([
+    ['plain object, capitalized key', { Authorization: 'Bearer sk-secret', 'Content-Type': 'application/json' }],
+    ['Headers instance', new Headers({ Authorization: 'Bearer sk-secret' })],
+    ['tuple-array init', [['Authorization', 'Bearer sk-secret']] as [string, string][]]
+  ])('redacts the Authorization header regardless of init form (%s)', async (_label, headers) => {
+    const { tracer, attributes, state } = fakeTracer()
+    const innerFetch = vi.fn(async () => new Response(null, { status: 204 }))
+
+    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    await f('https://api.example.com', { method: 'POST', headers: headers as HeadersInit, body: '{}' })
+    await vi.waitFor(() => expect(state.ended).toBe(true))
+
+    const requestHeaders = JSON.parse(attributes['http.request.headers'] as string)
+    const authKey = Object.keys(requestHeaders).find((k) => k.toLowerCase() === 'authorization')!
+    expect(requestHeaders[authKey]).toBe('***')
+  })
+
+  it('redacts sensitive query-string secrets from http.url', async () => {
+    const { tracer, attributes, state } = fakeTracer()
+    const innerFetch = vi.fn(async () => new Response(null, { status: 204 }))
+
+    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    await f('https://generativelanguage.googleapis.com/v1/models/gemini:generateContent?key=AIzaSECRET&alt=sse', {
+      method: 'POST',
+      body: '{}'
+    })
+    await vi.waitFor(() => expect(state.ended).toBe(true))
+
+    const url = attributes['http.url'] as string
+    expect(url).not.toContain('AIzaSECRET')
+    const parsed = new URL(url)
+    expect(parsed.searchParams.get('key')).toBe('***')
+    expect(parsed.searchParams.get('alt')).toBe('sse')
+  })
 })

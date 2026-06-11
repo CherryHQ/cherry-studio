@@ -98,6 +98,9 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     const spanId = span.spanContext().spanId
     const spanEntity = this.store.getSpan(spanId)
     if (!spanEntity) {
+      // Missing on end means the start span was evicted or never recorded (e.g. flush race);
+      // the captured end status/body would otherwise be lost silently.
+      logger.warn('endSpan: span not found in store', { spanId })
       return
     }
 
@@ -121,7 +124,10 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     try {
       await fs.rm(this.traceRootDir(), { recursive: true, force: true })
     } catch (err) {
+      // Surface the failure: the settings "clear data" caller must not report success while
+      // plaintext trace files (which may contain captured request/response bodies) remain on disk.
       logger.error('Error cleaning local data:', err as Error)
+      throw err
     }
   }
 
@@ -157,7 +163,10 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   addSpanEvent(_traceId: string, spanId: string, event: TimedEvent): void {
     if (!this.isActivated) return
     const span = this.store.getSpan(spanId)
-    if (!span) return
+    if (!span) {
+      logger.warn('addSpanEvent: span not found in store', { spanId })
+      return
+    }
     const events = Array.isArray(span.events) ? [...span.events, event] : [event]
     span.events = events
     this.store.setSpan(span)
@@ -278,7 +287,10 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     // already on disk so each flush ACCUMULATES instead of overwriting earlier turns' spans.
     const existing = await this.getHistoryData(topicId, traceId)
     await this.writeTraceFile(mergeSpansById(existing, spans), topicId, traceId)
-    this.store.clearTrace(traceId)
+    // Clear exactly what we wrote — not the whole traceId. Spans of this trace that have no
+    // topicId yet (and were therefore filtered out of the file) survive in memory to be flushed
+    // once their topicId is registered, instead of being destroyed unwritten.
+    this.store.clearSpans(spans.map((span) => span.id))
   }
 
   private async writeTraceFile(spans: SpanEntity[], topicId: string, traceId: string) {
@@ -288,7 +300,12 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
       .filter((span) => span.topicId)
       .map((span) => JSON.stringify(span))
       .join('\n')
-    await fs.writeFile(this.traceFilePath(topicId, traceId), content ? `${content}\n` : '')
+    const filePath = this.traceFilePath(topicId, traceId)
+    // Write to a temp file then rename (atomic on the same filesystem) so a crash mid-write
+    // can't truncate previously flushed history.
+    const tmpPath = `${filePath}.${process.pid}.tmp`
+    await fs.writeFile(tmpPath, content ? `${content}\n` : '')
+    await fs.rename(tmpPath, filePath)
   }
 
   private async getHistoryData(topicId: string, traceId: string) {
@@ -303,7 +320,8 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
       return this.parseSpanLines(text)
         .filter((span) => span.topicId === topicId && span.traceId === traceId)
     } catch (err) {
-      logger.error('Error parsing JSON:', err as Error)
+      // Only fs.readFile reaches here (parseSpanLines tolerates per-line JSON errors itself).
+      logger.error('Failed to read trace history file', err as Error, { filePath })
       throw err
     }
   }
@@ -358,8 +376,11 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     try {
       await fs.access(filePath)
       return true
-    } catch {
-      return false
+    } catch (err) {
+      // Only a genuinely-missing file means "no history". Surface anything else (e.g. EACCES)
+      // instead of silently returning an empty viewer.
+      if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return false
+      throw err
     }
   }
 }
