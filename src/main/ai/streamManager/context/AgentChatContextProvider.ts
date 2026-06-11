@@ -84,7 +84,6 @@ export class AgentChatContextProvider implements ChatContextProvider {
       searchableText: '',
       modelId: null,
       modelSnapshot: null,
-      traceId: null,
       stats: null,
       runtimeResumeToken: null,
       createdAt,

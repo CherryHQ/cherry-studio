@@ -1,3 +1,5 @@
+import { randomBytes } from 'node:crypto'
+
 import { application } from '@application'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
@@ -60,6 +62,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     description: row.session.description,
     workspaceId: row.session.workspaceId,
     workspace: rowToWorkspace(row.workspace),
+    traceId: row.session.traceId ?? undefined,
     orderKey: row.session.orderKey,
     createdAt: timestampToISO(row.session.createdAt),
     updatedAt: timestampToISO(row.session.updatedAt)
@@ -178,6 +181,23 @@ export class AgentSessionService {
       .limit(1)
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
     return rowToSession(row)
+  }
+
+  async ensureTraceId(sessionId: string): Promise<string> {
+    return application.get('DbService').withWriteTx(async (tx) => {
+      const [row] = await tx
+        .select({ traceId: sessionsTable.traceId })
+        .from(sessionsTable)
+        .where(eq(sessionsTable.id, sessionId))
+        .limit(1)
+
+      if (!row) throw DataApiErrorFactory.notFound('Session', sessionId)
+      if (row.traceId) return row.traceId
+
+      const traceId = randomBytes(16).toString('hex')
+      await tx.update(sessionsTable).set({ traceId }).where(eq(sessionsTable.id, sessionId))
+      return traceId
+    })
   }
 
   async listByCursor(query: ListAgentSessionsQuery = {}): Promise<CursorPaginationResponse<AgentSessionEntity>> {

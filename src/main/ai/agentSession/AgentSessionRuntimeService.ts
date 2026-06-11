@@ -4,7 +4,7 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import type { Span } from '@opentelemetry/api'
+import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import {
   AGENT_SESSION_COMPACTION_CACHE_KEY,
   type AgentSessionCompactionAnchorData,
@@ -735,6 +735,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // point re-queuing the message — the retry would just fail the same way, and a re-queued
       // message is silently cleared by the idle TTL anyway. Instead surface the failure to the
       // live renderer and settle the turn so the session doesn't sit idle on a doomed message.
+      rootSpan?.setStatus({ code: SpanStatusCode.ERROR, message: 'Placeholder save failed' })
       rootSpan?.end()
       application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, serializeError(error))
       this.markTurnTerminal(entry.sessionId, 'error')
@@ -746,6 +747,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // mirroring every other async method here — otherwise a dead entry gets resurrected
     // into a doomed runtime turn with no backing agent connection.
     if (!this.isCurrentEntry(entry)) {
+      rootSpan?.setStatus({ code: SpanStatusCode.ERROR, message: 'Entry invalidated mid-turn' })
       rootSpan?.end()
       return
     }
@@ -915,7 +917,7 @@ export class AgentSessionRuntimeService extends BaseService {
         }
       },
       { topicId: entry.topicId, modelName: parseUniqueModelId(entry.modelId).modelId },
-      { traceId, spanId: deriveRootSpanId(traceId) }
+      traceId
     )
     return turnTrace.rootSpan
   }
@@ -1045,7 +1047,6 @@ function createSyntheticUserMessage(sessionId: string): AgentSessionMessageEntit
     searchableText: '',
     modelId: null,
     modelSnapshot: null,
-    traceId: null,
     stats: null,
     runtimeResumeToken: null,
     createdAt: now,

@@ -5,19 +5,49 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
-import type { TraceCache } from '@mcp-trace/trace-core/core/traceCache'
+import { SPAN_NAME_TURN } from '@mcp-trace/trace-core/core/spanNames'
+import type { TraceStore } from '@mcp-trace/trace-core/core/traceStore'
 import type { Attributes, AttributeValue, SpanEntity } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
 import { IpcChannel } from '@shared/IpcChannel'
 
+import { deriveRootSpanId } from '../core/AiTurnTrace'
 import { TraceSpanStore } from './TraceSpanStore'
 
-const logger = loggerService.withContext('SpanCacheService')
+const logger = loggerService.withContext('TraceStorageService')
 
-@Injectable('SpanCacheService')
+/** Union spans by id; `overrides` (e.g. the live, fresher copy) wins over `base` (e.g. the history file). */
+function mergeSpansById(base: SpanEntity[], overrides: SpanEntity[]): SpanEntity[] {
+  const byId = new Map<string, SpanEntity>()
+  for (const span of base) byId.set(span.id, span)
+  for (const span of overrides) byId.set(span.id, span)
+  return Array.from(byId.values())
+}
+
+/**
+ * A warm Claude Code connection bakes one `TRACEPARENT` (the container root) at spawn and reuses it
+ * across every turn, so each `claude_code.*` span parents to the container root — a sibling of the
+ * per-turn `ai.turn` spans, not a child. Turns run sequentially with non-overlapping time windows,
+ * so re-home each container-root `claude_code` span under the `ai.turn` whose [start, end] contains
+ * its start. Display-only re-parenting at read; the stored spans stay OTel-faithful.
+ */
+function reparentClaudeCodeUnderTurns(spans: SpanEntity[], traceId: string): SpanEntity[] {
+  const containerRoot = deriveRootSpanId(traceId)
+  const turns = spans
+    .filter((s) => s.name === SPAN_NAME_TURN && s.parentId === containerRoot)
+    .map((s) => ({ id: s.id, start: s.startTime, end: s.endTime ?? Number.POSITIVE_INFINITY }))
+  if (turns.length === 0) return spans
+  return spans.map((s) => {
+    if (s.parentId !== containerRoot || !s.name?.startsWith('claude_code')) return s
+    const turn = turns.find((t) => s.startTime >= t.start && s.startTime <= t.end)
+    return turn ? { ...s, parentId: turn.id } : s
+  })
+}
+
+@Injectable('TraceStorageService')
 @ServicePhase(Phase.WhenReady)
-export class SpanCacheService extends BaseService implements TraceCache, Activatable {
+export class TraceStorageService extends BaseService implements TraceStore, Activatable {
   private readonly store = new TraceSpanStore()
 
   protected async onInit() {
@@ -31,7 +61,7 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
   protected async onReady() {
     const enabled = application.get('PreferenceService').get('app.developer_mode.enabled')
     logger.info(
-      `Developer mode is ${enabled ? 'enabled' : 'disabled'}, span caching ${enabled ? 'activated' : 'skipped'}`
+      `Developer mode is ${enabled ? 'enabled' : 'disabled'}, trace storage ${enabled ? 'activated' : 'skipped'}`
     )
     if (enabled) {
       await this.activate()
@@ -51,15 +81,7 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
   }
 
   private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => this.saveSpans(topicId))
-    this.ipcHandle(IpcChannel.TRACE_SAVE_ENTITY, (_, entity: SpanEntity) => this.saveEntity(entity))
-    this.ipcHandle(IpcChannel.TRACE_GET_ENTITY, (_, spanId: string) => this.getEntity(spanId))
-    this.ipcHandle(IpcChannel.TRACE_BIND_TOPIC, (_, topicId: string, traceId: string) =>
-      this.setTopicId(traceId, topicId)
-    )
-    this.ipcHandle(IpcChannel.TRACE_CLEAN_HISTORY, (_, topicId: string, traceId: string, modelName?: string) =>
-      this.cleanHistoryTrace(topicId, traceId, modelName)
-    )
+    this.ipcHandle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string) => this.getSpans(topicId, traceId))
     this.ipcHandle(IpcChannel.TRACE_CLEAN_LOCAL_DATA, () => this.cleanLocalData())
   }
 
@@ -77,6 +99,9 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
     const spanId = span.spanContext().spanId
     const spanEntity = this.store.getSpan(spanId)
     if (!spanEntity) {
+      // Missing on end means the start span was evicted or never recorded (e.g. flush race);
+      // the captured end status/body would otherwise be lost silently.
+      logger.warn('endSpan: span not found in store', { spanId })
       return
     }
 
@@ -100,7 +125,10 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
     try {
       await fs.rm(this.traceRootDir(), { recursive: true, force: true })
     } catch (err) {
+      // Surface the failure: the settings "clear data" caller must not report success while
+      // plaintext trace files (which may contain captured request/response bodies) remain on disk.
       logger.error('Error cleaning local data:', err as Error)
+      throw err
     }
   }
 
@@ -116,10 +144,6 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
   setTopicId(traceId: string, topicId: string): void {
     if (!this.isActivated) return
     this.store.registerTraceMeta(traceId, { topicId })
-  }
-
-  getEntity(spanId: string): SpanEntity | undefined {
-    return this.store.getSpan(spanId)
   }
 
   saveEntity(entity: SpanEntity) {
@@ -140,32 +164,25 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
   addSpanEvent(_traceId: string, spanId: string, event: TimedEvent): void {
     if (!this.isActivated) return
     const span = this.store.getSpan(spanId)
-    if (!span) return
+    if (!span) {
+      logger.warn('addSpanEvent: span not found in store', { spanId })
+      return
+    }
     const events = Array.isArray(span.events) ? [...span.events, event] : [event]
     span.events = events
     this.store.setSpan(span)
   }
 
-  async cleanHistoryTrace(topicId: string, traceId: string, modelName?: string) {
-    this.store.clearTrace(traceId, modelName)
-
-    const filePath = this.traceFilePath(topicId, traceId)
-    if (!(await this.fileExists(filePath))) {
-      return
-    }
-
-    if (!modelName) {
-      await fs.rm(filePath, { force: true })
-      return
-    }
-
-    const allSpans = await this.getHistoryData(topicId, traceId)
-    const remainingSpans = allSpans.filter((span) => span.modelName !== modelName)
-    if (remainingSpans.length === 0) {
-      await fs.rm(filePath, { force: true })
-      return
-    }
-    await this.writeTraceFile(remainingSpans, topicId, traceId)
+  /**
+   * Spans for a trace, MERGING the flushed history file with the live in-memory store. A container
+   * trace spans many turns: earlier turns are flushed to the file and cleared from memory, while the
+   * in-flight turn lives in memory. Returning only one would show just the turn in flight; the viewer
+   * needs the whole tree, so union both (live wins on shared ids).
+   */
+  async getSpans(topicId: string, traceId: string) {
+    const live = this.store.getSpans({ topicId, traceId })
+    const history = await this.getHistoryData(topicId, traceId)
+    return reparentClaudeCodeUnderTurns(mergeSpansById(history, live), traceId)
   }
 
   private addEntity(entity: SpanEntity): void {
@@ -267,8 +284,14 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
   private async flushTrace(topicId: string, traceId: string) {
     const spans = this.store.getSpans({ topicId, traceId })
     if (spans.length === 0) return
-    await this.writeTraceFile(spans, topicId, traceId)
-    this.store.clearTrace(traceId)
+    // A container trace flushes many turns to the SAME file across the session. Merge with what's
+    // already on disk so each flush ACCUMULATES instead of overwriting earlier turns' spans.
+    const existing = await this.getHistoryData(topicId, traceId)
+    await this.writeTraceFile(mergeSpansById(existing, spans), topicId, traceId)
+    // Clear exactly what we wrote — not the whole traceId. Spans of this trace that have no
+    // topicId yet (and were therefore filtered out of the file) survive in memory to be flushed
+    // once their topicId is registered, instead of being destroyed unwritten.
+    this.store.clearSpans(spans.map((span) => span.id))
   }
 
   private async writeTraceFile(spans: SpanEntity[], topicId: string, traceId: string) {
@@ -278,10 +301,15 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
       .filter((span) => span.topicId)
       .map((span) => JSON.stringify(span))
       .join('\n')
-    await fs.writeFile(this.traceFilePath(topicId, traceId), content ? `${content}\n` : '')
+    const filePath = this.traceFilePath(topicId, traceId)
+    // Write to a temp file then rename (atomic on the same filesystem) so a crash mid-write
+    // can't truncate previously flushed history.
+    const tmpPath = `${filePath}.${process.pid}.tmp`
+    await fs.writeFile(tmpPath, content ? `${content}\n` : '')
+    await fs.rename(tmpPath, filePath)
   }
 
-  private async getHistoryData(topicId: string, traceId: string, modelName?: string) {
+  private async getHistoryData(topicId: string, traceId: string) {
     const filePath = this.traceFilePath(topicId, traceId)
 
     if (!(await this.fileExists(filePath))) {
@@ -290,11 +318,10 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
 
     try {
       const text = await fs.readFile(filePath, 'utf8')
-      return this.parseSpanLines(text)
-        .filter((span) => span.topicId === topicId && span.traceId === traceId)
-        .filter((span) => !modelName || span.modelName === modelName || !span.modelName)
+      return this.parseSpanLines(text).filter((span) => span.topicId === topicId && span.traceId === traceId)
     } catch (err) {
-      logger.error('Error parsing JSON:', err as Error)
+      // Only fs.readFile reaches here (parseSpanLines tolerates per-line JSON errors itself).
+      logger.error('Failed to read trace history file', err as Error, { filePath })
       throw err
     }
   }
@@ -331,7 +358,7 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
       value.includes('\\') ||
       path.isAbsolute(value)
     ) {
-      throw new Error(`SpanCacheService: invalid ${label} path segment`)
+      throw new Error(`TraceStorageService: invalid ${label} path segment`)
     }
   }
 
@@ -349,8 +376,11 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
     try {
       await fs.access(filePath)
       return true
-    } catch {
-      return false
+    } catch (err) {
+      // Only a genuinely-missing file means "no history". Surface anything else (e.g. EACCES)
+      // instead of silently returning an empty viewer.
+      if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') return false
+      throw err
     }
   }
 }

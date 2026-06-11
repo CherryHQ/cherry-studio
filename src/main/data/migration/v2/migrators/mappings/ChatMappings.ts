@@ -430,7 +430,6 @@ export interface NewMessage {
   siblingsGroupId: number
   modelId: string | null
   modelSnapshot: ModelSnapshot | null
-  traceId: string | null
   stats: MessageStats | null
   createdAt: number // timestamp
   updatedAt: number // timestamp
@@ -513,7 +512,7 @@ export function transformTopic(oldTopic: OldTopic, activeNodeId: string | null):
  * | status | status | Normalized to success/error/paused |
  * | (computed) | siblingsGroupId | From multi-model detection |
  * | model/modelId | modelId | Composite (provider::modelId) or raw fallback |
- * | traceId | traceId | Dropped: legacy span detail files are not migrated |
+ * | traceId | - | Dropped: legacy span detail files are not migrated |
  * | usage + metrics | stats | Merged into single stats object |
  * | createdAt | createdAt | ISO string → timestamp |
  * | updatedAt | updatedAt | ISO string → timestamp |
@@ -566,7 +565,6 @@ export async function transformMessage(
     modelId: legacyModelToUniqueId(oldMessage.model, oldMessage.modelId),
     // Snapshot of model at message creation time for historical display
     modelSnapshot: buildModelSnapshot(oldMessage.model),
-    traceId: null,
     stats: mergeStats(oldMessage.usage, oldMessage.metrics),
     createdAt: parseTimestamp(oldMessage.createdAt),
     updatedAt: parseTimestamp(oldMessage.updatedAt || oldMessage.createdAt)

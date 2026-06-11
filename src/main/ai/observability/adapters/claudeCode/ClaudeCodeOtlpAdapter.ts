@@ -358,11 +358,11 @@ function resolveModelName(attributes: Attributes, context?: ClaudeCodeTraceConte
 }
 
 function resolveUsage(attributes: Attributes): TokenUsage | undefined {
-  const promptTokens =
+  const prompt_tokens =
     getNumber(attributes, 'input_tokens') ??
     getNumber(attributes, 'gen_ai.usage.input_tokens') ??
     getNumber(attributes, 'usage.input_tokens')
-  const completionTokens =
+  const completion_tokens =
     getNumber(attributes, 'output_tokens') ??
     getNumber(attributes, 'gen_ai.usage.output_tokens') ??
     getNumber(attributes, 'usage.output_tokens')
@@ -371,16 +371,16 @@ function resolveUsage(attributes: Attributes): TokenUsage | undefined {
     getNumber(attributes, 'cache_creation_tokens') ?? getNumber(attributes, 'cache_creation_input_tokens')
 
   if (
-    promptTokens === undefined &&
-    completionTokens === undefined &&
+    prompt_tokens === undefined &&
+    completion_tokens === undefined &&
     cacheReadTokens === undefined &&
     cacheCreationTokens === undefined
   ) {
     return undefined
   }
 
-  const prompt = promptTokens ?? 0
-  const completion = completionTokens ?? 0
+  const prompt = prompt_tokens ?? 0
+  const completion = completion_tokens ?? 0
   const promptDetails: Record<string, number> = {}
   if (cacheReadTokens !== undefined) promptDetails.cache_read_tokens = cacheReadTokens
   if (cacheCreationTokens !== undefined) promptDetails.cache_creation_tokens = cacheCreationTokens
