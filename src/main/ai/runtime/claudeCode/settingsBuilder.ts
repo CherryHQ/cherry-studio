@@ -49,6 +49,7 @@ import getLoginShellEnvironment from '@main/utils/shell-env'
 import {
   CHANNEL_SECURITY_PROMPT,
   GLOBALLY_DISALLOWED_TOOLS,
+  REPORT_ARTIFACTS_PROMPT,
   SOUL_MODE_DISALLOWED_TOOLS
 } from '@shared/ai/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
@@ -563,7 +564,7 @@ async function buildToolPermissions(
   }
 }
 
-async function buildSystemPrompt(
+export async function buildSystemPrompt(
   session: AgentSessionEntity,
   agent: AgentEntity,
   cwd: string
@@ -598,11 +599,13 @@ async function buildSystemPrompt(
     }
   }
 
+  const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
+
   // Soul mode
   if (soulEnabled) {
     const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig)
     const userInstructions = instructions ? `\n\n${instructions}` : ''
-    return `${soulPrompt}${userInstructions}${channelSecurityBlock}\n\n${langInstruction}`
+    return `${soulPrompt}${userInstructions}${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
   }
 
   // Standard mode
@@ -610,13 +613,13 @@ async function buildSystemPrompt(
     return {
       type: 'preset',
       preset: 'claude_code',
-      append: `${instructions}${channelSecurityBlock}\n\n${langInstruction}`
+      append: `${instructions}${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
     }
   }
   return {
     type: 'preset',
     preset: 'claude_code',
-    append: `${channelSecurityBlock}\n\n${langInstruction}`
+    append: `${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
   }
 }
 
