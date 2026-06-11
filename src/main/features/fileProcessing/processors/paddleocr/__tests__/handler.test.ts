@@ -16,7 +16,7 @@ const { getStatusMock, waitDocumentParsingResultMock, ocrMock, netFetchMock, Pad
     waitDocumentParsingResultMock,
     ocrMock,
     netFetchMock,
-    PaddleOCRClientMock: vi.fn((_options?: { fetch?: typeof fetch }) => ({
+    PaddleOCRClientMock: vi.fn(() => ({
       getStatus: getStatusMock,
       submitDocumentParsing: submitDocumentParsingMock,
       waitDocumentParsingResult: waitDocumentParsingResultMock,
