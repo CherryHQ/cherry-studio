@@ -41,7 +41,7 @@ describe('tool_search meta-tool', () => {
   it('groups deferred entries by namespace, drops non-deferred', async () => {
     const reg = setup()
     const deferred = new Set(['mcp__s1__a', 'mcp__s1__b', 'mcp__s2__c'])
-    const tool = createToolSearchTool(reg, deferred)
+    const tool = createToolSearchTool(reg, deferred, new Set())
     const result = (await callExecute(tool, {})) as {
       matchedNamespaces: Array<{ namespace: string; tools: Array<{ name: string }> }>
     }
@@ -58,7 +58,7 @@ describe('tool_search meta-tool', () => {
   it('does not surface tools that are inline (i.e. not in deferred set)', async () => {
     const reg = setup()
     const deferred = new Set(['mcp__s1__a']) // only one deferred
-    const tool = createToolSearchTool(reg, deferred)
+    const tool = createToolSearchTool(reg, deferred, new Set())
     const result = (await callExecute(tool, {})) as { matchedNamespaces: Array<{ tools: Array<{ name: string }> }> }
     const allNames = result.matchedNamespaces.flatMap((g) => g.tools.map((t) => t.name))
     expect(allNames).toEqual(['mcp__s1__a'])
@@ -67,7 +67,7 @@ describe('tool_search meta-tool', () => {
   it('filters by query (substring across name/description/namespace)', async () => {
     const reg = setup()
     const deferred = new Set(['mcp__s1__a', 'mcp__s1__b', 'mcp__s2__c'])
-    const tool = createToolSearchTool(reg, deferred)
+    const tool = createToolSearchTool(reg, deferred, new Set())
     const result = (await callExecute(tool, { query: 's2' })) as {
       matchedNamespaces: Array<{ namespace: string }>
     }
@@ -77,7 +77,7 @@ describe('tool_search meta-tool', () => {
   it('filters by namespace', async () => {
     const reg = setup()
     const deferred = new Set(['mcp__s1__a', 'mcp__s1__b', 'mcp__s2__c'])
-    const tool = createToolSearchTool(reg, deferred)
+    const tool = createToolSearchTool(reg, deferred, new Set())
     const result = (await callExecute(tool, { namespace: 'mcp:s1' })) as {
       matchedNamespaces: Array<{ namespace: string; tools: Array<{ name: string }> }>
     }
@@ -88,7 +88,7 @@ describe('tool_search meta-tool', () => {
   it('toModelOutput renders a compact text listing with verbatim tool names', async () => {
     const reg = setup()
     const deferred = new Set(['mcp__s1__a', 'mcp__s1__b', 'mcp__s2__c'])
-    const tool = createToolSearchTool(reg, deferred)
+    const tool = createToolSearchTool(reg, deferred, new Set())
     const output = await callExecute(tool, {})
     const out = tool.toModelOutput!({ toolCallId: 'tc-1', input: {}, output }) as { type: string; value: string }
     expect(out.type).toBe('text')
@@ -99,7 +99,7 @@ describe('tool_search meta-tool', () => {
 
   it('toModelOutput reports no matches when nothing is deferred', () => {
     const reg = setup()
-    const tool = createToolSearchTool(reg, new Set())
+    const tool = createToolSearchTool(reg, new Set(), new Set())
     const out = tool.toModelOutput!({ toolCallId: 'tc-1', input: {}, output: { matchedNamespaces: [] } }) as {
       type: string
       value: string
@@ -110,14 +110,14 @@ describe('tool_search meta-tool', () => {
 
   it('advertises inputExamples', () => {
     const reg = setup()
-    const tool = createToolSearchTool(reg, new Set(['mcp__s1__a']))
+    const tool = createToolSearchTool(reg, new Set(['mcp__s1__a']), new Set())
     expect(tool.inputExamples?.length).toBeGreaterThan(0)
   })
 
   it('verbose mode includes inputSchema; default mode omits it', async () => {
     const reg = setup()
     const deferred = new Set(['mcp__s1__a'])
-    const tool = createToolSearchTool(reg, deferred)
+    const tool = createToolSearchTool(reg, deferred, new Set())
     const compact = (await callExecute(tool, {})) as {
       matchedNamespaces: Array<{ tools: Array<{ inputSchema?: unknown }> }>
     }
@@ -127,5 +127,20 @@ describe('tool_search meta-tool', () => {
       matchedNamespaces: Array<{ tools: Array<{ inputSchema?: unknown }> }>
     }
     expect(verbose.matchedNamespaces[0].tools[0].inputSchema).toBeDefined()
+  })
+
+  it('verbose search records the returned tools into the shared inspected ledger', async () => {
+    // The deferred-tools prompt promises a verbose search saves the inspect round-trip — that only
+    // holds if verbose hits are recorded so Guard A in tool_invoke doesn't bounce the first call.
+    const reg = setup()
+    const deferred = new Set(['mcp__s1__a'])
+    const inspected = new Set<string>()
+    const tool = createToolSearchTool(reg, deferred, inspected)
+
+    await callExecute(tool, {}) // non-verbose: model has not seen the schema → nothing recorded
+    expect(inspected.size).toBe(0)
+
+    await callExecute(tool, { verbose: true })
+    expect(inspected.has('mcp__s1__a')).toBe(true)
   })
 })
