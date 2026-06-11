@@ -107,8 +107,8 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       '@context-chef/ai-sdk-middleware':
-        specifier: ^1.3.6
-        version: 1.3.6(@ai-sdk/provider@3.0.8)(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(ai@6.0.143(patch_hash=a6fc1788c6b23da25d4d91aee1fa72564041e79e3cb20811d7d9e61a2c53878e)(zod@4.3.4))(openai@6.15.0(ws@8.20.0)(zod@4.3.4))
+        specifier: ^1.4.0
+        version: 1.4.0(@ai-sdk/provider@3.0.8)(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(ai@6.0.143(patch_hash=a6fc1788c6b23da25d4d91aee1fa72564041e79e3cb20811d7d9e61a2c53878e)(zod@4.3.4))(openai@6.15.0(ws@8.20.0)(zod@4.3.4))
       '@context-chef/core':
         specifier: ^3.6.0
         version: 3.6.0(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(openai@6.15.0(ws@8.20.0)(zod@4.3.4))
@@ -2517,14 +2517,28 @@ packages:
     resolution: {integrity: sha512-Ir+AOibqzrIsL6ajt3Rz3LskB7OiMVHqltZmspbW/TJuTVuyOMirVqAkjfY6JISiLHgyNqicAC8AyHHGzNd/dA==}
     engines: {node: '>=0.1.90'}
 
-  '@context-chef/ai-sdk-middleware@1.3.6':
-    resolution: {integrity: sha512-RhYVBM91q5X8iWKpZQ8ZiEtgDM6pJTh2ERbRmS5lIvdfcF1cmZ5FrATJKwW6Fnn+uocmbedFSUrI3e8/stAl3Q==}
+  '@context-chef/ai-sdk-middleware@1.4.0':
+    resolution: {integrity: sha512-qmmrqkf/8CzbLx+6PTJN3mdeJ3jZOAntHzSmbqqCvj3xzuqbn/5F34ao6aMPxGm/gbaNm0elkCC2g+5XRrCWeA==}
     peerDependencies:
       '@ai-sdk/provider': '>=3'
       ai: '>=6'
 
   '@context-chef/core@3.6.0':
     resolution: {integrity: sha512-kCA5f+aMutYR0MJan2S01Qu3aHWJsTtCDQWYMR+bAvhrtZPOuXRCuZcOHx6yNHbkKARuvyKCEmPKItEiS2mHOg==}
+    peerDependencies:
+      '@anthropic-ai/sdk': '>=0.20'
+      '@google/generative-ai': '>=0.1'
+      openai: '>=4'
+    peerDependenciesMeta:
+      '@anthropic-ai/sdk':
+        optional: true
+      '@google/generative-ai':
+        optional: true
+      openai:
+        optional: true
+
+  '@context-chef/core@3.6.1':
+    resolution: {integrity: sha512-09o5NHFJrbY2kxuTO0RX0ID9OJRMwan0I8hfBnfQHOc6Rt0BhqNsSfyLfl6HTwnImXKceCizly5qnMXRfbSICQ==}
     peerDependencies:
       '@anthropic-ai/sdk': '>=0.20'
       '@google/generative-ai': '>=0.1'
@@ -16338,10 +16352,10 @@ snapshots:
 
   '@colors/colors@1.6.0': {}
 
-  '@context-chef/ai-sdk-middleware@1.3.6(@ai-sdk/provider@3.0.8)(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(ai@6.0.143(patch_hash=a6fc1788c6b23da25d4d91aee1fa72564041e79e3cb20811d7d9e61a2c53878e)(zod@4.3.4))(openai@6.15.0(ws@8.20.0)(zod@4.3.4))':
+  '@context-chef/ai-sdk-middleware@1.4.0(@ai-sdk/provider@3.0.8)(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(ai@6.0.143(patch_hash=a6fc1788c6b23da25d4d91aee1fa72564041e79e3cb20811d7d9e61a2c53878e)(zod@4.3.4))(openai@6.15.0(ws@8.20.0)(zod@4.3.4))':
     dependencies:
       '@ai-sdk/provider': 3.0.8
-      '@context-chef/core': 3.6.0(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(openai@6.15.0(ws@8.20.0)(zod@4.3.4))
+      '@context-chef/core': 3.6.1(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(openai@6.15.0(ws@8.20.0)(zod@4.3.4))
       ai: 6.0.143(patch_hash=a6fc1788c6b23da25d4d91aee1fa72564041e79e3cb20811d7d9e61a2c53878e)(zod@4.3.4)
     transitivePeerDependencies:
       - '@anthropic-ai/sdk'
@@ -16349,6 +16363,13 @@ snapshots:
       - openai
 
   '@context-chef/core@3.6.0(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(openai@6.15.0(ws@8.20.0)(zod@4.3.4))':
+    dependencies:
+      zod: 4.4.3
+    optionalDependencies:
+      '@anthropic-ai/sdk': 0.81.0(zod@4.3.4)
+      openai: 6.15.0(ws@8.20.0)(zod@4.3.4)
+
+  '@context-chef/core@3.6.1(@anthropic-ai/sdk@0.81.0(zod@4.3.4))(openai@6.15.0(ws@8.20.0)(zod@4.3.4))':
     dependencies:
       zod: 4.4.3
     optionalDependencies:

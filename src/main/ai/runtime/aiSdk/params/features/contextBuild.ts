@@ -15,11 +15,11 @@
  * `ToolEntry.truncatable === false` (citation tools) are preserved
  * verbatim via chef's `perTool` exemption.
  *
- * Compression (Janitor) is deliberately inert in P1: `contextWindow` is a
- * sentinel and the zero tokenizer keeps the budget check at zero, because
- * compressed history cannot be persisted back to the topic yet (P2). The
- * sentinel goes away once @context-chef/ai-sdk-middleware makes
- * `compress` opt-in.
+ * Compression is opt-in upstream (@context-chef/ai-sdk-middleware ≥1.4)
+ * and not configured here: compressed history cannot be persisted back to
+ * the topic yet, so enabling it would re-pay an LLM compression call on
+ * every over-budget turn. P2 wires `compress` (default-on, current model)
+ * together with the marker-message persistence.
  */
 import { application } from '@application'
 import { definePlugin } from '@cherrystudio/ai-core'
@@ -39,8 +39,6 @@ const TAIL_CHARS = 1_000
 /** Exported for direct middleware testing. */
 export function buildChefOptions(scope: RequestScope): ContextChefOptions {
   return {
-    contextWindow: Number.MAX_SAFE_INTEGER,
-    tokenizer: () => 0,
     truncate: {
       threshold: TRUNCATE_THRESHOLD_CHARS,
       headChars: HEAD_CHARS,
