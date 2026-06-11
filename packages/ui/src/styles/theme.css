@@ -272,9 +272,9 @@
   /* Runtime Theme Inputs */
   /* ==================== */
   /* --cs-theme-primary is the user-chosen theme color (overridable by useUserTheme).
-   * It only feeds --color-control-accent (switch/slider/etc.); --color-primary and
-   * --color-ring stay anchored to the neutral --cs-primary so inputs/selects/focus
-   * never follow the theme color. */
+   * It only feeds --color-control-accent (switch/slider/etc.) and --color-link;
+   * --color-primary and --color-ring stay anchored to the neutral --cs-primary so
+   * inputs/selects/focus never follow the theme color. */
   --cs-theme-primary: var(--cs-primary);
   --cs-theme-control-accent: var(--cs-theme-primary);
   --cs-theme-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
@@ -296,6 +296,7 @@
   --color-control-accent-hover: var(--cs-control-accent-hover);
   --color-control-accent-foreground: var(--cs-control-accent-foreground);
   --color-ring: var(--cs-theme-ring);
+  --color-link: var(--cs-theme-control-accent);
   --color-destructive: var(--cs-destructive);
   --color-destructive-hover: var(--cs-destructive-hover);
   --color-success: var(--cs-success);
@@ -314,8 +315,8 @@
   --color-border-subtle: var(--cs-border-subtle);
   --color-border-hover: var(--cs-border-hover);
   --color-border-active: var(--cs-border-active);
-  --color-border-fg-muted: var(--cs-border-fg-muted);
   --color-frame-border: var(--cs-frame-border);
+  --color-border-fg-muted: var(--cs-border-fg-muted);
   --color-secondary: var(--cs-secondary);
   --color-secondary-hover: var(--cs-secondary-hover);
   --color-secondary-active: var(--cs-secondary-active);

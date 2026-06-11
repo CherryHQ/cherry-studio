@@ -115,7 +115,7 @@ const BuiltinMcpServerList: FC = () => {
                       {server.reference && (
                         <a
                           href={server.reference}
-                          className="wrap-break-word mt-2 inline-block text-primary hover:underline">
+                          className="wrap-break-word mt-2 inline-block text-link hover:underline">
                           {server.reference}
                         </a>
                       )}

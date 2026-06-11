@@ -22,7 +22,6 @@ const LEGACY_RENDERER_CSS_VARS = [
   '--color-border-soft',
   '--color-border-mute',
   '--color-error',
-  '--color-link',
   '--color-primary-bg',
   '--color-fill-secondary',
   '--color-fill-2',
