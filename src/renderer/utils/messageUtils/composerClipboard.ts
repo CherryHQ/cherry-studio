@@ -7,6 +7,7 @@ import { fileUrlToPath } from '@shared/file/urlUtil'
 import {
   createComposerSecureRandomId,
   isComposerFileTokenPathLike,
+  readComposerFileTokenIdSuffix,
   readComposerFileTokenSourceIdFromTokenId,
   withComposerFileTokenSourceId
 } from './composerFileTokenSource'
@@ -56,6 +57,19 @@ export type ComposerClipboardSegment =
       fallbackText: string
     }
 
+// Write-side segment: tokens are unsanitized source tokens. Sanitization (and
+// file handle registration) happens exactly once, in createComposerClipboardFragment.
+type ComposerClipboardSourceSegment =
+  | {
+      type: 'text'
+      text: string
+    }
+  | {
+      type: 'token'
+      token: ComposerClipboardSourceToken
+      fallbackText: string
+    }
+
 export interface ComposerClipboardFragment {
   version: 1
   segments: ComposerClipboardSegment[]
@@ -69,7 +83,7 @@ export interface ComposerRichClipboardContent {
 
 interface ComposerClipboardProjection {
   plainText: string
-  segments: ComposerClipboardSegment[]
+  segments: ComposerClipboardSourceSegment[]
   hasToken: boolean
 }
 
@@ -226,12 +240,7 @@ function createFileMetadataFromWritePayload(
 function createFilePayloadForWrite(token: Pick<ComposerClipboardSourceToken, 'id' | 'label' | 'payload'>) {
   const payload = readFileDisplayPayload(token.payload)
   const file = createFileMetadataFromWritePayload(token, token.payload)
-  const sourceId = readComposerFileTokenSourceIdFromTokenId(token.id)
-  const incomingHandle = isRecord(token.payload) ? readString(token.payload.handle) : undefined
-  const restoredFile =
-    !file && sourceId && incomingHandle ? resolveFileRestorationHandle(incomingHandle, sourceId) : null
-  const restorableFile = file ?? restoredFile
-  const handle = restorableFile ? registerFileRestorationHandle(restorableFile) : null
+  const handle = file ? registerFileRestorationHandle(file) : null
   if (!handle) return payload
 
   return {
@@ -247,7 +256,7 @@ function isComposerClipboardTokenKind(value: unknown): value is ComposerClipboar
 function hasUnsafeComposerClipboardFileTokenId(token: Pick<ComposerClipboardSourceToken, 'id' | 'kind'>) {
   if (token.kind !== 'file') return false
 
-  const id = token.id.startsWith('file:') ? token.id.slice('file:'.length) : token.id
+  const id = readComposerFileTokenIdSuffix(token.id) ?? token.id
   return isComposerFileTokenPathLike(id)
 }
 
@@ -329,16 +338,7 @@ function sanitizeComposerClipboardSegment(segment: unknown): ComposerClipboardSe
   return { type: 'token', token, fallbackText }
 }
 
-export function createComposerClipboardFragment(
-  segments: readonly (
-    | { type: 'text'; text: string }
-    | {
-        type: 'token'
-        token: ComposerClipboardSourceToken
-        fallbackText: string
-      }
-  )[]
-): string {
+export function createComposerClipboardFragment(segments: readonly ComposerClipboardSourceSegment[]): string {
   const safeSegments = segments.flatMap((segment): ComposerClipboardSegment[] => {
     if (segment.type === 'text') return segment.text ? [{ type: 'text', text: segment.text }] : []
 
@@ -435,7 +435,7 @@ function mergeFileTokenPayload(
   } satisfies ClipboardComposerMessageToken
 }
 
-function appendTextSegment(segments: ComposerClipboardSegment[], text: string) {
+function appendTextSegment(segments: ComposerClipboardSourceSegment[], text: string) {
   if (!text) return
   const last = segments[segments.length - 1]
   if (last?.type === 'text') {
@@ -446,22 +446,54 @@ function appendTextSegment(segments: ComposerClipboardSegment[], text: string) {
 }
 
 function appendTokenSegment(
-  segments: ComposerClipboardSegment[],
+  segments: ComposerClipboardSourceSegment[],
   token: ComposerClipboardSourceToken,
   fallbackText: string
 ): boolean {
-  if (!isComposerClipboardToken(token)) {
+  if (!token.id || !token.label || !isComposerClipboardToken(token)) {
     appendTextSegment(segments, fallbackText)
     return Boolean(fallbackText)
   }
+  if (!fallbackText) return false
 
-  const safeFragment = readComposerClipboardFragment(
-    createComposerClipboardFragment([{ type: 'token', token, fallbackText }])
-  )
-  const segment = safeFragment?.segments[0]
-  if (!segment) return false
-  segments.push(segment)
+  segments.push({ type: 'token', token, fallbackText })
   return true
+}
+
+function projectTokensOverText(
+  text: string,
+  tokens: readonly (ComposerClipboardSourceToken & { textOffset: number })[]
+): ComposerClipboardProjection {
+  const segments: ComposerClipboardSourceSegment[] = []
+  let plainText = ''
+  let cursor = 0
+  let hasToken = false
+
+  for (const token of tokens) {
+    const offset = Math.max(cursor, Math.min(text.length, token.textOffset))
+    if (offset > cursor) {
+      const chunk = text.slice(cursor, offset)
+      plainText += chunk
+      appendTextSegment(segments, chunk)
+      cursor = offset
+    }
+
+    const fallbackText = getTokenFallbackText(token)
+    plainText += fallbackText
+    hasToken = appendTokenSegment(segments, token, fallbackText) || hasToken
+
+    if (token.promptText && text.slice(offset, offset + token.promptText.length) === token.promptText) {
+      cursor = Math.max(cursor, offset + token.promptText.length)
+    }
+  }
+
+  if (cursor < text.length) {
+    const chunk = text.slice(cursor)
+    plainText += chunk
+    appendTextSegment(segments, chunk)
+  }
+
+  return { plainText, segments, hasToken }
 }
 
 function projectTextPartToClipboardSegments(
@@ -481,36 +513,8 @@ function projectTextPartToClipboardSegments(
     .filter((token) => COMPOSER_CLIPBOARD_MESSAGE_TOKEN_KINDS.has(token.kind) && token.label)
     .toSorted((a, b) => a.textOffset - b.textOffset || a.index - b.index)
     .map((token) => mergeFileTokenPayload(token, filePayloadsBySourceId))
-  const segments: ComposerClipboardSegment[] = []
-  let plainText = ''
-  let cursor = 0
-  let hasToken = false
 
-  for (const token of tokens) {
-    const offset = Math.max(cursor, Math.min(part.text.length, token.textOffset))
-    if (offset > cursor) {
-      const text = part.text.slice(cursor, offset)
-      plainText += text
-      appendTextSegment(segments, text)
-      cursor = offset
-    }
-
-    const fallbackText = getTokenFallbackText(token)
-    plainText += fallbackText
-    hasToken = appendTokenSegment(segments, token, fallbackText) || hasToken
-
-    if (token.promptText && part.text.slice(offset, offset + token.promptText.length) === token.promptText) {
-      cursor = Math.max(cursor, offset + token.promptText.length)
-    }
-  }
-
-  if (cursor < part.text.length) {
-    const text = part.text.slice(cursor)
-    plainText += text
-    appendTextSegment(segments, text)
-  }
-
-  return { plainText, segments, hasToken }
+  return projectTokensOverText(part.text, tokens)
 }
 
 function projectComposerClipboardPartGroup(parts: readonly CherryMessagePart[]): ComposerClipboardProjection {
@@ -520,7 +524,7 @@ function projectComposerClipboardPartGroup(parts: readonly CherryMessagePart[]):
     .map((part) => projectTextPartToClipboardSegments(part, filePayloadsBySourceId))
     .filter((projection) => projection.plainText.trim().length > 0)
 
-  const segments: ComposerClipboardSegment[] = []
+  const segments: ComposerClipboardSourceSegment[] = []
   projections.forEach((projection, index) => {
     if (index > 0) appendTextSegment(segments, '\n\n')
     projection.segments.forEach((segment) => {
@@ -540,36 +544,8 @@ function projectComposerClipboardDraft(draft: ComposerClipboardDraft): ComposerC
   const tokens = draft.tokens
     .filter((token) => token.label || token.promptText)
     .toSorted((a, b) => a.textOffset - b.textOffset || a.index - b.index)
-  const segments: ComposerClipboardSegment[] = []
-  let plainText = ''
-  let cursor = 0
-  let hasToken = false
 
-  for (const token of tokens) {
-    const offset = Math.max(cursor, Math.min(draft.text.length, token.textOffset))
-    if (offset > cursor) {
-      const text = draft.text.slice(cursor, offset)
-      plainText += text
-      appendTextSegment(segments, text)
-      cursor = offset
-    }
-
-    const fallbackText = getTokenFallbackText(token)
-    plainText += fallbackText
-    hasToken = appendTokenSegment(segments, token, fallbackText) || hasToken
-
-    if (token.promptText && draft.text.slice(offset, offset + token.promptText.length) === token.promptText) {
-      cursor = Math.max(cursor, offset + token.promptText.length)
-    }
-  }
-
-  if (cursor < draft.text.length) {
-    const text = draft.text.slice(cursor)
-    plainText += text
-    appendTextSegment(segments, text)
-  }
-
-  return { plainText, segments, hasToken }
+  return projectTokensOverText(draft.text, tokens)
 }
 
 function createComposerRichClipboardContentFromProjection(
@@ -603,7 +579,7 @@ export function createComposerRichClipboardContentFromPartGroups(
   separator: string
 ): ComposerRichClipboardContent | null {
   const projections = partGroups.map(projectComposerClipboardPartGroup).filter((projection) => projection.plainText)
-  const segments: ComposerClipboardSegment[] = []
+  const segments: ComposerClipboardSourceSegment[] = []
 
   projections.forEach((projection, index) => {
     if (index > 0) appendTextSegment(segments, separator)
