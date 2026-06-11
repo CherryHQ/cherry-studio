@@ -66,10 +66,6 @@ export interface KnowledgeSearchUnit {
   text: string
 }
 
-// Re-exported (not mirrored) from the shared types so the store's vocabulary
-// can never drift from the persisted base.searchMode enum.
-export type { KnowledgeSearchMode }
-
 export interface KnowledgeIndexSearchInput {
   queryText: string
   /** Pre-computed query embedding. Required for 'hybrid'/'vector'; ignored for 'bm25'. */
