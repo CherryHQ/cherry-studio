@@ -64,7 +64,7 @@ describe('TracePage', () => {
 
     render(
       <div style={{ height: 240, width: 360 }}>
-        <TracePage topicId="topic-a" traceId="trace-a" modelName="model-a" />
+        <TracePage topicId="topic-a" traceId="trace-a" />
       </div>
     )
 

@@ -80,9 +80,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   }
 
   private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
-      this.getSpans(topicId, traceId, modelName)
-    )
+    this.ipcHandle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string) => this.getSpans(topicId, traceId))
     this.ipcHandle(IpcChannel.TRACE_CLEAN_LOCAL_DATA, () => this.cleanLocalData())
   }
 
@@ -171,9 +169,9 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
    * in-flight turn lives in memory. Returning only one (the old "live-or-else-history") showed just the
    * turn in flight; the viewer needs the whole tree, so union both (live wins on shared ids).
    */
-  async getSpans(topicId: string, traceId: string, modelName?: string) {
-    const live = this.store.getSpans({ topicId, traceId, modelName })
-    const history = await this.getHistoryData(topicId, traceId, modelName)
+  async getSpans(topicId: string, traceId: string) {
+    const live = this.store.getSpans({ topicId, traceId })
+    const history = await this.getHistoryData(topicId, traceId)
     return reparentClaudeCodeUnderTurns(mergeSpansById(history, live), traceId)
   }
 
@@ -293,7 +291,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     await fs.writeFile(this.traceFilePath(topicId, traceId), content ? `${content}\n` : '')
   }
 
-  private async getHistoryData(topicId: string, traceId: string, modelName?: string) {
+  private async getHistoryData(topicId: string, traceId: string) {
     const filePath = this.traceFilePath(topicId, traceId)
 
     if (!(await this.fileExists(filePath))) {
@@ -304,7 +302,6 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
       const text = await fs.readFile(filePath, 'utf8')
       return this.parseSpanLines(text)
         .filter((span) => span.topicId === topicId && span.traceId === traceId)
-        .filter((span) => !modelName || span.modelName === modelName || !span.modelName)
     } catch (err) {
       logger.error('Error parsing JSON:', err as Error)
       throw err

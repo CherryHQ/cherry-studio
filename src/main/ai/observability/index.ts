@@ -5,7 +5,7 @@ export { ClaudeCodeOtlpAdapter } from './adapters/claudeCode/ClaudeCodeOtlpAdapt
 export { TRACER_NAME } from './constants'
 export type { AiTurnTraceHandle, AiTurnTraceMeta, TraceParent } from './core/AiTurnTrace'
 export { deriveRootSpanId, startAiChildTurnSpan, startAiTurnTrace } from './core/AiTurnTrace'
-export { createHttpTraceFetch, type HttpTraceOptions, MAX_BODY_BYTES } from './httpTraceFetch'
+export { createHttpTraceFetch, type HttpTraceOptions } from './httpTraceFetch'
 export type { ObservabilitySink } from './sinks/ObservabilitySink'
 export { observabilitySinks } from './sinks/ObservabilitySinkRegistry'
 export { applyTurnInputAttributes, applyTurnOutputAttributes, type TurnInputInfo } from './turnSpanAttributes'

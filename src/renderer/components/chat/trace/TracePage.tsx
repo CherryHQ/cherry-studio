@@ -9,11 +9,10 @@ import TraceTree from './TraceTree'
 export interface TracePageProps {
   topicId: string
   traceId: string
-  modelName?: string
   reload?: unknown
 }
 
-export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, modelName, reload = false }) => {
+export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload = false }) => {
   const [spans, setSpans] = useState<TraceNode[]>([])
   const [selectedNode, setSelectedNode] = useState<TraceNode | null>(null)
   const [showList, setShowList] = useState(true)
@@ -83,8 +82,8 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, modelNam
   }, [])
 
   const getTraceData = useCallback(async (): Promise<SpanEntity[]> => {
-    return topicId && traceId ? await window.api.trace.getData(topicId, traceId, modelName) : []
-  }, [topicId, traceId, modelName])
+    return topicId && traceId ? await window.api.trace.getData(topicId, traceId) : []
+  }, [topicId, traceId])
 
   const handleNodeClick = (nodeId: string) => {
     const latestNode = findNodeById(spans, nodeId)
@@ -103,7 +102,7 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, modelNam
     setSpans([])
     setSelectedNode(null)
     setShowList(true)
-  }, [topicId, traceId, modelName])
+  }, [topicId, traceId])
 
   useEffect(() => {
     const handleShowTrace = async () => {
@@ -119,7 +118,7 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, modelNam
       let consecutiveEnded = 0
       const poll = async () => {
         try {
-          const spans = topicId && traceId ? await window.api.trace.getData(topicId, traceId, modelName) : []
+          const spans = topicId && traceId ? await window.api.trace.getData(topicId, traceId) : []
           failureCountRef.current = 0
           const matchedSpans = getRootSpans(spans)
 
@@ -162,7 +161,7 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, modelNam
         intervalRef.current = null
       }
     }
-  }, [getTraceData, topicId, traceId, modelName, reload, getRootSpans, updatePercentAndStart, mergeTraceNodes])
+  }, [getTraceData, topicId, traceId, reload, getRootSpans, updatePercentAndStart, mergeTraceNodes])
 
   useEffect(() => {
     if (selectedNode) {

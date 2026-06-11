@@ -202,7 +202,7 @@ function modelRow(node: TraceNode, t: Translate): SpanDetailRow | undefined {
 }
 
 /** Resolve a renderable model (id + name + providerId, for the avatar logo) from a span's attributes. */
-export function resolveSpanModel(node: TraceNode): { id: string; name: string; providerId?: string } | undefined {
+function resolveSpanModel(node: TraceNode): { id: string; name: string; providerId?: string } | undefined {
   const attrs = attrsOf(node)
   const name = node.modelName ?? str(attrs.modelName) ?? str(attrs['ai.model.id'])
   if (!name) return undefined

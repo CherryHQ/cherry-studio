@@ -3,7 +3,6 @@ import { TracePage } from './TracePage'
 export interface TracePanePayload {
   topicId: string
   traceId: string
-  modelName?: string
 }
 
 export function TracePane({ payload }: { payload: TracePanePayload | null }) {
@@ -16,8 +15,7 @@ export function TracePane({ payload }: { payload: TracePanePayload | null }) {
       <TracePage
         topicId={payload.topicId}
         traceId={payload.traceId}
-        modelName={payload.modelName}
-        reload={`${payload.topicId}:${payload.traceId}:${payload.modelName ?? ''}`}
+        reload={`${payload.topicId}:${payload.traceId}`}
       />
     </div>
   )
