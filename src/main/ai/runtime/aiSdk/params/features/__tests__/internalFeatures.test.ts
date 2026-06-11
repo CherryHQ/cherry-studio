@@ -57,7 +57,8 @@ function activeNames(scope: RequestScope): string[] {
 describe('INTERNAL_FEATURES — decision matrix', () => {
   it('produces nothing when there is no assistant and the resolver picks an "anthropic" adapter (no inline-tag extraction)', () => {
     expect(activeNames(makeScope({ provider: { id: 'anthropic' }, model: {}, aiSdkProviderId: 'anthropic' }))).toEqual([
-      'pdf-compatibility'
+      'pdf-compatibility',
+      'context-build'
     ])
   })
 
@@ -216,5 +217,20 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(reasoning).toBeGreaterThanOrEqual(0)
     expect(simulate).toBeGreaterThanOrEqual(0)
     expect(reasoning).toBeLessThan(simulate)
+  })
+
+  // The documented hard invariant `context-build` < `anthropic-cache`:
+  // truncation must rewrite tool results before cache markers are placed.
+  it('orders context-build before anthropic-cache', () => {
+    const names = activeNames(
+      makeScope({
+        provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } } as never,
+        model: {},
+        endpointType: 'anthropic-messages',
+        aiSdkProviderId: 'anthropic'
+      })
+    )
+    expect(names.indexOf('context-build')).toBeGreaterThan(-1)
+    expect(names.indexOf('context-build')).toBeLessThan(names.indexOf('anthropic-cache'))
   })
 })
