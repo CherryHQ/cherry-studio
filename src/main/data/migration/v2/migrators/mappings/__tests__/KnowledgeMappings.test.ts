@@ -151,7 +151,8 @@ describe('KnowledgeMappings', () => {
           name: 'KB soft limit config',
           model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' },
           chunkSize: 80,
-          chunkOverlap: 40
+          chunkOverlap: 40,
+          documentCount: 100
         },
         1024
       )
@@ -162,7 +163,8 @@ describe('KnowledgeMappings', () => {
         name: 'KB soft limit config',
         embeddingModelId: 'silicon::BAAI/bge-m3',
         chunkSize: 80,
-        chunkOverlap: 40
+        chunkOverlap: 40,
+        documentCount: 100
       })
     })
   })
@@ -175,7 +177,9 @@ describe('KnowledgeMappings', () => {
           name: 'KB invalid config',
           model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' },
           chunkSize: 200,
-          chunkOverlap: 200
+          chunkOverlap: 200,
+          threshold: 2,
+          documentCount: 0
         },
         1024
       )
@@ -187,50 +191,11 @@ describe('KnowledgeMappings', () => {
         embeddingModelId: 'silicon::BAAI/bge-m3',
         chunkSize: 200,
         chunkOverlap: 199,
+        threshold: undefined,
+        documentCount: undefined,
         searchMode: 'hybrid'
       })
     })
-  })
-
-  it('transformKnowledgeBase warns that v1 retrieval tuning (threshold/documentCount) is dropped, not migrated', () => {
-    const warnings: string[] = []
-    const result = transformKnowledgeBase(
-      {
-        id: 'kb-v1-tuning',
-        name: 'KB v1 tuning',
-        model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' },
-        threshold: 0.7,
-        documentCount: 12
-      },
-      1024,
-      (msg) => warnings.push(msg)
-    )
-
-    // The fields are gone from the v2 row (no longer per-base state)...
-    expect(result.ok).toBe(true)
-    if (result.ok) {
-      expect(result.value).not.toHaveProperty('threshold')
-      expect(result.value).not.toHaveProperty('documentCount')
-    }
-    // ...and the drop is diagnosable rather than silent.
-    expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain('kb-v1-tuning')
-    expect(warnings[0]).toContain('threshold=0.7')
-    expect(warnings[0]).toContain('documentCount=12')
-  })
-
-  it('transformKnowledgeBase stays silent when the v1 base carried no retrieval tuning', () => {
-    const warnings: string[] = []
-    transformKnowledgeBase(
-      {
-        id: 'kb-no-tuning',
-        name: 'KB no tuning',
-        model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' }
-      },
-      1024,
-      (msg) => warnings.push(msg)
-    )
-    expect(warnings).toHaveLength(0)
   })
 
   it('transformKnowledgeBase writes split rerank model columns', () => {

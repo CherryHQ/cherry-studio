@@ -8,14 +8,12 @@ import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api
 import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
-  KNOWLEDGE_SEARCH_DEFAULT_TOP_K,
   type KnowledgeAddItemInput,
   KnowledgeAddItemInputSchema,
   type KnowledgeBase,
   type KnowledgeItem,
   type KnowledgeItemChunk,
   type KnowledgeItemStatus,
-  type KnowledgeSearchOptions,
   type KnowledgeSearchResult,
   type RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
@@ -174,6 +172,8 @@ export class KnowledgeService extends BaseService {
       fileProcessorId: sourceBase.fileProcessorId,
       chunkSize: sourceBase.chunkSize,
       chunkOverlap: sourceBase.chunkOverlap,
+      threshold: sourceBase.threshold,
+      documentCount: sourceBase.documentCount,
       searchMode: sourceBase.searchMode,
       hybridAlpha: sourceBase.hybridAlpha,
       groupId: sourceBase.groupId ?? undefined
@@ -249,7 +249,7 @@ export class KnowledgeService extends BaseService {
   }
 
   @TraceMethod({ spanName: 'Knowledge.search', tag: 'Knowledge' })
-  async search(baseId: string, query: string, options?: KnowledgeSearchOptions): Promise<KnowledgeSearchResult[]> {
+  async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
     await this.assertBaseCanRunRuntimeOperation(baseId, 'search')
 
     if (!SEARCH_TOKEN_PATTERN.test(query)) {
@@ -265,7 +265,7 @@ export class KnowledgeService extends BaseService {
     // BM25 is lexical only; skip the embedding round-trip when the query won't use it.
     const queryEmbedding = mode === 'bm25' ? undefined : await embedKnowledgeQuery(base, query)
 
-    const resolvedTopK = options?.topK ?? KNOWLEDGE_SEARCH_DEFAULT_TOP_K
+    const resolvedTopK = base.documentCount ?? 10
     const candidateLimit = Math.min(resolvedTopK * KNOWLEDGE_SEARCH_OVERFETCH_FACTOR, KNOWLEDGE_SEARCH_CANDIDATE_CAP)
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
@@ -285,11 +285,11 @@ export class KnowledgeService extends BaseService {
     const topResults = this.trimToTopK(visibleSearchResults, resolvedTopK, baseId)
 
     if (base.rerankModelId) {
-      const rerankedResults = await rerankKnowledgeSearchResults(base, query, topResults, resolvedTopK)
-      return withSearchRanks(applyRelevanceThreshold(rerankedResults, options?.threshold))
+      const rerankedResults = await rerankKnowledgeSearchResults(base, query, topResults)
+      return withSearchRanks(applyRelevanceThreshold(rerankedResults, base.threshold))
     }
 
-    return withSearchRanks(applyRelevanceThreshold(topResults, options?.threshold))
+    return withSearchRanks(applyRelevanceThreshold(topResults, base.threshold))
   }
 
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {

@@ -119,6 +119,8 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
+  threshold: undefined,
+  documentCount: undefined,
   status: 'completed',
   error: null,
   searchMode: 'hybrid',

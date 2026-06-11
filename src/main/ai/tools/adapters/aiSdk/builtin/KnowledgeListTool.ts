@@ -102,6 +102,7 @@ async function buildOutputItem(
     name: base.name,
     groupId: base.groupId,
     status: base.status,
+    documentCount: base.documentCount ?? 0,
     itemCount: rootItems.length,
     sampleSources
   }

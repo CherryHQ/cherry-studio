@@ -6,6 +6,8 @@ const knowledgeRagConfigKeys = [
   'chunkOverlap',
   'embeddingModelId',
   'rerankModelId',
+  'documentCount',
+  'threshold',
   'searchMode',
   'hybridAlpha'
 ] as const satisfies readonly (keyof KnowledgeRagConfigFormValues)[]

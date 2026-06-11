@@ -113,6 +113,8 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
+  threshold: undefined,
+  documentCount: undefined,
   status: 'failed',
   error: 'missing_embedding_model',
   searchMode: 'hybrid',

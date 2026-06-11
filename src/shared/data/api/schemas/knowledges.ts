@@ -22,6 +22,8 @@ const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
   fileProcessorId: true,
   chunkSize: true,
   chunkOverlap: true,
+  threshold: true,
+  documentCount: true,
   searchMode: true,
   hybridAlpha: true
 } as const
@@ -34,6 +36,8 @@ export const UpdateKnowledgeBaseSchema = KnowledgeBaseEntitySchema.pick(KNOWLEDG
     groupId: KnowledgeBaseGroupIdInputSchema.nullable().optional(),
     rerankModelId: KnowledgeBaseEntitySchema.shape.rerankModelId,
     fileProcessorId: KnowledgeBaseEntitySchema.shape.fileProcessorId,
+    threshold: KnowledgeBaseEntitySchema.shape.threshold,
+    documentCount: KnowledgeBaseEntitySchema.shape.documentCount,
     hybridAlpha: KnowledgeBaseEntitySchema.shape.hybridAlpha
   })
 export type UpdateKnowledgeBaseDto = z.input<typeof UpdateKnowledgeBaseSchema>

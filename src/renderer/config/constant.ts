@@ -1,6 +1,8 @@
 export const DEFAULT_TEMPERATURE = 1.0
 export const DEFAULT_CONTEXTCOUNT = 5
 export const SYSTEM_PROMPT_THRESHOLD = 128
+export const DEFAULT_KNOWLEDGE_DOCUMENT_COUNT = 6
+export const DEFAULT_KNOWLEDGE_THRESHOLD = 0.0
 
 export const platform = window.electron?.process?.platform
 export const isMac = platform === 'darwin'

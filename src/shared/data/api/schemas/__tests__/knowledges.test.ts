@@ -31,7 +31,10 @@ describe('Knowledge base schemas', () => {
       groupId: GROUP_ID,
       chunkSize: 800,
       chunkOverlap: 120,
-      searchMode: 'hybrid'
+      threshold: 0.5,
+      documentCount: 5,
+      searchMode: 'hybrid',
+      hybridAlpha: 0.7
     })
 
     expect(result.success).toBe(true)
@@ -70,7 +73,10 @@ describe('Knowledge base schemas', () => {
       dimensions: 1024,
       embeddingModelId: 'embed-model',
       chunkSize: 0,
-      chunkOverlap: -1
+      chunkOverlap: -1,
+      threshold: 2,
+      documentCount: 0,
+      hybridAlpha: -0.1
     })
 
     expect(result.success).toBe(false)
@@ -223,7 +229,10 @@ describe('Knowledge base schemas', () => {
   it('rejects invalid numeric tuning fields in update schema', () => {
     const result = UpdateKnowledgeBaseSchema.safeParse({
       chunkSize: -10,
-      chunkOverlap: -1
+      chunkOverlap: -1,
+      threshold: 1.1,
+      documentCount: 0,
+      hybridAlpha: 2
     })
 
     expect(result.success).toBe(false)
@@ -240,6 +249,9 @@ describe('Knowledge base schemas', () => {
       error: null,
       chunkSize: 0,
       chunkOverlap: -1,
+      threshold: 2,
+      documentCount: 0,
+      hybridAlpha: 2,
       createdAt: '2026-04-10T00:00:00.000Z',
       updatedAt: '2026-04-10T00:00:00.000Z'
     })
@@ -563,11 +575,17 @@ it('rejects non-nullable optional config null clears in patch schema', () => {
   expect(UpdateKnowledgeBaseSchema.safeParse({ chunkSize: null }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ chunkOverlap: null }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ searchMode: null }).success).toBe(false)
+  expect(UpdateKnowledgeBaseSchema.safeParse({ threshold: null }).success).toBe(false)
+  expect(UpdateKnowledgeBaseSchema.safeParse({ documentCount: null }).success).toBe(false)
+  expect(UpdateKnowledgeBaseSchema.safeParse({ hybridAlpha: null }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ chunkSize: 1024, chunkOverlap: 200 }).success).toBe(true)
   expect(
     UpdateKnowledgeBaseSchema.safeParse({
       rerankModelId: 'rerank-1',
-      fileProcessorId: 'processor-1'
+      fileProcessorId: 'processor-1',
+      threshold: 0.5,
+      documentCount: 5,
+      hybridAlpha: 0.7
     }).success
   ).toBe(true)
 })

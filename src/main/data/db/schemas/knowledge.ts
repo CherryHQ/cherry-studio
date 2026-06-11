@@ -34,6 +34,8 @@ export const knowledgeBaseTable = sqliteTable(
 
     chunkSize: integer().notNull(),
     chunkOverlap: integer().notNull(),
+    threshold: real(),
+    documentCount: integer(),
     searchMode: text().$type<KnowledgeSearchMode>().notNull(),
     hybridAlpha: real(),
 

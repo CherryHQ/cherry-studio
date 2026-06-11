@@ -1,4 +1,3 @@
-import { KNOWLEDGE_SEARCH_DEFAULT_TOP_K, KNOWLEDGE_SEARCH_MAX_TOP_K } from '@shared/data/types/knowledge'
 import * as z from 'zod'
 
 /**
@@ -14,17 +13,11 @@ import * as z from 'zod'
 /** Knowledge base ID — non-empty string. */
 const KnowledgeBaseIdSchema = z.string().min(1, 'Knowledge base ID is required')
 
-/**
- * `POST /search` body. Strict so an unknown field fails loudly with a 422 —
- * in particular the pre-rename `document_count`, which would otherwise be
- * silently ignored and the request would run with the default `top_k`.
- */
-export const KnowledgeSearchSchema = z.strictObject({
+/** `POST /search` body. */
+export const KnowledgeSearchSchema = z.object({
   query: z.string().min(1, 'Query is required').max(1000, 'Query must be at most 1000 characters'),
   knowledge_base_ids: z.array(z.string().min(1, 'Knowledge base ID cannot be empty')).optional(),
-  // Mirrors the kb__search agent tool's `topK` contract: same ceiling and the same
-  // default as KnowledgeService, so omitting `top_k` behaves like omitting `topK`.
-  top_k: z.coerce.number().int().min(1).max(KNOWLEDGE_SEARCH_MAX_TOP_K).default(KNOWLEDGE_SEARCH_DEFAULT_TOP_K)
+  document_count: z.coerce.number().int().min(1).max(20).default(5)
 })
 
 /** `GET /` pagination query. */

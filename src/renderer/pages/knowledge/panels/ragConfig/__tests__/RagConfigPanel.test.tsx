@@ -92,6 +92,34 @@ vi.mock('@cherrystudio/ui', async () => {
         {children}
         {content ? <span role="tooltip">{content}</span> : null}
       </span>
+    ),
+    Slider: ({
+      value,
+      onValueChange,
+      min,
+      max,
+      step,
+      disabled,
+      ...props
+    }: {
+      value: number[]
+      onValueChange?: (value: number[]) => void
+      min?: number
+      max?: number
+      step?: number
+      disabled?: boolean
+      [key: string]: unknown
+    }) => (
+      <input
+        {...props}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        disabled={disabled}
+        value={value[0]}
+        onChange={(event) => onValueChange?.([Number(event.target.value)])}
+      />
     )
   }
 })
@@ -116,6 +144,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.restore.action': '重建知识库',
           'knowledge.restore.submit': '重建',
           'knowledge.status.failed': '失败',
+          'knowledge.rag.document_count': '请求文档片段数 (Top K)',
           'knowledge.rag.embedding_model': '嵌入模型',
           'knowledge.rag.embedding_model_select': '模型选择',
           'knowledge.rag.file_processing': '文档处理',
@@ -127,11 +156,13 @@ vi.mock('react-i18next', () => ({
           'knowledge.rag.chunk_size_change_warning': '分段大小和重叠大小修改只针对新添加的内容有效',
           'knowledge.rag.chunking': 'Chunking',
           'knowledge.rag.retrieval': 'Retrieval',
+          'knowledge.rag.threshold': '相似度阈值',
           'knowledge.rag.tokens_unit': 'tokens',
           'knowledge.rag.search_mode.title': '检索模式',
           'knowledge.rag.search_mode.vector': '向量检索',
           'knowledge.rag.search_mode.bm25': '全文检索',
           'knowledge.rag.search_mode.hybrid': '混合检索（推荐）',
+          'knowledge.rag.hybrid_alpha': 'Hybrid Alpha',
           'knowledge.rag.rerank_disabled': '不使用',
           'knowledge.rag.rerank_model': '重排模型 (Rerank)',
           'knowledge.rag.reset_action': '恢复默认',
@@ -141,7 +172,11 @@ vi.mock('react-i18next', () => ({
           'knowledge.rag.hints.processor': '导入文件时使用的解析处理服务。',
           'knowledge.rag.hints.chunk_size': '单个文档片段的目标 token 数。',
           'knowledge.rag.hints.chunk_overlap': '相邻文档片段之间保留的重叠 token 数。',
+          'knowledge.rag.hints.document_count': '每次召回返回的最大文档片段数。',
+          'knowledge.rag.hints.threshold': '过滤低相关片段的相似度阈值。',
+          'knowledge.rag.hints.threshold_disabled': '该检索模式按排序返回结果，不使用相似度阈值。',
           'knowledge.rag.hints.search_mode': '选择召回方式。',
+          'knowledge.rag.hints.hybrid_alpha': '混合检索中向量得分的权重。',
           'knowledge.rag.hints.rerank_model': '对初步召回结果重新排序的模型。',
           'knowledge.rag.chunk_size_invalid': '分块大小必须大于 0',
           'knowledge.rag.chunk_overlap_invalid': '分块重叠必须大于等于 0',
@@ -161,6 +196,8 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
+  threshold: 0.1,
+  documentCount: 6,
   status: 'completed',
   error: null,
   searchMode: 'vector',
@@ -186,7 +223,10 @@ describe('RagConfigPanel', () => {
         chunkOverlap: '64',
         embeddingModelId: 'openai::text-embedding-3-small',
         rerankModelId: null,
-        searchMode: 'vector'
+        documentCount: 6,
+        threshold: 0.1,
+        searchMode: 'vector',
+        hybridAlpha: null
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
       embeddingModelOptions: [
@@ -239,6 +279,7 @@ describe('RagConfigPanel', () => {
     expect(screen.queryByText('分隔符规则')).not.toBeInTheDocument()
     expect(screen.getByText('文档处理')).toBeInTheDocument()
     expect(screen.getByText('检索模式')).toBeInTheDocument()
+    expect(screen.getByText('请求文档片段数 (Top K)')).toBeInTheDocument()
     expect(screen.getByText('重排模型 (Rerank)')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '不使用' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'text-embedding-3-small · openai' })).toBeInTheDocument()
@@ -279,6 +320,7 @@ describe('RagConfigPanel', () => {
     expect(screen.getByText('文档处理')).toHaveClass('font-medium', 'text-sm')
     expect(screen.getByText('分块大小')).toHaveClass('font-medium', 'text-sm')
     expect(screen.getByText('嵌入模型')).toHaveClass('font-medium', 'text-sm')
+    expect(screen.getByText('请求文档片段数 (Top K)')).toHaveClass('font-medium', 'text-sm')
     // Section-level small-caps headings are gone — no Chunking / Embedding / Retrieval section title in the DOM.
     expect(screen.queryByText('Chunking')).not.toBeInTheDocument()
     expect(screen.queryByText('Embedding')).not.toBeInTheDocument()
@@ -289,6 +331,8 @@ describe('RagConfigPanel', () => {
       'text-foreground-muted',
       'text-xs'
     )
+    expect(screen.getByRole('slider', { name: '请求文档片段数 (Top K)' })).toHaveClass('w-full')
+    expect(screen.getByText('6')).toHaveClass('text-foreground-secondary', 'text-xs')
   })
 
   it('disables save when a required chunk field is cleared or becomes non-positive', () => {
@@ -343,7 +387,92 @@ describe('RagConfigPanel', () => {
     renderRagConfigPanel()
 
     expect(screen.getByRole('tooltip', { name: '用于将知识库内容转换为向量。' })).toBeInTheDocument()
+    expect(screen.getByRole('tooltip', { name: '每次召回返回的最大文档片段数。' })).toBeInTheDocument()
+    expect(screen.getByRole('tooltip', { name: '过滤低相关片段的相似度阈值。' })).toBeInTheDocument()
     expect(screen.getByRole('tooltip', { name: '选择召回方式。' })).toBeInTheDocument()
     expect(screen.getByRole('tooltip', { name: '对初步召回结果重新排序的模型。' })).toBeInTheDocument()
+  })
+
+  it('hides threshold for hybrid search mode without rerank', () => {
+    mockUseKnowledgeRagConfig.mockReturnValueOnce({
+      initialValues: {
+        fileProcessorId: null,
+        chunkSize: '512',
+        chunkOverlap: '64',
+        embeddingModelId: 'openai::text-embedding-3-small',
+        rerankModelId: null,
+        documentCount: 6,
+        threshold: 0.1,
+        searchMode: 'hybrid',
+        hybridAlpha: 0.6
+      },
+      fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
+      embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' }],
+      searchModeOptions: [
+        { value: 'hybrid', label: '混合检索（推荐）' },
+        { value: 'vector', label: '向量检索' },
+        { value: 'bm25', label: '全文检索' }
+      ],
+      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }],
+      save: mockSave,
+      isLoading: false,
+      error: undefined
+    })
+
+    render(
+      <RagConfigPanel base={createKnowledgeBase({ searchMode: 'hybrid', hybridAlpha: 0.6 })} onRestoreBase={vi.fn()} />
+    )
+
+    expect(screen.getByText('Hybrid Alpha')).toBeInTheDocument()
+    expect(screen.queryByRole('slider', { name: '相似度阈值' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('tooltip', { name: '该检索模式按排序返回结果，不使用相似度阈值。' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows threshold for hybrid search mode when rerank is configured', async () => {
+    mockUseKnowledgeRagConfig.mockReturnValue({
+      initialValues: {
+        fileProcessorId: null,
+        chunkSize: '512',
+        chunkOverlap: '64',
+        embeddingModelId: 'openai::text-embedding-3-small',
+        rerankModelId: 'jina::rerank',
+        documentCount: 6,
+        threshold: 0.1,
+        searchMode: 'hybrid',
+        hybridAlpha: 0.6
+      },
+      fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
+      embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' }],
+      searchModeOptions: [
+        { value: 'hybrid', label: '混合检索（推荐）' },
+        { value: 'vector', label: '向量检索' },
+        { value: 'bm25', label: '全文检索' }
+      ],
+      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }],
+      save: mockSave,
+      isLoading: false,
+      error: undefined
+    })
+
+    render(
+      <RagConfigPanel
+        base={createKnowledgeBase({ searchMode: 'hybrid', hybridAlpha: 0.6, rerankModelId: 'jina::rerank' })}
+        onRestoreBase={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByRole('slider', { name: '相似度阈值' }), { target: { value: '0.7' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      expect(mockSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rerankModelId: 'jina::rerank',
+          threshold: 0.7
+        })
+      )
+    })
   })
 })

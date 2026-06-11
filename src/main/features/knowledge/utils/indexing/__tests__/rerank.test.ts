@@ -1,3 +1,4 @@
+import { DEFAULT_DOCUMENT_COUNT } from '@main/utils/knowledge'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
@@ -39,8 +40,6 @@ vi.mock('@logger', () => ({
 
 const { rerankKnowledgeSearchResults } = await import('../rerank')
 
-const TOP_N = 2
-
 function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   const now = new Date().toISOString()
 
@@ -56,7 +55,10 @@ function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeB
     error: null,
     chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+    threshold: undefined,
+    documentCount: 2,
     searchMode: 'hybrid',
+    hybridAlpha: undefined,
     createdAt: now,
     updatedAt: now,
     ...overrides
@@ -107,12 +109,12 @@ describe('knowledge rerank runtime', () => {
     const searchResults = createSearchResults()
 
     await expect(
-      rerankKnowledgeSearchResults(createKnowledgeBase({ rerankModelId: null }), 'hello', searchResults, TOP_N)
+      rerankKnowledgeSearchResults(createKnowledgeBase({ rerankModelId: null }), 'hello', searchResults)
     ).resolves.toBe(searchResults)
     expect(mocks.aiRerankMock).not.toHaveBeenCalled()
   })
 
-  it('calls AiService.rerank with the provided topN and sorts by rerank score', async () => {
+  it('calls AiService.rerank and sorts by rerank score', async () => {
     mocks.aiRerankMock.mockResolvedValueOnce({
       ranking: [
         { originalIndex: 0, score: 0.2, document: 'alpha' },
@@ -120,13 +122,13 @@ describe('knowledge rerank runtime', () => {
       ]
     })
 
-    const result = await rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', createSearchResults(), TOP_N)
+    const result = await rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', createSearchResults())
 
     expect(mocks.aiRerankMock).toHaveBeenCalledWith({
       uniqueModelId: 'jina::jina-reranker-v2-base-multilingual',
       query: 'hello',
       documents: ['alpha', 'beta'],
-      topN: TOP_N
+      topN: 2
     })
     expect(
       result.map((item) => ({
@@ -149,7 +151,7 @@ describe('knowledge rerank runtime', () => {
       ]
     })
 
-    const result = await rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', createSearchResults(), TOP_N)
+    const result = await rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', createSearchResults())
 
     expect(
       result.map((item) => ({
@@ -169,21 +171,28 @@ describe('knowledge rerank runtime', () => {
       ranking: [{ originalIndex: 1, score: 0.9, document: 'beta' }]
     })
 
-    const result = await rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', createSearchResults(), TOP_N)
+    const result = await rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', createSearchResults())
 
     expect(result.map((item) => item.chunkId)).toEqual(['chunk-2'])
+  })
+
+  it('uses the default document count as rerank topN when the base has no document count', async () => {
+    mocks.aiRerankMock.mockResolvedValueOnce({ ranking: [] })
+
+    await rerankKnowledgeSearchResults(
+      createKnowledgeBase({ documentCount: undefined }),
+      'hello',
+      createSearchResults()
+    )
+
+    expect(mocks.aiRerankMock).toHaveBeenCalledWith(expect.objectContaining({ topN: DEFAULT_DOCUMENT_COUNT }))
   })
 
   it('skips rerank when the rerank model id is invalid', async () => {
     const searchResults = createSearchResults()
 
     await expect(
-      rerankKnowledgeSearchResults(
-        createKnowledgeBase({ rerankModelId: 'invalid-model' }),
-        'hello',
-        searchResults,
-        TOP_N
-      )
+      rerankKnowledgeSearchResults(createKnowledgeBase({ rerankModelId: 'invalid-model' }), 'hello', searchResults)
     ).resolves.toBe(searchResults)
     expect(mocks.aiRerankMock).not.toHaveBeenCalled()
     expect(mocks.errorMock).toHaveBeenCalledWith('Skipping knowledge rerank because rerank model id is invalid', {
@@ -196,14 +205,14 @@ describe('knowledge rerank runtime', () => {
     const searchResults = createSearchResults()
     mocks.aiRerankMock.mockRejectedValueOnce(new Error('upstream unavailable'))
 
-    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults, TOP_N)).resolves.toBe(
+    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toBe(
       searchResults
     )
     expect(mocks.warnMock).toHaveBeenCalledWith('Knowledge rerank failed, returning vector search results', {
       baseId: '11111111-1111-4111-8111-111111111111',
       rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
       error: 'upstream unavailable',
-      topN: TOP_N
+      topN: 2
     })
     expect(mocks.errorMock).not.toHaveBeenCalled()
   })
@@ -212,7 +221,7 @@ describe('knowledge rerank runtime', () => {
     const searchResults = createSearchResults()
     mocks.aiRerankMock.mockRejectedValueOnce(apiCallError(503, 'Service Unavailable'))
 
-    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults, TOP_N)).resolves.toBe(
+    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toBe(
       searchResults
     )
     expect(mocks.warnMock).toHaveBeenCalledTimes(1)
@@ -227,14 +236,14 @@ describe('knowledge rerank runtime', () => {
     const searchResults = createSearchResults()
     mocks.aiRerankMock.mockRejectedValueOnce(apiCallError(statusCode, message))
 
-    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults, TOP_N)).resolves.toBe(
+    await expect(rerankKnowledgeSearchResults(createKnowledgeBase(), 'hello', searchResults)).resolves.toBe(
       searchResults
     )
     expect(mocks.errorMock).toHaveBeenCalledWith('Knowledge rerank failed, returning vector search results', {
       baseId: '11111111-1111-4111-8111-111111111111',
       rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
       error: message,
-      topN: TOP_N
+      topN: 2
     })
     expect(mocks.warnMock).not.toHaveBeenCalled()
   })

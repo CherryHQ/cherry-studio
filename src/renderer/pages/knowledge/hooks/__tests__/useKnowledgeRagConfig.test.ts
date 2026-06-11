@@ -64,6 +64,8 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
+  threshold: 0,
+  documentCount: 6,
   status: 'completed',
   error: null,
   searchMode: 'hybrid',
@@ -164,6 +166,8 @@ describe('useKnowledgeRagConfig', () => {
         chunkOverlap: '256',
         embeddingModelId: 'voyage::voyage-3-large',
         rerankModelId: null,
+        documentCount: 10,
+        threshold: 0.25,
         searchMode: 'vector',
         hybridAlpha: null
       })
@@ -176,6 +180,8 @@ describe('useKnowledgeRagConfig', () => {
         chunkSize: 1536,
         chunkOverlap: 256,
         rerankModelId: null,
+        documentCount: 10,
+        threshold: 0.25,
         searchMode: 'vector'
       }
     })

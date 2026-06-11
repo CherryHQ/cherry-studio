@@ -179,6 +179,8 @@ export class KnowledgeBaseService {
       fileProcessorId: dto.fileProcessorId ?? null,
       chunkSize: createConfig.chunkSize,
       chunkOverlap: createConfig.chunkOverlap,
+      threshold: dto.threshold ?? null,
+      documentCount: dto.documentCount ?? null,
       searchMode: createConfig.searchMode,
       hybridAlpha: createConfig.hybridAlpha ?? null
     }
@@ -236,6 +238,12 @@ export class KnowledgeBaseService {
     }
     if (nextConfig.chunkOverlap !== existing.chunkOverlap) {
       updates.chunkOverlap = nextConfig.chunkOverlap
+    }
+    if (dto.threshold !== undefined && dto.threshold !== existing.threshold) {
+      updates.threshold = dto.threshold
+    }
+    if (dto.documentCount !== undefined && dto.documentCount !== existing.documentCount) {
+      updates.documentCount = dto.documentCount
     }
     if (nextConfig.searchMode !== existing.searchMode) {
       updates.searchMode = nextConfig.searchMode

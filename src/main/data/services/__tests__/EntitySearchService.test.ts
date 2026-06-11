@@ -103,6 +103,8 @@ describe('EntitySearchService', () => {
       fileProcessorId: null,
       chunkSize: 800,
       chunkOverlap: 120,
+      threshold: null,
+      documentCount: null,
       searchMode: 'vector'
     })
   }

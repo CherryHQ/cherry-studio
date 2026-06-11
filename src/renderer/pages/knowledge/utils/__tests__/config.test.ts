@@ -13,6 +13,8 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   fileProcessorId: undefined,
   chunkSize: 1024,
   chunkOverlap: 200,
+  threshold: undefined,
+  documentCount: undefined,
   status: 'completed',
   error: null,
   searchMode: 'hybrid',
@@ -22,12 +24,14 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
 })
 
 describe('createKnowledgeV2RagConfigFormValues', () => {
-  it('maps a knowledge base into form values', () => {
+  it('maps a knowledge base into form values with UI defaults', () => {
     const base = createKnowledgeBase({
       fileProcessorId: 'doc2x',
       chunkSize: 512,
       chunkOverlap: 64,
       rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
+      documentCount: undefined,
+      threshold: undefined,
       searchMode: 'hybrid'
     })
 
@@ -37,6 +41,8 @@ describe('createKnowledgeV2RagConfigFormValues', () => {
       chunkOverlap: '64',
       embeddingModelId: 'openai::text-embedding-3-small',
       rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
+      documentCount: 6,
+      threshold: 0,
       searchMode: 'hybrid',
       hybridAlpha: null
     })
@@ -51,6 +57,8 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
         chunkSize: 512,
         chunkOverlap: 64,
         rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
+        documentCount: 6,
+        threshold: 0,
         searchMode: 'vector'
       })
     )
@@ -62,6 +70,8 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
       chunkOverlap: '128',
       embeddingModelId: 'voyage::voyage-3-large',
       rerankModelId: null,
+      documentCount: 10,
+      threshold: 0.35,
       searchMode: 'hybrid' as const
     }
 
@@ -70,6 +80,8 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
       chunkSize: 1024,
       chunkOverlap: 128,
       rerankModelId: null,
+      documentCount: 10,
+      threshold: 0.35,
       searchMode: 'hybrid'
     })
   })
@@ -118,6 +130,8 @@ describe('buildKnowledgeV2RagConfigPatch', () => {
   it('does not force display defaults into the patch when the user did not change them', () => {
     const initialValues = createKnowledgeRagConfigFormValues(
       createKnowledgeBase({
+        documentCount: undefined,
+        threshold: undefined,
         searchMode: 'hybrid'
       })
     )

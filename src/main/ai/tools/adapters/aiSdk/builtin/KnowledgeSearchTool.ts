@@ -18,7 +18,6 @@ import {
 } from '@shared/ai/builtinTools'
 import type { KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
-import * as z from 'zod'
 
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
@@ -26,24 +25,6 @@ import type { ToolEntry } from '../types'
 const logger = loggerService.withContext('KnowledgeSearchTool')
 
 export { KB_SEARCH_TOOL_NAME }
-
-// Mirror WebSearchTool: `execute` returns a discriminated result — the results
-// array on success (the persisted UI shape, validated by `kbSearchOutputSchema`)
-// or `{ error }` when *every* requested base failed. This keeps a total failure
-// distinguishable from a genuinely empty result: an empty array means at least
-// one base was searched and found nothing, whereas `{ error }` means none could
-// be searched at all. We never throw — throwing would abort the agentic loop.
-const kbSearchErrorSchema = z.object({ error: z.string() })
-const kbSearchResultSchema = z.union([kbSearchOutputSchema, kbSearchErrorSchema])
-type KbSearchResult = KbSearchOutput | z.infer<typeof kbSearchErrorSchema>
-
-const KB_SEARCH_ALL_FAILED_NOTE =
-  'Every requested knowledge base failed to search (service/index error) — this is not the same as ' +
-  'finding no matches. Retry, or tell the user their knowledge base could not be searched.'
-
-function isKbSearchError(output: unknown): output is z.infer<typeof kbSearchErrorSchema> {
-  return kbSearchErrorSchema.safeParse(output).success
-}
 
 const kbSearchTool = tool({
   description: `Search the user's private knowledge base — local documents, notes, web clippings.
@@ -55,9 +36,9 @@ Use this when:
 
 Workflow: call kb__list first to discover available bases and their contents, then call this tool with the chosen baseIds. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite sources by [id] in your final answer.`,
   inputSchema: kbSearchInputSchema,
-  outputSchema: kbSearchResultSchema,
+  outputSchema: kbSearchOutputSchema,
   strict: true,
-  execute: async ({ query, baseIds, topK, threshold }, options): Promise<KbSearchResult> => {
+  execute: async ({ query, baseIds }, options): Promise<KbSearchOutput> => {
     const { request } = getToolCallContext(options)
     const allowedIds = request.assistant?.knowledgeBaseIds ?? []
     const targetIds = allowedIds.length > 0 ? baseIds.filter((id) => allowedIds.includes(id)) : baseIds
@@ -70,28 +51,20 @@ Workflow: call kb__list first to discover available bases and their contents, th
     }
 
     const knowledgeService = application.get('KnowledgeService')
-    const failures: string[] = []
     const perBaseResults = await Promise.all(
       targetIds.map(async (baseId) => {
         try {
-          return await knowledgeService.search(baseId, query, { topK, threshold })
+          return await knowledgeService.search(baseId, query)
         } catch (error) {
-          const message = error instanceof Error ? error.message : String(error)
-          failures.push(message)
-          logger.warn('KnowledgeService.search failed', { baseId, query, error: message })
+          logger.warn('KnowledgeService.search failed', {
+            baseId,
+            query,
+            error: error instanceof Error ? error.message : String(error)
+          })
           return [] as KnowledgeSearchResult[]
         }
       })
     )
-
-    // Only a *total* failure is an error: if every requested base threw, an empty
-    // array would masquerade as "no matches". A partial failure still has at least
-    // one base that genuinely answered, so it falls through to the results below.
-    if (failures.length === targetIds.length) {
-      return {
-        error: `Knowledge base search failed for all ${targetIds.length} requested base(s): ${failures.join('; ')}`
-      }
-    }
 
     const merged = perBaseResults.flat()
     const dedupedByContent = new Map<string, KnowledgeSearchResult>()
@@ -112,9 +85,6 @@ Workflow: call kb__list first to discover available bases and their contents, th
     }))
   },
   toModelOutput: ({ output }) => {
-    if (isKbSearchError(output)) {
-      return { type: 'text' as const, value: KB_SEARCH_ALL_FAILED_NOTE }
-    }
     if (output.length === 0) {
       return {
         type: 'text' as const,

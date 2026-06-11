@@ -39,6 +39,7 @@ function makeBase(overrides: Partial<KnowledgeBase> & { id: string }): Knowledge
     error: null,
     chunkSize: 1024,
     chunkOverlap: 200,
+    documentCount: 5,
     searchMode: 'hybrid',
     createdAt: '2024-01-01T00:00:00.000Z',
     updatedAt: '2024-01-01T00:00:00.000Z',

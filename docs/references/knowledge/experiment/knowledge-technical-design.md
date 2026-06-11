@@ -137,9 +137,9 @@ chunk body 必须是 `content.text` 的逐字 slice（自定义 offset splitter 
 
 ### 6.1 search 落地与检索调参
 
-`searchMode` 与 `hybridAlpha` 是 **base 级配置**（`knowledge_base` 列）；`topK` / `threshold` 是**逐调用旋钮**（`KnowledgeSearchOptions`，由 `kb__search` 工具与 REST `top_k` 暴露）。
+`searchMode` / `hybridAlpha` / `documentCount` / `threshold` 当前都是 **base 级配置**（`knowledge_base` 列）；`search()` 从 base 行读取（结果数上限 `documentCount ?? 10`）。
 
-> **决策注（2026-06-10）**：`hybridAlpha` 描述「这个库的语料偏关键词还是语义」，是库的稳定属性，不该让模型每次猜——故收回 base 列 + RagConfig 滑块（仅 hybrid 模式可配，`searchMode` 切走时清空）；`documentCount` 整列移除，由逐调用 `topK` 取代。`threshold` 只对 relevance-scored 命中生效（vector 模式或经 rerank），对 BM25/RRF ranking 分数是 no-op（`utils/search.ts` `applyRelevanceThreshold`）。三个检索面共享 `KNOWLEDGE_SEARCH_DEFAULT_TOP_K` / `KNOWLEDGE_SEARCH_MAX_TOP_K` 常量（`shared/data/types/knowledge.ts`）；`threshold` 的 REST/IPC 暴露与召回测试面板接线属后续 PR。调研论证见飞书调研报告 §4（Q1）。
+> **决策注（2026-06-10）**：`hybridAlpha` 描述「这个库的语料偏关键词还是语义」，是库的稳定属性，不该让模型每次猜——保留 base 列 + RagConfig 滑块（仅 hybrid 模式可配，`searchMode` 切走时清空）。`threshold` 只对 relevance-scored 命中生效（vector 模式或经 rerank），对 BM25/RRF ranking 分数是 no-op（`utils/search.ts` `applyRelevanceThreshold`）。已调研并决定（飞书调研报告 §4，Q1）但**推迟到后续 PR**：`topK` / `threshold` 改为逐调用旋钮（`KnowledgeSearchOptions`，经 `kb__search` 入参与 REST `top_k` 暴露），`documentCount` 整列随之移除——该重构已实现并从 PR A 剥离暂存（git stash），落地时再恢复。
 
 ### 6.2 旧 result shape 映射
 

@@ -2297,6 +2297,7 @@
       "chunk_size_invalid": "Chunk size must be greater than 0",
       "chunking": "Chunking",
       "default_separator": "Auto (recommended)",
+      "document_count": "Requested Chunks (Top K)",
       "embedding_model": "Embedding Model",
       "embedding_model_select": "Model Selection",
       "file_processing": "File Processing",
@@ -2304,11 +2305,14 @@
       "hints": {
         "chunk_overlap": "Number of overlapping tokens kept between adjacent chunks to reduce semantic breaks.",
         "chunk_size": "Target token count for each document chunk. This affects retrieval granularity and context length.",
+        "document_count": "Maximum number of document chunks returned for each retrieval. Higher values cover more content but use more context.",
         "embedding_model": "Used to convert knowledge base content into vectors. Changing the model usually requires reindexing existing content.",
         "hybrid_alpha": "Vector score weight in hybrid retrieval. Higher values favor semantic matching.",
         "processor": "Parser used when importing files to extract body text, tables, and related content.",
         "rerank_model": "Model used to rerank initial retrieval results and improve final chunk relevance.",
-        "search_mode": "Choose a retrieval mode: vector search for semantic matching, full-text search for keywords, or hybrid search for both."
+        "search_mode": "Choose a retrieval mode: vector search for semantic matching, full-text search for keywords, or hybrid search for both.",
+        "threshold": "Similarity threshold for filtering low-relevance chunks. Higher values make retrieval stricter.",
+        "threshold_disabled": "This retrieval mode returns ordered results and does not use a similarity threshold."
       },
       "hybrid_alpha": "Hybrid Alpha",
       "processor": "Processing Provider",
@@ -2326,6 +2330,7 @@
         "vector": "Vector Search"
       },
       "separator_rule": "Separator Rule",
+      "threshold": "Similarity Threshold",
       "tokens_unit": "tokens"
     },
     "recall": {

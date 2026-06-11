@@ -30,7 +30,7 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
         byId.get(id) ?? {
           id,
           name: `${id.slice(0, 8)}${t('library.config.knowledge.invalid_suffix')}`,
-          itemCount: 0
+          documentCount: 0
         }
     )
     const keyword = search.trim().toLowerCase()
@@ -76,7 +76,7 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-foreground text-sm">{kb.name}</div>
                   <div className="text-muted-foreground/80 text-xs">
-                    {t('library.config.knowledge.doc_count', { count: kb.itemCount ?? 0 })}
+                    {t('library.config.knowledge.doc_count', { count: kb.documentCount ?? 0 })}
                   </div>
                 </div>
                 <Button
@@ -132,7 +132,7 @@ const KnowledgeSection: FC<Props> = ({ value, onChange }) => {
                       className="rounded-lg px-2 py-1.5 font-normal text-foreground/80 hover:text-foreground"
                       icon={<Database size={12} strokeWidth={1.4} />}
                       label={kb.name}
-                      description={t('library.config.knowledge.doc_count', { count: kb.itemCount ?? 0 })}
+                      description={t('library.config.knowledge.doc_count', { count: kb.documentCount ?? 0 })}
                       descriptionClassName="text-muted-foreground/80"
                       onClick={() => add(kb.id)}
                     />

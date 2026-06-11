@@ -191,6 +191,8 @@ function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
     error: null,
     chunkSize: 1024,
     chunkOverlap: 200,
+    threshold: undefined,
+    documentCount: 10,
     searchMode: 'vector',
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z',
@@ -1119,14 +1121,14 @@ describe('KnowledgeService', () => {
 
   it('searches vector store results and applies relevance threshold', async () => {
     const service = new KnowledgeService()
-    knowledgeBaseGetByIdMock.mockResolvedValue(createBase())
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ threshold: 0.5 }))
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
     storeSearchMock.mockResolvedValueOnce([
       { unitId: 'chunk-1', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'hello world', score: 0.8 },
       { unitId: 'chunk-2', materialId: NOTE_ITEM_ID, unitIndex: 1, text: 'low score', score: 0.2 }
     ])
 
-    await expect(service.search('kb-1', 'hello', { threshold: 0.5 })).resolves.toEqual([
+    await expect(service.search('kb-1', 'hello')).resolves.toEqual([
       expect.objectContaining({ chunkId: 'chunk-1', itemId: NOTE_ITEM_ID, rank: 1, score: 0.8 })
     ])
     expect(aiEmbedManyMock).toHaveBeenCalledWith({
@@ -1138,14 +1140,14 @@ describe('KnowledgeService', () => {
 
   it('bm25 mode skips the embedding round-trip and dispatches a lexical-only store search', async () => {
     const service = new KnowledgeService()
-    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ searchMode: 'bm25' }))
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ searchMode: 'bm25', threshold: 0.5 }))
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
     storeSearchMock.mockResolvedValueOnce([
       { unitId: 'c1', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'hit', score: 3.2 },
       { unitId: 'c2', materialId: NOTE_ITEM_ID, unitIndex: 1, text: 'low', score: 0.1 }
     ])
 
-    const results = await service.search('kb-1', 'hello', { threshold: 0.5 })
+    const results = await service.search('kb-1', 'hello')
 
     // No paid embedding call, and the store is told not to expect a query vector.
     expect(aiEmbedManyMock).not.toHaveBeenCalled()
@@ -1156,13 +1158,13 @@ describe('KnowledgeService', () => {
 
   it('hybrid mode embeds the query and passes the per-base hybridAlpha through to the store', async () => {
     const service = new KnowledgeService()
-    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ searchMode: 'hybrid', hybridAlpha: 0.7 }))
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ searchMode: 'hybrid', hybridAlpha: 0.7, threshold: 0.5 }))
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
     storeSearchMock.mockResolvedValueOnce([
       { unitId: 'c1', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'fused hit', score: 0.02 }
     ])
 
-    const results = await service.search('kb-1', 'hello', { threshold: 0.5 })
+    const results = await service.search('kb-1', 'hello')
 
     // The query embedding is computed and forwarded, and the base's alpha is passed
     // verbatim (a lost alpha would silently fall back to 0.5; a reversed bm25/non-bm25
@@ -1179,30 +1181,30 @@ describe('KnowledgeService', () => {
     expect(results.map((result) => result.chunkId)).toEqual(['c1'])
   })
 
-  it('over-fetches index candidates (topK × factor, capped) so visibility filtering keeps enough results', async () => {
+  it('over-fetches index candidates (documentCount × factor, capped) so visibility filtering keeps enough results', async () => {
     const service = new KnowledgeService()
-    knowledgeBaseGetByIdMock.mockResolvedValue(createBase())
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ documentCount: 3 }))
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
     storeSearchMock.mockResolvedValueOnce([])
 
-    await service.search('kb-1', 'hello', { topK: 3 })
+    await service.search('kb-1', 'hello')
 
     expect(storeSearchMock).toHaveBeenCalledWith(expect.objectContaining({ topK: 15 }))
   })
 
-  it('caps over-fetched candidates regardless of a large topK', async () => {
+  it('caps over-fetched candidates regardless of a large documentCount', async () => {
     const service = new KnowledgeService()
-    knowledgeBaseGetByIdMock.mockResolvedValue(createBase())
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ documentCount: 1000 }))
     storeSearchMock.mockResolvedValueOnce([])
 
-    await service.search('kb-1', 'hello', { topK: 1000 })
+    await service.search('kb-1', 'hello')
 
     expect(storeSearchMock).toHaveBeenCalledWith(expect.objectContaining({ topK: 200 }))
   })
 
-  it('trims visible search results down to topK after over-fetching', async () => {
+  it('trims visible search results down to the configured documentCount after over-fetching', async () => {
     const service = new KnowledgeService()
-    knowledgeBaseGetByIdMock.mockResolvedValue(createBase())
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ documentCount: 2 }))
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
     storeSearchMock.mockResolvedValueOnce([
       { unitId: 'c1', materialId: NOTE_ITEM_ID, unitIndex: 0, text: 'a', score: 0.9 },
@@ -1210,14 +1212,14 @@ describe('KnowledgeService', () => {
       { unitId: 'c3', materialId: NOTE_ITEM_ID, unitIndex: 2, text: 'c', score: 0.7 }
     ])
 
-    const results = await service.search('kb-1', 'hello', { topK: 2 })
+    const results = await service.search('kb-1', 'hello')
 
     expect(results.map((result) => result.chunkId)).toEqual(['c1', 'c2'])
   })
 
   it('applies rerank results before applying relevance threshold', async () => {
     const service = new KnowledgeService()
-    const base = createBase({ rerankModelId: 'jina::jina-reranker-v2-base-multilingual' })
+    const base = createBase({ threshold: 0.5, rerankModelId: 'jina::jina-reranker-v2-base-multilingual' })
     knowledgeBaseGetByIdMock.mockResolvedValue(base)
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID, 'kb-1', null, 'completed'))
     storeSearchMock.mockResolvedValueOnce([
@@ -1229,7 +1231,7 @@ describe('KnowledgeService', () => {
       { ...results[0], score: 0.2, scoreKind: 'relevance', rank: 2 }
     ])
 
-    await expect(service.search('kb-1', 'hello', { threshold: 0.5 })).resolves.toEqual([
+    await expect(service.search('kb-1', 'hello')).resolves.toEqual([
       expect.objectContaining({ chunkId: 'chunk-2', rank: 1, score: 0.9 })
     ])
     expect(rerankKnowledgeSearchResultsMock).toHaveBeenCalledWith(
@@ -1238,8 +1240,7 @@ describe('KnowledgeService', () => {
       expect.arrayContaining([
         expect.objectContaining({ chunkId: 'chunk-1', score: 0.8 }),
         expect.objectContaining({ chunkId: 'chunk-2', score: 0.2 })
-      ]),
-      10
+      ])
     )
   })
 

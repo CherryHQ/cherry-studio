@@ -30,6 +30,8 @@ function createBase(): KnowledgeBase {
     error: null,
     chunkSize: 1024,
     chunkOverlap: 200,
+    threshold: undefined,
+    documentCount: 10,
     searchMode: 'vector',
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'

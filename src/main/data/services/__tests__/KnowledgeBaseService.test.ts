@@ -60,6 +60,8 @@ describe('KnowledgeBaseService', () => {
       fileProcessorId: 'processor-1',
       chunkSize: 800,
       chunkOverlap: 120,
+      threshold: 0.55,
+      documentCount: 5,
       searchMode: 'hybrid',
       ...overrides
     }
@@ -293,6 +295,8 @@ describe('KnowledgeBaseService', () => {
       expect(row.fileProcessorId).toBeNull()
       expect(row.chunkSize).toBe(1024)
       expect(row.chunkOverlap).toBe(200)
+      expect(row.threshold).toBeNull()
+      expect(row.documentCount).toBeNull()
       expect(row.searchMode).toBe('hybrid')
       expect(row.status).toBe('completed')
       expect(row.error).toBeNull()

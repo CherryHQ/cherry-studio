@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { DEFAULT_RELEVANT_SCORE } from '@main/utils/knowledge'
+import { DEFAULT_DOCUMENT_COUNT, DEFAULT_RELEVANT_SCORE } from '@main/utils/knowledge'
 import type { KnowledgeBase, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
 import { APICallError } from 'ai'
@@ -85,12 +85,11 @@ async function rerankWithAiService(
 export async function rerankKnowledgeSearchResults(
   base: KnowledgeBase,
   query: string,
-  searchResults: KnowledgeSearchResult[],
-  topN: number
+  searchResults: KnowledgeSearchResult[]
 ): Promise<KnowledgeSearchResult[]> {
   if (!base.rerankModelId || searchResults.length === 0) {
     return searchResults
   }
 
-  return await rerankWithAiService(base, query, searchResults, topN)
+  return await rerankWithAiService(base, query, searchResults, base.documentCount ?? DEFAULT_DOCUMENT_COUNT)
 }

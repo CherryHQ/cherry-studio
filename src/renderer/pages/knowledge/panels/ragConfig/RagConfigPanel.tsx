@@ -126,9 +126,15 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
           <RetrievalSection
             searchModeOptions={searchModeOptions}
             rerankModelOptions={rerankModelOptions}
+            documentCount={values.documentCount}
+            threshold={values.threshold}
             searchMode={values.searchMode}
             hybridAlpha={values.hybridAlpha}
             rerankModelId={values.rerankModelId}
+            onDocumentCountChange={(documentCount) =>
+              setValues((currentValues) => ({ ...currentValues, documentCount }))
+            }
+            onThresholdChange={(threshold) => setValues((currentValues) => ({ ...currentValues, threshold }))}
             onSearchModeChange={(searchMode) => setValues((currentValues) => ({ ...currentValues, searchMode }))}
             onHybridAlphaChange={(hybridAlpha) => setValues((currentValues) => ({ ...currentValues, hybridAlpha }))}
             onRerankModelChange={(rerankModelId) => setValues((currentValues) => ({ ...currentValues, rerankModelId }))}

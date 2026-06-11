@@ -1,3 +1,4 @@
+import { DEFAULT_KNOWLEDGE_DOCUMENT_COUNT, DEFAULT_KNOWLEDGE_THRESHOLD } from '@renderer/config/constant'
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
@@ -10,6 +11,8 @@ export const createKnowledgeRagConfigFormValues = (base: KnowledgeBase): Knowled
   chunkOverlap: String(base.chunkOverlap),
   embeddingModelId: base.embeddingModelId,
   rerankModelId: base.rerankModelId ?? null,
+  documentCount: base.documentCount ?? DEFAULT_KNOWLEDGE_DOCUMENT_COUNT,
+  threshold: base.threshold ?? DEFAULT_KNOWLEDGE_THRESHOLD,
   searchMode: base.searchMode,
   hybridAlpha: base.hybridAlpha ?? null
 })
@@ -34,6 +37,14 @@ export const buildKnowledgeRagConfigPatch = (
 
   if (currentValues.rerankModelId !== initialValues.rerankModelId) {
     patch.rerankModelId = currentValues.rerankModelId
+  }
+
+  if (currentValues.documentCount !== initialValues.documentCount) {
+    patch.documentCount = currentValues.documentCount
+  }
+
+  if (currentValues.threshold !== initialValues.threshold) {
+    patch.threshold = currentValues.threshold
   }
 
   if (currentValues.searchMode !== initialValues.searchMode) {
