@@ -233,15 +233,14 @@ describe('AgentService', () => {
       expect(agents.map((agent) => agent.id)).toEqual(['agent_order_a', 'agent_order_b', 'agent_order_c'])
     })
 
-    it('orders rows with equal updatedAt deterministically by id (tiebreaker)', async () => {
+    it('orders rows with equal updatedAt by id using the requested direction (tiebreaker)', async () => {
       await insertAgent({ id: 'agent_aaa', name: 'A', updatedAt: 5000, createdAt: 5000 })
       await insertAgent({ id: 'agent_zzz', name: 'Z', updatedAt: 5000, createdAt: 5000 })
 
-      const { agents } = await agentService.listAgents({ sortBy: 'updatedAt', orderBy: 'asc' })
+      const { agents } = await agentService.listAgents({ sortBy: 'updatedAt', orderBy: 'desc' })
 
       const ids = agents.map((a) => a.id)
-      // asc(updatedAt), asc(id) → 'agent_aaa' must come before 'agent_zzz'.
-      expect(ids.indexOf('agent_aaa')).toBeLessThan(ids.indexOf('agent_zzz'))
+      expect(ids.indexOf('agent_zzz')).toBeLessThan(ids.indexOf('agent_aaa'))
     })
 
     it('sorts by updatedAt without pin-first ordering', async () => {

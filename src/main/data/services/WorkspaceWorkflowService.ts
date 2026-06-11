@@ -6,7 +6,7 @@ export class WorkspaceWorkflowService {
   async deleteWorkspace(id: string): Promise<void> {
     const dbService = application.get('DbService')
     await dbService.withWriteTx(async (tx) => {
-      await agentWorkspaceService.getRowByIdTx(tx, id, { includeSystem: true })
+      await agentWorkspaceService.getRowByIdTx(tx, id)
       await agentSessionService.deleteByWorkspaceTx(tx, id)
       await agentWorkspaceService.deleteByIdTx(tx, id)
     })

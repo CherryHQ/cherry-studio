@@ -343,6 +343,53 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('closes an idle connection when disabled tools change so the next turn rebuilds SDK options', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      applyPolicyUpdate: vi.fn()
+    }
+    entry.connection = connection
+
+    void terminalListener(handle).onDone({ status: 'success', isTopicDone: true })
+    await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] })
+
+    await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
+    expect(connection.applyPolicyUpdate).not.toHaveBeenCalled()
+    expect(entry.connection).toBeUndefined()
+    expect(entry.toolPolicyStale).toBe(false)
+  })
+
+  it('defers disabled-tools reconnect until an admitted active turn reaches a terminal state', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      applyPolicyUpdate: vi.fn()
+    }
+    entry.connection = connection
+    entry.currentTurn.admitted = true
+
+    await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] })
+
+    expect(connection.close).not.toHaveBeenCalled()
+    expect(connection.applyPolicyUpdate).not.toHaveBeenCalled()
+    expect(entry.toolPolicyStale).toBe(true)
+
+    service.markTurnTerminal('session-1', 'success')
+
+    await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
+    expect(entry.connection).toBeUndefined()
+    expect(entry.toolPolicyStale).toBe(false)
+  })
+
   it('ignores per-execution terminal events until the topic is done', () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn(baseTurnInput)

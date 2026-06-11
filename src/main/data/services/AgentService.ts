@@ -192,12 +192,12 @@ export class AgentService {
     const orderFn = orderBy === 'asc' ? asc : desc
     const orderByClauses =
       sortBy === 'updatedAt'
-        ? [orderFn(sortField), asc(agentsTable.id)]
+        ? [orderFn(sortField), orderFn(agentsTable.id)]
         : [
             sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
             asc(pinTable.orderKey),
             orderFn(sortField),
-            asc(agentsTable.id)
+            orderFn(agentsTable.id)
           ]
 
     // Pin-aware ordering (skipped for sortBy=updatedAt): LEFT JOIN with the

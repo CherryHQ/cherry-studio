@@ -5,7 +5,7 @@ import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import type { Span } from '@opentelemetry/api'
-import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -126,6 +126,7 @@ type AgentSessionRuntimeEntry = {
   lastTerminalStatus?: AgentSessionRuntimeTerminalStatus
   idleTimer?: ReturnType<typeof setTimeout>
   startingNextTurn?: boolean
+  toolPolicyStale?: boolean
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -260,7 +261,7 @@ export class AgentSessionRuntimeService extends BaseService {
     await Promise.allSettled(updates)
   }
 
-  private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
+  private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto): Promise<void> {
     const configuration = updates.configuration as { permission_mode?: unknown } | undefined
     const hasPermissionModeUpdate =
       configuration !== undefined && Object.prototype.hasOwnProperty.call(configuration, 'permission_mode')
@@ -276,7 +277,17 @@ export class AgentSessionRuntimeService extends BaseService {
       Object.prototype.hasOwnProperty.call(updates, 'disabledTools') ||
       Object.prototype.hasOwnProperty.call(updates, 'mcps')
     ) {
-      await this.applyAgentPolicyUpdate(agentId, { type: 'tool-policy', agent })
+      this.markAgentToolPolicyStale(agentId)
+    }
+  }
+
+  private markAgentToolPolicyStale(agentId: string): void {
+    for (const entry of this.entries.values()) {
+      if (entry.agentId !== agentId) continue
+      entry.toolPolicyStale = true
+      if (this.shouldReconnectForToolPolicy(entry)) {
+        void this.closeStaleToolPolicyConnection(entry)
+      }
     }
   }
 
@@ -356,6 +367,10 @@ export class AgentSessionRuntimeService extends BaseService {
       )
     }
 
+    if (entry.toolPolicyStale) {
+      void this.closeStaleToolPolicyConnection(entry)
+    }
+
     if (entry.pendingTurns.length > 0) {
       this.scheduleNextTurn(entry)
     } else {
@@ -431,10 +446,21 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private async ensureConnection(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     if (!this.isCurrentEntry(entry)) return false
+    if (entry.connection && this.shouldReconnectForToolPolicy(entry)) {
+      await this.closeStaleToolPolicyConnection(entry)
+    }
     if (entry.connection) return true
     // Share a single in-flight connect across concurrent callers so two streams opening at once
     // can't each spin up a connection (the second would leak/clobber the first).
-    if (entry.connecting) return entry.connecting
+    if (entry.connecting) {
+      const connected = await entry.connecting
+      if (!connected || !this.isCurrentEntry(entry)) return false
+      if (entry.connection && this.shouldReconnectForToolPolicy(entry)) {
+        await this.closeStaleToolPolicyConnection(entry)
+        return this.ensureConnection(entry)
+      }
+      return true
+    }
 
     const connecting = this.connect(entry).finally(() => {
       if (entry.connecting === connecting) entry.connecting = undefined
@@ -726,6 +752,26 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private shouldCloseConnectionAfterTurn(entry: AgentSessionRuntimeEntry): boolean {
     return entry.connection?.shouldCloseAfterTurn?.() ?? false
+  }
+
+  private shouldReconnectForToolPolicy(entry: AgentSessionRuntimeEntry): boolean {
+    if (!entry.toolPolicyStale) return false
+    const turn = entry.currentTurn
+    return !turn || turn.terminalStatus !== undefined || !turn.admitted
+  }
+
+  private async closeStaleToolPolicyConnection(entry: AgentSessionRuntimeEntry): Promise<void> {
+    entry.toolPolicyStale = false
+    const connection = this.closeConnection(entry)
+    if (!connection) return
+    try {
+      await connection.close()
+    } catch (error) {
+      logger.warn('Agent runtime connection close failed after tool policy update', {
+        sessionId: entry.sessionId,
+        error
+      })
+    }
   }
 
   private createPersistenceListener(
