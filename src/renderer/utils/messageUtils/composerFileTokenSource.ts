@@ -1,6 +1,6 @@
 import type { FileMetadata } from '@renderer/types'
 
-export const FILE_COMPOSER_TOKEN_ID_PREFIX = 'file:'
+const FILE_COMPOSER_TOKEN_ID_PREFIX = 'file:'
 
 export type ComposerFileMetadata = FileMetadata & { fileTokenSourceId: string }
 

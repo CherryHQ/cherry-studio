@@ -267,26 +267,20 @@ function isUnsafeComposerClipboardFileToken(token: unknown) {
   return Boolean(id && token.kind === 'file' && hasUnsafeComposerClipboardFileTokenId({ id, kind: 'file' }))
 }
 
-export function isComposerClipboardToken<T extends Pick<ComposerClipboardSourceToken, 'id' | 'kind'>>(
+function isComposerClipboardToken<T extends Pick<ComposerClipboardSourceToken, 'id' | 'kind'>>(
   token: T
 ): token is T & { kind: ComposerClipboardToken['kind'] } {
   return isComposerClipboardTokenKind(token.kind) && !hasUnsafeComposerClipboardFileTokenId(token)
 }
 
-export function escapeComposerClipboardHtmlText(value: string): string {
+function escapeComposerClipboardHtmlText(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
-export function createComposerClipboardInlineTextHtml(text: string): string {
-  return escapeComposerClipboardHtmlText(text).replace(/\r\n?|\n/g, '<br>')
-}
-
-export function createComposerClipboardParagraphHtml(inlineHtml: string): string {
+// Plain text → minimal safe HTML: one paragraph, newlines as <br>.
+function createComposerClipboardTextHtml(text: string): string {
+  const inlineHtml = escapeComposerClipboardHtmlText(text).replace(/\r\n?|\n/g, '<br>')
   return `<p>${inlineHtml || '<br>'}</p>`
-}
-
-export function createComposerClipboardTextHtml(text: string): string {
-  return createComposerClipboardParagraphHtml(createComposerClipboardInlineTextHtml(text))
 }
 
 function sanitizeComposerClipboardToken(token: unknown, mode: 'read' | 'write'): ComposerClipboardToken | null {
