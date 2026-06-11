@@ -21,6 +21,7 @@ import {
   isInterleavedThinkingModel,
   isKimiReasoningModel,
   isLingReasoningModel,
+  isMiniMaxM3Model,
   isMiniMaxReasoningModel,
   isPerplexityReasoningModel,
   isQwenAlwaysThinkModel,
@@ -361,6 +362,24 @@ describe('Claude & regional providers', () => {
     expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2.7' }))).toBe(true)
     expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2.7-highspeed' }))).toBe(true)
     expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m3' }))).toBe(true)
+  })
+
+  it('identifies MiniMax-M3 variants for adaptive thinking', () => {
+    expect(isMiniMaxM3Model(createModel({ id: 'MiniMax-M3' }))).toBe(true)
+    expect(isMiniMaxM3Model(createModel({ id: 'minimax-m3' }))).toBe(true)
+    expect(isMiniMaxM3Model(createModel({ id: 'minimax-m3.1' }))).toBe(true)
+    expect(isMiniMaxM3Model(createModel({ id: 'minimax-m3.5-pro' }))).toBe(true)
+    expect(isMiniMaxM3Model(createModel({ id: 'minimax-m2.1' }))).toBe(false)
+    expect(isMiniMaxM3Model(createModel({ id: 'minimax-m30' }))).toBe(false)
+  })
+
+  it('exposes controllable reasoning options for MiniMax-M3', () => {
+    const model = createModel({ id: 'minimax-m3' })
+
+    expect(getThinkModelType(model)).toBe('minimax_m3')
+    expect(isSupportedThinkingTokenModel(model)).toBe(true)
+    expect(isFixedReasoningModel(model)).toBe(false)
+    expect(getModelSupportedReasoningEffortOptions(model)).toEqual(['default', 'none', 'auto'])
   })
 })
 

@@ -80,6 +80,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   doubao: ['auto', 'high'] as const,
   doubao_no_auto: ['high'] as const,
   doubao_after_251015: ['minimal', 'low', 'medium', 'high'] as const,
+  minimax_m3: ['auto'] as const,
   hunyuan: ['auto'] as const,
   mimo: ['auto'] as const,
   zhipu: ['auto'] as const,
@@ -123,6 +124,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   doubao: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao] as const,
   doubao_no_auto: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao_no_auto] as const,
   doubao_after_251015: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.doubao_after_251015] as const,
+  minimax_m3: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.minimax_m3] as const,
   mimo: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.mimo] as const,
   hunyuan: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.hunyuan] as const,
   zhipu: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.zhipu] as const,
@@ -214,6 +216,8 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     } else {
       thinkingModelType = 'doubao_no_auto'
     }
+  } else if (isMiniMaxM3Model(model)) {
+    thinkingModelType = 'minimax_m3'
   } else if (isSupportedThinkingTokenHunyuanModel(model)) {
     thinkingModelType = 'hunyuan'
   } else if (isSupportedReasoningEffortPerplexityModel(model)) {
@@ -317,6 +321,7 @@ function _isSupportedThinkingTokenModel(model: Model): boolean {
     isSupportedThinkingTokenDoubaoModel(model) ||
     isSupportedThinkingTokenHunyuanModel(model) ||
     isSupportedThinkingTokenZhipuModel(model) ||
+    isMiniMaxM3Model(model) ||
     isSupportedThinkingTokenMiMoModel(model) ||
     isSupportedThinkingTokenKimiModel(model) ||
     isSupportedThinkingTokenDeepSeekModel(model)
@@ -766,6 +771,16 @@ export const isMiniMaxReasoningModel = (model?: Model): boolean => {
   return (['minimax-m1', 'minimax-m2', 'minimax-m2.1', 'minimax-m2.5', 'minimax-m2.7', 'minimax-m3'] as const).some(
     (id) => modelId.includes(id)
   )
+}
+
+// MiniMax-M3 only accepts thinking.type 'adaptive' | 'disabled' on the OpenAI-compatible
+// endpoint, unlike M1/M2.x which use 'enabled'.
+export const isMiniMaxM3Model = (model?: Model): boolean => {
+  if (!model) {
+    return false
+  }
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return /^minimax-m3(?:\.\d+)?(?:-[\w-]+)?$/i.test(modelId)
 }
 
 export const isBaichuanReasoningModel = (model?: Model): boolean => {
