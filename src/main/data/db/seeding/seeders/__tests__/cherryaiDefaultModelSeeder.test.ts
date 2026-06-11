@@ -42,7 +42,8 @@ describe('CherryAIDefaultModelSeeder', () => {
       providerId: CHERRYAI_PROVIDER_ID,
       presetProviderId: CHERRYAI_PROVIDER_ID,
       name: 'CherryAI',
-      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      isEnabled: true
     })
     expect(provider?.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl).toBe(CHERRYAI_API_BASE_URL)
     expect(model).toMatchObject({

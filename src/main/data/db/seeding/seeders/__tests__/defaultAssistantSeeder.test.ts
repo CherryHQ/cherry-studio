@@ -50,7 +50,10 @@ describe('DefaultAssistantSeeder', () => {
       modelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
       settings: DEFAULT_ASSISTANT_SETTINGS
     })
-    expect(provider?.providerId).toBe(CHERRYAI_PROVIDER_ID)
+    expect(provider).toMatchObject({
+      providerId: CHERRYAI_PROVIDER_ID,
+      isEnabled: true
+    })
     expect(model?.id).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
     expect(preference?.value).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
   })
