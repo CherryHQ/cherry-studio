@@ -36,7 +36,6 @@ export const LEGACY_VARS = [
   '--color-inline-code-text',
   '--color-hover',
   '--color-active',
-  '--color-frame-border',
   '--color-group-background',
   '--color-reference',
   '--color-reference-text',
