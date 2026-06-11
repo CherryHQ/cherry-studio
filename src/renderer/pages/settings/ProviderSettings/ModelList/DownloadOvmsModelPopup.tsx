@@ -12,13 +12,6 @@ import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
 const logger = loggerService.withContext('OVMSClient')
 const HUGGINGFACE_SOURCE_VALUE = '__huggingface__'
 
-const TASK_LABEL_KEYS = {
-  text_generation: 'ovms.download.task.text_generation',
-  embeddings: 'ovms.download.task.embeddings',
-  rerank: 'ovms.download.task.rerank',
-  image_generation: 'ovms.download.task.image_generation'
-} as const
-
 interface ShowParams {
   title: string
   provider: Provider
