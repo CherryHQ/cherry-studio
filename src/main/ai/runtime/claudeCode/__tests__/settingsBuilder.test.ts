@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
+  listChannels: vi.fn(),
   applicationGet: vi.fn(),
   applicationGetPath: vi.fn(),
   getLoginShellEnvironment: vi.fn(),
@@ -15,7 +16,8 @@ const mocks = vi.hoisted(() => ({
   getProxyEnvironment: vi.fn(),
   getPathStatus: vi.fn(),
   getAppLanguage: vi.fn(),
-  resolveRequire: vi.fn()
+  resolveRequire: vi.fn(),
+  loggerWarn: vi.fn()
 }))
 
 vi.mock('node:module', async (importOriginal) => {
@@ -34,7 +36,7 @@ vi.mock('electron', () => ({
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
+    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: mocks.loggerWarn, error: vi.fn() }))
   }
 }))
 
@@ -45,7 +47,7 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
     findBySessionId: mocks.findBySessionId,
-    listChannels: vi.fn(async () => [])
+    listChannels: mocks.listChannels
   }
 }))
 
@@ -168,6 +170,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.modelGetByKey.mockResolvedValue({ apiModelId: 'claude-api' })
     mocks.findBySessionId.mockResolvedValue(null)
     mocks.createToolPolicySnapshot.mockResolvedValue({ resolve: vi.fn(), isDisabled: vi.fn(() => false) })
+    mocks.listChannels.mockResolvedValue([])
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') {
         return { get: vi.fn(() => undefined) }
@@ -236,5 +239,22 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(output.hookSpecificOutput?.additionalContext).toContain('change direction now')
     expect(settings.steerHolder!.pending).toHaveLength(0) // drained in place
     expect(onInjected).toHaveBeenCalledTimes(1)
+  })
+
+  it('warns and falls back to no channels when channel lookup fails during tool-policy build', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+    mocks.listChannels.mockRejectedValueOnce(new Error('channel db down'))
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.cwd).toBe('/workspace/project')
+    expect(mocks.loggerWarn).toHaveBeenCalledWith('Failed to list channels for tool policy context', {
+      agentId: 'agent-1',
+      error: 'channel db down'
+    })
   })
 })

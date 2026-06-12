@@ -141,9 +141,10 @@ export async function callCherryBuiltinTool(name: string, args: unknown, signal:
   try {
     return toMcpResult(await handler.run(args ?? {}, signal))
   } catch (error) {
-    if (isAbortError(error)) throw error
-    const message = error instanceof Error ? error.message : String(error)
-    logger.error('cherry-tools call failed', error as Error, { tool: name })
+    if (signal.aborted || isAbortError(error)) throw error
+    const normalizedError = error instanceof Error ? error : new Error(String(error))
+    logger.error('cherry-tools call failed', normalizedError, { tool: name })
+    const message = normalizedError.message
     return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true }
   }
 }

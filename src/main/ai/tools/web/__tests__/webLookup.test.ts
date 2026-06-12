@@ -31,6 +31,12 @@ describe('webLookup cancellation', () => {
     expect(isWebLookupError(result)).toBe(true)
   })
 
+  it('normalizes non-Error failures before returning the lookup error', async () => {
+    searchKeywords.mockRejectedValueOnce('plain failure')
+
+    await expect(searchWeb('q')).resolves.toEqual({ error: 'plain failure' })
+  })
+
   it('fetchWeb also rethrows cancellation rather than returning { error }', async () => {
     const abort = Object.assign(new Error('aborted'), { name: 'AbortError' })
     fetchUrls.mockRejectedValueOnce(abort)

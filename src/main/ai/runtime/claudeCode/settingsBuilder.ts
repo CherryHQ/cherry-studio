@@ -537,7 +537,16 @@ async function buildToolPermissions(
 
   const cwd = session.workspace?.path
   const conditionContext: ClaudeToolContext | undefined = cwd
-    ? { cwd, channels: await channelService.listChannels({ agentId: agent.id }).catch(() => []) }
+    ? {
+        cwd,
+        channels: await channelService.listChannels({ agentId: agent.id }).catch((error) => {
+          logger.warn('Failed to list channels for tool policy context', {
+            agentId: agent.id,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          return []
+        })
+      }
     : undefined
 
   const toolPolicySnapshot = await createClaudeAgentToolPolicySnapshot(agent, {

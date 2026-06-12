@@ -95,14 +95,19 @@ function isCancellation(error: unknown, signal?: AbortSignal): boolean {
   return Boolean(signal?.aborted) || (error instanceof Error && error.name === 'AbortError')
 }
 
+function normalizeError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error))
+}
+
 export async function searchWeb(query: string, signal?: AbortSignal): Promise<WebLookupResult> {
   try {
     const response = await application.get('WebSearchService').searchKeywords({ keywords: [query] }, { signal })
     return mapResponse(response)
   } catch (error) {
     if (isCancellation(error, signal)) throw error
-    logger.error('webSearchService.searchKeywords failed', error as Error, { query })
-    return { error: error instanceof Error ? error.message : String(error) }
+    const normalizedError = normalizeError(error)
+    logger.error('webSearchService.searchKeywords failed', normalizedError, { query })
+    return { error: normalizedError.message }
   }
 }
 
@@ -112,7 +117,8 @@ export async function fetchWeb(urls: string[], signal?: AbortSignal): Promise<We
     return mapResponse(response)
   } catch (error) {
     if (isCancellation(error, signal)) throw error
-    logger.error('webSearchService.fetchUrls failed', error as Error, { urls })
-    return { error: error instanceof Error ? error.message : String(error) }
+    const normalizedError = normalizeError(error)
+    logger.error('webSearchService.fetchUrls failed', normalizedError, { urls })
+    return { error: normalizedError.message }
   }
 }
