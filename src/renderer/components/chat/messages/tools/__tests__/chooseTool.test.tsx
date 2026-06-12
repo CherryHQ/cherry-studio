@@ -3,21 +3,24 @@ import { render } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 // Stub the leaf cards so we can assert ONLY which branch chooseTool routes to.
-vi.mock('../MessageMetaTool', () => ({
+vi.mock('../meta/MessageMetaTool', () => ({
   default: () => <div data-testid="meta-card" />,
   isMetaToolName: (name: string) => name === 'tool_search' || name === 'tool_inspect' || name === 'tool_invoke'
 }))
-vi.mock('../MessageKnowledgeSearch', () => ({
+vi.mock('../knowledge/MessageKnowledgeSearch', () => ({
   MessageKnowledgeSearchToolTitle: () => <div data-testid="kb-card" />
 }))
-vi.mock('../MessageWebSearch', () => ({
+vi.mock('../web-search/MessageWebSearch', () => ({
   MessageWebSearchToolTitle: () => <div data-testid="web-card" />
 }))
-vi.mock('../MessageAgentTools', () => ({
-  MessageAgentTools: () => <div data-testid="agent-card" />
+vi.mock('../agent', () => ({
+  AgentExecutionTimeline: () => <div data-testid="agent-card" />
 }))
-// Empty enum → isAgentTool only matches the `mcp__` prefix, not our builtin names.
-vi.mock('../MessageAgentTools/types', () => ({ AgentToolsType: {} }))
+// Empty enum + no ask-user match keeps this test focused on builtin web/knowledge names.
+vi.mock('../agent/types', () => ({
+  AgentToolsType: {},
+  isAskUserQuestionToolName: () => false
+}))
 
 const { chooseTool } = await import('../chooseTool')
 
