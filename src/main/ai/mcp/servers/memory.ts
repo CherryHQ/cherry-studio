@@ -467,7 +467,6 @@ class MemoryServer {
   // Hold the manager instance, initialized asynchronously
   private knowledgeGraphManager: KnowledgeGraphManager | null = null
   private initializationPromise: Promise<void> // To track initialization
-  private memoryPath: string
 
   /** Static registry of live MemoryServer instances keyed by resolved memory path. */
   private static activeInstances = new Map<string, MemoryServer>()
@@ -499,7 +498,6 @@ class MemoryServer {
         : path.resolve(envPath) // Use path.resolve for relative paths based on CWD
       : getDefaultMemoryPath()
 
-    this.memoryPath = memoryPath
     this.server = new Server(
       {
         name: 'memory-server',
