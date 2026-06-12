@@ -14,13 +14,11 @@
  * - Own one shared `FileSystemAdapter` pointed at
  *   `application.getPath('feature.context_build.vfs.temp')`. Wired into
  *   chef middleware via `truncate.storage` in the context-build feature.
- * - There is NO IPC channel and NO retrieval tool here. The absolute
- *   path chef writes into the `<persisted-output>` marker is NOT yet
- *   readable by the model on this branch — the read-back tool (PR
- *   #14916's `fs__read` with out-of-workspace allowance) plus its
- *   prompt section land in P2. Until then the path serves human
- *   inspection, and originals survive truncation instead of being
- *   discarded.
+ * - There is NO IPC channel here. The absolute path chef writes into
+ *   the `<persisted-output>` marker is readable by the model via the
+ *   `fs__read` builtin — strict root containment with this directory
+ *   as the allowed root; the system prompt teaches the protocol while
+ *   fs__read is active.
  * - Run a stale-file sweep on startup: anything older than 7 days is
  *   unlinked.
  */
@@ -76,8 +74,8 @@ export class VfsBlobService extends BaseService {
    * Returns the underlying `FileSystemAdapter` for chef middleware to
    * use as `truncate.storage`. chef's adapter exposes `getPhysicalPath`
    * out of the box, so the `<persisted-output>` marker carries an
-   * absolute file path. No tool can read that path yet (see header) —
-   * model-facing retrieval lands in P2.
+   * absolute file path the model retrieves via `fs__read` (this
+   * directory is its allowed containment root — see `getRoot`).
    */
   getAdapter(): FileSystemAdapter {
     return this.adapter
