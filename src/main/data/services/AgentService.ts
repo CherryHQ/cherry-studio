@@ -385,7 +385,7 @@ export class AgentService {
 
     let updatedCount = 0
     for (const row of rows) {
-      const mcps = row.mcps as string[]
+      const mcps = row.mcps
       if (!Array.isArray(mcps) || !mcps.includes(mcpId)) continue
 
       const updatedMcps = mcps.filter((id) => id !== mcpId)
