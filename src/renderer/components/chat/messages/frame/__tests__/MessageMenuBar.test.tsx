@@ -137,6 +137,6 @@ describe('MessageMenuBar', () => {
       />
     )
 
-    expect(container.querySelector('.message-tokens')?.textContent).toContain('Tokens:42')
+    expect(container.querySelector('.message-tokens')?.textContent).toContain('Tokens:0.0K')
   })
 })

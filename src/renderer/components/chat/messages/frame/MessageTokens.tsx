@@ -13,6 +13,8 @@ interface MessageTokensProps {
   isLastMessage?: boolean
 }
 
+const formatTokenCountK = (tokens: number): string => `${(tokens / 1000).toFixed(1)}K`
+
 const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
   // const { generating } = useRuntime()
   const actions = useMessageListActions()
@@ -65,7 +67,7 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
       <div
         className="message-tokens cursor-pointer select-text text-right text-[10px] text-foreground-muted"
         onClick={locateMessage}>
-        {`Tokens: ${usage.total_tokens}`}
+        {`Tokens: ${formatTokenCountK(usage.total_tokens)}`}
       </div>
     )
   }
@@ -88,9 +90,9 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
     const tokensInfo = (
       <span className="tokens inline-flex items-center">
         Tokens:
-        <span className="px-0.5">{usage.total_tokens}</span>
-        <span className="px-0.5">↑{usage.prompt_tokens}</span>
-        <span className="px-0.5">↓{usage.completion_tokens}</span>
+        <span className="px-0.5">{formatTokenCountK(usage.total_tokens)}</span>
+        <span className="px-0.5">↑{formatTokenCountK(usage.prompt_tokens)}</span>
+        <span className="px-0.5">↓{formatTokenCountK(usage.completion_tokens)}</span>
         <span className="px-0.5">{getPriceString()}</span>
       </span>
     )
