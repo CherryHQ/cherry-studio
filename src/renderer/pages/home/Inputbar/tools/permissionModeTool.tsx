@@ -39,7 +39,7 @@ const permissionModeTool = defineTool({
     const { agent } = useAgent(agentId ?? '')
     const { updateAgent } = useUpdateAgent()
 
-    // Permission mode, allowedTools, and the tool catalog all live on the agent
+    // Permission mode, disabledTools, and the tool catalog all live on the agent
     // — sessions are pure instances. UI writes the agent record directly.
     const currentMode = agent?.configuration?.permission_mode ?? 'default'
     const handleSelectMode = useCallback(

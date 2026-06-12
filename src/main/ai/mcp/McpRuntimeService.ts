@@ -1089,7 +1089,18 @@ export class McpRuntimeService extends BaseService {
       }
     }
 
-    return await withSpanFunc(`${server.name}.${name}`, `MCP`, callToolFunc, [{ server, name, args }])
+    const tracedInput = {
+      server: { id: server.id, name: server.name, type: server.type, description: server.description },
+      name,
+      args
+    }
+    return await withSpanFunc(
+      `${server.name}.${name}`,
+      `MCP`,
+      // oxlint-disable-next-line no-unused-vars
+      (_recorded: typeof tracedInput) => callToolFunc({ server, name, args }),
+      [tracedInput]
+    )
   }
 
   public async getInstallInfo() {
