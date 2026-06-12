@@ -54,11 +54,14 @@ export function createToolSearchTool(
             // Verbose search shows the model each tool's full input schema, so it has "seen" the
             // signature — record it in the shared ledger exactly as `tool_inspect` would, so the
             // first `tool_invoke` isn't bounced by Guard A (the deferred-tools prompt promises this).
-            inspectedNames.add(e.name)
+            // Only record when the schema actually serialized: a tool whose schema failed (undefined)
+            // wasn't really shown, so it must still be bounced on first invoke.
+            const inputSchema = await serializeToolSchema(e.tool.inputSchema)
+            if (inputSchema !== undefined) inspectedNames.add(e.name)
             return {
               name: e.name,
               description: e.description,
-              inputSchema: await serializeToolSchema(e.tool.inputSchema)
+              inputSchema
             }
           })
         )

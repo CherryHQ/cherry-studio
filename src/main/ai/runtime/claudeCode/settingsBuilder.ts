@@ -50,6 +50,7 @@ import { rtkRewrite } from '@main/utils/rtk'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import {
   CHANNEL_SECURITY_PROMPT,
+  GLOBALLY_DISALLOWED_TOOLS,
   REPORT_ARTIFACTS_PROMPT,
   SOUL_MODE_DISALLOWED_TOOLS
 } from '@shared/ai/claudecode/constants'
@@ -212,7 +213,7 @@ export async function buildClaudeCodeSessionSettings(
   provider: Provider,
   options?: ClaudeCodeSessionOptions
 ): Promise<ClaudeCodeSettings> {
-  // Agent owns cognitive config (model, instructions, mcps, allowedTools,
+  // Agent owns cognitive config (model, instructions, mcps, disabledTools,
   // configuration); workspace lives on the session (CMA Environment binding).
   // An orphan session (`agentId === null`, agent was deleted) cannot run.
   if (!session.agentId) {
@@ -258,10 +259,10 @@ export async function buildClaudeCodeSessionSettings(
   const mcpServers = await buildMcpServers(session, agent, soulEnabled, isAssistant)
   const mcpToolMetadata = await buildMcpToolMetadata(agent)
 
-  // 8. Auto-approve allowlist for injected built-in MCP servers (soul/assistant only)
-  const finalAllowedTools = adjustAllowedToolsForMcp(soulEnabled, isAssistant)
+  // 7. Auto-approve injected MCP server tools
+  const finalAllowedTools = buildInjectedMcpAllowedTools(soulEnabled, isAssistant)
 
-  // 9. Build settings
+  // 8. Build settings
   const settings: ClaudeCodeSettings = {
     cwd,
     env,
@@ -541,7 +542,12 @@ async function buildToolPermissions(
 
   const toolPolicySnapshot = await createClaudeAgentToolPolicySnapshot(agent, {
     autoAllowRuntimeNamePrefixes: [
-      // cherry-tools (web + knowledge) is injected for every session and is read-only.
+      // cherry-tools is injected for every session. Auto-allowing it (no per-call approval) is a
+      // deliberate decision (matches feat/chat-page): none of its tools have side effects in the
+      // main process — web_search/web_fetch read the network, kb_search/kb_list read the user's
+      // knowledge bases, report_artifacts only records a declaration. The untrusted-channel exposure
+      // this creates (approval-free kb reads + web_fetch URL egress for channel-linked sessions) is
+      // bounded by the system-level channel security policy (CHANNEL_SECURITY_PROMPT).
       'mcp__cherry-tools__',
       ...(soulEnabled ? ['mcp__claw__'] : []),
       ...(isAssistant ? ['mcp__assistant__'] : [])
@@ -597,6 +603,24 @@ async function buildToolPermissions(
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
 
+  // disabledTools enforcement runs as a PreToolUse hook, not in `canUseTool`: the SDK skips
+  // `canUseTool` for auto-approved paths (bypassPermissions / acceptEdits / default safe-tools), but
+  // PreToolUse hooks fire on every tool call regardless of permission mode. When the snapshot
+  // refresh succeeds, a mid-session disable is denied on the warm connection in all modes; the
+  // runtime service fail-closes the connection if that refresh cannot be applied.
+  const disabledToolHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    const toolName = String((input as Record<string, unknown>).tool_name ?? '')
+    if (!toolName || !toolPolicySnapshot.isDisabled(toolName)) return {}
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: t('agent.session.tool.disabled', { toolName })
+      }
+    }
+  }
+
   // Real mid-turn steer (the agent SDK has no native steer API): when a steer is stashed via the
   // connection's `redirect()`, inject it as `additionalContext` before the next tool runs so the
   // model can change direction without aborting. If the turn ends with no tool call, the connection
@@ -624,10 +648,11 @@ async function buildToolPermissions(
 
   return {
     canUseTool,
-    hooks: { PreToolUse: [{ hooks: [rtkRewriteHook, steerHook] }] },
+    hooks: { PreToolUse: [{ hooks: [disabledToolHook, rtkRewriteHook, steerHook] }] },
     disallowedTools: [
       ...new Set([
-        ...resolveDisallowedTools({ disabledTools: [] }, conditionContext),
+        ...resolveDisallowedTools(agent, conditionContext),
+        ...GLOBALLY_DISALLOWED_TOOLS,
         ...(soulEnabled ? SOUL_MODE_DISALLOWED_TOOLS : []),
         ...(isAssistant ? ['AskUserQuestion'] : [])
       ])
@@ -667,7 +692,10 @@ export async function buildSystemPrompt(
     try {
       const context = await buildAssistantContext()
       return instructions ? `${instructions}\n\n${context}` : context
-    } catch {
+    } catch (error) {
+      // Don't silently degrade to generic behavior: a DB/fs/preference read failure here drops the
+      // entire assistant context, so surface it before falling back to the base instructions.
+      logger.error('buildAssistantContext failed; falling back to base instructions', error as Error)
       return instructions
     }
   }
@@ -831,17 +859,33 @@ async function resolveSourceChannel(agentId: string, sessionId: string): Promise
 }
 
 /**
- * Auto-approve allowlist for injected built-in MCP servers. Returns `undefined` for a plain agent
- * (Claude Code then permits all tools; cherry-tools is auto-approved via the canUseTool prefix).
- * Soul/assistant agents force an explicit allowlist so their claw/agent-memory/assistant tools pass.
+ * Auto-approve MCP tools for injected built-in servers.
+ * Claw and assistant are also auto-allowed by policy snapshot prefixes; agent-memory
+ * has no such canUseTool shortcut, so its wildcard must stay in the SDK allow list.
  */
-export function adjustAllowedToolsForMcp(soulEnabled: boolean, isAssistant: boolean): string[] | undefined {
-  if (!soulEnabled && !isAssistant) return undefined
+export function buildInjectedMcpAllowedTools(soulEnabled: boolean, isAssistant: boolean): string[] | undefined {
+  const result: string[] = []
 
-  const result = ['mcp__cherry-tools__*']
-  if (soulEnabled) result.push('mcp__claw__*', 'mcp__agent-memory__*')
-  if (isAssistant) result.push('mcp__assistant__*')
-  return result
+  // cherry-tools is wildcarded alongside the role servers for soul + assistant agents. Plain agents
+  // get it auto-approved via the always-on `mcp__cherry-tools__` autoAllowRuntimeNamePrefixes entry
+  // instead, so they need no SDK allow-list wildcard (keeping their allowedTools undefined).
+  if ((soulEnabled || isAssistant) && !result.includes('mcp__cherry-tools__*')) {
+    result.push('mcp__cherry-tools__*')
+  }
+
+  if (soulEnabled && !result.includes('mcp__claw__*')) {
+    result.push('mcp__claw__*')
+  }
+
+  if (soulEnabled && !result.includes('mcp__agent-memory__*')) {
+    result.push('mcp__agent-memory__*')
+  }
+
+  if (isAssistant && !result.includes('mcp__assistant__*')) {
+    result.push('mcp__assistant__*')
+  }
+
+  return result.length > 0 ? result : undefined
 }
 
 function getSettingSources(agent: AgentEntity): Array<'user' | 'project' | 'local'> {

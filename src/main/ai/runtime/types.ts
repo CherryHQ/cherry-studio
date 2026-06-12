@@ -39,7 +39,7 @@ export interface AgentRuntimeUserInput {
 
 export type AgentRuntimePolicyUpdate =
   | { type: 'permission-mode'; permissionMode: AgentPermissionMode | undefined }
-  | { type: 'tool-policy'; agent: AgentEntity }
+  | { type: 'tool-policy'; agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'> }
 
 export type AgentRuntimeEvent =
   | { type: 'chunk'; chunk: UIMessageChunk }

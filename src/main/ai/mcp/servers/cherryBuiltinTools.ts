@@ -1,12 +1,12 @@
 /**
  * In-process MCP server exposing Cherry Studio's builtin tools to Claude Code.
  *
- * Wraps the same `webLookup` / `kbLookup` cores the AI-SDK builtin tools use,
- * so Claude Code's web search/fetch and knowledge-base tools run identical
+ * Wraps the same `webLookup` / `knowledgeLookup` cores the AI-SDK builtin tools
+ * use, so Claude Code's web search/fetch and knowledge-base tools run identical
  * logic against the user's configured `WebSearchService` provider and knowledge
  * bases. Injected by `settingsBuilder` as an `sdk`-type MCP server; Claude calls
- * these as `mcp__cherry-tools__web_search`, `…__web_fetch`, `…__kb_search`,
- * `…__kb_list`.
+ * these five tools as `mcp__cherry-tools__web_search`, `…__web_fetch`,
+ * `…__kb_search`, `…__kb_list`, and `…__report_artifacts`.
  *
  * KB scope is unscoped (`allowedIds: []`) because agents have no per-assistant
  * knowledge selection — the agent sees all of the user's knowledge bases.
@@ -14,20 +14,21 @@
 
 import { loggerService } from '@logger'
 import {
-  KB_LIST_DESCRIPTION,
-  KB_SEARCH_DESCRIPTION,
-  kbListModelOutput,
-  kbSearchModelOutput,
-  listKb,
-  searchKb
-} from '@main/ai/tools/kb/kbLookup'
+  KNOWLEDGE_LIST_DESCRIPTION,
+  KNOWLEDGE_SEARCH_DESCRIPTION,
+  knowledgeListModelOutput,
+  knowledgeSearchModelOutput,
+  listKnowledgeBases,
+  searchKnowledge
+} from '@main/ai/tools/knowledgeLookup'
 import {
   fetchWeb,
   searchWeb,
   WEB_FETCH_DESCRIPTION,
   WEB_SEARCH_DESCRIPTION,
   webLookupModelOutput
-} from '@main/ai/tools/web/webLookup'
+} from '@main/ai/tools/webLookup'
+import { isAbortError } from '@main/services/webSearch/utils/errors'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   CallToolRequestSchema,
@@ -57,6 +58,8 @@ type ToolModelOutput = { type: 'text'; value: string } | { type: 'json'; value: 
 interface ToolHandler {
   description: string
   inputSchema: z.ZodType
+  // `signal` is honoured only by handlers whose core supports cancellation (web → WebSearchService).
+  // The kb handlers ignore it: KnowledgeService exposes no AbortSignal plumbing (see knowledgeLookup).
   run: (args: unknown, signal: AbortSignal) => Promise<ToolModelOutput>
 }
 
@@ -80,24 +83,26 @@ const HANDLERS: Record<string, ToolHandler> = {
       return webLookupModelOutput(await fetchWeb(urls, signal))
     }
   },
+  // kb handlers take no `signal`: KnowledgeService has no cancellation plumbing (see knowledgeLookup).
   [KB_SEARCH_TOOL_NAME]: {
-    description: KB_SEARCH_DESCRIPTION,
+    description: KNOWLEDGE_SEARCH_DESCRIPTION,
     inputSchema: kbSearchInputSchema,
     run: async (args) => {
       const { query, baseIds } = kbSearchInputSchema.parse(args)
-      return kbSearchModelOutput(await searchKb(query, baseIds, KB_ALLOWED_IDS))
+      return knowledgeSearchModelOutput(await searchKnowledge(query, baseIds, KB_ALLOWED_IDS))
     }
   },
   [KB_LIST_TOOL_NAME]: {
-    description: KB_LIST_DESCRIPTION,
+    description: KNOWLEDGE_LIST_DESCRIPTION,
     inputSchema: kbListInputSchema,
     run: async (args) => {
       const input = kbListInputSchema.parse(args)
-      return kbListModelOutput(await listKb(input.query, input.groupId, KB_ALLOWED_IDS), input)
+      return knowledgeListModelOutput(await listKnowledgeBases(input.query, input.groupId, KB_ALLOWED_IDS), input)
     }
   },
   // Pure declaration tool: the model reports its final deliverable file(s). The value lives in the
-  // tool *input* (which the renderer reads to render the artifacts card); the handler only confirms.
+  // tool *input* — a data contract for a consumer (a renderer artifacts card) that lands in a
+  // separate change; the handler only confirms.
   [REPORT_ARTIFACTS_TOOL_NAME]: {
     description: REPORT_ARTIFACTS_DESCRIPTION,
     inputSchema: reportArtifactsInputSchema,
@@ -136,6 +141,7 @@ export async function callCherryBuiltinTool(name: string, args: unknown, signal:
   try {
     return toMcpResult(await handler.run(args ?? {}, signal))
   } catch (error) {
+    if (isAbortError(error)) throw error
     const message = error instanceof Error ? error.message : String(error)
     logger.error('cherry-tools call failed', error as Error, { tool: name })
     return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true }

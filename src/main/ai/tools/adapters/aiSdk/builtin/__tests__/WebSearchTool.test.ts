@@ -95,6 +95,13 @@ describe('web_search', () => {
     expect(out).toEqual({ error: 'upstream 503' })
   })
 
+  it('rethrows an abort instead of converting it to an error discriminant', async () => {
+    const abortError = Object.assign(new Error('Aborted'), { name: 'AbortError' })
+    searchKeywords.mockRejectedValue(abortError)
+    // A cancellation must propagate so the tool loop unwinds — not surface as a retryable provider error.
+    await expect(callSearchExecute({ query: 'q' })).rejects.toBe(abortError)
+  })
+
   it('toModelOutput surfaces a retry note on the error path', () => {
     const toModelOutput = searchEntry.tool.toModelOutput!
     const errorView = toModelOutput({ output: { error: 'upstream 503' } } as never)
@@ -168,6 +175,12 @@ describe('web_fetch', () => {
     fetchUrls.mockRejectedValue(new Error('upstream 503'))
     const out = await callFetchExecute({ urls: ['https://example.com'] })
     expect(out).toEqual({ error: 'upstream 503' })
+  })
+
+  it('rethrows an abort instead of converting it to an error discriminant', async () => {
+    const abortError = Object.assign(new Error('Aborted'), { name: 'AbortError' })
+    fetchUrls.mockRejectedValue(abortError)
+    await expect(callFetchExecute({ urls: ['https://example.com'] })).rejects.toBe(abortError)
   })
 
   it('toModelOutput surfaces a retry note on the error path', () => {

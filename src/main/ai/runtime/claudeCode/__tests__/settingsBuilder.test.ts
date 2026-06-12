@@ -167,7 +167,7 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
     mocks.modelGetByKey.mockResolvedValue({ apiModelId: 'claude-api' })
     mocks.findBySessionId.mockResolvedValue(null)
-    mocks.createToolPolicySnapshot.mockResolvedValue({ resolve: vi.fn() })
+    mocks.createToolPolicySnapshot.mockResolvedValue({ resolve: vi.fn(), isDisabled: vi.fn(() => false) })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') {
         return { get: vi.fn(() => undefined) }
@@ -213,9 +213,9 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.steerHolder).toBeDefined()
 
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
-    expect(preToolUse).toHaveLength(2) // rtkRewriteHook + steerHook
+    expect(preToolUse).toHaveLength(3) // disabledToolHook + rtkRewriteHook + steerHook
 
-    const steerHook = preToolUse![1] as unknown as (input: {
+    const steerHook = preToolUse![2] as unknown as (input: {
       hook_event_name: string
     }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
 
