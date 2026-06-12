@@ -17,6 +17,8 @@ interface Entity {
   name: string
   entityType: string
   observations: string[]
+  /** Optional list of MCP server names this entity is associated with. */
+  mcpReferences?: string[]
 }
 
 interface Relation {
@@ -37,6 +39,8 @@ class KnowledgeGraphManager {
   private entities: Map<string, Entity> // Use Map for efficient entity lookup
   private relations: Set<string> // Store stringified relations for easy Set operations
   private fileMutex: Mutex // Mutex for file writing
+  /** Process-wide lock per file path for serializing static file operations. */
+  private static fileLocks = new Map<string, Mutex>()
 
   private constructor(memoryPath: string) {
     this.memoryPath = memoryPath
@@ -151,7 +155,11 @@ class KnowledgeGraphManager {
     entities.forEach((entity) => {
       if (!this.entities.has(entity.name)) {
         // Ensure observations is always an array
-        const newEntity = { ...entity, observations: Array.isArray(entity.observations) ? entity.observations : [] }
+        const newEntity = {
+          ...entity,
+          observations: Array.isArray(entity.observations) ? entity.observations : [],
+          mcpReferences: Array.isArray(entity.mcpReferences) ? entity.mcpReferences : []
+        }
         this.entities.set(entity.name, newEntity)
         newEntities.push(newEntity)
       }
@@ -336,8 +344,8 @@ class KnowledgeGraphManager {
   }
 
   /**
-   * Remove all entities whose name, entityType, or observations contain the
-   * given keyword, and delete any relations that reference those entities.
+   * Remove all entities whose mcpReferences array contains the given keyword,
+   * and delete any relations that reference those entities.
    * Used as cascade cleanup when an MCP server is deleted.
    */
   @TraceMethod({ spanName: 'cleanupReferences', tag: 'KnowledgeGraph' })
@@ -345,19 +353,14 @@ class KnowledgeGraphManager {
     if (!keyword) return { deletedEntities: 0, deletedRelations: 0 }
 
     const lowerKeyword = keyword.toLowerCase()
-    const wordBoundaryRegex = new RegExp(`\\b${lowerKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
     let changed = false
 
-    // Find entities that reference the deleted MCP — exact match on name and
-    // entityType; word-boundary match on observations to avoid false positives
-    // from substring hits (e.g. "memory" deleting "short-term-memory").
+    // Only delete entities whose mcpReferences array contains an exact match
+    // for the keyword.  This avoids removing unrelated KG nodes that happen
+    // to share a name, type, or mention the keyword in free-text observations.
     const namesToDelete = new Set<string>()
     for (const [name, entity] of this.entities) {
-      if (
-        name.toLowerCase() === lowerKeyword ||
-        entity.entityType.toLowerCase() === lowerKeyword ||
-        (Array.isArray(entity.observations) && entity.observations.some((o) => wordBoundaryRegex.test(o)))
-      ) {
+      if (Array.isArray(entity.mcpReferences) && entity.mcpReferences.some((r) => r.toLowerCase() === lowerKeyword)) {
         namesToDelete.add(name)
       }
     }
@@ -406,51 +409,53 @@ class KnowledgeGraphManager {
   ): Promise<{ deletedEntities: number; deletedRelations: number } | null> {
     if (!keyword) return null
 
-    try {
-      await fs.access(memoryPath)
-    } catch {
-      // File doesn't exist, nothing to clean
-      return null
+    // Acquire a per-file lock so concurrent cleanups for the same path are serialized.
+    if (!KnowledgeGraphManager.fileLocks.has(memoryPath)) {
+      KnowledgeGraphManager.fileLocks.set(memoryPath, new Mutex())
     }
-
+    const lock = KnowledgeGraphManager.fileLocks.get(memoryPath)!
+    const release = await lock.acquire()
     try {
+      try {
+        await fs.access(memoryPath)
+      } catch {
+        // File doesn't exist, nothing to clean
+        return null
+      }
+
       const data = await fs.readFile(memoryPath, 'utf-8')
       if (data.trim() === '') return null
 
       const graph: KnowledgeGraph = JSON.parse(data)
-      const lowerKeyword = keyword.toLowerCase()
-      const wordBoundaryRegex = new RegExp(`\\b${lowerKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
 
-      // Find entities that reference the deleted MCP — exact match on name and
-      // entityType; word-boundary match on observations.
+      // Only delete entities whose mcpReferences array contains an exact match
+      // for the keyword.  This avoids removing unrelated KG nodes that happen
+      // to share a name, type, or mention the keyword in free-text observations.
+      const lowerKeyword = keyword.toLowerCase()
       const entitiesToDelete = new Set<string>()
       for (const entity of graph.entities) {
-        if (
-          entity.name.toLowerCase() === lowerKeyword ||
-          entity.entityType.toLowerCase() === lowerKeyword ||
-          (Array.isArray(entity.observations) && entity.observations.some((o) => wordBoundaryRegex.test(o)))
-        ) {
+        if (Array.isArray(entity.mcpReferences) && entity.mcpReferences.some((r) => r.toLowerCase() === lowerKeyword)) {
           entitiesToDelete.add(entity.name)
         }
       }
 
       if (entitiesToDelete.size === 0) return null
 
-      const deletedEntities = graph.entities.filter((e) => !entitiesToDelete.has(e.name))
-      const deletedRelations = graph.relations.filter(
+      const remainingEntities = graph.entities.filter((e) => !entitiesToDelete.has(e.name))
+      const remainingRelations = graph.relations.filter(
         (r) => !entitiesToDelete.has(r.from) && !entitiesToDelete.has(r.to)
       )
 
       const deletedCount = {
-        deletedEntities: graph.entities.length - deletedEntities.length,
-        deletedRelations: graph.relations.length - deletedRelations.length
+        deletedEntities: graph.entities.length - remainingEntities.length,
+        deletedRelations: graph.relations.length - remainingRelations.length
       }
 
       // Only write back if something changed
       if (deletedCount.deletedEntities > 0 || deletedCount.deletedRelations > 0) {
         await fs.writeFile(
           memoryPath,
-          JSON.stringify({ entities: deletedEntities, relations: deletedRelations }, null, 2)
+          JSON.stringify({ entities: remainingEntities, relations: remainingRelations }, null, 2)
         )
       }
 
@@ -458,6 +463,8 @@ class KnowledgeGraphManager {
     } catch (error) {
       logger.error('Failed to cleanup knowledge graph references:', error as Error)
       return null
+    } finally {
+      release()
     }
   }
 }
@@ -572,6 +579,13 @@ class MemoryServer {
                         items: { type: 'string' },
                         description: 'An array of observation contents associated with the entity',
                         default: [] // Add default empty array
+                      },
+                      mcpReferences: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description:
+                          'Optional list of MCP server names this entity is associated with (used for cascade cleanup on MCP deletion)',
+                        default: []
                       }
                     },
                     required: ['name', 'entityType'] // Observations are optional now on creation
