@@ -6,8 +6,6 @@ import {
 } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { hashChunkerConfig } from '../indexStore/hashing'
-
 const {
   loggerDebugMock,
   loggerErrorMock,
@@ -188,7 +186,7 @@ describe('KnowledgeVectorStoreService', () => {
     expect(indexStoreCtorMock).toHaveBeenCalledTimes(1)
   })
 
-  it('stamps and verifies the index_meta identity row before handing out the store', async () => {
+  it('stamps and verifies the meta identity row before handing out the store', async () => {
     const service = new KnowledgeVectorStoreService()
     const base = createBase()
 
@@ -196,17 +194,11 @@ describe('KnowledgeVectorStoreService', () => {
 
     expect(ensureIndexMetaMock).toHaveBeenCalledTimes(1)
     expect(ensureIndexMetaMock).toHaveBeenCalledWith(expect.objectContaining({ kind: 'driver' }), {
-      baseId: base.id,
-      embeddingModelId: base.embeddingModelId,
-      dimensions: base.dimensions,
-      // Pin the exact fingerprint (real hashing, mocked persistence): a swapped
-      // (chunkOverlap, chunkSize) argument order would stamp a wrong-but-stable
-      // hash into every index.sqlite, which expect.any(String) cannot catch.
-      chunkerConfigHash: hashChunkerConfig(base.chunkSize, base.chunkOverlap)
+      baseId: base.id
     })
   })
 
-  it('closes the driver and aborts the open when index_meta verification fails (wrong/corrupt base)', async () => {
+  it('closes the driver and aborts the open when meta verification fails (wrong/corrupt base)', async () => {
     const service = new KnowledgeVectorStoreService()
     const base = createBase()
     let openedDriver: { close: ReturnType<typeof vi.fn> } | undefined

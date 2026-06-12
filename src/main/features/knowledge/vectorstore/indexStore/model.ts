@@ -5,9 +5,6 @@
 
 import type { KnowledgeSearchMode } from '@shared/data/types/knowledge'
 
-export type MaterialOrigin = 'user' | 'processor' | 'captured'
-export type MaterialIndexPolicy = 'index' | 'suppress' | 'ignore'
-export type ContentTextFormat = 'markdown' | 'plain' | 'extracted_text'
 export type SearchUnitType = 'chunk'
 
 /** One retrieval unit (chunk/section) with its offsets into the material's content. */
@@ -37,18 +34,9 @@ export interface RebuildMaterialEmbeddingInput {
 export interface RebuildMaterialInput {
   material: {
     relativePath: string
-    origin: MaterialOrigin
-    indexPolicy: MaterialIndexPolicy
-    title?: string
-    fileExt?: string
-    mimeType?: string
-    sizeBytes?: number
-    mtimeMs?: number
   }
   content: {
     text: string
-    textFormat: ContentTextFormat
-    normalizationVersion: number
   }
   units: RebuildMaterialUnitInput[]
   embeddings: RebuildMaterialEmbeddingInput[]

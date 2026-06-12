@@ -13,7 +13,6 @@ import {
   getKnowledgeVectorStoreFilePath,
   getKnowledgeVectorStoreFilePathSync
 } from '../utils/storage/pathStorage'
-import { hashChunkerConfig } from './indexStore/hashing'
 import { ensureIndexMeta, hasAnyMaterial, hasLegacyVectorStoreTable } from './indexStore/indexMeta'
 import { KnowledgeIndexStore } from './indexStore/KnowledgeIndexStore'
 import { openLibsqlIndexDriver } from './indexStore/LibsqlDriver'
@@ -136,16 +135,11 @@ export class KnowledgeVectorStoreService extends BaseService {
     const driver = await openLibsqlIndexDriver(dbPath)
     try {
       await createKnowledgeIndexSchema(driver)
-      // Stamp + verify the index_meta identity row before handing out the store,
+      // Stamp + verify the meta identity row before handing out the store,
       // so an index.sqlite swapped in from another base is rejected here (§4.1).
       // That is the only refusal — a blank/recreated file is stamped as fresh and
       // mounts empty; reportInvisibleIndexContents below makes that state loud.
-      await ensureIndexMeta(driver, {
-        baseId: base.id,
-        embeddingModelId: base.embeddingModelId,
-        dimensions: base.dimensions,
-        chunkerConfigHash: hashChunkerConfig(base.chunkSize, base.chunkOverlap)
-      })
+      await ensureIndexMeta(driver, { baseId: base.id })
       await this.reportInvisibleIndexContents(driver, base.id)
       return new KnowledgeIndexStore(driver, libsqlVectorIndex)
     } catch (error) {

@@ -8,9 +8,9 @@ describe('hashing', () => {
     expect(hashEmbeddingText('hello')).not.toBe(hashEmbeddingText('world'))
   })
 
-  it('hashContentText folds in the normalization version', () => {
-    expect(hashContentText('text', 1)).toBe(hashContentText('text', 1))
-    expect(hashContentText('text', 1)).not.toBe(hashContentText('text', 2))
+  it('hashContentText is deterministic and content-sensitive', () => {
+    expect(hashContentText('text')).toBe(hashContentText('text'))
+    expect(hashContentText('text')).not.toBe(hashContentText('other'))
   })
 
   it('computeUnitId is stable for the same inputs and varies by offset/index', () => {

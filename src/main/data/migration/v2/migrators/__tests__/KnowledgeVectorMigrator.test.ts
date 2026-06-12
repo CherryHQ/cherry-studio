@@ -818,14 +818,7 @@ describe('KnowledgeVectorMigrator', () => {
     const driver = await openLibsqlIndexDriver(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))
     try {
       await createKnowledgeIndexSchema(driver)
-      await expect(
-        ensureIndexMeta(driver, {
-          baseId: MIGRATED_KNOWLEDGE_BASE_ID,
-          embeddingModelId: 'ollama::nomic-embed-text',
-          dimensions: 2,
-          chunkerConfigHash: 'chunker-hash-test'
-        })
-      ).resolves.toBeUndefined()
+      await expect(ensureIndexMeta(driver, { baseId: MIGRATED_KNOWLEDGE_BASE_ID })).resolves.toBeUndefined()
 
       // The legacy remnant is detectable — the mount-time error log keys off this.
       await expect(hasLegacyVectorStoreTable(driver)).resolves.toBe(true)

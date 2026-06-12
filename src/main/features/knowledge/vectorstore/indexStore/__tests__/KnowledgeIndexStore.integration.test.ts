@@ -47,8 +47,8 @@ describe('KnowledgeIndexStore integration (real libsql)', () => {
     expect(chunks.length).toBeGreaterThan(1)
 
     const input: RebuildMaterialInput = {
-      material: { relativePath: 'doc.md', origin: 'user', indexPolicy: 'index' },
-      content: { text, textFormat: 'markdown', normalizationVersion: 1 },
+      material: { relativePath: 'doc.md' },
+      content: { text },
       units: chunks.map((chunk, index) => ({
         unitType: 'chunk' as const,
         unitIndex: index,

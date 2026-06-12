@@ -5,7 +5,6 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
-import { getFileExt } from '@main/utils/file'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
@@ -16,7 +15,7 @@ import { type ChunkedKnowledgeContent, chunkKnowledgeDocuments } from '../utils/
 import { embedKnowledgeTexts } from '../utils/indexing/embed'
 import { isIndexableKnowledgeItem } from '../utils/items'
 import { hashEmbeddingText } from '../vectorstore/indexStore/hashing'
-import type { ContentTextFormat, MaterialOrigin, RebuildMaterialInput } from '../vectorstore/indexStore/model'
+import type { RebuildMaterialInput } from '../vectorstore/indexStore/model'
 import type { KnowledgeIndexDocumentsPayload } from './jobTypes'
 import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
 
@@ -174,20 +173,10 @@ async function buildRebuildMaterialInput(
 
   return {
     material: {
-      relativePath: toMaterialRelativePath(item),
-      origin: toMaterialOrigin(item),
-      indexPolicy: 'index',
-      fileExt: toMaterialFileExt(item)
-      // title / mimeType / sizeBytes / mtimeMs are deliberately left unset here.
-      // A knowledge_item has no display name, and the rest need an extra fs.stat +
-      // content-type sniff — and nothing consumes any of them yet (provenance
-      // display is v2.x). The material scanner backfills them when it lands. See
-      // knowledge-technical-design.md §4.2.
+      relativePath: toMaterialRelativePath(item)
     },
     content: {
-      text: chunked.contentText,
-      textFormat: toContentTextFormat(item),
-      normalizationVersion: 1
+      text: chunked.contentText
     },
     units: chunked.chunks.map((chunk) => ({
       unitType: 'chunk',
@@ -205,45 +194,6 @@ function toMaterialRelativePath(item: IndexableKnowledgeItem): string {
     return item.data.indexedRelativePath ?? item.data.relativePath
   }
   return item.id
-}
-
-/**
- * Material provenance (the index store's `origin` enum). A file indexed through a
- * processor artifact — MinerU Markdown, addressed by `indexedRelativePath` — is a
- * 'processor' product; a file indexed directly is user-supplied; url/note are
- * 'captured' snapshots. See knowledge-technical-design.md §4.2.
- */
-function toMaterialOrigin(item: IndexableKnowledgeItem): MaterialOrigin {
-  if (item.type !== 'file') {
-    return 'captured'
-  }
-  return item.data.indexedRelativePath ? 'processor' : 'user'
-}
-
-/**
- * Format of the content that is actually indexed. The reader resolves a file to
- * `indexedRelativePath ?? relativePath`, so a `.md` there (a processor's Markdown
- * output or a Markdown upload) is 'markdown'; any other file is reader-extracted
- * text; url/note snapshots are Markdown.
- */
-function toContentTextFormat(item: IndexableKnowledgeItem): ContentTextFormat {
-  if (item.type !== 'file') {
-    return 'markdown'
-  }
-  const indexedPath = item.data.indexedRelativePath ?? item.data.relativePath
-  return getFileExt(indexedPath).toLowerCase() === '.md' ? 'markdown' : 'extracted_text'
-}
-
-/**
- * Lower-cased extension of the indexed file (including the dot, e.g. `.pdf`), or
- * undefined for url/note materials whose relative path is a virtual id, not a file.
- */
-function toMaterialFileExt(item: IndexableKnowledgeItem): string | undefined {
-  if (item.type !== 'file') {
-    return undefined
-  }
-  const indexedPath = item.data.indexedRelativePath ?? item.data.relativePath
-  return getFileExt(indexedPath).toLowerCase() || undefined
 }
 
 async function writeItemMaterial(

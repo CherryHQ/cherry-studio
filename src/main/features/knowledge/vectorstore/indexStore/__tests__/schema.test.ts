@@ -38,14 +38,14 @@ describe('knowledge index schema', () => {
 
   const insertContent = (hash: string, text: string) =>
     client.execute({
-      sql: `INSERT INTO content (content_hash, text, text_format, normalization_version, created_at) VALUES (?, ?, 'markdown', 1, ?)`,
+      sql: `INSERT INTO content (content_hash, text, created_at) VALUES (?, ?, ?)`,
       args: [hash, text, TS]
     })
 
   const insertMaterial = (materialId: string, relativePath: string, contentHash: string | null = null) =>
     client.execute({
-      sql: `INSERT INTO material (material_id, relative_path, status, origin, index_policy, current_content_hash, created_at, updated_at)
-            VALUES (?, ?, 'active', 'user', 'index', ?, ?, ?)`,
+      sql: `INSERT INTO material (material_id, relative_path, current_content_hash, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)`,
       args: [materialId, relativePath, contentHash, TS, TS]
     })
 
@@ -71,15 +71,7 @@ describe('knowledge index schema', () => {
 
   describe('schema creation', () => {
     it('creates all 7 schema objects', async () => {
-      const expected = [
-        'index_meta',
-        'content',
-        'material',
-        'search_unit',
-        'search_text',
-        'embedding',
-        'search_text_fts'
-      ]
+      const expected = ['meta', 'content', 'material', 'search_unit', 'search_text', 'embedding', 'search_text_fts']
       const result = await client.execute({
         sql: `SELECT name FROM sqlite_master WHERE name IN (${expected.map(() => '?').join(', ')})`,
         args: expected
@@ -104,11 +96,11 @@ describe('knowledge index schema', () => {
     })
   })
 
-  describe('index_meta single-row enforcement', () => {
+  describe('meta single-row enforcement', () => {
     const insertMeta = (id: number) =>
       client.execute({
-        sql: `INSERT INTO index_meta (id, schema_version, base_id, created_at, updated_at, normalization_version, chunker_version, chunker_config_hash, ignore_rules_version)
-              VALUES (?, 1, 'base-1', ?, ?, 1, 1, 'cfg', 1)`,
+        sql: `INSERT INTO meta (id, schema_version, base_id, created_at, updated_at)
+              VALUES (?, 1, 'base-1', ?, ?)`,
         args: [id, TS, TS]
       })
 
@@ -137,26 +129,6 @@ describe('knowledge index schema', () => {
 
     it('rejects a reserved .cherry relative_path', async () => {
       await expect(insertMaterial('m1', '.cherry/index.sqlite')).rejects.toThrow()
-    })
-
-    it('rejects an unknown origin', async () => {
-      await expect(
-        client.execute({
-          sql: `INSERT INTO material (material_id, relative_path, status, origin, index_policy, created_at, updated_at)
-                VALUES ('m1', 'a.md', 'active', 'bogus', 'index', ?, ?)`,
-          args: [TS, TS]
-        })
-      ).rejects.toThrow()
-    })
-
-    it('rejects active status carrying missing_since', async () => {
-      await expect(
-        client.execute({
-          sql: `INSERT INTO material (material_id, relative_path, status, origin, index_policy, missing_since, created_at, updated_at)
-                VALUES ('m1', 'a.md', 'active', 'user', 'index', ?, ?, ?)`,
-          args: [TS, TS, TS]
-        })
-      ).rejects.toThrow()
     })
 
     it('enforces unique relative_path', async () => {

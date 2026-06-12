@@ -141,7 +141,7 @@ describe('index-documents job handler', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
   })
 
-  it('stamps file-material origin/text_format: a processed Markdown artifact is a processor product', async () => {
+  it('uses the processed-artifact path (indexedRelativePath) as the material relative path', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     const fileItem = createFileItem(FILE_ITEM_ID)
     fileItem.data.indexedRelativePath = 'source.md'
@@ -150,50 +150,7 @@ describe('index-documents job handler', () => {
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: FILE_ITEM_ID, parentJobId: null }))
 
-    const input = lastRebuildInput()
-    expect(input.material.origin).toBe('processor')
-    expect(input.content.textFormat).toBe('markdown')
-  })
-
-  it('stamps a directly-indexed non-Markdown file as user-supplied extracted text', async () => {
-    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
-    const fileItem = createFileItem(FILE_ITEM_ID) // relativePath 'source.pdf', no indexedRelativePath
-    knowledgeItemGetByIdMock.mockResolvedValue(fileItem)
-    knowledgeItemUpdateStatusMock.mockResolvedValue(fileItem)
-
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: FILE_ITEM_ID, parentJobId: null }))
-
-    const input = lastRebuildInput()
-    expect(input.material.origin).toBe('user')
-    expect(input.content.textFormat).toBe('extracted_text')
-  })
-
-  it('stamps a note/url material as a captured Markdown snapshot', async () => {
-    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
-    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
-    knowledgeItemUpdateStatusMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
-
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
-
-    const input = lastRebuildInput()
-    expect(input.material.origin).toBe('captured')
-    expect(input.content.textFormat).toBe('markdown')
-  })
-
-  it('records the indexed file extension on the material, and leaves it unset for virtual-path url/note materials', async () => {
-    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
-
-    const fileItem = createFileItem(FILE_ITEM_ID) // relativePath 'source.pdf'
-    knowledgeItemGetByIdMock.mockResolvedValue(fileItem)
-    knowledgeItemUpdateStatusMock.mockResolvedValue(fileItem)
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: FILE_ITEM_ID, parentJobId: null }))
-    expect(lastRebuildInput().material.fileExt).toBe('.pdf')
-
-    rebuildMaterialMock.mockClear()
-    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
-    knowledgeItemUpdateStatusMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
-    expect(lastRebuildInput().material.fileExt).toBeUndefined()
+    expect(lastRebuildInput().material.relativePath).toBe('source.md')
   })
 
   it('passes file items to the reader without a fileEntry override', async () => {

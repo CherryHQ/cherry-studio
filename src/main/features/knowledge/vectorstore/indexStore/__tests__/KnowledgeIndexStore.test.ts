@@ -26,8 +26,8 @@ function buildInput(
   }))
   const hashes = [...new Set(ranges.map(([start, end]) => hashEmbeddingText(text.slice(start, end))))]
   return {
-    material: { relativePath, origin: 'user', indexPolicy: 'index' },
-    content: { text, textFormat: 'markdown', normalizationVersion: 1 },
+    material: { relativePath },
+    content: { text },
     units,
     embeddings: hashes.map((embeddingTextHash) => ({ embeddingTextHash, vector }))
   }
@@ -80,12 +80,8 @@ describe('KnowledgeIndexStore', () => {
     expect(await count('search_unit')).toBe(2)
     expect(await count('search_text')).toBe(2)
 
-    const material = await driver.execute(
-      `SELECT current_content_hash, last_indexed_at FROM material WHERE material_id = ?`,
-      ['m1']
-    )
+    const material = await driver.execute(`SELECT current_content_hash FROM material WHERE material_id = ?`, ['m1'])
     expect(material.rows[0].current_content_hash).not.toBeNull()
-    expect(material.rows[0].last_indexed_at).not.toBeNull()
   })
 
   it('keeps body text equal to the content slice (search §5.3 invariant)', async () => {
@@ -169,8 +165,8 @@ describe('KnowledgeIndexStore', () => {
     // Two units sharing unit_index 0 violate UNIQUE(material_id, unit_type, unit_index)
     // on the second insert — the transaction must roll back, preserving the prior index.
     const broken: RebuildMaterialInput = {
-      material: { relativePath: 'doc.md', origin: 'user', indexPolicy: 'index' },
-      content: { text: 'broken input here', textFormat: 'markdown', normalizationVersion: 1 },
+      material: { relativePath: 'doc.md' },
+      content: { text: 'broken input here' },
       units: [
         { unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 6 },
         { unitType: 'chunk', unitIndex: 0, charStart: 7, charEnd: 12 }
@@ -224,8 +220,8 @@ describe('KnowledgeIndexStore', () => {
     // drift) supplies no vector for the unit's body — the coverage check must
     // fail the transaction instead of leaving the unit invisible to vector search.
     const drifted: RebuildMaterialInput = {
-      material: { relativePath: 'doc.md', origin: 'user', indexPolicy: 'index' },
-      content: { text: 'drifted body text', textFormat: 'markdown', normalizationVersion: 1 },
+      material: { relativePath: 'doc.md' },
+      content: { text: 'drifted body text' },
       units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 7 }],
       embeddings: [{ embeddingTextHash: hashEmbeddingText('not the sliced body'), vector: [0.1, 0.2, 0.3] }]
     }

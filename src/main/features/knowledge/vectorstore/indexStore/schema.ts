@@ -47,7 +47,7 @@ import type { SqliteExecutor } from './types'
  * module only declares the schema.
  */
 
-/** Bump when the schema layout changes; persisted in `index_meta.schema_version`. */
+/** Bump when the schema layout changes; persisted in `meta.schema_version`. */
 export const KNOWLEDGE_INDEX_SCHEMA_VERSION = 1
 
 /**
@@ -60,64 +60,43 @@ export const KNOWLEDGE_INDEX_SCHEMA_VERSION = 1
  * object — it would fail with "no such table").
  */
 export const KNOWLEDGE_INDEX_SCHEMA_STATEMENTS: readonly string[] = [
-  // index_meta — fixed single-row table (CHECK id = 1), not a key-value store.
-  `CREATE TABLE IF NOT EXISTS index_meta (
+  // meta — fixed single-row identity table (CHECK id = 1), not a key-value store.
+  // 5 columns: which base this index belongs to + the schema-version cursor. Build
+  // contract snapshots (model/dimensions/normalization/chunker) are not stored — a
+  // model/dimension change creates a new base; a chunker change rebuilds the index.
+  `CREATE TABLE IF NOT EXISTS meta (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     schema_version INTEGER NOT NULL,
     base_id TEXT NOT NULL,
     created_at INTEGER NOT NULL,
-    updated_at INTEGER NOT NULL,
-    last_scanned_at INTEGER,
-    embedding_model_id_snapshot TEXT,
-    dimensions_snapshot INTEGER,
-    normalization_version INTEGER NOT NULL,
-    chunker_version INTEGER NOT NULL,
-    chunker_config_hash TEXT NOT NULL,
-    ignore_rules_version INTEGER NOT NULL,
-    CHECK (dimensions_snapshot IS NULL OR dimensions_snapshot > 0)
+    updated_at INTEGER NOT NULL
   )`,
 
   // content — normalized index text keyed by content hash; shareable across materials.
+  // content_hash = sha256(text); no normalization_version (the text already reflects
+  // the rules) and no text_format (no consumer branches on it).
   `CREATE TABLE IF NOT EXISTS content (
     content_hash TEXT PRIMARY KEY,
     text TEXT NOT NULL,
-    text_format TEXT NOT NULL CHECK (text_format IN ('markdown', 'plain', 'extracted_text')),
-    normalization_version INTEGER NOT NULL,
     created_at INTEGER NOT NULL
   )`,
 
-  // material — stable identity, path and persistent failure summary of a file material.
+  // material — stable identity and path of a file material plus a pointer to its
+  // current content. A pure retrieval projection of knowledge_item (the authority
+  // for display metadata, lifecycle status and error). search_unit hangs off
+  // material_id (FK + ON DELETE CASCADE); search() does not filter on material.
   `CREATE TABLE IF NOT EXISTS material (
     material_id TEXT PRIMARY KEY,
     relative_path TEXT NOT NULL UNIQUE,
-    status TEXT NOT NULL CHECK (status IN ('active', 'missing')),
-    origin TEXT NOT NULL CHECK (origin IN ('user', 'processor', 'captured')),
-    index_policy TEXT NOT NULL CHECK (index_policy IN ('index', 'suppress', 'ignore')),
     current_content_hash TEXT,
-    title TEXT,
-    file_ext TEXT,
-    mime_type TEXT,
-    size_bytes INTEGER,
-    mtime_ms INTEGER,
-    last_seen_at INTEGER,
-    missing_since INTEGER,
-    last_indexed_at INTEGER,
-    last_error_stage TEXT,
-    last_error_code TEXT,
-    last_error_message TEXT,
-    last_failed_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     FOREIGN KEY (current_content_hash) REFERENCES content(content_hash),
     CHECK (relative_path <> ''),
     CHECK (relative_path NOT LIKE '/%'),
-    CHECK (relative_path <> '.cherry' AND relative_path NOT LIKE '.cherry/%'),
-    CHECK (status != 'active' OR missing_since IS NULL),
-    CHECK (status != 'missing' OR missing_since IS NOT NULL)
+    CHECK (relative_path <> '.cherry' AND relative_path NOT LIKE '.cherry/%')
   )`,
-  `CREATE INDEX IF NOT EXISTS material_status_idx ON material(status)`,
   `CREATE INDEX IF NOT EXISTS material_content_idx ON material(current_content_hash)`,
-  `CREATE INDEX IF NOT EXISTS material_indexable_idx ON material(status, index_policy, relative_path)`,
 
   // search_unit — agent-readable retrieval unit with offsets. unit_type carries a
   // single value today; new granularities join the CHECK with their first writer.
@@ -196,8 +175,8 @@ export const KNOWLEDGE_INDEX_SCHEMA_STATEMENTS: readonly string[] = [
  *
  * Does NOT set `PRAGMA foreign_keys` — the driver's opener owns that and must
  * set it outside a transaction (see module doc; openLibsqlIndexDriver does).
- * Does NOT insert the `index_meta` row — that requires runtime values (base id,
- * model/dimension snapshot, contract versions) and is owned by the store-open path.
+ * Does NOT insert the `meta` row — that requires a runtime value (the base id)
+ * and is owned by the store-open path.
  */
 export async function createKnowledgeIndexSchema(executor: SqliteExecutor): Promise<void> {
   for (const statement of KNOWLEDGE_INDEX_SCHEMA_STATEMENTS) {

@@ -9,7 +9,6 @@ import { hashEmbeddingText } from '../hashing'
 import { KnowledgeIndexStore } from '../KnowledgeIndexStore'
 import { type LibsqlDriver, openLibsqlIndexDriver } from '../LibsqlDriver'
 import { libsqlVectorIndex } from '../LibsqlVectorIndex'
-import type { MaterialIndexPolicy } from '../model'
 import { createKnowledgeIndexSchema } from '../schema'
 
 describe('KnowledgeIndexStore.search', () => {
@@ -30,16 +29,10 @@ describe('KnowledgeIndexStore.search', () => {
   })
 
   /** Index a single-unit material whose body spans the whole text, with one explicit embedding. */
-  const indexMaterial = (
-    materialId: string,
-    relativePath: string,
-    text: string,
-    vector: number[],
-    indexPolicy: MaterialIndexPolicy = 'index'
-  ) =>
+  const indexMaterial = (materialId: string, relativePath: string, text: string, vector: number[]) =>
     store.rebuildMaterial(materialId, {
-      material: { relativePath, origin: 'user', indexPolicy },
-      content: { text, textFormat: 'markdown', normalizationVersion: 1 },
+      material: { relativePath },
+      content: { text },
       units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: text.length }],
       embeddings: [{ embeddingTextHash: hashEmbeddingText(text), vector }]
     })
@@ -106,13 +99,6 @@ describe('KnowledgeIndexStore.search', () => {
     expect(await store.search({ queryText: '量子计算', mode: 'bm25', topK: 10 })).toEqual([])
   })
 
-  it('LIKE fallback excludes non-indexable materials like the MATCH path does', async () => {
-    await indexMaterial('m1', 'a.md', '天气预报', [1, 0, 0], 'index')
-    await indexMaterial('m2', 'b.md', '天气预报', [1, 0, 0], 'suppress')
-
-    expect((await store.search({ queryText: '天气', mode: 'bm25', topK: 10 })).map((m) => m.materialId)).toEqual(['m1'])
-  })
-
   it('hybrid mode lifts a short-CJK LIKE-only hit above a closer vector-only competitor', async () => {
     // m2 sits exactly on the query embedding but does NOT contain '天气'; m1 is
     // orthogonal in vector space but matches '天气' via the LIKE fallback. The BM25
@@ -144,20 +130,6 @@ describe('KnowledgeIndexStore.search', () => {
     })
 
     expect(matches.map((m) => m.materialId)).toEqual(['m2', 'm1'])
-  })
-
-  it('excludes materials that are not indexable from every lane', async () => {
-    await indexMaterial('m1', 'a.md', 'secret data', [1, 0, 0], 'index')
-    await indexMaterial('m2', 'b.md', 'secret data', [1, 0, 0], 'suppress')
-
-    expect((await store.search({ queryText: 'secret', mode: 'bm25', topK: 10 })).map((m) => m.materialId)).toEqual([
-      'm1'
-    ])
-    expect(
-      (await store.search({ queryText: '', queryEmbedding: [1, 0, 0], mode: 'vector', topK: 10 })).map(
-        (m) => m.materialId
-      )
-    ).toEqual(['m1'])
   })
 
   it('honors topK', async () => {

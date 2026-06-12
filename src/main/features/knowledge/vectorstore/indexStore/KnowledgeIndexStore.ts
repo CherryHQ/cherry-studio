@@ -20,9 +20,9 @@ const EMBEDDING_HASH_QUERY_BATCH = 500
  * engine is swapped by injecting a different {@link SqliteDriver} (libsql today,
  * better-sqlite3 + sqlite-vec later) — see knowledge-technical-design.md §5.6.
  *
- * Retrieval (BM25 + brute-force vector + RRF) only filters by material state
- * (status / index_policy) here; the knowledge_item-level filter lives in the
- * caller (it reads the global app DB, not this per-base index).
+ * Retrieval (BM25 + brute-force vector + RRF) applies no material-level filter
+ * here; the knowledge_item-level filter (existence / lifecycle status) lives in
+ * the caller (it reads the global app DB, not this per-base index).
  */
 export class KnowledgeIndexStore {
   constructor(
@@ -37,7 +37,7 @@ export class KnowledgeIndexStore {
    */
   async rebuildMaterial(materialId: string, input: RebuildMaterialInput): Promise<void> {
     const now = Date.now()
-    const contentHash = hashContentText(input.content.text, input.content.normalizationVersion)
+    const contentHash = hashContentText(input.content.text)
 
     // Derive each unit's stable id and its body text + embedding hash from the
     // content offsets, so `content.text.slice(start, end) === body text` holds.
@@ -62,44 +62,20 @@ export class KnowledgeIndexStore {
 
     await this.driver.transaction(async (tx) => {
       // 1. Content is immutable by hash — keep the existing row if present.
-      await tx.execute(
-        `INSERT OR IGNORE INTO content (content_hash, text, text_format, normalization_version, created_at)
-         VALUES (?, ?, ?, ?, ?)`,
-        [contentHash, input.content.text, input.content.textFormat, input.content.normalizationVersion, now]
-      )
+      await tx.execute(`INSERT OR IGNORE INTO content (content_hash, text, created_at) VALUES (?, ?, ?)`, [
+        contentHash,
+        input.content.text,
+        now
+      ])
 
-      // 2. Upsert the material (current_content_hash / last_indexed_at set in step 7).
+      // 2. Upsert the material (current_content_hash set in step 7).
       await tx.execute(
-        `INSERT INTO material
-           (material_id, relative_path, status, origin, index_policy, title, file_ext, mime_type, size_bytes, mtime_ms, last_seen_at, created_at, updated_at)
-         VALUES (?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO material (material_id, relative_path, created_at, updated_at)
+         VALUES (?, ?, ?, ?)
          ON CONFLICT(material_id) DO UPDATE SET
            relative_path = excluded.relative_path,
-           status = 'active',
-           missing_since = NULL,
-           origin = excluded.origin,
-           index_policy = excluded.index_policy,
-           title = excluded.title,
-           file_ext = excluded.file_ext,
-           mime_type = excluded.mime_type,
-           size_bytes = excluded.size_bytes,
-           mtime_ms = excluded.mtime_ms,
-           last_seen_at = excluded.last_seen_at,
            updated_at = excluded.updated_at`,
-        [
-          materialId,
-          input.material.relativePath,
-          input.material.origin,
-          input.material.indexPolicy,
-          input.material.title ?? null,
-          input.material.fileExt ?? null,
-          input.material.mimeType ?? null,
-          input.material.sizeBytes ?? null,
-          input.material.mtimeMs ?? null,
-          now,
-          now,
-          now
-        ]
+        [materialId, input.material.relativePath, now, now]
       )
 
       // 3. Drop the material's old units and their search_text. search_text has no
@@ -155,14 +131,13 @@ export class KnowledgeIndexStore {
       // units silently absent from vector search — roll the rebuild back instead.
       await this.assertEmbeddingCoverage(tx, materialId, [...new Set(units.map((unit) => unit.embeddingTextHash))])
 
-      // 7. Mark the material indexed and clear any prior failure summary.
-      await tx.execute(
-        `UPDATE material
-         SET current_content_hash = ?, last_indexed_at = ?, last_error_stage = NULL, last_error_code = NULL,
-             last_error_message = NULL, last_failed_at = NULL, updated_at = ?
-         WHERE material_id = ?`,
-        [contentHash, now, now, materialId]
-      )
+      // 7. Mark the material's current content (failure/lifecycle state is the
+      //    authority of knowledge_item, not this derived index).
+      await tx.execute(`UPDATE material SET current_content_hash = ?, updated_at = ? WHERE material_id = ?`, [
+        contentHash,
+        now,
+        materialId
+      ])
     })
   }
 
@@ -246,9 +221,9 @@ export class KnowledgeIndexStore {
   /**
    * Retrieve units for a query. 'vector' and 'bm25' return their single ranked
    * list; 'hybrid' fuses both with Reciprocal Rank Fusion (rank-based, so the
-   * incompatible cosine/BM25 score ranges don't need normalizing). Only
-   * active, indexable materials are returned. The body text of a unit is the
-   * search source for both lanes (knowledge-technical-design.md §6).
+   * incompatible cosine/BM25 score ranges don't need normalizing). The body
+   * text of a unit is the search source for both lanes
+   * (knowledge-technical-design.md §6).
    */
   async search(input: KnowledgeIndexSearchInput): Promise<KnowledgeIndexSearchMatch[]> {
     if (input.mode === 'bm25') {
@@ -295,8 +270,6 @@ export class KnowledgeIndexStore {
        JOIN search_text st
          ON st.embedding_text_hash = e.embedding_text_hash AND st.target_type = 'search_unit' AND st.kind = 'body'
        JOIN search_unit su ON su.unit_id = st.target_id
-       JOIN material m ON m.material_id = su.material_id
-       WHERE m.status = 'active' AND m.index_policy = 'index'
        ORDER BY dist
        LIMIT ?`,
       [this.vectorIndex.bindQueryVector(queryEmbedding), topK]
@@ -320,8 +293,7 @@ export class KnowledgeIndexStore {
        JOIN search_text st
          ON st.rowid = search_text_fts.rowid AND st.target_type = 'search_unit' AND st.kind = 'body'
        JOIN search_unit su ON su.unit_id = st.target_id
-       JOIN material m ON m.material_id = su.material_id
-       WHERE search_text_fts MATCH ? AND m.status = 'active' AND m.index_policy = 'index'
+       WHERE search_text_fts MATCH ?
        ORDER BY score
        LIMIT ?`,
       [matchQuery, topK]
@@ -347,10 +319,8 @@ export class KnowledgeIndexStore {
       `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body, length(st.text) AS len
        FROM search_text st
        JOIN search_unit su ON su.unit_id = st.target_id
-       JOIN material m ON m.material_id = su.material_id
        WHERE st.target_type = 'search_unit' AND st.kind = 'body'
          AND ${likeClauses}
-         AND m.status = 'active' AND m.index_policy = 'index'
        ORDER BY len ASC
        LIMIT ?`,
       args
