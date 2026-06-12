@@ -52,7 +52,6 @@ export async function startAgentSessionRun(input: {
       topicId: prepared.topicId,
       models: prepared.models,
       listeners: [...prepared.listeners, ...extras],
-      userMessage: prepared.userMessage,
       siblingsGroupId: prepared.siblingsGroupId,
       lifecycle: prepared.lifecycle
     })

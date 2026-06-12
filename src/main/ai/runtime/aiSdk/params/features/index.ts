@@ -23,6 +23,7 @@ import { qwenThinkingFeature } from './qwenThinking'
 import { reasoningExtractionFeature } from './reasoningExtraction'
 import { simulateStreamingFeature } from './simulateStreaming'
 import { skipGeminiThoughtSignatureFeature } from './skipGeminiThoughtSignature'
+import { steerYieldFeature } from './steerYield'
 
 export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   devtoolsFeature,
@@ -45,5 +46,7 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   qwenThinkingFeature,
   skipGeminiThoughtSignatureFeature,
   providerWebSearchFeature,
-  providerUrlContextFeature
+  providerUrlContextFeature,
+  // Stop condition only (no plugins/hooks) — yields a chat turn when a steer is queued.
+  steerYieldFeature
 ]
