@@ -1,5 +1,4 @@
 import { Button } from '@cherrystudio/ui'
-import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import ComposerSurface, { type ComposerSurfaceActions } from '@renderer/components/chat/composer/ComposerSurface'
@@ -48,6 +47,7 @@ import { createComposerUserMessageParts } from '../composerDraft'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
 import { type FollowupQueueItem, useFollowupQueue } from '../useFollowupQueue'
+import { type ChatComposerDraftCache, readChatDraftCache, writeChatDraftCache } from './chat/chatDraftCache'
 import { createEditableMessageDraft, getEditableKnowledgeBases } from './chat/messageEditingDraft'
 import { useChatKnowledgeBaseScope } from './chat/useChatKnowledgeBaseScope'
 import { useChatMentionedModels } from './chat/useChatMentionedModels'
@@ -73,8 +73,6 @@ import { useComposerQuoteInsertion } from './shared/composerQuote'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useLatest } from './shared/useLatest'
 
-const INPUTBAR_DRAFT_CACHE_KEY = 'inputbar-draft'
-const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 const logger = loggerService.withContext('ChatComposer')
 const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
 const CHAT_MODEL_FILTER = (model: Model) => !isNonChatModel(model)
@@ -341,16 +339,24 @@ const ChatComposerRoot = ({
   const resolvedTopicId = topicId ?? topic?.id
   const resolvedAssistantId = assistantId ?? topic?.assistantId
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
+  // Snapshot the global draft cache once per mount: files seed the tool provider synchronously so
+  // the surface's managed-token sync does not strip restored file tokens, and the same snapshot
+  // feeds text/draftTokens in ChatComposerInner so files and tokens stay consistent.
+  const initialDraftRef = useRef<ChatComposerDraftCache | null>(null)
+  if (initialDraftRef.current === null) {
+    initialDraftRef.current = readChatDraftCache()
+  }
+  const initialDraft = initialDraftRef.current
   const initialState = useMemo(
     () => ({
-      files: [] as FileMetadata[],
+      files: initialDraft.files,
       mentionedModels: [] as Model[],
       selectedKnowledgeBases: [] as KnowledgeBase[],
       isExpanded: false,
       couldAddImageFile: false,
       extensions: [] as string[]
     }),
-    []
+    [initialDraft]
   )
 
   return (
@@ -366,6 +372,7 @@ const ChatComposerRoot = ({
             scopeKey={resolvedScopeKey}
             topicId={resolvedTopicId}
             assistantId={resolvedAssistantId}
+            initialDraft={initialDraft}
             actionsRef={actionsRef}
             onSend={onSend}
             sendDisabled={sendDisabled}
@@ -382,6 +389,7 @@ const ChatComposerRoot = ({
 
 interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
   scopeKey: string
+  initialDraft: ChatComposerDraftCache
   actionsRef: React.RefObject<ProviderActionHandlers>
   renderControls: ChatComposerControlsRenderer
 }
@@ -390,6 +398,7 @@ const ChatComposerInner = ({
   scopeKey,
   topicId,
   assistantId,
+  initialDraft,
   actionsRef,
   onSend,
   sendDisabled = false,
@@ -429,8 +438,10 @@ const ChatComposerInner = ({
   const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
   const { isPending, isFulfilled, markSeen } = useTopicStreamStatus(streamScopeKey)
   const [isSending, setIsSending] = useState(false)
-  const [text, setTextState] = useState(() => cacheService.getCasual<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '')
-  const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(undefined)
+  const [text, setText] = useState(() => initialDraft.text)
+  const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(() =>
+    initialDraft.tokens.length ? initialDraft.tokens : undefined
+  )
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
@@ -521,15 +532,19 @@ const ChatComposerInner = ({
       setSelectedKnowledgeBases
     })
 
-  const setText = useCallback(
-    (nextText: string) => {
-      setTextState(nextText)
-      if (!editingMessageForCurrentTopic) {
-        cacheService.setCasual(INPUTBAR_DRAFT_CACHE_KEY, nextText, DRAFT_CACHE_TTL)
-      }
-    },
-    [editingMessageForCurrentTopic]
-  )
+  // Single owner of the global draft cache. Runs after ComposerSurface's effects have synced the
+  // editor to the current text, so getDraft() serializes the live tokens consistently. Every
+  // persistable change reduces to a text or files state change (deleting a file token leaves text
+  // unchanged but prunes files via reconcile); knowledge selection is intentionally not cached.
+  const persistedOnceRef = useRef(false)
+  useEffect(() => {
+    if (!persistedOnceRef.current) {
+      persistedOnceRef.current = true
+      return
+    }
+    if (editingMessage) return
+    writeChatDraftCache(text, actionsRef.current.getDraft().tokens, files)
+  }, [actionsRef, editingMessage, files, text])
 
   const restoreSavedDraft = useCallback(() => {
     const savedDraft = savedDraftBeforeEditingRef.current
@@ -537,8 +552,7 @@ const ChatComposerInner = ({
 
     if (!savedDraft) return
 
-    setTextState(savedDraft.text)
-    cacheService.setCasual(INPUTBAR_DRAFT_CACHE_KEY, savedDraft.text, DRAFT_CACHE_TTL)
+    setText(savedDraft.text)
     setDraftTokens(savedDraft.draftTokens)
     setFiles(savedDraft.files)
     setSelectedKnowledgeBases(savedDraft.selectedKnowledgeBases)
@@ -565,7 +579,7 @@ const ChatComposerInner = ({
       if (file) originalFilePartsByTokenId.set(chatComposerTokenId.file(file), part)
     })
     editingOriginalFilePartsByTokenIdRef.current = originalFilePartsByTokenId
-    setTextState(editableDraft.text)
+    setText(editableDraft.text)
     setDraftTokens(editableDraft.draftTokens)
     setFiles(editableDraft.files)
     setSelectedKnowledgeBases(getEditableKnowledgeBases(editableDraft.draftTokens, selectableKnowledgeBases))

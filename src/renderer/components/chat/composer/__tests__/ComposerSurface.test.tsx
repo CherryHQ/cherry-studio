@@ -579,6 +579,49 @@ describe('ComposerSurface', () => {
     )
   })
 
+  it('keeps token structure when an external text update matches the current content', async () => {
+    // Reproduces the long-text paste flow: the editor holds a quote token, PasteService converts
+    // the pasted text into a file and re-applies the unchanged serialized text. The rebuild only
+    // re-tokenizes prompt variables, so it must be skipped or the quote token degrades to text.
+    mocks.getJSON.mockReturnValue({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'composerToken',
+              attrs: { id: 'quote-1', kind: 'quote', label: 'Quote', promptText: 'quoted text' }
+            },
+            { type: 'text', text: ' follow up' }
+          ]
+        }
+      ]
+    })
+    const onTextChange = vi.fn()
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        text="quoted text follow up"
+        onTextChange={onTextChange}
+        onActionsChange={(actions) => {
+          mocks.actions = actions
+        }}
+      />
+    )
+
+    await waitFor(() => expect(mocks.actions).toBeDefined())
+    mocks.setContent.mockClear()
+
+    act(() => {
+      mocks.actions?.onTextChange('quoted text follow up')
+    })
+
+    expect(mocks.setContent).not.toHaveBeenCalled()
+    expect(onTextChange).not.toHaveBeenCalled()
+  })
+
   it('truncates external text updates at the maximum text length', async () => {
     const onTextChange = vi.fn()
 

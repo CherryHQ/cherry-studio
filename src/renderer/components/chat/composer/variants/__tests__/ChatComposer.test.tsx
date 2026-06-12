@@ -148,8 +148,11 @@ vi.mock('@renderer/components/chat/composer/ComposerToolRuntime', () => ({
     initialState
   }: {
     children: ReactNode
-    initialState?: { mentionedModels?: Model[]; selectedKnowledgeBases?: KnowledgeBase[] }
+    initialState?: { files?: any[]; mentionedModels?: Model[]; selectedKnowledgeBases?: KnowledgeBase[] }
   }) => {
+    if (mocks.files === undefined) {
+      mocks.files = initialState?.files ?? []
+    }
     if (mocks.mentionedModels === undefined) {
       mocks.mentionedModels = initialState?.mentionedModels ?? []
     }
@@ -987,6 +990,200 @@ describe('ChatComposer', () => {
       })
     )
     expect(mocks.surfaceProps?.text).toBe('draft message')
+  })
+
+  it('restores file and quote tokens with attached files from the global draft cache', async () => {
+    const cachedFile = {
+      id: 'file-1',
+      name: 'doc.pdf',
+      origin_name: 'doc.pdf',
+      ext: '.pdf',
+      type: 'document',
+      size: 1,
+      count: 1,
+      path: '/tmp/doc.pdf',
+      created_at: '2026-01-01T00:00:00.000Z',
+      fileTokenSourceId: 'source-1'
+    } as any
+    const cachedFileToken = {
+      id: 'file:source-1',
+      kind: 'file',
+      label: 'doc.pdf',
+      payload: cachedFile,
+      index: 0,
+      textOffset: 0
+    } as ComposerSerializedToken
+    const cachedQuoteToken = {
+      id: 'quote-1',
+      kind: 'quote',
+      label: 'Quote',
+      promptText: 'quoted text',
+      index: 1,
+      textOffset: 0
+    } as ComposerSerializedToken
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
+      key === 'inputbar-draft'
+        ? { text: 'quoted text follow up', tokens: [cachedFileToken, cachedQuoteToken], files: [cachedFile] }
+        : ''
+    )
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    expect(mocks.surfaceProps?.text).toBe('quoted text follow up')
+    expect(mocks.surfaceProps?.draftTokens).toEqual([
+      expect.objectContaining({ id: 'file:source-1', kind: 'file' }),
+      expect.objectContaining({ id: 'quote-1', kind: 'quote' })
+    ])
+    // Files seed the tool provider synchronously, so the surface's managed-token sync (driven by
+    // the derived `tokens` prop) keeps the restored file token instead of stripping it.
+    expect(mocks.files).toEqual([cachedFile])
+    expect(mocks.surfaceProps?.tokens).toEqual([expect.objectContaining({ id: 'file:source-1', kind: 'file' })])
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({
+        text: 'quoted text follow up',
+        tokens: [cachedFileToken, cachedQuoteToken]
+      })
+    })
+
+    expect(onSend).toHaveBeenCalledWith('quoted text follow up', expect.objectContaining({ files: [cachedFile] }))
+  })
+
+  it('does not restore knowledge tokens from the draft cache', () => {
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
+      key === 'inputbar-draft'
+        ? {
+            text: 'hello',
+            tokens: [{ id: 'knowledge:base-1', kind: 'knowledge', label: 'Base 1', index: 0, textOffset: 0 }],
+            files: []
+          }
+        : ''
+    )
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    expect(mocks.surfaceProps?.text).toBe('hello')
+    expect(mocks.surfaceProps?.draftTokens).toBeUndefined()
+    expect(mocks.selectedKnowledgeBases).toEqual([])
+  })
+
+  it('persists the live draft minus knowledge tokens with the current files', async () => {
+    const cachedFile = { id: 'file-1', name: 'doc.pdf', origin_name: 'doc.pdf', fileTokenSourceId: 'source-1' } as any
+    const cachedFileToken = {
+      id: 'file:source-1',
+      kind: 'file',
+      label: 'doc.pdf',
+      index: 0,
+      textOffset: 0
+    } as ComposerSerializedToken
+    vi.mocked(cacheService.getCasual).mockImplementation((key: string) =>
+      key === 'inputbar-draft' ? { text: '', tokens: [cachedFileToken], files: [cachedFile] } : ''
+    )
+
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+    expect(mocks.files).toEqual([cachedFile])
+
+    // Deleting the file token in the editor prunes the attached file through reconcile.
+    mocks.reconcileTokens.mockImplementation((draftTokens: readonly ComposerSerializedToken[]) => {
+      const fileTokenIds = new Set(draftTokens.filter((token) => token.kind === 'file').map((token) => token.id))
+      mocks.setFiles((previousFiles: any[]) =>
+        previousFiles.filter((file) => fileTokenIds.has(`file:${file.fileTokenSourceId}`))
+      )
+    })
+    act(() => {
+      mocks.surfaceProps?.onTokensChange([])
+    })
+    expect(mocks.files).toEqual([])
+
+    const quoteToken = {
+      id: 'quote-1',
+      kind: 'quote',
+      label: 'Quote',
+      promptText: 'quoted text',
+      index: 0,
+      textOffset: 0
+    } as ComposerSerializedToken
+    const knowledgeToken = {
+      id: 'knowledge:base-1',
+      kind: 'knowledge',
+      label: 'Base 1',
+      index: 1,
+      textOffset: 11
+    } as ComposerSerializedToken
+    mocks.getDraft.mockReturnValue({ text: 'quoted text', tokens: [quoteToken, knowledgeToken] })
+    act(() => {
+      mocks.surfaceProps?.onTextChange('quoted text')
+    })
+
+    await waitFor(() => {
+      expect(cacheService.setCasual).toHaveBeenCalledWith(
+        'inputbar-draft',
+        { text: 'quoted text', tokens: [quoteToken], files: [] },
+        expect.any(Number)
+      )
+    })
+  })
+
+  it('clears the cached draft after a successful send', async () => {
+    const onSend = vi.fn().mockResolvedValue(undefined)
+
+    render(<ChatComposer topic={topic} onSend={onSend} />)
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('hello')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('hello'))
+
+    mocks.getDraft.mockReturnValue({ text: '', tokens: [] })
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+    })
+
+    expect(onSend).toHaveBeenCalled()
+    expect(vi.mocked(cacheService.setCasual).mock.lastCall).toEqual([
+      'inputbar-draft',
+      { text: '', tokens: [], files: [] },
+      expect.any(Number)
+    ])
+  })
+
+  it('does not write the draft cache while editing and restores it on cancel', async () => {
+    const message = {
+      id: 'message-1',
+      role: 'user',
+      topicId: topic.id,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      status: 'success'
+    } as const
+    const parts = [{ type: 'text', text: 'old prompt' }] as any[]
+
+    render(
+      <MessageEditingProvider>
+        <StartEditingOnMount message={message as any} parts={parts} />
+        <ChatComposer topic={topic} onSend={vi.fn()} />
+      </MessageEditingProvider>
+    )
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState?.messageId).toBe('message-1'))
+    vi.mocked(cacheService.setCasual).mockClear()
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('edited text')
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('edited text'))
+    expect(cacheService.setCasual).not.toHaveBeenCalledWith('inputbar-draft', expect.anything(), expect.anything())
+
+    act(() => {
+      mocks.surfaceProps?.editingState?.onCancel()
+    })
+
+    await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
+    expect(vi.mocked(cacheService.setCasual).mock.lastCall).toEqual([
+      'inputbar-draft',
+      { text: 'original draft', tokens: [], files: [] },
+      expect.any(Number)
+    ])
   })
 
   it('routes new topic shortcuts through the explicit parent action', () => {
