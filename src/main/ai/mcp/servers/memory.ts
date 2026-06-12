@@ -474,6 +474,7 @@ class MemoryServer {
   // Hold the manager instance, initialized asynchronously
   private knowledgeGraphManager: KnowledgeGraphManager | null = null
   private initializationPromise: Promise<void> // To track initialization
+  private resolvedPath: string
 
   /** Static registry of live MemoryServer instances keyed by resolved memory path. */
   private static activeInstances = new Map<string, MemoryServer>()
@@ -505,6 +506,8 @@ class MemoryServer {
         : path.resolve(envPath) // Use path.resolve for relative paths based on CWD
       : getDefaultMemoryPath()
 
+    this.resolvedPath = memoryPath
+
     this.server = new Server(
       {
         name: 'memory-server',
@@ -519,6 +522,16 @@ class MemoryServer {
     // Start initialization, but don't block constructor
     this.initializationPromise = this._initializeManager(memoryPath)
     this.setupRequestHandlers() // Setup handlers immediately
+
+    // Clean up activeInstances when the MCP connection closes
+    // (triggered by McpRuntimeService client.close() → InMemoryTransport close cascade)
+    this.server.onclose = () => {
+      this.dispose()
+    }
+  }
+
+  dispose(): void {
+    MemoryServer.activeInstances.delete(this.resolvedPath)
   }
 
   // Private async method to handle manager initialization
