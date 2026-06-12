@@ -134,8 +134,7 @@ export {
   type SelectGroup as CompositeInputSelectGroup,
   type SelectItem as CompositeInputSelectItem
 } from './composites/composite-input'
-export type { CollisionDetection } from './composites/sortable'
-export { closestCenter, Sortable } from './composites/sortable'
+export { Sortable } from './composites/sortable'
 
 /* Shadcn Primitive Components */
 export * from './primitives/accordion'

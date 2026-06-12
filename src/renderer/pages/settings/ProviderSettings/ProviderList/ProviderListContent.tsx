@@ -1,4 +1,5 @@
-import { closestCenter, ReorderableList, Sortable } from '@cherrystudio/ui'
+import { ReorderableList, Sortable } from '@cherrystudio/ui'
+import { closestCenter } from '@dnd-kit/core'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import type { Provider } from '@shared/data/types/provider'

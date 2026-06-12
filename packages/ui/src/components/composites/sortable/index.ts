@@ -1,3 +1,1 @@
 export { default as Sortable } from './sortable'
-export type { CollisionDetection } from '@dnd-kit/core'
-export { closestCenter } from '@dnd-kit/core'

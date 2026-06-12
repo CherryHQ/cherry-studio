@@ -18,15 +18,8 @@ const sortableCalls: Array<{
   onSortEnd: (event: { oldIndex: number; newIndex: number }) => void
 }> = []
 
-vi.mock('@cherrystudio/ui', async () => {
-  // The component imports `closestCenter` from `@cherrystudio/ui` (which
-  // re-exports it from `@dnd-kit/core`), so the mock must re-expose the real
-  // function; the test's own `@dnd-kit/core` import keeps the `toBe` identity
-  // assertion honest.
-  const { closestCenter } = await import('@dnd-kit/core')
-
+vi.mock('@cherrystudio/ui', () => {
   return {
-    closestCenter,
     ReorderableList: ({ items }: { items: Provider[] }) => {
       reorderableItemsCalls.push(items)
       return null
