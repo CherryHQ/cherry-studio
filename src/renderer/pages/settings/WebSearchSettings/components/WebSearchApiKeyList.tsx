@@ -243,15 +243,7 @@ const TopViewKey = 'WebSearchApiKeyListPopup'
 export class WebSearchApiKeyListPopup {
   static show(props: ShowParams) {
     return new Promise<unknown>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(value) => {
-            resolve(value)
-          }}
-        />,
-        TopViewKey
-      )
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }

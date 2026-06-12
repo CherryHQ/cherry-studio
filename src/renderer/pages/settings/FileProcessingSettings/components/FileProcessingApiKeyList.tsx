@@ -276,15 +276,7 @@ const TopViewKey = 'FileProcessingApiKeyListPopup'
 export class FileProcessingApiKeyListPopup {
   static show(props: ShowParams) {
     return new Promise<unknown>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(value) => {
-            resolve(value)
-          }}
-        />,
-        TopViewKey
-      )
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }
