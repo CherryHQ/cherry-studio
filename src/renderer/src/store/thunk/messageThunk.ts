@@ -2200,6 +2200,7 @@ export const setupChannelStream = (
   })
 
   let streamController: ReadableStreamDefaultController<TextStreamPart<Record<string, any>>> | null = null
+  let hasTerminalChunk = false
   const stream = new ReadableStream<TextStreamPart<Record<string, any>>>({
     start(controller) {
       streamController = controller
@@ -2248,12 +2249,20 @@ export const setupChannelStream = (
   return {
     assistantMessageId: assistantMessage.id,
     pushChunk(chunk: TextStreamPart<Record<string, any>>) {
+      if (chunk.type === 'finish' || chunk.type === 'abort' || chunk.type === 'error') {
+        hasTerminalChunk = true
+      }
       streamController?.enqueue(chunk)
     },
     complete() {
+      if (!hasTerminalChunk) {
+        streamController?.enqueue({ type: 'finish' } as TextStreamPart<Record<string, any>>)
+        hasTerminalChunk = true
+      }
       streamController?.close()
     },
     error(err: Error) {
+      hasTerminalChunk = true
       streamController?.error(err)
     }
   }
