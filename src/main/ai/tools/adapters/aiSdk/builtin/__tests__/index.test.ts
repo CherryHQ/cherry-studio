@@ -4,6 +4,8 @@ vi.mock('@main/core/application', () => ({
   application: { get: () => ({ search: () => [] }) }
 }))
 
+import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
+
 import { ToolRegistry } from '../../registry'
 import { registerBuiltinTools } from '../index'
 import { KB_LIST_TOOL_NAME } from '../KnowledgeListTool'
@@ -18,5 +20,6 @@ describe('registerBuiltinTools', () => {
     expect(reg.has(KB_SEARCH_TOOL_NAME)).toBe(true)
     expect(reg.has(WEB_FETCH_TOOL_NAME)).toBe(true)
     expect(reg.has(WEB_SEARCH_TOOL_NAME)).toBe(true)
+    expect(reg.has(FS_READ_TOOL_NAME)).toBe(true)
   })
 })

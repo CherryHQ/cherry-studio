@@ -9,7 +9,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createFsReadToolEntry, executeFsRead } from '../FsReadTool'
 
@@ -18,6 +18,10 @@ let vfsRoot: string
 beforeEach(() => {
   vfsRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'fs-read-vfs-'))
   vi.mocked(application.get).mockImplementation(() => ({ getRoot: () => vfsRoot }) as never)
+})
+
+afterEach(() => {
+  fs.rmSync(vfsRoot, { recursive: true, force: true })
 })
 
 function writeVfsFile(name: string, content: string): string {
@@ -115,5 +119,42 @@ describe('createFsReadToolEntry', () => {
     expect(entry.defer).toBe('never')
     expect(entry.namespace).toBe('fs')
     expect(entry.applies).toBeUndefined()
+  })
+})
+
+describe('executeFsRead — size caps', () => {
+  it('denies .. traversal that escapes the root', async () => {
+    const out = await executeFsRead({ path: path.join(vfsRoot, '..', 'sibling.txt') })
+    expect(out).toMatchObject({ kind: 'error', code: 'access-denied' })
+  })
+
+  it('rejects whole-file reads above the 5MB cap but allows paging them', async () => {
+    const p = path.join(vfsRoot, 'vfs_5mb.txt')
+    // Write real content (not sparse) so NUL sniff doesn't fire on paged read
+    fs.writeFileSync(p, Buffer.alloc(5 * 1024 * 1024 + 1, 0x61))
+    const whole = await executeFsRead({ path: p })
+    expect(whole).toMatchObject({ kind: 'error', code: 'too-large' })
+    const paged = await executeFsRead({ path: p, offset: 1, limit: 5 })
+    expect(paged.kind).toBe('text')
+  })
+
+  it('rejects any read above the absolute 50MB cap, even paged', async () => {
+    const p = path.join(vfsRoot, 'vfs_51mb.txt')
+    fs.writeFileSync(p, '')
+    fs.truncateSync(p, 51 * 1024 * 1024)
+    const out = await executeFsRead({ path: p, offset: 1, limit: 5 })
+    expect(out).toMatchObject({ kind: 'error', code: 'too-large' })
+  })
+
+  it('reports offset past EOF explicitly', async () => {
+    const p = writeVfsFile('vfs_short.txt', 'one\ntwo')
+    const out = await executeFsRead({ path: p, offset: 100 })
+    expect(out).toMatchObject({ kind: 'error', code: 'offset-out-of-range' })
+  })
+
+  it('reads an empty file as one empty line (split semantics, pinned)', async () => {
+    const p = writeVfsFile('vfs_empty.txt', '')
+    const out = await executeFsRead({ path: p })
+    expect(out).toMatchObject({ kind: 'text', startLine: 1, endLine: 1, totalLines: 1 })
   })
 })
