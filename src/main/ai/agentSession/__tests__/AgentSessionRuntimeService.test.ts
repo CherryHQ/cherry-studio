@@ -697,13 +697,23 @@ describe('AgentSessionRuntimeService', () => {
     service.beginTurn(baseTurnInput)
     service.markTurnTerminal('session-1', 'success')
     expect(service.isSessionBusy('session-1')).toBe(false)
+    expect(service.willContinueTopic('agent-session:session-1')).toBe(false)
 
     ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-start' })
 
     expect(service.isSessionBusy('session-1')).toBe(true)
+    expect(service.willContinueTopic('agent-session:session-1')).toBe(false)
     expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.compaction.session-1', {
       status: 'compacting',
       startedAt: expect.any(String)
+    })
+
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-complete' })
+
+    expect(service.isSessionBusy('session-1')).toBe(false)
+    expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.compaction.session-1', {
+      status: 'idle',
+      lastCompletedAt: expect.any(String)
     })
   })
 

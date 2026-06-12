@@ -320,6 +320,33 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('maps SDK compact success status without a boundary to a completion event', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    queryQueue.push({
+      type: 'system',
+      subtype: 'status',
+      status: null,
+      compact_result: 'success',
+      session_id: 'resume-1'
+    })
+
+    await expect(events.next()).resolves.toEqual({
+      value: { type: 'compaction-complete' },
+      done: false
+    })
+
+    void connection.close()
+  })
+
   it('salvages a truncated SDK stream into a completed turn instead of erroring', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }

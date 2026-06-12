@@ -8,6 +8,7 @@ import {
   GetPromptRequestSchema,
   ListPromptsRequestSchema,
   ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
   ListToolsRequestSchema,
   type Prompt as SdkPrompt,
   ReadResourceRequestSchema,
@@ -119,6 +120,10 @@ export async function createSdkMcpServerInstance(mcpId: string): Promise<McpServ
       logger.error('SDK bridge: failed to list resources', { mcpId, error })
       throw error
     }
+  })
+
+  rawServer.setRequestHandler(ListResourceTemplatesRequestSchema, async () => {
+    return { resourceTemplates: [] }
   })
 
   rawServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {

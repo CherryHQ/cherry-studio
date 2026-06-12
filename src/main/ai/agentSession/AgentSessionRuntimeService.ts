@@ -447,12 +447,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!entry) return false
     // `rolling`: A1a just closed at a steer boundary and the continuation (A2) is coming — keep the
     // stream alive so A2 carries the renderer listeners.
-    return (
-      entry.pendingTurns.length > 0 ||
-      entry.startingNextTurn === true ||
-      entry.rolling === true ||
-      entry.compacting === true
-    )
+    return entry.pendingTurns.length > 0 || entry.startingNextTurn === true || entry.rolling === true
   }
 
   inspect(sessionId: string): AgentSessionRuntimeSnapshot | undefined {
@@ -629,11 +624,11 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
-  private handleCompactionComplete(entry: AgentSessionRuntimeEntry, anchor: AgentSessionCompactionAnchorData): void {
+  private handleCompactionComplete(entry: AgentSessionRuntimeEntry, anchor?: AgentSessionCompactionAnchorData): void {
     entry.compacting = false
 
     const turn = entry.currentTurn
-    if (turn?.controller && !turn.terminalStatus) {
+    if (anchor && turn?.controller && !turn.terminalStatus) {
       this.enqueueTurnChunk(turn, {
         type: 'data-compaction-anchor',
         id: crypto.randomUUID(),
@@ -643,10 +638,10 @@ export class AgentSessionRuntimeService extends BaseService {
 
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
       status: 'idle',
-      lastCompletedAt: anchor.completedAt,
-      ...(anchor.preTokens !== undefined ? { preTokens: anchor.preTokens } : {}),
-      ...(anchor.postTokens !== undefined ? { postTokens: anchor.postTokens } : {}),
-      ...(anchor.durationMs !== undefined ? { durationMs: anchor.durationMs } : {})
+      lastCompletedAt: anchor?.completedAt ?? new Date().toISOString(),
+      ...(anchor?.preTokens !== undefined ? { preTokens: anchor.preTokens } : {}),
+      ...(anchor?.postTokens !== undefined ? { postTokens: anchor.postTokens } : {}),
+      ...(anchor?.durationMs !== undefined ? { durationMs: anchor.durationMs } : {})
     })
     this.refreshContextUsage(entry)
   }

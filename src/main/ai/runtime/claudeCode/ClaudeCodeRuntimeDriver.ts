@@ -391,6 +391,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         this.eventQueue.push({ type: 'compaction-error', error: message.compact_error ?? 'Compaction failed' })
         return true
       }
+      if (message.compact_result === 'success') {
+        this.eventQueue.push({ type: 'compaction-complete' })
+        return true
+      }
       return true
     }
 

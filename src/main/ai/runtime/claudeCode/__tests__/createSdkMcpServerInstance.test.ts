@@ -67,4 +67,15 @@ describe('createSdkMcpServerInstance', () => {
       messages: [{ role: 'user', content: { type: 'text', text: 'Prompt body' } }]
     })
   })
+
+  it('responds to resource template discovery when resources are advertised', async () => {
+    const sdkServer = await createSdkMcpServerInstance('server-1')
+    const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers
+    const handler = handlers.get('resources/templates/list')
+
+    expect(handler).toBeDefined()
+    await expect(handler!({ method: 'resources/templates/list' }, {})).resolves.toEqual({
+      resourceTemplates: []
+    })
+  })
 })
