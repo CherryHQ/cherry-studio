@@ -10,6 +10,7 @@
 
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
+import type { StopCondition, ToolSet } from 'ai'
 
 import type { AgentLoopHooks } from '../loop'
 import type { RequestFeature } from './feature'
@@ -20,12 +21,14 @@ const logger = loggerService.withContext('collectFromFeatures')
 export interface FeatureContributions {
   modelAdapters: AiPlugin[]
   hookParts: Array<Partial<AgentLoopHooks>>
+  stopConditions: StopCondition<ToolSet>[]
 }
 
 export function collectFromFeatures(scope: RequestScope, features: readonly RequestFeature[]): FeatureContributions {
   const out: FeatureContributions = {
     modelAdapters: [],
-    hookParts: []
+    hookParts: [],
+    stopConditions: []
   }
 
   for (const feature of features) {
@@ -36,6 +39,9 @@ export function collectFromFeatures(scope: RequestScope, features: readonly Requ
 
     const hooks = invokeContribution(feature, 'contributeHooks', scope)
     if (hooks) out.hookParts.push(hooks)
+
+    const stopConditions = invokeContribution(feature, 'contributeStopConditions', scope)
+    if (stopConditions) out.stopConditions.push(...stopConditions)
   }
 
   return out
@@ -51,7 +57,7 @@ function shouldRun(feature: RequestFeature, scope: RequestScope): boolean {
   }
 }
 
-type ContributionMethod = 'contributeModelAdapters' | 'contributeHooks'
+type ContributionMethod = 'contributeModelAdapters' | 'contributeHooks' | 'contributeStopConditions'
 
 function invokeContribution<M extends ContributionMethod>(
   feature: RequestFeature,

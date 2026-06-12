@@ -30,7 +30,36 @@ describe('streamDispatchCoordinator', () => {
     const ack: AiStreamOpenResponse = {
       mode: 'started',
       userMessageId: 'u-1',
-      placeholderIds: ['a-1', 'a-2']
+      reservedMessages: [
+        {
+          id: 'u-1',
+          role: 'user',
+          parts: [{ type: 'text', text: 'hello' }],
+          metadata: { status: 'success', createdAt: '2026-05-23T00:00:00.000Z' }
+        },
+        {
+          id: 'a-1',
+          role: 'assistant',
+          parts: [],
+          metadata: {
+            status: 'pending',
+            createdAt: '2026-05-23T00:00:00.001Z',
+            modelId: 'openai:gpt-4o',
+            modelSnapshot: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' }
+          }
+        },
+        {
+          id: 'a-2',
+          role: 'assistant',
+          parts: [],
+          metadata: {
+            status: 'pending',
+            createdAt: '2026-05-23T00:00:00.002Z',
+            modelId: 'anthropic:claude-3-5-sonnet',
+            modelSnapshot: { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'anthropic' }
+          }
+        }
+      ]
     }
     streamOpen.mockResolvedValue(ack)
     const seen: unknown[] = []

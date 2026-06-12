@@ -145,6 +145,12 @@ export interface CherryUIMessageMetadata {
   modelSnapshot?: ModelSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
+  /**
+   * Whether this message is on the currently-active branch of the topic tree. Seeded `true` on
+   * locally-reserved skeletons (the row being created is the active leaf). The full branch-tree
+   * recompute is owned by the chat-page renderer slice.
+   */
+  isActiveBranch?: boolean
 
   /** Creation timestamp (ISO). */
   createdAt?: string
