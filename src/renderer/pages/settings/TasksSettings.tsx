@@ -250,7 +250,7 @@ const TaskDetail: FC<{
         <SettingTitle>
           <div className="flex items-center gap-2">
             <Badge className={badgeColorClass(task.status)}>{statusLabels[task.status] ?? task.status}</Badge>
-            <span className="text-(--color-foreground-muted) text-xs">{agentName}</span>
+            <span className="text-foreground-muted text-xs">{agentName}</span>
           </div>
           <div className="flex items-center gap-1">
             {!isCompleted && (
@@ -278,18 +278,18 @@ const TaskDetail: FC<{
           <Badge className={badgeColorClass(task.trigger.kind)}>
             {scheduleTypeLabels[task.trigger.kind] ?? task.trigger.kind}
           </Badge>
-          <span className="inline-flex items-center gap-1 text-(--color-foreground-muted)">
+          <span className="inline-flex items-center gap-1 text-foreground-muted">
             <Clock size={12} />
             {formatScheduleValue()}
           </span>
           {task.lastRun && (
-            <span className="inline-flex items-center gap-1 text-(--color-foreground-muted)">
+            <span className="inline-flex items-center gap-1 text-foreground-muted">
               <History size={12} />
               {t('agent.cherryClaw.tasks.lastRun')}: {formatDateTime(task.lastRun)}
             </span>
           )}
           {task.nextRun && (
-            <span className="inline-flex items-center gap-1 text-(--color-foreground-muted)">
+            <span className="inline-flex items-center gap-1 text-foreground-muted">
               <CalendarClock size={12} />
               {t('agent.cherryClaw.tasks.nextRun')}: {formatDateTime(task.nextRun)}
             </span>
@@ -335,7 +335,7 @@ const TaskDetail: FC<{
               onBlur={() => prompt.trim() && prompt !== task.prompt && saveField({ prompt: prompt.trim() })}
               disabled={isCompleted}
               rows={4}
-              className="min-h-[88px] resize-y px-3 py-2"
+              className="min-h-22 resize-y px-3 py-2"
             />
           </SettingRow>
           <div className="grid grid-cols-3 gap-4">
@@ -456,7 +456,7 @@ const TaskDetail: FC<{
       </SettingGroup>
 
       <Dialog open={promptModalOpen} onOpenChange={handlePromptModalOpenChange}>
-        <DialogContent className="sm:max-w-[640px]">
+        <DialogContent className="sm:max-w-160">
           <DialogHeader>
             <DialogTitle>{t('agent.cherryClaw.tasks.prompt.label')}</DialogTitle>
           </DialogHeader>
@@ -465,7 +465,7 @@ const TaskDetail: FC<{
             onChange={(e) => setPrompt(e.target.value)}
             disabled={isCompleted}
             rows={14}
-            className="min-h-[280px] resize-y px-3 py-2"
+            className="min-h-70 resize-y px-3 py-2"
           />
         </DialogContent>
       </Dialog>
@@ -776,12 +776,12 @@ const CreateForm: FC<{
               onChange={(e) => setPrompt(e.target.value)}
               placeholder={t('agent.cherryClaw.tasks.prompt.placeholder')}
               rows={4}
-              className="min-h-[88px] resize-y px-3 py-2"
+              className="min-h-22 resize-y px-3 py-2"
             />
           </SettingRow>
 
           <Dialog open={promptModalOpen} onOpenChange={setPromptModalOpen}>
-            <DialogContent className="sm:max-w-[640px]">
+            <DialogContent className="sm:max-w-160">
               <DialogHeader>
                 <DialogTitle>{t('agent.cherryClaw.tasks.prompt.label')}</DialogTitle>
               </DialogHeader>
@@ -790,7 +790,7 @@ const CreateForm: FC<{
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder={t('agent.cherryClaw.tasks.prompt.placeholder')}
                 rows={14}
-                className="min-h-[280px] resize-y px-3 py-2"
+                className="min-h-70 resize-y px-3 py-2"
               />
             </DialogContent>
           </Dialog>
@@ -1044,7 +1044,7 @@ const TasksSettings: FC = () => {
         style={{ height: 'calc(100vh - var(--navbar-height) - 6px)' }}>
         {/* Left panel: task list */}
         <Scrollbar
-          className="flex flex-col gap-1.25 border-(--color-border) border-r-[0.5px] p-3 pb-12"
+          className="flex flex-col gap-1.25 border-border border-r-[0.5px] p-3 pb-12"
           style={{ width: 'var(--settings-width)', height: 'calc(100vh - var(--navbar-height))' }}>
           <div className="flex items-center justify-between">
             <SettingTitle>{t('settings.scheduledTasks.title')}</SettingTitle>
@@ -1105,7 +1105,7 @@ const TasksSettings: FC = () => {
               onToggleStatus={handleToggleStatus}
             />
           ) : (
-            <div className="flex flex-1 items-center justify-center text-(--color-foreground-muted) text-sm">
+            <div className="flex flex-1 items-center justify-center text-foreground-muted text-sm">
               {tasks.length > 0
                 ? t('settings.scheduledTasks.selectTask', 'Select a task to view details')
                 : t('settings.scheduledTasks.noTasks')}

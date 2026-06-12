@@ -107,6 +107,16 @@ export class TraceSpanStore {
     }
   }
 
+  /** Delete a specific set of spans by id (e.g. exactly the spans a flush persisted). */
+  clearSpans(ids: string[]): void {
+    for (const id of ids) {
+      const span = this.spans.get(id)
+      if (!span) continue
+      this.spans.delete(id)
+      this.untrackSpan(span.traceId, span.id)
+    }
+  }
+
   /**
    * Evict the oldest fully-ended trace(s) until the total span count is within the cap.
    * A trace is "fully-ended" when every span it holds has `isEnd === true`; in-flight

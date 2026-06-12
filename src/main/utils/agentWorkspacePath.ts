@@ -9,5 +9,9 @@ export function normalizeWorkspacePath(rawPath: string): string {
   if (!path.isAbsolute(trimmed)) {
     throw DataApiErrorFactory.validation({ path: ['Workspace path must be absolute'] })
   }
-  return path.normalize(trimmed)
+  const normalized = path.normalize(trimmed)
+  const root = path.parse(normalized).root
+  let end = normalized.length
+  while (end > root.length && /[\\/]/.test(normalized[end - 1])) end -= 1
+  return normalized.slice(0, end)
 }

@@ -38,7 +38,7 @@ export default function ProviderSettingsDrawer({
   const header = description ? (
     <div className="flex min-w-0 flex-1 flex-col gap-1">
       <span className="font-semibold text-base text-foreground">{title}</span>
-      <span className="text-foreground-muted text-xs leading-[var(--line-height-body-xs)]">{description}</span>
+      <span className="text-foreground-muted text-xs leading-(--line-height-body-xs)">{description}</span>
     </div>
   ) : undefined
 

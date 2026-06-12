@@ -395,6 +395,9 @@
           "failed": "Failed to reorder sessions"
         }
       },
+      "tool": {
+        "disabled": "The {{toolName}} tool is disabled for this agent."
+      },
       "update": {
         "error": {
           "failed": "Failed to update the session"
@@ -4922,10 +4925,10 @@
         "title": "Data Directory"
       },
       "divider": {
-        "basic": "Basic Data Settings",
-        "cloud_storage": "Cloud Backup Settings",
-        "export_settings": "Export Settings",
-        "import_settings": "Import Settings",
+        "basic": "Basic Data",
+        "cloud_storage": "Cloud Backup",
+        "export_settings": "Export",
+        "import_settings": "Import",
         "third_party": "Third-party Connections"
       },
       "export_menu": {
@@ -4939,7 +4942,7 @@
         "obsidian": "Export to Obsidian",
         "plain_text": "Copy as Plain Text",
         "siyuan": "Export to SiYuan Note",
-        "title": "Export Menu Settings",
+        "title": "Export Menu",
         "yuque": "Export to Yuque"
       },
       "export_to_phone": {
@@ -5016,7 +5019,7 @@
       "import_settings": {
         "button": "Import Json File",
         "chatgpt": "Import from ChatGPT",
-        "title": "Import Outside Application Data"
+        "title": "Import App Data"
       },
       "joplin": {
         "check": {
@@ -5031,7 +5034,7 @@
           "title": "Include Reasoning Chain in Export"
         },
         "help": "In Joplin options, enable the web clipper (no browser extension needed), confirm the port, and copy the auth token here.",
-        "title": "Joplin Configuration",
+        "title": "Joplin",
         "token": "Joplin Authorization Token",
         "token_placeholder": "Joplin Authorization Token",
         "url": "Joplin Web Clipper Service URL",
@@ -5226,7 +5229,7 @@
             "title": "Restore from Nutstore"
           }
         },
-        "title": "Nutstore Configuration",
+        "title": "Nutstore",
         "username": "Nutstore Username"
       },
       "obsidian": {
@@ -5236,7 +5239,7 @@
         "default_vault_loading": "Loading Obsidian vault...",
         "default_vault_no_vaults": "No Obsidian vaults found",
         "default_vault_placeholder": "Please select the default Obsidian vault",
-        "title": "Obsidian Configuration"
+        "title": "Obsidian"
       },
       "s3": {
         "accessKeyId": {
@@ -5359,7 +5362,7 @@
         },
         "title": {
           "help": "S3 compatible object storage services, such as AWS S3, Cloudflare R2, Aliyun OSS, Tencent COS, etc.",
-          "label": "S3 Compatible Storage",
+          "label": "S3 Storage",
           "tooltip": "S3 Compatible Storage Configuration Document"
         }
       },
@@ -5378,14 +5381,14 @@
         },
         "root_path": "Siyuan Note Root Path",
         "root_path_placeholder": "e.g.: /CherryStudio",
-        "title": "Siyuan Note Configuration",
+        "title": "Siyuan Note",
         "token": {
           "help": "Get Siyuan Note Token",
           "label": "Siyuan Note Token"
         },
         "token_placeholder": "Please enter Siyuan Note Token"
       },
-      "title": "Data Settings",
+      "title": "Data",
       "webdav": {
         "autoSync": {
           "label": "Auto Backup",
@@ -5482,7 +5485,7 @@
         "help": "Get Yuque Token",
         "repo_url": "Yuque URL",
         "repo_url_placeholder": "https://www.yuque.com/username/xxx",
-        "title": "Yuque Configuration",
+        "title": "Yuque",
         "token": "Yuque Token",
         "token_placeholder": "Please enter the Yuque Token"
       }
@@ -5578,7 +5581,7 @@
         "title": "General"
       },
       "display": {
-        "title": "Display Settings"
+        "title": "Display"
       },
       "emoji_picker": "Emoji Picker",
       "image_upload": "Image Upload",
@@ -5854,8 +5857,7 @@
           "bailian": "Alibaba Cloud Bailian Platform MCP Service",
           "lanyun": "Lanyun Technology Cloud Platform MCP Service",
           "mcprouter": "MCP Router Platform MCP Service",
-          "modelscope": "ModelScope Platform MCP Service",
-          "tokenflux": "TokenFlux Platform MCP Service"
+          "modelscope": "ModelScope Platform MCP Service"
         },
         "selectProvider": "Select Provider:",
         "setToken": "Enter Your Token",
@@ -5913,7 +5915,7 @@
       "user": "User"
     },
     "menuGroups": {
-      "appSettings": "App Settings",
+      "appSettings": "Settings",
       "integrations": "Models",
       "productivity": "Productivity",
       "services": "Plugins",
@@ -6117,16 +6119,15 @@
         }
       },
       "api_key": "API Key",
-      "available_count": "{{count}} available",
       "base_url": "Base URL",
-      "bulk_disable": "Close all",
-      "bulk_enable": "Select all",
+      "bulk_disable": "Disable all",
+      "bulk_enable": "Enable all",
       "check": {
         "all": "All",
         "all_models_passed": "All models check passed",
         "button_caption": "Health check",
         "disabled": "Not enabled",
-        "disclaimer": "Health check requires sending requests, please use it with caution. Models that charge per request may incur additional costs, please bear the responsibility.",
+        "disclaimer": "Health check sends real requests to the selected models and API keys. Per-request billing or concurrent checks may incur significant costs. Review before starting.",
         "drawer_result_hint": "Results remain here until you close the drawer or run the check again.",
         "enable_concurrent": "Concurrent",
         "enabled": "Enabled",
@@ -6136,6 +6137,7 @@
         "generation_output_image": "an image",
         "generation_output_video": "a video",
         "keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
+        "model_button_caption": "Check all models",
         "model_status_failed": "{{count}} models completely inaccessible",
         "model_status_partial": "{{count}} models had inaccessible keys",
         "model_status_passed": "{{count}} models passed health checks",
@@ -6164,11 +6166,18 @@
         "title": "Model health check",
         "use_all_keys": "Key(s)"
       },
-      "copy_model_id_tooltip": "Click to copy model ID: {{id}}",
+      "collapse_all": "Collapse all",
       "default_assistant_model": "Default Assistant Model",
-      "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
+      "default_assistant_model_description": "Used when an assistant has no model.",
+      "docs": "Model docs",
       "empty": "No models found",
-      "group_disable": "Close this group",
+      "enabled_models": "Enabled",
+      "expand_all": "Expand all",
+      "filter": {
+        "clear": "Clear model filter",
+        "label": "Filter models"
+      },
+      "group_disable": "Disable this group",
       "group_enable": "Enable this group",
       "list_title": "Model list",
       "manage": {
@@ -6235,6 +6244,8 @@
         "sync_switch_to_deprecate": "Mark deprecated instead",
         "sync_will_deprecate": "Will be marked deprecated"
       },
+      "more_actions": "More model list actions",
+      "not_enabled_models": "Disabled",
       "provider_id": "Provider ID",
       "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",
@@ -6377,7 +6388,7 @@
             "title": "API Key Management"
           },
           "new_key": {
-            "placeholder": "Enter one or more keys"
+            "placeholder": "Enter API key"
           }
         },
         "options": {
@@ -6434,10 +6445,10 @@
         "label": "API Key",
         "label_placeholder": "Label",
         "list_description": "Manage multiple API keys for this provider",
-        "placeholder": "Use commas to separate multiple keys",
+        "placeholder": "Enter API key",
         "save_failed": "Failed to save API keys",
         "show_key": "Show key",
-        "tip": "Use commas to separate multiple keys",
+        "tip": "Add one API key at a time",
         "unnamed": "API Key"
       },
       "api_version": "API Version",
@@ -6718,11 +6729,11 @@
       "all_enable": "Enable All",
       "bind_first_to_enable": "Bind a shortcut first to change its enabled state",
       "categories": {
-        "assistant": "AI Assistant Tools",
-        "chat": "Message Interaction",
-        "general": "Global and Window",
+        "assistant": "AI Tools",
+        "chat": "Messages",
+        "general": "General",
         "title": "Shortcut Groups",
-        "topic": "Conversation and Topics"
+        "topic": "Conversations"
       },
       "clear_shortcut": "Clear Shortcut",
       "clear_topic": "Clear Messages",
@@ -6754,7 +6765,9 @@
       "show_app": "Show/Hide App",
       "show_settings": "Open Settings",
       "title": "Keyboard Shortcuts",
+      "toggle_left_sidebar": "Toggle Left Sidebar",
       "toggle_new_context": "Clear Context",
+      "toggle_right_sidebar": "Toggle Right Sidebar",
       "toggle_show_topics": "Toggle Topics",
       "toggle_sidebar": "Toggle Sidebar",
       "zoom_in": "Zoom In",
@@ -6879,13 +6892,6 @@
             "description": "Google's open-source OCR engine that runs fully locally.",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "Authentication",
-          "description": "Description",
-          "language_packs": "Language Packs",
-          "model_parameters": "Model Parameters",
-          "status": "Status"
         },
         "title": "Document Parsing"
       },
@@ -7068,6 +7074,36 @@
     "settings": "Settings",
     "store": "Assistant Library",
     "translate": "Translate"
+  },
+  "trace": {
+    "agent": "Agent",
+    "backList": "Back To List",
+    "cachedTokens": "Cached",
+    "endTime": "End Time",
+    "inputs": "Inputs",
+    "label": "Call Chain",
+    "model": "Model",
+    "name": "Node Name",
+    "noTraceList": "No trace information found",
+    "operation": "Operation",
+    "outputs": "Outputs",
+    "pollError": "Polling failed",
+    "reasoningTokens": "Reasoning",
+    "requestHeaders": "Request Headers",
+    "requestMethod": "Request Method",
+    "requestUrl": "Request URL",
+    "responseHeaders": "Response Headers",
+    "responseStatus": "Response Status",
+    "serverDescription": "Server Description",
+    "serverName": "Server Name",
+    "serverType": "Server Type",
+    "spanDetail": "Span Details",
+    "spendTime": "Spend Time",
+    "startTime": "Start Time",
+    "status": "Status",
+    "tag": "Tag",
+    "tokenUsage": "Token Usage",
+    "toolCalls": "Tool Calls"
   },
   "translate": {
     "alter_language": "Alternative Language",

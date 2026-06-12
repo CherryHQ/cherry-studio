@@ -59,7 +59,6 @@ const SettingsPage: FC = () => {
           <PageHeader title={t('settings.menuGroups.appSettings')} />
           <Scrollbar className="min-h-0 flex-1 select-none">
             <MenuList className={settingsSubmenuListClassName}>
-              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.integrations')}</div>
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}

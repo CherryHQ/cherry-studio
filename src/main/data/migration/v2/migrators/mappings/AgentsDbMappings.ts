@@ -121,7 +121,8 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       { name: 'plan_model', expr: buildUserModelLookupExpr('plan_model'), sourceColumn: 'plan_model' },
       { name: 'small_model', expr: buildUserModelLookupExpr('small_model'), sourceColumn: 'small_model' },
       notNullCol('mcps', "'[]'"),
-      notNullCol('allowed_tools', "'[]'"),
+      // v1 allowed_tools stored auto-approval preferences; the v2 disabledTools hard-block set starts empty.
+      notNullCol('disabled_tools', "'[]'"),
       notNullCol('configuration', "'{}'"),
       notNullCol('order_key', "''"),
       {
