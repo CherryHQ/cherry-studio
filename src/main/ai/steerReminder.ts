@@ -5,10 +5,14 @@
  * claudeCode driver wraps it as it pushes into the live streaming-input queue.
  */
 export function wrapSteerReminder(text: string): string {
+  // Defang any literal <system-reminder> open/close tags in the user text by escaping their `<`, so a
+  // steer containing `</system-reminder>` can't terminate the wrapper and forge reminder-priority
+  // instructions. Only the exact delimiter is touched; ordinary `<`/`>` in the message are preserved.
+  const safe = text.replace(/<(\/?\s*system-reminder\b[^>]*)>/gi, '&lt;$1>')
   return [
     '<system-reminder>',
     'The user sent the following message:',
-    text,
+    safe,
     '',
     'Please address this message and continue with your tasks.',
     '</system-reminder>'

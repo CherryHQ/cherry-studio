@@ -34,6 +34,7 @@ function createBranch(): Branch {
 export class TopicStreamSubscription {
   readonly #topicId: string
   readonly #branches = new Map<UniqueModelId, Branch>()
+  readonly #terminalByExecutionId = new Map<UniqueModelId, ExecutionTerminal>()
   readonly #terminalListeners = new Set<TerminalListener>()
   #ipcUnsubs: Array<() => void> = []
   #attached = false
@@ -42,6 +43,11 @@ export class TopicStreamSubscription {
 
   constructor(topicId: string) {
     this.#topicId = topicId
+  }
+
+  listen(): void {
+    if (this.#disposed) return
+    this.#setupIpcListeners()
   }
 
   register(executionId: UniqueModelId): ReadableStream<UIMessageChunk> {
@@ -58,6 +64,7 @@ export class TopicStreamSubscription {
     if (!branch) return
     this.#closeBranch(branch)
     this.#branches.delete(executionId)
+    this.#terminalByExecutionId.delete(executionId)
     if (this.#branches.size === 0 && this.#attached && !this.#disposed) {
       // Defer one tick: a transient `activeExecutions` flicker would otherwise
       // detach→reattach and momentarily drop Main's last listener.
@@ -69,6 +76,13 @@ export class TopicStreamSubscription {
 
   onExecutionTerminal(listener: TerminalListener): () => void {
     this.#terminalListeners.add(listener)
+    for (const [executionId, terminal] of this.#terminalByExecutionId) {
+      try {
+        listener(executionId, terminal)
+      } catch (err) {
+        logger.warn('terminal listener threw during replay', { topicId: this.#topicId, err })
+      }
+    }
     return () => this.#terminalListeners.delete(listener)
   }
 
@@ -77,6 +91,7 @@ export class TopicStreamSubscription {
     this.#disposed = true
     for (const branch of this.#branches.values()) this.#closeBranch(branch)
     this.#branches.clear()
+    this.#terminalByExecutionId.clear()
     this.#terminalListeners.clear()
     if (this.#attached) void window.api.ai.streamDetach({ topicId: this.#topicId }).catch(() => {})
     this.#attached = false
@@ -91,6 +106,7 @@ export class TopicStreamSubscription {
     let branch = this.#branches.get(executionId)
     if (!branch) {
       branch = createBranch()
+      if (this.#terminalByExecutionId.has(executionId)) this.#closeBranch(branch)
       this.#branches.set(executionId, branch)
     }
     return branch
@@ -127,6 +143,7 @@ export class TopicStreamSubscription {
   #emitTerminal(executionId: UniqueModelId, terminal: ExecutionTerminal): void {
     const branch = this.#branches.get(executionId)
     if (branch) this.#closeBranch(branch)
+    this.#terminalByExecutionId.set(executionId, terminal)
     for (const listener of this.#terminalListeners) {
       try {
         listener(executionId, terminal)

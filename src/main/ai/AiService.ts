@@ -13,7 +13,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { type TranslateOpenRequest, translateService } from '@main/services/translate/translateService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
-import { applyApprovalDecisions } from '@shared/ai/transport'
+import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
@@ -202,90 +202,125 @@ export class AiService extends BaseService {
       return translateService.open(event.sender, request)
     })
 
-    this.ipcHandle(IpcChannel.Ai_ToolApproval_Respond, async (event, rawPayload: unknown): Promise<{ ok: boolean }> => {
-      // Validate the renderer payload at the IPC boundary before any registry dispatch or DB read.
-      const parsed = ToolApprovalRespondSchema.safeParse(rawPayload)
-      if (!parsed.success) {
-        logger.warn('Tool-approval response rejected: invalid payload', { issues: parsed.error.issues })
-        return { ok: false }
-      }
-      const payload = parsed.data
+    this.ipcHandle(
+      IpcChannel.Ai_ToolApproval_Respond,
+      async (event, rawPayload: unknown): Promise<AiToolApprovalRespondResponse> => {
+        // Validate the renderer payload at the IPC boundary before any registry dispatch or DB read.
+        const parsed = ToolApprovalRespondSchema.safeParse(rawPayload)
+        if (!parsed.success) {
+          logger.warn('Tool-approval response rejected: invalid payload', { issues: parsed.error.issues })
+          return { ok: false }
+        }
+        const payload = parsed.data
 
-      // Claude-Agent fast-path: live registry entry unblocks `canUseTool`.
-      const dispatched = application.get('AgentSessionRuntimeService').respondToolApproval(payload.approvalId, {
-        approved: payload.approved,
-        reason: payload.reason,
-        updatedInput: payload.updatedInput
-      })
-      if (dispatched) return { ok: true }
-
-      // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
-      if (!payload.topicId || !payload.anchorId) {
-        logger.warn('Tool-approval response had no live registry entry and no anchor context', {
-          approvalId: payload.approvalId
+        // Claude-Agent fast-path: live registry entry unblocks `canUseTool`.
+        const dispatched = application.get('AgentSessionRuntimeService').respondToolApproval(payload.approvalId, {
+          approved: payload.approved,
+          reason: payload.reason,
+          updatedInput: payload.updatedInput
         })
-        return { ok: false }
-      }
+        if (dispatched) return { ok: true }
 
-      // Main is the single authority for the approval mutation: the
-      // renderer no longer PATCHes (it sourced parts from a DB projection
-      // that didn't carry the overlay-only `approval-requested` part and
-      // raced/overwrote the persisted row). The decision is carried
-      // explicitly in the IPC payload; apply it here to the DB-authoritative
-      // parts (the original stream's terminal persistence wrote the
-      // `approval-requested` part onto this row) and persist.
-      const decision = {
-        approvalId: payload.approvalId,
-        approved: payload.approved,
-        ...(payload.reason !== undefined && { reason: payload.reason })
-      }
-      // A stale click on a deleted message must resolve through the documented
-      // result shape, not throw out of the handler (getById rejects when the
-      // anchor is missing), consistent with the no-context branch above.
-      let anchor: Awaited<ReturnType<typeof messageService.getById>>
-      try {
-        anchor = await messageService.getById(payload.anchorId)
-      } catch {
-        logger.warn('Tool-approval response anchor is missing or deleted', {
+        // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
+        if (!payload.topicId || !payload.anchorId) {
+          logger.warn('Tool-approval response had no live registry entry and no anchor context', {
+            approvalId: payload.approvalId
+          })
+          return { ok: false }
+        }
+
+        // The approval card is clickable the moment the `tool-approval-request` chunk arrives (the live
+        // overlay), not only at terminal. So a response can land while a stream is still live on this
+        // topic — a sibling exec in a multi-model turn, or another approved continuation already
+        // running. The continue-conversation dispatch below would then hit send()'s inject path and
+        // silently discard the approved turn (its models dropped, the tool never runs, the row stays
+        // `pending`) while still returning a success-shaped response. This cheap pre-check refuses the
+        // common case before mutating the row; the narrow TOCTOU that slips through (a submit starts a
+        // turn between here and the dispatch) is closed under the dispatch lock by send() throwing,
+        // caught below. The renderer surfaces the failure and resets the card; this backend slice does
+        // not promise an automatic retry.
+        if (application.get('AiStreamManager').hasLiveStream(payload.topicId)) {
+          logger.warn(
+            'Tool-approval response arrived while a stream is live — refusing to avoid a swallowed continuation',
+            {
+              approvalId: payload.approvalId,
+              topicId: payload.topicId
+            }
+          )
+          return { ok: false }
+        }
+
+        // Main is the single authority for the approval mutation: the
+        // renderer no longer PATCHes (it sourced parts from a DB projection
+        // that didn't carry the overlay-only `approval-requested` part and
+        // raced/overwrote the persisted row). The decision is carried
+        // explicitly in the IPC payload; apply it here to the DB-authoritative
+        // parts (the original stream's terminal persistence wrote the
+        // `approval-requested` part onto this row) and persist.
+        const decision = {
           approvalId: payload.approvalId,
-          anchorId: payload.anchorId
-        })
-        return { ok: false }
-      }
-      const beforeParts = anchor.data.parts ?? []
-      const targetPresent = beforeParts.some(
-        (p) => isToolUIPart(p) && p.state === 'approval-requested' && p.approval?.id === decision.approvalId
-      )
-      const afterParts = applyApprovalDecisions(beforeParts, [decision])
-      // Only write parts when this approval is present on the DB row.
-      // `applyApprovalDecisions` always returns a fresh array, so writing
-      // unconditionally would overwrite real (or not-yet-persisted) parts
-      // with an unchanged set. When the part is overlay-only (persist not
-      // landed yet), the continue dispatch below carries the decision and
-      // the continue provider applies it authoritatively where it reads parts.
-      if (targetPresent) {
-        await messageService.update(payload.anchorId, { data: { parts: afterParts } })
-      }
+          approved: payload.approved,
+          ...(payload.reason !== undefined && { reason: payload.reason }),
+          ...(payload.updatedInput !== undefined && { updatedInput: payload.updatedInput })
+        }
+        // A stale click on a deleted message must resolve through the documented
+        // result shape, not throw out of the handler (getById rejects when the
+        // anchor is missing), consistent with the no-context branch above.
+        // Serialize the parts mutation per anchor inside one write transaction: a multi-tool turn can
+        // request several approvals on one row, and two concurrent responses must not read the same
+        // stale parts and clobber each other's decision (or both compute a stale "still pending" and
+        // neither resume). Returns the committed parts, or null when the anchor row is gone — a stale
+        // click on a deleted message, resolved through the result shape instead of throwing.
+        const approvalResult = await messageService.applyToolApprovalDecisions(payload.anchorId, [decision])
+        if (approvalResult === null) {
+          logger.warn('Tool-approval response anchor is missing or deleted', {
+            approvalId: payload.approvalId,
+            anchorId: payload.anchorId
+          })
+          return { ok: false }
+        }
+        const { parts: committedParts, appliedApprovalIds, alreadySettledApprovalIds } = approvalResult
+        if (appliedApprovalIds.length === 0 && alreadySettledApprovalIds.includes(decision.approvalId)) {
+          logger.warn('Ignoring duplicate tool-approval response for an already-settled approval', {
+            approvalId: decision.approvalId,
+            anchorId: payload.anchorId
+          })
+          return { ok: true }
+        }
 
-      // Only resume once every approval on this turn is decided — a turn
-      // can request several tools at once; the not-yet-decided ones keep
-      // their cards.
-      const anyStillPending = afterParts.some((p) => isToolUIPart(p) && p.state === 'approval-requested')
-      if (anyStillPending) {
+        // Only resume once every approval on this turn is decided — a turn can request several tools
+        // at once; the not-yet-decided ones keep their cards. Reading the committed post-write parts
+        // means concurrent responders agree on who fires the continuation.
+        const anyStillPending = committedParts.some((p) => isToolUIPart(p) && p.state === 'approval-requested')
+        if (anyStillPending) {
+          return { ok: true }
+        }
+
+        const aiStreamManager = application.get('AiStreamManager')
+        const subscriber = new WebContentsListener(event.sender, payload.topicId)
+        try {
+          await aiStreamManager.dispatch(subscriber, {
+            trigger: 'continue-conversation',
+            topicId: payload.topicId,
+            parentAnchorId: payload.anchorId,
+            // Idempotent against the conditional write above; safety net when the part wasn't on the row.
+            approvalDecisions: [decision]
+          })
+        } catch (error) {
+          // dispatch runs prepareDispatch+send under the per-topic dispatch lock. If a concurrent submit
+          // started a live turn after the hasLiveStream pre-check above, send() refuses to inject-drop the
+          // prepared continuation (throws) rather than swallowing it with a success shape. Resolve through
+          // the result shape so the renderer can reset the card instead of leaving it stuck submitting.
+          logger.warn('Tool-approval continuation dispatch failed (likely raced a live submit)', {
+            approvalId: payload.approvalId,
+            topicId: payload.topicId,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          return { ok: false }
+        }
         return { ok: true }
       }
-
-      const aiStreamManager = application.get('AiStreamManager')
-      const subscriber = new WebContentsListener(event.sender, payload.topicId)
-      await aiStreamManager.dispatch(subscriber, {
-        trigger: 'continue-conversation',
-        topicId: payload.topicId,
-        parentAnchorId: payload.anchorId,
-        // Idempotent against the conditional write above; safety net when the part wasn't on the row.
-        approvalDecisions: [decision]
-      })
-      return { ok: true }
-    })
+    )
   }
 
   // ── Streaming chat (agent.stream) ──

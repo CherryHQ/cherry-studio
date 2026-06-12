@@ -6,21 +6,24 @@
  */
 
 import { topicService } from '@data/services/TopicService'
+import { application } from '@main/core/application'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { applyApprovalDecisions } from '@shared/ai/transport'
+import type { Message as SharedMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import { startAiTurnTrace } from '../../observability'
+import { wrapSteerReminder } from '../../steerReminder'
 import type { AiStreamRequest } from '../../types/requests'
 import { PersistenceListener } from '../listeners/PersistenceListener'
 import { TraceFlushListener } from '../listeners/TraceFlushListener'
 import { MessageServiceBackend } from '../persistence/backends/MessageServiceBackend'
 import type { CherryUIMessage, StreamListener } from '../types'
-import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
-import type { MainContinueConversationRequest, MainDispatchRequest } from './dispatch'
+import type { ChatContextProvider, DispatchContext, PreparedDispatch } from './ChatContextProvider'
+import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
 import { resolveAssistantModelId, resolveModels, resolvePersistentSiblingsGroupId } from './modelResolution'
 
 /**
@@ -65,6 +68,43 @@ function endTurnRootSpansWithError(spans: Array<{ span: Span }>, error: unknown)
   }
 }
 
+/**
+ * Wrap the trailing user message's text parts in a steer system-reminder, for the model-facing
+ * history copy only — the persisted user row is untouched.
+ */
+function withSteerReminder(history: CherryUIMessage[]): CherryUIMessage[] {
+  for (let i = history.length - 1; i >= 0; i--) {
+    if (history[i].role !== 'user') continue
+    const message = history[i]
+    const parts = message.parts.map((part) =>
+      part.type === 'text' && part.text.trim() ? { ...part, text: wrapSteerReminder(part.text) } : part
+    )
+    const next = history.slice()
+    next[i] = { ...message, parts }
+    return next
+  }
+  return history
+}
+
+function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
+  return {
+    id: message.id,
+    role: message.role,
+    parts: message.data.parts ?? [],
+    metadata: {
+      parentId: message.parentId,
+      siblingsGroupId: message.siblingsGroupId || undefined,
+      modelId: message.modelId ?? undefined,
+      modelSnapshot: message.modelSnapshot ?? undefined,
+      status: message.status,
+      createdAt: message.createdAt,
+      stats: message.stats ?? undefined,
+      isActiveBranch: true,
+      ...(message.stats?.totalTokens ? { totalTokens: message.stats.totalTokens } : {})
+    }
+  } satisfies CherryUIMessage
+}
+
 export class PersistentChatContextProvider implements ChatContextProvider {
   readonly name = 'persistent'
 
@@ -73,7 +113,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     return true
   }
 
-  async prepareDispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<PreparedDispatch> {
+  async prepareDispatch(
+    subscriber: StreamListener,
+    req: MainDispatchRequest,
+    ctx: DispatchContext
+  ): Promise<PreparedDispatch> {
     // 1. Resolve context
     const topic = await topicService.getById(req.topicId)
     const { assistantId, defaultModelId } = await resolveAssistantModelId(topic?.assistantId)
@@ -83,6 +127,40 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       return this.prepareContinueDispatch(subscriber, req, assistantId, defaultModelId)
     }
 
+    // steer-continuation answers a steer user message persisted while a turn was live — a fresh
+    // assistant placeholder under that user row (no new user row), single model.
+    if (req.trigger === 'steer-continuation') {
+      return this.prepareSteerContinuation(subscriber, req, assistantId, defaultModelId)
+    }
+
+    if (ctx.hasLiveStream && req.trigger === 'submit-message') {
+      // Stamp the row with the model the user selected for this steer so the continuation answers
+      // with it — `prepareSteerContinuation` reads `userMessage.modelId`. Steer is single-model: if
+      // multiple models were @-mentioned, only the first is used (multi-model steer is unsupported).
+      const steerModelId = req.mentionedModelIds?.[0] ?? defaultModelId
+      const userMessage = await messageService.create(req.topicId, {
+        role: 'user',
+        parentId: req.parentAnchorId,
+        data: { parts: req.userMessageParts },
+        status: 'success',
+        modelId: steerModelId,
+        modelSnapshot: (() => {
+          const { providerId, modelId: rawModelId } = parseUniqueModelId(steerModelId)
+          return { id: rawModelId, name: rawModelId, provider: providerId }
+        })()
+      })
+
+      return {
+        topicId: req.topicId,
+        models: [],
+        listeners: [subscriber],
+        userMessageId: userMessage.id,
+        pendingSteerUserMessageId: userMessage.id,
+        reservedMessages: [toReservedUIMessage(userMessage)],
+        isMultiModel: false
+      }
+    }
+
     // 3. Models (single or multi)
     const isRegenerate = req.trigger === 'regenerate-message'
     const models = await resolveModels(req.mentionedModelIds, defaultModelId)
@@ -90,6 +168,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     if (isRegenerate && !req.parentAnchorId) {
       throw new Error(`'regenerate-message' requires parentAnchorId`)
+    }
+
+    // A regenerate while the topic is still live would build placeholder rows that send()'s inject
+    // path discards — orphaning them as `pending`. The renderer gates regenerate on a non-busy topic,
+    // so reject this should-not-happen state before any DB write instead of failing silently.
+    if (isRegenerate && ctx.hasLiveStream) {
+      throw new Error('Cannot regenerate while a stream is live on this topic')
     }
 
     // Pure compute; backfill happens inside the reservation tx. Resolver short-circuits
@@ -176,7 +261,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
                 : undefined
             }),
             onPersistFailed: (error) =>
-              void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
+              application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
           })
         )
       }
@@ -189,12 +274,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id),
         rootSpan
       }))
-
       return {
         topicId: req.topicId,
         models: models_,
         listeners,
         userMessageId: userMessage.id,
+        reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
         siblingsGroupId,
         isMultiModel
       }
@@ -256,7 +341,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             }
           }),
           onPersistFailed: (error) =>
-            void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
+            application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
         }),
         new TraceFlushListener(req.topicId)
       ]
@@ -273,6 +358,75 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         ],
         listeners,
         siblingsGroupId: undefined,
+        isMultiModel: false
+      }
+    } catch (error) {
+      endTurnRootSpansWithError(turnRootSpans, error)
+      throw error
+    }
+  }
+
+  /**
+   * Answer a steer message persisted while a turn was live (`AiStreamManager.startNextChatTurn`).
+   * Creates a fresh assistant placeholder under the steer user row (no new user row) and wraps that
+   * trailing user message with a steer system-reminder in the model-facing history only.
+   */
+  private async prepareSteerContinuation(
+    subscriber: StreamListener,
+    req: MainSteerContinuationRequest,
+    assistantId: string | undefined,
+    defaultModelId: UniqueModelId
+  ): Promise<PreparedDispatch> {
+    const userMessage = await messageService.getById(req.userMessageId)
+    if (userMessage.role !== 'user') {
+      throw new Error(`'steer-continuation' anchor must be a user message (got '${userMessage.role}')`)
+    }
+    if (userMessage.topicId !== req.topicId) {
+      throw new Error(`'steer-continuation' anchor does not belong to topic ${req.topicId}`)
+    }
+
+    const steerModelId = (userMessage.modelId ?? defaultModelId) as UniqueModelId
+    const [model] = await resolveModels([steerModelId], defaultModelId)
+    const modelSnapshot = {
+      id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
+      name: model.name,
+      provider: model.providerId
+    }
+
+    const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model])
+    const [{ span: rootSpan }] = turnRootSpans
+    try {
+      const { placeholders } = await messageService.createUserMessageWithPlaceholders({
+        topicId: req.topicId,
+        userMessage: { mode: 'existing', id: req.userMessageId },
+        placeholders: [{ role: 'assistant', data: { parts: [] }, status: 'pending', modelId: model.id, modelSnapshot }]
+      })
+      const placeholder = placeholders[0]
+
+      const listeners: StreamListener[] = [
+        subscriber,
+        new PersistenceListener({
+          topicId: req.topicId,
+          modelId: model.id,
+          backend: new MessageServiceBackend({ assistantMessageId: placeholder.id, modelSnapshot }),
+          onPersistFailed: (error) =>
+            application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
+        }),
+        new TraceFlushListener(req.topicId)
+      ]
+
+      const history = withSteerReminder(await this.buildHistory(req.userMessageId))
+      return {
+        topicId: req.topicId,
+        models: [
+          {
+            modelId: model.id,
+            request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id),
+            rootSpan
+          }
+        ],
+        listeners,
+        reservedMessages: [toReservedUIMessage(placeholder)],
         isMultiModel: false
       }
     } catch (error) {

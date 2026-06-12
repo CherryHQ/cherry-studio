@@ -4,7 +4,7 @@ import type { AiStreamManager } from '../../AiStreamManager'
 import type { StreamListener } from '../../types'
 import type { MainDispatchRequest } from '../dispatch'
 
-// Records the relative order of the steps we care about (abort vs prepareDispatch).
+// Records the relative order of the steps we care about (prepareDispatch / enqueue / send).
 const order: string[] = []
 // Captures the `hasLiveStream` flag the provider receives in its ctx arg.
 let preparedWithCtx: { hasLiveStream: boolean } | undefined
@@ -15,14 +15,6 @@ const mocks = vi.hoisted(() => ({
   persistentPrepare: vi.fn(),
   isWorkspaceErr: vi.fn<(error: unknown) => boolean>()
 }))
-
-const minimalPrepared = (topicId: string) => ({
-  topicId,
-  models: [] as unknown[],
-  listeners: [] as StreamListener[],
-  isMultiModel: false,
-  userMessageId: 'u1'
-})
 
 vi.mock('../AgentChatContextProvider', () => ({
   agentChatContextProvider: {
@@ -51,27 +43,32 @@ function makeSubscriber(): StreamListener {
   return { id: 'wc:1', onChunk: vi.fn(), onDone: vi.fn(), onPaused: vi.fn(), onError: vi.fn(), isAlive: () => true }
 }
 
-/** Fake manager whose `abortAndAwait` flips liveness false, mirroring evict-after-settle. */
-function makeManager(initiallyLive: boolean): AiStreamManager {
-  let live = initiallyLive
+function makeManager(live: boolean): AiStreamManager {
   return {
     hasLiveStream: vi.fn(() => live),
-    abortAndAwait: vi.fn(async () => {
-      order.push('abortAndAwait')
-      live = false
-    }),
+    enqueuePendingSteer: vi.fn(() => order.push('enqueuePendingSteer')),
     send: vi.fn(() => {
       order.push('send')
-      return { mode: 'started' as const, executionIds: [] }
+      return { mode: live ? ('injected' as const) : ('started' as const), executionIds: [] }
     })
   } as unknown as AiStreamManager
 }
 
-function wirePrepare(spy: typeof mocks.agentPrepare, topicId: string) {
+/** `inject: true` mirrors PersistentChatContextProvider's `hasLiveStream` branch — no models + a user row. */
+function wirePrepare(spy: typeof mocks.agentPrepare, topicId: string, opts: { inject: boolean; steer?: boolean }) {
   spy.mockImplementation((_subscriber: StreamListener, _req: MainDispatchRequest, ctx: { hasLiveStream: boolean }) => {
     order.push('prepareDispatch')
     preparedWithCtx = ctx
-    return Promise.resolve(minimalPrepared(topicId))
+    return Promise.resolve({
+      topicId,
+      models: opts.inject ? [] : [{ modelId: 'p::m', request: {} }],
+      listeners: [] as StreamListener[],
+      isMultiModel: false,
+      userMessageId: 'u1',
+      // Only the persistent steer branch sets this explicit marker; the dispatcher enqueues off it.
+      // Agent-session injects deliberately leave it unset (the runtime owns their follow-ups).
+      pendingSteerUserMessageId: opts.steer ? 'u1' : undefined
+    })
   })
 }
 
@@ -86,41 +83,42 @@ beforeEach(() => {
   mocks.isWorkspaceErr.mockReturnValue(false)
 })
 
-describe('dispatchStreamRequest — steer-restart ordering (#B4)', () => {
-  it('aborts the live chat turn BEFORE prepareDispatch reads history, and prepares as a fresh start', async () => {
-    wirePrepare(mocks.persistentPrepare, 'topic-1')
+describe('dispatchStreamRequest — steer', () => {
+  it('persists a live chat submit as a steer and enqueues it (no abort, stream stays live)', async () => {
+    wirePrepare(mocks.persistentPrepare, 'topic-1', { inject: true, steer: true })
     const manager = makeManager(true)
 
     await dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-1'))
 
-    // abortAndAwait must settle+persist the paused partial before prepareDispatch's DB read.
-    expect(order).toEqual(['abortAndAwait', 'prepareDispatch', 'send'])
-    expect(manager.abortAndAwait).toHaveBeenCalledWith('topic-1', 'steer-restart')
-    // Post-abort the stream is evicted, so the provider sees a fresh start.
-    expect(preparedWithCtx).toEqual({ hasLiveStream: false })
+    // No abort/evict — prepareDispatch observes the still-live stream and takes its inject branch,
+    // and the persisted user row is enqueued as a pending steer before send (which just attaches).
+    expect(preparedWithCtx).toEqual({ hasLiveStream: true })
+    expect(order).toEqual(['prepareDispatch', 'enqueuePendingSteer', 'send'])
+    expect(manager.enqueuePendingSteer).toHaveBeenCalledWith('topic-1', 'u1')
   })
 
-  it('does not abort a non-live chat topic', async () => {
-    wirePrepare(mocks.persistentPrepare, 'topic-2')
+  it('does not enqueue a steer for a non-live chat submit (normal turn opens models)', async () => {
+    wirePrepare(mocks.persistentPrepare, 'topic-2', { inject: false })
     const manager = makeManager(false)
 
     await dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-2'))
 
-    expect(manager.abortAndAwait).not.toHaveBeenCalled()
+    expect(manager.enqueuePendingSteer).not.toHaveBeenCalled()
     expect(order).toEqual(['prepareDispatch', 'send'])
     expect(preparedWithCtx).toEqual({ hasLiveStream: false })
   })
 
-  it('never aborts an agent-session topic and preserves its live flag for the inject path', async () => {
+  it('never enqueues a chat steer for an agent-session topic (agent runtime owns its follow-ups)', async () => {
     mocks.agentCanHandle.mockReturnValue(true)
-    wirePrepare(mocks.agentPrepare, 'agent-session:s1')
+    wirePrepare(mocks.agentPrepare, 'agent-session:s1', { inject: true })
     const manager = makeManager(true)
 
     await dispatchStreamRequest(manager, makeSubscriber(), chatReq('agent-session:s1'))
 
-    expect(manager.abortAndAwait).not.toHaveBeenCalled()
+    // Even though the agent inject shape has no models, the steer enqueue is gated to the
+    // persistent provider, so the agent path is untouched and still sees the live stream.
+    expect(manager.enqueuePendingSteer).not.toHaveBeenCalled()
     expect(order).toEqual(['prepareDispatch', 'send'])
-    // Agent session is untouched → prepareDispatch must still observe the live stream.
     expect(preparedWithCtx).toEqual({ hasLiveStream: true })
   })
 

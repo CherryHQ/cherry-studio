@@ -173,7 +173,7 @@ export class AgentService {
     const totalResult = await database.select({ count: count() }).from(agentsTable).where(whereClause)
 
     const sortBy = options.sortBy ?? 'orderKey'
-    const orderBy = options.orderBy ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
+    const sortOrder = options.sortOrder ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
 
     const sortByToColumn: Record<
       string,
@@ -188,7 +188,7 @@ export class AgentService {
       orderKey: agentsTable.orderKey
     }
     const sortField = sortByToColumn[sortBy] ?? agentsTable.createdAt
-    const orderFn = orderBy === 'asc' ? asc : desc
+    const orderFn = sortOrder === 'asc' ? asc : desc
     const orderByClauses =
       sortBy === 'updatedAt'
         ? [orderFn(sortField), orderFn(agentsTable.id)]
@@ -201,7 +201,7 @@ export class AgentService {
 
     // Pin-aware ordering (skipped for sortBy=updatedAt): LEFT JOIN with the
     // pin table, push pinned rows to the top (sorted by pin.orderKey ASC),
-    // then unpinned rows by the caller-specified sortBy/orderBy. Default
+    // then unpinned rows by the caller-specified sortBy/sortOrder. Default
     // ordering follows agent.orderKey so resource-list group reorders persist
     // across reloads.
     const baseQuery = database
