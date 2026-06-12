@@ -34,7 +34,7 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="sm:max-w-[520px]" onPointerDownOutside={(e) => e.preventDefault()}>
+      <DialogContent className="sm:max-w-130" onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{t('selection.settings.filter_modal.title')}</DialogTitle>
         </DialogHeader>
@@ -44,7 +44,7 @@ const SelectionFilterListModal: FC<SelectionFilterListModalProps> = ({ open, onC
             : t('selection.settings.filter_modal.user_tips.mac')}
         </div>
         <Textarea.Input
-          className="mt-4 w-full [field-sizing:content]"
+          className="field-sizing-content mt-4 w-full"
           rows={6}
           spellCheck={false}
           autoFocus

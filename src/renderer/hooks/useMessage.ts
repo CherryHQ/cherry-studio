@@ -21,16 +21,9 @@ import { useV2Chat } from './V2ChatContext'
 export function useMessage(messageId: string) {
   const v2 = useV2Chat()
 
-  // `V2ChatContent.handleDeleteMessage` handles span-cache cleanup
-  // internally; callers that have `traceId` / `modelName` on hand (e.g.
-  // `MessageMenubar` reading them off the assistant message) forward
-  // them via the optional second argument.
-  const remove = useCallback(
-    async (traceId?: string, modelName?: string) => {
-      await v2?.deleteMessage(messageId, { traceId, modelName })
-    },
-    [messageId, v2]
-  )
+  const remove = useCallback(async () => {
+    await v2?.deleteMessage(messageId)
+  }, [messageId, v2])
 
   const regenerate = useCallback(async () => {
     await v2?.regenerate(messageId)

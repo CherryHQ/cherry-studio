@@ -12,7 +12,7 @@ import { sanitizeUrl } from 'strict-url-sanitise'
 import { JsonFileStorage } from './storage'
 import type { OAuthProviderOptions } from './types'
 
-const logger = loggerService.withContext('MCP:OAuthClientProvider')
+const logger = loggerService.withContext('Mcp:OAuthClientProvider')
 
 export class McpOAuthClientProvider implements OAuthClientProvider {
   private storage: JsonFileStorage

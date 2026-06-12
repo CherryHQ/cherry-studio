@@ -3,6 +3,7 @@ import './assets/styles/provider-settings-scoped-theme.css'
 import { usePersistCache } from '@data/hooks/useCache'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useNavigate, useSearch } from '@tanstack/react-router'
+import { omit } from 'lodash'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useProviderDeepLinkImport } from './hooks/useProviderDeepLinkImport'
@@ -68,7 +69,7 @@ export default function ProviderSettingsPage({ isOnboarding = false }: ProviderS
     }
 
     if (shouldConsume) {
-      const restSearch = Object.fromEntries(Object.entries(search).filter(([key]) => key !== 'filter' && key !== 'id'))
+      const restSearch = omit(search, ['filter', 'id'])
       void navigate({ to: '/settings/provider', search: restSearch as Record<string, string>, replace: true })
     }
   }, [navigate, search, setSelectedProviderId, visibleProviders])

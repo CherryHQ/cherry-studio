@@ -8,7 +8,7 @@
  */
 
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { finalizeInterruptedParts } from '../PersistenceBackend'
 
@@ -37,6 +37,10 @@ function inProgressDynamicToolPart(): CherryMessagePart {
 const textPart = (text: string): CherryMessagePart => ({ type: 'text', text }) as unknown as CherryMessagePart
 
 describe('finalizeInterruptedParts', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('returns parts unchanged (by reference) on success', () => {
     const parts: CherryMessagePart[] = [textPart('hi'), inProgressToolPart('input-available')]
 
@@ -166,5 +170,47 @@ describe('finalizeInterruptedParts', () => {
     expect(result[1]).toBe(reasoning)
     // only the tool part is rewritten
     expect(result[2]).toMatchObject({ state: 'output-error', errorText: 'Stream errored before tool completed' })
+  })
+
+  it('rewrites a streaming reasoning part to done and calculates thinkingMs if startedAt is provided', () => {
+    const baseTime = 1780913860106
+    vi.spyOn(Date, 'now').mockReturnValue(baseTime)
+    const startedAt = baseTime - 5000 // 5 seconds ago
+    const streamingReasoning = {
+      type: 'reasoning',
+      text: 'thinking...',
+      state: 'streaming',
+      providerMetadata: {
+        cherry: {
+          startedAt
+        }
+      }
+    } as unknown as CherryMessagePart
+
+    const result = finalizeInterruptedParts([streamingReasoning], 'paused')
+
+    expect(result[0]).toMatchObject({
+      type: 'reasoning',
+      state: 'done'
+    })
+    const cherryMeta = (result[0] as any).providerMetadata?.cherry
+    expect(cherryMeta?.thinkingMs).toBe(5000)
+  })
+
+  it('rewrites a streaming reasoning part to done but leaves thinkingMs undefined if startedAt is missing', () => {
+    const streamingReasoning = {
+      type: 'reasoning',
+      text: 'thinking...',
+      state: 'streaming'
+    } as unknown as CherryMessagePart
+
+    const result = finalizeInterruptedParts([streamingReasoning], 'paused')
+
+    expect(result[0]).toMatchObject({
+      type: 'reasoning',
+      state: 'done'
+    })
+    const cherryMeta = (result[0] as any).providerMetadata?.cherry
+    expect(cherryMeta?.thinkingMs).toBeUndefined()
   })
 })

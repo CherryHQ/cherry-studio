@@ -80,7 +80,7 @@ export default function ProviderListContent({
     }
 
     return (
-      <div className="flex flex-col gap-[var(--provider-list-row-gap)]">
+      <div className="flex flex-col gap-(--provider-list-row-gap)">
         {chunks.map((chunk, chunkIndex) => {
           if (chunk.kind === 'singles') {
             return (

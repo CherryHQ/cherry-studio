@@ -15,7 +15,7 @@ describe('TraceFlushListener', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.applicationGet.mockImplementation((name: string) => {
-      if (name === 'SpanCacheService') return { saveSpans: mocks.saveSpans }
+      if (name === 'TraceStorageService') return { saveSpans: mocks.saveSpans }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.saveSpans.mockResolvedValue(undefined)
