@@ -1876,6 +1876,7 @@
   },
   "endpoint_type": {
     "anthropic": "Anthropic",
+    "embedding": "Встраивание",
     "gemini": "Gemini",
     "image-generation": "Генерация изображений (OpenAI)",
     "jina-rerank": "Jina Rerank",

@@ -303,6 +303,8 @@ function mapCherryinEndpointType(epType: string | undefined): CherryInProviderSe
       return 'openai-response'
     case ENDPOINT_TYPE.JINA_RERANK:
       return 'jina-rerank'
+    case ENDPOINT_TYPE.OPENAI_EMBEDDINGS:
+      return 'embedding'
     default:
       return 'openai'
   }
