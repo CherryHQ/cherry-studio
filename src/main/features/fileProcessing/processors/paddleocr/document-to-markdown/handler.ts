@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 
-import { type JobStatus } from '@paddleocr/api-sdk'
+import type { JobStatus } from '@paddleocr/api-sdk'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileInfo } from '@shared/file/types'
 
@@ -23,11 +23,15 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
   /** Submits the document for parsing and sets up polling and rehydration. */
   async prepare(file, config, signal) {
     signal?.throwIfAborted()
-    const { apiHost, apiKey, model } = await prepareContext(file, config, signal)
+    const { apiHost, apiKey, model } = prepareContext(file, config, signal)
 
     return {
       mode: 'remote-poll',
       async startRemote(startSignal) {
+        const stat = await fs.stat(file.path)
+        if (stat.size >= PADDLE_MAX_FILE_SIZE) {
+          throw new Error('PaddleOCR file is too large (must be smaller than 50MB)')
+        }
         const client = await createPaddleClient(apiHost, apiKey)
         const job = await client.submitDocumentParsing({ filePath: file.path, model }, { signal: startSignal })
         return {
@@ -60,14 +64,9 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
 }
 
 /** Extracts API credentials and model from config for document parsing. */
-async function prepareContext(file: FileInfo, config: FileProcessorMerged, signal?: AbortSignal) {
+function prepareContext(file: FileInfo, config: FileProcessorMerged, signal?: AbortSignal) {
   signal?.throwIfAborted()
   const capability = getRequiredCapability(config, 'document_to_markdown', 'paddleocr')
-  const stat = await fs.stat(file.path)
-  if (stat.size >= PADDLE_MAX_FILE_SIZE) {
-    throw new Error('PaddleOCR file is too large (must be smaller than 50MB)')
-  }
-
   return {
     apiHost: getRequiredApiHost(capability),
     apiKey: getRequiredApiKey(config, 'paddleocr'),

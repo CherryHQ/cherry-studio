@@ -151,9 +151,25 @@ describe('paddleocr handlers', () => {
   it('rejects document parsing requests larger than 50MB before upload', async () => {
     vi.spyOn(fs, 'stat').mockResolvedValueOnce({ size: 51 * 1024 * 1024 } as never)
 
+    const prepared = await paddleDocumentToMarkdownHandler.prepare(
+      documentFile,
+      createConfig('document_to_markdown', 'PaddleOCR-VL-1.5')
+    )
+    if (prepared.mode !== 'remote-poll') {
+      throw new Error('Expected paddle document handler to prepare a remote-poll task')
+    }
+
+    await expect(prepared.startRemote(new AbortController().signal)).rejects.toThrow(
+      'PaddleOCR file is too large (must be smaller than 50MB)'
+    )
+  })
+
+  it('resumes document polling after restart without reading the local file', async () => {
+    vi.spyOn(fs, 'stat').mockRejectedValueOnce(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+
     await expect(
       paddleDocumentToMarkdownHandler.prepare(documentFile, createConfig('document_to_markdown', 'PaddleOCR-VL-1.5'))
-    ).rejects.toThrow('PaddleOCR file is too large (must be smaller than 50MB)')
+    ).resolves.toMatchObject({ mode: 'remote-poll' })
   })
 
   it('starts remote document parsing with the configured model', async () => {
@@ -324,7 +340,7 @@ describe('paddleocr handlers', () => {
   })
 
   it('returns processing status with mapped progress for active document jobs', async () => {
-    getStatusMock.mockResolvedValueOnce({ state: 'processing', progress: { extractedPages: 1, totalPages: 2 } })
+    getStatusMock.mockResolvedValueOnce({ state: 'running', progress: { extractedPages: 1, totalPages: 2 } })
 
     await expect(
       buildPollResult('job-1', { apiHost: 'https://paddleocr.aistudio-app.com/', apiKey: 'secret-key' })
