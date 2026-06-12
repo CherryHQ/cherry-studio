@@ -36,10 +36,9 @@ function IconMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
                 onClick={() => void onItemClick(item.id)}
                 className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
                   isActive
-                    ? 'bg-sidebar-active-bg text-foreground'
+                    ? 'bg-accent text-foreground'
                     : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                 }`}>
-                {isActive && <ActiveIndicator className="rounded-full" />}
                 <Icon size={18} strokeWidth={1.6} />
               </button>
             </SidebarTooltip>
@@ -81,9 +80,8 @@ function FullMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
                 label={item.label}
                 active={isActive}
                 onClick={() => void onItemClick(item.id)}
-                className="rounded-xl data-[active=true]:bg-sidebar-active-bg"
+                className="gap-2 py-1 data-[active=true]:bg-selected data-[active=true]:shadow-[inset_0_0_0_0.5px_var(--color-selected-border)]"
               />
-              {isActive && <ActiveIndicator className="rounded-xl" />}
             </div>
 
             {miniTabs.map((miniTab) => (
@@ -91,12 +89,12 @@ function FullMenuItems({ items, activeItem, activeTabId, onItemClick, onMiniAppT
                 type="button"
                 key={miniTab.id}
                 onClick={() => onMiniAppTabClick?.(miniTab.id)}
-                className={`relative flex w-full items-center gap-2 rounded-xl py-[5px] pr-2.5 pl-7 text-[12px] transition-all duration-150 ${
+                className={`relative flex w-full items-center gap-2 rounded-lg py-[5px] pr-2.5 pl-7 text-[12px] transition-all duration-150 ${
                   activeTabId === miniTab.id
                     ? 'bg-sidebar-active-bg text-foreground'
                     : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground'
                 }`}>
-                {activeTabId === miniTab.id && <ActiveIndicator className="rounded-xl" glow />}
+                {activeTabId === miniTab.id && <ActiveIndicator className="rounded-lg" glow />}
                 <MiniAppIcon tab={miniTab} />
                 <span className="truncate">{miniTab.title}</span>
               </button>
