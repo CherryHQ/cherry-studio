@@ -836,8 +836,8 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleStatusSystemMessage(message: SDKStatusMessage): void {
-    // Agent-session compaction state is emitted by ClaudeCodeRuntimeDriver; this adapter only avoids
-    // leaking a status-only system message into the assistant stream.
+    // Defensive fallback for future non-driver consumers. ClaudeCodeRuntimeDriver intercepts
+    // compaction status before this adapter and emits the runtime state itself.
     if (message.status === 'compacting') return
     if (message.compact_result === 'failed' || message.compact_error) {
       logger.warn('Claude compaction failed', { sessionId: message.session_id, error: message.compact_error })
@@ -845,8 +845,8 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleCompactBoundarySystemMessage(): void {
-    // Compaction runtime events are emitted by ClaudeCodeRuntimeDriver before this adapter sees the message.
-    // The stream adapter intentionally does not enqueue a message chunk for the boundary.
+    // Defensive fallback for future non-driver consumers. The current driver path intercepts
+    // compact_boundary before this adapter, so no assistant stream chunk is emitted here.
   }
 
   private handleThinkingTokensSystemMessage(message: SDKThinkingTokensMessage, ctx: StreamContext): void {
