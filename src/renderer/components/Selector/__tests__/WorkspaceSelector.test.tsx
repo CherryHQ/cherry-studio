@@ -42,6 +42,7 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 import { WorkspaceSelector } from '../resource/WorkspaceSelector'
+import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '../shell/SelectorShell'
 
 const WORKSPACES = [
   {
@@ -149,11 +150,13 @@ describe('WorkspaceSelector', () => {
     expect(screen.queryByText('/Users/jd/cherry-studio')).not.toBeInTheDocument()
   })
 
-  it('sets a 360px default popover target height', () => {
+  it('sets the default popover target height', () => {
     renderSelector()
     openPopover()
 
-    expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({ height: '360px' })
+    expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({
+      height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px`
+    })
   })
 
   it('renders and selects the no-project option', async () => {

@@ -15,6 +15,7 @@ import {
   type ResourceSelectorShellItem,
   type ResourceSelectorShellLabels
 } from '../resource/ResourceSelectorShell'
+import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '../shell/SelectorShell'
 
 type Item = ResourceSelectorShellItem
 
@@ -180,10 +181,12 @@ describe('ResourceSelectorShell', () => {
       )
       openPopover()
 
-      await waitFor(() => expect(screen.getByRole('listbox')).toHaveStyle({ height: '360px' }))
+      await waitFor(() =>
+        expect(screen.getByRole('listbox')).toHaveStyle({ height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px` })
+      )
     })
 
-    it('sets a 360px default popover target height when available space is unconstrained', () => {
+    it('sets the default popover target height when available space is unconstrained', () => {
       render(
         <ResourceSelectorShell
           trigger={<button type="button">Open</button>}
@@ -197,7 +200,9 @@ describe('ResourceSelectorShell', () => {
       )
       openPopover()
 
-      expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({ height: '360px' })
+      expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({
+        height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px`
+      })
     })
 
     it('renders empty results with the shared empty state', () => {
@@ -262,7 +267,7 @@ describe('ResourceSelectorShell', () => {
       openPopover()
 
       expect(screen.getByRole('listbox')).toHaveStyle({
-        height: '360px'
+        height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px`
       })
     })
 

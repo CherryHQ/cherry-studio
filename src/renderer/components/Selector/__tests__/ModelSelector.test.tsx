@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ModelSelector } from '../model/ModelSelector'
 import type { FlatListItem, ModelSelectorModelItem, UseModelSelectorDataResult } from '../model/types'
+import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '../shell/SelectorShell'
 
 const {
   mockUseModelSelectorData,
@@ -760,7 +761,7 @@ describe('ModelSelector', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it('sets a 360px default popover target height for long model lists', () => {
+  it('sets the default popover target height for long model lists', () => {
     const items = Array.from({ length: 30 }, (_, index) => makeModelItem(`openai::model-${index}` as UniqueModelId))
     mockUseModelSelectorData.mockReturnValue(
       makeData({
@@ -771,8 +772,8 @@ describe('ModelSelector', () => {
 
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
-    expect(screen.getByTestId('model-selector-content')).toHaveStyle({ height: '360px' })
-    expect(mockVirtualListSizes.at(-1)).toBe(352)
+    expect(screen.getByTestId('model-selector-content')).toHaveStyle({ height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px` })
+    expect(mockVirtualListSizes.at(-1)).toBe(DEFAULT_SELECTOR_CONTENT_HEIGHT - 8)
   })
 
   it('fills the unified popover content height for short model lists', () => {
@@ -786,8 +787,8 @@ describe('ModelSelector', () => {
 
     render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
 
-    expect(screen.getByTestId('model-selector-content')).toHaveStyle({ height: '360px' })
-    expect(mockVirtualListSizes.at(-1)).toBe(352)
+    expect(screen.getByTestId('model-selector-content')).toHaveStyle({ height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px` })
+    expect(mockVirtualListSizes.at(-1)).toBe(DEFAULT_SELECTOR_CONTENT_HEIGHT - 8)
   })
 
   it('clamps the visible model list height to the available popover space', async () => {

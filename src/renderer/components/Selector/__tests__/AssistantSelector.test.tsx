@@ -127,6 +127,7 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 import { AssistantSelector } from '../resource/AssistantSelector'
+import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '../shell/SelectorShell'
 
 const ALPHA_ASSISTANT_ID = '11111111-1111-4111-8111-111111111111'
 const BETA_ASSISTANT_ID = '22222222-2222-4222-8222-222222222222'
@@ -305,11 +306,13 @@ async function openCreateDialog() {
 }
 
 describe('AssistantSelector', () => {
-  it('sets a 360px default popover target height', () => {
+  it('sets the default popover target height', () => {
     renderSelector()
     openPopover()
 
-    expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({ height: '360px' })
+    expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({
+      height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px`
+    })
   })
 
   it('renders rows in DataApi order and shows tag filters without sort controls', () => {

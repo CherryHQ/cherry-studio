@@ -110,7 +110,7 @@ describe('SelectorShell', () => {
     )
 
     const content = document.querySelector<HTMLElement>('[data-selector-shell-content]')
-    expect(content).toHaveStyle({ height: '360px' })
+    expect(content).toHaveStyle({ height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px` })
     expect(content?.style.maxHeight).toBe('')
   })
 
@@ -132,7 +132,7 @@ describe('SelectorShell', () => {
       if (!isContent) return style
 
       Object.defineProperties(style, {
-        height: { configurable: true, value: '360px' },
+        height: { configurable: true, value: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px` },
         paddingTop: { configurable: true, value: '0px' },
         paddingBottom: { configurable: true, value: '0px' }
       })
@@ -169,7 +169,9 @@ describe('SelectorShell', () => {
       </SelectorShell>
     )
 
-    await waitFor(() => expect(screen.getByTestId('available-height')).toHaveTextContent('340'))
+    await waitFor(() =>
+      expect(screen.getByTestId('available-height')).toHaveTextContent(String(DEFAULT_SELECTOR_CONTENT_HEIGHT - 20))
+    )
   })
 
   it('lets contentProps override collision padding', () => {

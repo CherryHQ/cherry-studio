@@ -168,6 +168,7 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 import { AgentSelector, type AgentSelectorItem } from '../resource/AgentSelector'
+import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '../shell/SelectorShell'
 
 const ALPHA_AGENT_ID = '44444444-4444-4444-8444-444444444444'
 const BETA_AGENT_ID = '55555555-5555-4555-8555-555555555555'
@@ -314,11 +315,13 @@ async function openCreateDialog() {
 }
 
 describe('AgentSelector', () => {
-  it('sets a 360px default popover target height', () => {
+  it('sets the default popover target height', () => {
     renderSelector()
     openPopover()
 
-    expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({ height: '360px' })
+    expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({
+      height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px`
+    })
   })
 
   it('fetches agents from DataApi and renders returned rows', () => {
