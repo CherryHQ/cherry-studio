@@ -395,6 +395,9 @@
           "failed": "Fehler beim Neuordnen der Sitzungen"
         }
       },
+      "tool": {
+        "disabled": "Das Tool {{toolName}} ist für diesen Agenten deaktiviert."
+      },
       "update": {
         "error": {
           "failed": "Sitzung aktualisieren fehlgeschlagen"

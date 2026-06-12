@@ -100,7 +100,7 @@ export class AgentService {
       planModel: req.planModel,
       smallModel: req.smallModel,
       mcps: req.mcps,
-      allowedTools: req.allowedTools,
+      disabledTools: req.disabledTools,
       configuration: req.configuration
     }
 
@@ -269,7 +269,7 @@ export class AgentService {
     }
 
     // Several mutable fields map to NOT NULL columns with DB defaults
-    // (description, instructions, mcps, allowedTools, configuration). Writing
+    // (description, instructions, mcps, disabledTools, configuration). Writing
     // literal NULL when the DTO omits a field would violate the constraint.
     // Skip undefined values so Drizzle preserves the column's current value.
     for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {

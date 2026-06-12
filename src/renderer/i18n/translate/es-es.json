@@ -395,6 +395,9 @@
           "failed": "Error al reordenar las sesiones"
         }
       },
+      "tool": {
+        "disabled": "La herramienta {{toolName}} está deshabilitada para este agente."
+      },
       "update": {
         "error": {
           "failed": "Error al actualizar la sesión"
