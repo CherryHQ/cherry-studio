@@ -96,6 +96,15 @@ describe('AssistantMappings', () => {
       expect(result.assistant.modelId).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
     })
 
+    it('should set modelId to null when model provider is not a string', () => {
+      const result = transformAssistant({
+        id: 'ast-4d',
+        model: { id: 'gpt-4', provider: 42 as never }
+      })
+
+      expect(result.assistant.modelId).toBeNull()
+    })
+
     it('should set modelId to null when model has missing provider or id', () => {
       const result = transformAssistant({
         id: 'ast-5',

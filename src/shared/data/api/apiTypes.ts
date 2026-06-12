@@ -235,7 +235,7 @@ export interface ListOptions {
   limit?: number
   offset?: number
   sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'orderKey'
-  orderBy?: 'asc' | 'desc'
+  sortOrder?: 'asc' | 'desc'
   /** LIKE %kw% match against name OR description (case-insensitive). */
   search?: string
 }

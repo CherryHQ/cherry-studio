@@ -7,7 +7,7 @@ import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
-import { eq } from 'drizzle-orm'
+import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MigrationContext } from '../../core/MigrationContext'
@@ -193,6 +193,22 @@ describe('ProviderModelMigrator', () => {
       expect(migratedProviders).toHaveLength(1)
       expect(migratedModels).toHaveLength(2)
       expect(migratedProviders[0].providerId).toBe('openai')
+    })
+
+    it('assigns migrated provider order keys after the seeded CherryAI provider', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [makeProvider('openai'), makeProvider('anthropic')]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const providers = await dbh.db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey))
+      expect(providers.map((provider) => provider.providerId)).toEqual([CHERRYAI_PROVIDER_ID, 'openai', 'anthropic'])
+      expect(new Set(providers.map((provider) => provider.orderKey)).size).toBe(providers.length)
     })
 
     it('deduplicates models within a provider', async () => {

@@ -34,6 +34,44 @@ describe('assistantHandlers', () => {
   })
 
   describe('/assistants', () => {
+    it('should forward parsed list query params', async () => {
+      listMock.mockResolvedValueOnce({ items: [], total: 0, page: 1 })
+
+      await assistantHandlers['/assistants'].GET({
+        query: {
+          updatedAtFrom: '2026-05-01T00:00:00.000Z',
+          sortBy: 'updatedAt',
+          sortOrder: 'desc'
+        }
+      } as never)
+
+      expect(listMock).toHaveBeenCalledWith({
+        updatedAtFrom: '2026-05-01T00:00:00.000Z',
+        sortBy: 'updatedAt',
+        sortOrder: 'desc',
+        page: 1,
+        limit: 100
+      })
+    })
+
+    it('should reject legacy numeric updatedAtFrom and orderBy list params', async () => {
+      await expect(
+        assistantHandlers['/assistants'].GET({
+          query: { updatedAtFrom: 1, orderBy: 'desc' }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(listMock).not.toHaveBeenCalled()
+
+      await expect(
+        assistantHandlers['/assistants'].GET({
+          query: { updatedAtFrom: '2026-05-01T00:00:00.000Z', orderBy: 'desc' }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(listMock).not.toHaveBeenCalled()
+    })
+
     it('should forward create bodies without injecting defaults', async () => {
       createMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'New Assistant' })
 

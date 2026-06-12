@@ -2,6 +2,8 @@ import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { CHERRYAI_DEFAULT_MODEL_SEEDER_NAME } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
+import { SEED_KEY_PREFIX } from '@data/db/seeding/SeedRunner'
 import { insertWithOrderKey } from '@data/services/utils/orderKey'
 import { DEFAULT_ASSISTANT_SEED } from '@shared/data/presets/default-assistant'
 import { and, eq, isNull, like, ne } from 'drizzle-orm'
@@ -9,7 +11,7 @@ import { and, eq, isNull, like, ne } from 'drizzle-orm'
 import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
 
-const CHERRYAI_DEFAULT_MODEL_SEED_JOURNAL_KEY = 'seed:cherryaiDefaultModel' as const
+const CHERRYAI_DEFAULT_MODEL_SEED_JOURNAL_KEY = `${SEED_KEY_PREFIX}${CHERRYAI_DEFAULT_MODEL_SEEDER_NAME}` as const
 
 export class DefaultAssistantSeeder implements ISeeder {
   readonly name = 'defaultAssistant'
@@ -29,7 +31,12 @@ export class DefaultAssistantSeeder implements ISeeder {
         return
       }
 
-      await insertWithOrderKey(tx, assistantTable, DEFAULT_ASSISTANT_SEED, {
+      const insertValues = {
+        ...DEFAULT_ASSISTANT_SEED,
+        settings: { ...DEFAULT_ASSISTANT_SEED.settings }
+      } satisfies Omit<typeof assistantTable.$inferInsert, 'orderKey'>
+
+      await insertWithOrderKey(tx, assistantTable, insertValues, {
         pkColumn: assistantTable.id,
         scope: isNull(assistantTable.deletedAt)
       })

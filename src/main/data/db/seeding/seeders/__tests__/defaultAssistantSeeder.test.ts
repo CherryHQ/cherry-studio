@@ -7,6 +7,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { CherryAIDefaultModelSeeder } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { DefaultAssistantSeeder } from '@data/db/seeding/seeders/defaultAssistantSeeder'
+import { SEED_KEY_PREFIX } from '@data/db/seeding/SeedRunner'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import {
@@ -27,7 +28,7 @@ describe('DefaultAssistantSeeder', () => {
     const dependencySeeder = new CherryAIDefaultModelSeeder()
     await dependencySeeder.run(dbh.db)
     await dbh.db.insert(appStateTable).values({
-      key: 'seed:cherryaiDefaultModel',
+      key: `${SEED_KEY_PREFIX}${dependencySeeder.name}`,
       value: { version: dependencySeeder.version }
     })
   }

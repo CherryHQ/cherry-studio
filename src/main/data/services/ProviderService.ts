@@ -19,6 +19,7 @@ import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
+import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type {
   ApiKeyEntry,
   AuthConfig,
@@ -34,6 +35,17 @@ import { v4 as uuidv4 } from 'uuid'
 const logger = loggerService.withContext('DataApi:ProviderService')
 
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
+
+function assertManagedCherryAIProviderPatchAllowed(providerId: string, dto: UpdateProviderDto): void {
+  if (providerId !== CHERRYAI_PROVIDER_ID || Object.keys(dto).length === 0) {
+    return
+  }
+
+  throw DataApiErrorFactory.invalidOperation(
+    `update provider ${providerId}`,
+    'managed CherryAI provider cannot be updated'
+  )
+}
 
 function normalizeApiKeyEntry(entry: ApiKeyEntry): ApiKeyEntry {
   const key = entry.key.trim()
@@ -236,6 +248,8 @@ class ProviderService {
    * Update an existing provider
    */
   async update(providerId: string, dto: UpdateProviderDto): Promise<Provider> {
+    assertManagedCherryAIProviderPatchAllowed(providerId, dto)
+
     // Read + merge + write the providerSettings JSON in ONE serialized write
     // transaction. A bare read-then-update would let two concurrent PATCHes both
     // read the same old providerSettings and have the later write clobber the

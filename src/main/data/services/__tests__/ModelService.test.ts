@@ -139,6 +139,17 @@ describe('ModelService.update', () => {
     )
   }
 
+  async function seedManagedCherryAIDefaultModel() {
+    await dbh.db.insert(userProviderTable).values(providerRow(CHERRYAI_PROVIDER_ID, 'CherryAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow(CHERRYAI_PROVIDER_ID, CHERRYAI_DEFAULT_MODEL_ID, {
+        id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+        name: CHERRYAI_DEFAULT_MODEL_ID,
+        isEnabled: true
+      })
+    )
+  }
+
   it('only writes provided fields — partial update does not clear others', async () => {
     await seedExistingModel()
 
@@ -263,6 +274,32 @@ describe('ModelService.update', () => {
 
     expect(result.name).toBe('GPT-4o')
     expect(result.contextWindow).toBe(128_000)
+  })
+
+  it('allows an empty PATCH for the managed CherryAI default model', async () => {
+    await seedManagedCherryAIDefaultModel()
+
+    const result = await modelService.update(CHERRYAI_PROVIDER_ID, CHERRYAI_DEFAULT_MODEL_ID, {})
+
+    expect(result.id).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+    expect(result.isEnabled).toBe(true)
+  })
+
+  it('rejects PATCHes for the managed CherryAI default model', async () => {
+    await seedManagedCherryAIDefaultModel()
+
+    await expect(
+      modelService.update(CHERRYAI_PROVIDER_ID, CHERRYAI_DEFAULT_MODEL_ID, { isEnabled: false })
+    ).rejects.toMatchObject({
+      code: ErrorCode.INVALID_OPERATION,
+      status: 400
+    })
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(eq(userModelTable.id, CHERRYAI_DEFAULT_UNIQUE_MODEL_ID))
+    expect(row.isEnabled).toBe(true)
   })
 })
 
@@ -938,6 +975,45 @@ describe('ModelService.delete', () => {
 
 describe('ModelService.bulkUpdate', () => {
   const dbh = setupTestDatabase()
+
+  it('rejects managed CherryAI default model PATCHes before writing other rows', async () => {
+    const [cherryAIOrderKey, openAIOrderKey] = generateOrderKeySequence(2)
+    await dbh.db
+      .insert(userProviderTable)
+      .values([
+        providerRow(CHERRYAI_PROVIDER_ID, 'CherryAI', cherryAIOrderKey),
+        providerRow('openai', 'OpenAI', openAIOrderKey)
+      ])
+    await dbh.db.insert(userModelTable).values([
+      modelRow(CHERRYAI_PROVIDER_ID, CHERRYAI_DEFAULT_MODEL_ID, {
+        id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+        name: CHERRYAI_DEFAULT_MODEL_ID,
+        isEnabled: true
+      }),
+      modelRow('openai', 'gpt-4o', { name: 'GPT-4o-original' })
+    ])
+
+    await expect(
+      modelService.bulkUpdate([
+        { providerId: 'openai', modelId: 'gpt-4o', patch: { name: 'GPT-4o-new' } },
+        { providerId: CHERRYAI_PROVIDER_ID, modelId: CHERRYAI_DEFAULT_MODEL_ID, patch: { isEnabled: false } }
+      ])
+    ).rejects.toMatchObject({
+      code: ErrorCode.INVALID_OPERATION,
+      status: 400
+    })
+
+    const [openAIRow] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(eq(userModelTable.id, createUniqueModelId('openai', 'gpt-4o')))
+    const [cherryAIRow] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(eq(userModelTable.id, CHERRYAI_DEFAULT_UNIQUE_MODEL_ID))
+    expect(openAIRow.name).toBe('GPT-4o-original')
+    expect(cherryAIRow.isEnabled).toBe(true)
+  })
 
   it('rolls back the whole batch when one item is missing (atomic update)', async () => {
     // T3: pin the cross-row atomicity of bulkUpdate. A NOT_FOUND on item 2

@@ -1,17 +1,7 @@
-import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 
-import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
+import { legacyChatModelToUniqueId, type LegacyModelRef } from '../transformers/ModelTransformers'
 import type { TransformResult } from './ComplexPreferenceMappings'
-
-function legacyChatModelToUniqueId(model: LegacyModelRef | null | undefined): UniqueModelId | null {
-  const providerId = typeof model?.provider === 'string' ? model.provider.trim() : null
-  if (providerId === CHERRYAI_PROVIDER_ID) {
-    return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
-  }
-
-  return legacyModelToUniqueId(model)
-}
 
 /**
  * Transform 4 legacy LLM Model objects into UniqueModelId preference values.

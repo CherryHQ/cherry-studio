@@ -274,7 +274,7 @@ export class AssistantDataService {
       if (searchClause) conditions.push(searchClause)
     }
     if (query.updatedAtFrom !== undefined) {
-      conditions.push(gte(assistantTable.updatedAt, query.updatedAtFrom))
+      conditions.push(gte(assistantTable.updatedAt, Date.parse(query.updatedAtFrom)))
     }
     if (query.tagIds && query.tagIds.length > 0) {
       const assistantIds = await tagService.getEntityIdsByTagsTx(this.db, 'assistant', query.tagIds)
@@ -283,8 +283,8 @@ export class AssistantDataService {
 
     const whereClause = and(...conditions)
     const sortBy = query.sortBy ?? 'orderKey'
-    const orderBy = query.orderBy ?? (sortBy === 'orderKey' || sortBy === 'name' ? 'asc' : 'desc')
-    const orderFn = orderBy === 'asc' ? asc : desc
+    const sortOrder = query.sortOrder ?? (sortBy === 'orderKey' || sortBy === 'name' ? 'asc' : 'desc')
+    const orderFn = sortOrder === 'asc' ? asc : desc
     const sortByToColumn = {
       createdAt: assistantTable.createdAt,
       updatedAt: assistantTable.updatedAt,
@@ -302,11 +302,10 @@ export class AssistantDataService {
             asc(assistantTable.createdAt)
           ]
 
-    // Pin-aware ordering: LEFT JOIN with the pin table, push pinned rows to
-    // the top (sorted by pin.orderKey ASC), then unpinned rows sorted by the
-    // assistant's own orderKey. Tests that never pin rows see the same order
-    // as before because the CASE evaluates to 1 for every row and falls
-    // through to the secondary sort untouched.
+    // Pin-aware ordering is the default library view: pinned rows first by
+    // pin.orderKey, then the requested secondary sort. Freshness queries
+    // (`sortBy=updatedAt`) deliberately bypass pins so incremental consumers get
+    // strict timestamp ordering.
     const [rows, [{ count }]] = await Promise.all([
       this.db
         .select({ assistant: assistantTable, modelName: userModelTable.name, pinOrderKey: pinTable.orderKey })
@@ -357,7 +356,7 @@ export class AssistantDataService {
       // orderKey is omitted — `insertWithOrderKey` computes the next fractional
       // key from the existing max and injects it before the DB write.
       const { mcpServerIds, knowledgeBaseIds, tagIds, ...columnDto } = dto
-      const insertValues: Omit<typeof assistantTable.$inferInsert, 'orderKey'> = {
+      const insertValues = {
         ...columnDto,
         modelId,
         emoji: dto.emoji ?? '🌟',

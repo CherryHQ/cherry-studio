@@ -23,7 +23,7 @@ export interface ISeeder {
 
 **`SeedRunner`** (`src/main/data/db/seeding/SeedRunner.ts`)
 
-Reads journal entries from `app_state` (key = `seed:<name>`), compares version strings, skips if they match, and runs the seeder in a transaction if they differ. The journal update is part of the same transaction, ensuring atomicity.
+Reads journal entries from `app_state` (key = `seed:<name>`), compares version strings, skips if they match, calls `seeder.run(db)` if they differ, then writes the journal entry after the seeder returns. Each seeder owns its own transaction boundaries.
 
 **`seeding/index.ts`** (`src/main/data/db/seeding/index.ts`)
 
@@ -40,10 +40,8 @@ App startup
            -> Compare seeder.version with journal version
            -> If match: skip (already applied)
            -> If different or missing:
-                -> Begin transaction
-                -> Run seeder.run(tx)
+                -> Run seeder.run(db)
                 -> Upsert journal entry (seed:<name>) with new version
-                -> Commit transaction
 ```
 
 ## Version Strategies
@@ -155,7 +153,7 @@ No changes to `DbService` are needed.
 ## Important Notes
 
 - **Idempotency**: Seed logic must check existing data before inserting. Users may have modified or deleted seeded records; the seeder should only insert records that do not already exist.
-- **Transaction atomicity**: Each seed runs in its own transaction together with its journal update. If the seed fails, neither the data nor the journal entry is committed.
+- **Transaction boundaries**: Each seeder owns its own transaction. `SeedRunner` writes the journal only after `seeder.run(db)` resolves; if a seed throws, the journal is not written.
 - **Phase**: Seeds run at `Phase.BeforeReady` during app initialization, before any services that depend on the seeded data are active.
 - **Journal storage**: Journal entries are stored in the `app_state` table with key prefix `seed:` and a JSON value containing `version`. The table's built-in `updatedAt` column serves as the applied-at timestamp. The `seed:` prefix follows the `app_state` key-naming convention — see [App State Overview](./app-state-overview.md).
 - **No manual DbService changes**: Adding a seeder only requires creating the class and registering it in the `seeders` array.

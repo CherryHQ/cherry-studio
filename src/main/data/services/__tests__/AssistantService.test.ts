@@ -296,7 +296,8 @@ describe('AssistantDataService', () => {
     })
 
     it('filters by updatedAtFrom and can sort by updatedAt descending', async () => {
-      const cutoff = Date.parse('2026-05-01T00:00:00.000Z')
+      const cutoffIso = '2026-05-01T00:00:00.000Z'
+      const cutoff = Date.parse(cutoffIso)
       await seedAssistantRow([
         { id: 'ast-old', name: 'Research old', updatedAt: cutoff - 1, orderKey: 'a0' },
         { id: 'ast-newer', name: 'Research newer', updatedAt: cutoff + 2000, orderKey: 'a1' },
@@ -306,9 +307,9 @@ describe('AssistantDataService', () => {
 
       const result = await assistantDataService.list({
         ...listQuery({ search: 'Research', limit: 10 }),
-        updatedAtFrom: cutoff,
+        updatedAtFrom: cutoffIso,
         sortBy: 'updatedAt',
-        orderBy: 'desc'
+        sortOrder: 'desc'
       })
 
       expect(result.items.map((a) => a.id)).toEqual(['ast-newest', 'ast-newer'])
@@ -401,7 +402,7 @@ describe('AssistantDataService', () => {
       expect(result.items[1].id).toBe('ast-3')
     })
 
-    it('should order by orderKey ascending with id tiebreaker', async () => {
+    it('should order by orderKey ascending with createdAt tiebreaker', async () => {
       await seedAssistantRow([
         { id: 'ast-later-created', name: 'first-by-key', orderKey: 'a0', createdAt: 300 },
         { id: 'ast-a', name: 'tie-a', orderKey: 'a1', createdAt: 100 },
@@ -413,35 +414,16 @@ describe('AssistantDataService', () => {
       expect(result.items.map((a) => a.id)).toEqual(['ast-later-created', 'ast-a', 'ast-b', 'ast-earlier-created'])
     })
 
-    it('surfaces pinned assistants ahead of unpinned ones, sorted by pin.orderKey', async () => {
+    it('does not float pinned assistants when sorting by updatedAt', async () => {
       await seedAssistantRow([
-        { id: 'ast-1', name: 'a1', createdAt: 100 },
-        { id: 'ast-2', name: 'a2', createdAt: 200 },
-        { id: 'ast-3', name: 'a3', createdAt: 300 },
-        { id: 'ast-4', name: 'a4', createdAt: 400 }
+        { id: 'ast-old-pinned', name: 'old pinned', updatedAt: 100, orderKey: 'a0' },
+        { id: 'ast-mid', name: 'mid', updatedAt: 200, orderKey: 'a1' },
+        { id: 'ast-new', name: 'new', updatedAt: 300, orderKey: 'a2' }
       ])
-      // Pin ast-3 then ast-1 — pin.orderKey is assigned by `insertWithOrderKey`,
-      // so the second pin gets a larger key and appears AFTER ast-3 in the
-      // pinned section.
-      await pinService.pin({ entityType: 'assistant', entityId: 'ast-3' })
-      await pinService.pin({ entityType: 'assistant', entityId: 'ast-1' })
+      await pinService.pin({ entityType: 'assistant', entityId: 'ast-old-pinned' })
 
-      const result = await assistantDataService.list(listQuery())
-      expect(result.items.map((a) => a.id)).toEqual(['ast-3', 'ast-1', 'ast-2', 'ast-4'])
-    })
-
-    it('keeps unpinned assistants in createdAt order when no pins exist', async () => {
-      // Regression: the pin LEFT JOIN must not change ordering for the
-      // pin-free path. Pin column is NULL for every row → CASE evaluates to 1
-      // uniformly → secondary sort applies as before.
-      await seedAssistantRow([
-        { id: 'ast-z', name: 'z', orderKey: 'a0', createdAt: 300 },
-        { id: 'ast-a', name: 'a', orderKey: 'a0', createdAt: 100 },
-        { id: 'ast-m', name: 'm', orderKey: 'a0', createdAt: 200 }
-      ])
-
-      const result = await assistantDataService.list(listQuery())
-      expect(result.items.map((a) => a.id)).toEqual(['ast-a', 'ast-m', 'ast-z'])
+      const result = await assistantDataService.list(listQuery({ sortBy: 'updatedAt', sortOrder: 'desc' }))
+      expect(result.items.map((a) => a.id)).toEqual(['ast-new', 'ast-mid', 'ast-old-pinned'])
     })
 
     it('surfaces pinned assistants ahead of unpinned ones, sorted by pin.orderKey', async () => {

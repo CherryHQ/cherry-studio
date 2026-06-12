@@ -42,6 +42,17 @@ function isManagedCherryAIDefaultModel(providerId: string, modelId: string): boo
   return providerId === CHERRYAI_PROVIDER_ID && modelId === CHERRYAI_DEFAULT_MODEL_ID
 }
 
+function assertManagedCherryAIDefaultModelPatchAllowed(providerId: string, modelId: string, dto: UpdateModelDto): void {
+  if (!isManagedCherryAIDefaultModel(providerId, modelId) || Object.keys(dto).length === 0) {
+    return
+  }
+
+  throw DataApiErrorFactory.invalidOperation(
+    `update model ${providerId}/${modelId}`,
+    'managed CherryAI default model cannot be updated'
+  )
+}
+
 /**
  * Resolve the effective capability set for a Model row at query-time.
  *
@@ -594,6 +605,8 @@ class ModelService {
    * Update an existing model
    */
   async update(providerId: string, modelId: string, dto: UpdateModelDto): Promise<Model> {
+    assertManagedCherryAIDefaultModelPatchAllowed(providerId, modelId, dto)
+
     const db = application.get('DbService').getDb()
 
     // Fetch existing row (also verifies existence)
@@ -657,6 +670,10 @@ class ModelService {
     if (items.length === 0) return []
 
     const db = application.get('DbService').getDb()
+
+    for (const { providerId, modelId, patch } of items) {
+      assertManagedCherryAIDefaultModelPatchAllowed(providerId, modelId, patch)
+    }
 
     const dtoToDbKey = (key: string): string => {
       const mapping = UPDATE_MODEL_FIELD_MAP.find((entry) => (Array.isArray(entry) ? entry[0] === key : false))
@@ -808,9 +825,7 @@ class ModelService {
       )
     }
 
-    const db = application.get('DbService').getDb()
-
-    await db.transaction(async (tx) => {
+    await application.get('DbService').withWriteTx(async (tx) => {
       const rows = await tx
         .delete(userModelTable)
         .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))

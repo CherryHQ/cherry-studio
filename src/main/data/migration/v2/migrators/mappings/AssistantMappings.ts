@@ -21,12 +21,10 @@
 
 import type { InsertAssistantRow } from '@data/db/schemas/assistant'
 import type { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
-import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { AssistantSettingsSchema, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import type { UniqueModelId } from '@shared/data/types/model'
 import type { ZodType } from 'zod'
 
-import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
+import { legacyChatModelToUniqueId } from '../transformers/ModelTransformers'
 
 function sanitizeLegacySettings(legacy: Record<string, unknown>): Record<string, unknown> {
   const shape = AssistantSettingsSchema.shape as Record<string, ZodType>
@@ -148,15 +146,7 @@ export interface AssistantTransformResult {
  * Prefers `model` over `defaultModel` (defaultModel is the settings-level fallback).
  */
 function extractPrimaryModelId(source: OldAssistant): string | null {
-  return legacyAssistantModelToUniqueId(source.model) ?? legacyAssistantModelToUniqueId(source.defaultModel)
-}
-
-function legacyAssistantModelToUniqueId(model: OldModel | null | undefined): UniqueModelId | null {
-  if (model?.provider?.trim() === CHERRYAI_PROVIDER_ID) {
-    return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
-  }
-
-  return legacyModelToUniqueId(model)
+  return legacyChatModelToUniqueId(source.model) ?? legacyChatModelToUniqueId(source.defaultModel)
 }
 
 function extractMcpServerIds(source: OldAssistant): string[] {
