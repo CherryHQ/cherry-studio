@@ -80,6 +80,16 @@ export type KbSearchOutput = z.infer<typeof kbSearchOutputSchema>
 
 export const FS_READ_TOOL_NAME = 'fs_read'
 
+/**
+ * Persist/truncate boundary for the context-build layer, and fs_read's
+ * per-call output cap. ONE constant on purpose: fs_read must be able to
+ * page through anything the persistence layer stored, so its cap must be
+ * ≥ the persist threshold — equality keeps one mental model. P2-B turns
+ * the threshold into a user setting; when it does, wire BOTH sides to the
+ * resolved setting, never split this back into two literals.
+ */
+export const CONTEXT_PERSIST_THRESHOLD_CHARS = 100_000
+
 // ── web_search ───────────────────────────────────────────────────
 
 export const WEB_SEARCH_TOOL_NAME = 'web_search'

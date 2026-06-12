@@ -25,6 +25,7 @@ import { application } from '@application'
 import { definePlugin } from '@cherrystudio/ai-core'
 import type { ContextChefOptions } from '@context-chef/ai-sdk-middleware'
 import { createMiddleware } from '@context-chef/ai-sdk-middleware'
+import { CONTEXT_PERSIST_THRESHOLD_CHARS } from '@shared/ai/builtinTools'
 
 import type { RequestFeature } from '../feature'
 import type { RequestScope } from '../scope'
@@ -32,7 +33,7 @@ import type { RequestScope } from '../scope'
 /** ~25K tokens at the typical 4:1 chars:token ratio — ordinary tool
  *  results pass through inline; only genuinely large outputs persist.
  *  (Defaults carried over from PR #14916.) */
-const TRUNCATE_THRESHOLD_CHARS = 100_000
+const TRUNCATE_THRESHOLD_CHARS = CONTEXT_PERSIST_THRESHOLD_CHARS
 const HEAD_CHARS = 500
 const TAIL_CHARS = 1_000
 

@@ -10,26 +10,32 @@ import fsp from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { validatePath } from '@main/ai/mcp/servers/filesystem/types'
 import { readTextFileWithAutoEncoding } from '@main/utils/file'
-import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
+import { CONTEXT_PERSIST_THRESHOLD_CHARS, FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
+import { MB } from '@shared/config/constant'
 import { tool } from 'ai'
 import * as z from 'zod'
 
 import type { ToolEntry } from '../types'
 
-const MB = 1024 * 1024
+const logger = loggerService.withContext('FsReadTool')
+
 /** Whole-file reads above this are rejected; paging args bypass the cap. */
 const SIZE_CAP_BYTES = 5 * MB
+/** Absolute ceiling, paging or not — the read path decodes the whole file
+ *  into memory before slicing, so paging must not unlock unbounded files. */
+const PAGED_SIZE_CAP_BYTES = 50 * MB
 /**
  * Max chars returned per call. Above this the tool returns a structured
  * error with a file-specific recommended `limit` — fs__read must handle
  * its own oversize natively (it is `truncatable: false`; letting the
  * persistence layer store an fs__read result would loop: persisted file
  * → fs__read → still too large → persist again).
- * Matches the persistence threshold so the model sees one boundary.
+ * See {@link CONTEXT_PERSIST_THRESHOLD_CHARS} for the shared constant rationale.
  */
-const READ_OUTPUT_CHAR_CAP = 100_000
+const READ_OUTPUT_CHAR_CAP = CONTEXT_PERSIST_THRESHOLD_CHARS
 const DEFAULT_READ_LIMIT = 2_000
 const MAX_LINE_LENGTH = 2_000
 
@@ -65,6 +71,7 @@ const outputSchema = z.discriminatedUnion('kind', [
       'binary',
       'too-large',
       'output-too-large',
+      'offset-out-of-range',
       'parse-error'
     ]),
     message: z.string()
@@ -139,6 +146,7 @@ export async function executeFsRead(input: { path: string; offset?: number; limi
 
   const absolutePath = await resolveWithinAllowedRoots(requestedPath)
   if (!absolutePath) {
+    logger.warn('fs__read denied: path outside allowed roots', { requestedPath })
     return {
       kind: 'error',
       code: 'access-denied',
@@ -154,11 +162,22 @@ export async function executeFsRead(input: { path: string; offset?: number; limi
     if (code === 'ENOENT') {
       return { kind: 'error', code: 'not-found', message: `File not found: ${requestedPath}` }
     }
+    if (code === 'EACCES' || code === 'EPERM') {
+      return { kind: 'error', code: 'access-denied', message: `Access denied by the OS: ${requestedPath}` }
+    }
     return { kind: 'error', code: 'parse-error', message: err instanceof Error ? err.message : String(err) }
   }
 
   if (!stats.isFile()) {
     return { kind: 'error', code: 'not-a-file', message: `Not a regular file: ${requestedPath}` }
+  }
+
+  if (stats.size > PAGED_SIZE_CAP_BYTES) {
+    return {
+      kind: 'error',
+      code: 'too-large',
+      message: `File is ${stats.size} bytes — above the absolute cap (${PAGED_SIZE_CAP_BYTES}); cannot be read even with paging.`
+    }
   }
 
   const hasPagingArgs = offset !== undefined || limit !== undefined
@@ -179,6 +198,14 @@ export async function executeFsRead(input: { path: string; offset?: number; limi
 
     const content = await readTextFileWithAutoEncoding(absolutePath)
     const result = formatLines(content, offset, limit)
+
+    if (result.startLine > result.totalLines) {
+      return {
+        kind: 'error',
+        code: 'offset-out-of-range',
+        message: `offset ${offset} is past end of file — it has only ${result.totalLines} lines.`
+      }
+    }
 
     if (result.text.length > READ_OUTPUT_CHAR_CAP) {
       const returnedLines = Math.max(1, result.endLine - result.startLine + 1)
