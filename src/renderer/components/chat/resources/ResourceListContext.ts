@@ -101,7 +101,6 @@ export type ResourceListState = {
   filters: string[]
   sort: string | null
   selectedId: string | null
-  hoveredId: string | null
   revealFocus: { itemId: string; requestId: number } | null
   renamingId: string | null
   collapsedGroups: string[]
@@ -117,7 +116,6 @@ export type ResourceListActionMap = {
   setSort: (sortId: string | null) => void
   setActiveItem: (id: string | null) => void
   selectItem: (id: string) => void
-  hoverItem: (id: string | null) => void
   startRename: (id: string) => void
   commitRename: (id: string, name: string) => void
   cancelRename: () => void

@@ -455,9 +455,6 @@ function useResourceListRenderContext<T extends ResourceListItemBase>(): Resourc
             number
           >
         },
-        get hoveredId() {
-          return store.getUiSnapshot().hoveredId
-        },
         get renamingId() {
           return store.getUiSnapshot().renamingId
         },

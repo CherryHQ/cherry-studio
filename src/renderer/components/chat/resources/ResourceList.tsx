@@ -5,6 +5,7 @@ import type { CommandId } from '@shared/command'
 import { SearchIcon, SquareMinus } from 'lucide-react'
 import type { ComponentProps, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import {
   getResourceListOptionDomId,
@@ -389,7 +390,6 @@ function Item<T extends ResourceListItemBase>({
       aria-selected={rowState.selected}
       data-active-descendant={rowState.active || undefined}
       data-selected={rowState.selected || undefined}
-      data-hovered={rowState.hovered || undefined}
       data-reveal-focus={rowState.revealFocused || undefined}
       data-dragging={rowState.dragging || undefined}
       tabIndex={tabIndex ?? -1}
@@ -654,13 +654,15 @@ type ErrorStateProps = ComponentProps<'div'> & {
 }
 
 function ErrorState({ className, message, ref, children, ...props }: ErrorStateProps) {
+  const { t } = useTranslation()
+
   return (
     <div
       ref={ref}
       role="alert"
       className={cn('m-2 rounded-md border border-destructive/40 p-3 text-sm', className)}
       {...props}>
-      {message ?? children}
+      {message ?? children ?? t('error.boundary.default.message')}
     </div>
   )
 }

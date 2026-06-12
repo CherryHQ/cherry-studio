@@ -388,6 +388,8 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
   onExpandedStateChange?: (state: ResourceListExpansionState) => void
 }
 
+type ResourceListProviderState = Omit<ResourceListState, 'status'>
+
 type ProviderAction =
   | { type: 'setQuery'; query: string }
   | { type: 'setFilters'; filters: string[] }
@@ -395,7 +397,6 @@ type ProviderAction =
   | { type: 'setSort'; sort: string | null }
   | { type: 'setActiveItem'; id: string | null }
   | { type: 'selectItem'; id: string | null }
-  | { type: 'hoverItem'; id: string | null }
   | { type: 'startRename'; id: string }
   | { type: 'cancelRename' }
   | { type: 'showMoreInGroup'; groupId: string }
@@ -416,9 +417,8 @@ type ProviderAction =
   | { type: 'clearRevealFocus'; itemId: string; requestId: number }
   | { type: 'startDrag'; id: string }
   | { type: 'endDrag' }
-  | { type: 'setStatus'; status: ResourceListStatus }
 
-function reducer(state: ResourceListState, action: ProviderAction): ResourceListState {
+function reducer(state: ResourceListProviderState, action: ProviderAction): ResourceListProviderState {
   switch (action.type) {
     case 'setQuery':
       return { ...state, query: action.query }
@@ -441,8 +441,6 @@ function reducer(state: ResourceListState, action: ProviderAction): ResourceList
     case 'selectItem':
       if (state.selectedId === action.id && state.activeId === action.id) return state
       return { ...state, activeId: action.id, selectedId: action.id }
-    case 'hoverItem':
-      return { ...state, hoveredId: action.id }
     case 'startRename':
       return { ...state, renamingId: action.id }
     case 'cancelRename':
@@ -526,8 +524,6 @@ function reducer(state: ResourceListState, action: ProviderAction): ResourceList
       return { ...state, draggingId: action.id }
     case 'endDrag':
       return { ...state, draggingId: null }
-    case 'setStatus':
-      return { ...state, status: action.status }
   }
 }
 
@@ -579,13 +575,11 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     filters: [],
     sort: defaultSortId ?? null,
     selectedId: selectedIdProp ?? null,
-    hoveredId: null,
     revealFocus: null,
     renamingId: null,
     collapsedGroups: [],
     groupVisibleCounts: {},
-    draggingId: null,
-    status
+    draggingId: null
   })
 
   const filterById = useMemo(() => new Map(filterOptions.map((option) => [option.id, option])), [filterOptions])
@@ -605,7 +599,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
     uiStoreRef.current = new ResourceListUiStore({
       activeId: state.activeId,
       draggingId: state.draggingId,
-      hoveredId: state.hoveredId,
       renamingId: state.renamingId,
       revealFocus: state.revealFocus,
       selectedId: effectiveSelectedId
@@ -798,10 +791,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   }, [effectiveSelectedId, uiStore])
 
   useLayoutEffect(() => {
-    uiStore.setHoveredId(state.hoveredId)
-  }, [state.hoveredId, uiStore])
-
-  useLayoutEffect(() => {
     uiStore.setRenamingId(state.renamingId)
   }, [state.renamingId, uiStore])
 
@@ -922,10 +911,6 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
           dispatch({ type: 'setActiveItem', id })
         }
         onSelectItem?.(id)
-      },
-      hoverItem: (id: string | null) => {
-        uiStore.setHoveredId(id)
-        dispatch({ type: 'hoverItem', id })
       },
       startRename: (id: string) => {
         uiStore.setRenamingId(id)

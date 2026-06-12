@@ -5,7 +5,6 @@ export type ResourceListRevealFocus = { itemId: string; requestId: number } | nu
 export type ResourceListRowStateSnapshot = {
   active: boolean
   dragging: boolean
-  hovered: boolean
   renaming: boolean
   revealFocused: boolean
   selected: boolean
@@ -22,7 +21,6 @@ export type ResourceListGroupStateSnapshot = {
 type ResourceListUiStoreState = {
   activeId: string | null
   draggingId: string | null
-  hoveredId: string | null
   renamingId: string | null
   revealFocus: ResourceListRevealFocus
   selectedId: string | null
@@ -37,7 +35,6 @@ type ResourceListGroupRecord = Omit<ResourceListGroupStateSnapshot, 'selected'> 
 const EMPTY_ROW_STATE: ResourceListRowStateSnapshot = Object.freeze({
   active: false,
   dragging: false,
-  hovered: false,
   renaming: false,
   revealFocused: false,
   selected: false
@@ -55,7 +52,6 @@ function sameRowState(a: ResourceListRowStateSnapshot, b: ResourceListRowStateSn
   return (
     a.active === b.active &&
     a.dragging === b.dragging &&
-    a.hovered === b.hovered &&
     a.renaming === b.renaming &&
     a.revealFocused === b.revealFocused &&
     a.selected === b.selected
@@ -93,7 +89,6 @@ export class ResourceListUiStore {
     this.state = {
       activeId: initialState.activeId ?? null,
       draggingId: initialState.draggingId ?? null,
-      hoveredId: initialState.hoveredId ?? null,
       renamingId: initialState.renamingId ?? null,
       revealFocus: initialState.revealFocus ?? null,
       selectedId: initialState.selectedId ?? null
@@ -105,7 +100,6 @@ export class ResourceListUiStore {
     const next: ResourceListRowStateSnapshot = {
       active: this.state.activeId === itemId,
       dragging: this.state.draggingId === itemId,
-      hovered: this.state.hoveredId === itemId,
       renaming: this.state.renamingId === itemId,
       revealFocused: this.state.revealFocus?.itemId === itemId,
       selected: this.state.selectedId === itemId
@@ -199,13 +193,6 @@ export class ResourceListUiStore {
     const previousId = this.state.draggingId
     this.state = { ...this.state, draggingId }
     this.notifyRows(previousId, draggingId)
-  }
-
-  setHoveredId = (hoveredId: string | null) => {
-    if (this.state.hoveredId === hoveredId) return
-    const previousId = this.state.hoveredId
-    this.state = { ...this.state, hoveredId }
-    this.notifyRows(previousId, hoveredId)
   }
 
   setRenamingId = (renamingId: string | null) => {

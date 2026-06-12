@@ -229,6 +229,26 @@ describe('ResourceList', () => {
     expect(revealFocusStyle).not.toMatch(/\bbackground(?:-color)?\s*:/)
   })
 
+  it('renders a non-empty default error state', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider items={ITEMS} status="error">
+        <ResourceList.Frame>
+          <ResourceList.Body<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent('error.boundary.default.message')
+  })
+
   it('derives search, filter, sort, and group state without mutating items', () => {
     const originalOrder = ITEMS.map((item) => item.id).join(',')
     const Provider = ResourceList.Provider<TestItem>
