@@ -1,28 +1,23 @@
-import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
-import { CHERRYAI_DEFAULT_MODEL_SEEDER_NAME } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
-import { SEED_KEY_PREFIX } from '@data/db/seeding/SeedRunner'
 import { insertWithOrderKey } from '@data/services/utils/orderKey'
 import { DEFAULT_ASSISTANT_SEED } from '@shared/data/presets/default-assistant'
-import { and, eq, isNull, like, ne } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 
 import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
 
-const CHERRYAI_DEFAULT_MODEL_SEED_JOURNAL_KEY = `${SEED_KEY_PREFIX}${CHERRYAI_DEFAULT_MODEL_SEEDER_NAME}` as const
-const SEED_JOURNAL_KEY_PATTERN = `${SEED_KEY_PREFIX}%` as const
-
 export class DefaultAssistantSeeder implements ISeeder {
   readonly name = 'defaultAssistant'
   readonly description = 'Insert the default assistant for new users'
+  readonly executionPolicy = 'bootstrap-only' as const
   readonly version: string
 
   constructor() {
     this.version = hashObject({
       assistant: DEFAULT_ASSISTANT_SEED,
-      freshGuard: 'no non-dependency seed journal and no active assistant/topic/message'
+      freshGuard: 'bootstrap-only; no active assistant/topic/message'
     })
   }
 
@@ -45,18 +40,6 @@ export class DefaultAssistantSeeder implements ISeeder {
   }
 
   private async isFreshUserDatabase(tx: Pick<DbType, 'select'>): Promise<boolean> {
-    const [seedJournal] = await tx
-      .select({ key: appStateTable.key })
-      .from(appStateTable)
-      .where(
-        and(
-          like(appStateTable.key, SEED_JOURNAL_KEY_PATTERN),
-          ne(appStateTable.key, CHERRYAI_DEFAULT_MODEL_SEED_JOURNAL_KEY)
-        )
-      )
-      .limit(1)
-    if (seedJournal) return false
-
     const [assistant] = await tx
       .select({ id: assistantTable.id })
       .from(assistantTable)

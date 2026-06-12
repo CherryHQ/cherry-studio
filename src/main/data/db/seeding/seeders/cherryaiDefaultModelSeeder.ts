@@ -23,7 +23,6 @@ import { hashObject } from '../hashObject'
 
 const logger = loggerService.withContext('CherryAiDefaultModelSeeder')
 
-export const CHERRYAI_DEFAULT_MODEL_SEEDER_NAME = 'cherryaiDefaultModel' as const
 const DEFAULT_MODEL_PREFERENCE_SCOPE = 'default' as const
 export const DEFAULT_MODEL_PREFERENCE_KEYS = [
   'chat.default_model_id',
@@ -143,7 +142,7 @@ async function ensureCherryAiDefaultModelSetupTx(tx: TxLike): Promise<void> {
 }
 
 export class CherryAiDefaultModelSeeder implements ISeeder {
-  readonly name = CHERRYAI_DEFAULT_MODEL_SEEDER_NAME
+  readonly name = 'cherryaiDefaultModel'
   readonly description = 'Ensure CherryAI default provider, model, and default model preferences'
   readonly version: string
 
