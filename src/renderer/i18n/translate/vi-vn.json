@@ -1515,6 +1515,8 @@
       },
       "export": {
         "failed": "Xuất khẩu thất bại",
+        "failed": "[to be translated]:Export failed",
+        "html": "Xuất dưới dạng HTML",
         "image": "Xuất dưới dạng hình ảnh",
         "image_saved": "Hình ảnh đã được lưu thành công",
         "joplin": "Exporteren naar Joplin",
@@ -2970,6 +2972,11 @@
         "text_extraction_failed": "Không thể trích xuất văn bản từ {{name}}"
       },
       "get_embedding_dimensions": "Không thể lấy kích thước embedding",
+      "html": {
+        "export": {
+          "specified": "Xuất tệp HTML thất bại"
+        }
+      },
       "invalid": {
         "api": {
           "host": "Máy chủ API không hợp lệ",
@@ -3099,6 +3106,11 @@
     "success": {
       "excel": {
         "export": "Excel exportado exitosamente"
+      },
+      "html": {
+        "export": {
+          "specified": "Đã xuất tệp HTML thành công"
+        }
       },
       "joplin": {
         "export": "Đã xuất thành công sang Joplin"
@@ -4938,6 +4950,7 @@
       },
       "export_menu": {
         "docx": "Xuất ra Word",
+        "html": "Xuất dưới dạng HTML",
         "image": "Xuất dưới dạng hình ảnh",
         "joplin": "Xuất sang Joplin",
         "markdown": "Xuất ra dạng Markdown",

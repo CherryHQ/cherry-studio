@@ -1515,6 +1515,8 @@
       },
       "export": {
         "failed": "Η εξαγωγή απέτυχε",
+        "failed": "[to be translated]:Export failed",
+        "html": "Εξαγωγή ως HTML",
         "image": "Εξαγωγή ως εικόνα",
         "image_saved": "Η εικόνα αποθηκεύτηκε με επιτυχία",
         "joplin": "Εξαγωγή στο Joplin",
@@ -2970,6 +2972,11 @@
         "text_extraction_failed": "Αποτυχία εξαγωγής κειμένου από {{name}}"
       },
       "get_embedding_dimensions": "Απέτυχε η πρόσληψη διαστάσεων ενσωμάτωσης",
+      "html": {
+        "export": {
+          "specified": "Αποτυχία εξαγωγής του αρχείου HTML"
+        }
+      },
       "invalid": {
         "api": {
           "host": "Μη έγκυρη διεύθυνση API",
@@ -3099,6 +3106,11 @@
     "success": {
       "excel": {
         "export": "Η εξαγωγή του Excel ολοκληρώθηκε με επιτυχία"
+      },
+      "html": {
+        "export": {
+          "specified": "Το αρχείο HTML εξήχθη με επιτυχία"
+        }
       },
       "joplin": {
         "export": "Η εξαγωγή στο Joplin ήταν επιτυχής"
@@ -4938,6 +4950,7 @@
       },
       "export_menu": {
         "docx": "Εξαγωγή σε Word",
+        "html": "Εξαγωγή ως HTML",
         "image": "Εξαγωγή ως εικόνα",
         "joplin": "Εξαγωγή στο Joplin",
         "markdown": "Εξαγωγή σε Markdown",

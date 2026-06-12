@@ -1515,6 +1515,8 @@
       },
       "export": {
         "failed": "Export fehlgeschlagen",
+        "failed": "[to be translated]:Export failed",
+        "html": "Als HTML exportieren",
         "image": "Als Bild exportieren",
         "image_saved": "Bild erfolgreich gespeichert",
         "joplin": "Nach Joplin exportieren",
@@ -2970,6 +2972,11 @@
         "text_extraction_failed": "Fehler beim Extrahieren von Text aus {{name}}"
       },
       "get_embedding_dimensions": "Embedding-Dimensionen abrufen fehlgeschlagen",
+      "html": {
+        "export": {
+          "specified": "Export der HTML-Datei fehlgeschlagen"
+        }
+      },
       "invalid": {
         "api": {
           "host": "Ungültige API-Adresse",
@@ -3099,6 +3106,11 @@
     "success": {
       "excel": {
         "export": "Excel erfolgreich exportiert"
+      },
+      "html": {
+        "export": {
+          "specified": "HTML-Datei erfolgreich exportiert"
+        }
       },
       "joplin": {
         "export": "Erfolgreich nach Joplin exportiert"
@@ -4938,6 +4950,7 @@
       },
       "export_menu": {
         "docx": "Als Word exportieren",
+        "html": "Als HTML exportieren",
         "image": "Als Bild exportieren",
         "joplin": "Nach Joplin exportieren",
         "markdown": "Als Markdown exportieren",

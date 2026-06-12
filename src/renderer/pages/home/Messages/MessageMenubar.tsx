@@ -30,6 +30,7 @@ import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
+  exportMessageAsHtml,
   exportMessageAsMarkdown,
   exportMessageToNotes,
   exportMessageToNotion,
@@ -180,7 +181,8 @@ const MessageMenubar: FC<Props> = (props) => {
     obsidian: 'data.export.menus.obsidian',
     siyuan: 'data.export.menus.siyuan',
     docx: 'data.export.menus.docx',
-    plain_text: 'data.export.menus.plain_text'
+    plain_text: 'data.export.menus.plain_text',
+    html: 'data.export.menus.html'
   })
 
   const partsMap = usePartsMap()
@@ -386,6 +388,11 @@ const MessageMenubar: FC<Props> = (props) => {
               const title = await getMessageTitle(message)
               void window.api.export.toWord(markdown, title)
             }
+          },
+          exportMenuOptions.html && {
+            label: t('chat.topics.export.html'),
+            key: 'html',
+            onClick: () => exportMessageAsHtml(message)
           },
           exportMenuOptions.notion && {
             label: t('chat.topics.export.notion'),
