@@ -1,6 +1,7 @@
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -73,6 +74,7 @@ describe('TopicNamingService', () => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
     MockMainCacheServiceUtils.resetMocks()
+    mockMainLoggerService.warn.mockClear()
     MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.enabled', true)
     mockRenameInputs()
   })
@@ -122,6 +124,10 @@ describe('TopicNamingService', () => {
       expect.objectContaining({
         uniqueModelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
       })
+    )
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'topic.naming.model_id is invalid; falling back to managed CherryAI default model',
+      { configured: 'bad-value' }
     )
   })
 

@@ -36,7 +36,7 @@ const logger = loggerService.withContext('DataApi:ProviderService')
 
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
 
-function assertManagedCherryAIProviderPatchAllowed(providerId: string, dto: UpdateProviderDto): void {
+function assertManagedCherryAiProviderPatchAllowed(providerId: string, dto: UpdateProviderDto): void {
   if (providerId !== CHERRYAI_PROVIDER_ID || Object.keys(dto).length === 0) {
     return
   }
@@ -248,7 +248,7 @@ class ProviderService {
    * Update an existing provider
    */
   async update(providerId: string, dto: UpdateProviderDto): Promise<Provider> {
-    assertManagedCherryAIProviderPatchAllowed(providerId, dto)
+    assertManagedCherryAiProviderPatchAllowed(providerId, dto)
 
     // Read + merge + write the providerSettings JSON in ONE serialized write
     // transaction. A bare read-then-update would let two concurrent PATCHes both

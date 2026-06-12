@@ -1,9 +1,14 @@
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
-import { describe, expect, it } from 'vitest'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { transformLlmModelIds } from '../LlmModelTransforms'
 
 describe('LlmModelTransforms', () => {
+  beforeEach(() => {
+    mockMainLoggerService.warn.mockClear()
+  })
+
   describe('transformLlmModelIds', () => {
     it('transforms all 4 model fields to UniqueModelIds', () => {
       const sources = {
@@ -75,6 +80,22 @@ describe('LlmModelTransforms', () => {
         'feature.quick_assistant.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
         'feature.translate.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
       })
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Legacy model preference could not be parsed; falling back to managed CherryAI default model',
+        {
+          preferenceKey: 'feature.quick_assistant.model_id',
+          valueType: 'object',
+          id: 'gpt-4',
+          provider: 'o::p'
+        }
+      )
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Legacy model preference could not be parsed; falling back to managed CherryAI default model',
+        {
+          preferenceKey: 'feature.translate.model_id',
+          valueType: 'string'
+        }
+      )
     })
 
     it('maps legacy CherryAI model references to the seeded Qwen model', () => {

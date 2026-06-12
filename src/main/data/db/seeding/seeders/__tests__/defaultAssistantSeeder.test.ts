@@ -5,7 +5,7 @@ import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { CherryAIDefaultModelSeeder } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
+import { CherryAiDefaultModelSeeder } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { DefaultAssistantSeeder } from '@data/db/seeding/seeders/defaultAssistantSeeder'
 import { SEED_KEY_PREFIX } from '@data/db/seeding/SeedRunner'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
@@ -24,8 +24,8 @@ describe('DefaultAssistantSeeder', () => {
   const dbh = setupTestDatabase()
   const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
-  async function runCherryAIModelDependencySeed() {
-    const dependencySeeder = new CherryAIDefaultModelSeeder()
+  async function runCherryAiModelDependencySeed() {
+    const dependencySeeder = new CherryAiDefaultModelSeeder()
     await dependencySeeder.run(dbh.db)
     await dbh.db.insert(appStateTable).values({
       key: `${SEED_KEY_PREFIX}${dependencySeeder.name}`,
@@ -34,7 +34,7 @@ describe('DefaultAssistantSeeder', () => {
   }
 
   it('seeds the default assistant when only the CherryAI default model dependency seed has run', async () => {
-    await runCherryAIModelDependencySeed()
+    await runCherryAiModelDependencySeed()
 
     await new DefaultAssistantSeeder().run(dbh.db)
 

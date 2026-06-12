@@ -17,7 +17,7 @@ import type { InsertUserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { ensureCherryAIDefaultProviderAndModelTx } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
+import { ensureCherryAiDefaultProviderAndModelTx } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
 import { applyUserOverlay } from '@data/services/ModelService'
 import { extractReasoningFormatTypes, mergePresetModel } from '@data/services/ProviderRegistryService'
@@ -389,7 +389,7 @@ export class ProviderModelMigrator extends BaseMigrator {
 
     try {
       await ctx.db.transaction(async (tx) => {
-        await ensureCherryAIDefaultProviderAndModelTx(tx)
+        await ensureCherryAiDefaultProviderAndModelTx(tx)
 
         const providerRowsWithoutOrderKey = this.providers.map((provider) =>
           this.enrichProviderRow(transformProvider(provider, this.settings), provider)

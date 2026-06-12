@@ -139,7 +139,7 @@ describe('ModelService.update', () => {
     )
   }
 
-  async function seedManagedCherryAIDefaultModel() {
+  async function seedManagedCherryAiDefaultModel() {
     await dbh.db.insert(userProviderTable).values(providerRow(CHERRYAI_PROVIDER_ID, 'CherryAI'))
     await dbh.db.insert(userModelTable).values(
       modelRow(CHERRYAI_PROVIDER_ID, CHERRYAI_DEFAULT_MODEL_ID, {
@@ -277,7 +277,7 @@ describe('ModelService.update', () => {
   })
 
   it('allows an empty PATCH for the managed CherryAI default model', async () => {
-    await seedManagedCherryAIDefaultModel()
+    await seedManagedCherryAiDefaultModel()
 
     const result = await modelService.update(CHERRYAI_PROVIDER_ID, CHERRYAI_DEFAULT_MODEL_ID, {})
 
@@ -286,7 +286,7 @@ describe('ModelService.update', () => {
   })
 
   it('rejects PATCHes for the managed CherryAI default model', async () => {
-    await seedManagedCherryAIDefaultModel()
+    await seedManagedCherryAiDefaultModel()
 
     await expect(
       modelService.update(CHERRYAI_PROVIDER_ID, CHERRYAI_DEFAULT_MODEL_ID, { isEnabled: false })
@@ -977,12 +977,12 @@ describe('ModelService.bulkUpdate', () => {
   const dbh = setupTestDatabase()
 
   it('rejects managed CherryAI default model PATCHes before writing other rows', async () => {
-    const [cherryAIOrderKey, openAIOrderKey] = generateOrderKeySequence(2)
+    const [cherryAiOrderKey, openAiOrderKey] = generateOrderKeySequence(2)
     await dbh.db
       .insert(userProviderTable)
       .values([
-        providerRow(CHERRYAI_PROVIDER_ID, 'CherryAI', cherryAIOrderKey),
-        providerRow('openai', 'OpenAI', openAIOrderKey)
+        providerRow(CHERRYAI_PROVIDER_ID, 'CherryAI', cherryAiOrderKey),
+        providerRow('openai', 'OpenAI', openAiOrderKey)
       ])
     await dbh.db.insert(userModelTable).values([
       modelRow(CHERRYAI_PROVIDER_ID, CHERRYAI_DEFAULT_MODEL_ID, {
@@ -1003,16 +1003,16 @@ describe('ModelService.bulkUpdate', () => {
       status: 400
     })
 
-    const [openAIRow] = await dbh.db
+    const [openAiRow] = await dbh.db
       .select()
       .from(userModelTable)
       .where(eq(userModelTable.id, createUniqueModelId('openai', 'gpt-4o')))
-    const [cherryAIRow] = await dbh.db
+    const [cherryAiRow] = await dbh.db
       .select()
       .from(userModelTable)
       .where(eq(userModelTable.id, CHERRYAI_DEFAULT_UNIQUE_MODEL_ID))
-    expect(openAIRow.name).toBe('GPT-4o-original')
-    expect(cherryAIRow.isEnabled).toBe(true)
+    expect(openAiRow.name).toBe('GPT-4o-original')
+    expect(cherryAiRow.isEnabled).toBe(true)
   })
 
   it('rolls back the whole batch when one item is missing (atomic update)', async () => {

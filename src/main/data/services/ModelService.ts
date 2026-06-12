@@ -38,12 +38,12 @@ import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 
-function isManagedCherryAIDefaultModel(providerId: string, modelId: string): boolean {
+function isManagedCherryAiDefaultModel(providerId: string, modelId: string): boolean {
   return providerId === CHERRYAI_PROVIDER_ID && modelId === CHERRYAI_DEFAULT_MODEL_ID
 }
 
-function assertManagedCherryAIDefaultModelPatchAllowed(providerId: string, modelId: string, dto: UpdateModelDto): void {
-  if (!isManagedCherryAIDefaultModel(providerId, modelId) || Object.keys(dto).length === 0) {
+function assertManagedCherryAiDefaultModelPatchAllowed(providerId: string, modelId: string, dto: UpdateModelDto): void {
+  if (!isManagedCherryAiDefaultModel(providerId, modelId) || Object.keys(dto).length === 0) {
     return
   }
 
@@ -605,7 +605,7 @@ class ModelService {
    * Update an existing model
    */
   async update(providerId: string, modelId: string, dto: UpdateModelDto): Promise<Model> {
-    assertManagedCherryAIDefaultModelPatchAllowed(providerId, modelId, dto)
+    assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, dto)
 
     const db = application.get('DbService').getDb()
 
@@ -672,7 +672,7 @@ class ModelService {
     const db = application.get('DbService').getDb()
 
     for (const { providerId, modelId, patch } of items) {
-      assertManagedCherryAIDefaultModelPatchAllowed(providerId, modelId, patch)
+      assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, patch)
     }
 
     const dtoToDbKey = (key: string): string => {
@@ -818,7 +818,7 @@ class ModelService {
    * Delete a model
    */
   async delete(providerId: string, modelId: string): Promise<void> {
-    if (isManagedCherryAIDefaultModel(providerId, modelId)) {
+    if (isManagedCherryAiDefaultModel(providerId, modelId)) {
       throw DataApiErrorFactory.invalidOperation(
         `delete model ${providerId}/${modelId}`,
         'managed CherryAI default model cannot be deleted'

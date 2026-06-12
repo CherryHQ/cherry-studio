@@ -283,16 +283,16 @@ describe('ProviderModelMigrator', () => {
       expect(result.success).toBe(true)
       const pinRows = await dbh.db.select().from(pinTable).where(eq(pinTable.entityType, 'model'))
       expect(pinRows.map((row) => row.entityId)).toEqual([CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, 'openai::gpt-4o'])
-      const cherryAIProviderRows = await dbh.db
+      const cherryAiProviderRows = await dbh.db
         .select()
         .from(userProviderTable)
         .where(eq(userProviderTable.providerId, CHERRYAI_PROVIDER_ID))
-      expect(cherryAIProviderRows).toHaveLength(1)
-      const cherryAIModelRows = await dbh.db
+      expect(cherryAiProviderRows).toHaveLength(1)
+      const cherryAiModelRows = await dbh.db
         .select()
         .from(userModelTable)
         .where(eq(userModelTable.id, CHERRYAI_DEFAULT_UNIQUE_MODEL_ID))
-      expect(cherryAIModelRows).toHaveLength(1)
+      expect(cherryAiModelRows).toHaveLength(1)
     })
 
     it('migrates legacy CherryAI pins even when all providers are managed', async () => {
@@ -315,11 +315,11 @@ describe('ProviderModelMigrator', () => {
       expect(result.processedCount).toBe(0)
       const pinRows = await dbh.db.select().from(pinTable).where(eq(pinTable.entityType, 'model'))
       expect(pinRows.map((row) => row.entityId)).toEqual([CHERRYAI_DEFAULT_UNIQUE_MODEL_ID])
-      const cherryAIModelRows = await dbh.db
+      const cherryAiModelRows = await dbh.db
         .select()
         .from(userModelTable)
         .where(eq(userModelTable.id, CHERRYAI_DEFAULT_UNIQUE_MODEL_ID))
-      expect(cherryAIModelRows).toHaveLength(1)
+      expect(cherryAiModelRows).toHaveLength(1)
     })
 
     it('keeps migrated assistants pointed at the managed CherryAI default model', async () => {

@@ -2,7 +2,7 @@ import { preferenceTable } from '@data/db/schemas/preference'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import {
-  CherryAIDefaultModelSeeder,
+  CherryAiDefaultModelSeeder,
   DEFAULT_MODEL_PREFERENCE_KEYS
 } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
@@ -16,11 +16,16 @@ import {
 } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { and, eq } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
-describe('CherryAIDefaultModelSeeder', () => {
+describe('CherryAiDefaultModelSeeder', () => {
   const dbh = setupTestDatabase()
+
+  beforeEach(() => {
+    mockMainLoggerService.warn.mockClear()
+  })
 
   async function readPreferenceValue(key: string) {
     const [preference] = await dbh.db
@@ -38,7 +43,7 @@ describe('CherryAIDefaultModelSeeder', () => {
   }
 
   it('seeds CherryAI provider, Qwen model, and missing default model preferences', async () => {
-    await new CherryAIDefaultModelSeeder().run(dbh.db)
+    await new CherryAiDefaultModelSeeder().run(dbh.db)
 
     const [provider] = await dbh.db
       .select()
@@ -69,6 +74,16 @@ describe('CherryAIDefaultModelSeeder', () => {
       isHidden: false
     })
     await expectSeededDefaultModelPreferences()
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Self-healed missing CherryAI default provider', {
+      providerId: CHERRYAI_PROVIDER_ID
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Self-healed missing CherryAI default model', {
+      modelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Self-healed missing default model preference', {
+      key: 'chat.default_model_id',
+      value: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+    })
   })
 
   it('does not overwrite existing non-empty default model preferences', async () => {
@@ -95,7 +110,7 @@ describe('CherryAIDefaultModelSeeder', () => {
       }
     ])
 
-    await new CherryAIDefaultModelSeeder().run(dbh.db)
+    await new CherryAiDefaultModelSeeder().run(dbh.db)
 
     expect(await readPreferenceValue('chat.default_model_id')).toBe('openai::gpt-4o')
     expect(await readPreferenceValue('topic.naming.model_id')).toBe('openai::gpt-4o-mini')
@@ -112,9 +127,13 @@ describe('CherryAIDefaultModelSeeder', () => {
       }))
     )
 
-    await new CherryAIDefaultModelSeeder().run(dbh.db)
+    await new CherryAiDefaultModelSeeder().run(dbh.db)
 
     await expectSeededDefaultModelPreferences()
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Self-healed empty default model preference', {
+      key: 'chat.default_model_id',
+      value: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+    })
   })
 
   it('backfills empty default model preferences', async () => {
@@ -126,7 +145,7 @@ describe('CherryAIDefaultModelSeeder', () => {
       }))
     )
 
-    await new CherryAIDefaultModelSeeder().run(dbh.db)
+    await new CherryAiDefaultModelSeeder().run(dbh.db)
 
     await expectSeededDefaultModelPreferences()
   })
@@ -139,7 +158,7 @@ describe('CherryAIDefaultModelSeeder', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
 
-    await new CherryAIDefaultModelSeeder().run(dbh.db)
+    await new CherryAiDefaultModelSeeder().run(dbh.db)
 
     const [provider] = await dbh.db
       .select()

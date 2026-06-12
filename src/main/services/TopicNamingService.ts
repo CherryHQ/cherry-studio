@@ -250,7 +250,15 @@ export class TopicNamingService {
   private resolveNamingModelId(): UniqueModelId {
     const configured = application.get('PreferenceService').get('topic.naming.model_id')
     const parsed = UniqueModelIdSchema.safeParse(configured)
-    return parsed.success ? parsed.data : CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+    if (parsed.success) {
+      return parsed.data
+    }
+
+    if (configured != null) {
+      logger.warn('topic.naming.model_id is invalid; falling back to managed CherryAI default model', { configured })
+    }
+
+    return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
   }
 
   private async renameTopic(topic: Topic, name: string): Promise<void> {
