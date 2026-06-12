@@ -120,15 +120,6 @@ export const isAgentEntity = (value: unknown): value is AgentEntity => {
   return AgentEntitySchema.safeParse(value).success
 }
 
-export interface ListOptions {
-  limit?: number
-  offset?: number
-  sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'sortOrder'
-  orderBy?: 'asc' | 'desc'
-  /** LIKE %kw% match against name OR description (case-insensitive). */
-  search?: string
-}
-
 // AgentSession entity representing a conversation session with one or more agents
 export const AgentSessionEntitySchema = AgentBaseSchema.extend({
   id: z.string(),

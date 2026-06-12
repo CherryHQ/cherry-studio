@@ -17,6 +17,7 @@ export function useTopicStreamSubscription(topicId: string): TopicStreamSubscrip
   const sub = ref.current.sub
 
   useEffect(() => {
+    sub.listen()
     return () => sub.dispose()
   }, [sub])
 
