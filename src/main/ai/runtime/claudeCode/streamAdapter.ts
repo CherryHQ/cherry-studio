@@ -836,6 +836,8 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleStatusSystemMessage(message: SDKStatusMessage): void {
+    // Agent-session compaction state is emitted by ClaudeCodeRuntimeDriver; this adapter only avoids
+    // leaking a status-only system message into the assistant stream.
     if (message.status === 'compacting') return
     if (message.compact_result === 'failed' || message.compact_error) {
       logger.warn('Claude compaction failed', { sessionId: message.session_id, error: message.compact_error })

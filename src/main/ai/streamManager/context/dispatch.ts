@@ -122,14 +122,6 @@ export async function dispatchStreamRequest(
     )
   }
 
-  const result = manager.send({
-    topicId: prepared.topicId,
-    models: prepared.models,
-    listeners: prepared.listeners,
-    siblingsGroupId: prepared.siblingsGroupId,
-    lifecycle: prepared.lifecycle
-  })
-
   const reservedAssistantIds =
     prepared.reservedMessages
       ?.filter((message) => message.role === 'assistant')
@@ -149,6 +141,14 @@ export async function dispatchStreamRequest(
       `Multi-model dispatch produced ${placeholderIds.length} placeholderIds for ${prepared.models.length} models (topicId=${prepared.topicId})`
     )
   }
+
+  const result = manager.send({
+    topicId: prepared.topicId,
+    models: prepared.models,
+    listeners: prepared.listeners,
+    siblingsGroupId: prepared.siblingsGroupId,
+    lifecycle: prepared.lifecycle
+  })
 
   return {
     mode: result.mode,

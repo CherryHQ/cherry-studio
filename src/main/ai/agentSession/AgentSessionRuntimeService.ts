@@ -132,6 +132,8 @@ type AgentSessionRuntimeEntry = {
   /** The injected steer(s) carried to the continuation turn for its rename/seed context (U2 is already
    *  persisted by the provider — these do NOT create a new user row). */
   rollSteerInputs?: AgentRuntimeUserInput[]
+  /** SDK `turn-complete` arrived while A2 was not ready yet; close A2 after replaying the roll buffer. */
+  rollCompleted?: boolean
   compacting?: boolean
 }
 
@@ -392,6 +394,7 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.rolling = false
       entry.rollBuffer = undefined
       entry.rollSteerInputs = undefined
+      entry.rollCompleted = false
     }
 
     entry.status = 'idle'
@@ -579,6 +582,7 @@ export class AgentSessionRuntimeService extends BaseService {
         entry.rolling = true
         entry.rollBuffer = []
         entry.rollSteerInputs = event.inputs
+        entry.rollCompleted = false
         this.closeCurrentTurn(entry, 'success')
         break
       case 'steer-undelivered':
@@ -603,6 +607,11 @@ export class AgentSessionRuntimeService extends BaseService {
         this.persistContextUsage(entry, event.usage)
         break
       case 'turn-complete':
+        if (entry.rolling) {
+          entry.rollCompleted = true
+          this.refreshContextUsage(entry)
+          break
+        }
         this.closeCurrentTurn(entry, 'success')
         this.refreshContextUsage(entry)
         break
@@ -647,6 +656,10 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private handleCompactionError(entry: AgentSessionRuntimeEntry, error: string): void {
+    this.settleCompactionError(entry, error)
+  }
+
+  private settleCompactionError(entry: AgentSessionRuntimeEntry, error: string): void {
     entry.compacting = false
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
       status: 'idle',
@@ -673,6 +686,10 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
+    if (entry.compacting) {
+      this.settleCompactionError(entry, error instanceof Error ? error.message : String(error))
+    }
+
     const turn = entry.currentTurn
     if (turn?.controller && !turn.terminalStatus) {
       turn.controller.error(error)
@@ -883,6 +900,7 @@ export class AgentSessionRuntimeService extends BaseService {
       rootSpan?.end()
       entry.rolling = false
       entry.rollBuffer = undefined
+      entry.rollCompleted = false
       application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, serializeError(error))
       this.markTurnTerminal(entry.sessionId, 'error')
       return
@@ -943,9 +961,12 @@ export class AgentSessionRuntimeService extends BaseService {
   private flushRollBuffer(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
     if (!entry.rolling || entry.currentTurn !== turn) return
     const buffered = entry.rollBuffer ?? []
+    const completed = entry.rollCompleted === true
     entry.rolling = false
     entry.rollBuffer = undefined
+    entry.rollCompleted = false
     for (const chunk of buffered) this.enqueueTurnChunk(turn, chunk)
+    if (completed) this.closeCurrentTurn(entry, 'success')
   }
 
   private startRuntimeRootSpan(entry: AgentSessionRuntimeEntry): Span | undefined {
@@ -1036,12 +1057,9 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.rolling = false
     entry.rollBuffer = undefined
     entry.rollSteerInputs = undefined
-    if (entry.compacting) {
-      application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
-        status: 'idle',
-        lastError: 'Session closed during compaction'
-      })
-    }
+    entry.rollCompleted = false
+    application.get('CacheService').deleteShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId))
+    application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId))
     entry.compacting = false
 
     const connection = this.closeConnection(entry)

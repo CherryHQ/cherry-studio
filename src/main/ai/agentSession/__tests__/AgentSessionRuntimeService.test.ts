@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
   cacheSetShared: vi.fn(),
+  cacheDeleteShared: vi.fn(),
   cacheMergePersist: vi.fn(),
   traceStorageSetTopicId: vi.fn()
 }))
@@ -130,7 +131,13 @@ describe('AgentSessionRuntimeService', () => {
           broadcastTopicError: mocks.broadcastTopicError
         }
       }
-      if (name === 'CacheService') return { mergePersist: mocks.cacheMergePersist, setShared: mocks.cacheSetShared }
+      if (name === 'CacheService') {
+        return {
+          mergePersist: mocks.cacheMergePersist,
+          setShared: mocks.cacheSetShared,
+          deleteShared: mocks.cacheDeleteShared
+        }
+      }
       if (name === 'TraceStorageService') return { setTopicId: mocks.traceStorageSetTopicId }
       throw new Error(`Unexpected application.get(${name})`)
     })
@@ -717,6 +724,23 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('settles compaction when the runtime connection errors', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    service.markTurnTerminal('session-1', 'success')
+
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-start' })
+    expect(service.isSessionBusy('session-1')).toBe(true)
+
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'error', error: new Error('runtime closed') })
+
+    expect(service.isSessionBusy('session-1')).toBe(false)
+    expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.compaction.session-1', {
+      status: 'idle',
+      lastError: 'runtime closed'
+    })
+  })
+
   it('persists context usage events from the runtime', () => {
     const usage = {
       categories: [],
@@ -738,6 +762,34 @@ describe('AgentSessionRuntimeService', () => {
     ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'context-usage', usage })
 
     expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
+  })
+
+  it('clears session-scoped shared cache entries when closing a session', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-start' })
+    ;(service as any).handleRuntimeEvent(getEntry(service), {
+      type: 'context-usage',
+      usage: {
+        categories: [],
+        totalTokens: 1,
+        maxTokens: 100,
+        rawMaxTokens: 100,
+        percentage: 1,
+        gridRows: [],
+        model: 'claude-sonnet-4-5',
+        memoryFiles: [],
+        mcpTools: [],
+        agents: [],
+        apiUsage: null
+      }
+    })
+
+    service.closeSession('session-1')
+
+    expect(mocks.cacheDeleteShared).toHaveBeenCalledWith('agent.session.compaction.session-1')
+    expect(mocks.cacheDeleteShared).toHaveBeenCalledWith('agent.session.context_usage.session-1')
   })
 
   it('enqueues a compaction anchor into the current turn and refreshes context usage on completion', async () => {
@@ -1240,6 +1292,63 @@ describe('AgentSessionRuntimeService', () => {
 
       events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 'p3', delta: 'live' } })
       await expect(reader2.read()).resolves.toMatchObject({ value: { type: 'text-delta', delta: 'live' }, done: false })
+
+      service.closeSession('session-1')
+      await reader.cancel().catch(() => undefined)
+      await reader2.cancel().catch(() => undefined)
+    })
+
+    it('closes the continuation when turn-complete arrives before A2 opens', async () => {
+      const events = createAsyncQueue<any>()
+      const connection = {
+        events: events.iterable,
+        send: vi.fn(),
+        redirect: vi.fn().mockReturnValue(true),
+        close: vi.fn()
+      }
+      runtimeDriverRegistry.register({
+        type: 'test-runtime',
+        capabilities: ['agent-session'],
+        connect: vi.fn().mockResolvedValue(connection),
+        validateSession: vi.fn(),
+        listAvailableTools: vi.fn().mockResolvedValue([])
+      })
+      const service = new AgentSessionRuntimeService()
+      const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+      const reader = service
+        .openTurnStream({
+          sessionId: 'session-1',
+          turnId: handle.turnId,
+          signal: new AbortController().signal
+        })
+        .getReader()
+      await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
+
+      events.push({ type: 'steer-boundary', inputs: [{ message: userMessage('user-2'), systemReminder: true }] })
+      await vi.waitFor(() => expect(getEntry(service).rolling).toBe(true))
+      await expect(reader.read()).resolves.toMatchObject({ done: true })
+
+      events.push({ type: 'chunk', chunk: { type: 'text-delta', id: 'p2', delta: 'post' } })
+      await vi.waitFor(() => expect(getEntry(service).rollBuffer).toHaveLength(1))
+
+      // The SDK can finish the underlying query before the stream-manager has opened A2.
+      events.push({ type: 'turn-complete' })
+      await vi.waitFor(() => expect(getEntry(service).rollCompleted).toBe(true))
+
+      void terminalListener(handle).onDone({ status: 'success', isTopicDone: false })
+      await vi.waitFor(() => expect(getEntry(service).currentTurn.userMessage.id).toBe('user-2'))
+      const a2 = getEntry(service).currentTurn
+      const reader2 = service
+        .openTurnStream({ sessionId: 'session-1', turnId: a2.turnId, signal: new AbortController().signal })
+        .getReader()
+
+      await expect(reader2.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+      await expect(reader2.read()).resolves.toMatchObject({ value: { type: 'text-delta', delta: 'post' }, done: false })
+      await expect(reader2.read()).resolves.toMatchObject({ done: true })
+      expect(getEntry(service).rolling).toBe(false)
+      expect(getEntry(service).rollCompleted).toBe(false)
+      expect(getEntry(service).currentTurn.terminalStatus).toBe('success')
 
       service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)

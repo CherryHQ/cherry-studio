@@ -241,6 +241,29 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(onInjected).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps an empty-text steer pending when the PreToolUse hook cannot inject it', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
+    const steerHook = preToolUse![2] as unknown as (input: {
+      hook_event_name: string
+    }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
+    const onInjected = vi.fn()
+    settings.steerHolder!.onInjected = onInjected
+    const emptySteer = { message: { data: { parts: [{ type: 'text', text: '   ' }] } } } as never
+    settings.steerHolder!.pending.push(emptySteer)
+
+    await expect(steerHook({ hook_event_name: 'PreToolUse' })).resolves.toEqual({})
+
+    expect(settings.steerHolder!.pending).toEqual([emptySteer])
+    expect(onInjected).not.toHaveBeenCalled()
+  })
+
   it('warns and falls back to no channels when channel lookup fails during tool-policy build', async () => {
     const session = {
       id: 'session-1',

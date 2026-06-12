@@ -642,7 +642,10 @@ async function buildToolPermissions(
       .map(extractSteerText)
       .filter((t) => t.trim())
       .join('\n\n')
-    if (!text) return {}
+    if (!text) {
+      steerHolder.pending.unshift(...taken)
+      return {}
+    }
     logger.info('Injecting steer into the running turn via PreToolUse hook', {
       sessionId: session.id,
       count: taken.length
