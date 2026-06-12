@@ -58,7 +58,20 @@ export abstract class BaseService {
       tools.push(...builtinTools)
     }
     if (ids && ids.length > 0) {
-      for (const id of ids) {
+      // Pre-filter: only connect to servers that still exist and are active.
+      // This avoids log noise, wasted DB lookups, and connection timeouts from
+      // stale references in agent/session mcps arrays.
+      const { getMCPServersFromRedux } = await import('@main/apiServer/utils/mcp')
+      const activeServers = await getMCPServersFromRedux()
+      const activeServerIds = new Set(activeServers.filter((s) => s.isActive).map((s) => s.id))
+      const validIds = ids.filter((id) => activeServerIds.has(id))
+
+      if (validIds.length < ids.length) {
+        const dropped = ids.filter((id) => !activeServerIds.has(id))
+        logger.warn('Skipping inactive/deleted MCP servers when listing tools', { dropped })
+      }
+
+      for (const id of validIds) {
         try {
           const server = await mcpApiService.getServerInfo(id)
           if (server) {
