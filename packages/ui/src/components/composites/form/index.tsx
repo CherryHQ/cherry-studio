@@ -166,7 +166,7 @@ interface FormSectionProps extends Omit<React.ComponentProps<'section'>, 'title'
 }
 
 function FormSection({ title, description, divided = false, className, children, ...props }: FormSectionProps) {
-  const hasHeader = title !== undefined || description !== undefined
+  const hasHeader = !!title || !!description
 
   return (
     <section

@@ -34,4 +34,63 @@ describe('useUserTheme', () => {
       Color(DEFAULT_COLOR_PRIMARY).toString()
     )
   })
+
+  it('passes a valid color through unchanged', () => {
+    const validColor = '#ff6600'
+    mockUsePreference.mockImplementation((key: string) => {
+      if (key === 'ui.theme_user.color_primary') {
+        return [validColor, vi.fn().mockResolvedValue(undefined)]
+      }
+      return ['', vi.fn().mockResolvedValue(undefined)]
+    })
+
+    const { result } = renderHook(() => useUserTheme())
+
+    act(() => {
+      result.current.initUserTheme()
+    })
+
+    expect(document.documentElement.style.getPropertyValue('--cs-theme-primary')).toBe(Color(validColor).toString())
+    expect(result.current.colorPrimary.toString()).toBe(Color(validColor).toString())
+  })
+
+  it('falls back to the default for an empty stored color', () => {
+    mockUsePreference.mockImplementation((key: string) => {
+      if (key === 'ui.theme_user.color_primary') {
+        return ['', vi.fn().mockResolvedValue(undefined)]
+      }
+      return ['', vi.fn().mockResolvedValue(undefined)]
+    })
+
+    const { result } = renderHook(() => useUserTheme())
+
+    act(() => {
+      result.current.initUserTheme()
+    })
+
+    expect(document.documentElement.style.getPropertyValue('--cs-theme-primary')).toBe(
+      Color(DEFAULT_COLOR_PRIMARY).toString()
+    )
+    expect(result.current.colorPrimary.toString()).toBe(Color(DEFAULT_COLOR_PRIMARY).toString())
+  })
+
+  it('falls back to the default for a whitespace-only stored color', () => {
+    mockUsePreference.mockImplementation((key: string) => {
+      if (key === 'ui.theme_user.color_primary') {
+        return ['   ', vi.fn().mockResolvedValue(undefined)]
+      }
+      return ['', vi.fn().mockResolvedValue(undefined)]
+    })
+
+    const { result } = renderHook(() => useUserTheme())
+
+    act(() => {
+      result.current.initUserTheme()
+    })
+
+    expect(document.documentElement.style.getPropertyValue('--cs-theme-primary')).toBe(
+      Color(DEFAULT_COLOR_PRIMARY).toString()
+    )
+    expect(result.current.colorPrimary.toString()).toBe(Color(DEFAULT_COLOR_PRIMARY).toString())
+  })
 })

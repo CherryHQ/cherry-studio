@@ -2,13 +2,17 @@
 // import { setUserTheme, UserTheme } from '@renderer/store/settings'
 
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { DEFAULT_COLOR_PRIMARY } from '@renderer/config/constant'
 import Color from 'color'
+
+const logger = loggerService.withContext('useUserTheme')
 
 function parseThemeColor(value?: string) {
   try {
     return Color(value?.trim() || DEFAULT_COLOR_PRIMARY)
-  } catch {
+  } catch (error) {
+    logger.warn('Invalid stored theme color, falling back to default', { value, error: error as Error })
     return Color(DEFAULT_COLOR_PRIMARY)
   }
 }

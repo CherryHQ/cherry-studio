@@ -2,7 +2,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { composeEventHandlers } from '@radix-ui/primitive'
 import { useCallbackRef } from '@radix-ui/react-use-callback-ref'
 import { useControllableState } from '@radix-ui/react-use-controllable-state'
-import { cva } from 'class-variance-authority'
+import { cva, type VariantProps } from 'class-variance-authority'
 import * as React from 'react'
 
 /* -------------------------------------------------------------------------------------------------
@@ -14,7 +14,7 @@ const textareaVariants = cva(
     'flex field-sizing-content w-full border bg-transparent transition-[color,box-shadow] outline-none resize-y',
     'rounded-md',
     'border-input text-foreground placeholder:text-foreground-secondary',
-    'focus-visible:border-primary focus-visible:ring-ring focus-visible:ring-[3px]',
+    'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
     'disabled:cursor-not-allowed disabled:opacity-50'
   ),
   {
@@ -46,7 +46,7 @@ interface TextareaInputProps extends Omit<React.ComponentPropsWithoutRef<'textar
   defaultValue?: string
   onValueChange?: (value: string) => void
   hasError?: boolean
-  density?: 'default' | 'compact'
+  density?: VariantProps<typeof textareaVariants>['density']
   ref?: React.Ref<HTMLTextAreaElement>
 }
 

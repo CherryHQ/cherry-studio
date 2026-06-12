@@ -58,6 +58,12 @@ const switchThumbVariants = cva(
 type SwitchSize = 'xs' | 'sm' | 'md' | 'lg' | 'default'
 type ShadcnSwitchSize = 'sm' | 'default'
 
+/**
+ * Maps legacy SwitchSize values to shadcn-compatible sizes.
+ * @deprecated xs maps to sm. Use sm directly.
+ * @deprecated lg maps to default. Use md or default directly.
+ * @deprecated default maps to default. Use md or default explicitly.
+ */
 const shadcnSwitchSizeBySize: Record<SwitchSize, ShadcnSwitchSize> = {
   xs: 'sm',
   sm: 'default',
@@ -67,7 +73,7 @@ const shadcnSwitchSizeBySize: Record<SwitchSize, ShadcnSwitchSize> = {
 }
 
 interface SwitchProps extends Omit<React.ComponentProps<typeof SwitchPrimitive.Root>, 'children'> {
-  /** When true, displays a loading animation in the switch thumb. Defaults to false when undefined. */
+  /** When true, adds cursor-progress and a data-loading attribute to indicate a loading state. Defaults to false when undefined. */
   loading?: boolean
   size?: SwitchSize
   classNames?: {
@@ -78,7 +84,7 @@ interface SwitchProps extends Omit<React.ComponentProps<typeof SwitchPrimitive.R
   }
 }
 
-function Switch({ loading = false, size = 'md', className, classNames, ...props }: SwitchProps) {
+function Switch({ loading = false, size = 'default', className, classNames, ...props }: SwitchProps) {
   const shadcnSize = shadcnSwitchSizeBySize[size]
 
   return (
@@ -96,13 +102,14 @@ function Switch({ loading = false, size = 'md', className, classNames, ...props 
   )
 }
 
-interface DescriptionSwitchProps extends SwitchProps {
+interface DescriptionSwitchProps extends Omit<SwitchProps, 'size'> {
   /** Text label displayed next to the switch. */
   label: string
   /** Optional helper text shown below the label. */
   description?: string
   /** Switch position relative to label. Defaults to 'right'. */
   position?: 'left' | 'right'
+  size?: 'sm' | 'md' | 'lg'
 }
 
 // TODO: It's not finished. We need to use Typography components instead of native html element.
