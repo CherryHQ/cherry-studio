@@ -84,7 +84,6 @@ export function uiToMessage(uiMsg: CherryUIMessage, ctx: UiToMessageContext): Me
     modelId,
     model: snapshot ? (snapshot as unknown as Model) : undefined,
     siblingsGroupId: meta.siblingsGroupId,
-    traceId: meta.traceId ?? undefined,
     status: projectStatus(uiMsg.role, meta.status),
     ...(meta.stats && { usage: statsToUsage(meta.stats), metrics: statsToMetrics(meta.stats) }),
     blocks: [],

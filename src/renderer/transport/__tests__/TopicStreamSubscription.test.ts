@@ -46,6 +46,9 @@ function createMockAiApi() {
       isTopicDone?: boolean
     ) => {
       for (const cb of [...listeners.done]) cb({ topicId, executionId, status, isTopicDone })
+    },
+    emitError: (topicId: string, executionId: UniqueModelId | undefined, isTopicDone?: boolean) => {
+      for (const cb of [...listeners.error]) cb({ topicId, executionId, isTopicDone, error: new Error('boom') })
     }
   }
 }
@@ -120,6 +123,31 @@ describe('TopicStreamSubscription', () => {
     mock.emitChunk(TOPIC, A, textChunk('two'))
     mock.emitDone(TOPIC, A, 'success')
     expect(await readAll(sa)).toEqual([textChunk('one'), textChunk('two')])
+    sub.dispose()
+  })
+
+  it('can listen for stream-open chunks before an execution branch registers', async () => {
+    const sub = new TopicStreamSubscription(TOPIC)
+    sub.listen()
+
+    mock.emitChunk(TOPIC, A, textChunk('early'))
+    const sa = sub.register(A)
+    mock.emitDone(TOPIC, A, 'success')
+
+    expect(await readAll(sa)).toEqual([textChunk('early')])
+    sub.dispose()
+  })
+
+  it('replays terminal status that arrives before an execution branch registers', async () => {
+    const sub = new TopicStreamSubscription(TOPIC)
+    const terminals: Array<{ id: string; isAbort: boolean; isError: boolean }> = []
+    sub.listen()
+
+    mock.emitError(TOPIC, A)
+    sub.register(A)
+    sub.onExecutionTerminal((id, terminal) => terminals.push({ id, ...terminal }))
+
+    expect(terminals).toEqual([{ id: A, isAbort: false, isError: true }])
     sub.dispose()
   })
 
