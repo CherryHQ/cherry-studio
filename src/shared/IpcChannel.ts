@@ -85,6 +85,7 @@ export enum IpcChannel {
   Mcp_ServersUpdated = 'mcp:servers-updated',
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
   Mcp_UploadDxt = 'mcp:upload-dxt',
+  Mcp_UploadMcpb = 'mcp:upload-mcpb',
   Mcp_AbortTool = 'mcp:abort-tool',
   Mcp_GetServerVersion = 'mcp:get-server-version',
   Mcp_Progress = 'mcp:progress',
@@ -361,11 +362,7 @@ export enum IpcChannel {
   AgentSession_AutoRenamed = 'agent-session:auto-renamed',
 
   // TRACE
-  TRACE_SAVE_DATA = 'trace:saveData',
-  TRACE_SAVE_ENTITY = 'trace:saveEntity',
-  TRACE_GET_ENTITY = 'trace:getEntity',
-  TRACE_BIND_TOPIC = 'trace:bindTopic',
-  TRACE_CLEAN_HISTORY = 'trace:cleanHistory',
+  TRACE_GET_DATA = 'trace:getData',
   TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
 
   // API Gateway

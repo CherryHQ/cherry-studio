@@ -43,6 +43,7 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     updatedAt: '2026-04-20T00:00:00.000Z',
     tags: [createTag('tag-1', '写作')],
     modelName: 'GPT-4o',
+    orderKey: 'a0',
     ...overrides
   }
 }

@@ -23,7 +23,7 @@ vi.mock('@application', async () => {
 })
 
 import { LegacyAgentsDbReader } from '../../utils/LegacyAgentsDbReader'
-import { AgentsMigrator } from '../AgentsMigrator'
+import { AgentsMigrator, backfillAgentOrderKeys } from '../AgentsMigrator'
 import { AGENTS_TABLE_MIGRATION_SPECS } from '../mappings/AgentsDbMappings'
 
 function createCounts() {
@@ -104,7 +104,7 @@ describe('AgentsMigrator', () => {
     // remapAgentPrefixIds calls db.select().from().where() to find old-prefix IDs;
     // mock to return empty arrays so the remap loop is a no-op.
     const select = vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
+      from: vi.fn().mockReturnValue({ orderBy: vi.fn().mockResolvedValue([]), where: vi.fn().mockResolvedValue([]) })
     })
     const update = vi.fn().mockReturnValue({
       set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
@@ -149,6 +149,12 @@ describe('AgentsMigrator', () => {
     expect(outer.at(-3)).toBe('BEGIN')
     expect(outer.at(-2)).toBe('COMMIT')
     expect(outer.at(-1)).toBe('DETACH DATABASE agents_legacy')
+    // Session-workspace staging runs first inside the import transaction, emitted
+    // via run() before the table INSERTs.
+    expect(outer).toContain(
+      'CREATE TEMP TABLE IF NOT EXISTS session_workspace_map (session_id TEXT PRIMARY KEY, workspace_id TEXT)'
+    )
+    expect(outer).toContain('DELETE FROM session_workspace_map')
     // FK is centralized in the engine now — the migrator emits no PRAGMA toggles.
     expect(outer).not.toContain('PRAGMA foreign_keys = OFF')
     expect(outer).not.toContain('PRAGMA foreign_keys = ON')
@@ -161,6 +167,21 @@ describe('AgentsMigrator', () => {
     expect(update).not.toHaveBeenCalled()
     // Agent-domain FK self-check ran (one foreign_key_check per AGENT_TABLES entry)
     expect(all).toHaveBeenCalled()
+  })
+
+  it('backfills agent order keys from legacy sort_order before id remap', async () => {
+    const all = vi
+      .fn()
+      .mockResolvedValueOnce([{ id: 'agent-b' }, { id: 'agent-a' }])
+      .mockResolvedValueOnce([])
+    const run = vi.fn().mockResolvedValue(undefined)
+
+    await backfillAgentOrderKeys({ all, run } as never)
+
+    const [query] = all.mock.calls[0]
+    expect(query.queryChunks[0]?.value?.[0]).toContain('LEFT JOIN agents_legacy.agents')
+    expect(query.queryChunks[0]?.value?.[0]).toContain('ORDER BY COALESCE(s.sort_order, 0) ASC')
+    expect(run).toHaveBeenCalledTimes(2)
   })
 
   it('rolls back and detaches when an import statement fails inside the transaction', async () => {
@@ -318,7 +339,7 @@ describe('AgentsMigrator', () => {
 
     const run = vi.fn().mockResolvedValue(undefined)
     const select = vi.fn().mockReturnValue({
-      from: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue([]) })
+      from: vi.fn().mockReturnValue({ orderBy: vi.fn().mockResolvedValue([]), where: vi.fn().mockResolvedValue([]) })
     })
     const update = vi.fn().mockReturnValue({
       set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })

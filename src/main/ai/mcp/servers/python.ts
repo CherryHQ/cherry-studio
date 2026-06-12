@@ -4,7 +4,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import * as z from 'zod'
 
-const logger = loggerService.withContext('MCPServer:Python')
+const logger = loggerService.withContext('McpServer:Python')
 
 const DEFAULT_TIMEOUT_MS = 60000
 const MIN_TIMEOUT_MS = 1000

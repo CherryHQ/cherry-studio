@@ -91,6 +91,28 @@ describe('knowledgeHandlers', () => {
       expect(result).toEqual(response)
     })
 
+    it('should delegate trimmed search to knowledgeBaseService.list', async () => {
+      const response = {
+        items: [{ id: 'kb-3', name: 'Research Notes' }],
+        total: 1,
+        page: 1
+      }
+      listKnowledgeBasesMock.mockResolvedValueOnce(response)
+
+      const result = await knowledgeHandlers['/knowledge-bases'].GET({
+        query: {
+          search: '  research  '
+        }
+      } as never)
+
+      expect(listKnowledgeBasesMock).toHaveBeenCalledWith({
+        page: KNOWLEDGE_BASES_DEFAULT_PAGE,
+        limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
+        search: 'research'
+      })
+      expect(result).toEqual(response)
+    })
+
     it('should reject invalid pagination before calling the service', async () => {
       await expect(
         knowledgeHandlers['/knowledge-bases'].GET({

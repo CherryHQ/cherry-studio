@@ -16,13 +16,32 @@ import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, Reran
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
-import type { Model } from '@shared/data/types/model'
-import { isOpenAIChatCompletionOnlyModel, isOpenAILLMModel } from '@shared/utils/model'
 
 import { createAihubmixImageModel } from './aihubmixImageModel'
 
 export const AIHUBMIX_PROVIDER_NAME = 'aihubmix' as const
 const APP_CODE_HEADER = { 'APP-Code': 'MLTG2087' }
+
+// AiHubMix dispatches on raw API model ids. Keep these predicates string-based: the shared
+// `@shared/utils/model` helpers resolve the raw id via getRawModelId → parseUniqueModelId, which
+// THROWS ('Invalid UniqueModelId format') on a bare API id with no `::`. A fabricated
+// `{ id: modelId } as Model` would therefore CRASH on every OpenAI-routed model here — it doesn't
+// merely lack metadata. (The chat-completion-only list below has no shared string source, so it
+// stays local too.)
+const isOpenAILLM = (modelId: string): boolean => {
+  const id = modelId.toLowerCase()
+  return /\bgpt\b|^o[134]/.test(id) && !id.includes('gpt-4o-image')
+}
+
+const isOpenAIChatCompletionOnly = (modelId: string): boolean => {
+  const id = modelId.toLowerCase()
+  return (
+    id.includes('gpt-4o-search-preview') ||
+    id.includes('gpt-4o-mini-search-preview') ||
+    id.includes('o1-mini') ||
+    id.includes('o1-preview')
+  )
+}
 
 export interface AihubmixProviderSettings {
   apiKey?: string
@@ -124,9 +143,8 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
     ) {
       return createGeminiModel(modelId)
     }
-    const model = { id: modelId } as Model
-    if (isOpenAILLMModel(model)) {
-      if (isOpenAIChatCompletionOnlyModel(model)) {
+    if (isOpenAILLM(modelId)) {
+      if (isOpenAIChatCompletionOnly(modelId)) {
         return createOpenAIChatModel(modelId)
       }
       return createResponsesModel(modelId)

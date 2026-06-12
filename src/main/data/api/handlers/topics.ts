@@ -4,24 +4,22 @@
  * Implements all topic-related API endpoints including:
  * - Cursor-paginated topic list with optional name search
  * - Topic CRUD operations
+ * - Topic path duplication
  * - Active node switching for branch navigation
  * - Scoped reorder (single + batch) via OrderEndpoints
  */
 
 import { topicService } from '@data/services/TopicService'
-import { loggerService } from '@logger'
-import { topicNamingService } from '@main/services/TopicNamingService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   CreateTopicSchema,
+  DuplicateTopicSchema,
   ListTopicsQuerySchema,
   SetActiveNodeSchema,
   type TopicSchemas,
   UpdateTopicSchema
 } from '@shared/data/api/schemas/topics'
-
-const logger = loggerService.withContext('DataApi:TopicHandlers')
 
 export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics': {
@@ -32,13 +30,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 
     POST: async ({ body }) => {
       const parsed = CreateTopicSchema.parse(body)
-      const topic = await topicService.create(parsed)
-      if (parsed.sourceNodeId) {
-        void topicNamingService.maybeRenameForkedTopic(topic.id, topic.assistantId).catch((err) => {
-          logger.warn('Failed to auto-name forked topic', { topicId: topic.id, err })
-        })
-      }
-      return topic
+      return await topicService.create(parsed)
     }
   },
 
@@ -62,6 +54,13 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     PUT: async ({ params, body }) => {
       const parsed = SetActiveNodeSchema.parse(body)
       return await topicService.setActiveNode(params.id, parsed.nodeId)
+    }
+  },
+
+  '/topics/:id/duplicate': {
+    POST: async ({ params, body }) => {
+      const parsed = DuplicateTopicSchema.parse(body)
+      return await topicService.duplicate(params.id, parsed)
     }
   },
 

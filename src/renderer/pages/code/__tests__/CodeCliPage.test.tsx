@@ -185,6 +185,12 @@ describe('CodeCliPage', () => {
     expect(testState.useProviders).toHaveBeenCalledWith({ enabled: true, hasEnabledApiKey: true })
   })
 
+  it('constrains the page height so the gallery can scroll', () => {
+    const { container } = render(<CodeCliPage />)
+
+    expect(container.firstElementChild).toHaveClass('h-full', 'min-h-0', 'overflow-hidden')
+  })
+
   it('keeps the auto-update checkbox neutral instead of primary themed', async () => {
     await openCodeToolDialog()
 

@@ -33,15 +33,13 @@ describe('AuthConnectionSlotsLayout', () => {
     expect(container.querySelector('section')).not.toBeNull()
   })
 
-  it('renders the configuration section heading for every provider, not just CherryIN', () => {
+  it('does not render an extra configuration heading', () => {
     const { container } = render(
       <AuthConnectionSlotsLayout providerId="openai">
         <div>core</div>
       </AuthConnectionSlotsLayout>
     )
 
-    const heading = container.querySelector('h3')
-    expect(heading).not.toBeNull()
-    expect(heading?.textContent?.trim()).not.toBe('')
+    expect(container.querySelector('h3')).toBeNull()
   })
 })

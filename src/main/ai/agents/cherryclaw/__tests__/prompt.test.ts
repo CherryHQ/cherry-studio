@@ -262,7 +262,10 @@ describe('PromptBuilder', () => {
       expect(result).toContain('## Workspace Memory')
       expect(result).toContain('mcp__agent-memory__memory')
       expect(result).toContain('## Web Search Strategy')
-      expect(result).toContain('mcp__exa__web_search_exa')
+      expect(result).toContain('mcp__cherry-tools__web_search')
+      expect(result).toContain('mcp__cherry-tools__web_fetch')
+      // Guard against the removed Exa tool name leaking back into the guidance.
+      expect(result).not.toContain('mcp__exa__web_search_exa')
       expect(result).not.toContain('## CherryClaw Tools')
       expect(result).not.toContain('mcp__claw__cron')
       expect(result).not.toContain('mcp__claw__notify')
