@@ -19,6 +19,7 @@ import { loggerService } from '@logger'
 import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api'
 import type { OrderBatchRequest, OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateProviderDto, ListProvidersQuery, UpdateProviderDto } from '@shared/data/api/schemas/providers'
+import { isManagedCherryAiProviderId } from '@shared/data/presets/cherryai'
 import type {
   ApiKeyEntry,
   AuthConfig,
@@ -34,6 +35,22 @@ import { v4 as uuidv4 } from 'uuid'
 const logger = loggerService.withContext('DataApi:ProviderService')
 
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
+
+function assertManagedCherryAiProviderPatchAllowed(providerId: string, dto: UpdateProviderDto): void {
+  if (!isManagedCherryAiProviderId(providerId) || Object.keys(dto).length === 0) {
+    return
+  }
+
+  assertManagedCherryAiProviderMutationAllowed(providerId, `update provider ${providerId}`)
+}
+
+function assertManagedCherryAiProviderMutationAllowed(providerId: string, operation: string): void {
+  if (!isManagedCherryAiProviderId(providerId)) {
+    return
+  }
+
+  throw DataApiErrorFactory.invalidOperation(operation, 'managed CherryAI provider cannot be modified')
+}
 
 function normalizeApiKeyEntry(entry: ApiKeyEntry): ApiKeyEntry {
   const key = entry.key.trim()
@@ -200,6 +217,8 @@ class ProviderService {
    * Create a new provider
    */
   async create(dto: CreateProviderDto): Promise<Provider> {
+    assertManagedCherryAiProviderMutationAllowed(dto.providerId, `create provider ${dto.providerId}`)
+
     const db = application.get('DbService').getDb()
 
     const values: NewUserProviderInput = {
@@ -236,6 +255,8 @@ class ProviderService {
    * Update an existing provider
    */
   async update(providerId: string, dto: UpdateProviderDto): Promise<Provider> {
+    assertManagedCherryAiProviderPatchAllowed(providerId, dto)
+
     // Read + merge + write the providerSettings JSON in ONE serialized write
     // transaction. A bare read-then-update would let two concurrent PATCHes both
     // read the same old providerSettings and have the later write clobber the
@@ -393,6 +414,8 @@ class ProviderService {
    * Returns the updated Provider.
    */
   async addApiKey(providerId: string, key: string, label?: string): Promise<Provider> {
+    assertManagedCherryAiProviderMutationAllowed(providerId, `add API key to provider ${providerId}`)
+
     const { provider, added } = await this.runApiKeyMutation(providerId, async () => {
       const db = application.get('DbService').getDb()
       return await db.transaction(async (tx) => {
@@ -445,6 +468,8 @@ class ProviderService {
    * Replace the full API key list via the dedicated API-key resource.
    */
   async replaceApiKeys(providerId: string, apiKeys: ApiKeyEntry[]): Promise<Provider> {
+    assertManagedCherryAiProviderMutationAllowed(providerId, `replace API keys for provider ${providerId}`)
+
     const normalizedApiKeys = normalizeApiKeyEntries(apiKeys)
     const provider = await this.runApiKeyMutation(providerId, async () => {
       const db = application.get('DbService').getDb()
@@ -480,6 +505,8 @@ class ProviderService {
       isEnabled?: boolean
     }
   ): Promise<Provider> {
+    assertManagedCherryAiProviderMutationAllowed(providerId, `update API key for provider ${providerId}`)
+
     const provider = await this.runApiKeyMutation(providerId, async () => {
       const db = application.get('DbService').getDb()
       return await db.transaction(async (tx) => {
@@ -550,6 +577,8 @@ class ProviderService {
    * Delete an API key by key ID and return updated provider.
    */
   async deleteApiKey(providerId: string, keyId: string): Promise<Provider> {
+    assertManagedCherryAiProviderMutationAllowed(providerId, `delete API key from provider ${providerId}`)
+
     const provider = await this.runApiKeyMutation(providerId, async () => {
       const db = application.get('DbService').getDb()
       return await db.transaction(async (tx) => {
@@ -639,6 +668,8 @@ class ProviderService {
   }
 
   async move(providerId: string, anchor: OrderRequest): Promise<void> {
+    assertManagedCherryAiProviderMutationAllowed(providerId, `move provider ${providerId}`)
+
     const db = application.get('DbService').getDb()
 
     try {
@@ -654,6 +685,10 @@ class ProviderService {
   }
 
   async reorder(moves: OrderBatchRequest['moves']): Promise<void> {
+    for (const move of moves) {
+      assertManagedCherryAiProviderMutationAllowed(move.id, `move provider ${move.id}`)
+    }
+
     const db = application.get('DbService').getDb()
 
     try {
