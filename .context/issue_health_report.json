@@ -1,98 +1,45 @@
 {
-  "report_date": "2026-06-11",
-  "generated_at": "2026-06-11T18:00:00Z",
-  "methodology": "Health categories based on createdAt age and presence of inactive label. Sample: 200 most-recently-updated open issues of 943 total.",
-  "total_open_issues": 943,
-  "sample_size": 200,
-  "health_summary": {
-    "active": {
-      "definition": "Created <30 days ago, no inactive label",
-      "count_sampled": 120,
-      "pct_sampled": 60.0,
-      "extrapolated_total": "~566"
-    },
-    "aging": {
-      "definition": "Created 30–90 days ago, no inactive label",
-      "count_sampled": 55,
-      "pct_sampled": 27.5,
-      "extrapolated_total": "~259"
-    },
-    "stale": {
-      "definition": "Created >90 days ago, no inactive label",
-      "count_sampled": 2,
-      "pct_sampled": 1.0,
-      "extrapolated_total": "~9"
-    },
-    "zombie": {
-      "definition": "Has inactive label (auto-close candidate)",
-      "count_sampled": 63,
-      "pct_sampled": 31.5,
-      "extrapolated_total": "~297 across full 943",
-      "note": "Zombie count overlaps with aging/stale age buckets"
-    }
+  "generated_at": "2026-06-12T00:00:00+00:00",
+  "health_buckets": {
+    "Active": {"count": 116, "pct": 100.0},
+    "Aging": {"count": 0, "pct": 0.0},
+    "Stale": {"count": 0, "pct": 0.0},
+    "Zombie": {"count": 0, "pct": 0.0}
   },
-  "inactive_label_analysis": {
-    "in_sample": 63,
-    "pct_of_sample": 31.5,
-    "insight": "Nearly 1/3 of recently-updated open issues carry the inactive label, suggesting a healthy auto-triage bot is running but many issues re-surface after being marked inactive."
+  "data_note": "Health computed from 116 deduplicated issues (most recently updated). Repo total=937. Sampling bias: MCP returns issues sorted by updatedAt DESC, so all sampled issues are Active by definition.",
+  "inactive_label_proxy": {
+    "count": 23,
+    "pct_of_sampled": 19.8,
+    "note": "'inactive' label applied by maintainers — effective stale/zombie proxy in lieu of full corpus scan"
   },
-  "unlabeled_analysis": {
-    "in_sample": 24,
-    "pct_of_sample": 12.0,
-    "insight": "~12% of open issues have no labels — these need manual triage. Key unlabeled issues: #15982 (Sub-Agent mechanism), #15947 (auto-updater WAF loop), #15962 (API address bug)."
-  },
-  "top_categories_needing_attention": [
+  "bug_issues_total": 104,
+  "p1_issues": [
     {
-      "category": "UI/UX",
-      "open_in_sample": 60,
-      "note": "Largest substantive category. High volume of feature requests and bugs."
-    },
-    {
-      "category": "Models",
-      "open_in_sample": 36,
-      "note": "Provider compatibility and model capability issues."
-    },
-    {
-      "category": "Assistant",
-      "open_in_sample": 35,
-      "note": "Assistant settings, parameter passing, and behavior issues."
-    },
-    {
-      "category": "MCP",
-      "open_in_sample": 16,
-      "note": "MCP integration issues — active area of development."
+      "number": 16016,
+      "title": "[Bug]: Agent fails with ECONNREFUSED when a stale system proxy is set (Claude Code subprocess blindly inherits system HTTP_PROXY)",
+      "labels": ["BUG", "Connectivity", "internal_team"],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16016"
     }
   ],
-  "stale_issues_detail": [
-    {
-      "number": 6505,
-      "created_at": "2025-05-27",
-      "age_days": 380,
-      "labels": [],
-      "title": "(page-1 oldest, exact title not captured)"
-    },
-    {
-      "number": 11953,
-      "created_at": "2025-12-16",
-      "age_days": 177,
-      "labels": ["Dev Team"],
-      "title": "Recruitment - Cherry Studio, Welcoming Fellow Travelers"
-    }
+  "high_comment_issues": [
+    {"number": 6505, "title": "[FAQ&反馈]: 划词助手 / Selection Assistant", "comments": 360},
+    {"number": 6696, "title": "功能请求：重新生成回答时，或者编辑信息时，可以保留以前的信息并允许随时切换。", "comments": 9},
+    {"number": 14018, "title": "[Feature]: aiCore Audio/Video Capability Completion + AI SDK v6", "comments": 8},
+    {"number": 14080, "title": "[Bug]: cannot scroll to search result", "comments": 5},
+    {"number": 15990, "title": "[Feature]: CherryAI 默认服务商、默认模型与默认助手初始化方案设计", "comments": 5}
   ],
-  "auto_close_candidates": {
-    "count_with_inactive_label": 63,
-    "recommendation": "Issues marked inactive that have not received a response in 7+ days should be candidates for closing. Review inactive-labeled issues monthly."
-  },
-  "health_score": {
-    "score": 72,
-    "max": 100,
-    "components": {
-      "active_ratio": {"value": 60, "weight": 0.4, "contribution": 24},
-      "low_stale_ratio": {"value": 97, "weight": 0.2, "contribution": 19.4},
-      "label_coverage": {"value": 88, "weight": 0.2, "contribution": 17.6},
-      "closure_velocity_30d": {"value": 398, "note": "closed in 30d", "weight": 0.2, "contribution": 11}
-    },
-    "trend": "stable",
-    "note": "Score is indicative; based on 200-issue sample. High zombie ratio (31.5%) is the primary drag."
-  }
+  "unlabeled_issues": [
+    {"number": 16008, "title": "[Bug] Custom system prompts are not mapped to the instructions field in Responses API mode", "created_at": "2026-06-12T09:03:58Z"},
+    {"number": 16006, "title": "[Feature]: Add auto TTS function & built-in OCR for vision-less LLM models", "created_at": "2026-06-12T05:16:09Z"},
+    {"number": 15982, "title": "[Feature]: Add Sub-Agent Calling Mechanism between Agents", "created_at": "2026-06-11T09:05:59Z"},
+    {"number": 15944, "title": "[Other]: Tracking — src/main chat-page split consolidated into 8 backend review PRs", "created_at": "2026-06-10T11:15:02Z"},
+    {"number": 15962, "title": "[Bug]: API address cannot end with #", "created_at": "2026-06-11T00:26:34Z"},
+    {"number": 15169, "title": "[Feature]: Add WeCom and DingTalk Channel Adapters for CherryClaw", "created_at": "2026-05-18T13:13:54Z"},
+    {"number": 15949, "title": "[Feature]: Autonomous Mode should clearly indicate that it disables MCP tools", "created_at": "2026-06-10T14:03:23Z"},
+    {"number": 15947, "title": "[Bug]: Auto-updater infinite retry loop against gitcode.com WAF produces 26GB+ of log files in one day", "created_at": "2026-06-10T12:20:31Z"},
+    {"number": 15842, "title": "Showcase inquiry for Cherry Studio as a practical AI workspace", "created_at": "2026-06-09T10:49:29Z"},
+    {"number": 15836, "title": "[Bug]: DeepSeek V4+ reasoning_effort dropped for OpenAI-compatible providers on main", "created_at": "2026-06-09T07:58:46Z"},
+    {"number": 15833, "title": "Upgrade eslint-plugin-react-hooks (5.2.0 → 7.x)", "created_at": "2026-06-09T07:10:54Z"},
+    {"number": 15828, "title": "[Feature]: Support configuring multiple provider types for a single provider", "created_at": "2026-06-09T03:03:09Z"}
+  ]
 }

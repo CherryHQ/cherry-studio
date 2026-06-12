@@ -1,142 +1,37 @@
 {
-  "report_date": "2026-06-11",
-  "generated_at": "2026-06-11T18:00:00Z",
+  "generated_at": "2026-06-12T00:00:00Z",
+  "generated_by": "daily-analysis-agent",
   "v2_branch_status": {
-    "open_prs_targeting_v2": 0,
-    "note": "No open PRs target the v2 base branch directly. V2 development is merged into main."
+    "open_prs": 0,
+    "merged_prs_30d": 21,
+    "note": "v2 branch merged into main; active development on main. 21 PRs targeting v2 base merged in last 30 days."
   },
-  "v2_labeled_open_prs": {
-    "count": 3,
-    "prs": [
-      {
-        "number": 14997,
-        "title": "chore(chat-page): scaffold chat component tree",
-        "author": "DeJeune",
-        "created_at": "2026-05-11",
-        "base": "main",
-        "status": "open >30 days — needs review",
-        "labels": ["v2"]
-      },
-      {
-        "number": 15184,
-        "title": "refactor(binary-manager): unify CLI binary acquisition behind mise-backed BinaryManager",
-        "author": "vaayne",
-        "created_at": "2026-05-19",
-        "base": "main",
-        "status": "open ~23 days",
-        "labels": ["v2"]
-      },
-      {
-        "number": 15045,
-        "title": "feat(agent): AI SDK Agent Runtime",
-        "author": "DeJeune",
-        "created_at": "2026-05-12",
-        "base": "main",
-        "status": "open ~30 days",
-        "labels": ["v2"]
-      }
-    ]
-  },
-  "recently_merged_v2_related_7d": [
+  "v2_merged_prs_30d_sample": [
+    {"number": 15371, "title": "refactor(knowledge): knowledge workflow jobs round2"},
+    {"number": 15363, "title": "feat(file-manager): unified DirectoryTreeBuilder primitive for knowledge and projects"},
+    {"number": 15356, "title": "refactor(file-entry): use file entries for knowledge and projects"},
+    {"number": 15330, "title": "feat(file): register chat_message FileRefSourceType and backend"},
+    {"number": 15309, "title": "refactor(knowledge): knowledge v2 RFC and implement round 1"}
+  ],
+  "active_tracks": [
     {
-      "number": 15941,
-      "merged_at": "2026-06-11T15:52:31Z",
-      "author": "DeJeune",
-      "title": "feat(agent-data): agent resource API + agent workspace DataApi workflow",
-      "area": "DataApi / Agent"
+      "track": "Data Layer",
+      "status": "in_progress",
+      "replacing": ["Redux", "Dexie", "ElectronStore"],
+      "adopting": ["Cache", "Preference", "DataApi (SQLite + Drizzle)"],
+      "open_issues_with_v2_label": 2
     },
     {
-      "number": 15938,
-      "merged_at": "2026-06-11T15:34:40Z",
-      "author": "DeJeune",
-      "title": "fix(ai-provider): provider settings patch + CherryAI/AiHubMix runtime routing",
-      "area": "Provider"
+      "track": "UI Layer",
+      "status": "in_progress",
+      "replacing": ["antd", "HeroUI", "styled-components"],
+      "adopting": ["@cherrystudio/ui (Tailwind CSS + Shadcn UI)"]
     },
     {
-      "number": 15942,
-      "merged_at": "2026-06-11T10:10:51Z",
-      "author": "DeJeune",
-      "title": "feat(ai-trace): trace capture + container trace DataApi + chat trace pane",
-      "area": "DataApi / Trace"
-    },
-    {
-      "number": 15937,
-      "merged_at": "2026-06-11T11:07:42Z",
-      "author": "DeJeune",
-      "title": "feat(data-api): add topic duplicate endpoint",
-      "area": "DataApi"
-    },
-    {
-      "number": 15843,
-      "merged_at": "2026-06-09T13:06:34Z",
-      "author": "eeee0717",
-      "title": "fix(knowledge-migration): preserve v1 vector DB during v2 migration",
-      "area": "Migration"
-    },
-    {
-      "number": 15736,
-      "merged_at": "2026-06-09T09:50:32Z",
-      "author": "zhangjiadi225",
-      "title": "refactor(agent-session): make workspace binding explicit",
-      "area": "Agent"
-    },
-    {
-      "number": 15796,
-      "merged_at": "2026-06-09T06:04:29Z",
-      "author": "eeee0717",
-      "title": "feat(knowledge): route embeddings and reranking through the AI service",
-      "area": "Knowledge / AI Service"
+      "track": "Knowledge/File",
+      "status": "active",
+      "evidence": "5+ v2-base PRs merged in last 30d targeting knowledge/file-manager/file-entry"
     }
   ],
-  "v2_development_themes": {
-    "data_api": {
-      "status": "active",
-      "recent_work": ["agent-data resource API", "topic duplicate endpoint", "ai-trace DataApi", "container trace DataApi"],
-      "open_work": ["chat-page scaffold (#14997)"]
-    },
-    "agent_runtime": {
-      "status": "active",
-      "recent_work": ["agent-session workspace binding", "agent resource API"],
-      "open_work": ["AI SDK Agent Runtime (#15045)"]
-    },
-    "knowledge": {
-      "status": "active",
-      "recent_work": ["embeddings/reranking through AI service", "v1→v2 vector DB migration fix"],
-      "open_work": []
-    },
-    "binary_manager": {
-      "status": "in-progress",
-      "recent_work": [],
-      "open_work": ["mise-backed BinaryManager (#15184)"]
-    },
-    "provider": {
-      "status": "active",
-      "recent_work": ["CherryAI/AiHubMix runtime routing", "auto-enable providers when models available"],
-      "open_work": []
-    },
-    "migration_v1_to_v2": {
-      "status": "active",
-      "recent_work": ["preserve v1 vector DB during v2 migration"],
-      "open_work": []
-    }
-  },
-  "v2_issues_open": [
-    {
-      "number": 15944,
-      "title": "[Other]: Tracking — src/main chat-page split",
-      "created_at": "2026-06-10",
-      "labels": [],
-      "note": "Tracking issue for chat-page refactor — key v2 milestone"
-    }
-  ],
-  "v1_branch_prs": {
-    "count_open": 15,
-    "note": "15 open PRs target v1 branch (hotfixes/maintenance). These are separate from v2 development."
-  },
-  "momentum_summary": {
-    "active_contributors_7d": ["DeJeune", "Raymond8196", "eeee0717", "LWWZH", "AtomsH4", "EurFelux", "kangfenmao", "vaayne", "beyondkmp"],
-    "prs_merged_7d": 22,
-    "key_milestone_this_week": "DataApi + Agent workspace + AI trace infrastructure landed",
-    "blockers": ["#14997 chat-page scaffold open >30d", "#15045 AI SDK Agent Runtime open ~30d"]
-  }
+  "blocked_issues": [{"label": "Blocked: v2", "count_in_sampled_200": 1}]
 }

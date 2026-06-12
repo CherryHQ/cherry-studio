@@ -1,164 +1,64 @@
 {
-  "snapshot_date": "2026-06-11",
-  "generated_at": "2026-06-11T18:00:00Z",
-  "data_source": "GitHub MCP API (CherryHQ/cherry-studio)",
+  "generated_at": "2026-06-12T00:00:00+00:00",
   "open_issues": {
-    "total": 943,
-    "sampled": 200,
-    "label_distribution": {
-      "inactive": 63,
-      "UI/UX": 60,
-      "internal_team": 36,
-      "Models": 36,
-      "Assistant": 35,
-      "help wanted": 16,
-      "discussion": 16,
-      "MCP": 16,
-      "community_feedback": 4,
-      "Data": 9,
-      "RAG": 9,
-      "needs-repro": 9,
-      "Connectivity": 6,
-      "feature": 6,
-      "Performance": 3,
-      "needs-triage": 3,
-      "v2": 1,
-      "Agent": 1,
-      "module:security": 1,
-      "Dev Team": 1
-    },
-    "unlabeled_count_sampled": 24,
-    "unlabeled_pct_sampled": 12.0,
-    "age_distribution_sampled": {
-      "lt_30d": 127,
-      "btw_30d_90d": 71,
-      "gt_90d": 2
-    },
-    "oldest_open_issues": [
-      {"number": 6505, "created_at": "2025-05-27", "title": "(age >1yr, from page-1 sample)"},
-      {"number": 11953, "created_at": "2025-12-16", "title": "Recruitment - Cherry Studio, Welcoming Fellow Travelers", "labels": ["Dev Team"]},
-      {"number": 13418, "created_at": "2026-03-12", "title": "[Feature]: Smart Model Auto-Discovery & Auto-Add on Provider Setup", "labels": ["feature", "Assistant", "UI/UX", "Models", "inactive"]},
-      {"number": 14020, "created_at": "2026-04-03", "title": "[Bug]: Historical reasoning content cross-provider contamination", "labels": ["Models"]},
-      {"number": 14080, "created_at": "2026-04-06", "title": "[Bug]: cannot scroll to search result", "labels": ["UI/UX"]}
-    ]
+    "count": 116,
+    "total_in_repo": 937
   },
   "open_prs": {
-    "total_sampled": 100,
-    "by_base_branch": {
-      "main": 83,
-      "v1": 15,
-      "codex/main-8-builtin-tools": 1,
+    "count": 200,
+    "by_base": {
+      "main": 182,
+      "v1": 17,
       "feat/chat-page": 1
-    },
-    "v2_labeled_count": 3,
-    "v2_labeled_prs": [
-      {"number": 14997, "title": "chore(chat-page): scaffold chat component tree", "author": "DeJeune", "created_at": "2026-05-11"},
-      {"number": 15184, "title": "refactor(binary-manager): unify CLI binary acquisition behind mise-backed BinaryManager", "author": "vaayne", "created_at": "2026-05-19"},
-      {"number": 15045, "title": "feat(agent): AI SDK Agent Runtime", "author": "DeJeune", "created_at": "2026-05-12"}
-    ],
-    "stale_prs_gt_30d": 7,
-    "stale_prs": [
-      {"number": 14997, "title": "chore(chat-page): scaffold chat component tree", "created_at": "2026-05-11"},
-      {"number": 14668, "title": "fix(file): restore leading dot in ext for saveBase64Image", "created_at": "2026-04-27"},
-      {"number": 14493, "title": "chore: version packages", "created_at": "2026-04-22"},
-      {"number": 14988, "title": "feat: Add 'embedding' endpoint type for NEWAPI", "created_at": "2026-05-11"},
-      {"number": 14674, "title": "fix: disable native structured output for google-vertex-anthropic", "created_at": "2026-04-27"},
-      {"number": 14634, "title": "fix: resolve spell check real-time highlighting", "created_at": "2026-04-26"},
-      {"number": 11495, "title": "feat: Implement shared provider utilities and Proxy Api Server", "created_at": "2025-11-27"}
-    ],
-    "unlabeled_pct": 89.0,
-    "top_authors": [
-      {"login": "DeJeune", "open_prs": 15},
-      {"login": "Raymond8196", "open_prs": 11},
-      {"login": "ousugo", "open_prs": 8},
-      {"login": "HUQIANTAO", "open_prs": 7},
-      {"login": "kangfenmao", "open_prs": 6},
-      {"login": "LWWZH", "open_prs": 6},
-      {"login": "kovsu", "open_prs": 5},
-      {"login": "SiinXu", "open_prs": 4},
-      {"login": "404-Page-Found", "open_prs": 4},
-      {"login": "Pleasurecruise", "open_prs": 3}
-    ]
+    }
   },
-  "closed_issues_30d": {
-    "total": 398,
-    "sample_size": 100,
-    "inactive_bot_closed_pct": 72.0,
-    "top_labels_in_closed": [
-      {"label": "inactive", "count": 72},
-      {"label": "UI/UX", "count": 28},
-      {"label": "Models", "count": 26},
-      {"label": "Assistant", "count": 22},
-      {"label": "internal_team", "count": 9},
-      {"label": "needs-repro", "count": 7},
-      {"label": "help wanted", "count": 6},
-      {"label": "discussion", "count": 6},
-      {"label": "MCP", "count": 5}
-    ],
-    "recently_closed_highlights": [
-      {"number": 15975, "closed_at": "2026-06-11", "title": "Insert current model name into chat system prompt via template variable", "labels": ["Assistant", "internal_team"]},
-      {"number": 15708, "closed_at": "2026-06-11", "title": "[Feature]: In-Conversation File Downloads for Agent-Generated Artifacts", "labels": ["Assistant", "UI/UX", "internal_team"]},
-      {"number": 15925, "closed_at": "2026-06-10", "title": "[Feature] Agent Skill Delete and Disable", "labels": ["internal_team", "community_feedback"]},
-      {"number": 15922, "closed_at": "2026-06-10", "title": "[Feature] Native PPTX/DOCX Parsing Support", "labels": ["internal_team", "community_feedback"]},
-      {"number": 15584, "closed_at": "2026-06-10", "title": "[Bug]: Model service's API Address cannot be changed", "labels": ["UI/UX"]}
-    ]
-  },
-  "closed_prs_30d": {
-    "total": 514,
-    "sample_size": 100,
-    "merged_in_sample": 23,
-    "merge_rate_pct": 23.0,
-    "avg_merge_time_hours": 56.5,
-    "median_merge_time_hours": 24.7,
-    "top_mergers": [
-      {"login": "Raymond8196", "merged": 4},
-      {"login": "DeJeune", "merged": 4},
-      {"login": "eeee0717", "merged": 3},
-      {"login": "kangfenmao", "merged": 2},
-      {"login": "AtomsH4", "merged": 2},
-      {"login": "EurFelux", "merged": 2}
-    ],
-    "recently_merged_7d": [
-      {"number": 15301, "merged_at": "2026-06-11T17:11:20Z", "author": "Raymond8196", "title": "fix: support downloading SVG data URL images blocked by CSP"},
-      {"number": 15941, "merged_at": "2026-06-11T15:52:31Z", "author": "DeJeune", "title": "feat(agent-data): agent resource API + agent workspace DataApi workflow"},
-      {"number": 15938, "merged_at": "2026-06-11T15:34:40Z", "author": "DeJeune", "title": "fix(ai-provider): provider settings patch + CherryAI/AiHubMix runtime routing"},
-      {"number": 15978, "merged_at": "2026-06-11T14:39:41Z", "author": "Raymond8196", "title": "fix(agents): inject Cherry Studio identity headers into agent mode requests"},
-      {"number": 15937, "merged_at": "2026-06-11T11:07:42Z", "author": "DeJeune", "title": "feat(data-api): add topic duplicate endpoint"},
-      {"number": 15934, "merged_at": "2026-06-11T10:57:47Z", "author": "Raymond8196", "title": "fix: use anthropicApiHost for NewAPI provider anthropic endpoint"},
-      {"number": 15839, "merged_at": "2026-06-11T10:12:25Z", "author": "LWWZH", "title": "fix(tools): prevent AccordionTrigger toggle when clicking approval buttons"},
-      {"number": 15942, "merged_at": "2026-06-11T10:10:51Z", "author": "DeJeune", "title": "feat(ai-trace): trace capture + container trace DataApi + chat trace pane"},
-      {"number": 15779, "merged_at": "2026-06-11T07:42:53Z", "author": "Raymond8196", "title": "fix(models): add Anthropic native /v1/models fetcher (target V1 branch)"},
-      {"number": 15963, "merged_at": "2026-06-11T05:55:36Z", "author": "vaayne", "title": "fix(code-tools): restore gallery scrolling"},
-      {"number": 15790, "merged_at": "2026-06-11T02:18:19Z", "author": "kangfenmao", "title": "refactor(settings): polish provider, file processing, and MCP settings UI"},
-      {"number": 15596, "merged_at": "2026-06-10T13:49:32Z", "author": "AtomsH4", "title": "fix(sidebar): restore resize edge hit zone and simplify layout"},
-      {"number": 15686, "merged_at": "2026-06-10T04:11:12Z", "author": "AtomsH4", "title": "feat(provider-settings): auto-enable providers when models are available"},
-      {"number": 15872, "merged_at": "2026-06-10T03:23:24Z", "author": "EurFelux", "title": "fix(model): support Claude Fable series and Opus 5 in capability detection"},
-      {"number": 15834, "merged_at": "2026-06-10T02:08:21Z", "author": "EurFelux", "title": "fix: forward DeepSeek V4+ reasoning_effort for openai-compatible providers"},
-      {"number": 15843, "merged_at": "2026-06-09T13:06:34Z", "author": "eeee0717", "title": "fix(knowledge-migration): preserve v1 vector DB during v2 migration"},
-      {"number": 15831, "merged_at": "2026-06-09T10:01:54Z", "author": "beyondkmp", "title": "fix(resource-selector): stop the open effect from looping refetches"},
-      {"number": 15830, "merged_at": "2026-06-09T09:50:38Z", "author": "xianzuyang9-blip", "title": "fix(ai-core): align package exports with tsdown output"},
-      {"number": 15736, "merged_at": "2026-06-09T09:50:32Z", "author": "zhangjiadi225", "title": "refactor(agent-session): make workspace binding explicit"},
-      {"number": 15835, "merged_at": "2026-06-09T09:50:12Z", "author": "eeee0717", "title": "fix(file-processing): group OCR menu by feature and reorder providers"},
-      {"number": 15796, "merged_at": "2026-06-09T06:04:29Z", "author": "eeee0717", "title": "feat(knowledge): route embeddings and reranking through the AI service"},
-      {"number": 15801, "merged_at": "2026-06-09T05:51:43Z", "author": "ousugo", "title": "fix(chat): resolve thinking timer bugs, timing display truncation, and mock leak"}
-    ]
-  },
-  "p1_issues": [],
-  "security_issues": [
+  "closed_issues_30d": 416,
+  "closed_prs_30d": 100,
+  "label_distribution": [
+    {"label": "internal_team", "count": 35},
+    {"label": "UI/UX", "count": 31},
+    {"label": "inactive", "count": 23},
+    {"label": "Models", "count": 17},
+    {"label": "Assistant", "count": 15},
+    {"label": "MCP", "count": 11},
+    {"label": "Connectivity", "count": 6},
+    {"label": "help wanted", "count": 6},
+    {"label": "discussion", "count": 6},
+    {"label": "Data", "count": 5},
+    {"label": "needs-repro", "count": 4},
+    {"label": "feature", "count": 4},
+    {"label": "RAG", "count": 4},
+    {"label": "community_feedback", "count": 4},
+    {"label": "needs-more-info", "count": 3},
+    {"label": "Performance", "count": 3},
+    {"label": "BUG", "count": 1},
+    {"label": "Docs", "count": 1},
+    {"label": "Blocked: v2", "count": 1},
+    {"label": "OCR", "count": 1}
+  ],
+  "unlabeled_pct": 10.3,
+  "p1_issues": [
     {
-      "number": 15841,
-      "title": "CherryClaw channel credentials stored in plaintext in agents.db",
-      "created_at": "2026-06-09",
-      "labels": ["module:security"],
-      "state": "open",
-      "severity": "medium"
+      "number": 16016,
+      "title": "[Bug]: Agent fails with ECONNREFUSED when a stale system proxy is set (Claude Code subprocess blindly inherits system HTTP_PROXY)",
+      "labels": ["BUG", "Connectivity", "internal_team"],
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/16016"
     }
   ],
-  "notable_new_issues": [
-    {"number": 15998, "title": "[Bug]: Assistant parameters not passed to request body in Response API format", "created_at": "2026-06-11", "labels": ["Assistant", "Models"]},
-    {"number": 15982, "title": "[Feature]: Add Sub-Agent Calling Mechanism between Agents", "created_at": "2026-06-11", "labels": []},
-    {"number": 15962, "title": "[Bug]: API address cannot end with #", "created_at": "2026-06-11", "labels": []},
-    {"number": 15947, "title": "[Bug]: Auto-updater infinite retry loop against gitcode.com WAF", "created_at": "2026-06-10", "labels": []},
-    {"number": 15949, "title": "[Feature]: Autonomous Mode should clearly indicate it doesn't work offline", "created_at": "2026-06-10", "labels": []}
+  "v2_prs": {
+    "open": 0,
+    "merged_30d": 21
+  },
+  "top_issues_by_comments": [
+    {"number": 6505, "title": "[FAQ&反馈]: 划词助手 / Selection Assistant", "comments": 360},
+    {"number": 6696, "title": "功能请求：重新生成回答时，或者编辑信息时，可以保留以前的信息并允许随时切换。", "comments": 9},
+    {"number": 14018, "title": "[Feature]: aiCore Audio/Video Capability Completion + AI SDK v6 New Feature Adoption + Provider Bug Fixes", "comments": 8},
+    {"number": 14080, "title": "[Bug]: cannot scroll to search result", "comments": 5},
+    {"number": 15990, "title": "[Feature]: CherryAI 默认服务商、默认模型与默认助手初始化方案设计", "comments": 5},
+    {"number": 14129, "title": "Feature request - Vercel credit balance.", "comments": 4},
+    {"number": 14132, "title": "[Discussion]: Agent topic names are always generated", "comments": 4},
+    {"number": 14989, "title": "[Bug]: Thinking process display anomaly for Gemini/Gemma models in OpenAI compatibility mode", "comments": 3},
+    {"number": 15669, "title": "[Feature]: User-Level Memory Shared Across All Agents (Implementation of #14738)", "comments": 3},
+    {"number": 15656, "title": "[Feature]: Preprocess Multimodal Inputs to Text for Non-Vision Models — Reuse Knowledge Base Preprocess Pipeline in Chat", "comments": 3}
   ]
 }
