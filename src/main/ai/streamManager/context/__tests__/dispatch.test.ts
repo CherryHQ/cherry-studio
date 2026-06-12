@@ -64,7 +64,6 @@ function wirePrepare(spy: typeof mocks.agentPrepare, topicId: string, opts: { in
       models: opts.inject ? [] : [{ modelId: 'p::m', request: {} }],
       listeners: [] as StreamListener[],
       isMultiModel: false,
-      userMessage: { id: 'u1' },
       userMessageId: 'u1',
       // Only the persistent steer branch sets this explicit marker; the dispatcher enqueues off it.
       // Agent-session injects deliberately leave it unset (the runtime owns their follow-ups).

@@ -1272,14 +1272,18 @@ describe('MessageService', () => {
       await seedAnchorWithTwoApprovals()
 
       const r1 = await messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-a', approved: true }])
-      expect(stateOf(r1 ?? undefined, 'ap-a')).toBe('approval-responded')
-      expect(stateOf(r1 ?? undefined, 'ap-b')).toBe('approval-requested')
+      expect(r1?.appliedApprovalIds).toEqual(['ap-a'])
+      expect(r1?.alreadySettledApprovalIds).toEqual([])
+      expect(stateOf(r1?.parts, 'ap-a')).toBe('approval-responded')
+      expect(stateOf(r1?.parts, 'ap-b')).toBe('approval-requested')
 
       // The second call must re-read the row (now A=responded) and add B — NOT overwrite from a stale
       // [A:req, B:req] snapshot. So both end up responded; the returned parts drive the pending check.
       const r2 = await messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-b', approved: false }])
-      expect(stateOf(r2 ?? undefined, 'ap-a')).toBe('approval-responded')
-      expect(stateOf(r2 ?? undefined, 'ap-b')).toBe('approval-responded')
+      expect(r2?.appliedApprovalIds).toEqual(['ap-b'])
+      expect(r2?.alreadySettledApprovalIds).toEqual([])
+      expect(stateOf(r2?.parts, 'ap-a')).toBe('approval-responded')
+      expect(stateOf(r2?.parts, 'ap-b')).toBe('approval-responded')
 
       const committed = await messageService.getById('anchor')
       expect(stateOf(committed.data.parts, 'ap-a')).toBe('approval-responded')
@@ -1302,7 +1306,23 @@ describe('MessageService', () => {
       expect(res).not.toBeNull()
       const after = await messageService.getById('anchor')
       expect(after.updatedAt).toBe(before.updatedAt) // no write performed
+      expect(res?.parts).toEqual(before.data.parts)
+      expect(res?.appliedApprovalIds).toEqual([])
+      expect(res?.alreadySettledApprovalIds).toEqual([])
       expect(stateOf(after.data.parts, 'ap-a')).toBe('approval-requested')
+    })
+
+    it('reports already-settled decisions so stale duplicate clicks do not re-dispatch', async () => {
+      await seedAnchorWithTwoApprovals()
+      await messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-a', approved: true }])
+
+      const duplicate = await messageService.applyToolApprovalDecisions('anchor', [
+        { approvalId: 'ap-a', approved: false }
+      ])
+
+      expect(duplicate?.appliedApprovalIds).toEqual([])
+      expect(duplicate?.alreadySettledApprovalIds).toEqual(['ap-a'])
+      expect(stateOf(duplicate?.parts, 'ap-a')).toBe('approval-responded')
     })
   })
 })

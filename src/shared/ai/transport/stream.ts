@@ -199,9 +199,11 @@ export type AiStreamOpenResponse =
   | {
       /**
        * `'started'`  — a brand new stream was created on this topic.
-       * `'injected'` — a stream was already live on this topic (agent
-       *                 session follow-up); the new subscriber was attached
-       *                 to the running stream rather than starting a turn.
+       * `'injected'` — a stream was already live, or an enqueue-only turn
+       *                 intentionally launched no models. The subscriber was
+       *                 attached to the running stream instead of starting a
+       *                 turn; chat steers may still include `userMessageId` /
+       *                 `reservedMessages` for the queued user row.
        */
       mode: 'started' | 'injected'
       /** Multi-model: execution IDs for frontend to create per-model streams. */

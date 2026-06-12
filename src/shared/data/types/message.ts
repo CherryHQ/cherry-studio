@@ -147,8 +147,8 @@ export interface CherryUIMessageMetadata {
   status?: MessageStatus
   /**
    * Whether this message is on the currently-active branch of the topic tree. Seeded `true` on
-   * locally-reserved skeletons (the row being created is the active leaf); the DB refresh recomputes
-   * it from the tree.
+   * locally-reserved skeletons (the row being created is the active leaf). The full branch-tree
+   * recompute is owned by the chat-page renderer slice.
    */
   isActiveBranch?: boolean
 

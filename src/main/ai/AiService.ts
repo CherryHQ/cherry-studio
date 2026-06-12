@@ -237,7 +237,8 @@ export class AiService extends BaseService {
         // `pending`) while still returning a success-shaped response. This cheap pre-check refuses the
         // common case before mutating the row; the narrow TOCTOU that slips through (a submit starts a
         // turn between here and the dispatch) is closed under the dispatch lock by send() throwing,
-        // caught below — the card stays actionable and the renderer can retry once the stream settles.
+        // caught below. The renderer surfaces the failure and resets the card; this backend slice does
+        // not promise an automatic retry.
         if (application.get('AiStreamManager').hasLiveStream(payload.topicId)) {
           logger.warn(
             'Tool-approval response arrived while a stream is live — refusing to avoid a swallowed continuation',
@@ -270,13 +271,21 @@ export class AiService extends BaseService {
         // stale parts and clobber each other's decision (or both compute a stale "still pending" and
         // neither resume). Returns the committed parts, or null when the anchor row is gone — a stale
         // click on a deleted message, resolved through the result shape instead of throwing.
-        const committedParts = await messageService.applyToolApprovalDecisions(payload.anchorId, [decision])
-        if (committedParts === null) {
+        const approvalResult = await messageService.applyToolApprovalDecisions(payload.anchorId, [decision])
+        if (approvalResult === null) {
           logger.warn('Tool-approval response anchor is missing or deleted', {
             approvalId: payload.approvalId,
             anchorId: payload.anchorId
           })
           return { ok: false }
+        }
+        const { parts: committedParts, appliedApprovalIds, alreadySettledApprovalIds } = approvalResult
+        if (appliedApprovalIds.length === 0 && alreadySettledApprovalIds.includes(decision.approvalId)) {
+          logger.warn('Ignoring duplicate tool-approval response for an already-settled approval', {
+            approvalId: decision.approvalId,
+            anchorId: payload.anchorId
+          })
+          return { ok: true }
         }
 
         // Only resume once every approval on this turn is decided — a turn can request several tools
@@ -301,7 +310,7 @@ export class AiService extends BaseService {
           // dispatch runs prepareDispatch+send under the per-topic dispatch lock. If a concurrent submit
           // started a live turn after the hasLiveStream pre-check above, send() refuses to inject-drop the
           // prepared continuation (throws) rather than swallowing it with a success shape. Resolve through
-          // the result shape so the card stays actionable for a retry once the live turn settles.
+          // the result shape so the renderer can reset the card instead of leaving it stuck submitting.
           logger.warn('Tool-approval continuation dispatch failed (likely raced a live submit)', {
             approvalId: payload.approvalId,
             topicId: payload.topicId,

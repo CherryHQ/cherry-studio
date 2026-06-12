@@ -1034,15 +1034,21 @@ export class MessageService {
    * writing inside one `withWriteTx` serializes them, and the returned committed parts let the caller
    * compute the pending check from authoritative post-commit state.
    *
-   * Returns the committed parts, or `null` when the anchor row no longer exists (stale click on a
-   * deleted message). When no decision targets a present `approval-requested` part (overlay-only —
-   * the part isn't persisted yet) the row is left untouched and the still-overlay parts are returned;
-   * the caller carries the decision to the continuation, which applies it authoritatively.
+   * Returns the committed parts + per-decision disposition, or `null` when the anchor row no longer
+   * exists (stale click on a deleted message). When no decision targets a present
+   * `approval-requested` part (overlay-only — the part isn't persisted yet) the row is left untouched
+   * and the still-overlay parts are returned; the caller carries the decision to the continuation,
+   * which applies it authoritatively. A decision that targets an already-settled part is reported so
+   * stale duplicate clicks don't dispatch another continuation.
    */
   async applyToolApprovalDecisions(
     anchorId: string,
     decisions: ApprovalDecision[]
-  ): Promise<CherryMessagePart[] | null> {
+  ): Promise<{
+    parts: CherryMessagePart[]
+    appliedApprovalIds: string[]
+    alreadySettledApprovalIds: string[]
+  } | null> {
     return await application.get('DbService').withWriteTx(async (tx) => {
       const [row] = await tx.select().from(messageTable).where(eq(messageTable.id, anchorId)).limit(1)
       if (!row) return null
@@ -1050,17 +1056,28 @@ export class MessageService {
       const existing = rowToMessage(row)
       const parts = existing.data.parts ?? []
       const after = applyApprovalDecisions(parts, decisions)
-      const targetPresent = parts.some(
-        (p) =>
-          isToolUIPart(p) && p.state === 'approval-requested' && decisions.some((d) => d.approvalId === p.approval?.id)
+      const requestedIds = new Set(
+        parts
+          .filter((p) => isToolUIPart(p) && p.state === 'approval-requested')
+          .map((p) => (p as { approval?: { id?: string } }).approval?.id)
+          .filter((id): id is string => typeof id === 'string')
       )
+      const settledIds = new Set(
+        parts
+          .filter((p) => isToolUIPart(p) && p.state !== 'approval-requested')
+          .map((p) => (p as { approval?: { id?: string } }).approval?.id)
+          .filter((id): id is string => typeof id === 'string')
+      )
+      const appliedApprovalIds = decisions.map((d) => d.approvalId).filter((id) => requestedIds.has(id))
+      const alreadySettledApprovalIds = decisions.map((d) => d.approvalId).filter((id) => settledIds.has(id))
+      const targetPresent = appliedApprovalIds.length > 0
       if (targetPresent) {
         await tx
           .update(messageTable)
           .set({ data: { ...existing.data, parts: after } })
           .where(eq(messageTable.id, anchorId))
       }
-      return after
+      return { parts: after, appliedApprovalIds, alreadySettledApprovalIds }
     })
   }
 
