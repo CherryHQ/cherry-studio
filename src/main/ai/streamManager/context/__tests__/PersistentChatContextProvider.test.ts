@@ -9,7 +9,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { startAiChildTurnSpan } from '../../../observability'
+import { startAiTurnTrace } from '../../../observability'
 import { PersistenceListener } from '../../listeners/PersistenceListener'
 import type { StreamListener } from '../../types'
 import type { MainSteerContinuationRequest } from '../dispatch'
@@ -26,9 +26,7 @@ vi.mock('../modelResolution', () => ({
 }))
 
 vi.mock('../../../observability', () => ({
-  startAiChildTurnSpan: vi.fn(() => ({ rootSpan: { end: vi.fn() }, traceId: 'trace-1' })),
-  deriveRootSpanId: vi.fn(() => '1'.repeat(16)),
-  applyTurnInputAttributes: vi.fn()
+  startAiTurnTrace: vi.fn(() => ({ rootSpan: { end: vi.fn() }, traceId: 'trace-1' }))
 }))
 
 const { PersistentChatContextProvider } = await import('../PersistentChatContextProvider')
@@ -186,10 +184,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
 
   it('fans out @-mentioned siblings: shared siblingsGroupId, one placeholder per model, aligned placeholders[i]/turnRootSpans[i]', async () => {
     // Two @-mentioned models → two assistant placeholders sharing one siblings group.
-    // On this branch each model gets its OWN trace (startTurnRootSpans calls startAiTurnTrace per
-    // model), and that per-model traceId is persisted on the matching placeholder row. Assert the
-    // per-model row, span, and traceId line up by index (keyed on modelId) so a fan-out never
-    // crosses streams — the trace viewer keys off Message.traceId.
+    // Assert the per-model row and span line up so a fan-out never crosses streams.
     const MODEL_A = createUniqueModelId('openai', 'gpt-4o') // already seeded in beforeEach
     const MODEL_B = createUniqueModelId('anthropic', 'claude-sonnet-4-5')
     // Placeholder rows FK to user_model(id) — seed the second @-mentioned model.
@@ -215,9 +210,9 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     // Distinct span per call so index alignment is observable.
     const spanA = { end: vi.fn() }
     const spanB = { end: vi.fn() }
-    vi.mocked(startAiChildTurnSpan)
-      .mockReturnValueOnce({ rootSpan: spanA } as unknown as ReturnType<typeof startAiChildTurnSpan>)
-      .mockReturnValueOnce({ rootSpan: spanB } as unknown as ReturnType<typeof startAiChildTurnSpan>)
+    vi.mocked(startAiTurnTrace)
+      .mockReturnValueOnce({ rootSpan: spanA, traceId: 'trace-a' } as unknown as ReturnType<typeof startAiTurnTrace>)
+      .mockReturnValueOnce({ rootSpan: spanB, traceId: 'trace-b' } as unknown as ReturnType<typeof startAiTurnTrace>)
 
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
@@ -249,9 +244,6 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     const phB = byModel.get(MODEL_B)
     expect(phA?.modelId).toBe(MODEL_A)
     expect(phB?.modelId).toBe(MODEL_B)
-    // Per-row traceId alignment: each placeholder carries its own model's trace, not a shared one.
-    expect(phA?.traceId).toBe('trace-a')
-    expect(phB?.traceId).toBe('trace-b')
     expect(phA?.siblingsGroupId).toBe(42)
     expect(phB?.siblingsGroupId).toBe(42)
     expect(prepared.models[0].request.messageId).toBe(phA?.id)
