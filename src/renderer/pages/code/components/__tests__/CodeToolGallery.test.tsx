@@ -9,6 +9,15 @@ import { CodeToolGallery } from '../CodeToolGallery'
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
 
+  const Sortable = ({ items, itemKey, renderItem, gap }: any) => {
+    const getKey = typeof itemKey === 'function' ? itemKey : (item: any) => item[itemKey]
+    return React.createElement(
+      'div',
+      { 'data-testid': 'sortable', style: { gap } },
+      items.map((item: any) => React.createElement('div', { key: getKey(item) }, renderItem(item, { dragging: false })))
+    )
+  }
+
   return {
     Alert: ({
       action,
@@ -22,7 +31,8 @@ vi.mock('@cherrystudio/ui', async () => {
     Button: ({ children, disabled, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
       React.createElement('button', { type: 'button', disabled, ...props }, children),
     EmptyState: ({ title, description }: { title?: React.ReactNode; description?: React.ReactNode }) =>
-      React.createElement('div', null, title, description)
+      React.createElement('div', null, title, description),
+    Sortable
   }
 })
 
@@ -58,6 +68,9 @@ function renderGallery(overrides: Partial<React.ComponentProps<typeof CodeToolGa
       activeToolValue={undefined}
       handleSelectTool={vi.fn()}
       toMeta={(item) => ({ id: item.value, label: item.label, icon: item.icon })}
+      overrides={{}}
+      onTogglePin={vi.fn()}
+      onReorder={vi.fn()}
       {...overrides}
     />
   )

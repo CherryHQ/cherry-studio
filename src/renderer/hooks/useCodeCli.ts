@@ -1,4 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { codeCLI } from '@shared/config/constant'
 import type { CodeCliId, CodeCliOverride, CodeCliOverrides } from '@shared/data/preference/preferenceTypes'
@@ -18,8 +19,14 @@ function getEffectiveToolConfig(toolId: CodeCliId, overrides: CodeCliOverrides):
     envVars: override.envVars ?? preset.envVars,
     terminal: override.terminal ?? preset.terminal,
     currentDirectory: override.currentDirectory ?? preset.currentDirectory,
-    directories: override.directories ?? [...preset.directories]
+    directories: override.directories ?? [...preset.directories],
+    pinned: override.pinned ?? false,
+    order: override.order ?? 0
   }
+}
+
+function getLatestOverrides(fallback: CodeCliOverrides): CodeCliOverrides {
+  return preferenceService.getCachedValue('feature.code_cli.overrides') ?? fallback
 }
 
 export const useCodeCli = () => {
@@ -157,6 +164,40 @@ export const useCodeCli = () => {
     }
   }, [setCurrentDir])
 
+  const togglePin = useCallback(
+    async (toolId: CodeCliId) => {
+      try {
+        const latestOverrides = getLatestOverrides(overrides)
+        const existing = latestOverrides[toolId] ?? {}
+        await setOverrides({
+          ...latestOverrides,
+          [toolId]: { ...existing, pinned: !existing.pinned }
+        })
+      } catch (error) {
+        logger.error('Failed to toggle code-cli pin state:', error as Error)
+      }
+    },
+    [overrides, setOverrides]
+  )
+
+  const reorderTools = useCallback(
+    async (orderedIds: CodeCliId[]) => {
+      try {
+        const latestOverrides = getLatestOverrides(overrides)
+        const newOverrides = { ...latestOverrides }
+        for (let i = 0; i < orderedIds.length; i++) {
+          const id = orderedIds[i]
+          const existing = newOverrides[id] ?? {}
+          newOverrides[id] = { ...existing, order: i }
+        }
+        await setOverrides(newOverrides)
+      } catch (error) {
+        logger.error('Failed to persist code-cli tool order:', error as Error)
+      }
+    },
+    [overrides, setOverrides]
+  )
+
   return {
     selectedCliTool,
     selectedModel,
@@ -165,6 +206,7 @@ export const useCodeCli = () => {
     directories,
     currentDirectory,
     canLaunch,
+    overrides,
     setCliTool,
     setModel,
     setTerminal,
@@ -173,6 +215,8 @@ export const useCodeCli = () => {
     removeDir,
     clearDirs,
     resetSettings,
-    selectFolder
+    selectFolder,
+    togglePin,
+    reorderTools
   }
 }

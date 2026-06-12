@@ -1,5 +1,6 @@
 import type { IconComponent } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { Pin, PinOff } from 'lucide-react'
 import type { MouseEventHandler } from 'react'
 
 interface CodeToolCardProps {
@@ -7,23 +8,56 @@ interface CodeToolCardProps {
   title: string
   subtitle?: string
   selected?: boolean
+  pinned?: boolean
   onClick: MouseEventHandler<HTMLButtonElement>
+  onTogglePin?: () => void
 }
 
 const ICON_BOX_SIZE = 36
 const ICON_BOX_RADIUS = Math.round(ICON_BOX_SIZE * 0.25)
 
-export function CodeToolCard({ icon: Icon, title, subtitle, selected = false, onClick }: CodeToolCardProps) {
+export function CodeToolCard({
+  icon: Icon,
+  title,
+  subtitle,
+  selected = false,
+  pinned,
+  onClick,
+  onTogglePin
+}: CodeToolCardProps) {
   return (
     <button
       type="button"
       data-selected={selected || undefined}
       onClick={onClick}
       className={cn(
-        'group flex flex-col items-start rounded-2xl border border-border/70 bg-card p-4 text-left transition-[background-color,border-color] duration-200 ease-out',
+        'group relative flex flex-col items-start rounded-2xl border border-border/70 bg-card p-4 text-left transition-[background-color,border-color] duration-200 ease-out',
         'hover:border-border hover:bg-background-subtle',
-        selected && 'border-border-active ring-1 ring-ring/30'
+        selected && 'border-border-active ring-1 ring-ring/30',
+        pinned && 'border-border'
       )}>
+      {onTogglePin && (
+        <span
+          role="button"
+          tabIndex={0}
+          onClick={(e) => {
+            e.stopPropagation()
+            onTogglePin()
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              e.stopPropagation()
+              onTogglePin()
+            }
+          }}
+          className={cn(
+            'absolute top-2 right-2 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md transition-opacity',
+            pinned ? 'text-foreground opacity-100' : 'hover:!opacity-100 opacity-0 group-hover:opacity-60'
+          )}>
+          {pinned ? <Pin size={13} /> : <PinOff size={13} />}
+        </span>
+      )}
       <div
         className="flex shrink-0 items-center justify-center overflow-hidden"
         style={{ width: ICON_BOX_SIZE, height: ICON_BOX_SIZE, borderRadius: ICON_BOX_RADIUS }}>
