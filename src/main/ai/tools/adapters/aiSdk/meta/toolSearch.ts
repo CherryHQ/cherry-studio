@@ -7,18 +7,24 @@
  * request's ToolSet would be redundant in search results.
  */
 
-import { asSchema, type Tool, tool } from 'ai'
+import { type Tool, tool } from 'ai'
 import * as z from 'zod'
 
 import type { ToolRegistry } from '../registry'
+import { serializeToolSchema } from './schemaStub'
 
 export const TOOL_SEARCH_TOOL_NAME = 'tool_search'
 
-export function createToolSearchTool(registry: ToolRegistry, deferredNames: ReadonlySet<string>): Tool {
+export function createToolSearchTool(
+  registry: ToolRegistry,
+  deferredNames: ReadonlySet<string>,
+  inspectedNames: Set<string>
+): Tool {
   return tool({
     description:
-      'Discover available tools by namespace. Tools are grouped by domain (web, kb, mcp:gmail, ...). ' +
-      'Omit `query` to browse all. Use the names returned here with `tool_invoke`.',
+      'Discover available tools by namespace. This is tool discovery (NOT web search). Tools are ' +
+      'grouped by domain (web, kb, mcp:gmail, ...). Omit `query` to browse all. Inspect a name ' +
+      'returned here with `tool_inspect`, then call it with `tool_invoke`.',
     inputSchema: z.object({
       query: z
         .string()
@@ -31,6 +37,7 @@ export function createToolSearchTool(registry: ToolRegistry, deferredNames: Read
         .default(false)
         .describe('Include each tool full input schema in the result (more tokens)')
     }),
+    inputExamples: [{ input: { query: 'gmail', verbose: false } }, { input: { namespace: 'web', verbose: true } }],
     execute: async ({ query, namespace, verbose }) => {
       const grouped = registry.getByNamespace({ query, namespace })
       const matchedNamespaces: Array<{
@@ -42,29 +49,49 @@ export function createToolSearchTool(registry: ToolRegistry, deferredNames: Read
         const filtered = entries.filter((e) => deferredNames.has(e.name))
         if (filtered.length === 0) continue
         const tools = await Promise.all(
-          filtered.map(async (e) => ({
-            name: e.name,
-            description: e.description,
-            ...(verbose ? { inputSchema: await serializeSchema(e.tool.inputSchema) } : {})
-          }))
+          filtered.map(async (e) => {
+            if (!verbose) return { name: e.name, description: e.description }
+            // Verbose search shows the model each tool's full input schema, so it has "seen" the
+            // signature — record it in the shared ledger exactly as `tool_inspect` would, so the
+            // first `tool_invoke` isn't bounced by Guard A (the deferred-tools prompt promises this).
+            // Only record when the schema actually serialized: a tool whose schema failed (undefined)
+            // wasn't really shown, so it must still be bounced on first invoke.
+            const inputSchema = await serializeToolSchema(e.tool.inputSchema)
+            if (inputSchema !== undefined) inspectedNames.add(e.name)
+            return {
+              name: e.name,
+              description: e.description,
+              inputSchema
+            }
+          })
         )
         matchedNamespaces.push({ namespace: ns, tools })
       }
       return { matchedNamespaces }
-    }
+    },
+    // Render the catalog as a compact namespace listing instead of nested JSON — fewer tokens and
+    // easier for the model to scan tool names. Names are verbatim so they can be passed to
+    // `tool_inspect` / `tool_invoke` as-is.
+    toModelOutput: ({ output }) => ({ type: 'text', value: formatSearchForModel(output) })
   })
 }
 
-async function serializeSchema(schema: unknown): Promise<unknown> {
-  if (!schema) return undefined
-  // Tools can carry Zod, jsonSchema wrappers, or raw JSONSchema. AI SDK's
-  // `asSchema` normalises all three into the canonical `Schema<T>` shape
-  // whose `.jsonSchema` is what the model actually sees inline. Stringifying
-  // a raw Zod object yields a non-JSONSchema blob.
-  try {
-    const normalised = asSchema(schema as Parameters<typeof asSchema>[0])
-    return await normalised.jsonSchema
-  } catch {
-    return undefined
+function formatSearchForModel(output: {
+  matchedNamespaces: Array<{
+    namespace: string
+    tools: Array<{ name: string; description: string; inputSchema?: unknown }>
+  }>
+}): string {
+  if (output.matchedNamespaces.length === 0) {
+    return 'No tools matched. Broaden `query`, or omit it to browse all namespaces.'
   }
+  const lines: string[] = []
+  for (const group of output.matchedNamespaces) {
+    lines.push(group.namespace)
+    for (const t of group.tools) {
+      lines.push(`  - ${t.name} — ${t.description}`)
+      if (t.inputSchema !== undefined) lines.push(`    input: ${JSON.stringify(t.inputSchema)}`)
+    }
+  }
+  return lines.join('\n')
 }

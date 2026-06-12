@@ -69,7 +69,7 @@ src/main/ai/
 ├── skills/                       ← SkillService, SkillInstaller
 ├── tools/                        ← unified tool registry
 │   └── adapters/
-│       ├── aiSdk/                ← registry.ts, repair.ts; builtin/ (web__search/web__fetch/kb__*),
+│       ├── aiSdk/                ← registry.ts, repair.ts; builtin/ (web_search/web_fetch/kb_*),
 │       │                            mcp/ (server → ToolEntry sync), meta/ (tool_search/inspect/invoke;
 │       │                            tool_exec defined but not injected), exposition/ (shouldDefer + applyDefer)
 │       └── claudeCode/           ← agentTools.ts (registry → Claude Code runtime)

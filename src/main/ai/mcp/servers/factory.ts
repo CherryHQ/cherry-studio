@@ -14,7 +14,7 @@ import MemoryServer from './memory'
 import PythonServer from './python'
 import ThinkingServer from './sequentialthinking'
 
-const logger = loggerService.withContext('MCPFactory')
+const logger = loggerService.withContext('McpFactory')
 
 export function createInMemoryMcpServer(
   name: BuiltinMcpServerName,
