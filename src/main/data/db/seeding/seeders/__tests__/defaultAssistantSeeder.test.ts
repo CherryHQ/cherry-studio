@@ -1,4 +1,3 @@
-import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
 import { preferenceTable } from '@data/db/schemas/preference'
@@ -7,7 +6,6 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { CherryAiDefaultModelSeeder } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { DefaultAssistantSeeder } from '@data/db/seeding/seeders/defaultAssistantSeeder'
-import { SEED_KEY_PREFIX } from '@data/db/seeding/SeedRunner'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import {
@@ -25,12 +23,8 @@ describe('DefaultAssistantSeeder', () => {
   const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
   async function runCherryAiModelDependencySeed() {
-    const dependencySeeder = new CherryAiDefaultModelSeeder()
-    await dependencySeeder.run(dbh.db)
-    await dbh.db.insert(appStateTable).values({
-      key: `${SEED_KEY_PREFIX}${dependencySeeder.name}`,
-      value: { version: dependencySeeder.version }
-    })
+    // Provides the CherryAI model row the default assistant's modelId FK requires
+    await new CherryAiDefaultModelSeeder().run(dbh.db)
   }
 
   it('seeds the default assistant when only the CherryAI default model dependency seed has run', async () => {
@@ -69,18 +63,6 @@ describe('DefaultAssistantSeeder', () => {
     })
     expect(model?.id).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
     expect(preference?.value).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
-  })
-
-  it('does not seed the default assistant when any seed journal already exists', async () => {
-    await dbh.db.insert(appStateTable).values({
-      key: 'seed:preference',
-      value: { version: 'already-applied' }
-    })
-
-    await new DefaultAssistantSeeder().run(dbh.db)
-
-    const rows = await dbh.db.select().from(assistantTable)
-    expect(rows).toHaveLength(0)
   })
 
   it('does not seed the default assistant when an active assistant already exists', async () => {
