@@ -21,7 +21,7 @@ type PopoverContentProps = ComponentPropsWithoutRef<typeof PopoverContent>
  */
 export type SelectorShellMountStrategy = 'destroy' | 'lazy-keep'
 const DEFAULT_COLLISION_PADDING = 12
-export const DEFAULT_SELECTOR_CONTENT_HEIGHT = 360
+export const DEFAULT_SELECTOR_CONTENT_HEIGHT = 344
 
 export type SelectorShellLayout = {
   availableListHeight?: number
