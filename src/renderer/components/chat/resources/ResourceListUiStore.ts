@@ -3,6 +3,7 @@ import type { ResourceListItemBase, ResourceListViewGroup } from './ResourceList
 export type ResourceListRevealFocus = { itemId: string; requestId: number } | null
 
 export type ResourceListRowStateSnapshot = {
+  active: boolean
   dragging: boolean
   hovered: boolean
   renaming: boolean
@@ -19,6 +20,7 @@ export type ResourceListGroupStateSnapshot = {
 }
 
 type ResourceListUiStoreState = {
+  activeId: string | null
   draggingId: string | null
   hoveredId: string | null
   renamingId: string | null
@@ -26,11 +28,14 @@ type ResourceListUiStoreState = {
   selectedId: string | null
 }
 
+export type ResourceListListboxStateSnapshot = Pick<ResourceListUiStoreState, 'activeId' | 'selectedId'>
+
 type ResourceListGroupRecord = Omit<ResourceListGroupStateSnapshot, 'selected'> & {
   itemIds: Set<string>
 }
 
 const EMPTY_ROW_STATE: ResourceListRowStateSnapshot = Object.freeze({
+  active: false,
   dragging: false,
   hovered: false,
   renaming: false,
@@ -48,6 +53,7 @@ const EMPTY_GROUP_STATE: ResourceListGroupStateSnapshot = Object.freeze({
 
 function sameRowState(a: ResourceListRowStateSnapshot, b: ResourceListRowStateSnapshot) {
   return (
+    a.active === b.active &&
     a.dragging === b.dragging &&
     a.hovered === b.hovered &&
     a.renaming === b.renaming &&
@@ -77,22 +83,27 @@ export class ResourceListUiStore {
   private groupListeners = new Map<string, Set<() => void>>()
   private groupRecords = new Map<string, ResourceListGroupRecord>()
   private itemGroupIds = new Map<string, string>()
+  private listboxListeners = new Set<() => void>()
+  private listboxSnapshot: ResourceListListboxStateSnapshot
   private rowCache = new Map<string, ResourceListRowStateSnapshot>()
   private rowListeners = new Map<string, Set<() => void>>()
   private state: ResourceListUiStoreState
 
   constructor(initialState: Partial<ResourceListUiStoreState> = {}) {
     this.state = {
+      activeId: initialState.activeId ?? null,
       draggingId: initialState.draggingId ?? null,
       hoveredId: initialState.hoveredId ?? null,
       renamingId: initialState.renamingId ?? null,
       revealFocus: initialState.revealFocus ?? null,
       selectedId: initialState.selectedId ?? null
     }
+    this.listboxSnapshot = { activeId: this.state.activeId, selectedId: this.state.selectedId }
   }
 
   getRowSnapshot = (itemId: string): ResourceListRowStateSnapshot => {
     const next: ResourceListRowStateSnapshot = {
+      active: this.state.activeId === itemId,
       dragging: this.state.draggingId === itemId,
       hovered: this.state.hoveredId === itemId,
       renaming: this.state.renamingId === itemId,
@@ -130,6 +141,30 @@ export class ResourceListUiStore {
   }
 
   getUiSnapshot = () => this.state
+
+  getListboxSnapshot = (): ResourceListListboxStateSnapshot => {
+    const { activeId, selectedId } = this.state
+    if (this.listboxSnapshot.activeId === activeId && this.listboxSnapshot.selectedId === selectedId) {
+      return this.listboxSnapshot
+    }
+    this.listboxSnapshot = { activeId, selectedId }
+    return this.listboxSnapshot
+  }
+
+  setActiveId = (activeId: string | null) => {
+    if (this.state.activeId === activeId) return
+    const previousId = this.state.activeId
+    this.state = { ...this.state, activeId }
+    this.notifyRows(previousId, activeId)
+    this.notifyListbox()
+  }
+
+  subscribeListbox = (listener: () => void) => {
+    this.listboxListeners.add(listener)
+    return () => {
+      this.listboxListeners.delete(listener)
+    }
+  }
 
   subscribeRow = (itemId: string, listener: () => void) => {
     const listeners = this.rowListeners.get(itemId) ?? new Set<() => void>()
@@ -198,6 +233,7 @@ export class ResourceListUiStore {
     this.state = { ...this.state, selectedId }
     this.notifyRows(previousId, selectedId)
     this.notifyGroups(previousGroupId, nextGroupId)
+    this.notifyListbox()
   }
 
   setViewGroups<T extends ResourceListItemBase>(
@@ -262,5 +298,11 @@ export class ResourceListUiStore {
       this.rowCache.delete(itemId)
       this.rowListeners.get(itemId)?.forEach((listener) => listener())
     }
+  }
+
+  private notifyListbox() {
+    if (this.listboxListeners.size === 0) return
+    this.getListboxSnapshot()
+    this.listboxListeners.forEach((listener) => listener())
   }
 }

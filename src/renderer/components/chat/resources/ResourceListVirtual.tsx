@@ -8,10 +8,11 @@ import {
   type GroupedVirtualListRow
 } from '@renderer/components/VirtualList'
 import { cn } from '@renderer/utils/style'
-import type { ReactNode, Ref, RefObject } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, Ref, RefObject } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 import {
+  getResourceListOptionDomId,
   type ResourceListContextValue,
   type ResourceListGroup,
   type ResourceListItemBase,
@@ -34,6 +35,15 @@ import { RESOURCE_LIST_DEFAULT_ROW_SIZE, RESOURCE_LIST_ROW_HEIGHT_CLASS } from '
 const SCROLLBAR_AUTO_HIDE_DELAY = 1200
 const SCROLLBAR_FADE_STEP = 140
 const ITEM_ROW_CLASS = `flex w-full items-center py-[2px] ${RESOURCE_LIST_ROW_HEIGHT_CLASS}`
+
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (!ref) return
+  if (typeof ref === 'function') {
+    ref(value)
+    return
+  }
+  ref.current = value
+}
 
 type ScrollbarStage = 'active' | 'fade-1' | 'fade-2' | 'fade-3' | 'idle'
 
@@ -238,6 +248,140 @@ function getRevealRowIndex<T extends ResourceListItemBase>(
   return rows.findIndex((row) => row.type === 'item' && getItemId(row.item.item) === itemId)
 }
 
+function getVirtualItems<T extends ResourceListItemBase>(groups: ResourceListVirtualGroup<T>[]) {
+  return groups.flatMap((group) => group.items)
+}
+
+function getVirtualItemIndex<T extends ResourceListItemBase>(
+  items: ResourceListVirtualItem<T>[],
+  itemId: string | null,
+  getItemId: (item: T) => string
+) {
+  if (!itemId) return -1
+  return items.findIndex((item) => getItemId(item.item) === itemId)
+}
+
+function getVirtualRowIndex<T extends ResourceListItemBase>(
+  rows: ResourceListVirtualRow<T>[],
+  itemId: string,
+  getItemId: (item: T) => string
+) {
+  return rows.findIndex((row) => row.type === 'item' && getItemId(row.item.item) === itemId)
+}
+
+function clampVirtualItemIndex(index: number, itemCount: number) {
+  return Math.min(itemCount - 1, Math.max(0, index))
+}
+
+function useResourceListListboxNavigation<T extends ResourceListItemBase>({
+  getItemId,
+  groups,
+  listboxRef,
+  virtualListRef,
+  virtualRows
+}: {
+  getItemId: (item: T) => string
+  groups: ResourceListVirtualGroup<T>[]
+  listboxRef: RefObject<HTMLDivElement | null>
+  virtualListRef: RefObject<DynamicVirtualListRef | null>
+  virtualRows: ResourceListVirtualRow<T>[]
+}) {
+  const actions = useResourceListActions()
+  const store = useResourceListUiStore()
+  const virtualItems = useMemo(() => getVirtualItems(groups), [groups])
+
+  const getCurrentVirtualItemIndex = useCallback(() => {
+    const { activeId, selectedId } = store.getListboxSnapshot()
+    const activeIndex = getVirtualItemIndex(virtualItems, activeId, getItemId)
+    if (activeIndex >= 0) return activeIndex
+    return getVirtualItemIndex(virtualItems, selectedId, getItemId)
+  }, [getItemId, store, virtualItems])
+
+  const getActiveItemId = useCallback(() => {
+    const currentIndex = getCurrentVirtualItemIndex()
+    const activeItem = currentIndex >= 0 ? virtualItems[currentIndex] : undefined
+    return activeItem ? getItemId(activeItem.item) : null
+  }, [getCurrentVirtualItemIndex, getItemId, virtualItems])
+
+  const syncActiveDescendant = useCallback(() => {
+    const activeId = getActiveItemId()
+    const scrollElement = listboxRef.current
+    if (activeId) {
+      scrollElement?.setAttribute('aria-activedescendant', getResourceListOptionDomId(activeId))
+    } else {
+      scrollElement?.removeAttribute('aria-activedescendant')
+    }
+
+    if (store.getListboxSnapshot().activeId !== activeId) {
+      actions.setActiveItem(activeId)
+    }
+  }, [actions, getActiveItemId, listboxRef, store])
+
+  useLayoutEffect(() => {
+    syncActiveDescendant()
+  }, [syncActiveDescendant])
+
+  useEffect(() => store.subscribeListbox(syncActiveDescendant), [store, syncActiveDescendant])
+
+  const scrollItemIntoView = useCallback(
+    (itemId: string) => {
+      const rowIndex = getVirtualRowIndex(virtualRows, itemId, getItemId)
+      if (rowIndex >= 0) {
+        virtualListRef.current?.scrollToIndex(rowIndex, { align: 'auto' })
+      }
+    },
+    [getItemId, virtualListRef, virtualRows]
+  )
+
+  const moveActiveItem = useCallback(
+    (nextIndex: number) => {
+      const item = virtualItems[clampVirtualItemIndex(nextIndex, virtualItems.length)]
+      if (!item) return
+      const itemId = getItemId(item.item)
+      actions.setActiveItem(itemId)
+      scrollItemIntoView(itemId)
+    },
+    [actions, getItemId, scrollItemIntoView, virtualItems]
+  )
+
+  const handleListboxKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      if (event.defaultPrevented || event.target !== event.currentTarget || event.nativeEvent.isComposing) return
+      if (virtualItems.length === 0) return
+      const currentIndex = getCurrentVirtualItemIndex()
+
+      switch (event.key) {
+        case 'ArrowDown':
+          event.preventDefault()
+          moveActiveItem(currentIndex < 0 ? 0 : currentIndex + 1)
+          return
+        case 'ArrowUp':
+          event.preventDefault()
+          moveActiveItem(currentIndex < 0 ? virtualItems.length - 1 : currentIndex - 1)
+          return
+        case 'Home':
+          event.preventDefault()
+          moveActiveItem(0)
+          return
+        case 'End':
+          event.preventDefault()
+          moveActiveItem(virtualItems.length - 1)
+          return
+        case 'Enter':
+        case ' ':
+        case 'Spacebar':
+          const activeId = getActiveItemId()
+          if (!activeId) return
+          event.preventDefault()
+          actions.selectItem(activeId)
+      }
+    },
+    [actions, getActiveItemId, getCurrentVirtualItemIndex, moveActiveItem, virtualItems.length]
+  )
+
+  return { handleListboxKeyDown }
+}
+
 function useRevealRequestScroll<T extends ResourceListItemBase>(
   getItemId: (item: T) => string,
   groups: ResourceListVirtualGroup<T>[],
@@ -293,6 +437,9 @@ function useResourceListRenderContext<T extends ResourceListItemBase>(): Resourc
         query: controls.query,
         sort: controls.sort,
         status: controls.status,
+        get activeId() {
+          return store.getUiSnapshot().activeId
+        },
         get collapsedGroups() {
           return [
             ...view.sections.filter((section) => section.collapsed).map((section) => section.section.id),
@@ -334,7 +481,15 @@ export function VirtualItems<T extends ResourceListItemBase>({ className, ref, r
   const groups = useMemo(() => buildVirtualGroups(view), [view])
   const virtualRows = useMemo(() => buildGroupedVirtualRows(groups, true, true), [groups])
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
+  const listboxRef = useRef<HTMLDivElement>(null)
   const { stage, handleScroll } = useAutoHideScrollbar()
+  const { handleListboxKeyDown } = useResourceListListboxNavigation({
+    getItemId,
+    groups,
+    listboxRef,
+    virtualListRef,
+    virtualRows
+  })
   const isScrolling = stage !== 'idle'
   const estimateVirtualItemSize = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => estimateItemSize(virtualItem.itemIndex),
@@ -369,17 +524,28 @@ export function VirtualItems<T extends ResourceListItemBase>({ className, ref, r
     },
     [getItemId, virtualRows]
   )
+  const setScrollElementRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      listboxRef.current = node
+      assignRef(ref, node)
+    },
+    [ref]
+  )
   useRevealRequestScroll(getItemId, groups, revealRequest, virtualListRef)
 
   return (
     <ResourceListGroupHeaderContextMenuOwner>
       <GroupedVirtualList
         ref={virtualListRef}
-        scrollElementRef={ref}
+        scrollElementRef={setScrollElementRef}
         role="listbox"
         groups={groups}
         className={getListViewportClassName(stage, className)}
-        scrollerProps={{ 'data-scrolling': isScrolling ? 'true' : 'false' }}
+        scrollerProps={{
+          'data-scrolling': isScrolling ? 'true' : 'false',
+          onKeyDown: handleListboxKeyDown,
+          tabIndex: 0
+        }}
         scrollerStyle={{ scrollbarColor: SCROLLBAR_COLOR_BY_STAGE[stage] }}
         getItemKey={getVirtualRowKey}
         onScroll={handleScroll}
@@ -423,7 +589,15 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
   const groups = useMemo(() => buildVirtualGroups(view), [view])
   const virtualRows = useMemo(() => buildGroupedVirtualRows(groups, true, true), [groups])
   const virtualListRef = useRef<DynamicVirtualListRef>(null)
+  const listboxRef = useRef<HTMLDivElement>(null)
   const { stage, handleScroll } = useAutoHideScrollbar()
+  const { handleListboxKeyDown } = useResourceListListboxNavigation({
+    getItemId,
+    groups,
+    listboxRef,
+    virtualListRef,
+    virtualRows
+  })
   const isScrolling = stage !== 'idle'
   const getGroupId = useCallback((group: ResourceListVirtualGroupData) => group.id, [])
   const getVirtualItemId = useCallback(
@@ -572,17 +746,28 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     },
     [getItemId, virtualRows]
   )
+  const setScrollElementRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      listboxRef.current = node
+      assignRef(ref, node)
+    },
+    [ref]
+  )
   useRevealRequestScroll(getItemId, groups, revealRequest, virtualListRef)
 
   return (
     <ResourceListGroupHeaderContextMenuOwner>
       <GroupedSortableVirtualList
         ref={virtualListRef}
-        scrollElementRef={ref}
+        scrollElementRef={setScrollElementRef}
         role="listbox"
         groups={groups}
         className={getListViewportClassName(stage, className)}
-        scrollerProps={{ 'data-scrolling': isScrolling ? 'true' : 'false' }}
+        scrollerProps={{
+          'data-scrolling': isScrolling ? 'true' : 'false',
+          onKeyDown: handleListboxKeyDown,
+          tabIndex: 0
+        }}
         scrollerStyle={{ scrollbarColor: SCROLLBAR_COLOR_BY_STAGE[stage] }}
         getItemKey={getVirtualRowKey}
         onScroll={handleScroll}

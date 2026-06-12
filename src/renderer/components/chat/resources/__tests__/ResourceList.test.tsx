@@ -157,6 +157,7 @@ function Inspector() {
   return (
     <output data-testid="inspector">
       {JSON.stringify({
+        activeId: state.activeId,
         query: state.query,
         filters: state.filters,
         collapsedGroups: state.collapsedGroups,
@@ -562,6 +563,60 @@ describe('ResourceList', () => {
     expect(screen.getByTestId('beta-controlled-state')).toHaveTextContent('idle')
   })
 
+  it('moves listbox active descendant with keyboard before selecting on Enter', () => {
+    const onSelectItem = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    function Row({ item }: { item: TestItem }) {
+      const rowState = useResourceListRowState(item.id)
+
+      return (
+        <ResourceList.Item item={item}>
+          <span data-testid={`${item.id}-active`}>{rowState.active ? 'active' : 'idle'}</span>
+          <span data-testid={`${item.id}-selected`}>{rowState.selected ? 'selected' : 'idle'}</span>
+        </ResourceList.Item>
+      )
+    }
+
+    render(
+      <Provider items={ITEMS} selectedId="alpha" onSelectItem={onSelectItem}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem> renderItem={(item) => <Row item={item} />} />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const listbox = screen.getByRole('listbox')
+    expect(listbox).toHaveAttribute('tabindex', '0')
+    expect(listbox).toHaveAttribute('aria-activedescendant', 'resource-list-option-alpha')
+    expect(screen.getByTestId('alpha-active')).toHaveTextContent('active')
+    expect(screen.getByTestId('alpha-selected')).toHaveTextContent('selected')
+
+    fireEvent.keyDown(listbox, { key: 'ArrowDown' })
+
+    expect(onSelectItem).not.toHaveBeenCalled()
+    expect(listbox).toHaveAttribute('aria-activedescendant', 'resource-list-option-beta')
+    expect(screen.getByTestId('alpha-active')).toHaveTextContent('idle')
+    expect(screen.getByTestId('beta-active')).toHaveTextContent('active')
+    expect(screen.getByTestId('alpha-selected')).toHaveTextContent('selected')
+    expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(1, { align: 'auto' })
+
+    fireEvent.keyDown(listbox, { key: 'End' })
+
+    expect(listbox).toHaveAttribute('aria-activedescendant', 'resource-list-option-gamma')
+    expect(screen.getByTestId('gamma-active')).toHaveTextContent('active')
+
+    fireEvent.keyDown(listbox, { key: 'Home' })
+
+    expect(listbox).toHaveAttribute('aria-activedescendant', 'resource-list-option-alpha')
+    expect(screen.getByTestId('alpha-active')).toHaveTextContent('active')
+
+    fireEvent.keyDown(listbox, { key: 'ArrowDown' })
+    fireEvent.keyDown(listbox, { key: 'Enter' })
+
+    expect(onSelectItem).toHaveBeenCalledWith('beta')
+  })
+
   it('updates only the renamed row when inline rename starts', () => {
     const renderCounts = new Map<string, number>()
     const Provider = ResourceList.Provider<TestItem>
@@ -747,6 +802,46 @@ describe('ResourceList', () => {
     fireEvent.keyDown(input, { key: 'Enter' })
 
     expect(onRenameItem).toHaveBeenCalledWith('alpha', 'Renamed Alpha')
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      renamingId: null
+    })
+  })
+
+  it('cancels inline rename with Escape without committing the draft name', () => {
+    const onRenameItem = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    function Row({ item }: { item: TestItem }) {
+      const { actions } = useResourceList<TestItem>()
+      const rowState = useResourceListRowState(item.id)
+
+      return (
+        <ResourceList.Item item={item}>
+          <ResourceList.RenameField item={item} aria-label={`Rename ${item.name}`} />
+          {!rowState.renaming && <span>{item.name}</span>}
+          <button type="button" onClick={() => actions.startRename(item.id)}>
+            Rename {item.name}
+          </button>
+        </ResourceList.Item>
+      )
+    }
+
+    render(
+      <Provider items={ITEMS} onRenameItem={onRenameItem}>
+        <ResourceList.Frame>
+          <Inspector />
+          <ResourceList.VirtualItems<TestItem> renderItem={(item) => <Row item={item} />} />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Alpha' }))
+    const input = screen.getByLabelText('Rename Alpha')
+    fireEvent.change(input, { target: { value: 'Draft Alpha' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+
+    expect(onRenameItem).not.toHaveBeenCalled()
+    expect(screen.queryByLabelText('Rename Alpha')).not.toBeInTheDocument()
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       renamingId: null
     })

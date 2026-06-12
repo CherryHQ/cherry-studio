@@ -96,6 +96,7 @@ export type ResourceListVariantContext = {
 }
 
 export type ResourceListState = {
+  activeId: string | null
   query: string
   filters: string[]
   sort: string | null
@@ -114,6 +115,7 @@ export type ResourceListActionMap = {
   setFilters: (filters: string[]) => void
   toggleFilter: (filterId: string) => void
   setSort: (sortId: string | null) => void
+  setActiveItem: (id: string | null) => void
   selectItem: (id: string) => void
   hoverItem: (id: string | null) => void
   startRename: (id: string) => void
@@ -223,6 +225,10 @@ export type ResourceListItemAccessors<T extends ResourceListItemBase> = Pick<
   ResourceListMeta<T>,
   'getItemId' | 'getItemLabel'
 >
+
+export function getResourceListOptionDomId(itemId: string) {
+  return `resource-list-option-${encodeURIComponent(itemId)}`
+}
 
 export const ResourceListContext = createContext<ResourceListContextValue<ResourceListItemBase> | null>(null)
 export const ResourceListActionsContext = createContext<ResourceListActionMap | null>(null)

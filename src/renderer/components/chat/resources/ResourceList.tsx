@@ -7,6 +7,7 @@ import type { ComponentProps, ReactNode, Ref } from 'react'
 import { useCallback, useEffect, useRef } from 'react'
 
 import {
+  getResourceListOptionDomId,
   type ResourceListContextValue,
   type ResourceListItemBase,
   useResourceList,
@@ -367,6 +368,7 @@ function Item<T extends ResourceListItemBase>({
   item,
   className,
   ref,
+  id: elementId,
   onClick,
   onKeyDown,
   onMouseEnter,
@@ -382,17 +384,20 @@ function Item<T extends ResourceListItemBase>({
   return (
     <div
       ref={ref}
+      id={elementId ?? getResourceListOptionDomId(id)}
       role="option"
       aria-selected={rowState.selected}
+      data-active-descendant={rowState.active || undefined}
       data-selected={rowState.selected || undefined}
       data-hovered={rowState.hovered || undefined}
       data-reveal-focus={rowState.revealFocused || undefined}
       data-dragging={rowState.dragging || undefined}
-      tabIndex={tabIndex ?? 0}
+      tabIndex={tabIndex ?? -1}
       className={cn(
         'group relative flex w-full cursor-pointer items-center gap-1.5 px-2.5 text-[13px] text-sidebar-foreground/80 outline-none transition-all duration-150 has-[[data-resource-list-leading-slot=true]]:px-1.5',
         RESOURCE_LIST_VISUAL_ROW_CLASS,
         RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
+        rowState.active && !rowState.selected && 'bg-sidebar-accent text-sidebar-foreground',
         rowState.selected && RESOURCE_LIST_SELECTED_ROW_CLASS,
         rowState.revealFocused && 'animation-resource-list-reveal-focus',
         className
@@ -479,6 +484,9 @@ function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...
           event.stopPropagation()
         }
         if (event.key === 'Escape') {
+          event.preventDefault()
+          event.stopPropagation()
+          didCommitRef.current = true
           actions.cancelRename()
         }
       }}

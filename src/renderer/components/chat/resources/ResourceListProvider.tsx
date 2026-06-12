@@ -393,6 +393,7 @@ type ProviderAction =
   | { type: 'setFilters'; filters: string[] }
   | { type: 'toggleFilter'; filterId: string }
   | { type: 'setSort'; sort: string | null }
+  | { type: 'setActiveItem'; id: string | null }
   | { type: 'selectItem'; id: string | null }
   | { type: 'hoverItem'; id: string | null }
   | { type: 'startRename'; id: string }
@@ -434,8 +435,12 @@ function reducer(state: ResourceListState, action: ProviderAction): ResourceList
     }
     case 'setSort':
       return { ...state, sort: action.sort }
+    case 'setActiveItem':
+      if (state.activeId === action.id) return state
+      return { ...state, activeId: action.id }
     case 'selectItem':
-      return { ...state, selectedId: action.id }
+      if (state.selectedId === action.id && state.activeId === action.id) return state
+      return { ...state, activeId: action.id, selectedId: action.id }
     case 'hoverItem':
       return { ...state, hoveredId: action.id }
     case 'startRename':
@@ -506,6 +511,7 @@ function reducer(state: ResourceListState, action: ProviderAction): ResourceList
             ? state.collapsedGroups.filter((groupId) => !action.groupIds.includes(groupId))
             : state.collapsedGroups,
         groupVisibleCounts: nextGroupVisibleCounts,
+        activeId: action.itemId,
         revealFocus: { itemId: action.itemId, requestId: action.requestId }
       }
     }
@@ -568,6 +574,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   onExpandedStateChange
 }: ResourceListProviderProps<T>) {
   const [state, dispatch] = useReducer(reducer, {
+    activeId: selectedIdProp ?? null,
     query: '',
     filters: [],
     sort: defaultSortId ?? null,
@@ -596,6 +603,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   const uiStoreRef = useRef<ResourceListUiStore | null>(null)
   if (!uiStoreRef.current) {
     uiStoreRef.current = new ResourceListUiStore({
+      activeId: state.activeId,
       draggingId: state.draggingId,
       hoveredId: state.hoveredId,
       renamingId: state.renamingId,
@@ -785,6 +793,11 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   }, [effectiveSelectedId, uiStore])
 
   useLayoutEffect(() => {
+    uiStore.setActiveId(effectiveSelectedId)
+    dispatch({ type: 'setActiveItem', id: effectiveSelectedId })
+  }, [effectiveSelectedId, uiStore])
+
+  useLayoutEffect(() => {
     uiStore.setHoveredId(state.hoveredId)
   }, [state.hoveredId, uiStore])
 
@@ -896,10 +909,17 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       setFilters: (filters: string[]) => dispatch({ type: 'setFilters', filters }),
       toggleFilter: (filterId: string) => dispatch({ type: 'toggleFilter', filterId }),
       setSort: (sortId: string | null) => dispatch({ type: 'setSort', sort: sortId }),
+      setActiveItem: (id: string | null) => {
+        uiStore.setActiveId(id)
+        dispatch({ type: 'setActiveItem', id })
+      },
       selectItem: (id: string) => {
+        uiStore.setActiveId(id)
         if (!isSelectedControlled) {
           uiStore.setSelectedId(id)
           dispatch({ type: 'selectItem', id })
+        } else {
+          dispatch({ type: 'setActiveItem', id })
         }
         onSelectItem?.(id)
       },
