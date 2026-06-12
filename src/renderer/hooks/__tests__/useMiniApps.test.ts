@@ -74,13 +74,14 @@ describe('useMiniApps', () => {
   // === Region Filtering ===
 
   describe('region filtering', () => {
-    it('should show all apps when region is CN (default)', () => {
+    it('should show only CN-compatible and region-free apps when region is CN (default)', () => {
       const { mixedRegion } = appFixtures
       const apps = Object.values(mixedRegion).map((a) => ({ ...a, status: 'enabled' as const }))
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'CN')
       const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniApps).toHaveLength(3)
+      expect(result.current.miniApps).toHaveLength(2)
+      expect(result.current.miniApps.find((a) => a.appId === 'global-app')).toBeUndefined()
     })
 
     it('should only show Global apps when region is Global', () => {
@@ -139,7 +140,8 @@ describe('useMiniApps', () => {
       const apps = [createGlobalApp('g', { status: 'enabled' }), createCnOnlyApp('c', { status: 'enabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniApps).toHaveLength(2)
+      expect(result.current.miniApps).toHaveLength(1)
+      expect(result.current.miniApps[0].appId).toBe('c')
     })
 
     it('should use preference Global when explicitly set', () => {
@@ -166,7 +168,8 @@ describe('useMiniApps', () => {
       const apps = [createGlobalApp('g', { status: 'enabled' }), createCnOnlyApp('c', { status: 'enabled' })]
       MockUseDataApiUtils.mockQueryData('/mini-apps', paginated(apps))
       const { result } = renderHook(() => useMiniApps())
-      expect(result.current.miniApps).toHaveLength(2)
+      expect(result.current.miniApps).toHaveLength(1)
+      expect(result.current.miniApps[0].appId).toBe('c')
     })
   })
 

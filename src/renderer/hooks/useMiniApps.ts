@@ -38,12 +38,13 @@ import { useCallback, useEffect, useMemo } from 'react'
  *      own app under Global.
  */
 const isVisibleForRegion = (app: MiniApp, region: MiniAppRegion): boolean => {
+  if (app.supportedRegions && app.supportedRegions.length > 0) {
+    return app.supportedRegions.includes(region)
+  }
+
   if (region === 'CN') return true
 
-  if (!app.supportedRegions || app.supportedRegions.length === 0) {
-    return app.presetMiniAppId === null
-  }
-  return app.supportedRegions.includes('Global')
+  return app.presetMiniAppId === null
 }
 
 // Filter apps by region
