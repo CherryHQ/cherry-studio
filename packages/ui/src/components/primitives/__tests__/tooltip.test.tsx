@@ -224,4 +224,56 @@ describe('Tooltip', () => {
       expect(getTooltipContentElement('compound tip').querySelector('svg')).not.toBeInTheDocument()
     })
   })
+
+  describe('focus-visible filtering', () => {
+    it('does not open tooltip when focused without :focus-visible', () => {
+      render(
+        <Tooltip content="focus tip">
+          <button type="button">Trigger</button>
+        </Tooltip>
+      )
+
+      const trigger = screen.getByText('Trigger')
+      const matchesSpy = vi.spyOn(trigger, 'matches').mockReturnValue(false)
+
+      fireEvent.focus(trigger)
+
+      expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+      matchesSpy.mockRestore()
+    })
+
+    it('opens tooltip when focused with :focus-visible', async () => {
+      render(
+        <Tooltip content="focus tip">
+          <button type="button">Trigger</button>
+        </Tooltip>
+      )
+
+      const trigger = screen.getByText('Trigger')
+      const matchesSpy = vi.spyOn(trigger, 'matches').mockImplementation((selector) => {
+        return selector === ':focus-visible'
+      })
+
+      fireEvent.focus(trigger)
+
+      const tooltip = await screen.findByRole('tooltip')
+      expect(tooltip).toBeInTheDocument()
+      expect(tooltip).toHaveTextContent('focus tip')
+      matchesSpy.mockRestore()
+    })
+
+    it('calls custom onFocus handler passed to TooltipTrigger', () => {
+      const handleFocus = vi.fn()
+      render(
+        <NormalTooltip content="tip" triggerProps={{ onFocus: handleFocus }}>
+          <button type="button">Trigger</button>
+        </NormalTooltip>
+      )
+
+      const trigger = screen.getByText('Trigger')
+      fireEvent.focus(trigger)
+
+      expect(handleFocus).toHaveBeenCalledTimes(1)
+    })
+  })
 })
