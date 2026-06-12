@@ -105,6 +105,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     type: WindowType.Settings,
     lifecycle: 'singleton',
     singletonConfig: {
+      warmup: 'eager',
       retentionTime: 300
     },
     htmlPath: 'windows/settings/index.html',
