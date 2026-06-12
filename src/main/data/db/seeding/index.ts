@@ -12,10 +12,10 @@ import { TranslateLanguageSeeder } from './seeders/translateLanguageSeeder'
  * No changes to DbService needed.
  */
 export const seeders: ISeeder[] = [
+  new CherryAIDefaultModelSeeder(),
   new DefaultAssistantSeeder(),
   new PreferenceSeeder(),
   new TranslateLanguageSeeder(),
   new PresetProviderSeeder(),
-  new CherryAIDefaultModelSeeder(),
   new MiniAppSeeder()
 ]

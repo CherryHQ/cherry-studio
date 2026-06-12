@@ -28,7 +28,7 @@ describe('LlmModelTransforms', () => {
 
       expect(result).toEqual({
         'chat.default_model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
-        'topic.naming.model_id': null,
+        'topic.naming.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
         'feature.quick_assistant.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
         'feature.translate.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
       })
@@ -44,7 +44,7 @@ describe('LlmModelTransforms', () => {
       const result = transformLlmModelIds(sources)
 
       expect(result['chat.default_model_id']).toBe('openai::gpt-4')
-      expect(result['topic.naming.model_id']).toBeNull()
+      expect(result['topic.naming.model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
       expect(result['feature.quick_assistant.model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
       expect(result['feature.translate.model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
     })
@@ -58,7 +58,7 @@ describe('LlmModelTransforms', () => {
       const result = transformLlmModelIds(sources)
 
       expect(result['chat.default_model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
-      expect(result['topic.naming.model_id']).toBeNull()
+      expect(result['topic.naming.model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
     })
 
     it('uses shared model conversion behavior for passthrough, trimming, and invalid providers', () => {

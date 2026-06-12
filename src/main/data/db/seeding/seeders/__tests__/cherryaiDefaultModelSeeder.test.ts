@@ -78,6 +78,11 @@ describe('CherryAIDefaultModelSeeder', () => {
       },
       {
         scope: 'default',
+        key: 'topic.naming.model_id',
+        value: 'openai::gpt-4o-mini'
+      },
+      {
+        scope: 'default',
         key: 'feature.quick_assistant.model_id',
         value: 'anthropic::claude-3-haiku'
       },
@@ -91,6 +96,7 @@ describe('CherryAIDefaultModelSeeder', () => {
     await new CherryAIDefaultModelSeeder().run(dbh.db)
 
     expect(await readPreferenceValue('chat.default_model_id')).toBe('openai::gpt-4o')
+    expect(await readPreferenceValue('topic.naming.model_id')).toBe('openai::gpt-4o-mini')
     expect(await readPreferenceValue('feature.quick_assistant.model_id')).toBe('anthropic::claude-3-haiku')
     expect(await readPreferenceValue('feature.translate.model_id')).toBe('google::gemini-2.5-flash')
   })

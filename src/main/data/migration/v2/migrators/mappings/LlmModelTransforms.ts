@@ -24,7 +24,9 @@ export function transformLlmModelIds(sources: Record<string, unknown>): Transfor
     'chat.default_model_id':
       legacyChatModelToUniqueId(sources.defaultModel as LegacyModelRef | null | undefined) ??
       CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
-    'topic.naming.model_id': legacyChatModelToUniqueId(sources.topicNamingModel as LegacyModelRef | null | undefined),
+    'topic.naming.model_id':
+      legacyChatModelToUniqueId(sources.topicNamingModel as LegacyModelRef | null | undefined) ??
+      CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
     'feature.quick_assistant.model_id':
       legacyChatModelToUniqueId(sources.quickModel as LegacyModelRef | null | undefined) ??
       CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,

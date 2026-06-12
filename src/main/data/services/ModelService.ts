@@ -19,6 +19,11 @@ import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
+import {
+  CHERRYAI_DEFAULT_MODEL_ID,
+  CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+  CHERRYAI_PROVIDER_ID
+} from '@shared/data/presets/cherryai'
 import type {
   EndpointType,
   Modality,
@@ -32,6 +37,10 @@ import type { ReasoningFormatType } from '@shared/data/types/provider'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ModelService')
+
+function isManagedCherryAIDefaultModel(providerId: string, modelId: string): boolean {
+  return providerId === CHERRYAI_PROVIDER_ID && modelId === CHERRYAI_DEFAULT_MODEL_ID
+}
 
 /**
  * Resolve the effective capability set for a Model row at query-time.
@@ -326,8 +335,14 @@ class ModelService {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, toRemove)))
 
+    const managedDefaultIds = new Set<string>()
     const protectedIds = new Set<string>()
     for (const row of rows) {
+      if (providerId === CHERRYAI_PROVIDER_ID && row.id === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
+        managedDefaultIds.add(row.id)
+        continue
+      }
+
       if (row.presetModelId == null || row.presetModelId === '' || row.isDeprecated) {
         continue
       }
@@ -343,8 +358,15 @@ class ModelService {
         skippedIds: [...protectedIds]
       })
     }
+    if (managedDefaultIds.size > 0) {
+      logger.warn('Skipped managed CherryAI default model removal during reconcile', {
+        providerId,
+        skippedCount: managedDefaultIds.size,
+        skippedIds: [...managedDefaultIds]
+      })
+    }
 
-    return toRemove.filter((id) => !protectedIds.has(id))
+    return toRemove.filter((id) => !managedDefaultIds.has(id) && !protectedIds.has(id))
   }
 
   /**
@@ -779,6 +801,13 @@ class ModelService {
    * Delete a model
    */
   async delete(providerId: string, modelId: string): Promise<void> {
+    if (isManagedCherryAIDefaultModel(providerId, modelId)) {
+      throw DataApiErrorFactory.invalidOperation(
+        `delete model ${providerId}/${modelId}`,
+        'managed CherryAI default model cannot be deleted'
+      )
+    }
+
     const db = application.get('DbService').getDb()
 
     await db.transaction(async (tx) => {
