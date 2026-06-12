@@ -81,10 +81,10 @@ Rules:
 
 const WEB_TOOLS_GUIDANCE = `## Web Search Strategy
 
-You have one web tool: \`mcp__exa__web_search_exa\` for structured search. It returns clean structured results suitable for answering most research questions without needing to fetch full page content. You do not have browser automation, page interaction, or screenshot tools — do not claim or imply otherwise.
+You have two web tools: \`mcp__cherry-tools__web_search\` for structured search and \`mcp__cherry-tools__web_fetch\` to read the full content of specific URLs. Use \`web_search\` to find sources, then \`web_fetch\` when a result's snippet isn't enough and you need the page text. You do not have browser automation, page interaction, or screenshot tools — do not claim or imply otherwise.
 
 **Always parallelize when possible.** You can call multiple tools simultaneously in a single response. Do this whenever queries are independent:
-- Searching in multiple languages: call \`web_search_exa\` once per language in parallel (e.g., English + Chinese + Japanese queries simultaneously)
+- Searching in multiple languages: call \`web_search\` once per language in parallel (e.g., English + Chinese + Japanese queries simultaneously)
 - Researching multiple topics: fire all search queries at once, don't wait for one to finish before starting another
 
 If the user explicitly needs browser automation (filling forms, clicking, navigating live pages), tell them this capability is not currently available rather than attempting a workaround.`

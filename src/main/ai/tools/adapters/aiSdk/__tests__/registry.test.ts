@@ -20,10 +20,10 @@ describe('ToolRegistry', () => {
   describe('register / deregister', () => {
     it('stores and retrieves an entry by name', () => {
       const reg = new ToolRegistry()
-      const entry = makeEntry({ name: 'web__search' })
+      const entry = makeEntry({ name: 'web_search' })
       reg.register(entry)
-      expect(reg.getByName('web__search')).toBe(entry)
-      expect(reg.has('web__search')).toBe(true)
+      expect(reg.getByName('web_search')).toBe(entry)
+      expect(reg.has('web_search')).toBe(true)
     })
 
     it('replaces an existing entry on duplicate register', () => {
@@ -38,19 +38,19 @@ describe('ToolRegistry', () => {
 
     it('deregister removes the entry and reports whether it existed', () => {
       const reg = new ToolRegistry()
-      reg.register(makeEntry({ name: 'kb__search' }))
-      expect(reg.deregister('kb__search')).toBe(true)
-      expect(reg.deregister('kb__search')).toBe(false)
-      expect(reg.has('kb__search')).toBe(false)
+      reg.register(makeEntry({ name: 'kb_search' }))
+      expect(reg.deregister('kb_search')).toBe(true)
+      expect(reg.deregister('kb_search')).toBe(false)
+      expect(reg.has('kb_search')).toBe(false)
     })
   })
 
   describe('getAll filter', () => {
     function withSeed(): ToolRegistry {
       const reg = new ToolRegistry()
-      reg.register(makeEntry({ name: 'web__search', namespace: 'web', description: 'Search the web' }))
-      reg.register(makeEntry({ name: 'web__fetch', namespace: 'web', description: 'Read URLs' }))
-      reg.register(makeEntry({ name: 'kb__search', namespace: 'kb', description: 'Search documents' }))
+      reg.register(makeEntry({ name: 'web_search', namespace: 'web', description: 'Search the web' }))
+      reg.register(makeEntry({ name: 'web_fetch', namespace: 'web', description: 'Read URLs' }))
+      reg.register(makeEntry({ name: 'kb_search', namespace: 'kb', description: 'Search documents' }))
       reg.register(
         makeEntry({
           name: 'mcp__gh__search_repos',
@@ -67,22 +67,22 @@ describe('ToolRegistry', () => {
 
     it('filters by exact namespace', () => {
       const list = withSeed().getAll({ namespace: 'web' })
-      expect(list.map((e) => e.name).sort()).toEqual(['web__fetch', 'web__search'])
+      expect(list.map((e) => e.name).sort()).toEqual(['web_fetch', 'web_search'])
     })
 
     it('matches query against name, description, and namespace (case-insensitive)', () => {
       const reg = withSeed()
       // name match
-      expect(reg.getAll({ query: 'fetch' }).map((e) => e.name)).toEqual(['web__fetch'])
+      expect(reg.getAll({ query: 'fetch' }).map((e) => e.name)).toEqual(['web_fetch'])
       // description match
       expect(reg.getAll({ query: 'github' }).map((e) => e.name)).toEqual(['mcp__gh__search_repos'])
       // namespace match
-      expect(reg.getAll({ query: 'kb' }).map((e) => e.name)).toEqual(['kb__search'])
+      expect(reg.getAll({ query: 'kb' }).map((e) => e.name)).toEqual(['kb_search'])
     })
 
     it('AND-combines multiple filter fields', () => {
       const list = withSeed().getAll({ namespace: 'web', query: 'search' })
-      expect(list.map((e) => e.name)).toEqual(['web__search'])
+      expect(list.map((e) => e.name)).toEqual(['web_search'])
     })
   })
 
@@ -90,19 +90,19 @@ describe('ToolRegistry', () => {
     it('groups entries by namespace, alphabetical within each group (cache-stable order)', () => {
       const reg = new ToolRegistry()
       // Register in a non-alphabetical order to prove sorting kicks in.
-      reg.register(makeEntry({ name: 'web__search', namespace: 'web' }))
-      reg.register(makeEntry({ name: 'kb__search', namespace: 'kb' }))
-      reg.register(makeEntry({ name: 'web__fetch', namespace: 'web' }))
+      reg.register(makeEntry({ name: 'web_search', namespace: 'web' }))
+      reg.register(makeEntry({ name: 'kb_search', namespace: 'kb' }))
+      reg.register(makeEntry({ name: 'web_fetch', namespace: 'web' }))
 
       const grouped = reg.getByNamespace()
       expect([...grouped.keys()].sort()).toEqual(['kb', 'web'])
-      expect(grouped.get('web')!.map((e) => e.name)).toEqual(['web__fetch', 'web__search'])
-      expect(grouped.get('kb')!.map((e) => e.name)).toEqual(['kb__search'])
+      expect(grouped.get('web')!.map((e) => e.name)).toEqual(['web_fetch', 'web_search'])
+      expect(grouped.get('kb')!.map((e) => e.name)).toEqual(['kb_search'])
     })
 
     it('forwards filter to underlying getAll', () => {
       const reg = new ToolRegistry()
-      reg.register(makeEntry({ name: 'web__search', namespace: 'web' }))
+      reg.register(makeEntry({ name: 'web_search', namespace: 'web' }))
       reg.register(makeEntry({ name: 'mcp__gh__x', namespace: 'mcp:gh' }))
 
       const grouped = reg.getByNamespace({ namespace: 'mcp:gh' })
