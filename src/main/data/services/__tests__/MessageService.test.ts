@@ -8,6 +8,7 @@ import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { MessageData } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
@@ -17,6 +18,10 @@ function mainText(content: string): MessageData {
 
 function partsText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] as MessageData['parts'] }
+}
+
+function partsCode(content: string): MessageData {
+  return { parts: [{ type: 'data-code', data: { content, language: 'ts' } }] as MessageData['parts'] }
 }
 
 describe('MessageService', () => {
@@ -633,6 +638,26 @@ describe('MessageService', () => {
       expect(result.items.map((item) => item.messageId)).toEqual(['m-order-new'])
     })
 
+    it('searches visible code parts', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-code', activeNodeId: 'm-code-1', orderKey: 's4' })
+      await dbh.db.insert(messageTable).values({
+        id: 'm-code-1',
+        parentId: null,
+        topicId: 'topic-code',
+        role: 'assistant',
+        data: partsCode('const searchableCodeNeedle = true'),
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 100,
+        updatedAt: 100
+      })
+
+      const result = await messageService.search({ q: 'searchableCodeNeedle' })
+
+      expect(result.items.map((item) => item.messageId)).toEqual(['m-code-1'])
+      expect(result.items[0].snippet).toContain('searchableCodeNeedle')
+    })
+
     it('uses message id as the cursor tiebreaker when createdAt values match', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-page-tie', activeNodeId: 'm-page-tie-3', orderKey: 'st0' })
       await dbh.db.insert(messageTable).values([
@@ -768,6 +793,235 @@ describe('MessageService', () => {
       // Regression: preview is derived from data.parts text (was always '' when it read data.blocks).
       expect(rootNode?.preview).toBe('hi')
       expect(followNode?.preview).toBe('follow up')
+    })
+
+    it('uses v2 parts text for tree node preview', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-preview', activeNodeId: 'm-preview', orderKey: 'preview' })
+      await dbh.db.insert(messageTable).values({
+        id: 'm-preview',
+        parentId: null,
+        topicId: 'topic-preview',
+        role: 'assistant',
+        data: partsText('The v2 parts payload should be visible in the tree preview.'),
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 100,
+        updatedAt: 100
+      })
+
+      const result = await messageService.getTree('topic-preview', { depth: -1 })
+
+      expect(result.nodes.find((node) => node.id === 'm-preview')?.preview).toContain('v2 parts payload')
+    })
+
+    it('returns every same-topic root tree even when roots are not in a sibling group', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-multi-root', activeNodeId: 'a-second', orderKey: 'roots' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'u-first',
+          parentId: null,
+          topicId: 'topic-multi-root',
+          role: 'user',
+          data: mainText('first root'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'a-first',
+          parentId: 'u-first',
+          topicId: 'topic-multi-root',
+          role: 'assistant',
+          data: mainText('first answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'u-second',
+          parentId: null,
+          topicId: 'topic-multi-root',
+          role: 'user',
+          data: mainText('second root'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
+        },
+        {
+          id: 'a-second',
+          parentId: 'u-second',
+          topicId: 'topic-multi-root',
+          role: 'assistant',
+          data: mainText('second answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 400,
+          updatedAt: 400
+        }
+      ])
+
+      const result = await messageService.getTree('topic-multi-root', { depth: -1 })
+
+      expect(result.siblingsGroups).toHaveLength(0)
+      expect(result.nodes.map((node) => [node.id, node.parentId])).toEqual([
+        ['u-first', null],
+        ['a-first', 'u-first'],
+        ['u-second', null],
+        ['a-second', 'u-second']
+      ])
+      expect(result.activeNodeId).toBe('a-second')
+    })
+  })
+
+  describe('createSibling', () => {
+    it('creates root user siblings for first-turn edit and resend', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-root-sibling', activeNodeId: 'u-root', orderKey: 's0' })
+      await dbh.db.insert(messageTable).values({
+        id: 'u-root',
+        topicId: 'topic-root-sibling',
+        parentId: null,
+        role: 'user',
+        data: mainText('root prompt'),
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 100,
+        updatedAt: 100
+      })
+      const beforeWriteTx = MockMainDbServiceUtils.getMockCallCounts().withWriteTx
+
+      const sibling = await messageService.createSibling('u-root', mainText('edited root prompt'))
+
+      const messages = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-root-sibling'))
+      expect(messages).toHaveLength(2)
+      expect(sibling.role).toBe('user')
+      expect(sibling.parentId).toBeNull()
+      expect(sibling.status).toBe('success')
+      expect(sibling.siblingsGroupId).toBeGreaterThan(0)
+      expect(messages.every((message) => message.siblingsGroupId === sibling.siblingsGroupId)).toBe(true)
+
+      const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-root-sibling')).limit(1)
+      expect(topic.activeNodeId).toBe(sibling.id)
+      expect(MockMainDbServiceUtils.getMockCallCounts().withWriteTx).toBe(beforeWriteTx + 1)
+
+      const branch = await messageService.getBranchMessages('topic-root-sibling', { includeSiblings: true })
+      expect(branch.items).toHaveLength(1)
+      expect(branch.items[0].message.id).toBe(sibling.id)
+      expect(branch.items[0].siblingsGroup?.map((message) => message.id)).toEqual(['u-root'])
+
+      const tree = await messageService.getTree('topic-root-sibling', { depth: -1 })
+      expect(tree.siblingsGroups).toHaveLength(1)
+      expect(tree.siblingsGroups[0].parentId).toBeNull()
+      expect(tree.siblingsGroups[0].nodes.map((node) => node.id)).toEqual(['u-root', sibling.id])
+    })
+
+    it('returns root sibling branches with each root subtree for the branch flow canvas', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-root-flow', activeNodeId: 'a-original', orderKey: 's1' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'u-original',
+          topicId: 'topic-root-flow',
+          parentId: null,
+          role: 'user',
+          data: mainText('original root prompt'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'a-original',
+          topicId: 'topic-root-flow',
+          parentId: 'u-original',
+          role: 'assistant',
+          data: mainText('original answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        }
+      ])
+
+      const editedRoot = await messageService.createSibling('u-original', mainText('edited root prompt'))
+      await dbh.db.insert(messageTable).values({
+        id: 'a-edited',
+        topicId: 'topic-root-flow',
+        parentId: editedRoot.id,
+        role: 'assistant',
+        data: mainText('edited answer'),
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 300,
+        updatedAt: 300
+      })
+      await dbh.db.update(topicTable).set({ activeNodeId: 'a-edited' }).where(eq(topicTable.id, 'topic-root-flow'))
+
+      const tree = await messageService.getTree('topic-root-flow', { depth: -1 })
+
+      expect(tree.activeNodeId).toBe('a-edited')
+      expect(tree.siblingsGroups).toHaveLength(1)
+      expect(tree.siblingsGroups[0].parentId).toBeNull()
+      expect(tree.siblingsGroups[0].nodes.map((node) => [node.id, node.hasChildren])).toEqual([
+        ['u-original', true],
+        [editedRoot.id, true]
+      ])
+      expect(tree.nodes.map((node) => [node.id, node.parentId])).toEqual([
+        ['a-original', 'u-original'],
+        ['a-edited', editedRoot.id]
+      ])
+    })
+
+    it('marks edited non-root user siblings as success so branch flow does not show the user node as loading', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-sibling-status', activeNodeId: 'u-follow', orderKey: 's0' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'u-root',
+          topicId: 'topic-sibling-status',
+          parentId: null,
+          role: 'user',
+          data: mainText('original prompt'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'a-root',
+          topicId: 'topic-sibling-status',
+          parentId: 'u-root',
+          role: 'assistant',
+          data: mainText('original answer'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 200,
+          updatedAt: 200
+        },
+        {
+          id: 'u-follow',
+          topicId: 'topic-sibling-status',
+          parentId: 'a-root',
+          role: 'user',
+          data: mainText('follow up'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
+        }
+      ])
+
+      const beforeWriteTx = MockMainDbServiceUtils.getMockCallCounts().withWriteTx
+
+      const sibling = await messageService.createSibling('u-follow', mainText('edited follow up'))
+
+      expect(sibling.role).toBe('user')
+      expect(sibling.parentId).toBe('a-root')
+      expect(sibling.status).toBe('success')
+      expect(MockMainDbServiceUtils.getMockCallCounts().withWriteTx).toBe(beforeWriteTx + 1)
+
+      const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-sibling-status')).limit(1)
+      expect(topic.activeNodeId).toBe(sibling.id)
     })
   })
 

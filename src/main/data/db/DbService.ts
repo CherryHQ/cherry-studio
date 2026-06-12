@@ -13,7 +13,7 @@ import fs from 'fs'
 import path from 'path'
 import { pathToFileURL } from 'url'
 
-import { CUSTOM_SQL_STATEMENTS } from './customSqls'
+import { CUSTOM_SQL_ONCE_STATEMENTS, CUSTOM_SQL_STATEMENTS } from './customSqls'
 import { seeders } from './seeding'
 import { SeedRunner } from './seeding/SeedRunner'
 import type { DbOrTx, DbType } from './types'
@@ -222,10 +222,33 @@ export class DbService extends BaseService {
       for (const statement of CUSTOM_SQL_STATEMENTS) {
         await this.db.run(sql.raw(statement))
       }
+      await this.runOnceCustomMigrations()
       logger.debug('Custom migrations completed', { count: CUSTOM_SQL_STATEMENTS.length })
     } catch (error) {
       logger.error('Custom migrations failed', error as Error)
       throw error
+    }
+  }
+
+  /**
+   * Run expensive one-shot custom SQL (FTS backfills/rebuilds, O(all rows))
+   * exactly once, tracked in the `custom_sql_state` marker table. Unlike the
+   * idempotent triggers/virtual tables above, these must not replay on every boot.
+   */
+  private async runOnceCustomMigrations(): Promise<void> {
+    await this.db.run(
+      sql.raw(
+        'CREATE TABLE IF NOT EXISTS custom_sql_state (key TEXT PRIMARY KEY NOT NULL, applied_at INTEGER NOT NULL)'
+      )
+    )
+    for (const { key, statements } of CUSTOM_SQL_ONCE_STATEMENTS) {
+      const applied = await this.db.get<{ key: string }>(sql`SELECT key FROM custom_sql_state WHERE key = ${key}`)
+      if (applied) continue
+      for (const statement of statements) {
+        await this.db.run(sql.raw(statement))
+      }
+      await this.db.run(sql`INSERT INTO custom_sql_state (key, applied_at) VALUES (${key}, ${Date.now()})`)
+      logger.info('Applied one-shot custom migration', { key, statements: statements.length })
     }
   }
 

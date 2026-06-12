@@ -132,16 +132,45 @@ function rowToMessage(row: MessageRow): Message {
 /**
  * Extract preview text from message data
  */
+function truncatePreview(text: string): string {
+  return text.length > PREVIEW_LENGTH ? text.substring(0, PREVIEW_LENGTH) + '...' : text
+}
+
+function getStringField(value: unknown, key: string): string | undefined {
+  if (!value || typeof value !== 'object') return undefined
+
+  const field = (value as Record<string, unknown>)[key]
+  return typeof field === 'string' ? field : undefined
+}
+
+function getObjectField(value: unknown, key: string): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object') return undefined
+
+  const field = (value as Record<string, unknown>)[key]
+  return field && typeof field === 'object' ? (field as Record<string, unknown>) : undefined
+}
+
 function extractPreview(message: Message): string {
-  const parts = message.data?.parts ?? []
+  const parts = message.data?.parts || []
   for (const part of parts) {
-    if (part.type === 'text' && typeof part.text === 'string') {
-      const text = part.text.trim()
-      if (text.length > 0) {
-        return text.length > PREVIEW_LENGTH ? text.substring(0, PREVIEW_LENGTH) + '...' : text
-      }
+    const data = getObjectField(part, 'data')
+    const text =
+      part.type === 'text'
+        ? getStringField(part, 'text')
+        : ['data-code', 'data-translation'].includes(part.type)
+          ? getStringField(data, 'content')
+          : part.type === 'data-compact'
+            ? (getStringField(data, 'content') ?? getStringField(data, 'compactedContent'))
+            : part.type === 'data-error'
+              ? getStringField(data, 'message')
+              : undefined
+
+    const preview = text?.trim()
+    if (preview) {
+      return truncatePreview(preview)
     }
   }
+
   return ''
 }
 
@@ -206,25 +235,10 @@ export class MessageService {
 
     const activeNodeId = options.nodeId || topic.activeNodeId
 
-    // Find root node if not specified
-    let rootId = options.rootId
-    if (!rootId) {
-      const [root] = await db
-        .select({ id: messageTable.id })
-        .from(messageTable)
-        .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId), isNull(messageTable.deletedAt)))
-        .limit(1)
-      rootId = root?.id
-    }
-
-    if (!rootId) {
-      return { nodes: [], siblingsGroups: [], activeNodeId: null }
-    }
-
     // Build active path via CTE (single query)
     const activePath = new Set<string>()
     if (activeNodeId) {
-      const pathRows = await db.all<{ id: string }>(sql`
+      const pathRows = await db.all<{ id: string; parent_id: string | null }>(sql`
         WITH RECURSIVE path AS (
           SELECT id, parent_id FROM message WHERE id = ${activeNodeId} AND deleted_at IS NULL
           UNION ALL
@@ -232,9 +246,31 @@ export class MessageService {
           INNER JOIN path p ON m.id = p.parent_id
           WHERE m.deleted_at IS NULL
         )
-        SELECT id FROM path
+        SELECT id, parent_id FROM path
       `)
-      pathRows.forEach((r) => activePath.add(r.id))
+      pathRows.forEach((r) => {
+        activePath.add(r.id)
+      })
+    }
+
+    // Without an explicit root, the flow canvas is a topic-level view: every
+    // non-deleted root message in this topic starts its own tree.
+    const explicitRootId = options.rootId
+    const rootIds = explicitRootId
+      ? [explicitRootId]
+      : (
+          await db
+            .select({ id: messageTable.id, createdAt: messageTable.createdAt })
+            .from(messageTable)
+            .where(
+              and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId), isNull(messageTable.deletedAt))
+            )
+        )
+          .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
+          .map((row) => row.id)
+
+    if (rootIds.length === 0) {
+      return { nodes: [], siblingsGroups: [], activeNodeId: null }
     }
 
     // Get tree with depth limit via CTE
@@ -246,7 +282,11 @@ export class MessageService {
     // See docs/references/data/database-patterns.md.
     const treeDepthRows = await db.all<{ id: string; tree_depth: number }>(sql`
       WITH RECURSIVE tree AS (
-        SELECT id, 0 as tree_depth FROM message WHERE id = ${rootId} AND deleted_at IS NULL
+        SELECT id, 0 as tree_depth FROM message
+        WHERE id IN (${sql.join(
+          rootIds.map((id) => sql`${id}`),
+          sql`, `
+        )}) AND deleted_at IS NULL
         UNION ALL
         SELECT m.id, t.tree_depth + 1 FROM message m
         INNER JOIN tree t ON m.parent_id = t.id
@@ -283,7 +323,10 @@ export class MessageService {
         .select()
         .from(messageTable)
         .where(and(inArray(messageTable.id, missingActivePathIds), isNull(messageTable.deletedAt)))
-      treeRows.push(...additionalRows.map((r) => ({ ...r, treeDepth: maxDepth + 1 })))
+      for (const row of additionalRows) {
+        treeRows.push({ ...row, treeDepth: maxDepth + 1 })
+        treeNodeIds.add(row.id)
+      }
     }
 
     // Also need children of active path nodes for proper tree building
@@ -349,6 +392,8 @@ export class MessageService {
     const resultNodes: TreeNode[] = []
     const siblingsGroups: SiblingsGroup[] = []
     const visitedGroups = new Set<string>()
+    const childrenKeyFor = (parentId: string | null) => parentId ?? 'root'
+    const groupKeyFor = (parentId: string | null, siblingsGroupId: number) => `${parentId ?? 'root'}-${siblingsGroupId}`
 
     const collectNodes = (nodeId: string, currentDepth: number, isOnActivePath: boolean) => {
       const message = messagesById.get(nodeId)
@@ -358,21 +403,23 @@ export class MessageService {
       const hasChildren = children.length > 0
 
       // Check if this message is part of a siblings group
-      if (message.siblingsGroupId !== 0) {
-        const groupKey = `${message.parentId}-${message.siblingsGroupId}`
+      const siblingsGroupId = message.siblingsGroupId ?? 0
+      if (siblingsGroupId !== 0) {
+        const groupKey = groupKeyFor(message.parentId, siblingsGroupId)
         if (!visitedGroups.has(groupKey)) {
           visitedGroups.add(groupKey)
 
           // Find all siblings in this group
-          const parentChildren = childrenMap.get(message.parentId || 'root') || []
+          const parentChildren = childrenMap.get(childrenKeyFor(message.parentId)) || []
           const groupMembers = parentChildren
             .map((id) => messagesById.get(id)!)
-            .filter((m) => m && m.siblingsGroupId === message.siblingsGroupId)
+            .filter((m) => m && m.siblingsGroupId === siblingsGroupId)
+            .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
 
           if (groupMembers.length > 1) {
             siblingsGroups.push({
-              parentId: message.parentId!,
-              siblingsGroupId: message.siblingsGroupId,
+              parentId: message.parentId,
+              siblingsGroupId,
               nodes: groupMembers.map((m) => {
                 const memberChildren = childrenMap.get(m.id) || []
                 const node = messageToTreeNode(m, memberChildren.length > 0)
@@ -400,8 +447,11 @@ export class MessageService {
       }
     }
 
-    // Start from root
-    collectNodes(rootId, 0, activePath.has(rootId))
+    // Start from root nodes. Root siblings are independent trees that share
+    // parentId=null, so the flow canvas needs to collect each subtree.
+    for (const startRootId of rootIds) {
+      collectNodes(startRootId, 0, activePath.has(startRootId))
+    }
 
     return {
       nodes: resultNodes,
@@ -475,12 +525,10 @@ export class MessageService {
 
     if (includeSiblings) {
       // Collect unique (parentId, siblingsGroupId) pairs that need siblings.
-      // `parentId` may be null for root siblings (multi-root branches created
-      // by forking the first user message), so `null` is a valid group key.
       const uniqueGroups = new Set<string>()
       const groupsToQuery: Array<{ parentId: string | null; siblingsGroupId: number }> = []
       const groupKeyFor = (parentId: string | null, siblingsGroupId: number) =>
-        `${parentId ?? '__root__'}-${siblingsGroupId}`
+        `${parentId ?? 'root'}-${siblingsGroupId}`
 
       for (const msg of paginatedPath) {
         if (msg.siblingsGroupId && msg.siblingsGroupId !== 0) {
@@ -496,7 +544,6 @@ export class MessageService {
       const siblingsMap = new Map<string, Message[]>()
 
       if (groupsToQuery.length > 0) {
-        // `eq(col, null)` never matches in SQL — use `isNull` for root siblings.
         const orConditions = groupsToQuery.map((g) =>
           and(
             eq(messageTable.topicId, topicId),
@@ -690,10 +737,10 @@ export class MessageService {
    *   still ungrouped (`= 0`); otherwise joins the source's existing group.
    * - The new message inherits the source's `role` and `topicId`, hangs off
    *   the same `parentId`, and always becomes the topic's active node.
-   * - Root messages (`parentId = null`) are allowed: the single-root rule in
-   *   `create()` exists for plain creation ergonomics, but a topic can carry
-   *   multiple roots as long as they share a `siblingsGroupId`. This is how
-   *   we let the user branch the *first* user message.
+   * - Edited user siblings are already complete (`success`); assistant siblings
+   *   stay `pending` until their response stream resolves.
+   * - Root messages (`parentId = null`) can create root siblings for editing
+   *   and resending the first user turn.
    */
   async createSibling(sourceId: string, data: MessageData): Promise<Message> {
     return await application.get('DbService').withWriteTx(async (tx) => {
@@ -715,7 +762,7 @@ export class MessageService {
           parentId: source.parentId,
           role: source.role,
           data,
-          status: 'pending',
+          status: source.role === 'user' ? 'success' : 'pending',
           siblingsGroupId
         })
         .returning()
