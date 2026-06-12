@@ -7,6 +7,9 @@
         "invalid_agent": "Μη έγκυρος Agent"
       },
       "model": {
+        "docs_link": "Προσαρμοσμένος πάροχος",
+        "empty": "Δεν βρέθηκαν συμβατά μοντέλα για αυτόν τον τύπο Agent.",
+        "empty_docs": "Προβολή οδηγού ρύθμισης",
         "supported_providers": "Υποστηριζόμενοι Πάροχοι",
         "tooltip": "Προς το παρόν, μόνο μοντέλα που υποστηρίζουν τελικά σημεία Anthropic είναι διαθέσιμα για τη λειτουργία Agent.",
         "view_providers": "Δείτε τους υποστηριζόμενους παρόχους"
@@ -5167,6 +5170,7 @@
         "remove_model": "Αφαίρεση Μοντέλου",
         "remove_whole_group": "Αφαίρεση ολόκληρης ομάδας"
       },
+      "possibly_removed": "[to be translated]:This model may no longer be available from the provider",
       "provider_id": "Αναγνωριστικό Παρόχου",
       "provider_key_add_confirm": "Θέλετε να προσθέσετε κλειδί API για τον {{provider}};",
       "provider_key_add_failed_by_empty_data": "Η προσθήκη κλειδιού API παρόχου απέτυχε, τα δεδομένα είναι κενά",

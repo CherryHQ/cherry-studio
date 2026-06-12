@@ -7,6 +7,9 @@
         "invalid_agent": "無效的 Agent"
       },
       "model": {
+        "docs_link": "自訂供應商",
+        "empty": "未找到適用於目前 Agent 類型的模型。",
+        "empty_docs": "檢視設定指南",
         "supported_providers": "支援的服務商",
         "tooltip": "目前，僅支援 Anthropic 端點的模型可供 Agent 功能使用。",
         "view_providers": "檢視支援的服務商"
@@ -5177,6 +5180,7 @@
         "remove_model": "移除模型",
         "remove_whole_group": "移除整個分組"
       },
+      "possibly_removed": "[to be translated]:This model may no longer be available from the provider",
       "provider_id": "提供者 ID",
       "provider_key_add_confirm": "是否要為 {{provider}} 新增 API 金鑰？",
       "provider_key_add_failed_by_empty_data": "新增提供者 API 金鑰失敗，資料為空",

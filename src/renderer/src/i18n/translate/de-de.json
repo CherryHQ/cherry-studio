@@ -7,6 +7,9 @@
         "invalid_agent": "Ungültiger Agent"
       },
       "model": {
+        "docs_link": "Benutzerdefinierter Anbieter",
+        "empty": "Für diesen Agent-Typ wurden keine kompatiblen Modelle gefunden.",
+        "empty_docs": "Einrichtungsanleitung anzeigen",
         "supported_providers": "Unterstützte Anbieter",
         "tooltip": "Derzeit sind für die Agent-Funktion nur Modelle verfügbar, die Anthropic-Endpunkte unterstützen.",
         "view_providers": "Unterstützte Anbieter anzeigen"
@@ -5167,6 +5170,7 @@
         "remove_model": "Modell entfernen",
         "remove_whole_group": "Gesamte Gruppe entfernen"
       },
+      "possibly_removed": "[to be translated]:This model may no longer be available from the provider",
       "provider_id": "Dienstanbieter-ID",
       "provider_key_add_confirm": "API-Schlüssel für {{provider}} hinzufügen?",
       "provider_key_add_failed_by_empty_data": "API-Schlüssel für Dienstanbieter hinzufügen fehlgeschlagen, Daten sind leer",

@@ -7,6 +7,9 @@
         "invalid_agent": "Đại lý không hợp lệ"
       },
       "model": {
+        "docs_link": "Nhà cung cấp tùy chỉnh",
+        "empty": "Không tìm thấy mô hình tương thích cho loại Agent này.",
+        "empty_docs": "Xem hướng dẫn thiết lập",
         "supported_providers": "Nhà cung cấp được hỗ trợ",
         "tooltip": "Hiện tại, chỉ những mô hình hỗ trợ các điểm cuối Anthropic mới có sẵn cho tính năng Agent.",
         "view_providers": "Xem các nhà cung cấp được hỗ trợ"
@@ -5167,6 +5170,7 @@
         "remove_model": "Xóa mô hình",
         "remove_whole_group": "Xóa toàn bộ nhóm"
       },
+      "possibly_removed": "[to be translated]:This model may no longer be available from the provider",
       "provider_id": "ID Nhà cung cấp",
       "provider_key_add_confirm": "Bạn có muốn thêm khóa API cho {{provider}} không?",
       "provider_key_add_failed_by_empty_data": "Không thể thêm khóa API của nhà cung cấp, dữ liệu trống",

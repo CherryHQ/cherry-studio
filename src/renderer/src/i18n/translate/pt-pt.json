@@ -7,6 +7,9 @@
         "invalid_agent": "Agent inválido"
       },
       "model": {
+        "docs_link": "Fornecedor personalizado",
+        "empty": "Não foram encontrados modelos compatíveis para este tipo de agente.",
+        "empty_docs": "Ver guia de configuração",
         "supported_providers": "Provedores Suportados",
         "tooltip": "Atualmente, apenas modelos que suportam endpoints da Anthropic estão disponíveis para o recurso Agente.",
         "view_providers": "Ver provedores suportados"
@@ -5167,6 +5170,7 @@
         "remove_model": "Remover Modelo",
         "remove_whole_group": "Remover todo o grupo"
       },
+      "possibly_removed": "[to be translated]:This model may no longer be available from the provider",
       "provider_id": "ID do Provedor",
       "provider_key_add_confirm": "Deseja adicionar uma chave API para {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Falha ao adicionar chave API do provedor: dados vazios",
