@@ -175,7 +175,7 @@ export function ProcessorPanel({
           </div>
         </div>
         {isDefault ? (
-          <Badge className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-emerald-600 text-xs dark:text-emerald-400">
+          <Badge className="shrink-0 rounded-full border border-success/20 bg-success/10 px-2 py-0.5 text-success text-xs">
             {t('common.default')}
           </Badge>
         ) : (
@@ -256,9 +256,9 @@ export function ProcessorPanel({
       {processor.id === 'system' ? (
         <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
           <SettingRow className="items-start justify-start gap-2 py-1">
-            <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-emerald-500" />
+            <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-success" />
             <div>
-              <SettingRowTitle className="font-medium text-emerald-600 text-xs dark:text-emerald-400">
+              <SettingRowTitle className="font-medium text-success text-xs">
                 {t('settings.tool.file_processing.processors.system.status.available')}
               </SettingRowTitle>
               <SettingHelpText className="mt-1 text-xs">

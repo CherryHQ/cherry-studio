@@ -125,7 +125,7 @@ export const providerListClasses = {
     'absolute right-1.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 data-[active=true]:opacity-100',
   /** Enabled-state dot — shown when `provider.isEnabled` is true; hidden on row hover or focus so the kebab takes the slot. */
   itemEnabledDot:
-    'pointer-events-none absolute right-[13px] top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
+    'pointer-events-none absolute right-[13px] top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-success transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
   groupAddRow:
     'flex w-full items-center gap-2 rounded-[10px] border border-dashed border-[color:var(--section-border)] bg-transparent px-2 py-[6px] text-[length:var(--font-size-body-xs)] leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/40 hover:text-foreground',
   disclosureToggle:
@@ -220,7 +220,7 @@ export const modelListClasses = {
   titleHelpRow: 'flex min-w-0 flex-wrap items-center gap-x-1 self-center text-foreground-muted',
   titleHelpText: 'shrink-0 opacity-60',
   titleHelpLink:
-    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] text-primary hover:underline',
+    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] text-link hover:underline',
   titleHelpSeparator:
     'inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] text-foreground-muted/50',
   countMeta:
@@ -481,7 +481,7 @@ export const oauthCardClasses = {
   loginFooterDivider: 'text-[length:var(--font-size-body-xs)] text-muted-foreground/50',
   /** CherryIN portal link — matches scoped caption + primary link treatment. */
   externalLink:
-    'mt-1 inline-block text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-primary hover:underline',
+    'mt-1 inline-block text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-link hover:underline',
   /** Logged-in CherryIN: mock CherryIN account section — one row, no stat grid. */
   shellLoggedIn:
     'w-full min-w-0 overflow-hidden rounded-[length:var(--radius-xl)] border border-[color:var(--color-border-fg-hairline)] px-3 py-2.5',
@@ -551,6 +551,5 @@ export const fieldClasses = {
   apiKeyVisibilityToggle:
     'flex size-5 shrink-0 items-center justify-center text-[var(--cherry-text-muted)] transition-colors hover:text-[var(--cherry-primary-hover)] disabled:pointer-events-none disabled:opacity-40',
   titleWithHelp: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1',
-  titleHelpLink:
-    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-body-sm)] text-primary hover:underline'
+  titleHelpLink: 'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-body-sm)] text-link hover:underline'
 } as const

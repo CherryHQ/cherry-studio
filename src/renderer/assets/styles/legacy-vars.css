@@ -29,7 +29,6 @@
   --color-border-mute: color-mix(in srgb, var(--color-border) 30%, transparent);
 
   --color-error: var(--color-error-base);
-  --color-link: #1677ff;
   --color-primary-bg: var(--color-primary-soft);
   --color-fill-secondary: var(--color-background-soft);
   --color-fill-2: var(--color-background-soft);
@@ -42,7 +41,6 @@
 
   --color-hover: var(--color-background-mute);
   --color-active: var(--color-background-soft);
-  --color-frame-border: #ddd;
   --color-group-background: var(--color-background-soft);
 
   --color-reference: #cfe1ff;
@@ -84,7 +82,6 @@
 
   --color-hover: color-mix(in srgb, var(--color-background) 82%, var(--color-foreground) 18%);
   --color-active: color-mix(in srgb, var(--color-background) 74%, var(--color-foreground) 26%);
-  --color-frame-border: #333;
   --color-reference: #404040;
   --color-reference-text: #ffffff;
   --color-reference-background: #0b0e12;
@@ -102,7 +99,6 @@
   --color-gray-2: #414853;
   --color-gray-3: #32363f;
   --color-icon-white: var(--color-white);
-  --color-link: #338cff;
 }
 
 [navbar-position='left'][theme-mode='light'] {

@@ -4,9 +4,14 @@
  */
 
 :root {
-  /* Brand Colors */
-  --cs-primary: var(--cs-brand-500);
-  --cs-primary-hover: var(--cs-brand-300);
+  /* Theme Colors — primary is neutral (near-black light / near-white dark);
+   * the green brand scale remains only as the default control accent
+   * (switch/slider/checkbox fills derive from it). */
+  --cs-primary: var(--cs-neutral-900);
+  --cs-primary-hover: var(--cs-neutral-800);
+  --cs-control-accent: var(--cs-brand-500);
+  --cs-control-accent-hover: var(--cs-brand-600);
+  --cs-control-accent-foreground: var(--cs-white);
   --cs-destructive: var(--cs-red-500);
   --cs-destructive-hover: var(--cs-red-400);
   --cs-success: var(--cs-green-500);
@@ -14,7 +19,7 @@
   --cs-info: var(--cs-blue-500);
 
   /* Background & Foreground */
-  --cs-background: var(--cs-white);
+  --cs-background: #ffffff;
   --cs-background-subtle: oklch(0 0 0 / 0.02);
   --cs-foreground: oklch(0 0 0 / 0.9);
   --cs-foreground-secondary: oklch(0 0 0 / 0.6);
@@ -34,9 +39,14 @@
   --cs-border-subtle: oklch(0 0 0 / 0.04);
   --cs-border-hover: oklch(0 0 0 / 0.2);
   --cs-border-active: oklch(0 0 0 / 0.3);
-  --cs-frame-border: oklch(0 0 0 / 0.12);
+  --cs-frame-border: #eaebe8;
 
-  /* Ring (Focus) */
+  /* Foreground-derived soft border for form controls (input/select etc.).
+   * 12% foreground mix gives a slightly stronger outline than --cs-border (10%)
+   * while still reading as quiet against neutral surfaces. */
+  --cs-border-fg-muted: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
+
+  /* Ring (Focus) — neutral, derived from primary so focus matches selection/expanded states */
   --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
 
   /* UI Element Colors */
@@ -49,7 +59,7 @@
   --cs-ghost-active: oklch(0 0 0 / 0.1); /* Ghost Button Active */
 
   /* Sidebar */
-  --cs-sidebar: var(--cs-white);
+  --cs-sidebar: #f7f8f7;
   --cs-sidebar-accent: oklch(0 0 0 / 0.05);
 
   /* Surface-paired foregrounds — all neutral surfaces share the app foreground.
@@ -62,7 +72,8 @@
   --cs-accent-foreground: var(--cs-foreground);
 
   /* Inverted foregrounds — used on solid colored fills (primary/destructive buttons).
-   * Kept as pure white so they stay legible regardless of light/dark mode shifts on the fill. */
+   * primary-foreground flips per mode (white on near-black / near-black on near-white);
+   * destructive stays pure white on its red fill in both modes. */
   --cs-primary-foreground: var(--cs-white);
   --cs-destructive-foreground: var(--cs-white);
 
@@ -81,12 +92,18 @@
 
 /* Dark Mode */
 .dark {
+  --cs-primary: var(--cs-neutral-100);
+  --cs-primary-hover: var(--cs-neutral-200);
+  --cs-primary-foreground: var(--cs-neutral-900);
+  --cs-control-accent: var(--cs-brand-400);
+  --cs-control-accent-hover: var(--cs-brand-300);
+  --cs-control-accent-foreground: var(--cs-neutral-900);
   --cs-success: var(--cs-green-400);
   --cs-warning: var(--cs-amber-400);
   --cs-info: var(--cs-blue-400);
 
   /* Background & Foreground */
-  --cs-background: oklch(0.191 0 0 / 0.55);
+  --cs-background: #1515148c; /* #151514 @ 0.55 alpha — alpha lets macOS transparent windows blur the wallpaper through */
   --cs-background-subtle: oklch(1 0 0 / 0.02);
   --cs-foreground: oklch(1 0 0 / 0.9);
   --cs-foreground-secondary: oklch(1 0 0 / 0.6);
@@ -105,10 +122,13 @@
   --cs-border-subtle: oklch(1 0 0 / 0.05);
   --cs-border-hover: oklch(1 0 0 / 0.2);
   --cs-border-active: oklch(1 0 0 / 0.3);
-  --cs-frame-border: oklch(1 0 0 / 0.14);
+  --cs-frame-border: #1f201d;
 
-  /* Ring (Focus) - 保持不变 */
-  --cs-ring: oklch(0.76 0.204 131 / 0.4);
+  /* Foreground-derived soft border (dark) — see :root note. */
+  --cs-border-fg-muted: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
+
+  /* Ring (Focus) — neutral, derived from primary (was hardcoded lime) */
+  --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
 
   /* UI Element Colors - Dark Mode */
   --cs-secondary: oklch(1 0 0 / 0.1); /* Secondary Button Background */
@@ -120,6 +140,6 @@
   --cs-ghost-active: oklch(1 0 0 / 0.15); /* Ghost Button Active */
 
   /* Sidebar */
-  --cs-sidebar: var(--cs-black);
+  --cs-sidebar: #090a05;
   --cs-sidebar-accent: oklch(1 0 0 / 0.1);
 }
