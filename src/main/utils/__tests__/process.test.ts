@@ -11,6 +11,7 @@ import {
   findExecutable,
   findGitBash,
   findViaMise,
+  normalizeCommandForStdio,
   validateGitBashPath
 } from '../process'
 
@@ -356,6 +357,37 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         const result = findExecutable('npm', { extensions: ['.cmd'] })
 
         expect(result).toBe('C:\\nodejs\\npm.CMD')
+      })
+    })
+  })
+
+  describe('normalizeCommandForStdio', () => {
+    it('should wrap .cmd files with cmd.exe for stdio transport', () => {
+      const result = normalizeCommandForStdio('C:\\Program Files\\nodejs\\npx.cmd', ['-y', '@foo/bar'], {
+        ComSpec: 'C:\\Windows\\System32\\cmd.exe'
+      })
+
+      expect(result).toEqual({
+        command: 'C:\\Windows\\System32\\cmd.exe',
+        args: ['/d', '/c', '"C:\\Program Files\\nodejs\\npx.cmd" -y @foo/bar']
+      })
+    })
+
+    it('should wrap .bat files and quote args containing spaces', () => {
+      const result = normalizeCommandForStdio('C:\\tools\\server.bat', ['--name', 'my server'])
+
+      expect(result).toEqual({
+        command: 'cmd.exe',
+        args: ['/d', '/c', 'C:\\tools\\server.bat --name "my server"']
+      })
+    })
+
+    it('should leave .exe commands unchanged', () => {
+      const result = normalizeCommandForStdio('C:\\nodejs\\node.exe', ['server.js'])
+
+      expect(result).toEqual({
+        command: 'C:\\nodejs\\node.exe',
+        args: ['server.js']
       })
     })
   })
