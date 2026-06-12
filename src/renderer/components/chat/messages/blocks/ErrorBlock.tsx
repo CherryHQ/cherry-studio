@@ -174,7 +174,7 @@ const MessageErrorInfo: React.FC<{
   return (
     <div
       className={cn(
-        'group relative my-2 rounded-lg border border-border border-l-[3px] border-l-error-base bg-transparent px-3.5 py-3 text-[13px] transition-all duration-200',
+        'group relative my-2 rounded-lg border border-border border-l-[3px] border-l-error-border bg-transparent px-3.5 py-3 text-[13px] transition-all duration-200',
         canOpenDetail && 'cursor-pointer'
       )}
       onClick={canOpenDetail ? showErrorDetail : undefined}>
@@ -192,10 +192,10 @@ const MessageErrorInfo: React.FC<{
 
       {/* Header: icon + title */}
       <div className="mb-1.5 flex items-center gap-2">
-        <div className="flex shrink-0 items-center justify-center text-error-base">
+        <div className="flex shrink-0 items-center justify-center text-foreground-muted">
           <AlertTriangle size={15} />
         </div>
-        <div className="pr-5 font-semibold text-[13px] leading-[1.4]">{aiSummary || t(classification.i18nKey)}</div>
+        <div className="pr-5 font-medium text-[13px] leading-[1.4]">{aiSummary || t(classification.i18nKey)}</div>
       </div>
 
       {/* Description */}
@@ -212,7 +212,7 @@ const MessageErrorInfo: React.FC<{
             size="sm"
             type="button"
             variant="outline"
-            className="rounded-[5px] border-error-border bg-error-bg text-error-text hover:border-error-border-hover hover:bg-error-bg-hover hover:text-error-text-hover"
+            className="rounded-[5px] text-foreground-secondary hover:border-border-hover hover:bg-accent hover:text-foreground"
             onClick={onNavigate}>
             {t('error.diagnosis.go_to_settings')}
           </Button>
