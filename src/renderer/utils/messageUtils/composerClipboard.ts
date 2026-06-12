@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { FILE_TYPE, type FileMetadata, type FileType } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { type CherryFileMeta, type ComposerMessageToken, readCherryMeta } from '@shared/data/types/uiParts'
@@ -11,6 +12,8 @@ import {
   readComposerFileTokenSourceIdFromTokenId,
   withComposerFileTokenSourceId
 } from './composerFileTokenSource'
+
+const logger = loggerService.withContext('composerClipboard')
 
 export const COMPOSER_CLIPBOARD_FRAGMENT_MIME = 'web application/x-cherry-composer-fragment+json'
 
@@ -686,7 +689,8 @@ export async function writeComposerRichClipboardContent(content: ComposerRichCli
           sessionCachedRichClipboardWrite = { plainText: normalizeClipboardLineEndings(content.plainText), fragment }
         }
         return
-      } catch {
+      } catch (error) {
+        logger.warn('Failed to write composer clipboard custom formats, falling back to text-only data', error as Error)
         await navigator.clipboard.write([new clipboardItemConstructor(baseItems)])
         return
       }
