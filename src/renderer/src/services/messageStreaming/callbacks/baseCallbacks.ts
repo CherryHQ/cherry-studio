@@ -288,6 +288,10 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
     },
 
     onComplete: async (status: AssistantMessageStatus, response?: Response) => {
+      if (status === 'success') {
+        await flushPendingText?.()
+      }
+
       const finalStateOnComplete = getState()
       const finalAssistantMsg = finalStateOnComplete.messages.entities[assistantMsgId]
 
