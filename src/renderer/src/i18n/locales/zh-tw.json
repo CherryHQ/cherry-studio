@@ -38,6 +38,23 @@
         "connecting": "連接",
         "deleteConfirm": "確定刪除頻道「{{name}}」？",
         "description": "將您的 Agent 連接到訊息平台。",
+        "dingtalk": {
+          "chatIds": "允許的會話",
+          "chatIdsHint": "格式 \"p2p:<staffId>\"（單聊）或 \"group:<openConversationId>\"（群聊），用逗號分隔。留空則自動追蹤所有有訊息的會話。",
+          "chatIdsPlaceholder": "p2p:0123456789, group:cidXXXXXX==",
+          "clientId": "App Key",
+          "clientIdPlaceholder": "釘釘企業內部應用 Client ID / App Key（掃碼後自動填入）",
+          "clientSecret": "App Secret",
+          "clientSecretPlaceholder": "釘釘企業內部應用 Client Secret / App Secret（掃碼後自動填入）",
+          "connected": "已連線",
+          "description": "透過釘釘企業內部機器人接收和回覆訊息（Stream 模式，無需公網 IP）。",
+          "loginHint": "留空 App Key / App Secret 並啟用頻道，即可使用釘釘掃碼授權。",
+          "qrExpired": "QR 碼已過期，請關閉後重新啟用頻道再試。",
+          "qrHint": "請使用釘釘掃描 QR 碼完成授權。",
+          "qrScanHint": "請打開手機釘釘並掃描以授權企業內部應用機器人。",
+          "qrTitle": "釘釘掃碼授權",
+          "title": "釘釘"
+        },
         "disconnected": "已中斷連線",
         "discord": {
           "botToken": "Bot Token",
@@ -134,6 +151,23 @@
           "qrTitle": "微信 QR 碼登入",
           "title": "微信",
           "whoamiTip": "提示：在微信中發送 /whoami 可取得使用者的 ID。"
+        },
+        "wecom": {
+          "botId": "Bot ID",
+          "botIdPlaceholder": "企業微信智能機器人 Bot ID（掃碼後自動填入）",
+          "botSecret": "Bot Secret",
+          "botSecretPlaceholder": "企業微信智能機器人 Secret（掃碼後自動填入）",
+          "chatIds": "允許的會話",
+          "chatIdsHint": "格式 \"1:userid\"（單聊）或 \"2:groupid\"（群聊），用逗號分隔。企業微信需顯式指定會話才能輪詢消息。",
+          "chatIdsPlaceholder": "1:zhangsan, 2:wrxxxxxx",
+          "connected": "已連線",
+          "description": "透過企業微信智能機器人接收和回覆消息（30 秒輪詢）。",
+          "loginHint": "留空 Bot ID / Secret 並啟用頻道，即可使用企業微信掃碼綁定。",
+          "qrExpired": "QR 碼已過期，請關閉後重新啟用頻道再試。",
+          "qrHint": "請使用企業微信掃描 QR 碼完成綁定。",
+          "qrScanHint": "請打開手機企業微信並掃描以授權智能機器人。",
+          "qrTitle": "企業微信掃碼綁定",
+          "title": "企業微信"
         }
       },
       "heartbeat": {

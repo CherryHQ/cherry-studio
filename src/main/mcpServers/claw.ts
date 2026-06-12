@@ -157,6 +157,30 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
       '6. Invite the bot to channels by typing /invite @YourBotName in the desired Slack channel.',
       '7. allowed_channel_ids is optional — leave empty to allow all channels the bot is in.'
     ].join(' ')
+  },
+  wecom: {
+    required: [],
+    optional: ['bot_id', 'bot_secret', 'allowed_chat_ids'],
+    description: [
+      'WeCom (企业微信 / WeChat Work) smart bot via the official Bot Open API. Uses 30s polling — no webhook needed.',
+      'Two setup paths:',
+      'A) QR scan (recommended): omit bot_id and bot_secret entirely — a QR code is returned for the user to scan with WeCom. Credentials are auto-obtained and saved.',
+      'B) Manual: obtain Bot ID and Secret from the WeCom admin console (https://open.work.weixin.qq.com/help2/pc/cat?doc_id=21677) and pass them as bot_id / bot_secret.',
+      'allowed_chat_ids format: ["<chat_type>:<chatid>", ...] where chat_type is 1 (DM, chatid = userid) or 2 (group, chatid = group id). Example: ["1:zhangsan", "2:wrxxxxxx"].',
+      'WeCom enforces a 7-day history window on get_message; the adapter clamps queries accordingly and only delivers messages newer than the connect time on first poll.'
+    ].join(' ')
+  },
+  dingtalk: {
+    required: [],
+    optional: ['client_id', 'client_secret', 'allowed_chat_ids'],
+    description: [
+      'DingTalk (钉钉) enterprise inner-app bot via Stream mode (WebSocket — no public IP required).',
+      'Two setup paths:',
+      'A) QR scan (recommended): omit client_id and client_secret — a QR code is returned for the user to scan with DingTalk to authorize. Credentials are auto-obtained.',
+      'B) Manual: create an enterprise inner-app at https://open-dev.dingtalk.com/, enable Stream mode, and pass the App Key as client_id and App Secret as client_secret.',
+      'allowed_chat_ids format: ["p2p:<staffId>", "group:<openConversationId>", ...]. Empty list auto-tracks chats the bot receives messages from. Use /whoami in DingTalk to see your staff/group IDs.',
+      'Replies within ~5 minutes of an inbound message route through the session webhook; older replies fall back to proactive send.'
+    ].join(' ')
   }
 }
 
@@ -183,7 +207,7 @@ const CONFIG_TOOL: Tool = {
       },
       type: {
         type: 'string',
-        enum: ['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack'],
+        enum: ['telegram', 'feishu', 'qq', 'wechat', 'discord', 'slack', 'wecom', 'dingtalk'],
         description: "Channel adapter type (required for 'add_channel')"
       },
       name: {
@@ -493,10 +517,15 @@ class ClawServer {
       isActive: enabled ?? true
     })
 
-    // For channels that use QR-based setup (WeChat login, Feishu app registration),
-    // connect is blocking (waits for QR scan), so run sync in background
-    // and wait only for the QR URL to return it to the agent.
-    const needsQr = type === 'wechat' || (type === 'feishu' && !cfg.app_id && !cfg.app_secret)
+    // For channels that use QR-based setup (WeChat login, Feishu app registration,
+    // WeCom smart bot binding, DingTalk Device Flow), connect is blocking (waits
+    // for QR scan), so run sync in background and wait only for the QR URL to
+    // return it to the agent.
+    const needsQr =
+      type === 'wechat' ||
+      (type === 'feishu' && !cfg.app_id && !cfg.app_secret) ||
+      (type === 'wecom' && !cfg.bot_id && !cfg.bot_secret) ||
+      (type === 'dingtalk' && !cfg.client_id && !cfg.client_secret)
 
     if (needsQr) {
       const qrPromise = channelManager.waitForQrUrl(this.agentId, newChannel.id, 30_000)
@@ -509,11 +538,16 @@ class ClawServer {
         })
       })
 
-      const channelLabel = type === 'wechat' ? 'WeChat' : 'Feishu'
+      const channelLabel =
+        type === 'wechat' ? 'WeChat' : type === 'wecom' ? 'WeCom' : type === 'dingtalk' ? 'DingTalk' : 'Feishu'
       const scanHint =
         type === 'wechat'
           ? 'scan with WeChat to log in'
-          : 'scan with Feishu to create a bot app and obtain credentials automatically'
+          : type === 'wecom'
+            ? 'scan with WeCom to bind the smart bot and obtain credentials automatically'
+            : type === 'dingtalk'
+              ? 'scan with DingTalk to authorize the bot and obtain credentials automatically'
+              : 'scan with Feishu to create a bot app and obtain credentials automatically'
 
       try {
         const qrUrl = await qrPromise
@@ -618,8 +652,12 @@ class ClawServer {
     const channel = await channelService.getChannel(channelId)
     if (!channel) throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
+    const cfg = channel.config as Record<string, unknown>
     const needsQr =
-      channel.type === 'wechat' || (channel.type === 'feishu' && !(channel.config as Record<string, unknown>).app_id)
+      channel.type === 'wechat' ||
+      (channel.type === 'feishu' && !cfg.app_id) ||
+      (channel.type === 'wecom' && !cfg.bot_id) ||
+      (channel.type === 'dingtalk' && !cfg.client_id)
 
     if (!needsQr) {
       await channelManager.syncChannel(channelId)
@@ -638,7 +676,14 @@ class ClawServer {
       })
     })
 
-    const channelLabel = channel.type === 'wechat' ? 'WeChat' : 'Feishu'
+    const channelLabel =
+      channel.type === 'wechat'
+        ? 'WeChat'
+        : channel.type === 'wecom'
+          ? 'WeCom'
+          : channel.type === 'dingtalk'
+            ? 'DingTalk'
+            : 'Feishu'
 
     try {
       const qrUrl = await qrPromise

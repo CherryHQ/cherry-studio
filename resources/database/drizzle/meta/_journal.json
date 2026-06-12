@@ -56,6 +56,20 @@
       "when": 1776236285350,
       "tag": "0007_strange_galactus",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1779443790665,
+      "tag": "0008_bouncy_romulus",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1779450844836,
+      "tag": "0009_unusual_mentor",
+      "breakpoints": true
     }
   ],
   "version": "7"

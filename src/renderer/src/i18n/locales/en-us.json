@@ -38,6 +38,23 @@
         "connecting": "Connecting",
         "deleteConfirm": "Delete channel \"{{name}}\"?",
         "description": "Connect your agent to messaging platforms.",
+        "dingtalk": {
+          "chatIds": "Allowed Chats",
+          "chatIdsHint": "Format \"p2p:<staffId>\" (DM) or \"group:<openConversationId>\" (group), comma-separated. Empty allows any chat the bot receives.",
+          "chatIdsPlaceholder": "p2p:0123456789, group:cidXXXXXX==",
+          "clientId": "App Key",
+          "clientIdPlaceholder": "DingTalk inner-app Client ID / App Key (auto-filled after QR scan)",
+          "clientSecret": "App Secret",
+          "clientSecretPlaceholder": "DingTalk inner-app Client Secret / App Secret (auto-filled after QR scan)",
+          "connected": "Connected",
+          "description": "Receive and respond to messages via a DingTalk enterprise inner-app bot using Stream mode (no public IP needed).",
+          "loginHint": "Leave App Key / App Secret blank and enable the channel to bind via QR code with DingTalk.",
+          "qrExpired": "QR code expired. Disable and re-enable the channel to retry.",
+          "qrHint": "Scan with DingTalk to authorize the bot.",
+          "qrScanHint": "Open DingTalk on your phone and scan to authorize the inner-app bot.",
+          "qrTitle": "DingTalk QR Login",
+          "title": "DingTalk"
+        },
         "disconnected": "Disconnected",
         "discord": {
           "botToken": "Bot Token",
@@ -134,6 +151,23 @@
           "qrTitle": "WeChat QR Login",
           "title": "WeChat",
           "whoamiTip": "Tip: Send /whoami in WeChat to get a user's ID."
+        },
+        "wecom": {
+          "botId": "Bot ID",
+          "botIdPlaceholder": "WeCom smart bot ID (auto-filled after QR scan)",
+          "botSecret": "Bot Secret",
+          "botSecretPlaceholder": "WeCom smart bot secret (auto-filled after QR scan)",
+          "chatIds": "Allowed Chats",
+          "chatIdsHint": "Format \"1:userid\" (DM) or \"2:groupid\" (group), comma-separated. WeCom requires explicit chats for polling.",
+          "chatIdsPlaceholder": "1:zhangsan, 2:wrxxxxxx",
+          "connected": "Connected",
+          "description": "Receive and respond to messages via a WeCom smart bot (30 s polling).",
+          "loginHint": "Leave Bot ID / Secret blank and enable the channel to bind via QR code with WeCom.",
+          "qrExpired": "QR code expired. Disable and re-enable the channel to retry.",
+          "qrHint": "Scan with WeCom to bind the smart bot.",
+          "qrScanHint": "Open WeCom on your phone and scan to authorize the smart bot.",
+          "qrTitle": "WeCom QR Login",
+          "title": "WeCom"
         }
       },
       "heartbeat": {

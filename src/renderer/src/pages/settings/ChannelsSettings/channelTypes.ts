@@ -1,5 +1,5 @@
 export type AvailableChannel = {
-  type: 'telegram' | 'feishu' | 'qq' | 'wechat' | 'discord' | 'slack'
+  type: 'telegram' | 'feishu' | 'qq' | 'wechat' | 'discord' | 'slack' | 'wecom' | 'dingtalk'
   name: string
   titleKey: string
   description: string
@@ -62,6 +62,22 @@ export const AVAILABLE_CHANNELS: AvailableChannel[] = [
     description: 'agent.cherryClaw.channels.slack.description',
     available: true,
     defaultConfig: { bot_token: '', app_token: '', allowed_channel_ids: [] }
+  },
+  {
+    type: 'wecom',
+    name: 'WeCom',
+    titleKey: 'agent.cherryClaw.channels.wecom.title',
+    description: 'agent.cherryClaw.channels.wecom.description',
+    available: true,
+    defaultConfig: { bot_id: '', bot_secret: '', allowed_chat_ids: [] }
+  },
+  {
+    type: 'dingtalk',
+    name: 'DingTalk',
+    titleKey: 'agent.cherryClaw.channels.dingtalk.title',
+    description: 'agent.cherryClaw.channels.dingtalk.description',
+    available: true,
+    defaultConfig: { client_id: '', client_secret: '', allowed_chat_ids: [] }
   }
 ]
 

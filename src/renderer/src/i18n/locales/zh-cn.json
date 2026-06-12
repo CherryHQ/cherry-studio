@@ -38,6 +38,23 @@
         "connecting": "连接中",
         "deleteConfirm": "确定删除频道「{{name}}」？",
         "description": "将您的 Agent 连接到消息平台。",
+        "dingtalk": {
+          "chatIds": "允许的会话",
+          "chatIdsHint": "格式 \"p2p:<staffId>\"（单聊）或 \"group:<openConversationId>\"（群聊），用逗号分隔。留空则自动跟踪所有有消息的会话。",
+          "chatIdsPlaceholder": "p2p:0123456789, group:cidXXXXXX==",
+          "clientId": "App Key",
+          "clientIdPlaceholder": "钉钉企业内部应用 Client ID / App Key（扫码后自动填入）",
+          "clientSecret": "App Secret",
+          "clientSecretPlaceholder": "钉钉企业内部应用 Client Secret / App Secret（扫码后自动填入）",
+          "connected": "已连接",
+          "description": "通过钉钉企业内部机器人接收和回复消息（Stream 模式，无需公网 IP）。",
+          "loginHint": "留空 App Key / App Secret 并启用频道，即可使用钉钉扫码授权。",
+          "qrExpired": "二维码已过期，请关闭后重新启用频道再试。",
+          "qrHint": "请使用钉钉扫描二维码完成授权。",
+          "qrScanHint": "请打开手机钉钉并扫描以授权企业内部应用机器人。",
+          "qrTitle": "钉钉扫码授权",
+          "title": "钉钉"
+        },
         "disconnected": "已断开",
         "discord": {
           "botToken": "Bot Token",
@@ -134,6 +151,23 @@
           "qrTitle": "微信扫码登录",
           "title": "微信",
           "whoamiTip": "提示：在微信中发送 /whoami 可获取用户 ID。"
+        },
+        "wecom": {
+          "botId": "Bot ID",
+          "botIdPlaceholder": "企业微信智能机器人 Bot ID（扫码后自动填入）",
+          "botSecret": "Bot Secret",
+          "botSecretPlaceholder": "企业微信智能机器人 Secret（扫码后自动填入）",
+          "chatIds": "允许的会话",
+          "chatIdsHint": "格式 \"1:userid\"（单聊）或 \"2:groupid\"（群聊），用逗号分隔。企业微信需显式指定会话才能轮询消息。",
+          "chatIdsPlaceholder": "1:zhangsan, 2:wrxxxxxx",
+          "connected": "已连接",
+          "description": "通过企业微信智能机器人接收和回复消息（30 秒轮询）。",
+          "loginHint": "留空 Bot ID / Secret 并启用频道，即可使用企业微信扫码绑定。",
+          "qrExpired": "二维码已过期，请关闭后重新启用频道再试。",
+          "qrHint": "请使用企业微信扫描二维码完成绑定。",
+          "qrScanHint": "请打开手机企业微信并扫描以授权智能机器人。",
+          "qrTitle": "企业微信扫码绑定",
+          "title": "企业微信"
         }
       },
       "heartbeat": {

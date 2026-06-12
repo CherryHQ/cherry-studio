@@ -493,6 +493,200 @@ export const SlackForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => 
   )
 }
 
+type WeComStatus = 'idle' | 'pending' | 'confirmed' | 'expired' | 'disconnected'
+
+export const WeComForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
+  const { t } = useTranslation()
+  const cfg = channel.config
+  const hasCredentials = !!(cfg.bot_id && cfg.bot_secret)
+  const [qrUrl, setQrUrl] = useState<string | null>(null)
+  const [status, setStatus] = useState<WeComStatus>(hasCredentials ? 'confirmed' : 'idle')
+
+  useEffect(() => {
+    const cleanup = window.api.wecom.onQrLogin((data) => {
+      if (data.channelId !== channel.id) return
+      if (data.status === 'confirmed') {
+        setQrUrl(null)
+        setStatus('confirmed')
+      } else if (data.status === 'expired') {
+        setQrUrl(null)
+        setStatus('expired')
+      } else if (data.status === 'disconnected') {
+        setQrUrl(null)
+        setStatus('disconnected')
+      } else if (data.url) {
+        setQrUrl(data.url)
+        setStatus('pending')
+      }
+    })
+    return cleanup
+  }, [channel.id])
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        {status === 'confirmed' && (
+          <>
+            <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+            <span className="text-green-600 text-xs">{t('agent.cherryClaw.channels.wecom.connected')}</span>
+          </>
+        )}
+        {status === 'pending' && (
+          <span className="text-blue-400 text-xs">{t('agent.cherryClaw.channels.wecom.qrHint')}</span>
+        )}
+        {status === 'expired' && (
+          <>
+            <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
+            <span className="text-red-500 text-xs">{t('agent.cherryClaw.channels.wecom.qrExpired')}</span>
+          </>
+        )}
+        {(status === 'idle' || status === 'disconnected') && !hasCredentials && (
+          <span className="text-blue-400 text-xs">{t('agent.cherryClaw.channels.wecom.loginHint')}</span>
+        )}
+      </div>
+
+      <ChannelFieldsForm
+        channel={channel}
+        onConfigChange={onConfigChange}
+        fields={[
+          {
+            key: 'bot_id',
+            label: t('agent.cherryClaw.channels.wecom.botId'),
+            placeholder: t('agent.cherryClaw.channels.wecom.botIdPlaceholder')
+          },
+          {
+            key: 'bot_secret',
+            label: t('agent.cherryClaw.channels.wecom.botSecret'),
+            placeholder: t('agent.cherryClaw.channels.wecom.botSecretPlaceholder'),
+            secret: true
+          }
+        ]}
+        chatIds={{
+          label: t('agent.cherryClaw.channels.wecom.chatIds'),
+          placeholder: t('agent.cherryClaw.channels.wecom.chatIdsPlaceholder'),
+          hint: t('agent.cherryClaw.channels.wecom.chatIdsHint'),
+          fullWidth: true
+        }}
+      />
+
+      <Modal
+        open={!!qrUrl}
+        title={t('agent.cherryClaw.channels.wecom.qrTitle')}
+        footer={null}
+        onCancel={() => {
+          setQrUrl(null)
+          if (status === 'pending') setStatus('idle')
+        }}
+        centered
+        width={360}>
+        <div className="flex flex-col items-center gap-4 py-4">
+          {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
+          <span className="text-center text-foreground-500 text-xs">
+            {t('agent.cherryClaw.channels.wecom.qrScanHint')}
+          </span>
+        </div>
+      </Modal>
+    </div>
+  )
+}
+
+type DingTalkStatus = 'idle' | 'pending' | 'confirmed' | 'expired' | 'disconnected'
+
+export const DingTalkForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
+  const { t } = useTranslation()
+  const cfg = channel.config
+  const hasCredentials = !!(cfg.client_id && cfg.client_secret)
+  const [qrUrl, setQrUrl] = useState<string | null>(null)
+  const [status, setStatus] = useState<DingTalkStatus>(hasCredentials ? 'confirmed' : 'idle')
+
+  useEffect(() => {
+    const cleanup = window.api.dingtalk.onQrLogin((data) => {
+      if (data.channelId !== channel.id) return
+      if (data.status === 'confirmed') {
+        setQrUrl(null)
+        setStatus('confirmed')
+      } else if (data.status === 'expired') {
+        setQrUrl(null)
+        setStatus('expired')
+      } else if (data.status === 'disconnected') {
+        setQrUrl(null)
+        setStatus('disconnected')
+      } else if (data.url) {
+        setQrUrl(data.url)
+        setStatus('pending')
+      }
+    })
+    return cleanup
+  }, [channel.id])
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center gap-2">
+        {status === 'confirmed' && (
+          <>
+            <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+            <span className="text-green-600 text-xs">{t('agent.cherryClaw.channels.dingtalk.connected')}</span>
+          </>
+        )}
+        {status === 'pending' && (
+          <span className="text-blue-400 text-xs">{t('agent.cherryClaw.channels.dingtalk.qrHint')}</span>
+        )}
+        {status === 'expired' && (
+          <>
+            <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
+            <span className="text-red-500 text-xs">{t('agent.cherryClaw.channels.dingtalk.qrExpired')}</span>
+          </>
+        )}
+        {(status === 'idle' || status === 'disconnected') && !hasCredentials && (
+          <span className="text-blue-400 text-xs">{t('agent.cherryClaw.channels.dingtalk.loginHint')}</span>
+        )}
+      </div>
+
+      <ChannelFieldsForm
+        channel={channel}
+        onConfigChange={onConfigChange}
+        fields={[
+          {
+            key: 'client_id',
+            label: t('agent.cherryClaw.channels.dingtalk.clientId'),
+            placeholder: t('agent.cherryClaw.channels.dingtalk.clientIdPlaceholder')
+          },
+          {
+            key: 'client_secret',
+            label: t('agent.cherryClaw.channels.dingtalk.clientSecret'),
+            placeholder: t('agent.cherryClaw.channels.dingtalk.clientSecretPlaceholder'),
+            secret: true
+          }
+        ]}
+        chatIds={{
+          label: t('agent.cherryClaw.channels.dingtalk.chatIds'),
+          placeholder: t('agent.cherryClaw.channels.dingtalk.chatIdsPlaceholder'),
+          hint: t('agent.cherryClaw.channels.dingtalk.chatIdsHint'),
+          fullWidth: true
+        }}
+      />
+
+      <Modal
+        open={!!qrUrl}
+        title={t('agent.cherryClaw.channels.dingtalk.qrTitle')}
+        footer={null}
+        onCancel={() => {
+          setQrUrl(null)
+          if (status === 'pending') setStatus('idle')
+        }}
+        centered
+        width={360}>
+        <div className="flex flex-col items-center gap-4 py-4">
+          {qrUrl && <QRCodeSVG value={qrUrl} size={240} level="M" />}
+          <span className="text-center text-foreground-500 text-xs">
+            {t('agent.cherryClaw.channels.dingtalk.qrScanHint')}
+          </span>
+        </div>
+      </Modal>
+    </div>
+  )
+}
+
 export const getFormForType = (type: string) => {
   switch (type) {
     case 'telegram':
@@ -507,6 +701,10 @@ export const getFormForType = (type: string) => {
       return SlackForm
     case 'wechat':
       return WeChatForm
+    case 'wecom':
+      return WeComForm
+    case 'dingtalk':
+      return DingTalkForm
     default:
       return null
   }
