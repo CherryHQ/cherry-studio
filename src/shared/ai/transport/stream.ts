@@ -59,8 +59,8 @@ export interface ComposerQueuedMessagePayload {
  * (`exec.status === 'streaming'` — set at launch, cleared only by `done` /
  * `error` / `aborted`). Empty when every execution has hit a terminal state.
  *
- * `awaitingApprovalAnchors` names every execution currently paused on a
- * `tool-approval-request` (`exec.awaitingApproval === true`), even after
+ * `awaitingApprovalAnchors` names every execution with a still-pending
+ * `tool-approval-request` (`exec.pendingApprovalToolCallIds` non-empty), even after
  * the execution itself has terminated (MCP `needsApproval` ends the stream
  * cleanly via `done`). The renderer's per-message "is this the active turn
  * target?" predicate reads this — Main is the single authority for the

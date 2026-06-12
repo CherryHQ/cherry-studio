@@ -199,9 +199,7 @@ function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondi
 
   const { headers, maxRetries } = request.requestOptions ?? {}
   const baseStopWhen = assistant ? resolveStopWhenForAssistant(assistant) : undefined
-  const stopWhen: StopCondition<ToolSet> | StopCondition<ToolSet>[] | undefined = featureStopConditions.length
-    ? [...(baseStopWhen ? [baseStopWhen] : []), ...featureStopConditions]
-    : baseStopWhen
+  const stopWhen = composeStopWhen(baseStopWhen, featureStopConditions)
   const telemetry = buildTelemetry(scope)
 
   return {
@@ -251,6 +249,26 @@ export function applyCallOverrides(
     providerOptions = merged
   }
   return { standardParams, providerOptions }
+}
+
+/** Mirrors the AI SDK / `ToolLoopAgent` default step cap (`stepCountIs(20)`). Used as the fallback
+ *  bound when a feature contributes a `stopWhen` but no assistant base supplies one — passing any
+ *  explicit `stopWhen` otherwise suppresses the SDK default and leaves the tool loop uncapped. */
+const SDK_DEFAULT_STEP_COUNT = 20
+
+/**
+ * OR the assistant's step cap with feature-contributed stop conditions. An explicit `stopWhen`
+ * suppresses the loop's default `stepCountIs(20)`, so when a feature contributes a condition but no
+ * assistant base supplies a cap, fall back to that default — otherwise an assistant-less tool loop
+ * (e.g. a `chatId`-only steer-yield request) would run unbounded.
+ */
+export function composeStopWhen(
+  baseStopWhen: StopCondition<ToolSet> | undefined,
+  featureStopConditions: StopCondition<ToolSet>[]
+): StopCondition<ToolSet> | StopCondition<ToolSet>[] | undefined {
+  if (featureStopConditions.length === 0) return baseStopWhen
+  const base = baseStopWhen ?? stepCountIs(SDK_DEFAULT_STEP_COUNT)
+  return [base, ...featureStopConditions]
 }
 
 function resolveStopWhenForAssistant(assistant: Assistant): ReturnType<typeof stepCountIs> {

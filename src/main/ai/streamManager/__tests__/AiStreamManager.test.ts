@@ -872,7 +872,7 @@ describe('AiStreamManager', () => {
       expect(mgr.hasPendingSteer('a')).toBe(false)
     })
 
-    // ── failure paths (review blockers 1–3) ──────────────────────────
+    // ── failure paths: queue-drop, no-chain-on-error, continuation-launch failure ──
 
     it('drops — does not chain — a steer that lands after an aborted settle (Stop race)', async () => {
       // The user pressed Stop; the steer's enqueue lands AFTER the abort settled. It must not start a
@@ -927,7 +927,7 @@ describe('AiStreamManager', () => {
       expect(mgr.hasPendingSteer('a')).toBe(false)
     })
 
-    it('does not chain while an execution is awaiting approval (blocker 3)', async () => {
+    it('does not chain while an execution is awaiting approval', async () => {
       // A turn that ends `awaiting-approval` with a steer queued must NOT launch a continuation: the
       // user's Approve dispatches `continue-conversation`, which a live continuation would swallow.
       const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
@@ -964,7 +964,7 @@ describe('AiStreamManager', () => {
     })
 
     it('queues a steer that lands after the turn parked on approval, without launching (variant B)', async () => {
-      // Same as blocker 3, but the steer lands AFTER the park (not before): it must still queue for the
+      // As above, but the steer lands AFTER the park (not before): it must still queue for the
       // post-approval continuation, not read a non-live status and drop.
       const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
       startSingle(mgr, {
@@ -1012,7 +1012,7 @@ describe('AiStreamManager', () => {
       expect(mgr.hasPendingSteer('b')).toBe(false)
     })
 
-    it('writes a terminal error and notifies carried windows when the continuation fails to launch (blocker 1)', async () => {
+    it('writes a terminal error and notifies carried windows when the continuation fails to launch', async () => {
       const wc = new FakeListener('wc:1')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [wc] })
       mgr.enqueuePendingSteer('a', 'u1') // queued while live
@@ -1506,7 +1506,7 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l:t')]
       })
 
-      // `tool-approval-request` sets exec.awaitingApproval and flips pending → streaming.
+      // `tool-approval-request` records the pending toolCallId and flips pending → streaming.
       mgr.onChunk('t', 'p::m', { type: 'tool-approval-request' } as UIMessageChunk)
       expect(statusSequence('t')).toEqual(['pending', 'streaming'])
 
@@ -1526,11 +1526,11 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l:t')]
       })
 
-      // Approval request sets exec.awaitingApproval and flips pending → streaming.
+      // Approval request records the pending toolCallId and flips pending → streaming.
       mgr.onChunk('t', 'p::m', { type: 'tool-approval-request' } as UIMessageChunk)
       expect(statusSequence('t')).toEqual(['pending', 'streaming'])
 
-      // The tool output for the same call resolves the approval: exec.awaitingApproval clears.
+      // The tool output for the same call clears that toolCallId from the pending set.
       mgr.onChunk('t', 'p::m', { type: 'tool-output-available' } as UIMessageChunk)
 
       // resolveTerminalStatus no longer finds a paused exec, so the terminal status is `done`,
@@ -1541,11 +1541,29 @@ describe('AiStreamManager', () => {
       expect(mgr.inspect('t')!.status).not.toBe('awaiting-approval')
     })
 
+    it('keeps awaiting-approval when a sibling tool resolves while another approval is still pending', async () => {
+      startSingle(mgr, {
+        topicId: 't',
+        modelId: 'p::m',
+        request: req('t'),
+        listeners: [new FakeListener('l:t')]
+      })
+
+      // One tool is awaiting approval; a parallel tool is still running.
+      mgr.onChunk('t', 'p::m', { type: 'tool-approval-request', toolCallId: 'call-approve' } as UIMessageChunk)
+      // The sibling's output clears only its own toolCallId — the pending approval must survive
+      // (pre-fix this single boolean was cleared by any tool-output and the topic settled to `done`).
+      mgr.onChunk('t', 'p::m', { type: 'tool-output-available', toolCallId: 'call-other' } as UIMessageChunk)
+
+      await mgr.onExecutionDone('t', 'p::m')
+      expect(mgr.inspect('t')!.status).toBe('awaiting-approval')
+    })
+
     // ── Teardown clears the awaiting-approval flag (no manager-side settle) ──
     //
     // A turn torn down (paused/errored) while a tool is `approval-requested`
-    // gets no `tool-output-*` to clear it. The manager only clears the flag so
-    // the status resolves to plain aborted/error and the `awaitingApprovalAnchors`
+    // gets no `tool-output-*` to clear it. The manager only clears the pending-approval
+    // set so the status resolves to plain aborted/error and the `awaitingApprovalAnchors`
     // anchor drops; the dangling tool part is terminalized to `output-error` by
     // `finalizeInterruptedParts` (persistence already, re-attach below) — NOT by
     // the manager minting a chunk or rewriting `finalMessage`.

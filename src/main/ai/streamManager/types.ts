@@ -106,8 +106,9 @@ export interface StreamExecution {
   droppedChunks: number
   /** Latest accumulated snapshot from `readUIMessageStream`. Undefined until the first snapshot lands. */
   finalMessage?: CherryUIMessage
-  /** Set on `tool-approval-request`, cleared on response. Drives the `topic.stream.statuses` cache. */
-  awaitingApproval?: boolean
+  /** Tool-call ids still awaiting human approval, keyed so a sibling tool's output clears only its
+   *  own. Non-empty ⇒ the topic surfaces `awaiting-approval`; drives the `topic.stream.statuses` cache. */
+  pendingApprovalToolCallIds?: Set<string>
   error?: SerializedError
   siblingsGroupId?: number
   /** Resolves when the execution loop terminates. Awaited by `onStop` for graceful shutdown. */
