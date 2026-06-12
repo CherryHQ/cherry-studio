@@ -9,21 +9,21 @@ import {
 } from '../composerFileTokenSource'
 
 describe('composer file token source', () => {
-  it('does not treat file metadata id as a file token source id', () => {
-    expect(getComposerFileTokenSourceId({ id: 'file-1' })).toBeUndefined()
+  it('returns undefined without a file token source id', () => {
+    expect(getComposerFileTokenSourceId({})).toBeUndefined()
   })
 
   it('preserves an explicit file token source id', () => {
-    expect(getComposerFileTokenSourceId({ id: 'file-1', fileTokenSourceId: 'source-file-1' })).toBe('source-file-1')
+    expect(getComposerFileTokenSourceId({ fileTokenSourceId: 'source-file-1' })).toBe('source-file-1')
   })
 
   it('rejects path-like file token source ids', () => {
     expect(isComposerFileTokenSourceId('/tmp/report.pdf')).toBe(false)
     expect(isComposerFileTokenSourceId('file:///tmp/report.pdf')).toBe(false)
     expect(isComposerFileTokenSourceId('FILE:///tmp/report.pdf')).toBe(false)
-    expect(getComposerFileTokenSourceId({ id: 'file-1', fileTokenSourceId: '/tmp/report.pdf' })).toBeUndefined()
-    expect(getComposerFileTokenSourceId({ id: 'file-1', fileTokenSourceId: 'file:///tmp/report.pdf' })).toBeUndefined()
-    expect(getComposerFileTokenSourceId({ id: 'file-1', fileTokenSourceId: 'FILE:///tmp/report.pdf' })).toBeUndefined()
+    expect(getComposerFileTokenSourceId({ fileTokenSourceId: '/tmp/report.pdf' })).toBeUndefined()
+    expect(getComposerFileTokenSourceId({ fileTokenSourceId: 'file:///tmp/report.pdf' })).toBeUndefined()
+    expect(getComposerFileTokenSourceId({ fileTokenSourceId: 'FILE:///tmp/report.pdf' })).toBeUndefined()
   })
 
   it('adds a generated file token source id without replacing the file id', () => {

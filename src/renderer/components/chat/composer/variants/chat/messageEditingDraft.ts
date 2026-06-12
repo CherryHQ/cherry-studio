@@ -106,10 +106,8 @@ export function createEditableMessageDraft(parts: CherryMessagePart[]): Editable
     if (token) usedFileTokenIds.add(token.id)
     const cherry = readCherryMeta(part)
     const fileTokenSourceId =
-      getComposerFileTokenSourceId({
-        id: cherry?.fileEntryId ?? '',
-        fileTokenSourceId: cherry?.fileTokenSourceId
-      }) ?? createComposerFileTokenSourceId()
+      getComposerFileTokenSourceId({ fileTokenSourceId: cherry?.fileTokenSourceId }) ??
+      createComposerFileTokenSourceId()
     if (token) fileTokenSourceByMatchedTokenId.set(token.id, fileTokenSourceId)
     const file = createEditableFileMetadata(part, index, fileTokenSourceId)
     return file ? [file] : []

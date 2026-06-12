@@ -7,7 +7,7 @@ import {
 
 import type { ComposerDraftToken, ComposerSerializedToken } from '../../tokens'
 
-export const composerFileTokenId = (file: Pick<FileMetadata, 'fileTokenSourceId' | 'id'>) => {
+export const composerFileTokenId = (file: Pick<FileMetadata, 'fileTokenSourceId'>) => {
   const sourceId = getComposerFileTokenSourceId(file)
   if (!sourceId) {
     throw new Error('fileTokenSourceId is required to create a composer file token id')

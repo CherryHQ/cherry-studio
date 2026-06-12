@@ -46,9 +46,7 @@ export function createComposerFileTokenSourceId(): string {
 }
 
 export function withComposerFileTokenSourceId<T extends FileMetadata>(file: T): T & ComposerFileMetadata {
-  const existingSourceId = getComposerFileTokenSourceId(file)
-  if (existingSourceId && file.fileTokenSourceId === existingSourceId) return file as T & ComposerFileMetadata
-  if (existingSourceId) return { ...file, fileTokenSourceId: existingSourceId }
+  if (getComposerFileTokenSourceId(file)) return file as T & ComposerFileMetadata
   return { ...file, fileTokenSourceId: createComposerFileTokenSourceId() }
 }
 
@@ -78,7 +76,7 @@ export function readComposerFileTokenSourceIdFromTokenId(tokenId: string): strin
   return isComposerFileTokenSourceId(sourceId) ? sourceId : undefined
 }
 
-export function getComposerFileTokenSourceId(file: Pick<FileMetadata, 'fileTokenSourceId' | 'id'>): string | undefined {
+export function getComposerFileTokenSourceId(file: Pick<FileMetadata, 'fileTokenSourceId'>): string | undefined {
   if (isComposerFileTokenSourceId(file.fileTokenSourceId)) return file.fileTokenSourceId
   return undefined
 }
