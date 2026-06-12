@@ -26,14 +26,14 @@ const logger = loggerService.withContext('NodeTraceService')
  * The patch must be applied BEFORE other services (e.g. MainWindowService) register their IPC handlers
  * via ipcMain.handle(), otherwise those handlers won't receive trace context from the renderer process.
  *
- * Note: SpanCacheService is intentionally excluded. The @DependsOn edge forces SpanCacheService to
+ * Note: TraceStorageService is intentionally excluded. The @DependsOn edge forces TraceStorageService to
  * initialize (and register its TRACE_* handlers) BEFORE this service applies the patch, so those
  * handlers do NOT participate in cross-process context propagation. This is fine — the trace handlers
  * read/write the in-memory span store and do not rely on an inherited renderer trace context.
  */
 @Injectable('NodeTraceService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['SpanCacheService'])
+@DependsOn(['TraceStorageService'])
 @Priority(0)
 export class NodeTraceService extends BaseService implements Activatable {
   // Stored from dynamic import, needed for shutdown in onDeactivate()
@@ -83,7 +83,7 @@ export class NodeTraceService extends BaseService implements Activatable {
 
   /**
    * Initialize the OpenTelemetry tracer with a CacheBatchSpanProcessor
-   * that feeds span data into SpanCacheService.
+   * that feeds span data into TraceStorageService.
    *
    * Dependencies are loaded via dynamic import() to avoid pulling in heavy OTel SDK
    * modules (NodeTracerProvider, BatchSpanProcessor, OTLPTraceExporter, etc.)
@@ -97,7 +97,7 @@ export class NodeTraceService extends BaseService implements Activatable {
     ])
 
     this.nodeTracer = NodeTracer
-    const spanCacheService = application.get('SpanCacheService')
+    const traceStorageService = application.get('TraceStorageService')
     const exporter = new FunctionSpanExporter(async (spans) => {
       logger.info(`Spans length: ${spans.length}`)
     })
@@ -107,7 +107,7 @@ export class NodeTraceService extends BaseService implements Activatable {
         defaultTracerName: TRACER_NAME,
         serviceName: TRACER_NAME
       },
-      new CacheBatchSpanProcessor(exporter, spanCacheService)
+      new CacheBatchSpanProcessor(exporter, traceStorageService)
     )
   }
 

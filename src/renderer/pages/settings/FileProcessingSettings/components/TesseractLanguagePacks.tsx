@@ -2,7 +2,7 @@ import { Combobox, type ComboboxOption } from '@cherrystudio/ui'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingRow, SettingRowTitle, SettingSubtitle } from '../..'
+import { SettingRow, SettingRowTitle } from '../..'
 
 type TesseractLanguagePacksProps = {
   options: ComboboxOption[]
@@ -37,22 +37,25 @@ export function TesseractLanguagePacks({ options, selectedLanguages, onChange }:
   )
 
   return (
-    <>
-      <SettingSubtitle>{t('settings.tool.file_processing.sections.language_packs')}</SettingSubtitle>
-      <SettingRow>
-        <SettingRowTitle>{t('settings.tool.file_processing.fields.languages')}</SettingRowTitle>
-        <Combobox
-          multiple
-          width={220}
-          value={selectedLanguages}
-          options={options}
-          onChange={onChange}
-          renderValue={renderSelectedLanguages}
-          searchable={false}
-          placeholder={t('common.select')}
-          emptyText={t('common.no_results')}
-        />
+    <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
+      <SettingRow className="items-center gap-4 py-0">
+        <SettingRowTitle className="w-24 shrink-0">
+          {t('settings.tool.file_processing.fields.languages')}
+        </SettingRowTitle>
+        <div className="min-w-0 flex-1">
+          <Combobox
+            multiple
+            width={220}
+            value={selectedLanguages}
+            options={options}
+            onChange={onChange}
+            renderValue={renderSelectedLanguages}
+            searchable={false}
+            placeholder={t('common.select')}
+            emptyText={t('common.no_results')}
+          />
+        </div>
       </SettingRow>
-    </>
+    </div>
   )
 }

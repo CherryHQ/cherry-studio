@@ -1,4 +1,5 @@
 import type { AiPlugin } from '@cherrystudio/ai-core'
+import type { StopCondition, ToolSet } from 'ai'
 
 import type { AgentLoopHooks } from '../loop'
 import type { RequestScope } from './scope'
@@ -21,4 +22,8 @@ export interface RequestFeature {
   /** Pieces of `AgentLoopHooks`. Multiple features' same-named hooks are
    *  combined by `composeHooks` into a deterministic chain. */
   contributeHooks?(scope: RequestScope): Partial<AgentLoopHooks>
+
+  /** Loop-stop conditions OR'd into `AgentOptions.stopWhen` alongside the assistant's step cap.
+   *  Any condition returning true stops the agent loop at that step boundary. */
+  contributeStopConditions?(scope: RequestScope): StopCondition<ToolSet>[]
 }

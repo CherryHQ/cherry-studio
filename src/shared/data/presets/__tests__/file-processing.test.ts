@@ -53,6 +53,17 @@ describe('FileProcessorTemplatesSchema', () => {
     })
   })
 
+  it('ships PaddleOCR image_to_text with an OCR model default', () => {
+    const paddleocr = PRESETS_FILE_PROCESSORS.find((preset) => preset.id === 'paddleocr')
+
+    expect(paddleocr?.capabilities.find((capability) => capability.feature === 'image_to_text')?.modelId).toBe(
+      'PP-OCRv6'
+    )
+    expect(paddleocr?.capabilities.find((capability) => capability.feature === 'document_to_markdown')?.modelId).toBe(
+      'PaddleOCR-VL-1.5'
+    )
+  })
+
   it('rejects processor-level metadata', () => {
     const result = FileProcessorTemplateSchema.safeParse({
       id: 'paddleocr',

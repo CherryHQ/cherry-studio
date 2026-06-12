@@ -6,7 +6,7 @@
  */
 
 import type { Span } from '@opentelemetry/api'
-import type { Message } from '@shared/data/types/message'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 import type { AiStreamRequest } from '../../types/requests'
@@ -18,14 +18,16 @@ export interface PreparedDispatch {
   topicId: string
   models: ReadonlyArray<{ modelId: UniqueModelId; request: AiStreamRequest; rootSpan?: Span }>
   listeners: StreamListener[]
-  /**
-   * Caller bookkeeping only — the manager never consumes this row. The inject
-   * path surfaces the persisted user message back to the renderer via
-   * `userMessageId`, not this object. Undefined when injection isn't supported.
-   */
-  userMessage?: Message
   /** DB id of the user message row this dispatch created, surfaced back to renderer for optimistic join. */
   userMessageId?: string
+  /**
+   * Set only by the persistent provider's live-submit (steer) branch: the id of the steer user row to
+   * enqueue. Its presence is the explicit signal that this dispatch is enqueue-only — the dispatcher
+   * reads it instead of structurally inferring the steer branch from `models.length === 0`.
+   */
+  pendingSteerUserMessageId?: string
+  /** Persisted user/assistant skeletons created for this dispatch. */
+  reservedMessages?: CherryUIMessage[]
   /** Shared sibling group for multi-model parallel responses. */
   siblingsGroupId?: number
   /** True when the response should surface `executionIds` (multi-model UI). */

@@ -64,7 +64,6 @@ export class AgentChatContextProvider implements ChatContextProvider {
       searchableText: '',
       modelId: null,
       modelSnapshot: null,
-      traceId: null,
       stats: null,
       runtimeResumeToken: null,
       createdAt,
@@ -134,8 +133,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
           role: 'assistant',
           status: 'pending',
           data: { parts: [] },
-          modelId: uniqueModelId,
-          traceId
+          modelId: uniqueModelId
         }
       ]
     })

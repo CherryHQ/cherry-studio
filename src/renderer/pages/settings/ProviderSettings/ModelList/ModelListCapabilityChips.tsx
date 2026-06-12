@@ -1,6 +1,8 @@
-import { Button } from '@cherrystudio/ui'
-import { Brain, Code2, Gift, Globe, Grid2X2, Image, RotateCw, Wrench } from 'lucide-react'
+import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { cn } from '@renderer/utils'
+import { Brain, Check, Code2, Filter, Gift, Globe, Grid2X2, Image, RotateCw, Wrench, X } from 'lucide-react'
 import type React from 'react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -42,44 +44,80 @@ const ModelListCapabilityChips: React.FC<ModelListCapabilityChipsProps> = ({
   onSelectCapabilityFilter
 }) => {
   const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const activeFilter = selectedCapabilityFilter !== 'all'
+
+  const visibleOptions = useMemo(
+    () =>
+      capabilityOptions.filter((filter) => {
+        if (filter === 'all') {
+          return true
+        }
+        return (capabilityModelCounts[filter] ?? 0) > 0
+      }),
+    [capabilityModelCounts, capabilityOptions]
+  )
+
+  const selectedLabel = t(CAPABILITY_FILTER_I18N_KEYS[selectedCapabilityFilter])
+  const selectedCount = capabilityModelCounts[selectedCapabilityFilter] ?? 0
 
   return (
-    <div className={modelListClasses.capabilityTabsRoot}>
-      <div className={modelListClasses.capabilityTabsList}>
-        {capabilityOptions
-          .filter((filter) => {
-            if (filter === 'all') {
-              return true
-            }
-            return (capabilityModelCounts[filter] ?? 0) > 0
-          })
-          .map((filter) => {
-            const isActive = selectedCapabilityFilter === filter
-            const label = t(CAPABILITY_FILTER_I18N_KEYS[filter])
-            const count = capabilityModelCounts[filter] ?? 0
-            const Icon = CAPABILITY_FILTER_ICONS[filter]
+    <div className={modelListClasses.capabilityFilterRoot}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            aria-label={t('settings.models.filter.label')}
+            className={cn(
+              modelListClasses.capabilityFilterButton,
+              !activeFilter && modelListClasses.capabilityFilterButtonIconOnly,
+              activeFilter && modelListClasses.capabilityFilterButtonActive
+            )}>
+            <Filter className={modelListClasses.capabilityTabIcon} />
+            {activeFilter ? (
+              <span className={modelListClasses.capabilityFilterLabel}>
+                {selectedLabel} ({selectedCount})
+              </span>
+            ) : null}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className={modelListClasses.capabilityFilterMenu}>
+          <MenuList className="gap-1">
+            {visibleOptions.map((filter) => {
+              const isActive = selectedCapabilityFilter === filter
+              const label = t(CAPABILITY_FILTER_I18N_KEYS[filter])
+              const count = capabilityModelCounts[filter] ?? 0
+              const Icon = CAPABILITY_FILTER_ICONS[filter]
 
-            return (
-              <Button
-                key={filter}
-                type="button"
-                variant="ghost"
-                size="sm"
-                aria-pressed={isActive}
-                onClick={(event) => {
-                  onSelectCapabilityFilter(filter)
-                  event.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest' })
-                }}
-                className={isActive ? modelListClasses.capabilityTabActive : modelListClasses.capabilityTabIdle}>
-                <Icon className={modelListClasses.capabilityTabIcon} />
-                <span className={modelListClasses.capabilityTabLabel}>
-                  {label} ({count})
-                </span>
-              </Button>
-            )
-          })}
-      </div>
-      <div className={modelListClasses.capabilityTabsFadeMask} aria-hidden />
+              return (
+                <MenuItem
+                  key={filter}
+                  label={`${label} (${count})`}
+                  active={isActive}
+                  className={modelListClasses.capabilityFilterMenuItem}
+                  icon={<Icon className={modelListClasses.capabilityTabIcon} />}
+                  suffix={<Check className={cn('size-3.5', isActive ? 'opacity-100' : 'opacity-0')} />}
+                  onClick={() => {
+                    onSelectCapabilityFilter(filter)
+                    setOpen(false)
+                  }}
+                />
+              )
+            })}
+          </MenuList>
+        </PopoverContent>
+      </Popover>
+      {activeFilter ? (
+        <button
+          type="button"
+          className={modelListClasses.capabilityFilterClear}
+          aria-label={t('settings.models.filter.clear')}
+          onClick={() => onSelectCapabilityFilter('all')}>
+          <X className="size-3" />
+        </button>
+      ) : null}
     </div>
   )
 }

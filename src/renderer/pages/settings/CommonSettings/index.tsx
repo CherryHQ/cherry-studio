@@ -859,15 +859,15 @@ const TitleExtra = ({ className, ...props }: React.ComponentPropsWithoutRef<'div
 )
 
 const ZoomButtonGroup = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-[210px] items-center justify-end', className)} {...props} />
+  <div className={cn('flex w-full min-w-0 max-w-52.5 items-center justify-end', className)} {...props} />
 )
 
 const SelectorRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-[220px] items-center justify-end', className)} {...props} />
+  <div className={cn('flex w-full min-w-0 max-w-55 items-center justify-end', className)} {...props} />
 )
 
 const WideControlRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-[380px] items-center justify-end', className)} {...props} />
+  <div className={cn('flex w-full min-w-0 max-w-95 items-center justify-end', className)} {...props} />
 )
 
 const ZoomValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
@@ -875,7 +875,7 @@ const ZoomValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'span
 )
 
 const SelectRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-full min-w-0 max-w-[380px] items-center justify-end gap-2', className)} {...props} />
+  <div className={cn('flex w-full min-w-0 max-w-65 items-center justify-end gap-2', className)} {...props} />
 )
 
 export default CommonSettings

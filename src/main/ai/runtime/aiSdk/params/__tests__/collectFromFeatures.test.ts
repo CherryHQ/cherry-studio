@@ -106,7 +106,7 @@ describe('collectFromFeatures', () => {
 
   it('returns empty contributions when no features supplied', () => {
     const out = collectFromFeatures(makeScope(), [])
-    expect(out).toEqual({ modelAdapters: [], hookParts: [] })
+    expect(out).toEqual({ modelAdapters: [], hookParts: [], stopConditions: [] })
   })
 
   it('skips contribute methods that return undefined', () => {
