@@ -191,7 +191,10 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               <RadioGroup
                 value={formData.assistantId ? 'assistant' : 'default'}
                 onValueChange={(value) =>
-                  handleInputChange('assistantId', value === 'default' ? '' : defaultAssistant.id)
+                  handleInputChange(
+                    'assistantId',
+                    value === 'default' ? '' : (userPredefinedAssistants[0]?.id ?? defaultAssistant.id)
+                  )
                 }
                 className="flex flex-row gap-4">
                 <label className="flex items-center gap-2 text-sm">
@@ -211,24 +214,13 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               <ModalSectionTitle>
                 <ModalSectionTitleLabel>{t('selection.settings.user_modal.assistant.label')}</ModalSectionTitleLabel>
               </ModalSectionTitle>
-              <Select
-                value={formData.assistantId || defaultAssistant.id}
-                onValueChange={(value) => handleInputChange('assistantId', value)}>
+              <Select value={formData.assistantId} onValueChange={(value) => handleInputChange('assistantId', value)}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem key={defaultAssistant.id} value={defaultAssistant.id}>
-                    <AssistantItem>
-                      <ModelAvatar model={defaultModel} size={18} />
-                      <AssistantName>{defaultAssistant.name}</AssistantName>
-                      <Spacer />
-                      <CurrentTag isCurrent={true}>{t('selection.settings.user_modal.assistant.default')}</CurrentTag>
-                    </AssistantItem>
-                  </SelectItem>
-                  {userPredefinedAssistants
-                    .filter((a) => a.id !== defaultAssistant.id)
-                    .map((a) => (
+                  {userPredefinedAssistants.length > 0 ? (
+                    userPredefinedAssistants.map((a) => (
                       <SelectItem key={a.id} value={a.id}>
                         <AssistantItem>
                           <ModelAvatar model={defaultModel} size={18} />
@@ -236,7 +228,17 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
                           <Spacer />
                         </AssistantItem>
                       </SelectItem>
-                    ))}
+                    ))
+                  ) : (
+                    <SelectItem key={defaultAssistant.id} value={defaultAssistant.id}>
+                      <AssistantItem>
+                        <ModelAvatar model={defaultModel} size={18} />
+                        <AssistantName>{defaultAssistant.name}</AssistantName>
+                        <Spacer />
+                        <CurrentTag isCurrent={true}>{t('selection.settings.user_modal.assistant.default')}</CurrentTag>
+                      </AssistantItem>
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </ModalSection>

@@ -49,15 +49,18 @@ const QuickAssistantSettings: FC = () => {
   const { defaultModel } = useDefaultModel()
   const [assistantSelectOpen, setAssistantSelectOpen] = useState(false)
 
-  // Take the "default assistant" from the assistant list first.
-  const defaultAssistant = useMemo(
-    () => assistants.find((a) => a.id === _defaultAssistant.id) || _defaultAssistant,
-    [assistants, _defaultAssistant]
-  )
-  const assistantOptions = useMemo(
-    () => [defaultAssistant, ...assistants.filter((assistant) => assistant.id !== defaultAssistant.id)],
-    [assistants, defaultAssistant]
-  )
+  const defaultAssistant = useMemo(() => {
+    if (assistants.length > 0) {
+      return assistants[0]
+    }
+    return _defaultAssistant
+  }, [assistants, _defaultAssistant])
+  const assistantOptions = useMemo(() => {
+    if (assistants.length > 0) {
+      return assistants
+    }
+    return [_defaultAssistant]
+  }, [assistants, _defaultAssistant])
   const selectedAssistant = assistantOptions.find((assistant) => assistant.id === quickAssistantId) || defaultAssistant
   const handleAssistantSelect = (assistantId: string) => {
     void setQuickAssistantId(assistantId)

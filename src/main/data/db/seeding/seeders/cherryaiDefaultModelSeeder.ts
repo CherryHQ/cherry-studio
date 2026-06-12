@@ -133,18 +133,7 @@ async function ensureDefaultModelPreferencesTx(tx: TxLike): Promise<void> {
         key,
         value
       })
-      continue
     }
-
-    if (existing.value !== null && existing.value !== '') {
-      continue
-    }
-
-    logger.warn('Self-healed empty default model preference', { key, value })
-    await tx
-      .update(preferenceTable)
-      .set({ value })
-      .where(and(eq(preferenceTable.scope, scope), eq(preferenceTable.key, key)))
   }
 }
 

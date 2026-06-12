@@ -118,7 +118,7 @@ describe('CherryAiDefaultModelSeeder', () => {
     expect(await readPreferenceValue('feature.translate.model_id')).toBe('google::gemini-2.5-flash')
   })
 
-  it('backfills null default model preferences', async () => {
+  it('preserves null default model preferences (user-intentional "follow default")', async () => {
     await dbh.db.insert(preferenceTable).values(
       DEFAULT_MODEL_PREFERENCE_KEYS.map((key) => ({
         scope: 'default',
@@ -129,14 +129,12 @@ describe('CherryAiDefaultModelSeeder', () => {
 
     await new CherryAiDefaultModelSeeder().run(dbh.db)
 
-    await expectSeededDefaultModelPreferences()
-    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Self-healed empty default model preference', {
-      key: 'chat.default_model_id',
-      value: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
-    })
+    for (const key of DEFAULT_MODEL_PREFERENCE_KEYS) {
+      expect(await readPreferenceValue(key)).toBeNull()
+    }
   })
 
-  it('backfills empty default model preferences', async () => {
+  it('preserves empty default model preferences', async () => {
     await dbh.db.insert(preferenceTable).values(
       DEFAULT_MODEL_PREFERENCE_KEYS.map((key) => ({
         scope: 'default',
@@ -147,7 +145,9 @@ describe('CherryAiDefaultModelSeeder', () => {
 
     await new CherryAiDefaultModelSeeder().run(dbh.db)
 
-    await expectSeededDefaultModelPreferences()
+    for (const key of DEFAULT_MODEL_PREFERENCE_KEYS) {
+      expect(await readPreferenceValue(key)).toBe('')
+    }
   })
 
   it('preserves an existing CherryAI provider row', async () => {
