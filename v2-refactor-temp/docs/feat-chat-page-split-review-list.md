@@ -1,0 +1,289 @@
+# feat/chat-page Split Review List
+
+Last updated: 2026-06-10
+
+This working note tracks the `origin/feat/chat-page` split stack for review. The goal is to land independently reviewable business-logic PRs into `main` without a catch-all remainder PR.
+
+For the target system shape behind the split, see [feat/chat-page Architecture](./feat-chat-page-architecture.md).
+
+## Ground Rules
+
+- Target branch is `main`.
+- Do not use the abandoned `codex/chat-stack-01..15` branches.
+- Do not open catch-all equivalence branches as a substitute for business-boundary splits.
+- Prefer business boundaries over file-count boundaries.
+- Let DB API PRs grow when schema, handler, service, hook, and consumer changes form one contract.
+- For stacked or prerequisite-heavy areas, review the smallest business slice first, then rebase or retarget dependent PRs as prerequisites merge.
+
+## `src/main` Review Readiness
+
+The `src/main` portion is ready for review by split PR boundary. Reviewers do not need to wait for the remaining chat/page renderer slices before starting the backend review.
+
+A path audit of the split PR table finds direct `src/main` changes in `split-16`, `split-17`, `split-18`, `split-19`, `split-20`, `split-25`, `split-28`, `split-30`, `split-31`, `split-32`, `split-35`, `split-60`, `split-61`, `split-62`, `split-63`, `split-64`, `split-65`, `split-66`, and `split-67`. `split-59` is grouped with the builtin tool PRs because it is the shared contract prerequisite for `split-60` through `split-62`.
+
+Current backend review boundaries:
+
+- AI runtime, trace, and tool plumbing: `split-16` through `split-19`, `split-35`, and `split-63`.
+- Provider settings and runtime routing: `split-20` and `split-67`.
+- Assistant/library, agent/resource, and DataApi workflows: `split-25`, `split-28`, `split-30`, `split-31`, `split-32`, `split-64`, `split-65`, and `split-66`.
+- Builtin tool exposure and lookup cores: `split-59` through `split-62`.
+
+Recent convergence decisions:
+
+- Agent workspace/session/task changes belong to `split-65`.
+- Provider `userProvider.isEnabled` default convergence belongs to `split-20`.
+- Agent disabled-tool policy is already covered by `split-30`; do not copy unrelated `AgentService.search` hunks there.
+- Agent list/search `updatedAtFrom` query convergence belongs to `split-66`.
+- `CacheService` convergence is intentionally deferred until the UI consumers are added; it is not a blocker for reviewing the current `src/main` PRs.
+
+## Open PRs
+
+All currently pushed `codex/split-*` branches now have non-draft PRs open against `main`.
+
+| PR | Branch | Review area |
+| --- | --- | --- |
+| [#15848](https://github.com/CherryHQ/cherry-studio/pull/15848) | `codex/split-01-data-delete-body` | DataApi delete request bodies |
+| [#15849](https://github.com/CherryHQ/cherry-studio/pull/15849) | `codex/split-02-ui-floating-primitives` | Portal-aware UI floating primitives |
+| [#15850](https://github.com/CherryHQ/cherry-studio/pull/15850) | `codex/split-03-ui-tree-view` | UI tree view composite |
+| [#15851](https://github.com/CherryHQ/cherry-studio/pull/15851) | `codex/split-04-ui-markdown-composite` | UI markdown composite |
+| [#15852](https://github.com/CherryHQ/cherry-studio/pull/15852) | `codex/split-05-ui-primitive-polish` | UI primitive interaction polish |
+| [#15853](https://github.com/CherryHQ/cherry-studio/pull/15853) | `codex/split-06-renderer-hook-utilities` | Renderer overlay and resize hooks |
+| [#15854](https://github.com/CherryHQ/cherry-studio/pull/15854) | `codex/split-07-renderer-virtual-list-groups` | Grouped sortable virtual lists |
+| [#15855](https://github.com/CherryHQ/cherry-studio/pull/15855) | `codex/split-08-renderer-html-artifacts-preview` | HTML artifact preview improvements |
+| [#15856](https://github.com/CherryHQ/cherry-studio/pull/15856) | `codex/split-09-renderer-code-toolbar-position` | Code toolbar click-through positioning |
+| [#15857](https://github.com/CherryHQ/cherry-studio/pull/15857) | `codex/split-10-renderer-edit-components` | Shared prompt edit components |
+| [#15858](https://github.com/CherryHQ/cherry-studio/pull/15858) | `codex/split-11-renderer-icons` | Shell and loading icons |
+| [#15859](https://github.com/CherryHQ/cherry-studio/pull/15859) | `codex/split-12-renderer-horizontal-scroll` | Horizontal scroll control layering |
+| [#15860](https://github.com/CherryHQ/cherry-studio/pull/15860) | `codex/split-13-provider-api-options` | Provider API option visibility |
+| [#15861](https://github.com/CherryHQ/cherry-studio/pull/15861) | `codex/split-14-link-preview-og-card` | Link preview OG card rendering |
+| [#15862](https://github.com/CherryHQ/cherry-studio/pull/15862) | `codex/split-15-knowledge-navigator-menus` | Knowledge navigator command menus |
+| [#15863](https://github.com/CherryHQ/cherry-studio/pull/15863) | `codex/split-16-ai-trace-observability` | AI trace span capture |
+| [#15864](https://github.com/CherryHQ/cherry-studio/pull/15864) | `codex/split-17-ai-stream-steer-queue` | AI stream steer queue |
+| [#15865](https://github.com/CherryHQ/cherry-studio/pull/15865) | `codex/split-18-ai-agent-runtime` | Agent runtime warm sessions |
+| [#15866](https://github.com/CherryHQ/cherry-studio/pull/15866) | `codex/split-19-ai-mcp-tool-runtime` | Claude MCP tool runtime |
+| [#15867](https://github.com/CherryHQ/cherry-studio/pull/15867) | `codex/split-20-provider-settings-patch` | Provider settings patch merge |
+| [#15874](https://github.com/CherryHQ/cherry-studio/pull/15874) | `codex/split-21-chat-primitives` | Reusable chat UI primitives |
+| [#15875](https://github.com/CherryHQ/cherry-studio/pull/15875) | `codex/split-22-chat-contracts-adapters` | Chat contracts, adapters, action registry, token helpers, and export contracts |
+| [#15876](https://github.com/CherryHQ/cherry-studio/pull/15876) | `codex/split-23-chat-resource-actions` | Resource-list action menus, confirm flow, grouped virtual lists, and resource-list infrastructure |
+| [#15877](https://github.com/CherryHQ/cherry-studio/pull/15877) | `codex/split-24-chat-shell-layout` | Conversation shell layout, right-pane hosting, immersive navbar state, and resize behavior |
+| [#15868](https://github.com/CherryHQ/cherry-studio/pull/15868) | `codex/split-25-library-resource-workflow` | Library resource workflow |
+| [#15878](https://github.com/CherryHQ/cherry-studio/pull/15878) | `codex/split-26-selector-model-infra` | Reusable selector and model-selector infrastructure |
+| [#15879](https://github.com/CherryHQ/cherry-studio/pull/15879) | `codex/split-27-tag-management-hooks` | Tag mutation hooks |
+| [#15880](https://github.com/CherryHQ/cherry-studio/pull/15880) | `codex/split-28-assistant-catalog-source-api` | Assistant catalog source API |
+| [#15881](https://github.com/CherryHQ/cherry-studio/pull/15881) | `codex/split-29-library-form-adapters` | Library form adapters |
+| [#15882](https://github.com/CherryHQ/cherry-studio/pull/15882) | `codex/split-30-agent-resource-api` | Agent resource API disabled-tool policy and ordering |
+| [#15883](https://github.com/CherryHQ/cherry-studio/pull/15883) | `codex/split-31-container-trace-data-api` | Container-owned trace data API |
+| [#15884](https://github.com/CherryHQ/cherry-studio/pull/15884) | `codex/split-32-topic-branch-copy-data-api` | Topic branch copy DataApi |
+| [#15885](https://github.com/CherryHQ/cherry-studio/pull/15885) | `codex/split-33-chat-settings-panel` | Chat settings panel |
+| [#15886](https://github.com/CherryHQ/cherry-studio/pull/15886) | `codex/split-34-library-skill-detail-dialog` | Library skill detail dialog |
+| [#15887](https://github.com/CherryHQ/cherry-studio/pull/15887) | `codex/split-35-chat-trace-pane` | Chat trace pane |
+| [#15888](https://github.com/CherryHQ/cherry-studio/pull/15888) | `codex/split-36-chat-adapter-contracts` | Shared chat adapter contracts |
+| [#15889](https://github.com/CherryHQ/cherry-studio/pull/15889) | `codex/split-37-chat-layout-primitives` | Chat layout primitives |
+| [#15890](https://github.com/CherryHQ/cherry-studio/pull/15890) | `codex/split-38-chat-composer-token-draft` | Composer token draft foundation |
+| [#15891](https://github.com/CherryHQ/cherry-studio/pull/15891) | `codex/split-39-chat-message-flow-model` | Earlier combined chat message flow model |
+| [#15892](https://github.com/CherryHQ/cherry-studio/pull/15892) | `codex/split-40-chat-message-projection` | Chat message projection |
+| [#15893](https://github.com/CherryHQ/cherry-studio/pull/15893) | `codex/split-41-chat-message-virtualizer-runtime` | Message virtualizer runtime |
+| [#15894](https://github.com/CherryHQ/cherry-studio/pull/15894) | `codex/split-42-chat-message-list-layout` | Message list layout primitives |
+| [#15895](https://github.com/CherryHQ/cherry-studio/pull/15895) | `codex/split-43-chat-message-grouping-utils` | Message grouping utilities |
+| [#15896](https://github.com/CherryHQ/cherry-studio/pull/15896) | `codex/split-44-chat-message-virtual-list` | Message virtual list shell |
+| [#15897](https://github.com/CherryHQ/cherry-studio/pull/15897) | `codex/split-45-chat-message-parts-context` | Message parts context |
+| [#15898](https://github.com/CherryHQ/cherry-studio/pull/15898) | `codex/split-46-chat-message-provider-contract` | Message provider contract |
+| [#15899](https://github.com/CherryHQ/cherry-studio/pull/15899) | `codex/split-47-chat-message-provider-runtime` | Message provider runtime |
+| [#15900](https://github.com/CherryHQ/cherry-studio/pull/15900) | `codex/split-48-chat-message-selection-utils` | Message selection utilities |
+| [#15901](https://github.com/CherryHQ/cherry-studio/pull/15901) | `codex/split-49-chat-message-file-path-utils` | Inline file path utilities |
+| [#15902](https://github.com/CherryHQ/cherry-studio/pull/15902) | `codex/split-50-chat-message-flow-graph` | Message flow graph model |
+| [#15903](https://github.com/CherryHQ/cherry-studio/pull/15903) | `codex/split-51-chat-message-flow-layout` | Message flow graph layout |
+| [#15904](https://github.com/CherryHQ/cherry-studio/pull/15904) | `codex/split-52-chat-tool-response-adapter` | Chat tool response adapter |
+| [#15905](https://github.com/CherryHQ/cherry-studio/pull/15905) | `codex/split-53-chat-tool-output-truncation` | Tool output truncation helper |
+| [#15906](https://github.com/CherryHQ/cherry-studio/pull/15906) | `codex/split-54-chat-tool-task-data` | Agent task data helpers |
+| [#15908](https://github.com/CherryHQ/cherry-studio/pull/15908) | `codex/split-55-chat-tool-parent-metadata` | Tool parent metadata helpers |
+| [#15909](https://github.com/CherryHQ/cherry-studio/pull/15909) | `codex/split-56-chat-tool-activity` | Tool activity helpers |
+| [#15910](https://github.com/CherryHQ/cherry-studio/pull/15910) | `codex/split-57-chat-tool-status-primitives` | Tool status primitives |
+| [#15911](https://github.com/CherryHQ/cherry-studio/pull/15911) | `codex/split-58-chat-tool-args-table` | Tool arguments table primitive |
+| [#15912](https://github.com/CherryHQ/cherry-studio/pull/15912) | `codex/split-59-shared-builtin-tool-contracts` | Shared builtin AI tool contracts |
+| [#15913](https://github.com/CherryHQ/cherry-studio/pull/15913) | `codex/split-60-kb-tool-lookup-core` | Knowledge lookup core |
+| [#15914](https://github.com/CherryHQ/cherry-studio/pull/15914) | `codex/split-61-web-tool-lookup-core` | Web lookup core |
+| [#15915](https://github.com/CherryHQ/cherry-studio/pull/15915) | `codex/split-62-cherry-builtin-mcp-server` | Cherry builtin-tools MCP server |
+| [#15917](https://github.com/CherryHQ/cherry-studio/pull/15917) | `codex/split-63-ai-sdk-meta-tools` | AI SDK meta-tool invocation hardening |
+| [#15918](https://github.com/CherryHQ/cherry-studio/pull/15918) | `codex/split-64-default-assistant-bootstrap` | Default assistant data bootstrap |
+| [#15919](https://github.com/CherryHQ/cherry-studio/pull/15919) | `codex/split-65-agent-workspace-management` | Agent workspace DataApi workflow |
+| [#15920](https://github.com/CherryHQ/cherry-studio/pull/15920) | `codex/split-66-knowledge-list-query` | Searchable knowledge list DataApi queries |
+| [#15923](https://github.com/CherryHQ/cherry-studio/pull/15923) | `codex/split-67-ai-provider-runtime` | CherryAI and AiHubMix provider routing |
+
+## Dependency DAG
+
+Edges below are review or merge prerequisites between split PRs. They are not necessarily the exact GitHub base branch. PRs not connected by an edge are currently treated as parallel reviewable slices. Dashed edges mark reconciliation or superseded-split guidance, not a hard merge prerequisite.
+
+```mermaid
+flowchart TD
+  p02["#15849 split-02 UI floating primitives"]
+  p03["#15850 split-03 UI tree view"]
+  p04["#15851 split-04 UI markdown composite"]
+  p05["#15852 split-05 UI primitive polish"]
+  p06["#15853 split-06 renderer hook utilities"]
+  p07["#15854 split-07 renderer virtual-list groups"]
+  p16["#15863 split-16 AI trace observability"]
+  p18["#15865 split-18 AI agent runtime"]
+  p19["#15866 split-19 AI MCP tool runtime"]
+  p21["#15874 split-21 chat primitives"]
+  p22["#15875 split-22 chat contracts/adapters"]
+  p23["#15876 split-23 chat resource actions"]
+  p24["#15877 split-24 chat shell layout"]
+  p25["#15868 split-25 library resource workflow"]
+  p26["#15878 split-26 selector/model infra"]
+  p27["#15879 split-27 tag hooks"]
+  p28["#15880 split-28 assistant catalog source API"]
+  p29["#15881 split-29 library form adapters"]
+  p30["#15882 split-30 agent resource API"]
+  p31["#15883 split-31 container trace data API"]
+  p32["#15884 split-32 topic branch copy DataApi"]
+  p34["#15886 split-34 library skill detail dialog"]
+  p35["#15887 split-35 chat trace pane"]
+  p36["#15888 split-36 chat adapter contracts"]
+  p37["#15889 split-37 chat layout primitives"]
+  p38["#15890 split-38 chat composer token draft"]
+  p39["#15891 split-39 combined message flow model"]
+  p40["#15892 split-40 message projection"]
+  p41["#15893 split-41 virtualizer runtime"]
+  p42["#15894 split-42 message-list layout"]
+  p43["#15895 split-43 grouping utilities"]
+  p44["#15896 split-44 virtual list shell"]
+  p45["#15897 split-45 parts context"]
+  p46["#15898 split-46 provider contract"]
+  p47["#15899 split-47 provider runtime"]
+  p48["#15900 split-48 selection utilities"]
+  p49["#15901 split-49 file path utilities"]
+  p50["#15902 split-50 flow graph"]
+  p51["#15903 split-51 flow layout"]
+  p52["#15904 split-52 tool response adapter"]
+  p53["#15905 split-53 output truncation"]
+  p54["#15906 split-54 task data"]
+  p55["#15908 split-55 parent metadata"]
+  p56["#15909 split-56 tool activity"]
+  p57["#15910 split-57 status primitives"]
+  p58["#15911 split-58 args table"]
+  p59["#15912 split-59 builtin tool contracts"]
+  p60["#15913 split-60 knowledge lookup core"]
+  p61["#15914 split-61 web lookup core"]
+  p62["#15915 split-62 Cherry builtin MCP server"]
+  p63["#15917 split-63 AI SDK meta tools"]
+  p64["#15918 split-64 default assistant bootstrap"]
+  p65["#15919 split-65 agent workspace workflow"]
+  p66["#15920 split-66 knowledge list queries"]
+  p67["#15923 split-67 AI provider runtime"]
+  f_clickable["future clickable file path renderer"]
+  f_markdown["future markdown renderer"]
+  f_agent_tools["future agent tool renderers"]
+  f_builtin_tools["future builtin tool consumers"]
+  f_knowledge["future Knowledge page integration"]
+  f_pages["future chat/pages integration"]
+
+  p02 --> p03
+  p02 --> p04
+  p02 --> p05
+  p02 --> p26
+  p06 --> p07
+  p07 --> p23
+
+  p18 --> p19
+  p16 --> p31
+  p31 --> p35
+
+  p21 --> p22
+  p22 --> p23
+  p23 --> p24
+  p22 --> p36
+  p36 --> p37
+  p36 --> p38
+  p37 --> f_pages
+  p38 --> f_pages
+
+  p26 --> p25
+  p27 --> p25
+  p28 --> p25
+  p28 --> p64
+  p64 --> p25
+  p29 --> p25
+  p30 --> p25
+  p34 --> p25
+
+  p32 --> f_pages
+  p35 --> f_pages
+  p65 --> f_pages
+  p66 --> f_knowledge
+
+  p40 --> p43
+  p40 --> p46
+  p41 --> p44
+  p42 --> p44
+  p43 --> p44
+  p45 --> p47
+  p46 --> p47
+  p46 --> p48
+  p38 --> p48
+  p49 --> f_clickable
+
+  p50 --> p51
+  p39 -. reconcile with smaller flow split .-> p50
+  p39 -. reconcile with smaller flow split .-> p51
+
+  p52 --> f_agent_tools
+  p53 --> f_agent_tools
+  p54 --> f_agent_tools
+  p55 --> f_agent_tools
+  p52 --> p56
+  p56 --> p57
+  p57 --> p58
+  p58 --> f_agent_tools
+  p52 --> f_markdown
+
+  p59 --> p60
+  p60 --> p61
+  p61 --> p62
+  p62 --> p63
+  p63 --> f_builtin_tools
+```
+
+Dependency notes:
+
+- `split-25` is the broad library resource workflow. `split-26`, `split-27`, `split-28`, `split-29`, `split-30`, and `split-34` are independent prerequisites or extractable pieces that should be reviewed before finalizing the broad workflow.
+- `split-64` is a default assistant DataApi/bootstrap contract stacked on `split-28`. Keep its schema, seeding, service, hook, migration transform, and immediate consumers together rather than splitting the contract across partial PRs.
+- `split-65` is an agent workspace DataApi contract. Review the schema, handler, services, shared API schemas, migrations, and tests together because they define one backend workflow boundary for future Agent page integration.
+- `split-66` is a Knowledge DataApi query contract. Review the shared request schema, handler tests, service query implementation, and service tests together before wiring Knowledge-page consumers to it.
+- `split-67` is an AI provider-runtime fix for CherryAI configuration and AiHubMix routing. It is reviewable independently from the chat renderer stack.
+- `split-39` is the earlier combined message-flow split. `split-50` and `split-51` are the smaller replacement graph/layout slices, so reviewers should reconcile or supersede `split-39` rather than merge both shapes blindly.
+- `split-52` through `split-58` are chat tool-rendering foundation slices. `split-56`, `split-57`, and `split-58` form a stacked helper sequence on top of the response adapter; `split-55` is a parallel parent-metadata helper for future agent-tool renderers.
+- `split-59` through `split-63` form the builtin tool contract, lookup-core, Cherry MCP exposure, and AI SDK meta-tool hardening chain. Review `split-59` before the knowledge and web lookup extraction PRs, then `split-62` and `split-63` after those lookup cores are stable.
+
+## Suggested Review Order
+
+1. Review and land the already-open foundation PRs first: `split-01` through `split-20`.
+2. Review chat shell and composer foundations: `split-21` through `split-24`, then `split-35` through `split-38`.
+3. Review the library/resource and assistant-data prerequisites: `split-26` through `split-34`, plus `split-64`, then finalize `split-25`. Keep DB API and consumers together when the contract boundary requires it.
+4. Review the agent workspace DataApi workflow: `split-65`.
+5. Review the Knowledge list DataApi query contract: `split-66`.
+6. Review the AI provider-runtime fix: `split-67`.
+7. Review message-list foundations before renderer shells: `split-40`, `split-41`, `split-42`, `split-43`, `split-44`.
+8. Review message provider, selection, and file-path utilities: `split-45`, `split-46`, `split-47`, `split-48`, `split-49`.
+9. Review message flow: `split-50` and `split-51`; `split-39` is the earlier combined flow-model split and should be reconciled with those smaller PRs during review.
+10. Review chat tool foundation slices: `split-52` through `split-58`.
+11. Review builtin tool contract, lookup-core, MCP exposure, and meta-tool hardening slices: `split-59`, `split-60`, `split-61`, `split-62`, `split-63`.
+
+## Follow-up Split Backlog
+
+These areas still need branch work after the pushed PR set above:
+
+- Cache/UI convergence, intentionally deferred until the corresponding UI consumers are split.
+- Clickable file path renderer, after provider runtime and file path utilities are available.
+- Markdown renderer slice.
+- Agent tool renderer set, after the chat tool foundations in `split-52` through `split-58`.
+- Builtin tool adapter consumers, after the shared contract, lookup cores, Cherry MCP server, and meta-tool hardening in `split-59` through `split-63`.
+- Remaining `src/renderer/components/chat/` and `src/renderer/pages/` slices that are not covered by the pushed branches.
+
+## Reviewer Checklist
+
+- Confirm each PR has a single business boundary and is not a fallback catch-all.
+- Confirm PR diffs are interpreted with prerequisite context where branches were split from the same `feat/chat-page` work.
+- For DB/API PRs, review schema/service/handler/hook consumers together when they form one contract.
+- Confirm CI is green before merge; local split validation should include `pnpm build:check` unless the PR is docs-only.
+- After prerequisite PRs land, rebase or retarget dependent branches before requesting final review.
