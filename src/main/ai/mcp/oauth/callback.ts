@@ -6,7 +6,7 @@ import { URL } from 'url'
 
 import type { OAuthCallbackServerOptions } from './types'
 
-const logger = loggerService.withContext('MCP:OAuthCallbackServer')
+const logger = loggerService.withContext('Mcp:OAuthCallbackServer')
 
 function getTranslation(key: string): string {
   const language = getAppLanguage()

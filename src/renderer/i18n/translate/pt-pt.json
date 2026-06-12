@@ -395,6 +395,9 @@
           "failed": "Falha ao reordenar as sessões"
         }
       },
+      "tool": {
+        "disabled": "A ferramenta {{toolName}} está desativada para este agente."
+      },
       "update": {
         "error": {
           "failed": "Falha ao atualizar a sessão"
@@ -7108,6 +7111,36 @@
     "settings": "Configurações",
     "store": "Biblioteca de assistentes",
     "translate": "Traduzir"
+  },
+  "trace": {
+    "agent": "Agente",
+    "backList": "Voltar à Lista",
+    "cachedTokens": "Em cache",
+    "endTime": "Hora de Término",
+    "inputs": "Entradas",
+    "label": "Cadeia de Chamadas",
+    "model": "Modelo",
+    "name": "Nome do Nó",
+    "noTraceList": "Nenhuma informação de rastreammento encontrada",
+    "operation": "Operação",
+    "outputs": "Saídas",
+    "pollError": "Falha na sondagem",
+    "reasoningTokens": "Raciocínio",
+    "requestHeaders": "Cabeçalhos da Solicitação",
+    "requestMethod": "Método de Solicitação",
+    "requestUrl": "URL da Solicitação",
+    "responseHeaders": "Cabeçalhos de Resposta",
+    "responseStatus": "Status da Resposta",
+    "serverDescription": "Descrição do Servidor",
+    "serverName": "Nome do Servidor",
+    "serverType": "Tipo de Servidor",
+    "spanDetail": "Detalhes do Span",
+    "spendTime": "Passar Tempo",
+    "startTime": "Hora de Início",
+    "status": "Estado",
+    "tag": "Etiqueta",
+    "tokenUsage": "Uso de Tokens",
+    "toolCalls": "Chamadas de Ferramentas"
   },
   "translate": {
     "alter_language": "Idioma alternativo",

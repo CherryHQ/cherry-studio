@@ -4,9 +4,9 @@ const DEFERRED_TOOLS_HEADER = `<deferred-tools>
 Some tools are not loaded inline. Discover and call them through the meta-tools below.
 
 <usage>
-1. \`tool_search({ query?, namespace?, verbose? })\` — browse the catalog. Results are grouped by namespace (e.g. \`web\`, \`kb\`, \`mcp:<server>\`). Pass \`verbose: true\` to include full input schemas.
-2. \`tool_inspect({ name })\` — fetch a JSDoc stub for one tool when the search description isn't enough to call it confidently.
-3. \`tool_invoke({ name, params })\` — call a single tool you found.
+1. \`tool_search({ query?, namespace?, verbose? })\` — discover tools, grouped by namespace (e.g. \`web\`, \`kb\`, \`mcp:<server>\`). This is tool discovery, NOT web search. Pass \`verbose: true\` to include full input schemas.
+2. \`tool_inspect({ name })\` — fetch a tool JSDoc signature to confirm its parameter names and shapes. Optional, but inspecting first (or searching with \`verbose: true\`) saves a round-trip.
+3. \`tool_invoke({ name, params })\` — call a single tool. If you call one you haven't inspected, or pass params that don't match its signature, the call returns that tool's signature — read it and call again with corrected params.
 </usage>`
 
 /**
