@@ -9,7 +9,7 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { app } from 'electron'
 
-const logger = loggerService.withContext('MCPServer:Assistant')
+const logger = loggerService.withContext('McpServer:Assistant')
 
 /**
  * Whether `read_source` must refuse a file as sensitive. Covers every dotenv variant
