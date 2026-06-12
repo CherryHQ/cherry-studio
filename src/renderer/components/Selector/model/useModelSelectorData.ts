@@ -1,3 +1,4 @@
+import { modelMatchesDisplayTag } from '@renderer/components/Tags/Model'
 import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -8,7 +9,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { sortBy } from 'lodash'
 import { useCallback, useMemo } from 'react'
 
-import { matchesModelTag, MODEL_SELECTOR_TAGS, type ModelSelectorTag, useModelTagFilter } from './filters'
+import { MODEL_SELECTOR_TAGS, type ModelSelectorTag, useModelTagFilter } from './filters'
 import type {
   FlatListItem,
   ModelSelectorModelItem,
@@ -139,7 +140,7 @@ export function useModelSelectorData({
       return EMPTY_TAGS
     }
 
-    return MODEL_SELECTOR_TAGS.filter((tag) => selectableModels.some((model) => matchesModelTag(model, tag)))
+    return MODEL_SELECTOR_TAGS.filter((tag) => selectableModels.some((model) => modelMatchesDisplayTag(model, tag)))
   }, [modelsByProvider])
 
   const selectableModelsById = useMemo(() => {

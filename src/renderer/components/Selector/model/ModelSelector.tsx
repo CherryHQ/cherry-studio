@@ -1,6 +1,7 @@
 import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
 import { resolveIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
+import { getModelDisplayTags, ModelTag } from '@renderer/components/Tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isDev } from '@renderer/config/constant'
 import { useCommandHandler } from '@renderer/features/command'
@@ -21,9 +22,7 @@ import {
 import { useTranslation } from 'react-i18next'
 
 import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '../shell/SelectorShell'
-import { matchesModelTag, MODEL_SELECTOR_TAGS } from './filters'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
-import { ModelTagChip } from './ModelTagChip'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
 import type { FlatListItem, ModelSelectorModelItem, ModelSelectorProps, ModelSelectorSelectionType } from './types'
 import { useModelListKeyboardNav } from './useModelListKeyboardNav'
@@ -165,7 +164,7 @@ function ModelRow({
   t: (key: string) => string
 }) {
   const icon = resolveIcon(item.modelIdentifier, item.provider.id)
-  const rowTags = useMemo(() => MODEL_SELECTOR_TAGS.filter((tag) => matchesModelTag(item.model, tag)), [item.model])
+  const rowTags = useMemo(() => getModelDisplayTags(item.model), [item.model])
   const providerName = getProviderDisplayName(item.provider)
 
   const leading = icon ? (
@@ -190,7 +189,7 @@ function ModelRow({
     rowTags.length > 0 ? (
       <div className="ml-2 flex h-4 max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
         {rowTags.map((tag) => (
-          <ModelTagChip
+          <ModelTag
             key={`${item.key}-${tag}`}
             tag={tag}
             size={ROW_TAG_SIZE}
@@ -690,11 +689,11 @@ export function ModelSelector(props: ModelSelectorProps) {
       <>
         <span className="mr-1 text-[10px] text-muted-foreground">{t('models.filter.by_tag')}</span>
         {availableTags.map((tag) => (
-          <ModelTagChip
+          <ModelTag
             key={`filter-${tag}`}
             tag={tag}
             size={FILTER_TAG_SIZE}
-            showLabel
+            showTooltip
             inactive={!tagSelection[tag]}
             onClick={() => toggleTag(tag)}
             className="transition-colors"

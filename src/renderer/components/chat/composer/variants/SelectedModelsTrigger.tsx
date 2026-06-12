@@ -1,8 +1,7 @@
 import { Button, Popover, PopoverAnchor, PopoverContent, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import { matchesModelTag, MODEL_SELECTOR_TAGS } from '@renderer/components/Selector/model/filters'
-import { ModelTagChip } from '@renderer/components/Selector/model/ModelTagChip'
+import { getModelDisplayTags, type ModelDisplayTag, ModelTag } from '@renderer/components/Tags/Model'
 import { getProviderDisplayName } from '@renderer/hooks/useProvider'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -38,14 +37,13 @@ function getProviderName(model: Model, providers: Provider[]) {
   return getProviderDisplayName(provider) || model.providerId
 }
 
-function SelectedModelTags({ model }: { model: Model }) {
-  const tags = MODEL_SELECTOR_TAGS.filter((tag) => matchesModelTag(model, tag))
+function SelectedModelTags({ tags }: { tags: ModelDisplayTag[] }) {
   if (tags.length === 0) return null
 
   return (
     <span className="flex shrink-0 items-center gap-0.5">
       {tags.map((tag) => (
-        <ModelTagChip
+        <ModelTag
           key={tag}
           tag={tag}
           size={MODEL_TAG_SIZE}
@@ -194,7 +192,8 @@ export const SelectedModelsTrigger = ({
         <Scrollbar className="max-h-64 overflow-x-hidden" data-testid="selected-models-list">
           {models.map((model) => {
             const providerName = modelProviderNames.get(model.id) ?? model.providerId
-            const hasTags = MODEL_SELECTOR_TAGS.some((tag) => matchesModelTag(model, tag))
+            const tags = getModelDisplayTags(model)
+            const hasTags = tags.length > 0
             const hasRightMeta = model.contextWindow != null
 
             return (
@@ -214,7 +213,7 @@ export const SelectedModelsTrigger = ({
                       'mt-0.5 flex h-3.5 min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground/70 leading-3.5',
                       !hasTags && 'invisible'
                     )}>
-                    {hasTags ? <SelectedModelTags model={model} /> : null}
+                    {hasTags ? <SelectedModelTags tags={tags} /> : null}
                   </div>
                 </div>
                 <div className="grid max-w-24 shrink-0 justify-items-end">

@@ -71,13 +71,12 @@ vi.mock('@renderer/components/Avatar/ModelAvatar', () => ({
   )
 }))
 
-vi.mock('@renderer/components/Selector/model/filters', () => ({
-  MODEL_SELECTOR_TAGS: [MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.FUNCTION_CALL],
-  matchesModelTag: (model: Model, tag: string) => model.capabilities.includes(tag as any)
-}))
-
-vi.mock('@renderer/components/Selector/model/ModelTagChip', () => ({
-  ModelTagChip: ({ tag, size, className }: { tag: string; size: number; className?: string }) => (
+vi.mock('@renderer/components/Tags/Model', () => ({
+  getModelDisplayTags: (model: Model) =>
+    model.capabilities.filter((capability) =>
+      [MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.FUNCTION_CALL].includes(capability as any)
+    ),
+  ModelTag: ({ tag, size, className }: { tag: string; size: number; className?: string }) => (
     <span className={className} data-size={size} data-testid={`model-tag-${tag}`}>
       {tag}
     </span>

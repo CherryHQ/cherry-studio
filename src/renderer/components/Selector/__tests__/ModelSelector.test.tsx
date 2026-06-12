@@ -1,4 +1,4 @@
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type {
@@ -79,15 +79,25 @@ vi.mock('@cherrystudio/ui', () => {
     ),
     CustomTag: ({
       children,
+      icon,
       onClick,
       ...props
-    }: ButtonHTMLAttributes<HTMLButtonElement> & { color?: string; size?: number }) => {
-      const { color, size, ...buttonProps } = props
+    }: ButtonHTMLAttributes<HTMLButtonElement> & {
+      color?: string
+      icon?: ReactNode
+      inactive?: boolean
+      size?: number
+      tooltip?: string
+    }) => {
+      const { color, inactive, size, tooltip, ...buttonProps } = props
       void color
+      void inactive
       void size
+      void tooltip
 
       return (
         <button type="button" onClick={onClick} {...buttonProps}>
+          {icon}
           {children}
         </button>
       )
@@ -372,6 +382,26 @@ describe('ModelSelector', () => {
       'text-foreground!'
     )
     expect(screen.getByLabelText('models.action.unpin')).not.toHaveClass('text-primary!')
+  })
+
+  it('renders filter tags as icon-only chips', () => {
+    mockUseModelSelectorData.mockReturnValue(
+      makeData({
+        availableTags: [MODEL_CAPABILITY.IMAGE_RECOGNITION, MODEL_CAPABILITY.REASONING, 'free'],
+        listItems: [],
+        modelItems: []
+      })
+    )
+
+    const { container } = render(
+      <ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />
+    )
+
+    expect(screen.getByText('models.filter.by_tag')).toBeInTheDocument()
+    expect(screen.queryByText('models.type.vision')).not.toBeInTheDocument()
+    expect(screen.queryByText('models.type.reasoning')).not.toBeInTheDocument()
+    expect(screen.queryByText('models.type.free')).not.toBeInTheDocument()
+    expect(container.querySelectorAll('button.transition-colors svg')).toHaveLength(3)
   })
 
   it('uses neutral color on the row action when the model row is selected', () => {
