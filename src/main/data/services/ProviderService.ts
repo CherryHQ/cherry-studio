@@ -236,28 +236,52 @@ class ProviderService {
    * Update an existing provider
    */
   async update(providerId: string, dto: UpdateProviderDto): Promise<Provider> {
-    const db = application.get('DbService').getDb()
+    // Read + merge + write the providerSettings JSON in ONE serialized write
+    // transaction. A bare read-then-update would let two concurrent PATCHes both
+    // read the same old providerSettings and have the later write clobber the
+    // other's keys (lost update); withWriteTx serializes them so each merges on
+    // the latest row value.
+    const row = await application.get('DbService').withWriteTx(async (tx) => {
+      // Read the raw row's providerSettings, not the merged entity. PATCH
+      // semantics require merging with the stored partial, not with runtime
+      // defaults — otherwise DEFAULT_PROVIDER_SETTINGS would be persisted
+      // into the row and break the "row stores only overrides" contract.
+      const [current] = await tx
+        .select({ providerSettings: userProviderTable.providerSettings })
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, providerId))
+        .limit(1)
 
-    // Build update object
-    const updates: Partial<InsertUserProviderRow> = {}
+      if (!current) {
+        throw DataApiErrorFactory.notFound('Provider', providerId)
+      }
 
-    if (dto.name !== undefined) updates.name = dto.name
-    if (dto.endpointConfigs !== undefined) updates.endpointConfigs = dto.endpointConfigs
-    if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
-    if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
-    if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
-    if (dto.providerSettings !== undefined) updates.providerSettings = dto.providerSettings
-    if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
+      const updates: Partial<InsertUserProviderRow> = {}
 
-    const [row] = await db
-      .update(userProviderTable)
-      .set(updates)
-      .where(eq(userProviderTable.providerId, providerId))
-      .returning()
+      if (dto.name !== undefined) updates.name = dto.name
+      if (dto.endpointConfigs !== undefined) updates.endpointConfigs = dto.endpointConfigs
+      if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
+      if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
+      if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
+      if (dto.providerSettings !== undefined) {
+        updates.providerSettings = {
+          ...(current.providerSettings as Partial<ProviderSettings> | null),
+          ...dto.providerSettings
+        }
+      }
+      if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
 
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Provider', providerId)
-    }
+      const [updated] = await tx
+        .update(userProviderTable)
+        .set(updates)
+        .where(eq(userProviderTable.providerId, providerId))
+        .returning()
+
+      if (!updated) {
+        throw DataApiErrorFactory.notFound('Provider', providerId)
+      }
+      return updated
+    })
 
     logger.info('Updated provider', { providerId, changes: Object.keys(dto) })
 

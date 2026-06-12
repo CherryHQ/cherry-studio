@@ -7,13 +7,13 @@ import { application } from '@main/core/application'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { type ChannelConfig, ChannelConfigSchema } from '@shared/data/types/channel'
-import type { AgentConfiguration } from '@types'
 import QRCode from 'qrcode'
 
-const logger = loggerService.withContext('MCPServer:Claw')
+const logger = loggerService.withContext('McpServer:Claw')
 
 /**
  * Parse a human-friendly duration string (e.g. '30m', '2h', '1h30m') into minutes.

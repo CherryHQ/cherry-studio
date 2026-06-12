@@ -57,6 +57,13 @@
       "when": 1781101284184,
       "tag": "0007_normal_tinkerer",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1781173061755,
+      "tag": "0008_fearless_stranger",
+      "breakpoints": true
     }
   ]
 }
