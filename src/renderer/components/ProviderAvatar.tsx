@@ -61,7 +61,7 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   if (typeof effectiveLogo === 'string' && !effectiveLogo.startsWith('icon:')) {
     return (
       <Avatar className={className} style={{ width: size, height: size, ...style }}>
-        <AvatarImage src={effectiveLogo} draggable={false} />
+        <AvatarImage src={effectiveLogo} className="object-cover" draggable={false} />
       </Avatar>
     )
   }

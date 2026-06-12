@@ -20,6 +20,15 @@ afterEach(() => {
 })
 
 describe('ProviderAvatarPrimitive', () => {
+  it('renders image logo avatars with object-cover cropping', () => {
+    const logo = 'file:///tmp/wide-provider-logo.png'
+
+    render(<ProviderAvatarPrimitive providerId="custom" providerName="Custom" logo={logo} />)
+
+    expect(document.querySelector('img')).toHaveClass('object-cover')
+    expect(document.querySelector('img')).toHaveAttribute('src', logo)
+  })
+
   it('resolves an `icon:<id>` logo to the built-in brand icon', () => {
     render(<ProviderAvatarPrimitive providerId="custom" providerName="Custom" logo="icon:openai" />)
 
