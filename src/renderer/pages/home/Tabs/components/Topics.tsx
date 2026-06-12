@@ -1217,11 +1217,74 @@ interface TopicListBodyProps {
   variant: TopicListBodyVariant
 }
 
+type TopicRowSharedProps = Omit<TopicListBodyProps, 'listRef' | 'variant'>
+
 function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
-  const { listRef, variant, ...rowProps } = props
+  const {
+    activeTopic,
+    deletingTopicId,
+    displayMode,
+    exportMenuOptions,
+    isNewlyRenamed,
+    isRenaming,
+    listRef,
+    notesPath,
+    onAutoRename,
+    onClearMessages,
+    onConfirmDelete,
+    onDeleteClick,
+    onDeleteFromMenu,
+    onOpenInNewTab,
+    onPinTopic,
+    onRequestTopicImageAction,
+    onSwitchTopic,
+    topicsLength,
+    variant
+  } = props
 
-  const renderItem = (topic: Topic) => <TopicRow key={topic.id} topic={topic} {...rowProps} />
+  const rowProps = useMemo<TopicRowSharedProps>(
+    () => ({
+      activeTopic,
+      deletingTopicId,
+      displayMode,
+      exportMenuOptions,
+      isNewlyRenamed,
+      isRenaming,
+      notesPath,
+      onAutoRename,
+      onClearMessages,
+      onConfirmDelete,
+      onDeleteClick,
+      onDeleteFromMenu,
+      onOpenInNewTab,
+      onPinTopic,
+      onRequestTopicImageAction,
+      onSwitchTopic,
+      topicsLength
+    }),
+    [
+      activeTopic,
+      deletingTopicId,
+      displayMode,
+      exportMenuOptions,
+      isNewlyRenamed,
+      isRenaming,
+      notesPath,
+      onAutoRename,
+      onClearMessages,
+      onConfirmDelete,
+      onDeleteClick,
+      onDeleteFromMenu,
+      onOpenInNewTab,
+      onPinTopic,
+      onRequestTopicImageAction,
+      onSwitchTopic,
+      topicsLength
+    ]
+  )
+
+  const renderItem = useCallback((topic: Topic) => <TopicRow key={topic.id} topic={topic} {...rowProps} />, [rowProps])
 
   return (
     <ResourceList.Body<Topic>
@@ -1242,8 +1305,6 @@ function TopicListBody(props: TopicListBodyProps) {
     />
   )
 }
-
-type TopicRowSharedProps = Omit<TopicListBodyProps, 'listRef' | 'variant'>
 
 interface TopicRowWithStatusProps extends TopicRowSharedProps {
   topic: Topic

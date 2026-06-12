@@ -1489,22 +1489,34 @@ function SessionListBody({
 }: SessionListBodyProps) {
   const { t } = useTranslation()
 
-  const renderItem = (session: SessionListItem) => (
-    <SessionItem
-      key={session.id}
-      session={session}
-      active={session.id === activeSessionId}
-      channelType={channelTypeMap[session.id]}
-      pinned={session.pinned}
-      reserveLeadingIconSlot={
-        displayMode !== 'time' && !(displayMode === 'workdir' && isSystemWorkspaceSession(session))
-      }
-      onTogglePin={onTogglePin}
-      onDelete={onDeleteSession}
-      onOpenInNewTab={onOpenInNewTab}
-      onPress={setActiveSessionId}
-      onSelectItem={onSelectItem}
-    />
+  const renderItem = useCallback(
+    (session: SessionListItem) => (
+      <SessionItem
+        key={session.id}
+        session={session}
+        active={session.id === activeSessionId}
+        channelType={channelTypeMap[session.id]}
+        pinned={session.pinned}
+        reserveLeadingIconSlot={
+          displayMode !== 'time' && !(displayMode === 'workdir' && isSystemWorkspaceSession(session))
+        }
+        onTogglePin={onTogglePin}
+        onDelete={onDeleteSession}
+        onOpenInNewTab={onOpenInNewTab}
+        onPress={setActiveSessionId}
+        onSelectItem={onSelectItem}
+      />
+    ),
+    [
+      activeSessionId,
+      channelTypeMap,
+      displayMode,
+      onDeleteSession,
+      onOpenInNewTab,
+      onSelectItem,
+      onTogglePin,
+      setActiveSessionId
+    ]
   )
 
   return (

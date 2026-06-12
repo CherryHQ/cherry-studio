@@ -14,9 +14,6 @@ type ResourceListActionContextMenuProps<T extends ResourceListItemBase, TActionC
   actions: readonly ResolvedAction<TActionContext>[]
   item: T
   children: ReactNode
-  className?: string
-  confirmDialogContentClassName?: string
-  confirmDialogOverlayClassName?: string
   onAction: (action: ResolvedAction<TActionContext>) => void | Promise<void>
 }
 

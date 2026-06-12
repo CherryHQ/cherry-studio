@@ -2544,9 +2544,9 @@ describe('ResourceList', () => {
       'h-7',
       'text-[10px]',
       'md:text-[10px]',
-      'border-sidebar-border/40',
+      'border-sidebar-border',
       'placeholder:text-[10px]',
-      'placeholder:text-muted-foreground/45'
+      'placeholder:text-foreground-muted'
     )
   })
 
