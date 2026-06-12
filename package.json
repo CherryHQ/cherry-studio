@@ -12,7 +12,8 @@
   },
   "scripts": {
     "start": "electron-vite preview",
-    "dev": "dotenv electron-vite dev",
+    "download:binaries": "node scripts/download-binaries.js",
+    "dev": "pnpm download:binaries && dotenv electron-vite dev",
     "dev:watch": "dotenv electron-vite dev -- -w",
     "debug": "electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
     "build": "npm run typecheck && electron-vite build",

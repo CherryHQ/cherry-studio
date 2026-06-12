@@ -33,6 +33,7 @@ import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes
 import type {
   FileProcessorFeature,
   FileProcessorId,
+  ManagedBinary,
   SelectionActionItem,
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
@@ -509,9 +510,32 @@ const api = {
   // Binary related APIs
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),
-  installUVBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallUvBinary),
-  installBunBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallBunBinary),
   installOvmsBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallOvmsBinary),
+  // BinaryManager tool manager
+  binaryManager: {
+    reconcile: () => ipcRenderer.invoke(IpcChannel.Binary_Reconcile),
+    installTool: (tool: ManagedBinary) => ipcRenderer.invoke(IpcChannel.Binary_InstallTool, tool),
+    removeTool: (toolName: string) => ipcRenderer.invoke(IpcChannel.Binary_RemoveTool, toolName),
+    getState: () => ipcRenderer.invoke(IpcChannel.Binary_GetState),
+    searchRegistry: (query: string): Promise<Array<{ name: string; tool: string }>> =>
+      ipcRenderer.invoke(IpcChannel.Binary_SearchRegistry, query),
+    getToolDir: (toolName: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Binary_GetToolDir, toolName),
+    probeBundled: (): Promise<Record<string, string | null>> => ipcRenderer.invoke(IpcChannel.Binary_ProbeBundled),
+    onStateChanged: (callback: (state: any) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, state: any) => callback(state)
+      ipcRenderer.on(IpcChannel.Binary_StateChanged, listener)
+      return () => {
+        ipcRenderer.off(IpcChannel.Binary_StateChanged, listener)
+      }
+    },
+    onReconcileFailed: (callback: (failedNames: string) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, names: string) => callback(names)
+      ipcRenderer.on(IpcChannel.Binary_ReconcileFailed, listener)
+      return () => {
+        ipcRenderer.off(IpcChannel.Binary_ReconcileFailed, listener)
+      }
+    }
+  },
   protocol: {
     onReceiveData: (callback: (data: { url: string; params: any }) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, data: { url: string; params: any }) => {

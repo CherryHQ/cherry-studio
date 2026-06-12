@@ -27,8 +27,6 @@ export enum IpcChannel {
   App_ResetData = 'app:reset-data',
   App_IsBinaryExist = 'app:is-binary-exist',
   App_GetBinaryPath = 'app:get-binary-path',
-  App_InstallUvBinary = 'app:install-uv-binary',
-  App_InstallBunBinary = 'app:install-bun-binary',
   App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
   App_GetSystemFonts = 'app:get-system-fonts',
@@ -481,7 +479,18 @@ export enum IpcChannel {
   // OS-level only; does NOT cover HTML5 element.requestFullscreen() or macOS setSimpleFullScreen.
   WindowManager_FullscreenChanged = 'window-manager:fullscreen-changed',
   // Payload = the initData passed to open(); omitted if none supplied, not fired on fresh creation.
-  WindowManager_Reused = 'window-manager:reused'
+  WindowManager_Reused = 'window-manager:reused',
+
+  // BinaryManager (tool manager)
+  Binary_Reconcile = 'binary:reconcile',
+  Binary_InstallTool = 'binary:install-tool',
+  Binary_RemoveTool = 'binary:remove-tool',
+  Binary_GetState = 'binary:get-state',
+  Binary_SearchRegistry = 'binary:search-registry',
+  Binary_GetToolDir = 'binary:get-tool-dir',
+  Binary_ProbeBundled = 'binary:probe-bundled',
+  Binary_StateChanged = 'binary:state-changed',
+  Binary_ReconcileFailed = 'binary:reconcile-failed'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

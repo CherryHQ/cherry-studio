@@ -28,6 +28,12 @@ vi.mock('@application', () => ({
       if (name === 'WindowManager') {
         return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) }
       }
+      if (name === 'BinaryManager') {
+        return {
+          installTool: vi.fn(() => Promise.resolve({ version: 'latest' })),
+          removeTool: vi.fn(() => Promise.resolve())
+        }
+      }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     })
   }

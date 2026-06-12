@@ -18,17 +18,16 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac, isWin } from '@main/core/platform'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
-import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
-import getShellEnv from '@main/utils/shell-env'
+import { getBinaryPath, isBinaryExists } from '@main/utils/process'
 import type { TerminalConfig, TerminalConfigWithCommand } from '@shared/config/constant'
 import {
   codeCLI,
-  HOME_CHERRY_DIR,
   MACOS_TERMINALS,
   MACOS_TERMINALS_WITH_COMMANDS,
   terminalApps,
@@ -126,13 +125,11 @@ export class CodeCliService extends BaseService {
   }
 
   public async getBunPath() {
-    const dir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-    const bunName = await getBinaryName('bun')
-    const bunPath = path.join(dir, bunName)
-    return bunPath
+    return getBinaryPath('bun')
   }
 
-  public async getPackageName(cliTool: string) {
+  // npm package name used only for version registry lookups (not installation)
+  private async getPackageName(cliTool: string) {
     switch (cliTool) {
       case codeCLI.claudeCode:
         return '@anthropic-ai/claude-code'
@@ -147,9 +144,32 @@ export class CodeCliService extends BaseService {
       case codeCLI.githubCopilotCli:
         return '@github/copilot'
       case codeCLI.kimiCli:
-        return 'kimi-cli' // Python package
+        return 'kimi-cli'
       case codeCLI.openCode:
         return 'opencode-ai'
+      default:
+        throw new Error(`Unsupported CLI tool: ${cliTool}`)
+    }
+  }
+
+  private getMiseToolSpec(cliTool: string): { name: string; tool: string } {
+    switch (cliTool) {
+      case codeCLI.claudeCode:
+        return { name: 'claude', tool: 'claude' }
+      case codeCLI.geminiCli:
+        return { name: 'gemini', tool: 'npm:@google/gemini-cli' }
+      case codeCLI.openaiCodex:
+        return { name: 'codex', tool: 'codex' }
+      case codeCLI.qwenCode:
+        return { name: 'qwen', tool: 'npm:@qwen-code/qwen-code' }
+      case codeCLI.iFlowCli:
+        return { name: 'iflow', tool: 'npm:@iflow-ai/iflow-cli' }
+      case codeCLI.githubCopilotCli:
+        return { name: 'copilot', tool: 'npm:@github/copilot' }
+      case codeCLI.kimiCli:
+        return { name: 'kimi', tool: 'pipx:kimi-cli' }
+      case codeCLI.openCode:
+        return { name: 'opencode', tool: 'opencode' }
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
@@ -176,62 +196,6 @@ export class CodeCliService extends BaseService {
       default:
         throw new Error(`Unsupported CLI tool: ${cliTool}`)
     }
-  }
-
-  /**
-   * Get the command to execute claude-code.
-   *
-   * Since @anthropic-ai/claude-code ships a native binary (bin/claude.exe) instead of
-   * a JavaScript file, it cannot be executed via Bun. The official cli-wrapper.cjs is
-   * a JS launcher that locates and spawns the correct platform-specific binary.
-   * We use Bun to run cli-wrapper.cjs, which works on all platforms.
-   */
-  private async getClaudeCodeCommand(bunPath: string): Promise<string> {
-    const globalInstallDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'install', 'global')
-    const cliWrapperPath = path.join(
-      globalInstallDir,
-      'node_modules',
-      '@anthropic-ai',
-      'claude-code',
-      'cli-wrapper.cjs'
-    )
-
-    if (fs.existsSync(cliWrapperPath)) {
-      logger.debug(`Using cli-wrapper.cjs for claude-code: ${cliWrapperPath}`)
-      return `"${bunPath}" "${cliWrapperPath}"`
-    }
-
-    // Fallback: try to execute the binary directly (works if postinstall ran correctly)
-    const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-    const executableName = await this.getCliExecutableName(codeCLI.claudeCode)
-    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
-    logger.warn(`cli-wrapper.cjs not found at ${cliWrapperPath}, falling back to direct execution: ${executablePath}`)
-    return `"${executablePath}"`
-  }
-
-  /**
-   * Prefer OpenCode's package-local executable on Windows.
-   *
-   * Bun global bins can fail with "Bun failed to remap this bin" after updates,
-   * while opencode-ai's postinstall places the real executable under the package.
-   */
-  private async getOpenCodeCommand(): Promise<string> {
-    const globalInstallDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'install', 'global')
-    const openCodeExecutablePath = path.join(globalInstallDir, 'node_modules', 'opencode-ai', 'bin', 'opencode.exe')
-
-    if (fs.existsSync(openCodeExecutablePath)) {
-      logger.debug(`Using package-local executable for opencode: ${openCodeExecutablePath}`)
-      return `"${openCodeExecutablePath}"`
-    }
-
-    // Fallback: try to execute the Bun global bin directly.
-    const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-    const executableName = await this.getCliExecutableName(codeCLI.openCode)
-    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
-    logger.warn(
-      `opencode package-local executable not found at ${openCodeExecutablePath}, falling back to direct execution: ${executablePath}`
-    )
-    return `"${executablePath}"`
   }
 
   /**
@@ -731,26 +695,14 @@ export class CodeCliService extends BaseService {
     }
   }
 
-  private async isPackageInstalled(cliTool: string): Promise<boolean> {
-    const executableName = await this.getCliExecutableName(cliTool)
-    const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
-
-    // Ensure bin directory exists
-    if (!fs.existsSync(binDir)) {
-      fs.mkdirSync(binDir, { recursive: true })
-    }
-
-    return fs.existsSync(executablePath)
-  }
-
   /**
    * Get version information for a CLI tool
    */
   public async getVersionInfo(cliTool: string): Promise<VersionInfo> {
     logger.info(`Starting version check for ${cliTool}`)
     const packageName = await this.getPackageName(cliTool)
-    const isInstalled = await this.isPackageInstalled(cliTool)
+    const executableName = await this.getCliExecutableName(cliTool)
+    const isInstalled = await isBinaryExists(executableName)
 
     let installedVersion: string | null = null
     let latestVersion: string | null = null
@@ -759,21 +711,8 @@ export class CodeCliService extends BaseService {
     if (isInstalled) {
       logger.info(`${cliTool} is installed, getting current version`)
       try {
-        let versionCommand: string
-
-        // claude-code ships a native binary that cannot be executed via Bun.
-        // Use cli-wrapper.cjs (via Bun) to run --version reliably on all platforms.
-        if (cliTool === codeCLI.claudeCode) {
-          const bunPath = await this.getBunPath()
-          versionCommand = await this.getClaudeCodeCommand(bunPath)
-        } else if (cliTool === codeCLI.openCode) {
-          versionCommand = await this.getOpenCodeCommand()
-        } else {
-          const executableName = await this.getCliExecutableName(cliTool)
-          const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-          const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
-          versionCommand = `"${executablePath}"`
-        }
+        const execPath = await getBinaryPath(executableName)
+        const versionCommand = `"${execPath}"`
 
         const { stdout } = await execAsync(`${versionCommand} --version`, {
           timeout: 10000
@@ -876,50 +815,24 @@ export class CodeCliService extends BaseService {
   }
 
   /**
-   * Update a CLI tool to the latest version
+   * Update a CLI tool to the latest version via BinaryManager (mise)
    */
   public async updatePackage(cliTool: string): Promise<{ success: boolean; message: string }> {
     logger.info(`Starting update process for ${cliTool}`)
     try {
+      const spec = this.getMiseToolSpec(cliTool)
+      await application.get('BinaryManager').installTool(spec)
+      // Clear version cache so next check fetches fresh data
       const packageName = await this.getPackageName(cliTool)
-      const bunPath = await this.getBunPath()
-      const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)
-      const registryUrl = await this.getNpmRegistryUrl()
-
-      // Get logs directory for update output redirection
-      const logsDir = loggerService.getLogsDir()
-      const updateLogPath = path.join(logsDir, 'cli-tools-update.log').replace(/\\/g, '/')
-
-      const installEnvPrefix = isWin
-        ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
-        : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
-
-      // Use > to truncate log file on each update
-      const updateCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName} > "${updateLogPath}" 2>&1`
-      logger.info(`Executing update command: ${updateCommand}`)
-
-      await execAsync(updateCommand, { timeout: 60000 })
-      logger.info(`Successfully executed update command for ${cliTool}`)
-
-      // Clear version cache for this package
-      const cacheKey = `${packageName}-latest`
-      this.versionCache.delete(cacheKey)
-      logger.debug(`Cleared version cache for ${packageName}`)
-
+      this.versionCache.delete(`${packageName}-latest`)
       const successMessage = `Successfully updated ${cliTool} to the latest version`
       logger.info(successMessage)
-      return {
-        success: true,
-        message: successMessage
-      }
+      return { success: true, message: successMessage }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       const failureMessage = `Failed to update ${cliTool}: ${errorMessage}`
       logger.error(failureMessage, error as Error)
-      return {
-        success: false,
-        message: failureMessage
-      }
+      return { success: false, message: failureMessage }
     }
   }
 
@@ -946,50 +859,40 @@ export class CodeCliService extends BaseService {
       }
     }
 
-    const packageName = await this.getPackageName(cliTool)
-    const bunPath = await this.getBunPath()
     const executableName = await this.getCliExecutableName(cliTool)
-    const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
+    const miseSpec = this.getMiseToolSpec(cliTool)
 
-    logger.debug(`Package name: ${packageName}`)
-    logger.debug(`Bun path: ${bunPath}`)
     logger.debug(`Executable name: ${executableName}`)
-    logger.debug(`Executable path: ${executablePath}`)
+    logger.debug(`Mise tool spec: ${miseSpec.tool}`)
 
     // Check if package is already installed
-    const isInstalled = await this.isPackageInstalled(cliTool)
+    let isInstalled = await isBinaryExists(executableName)
 
-    // Check for updates and auto-update if requested
-    let updateMessage = ''
-    let installedVersion: string | null = null
-
-    // Get installed version if package is installed (needed for qwen-code auth-type check)
-    if (isInstalled) {
+    // Install via BinaryManager (mise) if not present
+    if (!isInstalled) {
+      logger.info(`${cliTool} not installed, installing via BinaryManager...`)
       try {
-        const versionInfo = await this.getVersionInfo(cliTool)
-        installedVersion = versionInfo.installed
-
-        // Handle auto-update if enabled
-        if (options.autoUpdateToLatest) {
-          logger.info(`Auto update to latest enabled for ${cliTool}`)
-          if (versionInfo.needsUpdate) {
-            logger.info(`Update available for ${cliTool}: ${versionInfo.installed} -> ${versionInfo.latest}`)
-            logger.info(`Auto-updating ${cliTool} to latest version`)
-            updateMessage = ` && echo "Updating ${escapeBatchText(cliTool)} from ${escapeBatchText(versionInfo.installed || '')} to ${escapeBatchText(versionInfo.latest || '')}..."`
-            const updateResult = await this.updatePackage(cliTool)
-            if (updateResult.success) {
-              logger.info(`Update completed successfully for ${cliTool}`)
-              updateMessage += ` && echo "Update completed successfully"`
-            } else {
-              logger.error(`Update failed for ${cliTool}: ${updateResult.message}`)
-              updateMessage += ` && echo "Update failed: ${escapeBatchText(updateResult.message)}"`
-            }
-          }
-        }
+        await application.get('BinaryManager').installTool(miseSpec)
+        isInstalled = true
+        logger.info(`${cliTool} installed successfully`)
       } catch (error) {
-        logger.warn(`Failed to check version for ${cliTool}:`, error as Error)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        logger.error(`Failed to install ${cliTool}:`, error as Error)
+        return { success: false, message: `Failed to install ${cliTool}: ${errorMessage}`, command: '' }
       }
+    }
+
+    // Get installed version (needed for qwen-code auth-type check and optional auto-update)
+    let installedVersion: string | null = null
+    try {
+      const versionInfo = await this.getVersionInfo(cliTool)
+      installedVersion = versionInfo.installed
+      if (options.autoUpdateToLatest && versionInfo.needsUpdate) {
+        logger.info(`Auto-updating ${cliTool} from ${versionInfo.installed} to ${versionInfo.latest}`)
+        await this.updatePackage(cliTool)
+      }
+    } catch (error) {
+      logger.warn(`Failed to check version for ${cliTool}:`, error as Error)
     }
 
     // Select different terminal based on operating system
@@ -1037,42 +940,8 @@ export class CodeCliService extends BaseService {
       }
     }
 
-    let baseCommand: string
-
-    // claude-code ships a native binary that cannot be executed via Bun.
-    // Use cli-wrapper.cjs (via Bun) on all platforms for reliable execution.
-    if (cliTool === codeCLI.claudeCode) {
-      baseCommand = await this.getClaudeCodeCommand(bunPath)
-    } else if (cliTool === codeCLI.openCode) {
-      baseCommand = await this.getOpenCodeCommand()
-    } else if (isWin) {
-      baseCommand = `"${executablePath}"`
-    } else {
-      baseCommand = `"${bunPath}" "${executablePath}"`
-    }
-
-    // Special handling for kimi-cli: use uvx instead of bun
-    if (cliTool === codeCLI.kimiCli) {
-      const shellEnv = await getShellEnv()
-      let uvPath = await findCommandInShellEnv('uv', shellEnv)
-
-      if (!uvPath) {
-        if (await isBinaryExists('uv')) {
-          uvPath = await getBinaryPath('uv')
-          logger.info('Using bundled uv as fallback (not found in PATH)', { command: uvPath })
-        } else {
-          throw new Error(
-            'uv not found in PATH and bundled version is not available.\n' +
-              'Please either:\n' +
-              '1. Install uv from https://github.com/astral-sh/uv\n' +
-              '2. Run the MCP dependencies installer from Settings\n' +
-              '3. Restart the application if you recently installed uv'
-          )
-        }
-      }
-
-      baseCommand = `${uvPath} tool run ${packageName}`
-    }
+    const executablePath = await getBinaryPath(executableName)
+    let baseCommand = `"${executablePath}"`
 
     // Special handling for qwen-code: add --auth-type openai for version >= 0.12.3
     if (cliTool === codeCLI.qwenCode) {
@@ -1133,48 +1002,6 @@ export class CodeCliService extends BaseService {
 
       // Add --model flag with dynamic provider prefix to avoid race conditions
       baseCommand = `${baseCommand} --model Cherry-${providerName}/${modelId}`
-    }
-
-    const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)
-
-    // Special handling for kimi-cli: uvx handles installation automatically
-    if (cliTool === codeCLI.kimiCli) {
-      // uvx will automatically download and run kimi-cli, no need to install
-      // Just use the base command directly
-    } else if (isInstalled) {
-      // If already installed, run executable directly (with optional update message)
-      if (updateMessage) {
-        // updateMessage already has escaped dynamic content, && connectors are intentional
-        baseCommand = `echo "Checking ${cliTool} version..."${updateMessage} && ${baseCommand}`
-      }
-    } else {
-      // If not installed, install first then run
-      const registryUrl = await this.getNpmRegistryUrl()
-      const installEnvPrefix =
-        platform === 'win32'
-          ? `set "BUN_INSTALL=${bunInstallPath}" && set "NPM_CONFIG_REGISTRY=${registryUrl}" &&`
-          : `export BUN_INSTALL="${bunInstallPath}" && export NPM_CONFIG_REGISTRY="${registryUrl}" &&`
-
-      // Windows: Redirect bun output to log file to prevent cmd.exe from
-      // misinterpreting multiline output as separate commands
-      // macOS/Linux: Keep output visible in terminal (handles multiline correctly)
-      let installCommand: string
-      if (platform === 'win32') {
-        const logsDir = loggerService.getLogsDir()
-        // Use forward slashes for cmd.exe compatibility
-        const installLogPath = path.join(logsDir, 'cli-tools-install.log').replace(/\\/g, '/')
-
-        // Ensure logs directory exists
-        if (!fs.existsSync(logsDir)) {
-          fs.mkdirSync(logsDir, { recursive: true })
-        }
-
-        installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName} >> "${installLogPath}" 2>&1`
-      } else {
-        installCommand = `${installEnvPrefix} "${bunPath}" install -g ${packageName}`
-      }
-
-      baseCommand = `echo "Installing ${packageName}..." && ${installCommand} && echo "Installation complete, starting ${cliTool}..." && ${baseCommand}`
     }
 
     switch (platform) {

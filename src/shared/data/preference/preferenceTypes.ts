@@ -320,3 +320,21 @@ export type FileProcessorOverrides = Partial<Record<FileProcessorId, FileProcess
 export type MiniAppRegion = 'CN' | 'Global'
 
 export type MiniAppRegionFilter = 'auto' | MiniAppRegion
+
+export type ManagedBinary = {
+  name: string
+  tool: string
+  version?: string
+}
+
+export interface ToolInstallState {
+  name: string
+  tool: string
+  version: string
+  installedAt: string
+}
+
+export interface BinaryState {
+  updatedAt: string
+  tools: Record<string, ToolInstallState>
+}
