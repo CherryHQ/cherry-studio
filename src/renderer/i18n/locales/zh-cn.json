@@ -3,17 +3,17 @@
     "add": {
       "description": "调用各种工具处理复杂任务",
       "error": {
-        "failed": "添加 Agent 失败",
-        "invalid_agent": "无效的 Agent"
+        "failed": "添加智能体失败",
+        "invalid_agent": "无效的智能体"
       },
       "model": {
         "supported_providers": "支持的服务商",
-        "tooltip": "目前，只有支持 Anthropic 端点的模型可用于 Agent 功能。",
+        "tooltip": "目前，只有支持 Anthropic 端点的模型可用于智能体功能。",
         "view_providers": "查看支持的服务商"
       },
-      "title": "添加 Agent",
+      "title": "添加智能体",
       "type": {
-        "placeholder": "选择 Agent 类型"
+        "placeholder": "选择智能体类型"
       }
     },
     "askUserQuestion": {
@@ -29,12 +29,12 @@
       "progress": "{{current}} / {{total}}",
       "skip": "跳过",
       "submit": "提交",
-      "title": "来自 Agent 的问题"
+      "title": "来自智能体的问题"
     },
     "cherryClaw": {
       "channels": {
         "add": "添加",
-        "bindAgent": "绑定 Agent",
+        "bindAgent": "绑定智能体",
         "chatIdsAutoTrackHint": "留空时系统将自动追踪：需要先在对应平台上主动给 Bot 发送一条消息，系统才会记录 Chat ID 用于后续通知。",
         "comingSoon": "即将推出",
         "connected": "已连接",
@@ -42,7 +42,7 @@
         "createError": "",
         "deleteConfirm": "确定删除频道「{{name}}」？",
         "deleteError": "",
-        "description": "将您的 Agent 连接到消息平台。",
+        "description": "将您的智能体连接到消息平台。",
         "disconnected": "已断开",
         "discord": {
           "botToken": "Bot Token",
@@ -101,7 +101,7 @@
           "permissionMode": "频道权限模式",
           "permissionModeHint": "覆盖此频道消息的智能体权限模式。选择「继承」则使用智能体默认设置。"
         },
-        "selectAgent": "选择要绑定的 Agent",
+        "selectAgent": "选择要绑定的智能体",
         "slack": {
           "appToken": "应用级别 Token",
           "appTokenPlaceholder": "xapp-...",
@@ -149,7 +149,7 @@
         "intervalHelper": "心跳运行的频率，单位为分钟。"
       },
       "sandbox": {
-        "description": "使用操作系统级沙箱限制 Agent 的文件系统和网络访问，仅限于工作区目录。",
+        "description": "使用操作系统级沙箱限制智能体的文件系统和网络访问，仅限于工作区目录。",
         "helper": "将文件系统和命令访问限制在工作区路径内。",
         "label": "沙箱模式"
       },
@@ -159,23 +159,23 @@
           "label": "Cron 表达式",
           "placeholder": "*/30 * * * *"
         },
-        "description": "调度器按计划自动触发 Agent 运行。",
+        "description": "调度器按计划自动触发智能体运行。",
         "enabled": "启用调度器",
-        "enabledHelper": "启用后，Agent 将根据配置的计划自动运行。",
+        "enabledHelper": "启用后，智能体将根据配置的计划自动运行。",
         "errors": {
           "invalidCron": "无效的 cron 表达式",
           "invalidDelay": "延迟必须是正数",
           "invalidInterval": "间隔必须是正数"
         },
         "interval": {
-          "helper": "Agent 运行的频率，单位为秒。",
+          "helper": "智能体运行的频率，单位为秒。",
           "label": "间隔（秒）"
         },
         "lastRun": "上次运行",
         "never": "从未",
         "nextRun": "下次运行",
         "oneTime": {
-          "helper": "Agent 运行前的一次性延迟，单位为秒。",
+          "helper": "智能体运行前的一次性延迟，单位为秒。",
           "label": "延迟（秒）"
         },
         "status": {
@@ -193,10 +193,10 @@
         }
       },
       "soul": {
-        "description": "灵魂定义了 Agent 的个性和基础行为。它从工作区根目录的 soul.md 文件中读取。",
-        "empty": "在工作区根目录未找到 soul.md 文件。创建一个来定义 Agent 的个性。",
+        "description": "灵魂定义了智能体的个性和基础行为。它从工作区根目录的 soul.md 文件中读取。",
+        "empty": "在工作区根目录未找到 soul.md 文件。创建一个来定义智能体的个性。",
         "enabled": "启用灵魂",
-        "enabledHelper": "启用后，Agent 会从工作区根目录读取 soul.md 并将其添加到系统提示词前面。",
+        "enabledHelper": "启用后，智能体会从工作区根目录读取 soul.md 并将其添加到系统提示词前面。",
         "fileLabel": "soul.md",
         "preview": "灵魂预览",
         "tab": "灵魂",
@@ -253,7 +253,7 @@
         "prompt": {
           "expand": "展开编辑器",
           "label": "提示词",
-          "placeholder": "此任务运行时 Agent 应该做什么？"
+          "placeholder": "此任务运行时智能体应该做什么？"
         },
         "resume": "恢复",
         "run": "运行",
@@ -283,22 +283,22 @@
         "title": "定时任务"
       },
       "warning": {
-        "bypassPermissions": "CherryClaw Agent 默认以全自动模式运行。所有工具执行时不会请求批准。"
+        "bypassPermissions": "CherryClaw 智能体默认以全自动模式运行。所有工具执行时不会请求批准。"
       }
     },
     "delete": {
-      "content": "删除该 Agent 将强制终止并删除该 Agent 下的所有会话。您确定吗？",
+      "content": "删除该智能体将强制终止并删除该智能体下的所有会话。您确定吗？",
       "error": {
-        "failed": "删除 Agent 失败"
+        "failed": "删除智能体失败"
       },
-      "title": "删除 Agent"
+      "title": "删除智能体"
     },
     "edit": {
-      "title": "编辑 Agent"
+      "title": "编辑智能体"
     },
     "empty": {
-      "description": "创建一个 Agent，让 AI 帮你处理复杂任务",
-      "title": "还没有 Agent"
+      "description": "创建一个智能体，让 AI 帮你处理复杂任务",
+      "title": "还没有智能体"
     },
     "get": {
       "error": {
@@ -406,7 +406,7 @@
       "close": "关闭",
       "flow": {
         "empty": {
-          "description": "选择一个 Agent 工具调用来查看它的子消息流。",
+          "description": "选择一个智能体工具调用来查看它的子消息流。",
           "title": "未选择工具"
         },
         "no_messages": {
@@ -610,12 +610,12 @@
           "label": "环境变量"
         },
         "maxTurns": {
-          "description": "设定代理自动执行的请求/回复轮次数。",
+          "description": "设定智能体自动执行的请求/回复轮次数。",
           "helper": "数值越高可自主运行越久；数值越低更易控制。",
           "label": "会话轮次数上限"
         },
         "permissionMode": {
-          "description": "控制代理在需要授权时的处理方式。",
+          "description": "控制智能体在需要授权时的处理方式。",
           "label": "权限模式",
           "options": {
             "acceptEdits": "自动接受编辑",
@@ -685,8 +685,8 @@
         },
         "tab": "插件",
         "type": {
-          "agent": "代理",
-          "agents": "代理",
+          "agent": "智能体",
+          "agents": "智能体",
           "all": "全部",
           "command": "命令",
           "commands": "命令",
@@ -708,7 +708,7 @@
         "title": "已安装技能"
       },
       "soulMode": {
-        "description": "启用后，Agent 将使用工作区灵魂文件构建自定义系统提示词，注入自主任务管理工具，并禁用不适合自主运行的交互式工具。",
+        "description": "启用后，智能体将使用工作区灵魂文件构建自定义系统提示词，注入自主任务管理工具，并禁用不适合自主运行的交互式工具。",
         "disabledBadge": "自主模式已禁用",
         "disabledTooltip": "该工具在自主模式开启时被自动禁用",
         "title": "自主模式"
@@ -972,7 +972,7 @@
           "label": "读取文件"
         },
         "Task": {
-          "description": "运行子代理来处理复杂的多步骤任务"
+          "description": "运行子智能体来处理复杂的多步骤任务"
         },
         "TodoWrite": {
           "description": "创建和管理结构化任务列表"
