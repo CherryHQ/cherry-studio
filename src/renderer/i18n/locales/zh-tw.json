@@ -2438,6 +2438,11 @@
       "mine": "我的",
       "no_match_description": "請嘗試其他搜尋關鍵字",
       "no_match_title": "找不到相符的助手",
+      "official": {
+        "go_to_settings": "[to be translated]:Open model settings",
+        "no_models_body": "[to be translated]:You don't have any {{vendor}} models enabled yet. Open model settings to enable one, then come back to add this assistant.",
+        "no_models_title": "[to be translated]:No {{vendor}} models enabled"
+      },
       "preview": "預覽",
       "preview_description": "簡介",
       "preview_prompt": "提示詞",
