@@ -593,15 +593,16 @@ export class AiStreamManager extends BaseService {
     const exec = stream.executions.get(modelId)
     if (!exec) return
 
-    // Authoritative approval-lifecycle capture; `resolveTerminalStatus` reads `exec.awaitingApproval`.
+    // Authoritative approval-lifecycle capture, keyed by toolCallId so a sibling tool's output never
+    // clears another tool's still-pending approval; `resolveTerminalStatus` reads the set's size.
     if (chunk.type === 'tool-approval-request') {
-      exec.awaitingApproval = true
+      ;(exec.pendingApprovalToolCallIds ??= new Set()).add(chunk.toolCallId)
     } else if (
       chunk.type === 'tool-output-available' ||
       chunk.type === 'tool-output-error' ||
       chunk.type === 'tool-output-denied'
     ) {
-      exec.awaitingApproval = false
+      exec.pendingApprovalToolCallIds?.delete(chunk.toolCallId)
     }
 
     // First chunk promotes `pending` → `streaming`.
@@ -685,13 +686,13 @@ export class AiStreamManager extends BaseService {
     if (!exec || exec.status !== 'aborted') return
 
     // A turn torn down while a tool is still `approval-requested` (or any
-    // in-flight tool) gets no `tool-output-*` to clear it. Clear the flag so the
+    // in-flight tool) gets no `tool-output-*` to clear it. Clear the set so the
     // status resolves to plain `aborted` (not `awaiting-approval`) and the
     // status-cache anchor drops; the dangling tool part itself is terminalized
     // to `output-error` by `finalizeInterruptedParts` at every projection
     // (persistence already, re-attach below). Must run before
     // `resolveTerminalStatus`.
-    exec.awaitingApproval = false
+    exec.pendingApprovalToolCallIds?.clear()
 
     endRootSpan(exec, 'aborted')
     stream.status = this.resolveTerminalStatus(stream)
@@ -719,9 +720,9 @@ export class AiStreamManager extends BaseService {
     exec.error = error
     endRootSpan(exec, 'error', error)
 
-    // Mirror of onExecutionPaused: clear the flag so the status anchor drops;
+    // Mirror of onExecutionPaused: clear the set so the status anchor drops;
     // the in-flight tool part is terminalized by `finalizeInterruptedParts`.
-    exec.awaitingApproval = false
+    exec.pendingApprovalToolCallIds?.clear()
 
     stream.status = this.computeTopicStatus(stream)
     const isTopicDone = !isLiveStatus(stream.status)
@@ -746,8 +747,8 @@ export class AiStreamManager extends BaseService {
   }
 
   /** Drop a topic's queued steers on a non-clean terminal, surfacing the discard. Their persisted
-   *  user rows stay in history as dangling messages the user can resend (the renderer-visible signal
-   *  is tracked separately — see review Important #6). */
+   *  user rows stay in history as dangling messages the user can resend; surfacing those orphaned
+   *  rows in the renderer is the renderer slice's responsibility, not handled here. */
   private dropPendingSteers(topicId: string, reason: 'aborted' | 'error'): void {
     const dropped = this.pendingSteers.get(topicId)
     if (dropped?.length)
@@ -1052,10 +1053,9 @@ export class AiStreamManager extends BaseService {
         // A tool awaiting human approval emits no chunks while it waits, so the normal (short) idle
         // timeout would kill a legitimate deliberation. Re-arm with the generous approval bound
         // instead of pausing entirely — an unresponsive renderer still can't hang the stream forever.
-        // Known edge: a later chunk on the same turn (e.g. a parallel tool's output) runs the default
-        // per-chunk `idle.reset()` and shrinks the window back to the short timeout; acceptable for now
-        // since such a chunk means the turn is making progress again.
-        if (chunk.type === 'tool-approval-request') idle.reset(this.config.approvalIdleTimeoutMs)
+        // Keyed off the pending-approval set (`onChunk` updated it above), so a parallel tool's output
+        // clearing its own id keeps the generous bound while any approval is still outstanding.
+        if (exec.pendingApprovalToolCallIds?.size) idle.reset(this.config.approvalIdleTimeoutMs)
       },
       accumulatorSeed,
       onAccumulatedSnapshot: (msg) => {
@@ -1157,7 +1157,7 @@ export class AiStreamManager extends BaseService {
     const status = this.computeTopicStatus(stream)
     if (status === 'done' || status === 'aborted') {
       for (const exec of stream.executions.values()) {
-        if (exec.awaitingApproval) return 'awaiting-approval'
+        if (exec.pendingApprovalToolCallIds?.size) return 'awaiting-approval'
       }
     }
     return status
