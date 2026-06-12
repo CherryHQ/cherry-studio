@@ -194,6 +194,53 @@ describe('reasoning utils', () => {
       expect(result).toEqual({ reasoning: { enabled: false, exclude: true } })
     })
 
+    it('should map reasoning effort for OpenRouter Gemma 4 model correctly', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'google/gemma-4-9b-it',
+        name: 'Gemma 4 9B IT',
+        provider: SystemProviderIds.openrouter
+      } as Model
+
+      const createAssistantWithEffort = (effort: string) =>
+        ({
+          id: 'test',
+          name: 'Test',
+          settings: {
+            reasoning_effort: effort
+          }
+        }) as Assistant
+
+      // none -> disabled
+      expect(getReasoningEffort(createAssistantWithEffort('none'), model)).toEqual({
+        reasoning: { enabled: false, exclude: true }
+      })
+
+      // low -> reasoning: { effort: 'low' }
+      expect(getReasoningEffort(createAssistantWithEffort('low'), model)).toEqual({
+        reasoning: { effort: 'low' }
+      })
+
+      // medium -> reasoning: { effort: 'medium' }
+      expect(getReasoningEffort(createAssistantWithEffort('medium'), model)).toEqual({
+        reasoning: { effort: 'medium' }
+      })
+
+      // high -> reasoning: { effort: 'high' }
+      expect(getReasoningEffort(createAssistantWithEffort('high'), model)).toEqual({
+        reasoning: { effort: 'high' }
+      })
+
+      // auto -> reasoning: { effort: 'medium' }
+      expect(getReasoningEffort(createAssistantWithEffort('auto'), model)).toEqual({
+        reasoning: { effort: 'medium' }
+      })
+    })
+
     it('should handle Qwen models with enable_thinking', async () => {
       const { isReasoningModel, isSupportedThinkingTokenQwenModel, isQwenReasoningModel } = await import(
         '@renderer/config/models'

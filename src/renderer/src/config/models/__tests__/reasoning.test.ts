@@ -55,6 +55,12 @@ vi.mock('@renderer/store', () => ({
 
 // FIXME: Idk why it's imported. Maybe circular dependency somewhere
 vi.mock('@renderer/services/AssistantService.ts', () => ({
+  getProviderByModel: (model: any) => {
+    return {
+      id: model?.provider || 'default',
+      type: model?.provider || 'default'
+    }
+  },
   getDefaultAssistant: () => {
     return {
       id: 'default',
@@ -938,6 +944,11 @@ describe('getThinkModelType - Comprehensive Coverage', () => {
       expect(getThinkModelType(createModel({ id: 'gemma-4-31b-it', provider: 'gemini' }))).toBe('gemma4_hosted')
       expect(getThinkModelType(createModel({ id: 'google/gemma-4-e2b-it', provider: 'gemini' }))).toBe('gemma4_hosted')
     })
+
+    it('should return default for hosted Gemma 4 models on non-Gemini provider', () => {
+      expect(getThinkModelType(createModel({ id: 'gemma-4-31b-it', provider: 'openrouter' }))).toBe('default')
+      expect(getThinkModelType(createModel({ id: 'google/gemma-4-e2b-it', provider: 'openrouter' }))).toBe('default')
+    })
   })
 
   describe('Qwen models', () => {
@@ -1424,17 +1435,17 @@ describe('Gemini Models', () => {
       ).toBe(false)
     })
 
-    it('should return true for hosted gemma 4 models on Gemini provider', () => {
+    it('should return true for hosted gemma 4 models on Gemini provider and other providers', () => {
       expect(isSupportedThinkingTokenGeminiModel(createModel({ id: 'gemma-4-31b-it', provider: 'gemini' }))).toBe(true)
       expect(
         isSupportedThinkingTokenGeminiModel(createModel({ id: 'google/gemma-4-e2b-it', provider: 'gemini' }))
       ).toBe(true)
+      expect(isSupportedThinkingTokenGeminiModel(createModel({ id: 'gemma-4-31b-it', provider: 'openrouter' }))).toBe(
+        true
+      )
     })
 
-    it('should keep non-Gemini Gemma 4 ids out of Gemini thinking token detection', () => {
-      expect(isSupportedThinkingTokenGeminiModel(createModel({ id: 'gemma-4-31b-it', provider: 'openrouter' }))).toBe(
-        false
-      )
+    it('should keep non-Gemma 4 formatted ids out of Gemini thinking token detection', () => {
       expect(isSupportedThinkingTokenGeminiModel(createModel({ id: 'gemma4:31b' }))).toBe(false)
       expect(isSupportedThinkingTokenGeminiModel(createModel({ id: 'gemma4:e2b' }))).toBe(false)
     })
@@ -2250,6 +2261,12 @@ describe('getModelSupportedReasoningEffortOptions', () => {
       expect(
         getModelSupportedReasoningEffortOptions(createModel({ id: 'gemma-4-31b-it', provider: 'gemini' }))
       ).toEqual(['default', 'minimal', 'high'])
+    })
+
+    it('should return low/medium/high options for hosted Gemma 4 on OpenRouter provider', () => {
+      expect(
+        getModelSupportedReasoningEffortOptions(createModel({ id: 'gemma-4-31b-it', provider: 'openrouter' }))
+      ).toEqual(['default', 'none', 'low', 'medium', 'high'])
     })
   })
 

@@ -145,6 +145,15 @@ export function isGemmaModel(model?: Model): boolean {
   return modelId.includes('gemma-') || modelId.includes('gemma4') || model.group === 'Gemma'
 }
 
+export function isGemma4Model(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+
+  const modelId = getLowerBaseModelName(model.id, '/')
+  return modelId.startsWith('gemma-4-')
+}
+
 export function isZhipuModel(model: Model): boolean {
   const modelId = getLowerBaseModelName(model.id)
   return modelId.includes('glm') || model.provider === SystemProviderIds.zhipu

@@ -1,3 +1,4 @@
+import { getProviderByModel } from '@renderer/services/AssistantService'
 import type {
   Model,
   ReasoningEffortConfig,
@@ -6,6 +7,7 @@ import type {
   ThinkingOptionConfig
 } from '@renderer/types'
 import { getLowerBaseModelName, isUserSelectedModelType } from '@renderer/utils'
+import { isGeminiProvider } from '@renderer/utils/provider'
 
 import { isEmbeddingModel, isRerankModel } from './embedding'
 import {
@@ -27,6 +29,7 @@ import {
   isGemini3ProModel,
   isGemini31FlashLiteModel,
   isGemini31ProModel,
+  isGemma4Model,
   isKimi25OrNewerModel,
   isSupportAdaptiveThinkingClaudeModel,
   withModelIdAndNameAsId
@@ -188,6 +191,8 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   } else if (isSupportedThinkingTokenGeminiModel(model)) {
     if (isHostedGemma4ThinkingModel(model)) {
       thinkingModelType = 'gemma4_hosted'
+    } else if (!isGeminiProvider(getProviderByModel(model)) && isGemma4Model(model)) {
+      thinkingModelType = 'default'
     } else if (isGemini3FlashModel(model) || isGemini31FlashLiteModel(model)) {
       thinkingModelType = 'gemini3_flash'
     } else if (isGemini3ProModel(model)) {
@@ -452,13 +457,12 @@ export const isHostedGemma4ThinkingModel = (model?: Model): boolean => {
     return false
   }
 
-  const modelId = getLowerBaseModelName(model.id, '/')
-  return model.provider?.toLowerCase() === 'gemini' && modelId.startsWith('gemma-4-')
+  return isGeminiProvider(getProviderByModel(model)) && isGemma4Model(model)
 }
 
 export const isSupportedThinkingTokenGeminiModel = (model: Model): boolean => {
   const modelId = getLowerBaseModelName(model.id, '/')
-  if (isHostedGemma4ThinkingModel(model)) {
+  if (isGemma4Model(model) || isHostedGemma4ThinkingModel(model)) {
     return true
   }
 
