@@ -334,6 +334,132 @@ class KnowledgeGraphManager {
       relations: filteredRelations
     }
   }
+
+  /**
+   * Remove all entities whose name, entityType, or observations contain the
+   * given keyword, and delete any relations that reference those entities.
+   * Used as cascade cleanup when an MCP server is deleted.
+   */
+  @TraceMethod({ spanName: 'cleanupReferences', tag: 'KnowledgeGraph' })
+  async cleanupReferences(keyword: string): Promise<{ deletedEntities: number; deletedRelations: number }> {
+    if (!keyword) return { deletedEntities: 0, deletedRelations: 0 }
+
+    const lowerKeyword = keyword.toLowerCase()
+    const wordBoundaryRegex = new RegExp(`\\b${lowerKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+    let changed = false
+
+    // Find entities that reference the deleted MCP — exact match on name and
+    // entityType; word-boundary match on observations to avoid false positives
+    // from substring hits (e.g. "memory" deleting "short-term-memory").
+    const namesToDelete = new Set<string>()
+    for (const [name, entity] of this.entities) {
+      if (
+        name.toLowerCase() === lowerKeyword ||
+        entity.entityType.toLowerCase() === lowerKeyword ||
+        (Array.isArray(entity.observations) && entity.observations.some((o) => wordBoundaryRegex.test(o)))
+      ) {
+        namesToDelete.add(name)
+      }
+    }
+
+    if (namesToDelete.size === 0) {
+      return { deletedEntities: 0, deletedRelations: 0 }
+    }
+
+    // Delete the matching entities
+    for (const name of namesToDelete) {
+      if (this.entities.delete(name)) {
+        changed = true
+      }
+    }
+
+    // Delete relations involving deleted entities
+    const relationsToDelete = new Set<string>()
+    for (const relStr of this.relations) {
+      const rel = this._deserializeRelation(relStr)
+      if (namesToDelete.has(rel.from) || namesToDelete.has(rel.to)) {
+        relationsToDelete.add(relStr)
+      }
+    }
+
+    const deletedRelationsCount = relationsToDelete.size
+    for (const relStr of relationsToDelete) {
+      if (this.relations.delete(relStr)) {
+        changed = true
+      }
+    }
+
+    if (changed) {
+      await this._persistGraph()
+    }
+
+    return { deletedEntities: namesToDelete.size, deletedRelations: deletedRelationsCount }
+  }
+
+  /**
+   * Static utility to clean up references in the persisted knowledge graph file.
+   * This is used when no in-memory MemoryServer instance is active.
+   */
+  static async cleanupReferencesFromFile(
+    memoryPath: string,
+    keyword: string
+  ): Promise<{ deletedEntities: number; deletedRelations: number } | null> {
+    if (!keyword) return null
+
+    try {
+      await fs.access(memoryPath)
+    } catch {
+      // File doesn't exist, nothing to clean
+      return null
+    }
+
+    try {
+      const data = await fs.readFile(memoryPath, 'utf-8')
+      if (data.trim() === '') return null
+
+      const graph: KnowledgeGraph = JSON.parse(data)
+      const lowerKeyword = keyword.toLowerCase()
+      const wordBoundaryRegex = new RegExp(`\\b${lowerKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+
+      // Find entities that reference the deleted MCP — exact match on name and
+      // entityType; word-boundary match on observations.
+      const entitiesToDelete = new Set<string>()
+      for (const entity of graph.entities) {
+        if (
+          entity.name.toLowerCase() === lowerKeyword ||
+          entity.entityType.toLowerCase() === lowerKeyword ||
+          (Array.isArray(entity.observations) && entity.observations.some((o) => wordBoundaryRegex.test(o)))
+        ) {
+          entitiesToDelete.add(entity.name)
+        }
+      }
+
+      if (entitiesToDelete.size === 0) return null
+
+      const deletedEntities = graph.entities.filter((e) => !entitiesToDelete.has(e.name))
+      const deletedRelations = graph.relations.filter(
+        (r) => !entitiesToDelete.has(r.from) && !entitiesToDelete.has(r.to)
+      )
+
+      const deletedCount = {
+        deletedEntities: graph.entities.length - deletedEntities.length,
+        deletedRelations: graph.relations.length - deletedRelations.length
+      }
+
+      // Only write back if something changed
+      if (deletedCount.deletedEntities > 0 || deletedCount.deletedRelations > 0) {
+        await fs.writeFile(
+          memoryPath,
+          JSON.stringify({ entities: deletedEntities, relations: deletedRelations }, null, 2)
+        )
+      }
+
+      return deletedCount
+    } catch (error) {
+      logger.error('Failed to cleanup knowledge graph references:', error as Error)
+      return null
+    }
+  }
 }
 
 class MemoryServer {
@@ -341,6 +467,30 @@ class MemoryServer {
   // Hold the manager instance, initialized asynchronously
   private knowledgeGraphManager: KnowledgeGraphManager | null = null
   private initializationPromise: Promise<void> // To track initialization
+  private memoryPath: string
+
+  /** Static registry of live MemoryServer instances keyed by resolved memory path. */
+  private static activeInstances = new Map<string, MemoryServer>()
+
+  /**
+   * Clean up in-memory references for a given keyword across all active
+   * MemoryServer instances whose memoryPath matches the target. Falls back
+   * to file-based cleanup when no live instance is active for the path.
+   */
+  static async cleanupReferencesByName(
+    memoryPath: string,
+    keyword: string
+  ): Promise<{ deletedEntities: number; deletedRelations: number } | null> {
+    const instance = MemoryServer.activeInstances.get(memoryPath)
+    if (instance?.knowledgeGraphManager) {
+      try {
+        return await instance.knowledgeGraphManager.cleanupReferences(keyword)
+      } catch (error) {
+        logger.error('Live cleanupReferences failed, falling back to file cleanup:', error as Error)
+      }
+    }
+    return KnowledgeGraphManager.cleanupReferencesFromFile(memoryPath, keyword)
+  }
 
   constructor(envPath: string = '') {
     const memoryPath = envPath
@@ -349,6 +499,7 @@ class MemoryServer {
         : path.resolve(envPath) // Use path.resolve for relative paths based on CWD
       : getDefaultMemoryPath()
 
+    this.memoryPath = memoryPath
     this.server = new Server(
       {
         name: 'memory-server',
@@ -369,6 +520,7 @@ class MemoryServer {
   private async _initializeManager(memoryPath: string): Promise<void> {
     try {
       this.knowledgeGraphManager = await KnowledgeGraphManager.create(memoryPath)
+      MemoryServer.activeInstances.set(memoryPath, this)
       logger.debug('KnowledgeGraphManager initialized successfully.')
     } catch (error) {
       logger.error('Failed to initialize KnowledgeGraphManager:', error as Error)
@@ -709,4 +861,5 @@ class MemoryServer {
   }
 }
 
+export { KnowledgeGraphManager, MemoryServer }
 export default MemoryServer

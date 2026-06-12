@@ -65,6 +65,8 @@ function rowToAgent(row: AgentRow, modelName: string | null = null): AgentEntity
     ...clean,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     model: (clean.model ?? null) as UniqueModelId | null,
+    planModel: clean.planModel as UniqueModelId | undefined,
+    smallModel: clean.smallModel as UniqueModelId | undefined,
     configuration: parseConfiguration(row.configuration),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
@@ -170,39 +172,45 @@ export class AgentService {
 
     const totalResult = await database.select({ count: count() }).from(agentsTable).where(whereClause)
 
-    // Default to `createdAt desc` so the most recently created agent shows up
-    // first; callers can opt into `orderKey` to honour user-defined ordering.
-    const sortBy = options.sortBy ?? 'createdAt'
-    const orderBy = options.orderBy ?? 'desc'
+    const sortBy = options.sortBy ?? 'orderKey'
+    const orderBy = options.orderBy ?? (sortBy === 'orderKey' ? 'asc' : 'desc')
 
     const sortByToColumn: Record<
       string,
-      typeof agentsTable.createdAt | typeof agentsTable.name | typeof agentsTable.updatedAt
+      | typeof agentsTable.createdAt
+      | typeof agentsTable.name
+      | typeof agentsTable.updatedAt
+      | typeof agentsTable.orderKey
     > = {
       createdAt: agentsTable.createdAt,
       updatedAt: agentsTable.updatedAt,
-      name: agentsTable.name
+      name: agentsTable.name,
+      orderKey: agentsTable.orderKey
     }
     const sortField = sortByToColumn[sortBy] ?? agentsTable.createdAt
     const orderFn = orderBy === 'asc' ? asc : desc
-    // Pin-aware ordering: LEFT JOIN with the pin table, push pinned rows to
-    // the top (sorted by pin.orderKey ASC), then unpinned rows by the
-    // caller-specified sortBy/orderBy. Same shape as AssistantService.list.
+    const orderByClauses =
+      sortBy === 'updatedAt'
+        ? [orderFn(sortField), orderFn(agentsTable.id)]
+        : [
+            sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
+            asc(pinTable.orderKey),
+            orderFn(sortField),
+            orderFn(agentsTable.id)
+          ]
+
+    // Pin-aware ordering (skipped for sortBy=updatedAt): LEFT JOIN with the
+    // pin table, push pinned rows to the top (sorted by pin.orderKey ASC),
+    // then unpinned rows by the caller-specified sortBy/orderBy. Default
+    // ordering follows agent.orderKey so resource-list group reorders persist
+    // across reloads.
     const baseQuery = database
       .select({ agent: agentsTable, modelName: userModelTable.name, pinOrderKey: pinTable.orderKey })
       .from(agentsTable)
       .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
       .leftJoin(pinTable, and(eq(pinTable.entityType, 'agent'), eq(pinTable.entityId, agentsTable.id)))
       .where(whereClause)
-      .orderBy(
-        sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
-        asc(pinTable.orderKey),
-        orderFn(sortField),
-        // Deterministic tiebreaker: createdAt is Date.now() (ms) and can collide across
-        // rapid inserts, so equal-sortField rows would otherwise fall back to query-plan
-        // order. Matches the house pattern (JobService/KnowledgeItemService list).
-        orderFn(agentsTable.id)
-      )
+      .orderBy(...orderByClauses)
 
     const result =
       options.limit !== undefined
@@ -359,6 +367,37 @@ export class AgentService {
     }
 
     await applyMoves(tx, agentsTable, moves, { pkColumn: agentsTable.id })
+  }
+
+  /**
+   * Remove a deleted MCP server ID from the `mcps` JSON array of all agents
+   * that reference it. This prevents dangling references after MCP deletion.
+   */
+  async removeMcpFromAgents(mcpId: string): Promise<number> {
+    return application.get('DbService').withWriteTx((tx) => this.removeMcpFromAgentsTx(tx, mcpId))
+  }
+
+  async removeMcpFromAgentsTx(tx: DbOrTx, mcpId: string): Promise<number> {
+    const rows = await tx
+      .select({ id: agentsTable.id, mcps: agentsTable.mcps })
+      .from(agentsTable)
+      .where(isNull(agentsTable.deletedAt))
+
+    let updatedCount = 0
+    for (const row of rows) {
+      const mcps = row.mcps as string[]
+      if (!Array.isArray(mcps) || !mcps.includes(mcpId)) continue
+
+      const updatedMcps = mcps.filter((id) => id !== mcpId)
+      await tx.update(agentsTable).set({ mcps: updatedMcps, updatedAt: Date.now() }).where(eq(agentsTable.id, row.id))
+      updatedCount++
+    }
+
+    if (updatedCount > 0) {
+      logger.info(`Cleaned up MCP references from agents`, { mcpId, affectedAgents: updatedCount })
+    }
+
+    return updatedCount
   }
 }
 
