@@ -1,0 +1,45 @@
+import { Button } from '@cherrystudio/ui'
+import { RefreshCw } from 'lucide-react'
+import type React from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
+import ModelListSyncDrawer from './ModelListSyncDrawer'
+import { useAutoPullOnApiKeyChange } from './useAutoPullOnApiKeyChange'
+import { useProviderModelPullReconcile } from './useProviderModelPullReconcile'
+
+interface ProviderModelPullReconcileProps {
+  providerId: string
+  disabled: boolean
+}
+
+const ProviderModelPullReconcile: React.FC<ProviderModelPullReconcileProps> = ({ providerId, disabled }) => {
+  const { t } = useTranslation()
+  const pullReconcile = useProviderModelPullReconcile(providerId)
+  useAutoPullOnApiKeyChange(providerId, pullReconcile.openPullReconcile)
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className={modelListClasses.fetchActionButton}
+        disabled={disabled || pullReconcile.isBusy}
+        loading={pullReconcile.isBusy}
+        onClick={pullReconcile.openPullReconcile}>
+        <RefreshCw className={modelListClasses.toolbarDesignIcon} />
+        <span>{t('settings.models.toolbar.pull_short')}</span>
+      </Button>
+      <ModelListSyncDrawer
+        open={pullReconcile.pullReconcileDrawerOpen}
+        preview={pullReconcile.preview}
+        isApplying={pullReconcile.isApplyingPullReconcile}
+        onApply={pullReconcile.applyPullReconcile}
+        onClose={pullReconcile.closePullReconcile}
+      />
+    </>
+  )
+}
+
+export default ProviderModelPullReconcile

@@ -15,7 +15,7 @@
  * The former `ipcMain.handle(IpcChannel.ReduxStoreReady, ...)` handshake has
  * been removed on both sides: the stub does not read from the renderer, so
  * there is no readiness state to track, and the renderer's invoke of the
- * channel (renderer/src/store/index.ts) has been commented out with the
+ * channel (renderer/store/index.ts) has been commented out with the
  * existing `// [v2] Removed:` convention.
  *
  * Migrate each caller to the v2 data layer (Preference / DataApi / direct

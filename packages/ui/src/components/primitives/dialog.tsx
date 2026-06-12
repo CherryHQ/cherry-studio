@@ -32,9 +32,18 @@ function DialogOverlay({ className, ...props }: React.ComponentProps<typeof Dial
   )
 }
 
+type DialogContentSize = 'sm' | 'default' | 'lg'
+
+const dialogContentSizeClass: Record<DialogContentSize, string> = {
+  sm: 'sm:max-w-sm',
+  default: 'sm:max-w-lg',
+  lg: 'sm:max-w-xl'
+}
+
 type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> & {
   overlayClassName?: string
   showCloseButton?: boolean
+  size?: DialogContentSize
 }
 
 function DialogContent({
@@ -42,6 +51,7 @@ function DialogContent({
   children,
   showCloseButton = true,
   overlayClassName,
+  size = 'default',
   ...props
 }: DialogContentProps) {
   return (
@@ -50,7 +60,8 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          'bg-card text-card-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-[80] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-3xl border-0 p-6 shadow-xl duration-200 sm:max-w-lg',
+          'bg-card text-card-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-[80] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-3xl border-0 p-6 shadow-xl duration-200',
+          dialogContentSizeClass[size],
           className
         )}
         {...props}>

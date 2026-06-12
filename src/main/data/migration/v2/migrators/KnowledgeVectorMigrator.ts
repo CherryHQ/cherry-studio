@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
@@ -16,12 +17,18 @@ import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
+import { KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY, KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY } from './KnowledgeMigrator'
 
 const logger = loggerService.withContext('KnowledgeVectorMigrator')
 
 const VECTORSTORE_TABLE_NAME = 'libsql_vectorstores_embedding'
 const INSERT_BATCH_SIZE = 100
-const LEGACY_VECTOR_BACKUP_SUFFIX = '.embedjs.bak'
+// Runtime vector store layout — source of truth:
+// src/main/features/knowledge/utils/storage/pathStorage.ts (CHERRY_META_DIR / VECTOR_STORE_FILE).
+// Runtime opens {knowledgeBaseDir}/{baseId}/.cherry/index.sqlite by the migrated (new) base id,
+// so the migrator must write the rebuilt store to that same nested path.
+const KNOWLEDGE_META_DIR = '.cherry'
+const KNOWLEDGE_VECTOR_STORE_FILE = 'index.sqlite'
 const INDEXABLE_KNOWLEDGE_ITEM_TYPES = new Set<KnowledgeItemType>(['file', 'url', 'note'])
 const SKIP_WARNING_SAMPLE_LIMIT = 3
 
@@ -71,10 +78,14 @@ interface LoaderTarget {
 
 interface PreparedBasePlan {
   baseId: string
-  dbPath: string
+  targetDbPath: string
   dimensions: number
   rows: PreparedVectorRow[]
   sourceRowCount: number
+}
+
+function isStringMap(value: unknown): value is Map<string, string> {
+  return value instanceof Map
 }
 
 export class KnowledgeVectorMigrator extends BaseMigrator {
@@ -107,8 +118,8 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     return `${dbPath}.vectorstore.tmp`
   }
 
-  private getLegacyBackupPath(dbPath: string): string {
-    return `${dbPath}${LEGACY_VECTOR_BACKUP_SUFFIX}`
+  private getRuntimeVectorStorePath(knowledgeBaseDir: string, baseId: string): string {
+    return path.join(knowledgeBaseDir, baseId, KNOWLEDGE_META_DIR, KNOWLEDGE_VECTOR_STORE_FILE)
   }
 
   private recordWarning(message: string): void {
@@ -263,7 +274,8 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
   private buildLoaderTargetMap(
     legacyBase: LegacyKnowledgeBaseWithLoaders | undefined,
-    migratedItemsById: Map<string, MigratedKnowledgeItemForVector>
+    migratedItemsById: Map<string, MigratedKnowledgeItemForVector>,
+    legacyItemIdRemap: Map<string, string>
   ): Map<string, LoaderTarget> {
     const map = new Map<string, LoaderTarget>()
     if (!legacyBase || !Array.isArray(legacyBase.items)) {
@@ -275,7 +287,12 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         continue
       }
 
-      const migratedItem = migratedItemsById.get(item.id)
+      const migratedItemId = legacyItemIdRemap.get(item.id)
+      if (!migratedItemId) {
+        continue
+      }
+
+      const migratedItem = migratedItemsById.get(migratedItemId)
       if (!migratedItem) {
         continue
       }
@@ -336,6 +353,13 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           .filter((base): base is LegacyKnowledgeBaseWithLoaders & { id: string } => typeof base.id === 'string')
           .map((base) => [base.id, base])
       )
+      const sharedBaseRemap = ctx.sharedData.get(KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY)
+      const legacyBaseIdRemap = isStringMap(sharedBaseRemap) ? sharedBaseRemap : new Map<string, string>()
+      const legacyBaseIdByMigratedId = new Map(
+        [...legacyBaseIdRemap.entries()].map(([legacyBaseId, migratedBaseId]) => [migratedBaseId, legacyBaseId])
+      )
+      const sharedItemRemap = ctx.sharedData.get(KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY)
+      const legacyItemIdRemap = isStringMap(sharedItemRemap) ? sharedItemRemap : new Map<string, string>()
 
       for (const base of migratedBases) {
         if (base.status === 'failed' || base.embeddingModelId === null) {
@@ -351,14 +375,21 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           continue
         }
 
-        const legacyBase = legacyBasesById.get(base.id)
+        const legacyBaseId = legacyBaseIdByMigratedId.get(base.id)
+        if (!legacyBaseId) {
+          const warningMessage = `Skipped knowledge vector base ${base.id}: migrated base id cannot be mapped to legacy knowledge base id`
+          this.recordSkippedWarning('unmapped_base', warningMessage)
+          continue
+        }
+
+        const legacyBase = legacyBasesById.get(legacyBaseId)
         if (!legacyBase) {
-          const warningMessage = `Skipped knowledge vector base ${base.id}: legacy knowledge base not found`
+          const warningMessage = `Skipped knowledge vector base ${base.id}: legacy knowledge base ${legacyBaseId} not found`
           this.recordSkippedWarning('legacy_base_missing', warningMessage)
           continue
         }
 
-        const source = await ctx.sources.knowledgeVectorSource.loadBase(base.id)
+        const source = await ctx.sources.knowledgeVectorSource.loadBase(legacyBaseId)
         switch (source.status) {
           case 'invalid_path': {
             const warningMessage = `Skipped knowledge vector base ${base.id}: invalid legacy vector DB path`
@@ -387,7 +418,8 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
         const loaderTargetMap = this.buildLoaderTargetMap(
           legacyBase,
-          migratedItemsByBaseId.get(base.id) ?? new Map<string, MigratedKnowledgeItemForVector>()
+          migratedItemsByBaseId.get(base.id) ?? new Map<string, MigratedKnowledgeItemForVector>(),
+          legacyItemIdRemap
         )
         const rows: PreparedVectorRow[] = []
         const chunkIndexByItemId = new Map<string, number>()
@@ -452,7 +484,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // legacy vectors can be associated with valid migrated knowledge_item rows.
         this.preparedBasePlans.push({
           baseId: base.id,
-          dbPath: source.dbPath,
+          targetDbPath: this.getRuntimeVectorStorePath(ctx.paths.knowledgeBaseDir, base.id),
           dimensions,
           rows,
           sourceRowCount: vectorRows.length
@@ -491,8 +523,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     let processedCount = 0
 
     for (const plan of this.preparedBasePlans) {
-      const tempPath = this.getTempVectorStorePath(plan.dbPath)
-      const backupPath = this.getLegacyBackupPath(plan.dbPath)
+      const tempPath = this.getTempVectorStorePath(plan.targetDbPath)
 
       try {
         const rebuiltRows: Array<PreparedVectorRow & { id: string }> = plan.rows.map((row) => ({
@@ -500,6 +531,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           id: uuidv4()
         }))
 
+        await fs.promises.mkdir(path.dirname(plan.targetDbPath), { recursive: true })
         await fs.promises.rm(tempPath, { force: true })
 
         const targetClient = createClient({ url: pathToFileURL(tempPath).toString() })
@@ -537,13 +569,17 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           await yieldToEventLoop()
         }
 
-        // First migration preserves the legacy embedjs DB; retries remove the stale failed target before swapping.
-        if (!fs.existsSync(backupPath) && fs.existsSync(plan.dbPath)) {
-          await fs.promises.rename(plan.dbPath, backupPath)
-        } else {
-          await fs.promises.rm(plan.dbPath, { force: true })
-        }
-        await fs.promises.rename(tempPath, plan.dbPath)
+        // Leave the v1 legacy embedjs DB untouched in place: a user who rolls back to v1 after a
+        // failed or abandoned migration must keep a working knowledge base. The rebuilt V2 store
+        // lives under the migrated base's new uuid directory, so it never collides with the legacy
+        // flat path and the v1 source needs no relocation.
+        //
+        // Runtime may have auto-created an empty store at the target; remove it first so the rename
+        // succeeds on Windows (POSIX rename overwrites, Windows throws on an existing target). That
+        // target can be transiently locked on Windows (libsql handle, AV, file indexer), so retry
+        // the unlink on EBUSY — `recursive` is required for fs.rm to honor maxRetries/retryDelay.
+        await fs.promises.rm(plan.targetDbPath, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+        await fs.promises.rename(tempPath, plan.targetDbPath)
 
         this.successfulBaseIds.add(plan.baseId)
         this.targetCountByBaseId.set(plan.baseId, rebuiltRows.length)
@@ -586,7 +622,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           continue
         }
 
-        const client = createClient({ url: pathToFileURL(plan.dbPath).toString() })
+        const client = createClient({ url: pathToFileURL(plan.targetDbPath).toString() })
         try {
           const expectedCount = this.targetCountByBaseId.get(plan.baseId) ?? 0
           const countResult = await client.execute({

@@ -43,6 +43,9 @@ import {
 
 import { knowledgeHandlers } from '../knowledges'
 
+const GROUP_ID = '11111111-1111-4111-8111-111111111111'
+const ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
+
 describe('knowledgeHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -84,6 +87,28 @@ describe('knowledgeHandlers', () => {
       expect(listKnowledgeBasesMock).toHaveBeenCalledWith({
         page: 2,
         limit: 10
+      })
+      expect(result).toEqual(response)
+    })
+
+    it('should delegate trimmed search to knowledgeBaseService.list', async () => {
+      const response = {
+        items: [{ id: 'kb-3', name: 'Research Notes' }],
+        total: 1,
+        page: 1
+      }
+      listKnowledgeBasesMock.mockResolvedValueOnce(response)
+
+      const result = await knowledgeHandlers['/knowledge-bases'].GET({
+        query: {
+          search: '  research  '
+        }
+      } as never)
+
+      expect(listKnowledgeBasesMock).toHaveBeenCalledWith({
+        page: KNOWLEDGE_BASES_DEFAULT_PAGE,
+        limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
+        search: 'research'
       })
       expect(result).toEqual(response)
     })
@@ -164,22 +189,20 @@ describe('knowledgeHandlers', () => {
       expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
     })
 
-    it('should trim groupId and keep emoji unchanged in PATCH bodies before calling the service', async () => {
-      updateKnowledgeBaseMock.mockResolvedValueOnce({ id: 'kb-1', groupId: 'group-1', emoji: '📚' })
+    it('should trim groupId in PATCH bodies before calling the service', async () => {
+      updateKnowledgeBaseMock.mockResolvedValueOnce({ id: 'kb-1', groupId: GROUP_ID })
 
       await expect(
         knowledgeHandlers['/knowledge-bases/:id'].PATCH({
           params: { id: 'kb-1' },
           body: {
-            groupId: '  group-1  ',
-            emoji: '📚'
+            groupId: `  ${GROUP_ID}  `
           }
         })
       ).resolves.toMatchObject({ id: 'kb-1' })
 
       expect(updateKnowledgeBaseMock).toHaveBeenCalledWith('kb-1', {
-        groupId: 'group-1',
-        emoji: '📚'
+        groupId: GROUP_ID
       })
     })
 
@@ -227,32 +250,6 @@ describe('knowledgeHandlers', () => {
             threshold: null,
             documentCount: null,
             hybridAlpha: null
-          }
-        } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
-
-      expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
-    })
-
-    it('should reject invalid emoji in PATCH bodies before calling the service', async () => {
-      await expect(
-        knowledgeHandlers['/knowledge-bases/:id'].PATCH({
-          params: { id: 'kb-1' },
-          body: {
-            emoji: 'books'
-          }
-        } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
-
-      expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
-    })
-
-    it('should reject whitespace-padded emoji in PATCH bodies before calling the service', async () => {
-      await expect(
-        knowledgeHandlers['/knowledge-bases/:id'].PATCH({
-          params: { id: 'kb-1' },
-          body: {
-            emoji: '  📚  '
           }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
@@ -309,7 +306,7 @@ describe('knowledgeHandlers', () => {
           page: 2,
           limit: 10,
           type: 'directory',
-          groupId: 'group-1'
+          groupId: ITEM_ID
         } as never
       } as never)
 
@@ -317,7 +314,7 @@ describe('knowledgeHandlers', () => {
         page: 2,
         limit: 10,
         type: 'directory',
-        groupId: 'group-1'
+        groupId: ITEM_ID
       })
     })
 

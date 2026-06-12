@@ -22,7 +22,7 @@ class GenerationValidator {
     this.projectRoot = path.resolve(__dirname, '../../../../')
 
     // Updated paths to match actual project structure
-    this.preferencesFile = path.join(this.projectRoot, 'packages/shared/data/preference/preferenceSchemas.ts')
+    this.preferencesFile = path.join(this.projectRoot, 'src/shared/data/preference/preferenceSchemas.ts')
     this.mappingsFile = path.join(
       this.projectRoot,
       'src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts'

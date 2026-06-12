@@ -94,7 +94,7 @@ jobs:
           ls -la dist/*.exe dist/latest*.yml
 
       - name: Upload signed Windows artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: signed-windows-artifacts
           path: |
@@ -104,7 +104,7 @@ jobs:
           retention-days: 1
 
   sync-to-gitcode:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, windows-signing]
     needs: build-windows-signed
     steps:
       - name: Check out Git repository

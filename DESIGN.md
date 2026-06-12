@@ -2,7 +2,7 @@
 
 ## 1. Visual Theme & Atmosphere
 
-> **Source of truth:** token sources live in `packages/ui/src/styles/tokens/` and Tailwind-facing aliases are generated in `packages/ui/src/styles/theme.css`. Renderer-only bridge aliases live in `src/renderer/src/assets/styles/tailwind.css`. This document references public aliases only when they are actually exported; for actual values open the relevant token source or generated theme alias.
+> **Source of truth:** token sources live in `packages/ui/src/styles/tokens/` and Tailwind-facing aliases are generated in `packages/ui/src/styles/theme.css`. Renderer-only bridge aliases live in `src/renderer/assets/styles/tailwind.css`. This document references public aliases only when they are actually exported; for actual values open the relevant token source or generated theme alias.
 
 Cherry Studio is a shadcn/ui-based design system built for an AI conversation application. The design language follows a neutral-first approach — a restrained, systematic palette rooted in pure neutral grays where the interface itself recedes to let content take center stage. The aesthetic is utilitarian-modern: clean surfaces, subtle borders, and restrained use of the exported primary color for true primary actions, creating a tool that feels professional, focused, and endlessly customizable through its robust light/dark mode support.
 
@@ -26,6 +26,17 @@ What makes Cherry Studio distinctive is its commitment to a calm UI foundation. 
 ## 2. Color Palette & Roles
 
 > Token values are defined in `packages/ui/src/styles/tokens/colors/{primitive,semantic,status}.css`. This section names what each token is for; refer to the source files for resolved values.
+
+### Palette Philosophy — Neutrals via Alpha, Colors via Steps
+
+The color system follows one consistent rule:
+
+- **Neutral tokens** (text, borders, secondary fills, hover backgrounds, ghost states) are composed as **black/white + an alpha channel**. Light mode layers `oklch(0 0 0 / x)` on top of the surface; dark mode layers `oklch(1 0 0 / x)` instead. This makes neutrals automatically harmonise with whatever surface they sit on (cards, glass, sidebars) and means light/dark inversion only flips the base ink, not every step of a gray scale.
+- **Chromatic tokens** (`--color-primary`, `--color-destructive`, status colors, brand/lime, primitive scales) use **solid `oklch` color steps** — never alpha — because their identity must stay constant on any background.
+
+When you reach for a value:
+1. If the role is "tint of the surface" (text, divider, soft fill, hover), use the existing semantic neutral token (`--color-foreground*`, `--color-border*`, `--color-secondary`, `--color-accent`, `--color-ghost-*`). Do not invent `oklch(0 0 0 / 0.x)` literals — the token already encodes the intent.
+2. If the role is "this exact color regardless of surface" (brand, error, success), use the corresponding solid token from the `--color-{primary,destructive,success,warning,info,*-base,*-text,*-bg}` set or a primitive scale.
 
 ### Primary
 - **Primary**: `var(--color-primary)` — exported primary accent for true page actions, selected states, links, and component accents. Shared Button `default` / `emphasis` currently define their own neutral strong fills.
@@ -52,8 +63,7 @@ What makes Cherry Studio distinctive is its commitment to a calm UI foundation. 
 ### Sidebar (Distinct Spatial Zone)
 - **Sidebar**: `var(--color-sidebar)` — sidebar surface
 - **Sidebar Foreground**: `var(--color-sidebar-foreground)` — text on sidebar
-- **Sidebar Primary / Sidebar Primary Foreground**: `var(--color-sidebar-primary)` / `var(--color-sidebar-primary-foreground)` — active sidebar item
-- **Sidebar Accent / Sidebar Accent Foreground**: `var(--color-sidebar-accent)` / `var(--color-sidebar-accent-foreground)` — hover state in sidebar
+- **Sidebar Accent / Sidebar Accent Foreground**: `var(--color-sidebar-accent)` / `var(--color-sidebar-accent-foreground)` — hover/active state in sidebar (same neutral tint as `--color-secondary`; either token works, but stay consistent within a page)
 - **Sidebar Border**: `var(--color-sidebar-border)` — sidebar dividers
 - **Sidebar Ring**: `var(--color-sidebar-ring)` — focus ring inside sidebar
 
@@ -134,7 +144,7 @@ The full Tailwind text scale is also exposed: `--text-xs` through `--text-9xl` (
 
 ### Weight System
 
-Three weights are exposed as semantic tokens; the rest of the numeric Tailwind weight scale (`font-thin` → `font-black`) is available but not part of the design contract.
+Three weights are exposed as semantic tokens; the rest of the Tailwind weight utility scale (`font-thin` → `font-black`, including `font-semibold`) is available but not part of the token contract.
 
 | Weight | Token | Usage |
 |--------|-------|-------|
@@ -312,7 +322,11 @@ Source: `DialogContent` and related primitives from `@cherrystudio/ui` (`package
 **Layout**
 - Overlay: fixed full-window scrim, `z-[80]`, default `bg-black/50`
 - Content: fixed centered, `top-[50%] left-[50%]`, translated by `-50%`
-- Width: full width with `max-w-[calc(100%-2rem)]`; desktop default `sm:max-w-lg`
+- Width: full width with `max-w-[calc(100%-2rem)]` (narrow-window fallback, all sizes). Desktop width is set by the `size` prop on `DialogContent`:
+  - `size="sm"` → `sm:max-w-sm` (24rem ≈ 384px) — single-field inputs, rename, short confirmations. Use this whenever the body is one label + one input or a one-line confirmation; the default size feels empty for that amount of content.
+  - `size="default"` (current default) → `sm:max-w-lg` (32rem ≈ 512px) — standard forms with a few fields.
+  - `size="lg"` → `sm:max-w-xl` (36rem ≈ 576px) — multi-field forms, scrollable bodies, rich configuration panels.
+- Do not override the dialog width with `className="sm:max-w-*"` or similar. Pick a `size` instead; if no size fits, propose a new size in `@cherrystudio/ui` rather than patching at the call site. `className` on `DialogContent` is reserved for non-width layout concerns (e.g. `max-h-[70vh]`, `flex flex-col overflow-hidden` for scrollable bodies).
 - Consumers should use the default overlay first. If the scrim needs local tuning, pass `overlayClassName`; do not rewrite a page-local Dialog shell.
 
 **Structure**
@@ -341,10 +355,10 @@ There are two different drawer patterns. Do not collapse them into one generic "
 
 Source: `PageSidePanel` from `@cherrystudio/ui` (`packages/ui/src/components/composites/page-side-panel/index.tsx`).
 
-Use `PageSidePanel` for page-owned management surfaces such as mini-app display settings, translate settings, and translate history. The panel is positioned inside the nearest page container while its backdrop blocks the full viewport.
+Use `PageSidePanel` for page-owned management surfaces such as mini-app display settings, translate settings, and translate history. The panel and backdrop portal to `document.body` so page scroll containers, transformed ancestors, and nested layout shells cannot clip or re-base the drawer.
 
 - Backdrop: fixed `inset-0`, `z-[60]`, `bg-black/50`, fades over `0.15s`
-- Panel: absolute `top-3 bottom-3`, `right-3` or `left-3`, `z-[70]`
+- Panel: fixed `top-3 bottom-3`, `right-3` or `left-3`, `z-[70]`
 - Size / shell: `w-100`, `rounded-3xl`, `bg-card`, `text-card-foreground`, `shadow-xl`, `overflow-hidden`
 - Motion: horizontal slide from the chosen side with spring transition (`damping: 30`, `stiffness: 350`)
 - Header: `px-6 pt-6 pb-3`, optional header content plus ghost close button
@@ -400,9 +414,33 @@ Use `Drawer` for modal edge/bottom sheets, especially mobile-oriented or full-vi
 **Popover / Floating**
 - Background: `var(--color-popover)`
 - Text: `var(--color-popover-foreground)`
-- Border: 1px solid `var(--color-border)`
+- Border: 0.5px hairline `var(--color-border)`
 - Radius: `var(--radius-lg)`
+- Shadow: `var(--shadow-lg)`
 - Use: Dropdowns, menus, tooltips, command palettes
+
+### Popover
+
+Source: `Popover`, `PopoverTrigger`, `PopoverAnchor`, and `PopoverContent` from `@cherrystudio/ui` (`packages/ui/src/components/primitives/popover.tsx`). Use this as the default floating container for dropdowns, compact action menus, filters, and other trigger-bound transient panels.
+
+**Default `PopoverContent`:**
+- Background: `var(--color-popover)`
+- Text: `var(--color-popover-foreground)`
+- Border: 0.5px hairline `var(--color-border)` (`border-[0.5px]`)
+- Radius: `var(--radius-lg)`
+- Padding: 16px (`p-4`)
+- Width: 288px (`w-72`)
+- Shadow: `var(--shadow-lg)` (`shadow-lg`)
+- Offset from trigger: 4px
+- Z-index: 80
+
+**Compact menu popovers:**
+- Keep `PopoverContent` from `@cherrystudio/ui`; override layout density with `w-fit min-w-32 rounded-xl p-1.5`.
+- Width is content-driven (`w-fit`), floored at 128px (`min-w-32`) so short menus stay legible. This matches `ContextMenu`'s `min-w-[8rem]` baseline in `packages/ui/src/components/primitives/context-menu.tsx`. Do not hard-code widths like `w-40` / `w-44` — they trap trailing whitespace when labels are shorter than the slot.
+- Compose menu bodies with `MenuList` and `MenuItem` from `@cherrystudio/ui`.
+- Menu rows should use 32px height (`h-8`), `rounded-lg`, `px-2.5`, and `text-sm`.
+- Close the popover after a menu action is selected unless the action intentionally opens an inline sub-flow.
+- Do not add page-specific theme scopes to portal popovers unless the whole floating surface is intentionally part of that page-local theme.
 
 **Glass Panel** (floating chrome with backdrop blur)
 - Background: use `bg-popover` unless a real translucent token is introduced
@@ -506,9 +544,21 @@ Source: form composites from `@cherrystudio/ui` (`packages/ui/src/components/com
 - Don't bake business-specific form templates (e.g. `McpForm`, `ProviderForm`) into `@cherrystudio/ui` — keep business field composition, validation, and save state in the business page.
 - Don't hard-code a page-form width (e.g. `max-w-[720px]`) inside `@cherrystudio/ui`; the host page owns its container width.
 
+**Search field with trailing action:**
+When a search field needs an inline trailing button (e.g. add provider in `ProviderList`), embed a 24×24 icon button inside the search wrap, after the input:
+
+- Size: 24×24 (`size-6`)
+- Radius: 8px (`rounded-[8px]`)
+- Idle background: `var(--color-muted)` (`bg-muted`)
+- Hover background: `var(--color-surface-hover-soft)`
+- Foreground: `var(--color-foreground)` at full opacity
+- Disabled: `pointer-events-none opacity-30`
+
+Canonical implementation: `providerListClasses.searchInlineAddButton` in `src/renderer/pages/settings/ProviderSettings/primitives/classNames.ts`. The search wrap itself stays the standard input surface (`bg-background`, hairline border, `rounded-xl`).
+
 ### Sidebar
 
-Sidebar primitives currently live in `src/renderer/src/components/Sidebar`, not in `@cherrystudio/ui`. Treat this section as renderer sidebar guidance until a shared `@cherrystudio/ui` sidebar API exists.
+Sidebar primitives currently live in `src/renderer/components/Sidebar`, not in `@cherrystudio/ui`. Treat this section as renderer sidebar guidance until a shared `@cherrystudio/ui` sidebar API exists.
 
 The page owns the outer wrapper (width / Scrollbar / padding). Reusable sidebar internals should own spacing, sizing, and active state so individual pages do not hand-roll divergent menus.
 
@@ -516,8 +566,8 @@ The page owns the outer wrapper (width / Scrollbar / padding). Reusable sidebar 
 - Background: `var(--color-sidebar)`
 - Text: `var(--color-sidebar-foreground)` for body; `var(--color-foreground-muted)` for SectionTitle
 - Border-right (when divider needed): `0.5px solid var(--color-border)`
-- Active item: `var(--color-secondary)` background, `var(--color-foreground)` text — **icon color stays `var(--color-foreground)` on active (no color change)**
-- Hover item: `var(--color-secondary)` background
+- Active item: `var(--color-sidebar-accent)` background, `var(--color-sidebar-accent-foreground)` text — **icon color stays `var(--color-sidebar-accent-foreground)` on active (no color change)**
+- Hover item: `var(--color-sidebar-accent)` background
 - Focus ring: `var(--color-sidebar-ring)`
 
 **Type:**
@@ -542,6 +592,40 @@ The page owns the outer wrapper (width / Scrollbar / padding). Reusable sidebar 
 - Recommended container padding: 8px horizontal, 12px vertical (`px-2 py-3`)
 
 > If a sidebar elsewhere needs different spacing, propose a shared renderer variant before hard-coding page-local overrides.
+>
+> **Target rule:** once the `SidebarHeader / SidebarSection / SidebarSectionTitle / SidebarMenuItem` family lands in `@cherrystudio/ui`, hand-rolled sidebar menus will not be allowed. Until that family ships, compose with `MenuList` + `MenuItem` + project-level className tokens (see `src/renderer/pages/settings/index.tsx` for the canonical token pattern: `settingsSubmenuItemClassName`, `settingsSubmenuItemLabelClassName`, `settingsSubmenuSectionTitleClassName`, `settingsSubmenuDividerClassName`).
+
+### Page Header
+
+Source: `PageHeader` from `@cherrystudio/ui`. The single component for any page or side-panel top title. All settings pages, sidebars, drawers, and content panels that need a heading row **must** use this — never hand-roll `<h2>` with manual padding.
+
+**Anatomy:**
+- `title` (required) — heading text, rendered inside an `<h2>` with `truncate` for overflow safety.
+- `action` (optional) — right-aligned slot for icon-buttons (filter, add, etc.).
+- `bordered` (optional) — adds a `border-b border-border` divider underneath the header row. Default `false`. Use on right-pane detail headers to visually separate the title from the body; omit on left sidebar headers (which sit above a `MenuList` and don't need a divider).
+
+**Type:**
+- Title: `var(--font-size-body-sm)` (14px) · `var(--font-weight-medium)` · `leading-4` · `text-foreground`
+
+**Spacing & sizing (baked in — must not be overridden per-page):**
+
+| Relationship | Value | Token |
+|---|---|---|
+| Bar height | 32px | `h-8` |
+| Margin top (gap above) | 12px | `mt-3` |
+| Margin bottom (gap below) | 8px | `mb-2` |
+| Left padding (title aligns with menu item icon column) | 20px | `pl-5` |
+| Right padding (action sits 12px from the column edge) | 12px | `pr-3` |
+| Title ↔ action gap | 8px | `gap-2` |
+| Bottom border (when `bordered`) | 1px | `border-b border-border` |
+
+**Rules:**
+- Action buttons should be 24×24 (`size-6`); they sit centered inside the 32px bar.
+- Title text comes from i18next; do not hard-code strings.
+- The asymmetric padding is intentional: `pl-5` (20px) aligns the title's left edge with the icon column of menu items below — wrapper `px-2.5` (10px) + item `px-2.5` (10px) = 20px. Do not change to symmetric padding.
+- Two adjacent `PageHeader` instances (left nav + right panel) are guaranteed to be vertically aligned because spacing tokens are identical; the title line box starts 20px from the column top.
+- Right-pane detail headers in two-column settings layouts **must** pass `bordered`; left sidebar headers **must not** (the menu list below them already provides visual structure). A right-pane header rendered by a non-`PageHeader` component (e.g. `ProviderHeader`, which carries a `<Switch>` plus multiple icons) must wrap itself in a container that draws an equivalent `border-b border-border` divider — see `providerDetailColumnClasses.headerContentMaxWidth` in `ProviderSettings/primitives/classNames.ts`.
+- Provider settings section headings use full `text-foreground` rather than reduced opacity. The right pane already has dense secondary helper text, badges, and inline controls; fully opaque section labels preserve scan hierarchy without introducing another local color rule.
 
 ### Switch
 
@@ -582,6 +666,47 @@ Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/s
 - **Top chrome height**: `var(--app-top-chrome-height)` = 44px. Use this for the main window tab bar and any standalone macOS window top drag area that should visually align with the main app chrome.
 - **Navbar content height**: `var(--navbar-height)` defaults to `var(--app-top-chrome-height)`. Only override it for legacy navbar-position modes or inner content calculations that intentionally do not include a top navbar.
 - Settings-style floating windows with a transparent macOS shell must keep the outer top inset tied to `var(--app-top-chrome-height)` instead of hard-coded pixel classes such as `h-11` or `h-[50px]`.
+- **Settings window sizing** (standalone settings window only): sized to 80% of the main window with a hard floor of 760×560 and a 1280px max width, centered on the main window. The 760×560 floor keeps the ~200px sidebar plus the detail column usable when the user shrinks the main window; the 1280px ceiling prevents 2K/4K displays from stretching settings into empty space. Canonical implementation: `SettingsWindowService` in `src/main/services/SettingsWindowService.ts`.
+
+### Settings Panel Layout
+
+Settings pages (both the in-app `/settings` route and the standalone settings window) share the same two-column shape:
+
+| Column | Width | Composition |
+|---|---|---|
+| Left submenu | `var(--settings-width)` (200px in the standalone window, 250px default in `responsive.css`) | `PageHeader` (title) → `Scrollbar` → `MenuList` of grouped `MenuItem` rows |
+| Right detail | `flex-1` | Page-owned content |
+
+Submenu composition rules:
+
+- Use `PageHeader` from `@cherrystudio/ui` at the top — do not hand-roll a header.
+- **Section-title-as-page-title exception**: when a page-level label is itself a *group name* that should match in-list group labels, keep using `PageHeader` and pass `titleClassName="font-normal text-foreground-muted text-xs leading-4"` so the heading swaps to section-title typography while preserving the same 16px line box. The PageHeader's `mt-3 + h-8 + mb-2` outer geometry is preserved, so the label baseline still aligns with the right column's PageHeader heading. See `page-header.stories.tsx` › `SectionTitleStyle` for the canonical example.
+- Wrap menu rows in `MenuList` with `gap-1`; group with `MenuDivider` + a section title `<div>` carrying `settingsSubmenuSectionTitleClassName`.
+- Each row is a `MenuItem` styled by the canonical settings token pair: `settingsSubmenuItemClassName` on `className` (height / hover / active surface) and `settingsSubmenuItemLabelClassName` on `labelClassName` (`group-data-[active=true]:font-medium` for the bold-on-active label). Both tokens live in `src/renderer/pages/settings/index.tsx`.
+- Provider-style nested lists (`ProviderList`) follow the same shape: `PageHeader` + search field with trailing action + scroll body. They use their own scoped tokens in `ProviderSettings/primitives/classNames.ts` but keep the 200px column convention.
+
+**Right-detail content container (mandatory):**
+
+The right pane of every "simple right-content" settings page (i.e. pages whose right column is one big content area, not its own further-split layout) must use a two-layer wrapper:
+
+| Layer | Class | Purpose |
+|---|---|---|
+| Outer (full-width, scrolling) | `px-6 py-4` | Page edge padding — keeps `24px` between the content card and the column edge |
+| Inner (constrained, centered) | `mx-auto w-full max-w-3xl` | Caps content at `768px` and centers it on wide screens |
+
+Use the canonical components in `src/renderer/pages/settings/index.tsx`:
+
+- `SettingsContentColumn` — full-page container that owns its own native scroll (replaces the legacy `SettingContainer` for "simple right-content" pages).
+- `SettingsContentBody` — the same two-layer wrap, but for pages that mount their own `Scrollbar` externally (e.g. `CommonSettings`, `ShortcutSettings`).
+
+This mirrors the model service (Provider Settings) detail column (`providerDetailColumnClasses` in `ProviderSettings/primitives/classNames.ts`), which is the reference implementation.
+
+Do **not**:
+- Use `p-4` or `px-5 py-4` on a settings page's outermost content container — they were the old, divergent paddings and are banned for new pages.
+- Apply `max-w-3xl` directly on a child component to "fix" centering on one page — fix the page container so every page is consistent.
+- Modify `SettingContainer` to add max-width: it intentionally stays a plain padded scroller for nested-split pages (Data, Integration, MCP, WebSearch, FileProcessing, Channels, Skills) whose right pane is further subdivided.
+
+When embedded in a `PageSidePanel` drawer or onboarding context (e.g. `ModelSettings compact`), the page must NOT add `max-w-3xl` — the drawer width is already constrained and the centered cap would visually mis-align. Branch on the embedding flag and fall back to a plain padded container.
 
 ### Spacing System
 
@@ -779,11 +904,11 @@ Use icon-library defaults unless a component has a documented reason to override
 
 ### Example Component Prompts
 - "Create a chat interface on `var(--color-background)`. Messages use `var(--font-size-body-md)` `var(--font-weight-regular)`, `var(--line-height-body-md)`, `var(--color-foreground)` text. User messages in cards with `var(--color-secondary)` background and `var(--radius-lg)` border-radius. Primary send button uses the Button `default` variant."
-- "Design a sidebar navigation: `var(--color-sidebar)` background, 1px right border `var(--color-sidebar-border)`. Nav items use `var(--font-size-body-sm)` `var(--font-weight-medium)`, `var(--color-sidebar-foreground)` text. Active item on `var(--color-sidebar-primary)` with `var(--color-sidebar-primary-foreground)` text. Hover state on `var(--color-sidebar-accent)`."
+- "Design a sidebar navigation: `var(--color-sidebar)` background, 1px right border `var(--color-sidebar-border)`. Nav items use `var(--font-size-body-sm)` `var(--font-weight-medium)`, `var(--color-sidebar-foreground)` text. Active and hover items use `var(--color-sidebar-accent)` with `var(--color-sidebar-accent-foreground)` text."
 - "Build a settings card: `var(--color-card)` background, 1px `var(--color-border)`, `var(--radius-lg)`. Title in `var(--font-size-heading-sm)` with the matching heading line-height. Description in `var(--font-size-body-sm)` `var(--font-weight-regular)`, `var(--color-foreground-secondary)`. Toggles and inputs at `var(--radius-md)`."
 - "Create a dark-mode conversation view: `var(--color-background)` page. Message cards on `var(--color-card)`. Assistant code blocks use the code-rendering component's mono font stack at `var(--font-size-body-sm)` on `var(--color-popover)` with `var(--radius-md)`. Borders at `var(--color-border)`."
 - "Design a destructive confirmation dialog with the shared Dialog shell: `bg-card`, `text-card-foreground`, `rounded-3xl`, `border-0`, `p-6`, `gap-4`, `shadow-xl`, default overlay. Footer uses outline cancel + destructive delete."
-- "Build a page-owned settings side panel with `PageSidePanel`: full-viewport `bg-black/50` backdrop, absolute `top-3 bottom-3 right-3`, `w-100`, `bg-card`, `rounded-3xl`, `shadow-xl`, `title` for the shared `text-base` heading, body `px-6 py-4`, `PageSidePanelSection` groups separated by `gap-8`, and `PageSidePanelItem` rows separated by `gap-5` inside each group. Use only `PageSidePanel` for non-settings history/list/detail drawers, with a task-specific body layout."
+- "Build a page-owned settings side panel with `PageSidePanel`: body-portaled full-viewport `bg-black/50` backdrop, fixed `top-3 bottom-3 right-3`, `w-100`, `bg-card`, `rounded-3xl`, `shadow-xl`, `title` for the shared `text-base` heading, body `px-6 py-4`, `PageSidePanelSection` groups separated by `gap-8`, and `PageSidePanelItem` rows separated by `gap-5` inside each group. Use only `PageSidePanel` for non-settings history/list/detail drawers, with a task-specific body layout."
 - "Build a modal bottom drawer with the shared `Drawer` primitive: `bg-background`, edge-attached bottom content, `max-h-[80vh]`, `rounded-t-lg`, `border-t`, built-in drag handle, header/footer `p-4`. Do not use the floating `PageSidePanel` shell for this."
 - "Floating toolbar: `bg-popover`, 1px `var(--color-border)`, `var(--radius-xl)`, `var(--shadow-md)`. Icon buttons inside use the shared `Button` with `variant=\"ghost\"` and `size=\"icon-sm\"`."
 - "Dense row actions: use low-emphasis icon-only controls with muted default text, no static fill, tooltip/`aria-label`, hover-only emphasis, and active tint only when the action has persistent state. Promote this pattern into a shared `IconButton` before reusing it across pages."

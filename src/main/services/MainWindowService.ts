@@ -1,8 +1,8 @@
 import { application } from '@application'
 import { optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
-import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
@@ -14,7 +14,6 @@ import windowStateKeeper from 'electron-window-state'
 import path, { join } from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
-import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
 import { contextMenu } from './ContextMenu'
 
@@ -32,8 +31,7 @@ export class MainWindowService extends BaseService {
   // Direct BrowserWindow reference, kept in sync with WindowManager's lifecycle
   // events (onWindowCreatedByType / onWindowDestroyedByType). External callers
   // should NOT touch this field — use WindowManager.broadcastToType() / showMainWindow()
-  // / getWindowsByType(). The public getMainWindow() below is a deprecated
-  // escape hatch that logs a warn on every call.
+  // / getWindowsByType().
   private mainWindow: BrowserWindow | null = null
   private stateKeeper: ReturnType<typeof windowStateKeeper> | undefined
   private lastRendererProcessCrashTime: number = 0
@@ -214,9 +212,6 @@ export class MainWindowService extends BaseService {
         width: this.stateKeeper.width,
         height: this.stateKeeper.height,
         darkTheme: nativeTheme.shouldUseDarkColors,
-        ...(isMac && {
-          titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight
-        }),
         ...(isLinux && {
           frame: preferenceService.get('app.use_system_title_bar'),
           icon: linuxIcon
@@ -447,28 +442,6 @@ export class MainWindowService extends BaseService {
       }
       callback({ cancel: false, responseHeaders: details.responseHeaders })
     })
-  }
-
-  /**
-   * @deprecated External callers are almost always misusing this. For IPC use
-   * `WindowManager.broadcastToType(WindowType.Main, channel, data)`; for
-   * visibility use `showMainWindow()`; for existence checks use
-   * `WindowManager.getWindowsByType(WindowType.Main)`. Slated for removal once
-   * the remaining legacy callers (executeJavaScript deep links, ReduxService,
-   * etc.) are rewritten in v2.
-   *
-   * Every call logs a warn — this is intentional, to keep pressure on
-   * migration. Do NOT call this from within MainWindowService itself; use the
-   * `this.mainWindow` field directly.
-   */
-  public getMainWindow(): BrowserWindow | null {
-    logger.warn(
-      'MainWindowService.getMainWindow() is deprecated. ' +
-        'External callers should use WindowManager.broadcastToType() / showMainWindow() instead; ' +
-        'grabbing a BrowserWindow instance from outside is almost always a misuse.'
-    )
-    if (!this.mainWindow || this.mainWindow.isDestroyed()) return null
-    return this.mainWindow
   }
 
   private setupWindowLifecycleEvents(mainWindow: BrowserWindow) {

@@ -12,7 +12,7 @@ type LanguageData = {
   extensions?: string[]
 }
 
-const LANGUAGES_FILE_PATH = path.join(__dirname, '../packages/shared/config/languages.ts')
+const LANGUAGES_FILE_PATH = path.join(__dirname, '../src/shared/config/languages.ts')
 
 /**
  * Extracts and filters necessary language data from the linguist-languages package.

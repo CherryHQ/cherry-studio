@@ -1,4 +1,4 @@
-import { isDev, isLinux, isMac, isWin } from '@main/constant'
+import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { type WindowOptions, WindowType, type WindowTypeMetadata } from '@main/core/window/types'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
 
@@ -36,7 +36,7 @@ export const DEFAULT_WINDOW_CONFIG: WindowOptions = {
 export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata>> = {
   // Main application window — singleton primary surface.
   // Managed by MainWindowService: dynamic options (window-state position/size, theme-driven
-  // backgroundColor / titleBarOverlay / backgroundMaterial / frame / icon / zoomFactor) are
+  // backgroundColor / backgroundMaterial / frame / icon / zoomFactor) are
   // injected via wm.open({ options }). showMode 'manual' lets MainWindowService decide first
   // show in the ready-to-show handler (so tray-on-launch can suppress it).
   //
@@ -51,7 +51,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   [WindowType.Main]: {
     type: WindowType.Main,
     lifecycle: 'singleton',
-    htmlPath: 'index.html',
+    htmlPath: 'windows/main/index.html',
     // preload omitted → defaults to 'index.js' (full API preload).
     showMode: 'manual',
     windowOptions: {
@@ -66,11 +66,16 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       platformOverrides: {
         mac: {
           titleBarStyle: 'hidden',
-          trafficLightPosition: { x: 13, y: 16 }
-          // titleBarOverlay is theme-dependent → injected via args.options
+          trafficLightPosition: { x: 13, y: 16 },
+          // WCO height; consumed by renderer's env(titlebar-area-height)
+          titleBarOverlay: { height: 42 }
+        },
+        win: {
+          // Frameless + renderer-drawn WindowControls (mirrors SubWindow). Windows is
+          // always frameless; backgroundMaterial stays runtime-computed → args.options.
+          frame: false
         }
-        // win: backgroundMaterial is runtime-computed (may be undefined) → args.options
-        // linux: frame depends on `app.use_system_title_bar` preference, icon is nativeImage
+        // linux: frame honors `app.use_system_title_bar` preference, icon is nativeImage
         //        → both injected via args.options
       },
       webPreferences: {
@@ -102,13 +107,13 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     singletonConfig: {
       retentionTime: 300
     },
-    htmlPath: 'settings.html',
+    htmlPath: 'windows/settings/index.html',
     windowOptions: {
       ...DEFAULT_WINDOW_CONFIG,
       width: 960,
       height: 680,
       minWidth: 760,
-      minHeight: 520,
+      minHeight: 560,
       autoHideMenuBar: true,
       transparent: false,
       vibrancy: 'sidebar',
@@ -128,7 +133,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   // (a Tab dragged out of Main becomes its own BrowserWindow here; drag back
   // to the Main tab bar re-attaches).
   // Managed by SubWindowService: dynamic options (per-tab title, theme-driven
-  // titleBarOverlay / backgroundColor / darkTheme, Linux-only icon nativeImage,
+  // backgroundColor / darkTheme, Linux-only icon nativeImage,
   // optional initial x/y) are injected via wm.open({ options }). showMode
   // 'manual' lets SubWindowService decide show timing based on whether an
   // initial position was provided at Tab_Detach time (drop-at-cursor detach
@@ -143,7 +148,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   [WindowType.SubWindow]: {
     type: WindowType.SubWindow,
     lifecycle: 'default',
-    htmlPath: 'subWindow.html',
+    htmlPath: 'windows/subWindow/index.html',
     // preload omitted → defaults to 'index.js' (full API preload).
     showMode: 'manual',
     windowOptions: {
@@ -158,8 +163,9 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       platformOverrides: {
         mac: {
           titleBarStyle: 'hidden',
-          trafficLightPosition: { x: 8, y: 13 }
-          // titleBarOverlay is theme-dependent → injected via args.options
+          trafficLightPosition: { x: 8, y: 13 },
+          // WCO height; consumed by renderer's env(titlebar-area-height)
+          titleBarOverlay: { height: 42 }
         },
         win: {
           frame: false
@@ -182,7 +188,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
     // NOTE: Fields intentionally NOT set here, injected per-call via wm.open({ options }):
     //   - title (per-tab dynamic)
-    //   - titleBarOverlay / backgroundColor / darkTheme (theme snapshot at create time)
+    //   - backgroundColor / darkTheme (theme snapshot at create time)
     //   - icon (Linux-only nativeImage; see SubWindowService.linuxIcon — mac/Windows omit)
     //   - x / y (only when Tab_Detach payload carries a drop position)
     // NOTE: setWindowOpenHandler + will-navigate are registered by WindowManager for
@@ -197,7 +203,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   [WindowType.QuickAssistant]: {
     type: WindowType.QuickAssistant,
     lifecycle: 'singleton',
-    htmlPath: 'quickAssistant.html',
+    htmlPath: 'windows/quickAssistant/index.html',
     // preload omitted → defaults to 'index.js' (full API preload).
     // QuickAssistantService.showQuickAssistant controls visibility; showMode: 'manual' also keeps
     // singleton reopen (wm.open) from accidentally re-showing the window before reposition runs.
@@ -263,7 +269,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   [WindowType.SelectionToolbar]: {
     type: WindowType.SelectionToolbar,
     lifecycle: 'singleton',
-    htmlPath: 'selectionToolbar.html',
+    htmlPath: 'windows/selection/toolbar/index.html',
     // preload omitted → defaults to 'index.js'.
     // SelectionService controls visibility itself via showToolbarAtPosition/hideToolbar.
     // showMode: 'manual' also prevents wm.open() from re-showing an existing singleton unexpectedly.
@@ -352,7 +358,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   [WindowType.SelectionAction]: {
     type: WindowType.SelectionAction,
     lifecycle: 'pooled',
-    htmlPath: 'selectionAction.html',
+    htmlPath: 'windows/selection/action/index.html',
     // preload omitted → defaults to 'index.js'.
     // SelectionService controls visibility itself via showActionWindow (computes bounds + fullscreen handling).
     showMode: 'manual',
@@ -383,7 +389,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       // SelectionAction intentionally declares no hideOnBlur / alwaysOnTop.level /
       // visibleOnAllWorkspaces:
       //   - hideOnBlur is driven per-instance by the renderer's `isAutoClose && !isPinned`
-      //     logic (see SelectionActionApp.tsx) — too case-specific for a WM default.
+      //     logic (see ActionWindow.tsx) — too case-specific for a WM default.
       //   - alwaysOnTop is toggled at runtime by pinActionWindow via wm.setAlwaysOnTop;
       //     passing no level lets Electron use its default ('floating' on macOS).
       //   - setVisibleOnAllWorkspaces's true/false options differ per call in the

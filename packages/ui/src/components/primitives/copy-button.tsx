@@ -1,4 +1,4 @@
-// Original path: src/renderer/src/components/CopyButton.tsx
+// Original path: src/renderer/components/CopyButton.tsx
 import { Copy } from 'lucide-react'
 import type { FC } from 'react'
 

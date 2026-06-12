@@ -9,7 +9,7 @@
  *   OrphanRefScanner in Phase 1b.4 is a separate service that *uses* this one.
  * - **Polymorphic sourceType keying.** No FK constraint on `sourceId` (see
  *   file schema). Producers MUST pass a `FileRefSourceType` literal that
- *   appears in the central registry (`packages/shared/data/types/file/ref/index.ts`);
+ *   appears in the central registry (`src/shared/data/types/file/ref/index.ts`);
  *   schema variants for non-`temp_session` sourceTypes are registered
  *   incrementally in Phase 1b.2.
  *
@@ -23,6 +23,7 @@
 
 import { application } from '@application'
 import { fileRefTable } from '@data/db/schemas/file'
+import type { DbType } from '@data/db/types'
 import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'
 import { FileRefSchema } from '@shared/data/types/file'
 import { and, asc, count, eq, inArray } from 'drizzle-orm'
@@ -56,10 +57,30 @@ export interface FileRefService {
   createMany(values: readonly CreateFileRefRow[]): Promise<FileRef[]>
 
   /**
+   * Transaction-aware source clone helper. Used when a business entity is
+   * copied and its existing file ownership rows must be cloned to the new source
+   * ids. Original source rows are not removed or reassigned. Uniqueness
+   * conflicts indicate a broken source-id map and fail the caller's transaction.
+   */
+  copyBySourceIdMapTx(
+    tx: Pick<DbType, 'select' | 'insert'>,
+    sourceType: FileRefSourceType,
+    sourceIdMap: ReadonlyMap<string, string>
+  ): Promise<void>
+
+  /**
    * Pull-model cleanup: remove all refs owned by the given source. Called
-   * when the business entity itself is deleted.
+   * when the business entity itself is deleted. Thin wrapper that opens its
+   * own transaction around {@link FileRefService.cleanupBySourceTx}.
    */
   cleanupBySource(source: FileRefSourceKey): Promise<number>
+
+  /**
+   * Transaction-aware variant of {@link FileRefService.cleanupBySource}. Lets
+   * an owning service delete its row AND its file refs in one atomic boundary
+   * (tx-first, `Tx` suffix — same convention as `TagService.purgeForEntityTx`).
+   */
+  cleanupBySourceTx(tx: Pick<DbType, 'delete'>, source: FileRefSourceKey): Promise<number>
 
   /** Batch variant of `cleanupBySource` — one `DELETE … IN (…)` per sourceType. */
   cleanupBySourceBatch(sourceType: FileRefSourceType, sourceIds: readonly string[]): Promise<number>
@@ -86,6 +107,7 @@ export interface FileRefService {
  * because the two callers can diverge as their query shapes evolve.
  */
 const SQLITE_INARRAY_CHUNK = 500
+const SQLITE_INSERT_CHUNK = 100
 
 type FileRefRow = typeof fileRefTable.$inferSelect
 
@@ -159,8 +181,52 @@ class FileRefServiceImpl implements FileRefService {
     return rows.map(rowToFileRef)
   }
 
+  async copyBySourceIdMapTx(
+    tx: Pick<DbType, 'select' | 'insert'>,
+    sourceType: FileRefSourceType,
+    sourceIdMap: ReadonlyMap<string, string>
+  ): Promise<void> {
+    if (sourceIdMap.size === 0) return
+
+    const sourceIds = [...sourceIdMap.keys()]
+    const now = Date.now()
+
+    for (let i = 0; i < sourceIds.length; i += SQLITE_INARRAY_CHUNK) {
+      const chunk = sourceIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+      const sourceRefs = await tx
+        .select()
+        .from(fileRefTable)
+        .where(and(eq(fileRefTable.sourceType, sourceType), inArray(fileRefTable.sourceId, chunk)))
+
+      const values = sourceRefs.flatMap((ref) => {
+        const copiedSourceId = sourceIdMap.get(ref.sourceId)
+        if (!copiedSourceId) return []
+        return [
+          {
+            id: uuidv4(),
+            fileEntryId: ref.fileEntryId,
+            sourceType,
+            sourceId: copiedSourceId,
+            role: ref.role,
+            createdAt: now,
+            updatedAt: now
+          }
+        ]
+      })
+      if (values.length === 0) continue
+
+      for (let j = 0; j < values.length; j += SQLITE_INSERT_CHUNK) {
+        await tx.insert(fileRefTable).values(values.slice(j, j + SQLITE_INSERT_CHUNK))
+      }
+    }
+  }
+
   async cleanupBySource(source: FileRefSourceKey): Promise<number> {
-    const rows = await this.getDb()
+    return this.getDb().transaction((tx) => this.cleanupBySourceTx(tx, source))
+  }
+
+  async cleanupBySourceTx(tx: Pick<DbType, 'delete'>, source: FileRefSourceKey): Promise<number> {
+    const rows = await tx
       .delete(fileRefTable)
       .where(and(eq(fileRefTable.sourceType, source.sourceType), eq(fileRefTable.sourceId, source.sourceId)))
       .returning({ id: fileRefTable.id })

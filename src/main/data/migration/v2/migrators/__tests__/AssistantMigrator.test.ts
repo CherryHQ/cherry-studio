@@ -22,6 +22,8 @@ function createMockContext(reduxData: Record<string, unknown> = {}) {
       dexieSettings: { keys: vi.fn().mockReturnValue([]), get: vi.fn() }
     },
     db: {
+      // assertOwnedForeignKeys() runs PRAGMA foreign_key_check via db.all; empty => no violations.
+      all: vi.fn().mockResolvedValue([]),
       transaction: vi.fn(async (fn: (tx: any) => Promise<void>) => {
         const tx = {
           insert: vi.fn().mockReturnValue({
@@ -317,7 +319,7 @@ describe('AssistantMigrator', () => {
   describe('mergeOldAssistants', () => {
     // Direct unit tests against the merge function. The migrator-level tests
     // exercise the merge through prepare() but can only assert against the
-    // typed AssistantInsert row produced by transformAssistant — fields not
+    // typed InsertAssistantRow produced by transformAssistant — fields not
     // in OldAssistant aren't observable that way. These tests pin the
     // contracts documented in README-AssistantMigrator.md directly.
     type WithExtras = OldAssistant & Record<string, unknown>
@@ -408,13 +410,13 @@ describe('AssistantMigrator', () => {
       }
       const secondary: OldAssistant = {
         id: 'default',
-        settings: { temperature: 0.2, maxTokens: 4096, topP: 0.5, contextCount: 10 }
+        settings: { temperature: 0.2, maxTokens: 4096, topP: 0.5, enableTopP: true }
       }
       const merged = mergeOldAssistants(primary, secondary)
       expect(merged.settings?.temperature).toBe(0.7) // primary wins
       expect(merged.settings?.maxTokens).toBe(4096) // primary undefined, secondary fills
       expect(merged.settings?.topP).toBe(1.0) // primary wins
-      expect(merged.settings?.contextCount).toBe(10) // secondary-only key kept
+      expect(merged.settings?.enableTopP).toBe(true) // secondary-only key kept
     })
 
     it('returns primary settings when secondary has none, and vice versa', () => {

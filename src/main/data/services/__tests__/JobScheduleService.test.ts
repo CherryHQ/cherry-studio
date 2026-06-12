@@ -1,7 +1,7 @@
 import { jobScheduleTable } from '@data/db/schemas/job'
 import { jobScheduleService } from '@data/services/JobScheduleService'
-import { JOB_ERROR_CODES } from '@main/core/job/errorCodes'
-import type { Trigger } from '@main/core/job/scheduleTypes'
+import type { Trigger } from '@shared/data/api/schemas/jobs'
+import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -112,7 +112,7 @@ describe('JobScheduleService', () => {
         catchUpPolicy: { kind: 'skip-missed' }
       })
       const b = await jobScheduleService.create({
-        type: 'knowledge.index-leaf',
+        type: 'knowledge.index-documents',
         trigger: baseTrigger,
         jobInputTemplate: {},
         catchUpPolicy: { kind: 'skip-missed' }

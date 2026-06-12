@@ -1,3 +1,4 @@
+import { fileRefTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -8,7 +9,36 @@ import type { CreateKnowledgeItemDto } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
+const itemId = (sequence: string) => `0198f3f2-${sequence}-7abc-8def-123456789abc`
+const DIR_A_ID = itemId('7d1a')
+const DIR_B_ID = itemId('7d1b')
+const NOTE_1_ID = itemId('7d1c')
+const ITEM_1_ID = itemId('7d1d')
+const ITEM_2_ID = itemId('7d1e')
+const ROOT_1_ID = itemId('7d1f')
+const ROOT_2_ID = itemId('7d20')
+const CHILD_1_ID = itemId('7d21')
+const NOTE_A_ID = itemId('7d22')
+const VISIBLE_NOTE_ID = itemId('7d23')
+const DELETING_NOTE_ID = itemId('7d24')
+const NOTE_OWNER_ID = itemId('7d26')
+const DIR_CHILD_ID = itemId('7d30')
+const DIR_ROOT_ID = itemId('7d31')
+const FILE_CHILD_ID = itemId('7d40')
+const NOTE_GRANDCHILD_ID = itemId('7d41')
+const NOTE_ROOT_ID = itemId('7d42')
+const DIR_OWNER_ID = itemId('7d45')
+const CHILD_A_ID = itemId('7d46')
+const CHILD_B_ID = itemId('7d47')
+const OTHER_ITEM_ID = itemId('7d50')
+const COMPLETED_CHILD_ID = itemId('7d52')
+const DELETING_CHILD_ID = itemId('7d53')
+const FILE_A_ID = itemId('7d60')
+const FILE_B_ID = itemId('7d61')
+const FILE_GRANDCHILD_ID = itemId('7d62')
 
 describe('KnowledgeItemService', () => {
   const dbh = setupTestDatabase()
@@ -32,9 +62,8 @@ describe('KnowledgeItemService', () => {
       orderKey: generateOrderKeyBetween(null, null)
     })
     await dbh.db.insert(knowledgeBaseTable).values({
-      id: 'kb-1',
+      id: KNOWLEDGE_BASE_ID,
       name: 'KB',
-      emoji: '📁',
       dimensions: 1024,
       embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large'),
       status: 'completed',
@@ -47,12 +76,11 @@ describe('KnowledgeItemService', () => {
 
   async function seedItem(overrides: Partial<typeof knowledgeItemTable.$inferInsert> = {}) {
     const values: typeof knowledgeItemTable.$inferInsert = {
-      baseId: 'kb-1',
+      baseId: KNOWLEDGE_BASE_ID,
       groupId: null,
       type: 'note',
       data: { source: 'seed-note', content: 'hello world' },
       status: 'idle',
-      phase: null,
       error: null,
       ...overrides
     }
@@ -61,19 +89,10 @@ describe('KnowledgeItemService', () => {
   }
 
   function createFileItemData(id: string) {
+    const slug = id.slice(0, 8)
     return {
-      source: `/docs/${id}.md`,
-      file: {
-        id: `${id}-meta`,
-        name: `${id}.md`,
-        origin_name: `${id}.md`,
-        path: `/docs/${id}.md`,
-        created_at: '2026-04-08T00:00:00.000Z',
-        size: 10,
-        ext: '.md',
-        type: 'text' as const,
-        count: 1
-      }
+      source: `/docs/${slug}.md`,
+      relativePath: `${slug}.md`
     }
   }
 
@@ -81,105 +100,147 @@ describe('KnowledgeItemService', () => {
     it('returns paginated items for a knowledge base', async () => {
       await seedItem()
 
-      const result = await service.list('kb-1', { page: 1, limit: 20 })
+      const result = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20 })
 
       expect(result.total).toBe(1)
       expect(result.page).toBe(1)
       expect(result.items[0]).toMatchObject({
-        baseId: 'kb-1',
+        baseId: KNOWLEDGE_BASE_ID,
         type: 'note',
         data: { content: 'hello world' }
       })
     })
 
     it('filters items by type and group', async () => {
-      await seedItem({ id: 'dir-a', type: 'directory', data: { source: '/a', path: '/a' } })
-      await seedItem({ id: 'dir-b', type: 'directory', data: { source: '/b', path: '/b' } })
-      await seedItem({ id: 'note-1', type: 'note', groupId: 'dir-a', data: { source: 'note-1', content: 'n1' } })
+      await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a', path: '/a' } })
+      await seedItem({ id: DIR_B_ID, type: 'directory', data: { source: '/b', path: '/b' } })
+      await seedItem({ id: NOTE_1_ID, type: 'note', groupId: DIR_A_ID, data: { source: NOTE_1_ID, content: 'n1' } })
 
-      const directories = await service.list('kb-1', { page: 1, limit: 20, type: 'directory' })
-      const grouped = await service.list('kb-1', { page: 1, limit: 20, groupId: 'dir-a' })
+      const directories = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20, type: 'directory' })
+      const grouped = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20, groupId: DIR_A_ID })
 
-      expect(directories.items.map((item) => item.id).sort()).toEqual(['dir-a', 'dir-b'])
-      expect(grouped.items.map((item) => item.id)).toEqual(['note-1'])
+      expect(directories.items.map((item) => item.id).sort()).toEqual([DIR_A_ID, DIR_B_ID])
+      expect(grouped.items.map((item) => item.id)).toEqual([NOTE_1_ID])
     })
 
     it('filters root items when groupId is null', async () => {
-      await seedItem({ id: 'dir-a', type: 'directory', data: { source: '/a', path: '/a' } })
-      await seedItem({ id: 'note-root', type: 'note', data: { source: 'root', content: 'root' } })
-      await seedItem({ id: 'note-child', type: 'note', groupId: 'dir-a', data: { source: 'child', content: 'child' } })
+      await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a', path: '/a' } })
+      await seedItem({ id: NOTE_ROOT_ID, type: 'note', data: { source: 'root', content: 'root' } })
+      await seedItem({ id: NOTE_1_ID, type: 'note', groupId: DIR_A_ID, data: { source: 'child', content: 'child' } })
 
-      const result = await service.list('kb-1', { page: 1, limit: 20, groupId: null })
+      const result = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20, groupId: null })
 
       expect(result.total).toBe(2)
-      expect(result.items.map((item) => item.id).sort()).toEqual(['dir-a', 'note-root'])
+      expect(result.items.map((item) => item.id).sort()).toEqual([DIR_A_ID, NOTE_ROOT_ID])
+    })
+
+    it('hides deleting items', async () => {
+      await seedItem({ id: VISIBLE_NOTE_ID, data: { source: 'visible', content: 'visible' } })
+      await seedItem({ id: DELETING_NOTE_ID, data: { source: 'deleting', content: 'deleting' }, status: 'deleting' })
+
+      const result = await service.list(KNOWLEDGE_BASE_ID, { page: 1, limit: 20 })
+
+      expect(result.total).toBe(1)
+      expect(result.items.map((item) => item.id)).toEqual([VISIBLE_NOTE_ID])
     })
   })
 
   describe('getItemsByBaseId', () => {
     it('returns items in creation order for a knowledge base', async () => {
       await seedItem({
-        id: 'item-2',
-        data: { source: 'item-2', content: 'item 2' },
+        id: ITEM_2_ID,
+        data: { source: ITEM_2_ID, content: 'item 2' },
         createdAt: 20,
         updatedAt: 20
       })
       await seedItem({
-        id: 'item-1',
-        data: { source: 'item-1', content: 'item 1' },
+        id: ITEM_1_ID,
+        data: { source: ITEM_1_ID, content: 'item 1' },
         createdAt: 10,
         updatedAt: 10
       })
 
-      const result = await service.getItemsByBaseId('kb-1')
+      const result = await service.getItemsByBaseId(KNOWLEDGE_BASE_ID)
 
-      expect(result.map((item) => item.id)).toEqual(['item-1', 'item-2'])
+      expect(result.map((item) => item.id)).toEqual([ITEM_1_ID, ITEM_2_ID])
       expect(result[0]).toMatchObject({
-        id: 'item-1',
-        baseId: 'kb-1',
+        id: ITEM_1_ID,
+        baseId: KNOWLEDGE_BASE_ID,
         groupId: null,
         type: 'note',
-        data: { source: 'item-1', content: 'item 1' },
+        data: { source: ITEM_1_ID, content: 'item 1' },
         status: 'idle',
-        phase: null,
         error: null
       })
     })
 
     it('filters root items when groupId is null', async () => {
       await seedItem({
-        id: 'root-2',
-        data: { source: 'root-2', content: 'root 2' },
+        id: ROOT_2_ID,
+        data: { source: ROOT_2_ID, content: 'root 2' },
         createdAt: 20,
         updatedAt: 20
       })
       await seedItem({
-        id: 'root-1',
-        data: { source: 'root-1', content: 'root 1' },
+        id: ROOT_1_ID,
+        data: { source: ROOT_1_ID, content: 'root 1' },
         createdAt: 10,
         updatedAt: 10
       })
       await seedItem({
-        id: 'child-1',
-        groupId: 'root-1',
-        data: { source: 'child-1', content: 'child 1' },
+        id: CHILD_1_ID,
+        groupId: ROOT_1_ID,
+        data: { source: CHILD_1_ID, content: 'child 1' },
         createdAt: 15,
         updatedAt: 15
       })
 
-      const result = await service.getItemsByBaseId('kb-1', { groupId: null })
+      const result = await service.getItemsByBaseId(KNOWLEDGE_BASE_ID, { groupId: null })
 
-      expect(result.map((item) => item.id)).toEqual(['root-1', 'root-2'])
+      expect(result.map((item) => item.id)).toEqual([ROOT_1_ID, ROOT_2_ID])
+    })
+
+    it('returns root items through the explicit root helper', async () => {
+      await seedItem({ id: ROOT_1_ID, data: { source: ROOT_1_ID, content: 'root 1' } })
+      await seedItem({ id: CHILD_1_ID, groupId: ROOT_1_ID, data: { source: CHILD_1_ID, content: 'child 1' } })
+
+      const result = await service.getRootItemsByBaseId(KNOWLEDGE_BASE_ID)
+
+      expect(result.map((item) => item.id)).toEqual([ROOT_1_ID])
+    })
+
+    it('collapses selected descendants to their outermost selected roots', async () => {
+      await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a', path: '/a' } })
+      await seedItem({ id: NOTE_A_ID, groupId: DIR_A_ID, data: { source: 'a', content: 'a' } })
+      await seedItem({ id: NOTE_ROOT_ID, data: { source: 'root', content: 'root' } })
+
+      const result = await service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, [
+        DIR_A_ID,
+        NOTE_A_ID,
+        NOTE_ROOT_ID,
+        DIR_A_ID
+      ])
+
+      expect(result).toEqual([DIR_A_ID, NOTE_ROOT_ID])
     })
 
     it('filters items by group id', async () => {
-      await seedItem({ id: 'dir-a', type: 'directory', data: { source: '/a', path: '/a' } })
-      await seedItem({ id: 'note-a', groupId: 'dir-a', data: { source: 'a', content: 'a' } })
-      await seedItem({ id: 'note-root', data: { source: 'root', content: 'root' } })
+      await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a', path: '/a' } })
+      await seedItem({ id: NOTE_A_ID, groupId: DIR_A_ID, data: { source: 'a', content: 'a' } })
+      await seedItem({ id: NOTE_ROOT_ID, data: { source: 'root', content: 'root' } })
 
-      const result = await service.getItemsByBaseId('kb-1', { groupId: 'dir-a' })
+      const result = await service.getItemsByBaseId(KNOWLEDGE_BASE_ID, { groupId: DIR_A_ID })
 
-      expect(result.map((item) => item.id)).toEqual(['note-a'])
+      expect(result.map((item) => item.id)).toEqual([NOTE_A_ID])
+    })
+
+    it('hides deleting items', async () => {
+      await seedItem({ id: VISIBLE_NOTE_ID, data: { source: 'visible', content: 'visible' } })
+      await seedItem({ id: DELETING_NOTE_ID, data: { source: 'deleting', content: 'deleting' }, status: 'deleting' })
+
+      const result = await service.getItemsByBaseId(KNOWLEDGE_BASE_ID)
+
+      expect(result.map((item) => item.id)).toEqual([VISIBLE_NOTE_ID])
     })
 
     it('throws NotFound when listing items for a missing base', async () => {
@@ -190,6 +251,65 @@ describe('KnowledgeItemService', () => {
     })
   })
 
+  describe('getDeletingRootGroups', () => {
+    it('returns top-level deleting roots grouped by base', async () => {
+      await seedItem({ id: 'deleting-root-note', data: { source: 'root', content: 'root' }, status: 'deleting' })
+      await seedItem({
+        id: 'deleting-dir',
+        type: 'directory',
+        data: { source: '/deleting-dir', path: '/deleting-dir' },
+        status: 'deleting'
+      })
+      await seedItem({
+        id: 'deleting-child',
+        groupId: 'deleting-dir',
+        data: { source: 'child', content: 'child' },
+        status: 'deleting'
+      })
+      await seedItem({
+        id: 'visible-dir',
+        type: 'directory',
+        data: { source: '/visible-dir', path: '/visible-dir' },
+        status: 'completed'
+      })
+      await seedItem({
+        id: 'deleting-child-of-visible',
+        groupId: 'visible-dir',
+        data: { source: 'visible-child', content: 'visible child' },
+        status: 'deleting'
+      })
+
+      await dbh.db.insert(knowledgeBaseTable).values({
+        id: 'kb-2',
+        name: 'KB 2',
+        dimensions: 1024,
+        embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large'),
+        status: 'completed',
+        error: null,
+        chunkSize: 1024,
+        chunkOverlap: 200,
+        searchMode: 'hybrid'
+      })
+      await seedItem({
+        id: 'kb-2-deleting-root',
+        baseId: 'kb-2',
+        data: { source: 'kb2', content: 'kb2' },
+        status: 'deleting'
+      })
+
+      await expect(service.getDeletingRootGroups()).resolves.toEqual([
+        {
+          baseId: KNOWLEDGE_BASE_ID,
+          rootItemIds: ['deleting-child-of-visible', 'deleting-dir', 'deleting-root-note']
+        },
+        {
+          baseId: 'kb-2',
+          rootItemIds: ['kb-2-deleting-root']
+        }
+      ])
+    })
+  })
+
   describe('create', () => {
     it('creates one knowledge item as idle', async () => {
       const item: CreateKnowledgeItemDto = {
@@ -197,61 +317,45 @@ describe('KnowledgeItemService', () => {
         data: { source: '/tmp/files', path: '/tmp/files' }
       }
 
-      const result = await service.create('kb-1', item)
+      const result = await service.create(KNOWLEDGE_BASE_ID, item)
 
       expect(result).toMatchObject({
-        baseId: 'kb-1',
+        baseId: KNOWLEDGE_BASE_ID,
         groupId: null,
         type: 'directory',
         status: 'idle',
-        phase: null,
         error: null,
         data: item.data
       })
     })
 
     it('accepts a group owner in the same base', async () => {
-      await seedItem({ id: 'dir-a', type: 'directory', data: { source: '/a', path: '/a' } })
+      await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a', path: '/a' } })
 
-      const result = await service.create('kb-1', {
-        groupId: 'dir-a',
+      const result = await service.create(KNOWLEDGE_BASE_ID, {
+        groupId: DIR_A_ID,
         type: 'note',
         data: { source: 'new grouped note', content: 'new grouped note' }
       })
 
       expect(result).toMatchObject({
-        baseId: 'kb-1',
-        groupId: 'dir-a',
+        baseId: KNOWLEDGE_BASE_ID,
+        groupId: DIR_A_ID,
         type: 'note'
       })
     })
 
-    it('accepts sitemap group owners', async () => {
+    it('rejects deleting group owners', async () => {
       await seedItem({
-        id: 'sitemap-a',
-        type: 'sitemap',
-        data: { source: 'https://example.com/sitemap.xml', url: 'https://example.com/sitemap.xml' }
+        id: DIR_A_ID,
+        type: 'directory',
+        data: { source: '/a', path: '/a' },
+        status: 'deleting'
       })
-
-      const result = await service.create('kb-1', {
-        groupId: 'sitemap-a',
-        type: 'url',
-        data: { source: 'https://example.com/page', url: 'https://example.com/page' }
-      })
-
-      expect(result).toMatchObject({
-        baseId: 'kb-1',
-        groupId: 'sitemap-a',
-        type: 'url'
-      })
-    })
-
-    it('rejects leaf items as group owners', async () => {
-      await seedItem({ id: 'note-owner', type: 'note', data: { source: 'owner', content: 'owner' } })
 
       await expect(
-        service.create('kb-1', {
-          groupId: 'note-owner',
+        service.create(KNOWLEDGE_BASE_ID, {
+          groupId: DIR_A_ID,
           type: 'note',
           data: { source: 'child note', content: 'child note' }
         })
@@ -259,7 +363,26 @@ describe('KnowledgeItemService', () => {
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
-            groupId: ['Knowledge item group owner must be a directory or sitemap: note-owner']
+            groupId: [`Knowledge item group owner is being deleted: ${DIR_A_ID}`]
+          }
+        }
+      })
+    })
+
+    it('rejects leaf items as group owners', async () => {
+      await seedItem({ id: NOTE_OWNER_ID, type: 'note', data: { source: 'owner', content: 'owner' } })
+
+      await expect(
+        service.create(KNOWLEDGE_BASE_ID, {
+          groupId: NOTE_OWNER_ID,
+          type: 'note',
+          data: { source: 'child note', content: 'child note' }
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            groupId: [`Knowledge item group owner must be a directory: ${NOTE_OWNER_ID}`]
           }
         }
       })
@@ -267,7 +390,7 @@ describe('KnowledgeItemService', () => {
 
     it('rejects blank group owner ids before hitting foreign key constraints', async () => {
       await expect(
-        service.create('kb-1', {
+        service.create(KNOWLEDGE_BASE_ID, {
           groupId: '   ',
           type: 'note',
           data: { source: 'child note', content: 'child note' }
@@ -291,7 +414,7 @@ describe('KnowledgeItemService', () => {
       })
 
       await expect(
-        service.create('kb-1', {
+        service.create(KNOWLEDGE_BASE_ID, {
           groupId: 'missing-owner',
           type: 'note',
           data: { source: 'child note', content: 'child note' }
@@ -300,62 +423,78 @@ describe('KnowledgeItemService', () => {
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
-            groupId: ["Knowledge item group owner not found in base 'kb-1': missing-owner"]
+            groupId: [`Knowledge item group owner not found in base '${KNOWLEDGE_BASE_ID}': missing-owner`]
           }
         }
       })
     })
 
-    it('rejects invalid persisted status phase error combinations', async () => {
+    it('rejects invalid persisted status error combinations', async () => {
       await expect(
         dbh.db.insert(knowledgeItemTable).values({
-          baseId: 'kb-1',
+          baseId: KNOWLEDGE_BASE_ID,
           groupId: null,
           type: 'note',
           data: { source: 'invalid-note', content: 'invalid note' },
           status: 'completed',
-          phase: 'reading',
-          error: null
+          error: 'stale'
         })
       ).rejects.toThrow()
 
       await expect(
         dbh.db.insert(knowledgeItemTable).values({
-          baseId: 'kb-1',
+          baseId: KNOWLEDGE_BASE_ID,
           groupId: null,
           type: 'note',
           data: { source: 'invalid-failed-note', content: 'invalid failed note' },
           status: 'failed',
-          phase: null,
           error: ''
         })
       ).rejects.toThrow()
     })
 
-    it('rejects persisted processing phases that do not match the item type', async () => {
+    it('rejects persisted progress statuses that do not match the item type', async () => {
       await expect(
         dbh.db.insert(knowledgeItemTable).values({
-          baseId: 'kb-1',
+          baseId: KNOWLEDGE_BASE_ID,
           groupId: null,
           type: 'note',
           data: { source: 'invalid-note-phase', content: 'invalid note phase' },
-          status: 'processing',
-          phase: 'preparing',
+          status: 'preparing',
           error: null
         })
       ).rejects.toThrow()
 
       await expect(
         dbh.db.insert(knowledgeItemTable).values({
-          baseId: 'kb-1',
+          baseId: KNOWLEDGE_BASE_ID,
           groupId: null,
           type: 'directory',
           data: { source: '/docs', path: '/docs' },
-          status: 'processing',
-          phase: 'reading',
+          status: 'reading',
           error: null
         })
       ).rejects.toThrow()
+    })
+
+    it('creates a file knowledge item with a copied relative path', async () => {
+      const result = await service.create(KNOWLEDGE_BASE_ID, {
+        type: 'file',
+        data: {
+          source: '/docs/a.md',
+          relativePath: 'a.md'
+        }
+      })
+
+      expect(result).toMatchObject({
+        type: 'file',
+        data: {
+          source: '/docs/a.md',
+          relativePath: 'a.md'
+        }
+      })
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, result.id))
+      expect(refs).toHaveLength(0)
     })
   })
 
@@ -379,154 +518,222 @@ describe('KnowledgeItemService', () => {
     })
   })
 
-  describe('getLeafDescendantItems', () => {
-    it('returns only leaf knowledge items in the requested subtrees', async () => {
-      await seedItem({ id: 'dir-root', type: 'directory', data: { source: '/root', path: '/root' } })
+  describe('getSubtreeItems', () => {
+    it('returns only leaf knowledge items in the requested subtrees when leafOnly is true', async () => {
+      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root', path: '/root' } })
       await seedItem({
-        id: 'dir-child',
-        groupId: 'dir-root',
+        id: DIR_CHILD_ID,
+        groupId: DIR_ROOT_ID,
         type: 'directory',
         data: { source: '/root/child', path: '/root/child' }
       })
       await seedItem({
-        id: 'file-child',
-        groupId: 'dir-root',
+        id: FILE_CHILD_ID,
+        groupId: DIR_ROOT_ID,
         type: 'file',
-        data: createFileItemData('file-child')
+        data: createFileItemData(FILE_CHILD_ID)
       })
       await seedItem({
-        id: 'note-grandchild',
-        groupId: 'dir-child',
+        id: NOTE_GRANDCHILD_ID,
+        groupId: DIR_CHILD_ID,
         type: 'note',
         data: { source: 'grandchild', content: 'grandchild' }
       })
-      await seedItem({
-        id: 'sitemap-root',
-        type: 'sitemap',
-        data: { source: 'https://example.com', url: 'https://example.com' }
-      })
-      await seedItem({
-        id: 'url-child',
-        groupId: 'sitemap-root',
-        type: 'url',
-        data: { source: 'https://example.com/page', url: 'https://example.com/page' }
-      })
-      await seedItem({ id: 'note-root', type: 'note', data: { source: 'root note', content: 'root note' } })
+      await seedItem({ id: NOTE_ROOT_ID, type: 'note', data: { source: 'root note', content: 'root note' } })
 
-      const result = await service.getLeafDescendantItems('kb-1', ['dir-root', 'sitemap-root', 'note-root', 'missing'])
+      const result = await service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID, NOTE_ROOT_ID, 'missing'], {
+        includeRoots: true,
+        leafOnly: true
+      })
       const itemsById = new Map(result.map((item) => [item.id, item]))
 
-      expect(result.map((item) => item.id).sort()).toEqual(['file-child', 'note-grandchild', 'note-root', 'url-child'])
-      expect(itemsById.get('file-child')).toMatchObject({
-        id: 'file-child',
-        baseId: 'kb-1',
-        groupId: 'dir-root',
+      expect(result.map((item) => item.id).sort()).toEqual([FILE_CHILD_ID, NOTE_GRANDCHILD_ID, NOTE_ROOT_ID])
+      expect(itemsById.get(FILE_CHILD_ID)).toMatchObject({
+        id: FILE_CHILD_ID,
+        baseId: KNOWLEDGE_BASE_ID,
+        groupId: DIR_ROOT_ID,
         type: 'file',
-        data: createFileItemData('file-child')
+        data: createFileItemData(FILE_CHILD_ID)
       })
-      expect(itemsById.get('note-grandchild')).toMatchObject({
-        id: 'note-grandchild',
-        baseId: 'kb-1',
-        groupId: 'dir-child',
+      expect(itemsById.get(NOTE_GRANDCHILD_ID)).toMatchObject({
+        id: NOTE_GRANDCHILD_ID,
+        baseId: KNOWLEDGE_BASE_ID,
+        groupId: DIR_CHILD_ID,
         type: 'note',
         data: { content: 'grandchild' }
       })
-      expect(itemsById.get('url-child')).toMatchObject({
-        id: 'url-child',
-        baseId: 'kb-1',
-        groupId: 'sitemap-root',
-        type: 'url',
-        data: { url: 'https://example.com/page' }
-      })
-      expect(itemsById.has('dir-root')).toBe(false)
-      expect(itemsById.has('dir-child')).toBe(false)
-      expect(itemsById.has('sitemap-root')).toBe(false)
+      expect(itemsById.has(DIR_ROOT_ID)).toBe(false)
+      expect(itemsById.has(DIR_CHILD_ID)).toBe(false)
     })
 
-    it('returns an empty list when no roots are provided', async () => {
-      await expect(service.getLeafDescendantItems('kb-1', [])).resolves.toEqual([])
-    })
-  })
-
-  describe('getDescendantItems', () => {
-    it('returns every descendant in the requested subtrees without roots', async () => {
-      await seedItem({ id: 'dir-root', type: 'directory', data: { source: '/root', path: '/root' } })
+    it('returns every descendant in the requested subtrees without roots by default', async () => {
+      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root', path: '/root' } })
       await seedItem({
-        id: 'dir-child',
-        groupId: 'dir-root',
+        id: DIR_CHILD_ID,
+        groupId: DIR_ROOT_ID,
         type: 'directory',
         data: { source: '/root/child', path: '/root/child' }
       })
       await seedItem({
-        id: 'file-child',
-        groupId: 'dir-child',
+        id: FILE_CHILD_ID,
+        groupId: DIR_CHILD_ID,
         type: 'file',
-        data: createFileItemData('file-child')
+        data: createFileItemData(FILE_CHILD_ID)
       })
       await seedItem({
-        id: 'note-root',
+        id: NOTE_ROOT_ID,
         type: 'note',
         data: { source: 'root note', content: 'root note' }
       })
 
-      const result = await service.getDescendantItems('kb-1', ['dir-root', 'dir-child', 'note-root', 'missing'])
+      const result = await service.getSubtreeItems(KNOWLEDGE_BASE_ID, [
+        DIR_ROOT_ID,
+        DIR_CHILD_ID,
+        NOTE_ROOT_ID,
+        'missing'
+      ])
 
-      expect(result.map((item) => item.id).sort()).toEqual(['file-child'])
+      expect(result.map((item) => item.id).sort()).toEqual([FILE_CHILD_ID])
     })
 
-    it('returns an empty list when no roots are provided', async () => {
-      await expect(service.getDescendantItems('kb-1', [])).resolves.toEqual([])
-    })
-  })
-
-  describe('getDescendantAndSelfItems', () => {
-    it('returns every descendant in the requested subtrees plus the roots themselves', async () => {
-      await seedItem({ id: 'dir-root', type: 'directory', data: { source: '/root', path: '/root' } })
+    it('returns every descendant in the requested subtrees plus the roots themselves when includeRoots is true', async () => {
+      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root', path: '/root' } })
       await seedItem({
-        id: 'dir-child',
-        groupId: 'dir-root',
+        id: DIR_CHILD_ID,
+        groupId: DIR_ROOT_ID,
         type: 'directory',
         data: { source: '/root/child', path: '/root/child' }
       })
       await seedItem({
-        id: 'file-child',
-        groupId: 'dir-child',
+        id: FILE_CHILD_ID,
+        groupId: DIR_CHILD_ID,
         type: 'file',
-        data: createFileItemData('file-child')
+        data: createFileItemData(FILE_CHILD_ID)
       })
       await seedItem({
-        id: 'note-root',
+        id: NOTE_ROOT_ID,
         type: 'note',
         data: { source: 'root note', content: 'root note' }
       })
 
-      const result = await service.getDescendantAndSelfItems('kb-1', ['dir-root', 'note-root', 'missing'])
+      const result = await service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID, NOTE_ROOT_ID, 'missing'], {
+        includeRoots: true
+      })
 
-      expect(result.map((item) => item.id).sort()).toEqual(['dir-child', 'dir-root', 'file-child', 'note-root'])
+      expect(result.map((item) => item.id).sort()).toEqual([DIR_CHILD_ID, DIR_ROOT_ID, FILE_CHILD_ID, NOTE_ROOT_ID])
     })
 
     it('deduplicates when an ancestor and its descendant are both passed as roots', async () => {
-      await seedItem({ id: 'dir-root', type: 'directory', data: { source: '/root', path: '/root' } })
+      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root', path: '/root' } })
       await seedItem({
-        id: 'dir-child',
-        groupId: 'dir-root',
+        id: DIR_CHILD_ID,
+        groupId: DIR_ROOT_ID,
         type: 'directory',
         data: { source: '/root/child', path: '/root/child' }
       })
       await seedItem({
-        id: 'file-child',
-        groupId: 'dir-child',
+        id: FILE_CHILD_ID,
+        groupId: DIR_CHILD_ID,
         type: 'file',
-        data: createFileItemData('file-child')
+        data: createFileItemData(FILE_CHILD_ID)
       })
 
-      const result = await service.getDescendantAndSelfItems('kb-1', ['dir-root', 'dir-child'])
+      const result = await service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID, DIR_CHILD_ID], {
+        includeRoots: true
+      })
 
-      expect(result.map((item) => item.id).sort()).toEqual(['dir-child', 'dir-root', 'file-child'])
+      expect(result.map((item) => item.id).sort()).toEqual([DIR_CHILD_ID, DIR_ROOT_ID, FILE_CHILD_ID])
+    })
+
+    it('reads subtree rows with a single raw query instead of a follow-up ORM select', async () => {
+      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root', path: '/root' } })
+      await seedItem({
+        id: FILE_CHILD_ID,
+        groupId: DIR_ROOT_ID,
+        type: 'file',
+        data: createFileItemData(FILE_CHILD_ID)
+      })
+
+      const allSpy = vi.spyOn(dbh.db, 'all')
+      const selectSpy = vi.spyOn(dbh.db, 'select')
+
+      try {
+        const result = await service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID], { includeRoots: true })
+
+        expect(result.map((item) => item.id).sort()).toEqual([DIR_ROOT_ID, FILE_CHILD_ID])
+        expect(allSpy).toHaveBeenCalledTimes(1)
+        expect(selectSpy).not.toHaveBeenCalled()
+      } finally {
+        allSpy.mockRestore()
+        selectSpy.mockRestore()
+      }
     })
 
     it('returns an empty list when no roots are provided', async () => {
-      await expect(service.getDescendantAndSelfItems('kb-1', [])).resolves.toEqual([])
+      await expect(service.getSubtreeItems(KNOWLEDGE_BASE_ID, [])).resolves.toEqual([])
+    })
+  })
+
+  describe('setSubtreeStatus', () => {
+    async function getItemRow(id: string) {
+      const [row] = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
+      return row
+    }
+
+    it('does not overwrite deleting items when marking a subtree failed', async () => {
+      await seedItem({
+        id: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: COMPLETED_CHILD_ID,
+        groupId: DIR_ROOT_ID,
+        data: { source: 'active', content: 'active' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: DELETING_CHILD_ID,
+        groupId: DIR_ROOT_ID,
+        data: { source: 'deleting', content: 'deleting' },
+        status: 'deleting'
+      })
+
+      await expect(
+        service.setSubtreeStatus(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID], 'failed', { error: 'enqueue failed' })
+      ).resolves.toEqual([DIR_ROOT_ID, COMPLETED_CHILD_ID])
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'failed', error: 'enqueue failed' })
+      await expect(getItemRow(COMPLETED_CHILD_ID)).resolves.toMatchObject({
+        status: 'failed',
+        error: 'enqueue failed'
+      })
+      await expect(getItemRow(DELETING_CHILD_ID)).resolves.toMatchObject({ status: 'deleting', error: null })
+    })
+
+    it('reconciles outer parent containers after failing a child subtree', async () => {
+      await seedItem({
+        id: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: NOTE_1_ID,
+        groupId: DIR_ROOT_ID,
+        type: 'note',
+        data: { source: 'note', content: 'note' },
+        status: 'processing'
+      })
+
+      await expect(
+        service.setSubtreeStatus(KNOWLEDGE_BASE_ID, [NOTE_1_ID], 'failed', { error: 'enqueue failed' })
+      ).resolves.toEqual([NOTE_1_ID])
+      await expect(getItemRow(NOTE_1_ID)).resolves.toMatchObject({ status: 'failed', error: 'enqueue failed' })
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({
+        status: 'failed',
+        error: 'One or more child items failed'
+      })
     })
   })
 
@@ -536,30 +743,25 @@ describe('KnowledgeItemService', () => {
       return row
     }
 
-    it('updates processing status and clears stale error fields', async () => {
+    it('updates progress status and clears stale error fields', async () => {
       const seeded = await seedItem()
 
-      const result = await service.updateStatus(seeded.id, 'processing', {
-        phase: 'reading'
-      })
+      const result = await service.updateStatus(seeded.id, 'reading')
 
       expect(result).toMatchObject({
         id: seeded.id,
-        status: 'processing',
-        phase: 'reading',
+        status: 'reading',
         error: null
       })
       await expect(getItemRow(seeded.id)).resolves.toMatchObject({
-        status: 'processing',
-        phase: 'reading',
+        status: 'reading',
         error: null
       })
     })
 
-    it('clears stale phase and error when only status is supplied', async () => {
+    it('clears stale error when only status is supplied', async () => {
       const seeded = await seedItem({
         status: 'failed',
-        phase: null,
         error: 'previous failure'
       })
 
@@ -568,42 +770,54 @@ describe('KnowledgeItemService', () => {
       expect(result).toMatchObject({
         id: seeded.id,
         status: 'processing',
-        phase: null,
         error: null
       })
       await expect(getItemRow(seeded.id)).resolves.toMatchObject({
         status: 'processing',
-        phase: null,
         error: null
       })
     })
 
     it('reconciles parent containers after a child reaches a terminal state', async () => {
       await seedItem({
-        id: 'dir-root',
+        id: DIR_ROOT_ID,
         type: 'directory',
         data: { source: '/docs', path: '/docs' },
         status: 'processing'
       })
       await seedItem({
-        id: 'note-child',
-        groupId: 'dir-root',
+        id: NOTE_1_ID,
+        groupId: DIR_ROOT_ID,
         type: 'note',
         data: { source: 'note', content: 'note' },
-        status: 'processing',
-        phase: 'reading'
+        status: 'reading'
       })
 
-      await service.updateStatus('note-child', 'completed')
+      await service.updateStatus(NOTE_1_ID, 'completed')
 
-      await expect(getItemRow('note-child')).resolves.toMatchObject({
+      await expect(getItemRow(NOTE_1_ID)).resolves.toMatchObject({
         status: 'completed',
-        phase: null,
         error: null
       })
-      await expect(getItemRow('dir-root')).resolves.toMatchObject({
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({
         status: 'completed',
         error: null
+      })
+    })
+
+    it('preserves explicit failed container status instead of reconciling it from children', async () => {
+      await seedItem({
+        id: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'preparing'
+      })
+
+      await service.updateStatus(DIR_ROOT_ID, 'failed', { error: 'enqueue failed' })
+
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({
+        status: 'failed',
+        error: 'enqueue failed'
       })
     })
 
@@ -614,10 +828,9 @@ describe('KnowledgeItemService', () => {
       })
     })
 
-    it('normalizes failed status to a terminal phase with a non-empty error', async () => {
+    it('normalizes failed status with a non-empty error', async () => {
       const seeded = await seedItem({
-        status: 'processing',
-        phase: 'reading',
+        status: 'reading',
         error: null
       })
 
@@ -625,12 +838,10 @@ describe('KnowledgeItemService', () => {
 
       expect(result).toMatchObject({
         status: 'failed',
-        phase: null,
         error: 'read failed'
       })
       await expect(getItemRow(seeded.id)).resolves.toMatchObject({
         status: 'failed',
-        phase: null,
         error: 'read failed'
       })
     })
@@ -641,6 +852,42 @@ describe('KnowledgeItemService', () => {
       await expect(service.updateStatus(seeded.id, 'failed', { error: '   ' })).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         status: 422
+      })
+    })
+
+    it('does not overwrite deleting items with a non-delete status', async () => {
+      const seeded = await seedItem({
+        status: 'deleting'
+      })
+
+      const result = await service.updateStatus(seeded.id, 'completed')
+
+      expect(result).toMatchObject({
+        id: seeded.id,
+        status: 'deleting',
+        error: null
+      })
+      await expect(getItemRow(seeded.id)).resolves.toMatchObject({
+        status: 'deleting',
+        error: null
+      })
+    })
+
+    it('does not overwrite deleting items with failed status from settled jobs', async () => {
+      const seeded = await seedItem({
+        status: 'deleting'
+      })
+
+      const result = await service.updateStatus(seeded.id, 'failed', { error: 'cancelled' })
+
+      expect(result).toMatchObject({
+        id: seeded.id,
+        status: 'deleting',
+        error: null
+      })
+      await expect(getItemRow(seeded.id)).resolves.toMatchObject({
+        status: 'deleting',
+        error: null
       })
     })
   })
@@ -655,64 +902,111 @@ describe('KnowledgeItemService', () => {
       expect(rows).toHaveLength(0)
     })
 
+    it('deletes file knowledge items by id', async () => {
+      await seedItem({
+        id: FILE_A_ID,
+        type: 'file',
+        data: createFileItemData(FILE_A_ID)
+      })
+
+      await service.delete(FILE_A_ID)
+
+      const rows = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, FILE_A_ID))
+      expect(rows).toHaveLength(0)
+    })
+
     it('deletes the owner item and all group members through DB cascade', async () => {
       await seedItem({
-        id: 'dir-owner',
+        id: DIR_OWNER_ID,
         type: 'directory',
         data: { source: '/docs', path: '/docs' }
       })
       await seedItem({
-        id: 'child-a',
-        groupId: 'dir-owner',
+        id: CHILD_A_ID,
+        groupId: DIR_OWNER_ID,
         type: 'note',
         data: { source: 'a', content: 'a' }
       })
       await seedItem({
-        id: 'child-b',
-        groupId: 'dir-owner',
-        type: 'url',
-        data: { source: 'https://example.com', url: 'https://example.com' }
+        id: CHILD_B_ID,
+        groupId: DIR_OWNER_ID,
+        type: 'file',
+        data: createFileItemData(CHILD_B_ID)
       })
       await seedItem({
-        id: 'other',
+        id: OTHER_ITEM_ID,
         type: 'note',
         data: { source: 'keep me', content: 'keep me' }
       })
 
-      await service.delete('dir-owner')
+      await service.delete(DIR_OWNER_ID)
 
       const remaining = await dbh.db.select().from(knowledgeItemTable).orderBy(knowledgeItemTable.id)
-      expect(remaining.map((r) => r.id)).toEqual(['other'])
+      expect(remaining.map((r) => r.id)).toEqual([OTHER_ITEM_ID])
     })
 
     it('deletes descendants while keeping the requested root items', async () => {
       await seedItem({
-        id: 'dir-root',
+        id: DIR_ROOT_ID,
         type: 'directory',
         data: { source: '/docs', path: '/docs' }
       })
       await seedItem({
-        id: 'dir-child',
-        groupId: 'dir-root',
+        id: DIR_CHILD_ID,
+        groupId: DIR_ROOT_ID,
         type: 'directory',
         data: { source: '/docs/child', path: '/docs/child' }
       })
       await seedItem({
-        id: 'file-grandchild',
-        groupId: 'dir-child',
+        id: FILE_GRANDCHILD_ID,
+        groupId: DIR_CHILD_ID,
         type: 'file',
-        data: createFileItemData('file-grandchild')
+        data: createFileItemData(FILE_GRANDCHILD_ID)
       })
       await seedItem({
-        id: 'other',
+        id: OTHER_ITEM_ID,
         type: 'note',
         data: { source: 'keep me', content: 'keep me' }
       })
 
-      await service.deleteLeafDescendantItems('kb-1', ['dir-root'])
+      const descendants = await service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID])
+      await service.deleteItemsByIds(
+        KNOWLEDGE_BASE_ID,
+        descendants.map((item) => item.id)
+      )
 
       const remaining = await dbh.db.select().from(knowledgeItemTable).orderBy(knowledgeItemTable.id)
-      expect(remaining.map((r) => r.id)).toEqual(['dir-root', 'other'])
+      expect(remaining.map((r) => r.id)).toEqual([DIR_ROOT_ID, OTHER_ITEM_ID])
+    })
+
+    it('deletes descendants when deleting a directory by id', async () => {
+      await seedItem({
+        id: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' }
+      })
+      await seedItem({
+        id: DIR_CHILD_ID,
+        groupId: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs/child', path: '/docs/child' }
+      })
+      await seedItem({
+        id: FILE_GRANDCHILD_ID,
+        groupId: DIR_CHILD_ID,
+        type: 'file',
+        data: createFileItemData(FILE_GRANDCHILD_ID)
+      })
+      await seedItem({
+        id: OTHER_ITEM_ID,
+        type: 'note',
+        data: { source: 'keep me', content: 'keep me' }
+      })
+
+      await service.deleteItemsByIds(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID])
+
+      const remaining = await dbh.db.select().from(knowledgeItemTable).orderBy(knowledgeItemTable.id)
+      expect(remaining.map((r) => r.id)).toEqual([OTHER_ITEM_ID])
     })
 
     it('throws NotFound when deleting a missing knowledge item', async () => {
@@ -723,24 +1017,71 @@ describe('KnowledgeItemService', () => {
     })
   })
 
-  describe('reconcileContainers', () => {
+  describe('updateIndexedRelativePath', () => {
+    it('stores the processed markdown path on file item data', async () => {
+      await seedItem({
+        id: FILE_A_ID,
+        type: 'file',
+        data: createFileItemData(FILE_A_ID)
+      })
+
+      const result = await service.updateIndexedRelativePath(FILE_A_ID, 'processed.md')
+
+      expect(result).toMatchObject({
+        id: FILE_A_ID,
+        type: 'file',
+        data: {
+          source: `/docs/${FILE_A_ID.slice(0, 8)}.md`,
+          relativePath: `${FILE_A_ID.slice(0, 8)}.md`,
+          indexedRelativePath: 'processed.md'
+        }
+      })
+    })
+
+    it('rejects updating indexed path for a missing knowledge item', async () => {
+      await expect(service.updateIndexedRelativePath(OTHER_ITEM_ID, 'processed.md')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('rejects updating indexed path for a non-file item', async () => {
+      await seedItem({
+        id: NOTE_A_ID,
+        type: 'note',
+        data: { source: 'note', content: 'note' }
+      })
+
+      await expect(service.updateIndexedRelativePath(NOTE_A_ID, 'processed.md')).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR
+      })
+    })
+  })
+
+  describe('container reconciliation', () => {
     async function getItemRow(id: string) {
       const [row] = await dbh.db.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
       return row
     }
 
-    it('marks a processing container completed when it has no remaining children', async () => {
+    it('marks a parent container completed when its last child completes', async () => {
       await seedItem({
-        id: 'dir-root',
+        id: DIR_ROOT_ID,
         type: 'directory',
         data: { source: '/docs', path: '/docs' },
         status: 'processing'
       })
+      await seedItem({
+        id: NOTE_1_ID,
+        groupId: DIR_ROOT_ID,
+        type: 'note',
+        data: { source: 'note', content: 'note' },
+        status: 'processing'
+      })
 
-      await service.reconcileContainers('kb-1', ['dir-root'])
+      await service.updateStatus(NOTE_1_ID, 'completed')
 
-      await expect(getItemRow('dir-root')).resolves.toMatchObject({
-        id: 'dir-root',
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({
+        id: DIR_ROOT_ID,
         status: 'completed',
         error: null
       })
@@ -748,118 +1089,208 @@ describe('KnowledgeItemService', () => {
 
     it('marks nested containers completed after leaf descendants are deleted', async () => {
       await seedItem({
-        id: 'dir-root',
+        id: DIR_ROOT_ID,
         type: 'directory',
         data: { source: '/docs', path: '/docs' },
         status: 'processing'
       })
       await seedItem({
-        id: 'dir-child',
-        groupId: 'dir-root',
+        id: DIR_CHILD_ID,
+        groupId: DIR_ROOT_ID,
         type: 'directory',
         data: { source: '/docs/child', path: '/docs/child' },
         status: 'processing'
       })
       await seedItem({
-        id: 'note-child',
-        groupId: 'dir-child',
+        id: NOTE_1_ID,
+        groupId: DIR_CHILD_ID,
         type: 'note',
         data: { source: 'note', content: 'note' },
         status: 'processing'
       })
-      await service.delete('note-child')
+      await service.delete(NOTE_1_ID)
 
-      await service.reconcileContainers('kb-1', ['dir-root'])
-
-      await expect(getItemRow('dir-child')).resolves.toMatchObject({ status: 'completed', error: null })
-      await expect(getItemRow('dir-root')).resolves.toMatchObject({ status: 'completed', error: null })
+      await expect(getItemRow(DIR_CHILD_ID)).resolves.toMatchObject({ status: 'completed', error: null })
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'completed', error: null })
     })
 
     it('leaves a container processing while any immediate child is active', async () => {
       await seedItem({
-        id: 'dir-root',
+        id: DIR_ROOT_ID,
         type: 'directory',
         data: { source: '/docs', path: '/docs' },
         status: 'processing'
       })
       await seedItem({
-        id: 'note-child',
-        groupId: 'dir-root',
+        id: NOTE_1_ID,
+        groupId: DIR_ROOT_ID,
         type: 'note',
         data: { source: 'note', content: 'note' },
         status: 'processing'
       })
 
-      await service.reconcileContainers('kb-1', ['dir-root'])
+      await service.updateStatus(NOTE_1_ID, 'processing')
 
-      await expect(getItemRow('dir-root')).resolves.toMatchObject({ status: 'processing', error: null })
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'processing', error: null })
     })
 
     it('marks a container failed when all immediate children are terminal and one failed', async () => {
       await seedItem({
-        id: 'dir-root',
+        id: DIR_ROOT_ID,
         type: 'directory',
         data: { source: '/docs', path: '/docs' },
         status: 'processing'
       })
       await seedItem({
-        id: 'note-child',
-        groupId: 'dir-root',
+        id: NOTE_1_ID,
+        groupId: DIR_ROOT_ID,
         type: 'note',
         data: { source: 'note', content: 'note' },
         status: 'failed',
         error: 'read failed'
       })
 
-      await service.reconcileContainers('kb-1', ['dir-root'])
+      await service.updateStatus(NOTE_1_ID, 'failed', { error: 'read failed' })
 
-      await expect(getItemRow('dir-root')).resolves.toMatchObject({
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({
         status: 'failed',
         error: 'One or more child items failed'
       })
     })
 
-    it('does nothing when the root no longer exists', async () => {
-      await expect(service.reconcileContainers('kb-1', ['missing-root'])).resolves.toBeUndefined()
+    it('keeps a preparing container unchanged while reconciling its parent', async () => {
+      await seedItem({
+        id: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: DIR_CHILD_ID,
+        groupId: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs/child', path: '/docs/child' },
+        status: 'preparing'
+      })
+      await seedItem({
+        id: NOTE_1_ID,
+        groupId: DIR_CHILD_ID,
+        type: 'note',
+        data: { source: 'note', content: 'note' },
+        status: 'processing'
+      })
+
+      await service.updateStatus(NOTE_1_ID, 'completed')
+
+      await expect(getItemRow(DIR_CHILD_ID)).resolves.toMatchObject({ status: 'preparing', error: null })
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'processing', error: null })
+    })
+
+    it('leaves a deleting container untouched', async () => {
+      await seedItem({
+        id: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'deleting'
+      })
+      await seedItem({
+        id: NOTE_1_ID,
+        groupId: DIR_ROOT_ID,
+        type: 'note',
+        data: { source: 'note', content: 'note' },
+        status: 'processing'
+      })
+
+      await service.updateStatus(NOTE_1_ID, 'completed')
+
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'deleting', error: null })
+    })
+
+    it('does not count deleting children as active', async () => {
+      await seedItem({
+        id: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: COMPLETED_CHILD_ID,
+        groupId: DIR_ROOT_ID,
+        type: 'note',
+        data: { source: 'completed', content: 'completed' },
+        status: 'completed'
+      })
+      await seedItem({
+        id: DELETING_CHILD_ID,
+        groupId: DIR_ROOT_ID,
+        type: 'note',
+        data: { source: 'deleting', content: 'deleting' },
+        status: 'deleting'
+      })
+
+      await service.updateStatus(COMPLETED_CHILD_ID, 'completed')
+
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'completed', error: null })
+    })
+
+    it('reconciles surviving parent containers after hard deleting their last active child', async () => {
+      await seedItem({
+        id: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: NOTE_1_ID,
+        groupId: DIR_ROOT_ID,
+        type: 'note',
+        data: { source: 'note', content: 'note' },
+        status: 'processing'
+      })
+
+      await service.deleteItemsByIds(KNOWLEDGE_BASE_ID, [NOTE_1_ID])
+
+      await expect(getItemRow(NOTE_1_ID)).resolves.toBeUndefined()
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'completed', error: null })
     })
 
     it('reconciles containers bottom-up after active leaves are deleted', async () => {
       await seedItem({
-        id: 'dir-a',
+        id: DIR_A_ID,
         type: 'directory',
         data: { source: '/docs/a', path: '/docs/a' },
         status: 'processing'
       })
       await seedItem({
-        id: 'file-a',
-        groupId: 'dir-a',
+        id: FILE_A_ID,
+        groupId: DIR_A_ID,
         type: 'file',
-        data: createFileItemData('file-a'),
+        data: createFileItemData(FILE_A_ID),
         status: 'processing'
       })
       await seedItem({
-        id: 'dir-b',
-        groupId: 'dir-a',
+        id: DIR_B_ID,
+        groupId: DIR_A_ID,
         type: 'directory',
         data: { source: '/docs/a/b', path: '/docs/a/b' },
         status: 'processing'
       })
       await seedItem({
-        id: 'file-b',
-        groupId: 'dir-b',
+        id: FILE_B_ID,
+        groupId: DIR_B_ID,
         type: 'file',
-        data: createFileItemData('file-b'),
+        data: createFileItemData(FILE_B_ID),
         status: 'processing'
       })
 
-      await service.delete('file-b')
+      await service.delete(FILE_B_ID)
 
-      await expect(getItemRow('dir-b')).resolves.toMatchObject({ status: 'completed', error: null })
-      await expect(getItemRow('dir-a')).resolves.toMatchObject({ status: 'processing', error: null })
+      await expect(getItemRow(DIR_B_ID)).resolves.toMatchObject({ status: 'completed', error: null })
+      await expect(getItemRow(DIR_A_ID)).resolves.toMatchObject({ status: 'processing', error: null })
 
-      await service.delete('file-a')
+      await service.delete(FILE_A_ID)
 
-      await expect(getItemRow('dir-a')).resolves.toMatchObject({ status: 'completed', error: null })
+      await expect(getItemRow(DIR_A_ID)).resolves.toMatchObject({ status: 'completed', error: null })
     })
   })
 })

@@ -4,19 +4,23 @@
  * Each `FileRefSourceType` variant must have a `SourceTypeChecker` registered
  * here; the `Record<FileRefSourceType, SourceTypeChecker<...>>` shape forces
  * exhaustive coverage at compile time. Adding a new variant to
- * `allSourceTypes` (in `packages/shared/data/types/file/ref/index.ts`) without
+ * `allSourceTypes` (in `src/shared/data/types/file/ref/index.ts`) without
  * adding a checker here = TypeScript build error.
  *
- * Phase status: Phase 1b.4 lands the typed surface + temp_session and
- * knowledge_item checkers. Other business domains (chat_message / painting /
- * note) will be added when their owning DB tables migrate to v2 — each new
- * variant lands as a single PR introducing (a) the ref schema variant, (b)
- * the source-type tuple entry, AND (c) the checker below, so the three
- * surfaces stay in lockstep.
+ * Phase status: typed surface + temp_session, knowledge_item, chat_message,
+ * and painting checkers. Other business domains (note) will be added when
+ * their owning DB tables migrate to v2 — each new variant lands as a single
+ * PR introducing (a) the ref schema variant, (b) the source-type tuple entry,
+ * AND (c) the checker below, so the three surfaces stay in lockstep.
+ *
+ * Currently registered checkers: temp_session, knowledge_item, chat_message,
+ * painting.
  */
 
 import { application } from '@application'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { messageTable } from '@data/db/schemas/message'
+import { paintingTable } from '@data/db/schemas/painting'
 import { loggerService } from '@logger'
 import type { FileRefSourceType } from '@shared/data/types/file'
 import { inArray } from 'drizzle-orm'
@@ -73,6 +77,40 @@ export const knowledgeItemChecker: SourceTypeChecker<'knowledge_item'> = {
   }
 }
 
+export const chatMessageChecker: SourceTypeChecker<'chat_message'> = {
+  sourceType: 'chat_message',
+  checkExists: async (sourceIds) => {
+    if (sourceIds.length === 0) return new Set()
+    const db = application.get('DbService').getDb()
+    const alive = new Set<string>()
+    for (let i = 0; i < sourceIds.length; i += SQLITE_INARRAY_CHUNK) {
+      const chunk = sourceIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+      const rows = await runWithBusyRetry(() =>
+        db.select({ id: messageTable.id }).from(messageTable).where(inArray(messageTable.id, chunk))
+      )
+      for (const r of rows) alive.add(r.id)
+    }
+    return alive
+  }
+}
+
+export const paintingChecker: SourceTypeChecker<'painting'> = {
+  sourceType: 'painting',
+  checkExists: async (sourceIds) => {
+    if (sourceIds.length === 0) return new Set()
+    const db = application.get('DbService').getDb()
+    const alive = new Set<string>()
+    for (let i = 0; i < sourceIds.length; i += SQLITE_INARRAY_CHUNK) {
+      const chunk = sourceIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+      const rows = await runWithBusyRetry(() =>
+        db.select({ id: paintingTable.id }).from(paintingTable).where(inArray(paintingTable.id, chunk))
+      )
+      for (const r of rows) alive.add(r.id)
+    }
+    return alive
+  }
+}
+
 async function runWithBusyRetry<T>(op: () => Promise<T>): Promise<T> {
   try {
     return await op()
@@ -108,7 +146,9 @@ async function runWithBusyRetry<T>(op: () => Promise<T>): Promise<T> {
 export function createDefaultOrphanCheckerRegistry(): OrphanCheckerRegistry {
   return {
     temp_session: tempSessionChecker,
-    knowledge_item: knowledgeItemChecker
+    knowledge_item: knowledgeItemChecker,
+    chat_message: chatMessageChecker,
+    painting: paintingChecker
   }
 }
 

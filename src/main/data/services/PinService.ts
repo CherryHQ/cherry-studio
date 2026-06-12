@@ -21,7 +21,7 @@
  */
 
 import { application } from '@application'
-import { type PinSelect, pinTable } from '@data/db/schemas/pin'
+import { type PinRow, pinTable } from '@data/db/schemas/pin'
 import { classifySqliteError } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -37,7 +37,7 @@ import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:PinService')
 
-function rowToPin(row: PinSelect): Pin {
+function rowToPin(row: PinRow): Pin {
   return {
     id: row.id,
     entityType: row.entityType as EntityType,
@@ -112,7 +112,7 @@ export class PinService {
             scope: eq(pinTable.entityType, dto.entityType)
           }
         )
-        const mapped = rowToPin(inserted as PinSelect)
+        const mapped = rowToPin(inserted as PinRow)
         logger.info('Created pin', {
           id: mapped.id,
           entityType: mapped.entityType,

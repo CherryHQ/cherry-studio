@@ -1,9 +1,9 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-05-11T09:55:37.835Z
+ * Generated at: 2026-06-02T09:40:02.540Z
  *
  * This file contains pure mapping relationships without default values.
- * Default values are managed in packages/shared/data/preferences.ts
+ * Default values are managed in src/shared/data/preferences.ts
  *
  * === AUTO-GENERATED CONTENT START ===
  */
@@ -77,10 +77,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'enableDeveloperMode',
       targetKey: 'app.developer_mode.enabled'
-    },
-    {
-      originalKey: 'showAssistants',
-      targetKey: 'assistant.tab.show'
     },
     {
       originalKey: 'showTopics',
@@ -571,6 +567,10 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'data.backup.local.skip_backup_file'
     },
     {
+      originalKey: 'defaultPaintingProvider',
+      targetKey: 'feature.paintings.default_provider'
+    },
+    {
       originalKey: 's3.endpoint',
       targetKey: 'data.backup.s3.endpoint'
     },
@@ -616,19 +616,19 @@ export const REDUX_STORE_MAPPINGS = {
     },
     {
       originalKey: 'apiServer.enabled',
-      targetKey: 'feature.csaas.enabled'
+      targetKey: 'feature.api_gateway.enabled'
     },
     {
       originalKey: 'apiServer.host',
-      targetKey: 'feature.csaas.host'
+      targetKey: 'feature.api_gateway.host'
     },
     {
       originalKey: 'apiServer.port',
-      targetKey: 'feature.csaas.port'
+      targetKey: 'feature.api_gateway.port'
     },
     {
       originalKey: 'apiServer.apiKey',
-      targetKey: 'feature.csaas.api_key'
+      targetKey: 'feature.api_gateway.api_key'
     },
     {
       originalKey: 'showMessageOutline',

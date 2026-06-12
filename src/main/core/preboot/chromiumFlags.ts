@@ -1,4 +1,4 @@
-import { isLinux, isWin } from '@main/constant'
+import { isLinux, isWin } from '@main/core/platform'
 import { bootConfigService } from '@main/data/bootConfig'
 import { app } from 'electron'
 

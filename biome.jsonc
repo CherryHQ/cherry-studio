@@ -57,9 +57,10 @@
       "!*.cjs",
       "!*.md",
       "!src/main/integration/**",
+      "!src/main/services/nutstore/sso/lib/**",
       "!**/tailwind.css",
       "!**/package.json",
-      "!src/renderer/src/routeTree.gen.ts",
+      "!src/renderer/routeTree.gen.ts",
       "!.zed/**",
       "!v2-refactor-temp/**"
     ],
@@ -93,7 +94,7 @@
     "enabled": true,
     "includes": [
       "!**/tailwind.css",
-      "!src/renderer/src/routeTree.gen.ts",
+      "!src/renderer/routeTree.gen.ts",
       "!v2-refactor-temp/**",
       "src/renderer/**/*.{tsx,ts}"
     ],

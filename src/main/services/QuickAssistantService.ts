@@ -25,8 +25,8 @@
  */
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isMac, isWin } from '@main/constant'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, BrowserWindow, screen, shell } from 'electron'

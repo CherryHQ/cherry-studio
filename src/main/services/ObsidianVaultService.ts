@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { isMac, isWin } from '@main/core/platform'
 import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
@@ -30,17 +31,16 @@ interface FileInfo {
  * into `registerIpc()` so construction happens after the registry is initialized.
  * Either approach enables a clean switch to `application.getPath(...)`.
  *
- * Until that refactor, keep `app.getPath(...)` here. See `KnowledgeService.ts` for
- * a similar exemption.
+ * Until that refactor, keep `app.getPath(...)` here.
  */
 class ObsidianVaultService {
   private obsidianConfigPath: string
 
   constructor() {
     // 根据操作系统获取Obsidian配置文件路径
-    if (process.platform === 'win32') {
+    if (isWin) {
       this.obsidianConfigPath = path.join(app.getPath('appData'), 'obsidian', 'obsidian.json')
-    } else if (process.platform === 'darwin') {
+    } else if (isMac) {
       this.obsidianConfigPath = path.join(
         app.getPath('home'),
         'Library',

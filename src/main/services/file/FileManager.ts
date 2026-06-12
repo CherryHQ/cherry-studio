@@ -690,6 +690,16 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, async (_e, params: unknown) =>
       this.batchGetDanglingStates(BatchGetDanglingStatesIpcSchema.parse(params))
     )
+    this.ipcHandle(IpcChannel.File_GetMetadata, async (_e, params: unknown) => {
+      const handle = FileHandleSchema.parse(params) as FileHandle
+      return dispatchHandle(
+        handle,
+        async () => {
+          throw new Error('getMetadata(FileEntryHandle) is not yet wired (@phase 2)')
+        },
+        (path) => this.getMetadataByPath(path)
+      )
+    })
     // Phase 2 channels.
     //
     // Zod outputs the structural shapes (`{ path: string }`, `{ kind: 'path';
@@ -897,6 +907,21 @@ export class FileManager extends BaseService implements IFileManager {
     const entry = await this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
     return pathToFileURL(physicalPath).toString() as FileURLString
+  }
+
+  private async getMetadataByPath(path: FilePath): Promise<PhysicalFileMetadata> {
+    const s = await fsStat(path)
+    if (s.isDirectory) {
+      return { kind: 'directory', size: s.size, createdAt: s.createdAt || s.modifiedAt, modifiedAt: s.modifiedAt }
+    }
+    return {
+      kind: 'file',
+      type: 'other',
+      size: s.size,
+      createdAt: s.createdAt || s.modifiedAt,
+      modifiedAt: s.modifiedAt,
+      mime: mime.getType(path) ?? 'application/octet-stream'
+    }
   }
 
   async getPhysicalPath(id: FileEntryId): Promise<FilePath> {

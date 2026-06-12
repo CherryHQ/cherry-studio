@@ -1,8 +1,8 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isDev } from '@main/constant'
 import { BaseService, DependsOn, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
+import { isDev } from '@main/core/platform'
 import { bootConfigService } from '@main/data/bootConfig'
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
@@ -376,8 +376,8 @@ export class PreferenceService extends BaseService {
    * ```typescript
    * const preferenceService = application.get('PreferenceService')
    * const { host, port } = preferenceService.getMultiple({
-   *   host: 'feature.csaas.host',
-   *   port: 'feature.csaas.port'
+   *   host: 'feature.api_gateway.host',
+   *   port: 'feature.api_gateway.port'
    * })
    * ```
    */

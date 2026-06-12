@@ -1,4 +1,4 @@
-// Original: src/renderer/src/components/scrollbar/index.tsx
+// Original: src/renderer/components/scrollbar/index.tsx
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { throttle } from 'lodash'
 import * as React from 'react'

@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { isWin } from '@main/constant'
+import { isWin } from '@main/core/platform'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import type { OcrOvConfig, OcrResult, SupportedOcrFile } from '@types'
 import { isImageFileMetadata } from '@types'

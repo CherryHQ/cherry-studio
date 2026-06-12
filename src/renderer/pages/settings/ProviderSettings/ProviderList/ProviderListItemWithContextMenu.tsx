@@ -1,0 +1,102 @@
+import { MenuItem, MenuList, Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
+import ModelNotesPopup from '@renderer/pages/settings/ProviderSettings/ModelNotesPopup'
+import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
+import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
+import { cn } from '@renderer/utils'
+import type { Provider } from '@shared/data/types/provider'
+import { CopyPlus, Edit, Trash2, UserPen } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
+import ProviderListItem from '../components/ProviderListItem'
+
+type ListDragState = { dragging: boolean }
+
+interface ProviderListItemWithContextMenuProps {
+  provider: Provider
+  selected: boolean
+  contextOpen: boolean
+  onContextOpenChange: (open: boolean) => void
+  onSelect: () => void
+  onEdit: () => void
+  onDelete: () => void
+  onDuplicate?: () => void
+  showManagementActions: boolean
+  listState: ListDragState
+  onSetListItemRef: (providerId: string, element: HTMLDivElement | null) => void
+}
+
+export default function ProviderListItemWithContextMenu({
+  provider,
+  selected,
+  contextOpen,
+  onContextOpenChange,
+  onSelect,
+  onEdit,
+  onDelete,
+  onDuplicate,
+  showManagementActions,
+  listState,
+  onSetListItemRef
+}: ProviderListItemWithContextMenuProps) {
+  const { t } = useTranslation()
+
+  const handleMenuAction = (action: () => void) => () => {
+    action()
+    onContextOpenChange(false)
+  }
+
+  return (
+    <Popover open={contextOpen} onOpenChange={onContextOpenChange}>
+      <div
+        className="w-full"
+        ref={(element) => onSetListItemRef(provider.id, element)}
+        onContextMenu={(event) => {
+          event.preventDefault()
+          onContextOpenChange(true)
+        }}>
+        <ProviderListItem
+          provider={{ ...provider, name: getFancyProviderName(provider) }}
+          selected={selected}
+          dragging={listState.dragging}
+          onClick={onSelect}
+          onOpenMenu={() => onContextOpenChange(true)}
+          renderMenuButton={(button) => <PopoverAnchor asChild>{button}</PopoverAnchor>}
+        />
+      </div>
+      <PopoverContent align="end" className={providerListClasses.itemMenuContent}>
+        <MenuList className="gap-1">
+          {showManagementActions && (
+            <MenuItem
+              label={t('common.edit')}
+              className={providerListClasses.itemMenuEntry}
+              icon={<Edit size={14} />}
+              onClick={handleMenuAction(onEdit)}
+            />
+          )}
+          {onDuplicate && (
+            <MenuItem
+              label={t('settings.provider.duplicate.menu_label')}
+              className={providerListClasses.itemMenuEntry}
+              icon={<CopyPlus size={14} />}
+              onClick={handleMenuAction(onDuplicate)}
+            />
+          )}
+          <MenuItem
+            label={t('settings.provider.notes.title')}
+            className={providerListClasses.itemMenuEntry}
+            icon={<UserPen size={14} />}
+            onClick={handleMenuAction(() => ModelNotesPopup.show({ providerId: provider.id }))}
+          />
+          {showManagementActions && (
+            <MenuItem
+              label={t('common.delete')}
+              icon={<Trash2 size={14} />}
+              onClick={handleMenuAction(onDelete)}
+              className={cn(providerListClasses.itemMenuEntry, 'text-destructive')}
+            />
+          )}
+        </MenuList>
+      </PopoverContent>
+    </Popover>
+  )
+}

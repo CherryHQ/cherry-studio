@@ -29,9 +29,9 @@
  *    - Old: `askId` links responses to user message, `foldSelected` marks active
  *    - New: Shared `parentId` + non-zero `siblingsGroupId` groups siblings
  *
- * 3. **Block Inlining**
+ * 3. **Block → Parts**
  *    - Old: `message.blocks: string[]` (IDs) + separate `message_blocks` table
- *    - New: `message.data.blocks: MessageDataBlock[]` (inline JSON)
+ *    - New: `message.data.parts` (AI SDK UIMessage parts, inline JSON)
  *
  * 4. **Citation Migration**
  *    - Old: Separate `CitationMessageBlock`
@@ -41,20 +41,15 @@
  *    - Old: `message.mentions: Model[]`
  *    - New: Not migrated — derivable from sibling responses' modelId + siblingsGroupId
  *
- * ## Deferred — `chat_message` `file_ref` backfill
+ * ## `chat_message` `file_ref` backfill
  *
- * v1 image/file blocks DO reference v1 files via `block.file.id`, and those
- * ids survive into v2 as `ImageBlock.fileId` / `FileBlock.fileId` (inline JSON
- * on `messageTable.data.blocks`). What this migrator deliberately does NOT do
- * is create `file_ref` rows for them — because `chat_message` is not yet a
- * registered `FileRefSourceType` (see
- * `packages/shared/data/types/file/ref/index.ts` — only `temp_session` and
- * `knowledge_item` are wired today). Per RFC, registering a new sourceType
- * means adding it in three places in lockstep: the `allSourceTypes` tuple,
- * a `createRefSchema` variant, and an `OrphanRefScanner` `SourceTypeChecker`.
- * That work is deferred to a follow-up PR alongside the chat-domain file_ref
- * service wiring; v1 references stay reachable through the inline `fileId`
- * field in the meantime.
+ * v1 image/file blocks reference v1 files via `block.file.id`. Those ids
+ * survive into v2 as `FileUIPart.providerMetadata.cherry.fileEntryId` (inline
+ * JSON on `messageTable.data.parts`), populated by ChatMappings during the
+ * image/file mapping. This migrator also creates `file_ref` rows
+ * (`sourceType='chat_message'`, `sourceId=messageId`, `role='attachment'`)
+ * for each distinct (message, fileId) pair referencing an existing `file_entry`.
+ * Dangling refs (fileId not in `file_entry`) are skipped with warnings.
  *
  * ## Performance Considerations
  *
@@ -66,13 +61,17 @@
  * @since v2.0.0
  */
 
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import { eq, sql } from 'drizzle-orm'
+import { chatMessageSourceType } from '@shared/data/types/file/ref/chatMessage'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
@@ -81,6 +80,7 @@ import { BaseMigrator } from './BaseMigrator'
 import {
   buildBlockLookup,
   buildMessageTree,
+  type ChatMappingDeps,
   findActiveNodeId,
   type NewMessage,
   type NewTopic,
@@ -107,6 +107,24 @@ const TOPIC_BATCH_SIZE = 50
  * SQLite has limits on the number of parameters per statement
  */
 const MESSAGE_INSERT_BATCH_SIZE = 100
+
+const FILE_REF_INSERT_BATCH_SIZE = 100
+const SKIP_WARNING_SAMPLE_LIMIT = 10
+const INARRAY_CHUNK = 500
+
+/**
+ * Yield each FileEntryId referenced by file parts in a message's parts array.
+ * v1→v2 ChatMappings stashes `block.file.id` into `providerMetadata.cherry.fileEntryId`
+ * during the image/file mapping; external (user-path) files have no fileEntryId.
+ */
+function* extractFileEntryIds(parts: CherryMessagePart[] | undefined): Iterable<string> {
+  if (!parts) return
+  for (const part of parts) {
+    if (part.type !== 'file') continue
+    const fileId = readCherryMeta(part)?.fileEntryId
+    if (fileId) yield fileId
+  }
+}
 
 /**
  * Assistant data from Redux for assistant lookup. Both `assistants[]` and the
@@ -161,6 +179,10 @@ export class ChatMigrator extends BaseMigrator {
   // Buffered transformed topics across all streamed batches. Inserted in a
   // post-stream pass once orderKey can be assigned globally per groupId.
   private stagedTopics: PreparedTopicData[] = []
+  // file_ref backfill state
+  private migratedFileEntryIds: Set<string> = new Set()
+  private skippedWarnings: Map<string, { count: number; samples: string[] }> = new Map()
+  private fileRefInsertCount = 0
 
   override reset(): void {
     this.topicCount = 0
@@ -178,6 +200,9 @@ export class ChatMigrator extends BaseMigrator {
     this.legacyAssistantIdRemap = new Map()
     this.validModelIds = null
     this.stagedTopics = []
+    this.migratedFileEntryIds = new Set()
+    this.skippedWarnings = new Map()
+    this.fileRefInsertCount = 0
   }
 
   /**
@@ -370,6 +395,13 @@ export class ChatMigrator extends BaseMigrator {
         ? new Set((await ctx.db.select({ id: userModelTable.id }).from(userModelTable)).map((row) => row.id))
         : null
 
+      // ChatMappings promotes any v1 inline base64 (block.url=data: or
+      // legacy metadata.generateImageResponse.images) into v2 file_entry
+      // rows during transformMessage — written through the migration's
+      // own DB handle, *not* through `application.get('FileManager')`:
+      // migration runs in preboot, before any `WhenReady` service is up.
+      const mappingDeps: ChatMappingDeps = { db: ctx.db, filesDataDir: ctx.paths.filesDataDir }
+
       // Buffer all topics first; orderKey is stamped post-stream because per-batch
       // keys would collide across batches sharing a `groupId` partition.
       await topicReader.readInBatches<OldTopic>(TOPIC_BATCH_SIZE, async (topics, batchIndex) => {
@@ -377,7 +409,7 @@ export class ChatMigrator extends BaseMigrator {
 
         for (const oldTopic of topics) {
           try {
-            const prepared = this.prepareTopicData(oldTopic)
+            const prepared = await this.prepareTopicData(oldTopic, mappingDeps)
             if (prepared) {
               this.stagedTopics.push(prepared)
             } else {
@@ -402,6 +434,11 @@ export class ChatMigrator extends BaseMigrator {
         })
       })
 
+      this.migratedFileEntryIds = await this.loadMigratedFileEntryIds(ctx)
+      logger.info('Loaded migrated file entry IDs for file_ref backfill', {
+        referencedCount: this.migratedFileEntryIds.size
+      })
+
       const insertResult = await this.insertStagedTopics(ctx)
       processedTopics = insertResult.topicsInserted
       processedMessages = insertResult.messagesInserted
@@ -423,6 +460,15 @@ export class ChatMigrator extends BaseMigrator {
         messagesWithEmptyBlocks: this.blockStats.messagesWithEmptyBlocks,
         messagesWithMissingBlocks: this.blockStats.messagesWithMissingBlocks
       })
+
+      if (this.fileRefInsertCount > 0 || this.skippedWarnings.size > 0) {
+        logger.info('File ref backfill statistics', {
+          fileRefsInserted: this.fileRefInsertCount,
+          skippedWarnings: Object.fromEntries(
+            [...this.skippedWarnings.entries()].map(([k, v]) => [k, { count: v.count, samples: v.samples }])
+          )
+        })
+      }
 
       return {
         success: true,
@@ -541,6 +587,23 @@ export class ChatMigrator extends BaseMigrator {
         })
       }
 
+      // Warn-only (not pushed to errors): unlike topic/pin counts which compare
+      // across data sources (v1 Dexie → v2 SQLite), this is a same-DB self-check
+      // ("rows I committed are still there"). A mismatch implies an infrastructure
+      // fault (WAL loss, CASCADE from an unexpected file_entry delete), not a
+      // migration logic bug — so it warrants investigation, not migration abort.
+      if (this.fileRefInsertCount > 0) {
+        const fileRefResult = await db
+          .select({ count: sql<number>`count(*)` })
+          .from(fileRefTable)
+          .where(eq(fileRefTable.sourceType, chatMessageSourceType))
+          .get()
+        const targetFileRefCount = fileRefResult?.count ?? 0
+        if (targetFileRefCount < this.fileRefInsertCount) {
+          logger.warn(`file_ref count mismatch: expected ${this.fileRefInsertCount}, got ${targetFileRefCount}`)
+        }
+      }
+
       // Check for multi-root topics (topics with more than one root message)
       const multiRootCheck = await db
         .select({ count: sql<number>`count(*)` })
@@ -569,7 +632,9 @@ export class ChatMigrator extends BaseMigrator {
         orphanedAssistantTopics: this.orphanedAssistantTopics,
         messagesWithMissingBlocks: this.blockStats.messagesWithMissingBlocks,
         messagesWithEmptyBlocks: this.blockStats.messagesWithEmptyBlocks,
-        promotedToRootCount: this.promotedToRootCount
+        promotedToRootCount: this.promotedToRootCount,
+        fileRefsInserted: this.fileRefInsertCount,
+        fileRefsDanglingSkipped: this.skippedWarnings.get('chat_message_dangling_file_entry')?.count ?? 0
       }
       logger.info('Validation diagnostics', diagnostics)
 
@@ -602,12 +667,82 @@ export class ChatMigrator extends BaseMigrator {
     }
   }
 
+  private recordSkippedWarning(reason: string, message: string): void {
+    const bucket = this.skippedWarnings.get(reason) ?? { count: 0, samples: [] }
+    bucket.count += 1
+    if (bucket.samples.length < SKIP_WARNING_SAMPLE_LIMIT) {
+      bucket.samples.push(message)
+    }
+    this.skippedWarnings.set(reason, bucket)
+  }
+
+  private async loadMigratedFileEntryIds(ctx: MigrationContext): Promise<Set<string>> {
+    const referencedFileIds = new Set<string>()
+    for (const data of this.stagedTopics) {
+      for (const msg of data.messages) {
+        for (const fileId of extractFileEntryIds(msg.data?.parts)) {
+          referencedFileIds.add(fileId)
+        }
+      }
+    }
+    if (referencedFileIds.size === 0) return new Set()
+    const allIds = [...referencedFileIds]
+    const result = new Set<string>()
+    for (let i = 0; i < allIds.length; i += INARRAY_CHUNK) {
+      const chunk = allIds.slice(i, i + INARRAY_CHUNK)
+      try {
+        const rows = await ctx.db
+          .select({ id: fileEntryTable.id })
+          .from(fileEntryTable)
+          .where(inArray(fileEntryTable.id, chunk))
+        for (const row of rows) result.add(row.id)
+      } catch (err) {
+        logger.error('Failed to query file_entry during file_ref backfill', err as Error, {
+          chunkStart: i,
+          chunkSize: chunk.length,
+          totalReferencedIds: allIds.length
+        })
+        throw err
+      }
+    }
+    return result
+  }
+
+  private collectFileRefRows(batchMessages: NewMessage[], now: number): Array<typeof fileRefTable.$inferInsert> {
+    const rows: Array<typeof fileRefTable.$inferInsert> = []
+    for (const msg of batchMessages) {
+      const dedupKey = new Set<string>()
+      for (const fileId of extractFileEntryIds(msg.data?.parts)) {
+        if (!this.migratedFileEntryIds.has(fileId)) {
+          this.recordSkippedWarning(
+            'chat_message_dangling_file_entry',
+            `Message id=${msg.id} references file_entry id=${fileId} which is absent from v2 file_entry`
+          )
+          continue
+        }
+        const compositeKey = `${msg.id}:${fileId}`
+        if (dedupKey.has(compositeKey)) continue
+        dedupKey.add(compositeKey)
+        rows.push({
+          id: uuidv4(),
+          fileEntryId: fileId,
+          sourceType: chatMessageSourceType,
+          sourceId: msg.id,
+          role: 'attachment',
+          createdAt: now,
+          updatedAt: now
+        })
+      }
+    }
+    return rows
+  }
+
   /**
    * Prepare a single topic and its messages. See README-ChatMigrator.md for the
    * source layout (Dexie topic rows + Redux topic metadata + defaultAssistant slot)
    * and the merge contract.
    */
-  private prepareTopicData(oldTopic: OldTopic): PreparedTopicData | null {
+  private async prepareTopicData(oldTopic: OldTopic, deps?: ChatMappingDeps): Promise<PreparedTopicData | null> {
     // Validate required fields
     if (!oldTopic.id) {
       logger.error('Topic missing id, skipping', new Error('missing topic id'), {
@@ -773,12 +908,13 @@ export class ChatMigrator extends BaseMigrator {
         // Resolve parentId through any skipped messages
         const resolvedParentId = resolveParentId(treeInfo.parentId)
 
-        const newMsg = transformMessage(
+        const newMsg = await transformMessage(
           oldMsg,
           resolvedParentId, // Use resolved parent instead of original
           treeInfo.siblingsGroupId,
           blocks,
-          oldTopic.id
+          oldTopic.id,
+          deps
         )
 
         newMessages.push(newMsg)
@@ -905,28 +1041,26 @@ export class ChatMigrator extends BaseMigrator {
       const droppedRefs = this.sanitizeMessageModelReferences(batchMessages)
       if (droppedRefs > 0) logger.info(`Filtered ${droppedRefs} dangling message model references`)
 
-      await db.run(sql`PRAGMA foreign_keys = OFF`)
-      // Bare finally would let a PRAGMA-reset failure (closed conn, writer-lock)
-      // overwrite the original tx error. Capture, reset, then rethrow the tx one.
-      let txErr: unknown
-      try {
-        await db.transaction(async (tx) => {
-          await tx.insert(topicTable).values(batch.map((d) => d.topic))
-          for (let i = 0; i < batchMessages.length; i += MESSAGE_INSERT_BATCH_SIZE) {
-            await tx.insert(messageTable).values(batchMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE))
+      const now = Date.now()
+      const batchFileRefRows = this.collectFileRefRows(batchMessages, now)
+
+      // FK stays OFF for the whole migration (MigrationDbService registers it via
+      // setPragma), so this batch can insert self-referencing message.parentId rows that
+      // resolve within the batch. assertOwnedForeignKeys() below verifies the result.
+      await db.transaction(async (tx) => {
+        await tx.insert(topicTable).values(batch.map((d) => d.topic))
+        for (let i = 0; i < batchMessages.length; i += MESSAGE_INSERT_BATCH_SIZE) {
+          await tx.insert(messageTable).values(batchMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE))
+        }
+        if (batchFileRefRows.length > 0) {
+          for (let i = 0; i < batchFileRefRows.length; i += FILE_REF_INSERT_BATCH_SIZE) {
+            await tx.insert(fileRefTable).values(batchFileRefRows.slice(i, i + FILE_REF_INSERT_BATCH_SIZE))
           }
-        })
-      } catch (e) {
-        txErr = e
-      }
-      try {
-        await db.run(sql`PRAGMA foreign_keys = ON`)
-      } catch (resetErr) {
-        logger.error('FK pragma reset failed', resetErr as Error, { hadTxError: txErr !== undefined })
-      }
-      if (txErr) throw txErr
+        }
+      })
 
       for (const id of batchIds) seenMessageIds.add(id)
+      this.fileRefInsertCount += batchFileRefRows.length
       topicsInserted += batch.length
       messagesInserted += batchMessages.length
 
@@ -975,6 +1109,13 @@ export class ChatMigrator extends BaseMigrator {
         throw error
       }
     }
+
+    // Self-check FK integrity for the tables this migrator owns: topic.assistantId →
+    // assistant (migrated at order 2) and message.topicId / parentId / modelId all resolve
+    // by now. file_ref is intentionally excluded — it is a polymorphic table shared with
+    // KnowledgeMigrator, so foreign_key_check cannot be scoped to "our rows" here; it is
+    // covered by the engine's final verifyForeignKeys().
+    await this.assertOwnedForeignKeys(db, [topicTable, messageTable, pinTable])
 
     return { topicsInserted, messagesInserted, pinsInserted }
   }

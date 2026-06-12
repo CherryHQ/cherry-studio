@@ -1,6 +1,13 @@
 import { EventEmitter } from 'node:events'
 
 import { loggerService } from '@logger'
+import {
+  CpuProfiler,
+  DIAGNOSTICS_ENABLED,
+  EventLoopLagSampler,
+  formatPhaseProfile,
+  type ServiceSpan
+} from '@main/core/diagnostics'
 
 import { DependencyResolver, type PhaseAdjustment } from './DependencyResolver'
 import { ServiceContainer } from './ServiceContainer'
@@ -39,6 +46,10 @@ export class LifecycleManager extends EventEmitter {
   private phaseTiming: Map<Phase, { duration: number; serviceCount: number }> = new Map()
   /** Phase adjustments captured from validateAndAdjustPhases */
   private phaseAdjustments: PhaseAdjustment[] = []
+
+  /** Diagnostic profiling state, only populated when CS_DIAGNOSTICS is set. */
+  private phaseEpoch = 0
+  private serviceSpans: Map<string, ServiceSpan> = new Map()
 
   /** Tracks services that were paused due to cascade from another service */
   private pausedByCascade: Map<string, Set<string>> = new Map()
@@ -107,9 +118,14 @@ export class LifecycleManager extends EventEmitter {
 
     const serviceCount = layers.flat().length
     const orderStr = layers.map((layer) => `[${layer.join(', ')}]`).join(' -> ')
-    logger.info(`─── ${phase} start (${serviceCount} services) ─── ${orderStr}`)
+    logger.info(`--- ${phase} start (${serviceCount} services) --- ${orderStr}`)
 
     const phaseStart = performance.now()
+    this.phaseEpoch = phaseStart
+    const lagSampler = DIAGNOSTICS_ENABLED ? new EventLoopLagSampler() : null
+    lagSampler?.start(phaseStart)
+    const cpuProfiler = DIAGNOSTICS_ENABLED && phase === Phase.WhenReady ? new CpuProfiler() : null
+    await cpuProfiler?.start()
 
     // Initialize services layer by layer, parallel within each layer
     for (const layer of layers) {
@@ -133,7 +149,27 @@ export class LifecycleManager extends EventEmitter {
 
     const phaseDuration = performance.now() - phaseStart
     this.phaseTiming.set(phase, { duration: phaseDuration, serviceCount })
-    logger.info(`─── ${phase} complete (${phaseDuration.toFixed(3)}ms) ───`)
+    logger.info(`--- ${phase} complete (${phaseDuration.toFixed(3)}ms) ---`)
+
+    if (lagSampler) {
+      const lagSummary = lagSampler.stop()
+      const spans = [...this.serviceSpans.values()].filter((s) => this.servicePhase.get(s.name) === phase)
+      logger.info(`\n${formatPhaseProfile(phase, spans, lagSummary, lagSampler.thresholdMs)}`)
+    }
+    if (cpuProfiler) {
+      // Write next to app.log (always writable, predictable) — not process.cwd(),
+      // which is unwritable/surprising for a packaged app. A failed write must
+      // never break boot. `application` is imported lazily here (only on the
+      // diagnostics path) to avoid a static Application↔LifecycleManager cycle.
+      try {
+        const { application } = await import('@application')
+        const cpuProfilePath = application.getPath('app.logs', 'boot-whenReady.cpuprofile')
+        await cpuProfiler.stopAndWrite(cpuProfilePath)
+        logger.info(`[Diagnostics] CPU profile written to ${cpuProfilePath}`)
+      } catch (err) {
+        logger.warn('[Diagnostics] Failed to write CPU profile', err as Error)
+      }
+    }
 
     // Mark as initialized when WhenReady phase completes
     if (phase === Phase.WhenReady) {
@@ -206,6 +242,14 @@ export class LifecycleManager extends EventEmitter {
       await instance._doInit()
       const duration = performance.now() - start
       this.serviceTiming.set(serviceName, duration)
+      if (DIAGNOSTICS_ENABLED) {
+        this.serviceSpans.set(serviceName, {
+          name: serviceName,
+          startOffset: start - this.phaseEpoch,
+          endOffset: start + duration - this.phaseEpoch,
+          duration
+        })
+      }
       logger.info(`Service '${serviceName}' initialized (${duration.toFixed(3)}ms)`)
 
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_READY, serviceName, LifecycleState.Ready)
@@ -230,7 +274,7 @@ export class LifecycleManager extends EventEmitter {
       await instance._doStop()
       const duration = performance.now() - start
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_STOPPED, serviceName, LifecycleState.Stopped)
-      logger.info(`Service '${serviceName}' stopped (${duration.toFixed(3)}ms)`)
+      logger.debug(`Service '${serviceName}' stopped (${duration.toFixed(3)}ms)`)
     } catch (error) {
       logger.error(`Error stopping service '${serviceName}':`, error as Error)
     }
@@ -244,11 +288,8 @@ export class LifecycleManager extends EventEmitter {
     if (!instance || instance.state === LifecycleState.Destroyed) return
 
     try {
-      const start = performance.now()
       await instance._doDestroy()
-      const duration = performance.now() - start
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_DESTROYED, serviceName, LifecycleState.Destroyed)
-      logger.info(`Service '${serviceName}' destroyed (${duration.toFixed(3)}ms)`)
     } catch (error) {
       logger.error(`Error destroying service '${serviceName}':`, error as Error)
     }
@@ -311,16 +352,29 @@ export class LifecycleManager extends EventEmitter {
    */
   public getBootstrapSummary(totalDuration: number, excludedCount: number): string {
     const totalServices = this.initializationOrder.length
-    const W = 54
     const lines: string[] = []
 
     const fmt = (ms: number) => ms.toFixed(3) + 'ms'
-    const row = (content: string) => `│${content.padEnd(W)}│`
-    const sep = (l: string, r: string) => `${l}${'─'.repeat(W)}${r}`
 
-    lines.push(sep('┌', '┐'))
+    const excludedByPhase = this.container.getExcludedByPhase()
+
+    // Name column auto-sizes to the longest service name (min 32) so the timing
+    // column stays aligned even for long names (e.g. FileProcessingService).
+    let nameCol = 32
+    for (const [name] of this.serviceTiming) nameCol = Math.max(nameCol, name.length)
+    for (const names of excludedByPhase.values()) {
+      for (const name of names) nameCol = Math.max(nameCol, name.length)
+    }
+    const W = nameCol + 22
+
+    // ASCII-only borders: Unicode box-drawing characters render as mojibake when
+    // the main-process stdout is piped through a non-UTF-8 Windows console (CP936/GBK).
+    const row = (content: string) => `|${content.padEnd(W)}|`
+    const sep = () => `+${'-'.repeat(W)}+`
+
+    lines.push(sep())
     lines.push(row('                  Bootstrap Summary'.padEnd(W)))
-    lines.push(sep('├', '┤'))
+    lines.push(sep())
     lines.push(row(`  Total: ${totalServices} services in ${fmt(totalDuration)}`))
 
     // Service list grouped by phase, sorted by duration within each group
@@ -337,8 +391,6 @@ export class LifecycleManager extends EventEmitter {
       list.push([name, ms])
     }
 
-    const excludedByPhase = this.container.getExcludedByPhase()
-
     for (const phase of phaseOrder) {
       const timing = this.phaseTiming.get(phase)
       const services = servicesByPhase.get(phase)
@@ -350,10 +402,10 @@ export class LifecycleManager extends EventEmitter {
       if (timing && services && services.length > 0) {
         services.sort((a, b) => b[1] - a[1])
         const title = `[${phase}] ${timing.serviceCount} services`
-        lines.push(row(`  ${title.padEnd(36)} ${fmt(timing.duration).padStart(12)}`))
+        lines.push(row(`  ${title.padEnd(nameCol + 4)} ${fmt(timing.duration).padStart(12)}`))
         for (const [name, ms] of services) {
           const tags = this.getServiceTags(name)
-          lines.push(row(`    ${name.padEnd(32)} ${tags}  ${fmt(ms).padStart(10)}`))
+          lines.push(row(`    ${name.padEnd(nameCol)} ${tags}  ${fmt(ms).padStart(10)}`))
         }
       } else {
         lines.push(row(`  [${phase}]`))
@@ -361,7 +413,7 @@ export class LifecycleManager extends EventEmitter {
 
       if (excludedServices && excludedServices.length > 0) {
         for (const name of excludedServices) {
-          lines.push(row(`    ${name.padEnd(32)} C   ${'Excluded'.padStart(10)}`))
+          lines.push(row(`    ${name.padEnd(nameCol)} C   ${'Excluded'.padStart(10)}`))
         }
       }
     }
@@ -375,10 +427,10 @@ export class LifecycleManager extends EventEmitter {
       if (tags[1] === 'A') activatableCount++
     }
 
-    lines.push(sep('├', '┤'))
+    lines.push(sep())
     lines.push(row(`  (C)onditional: ${conditionalCount}  |  (A)ctivatable: ${activatableCount}`))
     lines.push(row(`  Adjustments: ${this.phaseAdjustments.length}  |  Excluded: ${excludedCount}`))
-    lines.push(sep('└', '┘'))
+    lines.push(sep())
     return lines.join('\n')
   }
 

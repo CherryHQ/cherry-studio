@@ -16,6 +16,8 @@ import type { ApiImplementation } from '@shared/data/api/apiTypes'
 
 import { agentChannelHandlers } from './agentChannels'
 import { agentHandlers } from './agents'
+import { agentSessionHandlers } from './agentSessions'
+import { agentWorkspaceHandlers } from './agentWorkspaces'
 import { assistantHandlers } from './assistants'
 import { fileHandlers } from './files'
 import { groupHandlers } from './groups'
@@ -26,9 +28,12 @@ import { messageHandlers } from './messages'
 import { miniAppHandlers } from './miniApps'
 import { modelHandlers } from './models'
 import { noteHandlers } from './notes'
+import { paintingHandlers } from './paintings'
 import { pinHandlers } from './pins'
 import { promptHandlers } from './prompts'
 import { providerHandlers } from './providers'
+import { searchHandlers } from './search'
+import { skillHandlers } from './skills'
 import { tagHandlers } from './tags'
 import { temporaryChatHandlers } from './temporaryChats'
 import { topicHandlers } from './topics'
@@ -50,7 +55,10 @@ export const apiHandlers: ApiImplementation = {
   ...fileHandlers,
   ...temporaryChatHandlers,
   ...modelHandlers,
+  ...paintingHandlers,
   ...providerHandlers,
+  ...agentSessionHandlers,
+  ...skillHandlers,
   ...knowledgeHandlers,
   ...translateHandlers,
   ...mcpServerHandlers,
@@ -60,5 +68,7 @@ export const apiHandlers: ApiImplementation = {
   ...groupHandlers,
   ...pinHandlers,
   ...promptHandlers,
-  ...jobHandlers
+  ...agentWorkspaceHandlers,
+  ...jobHandlers,
+  ...searchHandlers
 }

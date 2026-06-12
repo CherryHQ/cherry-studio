@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
@@ -266,14 +266,23 @@ export class SelectionService extends BaseService implements Activatable {
     })
   }
 
-  protected async onReady(): Promise<void> {
+  protected onAllReady(): void {
     const preferenceService = application.get('PreferenceService')
-    if (preferenceService.get('feature.selection.enabled')) {
-      this.logInfo('Selection feature enabled, loading selection-hook module')
-      await this.activate()
-    } else {
+    if (!preferenceService.get('feature.selection.enabled')) {
       this.logInfo('Selection feature disabled, skipping selection-hook module loading')
+      return
     }
+
+    // Warm up off the boot critical path: onActivate() synchronously loads the native
+    // addon and builds the toolbar + action windows (~120ms). setImmediate defers it
+    // past the WhenReady phase so the main window paints first. A pre-fire stop is safe
+    // — _doActivate() no-ops unless the service is Ready.
+    this.logInfo('Selection feature enabled, scheduling selection-hook warm-up')
+    setImmediate(() => {
+      void this.activate().catch((error) => {
+        this.logError('Failed to activate selection feature on startup:', error as Error)
+      })
+    })
   }
 
   protected async onStop(): Promise<void> {
@@ -570,7 +579,7 @@ export class SelectionService extends BaseService implements Activatable {
     // [macOS] a hacky way
     // when set `skipTransformProcessType: true`, if the selection is in self app, it will make the selection canceled after toolbar showing
     // so we just don't set `skipTransformProcessType: true` when in self app
-    const isSelf = ['com.github.Electron', 'com.kangfenmao.CherryStudio'].includes(programName)
+    const isSelf = ['com.github.Electron', 'com.cherryai.cherrystudio'].includes(programName)
 
     if (!isSelf) {
       // [macOS] an ugly hacky way

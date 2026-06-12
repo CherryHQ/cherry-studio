@@ -4,6 +4,7 @@
  * Implements all topic-related API endpoints including:
  * - Cursor-paginated topic list with optional name search
  * - Topic CRUD operations
+ * - Topic path duplication
  * - Active node switching for branch navigation
  * - Scoped reorder (single + batch) via OrderEndpoints
  */
@@ -13,6 +14,7 @@ import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   CreateTopicSchema,
+  DuplicateTopicSchema,
   ListTopicsQuerySchema,
   SetActiveNodeSchema,
   type TopicSchemas,
@@ -52,6 +54,13 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     PUT: async ({ params, body }) => {
       const parsed = SetActiveNodeSchema.parse(body)
       return await topicService.setActiveNode(params.id, parsed.nodeId)
+    }
+  },
+
+  '/topics/:id/duplicate': {
+    POST: async ({ params, body }) => {
+      const parsed = DuplicateTopicSchema.parse(body)
+      return await topicService.duplicate(params.id, parsed)
     }
   },
 

@@ -5,12 +5,15 @@ const { syncChannelMock, disconnectChannelMock } = vi.hoisted(() => ({
   disconnectChannelMock: vi.fn()
 }))
 
-vi.mock('@main/services/agents/services/channels', () => ({
-  channelManager: {
-    syncChannel: syncChannelMock,
-    disconnectChannel: disconnectChannelMock
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    ChannelManager: {
+      syncChannel: syncChannelMock,
+      disconnectChannel: disconnectChannelMock
+    }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
 
 const { createChannelMock, getChannelMock, updateChannelMock, deleteChannelMock } = vi.hoisted(() => ({
   createChannelMock: vi.fn(),
@@ -48,6 +51,7 @@ const makeChannel = (overrides: Record<string, unknown> = {}) => ({
   name: 'My Bot',
   agentId: 'agent-1',
   sessionId: 'sess-1',
+  workspace: { type: 'system' },
   config: { bot_token: 'token-abc' },
   isActive: true,
   activeChatIds: ['chat-1'],
@@ -71,6 +75,7 @@ describe('AgentChannelWorkflowService', () => {
       const result = await agentChannelWorkflowService.createChannel({
         type: 'telegram',
         name: 'My Bot',
+        workspace: { type: 'system' },
         config: { bot_token: 'token-abc' }
       })
 
@@ -89,6 +94,7 @@ describe('AgentChannelWorkflowService', () => {
         agentChannelWorkflowService.createChannel({
           type: 'telegram',
           name: 'My Bot',
+          workspace: { type: 'system' },
           config: { bot_token: 'token-abc' }
         })
       ).rejects.toThrow('sync failed')
@@ -108,6 +114,7 @@ describe('AgentChannelWorkflowService', () => {
         agentChannelWorkflowService.createChannel({
           type: 'telegram',
           name: 'My Bot',
+          workspace: { type: 'system' },
           config: { bot_token: 'token-abc' }
         })
       ).rejects.toThrow('sync failed')

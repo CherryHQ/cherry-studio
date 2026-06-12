@@ -1,0 +1,37 @@
+import { getSearchMatchScore } from '@renderer/utils/modelSearch'
+import type { Model } from '@shared/data/types/model'
+
+export const isValidNewApiModel = (model: Model): boolean => !!(model.endpointTypes && model.endpointTypes.length > 0)
+
+export const filterProviderSettingModelsByKeywords = <T extends Model>(keywords: string, models: T[]): T[] => {
+  if (!keywords.trim()) return models
+
+  return models
+    .flatMap((model, index) => {
+      const searchScore = getSearchMatchScore(keywords, [
+        { value: model.name, weight: 0, allowAbbreviation: true },
+        { value: model.apiModelId, weight: 1, allowAbbreviation: true },
+        { value: model.id, weight: 1, allowAbbreviation: true },
+        { value: model.group, weight: 2, allowAbbreviation: true },
+        { value: model.description, weight: 30, allowAbbreviation: false }
+      ])
+
+      return searchScore === null ? [] : [{ model, searchScore, index }]
+    })
+    .sort((a, b) => a.searchScore - b.searchScore || a.index - b.index)
+    .map(({ model }) => model)
+}
+
+export const getDuplicateProviderSettingModelNames = <T extends Pick<Model, 'name'>>(models: T[]): Set<string> => {
+  const counts = new Map<string, number>()
+
+  for (const model of models) {
+    counts.set(model.name, (counts.get(model.name) ?? 0) + 1)
+  }
+
+  return new Set(
+    Array.from(counts.entries())
+      .filter(([, count]) => count > 1)
+      .map(([name]) => name)
+  )
+}

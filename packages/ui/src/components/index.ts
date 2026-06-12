@@ -5,6 +5,7 @@ export { default as CopyButton } from './primitives/copy-button'
 export { default as CustomTag, type CustomTagProps } from './primitives/custom-tag'
 export { Divider, type DividerProps } from './primitives/divider'
 export { default as DividerWithText } from './primitives/divider-with-text'
+export * from './primitives/dropdown-menu'
 export { default as EmojiIcon } from './primitives/emoji-icon'
 export type { CustomFallbackProps, ErrorBoundaryCustomizedProps } from './primitives/error-boundary'
 export { ErrorBoundary } from './primitives/error-boundary'
@@ -130,6 +131,8 @@ export {
 // MenuList
 export type { MenuDividerProps, MenuItemProps, MenuListProps } from './composites/menu-list'
 export { MenuDivider, MenuItem, menuItemVariants, MenuList } from './composites/menu-list'
+// PageHeader
+export { PageHeader, type PageHeaderProps } from './composites/page-header'
 // ReorderableList
 export { ReorderableList, type ReorderableListProps } from './composites/reorderable-list'
 // Sortable

@@ -59,8 +59,7 @@ function toDbRow(p: ProtoProviderConfig) {
         streamOptions: p.apiFeatures.streamOptions,
         developerRole: p.apiFeatures.developerRole,
         serviceTier: p.apiFeatures.serviceTier,
-        verbosity: p.apiFeatures.verbosity,
-        enableThinking: p.apiFeatures.enableThinking
+        verbosity: p.apiFeatures.verbosity
       }
     : null
 
@@ -71,7 +70,8 @@ function toDbRow(p: ProtoProviderConfig) {
     endpointConfigs: buildRuntimeEndpointConfigs(p.endpointConfigs),
     defaultChatEndpoint: getSeedDefaultChatEndpoint(p.id, p.defaultChatEndpoint),
     authConfig: getSeedAuthConfig(p.id),
-    apiFeatures
+    apiFeatures,
+    isEnabled: false
   }
 }
 
@@ -118,7 +118,8 @@ export class PresetProviderSeeder implements ISeeder {
       },
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
       authConfig: null,
-      apiFeatures: null
+      apiFeatures: null,
+      isEnabled: true
     })
 
     await db.transaction((tx) => providerService.batchUpsertTx(tx, rows))

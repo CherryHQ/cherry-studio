@@ -15,7 +15,6 @@ This document records the current V2 knowledge target schema, migration constrai
   - `id`
   - `name`
   - `groupId`
-  - `emoji`
   - `dimensions`
   - `embeddingModelId`
   - `status`
@@ -40,7 +39,6 @@ This document records the current V2 knowledge target schema, migration constrai
   - `type`
   - `data`
   - `status`
-  - `phase`
   - `error`
   - `createdAt`
   - `updatedAt`
@@ -50,6 +48,7 @@ This document records the current V2 knowledge target schema, migration constrai
 
 - `video` is not a target `knowledge_item.type`.
 - `memory` is not a target `knowledge_item.type`.
+- `sitemap` is not a target `knowledge_item.type`; legacy sitemap entries are migrated as `url` items.
 - Legacy runtime-only item fields are not stored as standalone SQLite columns:
   - `uniqueId`
   - `uniqueIds`
@@ -59,7 +58,7 @@ This document records the current V2 knowledge target schema, migration constrai
 - `remark` is not part of the V2 SQLite schema.
 - `sourceUrl` is not a standalone `knowledge_item` column:
   - for notes, it may exist inside `data.sourceUrl`
-  - for url/sitemap items, the URL is stored inside the typed `data` payload
+  - for url items, the URL is stored inside the typed `data` payload
 - Official v1 legacy exports do not contain `groupId`.
 
 ## `groupId` Semantics
@@ -67,7 +66,7 @@ This document records the current V2 knowledge target schema, migration constrai
 - `knowledge_item` is modeled as a flat same-base item collection.
 - `groupId` is an optional stable grouping key inside one knowledge base.
   - Typical usage: items from the same imported source/container
-  - Examples: one directory import, one sitemap expansion, one URL collection
+  - Examples: one directory import, one URL collection
   - When one item is the logical container/owner of a group, downstream items use `groupId = containerItem.id`
   - The schema enforces same-base ownership:
     - `(baseId, groupId)` must reference `(baseId, id)` in `knowledge_item`
@@ -75,7 +74,7 @@ This document records the current V2 knowledge target schema, migration constrai
 - Current runtime read flows use:
   - `GET /knowledge-bases/:id/items` for flat item listing
   - optional query filters: `type`, `groupId`
-- Current runtime write workflows use `KnowledgeOrchestrationService` IPC, not DataApi endpoints:
+- Current runtime write workflows use `KnowledgeService` IPC, not DataApi endpoints:
   - add items: normalize caller-friendly inputs, create SQLite rows, and enqueue prepare/index tasks
   - delete items: interrupt runtime work, delete vectors, then delete SQLite roots
   - reindex items: interrupt runtime work, delete old vectors, rebuild expanded children when needed, then enqueue indexing
@@ -129,7 +128,7 @@ This document records the current V2 knowledge target schema, migration constrai
 
 ## Runtime Status Boundary
 
-- `knowledge_item.status`, `knowledge_item.phase`, and `knowledge_item.error` remain part of the official V2 business schema.
+- `knowledge_item.status` and `knowledge_item.error` remain part of the official V2 business schema.
 - The runtime queue implementation is not part of the schema contract:
   - no separate task table
   - no persisted queue record
@@ -137,26 +136,25 @@ This document records the current V2 knowledge target schema, migration constrai
 - Runtime currently uses an in-memory `p-queue` based pipeline in `KnowledgeRuntimeService`.
 - The schema-level `status` set is:
   - `idle`
-  - `processing`
-  - `completed`
-  - `failed`
-- The schema-level `phase` set is:
-  - `null`
   - `preparing`
+  - `processing`
   - `reading`
   - `embedding`
+  - `completed`
+  - `failed`
+  - `deleting`
 - Current runtime writes:
-  - `processing, phase = preparing` while a `directory` / `sitemap` root or nested directory is being expanded
-  - `processing, phase = reading` while a leaf item is reading source documents
-  - `processing, phase = embedding` while a leaf item is embedding / writing vectors
-  - `completed, phase = null` after successful leaf indexing, or when a container has no active children
-  - `failed, phase = null` on runtime failure, interrupt cleanup failure, or shutdown interruption
+  - `preparing` while a `directory` root or nested directory is being expanded
+  - `reading` while a leaf item is reading source documents
+  - `embedding` while a leaf item is embedding / writing vectors
+  - `processing` while a container has active descendants but is not itself expanding
+  - `completed` after successful leaf indexing, or when a container has no active children
+  - `failed` on runtime failure, interrupt cleanup failure, or shutdown interruption
 - `fileProcessorId` is persisted in base config, but it does not participate in runtime execution yet.
 - In other words:
   - queue structure is implementation detail
-  - `status` is aggregate business state
-  - `phase` is runtime progress
-  - container status is reconciled from its own phase and child item statuses
+  - `status` is business lifecycle and coarse runtime progress
+  - container status is reconciled from its own status and child item statuses
   - these concerns must not be conflated
 
 ## Current Runtime Consumption Notes
@@ -167,14 +165,13 @@ This document records the current V2 knowledge target schema, migration constrai
   - `file` -> file reader by extension
   - `url` -> fetch markdown through Jina Reader
   - `note` -> inline note content
-  - `sitemap` -> sitemap reader code path is present, but current runtime does not index `sitemap` items directly
   - `directory` -> currently treated as a container placeholder and returns no documents
-- This means `directory` and `sitemap` remain valid persisted `knowledge_item.type` values, but they are prepared before leaf indexing rather than indexed directly.
+- `sitemap` is no longer a valid persisted V2 `knowledge_item.type`. Legacy v1 sitemap items are mapped to `url` during migration and indexed through the URL path.
 - Runtime add flow accepts new item payloads:
   - leaf payloads create `knowledge_item` rows and enqueue `index-leaf`
-  - `directory` / `sitemap` payloads create root rows and enqueue `prepare-root`
-- `prepare-root` expands the owner inside the runtime queue, creates child rows, and enqueues concrete leaf children as `index-leaf`.
-- Callers must not create user-supplied nested `directory` / `sitemap` items under another item. Nested directory rows may still be created internally by directory expansion to preserve filesystem hierarchy.
+  - `directory` payloads create root rows and enqueue `prepare-root`
+- `prepare-root` expands a directory owner inside the runtime queue, creates child rows, and enqueues concrete leaf children as `index-leaf`.
+- Callers must not create user-supplied nested `directory` items under another item. Nested directory rows may still be created internally by directory expansion to preserve filesystem hierarchy.
 - Runtime embedding model resolution currently expects `knowledge_base.embeddingModelId` in `providerId::modelId` format and only supports `ollama` as the active provider.
 
 ## Implementation Status

@@ -19,8 +19,8 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { isMac, isWin } from '@main/constant'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isMac, isWin } from '@main/core/platform'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
@@ -206,6 +206,31 @@ export class CodeCliService extends BaseService {
     const executableName = await this.getCliExecutableName(codeCLI.claudeCode)
     const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
     logger.warn(`cli-wrapper.cjs not found at ${cliWrapperPath}, falling back to direct execution: ${executablePath}`)
+    return `"${executablePath}"`
+  }
+
+  /**
+   * Prefer OpenCode's package-local executable on Windows.
+   *
+   * Bun global bins can fail with "Bun failed to remap this bin" after updates,
+   * while opencode-ai's postinstall places the real executable under the package.
+   */
+  private async getOpenCodeCommand(): Promise<string> {
+    const globalInstallDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'install', 'global')
+    const openCodeExecutablePath = path.join(globalInstallDir, 'node_modules', 'opencode-ai', 'bin', 'opencode.exe')
+
+    if (fs.existsSync(openCodeExecutablePath)) {
+      logger.debug(`Using package-local executable for opencode: ${openCodeExecutablePath}`)
+      return `"${openCodeExecutablePath}"`
+    }
+
+    // Fallback: try to execute the Bun global bin directly.
+    const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
+    const executableName = await this.getCliExecutableName(codeCLI.openCode)
+    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
+    logger.warn(
+      `opencode package-local executable not found at ${openCodeExecutablePath}, falling back to direct execution: ${executablePath}`
+    )
     return `"${executablePath}"`
   }
 
@@ -741,6 +766,8 @@ export class CodeCliService extends BaseService {
         if (cliTool === codeCLI.claudeCode) {
           const bunPath = await this.getBunPath()
           versionCommand = await this.getClaudeCodeCommand(bunPath)
+        } else if (cliTool === codeCLI.openCode) {
+          versionCommand = await this.getOpenCodeCommand()
         } else {
           const executableName = await this.getCliExecutableName(cliTool)
           const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
@@ -1016,6 +1043,8 @@ export class CodeCliService extends BaseService {
     // Use cli-wrapper.cjs (via Bun) on all platforms for reliable execution.
     if (cliTool === codeCLI.claudeCode) {
       baseCommand = await this.getClaudeCodeCommand(bunPath)
+    } else if (cliTool === codeCLI.openCode) {
+      baseCommand = await this.getOpenCodeCommand()
     } else if (isWin) {
       baseCommand = `"${executablePath}"`
     } else {

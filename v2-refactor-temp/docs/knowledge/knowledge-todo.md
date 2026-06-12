@@ -16,10 +16,10 @@
   - 后续要么接入更多 provider 的运行时能力，要么在 UI / 创建流程中限制不可运行的 provider。
   - 参考：`v2-refactor-temp/docs/knowledge/knowledge-backend-decisions.md`
 
-- 完成 rerank runtime 接入。
-  - 当前 `rerankModelId` 可以配置和持久化，但搜索运行时尚未真正启用 rerank。
-  - 后续需要补齐 provider / model runtime 解析和实际 rerank 调用链。
-  - 参考：`src/main/services/knowledge/rerank/rerank.ts`
+- 扩展 rerank provider 覆盖。
+  - 当前知识库 rerank 运行时走 `AiService`，可用范围取决于 ai-core / provider 层的 rerank 支持。
+  - 后续如需支持 Voyage / TEI 等 provider，应优先在 provider 层补齐运行时能力。
+  - 参考：`src/main/services/knowledge/utils/indexing/rerank.ts`
 
 - 为 chunk / RAG 配置变更提供明确 reindex 流程。
   - `chunkSize` / `chunkOverlap` 可更新，但不会自动重建已有 chunk 和向量。
@@ -36,30 +36,30 @@
 - 接入 note 数据源。
   - 当前添加数据源里的 note 是占位状态，提交不可用。
   - 后续需要接入真实 note picker / note 数据源 API，并替换占位 UI。
-  - 参考：`src/renderer/src/pages/knowledge.v2/components/addKnowledgeItemDialog/sources/NoteSourceContent.tsx`
+  - 参考：`src/renderer/pages/knowledge.v2/components/addKnowledgeItemDialog/sources/NoteSourceContent.tsx`
 
-- 继续保持 `directory` / `sitemap` 展开由 main runtime 负责。
-  - renderer 只提交 owner item 语义，不在页面里展开目录或 sitemap。
-  - 如果未来允许 nested directory / sitemap，需要先重新设计 interrupt / reconcile 语义。
-  - 参考：`src/renderer/src/pages/knowledge.v2/plans/add-source-confirm-submit.md`
+- 继续保持 `directory` 展开由 main runtime 负责。
+  - renderer 只提交 owner item 语义，不在页面里展开目录。
+  - 如果未来允许 nested directory，需要先重新设计 interrupt / reconcile 语义。
+  - 参考：`src/renderer/pages/knowledge.v2/plans/add-source-confirm-submit.md`
 
 ## 3. UI 交互补齐
+
+- 重新接通「知识库文件附加到聊天输入」。
+  - 该入口此前在 `AttachmentButton` 通过 v2→v1 的 `KnowledgeRuntime.getFileMetadata` 桥（main 侧产出 legacy `FileMetadata`）实现；为避免在 v2 新增 `FileMetadata` 生产者，当前已先断开，仅保留本地文件上传。
+  - 重新接通依赖聊天附件管线整体迁出 `FileMetadata`（迁到 `FileEntry` / `FileHandle`），属跨域改动。
+  - 参考：`src/renderer/pages/home/Inputbar/tools/components/AttachmentButton.tsx`、`v2-refactor-temp/docs/file-manager/filemetadata-consumer-audit.md`
 
 - 补齐数据源列表的大数据量能力。
   - 当前列表按 root items 查询，缺少完整分页、排序、子分组筛选和批量操作。
   - 非终态 item 目前靠轮询刷新。
   - 后续应根据数据规模和 UI 稿补分页 / 虚拟列表 / 排序 / 批量处理等能力。
-  - 参考：`src/renderer/src/hooks/useKnowledgeItems.ts`
-
-- 统一 sitemap 的用户可见文案。
-  - 当前语义已经收敛到 `sitemap`，但部分中文文案仍可能显示为“网站”。
-  - 后续需要按最终产品命名统一 i18n。
-  - 参考：`src/renderer/src/pages/knowledge.v2/plans/add-source-confirm-submit.md`
+  - 参考：`src/renderer/hooks/useKnowledgeItems.ts`
 
 - 补齐更多语言的 `knowledge_v2` 翻译。
   - 当前主要覆盖 `zh-cn` / `zh-tw` / `en-us`。
   - 后续需要确认其他 locale 的回退策略或补齐翻译。
-  - 参考：`src/renderer/src/i18n/locales/`
+  - 参考：`src/renderer/i18n/locales/`
 
 ## 4. Runtime 与任务队列
 
@@ -79,7 +79,7 @@
   - 当前删除 base 会删除 SQLite 记录和向量 artifact。
   - 如果 artifact 清理失败，可能留下孤立向量文件。
   - 后续可以补 pending cleanup / 重试清理策略。
-  - 参考：`src/main/services/knowledge/KnowledgeOrchestrationService.ts`
+  - 参考：`src/main/services/knowledge/KnowledgeService.ts`
 
 ## 5. 迁移与存储边界
 
@@ -91,14 +91,14 @@
 
 - 向量迁移仍按“保留可映射旧向量”策略执行。
   - 不重新切块、不重新 embedding、不重新生成业务 item，也不校正旧知识库业务配置。
-  - `.embedjs.bak` 主要用于迁移 retry，成功后当前不会自动清理。
-  - 后续如果要释放磁盘，需要单独增加 cleanup 策略、实现和测试。
+  - v1 legacy 向量 DB 原地保留不动；迁移成功后作为孤儿文件留在磁盘上，当前不会自动清理。
+  - 后续如果要释放磁盘，需要在用户确认放弃 v1 后单独增加 cleanup 策略、实现和测试。
   - 参考：`v2-refactor-temp/docs/knowledge/knowledge-vector-migrator.md`
 
 - 拆分临时镜像的文件类型。
-  - `packages/shared/data/types/knowledge.ts` 中仍有知识域临时镜像的 `FileMetadata`。
+  - `src/shared/data/types/knowledge.ts` 中仍有知识域临时镜像的 `FileMetadata`。
   - 后续等独立 file domain schema 稳定后，应迁移到专属文件领域类型。
-  - 参考：`packages/shared/data/types/knowledge.ts`
+  - 参考：`src/shared/data/types/knowledge.ts`
 
 ## 6. 发布与文档收尾
 

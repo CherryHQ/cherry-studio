@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { isLinux, isPortable, isWin } from '@main/constant'
+import { isLinux, isPortable, isWin } from '@main/core/platform'
 import { bootConfigService } from '@main/data/bootConfig'
 import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas'
 import { app } from 'electron'
@@ -35,7 +35,7 @@ const logger = loggerService.withContext('Preboot')
  * by the running process on Windows) from the rest, and copy them in two
  * separate phases. v2 abandons that distinction: the entire directory is
  * copied at startup, when the previous process has fully exited and no
- * file is locked. See `packages/shared/config/constant.ts:occupiedDirs`
+ * file is locked. See `src/shared/config/constant.ts:occupiedDirs`
  * for the deprecated v1 constant.
  */
 

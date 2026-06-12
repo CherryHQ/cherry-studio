@@ -2,7 +2,7 @@ import { join } from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isDev, isMac } from '@main/constant'
+import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import {
   BaseService,
   type Disposable,
@@ -13,6 +13,7 @@ import {
   Priority,
   ServicePhase
 } from '@main/core/lifecycle'
+import { isDev, isMac } from '@main/core/platform'
 import { applyWindowBehavior, BehaviorController } from '@main/core/window/behavior'
 import { applyWindowQuirks } from '@main/core/window/quirks'
 import type { WindowType } from '@main/core/window/types'
@@ -29,7 +30,7 @@ import {
 } from '@main/core/window/types'
 import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, screen, shell, type TitleBarOverlayOptions } from 'electron'
+import { app, BrowserWindow, screen, shell } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('WindowManager')
@@ -630,13 +631,17 @@ export class WindowManager extends BaseService {
     }
   }
 
-  /** Get all managed windows info */
-  public getAllWindows(): ManagedWindow[] {
-    return Array.from(this.windows.values())
+  /** Get all live BrowserWindow instances of a specific type (skips destroyed) */
+  public getWindowsByType(type: WindowType): BrowserWindow[] {
+    const windowIds = this.windowsByType.get(type)
+    if (!windowIds) return []
+    return Array.from(windowIds)
+      .map((id) => this.windows.get(id)?.window)
+      .filter((window): window is BrowserWindow => window !== undefined && !window.isDestroyed())
   }
 
-  /** Get all windows of a specific type */
-  public getWindowsByType(type: WindowType): WindowInfo[] {
+  /** Get serializable metadata for all windows of a specific type */
+  public getWindowInfosByType(type: WindowType): WindowInfo[] {
     const windowIds = this.windowsByType.get(type)
     if (!windowIds) return []
     return Array.from(windowIds)
@@ -670,25 +675,6 @@ export class WindowManager extends BaseService {
   // see behavior.ts for the full API surface. Kept off the flat WindowManager
   // namespace so the declarative three-layer split (windowOptions / behavior
   // / quirks) is visible at the call site.
-
-  // ─── Public API: Title bar overlay ────────────────────────────
-
-  /**
-   * Update title bar overlay colors on all windows that have overlay configured.
-   * Only affects window types whose windowOptions includes titleBarOverlay.
-   */
-  public setTitleBarOverlay(options: TitleBarOverlayOptions): void {
-    for (const [type, windowIds] of this.windowsByType) {
-      const metadata = getWindowTypeMetadata(type)
-      if (!metadata.windowOptions.titleBarOverlay) continue
-      for (const id of windowIds) {
-        const managed = this.windows.get(id)
-        if (managed && !managed.window.isDestroyed()) {
-          managed.window.setTitleBarOverlay(options)
-        }
-      }
-    }
-  }
 
   // ─── Public API: Broadcast (Cherry Studio extension) ──────────
 
@@ -1368,6 +1354,7 @@ export class WindowManager extends BaseService {
    * @returns Window ID (UUID)
    */
   private createWindow<T>(type: WindowType, args?: OpenWindowArgs<T>, suppressAutoShow = false): string {
+    const t0 = DIAGNOSTICS_ENABLED ? performance.now() : 0
     const metadata = getWindowTypeMetadata(type)
     const windowId = uuidv4()
     const config = mergeWindowOptions(type, args?.options)
@@ -1477,6 +1464,14 @@ export class WindowManager extends BaseService {
     // before the first open) is applied here without requiring a separate arg on
     // createWindow.
     this.updateDockVisibility()
+
+    // Opt-in (CS_DIAGNOSTICS): synchronous construction cost + paint latency.
+    if (DIAGNOSTICS_ENABLED) {
+      logger.info(`[Diagnostics/window] ${type} sync-build ${(performance.now() - t0).toFixed(1)}ms`)
+      window.once('ready-to-show', () => {
+        logger.info(`[Diagnostics/window] ${type} ready-to-show +${(performance.now() - t0).toFixed(1)}ms`)
+      })
+    }
 
     logger.debug('Window created', { windowId, type })
     return windowId

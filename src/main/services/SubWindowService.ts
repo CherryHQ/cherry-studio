@@ -1,8 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { titleBarOverlayDark, titleBarOverlayLight } from '@main/config'
-import { isLinux, isMac, isWin } from '@main/constant'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isLinux, isMac, isWin } from '@main/core/platform'
 import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -80,7 +79,9 @@ export class SubWindowService extends BaseService {
       // determined via WindowManager's own type index (not the service's private
       // map) so this branch does not depend on tabIdToWindowId staying in sync.
       const senderId = wm.getWindowIdByWebContents(event.sender)
-      const isSubWindow = senderId ? wm.getWindowsByType(WindowType.SubWindow).some((w) => w.id === senderId) : false
+      const isSubWindow = senderId
+        ? wm.getWindowInfosByType(WindowType.SubWindow).some((w) => w.id === senderId)
+        : false
       if (senderId && isSubWindow) {
         try {
           wm.close(senderId)
@@ -118,9 +119,8 @@ export class SubWindowService extends BaseService {
       IpcChannel.Tab_TryAttach,
       (_, payload: { tab: { id: string }; screenX: number; screenY: number }) => {
         const wm = application.get('WindowManager')
-        const mainInfo = wm.getWindowsByType(WindowType.Main)[0]
-        const mainWindow = mainInfo ? wm.getWindow(mainInfo.id) : undefined
-        if (!mainWindow || mainWindow.isDestroyed()) {
+        const mainWindow = wm.getWindowsByType(WindowType.Main)[0]
+        if (!mainWindow) {
           logger.warn('Tab_TryAttach failed: main window not available')
           return false
         }
@@ -243,7 +243,6 @@ export class SubWindowService extends BaseService {
     const options: Partial<WindowOptions> = {
       title: title || 'Cherry Studio Tab',
       darkTheme: dark,
-      ...(isMac && { titleBarOverlay: dark ? titleBarOverlayDark : titleBarOverlayLight }),
       ...(!isMac && { backgroundColor: dark ? '#181818' : '#FFFFFF' }),
       ...(isLinux && { icon: linuxIcon }),
       ...(hasPosition && { x, y })
