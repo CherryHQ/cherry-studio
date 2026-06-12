@@ -29,7 +29,7 @@ describe('AgentWorkspaceService', () => {
   })
 
   it('normalizes paths and dedupes rows by path', async () => {
-    const rawPath = workspacePath('project', '..', 'project')
+    const rawPath = `${workspacePath('project', '..', 'project')}${path.sep}`
     const normalizedPath = workspacePath('project')
 
     const first = await findOrCreateWorkspace(rawPath)
@@ -46,6 +46,22 @@ describe('AgentWorkspaceService', () => {
     expect(rows).toHaveLength(1)
   })
 
+  it('keeps the existing name on find-or-create path hits', async () => {
+    const rawPath = workspacePath('idempotent')
+    const first = await findOrCreateWorkspace(rawPath, { name: 'Original' })
+    const second = await findOrCreateWorkspace(rawPath, { name: 'Ignored Rename' })
+
+    expect(second).toMatchObject({
+      id: first.id,
+      name: 'Original',
+      path: first.path
+    })
+
+    const rows = await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.path, first.path))
+    expect(rows).toHaveLength(1)
+    expect(rows[0].name).toBe('Original')
+  })
+
   it('inserts newly created workspaces at the front of the list', async () => {
     const first = await findOrCreateWorkspace(workspacePath('first'))
     const second = await findOrCreateWorkspace(workspacePath('second'))
@@ -53,6 +69,30 @@ describe('AgentWorkspaceService', () => {
     const workspaces = await agentWorkspaceService.list()
 
     expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id])
+  })
+
+  it('hides system workspaces from the default list and get APIs', async () => {
+    const userWorkspace = await findOrCreateWorkspace(workspacePath('user-project'))
+    const systemWorkspace = await dbh.db.transaction((tx) =>
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'system-hidden-session' })
+    )
+
+    await expect(agentWorkspaceService.getById(systemWorkspace.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(agentWorkspaceService.getById(systemWorkspace.id, { includeSystem: true })).resolves.toMatchObject({
+      id: systemWorkspace.id,
+      type: 'system'
+    })
+    expect((await agentWorkspaceService.list()).map((workspace) => workspace.id)).toEqual([userWorkspace.id])
+  })
+
+  it('does not return a system workspace from findOrCreateByPath', async () => {
+    const systemWorkspace = await dbh.db.transaction((tx) =>
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'system-path-session' })
+    )
+
+    await expect(agentWorkspaceService.findOrCreateByPath(systemWorkspace.path)).rejects.toMatchObject({
+      code: ErrorCode.CONFLICT
+    })
   })
 
   it('rejects relative workspace paths', async () => {
@@ -73,6 +113,22 @@ describe('AgentWorkspaceService', () => {
     await expect(agentWorkspaceService.getById(workspace.id)).resolves.toMatchObject({
       id: workspace.id,
       path: workspace.path
+    })
+  })
+
+  it('rejects updates to hidden system workspaces without mutating the row', async () => {
+    const systemWorkspace = await dbh.db.transaction((tx) =>
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'system-update-session' })
+    )
+
+    await expect(agentWorkspaceService.update(systemWorkspace.id, { name: 'Renamed' })).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+
+    await expect(agentWorkspaceService.getById(systemWorkspace.id, { includeSystem: true })).resolves.toMatchObject({
+      id: systemWorkspace.id,
+      name: systemWorkspace.name,
+      type: 'system'
     })
   })
 
@@ -164,5 +220,23 @@ describe('AgentWorkspaceService', () => {
     ])
     workspaces = await agentWorkspaceService.list()
     expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id, third.id])
+  })
+
+  it('does not reorder hidden system workspaces as user workspace targets or anchors', async () => {
+    const first = await findOrCreateWorkspace(workspacePath('first'))
+    const second = await findOrCreateWorkspace(workspacePath('second'))
+    const systemWorkspace = await dbh.db.transaction((tx) =>
+      agentWorkspaceService.createSystemWorkspaceForSessionTx(tx, { sessionId: 'system-anchor-session' })
+    )
+
+    await expect(agentWorkspaceService.reorder(first.id, { before: systemWorkspace.id })).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    await expect(
+      agentWorkspaceService.reorderBatch([{ id: systemWorkspace.id, anchor: { before: first.id } }])
+    ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+    const workspaces = await agentWorkspaceService.list()
+    expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id])
   })
 })

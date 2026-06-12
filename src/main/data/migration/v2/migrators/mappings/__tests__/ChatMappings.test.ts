@@ -702,7 +702,7 @@ describe('transformMessage', () => {
       't1'
     )
 
-    expect(result.traceId).toBeNull()
+    expect(result).not.toHaveProperty('traceId')
   })
 
   it('does not stamp block-level createdAt/updatedAt/metadata/error onto part.providerMetadata.cherry', async () => {

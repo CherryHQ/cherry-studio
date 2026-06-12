@@ -27,6 +27,8 @@ export const topicTable = sqliteTable(
     // SET NULL: preserve topic when group is deleted
     groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
 
+    traceId: text(),
+
     // Fractional-indexing order key, partitioned by groupId.
     ...orderKeyColumns,
 

@@ -1,7 +1,7 @@
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { AuthConfig } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES } from '@shared/data/types/provider'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures/model'
 import { makeProvider } from '../../__tests__/fixtures/provider'
@@ -14,6 +14,9 @@ const { getRotatedApiKeyMock, getAuthConfigMock, getByProviderIdMock } = vi.hois
   getAuthConfigMock: vi.fn<(providerId: string) => Promise<AuthConfig | null>>(),
   getByProviderIdMock: vi.fn()
 }))
+const { generateSignatureMock } = vi.hoisted(() => ({
+  generateSignatureMock: vi.fn()
+}))
 
 vi.mock('@main/data/services/ProviderService', () => ({
   providerService: {
@@ -23,13 +26,25 @@ vi.mock('@main/data/services/ProviderService', () => ({
   }
 }))
 
+vi.mock('../cherryai', () => ({
+  generateSignature: generateSignatureMock
+}))
+
 // Import the SUT after the mock is declared.
 const { providerToAiSdkConfig } = await import('../config')
+
+const CHERRYAI_PROVIDER_ID = 'cherryai'
+const CHERRYAI_API_BASE_URL = 'https://api.cherry-ai.com'
+const CHERRYAI_MODEL_ID = 'qwen'
 
 beforeEach(() => {
   vi.clearAllMocks()
   getRotatedApiKeyMock.mockResolvedValue('sk-test-key')
   getAuthConfigMock.mockResolvedValue(null)
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 describe('providerToAiSdkConfig — builder dispatch matrix', () => {
@@ -377,6 +392,65 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.endpointType).toBe('openai')
       expect(settings.anthropicBaseURL).toBeDefined()
       expect(settings.geminiBaseURL).toBeDefined()
+    })
+  })
+
+  describe('CherryAI routing', () => {
+    it('uses custom fetch to sign chat completions requests', async () => {
+      getRotatedApiKeyMock.mockResolvedValue('')
+      generateSignatureMock.mockReturnValue({
+        'X-Client-ID': 'cherry-studio',
+        'X-Timestamp': '1700000000',
+        'X-Signature': 'signed'
+      })
+      const fetchMock = vi.fn().mockResolvedValue(new Response('{}'))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const provider = makeProvider({
+        id: CHERRYAI_PROVIDER_ID,
+        presetProviderId: CHERRYAI_PROVIDER_ID,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: CHERRYAI_API_BASE_URL
+          }
+        },
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      })
+      const model = makeModel({
+        id: `${CHERRYAI_PROVIDER_ID}::${CHERRYAI_MODEL_ID}`,
+        providerId: CHERRYAI_PROVIDER_ID,
+        apiModelId: CHERRYAI_MODEL_ID,
+        name: CHERRYAI_MODEL_ID
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      await (config.providerSettings as { fetch: typeof fetch }).fetch(`${CHERRYAI_API_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: { Existing: 'yes' },
+        body: JSON.stringify({ model: CHERRYAI_MODEL_ID })
+      })
+
+      expect(config.providerId).toBe('openai-compatible')
+      expect(generateSignatureMock).toHaveBeenCalledWith({
+        method: 'POST',
+        path: '/chat/completions',
+        query: '',
+        body: { model: CHERRYAI_MODEL_ID }
+      })
+      expect(fetchMock).toHaveBeenCalledWith(
+        `${CHERRYAI_API_BASE_URL}/chat/completions`,
+        expect.objectContaining({
+          // `...init` must pass through — dropping method/body in the wrapper would break every request.
+          method: 'POST',
+          body: JSON.stringify({ model: CHERRYAI_MODEL_ID }),
+          headers: expect.objectContaining({
+            Existing: 'yes',
+            'X-Client-ID': 'cherry-studio',
+            'X-Timestamp': '1700000000',
+            'X-Signature': 'signed'
+          })
+        })
+      )
     })
   })
 
