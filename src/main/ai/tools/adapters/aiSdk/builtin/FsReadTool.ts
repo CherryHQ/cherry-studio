@@ -1,5 +1,5 @@
 /**
- * fs__read — read-back companion for the context-build persistence layer.
+ * fs_read — read-back companion for the context-build persistence layer.
  * Ported from PR #14916's `fs/readFile.ts`, reduced to text-only and
  * re-scoped from any-absolute-path to strict root containment
  * (decision 2026-06-12): allowed roots are the VFS persisted-output dir
@@ -29,10 +29,10 @@ const SIZE_CAP_BYTES = 5 * MB
 const PAGED_SIZE_CAP_BYTES = 50 * MB
 /**
  * Max chars returned per call. Above this the tool returns a structured
- * error with a file-specific recommended `limit` — fs__read must handle
+ * error with a file-specific recommended `limit` — fs_read must handle
  * its own oversize natively (it is `truncatable: false`; letting the
- * persistence layer store an fs__read result would loop: persisted file
- * → fs__read → still too large → persist again).
+ * persistence layer store an fs_read result would loop: persisted file
+ * → fs_read → still too large → persist again).
  * See {@link CONTEXT_PERSIST_THRESHOLD_CHARS} for the shared constant rationale.
  */
 const READ_OUTPUT_CHAR_CAP = CONTEXT_PERSIST_THRESHOLD_CHARS
@@ -146,7 +146,7 @@ export async function executeFsRead(input: { path: string; offset?: number; limi
 
   const absolutePath = await resolveWithinAllowedRoots(requestedPath)
   if (!absolutePath) {
-    logger.warn('fs__read denied: path outside allowed roots', { requestedPath })
+    logger.warn('fs_read denied: path outside allowed roots', { requestedPath })
     return {
       kind: 'error',
       code: 'access-denied',
@@ -253,9 +253,9 @@ Pagination: pass \`offset\` (1-indexed line) + \`limit\` for large files; result
 export function createFsReadToolEntry(): ToolEntry {
   return {
     name: FS_READ_TOOL_NAME,
-    // Exempt from the context-build truncate/persist layer: fs__read
+    // Exempt from the context-build truncate/persist layer: fs_read
     // handles oversize natively (output-too-large + paging); persisting
-    // its result would route the model back through fs__read in a loop.
+    // its result would route the model back through fs_read in a loop.
     truncatable: false,
     namespace: 'fs',
     description: 'Read a text file by absolute path (persisted-output retrieval; paginated)',

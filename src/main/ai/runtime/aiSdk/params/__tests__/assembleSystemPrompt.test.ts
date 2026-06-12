@@ -107,7 +107,7 @@ describe('assembleSystemPrompt', () => {
     expect(out).toBe('base')
   })
 
-  it('includes the persisted-output protocol when fs__read is active', async () => {
+  it('includes the persisted-output protocol when fs_read is active', async () => {
     const result = await assembleSystemPrompt({
       assistant: undefined,
       model,
@@ -115,10 +115,10 @@ describe('assembleSystemPrompt', () => {
       deferredEntries: []
     })
     expect(result).toContain('<context-persistence>')
-    expect(result).toContain('fs__read')
+    expect(result).toContain('fs_read')
   })
 
-  it('omits the persisted-output protocol without fs__read', async () => {
+  it('omits the persisted-output protocol without fs_read', async () => {
     const result = await assembleSystemPrompt({
       assistant: makeAssistant({ prompt: 'base' }),
       model,

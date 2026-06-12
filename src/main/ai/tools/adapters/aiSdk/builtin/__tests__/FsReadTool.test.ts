@@ -1,5 +1,5 @@
 /**
- * fs__read contract: read-back for context-build's persisted outputs.
+ * fs_read contract: read-back for context-build's persisted outputs.
  * Path policy is strict root containment — allowed roots are the VFS dir
  * (always) plus a workspace root when one exists (none in chat today).
  */
