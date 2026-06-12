@@ -9,7 +9,9 @@
 
 /** Lightweight handle exposing only the reset / cleanup callbacks. */
 export interface IdleTimeoutHandle {
-  reset: () => void
+  /** Restart the countdown. Pass `durationMs` to arm a one-off window (e.g. a generous
+   *  human-approval wait); omit it to use the controller's configured timeout. */
+  reset: (durationMs?: number) => void
   cleanup: () => void
 }
 
@@ -29,11 +31,12 @@ export class IdleTimeoutController {
     return this.controller.signal
   }
 
-  /** Reset the idle timer. Call this every time new data arrives. */
-  reset = (): void => {
+  /** Reset the idle timer. Call this every time new data arrives. Pass `durationMs` to arm a one-off
+   *  window (e.g. a generous human-approval wait); omit it to use the configured timeout. */
+  reset = (durationMs?: number): void => {
     if (this.controller.signal.aborted) return
     this.clearTimer()
-    this.startTimer()
+    this.startTimer(durationMs ?? this.timeoutMs)
   }
 
   /** Clean up the timer (e.g. when the stream finishes normally). */
@@ -41,10 +44,10 @@ export class IdleTimeoutController {
     this.clearTimer()
   }
 
-  private startTimer(): void {
+  private startTimer(durationMs: number = this.timeoutMs): void {
     this.timerId = setTimeout(() => {
       this.controller.abort(new DOMException('Idle timeout exceeded', 'TimeoutError'))
-    }, this.timeoutMs)
+    }, durationMs)
   }
 
   private clearTimer(): void {
