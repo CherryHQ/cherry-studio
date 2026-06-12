@@ -7,7 +7,7 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { net } from 'electron'
 
-const logger = loggerService.withContext('MCPServer:Skills')
+const logger = loggerService.withContext('McpServer:Skills')
 
 const MARKETPLACE_BASE_URL = 'https://claude-plugins.dev'
 
