@@ -21,10 +21,11 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
     modelName: null,
     instructions: '',
     mcps: [],
-    allowedTools: [],
+    disabledTools: [],
     configuration: {},
     createdAt: '2026-04-20T00:00:00.000Z',
     updatedAt: '2026-04-20T00:00:00.000Z',
+    orderKey: 'k',
     ...overrides
   }
 }
@@ -35,22 +36,22 @@ describe('buildInitialAgentFormState', () => {
       name: 'Demo',
       description: 'd',
       model: 'p-1::m-1',
-      planModel: 'p-1',
-      smallModel: 's-1',
+      planModel: 'p-1::planner',
+      smallModel: 'p-1::small',
       instructions: 'hi',
       mcps: ['mcp-1'],
-      allowedTools: ['Read']
+      disabledTools: ['Read']
     })
     const state = buildInitialAgentFormState(agent)
     expect(state).toMatchObject({
       name: 'Demo',
       description: 'd',
       model: 'p-1::m-1',
-      planModel: 'p-1',
-      smallModel: 's-1',
+      planModel: 'p-1::planner',
+      smallModel: 'p-1::small',
       instructions: 'hi',
       mcps: ['mcp-1'],
-      allowedTools: ['Read']
+      disabledTools: ['Read']
     })
   })
 
@@ -153,6 +154,18 @@ describe('agent create flow helpers', () => {
       heartbeat_enabled: false
     })
   })
+
+  it('deduplicates disabled tools in the create payload', () => {
+    const draft = buildInitialAgentFormState()
+    const payload = buildCreateAgentPayload({
+      ...draft,
+      name: 'Planner',
+      model: 'anthropic::claude-sonnet-4-5',
+      disabledTools: ['Bash', 'Read', 'Bash']
+    })
+
+    expect(payload.disabledTools).toEqual(['Bash', 'Read'])
+  })
 })
 
 describe('applyAgentFormPatch', () => {
@@ -182,22 +195,22 @@ describe('applyAgentFormPatch', () => {
     const next = applyAgentFormPatch(draft, { permissionMode: 'acceptEdits' }, tools)
 
     expect(next.permissionMode).toBe('acceptEdits')
-    expect(next.allowedTools).toEqual([])
+    expect(next.disabledTools).toEqual([])
   })
 
-  it('enabling soul mode switches to bypass permissions without mutating explicit tool approvals', () => {
+  it('enabling soul mode switches to bypass permissions without mutating disabled tools', () => {
     const draft = buildInitialAgentFormState()
     const next = applyAgentFormPatch(draft, { soulEnabled: true }, tools)
 
     expect(next.soulEnabled).toBe(true)
     expect(next.permissionMode).toBe('bypassPermissions')
-    expect(next.allowedTools).toEqual([])
+    expect(next.disabledTools).toEqual([])
   })
 
   it('leaving bypass permissions disables soul mode to match the legacy settings popup', () => {
     const draft = buildInitialAgentFormState(
       createAgent({
-        allowedTools: ['Read', 'Glob', 'Edit'],
+        disabledTools: ['Edit'],
         configuration: { soul_enabled: true, permission_mode: 'bypassPermissions' }
       })
     )
@@ -205,6 +218,13 @@ describe('applyAgentFormPatch', () => {
 
     expect(next.permissionMode).toBe('default')
     expect(next.soulEnabled).toBe(false)
+  })
+
+  it('deduplicates disabled tools patches', () => {
+    const draft = buildInitialAgentFormState()
+    const next = applyAgentFormPatch(draft, { disabledTools: ['Bash', 'Read', 'Bash'] }, tools)
+
+    expect(next.disabledTools).toEqual(['Bash', 'Read'])
   })
 })
 
@@ -317,5 +337,21 @@ describe('diffAgentUpdate', () => {
     expect(result?.dto.configuration).toMatchObject({
       max_turns: 100
     })
+  })
+
+  it('treats disabled tools as an order-insensitive set', () => {
+    const agent = createAgent({ disabledTools: ['Bash', 'Read'] })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, disabledTools: ['Read', 'Bash'] }
+
+    expect(diffAgentUpdate(baseline, next, agent)).toBeNull()
+  })
+
+  it('emits deduplicated disabled tools when the set changes', () => {
+    const agent = createAgent({ disabledTools: ['Bash'] })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, disabledTools: ['Bash', 'Read', 'Read'] }
+
+    expect(diffAgentUpdate(baseline, next, agent)?.dto.disabledTools).toEqual(['Bash', 'Read'])
   })
 })

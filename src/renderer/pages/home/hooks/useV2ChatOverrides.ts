@@ -66,7 +66,7 @@ export function useV2ChatOverrides(params: Params): Result {
   } = cache
 
   const handleDeleteMessage = useCallback<V2ChatOverrides['deleteMessage']>(
-    async (id, traceOptions) => {
+    async (id) => {
       const optimisticIds = new Set([id])
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, optimisticIds))
 
@@ -87,10 +87,9 @@ export function useV2ChatOverrides(params: Params): Result {
           throw err
         }
       }
-      void window.api.trace.cleanHistory(topic.id, traceOptions?.traceId ?? '', traceOptions?.modelName)
       logger.info('Deleted message', { id })
     },
-    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch, topic.id]
+    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch]
   )
 
   const handleDeleteMessageGroup = useCallback<V2ChatOverrides['deleteMessageGroup']>(
