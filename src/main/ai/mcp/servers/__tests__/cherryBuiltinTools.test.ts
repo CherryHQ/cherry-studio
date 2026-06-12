@@ -102,8 +102,33 @@ describe('cherryBuiltinTools', () => {
     const result = await callCherryBuiltinTool('web_search', { query: 'hello' }, signal)
 
     expect(result.isError).toBeFalsy()
-    expect(textOf(result)).toContain('No web search provider is configured')
+    expect(textOf(result)).toContain('No usable web search provider')
     expect(textOf(result)).toContain('do not retry')
+  })
+
+  it('steers away from retrying when the configured provider lacks the capability', async () => {
+    // The second permanent failure from getProviderForCapability — equally non-retryable.
+    searchKeywords.mockRejectedValue(new Error('Web search provider tavily does not support capability searchKeywords'))
+
+    const result = await callCherryBuiltinTool('web_search', { query: 'hello' }, signal)
+
+    expect(result.isError).toBeFalsy()
+    expect(textOf(result)).toContain('No usable web search provider')
+    expect(textOf(result)).toContain('do not retry')
+  })
+
+  it('treats an unknown provider id and an unimplemented capability as permanent too', async () => {
+    // The other two permanent throws (config getProviderById / WebSearchService) — both non-retryable.
+    for (const message of [
+      'Unknown web search provider: stale-id',
+      'Web search provider tavily does not implement capability searchKeywords'
+    ]) {
+      searchKeywords.mockReset()
+      searchKeywords.mockRejectedValue(new Error(message))
+      const result = await callCherryBuiltinTool('web_search', { query: 'hello' }, signal)
+      expect(textOf(result)).toContain('No usable web search provider')
+      expect(textOf(result)).toContain('do not retry')
+    }
   })
 
   it('runs kb_search unscoped (all model-provided baseIds reach the orchestrator)', async () => {
@@ -153,6 +178,17 @@ describe('cherryBuiltinTools', () => {
     expect(json[0]).toMatchObject({ id: 'b2', name: 'Invoices', groupId: 'g2', itemCount: 1, sampleSources: ['Soup'] })
     expect(listRootItems).toHaveBeenCalledWith('b2')
     expect(listRootItems).not.toHaveBeenCalledWith('b1')
+  })
+
+  it('returns a fixed note (not a raw error) when listing the knowledge bases fails', async () => {
+    listBases.mockRejectedValue(new Error('sqlite gone'))
+
+    const result = await callCherryBuiltinTool('kb_list', {}, signal)
+
+    // Infra failure → fixed note, not 'Error: sqlite gone' leaked through the MCP catch-all.
+    expect(result.isError).toBeFalsy()
+    expect(textOf(result)).toContain('Listing the knowledge bases failed')
+    expect(textOf(result)).not.toContain('sqlite gone')
   })
 
   it('forwards the kb_list input to the model-output projection (filtered-empty message)', async () => {

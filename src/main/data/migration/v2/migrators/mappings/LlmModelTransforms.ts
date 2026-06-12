@@ -1,16 +1,38 @@
-import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
-import type { UniqueModelId } from '@shared/data/types/model'
+import { loggerService } from '@logger'
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 
-import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
+import { legacyChatModelToUniqueId, type LegacyModelRef } from '../transformers/ModelTransformers'
 import type { TransformResult } from './ComplexPreferenceMappings'
 
-function legacyChatModelToUniqueId(model: LegacyModelRef | null | undefined): UniqueModelId | null {
-  const providerId = typeof model?.provider === 'string' ? model.provider.trim() : null
-  if (providerId === CHERRYAI_PROVIDER_ID) {
-    return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+const logger = loggerService.withContext('LlmModelTransforms')
+
+function describeLegacyModelRef(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object') {
+    return { valueType: typeof value }
   }
 
-  return legacyModelToUniqueId(model)
+  const { id, provider } = value as { id?: unknown; provider?: unknown }
+  return {
+    valueType: 'object',
+    id: typeof id === 'string' ? id : undefined,
+    provider: typeof provider === 'string' ? provider : undefined
+  }
+}
+
+function resolveChatModelPreference(preferenceKey: string, value: unknown): string {
+  const modelId = legacyChatModelToUniqueId(value as LegacyModelRef | null | undefined)
+  if (modelId) {
+    return modelId
+  }
+
+  if (value != null) {
+    logger.warn('Legacy model preference could not be parsed; falling back to managed CherryAI default model', {
+      preferenceKey,
+      ...describeLegacyModelRef(value)
+    })
+  }
+
+  return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
 }
 
 /**
@@ -21,13 +43,12 @@ function legacyChatModelToUniqueId(model: LegacyModelRef | null | undefined): Un
  */
 export function transformLlmModelIds(sources: Record<string, unknown>): TransformResult {
   return {
-    'chat.default_model_id':
-      legacyChatModelToUniqueId(sources.defaultModel as LegacyModelRef | null | undefined) ??
-      CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
-    'topic.naming.model_id': legacyChatModelToUniqueId(sources.topicNamingModel as LegacyModelRef | null | undefined),
-    'feature.quick_assistant.model_id': legacyChatModelToUniqueId(
-      sources.quickModel as LegacyModelRef | null | undefined
+    'chat.default_model_id': resolveChatModelPreference('chat.default_model_id', sources.defaultModel),
+    'topic.naming.model_id': resolveChatModelPreference('topic.naming.model_id', sources.topicNamingModel),
+    'feature.quick_assistant.model_id': resolveChatModelPreference(
+      'feature.quick_assistant.model_id',
+      sources.quickModel
     ),
-    'feature.translate.model_id': legacyChatModelToUniqueId(sources.translateModel as LegacyModelRef | null | undefined)
+    'feature.translate.model_id': resolveChatModelPreference('feature.translate.model_id', sources.translateModel)
   }
 }

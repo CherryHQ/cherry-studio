@@ -1,15 +1,18 @@
-import { ensureCherryAIDefaultModelSetupTx } from '@data/cherryaiDefaultModel'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { CHERRYAI_DEFAULT_MODEL_SEEDER_NAME } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
+import { SEED_KEY_PREFIX } from '@data/db/seeding/SeedRunner'
 import { insertWithOrderKey } from '@data/services/utils/orderKey'
 import { DEFAULT_ASSISTANT_SEED } from '@shared/data/presets/default-assistant'
-import { ASSISTANT_SOURCE_USER } from '@shared/data/types/assistant'
-import { and, eq, isNull, like } from 'drizzle-orm'
+import { and, eq, isNull, like, ne } from 'drizzle-orm'
 
 import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
+
+const CHERRYAI_DEFAULT_MODEL_SEED_JOURNAL_KEY = `${SEED_KEY_PREFIX}${CHERRYAI_DEFAULT_MODEL_SEEDER_NAME}` as const
+const SEED_JOURNAL_KEY_PATTERN = `${SEED_KEY_PREFIX}%` as const
 
 export class DefaultAssistantSeeder implements ISeeder {
   readonly name = 'defaultAssistant'
@@ -19,7 +22,7 @@ export class DefaultAssistantSeeder implements ISeeder {
   constructor() {
     this.version = hashObject({
       assistant: DEFAULT_ASSISTANT_SEED,
-      freshGuard: 'no seed journal and no active assistant/topic/message'
+      freshGuard: 'no non-dependency seed journal and no active assistant/topic/message'
     })
   }
 
@@ -29,20 +32,15 @@ export class DefaultAssistantSeeder implements ISeeder {
         return
       }
 
-      await ensureCherryAIDefaultModelSetupTx(tx)
+      const insertValues = {
+        ...DEFAULT_ASSISTANT_SEED,
+        settings: { ...DEFAULT_ASSISTANT_SEED.settings }
+      } satisfies Omit<typeof assistantTable.$inferInsert, 'orderKey'>
 
-      await insertWithOrderKey(
-        tx,
-        assistantTable,
-        {
-          ...DEFAULT_ASSISTANT_SEED,
-          source: ASSISTANT_SOURCE_USER
-        },
-        {
-          pkColumn: assistantTable.id,
-          scope: isNull(assistantTable.deletedAt)
-        }
-      )
+      await insertWithOrderKey(tx, assistantTable, insertValues, {
+        pkColumn: assistantTable.id,
+        scope: isNull(assistantTable.deletedAt)
+      })
     })
   }
 
@@ -50,7 +48,12 @@ export class DefaultAssistantSeeder implements ISeeder {
     const [seedJournal] = await tx
       .select({ key: appStateTable.key })
       .from(appStateTable)
-      .where(like(appStateTable.key, 'seed:%'))
+      .where(
+        and(
+          like(appStateTable.key, SEED_JOURNAL_KEY_PATTERN),
+          ne(appStateTable.key, CHERRYAI_DEFAULT_MODEL_SEED_JOURNAL_KEY)
+        )
+      )
       .limit(1)
     if (seedJournal) return false
 

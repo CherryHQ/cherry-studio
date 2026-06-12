@@ -3,7 +3,7 @@ import type { UIMessageChunk } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { pipeStreamLoop } from '../pipeStreamLoop'
-import { withReasoningTimingMetadata } from '../reasoningTimingTransform'
+import { withReasoningTimingMetadata } from '../withReasoningTimingMetadata'
 
 function streamFrom(chunks: UIMessageChunk[]): ReadableStream<UIMessageChunk> {
   return new ReadableStream<UIMessageChunk>({

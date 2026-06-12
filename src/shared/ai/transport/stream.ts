@@ -59,8 +59,8 @@ export interface ComposerQueuedMessagePayload {
  * (`exec.status === 'streaming'` — set at launch, cleared only by `done` /
  * `error` / `aborted`). Empty when every execution has hit a terminal state.
  *
- * `awaitingApprovalAnchors` names every execution currently paused on a
- * `tool-approval-request` (`exec.awaitingApproval === true`), even after
+ * `awaitingApprovalAnchors` names every execution with a still-pending
+ * `tool-approval-request` (`exec.pendingApprovalToolCallIds` non-empty), even after
  * the execution itself has terminated (MCP `needsApproval` ends the stream
  * cleanly via `done`). The renderer's per-message "is this the active turn
  * target?" predicate reads this — Main is the single authority for the
@@ -201,9 +201,11 @@ export type AiStreamOpenResponse =
   | {
       /**
        * `'started'`  — a brand new stream was created on this topic.
-       * `'injected'` — a stream was already live on this topic (agent
-       *                 session follow-up); the new subscriber was attached
-       *                 to the running stream rather than starting a turn.
+       * `'injected'` — a stream was already live, or an enqueue-only turn
+       *                 intentionally launched no models. The subscriber was
+       *                 attached to the running stream instead of starting a
+       *                 turn; chat steers may still include `userMessageId` /
+       *                 `reservedMessages` for the queued user row.
        */
       mode: 'started' | 'injected'
       /** Multi-model: execution IDs for frontend to create per-model streams. */
@@ -216,9 +218,9 @@ export type AiStreamOpenResponse =
        */
       userMessageId?: string
       /**
-       * Authoritative persisted message skeletons reserved before the stream
-       * starts. The renderer seeds these into history immediately, then lets
-       * DB refresh reconcile final content/status.
+       * Authoritative persisted message skeletons reserved before the stream starts. Contract
+       * intent: a consumer may seed these into its view immediately for an optimistic render, then
+       * reconcile final content/status from a DB refresh.
        */
       reservedMessages?: CherryUIMessage[]
     }

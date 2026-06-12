@@ -106,8 +106,9 @@ export interface StreamExecution {
   droppedChunks: number
   /** Latest accumulated snapshot from `readUIMessageStream`. Undefined until the first snapshot lands. */
   finalMessage?: CherryUIMessage
-  /** Set on `tool-approval-request`, cleared on response. Drives the `topic.stream.statuses` cache. */
-  awaitingApproval?: boolean
+  /** Tool-call ids still awaiting human approval, keyed so a sibling tool's output clears only its
+   *  own. Non-empty ⇒ the topic surfaces `awaiting-approval`; drives the `topic.stream.statuses` cache. */
+  pendingApprovalToolCallIds?: Set<string>
   error?: SerializedError
   siblingsGroupId?: number
   /** Resolves when the execution loop terminates. Awaited by `onStop` for graceful shutdown. */
@@ -153,4 +154,11 @@ export interface AiStreamManagerConfig {
   readonly backgroundMode: 'continue' | 'abort'
   /** Per-execution buffer cap; exceeding stops buffering, not streaming. */
   readonly maxBufferChunks: number
+  /**
+   * Idle bound while a tool is awaiting human approval. The normal idle timeout is far too short for
+   * a human, so on `tool-approval-request` the watchdog re-arms to this generous value instead of the
+   * default — bounded so a renderer that never responds (window closed/crashed) can't leave the
+   * stream and its subprocess hanging until app quit.
+   */
+  readonly approvalIdleTimeoutMs: number
 }

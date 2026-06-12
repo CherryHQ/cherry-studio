@@ -12,26 +12,28 @@ import { application } from '@application'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
 import { buildRuntimeEndpointConfigs } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
-import { ensureCherryAIDefaultProviderAndModelTx } from '@data/cherryaiDefaultModel'
 import { pinTable } from '@data/db/schemas/pin'
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { ensureCherryAiDefaultProviderAndModelTx } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
 import { applyUserOverlay } from '@data/services/ModelService'
 import { extractReasoningFormatTypes, mergePresetModel } from '@data/services/ProviderRegistryService'
+import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiFeatures, EndpointConfig } from '@shared/data/types/provider'
 import type { Provider as LegacyProvider } from '@types'
-import { eq, ne, sql } from 'drizzle-orm'
+import { desc, eq, ne, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
 import { type OldLlmSettings, transformModel, transformProvider } from './mappings/ProviderModelMappings'
+import { legacyChatModelToUniqueId } from './transformers/ModelTransformers'
 
 const logger = loggerService.withContext('ProviderModelMigrator')
 
@@ -71,13 +73,17 @@ function createModelId(providerId: string, modelId: string): UniqueModelId | nul
   }
 }
 
+function normalizePinnedProviderModelId(providerId: string, modelId: string): UniqueModelId | null {
+  return legacyChatModelToUniqueId({ provider: providerId, id: modelId })
+}
+
 function normalizePinnedModelObject(value: unknown): UniqueModelId | null {
   if (!value || typeof value !== 'object') return null
 
   const { id, provider } = value as { id?: unknown; provider?: unknown }
   if (typeof provider !== 'string' || typeof id !== 'string') return null
 
-  return createModelId(provider.trim(), id.trim())
+  return normalizePinnedProviderModelId(provider, id)
 }
 
 function normalizePinnedModelId(value: unknown): UniqueModelId | null {
@@ -88,7 +94,9 @@ function normalizePinnedModelId(value: unknown): UniqueModelId | null {
 
   const trimmed = value.trim()
   if (!trimmed) return null
-  if (isUniqueModelId(trimmed)) return trimmed
+  if (isUniqueModelId(trimmed)) {
+    return legacyChatModelToUniqueId(undefined, trimmed)
+  }
 
   if (trimmed.startsWith('{')) {
     try {
@@ -105,7 +113,7 @@ function normalizePinnedModelId(value: unknown): UniqueModelId | null {
   const modelId = trimmed.slice(separatorIndex + 1).trim()
   if (!providerId || !modelId) return null
 
-  return createModelId(providerId, modelId)
+  return normalizePinnedProviderModelId(providerId, modelId)
 }
 
 function normalizePinnedModelIds(rawValue: unknown, validModelIds: ReadonlySet<string>): UniqueModelId[] {
@@ -381,11 +389,25 @@ export class ProviderModelMigrator extends BaseMigrator {
 
     try {
       await ctx.db.transaction(async (tx) => {
-        await ensureCherryAIDefaultProviderAndModelTx(tx)
+        await ensureCherryAiDefaultProviderAndModelTx(tx)
 
-        const providerRows = assignOrderKeysInSequence(
-          this.providers.map((provider) => this.enrichProviderRow(transformProvider(provider, this.settings), provider))
+        const providerRowsWithoutOrderKey = this.providers.map((provider) =>
+          this.enrichProviderRow(transformProvider(provider, this.settings), provider)
         )
+        const [lastProvider] = await tx
+          .select({ orderKey: userProviderTable.orderKey })
+          .from(userProviderTable)
+          .orderBy(desc(userProviderTable.orderKey))
+          .limit(1)
+        const providerOrderKeys = generateOrderKeySequenceBetween(
+          lastProvider?.orderKey ?? null,
+          null,
+          providerRowsWithoutOrderKey.length
+        )
+        const providerRows = providerRowsWithoutOrderKey.map((row, index) => ({
+          ...row,
+          orderKey: providerOrderKeys[index]
+        }))
 
         for (let providerIndex = 0; providerIndex < this.providers.length; providerIndex++) {
           const provider = this.providers[providerIndex]

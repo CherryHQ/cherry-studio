@@ -7,12 +7,16 @@
  * functions; the provider is resolved inside `WebSearchService` from the
  * user's configured default for each capability.
  *
- * Never throws: a failed lookup returns `{ error }` so the surrounding
- * agentic loop (AI-SDK or Claude Code) keeps running instead of aborting.
+ * Never throws on lookup failure: a failed lookup returns `{ error }` so the
+ * surrounding agentic loop (AI-SDK or Claude Code) keeps running instead of
+ * aborting. A cancellation (aborted signal) is the exception — it rethrows, so
+ * it propagates as the cancellation it is rather than a retryable error.
  */
 
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
+import { isPermanentWebSearchConfigError } from '@main/services/webSearch/utils/config'
+import { isAbortError } from '@main/services/webSearch/utils/errors'
 import type { WebSearchOutput } from '@shared/ai/builtinTools'
 import type { WebSearchResponse } from '@shared/data/types/webSearch'
 import * as z from 'zod'
@@ -63,16 +67,17 @@ export type WebLookupResult = WebSearchOutput | WebLookupError
 export const WEB_LOOKUP_ERROR_NOTE = 'Web lookup failed (network/provider error); retry or inform the user.'
 
 /**
- * Permanent failure: no web-search provider is configured (`WebSearchService` throws
- * "Default web search provider is not configured…"). Retrying can never succeed — the
- * user has to configure one — so the note must steer away from a retry loop.
+ * Permanent failure: no usable web-search provider for the requested capability — either none is
+ * configured, or the configured one doesn't support it (`getProviderForCapability` throws for both;
+ * see {@link isPermanentWebSearchConfigError}). Retrying can never succeed — the user has to fix the
+ * config — so the note must steer away from a retry loop.
  */
 export const WEB_PROVIDER_NOT_CONFIGURED_NOTE =
-  'No web search provider is configured. Tell the user to configure one in Settings (Web Search); do not retry — it cannot succeed until then.'
+  'No usable web search provider for this capability (none configured, or the configured one does not support it). Tell the user to configure one in Settings (Web Search); do not retry — it cannot succeed until then.'
 
-/** Branch the model-facing note: a missing provider is permanent, everything else is worth a retry. */
+/** Branch the model-facing note: a permanent provider-config failure can't be retried; everything else is. */
 function webLookupNote(error: string): string {
-  return /provider is not configured/i.test(error) ? WEB_PROVIDER_NOT_CONFIGURED_NOTE : WEB_LOOKUP_ERROR_NOTE
+  return isPermanentWebSearchConfigError(error) ? WEB_PROVIDER_NOT_CONFIGURED_NOTE : WEB_LOOKUP_ERROR_NOTE
 }
 
 export function isWebLookupError(output: WebLookupResult): output is WebLookupError {
@@ -105,6 +110,9 @@ export async function searchWeb(query: string, signal?: AbortSignal): Promise<We
     const response = await application.get('WebSearchService').searchKeywords({ keywords: [query] }, { signal })
     return mapResponse(response)
   } catch (error) {
+    // A cancellation isn't a provider failure — rethrow so it propagates instead of looking like a
+    // retryable error that keeps the tool loop running after the request was already aborted.
+    if (signal?.aborted || isAbortError(error)) throw error
     logger.error('webSearchService.searchKeywords failed', error as Error, { query })
     return { error: error instanceof Error ? error.message : String(error) }
   }
@@ -115,6 +123,9 @@ export async function fetchWeb(urls: string[], signal?: AbortSignal): Promise<We
     const response = await application.get('WebSearchService').fetchUrls({ urls }, { signal })
     return mapResponse(response)
   } catch (error) {
+    // A cancellation isn't a provider failure — rethrow so it propagates instead of looking like a
+    // retryable error that keeps the tool loop running after the request was already aborted.
+    if (signal?.aborted || isAbortError(error)) throw error
     logger.error('webSearchService.fetchUrls failed', error as Error, { urls })
     return { error: error instanceof Error ? error.message : String(error) }
   }

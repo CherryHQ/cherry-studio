@@ -5,7 +5,9 @@ import { preferenceTable } from '@data/db/schemas/preference'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { CherryAiDefaultModelSeeder } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { DefaultAssistantSeeder } from '@data/db/seeding/seeders/defaultAssistantSeeder'
+import { SEED_KEY_PREFIX } from '@data/db/seeding/SeedRunner'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import {
@@ -13,7 +15,7 @@ import {
   DEFAULT_ASSISTANT_NAME,
   DEFAULT_ASSISTANT_PROMPT
 } from '@shared/data/presets/default-assistant'
-import { ASSISTANT_SOURCE_USER, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
@@ -22,7 +24,18 @@ describe('DefaultAssistantSeeder', () => {
   const dbh = setupTestDatabase()
   const UUID_V4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
-  it('seeds the default assistant only for a fresh database', async () => {
+  async function runCherryAiModelDependencySeed() {
+    const dependencySeeder = new CherryAiDefaultModelSeeder()
+    await dependencySeeder.run(dbh.db)
+    await dbh.db.insert(appStateTable).values({
+      key: `${SEED_KEY_PREFIX}${dependencySeeder.name}`,
+      value: { version: dependencySeeder.version }
+    })
+  }
+
+  it('seeds the default assistant when only the CherryAI default model dependency seed has run', async () => {
+    await runCherryAiModelDependencySeed()
+
     await new DefaultAssistantSeeder().run(dbh.db)
 
     const [assistant] = await dbh.db.select().from(assistantTable).limit(1)
@@ -44,14 +57,16 @@ describe('DefaultAssistantSeeder', () => {
 
     expect(assistant?.id).toMatch(UUID_V4_PATTERN)
     expect(assistant).toMatchObject({
-      source: ASSISTANT_SOURCE_USER,
       name: DEFAULT_ASSISTANT_NAME,
       emoji: DEFAULT_ASSISTANT_EMOJI,
       prompt: DEFAULT_ASSISTANT_PROMPT,
       modelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
       settings: DEFAULT_ASSISTANT_SETTINGS
     })
-    expect(provider?.providerId).toBe(CHERRYAI_PROVIDER_ID)
+    expect(provider).toMatchObject({
+      providerId: CHERRYAI_PROVIDER_ID,
+      isEnabled: true
+    })
     expect(model?.id).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
     expect(preference?.value).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
   })
@@ -71,7 +86,6 @@ describe('DefaultAssistantSeeder', () => {
   it('does not seed the default assistant when an active assistant already exists', async () => {
     await dbh.db.insert(assistantTable).values({
       id: '11111111-1111-4111-8111-111111111111',
-      source: ASSISTANT_SOURCE_USER,
       name: 'Existing Assistant',
       emoji: '🌟',
       settings: DEFAULT_ASSISTANT_SETTINGS,

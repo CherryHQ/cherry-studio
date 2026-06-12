@@ -151,7 +151,7 @@ describe('withIdleTimeout', () => {
     expect(controller.signal.aborted).toBe(false)
   })
 
-  it('exposed idle.cleanup() pauses the timer so a long no-chunk wait does not abort', async () => {
+  it('idle.reset(boundMs) applies a bounded long wait without pausing indefinitely', async () => {
     const src = makeControllableStream<number>()
     const controller = new AbortController()
 
@@ -161,11 +161,12 @@ describe('withIdleTimeout', () => {
     src.push(1)
     await reader.read()
 
-    // Pause (e.g. a tool is now awaiting human approval) — no chunks for a long
-    // time must NOT trip the idle timeout.
-    idle.cleanup()
-    vi.advanceTimersByTime(5000)
+    // Bounded human-approval wait: longer than the default, still finite.
+    idle.reset(5000)
+    vi.advanceTimersByTime(4999)
     expect(controller.signal.aborted).toBe(false)
+    vi.advanceTimersByTime(1)
+    expect(controller.signal.aborted).toBe(true)
   })
 
   it('rearms on the next chunk after idle.cleanup()', async () => {

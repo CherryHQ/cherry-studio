@@ -13,17 +13,26 @@
 
 import { KB_LIST_TOOL_NAME, kbListInputSchema, kbListOutputSchema } from '@shared/ai/builtinTools'
 import { tool } from 'ai'
+import * as z from 'zod'
 
-import { KNOWLEDGE_LIST_DESCRIPTION, knowledgeListModelOutput, listKnowledgeBases } from '../../../knowledgeLookup'
+import {
+  KNOWLEDGE_LIST_DESCRIPTION,
+  knowledgeListModelOutput,
+  knowledgeLookupErrorSchema,
+  listKnowledgeBases
+} from '../../../knowledgeLookup'
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
 
 export { KB_LIST_TOOL_NAME }
 
+// Mirror kb_search / the web tools: a listBases() infra failure returns `{ error }`, so the output is a union.
+const knowledgeListResultSchema = z.union([kbListOutputSchema, knowledgeLookupErrorSchema])
+
 const kbListTool = tool({
   description: KNOWLEDGE_LIST_DESCRIPTION,
   inputSchema: kbListInputSchema,
-  outputSchema: kbListOutputSchema,
+  outputSchema: knowledgeListResultSchema,
   strict: true,
   execute: async ({ query, groupId }, options) => {
     const { request } = getToolCallContext(options)

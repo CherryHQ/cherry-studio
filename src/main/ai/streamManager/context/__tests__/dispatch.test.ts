@@ -55,7 +55,7 @@ function makeManager(live: boolean): AiStreamManager {
 }
 
 /** `inject: true` mirrors PersistentChatContextProvider's `hasLiveStream` branch — no models + a user row. */
-function wirePrepare(spy: typeof mocks.agentPrepare, topicId: string, opts: { inject: boolean }) {
+function wirePrepare(spy: typeof mocks.agentPrepare, topicId: string, opts: { inject: boolean; steer?: boolean }) {
   spy.mockImplementation((_subscriber: StreamListener, _req: MainDispatchRequest, ctx: { hasLiveStream: boolean }) => {
     order.push('prepareDispatch')
     preparedWithCtx = ctx
@@ -64,8 +64,10 @@ function wirePrepare(spy: typeof mocks.agentPrepare, topicId: string, opts: { in
       models: opts.inject ? [] : [{ modelId: 'p::m', request: {} }],
       listeners: [] as StreamListener[],
       isMultiModel: false,
-      userMessage: { id: 'u1' },
-      userMessageId: 'u1'
+      userMessageId: 'u1',
+      // Only the persistent steer branch sets this explicit marker; the dispatcher enqueues off it.
+      // Agent-session injects deliberately leave it unset (the runtime owns their follow-ups).
+      pendingSteerUserMessageId: opts.steer ? 'u1' : undefined
     })
   })
 }
@@ -83,7 +85,7 @@ beforeEach(() => {
 
 describe('dispatchStreamRequest — steer', () => {
   it('persists a live chat submit as a steer and enqueues it (no abort, stream stays live)', async () => {
-    wirePrepare(mocks.persistentPrepare, 'topic-1', { inject: true })
+    wirePrepare(mocks.persistentPrepare, 'topic-1', { inject: true, steer: true })
     const manager = makeManager(true)
 
     await dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-1'))

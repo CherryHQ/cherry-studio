@@ -1,9 +1,14 @@
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
-import { describe, expect, it } from 'vitest'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { transformLlmModelIds } from '../LlmModelTransforms'
 
 describe('LlmModelTransforms', () => {
+  beforeEach(() => {
+    mockMainLoggerService.warn.mockClear()
+  })
+
   describe('transformLlmModelIds', () => {
     it('transforms all 4 model fields to UniqueModelIds', () => {
       const sources = {
@@ -23,14 +28,14 @@ describe('LlmModelTransforms', () => {
       })
     })
 
-    it('falls back chat default model to CherryAI when model objects are missing', () => {
+    it('falls back setting model preferences to CherryAI when model objects are missing', () => {
       const result = transformLlmModelIds({})
 
       expect(result).toEqual({
         'chat.default_model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
-        'topic.naming.model_id': null,
-        'feature.quick_assistant.model_id': null,
-        'feature.translate.model_id': null
+        'topic.naming.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+        'feature.quick_assistant.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+        'feature.translate.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
       })
     })
 
@@ -44,9 +49,9 @@ describe('LlmModelTransforms', () => {
       const result = transformLlmModelIds(sources)
 
       expect(result['chat.default_model_id']).toBe('openai::gpt-4')
-      expect(result['topic.naming.model_id']).toBeNull()
-      expect(result['feature.quick_assistant.model_id']).toBeNull()
-      expect(result['feature.translate.model_id']).toBeNull()
+      expect(result['topic.naming.model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+      expect(result['feature.quick_assistant.model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+      expect(result['feature.translate.model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
     })
 
     it('handles model with incomplete data (missing provider)', () => {
@@ -58,7 +63,7 @@ describe('LlmModelTransforms', () => {
       const result = transformLlmModelIds(sources)
 
       expect(result['chat.default_model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
-      expect(result['topic.naming.model_id']).toBeNull()
+      expect(result['topic.naming.model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
     })
 
     it('uses shared model conversion behavior for passthrough, trimming, and invalid providers', () => {
@@ -72,9 +77,25 @@ describe('LlmModelTransforms', () => {
       expect(result).toEqual({
         'chat.default_model_id': 'openai::gpt-4',
         'topic.naming.model_id': 'openai::gpt-4o-mini',
-        'feature.quick_assistant.model_id': null,
-        'feature.translate.model_id': null
+        'feature.quick_assistant.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+        'feature.translate.model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
       })
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Legacy model preference could not be parsed; falling back to managed CherryAI default model',
+        {
+          preferenceKey: 'feature.quick_assistant.model_id',
+          valueType: 'object',
+          id: 'gpt-4',
+          provider: 'o::p'
+        }
+      )
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Legacy model preference could not be parsed; falling back to managed CherryAI default model',
+        {
+          preferenceKey: 'feature.translate.model_id',
+          valueType: 'string'
+        }
+      )
     })
 
     it('maps legacy CherryAI model references to the seeded Qwen model', () => {

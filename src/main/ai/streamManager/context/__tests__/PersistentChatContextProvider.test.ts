@@ -48,12 +48,12 @@ function flatten(messages: { role: string; parts: Array<{ type: string; text?: s
   }))
 }
 
-describe('PersistentChatContextProvider — steer-restart history (#B4)', () => {
+describe('PersistentChatContextProvider — steer continuation history', () => {
   const dbh = setupTestDatabase()
   const provider = new PersistentChatContextProvider()
 
-  // The text the model was mid-producing when the user steered; persisted on the
-  // assistant row as `paused` by `abortAndAwait` before the prompt is rebuilt.
+  // The text a prior turn produced before it yielded to the steer; the steer continuation's
+  // history must include it (it was persisted on the assistant row by the normal terminal path).
   const PARTIAL = 'partial answer so far'
 
   beforeEach(async () => {

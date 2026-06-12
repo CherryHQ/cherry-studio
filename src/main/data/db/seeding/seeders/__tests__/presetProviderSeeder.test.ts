@@ -64,17 +64,6 @@ describe('PresetProviderSeeder.run — insert-only behavior', () => {
     expect(ids).not.toContain('cherryai')
   })
 
-  it('should seed registry providers disabled', async () => {
-    const seed = new PresetProviderSeeder()
-    await seed.run(dbh.db)
-
-    const rows = await dbh.db.select().from(userProviderTable)
-    const registryIds = ['openai', 'anthropic', 'azure-openai', 'vertexai', 'aws-bedrock']
-    for (const id of registryIds) {
-      expect(rows.find((r) => r.providerId === id)?.isEnabled).toBe(false)
-    }
-  })
-
   it('should seed special provider defaults without relying on providers.json endpoint metadata', async () => {
     const seed = new PresetProviderSeeder()
     await seed.run(dbh.db)

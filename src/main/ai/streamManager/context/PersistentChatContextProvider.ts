@@ -6,6 +6,7 @@
  */
 
 import { topicService } from '@data/services/TopicService'
+import { application } from '@main/core/application'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
@@ -103,7 +104,7 @@ function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
       isActiveBranch: true,
       ...(message.stats?.totalTokens ? { totalTokens: message.stats.totalTokens } : {})
     }
-  } as CherryUIMessage
+  } satisfies CherryUIMessage
 }
 
 export class PersistentChatContextProvider implements ChatContextProvider {
@@ -135,14 +136,18 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     }
 
     if (ctx.hasLiveStream && req.trigger === 'submit-message') {
+      // Stamp the row with the model the user selected for this steer so the continuation answers
+      // with it — `prepareSteerContinuation` reads `userMessage.modelId`. Steer is single-model: if
+      // multiple models were @-mentioned, only the first is used (multi-model steer is unsupported).
+      const steerModelId = req.mentionedModelIds?.[0] ?? defaultModelId
       const userMessage = await messageService.create(req.topicId, {
         role: 'user',
         parentId: req.parentAnchorId,
         data: { parts: req.userMessageParts },
         status: 'success',
-        modelId: defaultModelId,
+        modelId: steerModelId,
         modelSnapshot: (() => {
-          const { providerId, modelId: rawModelId } = parseUniqueModelId(defaultModelId)
+          const { providerId, modelId: rawModelId } = parseUniqueModelId(steerModelId)
           return { id: rawModelId, name: rawModelId, provider: providerId }
         })()
       })
@@ -151,8 +156,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         models: [],
         listeners: [subscriber],
-        userMessage,
         userMessageId: userMessage.id,
+        pendingSteerUserMessageId: userMessage.id,
         reservedMessages: [toReservedUIMessage(userMessage)],
         isMultiModel: false
       }
@@ -165,6 +170,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     if (isRegenerate && !req.parentAnchorId) {
       throw new Error(`'regenerate-message' requires parentAnchorId`)
+    }
+
+    // A regenerate while the topic is still live would build placeholder rows that send()'s inject
+    // path discards — orphaning them as `pending`. The renderer gates regenerate on a non-busy topic,
+    // so reject this should-not-happen state before any DB write instead of failing silently.
+    if (isRegenerate && ctx.hasLiveStream) {
+      throw new Error('Cannot regenerate while a stream is live on this topic')
     }
 
     // Pure compute; backfill happens inside the reservation tx. Resolver short-circuits
@@ -253,7 +265,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
                 : undefined
             }),
             onPersistFailed: (error) =>
-              void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
+              application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
           })
         )
       }
@@ -277,7 +289,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           })
         }
       }
-
       return {
         topicId: req.topicId,
         models: models_,
@@ -346,7 +357,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
             }
           }),
           onPersistFailed: (error) =>
-            void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
+            application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
         }),
         new TraceFlushListener(req.topicId)
       ]
@@ -416,7 +427,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           modelId: model.id,
           backend: new MessageServiceBackend({ assistantMessageId: placeholder.id, modelSnapshot }),
           onPersistFailed: (error) =>
-            void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
+            application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
         }),
         new TraceFlushListener(req.topicId)
       ]

@@ -1,9 +1,14 @@
+import { resolve } from 'node:path'
+
+import { application } from '@application'
 import { appStateTable } from '@data/db/schemas/appState'
+import { assistantTable } from '@data/db/schemas/assistant'
+import { seeders } from '@data/db/seeding/index'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { ISeeder } from '@data/db/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 function createSeeder(overrides: Partial<ISeeder> = {}): ISeeder {
   return {
@@ -17,6 +22,16 @@ function createSeeder(overrides: Partial<ISeeder> = {}): ISeeder {
 
 describe('SeedRunner', () => {
   const dbh = setupTestDatabase()
+
+  beforeEach(() => {
+    vi.mocked(application.getPath).mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.provider_registry.data' && filename) {
+        return resolve('packages/provider-registry/data', filename)
+      }
+
+      return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
+    })
+  })
 
   it('should run seed and write journal on first run (no journal entry)', async () => {
     const seeder = createSeeder()
@@ -77,5 +92,15 @@ describe('SeedRunner', () => {
 
     const journalRows = await dbh.db.select().from(appStateTable).where(eq(appStateTable.key, 'seed:test-seed'))
     expect(journalRows).toHaveLength(0)
+  })
+
+  it('runs production seeders in fresh-user order without duplicating the default assistant', async () => {
+    const runner = new SeedRunner(dbh.db)
+
+    await runner.runAll(seeders)
+    await runner.runAll(seeders)
+
+    const assistants = await dbh.db.select().from(assistantTable)
+    expect(assistants).toHaveLength(1)
   })
 })

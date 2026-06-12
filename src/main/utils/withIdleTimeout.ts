@@ -68,8 +68,10 @@ export function withIdleTimeout<T>(
     }
   })
 
-  // `idle` is exposed so a consumer can pause the timer during a legitimate
-  // no-chunk wait (e.g. a tool awaiting human approval): call `idle.cleanup()`
-  // to pause; the next pulled chunk's `idle.reset()` above rearms it.
+  // `idle` is exposed so a consumer can extend the timer for a legitimate long
+  // no-chunk wait (e.g. a tool awaiting human approval): call `idle.reset(boundMs)`
+  // to rearm with a longer bound; the next pulled chunk's `idle.reset()` above
+  // restores the default. Don't `idle.cleanup()` to pause indefinitely — a renderer
+  // that never responds would leave the stream + subprocess hanging until app quit.
   return { stream, idle }
 }

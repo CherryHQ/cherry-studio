@@ -28,6 +28,7 @@ import {
   WEB_SEARCH_DESCRIPTION,
   webLookupModelOutput
 } from '@main/ai/tools/webLookup'
+import { isAbortError } from '@main/services/webSearch/utils/errors'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   CallToolRequestSchema,
@@ -141,7 +142,9 @@ export async function callCherryBuiltinTool(name: string, args: unknown, signal:
     return toMcpResult(await handler.run(args ?? {}, signal))
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    logger.error('cherry-tools call failed', error as Error, { tool: name })
+    // An aborted call (the MCP request's signal fired — e.g. the user cancelled) is expected, not a
+    // failure; don't log it at error level. The error result still flows back so the SDK unwinds.
+    if (!isAbortError(error)) logger.error('cherry-tools call failed', error as Error, { tool: name })
     return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true }
   }
 }

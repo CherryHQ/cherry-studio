@@ -110,6 +110,17 @@ describe('processMessage model-id parsing', () => {
     ).rejects.toThrow(/Invalid model format/)
   })
 
+  it('rejects the managed CherryAI default model', async () => {
+    await expect(
+      processMessage({
+        params: { model: 'cherryai:qwen', messages: [] } as any,
+        inputFormat: 'openai',
+        outputFormat: 'openai'
+      })
+    ).rejects.toThrow(/not available through the API gateway/)
+    expect(mockStreamPrompt).not.toHaveBeenCalled()
+  })
+
   it('splits on the first colon for a simple provider:model', async () => {
     expect(await resolveValid('openai:gpt-4')).toBe(createUniqueModelId('openai', 'gpt-4'))
   })

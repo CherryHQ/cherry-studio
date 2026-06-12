@@ -5,7 +5,7 @@ import { inArray } from 'drizzle-orm'
 
 const logger = loggerService.withContext('SeedRunner')
 
-const SEED_KEY_PREFIX = 'seed:'
+export const SEED_KEY_PREFIX = 'seed:'
 
 interface SeedJournal {
   version: string
