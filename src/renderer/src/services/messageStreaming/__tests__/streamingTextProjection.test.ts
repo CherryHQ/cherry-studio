@@ -54,6 +54,15 @@ describe('createStreamingTextProjection', () => {
     expect(projected).not.toContain('<div>second</div>')
   })
 
+  it('recognizes closing fences with CRLF line endings', () => {
+    const content = ['```ts\r', 'const value = 1\r', '```\r', 'after'].join('\n')
+
+    const projected = createStreamingTextProjection(content, formatProgress)
+
+    expect(projected).toBe(['Generating ts · 1 lines · 17 chars', 'after'].join('\n'))
+    expect(projected).not.toContain('const value')
+  })
+
   it('falls back to code label when fenced code has no language', () => {
     const content = ['```', 'plain text', '```'].join('\n')
 

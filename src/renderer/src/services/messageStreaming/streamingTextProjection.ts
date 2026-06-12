@@ -40,7 +40,7 @@ function isClosingFenceLine(source: string, start: number, end: number, fenceCha
     return false
   }
 
-  while (index < end && (source[index] === ' ' || source[index] === '\t')) {
+  while (index < end && (source[index] === ' ' || source[index] === '\t' || source[index] === '\r')) {
     index++
   }
 
@@ -77,7 +77,8 @@ export function createStreamingTextProjection(
     const hasLineBreak = nextLineBreak !== -1
 
     if (!activeFence) {
-      const line = content.slice(position, lineEnd)
+      const rawLine = content.slice(position, lineEnd)
+      const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine
       const match = line.match(FENCED_CODE_START_RE)
 
       if (match) {

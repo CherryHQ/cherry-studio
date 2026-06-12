@@ -40,7 +40,6 @@ export const createTextCallbacks = (deps: TextCallbacksDependencies) => {
     getCurrentMainTextBlockId: () => mainTextBlockId,
     flushPendingText: async () => {
       if (!mainTextBlockId || !lastFullText) return
-      if (blockManager.activeBlockInfo?.id !== mainTextBlockId) return
 
       blockManager.smartBlockUpdate(mainTextBlockId, { content: lastFullText }, MessageBlockType.MAIN_TEXT, true)
     },
