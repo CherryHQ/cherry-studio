@@ -36,7 +36,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
-import { ArrowLeft, Bot } from 'lucide-react'
+import { Bot, ChevronLeft } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -199,6 +199,11 @@ const AssistantHistoryRecordsContent = ({
       })),
     [isTopicPinned, rawTopics]
   )
+  const topicById = useMemo(() => new Map(topics.map((topic) => [topic.id, topic])), [topics])
+  const selectedDeletableTopicIds = useMemo(
+    () => selectedTopicIds.filter((id) => topicById.get(id)?.pinned === false),
+    [selectedTopicIds, topicById]
+  )
 
   const assistantById = useMemo(() => new Map(assistants.map((assistant) => [assistant.id, assistant])), [assistants])
   const assistantRankById = useMemo(
@@ -273,7 +278,7 @@ const AssistantHistoryRecordsContent = ({
   }, [filteredTopics, searchText, t])
 
   useEffect(() => {
-    const visibleTopicIds = new Set(searchedTopics.map((topic) => topic.id))
+    const visibleTopicIds = new Set(searchedTopics.filter((topic) => !topic.pinned).map((topic) => topic.id))
     setSelectedTopicIds((ids) => ids.filter((id) => visibleTopicIds.has(id)))
   }, [searchedTopics])
 
@@ -306,17 +311,24 @@ const AssistantHistoryRecordsContent = ({
 
   const handlePinTopic = useCallback(
     async (topic: Pick<RendererTopic, 'id'>) => {
+      const willPin = !isTopicPinned(topic.id)
+
       try {
         await toggleTopicPin(topic.id)
+        if (willPin) {
+          setSelectedTopicIds((ids) => ids.filter((id) => id !== topic.id))
+        }
       } catch (err) {
         logger.error('Failed to toggle topic pin from history records', { topicId: topic.id, err })
       }
     },
-    [toggleTopicPin]
+    [isTopicPinned, toggleTopicPin]
   )
 
   const handleDeleteTopicFromMenu = useCallback(
     async (topic: RendererTopic) => {
+      if (topic.pinned) return
+
       try {
         await deleteTopicById(topic.id)
       } catch (err) {
@@ -337,12 +349,13 @@ const AssistantHistoryRecordsContent = ({
   )
 
   const handleBulkDeleteTopics = useCallback(async () => {
-    const ids = selectedTopicIds.filter((id) => topics.some((topic) => topic.id === id))
+    const ids = selectedDeletableTopicIds
     if (ids.length === 0) return
 
     try {
       const result = await deleteTopics(ids)
-      setSelectedTopicIds([])
+      const deletedIdSet = new Set(result.deletedIds)
+      setSelectedTopicIds((currentIds) => currentIds.filter((id) => !deletedIdSet.has(id)))
 
       if (activeRecordId && result.deletedIds.includes(activeRecordId)) {
         const nextTopic = findAdjacentHistoryRecordAfterBulkDelete(
@@ -360,7 +373,7 @@ const AssistantHistoryRecordsContent = ({
       const message = err instanceof Error ? err.message : t('chat.topics.manage.delete.error')
       window.toast.error(message)
     }
-  }, [activeRecordId, deleteTopics, getRendererTopic, onRecordSelect, selectedTopicIds, t, timeSortedTopics, topics])
+  }, [activeRecordId, deleteTopics, getRendererTopic, onRecordSelect, selectedDeletableTopicIds, t, timeSortedTopics])
 
   const handleBulkMoveTopics = useCallback(
     async (targetAssistantId: string) => {
@@ -461,6 +474,7 @@ const AssistantHistoryRecordsContent = ({
       subtitle={t('history.records.assistantSubtitle', { count: topics.length })}
       resultCount={searchedTopics.length}
       searchText={searchText}
+      bulkDeleteCount={selectedDeletableTopicIds.length}
       selectedCount={selectedTopicIds.length}
       bulkMoveTargets={bulkMoveTargets}
       onBulkDelete={handleBulkDeleteTopics}
@@ -512,6 +526,11 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
   const sessionItems = useMemo<SessionListItem[]>(
     () => sessions.map((session) => ({ ...session, pinned: isSessionPinned(session.id) })),
     [isSessionPinned, sessions]
+  )
+  const sessionById = useMemo(() => new Map(sessionItems.map((session) => [session.id, session])), [sessionItems])
+  const selectedDeletableSessionIds = useMemo(
+    () => selectedSessionIds.filter((id) => sessionById.get(id)?.pinned === false),
+    [selectedSessionIds, sessionById]
   )
   const timeSortedSessions = useMemo(
     () => sortSessionsForDisplayGroups(sessionItems, { mode: 'time', now: groupNow }),
@@ -570,7 +589,9 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
   const { updateSession } = useUpdateSession()
 
   useEffect(() => {
-    const visibleSessionIds = new Set(searchedSessions.map((session) => session.id))
+    const visibleSessionIds = new Set(
+      searchedSessions.filter((session) => !session.pinned).map((session) => session.id)
+    )
     setSelectedSessionIds((ids) => ids.filter((id) => visibleSessionIds.has(id)))
   }, [searchedSessions])
 
@@ -595,24 +616,26 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
 
   const handleDeleteSession = useCallback(
     async (id: string) => {
+      if (isSessionPinned(id)) return
+
       const success = await deleteSession(id)
       if (success && activeRecordId === id) {
         const nextSession = findAdjacentHistoryRecord(timeSortedSessions, id, (session) => session.id)
         onRecordSelect?.(nextSession?.id ?? null)
       }
     },
-    [activeRecordId, deleteSession, onRecordSelect, timeSortedSessions]
+    [activeRecordId, deleteSession, isSessionPinned, onRecordSelect, timeSortedSessions]
   )
 
   const handleBulkDeleteSessions = useCallback(async () => {
-    const sessionIdSet = new Set(sessionItems.map((session) => session.id))
-    const ids = selectedSessionIds.filter((id) => sessionIdSet.has(id))
+    const ids = selectedDeletableSessionIds
     if (ids.length === 0) return
 
     const result = await deleteSessions(ids)
     if (!result) return
 
-    setSelectedSessionIds([])
+    const deletedIdSet = new Set(result.deletedIds)
+    setSelectedSessionIds((currentIds) => currentIds.filter((id) => !deletedIdSet.has(id)))
 
     if (activeRecordId && result.deletedIds.includes(activeRecordId)) {
       const nextSession = findAdjacentHistoryRecordAfterBulkDelete(
@@ -623,7 +646,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
       )
       onRecordSelect?.(nextSession?.id ?? null)
     }
-  }, [activeRecordId, deleteSessions, onRecordSelect, selectedSessionIds, sessionItems, timeSortedSessions])
+  }, [activeRecordId, deleteSessions, onRecordSelect, selectedDeletableSessionIds, timeSortedSessions])
 
   const handleRenameSession = useCallback(
     async (id: string, name: string) => {
@@ -643,6 +666,17 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
     },
     [sessions, t, updateSession]
   )
+  const handleToggleSessionPin = useCallback(
+    async (sessionId: string) => {
+      const willPin = !isSessionPinned(sessionId)
+
+      await togglePin(sessionId)
+      if (willPin) {
+        setSelectedSessionIds((ids) => ids.filter((id) => id !== sessionId))
+      }
+    },
+    [isSessionPinned, togglePin]
+  )
   const getSessionActionContext = useCallback(
     (session: AgentSessionEntity): SessionActionContext =>
       createSessionActionContext({
@@ -651,23 +685,17 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
           void handleDeleteSession(session.id)
         },
         onTogglePin: () => {
-          void togglePin(session.id)
+          void handleToggleSessionPin(session.id)
         },
         pinned: isSessionPinned(session.id),
         sessionName: session.name ?? session.id,
         startEdit: () => undefined,
         t
       }),
-    [handleDeleteSession, isSessionPinned, t, togglePin]
+    [handleDeleteSession, handleToggleSessionPin, isSessionPinned, t]
   )
 
   const sessionMenuPreset = useSessionMenuPreset<AgentSessionEntity>({ getActionContext: getSessionActionContext })
-  const handleToggleSessionPin = useCallback(
-    (sessionId: string) => {
-      void togglePin(sessionId)
-    },
-    [togglePin]
-  )
 
   return (
     <HistoryRecordsLayout
@@ -680,6 +708,7 @@ const AgentHistoryRecordsContent = ({ activeRecordId, onClose, onRecordSelect }:
       subtitle={t('history.records.agentSubtitle', { count: sessions.length })}
       resultCount={searchedSessions.length}
       searchText={searchText}
+      bulkDeleteCount={selectedDeletableSessionIds.length}
       selectedCount={selectedSessionIds.length}
       onBulkDelete={handleBulkDeleteSessions}
       onSearchTextChange={setSearchText}
@@ -716,6 +745,7 @@ interface HistoryRecordsLayoutProps {
   subtitle: string
   resultCount: number
   searchText: string
+  bulkDeleteCount?: number
   bulkMoveTargets?: readonly HistoryBulkMoveTarget[]
   children: ReactNode
   onBulkDelete?: () => void | Promise<void>
@@ -736,6 +766,7 @@ const HistoryRecordsLayout = ({
   subtitle,
   resultCount,
   searchText,
+  bulkDeleteCount,
   bulkMoveTargets,
   children,
   onBulkDelete,
@@ -749,7 +780,7 @@ const HistoryRecordsLayout = ({
 
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card pb-3 text-foreground" aria-label={title}>
-      <header className="flex h-[52px] shrink-0 items-center bg-card px-3 [border-bottom:0.5px_solid_var(--color-border-subtle)]">
+      <header className="flex h-[52px] shrink-0 items-center bg-card px-4 [border-bottom:0.5px_solid_var(--color-border-subtle)]">
         <div className="flex min-w-0 items-center gap-2">
           <Button
             type="button"
@@ -758,7 +789,7 @@ const HistoryRecordsLayout = ({
             className="size-7 min-h-7 shrink-0 rounded-md text-foreground-muted shadow-none hover:bg-accent hover:text-foreground"
             aria-label={t('common.back')}
             onClick={onClose}>
-            <ArrowLeft className="size-4" />
+            <ChevronLeft className="size-4" />
           </Button>
           <div className="flex min-w-0 items-baseline gap-2">
             <h2 className="truncate font-semibold text-base text-foreground leading-5">{title}</h2>
@@ -781,6 +812,7 @@ const HistoryRecordsLayout = ({
         <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <HistoryQueryForm
             mode={mode}
+            bulkDeleteCount={bulkDeleteCount}
             bulkMoveTargets={bulkMoveTargets}
             resultCount={resultCount}
             searchText={searchText}

@@ -162,51 +162,64 @@ const HistoryResultList = ({
 
   const selectedTopicIdSet = useMemo(() => new Set(selectedTopicIds.map(String)), [selectedTopicIds])
   const selectedSessionIdSet = useMemo(() => new Set(selectedSessionIds.map(String)), [selectedSessionIds])
+  const selectableTopicIds = useMemo(
+    () => topicList.filter((topic) => !isTopicPinned(topic.id)).map((topic) => topic.id),
+    [isTopicPinned, topicList]
+  )
+  const selectableSessionIds = useMemo(
+    () => sessionList.filter((session) => !isSessionPinned(session.id)).map((session) => session.id),
+    [isSessionPinned, sessionList]
+  )
   const selectedTopicCount = useMemo(
-    () => topicList.filter((topic) => selectedTopicIdSet.has(topic.id)).length,
-    [selectedTopicIdSet, topicList]
+    () => selectableTopicIds.filter((id) => selectedTopicIdSet.has(id)).length,
+    [selectableTopicIds, selectedTopicIdSet]
   )
   const selectedSessionCount = useMemo(
-    () => sessionList.filter((session) => selectedSessionIdSet.has(session.id)).length,
-    [selectedSessionIdSet, sessionList]
+    () => selectableSessionIds.filter((id) => selectedSessionIdSet.has(id)).length,
+    [selectableSessionIds, selectedSessionIdSet]
   )
   const handleToggleTopicAll = useCallback(
-    (checked: boolean) => onSelectedTopicIdsChange?.(checked ? topicList.map((topic) => topic.id) : []),
-    [onSelectedTopicIdsChange, topicList]
+    (checked: boolean) => onSelectedTopicIdsChange?.(checked ? selectableTopicIds : []),
+    [onSelectedTopicIdsChange, selectableTopicIds]
   )
   const handleToggleSessionAll = useCallback(
-    (checked: boolean) => onSelectedSessionIdsChange?.(checked ? sessionList.map((session) => session.id) : []),
-    [onSelectedSessionIdsChange, sessionList]
+    (checked: boolean) => onSelectedSessionIdsChange?.(checked ? selectableSessionIds : []),
+    [onSelectedSessionIdsChange, selectableSessionIds]
   )
   const handleToggleTopicSelection = useCallback(
     (topicId: string, checked: boolean) => {
+      if (checked && isTopicPinned(topicId)) return
+
       const keys = selectedTopicIds.map(String)
       onSelectedTopicIdsChange?.(
         checked ? (keys.includes(topicId) ? keys : [...keys, topicId]) : keys.filter((key) => key !== topicId)
       )
     },
-    [onSelectedTopicIdsChange, selectedTopicIds]
+    [isTopicPinned, onSelectedTopicIdsChange, selectedTopicIds]
   )
   const handleToggleSessionSelection = useCallback(
     (sessionId: string, checked: boolean) => {
+      if (checked && isSessionPinned(sessionId)) return
+
       const keys = selectedSessionIds.map(String)
       onSelectedSessionIdsChange?.(
         checked ? (keys.includes(sessionId) ? keys : [...keys, sessionId]) : keys.filter((key) => key !== sessionId)
       )
     },
-    [onSelectedSessionIdsChange, selectedSessionIds]
+    [isSessionPinned, onSelectedSessionIdsChange, selectedSessionIds]
   )
   const topicHeader = (
     <HistoryTableHeader
       actionsLabel={t('history.records.table.actions')}
       selectAllLabel={t('common.select_all')}
       selectedState={
-        topicList.length > 0 && selectedTopicCount === topicList.length
+        selectableTopicIds.length > 0 && selectedTopicCount === selectableTopicIds.length
           ? true
           : selectedTopicCount > 0
             ? 'indeterminate'
             : false
       }
+      selectionDisabled={selectableTopicIds.length === 0}
       sourceLabel={t('common.assistant')}
       showFixedActionShadow={showFixedActionShadow}
       timeLabel={t('history.records.table.time')}
@@ -219,12 +232,13 @@ const HistoryResultList = ({
       actionsLabel={t('history.records.table.actions')}
       selectAllLabel={t('common.select_all')}
       selectedState={
-        sessionList.length > 0 && selectedSessionCount === sessionList.length
+        selectableSessionIds.length > 0 && selectedSessionCount === selectableSessionIds.length
           ? true
           : selectedSessionCount > 0
             ? 'indeterminate'
             : false
       }
+      selectionDisabled={selectableSessionIds.length === 0}
       sourceLabel={t('common.agent')}
       showFixedActionShadow={showFixedActionShadow}
       timeLabel={t('history.records.table.time')}
@@ -278,12 +292,13 @@ const HistoryResultList = ({
       const assistant = topic.assistantId ? assistantById.get(topic.assistantId) : undefined
       const contextOverride = getTopicMenuContextOverride(topic)
       const actions = topicMenuPreset?.getActions(topic, contextOverride) ?? []
+      const isPinned = isTopicPinned(topic.id)
       const row = (
         <HistoryTopicRow
           actions={actions}
           assistant={assistant}
-          isPinned={isTopicPinned(topic.id)}
-          isSelected={selectedTopicIdSet.has(topic.id)}
+          isPinned={isPinned}
+          isSelected={!isPinned && selectedTopicIdSet.has(topic.id)}
           deleteLabel={t('common.delete')}
           pinLabel={t('chat.topics.pin')}
           selectLabel={`${t('common.select')} ${topic.name || t('chat.default.topic.name')}`}
@@ -321,12 +336,13 @@ const HistoryResultList = ({
       const agent = session.agentId ? agentById.get(session.agentId) : undefined
       const contextOverride = getSessionMenuContextOverride(session)
       const actions = sessionMenuPreset?.getActions(session, contextOverride) ?? []
+      const isPinned = isSessionPinned(session.id)
       const row = (
         <HistorySessionRow
           actions={actions}
           agent={agent}
-          isPinned={isSessionPinned(session.id)}
-          isSelected={selectedSessionIdSet.has(session.id)}
+          isPinned={isPinned}
+          isSelected={!isPinned && selectedSessionIdSet.has(session.id)}
           deleteLabel={t('common.delete')}
           pinLabel={t('selector.common.pin')}
           selectLabel={`${t('common.select')} ${session.name || t('common.unnamed')}`}
@@ -469,6 +485,7 @@ function HistoryVirtualTable<TItem>({
 interface HistoryTableHeaderProps {
   actionsLabel: string
   selectAllLabel: string
+  selectionDisabled?: boolean
   selectedState: boolean | 'indeterminate'
   showFixedActionShadow: boolean
   sourceLabel: string
@@ -480,6 +497,7 @@ interface HistoryTableHeaderProps {
 const HistoryTableHeader = ({
   actionsLabel,
   selectAllLabel,
+  selectionDisabled = false,
   selectedState,
   showFixedActionShadow,
   sourceLabel,
@@ -492,6 +510,7 @@ const HistoryTableHeader = ({
       <Checkbox
         size="sm"
         checked={selectedState}
+        disabled={selectionDisabled}
         aria-label={selectAllLabel}
         onCheckedChange={(checked) => onToggleAll(Boolean(checked))}
         onClick={(event) => event.stopPropagation()}
@@ -559,7 +578,12 @@ const HistoryTopicRow = ({
     className={cn(historyTableGridClassName, historyBodyRowClassName, 'min-h-11')}
     data-state={isSelected ? 'selected' : undefined}
     role="row">
-    <HistorySelectionCell checked={isSelected} label={selectLabel} onCheckedChange={onSelectedChange} />
+    <HistorySelectionCell
+      checked={isSelected}
+      disabled={isPinned}
+      label={selectLabel}
+      onCheckedChange={onSelectedChange}
+    />
     <div className={historyBodyCellClassName} role="cell">
       <RowFlex className="min-w-0 flex-1 items-center" data-testid="history-topic-rename-field">
         <HistoryTitleButton title={title} onOpen={onOpen} />
@@ -642,7 +666,12 @@ const HistorySessionRow = ({
       className={cn(historyTableGridClassName, historyBodyRowClassName, 'min-h-13')}
       data-state={isSelected ? 'selected' : undefined}
       role="row">
-      <HistorySelectionCell checked={isSelected} label={selectLabel} onCheckedChange={onSelectedChange} />
+      <HistorySelectionCell
+        checked={isSelected}
+        disabled={isPinned}
+        label={selectLabel}
+        onCheckedChange={onSelectedChange}
+      />
       <div className={historyBodyCellClassName} role="cell">
         <RowFlex className="min-w-0 flex-1 items-center">
           <div className="min-w-0 flex-1" data-testid="history-session-rename-field">
@@ -691,15 +720,17 @@ const HistorySessionRow = ({
 
 interface HistorySelectionCellProps {
   checked: boolean
+  disabled?: boolean
   label: string
   onCheckedChange: (checked: boolean) => void
 }
 
-const HistorySelectionCell = ({ checked, label, onCheckedChange }: HistorySelectionCellProps) => (
+const HistorySelectionCell = ({ checked, disabled = false, label, onCheckedChange }: HistorySelectionCellProps) => (
   <div className={cn(historyBodyCellClassName, 'justify-center px-2')} role="cell">
     <Checkbox
       size="sm"
       checked={checked}
+      disabled={disabled}
       aria-label={label}
       onCheckedChange={(nextChecked) => onCheckedChange(Boolean(nextChecked))}
       onClick={(event) => event.stopPropagation()}

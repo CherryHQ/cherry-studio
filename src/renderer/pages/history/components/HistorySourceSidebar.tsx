@@ -54,7 +54,7 @@ const HistorySourceSidebar = ({
 
   return (
     <aside className="flex w-[284px] shrink-0 flex-col bg-card [border-right:0.5px_solid_var(--color-border-subtle)]">
-      <Scrollbar className="min-h-0 flex-1 px-3 py-3.5 pt-2">
+      <Scrollbar className="min-h-0 flex-1 px-4 py-4">
         {mode === 'agent' && statusItems.length > 0 && selectedStatus && onStatusSelect && (
           <SidebarSection title={t('history.records.sidebar.status')}>
             <div className="space-y-1">
@@ -118,7 +118,7 @@ interface SidebarSectionProps {
 
 const SidebarSection = ({ title, children }: SidebarSectionProps) => (
   <section className="mb-5 last:mb-0">
-    <h3 className="mb-2 px-2 font-medium text-foreground-muted text-xs leading-4">{title}</h3>
+    <h3 className="mb-2 font-medium text-foreground-muted text-xs leading-4">{title}</h3>
     {children}
   </section>
 )

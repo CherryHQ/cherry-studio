@@ -78,6 +78,7 @@ sessionActionRegistry.registerAction({
   order: 40,
   surface: 'menu',
   danger: true,
+  availability: ({ pinned }) => ({ visible: !pinned }),
   confirm: ({ t }) => ({
     title: t('agent.session.delete.title'),
     description: t('agent.session.delete.content'),

@@ -1,6 +1,6 @@
 import { Button, ConfirmDialog, Input, SelectDropdown } from '@cherrystudio/ui'
 import type { HistoryRecordsMode } from '@renderer/pages/history/HistoryRecordsPage'
-import { MoveRight, Search, Trash2 } from 'lucide-react'
+import { FolderInput, Search, Trash2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -14,6 +14,7 @@ export interface HistoryBulkMoveTarget {
 interface HistoryQueryFormProps {
   mode: HistoryRecordsMode
   bulkMoveTargets?: readonly HistoryBulkMoveTarget[]
+  bulkDeleteCount?: number
   resultCount: number
   searchText: string
   selectedCount?: number
@@ -28,6 +29,7 @@ const HistoryQueryForm = ({
   resultCount,
   searchText,
   selectedCount = 0,
+  bulkDeleteCount = selectedCount,
   onBulkDelete,
   onBulkMove,
   onSearchTextChange
@@ -42,14 +44,15 @@ const HistoryQueryForm = ({
     [moveTargetId, moveTargets]
   )
   const searchPlaceholder = mode === 'assistant' ? t('history.records.searchTopic') : t('history.records.searchSession')
+  const canBulkDelete = bulkDeleteCount > 0 && !!onBulkDelete
   const canBulkMove = mode === 'assistant' && selectedCount > 0 && moveTargets.length > 0 && !!onBulkMove
   const deleteTitle =
     mode === 'assistant' ? t('history.records.bulkDeleteTopics.title') : t('history.records.bulkDeleteSessions.title')
   const deleteDescription =
     mode === 'assistant'
-      ? t('history.records.bulkDeleteTopics.description', { count: selectedCount })
+      ? t('history.records.bulkDeleteTopics.description', { count: bulkDeleteCount })
       : t('history.records.bulkDeleteSessions.description', {
-          count: selectedCount
+          count: bulkDeleteCount
         })
   const deleteButtonLabel = t('history.records.bulkDelete')
   const moveButtonLabel = t('history.records.bulkMove')
@@ -88,7 +91,7 @@ const HistoryQueryForm = ({
                 setMoveTargetId((current) => current || moveTargets[0]?.id || '')
                 setMoveDialogOpen(true)
               }}>
-              <MoveRight className="size-3.5" />
+              <FolderInput className="size-3.5" />
               <span>
                 {moveButtonLabel}
                 {selectedCount > 0 ? ` (${selectedCount})` : ''}
@@ -98,14 +101,14 @@ const HistoryQueryForm = ({
           <Button
             type="button"
             className="h-8 gap-1.5 rounded-md border-border-subtle px-2.5 text-xs shadow-none"
-            disabled={selectedCount === 0 || !onBulkDelete}
+            disabled={!canBulkDelete}
             variant="outline"
             aria-label={deleteButtonLabel}
             onClick={() => setDeleteDialogOpen(true)}>
             <Trash2 className="size-3.5" />
             <span>
               {deleteButtonLabel}
-              {selectedCount > 0 ? ` (${selectedCount})` : ''}
+              {selectedCount > 0 ? ` (${bulkDeleteCount})` : ''}
             </span>
           </Button>
           <div className="relative w-[236px] max-w-[26vw]">

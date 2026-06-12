@@ -303,6 +303,7 @@ vi.mock('react-i18next', () => ({
         'common.required_field': 'Required field',
         'common.save': 'Save',
         'common.saved': 'Saved',
+        'common.select_all': 'Select all',
         'common.unnamed': 'Untitled',
         'history.records.bulkDelete': 'Batch Delete',
         'history.records.bulkDeleteSessions.description': 'Delete {{count}} selected task(s)?',
@@ -709,6 +710,102 @@ describe('HistoryRecordsPage agent mode', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('skips pinned sessions when bulk deleting from the query toolbar', async () => {
+    hookMocks.deleteSessions.mockResolvedValueOnce({
+      deletedIds: ['session-alpha'],
+      deletedCount: 1
+    })
+    const { onClose, onRecordSelect } = setupAgentHistory({
+      sessions: [
+        createSession(),
+        createSession({
+          id: 'session-beta',
+          agentId: 'agent-beta',
+          name: 'Beta session',
+          workspaceId: 'ws-b',
+          workspace: makeWorkspace('/Users/jd/project-b'),
+          orderKey: 'b'
+        })
+      ],
+      pinIdBySessionId: new Map([['session-beta', 'pin-session-beta']])
+    })
+
+    const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
+    const betaRow = screen.getByText('Beta session').closest('[role="row"]') as HTMLElement
+    fireEvent.click(within(alphaRow).getByRole('checkbox'))
+    fireEvent.click(within(betaRow).getByRole('checkbox'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Batch Delete' }))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete 1 selected task(s)?')
+
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
+    })
+
+    expect(hookMocks.deleteSessions).toHaveBeenCalledWith(['session-alpha'])
+    expect(onRecordSelect).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('disables bulk delete when only pinned sessions are selected', () => {
+    setupAgentHistory({
+      pinIdBySessionId: new Map([['session-alpha', 'pin-session-alpha']])
+    })
+
+    const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
+    fireEvent.click(within(alphaRow).getByRole('checkbox'))
+
+    expect(screen.getByRole('button', { name: 'Batch Delete' })).toBeDisabled()
+    expect(hookMocks.deleteSessions).not.toHaveBeenCalled()
+  })
+
+  it('excludes pinned sessions from row selection and select all', () => {
+    setupAgentHistory({
+      sessions: [
+        createSession(),
+        createSession({
+          id: 'session-beta',
+          agentId: 'agent-beta',
+          name: 'Beta session',
+          workspaceId: 'ws-b',
+          workspace: makeWorkspace('/Users/jd/project-b'),
+          orderKey: 'b'
+        }),
+        createSession({
+          id: 'session-gamma',
+          agentId: 'agent-gamma',
+          name: 'Gamma session',
+          workspaceId: 'ws-c',
+          workspace: makeWorkspace('/Users/jd/project-c'),
+          orderKey: 'c'
+        })
+      ],
+      pinIdBySessionId: new Map([['session-beta', 'pin-session-beta']])
+    })
+
+    const alphaCheckbox = within(screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement).getByRole(
+      'checkbox'
+    )
+    const betaCheckbox = within(screen.getByText('Beta session').closest('[role="row"]') as HTMLElement).getByRole(
+      'checkbox'
+    )
+    const gammaCheckbox = within(screen.getByText('Gamma session').closest('[role="row"]') as HTMLElement).getByRole(
+      'checkbox'
+    )
+
+    expect(betaCheckbox).toBeDisabled()
+    fireEvent.click(betaCheckbox)
+    expect(betaCheckbox).toHaveAttribute('aria-checked', 'false')
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all' }))
+
+    expect(alphaCheckbox).toHaveAttribute('aria-checked', 'true')
+    expect(betaCheckbox).toHaveAttribute('aria-checked', 'false')
+    expect(gammaCheckbox).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('button', { name: 'Batch Delete' })).toHaveTextContent('Batch Delete (2)')
+  })
+
   it('renders an empty state when there are no sessions', () => {
     setupAgentHistory({ sessions: [] })
 
@@ -730,6 +827,17 @@ describe('HistoryRecordsPage agent mode', () => {
       '',
       'Delete'
     ])
+  })
+
+  it('hides the session delete action for pinned history rows', () => {
+    setupAgentHistory({
+      pinIdBySessionId: new Map([['session-alpha', 'pin-session-alpha']])
+    })
+
+    const alphaMenu = screen.getByText('Alpha session').closest('[data-testid="context-menu"]')
+    const menuContent = alphaMenu?.querySelector('[data-testid="context-menu-content"]')
+
+    expect(Array.from(menuContent?.children ?? []).map((child) => child.textContent)).toEqual(['Rename', 'Unpin task'])
   })
 
   it('renames a session from the history row context menu without selecting the row', async () => {
@@ -775,6 +883,23 @@ describe('HistoryRecordsPage agent mode', () => {
     await vi.waitFor(() => expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha'))
     expect(onRecordSelect).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('clears a selected session when pinning it from the history row action column', async () => {
+    setupAgentHistory()
+
+    const alphaRow = screen.getByText('Alpha session').closest('[role="row"]') as HTMLElement
+    const checkbox = within(alphaRow).getByRole('checkbox')
+    fireEvent.click(checkbox)
+    expect(checkbox).toHaveAttribute('aria-checked', 'true')
+
+    await act(async () => {
+      fireEvent.click(within(alphaRow).getByTestId('history-pin-button'))
+      await flushAnimationFrame()
+    })
+
+    await vi.waitFor(() => expect(hookMocks.togglePin).toHaveBeenCalledWith('session-alpha'))
+    await vi.waitFor(() => expect(checkbox).toHaveAttribute('aria-checked', 'false'))
   })
 
   it('deletes a session from the history row action column without selecting the row', async () => {
