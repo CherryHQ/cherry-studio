@@ -5,8 +5,8 @@
 `AiStreamManager` is the Main-process **active-stream registry** and the
 broker for every stream event. It owns the full life cycle of an AI
 streaming reply — from `sendMessages` until the assistant turn finishes
-persisting — including multicast fan-out, reconnect, abort, abort-and-restart
-steering, and persistence triggering.
+persisting — including multicast fan-out, reconnect, abort, steering
+(queue + yield + continuation), and persistence triggering.
 
 The renderer no longer holds a direct reference to the stream. Closing a
 window does not abort the stream; it continues on Main and persists
@@ -370,7 +370,7 @@ The terminal status is derived once when the last execution terminates.
 | Token metadata | `agentLoop` usage observer | `finish` chunk projects AI SDK `LanguageModelUsage` → `CherryUIMessageMetadata` |
 
 The manager is chunk-shape-agnostic — multicast, reconnect, abort,
-abort-and-restart steering, persistence-triggering, never "what is text /
+steer queue/continuation, persistence-triggering, never "what is text /
 what is reasoning". AI SDK chunk type changes (vNext renames) only touch
 `PersistenceListener`; the manager stays stable.
 
@@ -408,11 +408,11 @@ class AiStreamManager {
   readonly chatLifecycle: StreamLifecycle
 
   // ── Single dispatch entry ─────────────────────────────────────────
-  // Live topic → inject (agent-session only: upsert listeners onto the
-  // running stream, models ignored). Otherwise → start (evict any
-  // grace-period stream, launch one execution per `models` entry). A live
-  // chat topic never reaches the inject branch — `dispatch` restarts it via
-  // `abortAndAwait` first. Multi-model is detected from `models.length > 1`.
+  // Live topic → inject (upsert listeners onto the running stream, models
+  // ignored — reached by chat steers and agent-session follow-ups whose user
+  // row was already persisted/enqueued by their provider). Otherwise → start
+  // (evict any grace-period stream, launch one execution per `models` entry).
+  // Multi-model is detected from `models.length > 1`.
   send(input: SendInput): SendResult
 
   // ── Ad-hoc prompt stream (translate / topic-naming / model probes)
@@ -434,10 +434,11 @@ class AiStreamManager {
 
   // ── Control ───────────────────────────────────────────────────────
   abort(topicId: string, reason: string): void
-  // Abort a live turn and await its executions settling (partial persists as
-  // `paused`) before evicting — used by `dispatch` to restart a chat turn.
-  abortAndAwait(topicId: string, reason: string): Promise<void>
   hasLiveStream(topicId: string): boolean
+  // Queue a steer user row persisted while a turn was live; the running turn
+  // yields and `onExecutionDone` chains a `steer-continuation` to answer it.
+  enqueuePendingSteer(topicId: string, userMessageId: string): void
+  hasPendingSteer(topicId: string): boolean
 
   // ── Execution-loop callbacks (driven internally; public for tests) ─
   onChunk(topicId, modelId, chunk): void
@@ -457,7 +458,6 @@ interface SendInput {
   topicId: string
   models: ReadonlyArray<{ modelId: UniqueModelId; request: AiStreamRequest; rootSpan?: Span }>
   listeners: StreamListener[]
-  userMessage?: Message              // persisted user row; not consumed by send() — callers' bookkeeping
   siblingsGroupId?: number
   lifecycle?: StreamLifecycle        // omit → chatLifecycle; streamPrompt passes promptStreamLifecycle
 }
@@ -469,11 +469,12 @@ interface SendResult {
 ```
 
 - **injected**: topic has a live stream (`pending` or `streaming`) →
-  `models` is ignored and `listeners` upsert by id; **no message is
-  injected**. Only agent-session topics reach this branch (the dispatcher
-  aborts+restarts a live chat topic before calling `send()`); the
-  agent-session follow-up was already enqueued on the session's
-  `pendingTurns` by its provider.
+  `models` is ignored and `listeners` upsert by id; **no models are
+  launched**. Reached by (a) a chat steer — the provider already persisted the
+  steer user row and `dispatch` enqueued it on `pendingSteers`; and (b) an
+  agent-session follow-up already enqueued on the session's `pendingTurns`. An
+  empty-`models` send with no live stream is likewise a no-op (the row is
+  already enqueued) — `send()` never throws on empty models.
 - **started**: topic is idle or grace-period (terminal) → any leftover
   grace-period stream is evicted, a new `ActiveStream` is created with
   `isMultiModel = models.length > 1`, one execution launched per model.
@@ -582,18 +583,37 @@ dispatchStreamRequest → manager.send({ models, listeners, siblingsGroupId })
 
 ## Steering
 
-Steering a chat turn is **abort-and-restart**, not mid-turn injection. When a
-new `Ai_Stream_Open` arrives for a topic that is still streaming,
-`dispatchStreamRequest` calls `manager.abortAndAwait(topicId, 'steer-restart')`:
-it aborts every execution, awaits their loops settling (each partial persists
-as `paused` via the normal terminal path), and evicts the stream — then the
-following `send()` starts a fresh turn. Awaiting settlement before re-dispatch
-is what avoids an orphaned `pending` row and the same-`(topic, model)` race a
-synchronous abort+restart would create.
+Steering a chat turn is **enqueue + yield + chain**, not abort-and-restart and
+not mid-turn injection. When a new `Ai_Stream_Open` arrives for a chat topic that
+is still streaming:
 
-Agent-session topics are the exception: they are **not** aborted. The follow-up
-is enqueued on the session's `pendingTurns` and the running turn is interrupted
-between tool calls; `send()` only upserts the new subscriber. See
+1. `PersistentChatContextProvider` (its `hasLiveStream` branch) persists the
+   steer message as a normal user row and returns an enqueue-only
+   `PreparedDispatch` — no models, `pendingSteerUserMessageId` set.
+2. `dispatchStreamRequest` calls `manager.enqueuePendingSteer(topicId, id)`,
+   pushing the row onto the topic's `pendingSteers` FIFO, then `send()` — which,
+   seeing the live stream, just upserts the subscriber (inject).
+3. The running turn's `steerYield` stop condition (OR'd into `stopWhen`) sees
+   `hasPendingSteer` and stops the turn cleanly at the next step boundary
+   (persisted as **`success`**, not `paused`).
+4. `onExecutionDone` sees the queued steer and, instead of finalizing the topic,
+   chains a `steer-continuation` dispatch (`startNextChatTurn`) that answers the
+   head of the queue, carrying the prior turn's renderer listeners forward. The
+   FIFO drains one continuation per completed turn.
+
+**Drop-on-abort:** a steer chains only after a clean `done`. If the turn is
+aborted (Stop) or errors, the queue is dropped and its persisted user rows stay
+in history as dangling messages the user can resend (`onExecutionPaused` /
+`onExecutionError` clear `pendingSteers`; a late steer landing after a non-clean
+terminal is dropped by `enqueuePendingSteer`). A steer queued while a turn ends
+`awaiting-approval` does **not** chain until the approval's `continue-conversation`
+turn completes — chaining earlier would let the approval response be swallowed by
+the inject branch. If the continuation itself fails to launch, the topic is driven
+to a terminal `error` rather than sticking at `streaming`.
+
+Agent-session topics use a parallel mechanism: the follow-up is enqueued on the
+session's `pendingTurns` and the running turn is interrupted between tool calls;
+`send()` only upserts the new subscriber. See
 [Agent Session Runtime → Live follow-up](./agent-session-runtime.md#live-follow-up).
 
 ## End-to-end flows
@@ -604,7 +624,7 @@ duplicated; the rest are stream-manager-specific.
 | Flow | Trigger | Mechanism | Terminal / result |
 |---|---|---|---|
 | Submit (standard) | `Ai_Stream_Open` | `dispatchStreamRequest` → `prepareDispatch` (persist user msg, reserve placeholders, build listeners + models) → `manager.send` → N × `runExecutionLoop` | `Ai_StreamDone`; `PersistenceListener.persistAssistant`; chat lifecycle `scheduleCleanup(30 s)` |
-| Steering — chat resubmit | `Ai_Stream_Open` on a live chat topic | `dispatch` → `manager.abortAndAwait` (abort execs, await settle as `paused`, evict) → `manager.send` starts a fresh turn | prior partial persisted as **`paused`**; new turn streams — see [Steering](#steering) |
+| Steering — chat resubmit | `Ai_Stream_Open` on a live chat topic | provider persists the steer user row + `enqueuePendingSteer` → `pendingSteers`; `steerYield` stops the running turn cleanly; `onExecutionDone` chains a `steer-continuation` | prior turn persisted as **`success`**; the continuation answers the steer — see [Steering](#steering) |
 | Agent-session follow-up | `Ai_Stream_Open` on a live `agent-session:*` topic | provider persists the user row, `enqueueUserMessage` → `pendingTurns`, interrupt-when-safe; `manager.send` upserts the subscriber → `{ mode: 'injected' }` | next turn starts from `pendingTurns` — see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up) |
 | Tool-approval pause+resume | approval-request chunk → `awaiting-approval` | decision via `Ai_ToolApproval_Respond`; Claude-Agent unblocks `canUseTool`, MCP dispatches `continue-conversation` | card clears when the resumed stream broadcasts `pending` — see [Tool Approval](./tool-approval.md) |
 | Reconnect | `Ai_Stream_Attach` on mount | `manager.attach`: `not-found` / streaming (register listener + compact replay) / done-paused (`finalMessage(s)`) / error | live chunks resume, or the final row is returned |
@@ -732,17 +752,18 @@ interface PreparedDispatch {
   topicId: string
   models: ReadonlyArray<{ modelId: UniqueModelId; request: AiStreamRequest; rootSpan?: Span }>
   listeners: StreamListener[]   // subscriber + per-execution PersistenceListener(s)
-  userMessage?: Message
   userMessageId?: string
+  pendingSteerUserMessageId?: string   // persistent steer branch only; marks the dispatch enqueue-only
+  reservedMessages?: CherryUIMessage[] // user/assistant skeletons created for this dispatch
   siblingsGroupId?: number
   isMultiModel: boolean
   lifecycle?: StreamLifecycle
 }
 
-// dispatch.ts also accepts a Main-internal `continue-conversation`
-// variant synthesised by the tool-approval IPC handler — not exposed
-// over the renderer ↔ main contract.
-type MainDispatchRequest = AiStreamOpenRequest | MainContinueConversationRequest
+// dispatch.ts also accepts two Main-internal variants synthesised internally —
+// `continue-conversation` (tool-approval IPC handler) and `steer-continuation`
+// (chat steer drain) — neither exposed over the renderer ↔ main contract.
+type MainDispatchRequest = AiStreamOpenRequest | MainContinueConversationRequest | MainSteerContinuationRequest
 ```
 
 ### Built-in providers
@@ -809,7 +830,7 @@ the new.
 
 | Case | Handling |
 |---|---|
-| User sends again on the same topic mid-stream (chat) | `dispatch` calls `abortAndAwait` (prior turn persists as `paused`), then `send` starts a fresh turn |
+| User sends again on the same topic mid-stream (chat) | provider persists the steer row + `enqueuePendingSteer`; the running turn yields (`steerYield`) and persists as `success`, then `onExecutionDone` chains a `steer-continuation` |
 | Retry immediately after stream ends | `send` takes start; `evictStream` clears the grace-period entry first |
 | Window closes mid-stream | Next broadcast sees `WebContentsListener.isAlive() === false` and removes it; `PersistenceListener` doesn't depend on a window |
 | All windows closed + `backgroundMode='continue'` | Stream continues; `PersistenceListener` persists when done |
@@ -818,7 +839,7 @@ the new.
 | Same window re-attaches | Listener id is stable (`wc:${wc.id}:${topicId}`); `addListener` upserts by id |
 | Attach mid-stream | `attach` returns compact replay per execution (each buffer compacted independently); observer fills in the gap |
 | Ring buffer overflow | At `maxBufferChunks` the oldest chunk drops and `droppedChunks++`; subsequent attach logs the total dropped — replay is no longer lossless |
-| Multi-model + resubmit | `abortAndAwait` settles all executions before restart; no orphaned `pending` row |
+| Multi-model + resubmit | the steer is queued once per topic; every model's execution yields via `steerYield`, and the single continuation answers it after the turn completes |
 | Stream emits `tool-approval-request` | `exec.awaitingApproval = true`; on stream end the topic surfaces `awaiting-approval` via the shared cache |
 | Main process restart | `activeStreams` clears; in-flight streams are lost; the renderer re-reads from the DB |
 

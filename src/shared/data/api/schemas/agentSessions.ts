@@ -115,7 +115,29 @@ export const ListAgentSessionsQuerySchema = z.strictObject({
   cursor: z.string().optional(),
   limit: z.coerce.number().int().positive().max(200).optional()
 })
-export type ListAgentSessionsQuery = z.infer<typeof ListAgentSessionsQuerySchema>
+export type ListAgentSessionsQueryParams = z.input<typeof ListAgentSessionsQuerySchema>
+export type ListAgentSessionsQuery = z.output<typeof ListAgentSessionsQuerySchema>
+
+export interface DeleteAgentSessionsResult {
+  deletedIds: string[]
+}
+
+export const AGENT_SESSION_DELETE_MAX_IDS = 200
+
+const DeleteAgentSessionsIdsQueryValueSchema = z
+  .string()
+  .transform((value) =>
+    value
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean)
+  )
+  .pipe(z.array(z.string().min(1)).min(1).max(AGENT_SESSION_DELETE_MAX_IDS))
+
+export const DeleteAgentSessionsQuerySchema = z.strictObject({
+  ids: DeleteAgentSessionsIdsQueryValueSchema
+})
+export type DeleteAgentSessionsQueryParams = z.input<typeof DeleteAgentSessionsQuerySchema>
 
 // ============================================================================
 // API Schema definitions
@@ -124,12 +146,24 @@ export type ListAgentSessionsQuery = z.infer<typeof ListAgentSessionsQuerySchema
 export type AgentSessionSchemas = {
   '/agent-sessions': {
     GET: {
-      query?: ListAgentSessionsQuery
+      query?: ListAgentSessionsQueryParams
       response: CursorPaginationResponse<AgentSessionEntity>
     }
     POST: {
       body: CreateAgentSessionDto
       response: AgentSessionEntity
+    }
+    /**
+     * Delete an explicit set of sessions. Missing ids are ignored so overlapping
+     * multi-window deletes remain idempotent; `deletedIds` reports what was
+     * actually removed.
+     *
+     * Cascades: session pins are purged; if a requested session is backed by a
+     * system workspace, that backing workspace row is removed too.
+     */
+    DELETE: {
+      query: DeleteAgentSessionsQueryParams
+      response: DeleteAgentSessionsResult
     }
   }
 
@@ -143,6 +177,12 @@ export type AgentSessionSchemas = {
       body: UpdateAgentSessionDto
       response: AgentSessionEntity
     }
+    /**
+     * Delete one session.
+     *
+     * Cascades: session pins are purged; if the session is backed by a system
+     * workspace, that backing workspace row is removed too.
+     */
     DELETE: {
       params: { sessionId: string }
       response: void
@@ -161,6 +201,18 @@ export type AgentSessionSchemas = {
     DELETE: {
       params: { sessionId: string; messageId: string }
       response: void
+    }
+  }
+  '/agents/:agentId/sessions': {
+    /**
+     * Delete every session belonging to an agent (all-or-nothing — missing agent → NOT_FOUND).
+     *
+     * Cascades: session pins are purged; system workspaces backing deleted
+     * sessions are removed too.
+     */
+    DELETE: {
+      params: { agentId: string }
+      response: DeleteAgentSessionsResult
     }
   }
 } & OrderEndpoints<'/agent-sessions'>

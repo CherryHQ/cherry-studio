@@ -7,6 +7,8 @@ const {
   getAgentMock,
   updateAgentMock,
   deleteAgentMock,
+  reorderMock,
+  reorderBatchMock,
   listTasksMock,
   createTaskMock,
   getTaskMock,
@@ -20,6 +22,8 @@ const {
   getAgentMock: vi.fn(),
   updateAgentMock: vi.fn(),
   deleteAgentMock: vi.fn(),
+  reorderMock: vi.fn(),
+  reorderBatchMock: vi.fn(),
   listTasksMock: vi.fn(),
   createTaskMock: vi.fn(),
   getTaskMock: vi.fn(),
@@ -35,7 +39,9 @@ vi.mock('@data/services/AgentService', () => ({
     createAgent: createAgentMock,
     getAgent: getAgentMock,
     updateAgent: updateAgentMock,
-    deleteAgent: deleteAgentMock
+    deleteAgent: deleteAgentMock,
+    reorder: reorderMock,
+    reorderBatch: reorderBatchMock
   }
 }))
 
@@ -227,6 +233,63 @@ describe('agentHandlers', () => {
       await expect(
         agentHandlers['/agents/:agentId'].DELETE({ params: { agentId: AGENT_ID } } as never)
       ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    })
+  })
+
+  describe('/agents/:id/order', () => {
+    it('delegates PATCH to agentService.reorder', async () => {
+      reorderMock.mockResolvedValueOnce(undefined)
+
+      await expect(
+        agentHandlers['/agents/:id/order'].PATCH({
+          params: { id: AGENT_ID },
+          body: { position: 'first' }
+        } as never)
+      ).resolves.toBeUndefined()
+
+      expect(reorderMock).toHaveBeenCalledWith(AGENT_ID, { position: 'first' })
+    })
+
+    it('rejects malformed anchors before calling the service', async () => {
+      await expect(
+        agentHandlers['/agents/:id/order'].PATCH({
+          params: { id: AGENT_ID },
+          body: { before: 'agent_before', after: 'agent_after' }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(reorderMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/agents/order:batch', () => {
+    it('delegates PATCH to agentService.reorderBatch', async () => {
+      reorderBatchMock.mockResolvedValueOnce(undefined)
+
+      await expect(
+        agentHandlers['/agents/order:batch'].PATCH({
+          body: {
+            moves: [
+              { id: AGENT_ID, anchor: { position: 'first' } },
+              { id: 'agent_other', anchor: { after: AGENT_ID } }
+            ]
+          }
+        } as never)
+      ).resolves.toBeUndefined()
+
+      expect(reorderBatchMock).toHaveBeenCalledWith([
+        { id: AGENT_ID, anchor: { position: 'first' } },
+        { id: 'agent_other', anchor: { after: AGENT_ID } }
+      ])
+    })
+
+    it('rejects empty batch moves before calling the service', async () => {
+      await expect(agentHandlers['/agents/order:batch'].PATCH({ body: { moves: [] } } as never)).rejects.toHaveProperty(
+        'name',
+        'ZodError'
+      )
+
+      expect(reorderBatchMock).not.toHaveBeenCalled()
     })
   })
 
