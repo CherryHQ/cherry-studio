@@ -243,6 +243,14 @@ describe('AiService tool approval', () => {
     }
   }
 
+  function approvalMutationResult(
+    parts: unknown[],
+    appliedApprovalIds: string[] = [],
+    alreadySettledApprovalIds: string[] = []
+  ) {
+    return { parts, appliedApprovalIds, alreadySettledApprovalIds }
+  }
+
   /**
    * Instantiate `AiService`, register its IPC handlers against the mocked
    * `ipcMain`, and return the captured `Ai_ToolApproval_Respond` listener.
@@ -331,7 +339,9 @@ describe('AiService tool approval', () => {
       { type: 'text', text: 'hello' },
       { ...pendingToolPart('mcp-approval-1'), state: 'approval-responded', input: { command: 'pwd' } }
     ]
-    const apply = vi.spyOn(messageService, 'applyToolApprovalDecisions').mockResolvedValue(committed as never)
+    const apply = vi
+      .spyOn(messageService, 'applyToolApprovalDecisions')
+      .mockResolvedValue(approvalMutationResult(committed, ['mcp-approval-1']) as never)
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -402,7 +412,7 @@ describe('AiService tool approval', () => {
     // Overlay-only: the target part isn't on the row, so the committed parts carry no pending approval.
     const apply = vi
       .spyOn(messageService, 'applyToolApprovalDecisions')
-      .mockResolvedValue([{ type: 'text', text: 'hello' }] as never)
+      .mockResolvedValue(approvalMutationResult([{ type: 'text', text: 'hello' }]) as never)
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -435,10 +445,15 @@ describe('AiService tool approval', () => {
     })
 
     // Committed parts: this approval decided, but a sibling is still approval-requested.
-    vi.spyOn(messageService, 'applyToolApprovalDecisions').mockResolvedValue([
-      { ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' },
-      pendingToolPart('mcp-approval-2', 'mcp_read')
-    ] as never)
+    vi.spyOn(messageService, 'applyToolApprovalDecisions').mockResolvedValue(
+      approvalMutationResult(
+        [
+          { ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' },
+          pendingToolPart('mcp-approval-2', 'mcp_read')
+        ],
+        ['mcp-approval-1']
+      ) as never
+    )
 
     const handler = getApprovalHandler()
     const result = await handler(fakeEvent(), {
@@ -450,6 +465,38 @@ describe('AiService tool approval', () => {
 
     expect(result).toEqual({ ok: true })
     // The still-pending sibling gates the resume.
+    expect(dispatch).not.toHaveBeenCalled()
+  })
+
+  it('ignores duplicate already-settled approval responses without dispatching another continuation', async () => {
+    const respondToolApproval = vi.fn(() => false)
+    const dispatch = vi.fn().mockResolvedValue(undefined)
+    mockApplicationGet.mockImplementation((name: string) => {
+      if (name === 'AgentSessionRuntimeService') return { respondToolApproval }
+      if (name === 'AiStreamManager') return { dispatch, hasLiveStream: () => false }
+      return undefined
+    })
+
+    const apply = vi
+      .spyOn(messageService, 'applyToolApprovalDecisions')
+      .mockResolvedValue(
+        approvalMutationResult(
+          [{ ...pendingToolPart('mcp-approval-1'), state: 'approval-responded' }],
+          [],
+          ['mcp-approval-1']
+        ) as never
+      )
+
+    const handler = getApprovalHandler()
+    const result = await handler(fakeEvent(), {
+      approvalId: 'mcp-approval-1',
+      approved: true,
+      topicId: 'topic-1',
+      anchorId: 'anchor-1'
+    })
+
+    expect(result).toEqual({ ok: true })
+    expect(apply).toHaveBeenCalledWith('anchor-1', [{ approvalId: 'mcp-approval-1', approved: true }])
     expect(dispatch).not.toHaveBeenCalled()
   })
 

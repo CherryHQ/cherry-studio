@@ -2,9 +2,12 @@
 // `lastCompletedAt`); the "last completion this window has acknowledged"
 // marker is a separate cross-window shared cache key.
 
+import { loggerService } from '@logger'
 import { useSharedCache } from '@renderer/data/hooks/useCache'
 import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
+
+const logger = loggerService.withContext('useTopicStreamStatus')
 
 interface TopicStreamStatusView {
   status: TopicStreamStatus | undefined
@@ -100,9 +103,9 @@ export function useTopicOverlayHandoffOnTerminal(topicId: string, onHandoff: () 
     if (classifyTurn(prev).isStreamLive && next.isTerminal && !next.isAwaitingApproval) {
       void (async () => {
         await onHandoffRef.current()
-      })().catch(() => {
-        // Caller logs; the handoff must not throw out of the effect.
+      })().catch((error) => {
+        logger.warn('Topic overlay handoff failed', error as Error, { topicId })
       })
     }
-  }, [status])
+  }, [status, topicId])
 }

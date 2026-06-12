@@ -35,7 +35,7 @@ export function finalizeInterruptedParts(
         const thinkingMs = cherry?.thinkingMs
 
         let patch: Partial<CherryReasoningMeta> = {}
-        if (typeof startedAt === 'number' && Number.isFinite(startedAt) && typeof thinkingMs !== 'number') {
+        if (typeof startedAt === 'number' && Number.isFinite(startedAt) && !Number.isFinite(thinkingMs)) {
           patch = {
             thinkingMs: Math.max(0, Date.now() - startedAt)
           }
