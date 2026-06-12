@@ -19,6 +19,7 @@ import {
   isGemini3ThinkingTokenModel,
   isGrok4FastReasoningModel,
   isHostedGemma4ThinkingModel,
+  isKimiK27CodeModel,
   isMiniMaxM3Model,
   isMiniMaxReasoningModel,
   isOpenAIDeepResearchModel,
@@ -147,6 +148,9 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       } else if (isDeepSeekHybridInferenceModel(model)) {
         return { chat_template_kwargs: { thinking: false } }
       } else if (isSupportedThinkingTokenKimiModel(model)) {
+        // kimi-k2.7-code is always-think: skipping the disable branch keeps the
+        // upstream call's default thinking on, which the model requires.
+        if (isKimiK27CodeModel(model)) return {}
         return { chat_template_kwargs: { thinking: false } }
       } else if (isSupportedThinkingTokenZhipuModel(model)) {
         return { chat_template_kwargs: { enable_thinking: false } }
@@ -160,7 +164,8 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       (provider.id === SystemProviderIds.dashscope &&
         (isDeepSeekHybridInferenceModel(model) ||
           isSupportedThinkingTokenZhipuModel(model) ||
-          isSupportedThinkingTokenKimiModel(model))) ||
+          // kimi-k2.7-code is always-think: never emit enable_thinking: false for it.
+          (isSupportedThinkingTokenKimiModel(model) && !isKimiK27CodeModel(model)))) ||
       // SiliconFlow uses enable_thinking for DeepSeek and Zhipu models, same as positive path
       (provider.id === SystemProviderIds.silicon &&
         (isDeepSeekHybridInferenceModel(model) || isSupportedThinkingTokenZhipuModel(model)))
@@ -196,7 +201,10 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       isSupportedThinkingTokenDoubaoModel(model) ||
       isSupportedThinkingTokenZhipuModel(model) ||
       isSupportedThinkingTokenMiMoModel(model) ||
-      isSupportedThinkingTokenKimiModel(model)
+      // kimi-k2.7-code is always-think: cannot be disabled, so skip the
+      // "send {type:'disabled'}" branch. Same rationale as the k2.7-code
+      // exclusion in the nvidia / dashscope / anthropic paths below.
+      (isSupportedThinkingTokenKimiModel(model) && !isKimiK27CodeModel(model))
     ) {
       if (provider.id === SystemProviderIds.cerebras) {
         return {
@@ -476,6 +484,10 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       isSupportedThinkingTokenZhipuModel(model) ||
       isSupportedThinkingTokenKimiModel(model)
     ) {
+      // kimi-k2.7-code is always-think: skip enable_thinking/thinking_budget shape,
+      // which Moonshot's upstream does not accept. Falls through to the
+      // generic positive branch at line ~630 which emits {thinking:{type:'enabled'}}.
+      if (isKimiK27CodeModel(model)) return {}
       return {
         enable_thinking: true,
         thinking_budget: budgetTokens
@@ -756,6 +768,9 @@ export function getAnthropicReasoningParams(
   }
 
   if (reasoningEffort === 'none') {
+    // kimi-k2.7-code is always-think: cannot be disabled, so skip the generic
+    // {type:'disabled'} early-return and let the default-on branch below handle it.
+    if (isKimiK27CodeModel(model)) return {}
     return {
       thinking: {
         type: 'disabled'
@@ -827,6 +842,11 @@ export function getAnthropicReasoningParams(
     }
     // 其他使用claude端點的模型，比如Kimi等等
     const { maxTokens } = getAssistantSettings(assistant)
+    // kimi-k2.7-code is always-think: per official docs, only `{type:'enabled'}`
+    // is accepted — no `budget_tokens`. Skip the budget-emitting path.
+    if (isKimiK27CodeModel(model)) {
+      return { thinking: { type: 'enabled' }, sendReasoning: true }
+    }
     const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
     const params: Partial<ReturnType<typeof getAnthropicReasoningParams>> = {
       thinking: {

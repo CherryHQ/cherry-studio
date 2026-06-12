@@ -88,6 +88,7 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   deepseek_hybrid: ['auto'] as const,
   deepseek_v4: ['high', 'xhigh'] as const,
   kimi_k2_5: ['none', 'auto'] as const,
+  kimi_always_think: ['auto'] as const,
   // Claude 3.7, 4.0, 4.5 reasoning models
   claude: ['low', 'medium', 'high'] as const,
   // Claude 4.6 supports low, medium, high, xhigh (xhigh is mapped to max in API)
@@ -132,6 +133,7 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   deepseek_hybrid: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_hybrid] as const,
   deepseek_v4: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.deepseek_v4] as const,
   kimi_k2_5: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.kimi_k2_5] as const,
+  kimi_always_think: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.kimi_always_think] as const,
   claude: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude] as const,
   claude46: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude46] as const,
   mistral: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.mistral] as const
@@ -231,7 +233,9 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   } else if (isSupportedThinkingTokenMiMoModel(model)) {
     thinkingModelType = 'mimo'
   } else if (isSupportedThinkingTokenKimiModel(model)) {
-    thinkingModelType = 'kimi_k2_5'
+    // kimi-k2.7-code is an always-think model: no 'none' option, only 'auto'.
+    // See isKimiK27CodeModel for the full reasoning.
+    thinkingModelType = isKimiK27CodeModel(model) ? 'kimi_always_think' : 'kimi_k2_5'
   } else if (isMistralReasoningModel(model)) {
     thinkingModelType = 'mistral'
   }
@@ -698,6 +702,33 @@ const _isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
 
 export const isSupportedThinkingTokenKimiModel = (model: Model): boolean => {
   const { idResult, nameResult } = withModelIdAndNameAsId(model, _isSupportedThinkingTokenKimiModel)
+  return idResult || nameResult
+}
+
+/**
+ * Detects whether the model is the Kimi K2.7 Code variant.
+ *
+ * Per Moonshot's official docs, `kimi-k2.7-code` is an "always-think" model:
+ *   - Only accepts `{ type: 'enabled' }` for the `thinking` parameter
+ *   - Rejects `{ type: 'disabled' }` and any other value with an API error
+ *   - Does not accept `budget_tokens` (the default `{"type": "enabled"}` shape only)
+ *
+ * Use this helper to short-circuit thinking-control branches that would otherwise
+ * emit unsupported parameters for this model. Mirrors the `isMiniMaxM3Model` /
+ * `isQwenAlwaysThinkModel` pattern (always-think variants get their own predicate
+ * rather than ad-hoc string checks at every call site).
+ */
+const _isKimiK27CodeModel = (model: Model): boolean => {
+  const modelId = getLowerBaseModelName(model.id, '/')
+  // Anchored: matches `kimi-k2.7-code` with optional trailing `-<segment>`.
+  // Avoids accidentally matching future variants like `kimi-k2.7-coder` or
+  // model ids that embed `k2.7-code` as a substring (e.g. `k2.7-coder-preview`).
+  return /^kimi-k2\.7-code(?:-[\w-]+)?$/i.test(modelId)
+}
+
+export const isKimiK27CodeModel = (model?: Model): boolean => {
+  if (!model) return false
+  const { idResult, nameResult } = withModelIdAndNameAsId(model, _isKimiK27CodeModel)
   return idResult || nameResult
 }
 
