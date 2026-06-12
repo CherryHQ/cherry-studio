@@ -9,6 +9,42 @@ const dialogHarness = vi.hoisted(() => ({
   onOpenChange: undefined as ((open: boolean) => void) | undefined
 }))
 
+let promptEditorElement: HTMLTextAreaElement | null = null
+
+function MockPromptEditorField(props: any) {
+  const { ref, value, onChange, placeholder, actions } = props
+
+  if (ref) {
+    ref.current = {
+      insertText: (text: string) => {
+        if (!promptEditorElement) return false
+
+        const start = promptEditorElement.selectionStart ?? value.length
+        const end = promptEditorElement.selectionEnd ?? start
+        onChange(`${value.slice(0, start)}${text}${value.slice(end)}`)
+        return true
+      }
+    }
+  }
+
+  return (
+    <div>
+      {actions}
+      <textarea
+        ref={(node) => {
+          promptEditorElement = node
+        }}
+        aria-label="prompt-editor"
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+      />
+      <button type="button">common.preview</button>
+      <span>library.config.prompt.tokens_label</span>
+    </div>
+  )
+}
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
@@ -27,29 +63,7 @@ vi.mock('lucide-react', () => ({
 }))
 
 vi.mock('../PromptEditorField', () => ({
-  default: ({
-    value,
-    onChange,
-    placeholder,
-    actions
-  }: {
-    value: string
-    onChange: (value: string) => void
-    placeholder?: string
-    actions?: ReactNode
-  }) => (
-    <div>
-      {actions}
-      <textarea
-        aria-label="prompt-editor"
-        placeholder={placeholder}
-        value={value}
-        onChange={(event) => onChange(event.currentTarget.value)}
-      />
-      <button type="button">common.preview</button>
-      <span>library.config.prompt.tokens_label</span>
-    </div>
-  )
+  default: MockPromptEditorField
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -136,9 +150,6 @@ describe('PromptEditDialog', () => {
     expect(screen.getByRole('button', { name: 'common.preview' })).toBeInTheDocument()
 
     const editor = screen.getByLabelText('prompt-editor')
-    await user.click(screen.getByRole('button', { name: 'library.config.prompt.insert_variable' }))
-    await waitFor(() => expect(editor).toHaveValue('Old content ${variable}'))
-
     await user.clear(editor)
     await user.type(editor, 'Updated content')
     await user.click(screen.getByRole('button', { name: 'common.confirm' }))
@@ -149,6 +160,34 @@ describe('PromptEditDialog', () => {
         content: 'Updated content'
       })
     })
+  })
+
+  it('inserts variables at the current prompt editor selection', async () => {
+    const user = userEvent.setup()
+
+    render(
+      <PromptEditDialog
+        open
+        prompt={{
+          id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
+          title: 'Old title',
+          content: 'Old content',
+          orderKey: 'a0',
+          createdAt: '2026-05-01T00:00:00.000Z',
+          updatedAt: '2026-05-01T00:00:00.000Z'
+        }}
+        onSave={vi.fn().mockResolvedValue(undefined)}
+        onCancel={vi.fn()}
+      />
+    )
+
+    const editor = screen.getByLabelText('prompt-editor') as HTMLTextAreaElement
+    editor.focus()
+    editor.setSelectionRange(4, 11)
+
+    await user.click(screen.getByRole('button', { name: 'library.config.prompt.insert_variable' }))
+
+    await waitFor(() => expect(editor).toHaveValue('Old ${variable}'))
   })
 
   it('allows outside clicks to cancel the dialog', async () => {

@@ -1,14 +1,19 @@
-import { Button, CodeEditor, Field, FieldContent, FieldError } from '@cherrystudio/ui'
+import { Button, CodeEditor, type CodeEditorHandles, Field, FieldContent, FieldError } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { Edit, Eye } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Streamdown } from 'streamdown'
 import { estimateTokenCount as estimateTextTokens } from 'tokenx'
 
+export interface PromptEditorFieldHandles {
+  insertText: (text: string) => boolean
+}
+
 interface PromptEditorFieldProps {
+  ref?: React.RefObject<PromptEditorFieldHandles | null>
   label: ReactNode
   value: string
   onChange: (value: string) => void
@@ -23,6 +28,7 @@ interface PromptEditorFieldProps {
 }
 
 export function PromptEditorField({
+  ref,
   label,
   value,
   onChange,
@@ -40,9 +46,14 @@ export function PromptEditorField({
   const { activeCmTheme } = useCodeStyle()
   const [showPreview, setShowPreview] = useState(value.length > 0)
   const previousResetPreviewKey = useRef(resetPreviewKey)
+  const codeEditorRef = useRef<CodeEditorHandles | null>(null)
   const hasError = Boolean(error)
   const effectiveShowPreview = showPreview && value.length > 0
   const tokenCount = useMemo(() => estimateTextTokens(value), [value])
+
+  useImperativeHandle(ref, () => ({
+    insertText: (text: string) => codeEditorRef.current?.insertText?.(text) ?? false
+  }))
 
   useEffect(() => {
     if (previousResetPreviewKey.current === resetPreviewKey) return
@@ -92,6 +103,7 @@ export function PromptEditorField({
             </div>
           ) : (
             <CodeEditor
+              ref={codeEditorRef}
               theme={activeCmTheme}
               fontSize={fontSize - 1}
               value={value}

@@ -11,10 +11,10 @@ import {
 import type { Prompt } from '@shared/data/types/prompt'
 import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '@shared/data/types/prompt'
 import { Braces } from 'lucide-react'
-import { type FC, useCallback, useEffect, useState } from 'react'
+import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import PromptEditorField from './PromptEditorField'
+import PromptEditorField, { type PromptEditorFieldHandles } from './PromptEditorField'
 
 interface FormData {
   title: string
@@ -34,6 +34,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
   const [formData, setFormData] = useState<FormData>({ title: '', content: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
+  const promptEditorRef = useRef<PromptEditorFieldHandles | null>(null)
   const variablePlaceholder = t('settings.prompts.variablePlaceholder')
 
   const isEdit = !!prompt
@@ -83,7 +84,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
     [onCancel]
   )
 
-  const handleInsertVariable = useCallback(() => {
+  const appendVariable = useCallback(() => {
     setFormData((current) => {
       const separator = current.content.length > 0 && !/\s$/.test(current.content) ? ' ' : ''
 
@@ -94,6 +95,13 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
     })
     setResetPreviewKey((key) => key + 1)
   }, [variablePlaceholder])
+
+  const handleInsertVariable = useCallback(() => {
+    const insertedAtCursor = promptEditorRef.current?.insertText(variablePlaceholder) ?? false
+    if (!insertedAtCursor) {
+      appendVariable()
+    }
+  }, [appendVariable, variablePlaceholder])
 
   const promptActions = (
     <Tooltip content={t('library.config.prompt.insert_variable')}>
@@ -127,6 +135,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
           </label>
 
           <PromptEditorField
+            ref={promptEditorRef}
             label={<span className="font-medium text-foreground text-sm">{t('settings.prompts.contentLabel')}</span>}
             value={formData.content}
             onChange={(content) => setFormData((current) => ({ ...current, content }))}
