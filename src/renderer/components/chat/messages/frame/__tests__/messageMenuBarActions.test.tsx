@@ -731,7 +731,7 @@ describe('messageMenuBarActions', () => {
       messageParts: [
         {
           type: 'text',
-          text: 'Use the pdf skill. hello',
+          text: ' Use the pdf skill. hello  \nworld',
           providerMetadata: {
             cherry: {
               composer: {
@@ -742,7 +742,7 @@ describe('messageMenuBarActions', () => {
                     kind: 'skill',
                     label: 'PDF',
                     index: 0,
-                    textOffset: 0,
+                    textOffset: 1,
                     promptText: 'Use the pdf skill.'
                   }
                 ]
@@ -761,7 +761,7 @@ describe('messageMenuBarActions', () => {
     expect(copyText).not.toHaveBeenCalled()
     expect(copyRichContent).toHaveBeenCalledWith(
       expect.objectContaining({
-        plainText: '/pdf/ hello',
+        plainText: '/pdf/ hello\nworld',
         customFormats: expect.objectContaining({
           [COMPOSER_CLIPBOARD_FRAGMENT_MIME]: expect.stringContaining('"kind":"skill"')
         })

@@ -154,9 +154,15 @@ function registerToolbarAction(
 registerCommand('message.copy', async ({ actions, mainTextContent, messageParts, setCopied, t }) => {
   const richContent = actions.copyRichContent ? createComposerRichClipboardContentFromParts(messageParts) : null
   if (richContent) {
-    await actions.copyRichContent?.(richContent, {
-      successMessage: t('message.copied')
-    })
+    // Match the plain copy path's text/plain normalization; the private fragment
+    // keeps the original text so paste restoration stays lossless.
+    const plainText = removeTrailingDoubleSpaces(richContent.plainText.trimStart())
+    await actions.copyRichContent?.(
+      { ...richContent, plainText },
+      {
+        successMessage: t('message.copied')
+      }
+    )
   } else {
     await actions.copyText?.(removeTrailingDoubleSpaces(mainTextContent.trimStart()), {
       successMessage: t('message.copied')
