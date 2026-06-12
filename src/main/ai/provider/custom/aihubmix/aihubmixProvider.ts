@@ -22,18 +22,17 @@ import { createAihubmixImageModel } from './aihubmixImageModel'
 export const AIHUBMIX_PROVIDER_NAME = 'aihubmix' as const
 const APP_CODE_HEADER = { 'APP-Code': 'MLTG2087' }
 
-// AiHubMix dispatches on the raw API model id (e.g. `gpt-4o`, `qwen3.5-plus`).
-// These predicates operate directly on that string so the provider doesn't have
-// to fabricate a `Model` just to reuse the `Model`-shaped shared helpers. The
-// OpenAI pattern mirrors the OpenAI vendor regex in @cherrystudio/provider-registry.
-
-/** OpenAI LLM ids (gpt-* / o1|o3|o4-series), excluding the gpt-4o image variant. */
+// AiHubMix dispatches on raw API model ids. Keep these predicates string-based: the shared
+// `@shared/utils/model` helpers resolve the raw id via getRawModelId → parseUniqueModelId, which
+// THROWS ('Invalid UniqueModelId format') on a bare API id with no `::`. A fabricated
+// `{ id: modelId } as Model` would therefore CRASH on every OpenAI-routed model here — it doesn't
+// merely lack metadata. (The chat-completion-only list below has no shared string source, so it
+// stays local too.)
 const isOpenAILLM = (modelId: string): boolean => {
   const id = modelId.toLowerCase()
   return /\bgpt\b|^o[134]/.test(id) && !id.includes('gpt-4o-image')
 }
 
-/** OpenAI ids that only support Chat Completions (no Responses API). */
 const isOpenAIChatCompletionOnly = (modelId: string): boolean => {
   const id = modelId.toLowerCase()
   return (
