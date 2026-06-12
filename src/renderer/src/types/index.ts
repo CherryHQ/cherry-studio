@@ -131,6 +131,7 @@ const ThinkModelTypes = [
   'deepseek_hybrid',
   'deepseek_v4',
   'kimi_k2_5',
+  'kimi_always_think',
   'claude',
   'claude46',
   'mistral'

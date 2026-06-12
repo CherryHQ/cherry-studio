@@ -19,6 +19,7 @@ import {
   isGrok4FastReasoningModel,
   isHunyuanReasoningModel,
   isInterleavedThinkingModel,
+  isKimiK27CodeModel,
   isKimiReasoningModel,
   isLingReasoningModel,
   isMiniMaxM3Model,
@@ -2972,6 +2973,90 @@ describe('Kimi Models', () => {
         expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2.5-preview' }))).toBe(true)
         expect(isSupportedThinkingTokenKimiModel(createModel({ id: 'kimi-k2.5-turbo' }))).toBe(true)
       })
+    })
+  })
+
+  describe('isKimiK27CodeModel', () => {
+    describe('should return true for kimi-k2.7-code', () => {
+      it('should recognize bare kimi-k2.7-code id', () => {
+        expect(isKimiK27CodeModel(createModel({ id: 'kimi-k2.7-code' }))).toBe(true)
+      })
+
+      it('should recognize moonshot/kimi-k2.7-code id with provider prefix', () => {
+        expect(isKimiK27CodeModel(createModel({ id: 'moonshot/kimi-k2.7-code' }))).toBe(true)
+      })
+
+      it('should recognize kimi-k2.7-code with trailing segment', () => {
+        // Some providers append a snapshot/qualifier suffix after the model id.
+        expect(isKimiK27CodeModel(createModel({ id: 'kimi-k2.7-code-preview' }))).toBe(true)
+        expect(isKimiK27CodeModel(createModel({ id: 'kimi-k2.7-code-2025-11-01' }))).toBe(true)
+      })
+
+      it('should handle case insensitivity', () => {
+        expect(isKimiK27CodeModel(createModel({ id: 'KIMI-K2.7-CODE' }))).toBe(true)
+        expect(isKimiK27CodeModel(createModel({ id: 'Kimi-K2.7-Code' }))).toBe(true)
+      })
+    })
+
+    describe('should return false for related but distinct models', () => {
+      it('should reject bare kimi-k2.7 (no -code suffix)', () => {
+        // k2.7 (hypothetical general-purpose variant) is a normal Kimi thinking
+        // model and supports 'none' reasoningEffort. The K2.7 Code-specific
+        // check must not classify it as always-think.
+        expect(isKimiK27CodeModel(createModel({ id: 'kimi-k2.7' }))).toBe(false)
+      })
+
+      it('should reject kimi-k2.5 and kimi-k2.6 (they support disable)', () => {
+        expect(isKimiK27CodeModel(createModel({ id: 'kimi-k2.5' }))).toBe(false)
+        expect(isKimiK27CodeModel(createModel({ id: 'kimi-k2.6' }))).toBe(false)
+      })
+
+      it('should reject kimi-k2-thinking and kimi-k2-thinking-turbo', () => {
+        expect(isKimiK27CodeModel(createModel({ id: 'kimi-k2-thinking' }))).toBe(false)
+        expect(isKimiK27CodeModel(createModel({ id: 'kimi-k2-thinking-turbo' }))).toBe(false)
+      })
+
+      it('should reject ids that embed k2.7-code as a non-anchored substring', () => {
+        // The regex is anchored with `(?:-[\w-]+)?$`, so an id that contains
+        // 'k2.7-code' as a middle segment (e.g. a forked variant) must not match
+        // unless it follows the canonical `kimi-k2.7-code[-<segment>]` shape.
+        expect(isKimiK27CodeModel(createModel({ id: 'kimi-k2.7-coder' }))).toBe(false)
+        expect(isKimiK27CodeModel(createModel({ id: 'k2.7-code-test' }))).toBe(false)
+      })
+
+      it('should reject models from other providers', () => {
+        expect(isKimiK27CodeModel(createModel({ id: 'gpt-4' }))).toBe(false)
+        expect(isKimiK27CodeModel(createModel({ id: 'claude-3-opus' }))).toBe(false)
+        expect(isKimiK27CodeModel(createModel({ id: 'kimi-k2.5-code' }))).toBe(false)
+      })
+    })
+
+    describe('edge cases', () => {
+      it('should return false for undefined', () => {
+        expect(isKimiK27CodeModel(undefined)).toBe(false)
+      })
+
+      it('should return false when both id and name are empty', () => {
+        expect(isKimiK27CodeModel(createModel({ id: '', name: '' }))).toBe(false)
+      })
+    })
+  })
+
+  describe('k2.7-code integration with thinking model type', () => {
+    it('should classify kimi-k2.7-code as kimi_always_think', () => {
+      expect(getThinkModelType(createModel({ id: 'kimi-k2.7-code' }))).toBe('kimi_always_think')
+    })
+
+    it('should fall back to kimi_k2_5 for non-code k2.x variants', () => {
+      expect(getThinkModelType(createModel({ id: 'kimi-k2.5' }))).toBe('kimi_k2_5')
+      expect(getThinkModelType(createModel({ id: 'kimi-k2.6' }))).toBe('kimi_k2_5')
+      expect(getThinkModelType(createModel({ id: 'kimi-k2.7' }))).toBe('kimi_k2_5')
+    })
+
+    it('should expose only [default, auto] for kimi_always_think (no none)', () => {
+      const options = getModelSupportedReasoningEffortOptions(createModel({ id: 'kimi-k2.7-code' }))
+      expect(options).toEqual(['default', 'auto'])
+      expect(options).not.toContain('none')
     })
   })
 })
