@@ -5,6 +5,10 @@ import { describe, expect, it, vi } from 'vitest'
 
 import PromptEditDialog from '../PromptEditDialog'
 
+const dialogHarness = vi.hoisted(() => ({
+  onOpenChange: undefined as ((open: boolean) => void) | undefined
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
@@ -18,20 +22,34 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [14]
 }))
 
-vi.mock('@renderer/context/CodeStyleProvider', () => ({
-  useCodeStyle: () => ({
-    activeCmTheme: 'light'
-  })
-}))
-
-vi.mock('streamdown', () => ({
-  Streamdown: ({ children }: { children: ReactNode }) => <div>{children}</div>
-}))
-
 vi.mock('lucide-react', () => ({
-  Braces: () => <span />,
-  Edit: () => <span />,
-  Eye: () => <span />
+  Braces: () => <span />
+}))
+
+vi.mock('../PromptEditorField', () => ({
+  default: ({
+    value,
+    onChange,
+    placeholder,
+    actions
+  }: {
+    value: string
+    onChange: (value: string) => void
+    placeholder?: string
+    actions?: ReactNode
+  }) => (
+    <div>
+      {actions}
+      <textarea
+        aria-label="prompt-editor"
+        placeholder={placeholder}
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+      />
+      <button type="button">common.preview</button>
+      <span>library.config.prompt.tokens_label</span>
+    </div>
+  )
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -46,30 +64,48 @@ vi.mock('@cherrystudio/ui', () => ({
       </button>
     )
   },
-  CodeEditor: ({
-    value,
-    onChange,
-    placeholder
+  Dialog: ({
+    open,
+    onOpenChange,
+    children
   }: {
-    value: string
-    onChange?: (value: string) => void
-    placeholder?: string
+    open: boolean
+    onOpenChange?: (open: boolean) => void
+    children: ReactNode
+  }) => {
+    dialogHarness.onOpenChange = onOpenChange
+    return open ? <div>{children}</div> : null
+  },
+  DialogContent: ({
+    children,
+    onPointerDownOutside
+  }: {
+    children: ReactNode
+    onPointerDownOutside?: (event: { defaultPrevented: boolean; preventDefault: () => void }) => void
   }) => (
-    <textarea
-      aria-label="prompt-editor"
-      placeholder={placeholder}
-      value={value}
-      onChange={(event) => onChange?.(event.currentTarget.value)}
-    />
+    <div role="dialog">
+      {children}
+      <button
+        type="button"
+        aria-label="dialog outside"
+        onClick={() => {
+          const event = {
+            defaultPrevented: false,
+            preventDefault: () => {
+              event.defaultPrevented = true
+            }
+          }
+          onPointerDownOutside?.(event)
+          if (!event.defaultPrevented) {
+            dialogHarness.onOpenChange?.(false)
+          }
+        }}
+      />
+    </div>
   ),
-  Dialog: ({ open, children }: { open: boolean; children: ReactNode }) => (open ? <div>{children}</div> : null),
-  DialogContent: ({ children }: { children: ReactNode }) => <div role="dialog">{children}</div>,
   DialogFooter: ({ children }: { children: ReactNode }) => <footer>{children}</footer>,
   DialogHeader: ({ children }: { children: ReactNode }) => <header>{children}</header>,
   DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
-  Field: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>,
-  FieldContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  FieldError: ({ errors }: { errors?: { message: string }[] }) => <div>{errors?.[0]?.message}</div>,
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
@@ -113,5 +149,30 @@ describe('PromptEditDialog', () => {
         content: 'Updated content'
       })
     })
+  })
+
+  it('allows outside clicks to cancel the dialog', async () => {
+    const user = userEvent.setup()
+    const onCancel = vi.fn()
+
+    render(
+      <PromptEditDialog
+        open
+        prompt={{
+          id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
+          title: 'Old title',
+          content: 'Old content',
+          orderKey: 'a0',
+          createdAt: '2026-05-01T00:00:00.000Z',
+          updatedAt: '2026-05-01T00:00:00.000Z'
+        }}
+        onSave={vi.fn().mockResolvedValue(undefined)}
+        onCancel={onCancel}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'dialog outside' }))
+
+    expect(onCancel).toHaveBeenCalledTimes(1)
   })
 })

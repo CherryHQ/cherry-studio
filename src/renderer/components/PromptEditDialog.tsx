@@ -111,7 +111,7 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[600px]" onPointerDownOutside={(event) => event.preventDefault()}>
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>{isEdit ? t('settings.prompts.edit') : t('settings.prompts.add')}</DialogTitle>
         </DialogHeader>
