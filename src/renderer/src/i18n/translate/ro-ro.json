@@ -1780,6 +1780,8 @@
       "payload": "Conținutul cererii este prea mare, reduceți dimensiunea fișierului sau a textului.",
       "proxy": "Eroare de proxy sau certificat SSL, verificați setările de proxy și de rețea",
       "quota": "Cota contului epuizată, reîncărcați sau schimbați furnizorul",
+      "rate_limit": "Prea multe cereri într-un timp scurt. Așteptați un moment și încercați din nou, sau treceți la un model cu o limită de rată mai mare",
+      "region": "Serviciu indisponibil în regiunea ta. Configurează un proxy sau treci la un furnizor disponibil în zona ta",
       "server": "Eroare de server, reîncercați mai târziu",
       "stream": "Răspuns întrerupt, verificați stabilitatea rețelei sau reîncercați",
       "unknown": "A apărut o eroare",
@@ -1791,6 +1793,7 @@
     "http": {
       "400": "Cererea a eșuat. Te rugăm să verifici dacă parametrii cererii sunt corecți. Dacă ai modificat setările modelului, te rugăm să le resetezi la valorile implicite",
       "401": "Autentificarea a eșuat. Te rugăm să verifici dacă cheia API este corectă",
+      "402": "Plată necesară. Soldul sau cota contului tău este epuizată — alimentează pe site-ul furnizorului sau treci la alt furnizor",
       "403": "Acces refuzat. Te rugăm să verifici dacă contul tău este verificat sau contactează furnizorul de servicii pentru mai multe informații",
       "404": "Modelul nu a fost găsit sau calea cererii este incorectă",
       "429": "Prea multe cereri. Te rugăm să încerci din nou mai târziu",

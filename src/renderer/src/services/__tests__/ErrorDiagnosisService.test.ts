@@ -190,5 +190,72 @@ describe('ErrorDiagnosisService', () => {
       const result = await diagnoseError(makeError(), 'en')
       expect(result.category).toBe('unknown')
     })
+
+    it('forwards responseBody to the AI (highest-signal provider error JSON)', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })
+      )
+      const providerJson = '{"error":{"type":"insufficient_quota","code":"billing_hard_limit_reached"}}'
+
+      await diagnoseError(makeError({ statusCode: 429, responseBody: providerJson }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.content).toContain('billing_hard_limit_reached')
+    })
+
+    it('forwards finishReason to the AI for safety-blocked responses', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'content', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ name: 'AI_NoObjectGeneratedError', finishReason: 'SAFETY' as any }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.content).toContain('SAFETY')
+      // Hint should explicitly steer the AI to content/safety reasoning
+      expect(callArgs.prompt.toLowerCase()).toContain('safety')
+    })
+
+    it('forwards data field as serialized JSON', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(
+        makeError({ data: { error: { code: 'invalid_api_key', message: 'Key revoked' } } as any }),
+        'en'
+      )
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.content).toContain('invalid_api_key')
+      expect(callArgs.content).toContain('Key revoked')
+    })
+
+    it('routes HTTP 402 Payment Required to quota context in the AI prompt', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'quota', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ statusCode: 402, message: 'Payment Required' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      // The 402 path must use the quota context (billing/balance language) and
+      // must not pick the rate-limit context (which would tell the user to
+      // "wait and retry" — wrong advice for a billing failure).
+      expect(callArgs.prompt).toContain('quota or account balance is exhausted')
+      expect(callArgs.prompt).not.toContain('hitting a rate limit')
+    })
+
+    it('falls back to provider/modelId on the error when context is missing', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ providerId: 'anthropic', modelId: 'claude-sonnet-4-5' as any }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      expect(callArgs.content).toContain('anthropic')
+      expect(callArgs.content).toContain('claude-sonnet-4-5')
+    })
   })
 })
