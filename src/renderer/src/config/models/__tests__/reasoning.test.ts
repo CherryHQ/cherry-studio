@@ -21,6 +21,7 @@ import {
   isInterleavedThinkingModel,
   isKimiReasoningModel,
   isLingReasoningModel,
+  isMiniMaxM3SeriesModel,
   isMiniMaxReasoningModel,
   isPerplexityReasoningModel,
   isQwenAlwaysThinkModel,
@@ -361,6 +362,19 @@ describe('Claude & regional providers', () => {
     expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2.7' }))).toBe(true)
     expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2.7-highspeed' }))).toBe(true)
     expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m3' }))).toBe(true)
+    expect(isMiniMaxM3SeriesModel(createModel({ id: 'minimax-m3' }))).toBe(true)
+    expect(isMiniMaxM3SeriesModel(createModel({ id: 'minimax-m3.1' }))).toBe(true)
+    expect(isMiniMaxM3SeriesModel(createModel({ id: 'minimax-m3.5' }))).toBe(true)
+    expect(isMiniMaxM3SeriesModel(createModel({ id: 'minimax-m3-highspeed' }))).toBe(true)
+    // All -xxx / .xxx suffixes are accepted as M3 series variants
+    expect(isMiniMaxM3SeriesModel(createModel({ id: 'minimax-m3-ultra' }))).toBe(true)
+    expect(isMiniMaxM3SeriesModel(createModel({ id: 'minimax-m3-preview' }))).toBe(true)
+    expect(isMiniMaxM3SeriesModel(createModel({ id: 'minimax-m3-turbo' }))).toBe(true)
+    expect(isMiniMaxM3SeriesModel(createModel({ id: 'minimax-m3-ultra.1' }))).toBe(true)
+    // Separate model lines remain excluded
+    expect(isMiniMaxM3SeriesModel(createModel({ id: 'minimax-m2.7' }))).toBe(false)
+    expect(isMiniMaxM3SeriesModel(createModel({ id: 'minimax-m30' }))).toBe(false)
+    expect(isMiniMaxM3SeriesModel(createModel({ id: 'minimax-m300' }))).toBe(false)
   })
 })
 

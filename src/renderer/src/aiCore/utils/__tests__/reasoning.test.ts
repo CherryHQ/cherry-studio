@@ -69,6 +69,8 @@ vi.mock('@renderer/config/models', async (importOriginal) => {
   return {
     ...actual,
     isReasoningModel: vi.fn(() => false),
+    isMiniMaxReasoningModel: vi.fn(() => false),
+    isMiniMaxM3SeriesModel: vi.fn(() => false),
     isOpenAIDeepResearchModel: vi.fn(() => false),
     isOpenAIModel: vi.fn(() => false),
     isSupportedReasoningEffortOpenAIModel: vi.fn(() => false),
@@ -765,6 +767,51 @@ describe('reasoning utils', () => {
         })
       })
 
+      describe('minimax models', () => {
+        const createMiniMaxModel = (id: string): Model =>
+          ({
+            id,
+            name: id,
+            provider: 'minimax'
+          }) as Model
+
+        const createAssistantWithReasoning = (effort: string | undefined): Assistant =>
+          ({
+            id: 'test',
+            name: 'Test',
+            settings: {
+              reasoning_effort: effort as any
+            }
+          }) as Assistant
+
+        describe.each([
+          { name: 'M3 / unset', isM3: true, effort: undefined, expected: {} },
+          { name: 'M3 / default', isM3: true, effort: 'default', expected: {} },
+          {
+            name: 'M3 / auto',
+            isM3: true,
+            effort: 'auto',
+            expected: { thinking: { type: 'adaptive' as const } }
+          },
+          { name: 'M3 / none', isM3: true, effort: 'none', expected: { thinking: { type: 'disabled' as const } } },
+          { name: 'M2.x / default', isM3: false, effort: 'default', expected: {} },
+          { name: 'M2.x / none', isM3: false, effort: 'none', expected: {} }
+        ])('$name', ({ isM3, effort, expected }) => {
+          it(`returns ${JSON.stringify(expected)}`, async () => {
+            const { isReasoningModel, isMiniMaxReasoningModel, isMiniMaxM3SeriesModel } = await import(
+              '@renderer/config/models'
+            )
+            vi.mocked(isReasoningModel).mockReturnValue(true)
+            vi.mocked(isMiniMaxReasoningModel).mockReturnValue(true)
+            vi.mocked(isMiniMaxM3SeriesModel).mockReturnValue(isM3)
+
+            const model = createMiniMaxModel(isM3 ? 'minimax-m3' : 'minimax-m2.7')
+            const assistant = createAssistantWithReasoning(effort)
+            expect(getReasoningEffort(assistant, model)).toEqual(expected)
+          })
+        })
+      })
+
       describe('edge cases', () => {
         it('should return {} for non-reasoning Mistral models', async () => {
           // isReasoningModel returns false by default in the top-level mock
@@ -1332,6 +1379,79 @@ describe('reasoning utils', () => {
         sendReasoning: true
       })
       expect(result).not.toHaveProperty('effort')
+    })
+
+    describe.each([
+      {
+        name: 'M3 / none',
+        isM3: true,
+        modelId: 'minimax-m3',
+        effort: 'none',
+        expected: { thinking: { type: 'disabled' as const }, sendReasoning: true }
+      },
+      {
+        name: 'M3 / unset',
+        isM3: true,
+        modelId: 'minimax-m3',
+        effort: undefined,
+        expected: {}
+      },
+      {
+        name: 'M3 / default',
+        isM3: true,
+        modelId: 'minimax-m3',
+        effort: 'default',
+        expected: {}
+      },
+      {
+        name: 'M3 / auto',
+        isM3: true,
+        modelId: 'minimax-m3',
+        effort: 'auto',
+        expected: { thinking: { type: 'adaptive' as const }, sendReasoning: true }
+      },
+      {
+        name: 'M2.x / none',
+        isM3: false,
+        modelId: 'minimax-m2.7',
+        effort: 'none',
+        expected: {}
+      },
+      {
+        name: 'M2.x / default',
+        isM3: false,
+        modelId: 'minimax-m2.7',
+        effort: 'default',
+        expected: {}
+      }
+    ])('MiniMax on Anthropic endpoint — $name', ({ isM3, modelId, effort, expected }) => {
+      it(`returns ${JSON.stringify(expected)}`, async () => {
+        const {
+          isReasoningModel,
+          isSupportedThinkingTokenClaudeModel,
+          isMiniMaxReasoningModel,
+          isMiniMaxM3SeriesModel
+        } = await import('@renderer/config/models')
+
+        vi.mocked(isReasoningModel).mockReturnValue(true)
+        vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(false)
+        vi.mocked(isMiniMaxReasoningModel).mockReturnValue(true)
+        vi.mocked(isMiniMaxM3SeriesModel).mockReturnValue(isM3)
+
+        const model: Model = {
+          id: modelId,
+          name: modelId,
+          provider: 'custom-provider'
+        } as Model
+
+        const assistant: Assistant = {
+          id: 'test',
+          name: 'Test',
+          settings: { reasoning_effort: effort }
+        } as Assistant
+
+        expect(getAnthropicReasoningParams(assistant, model)).toEqual(expected)
+      })
     })
   })
 

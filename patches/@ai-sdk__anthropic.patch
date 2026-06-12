@@ -27,11 +27,61 @@ index 468e7518923b5bfaffa3a5a601e233b5271889ae..8a20d03b8186bb35c2ddce6a50997a44
        ...((anthropicOptions == null ? void 0 : anthropicOptions.effort) || (anthropicOptions == null ? void 0 : anthropicOptions.taskBudget) || useStructuredOutput && (responseFormat == null ? void 0 : responseFormat.type) === "json" && responseFormat.schema != null) && {
          output_config: {
            ...(anthropicOptions == null ? void 0 : anthropicOptions.effort) && {
-@@ -3217,7 +3220,9 @@ var AnthropicMessagesLanguageModel = class {
-           details: "topP is not supported when thinking is enabled"
-         });
+@@ -3196,31 +3199,35 @@ var AnthropicMessagesLanguageModel = class {
+         };
+         thinkingBudget = 1024;
        }
+-      if (baseArgs.temperature != null) {
+-        baseArgs.temperature = void 0;
+-        warnings.push({
+-          type: "unsupported",
+-          feature: "temperature",
+-          details: "temperature is not supported when thinking is enabled"
+-        });
+-      }
+-      if (topK != null) {
+-        baseArgs.top_k = void 0;
+-        warnings.push({
+-          type: "unsupported",
+-          feature: "topK",
+-          details: "topK is not supported when thinking is enabled"
+-        });
+-      }
+-      if (topP != null) {
+-        baseArgs.top_p = void 0;
+-        warnings.push({
+-          type: "unsupported",
+-          feature: "topP",
+-          details: "topP is not supported when thinking is enabled"
+-        });
+-      }
 -      baseArgs.max_tokens = maxTokens + (thinkingBudget != null ? thinkingBudget : 0);
++      if (isAnthropicModel) {
++        if (baseArgs.temperature != null) {
++          baseArgs.temperature = void 0;
++          warnings.push({
++            type: "unsupported",
++            feature: "temperature",
++            details: "temperature is not supported when thinking is enabled"
++          });
++        }
++        if (topK != null) {
++          baseArgs.top_k = void 0;
++          warnings.push({
++            type: "unsupported",
++            feature: "topK",
++            details: "topK is not supported when thinking is enabled"
++          });
++        }
++        if (topP != null) {
++          baseArgs.top_p = void 0;
++          warnings.push({
++            type: "unsupported",
++            feature: "topP",
++            details: "topP is not supported when thinking is enabled"
++          });
++        }
++      }
 +      if (maxTokens != null) {
 +        baseArgs.max_tokens = maxTokens + (thinkingBudget != null ? thinkingBudget : 0);
 +      }
@@ -67,11 +117,61 @@ index 6e9ff51dd8ccc4785ecd423ec34a84eba8a7d42d..a601f20a3d15672f55b35ee78980de3a
        ...((anthropicOptions == null ? void 0 : anthropicOptions.effort) || (anthropicOptions == null ? void 0 : anthropicOptions.taskBudget) || useStructuredOutput && (responseFormat == null ? void 0 : responseFormat.type) === "json" && responseFormat.schema != null) && {
          output_config: {
            ...(anthropicOptions == null ? void 0 : anthropicOptions.effort) && {
-@@ -3246,7 +3249,9 @@ var AnthropicMessagesLanguageModel = class {
-           details: "topP is not supported when thinking is enabled"
-         });
+@@ -3228,31 +3231,35 @@ var AnthropicMessagesLanguageModel = class {
+         };
+         thinkingBudget = 1024;
        }
+-      if (baseArgs.temperature != null) {
+-        baseArgs.temperature = void 0;
+-        warnings.push({
+-          type: "unsupported",
+-          feature: "temperature",
+-          details: "temperature is not supported when thinking is enabled"
+-        });
+-      }
+-      if (topK != null) {
+-        baseArgs.top_k = void 0;
+-        warnings.push({
+-          type: "unsupported",
+-          feature: "topK",
+-          details: "topK is not supported when thinking is enabled"
+-        });
+-      }
+-      if (topP != null) {
+-        baseArgs.top_p = void 0;
+-        warnings.push({
+-          type: "unsupported",
+-          feature: "topP",
+-          details: "topP is not supported when thinking is enabled"
+-        });
+-      }
 -      baseArgs.max_tokens = maxTokens + (thinkingBudget != null ? thinkingBudget : 0);
++      if (isAnthropicModel) {
++        if (baseArgs.temperature != null) {
++          baseArgs.temperature = void 0;
++          warnings.push({
++            type: "unsupported",
++            feature: "temperature",
++            details: "temperature is not supported when thinking is enabled"
++          });
++        }
++        if (topK != null) {
++          baseArgs.top_k = void 0;
++          warnings.push({
++            type: "unsupported",
++            feature: "topK",
++            details: "topK is not supported when thinking is enabled"
++          });
++        }
++        if (topP != null) {
++          baseArgs.top_p = void 0;
++          warnings.push({
++            type: "unsupported",
++            feature: "topP",
++            details: "topP is not supported when thinking is enabled"
++          });
++        }
++      }
 +      if (maxTokens != null) {
 +        baseArgs.max_tokens = maxTokens + (thinkingBudget != null ? thinkingBudget : 0);
 +      }

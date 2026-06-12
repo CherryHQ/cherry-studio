@@ -19,6 +19,7 @@ import {
   isGemini3ThinkingTokenModel,
   isGrok4FastReasoningModel,
   isHostedGemma4ThinkingModel,
+  isMiniMaxM3SeriesModel,
   isMiniMaxReasoningModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
@@ -56,7 +57,7 @@ import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 const logger = loggerService.withContext('reasoning')
 
 type ReasoningEffortOptionalParams = {
-  thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
+  thinking?: { type: 'disabled' | 'enabled' | 'auto' | 'adaptive'; budget_tokens?: number }
   reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string; enabled?: boolean } | OpenAI.Reasoning
   reasoningEffort?: OpenAIReasoningEffort
   // WARN: This field will be overwrite to undefined by aisdk if the provider is openai-compatible. Use reasoningEffort instead.
@@ -88,6 +89,25 @@ type ReasoningEffortOptionalParams = {
   // Add any other potential reasoning-related keys here if they exist
 }
 
+/**
+ * Resolve the MiniMax M3 thinking directive from the assistant's reasoning_effort.
+ * Returns 'adaptive' / 'disabled' for M3 only; undefined for M2.x, non-MiniMax
+ * models, or when reasoning_effort is unset/default (API defaults to thinking-off).
+ *
+ * MiniMax docs (https://platform.minimaxi.com/docs/api-reference/text-anthropic-api):
+ *   - thinking.type: 'adaptive'   → keep thinking on (only when user picks 'auto')
+ *   - thinking.type: 'disabled'   → turn thinking off (M3 only; ignored on M2.x)
+ *   - omitted (undefined/default) → thinking OFF by default
+ */
+function getMiniMaxThinkingType(assistant: Assistant, model: Model): 'adaptive' | 'disabled' | undefined {
+  if (!isMiniMaxM3SeriesModel(model)) return undefined
+  const effort = assistant?.settings?.reasoning_effort
+  if (effort === 'none') return 'disabled'
+  if (effort === 'auto') return 'adaptive'
+  // undefined / 'default': don't send thinking param — API default is thinking-off
+  return undefined
+}
+
 // The function is only for generic provider. May extract some logics to independent provider
 export function getReasoningEffort(assistant: Assistant, model: Model): ReasoningEffortOptionalParams {
   const provider = getProviderByModel(model)
@@ -100,15 +120,24 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     return {}
   }
 
-  // MiniMax models: always enable thinking to ensure <think> tags in response
-  // This must be before the reasoningEffort check because MiniMax needs thinking
-  // to be explicitly enabled regardless of the user's reasoning effort setting
+  // MiniMax M3 only accepts the Anthropic-protocol thinking shape
+  // (type: 'adaptive' | 'disabled'). M2.x cannot be controlled at all
+  // and falls through to the generic Anthropic-endpoint branch below,
+  // which emits sendReasoning: true to stream reasoning back to the UI.
+  const m3ThinkingType = getMiniMaxThinkingType(assistant, model)
+  if (m3ThinkingType) {
+    return { thinking: { type: m3ThinkingType } }
+  }
   if (isMiniMaxReasoningModel(model)) {
-    const reasoningEffort = assistant?.settings?.reasoning_effort
-    if (reasoningEffort === 'none') {
-      return { thinking: { type: 'disabled' } }
-    }
-    return { thinking: { type: 'enabled' } }
+    // M2.x: API has no controllable thinking directive.
+    // Per https://platform.minimaxi.com/docs/api-reference/text-anthropic-api
+    // M2.x thinking "cannot be turned off" — the API defaults to thinking-on
+    // and silently ignores type: 'enabled' | 'disabled'. We rely on that
+    // default rather than emitting a dead 'enabled' byte. If MiniMax ever
+    // changes the default, M2.x users would silently lose thinking output;
+    // revisit by switching to a sentinelled return (e.g. { thinking: { type: 'enabled' } })
+    // once the upstream documents a stable on-by-default contract.
+    return {}
   }
 
   if (isOpenAIDeepResearchModel(model)) {
@@ -743,6 +772,27 @@ export function getAnthropicReasoningParams(
   sendReasoning?: AnthropicProviderOptions['sendReasoning']
 } {
   if (!isReasoningModel(model)) {
+    return {}
+  }
+
+  // MiniMax M3 only accepts the Anthropic-protocol thinking shape
+  // (type: 'adaptive' | 'disabled'). M2.x is intercepted here because its
+  // API rejects every controllable directive: thinking cannot be turned
+  // off and the model does not understand 'enabled' + budgetTokens. The
+  // only safe answer is {} — let the API default to thinking-on.
+  const m3ThinkingType = getMiniMaxThinkingType(assistant, model)
+  if (m3ThinkingType) {
+    return { thinking: { type: m3ThinkingType }, sendReasoning: true }
+  }
+  if (isMiniMaxReasoningModel(model)) {
+    // M2.x on the Anthropic endpoint: API has no controllable thinking
+    // directive. Per https://platform.minimaxi.com/docs/api-reference/text-anthropic-api
+    // M2.x thinking "cannot be turned off" — the API defaults to thinking-on
+    // and silently ignores every directive we could send. Returning {} here
+    // also means sendReasoning is NOT set, but the upstream's reasoning
+    // content is still surfaced via the default thinking-on path (the
+    // reasoning block is part of the response, not gated by sendReasoning).
+    // See the matching comment in getReasoningEffort for the trade-off.
     return {}
   }
 

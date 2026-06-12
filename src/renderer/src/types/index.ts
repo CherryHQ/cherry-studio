@@ -132,7 +132,8 @@ const ThinkModelTypes = [
   'kimi_k2_5',
   'claude',
   'claude46',
-  'mistral'
+  'mistral',
+  'minimax_m3'
 ] as const
 
 /** If the model's reasoning effort could be controlled, or its reasoning behavior could be turned on/off.

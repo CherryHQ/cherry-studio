@@ -123,6 +123,8 @@ export function useAssistant(id: string) {
           } else {
             // 灵活回退到支持的值
             // 注意：这里假设可用的options不会为空
+            // 有 reasoning_effort 时优先用分级 effort（M3 等 'auto' 模型落这里），
+            // 没有 reasoning_effort 时落回 'default'，保留与 git HEAD 一致的"未设置→default"语义。
             const enableThinking = currentReasoningEffort !== undefined
             fallbackOption = enableThinking
               ? MODEL_SUPPORTED_REASONING_EFFORT[modelType][0]

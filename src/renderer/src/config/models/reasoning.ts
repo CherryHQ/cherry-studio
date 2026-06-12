@@ -91,7 +91,13 @@ export const MODEL_SUPPORTED_REASONING_EFFORT = {
   claude: ['low', 'medium', 'high'] as const,
   // Claude 4.6 supports low, medium, high, xhigh (xhigh is mapped to max in API)
   claude46: ['low', 'medium', 'high', 'xhigh'] as const,
-  mistral: ['high'] as const
+  mistral: ['high'] as const,
+  // MiniMax M3 supports on/off thinking only — no graded effort levels.
+  // 'auto' = on (M3 emits { thinking: { type: 'adaptive' } }); the 'none'
+  // off-mode is already provided by the uniform 'default' + 'none' prefix
+  // in MODEL_SUPPORTED_OPTIONS. Mirrors the pattern used by grok4_fast,
+  // hunyuan, mimo, and zhipu for binary on/off models.
+  minimax_m3: ['auto'] as const
 } as const satisfies ReasoningEffortConfig
 
 // Model type to supported options mapping
@@ -132,7 +138,8 @@ export const MODEL_SUPPORTED_OPTIONS: ThinkingOptionConfig = {
   kimi_k2_5: ['default', ...MODEL_SUPPORTED_REASONING_EFFORT.kimi_k2_5] as const,
   claude: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude] as const,
   claude46: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.claude46] as const,
-  mistral: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.mistral] as const
+  mistral: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.mistral] as const,
+  minimax_m3: ['default', 'none', ...MODEL_SUPPORTED_REASONING_EFFORT.minimax_m3] as const
 } as const
 
 // TODO: add ut
@@ -230,6 +237,8 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
     thinkingModelType = 'kimi_k2_5'
   } else if (isMistralReasoningModel(model)) {
     thinkingModelType = 'mistral'
+  } else if (isMiniMaxM3SeriesModel(model)) {
+    thinkingModelType = 'minimax_m3'
   }
   return thinkingModelType
 }
@@ -319,7 +328,14 @@ function _isSupportedThinkingTokenModel(model: Model): boolean {
     isSupportedThinkingTokenZhipuModel(model) ||
     isSupportedThinkingTokenMiMoModel(model) ||
     isSupportedThinkingTokenKimiModel(model) ||
-    isSupportedThinkingTokenDeepSeekModel(model)
+    isSupportedThinkingTokenDeepSeekModel(model) ||
+    // MiniMax M3 has no budgetTokens control, but we still route it through
+    // this chain so useAssistant.ts (isSupportedThinkingTokenModel ||
+    // isSupportedReasoningEffortModel) picks up the ['default', 'none', 'auto']
+    // options and getThinkModelType resolves to 'minimax_m3'. The actual
+    // thinking shape (type: 'adaptive' | 'disabled') is emitted by
+    // getReasoningEffort / getAnthropicReasoningParams — not via budgetTokens.
+    isMiniMaxM3SeriesModel(model)
   )
 }
 
@@ -766,6 +782,25 @@ export const isMiniMaxReasoningModel = (model?: Model): boolean => {
   return (['minimax-m1', 'minimax-m2', 'minimax-m2.1', 'minimax-m2.5', 'minimax-m2.7', 'minimax-m3'] as const).some(
     (id) => modelId.includes(id)
   )
+}
+
+const _isMiniMaxM3SeriesModel = (model: Model): boolean => {
+  const modelId = getLowerBaseModelName(model.id, '/')
+  // Matches the M3 series and its variants: `minimax-m3`, `minimax-m3.1`,
+  // `minimax-m3.5`, `minimax-m3-highspeed`, `minimax-m3-ultra`,
+  // `minimax-m3-preview`, and any future `-xxx` suffix. Excludes
+  // `m30` / `m300` (the sub-version group requires a leading `.`,
+  // and suffix groups require a leading `.` or `-`, neither of which
+  // `m30` provides).
+  return /(\b|[.-])minimax-m3(\.\d+)?([.-][\w-]+)*$/.test(modelId)
+}
+
+export function isMiniMaxM3SeriesModel(model?: Model): boolean {
+  if (!model) {
+    return false
+  }
+  const { idResult, nameResult } = withModelIdAndNameAsId(model, _isMiniMaxM3SeriesModel)
+  return idResult || nameResult
 }
 
 export const isBaichuanReasoningModel = (model?: Model): boolean => {
