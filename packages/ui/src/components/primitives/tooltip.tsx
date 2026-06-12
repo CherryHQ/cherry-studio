@@ -53,8 +53,20 @@ function TooltipRoot({ delayDuration = 0, ...props }: TooltipRootProps) {
   )
 }
 
-function TooltipTrigger({ ...props }: TooltipTriggerProps) {
-  return <RadixTrigger data-slot="tooltip-trigger" {...props} />
+function TooltipTrigger({ onFocus, ...props }: TooltipTriggerProps) {
+  return (
+    <RadixTrigger
+      data-slot="tooltip-trigger"
+      onFocus={(e) => {
+        // Radix composeEventHandlers respects defaultPrevented
+        if (!e.target.matches(':focus-visible')) {
+          e.preventDefault()
+        }
+        onFocus?.(e)
+      }}
+      {...props}
+    />
+  )
 }
 
 const contentStyles =
@@ -144,11 +156,11 @@ export const Tooltip = ({
   return (
     <TooltipProvider delayDuration={delay}>
       <RadixRoot delayDuration={delay} {...controlledProps}>
-        <RadixTrigger asChild>
+        <TooltipTrigger asChild>
           <div className={cn('relative z-10 inline-block', classNames?.placeholder)} onClick={onClick}>
             {children}
           </div>
-        </RadixTrigger>
+        </TooltipTrigger>
         <RadixPortal container={portalContainer ?? defaultPortalContainer ?? undefined}>
           <RadixContent
             data-slot="tooltip-content"
