@@ -53,6 +53,28 @@ export const MemoryQueries = {
 
     checkExistsIncludeDeleted: 'SELECT id, is_deleted FROM memories WHERE hash = ?',
 
+    checkExistsIncludeDeletedByScope: `
+      SELECT id, hash, user_id, agent_id, is_deleted FROM memories
+      WHERE hash IN (?, ?, ?)
+        AND ((? IS NULL AND user_id IS NULL) OR user_id = ?)
+        AND (
+          (? IS NULL AND agent_id IS NULL)
+          OR (? IS NOT NULL AND (agent_id = ? OR agent_id IS NULL))
+        )
+      ORDER BY
+        CASE
+          WHEN hash = ? THEN 0
+          WHEN hash = ? THEN 1
+          ELSE 2
+        END,
+        CASE
+          WHEN agent_id = ? THEN 0
+          WHEN agent_id IS NULL THEN 1
+          ELSE 2
+        END
+      LIMIT 1
+    `,
+
     restoreDeleted: `
       UPDATE memories 
       SET is_deleted = 0, memory = ?, embedding = ?, metadata = ?, updated_at = ?
@@ -68,7 +90,7 @@ export const MemoryQueries = {
 
     softDelete: 'UPDATE memories SET is_deleted = 1, updated_at = ? WHERE id = ?',
 
-    getForUpdate: 'SELECT memory, metadata FROM memories WHERE id = ? AND is_deleted = 0',
+    getForUpdate: 'SELECT memory, metadata, user_id, agent_id FROM memories WHERE id = ? AND is_deleted = 0',
 
     update: `
       UPDATE memories 
