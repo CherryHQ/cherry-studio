@@ -34,10 +34,10 @@ export interface ProviderListGroupProps {
 /**
  * Collapsible sidebar group for ≥2 providers sharing a `presetProviderId`.
  *
- * The header itself isn't selectable/draggable — it just toggles expansion.
- * Children render through the same `<ReorderableList>` the flat list uses, so
- * in-group drag-reorder and the parent's orderKey diffing keep working
- * unchanged.
+ * The header is the group's outer drag surface and still toggles expansion on
+ * click. Children render through the same `<ReorderableList>` the flat list
+ * uses, so in-group drag-reorder and the parent's orderKey diffing keep
+ * working unchanged.
  */
 export default function ProviderListGroup({
   presetProviderId,
@@ -85,7 +85,11 @@ export default function ProviderListGroup({
         />
       </button>
       {expanded && (
-        <div id={bodyId} className={providerListClasses.groupBody}>
+        <div
+          id={bodyId}
+          className={providerListClasses.groupBody}
+          onPointerDown={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}>
           <ReorderableList
             items={items}
             visibleItems={members}

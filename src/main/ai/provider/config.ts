@@ -455,7 +455,16 @@ function formatNewApiBaseURL(baseURL: string, endpointType: EndpointType | undef
 
 function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
   const endpointType = ctx.model.endpointTypes?.[0]
-  const baseURL = formatNewApiBaseURL(ctx.baseConfig.baseURL, endpointType)
+  let rawBaseURL: string
+
+  if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
+    const anthropicBaseURL = getBaseUrl(ctx.actualProvider, endpointType)
+    rawBaseURL = anthropicBaseURL || ctx.baseConfig.baseURL
+  } else {
+    rawBaseURL = ctx.baseConfig.baseURL
+  }
+
+  const baseURL = formatNewApiBaseURL(rawBaseURL, endpointType)
 
   return {
     providerId: 'newapi',
