@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   getTopic: vi.fn(),
   updateTopic: vi.fn(),
   getMessageById: vi.fn(),
+  getModelByKey: vi.fn(),
   getAgent: vi.fn(),
   getSession: vi.fn(),
   updateSession: vi.fn()
@@ -33,6 +34,12 @@ vi.mock('@data/services/TopicService', () => ({
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
     getById: mocks.getMessageById
+  }
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: {
+    getByKey: mocks.getModelByKey
   }
 }))
 
@@ -76,6 +83,7 @@ describe('TopicNamingService', () => {
     MockMainCacheServiceUtils.resetMocks()
     mockMainLoggerService.warn.mockClear()
     MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.enabled', true)
+    mocks.getModelByKey.mockResolvedValue({ id: 'openai::gpt-4o-mini' })
     mockRenameInputs()
   })
 
@@ -128,6 +136,27 @@ describe('TopicNamingService', () => {
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
       'topic.naming.model_id is invalid; falling back to managed CherryAI default model',
       { configured: 'bad-value' }
+    )
+  })
+
+  it('falls back to the managed CherryAI default when topic naming model no longer exists', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.model_id', 'ghost::missing')
+    mocks.getModelByKey.mockRejectedValue(new Error('missing model'))
+
+    await createService().maybeRenameFromConversationSummary('topic-1', undefined, 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.getModelByKey).toHaveBeenCalledWith('ghost', 'missing')
+    expect(mocks.generateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uniqueModelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+      })
+    )
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'topic.naming.model_id points to a missing model; falling back to managed CherryAI default model',
+      { configured: 'ghost::missing' }
     )
   })
 

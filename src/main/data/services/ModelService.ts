@@ -20,9 +20,9 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
 import {
-  CHERRYAI_DEFAULT_MODEL_ID,
   CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
-  CHERRYAI_PROVIDER_ID
+  CHERRYAI_PROVIDER_ID,
+  isManagedCherryAiDefaultModel
 } from '@shared/data/presets/cherryai'
 import type {
   EndpointType,
@@ -38,19 +38,24 @@ import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ModelService')
 
-function isManagedCherryAiDefaultModel(providerId: string, modelId: string): boolean {
-  return providerId === CHERRYAI_PROVIDER_ID && modelId === CHERRYAI_DEFAULT_MODEL_ID
-}
-
 function assertManagedCherryAiDefaultModelPatchAllowed(providerId: string, modelId: string, dto: UpdateModelDto): void {
   if (!isManagedCherryAiDefaultModel(providerId, modelId) || Object.keys(dto).length === 0) {
     return
   }
 
-  throw DataApiErrorFactory.invalidOperation(
-    `update model ${providerId}/${modelId}`,
-    'managed CherryAI default model cannot be updated'
-  )
+  assertManagedCherryAiDefaultModelMutationAllowed(providerId, modelId, `update model ${providerId}/${modelId}`)
+}
+
+function assertManagedCherryAiDefaultModelMutationAllowed(
+  providerId: string,
+  modelId: string,
+  operation: string
+): void {
+  if (!isManagedCherryAiDefaultModel(providerId, modelId)) {
+    return
+  }
+
+  throw DataApiErrorFactory.invalidOperation(operation, 'managed CherryAI default model cannot be modified')
 }
 
 /**
@@ -554,6 +559,13 @@ class ModelService {
    */
   async create(items: CreateModelInput[]): Promise<Model[]> {
     if (items.length === 0) return []
+    for (const { dto } of items) {
+      assertManagedCherryAiDefaultModelMutationAllowed(
+        dto.providerId,
+        dto.modelId,
+        `create model ${dto.providerId}/${dto.modelId}`
+      )
+    }
 
     const db = application.get('DbService').getDb()
     const values = items.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
@@ -818,12 +830,7 @@ class ModelService {
    * Delete a model
    */
   async delete(providerId: string, modelId: string): Promise<void> {
-    if (isManagedCherryAiDefaultModel(providerId, modelId)) {
-      throw DataApiErrorFactory.invalidOperation(
-        `delete model ${providerId}/${modelId}`,
-        'managed CherryAI default model cannot be deleted'
-      )
-    }
+    assertManagedCherryAiDefaultModelMutationAllowed(providerId, modelId, `delete model ${providerId}/${modelId}`)
 
     await application.get('DbService').withWriteTx(async (tx) => {
       const rows = await tx
@@ -848,6 +855,14 @@ class ModelService {
    */
   async batchUpsert(models: InsertUserModelRow[]): Promise<void> {
     if (models.length === 0) return
+    const managedModel = models.find((model) => isManagedCherryAiDefaultModel(model.providerId, model.modelId))
+    if (managedModel) {
+      assertManagedCherryAiDefaultModelMutationAllowed(
+        managedModel.providerId,
+        managedModel.modelId,
+        `batch upsert model ${managedModel.providerId}/${managedModel.modelId}`
+      )
+    }
 
     const db = application.get('DbService').getDb()
 

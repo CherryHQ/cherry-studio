@@ -12,6 +12,7 @@ import type { DbType, ISeeder } from '../../types'
 import { hashObject } from '../hashObject'
 
 const CHERRYAI_DEFAULT_MODEL_SEED_JOURNAL_KEY = `${SEED_KEY_PREFIX}${CHERRYAI_DEFAULT_MODEL_SEEDER_NAME}` as const
+const SEED_JOURNAL_KEY_PATTERN = `${SEED_KEY_PREFIX}%` as const
 
 export class DefaultAssistantSeeder implements ISeeder {
   readonly name = 'defaultAssistant'
@@ -47,7 +48,12 @@ export class DefaultAssistantSeeder implements ISeeder {
     const [seedJournal] = await tx
       .select({ key: appStateTable.key })
       .from(appStateTable)
-      .where(and(like(appStateTable.key, 'seed:%'), ne(appStateTable.key, CHERRYAI_DEFAULT_MODEL_SEED_JOURNAL_KEY)))
+      .where(
+        and(
+          like(appStateTable.key, SEED_JOURNAL_KEY_PATTERN),
+          ne(appStateTable.key, CHERRYAI_DEFAULT_MODEL_SEED_JOURNAL_KEY)
+        )
+      )
       .limit(1)
     if (seedJournal) return false
 

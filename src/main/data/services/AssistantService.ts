@@ -13,7 +13,7 @@ import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiError, DataApiErrorFactory, ErrorCode } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateAssistantDto, ListAssistantsQuery, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
@@ -75,6 +75,14 @@ function buildSearchPredicate(q: string | undefined): SQL | undefined {
   const descMatch = sql`${assistantTable.description} LIKE ${pattern} ESCAPE '\\'`
 
   return or(nameMatch, descMatch)
+}
+
+function rethrowAssistantOrderError(error: unknown): never {
+  if (error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND && error.details?.resource === 'assistant') {
+    throw DataApiErrorFactory.notFound('Assistant', error.details.id)
+  }
+
+  throw error
 }
 
 export class AssistantDataService {
@@ -499,24 +507,32 @@ export class AssistantDataService {
 
   /** Move a single assistant within the active (non-deleted) assistant list. */
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
-    await application.get('DbService').withWriteTx(async (tx) => {
-      await applyMoves(tx, assistantTable, [{ id, anchor }], {
-        pkColumn: assistantTable.id,
-        scope: isNull(assistantTable.deletedAt)
+    try {
+      await application.get('DbService').withWriteTx(async (tx) => {
+        await applyMoves(tx, assistantTable, [{ id, anchor }], {
+          pkColumn: assistantTable.id,
+          scope: isNull(assistantTable.deletedAt)
+        })
       })
-    })
+    } catch (error) {
+      rethrowAssistantOrderError(error)
+    }
   }
 
   /** Apply multiple assistant moves atomically within the active assistant list. */
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
 
-    await application.get('DbService').withWriteTx(async (tx) => {
-      await applyMoves(tx, assistantTable, moves, {
-        pkColumn: assistantTable.id,
-        scope: isNull(assistantTable.deletedAt)
+    try {
+      await application.get('DbService').withWriteTx(async (tx) => {
+        await applyMoves(tx, assistantTable, moves, {
+          pkColumn: assistantTable.id,
+          scope: isNull(assistantTable.deletedAt)
+        })
       })
-    })
+    } catch (error) {
+      rethrowAssistantOrderError(error)
+    }
   }
 
   /**

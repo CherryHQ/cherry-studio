@@ -425,6 +425,27 @@ describe('ModelService.create', () => {
     })
   })
 
+  it('rejects create for the managed CherryAI default model', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow(CHERRYAI_PROVIDER_ID, 'CherryAI'))
+
+    await expect(
+      modelService.create([
+        {
+          dto: {
+            providerId: CHERRYAI_PROVIDER_ID,
+            modelId: CHERRYAI_DEFAULT_MODEL_ID,
+            name: 'Qwen'
+          }
+        }
+      ])
+    ).rejects.toMatchObject({
+      code: ErrorCode.INVALID_OPERATION
+    })
+
+    const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.providerId, CHERRYAI_PROVIDER_ID))
+    expect(rows).toHaveLength(0)
+  })
+
   it('builds all rows with the same registry-aware merge semantics as create', async () => {
     const [openaiOrderKey, customOrderKey] = generateOrderKeySequence(2)
     await dbh.db
@@ -845,6 +866,33 @@ describe('ModelService.batchUpsert', () => {
     expect(row.capabilities).toEqual(['reasoning'])
     expect(row.maxOutputTokens).toBe(8192)
     expect(row.userOverrides).toEqual(['name', 'contextWindow'])
+  })
+
+  it('rejects batch upsert for the managed CherryAI default model', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow(CHERRYAI_PROVIDER_ID, 'CherryAI'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow(CHERRYAI_PROVIDER_ID, CHERRYAI_DEFAULT_MODEL_ID, {
+        id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+        name: 'Qwen'
+      })
+    )
+
+    await expect(
+      modelService.batchUpsert([
+        modelRow(CHERRYAI_PROVIDER_ID, CHERRYAI_DEFAULT_MODEL_ID, {
+          id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+          name: 'Registry rewrite'
+        })
+      ])
+    ).rejects.toMatchObject({
+      code: ErrorCode.INVALID_OPERATION
+    })
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(eq(userModelTable.id, CHERRYAI_DEFAULT_UNIQUE_MODEL_ID))
+    expect(row.name).toBe('Qwen')
   })
 })
 

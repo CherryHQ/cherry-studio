@@ -18,15 +18,16 @@ import {
 } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import CopyButton from '@renderer/components/CopyButton'
-import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { resolveDefaultAssistantOption, useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { CircleHelp, Dices, OctagonX } from 'lucide-react'
 import { DynamicIcon, iconNames } from 'lucide-react/dynamic'
 import type React from 'react'
 import type { FC } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 interface SelectionActionUserModalProps {
@@ -44,7 +45,15 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
 }) => {
   const { t } = useTranslation()
   const { assistants: userPredefinedAssistants } = useAssistants()
-  const { assistant: defaultAssistant } = useDefaultAssistant()
+  const { assistant: fallbackDefaultAssistant } = useDefaultAssistant()
+  const defaultAssistant = useMemo(
+    () => resolveDefaultAssistantOption(userPredefinedAssistants, fallbackDefaultAssistant),
+    [fallbackDefaultAssistant, userPredefinedAssistants]
+  )
+  const assistantOptions = useMemo(
+    () => userPredefinedAssistants.filter((assistant) => assistant.id !== defaultAssistant.id),
+    [defaultAssistant.id, userPredefinedAssistants]
+  )
   const { defaultModel } = useDefaultModel()
 
   const [formData, setFormData] = useState<Partial<SelectionActionItem>>({})
@@ -93,7 +102,7 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
       isBuiltIn: editingAction?.isBuiltIn || false,
       icon: formData.icon,
       prompt: formData.prompt,
-      assistantId: formData.assistantId
+      assistantId: formData.assistantId === DEFAULT_ASSISTANT_ID ? defaultAssistant.id : formData.assistantId
     }
 
     onOk(actionItem)
@@ -214,31 +223,34 @@ const SelectionActionUserModal: FC<SelectionActionUserModalProps> = ({
               <ModalSectionTitle>
                 <ModalSectionTitleLabel>{t('selection.settings.user_modal.assistant.label')}</ModalSectionTitleLabel>
               </ModalSectionTitle>
-              <Select value={formData.assistantId} onValueChange={(value) => handleInputChange('assistantId', value)}>
+              <Select
+                value={
+                  formData.assistantId === DEFAULT_ASSISTANT_ID
+                    ? defaultAssistant.id
+                    : formData.assistantId || defaultAssistant.id
+                }
+                onValueChange={(value) => handleInputChange('assistantId', value)}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {userPredefinedAssistants.length > 0 ? (
-                    userPredefinedAssistants.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        <AssistantItem>
-                          <ModelAvatar model={defaultModel} size={18} />
-                          <AssistantName>{a.name}</AssistantName>
-                          <Spacer />
-                        </AssistantItem>
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <SelectItem key={defaultAssistant.id} value={defaultAssistant.id}>
+                  <SelectItem key={defaultAssistant.id} value={defaultAssistant.id}>
+                    <AssistantItem>
+                      <ModelAvatar model={defaultModel} size={18} />
+                      <AssistantName>{defaultAssistant.name}</AssistantName>
+                      <Spacer />
+                      <CurrentTag isCurrent={true}>{t('selection.settings.user_modal.assistant.default')}</CurrentTag>
+                    </AssistantItem>
+                  </SelectItem>
+                  {assistantOptions.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
                       <AssistantItem>
                         <ModelAvatar model={defaultModel} size={18} />
-                        <AssistantName>{defaultAssistant.name}</AssistantName>
+                        <AssistantName>{a.name}</AssistantName>
                         <Spacer />
-                        <CurrentTag isCurrent={true}>{t('selection.settings.user_modal.assistant.default')}</CurrentTag>
                       </AssistantItem>
                     </SelectItem>
-                  )}
+                  ))}
                 </SelectContent>
               </Select>
             </ModalSection>

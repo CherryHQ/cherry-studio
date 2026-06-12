@@ -809,10 +809,12 @@ describe('AssistantDataService', () => {
       ])
 
       await expect(assistantDataService.reorder('ast-2', { position: 'first' })).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'Assistant', id: 'ast-2' }
       })
       await expect(assistantDataService.reorder('ast-1', { before: 'ast-2' })).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'Assistant', id: 'ast-2' }
       })
     })
   })

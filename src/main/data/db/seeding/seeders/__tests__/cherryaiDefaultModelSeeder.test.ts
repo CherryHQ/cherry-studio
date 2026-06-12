@@ -118,7 +118,7 @@ describe('CherryAiDefaultModelSeeder', () => {
     expect(await readPreferenceValue('feature.translate.model_id')).toBe('google::gemini-2.5-flash')
   })
 
-  it('preserves null default model preferences (user-intentional "follow default")', async () => {
+  it('preserves existing null default model preferences', async () => {
     await dbh.db.insert(preferenceTable).values(
       DEFAULT_MODEL_PREFERENCE_KEYS.map((key) => ({
         scope: 'default',
@@ -134,7 +134,7 @@ describe('CherryAiDefaultModelSeeder', () => {
     }
   })
 
-  it('preserves empty default model preferences', async () => {
+  it('preserves existing empty default model preferences', async () => {
     await dbh.db.insert(preferenceTable).values(
       DEFAULT_MODEL_PREFERENCE_KEYS.map((key) => ({
         scope: 'default',

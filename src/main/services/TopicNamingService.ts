@@ -1,5 +1,6 @@
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { modelService } from '@data/services/ModelService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import type { AiGenerateRequest } from '@main/ai/AiService'
@@ -7,7 +8,7 @@ import { application } from '@main/core/application'
 import { messageService } from '@main/data/services/MessageService'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import type { Message, MessageData, UIMessage } from '@shared/data/types/message'
-import { type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
+import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { Topic } from '@shared/data/types/topic'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -142,7 +143,7 @@ export class TopicNamingService {
         }
       ]
 
-      const uniqueModelId = this.resolveNamingModelId()
+      const uniqueModelId = await this.resolveNamingModelId()
       const title = await this.generateSummaryTitle(
         assistantId,
         uniqueModelId,
@@ -247,18 +248,26 @@ export class TopicNamingService {
     return (configuredPrompt || FALLBACK_PROMPT).replaceAll('{{language}}', language)
   }
 
-  private resolveNamingModelId(): UniqueModelId {
+  private async resolveNamingModelId(): Promise<UniqueModelId> {
     const configured = application.get('PreferenceService').get('topic.naming.model_id')
     const parsed = UniqueModelIdSchema.safeParse(configured)
-    if (parsed.success) {
+    if (!parsed.success) {
+      if (configured != null) {
+        logger.warn('topic.naming.model_id is invalid; falling back to managed CherryAI default model', { configured })
+      }
+      return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+    }
+
+    const { providerId, modelId } = parseUniqueModelId(parsed.data)
+    try {
+      await modelService.getByKey(providerId, modelId)
       return parsed.data
+    } catch (error) {
+      logger.warn('topic.naming.model_id points to a missing model; falling back to managed CherryAI default model', {
+        configured
+      })
+      return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
     }
-
-    if (configured != null) {
-      logger.warn('topic.naming.model_id is invalid; falling back to managed CherryAI default model', { configured })
-    }
-
-    return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
   }
 
   private async renameTopic(topic: Topic, name: string): Promise<void> {
