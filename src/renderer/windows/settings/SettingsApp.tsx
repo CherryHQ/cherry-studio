@@ -20,6 +20,8 @@ import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/rea
 import { type CSSProperties, useEffect, useMemo } from 'react'
 import { Provider } from 'react-redux'
 
+import { settingsWindowFormControlTextClassName } from './classNames'
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -85,6 +87,7 @@ function SettingsApp({ initialPath }: { initialPath: string }): React.ReactEleme
                         <div
                           className={cn(
                             'flex h-screen w-screen overflow-hidden text-foreground',
+                            settingsWindowFormControlTextClassName,
                             isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
                           )}
                           style={shellStyle}>
