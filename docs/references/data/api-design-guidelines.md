@@ -215,7 +215,7 @@ Use verb-based paths for operations that don't fit CRUD semantics:
 | Purpose | Pattern | Example |
 |---------|---------|---------|
 | Pagination | `page` + `limit` | `?page=1&limit=20` |
-| Sorting | `orderBy` + `order` | `?orderBy=createdAt&order=desc` |
+| Sorting | `sortBy` + `sortOrder` (see `SortParams` in [api-types.md](api-types.md)) | `?sortBy=createdAt&sortOrder=desc` |
 | Filtering | direct field names | `?status=active&type=chat` |
 | Search | `q` or `search` | `?q=keyword` |
 
@@ -431,7 +431,7 @@ full API contract and the "do not replace pre-validation" discipline note.
 |---------|------|---------|
 | Paths | kebab-case, plural | `/user-settings`, `/topics` |
 | Path params | camelCase | `:topicId`, `:messageId` |
-| Query params | camelCase | `orderBy`, `pageSize` |
+| Query params | camelCase | `sortBy`, `pageSize` |
 | Body fields | camelCase | `createdAt`, `userName` |
 | Error codes | SCREAMING_SNAKE | `NOT_FOUND`, `VALIDATION_ERROR` |
 

@@ -92,7 +92,7 @@ export default function ProviderListItemWithContextMenu({
               label={t('common.delete')}
               icon={<Trash2 size={14} />}
               onClick={handleMenuAction(onDelete)}
-              className={cn(providerListClasses.itemMenuEntry, 'text-(--color-destructive)')}
+              className={cn(providerListClasses.itemMenuEntry, 'text-destructive')}
             />
           )}
         </MenuList>

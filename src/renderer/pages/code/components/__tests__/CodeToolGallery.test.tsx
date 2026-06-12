@@ -70,8 +70,9 @@ afterEach(() => {
 
 describe('CodeToolGallery', () => {
   it('renders the hero illustration and Bun requirement prompt', () => {
-    renderGallery({ tools: [claudeTool] })
+    const { container } = renderGallery({ tools: [claudeTool] })
 
+    expect(container.firstElementChild).toHaveClass('min-h-0', 'overflow-y-auto')
     expect(screen.getByTestId('hero-code-illustration')).toBeInTheDocument()
     expect(screen.getByText('code.hero_tagline')).toBeInTheDocument()
     expect(screen.getByText('code.bun_required_message')).toBeInTheDocument()

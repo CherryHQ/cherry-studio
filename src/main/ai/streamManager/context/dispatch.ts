@@ -7,7 +7,6 @@
 import { loggerService } from '@logger'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 
-import { isAgentSessionTopic } from '../../agentSession/topic'
 import { isAgentSessionWorkspaceError } from '../../runtime/claudeCode/settingsBuilder'
 import type { AiStreamManager } from '../AiStreamManager'
 import type { StreamListener } from '../types'
@@ -28,7 +27,20 @@ export interface MainContinueConversationRequest {
   approvalDecisions: ApprovalDecision[]
 }
 
-export type MainDispatchRequest = AiStreamOpenRequest | MainContinueConversationRequest
+/**
+ * Answer a steer message that was persisted while a turn was live. Synthesised
+ * by `AiStreamManager.startNextChatTurn` when a finished chat turn has a pending
+ * steer queued — it opens a fresh assistant turn anchored on the steer user
+ * message (no new user row). Not on the renderer↔main IPC contract.
+ */
+export interface MainSteerContinuationRequest {
+  trigger: 'steer-continuation'
+  topicId: string
+  /** The already-persisted steer user message to answer. */
+  userMessageId: string
+}
+
+export type MainDispatchRequest = AiStreamOpenRequest | MainContinueConversationRequest | MainSteerContinuationRequest
 
 const logger = loggerService.withContext('chatContextDispatch')
 
@@ -55,18 +67,24 @@ export async function dispatchStreamRequest(
 
   logger.debug('Dispatching stream request', { topicId: req.topicId, provider: provider.name })
 
-  // Steer a live chat turn by abort+restart. This MUST run before `prepareDispatch`:
-  // `abortAndAwait` settles the running turn and persists its partial as `paused`, so the
-  // history `prepareDispatch` reads from the DB includes the text the model was mid-producing.
-  // Agent sessions are not aborted (they enqueue a follow-up onto `pendingTurns`), so their
-  // liveness must still be observed by `prepareDispatch` below.
-  if (manager.hasLiveStream(req.topicId) && !isAgentSessionTopic(req.topicId)) {
-    await manager.abortAndAwait(req.topicId, 'steer-restart')
-  }
-
-  // Re-snapshot after the abort: chat is now evicted (false → fresh start); an agent-session
-  // stream is untouched (still true → enqueue/inject path).
+  // A busy submit no longer aborts the live turn — but only persistent chat and agent sessions
+  // absorb it. Persistent chat persists the steer user row (PersistentChatContextProvider's
+  // `hasLiveStream` branch) and we enqueue it below so the running turn yields at the next step
+  // boundary and the terminal hook chains a continuation; agent sessions enqueue onto `pendingTurns`.
+  // Temporary chats are the third case — they have no queue, so their provider throws on a live
+  // submit rather than letting the message be silently swallowed. Either way `prepareDispatch` must
+  // observe liveness.
   const hasLiveStream = manager.hasLiveStream(req.topicId)
+
+  // An approval `continue-conversation` must never race a live stream: `send` would take the inject
+  // branch and discard `prepared.models`, so the approved tool never executes and the anchor row is
+  // stranded `pending` while the renderer is told success. `onExecutionDone` gates steer chaining on
+  // pending approvals to prevent this, so reaching here means an unexpected race — surface it.
+  if (hasLiveStream && req.trigger === 'continue-conversation') {
+    logger.error('continue-conversation arrived while a stream is live — approval cannot inject onto a running turn', {
+      topicId: req.topicId
+    })
+  }
   const prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream }).catch((error: unknown) => {
     if (isAgentSessionWorkspaceError(error)) {
       return {
@@ -82,34 +100,43 @@ export async function dispatchStreamRequest(
     return { mode: 'blocked', ...prepared.blocked }
   }
 
+  // Inject-steer: a live persistent-chat submit took the `hasLiveStream` branch, which sets an
+  // explicit `pendingSteerUserMessageId`. Enqueue it so the running turn yields (`hasPendingSteer`)
+  // and `onExecutionDone` chains a `steer-continuation` to answer it.
+  if (prepared.pendingSteerUserMessageId) {
+    manager.enqueuePendingSteer(req.topicId, prepared.pendingSteerUserMessageId)
+  } else if (
+    provider.name === persistentChatContextProvider.name &&
+    prepared.models.length === 0 &&
+    req.trigger === 'submit-message'
+  ) {
+    // A persistent submit that resolved to zero models without taking the steer branch is a
+    // regression: `send` persists nothing new, returns a success-shaped ack, and answers nothing.
+    // Surface it loudly. (Agent-session injects legitimately have empty models — absorbed by the
+    // runtime's pendingTurns — so they're excluded by the provider check.)
+    logger.error(
+      'Persistent submit resolved to zero models and is not an enqueue-only steer — nothing will be answered',
+      {
+        topicId: req.topicId
+      }
+    )
+  }
+
   const result = manager.send({
     topicId: prepared.topicId,
     models: prepared.models,
     listeners: prepared.listeners,
-    userMessage: prepared.userMessage,
     siblingsGroupId: prepared.siblingsGroupId,
     lifecycle: prepared.lifecycle
   })
 
-  // Ids the renderer needs to join its optimistic bubbles.
-  const placeholderIds = prepared.models
-    .map((m) => m.request.messageId)
-    .filter((id): id is string => typeof id === 'string' && id.length > 0)
-
-  // Multi-model topics are persistent-only with a placeholder per model, so the
-  // filtered list must stay aligned with `executionIds`. Fail fast if a future
-  // multi-model provider ever returns a model without a messageId — silently
-  // dropping it would desync the renderer's per-execution bubble join.
-  if (prepared.isMultiModel && placeholderIds.length !== prepared.models.length) {
-    throw new Error(
-      `Multi-model dispatch produced ${placeholderIds.length} placeholderIds for ${prepared.models.length} models (topicId=${prepared.topicId})`
-    )
-  }
-
   return {
     mode: result.mode,
     executionIds: prepared.isMultiModel ? result.executionIds : undefined,
-    userMessageId: prepared.userMessageId ?? prepared.userMessage?.id,
-    placeholderIds: placeholderIds.length > 0 ? placeholderIds : undefined
+    userMessageId: prepared.userMessageId,
+    reservedMessages: prepared.reservedMessages,
+    placeholderIds: prepared.reservedMessages
+      ?.filter((message) => message.role === 'assistant')
+      .map((message) => message.id)
   }
 }

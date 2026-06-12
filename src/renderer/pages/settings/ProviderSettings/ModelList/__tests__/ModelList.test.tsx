@@ -230,6 +230,7 @@ describe('useProviderModelList', () => {
     expect(result.current.header.enabledModelCount).toBe(0)
     expect(result.current.sections.displayEnabledModelCount).toBe(0)
     expect(result.current.sections.displayDisabledModelCount).toBe(3)
+    expect(result.current.sections.enabledSections).toHaveLength(0)
     expect(
       result.current.sections.disabledSections
         .flatMap((section) => section.items)

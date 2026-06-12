@@ -23,13 +23,6 @@ describe('TemporaryChatService', () => {
     service = new TemporaryChatService()
   })
 
-  describe('createTopic — input validation', () => {
-    it('rejects sourceNodeId (fork not supported)', async () => {
-      const err = await service.createTopic({ sourceNodeId: 'some-msg-id' }).catch((e) => e)
-      expect(fieldsOf(err).sourceNodeId).toBeDefined()
-    })
-  })
-
   describe('appendMessage — input validation', () => {
     let topicId: string
     beforeEach(async () => {
@@ -114,7 +107,6 @@ describe('TemporaryChatService', () => {
         data: mainText('world'),
         modelId: 'mdl-1',
         modelSnapshot: snapshot,
-        traceId: 'trace-1',
         stats: { totalTokens: 42 }
       })
       expect(msg.parentId).toBeNull()
@@ -123,7 +115,6 @@ describe('TemporaryChatService', () => {
       expect(msg.topicId).toBe(topic.id)
       expect(msg.modelId).toBe('mdl-1')
       expect(msg.modelSnapshot).toEqual(snapshot)
-      expect(msg.traceId).toBe('trace-1')
       expect(msg.stats).toEqual({ totalTokens: 42 })
       expect(typeof msg.createdAt).toBe('string')
     })

@@ -10,7 +10,7 @@ import path from 'path'
 import type { IOAuthStorage, OAuthStorageData } from './types'
 import { OAuthStorageSchema } from './types'
 
-const logger = loggerService.withContext('MCP:OAuthStorage')
+const logger = loggerService.withContext('Mcp:OAuthStorage')
 
 export class JsonFileStorage implements IOAuthStorage {
   private readonly filePath: string

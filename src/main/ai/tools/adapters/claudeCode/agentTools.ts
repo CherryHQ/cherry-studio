@@ -7,6 +7,7 @@ import {
   type ClaudeToolDecision,
   type ClaudeToolDescriptor,
   type ClaudeToolPolicy,
+  isClaudeToolDisabled,
   normalizeClaudeBuiltinName,
   resolveClaudeToolAccess,
   resolveClaudeToolInvocationAccess
@@ -16,6 +17,8 @@ import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 
 const logger = loggerService.withContext('ClaudeCodeAgentTools')
+
+type ClaudeToolPolicyAgent = Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'>
 
 export function descriptorToTool(descriptor: ClaudeToolDescriptor, policy: ClaudeToolPolicy): Tool {
   const access = resolveClaudeToolAccess(descriptor, policy)
@@ -35,20 +38,22 @@ function descriptorToToolWithAccess(descriptor: ClaudeToolDescriptor, access: Cl
 }
 
 export function buildClaudeToolPolicy(
-  agent: Partial<Pick<AgentEntity, 'configuration' | 'allowedTools'>>
+  agent: Partial<Pick<AgentEntity, 'configuration' | 'disabledTools'>>
 ): ClaudeToolPolicy {
   return {
     permissionMode: agent.configuration?.permission_mode,
-    allowedTools: agent.allowedTools ?? []
+    disabledTools: agent.disabledTools
   }
 }
 
 async function listMcpDescriptors(mcpIds: readonly string[]): Promise<{
   descriptors: ClaudeToolDescriptor[]
+  failedMcpIds: Set<string>
 }> {
-  if (mcpIds.length === 0) return { descriptors: [] }
+  if (mcpIds.length === 0) return { descriptors: [], failedMcpIds: new Set() }
 
   const descriptors: ClaudeToolDescriptor[] = []
+  const failedMcpIds = new Set<string>()
 
   for (const id of mcpIds) {
     try {
@@ -70,19 +75,22 @@ async function listMcpDescriptors(mcpIds: readonly string[]): Promise<{
         })
       }
     } catch (error) {
+      failedMcpIds.add(id)
       logger.warn('Failed to list MCP tools for agent catalog', { id, error })
     }
   }
 
-  return { descriptors }
+  return { descriptors, failedMcpIds }
 }
 
 export async function listClaudeAgentToolDescriptors(agent: Pick<AgentEntity, 'mcps'>): Promise<{
   descriptors: ClaudeToolDescriptor[]
+  failedMcpIds: Set<string>
 }> {
   const mcpCatalog = await listMcpDescriptors(agent.mcps ?? [])
   return {
-    descriptors: [...claudeCodeBuiltinToolDescriptors(), ...mcpCatalog.descriptors]
+    descriptors: [...claudeCodeBuiltinToolDescriptors(), ...mcpCatalog.descriptors],
+    failedMcpIds: mcpCatalog.failedMcpIds
   }
 }
 
@@ -114,22 +122,56 @@ function injectedRuntimeTool(runtimeName: string): Tool {
   }
 }
 
+function fallbackRuntimeDescriptor(runtimeName: string): ClaudeToolDescriptor {
+  const mcpMatch = /^mcp__(.+)__(.+)$/.exec(runtimeName)
+  if (mcpMatch) {
+    return {
+      id: runtimeName,
+      name: mcpMatch[2],
+      origin: 'mcp',
+      sourceName: mcpMatch[1],
+      sourceToolName: mcpMatch[2]
+    }
+  }
+  const normalizedName = normalizeClaudeBuiltinName(runtimeName)
+  return {
+    id: runtimeName,
+    name: normalizedName,
+    origin: 'builtin'
+  }
+}
+
 export interface ClaudeAgentToolPolicySnapshot {
   resolve(runtimeName: string, input?: unknown): Tool | undefined
+  isDisabled(runtimeName: string): boolean
+  getPermissionMode(): AgentPermissionMode | undefined
   setPermissionMode(permissionMode: AgentPermissionMode | undefined): void
-  update(agent: AgentEntity): Promise<void>
+  update(agent: ClaudeToolPolicyAgent): Promise<void>
 }
 
 export async function createClaudeAgentToolPolicySnapshot(
-  agent: AgentEntity,
+  agent: ClaudeToolPolicyAgent,
   options: { autoAllowRuntimeNamePrefixes?: readonly string[] } = {}
 ): Promise<ClaudeAgentToolPolicySnapshot> {
   let descriptors: ClaudeToolDescriptor[] = []
   let policy: ClaudeToolPolicy = {}
+  let rebuildSequence = 0
 
-  const rebuild = async (nextAgent: AgentEntity) => {
+  const rebuild = async (nextAgent: ClaudeToolPolicyAgent) => {
+    const sequence = ++rebuildSequence
     const catalog = await listClaudeAgentToolDescriptors(nextAgent)
-    descriptors = catalog.descriptors
+    if (sequence !== rebuildSequence) return
+    const nextDescriptors = [...catalog.descriptors]
+    if (catalog.failedMcpIds.size > 0) {
+      const existingIds = new Set(nextDescriptors.map((descriptor) => descriptor.id))
+      for (const descriptor of descriptors) {
+        if (descriptor.origin !== 'mcp' || !descriptor.sourceId) continue
+        if (!catalog.failedMcpIds.has(descriptor.sourceId) || existingIds.has(descriptor.id)) continue
+        nextDescriptors.push(descriptor)
+        existingIds.add(descriptor.id)
+      }
+    }
+    descriptors = nextDescriptors
     policy = buildClaudeToolPolicy(nextAgent)
   }
 
@@ -144,6 +186,15 @@ export async function createClaudeAgentToolPolicySnapshot(
       if (!descriptor) return undefined
       const access = resolveClaudeToolInvocationAccess(descriptor, policy, { toolName: runtimeName, input })
       return descriptorToToolWithAccess(descriptor, access)
+    },
+
+    isDisabled(runtimeName) {
+      const descriptor = findRuntimeDescriptor(descriptors, runtimeName) ?? fallbackRuntimeDescriptor(runtimeName)
+      return isClaudeToolDisabled(descriptor, policy)
+    },
+
+    getPermissionMode() {
+      return policy.permissionMode
     },
 
     setPermissionMode(permissionMode) {
