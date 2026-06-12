@@ -76,6 +76,10 @@ export type KbSearchInput = z.infer<typeof kbSearchInputSchema>
 export type KbSearchOutputItem = z.infer<typeof kbSearchOutputItemSchema>
 export type KbSearchOutput = z.infer<typeof kbSearchOutputSchema>
 
+// ── fs_read ──────────────────────────────────────────────────────
+
+export const FS_READ_TOOL_NAME = 'fs_read'
+
 // ── web_search ───────────────────────────────────────────────────
 
 export const WEB_SEARCH_TOOL_NAME = 'web_search'
