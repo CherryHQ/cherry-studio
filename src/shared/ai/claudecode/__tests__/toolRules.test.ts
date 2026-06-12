@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildClaudeMcpToolName,
   type ClaudeToolDescriptor,
+  isClaudeToolDisabled,
   matchesClaudeToolRule,
   resolveClaudeToolAccess,
   resolveClaudeToolInvocationAccess
@@ -49,35 +50,31 @@ describe('Claude Code tool rules', () => {
     expect(matchesClaudeToolRule('mcp__other__searchDocs', mcpSearch)).toBe(false)
   })
 
-  it('lets source force-prompt override explicit preapproval', () => {
+  it('flags tools the agent has disabled (builtin + MCP rules)', () => {
+    expect(isClaudeToolDisabled(read, { disabledTools: ['Read'] })).toBe(true)
+    expect(isClaudeToolDisabled(read, { disabledTools: ['builtin_Read'] })).toBe(true)
+    expect(isClaudeToolDisabled(mcpSearch, { disabledTools: ['mcp__docs__*'] })).toBe(true)
+    expect(isClaudeToolDisabled(read, { disabledTools: ['Edit'] })).toBe(false)
+    expect(isClaudeToolDisabled(read, {})).toBe(false)
+  })
+
+  it('reports disabled independently of approval resolution', () => {
+    const policy = { disabledTools: ['Read'] }
+    expect(resolveClaudeToolInvocationAccess(read, policy, { toolName: 'Read' }).approval).toBe('auto')
+    expect(isClaudeToolDisabled(read, policy)).toBe(true)
+  })
+
+  it('lets source force-prompt override mode defaults', () => {
     expect(
-      resolveClaudeToolAccess({ ...webSearch, sourceApproval: 'prompt' }, { allowedTools: ['WebSearch'] }).approval
+      resolveClaudeToolAccess({ ...read, sourceApproval: 'prompt' }, { permissionMode: 'bypassPermissions' }).approval
     ).toBe('prompt')
   })
 
-  it('applies explicit, mode, safe, and manual defaults in order', () => {
-    expect(resolveClaudeToolAccess(webSearch, { allowedTools: ['WebSearch'] }).approval).toBe('auto')
+  it('applies mode, safe, and manual defaults in order', () => {
+    expect(resolveClaudeToolAccess(webSearch, { permissionMode: 'bypassPermissions' }).approval).toBe('auto')
     expect(resolveClaudeToolAccess(edit, { permissionMode: 'acceptEdits' }).approval).toBe('auto')
     expect(resolveClaudeToolAccess(read, {}).approval).toBe('auto')
     expect(resolveClaudeToolAccess(webSearch, {}).approval).toBe('prompt')
-  })
-
-  it('applies invocation-level Bash allow patterns without making the whole Bash tool auto-approved', () => {
-    const bash: ClaudeToolDescriptor = {
-      id: 'Bash',
-      name: 'Bash',
-      origin: 'builtin'
-    }
-
-    const policy = { allowedTools: ['Bash(git *)'] }
-    expect(resolveClaudeToolAccess(bash, policy).approval).toBe('prompt')
-    expect(
-      resolveClaudeToolInvocationAccess(bash, policy, { toolName: 'Bash', input: { command: 'git status' } }).approval
-    ).toBe('auto')
-    expect(
-      resolveClaudeToolInvocationAccess(bash, policy, { toolName: 'Bash', input: { command: 'curl example.com' } })
-        .approval
-    ).toBe('prompt')
   })
 
   it('applies invocation-level acceptEdits Bash defaults', () => {

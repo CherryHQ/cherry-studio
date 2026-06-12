@@ -75,10 +75,12 @@ each subsystem.
    persistence (temporary / translate), creates `PersistenceListener` per
    execution, returns `PreparedDispatch`.
 6. `dispatch` reconciles any live stream, then calls `manager.send(input)`:
-   - **chat resubmit** (topic already streaming): `manager.abortAndAwait(topicId)`
-     aborts the running executions and waits for their loops to settle (the
-     partial persists as `paused`) before `send()` **starts** a fresh turn —
-     steering is abort-and-restart, not mid-turn injection.
+   - **chat resubmit** (topic already streaming): the provider persists the
+     steer user row and `dispatch` calls `manager.enqueuePendingSteer(topicId)`;
+     `send()` **injects** (just upserts the subscriber). The running turn yields
+     via `steerYield` (persisting as `success`) and `onExecutionDone` chains a
+     `steer-continuation` — steering is enqueue + yield + chain, not
+     abort-and-restart and not mid-turn injection.
    - **agent-session follow-up**: the stream is left running and `send()`
      **injects** — it upserts `listeners` onto the running stream, `models`
      ignored (the message was already enqueued on the session's `pendingTurns`).
