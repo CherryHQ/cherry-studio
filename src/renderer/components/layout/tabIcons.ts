@@ -12,8 +12,7 @@ import {
   MousePointerClick,
   NotepadText,
   Palette,
-  Settings,
-  Sparkle
+  Settings
 } from 'lucide-react'
 
 import { OpenClawSidebarIcon } from '../Icons/SvgIcon'
@@ -27,7 +26,6 @@ export const ROUTE_ICONS: Record<string, IconComponent> = {
   '/home': Home,
   '/app/chat': MessageCircle,
   '/app/agents': MousePointerClick,
-  '/app/assistant': Sparkle,
   '/app/paintings': Palette,
   '/app/translate': Languages,
   '/app/mini-app': LayoutGrid,

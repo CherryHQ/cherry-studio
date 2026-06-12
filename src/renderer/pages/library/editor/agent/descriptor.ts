@@ -2,14 +2,15 @@ import {
   DEFAULT_HEARTBEAT_ENABLED,
   DEFAULT_HEARTBEAT_INTERVAL,
   DEFAULT_MAX_TURNS,
-  mergePermissionModeTools,
   normalizePermissionMode
 } from '@renderer/hooks/agents/permissionMode'
-import type { Tool } from '@renderer/types'
+import type { Tool } from '@shared/ai/tool'
 import type { CreateAgentDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
-import type { AgentConfiguration, AgentDetail, AgentType } from '@shared/data/types/agent'
+import type { AgentConfiguration, AgentType } from '@shared/data/types/agent'
+import type { UniqueModelId } from '@shared/data/types/model'
 import { FileText, Settings, Shield, SlidersHorizontal, Wrench } from 'lucide-react'
 
+import type { AgentDetail } from '../../types'
 import type { SectionDescriptor } from '../ConfigEditorShell'
 
 // ---------------------------------------------------------------------------
@@ -59,22 +60,22 @@ export const AGENT_CONFIG_SECTIONS: readonly SectionDescriptor<AgentConfigSectio
  * Flat, controlled form-state for the Agent editor.
  *
  * Every editable field (one per `AgentBase` column + the common
- * `configuration.*` sub-keys surfaced by the legacy AgentSettings UI)
+ * `configuration.*` sub-keys surfaced by the agent editor)
  * lives on this object. Section components read / patch it; the page
  * diffs it against the baseline at save time and emits a minimal
  * `UpdateAgentDto`.
  */
 export interface AgentFormState {
-  // AgentBase primitives
   name: string
   description: string
-  model: string
-  planModel: string
-  smallModel: string
+  /** `''` is the explicit "no model selected yet" draft sentinel; once chosen it is always a valid UniqueModelId. */
+  model: UniqueModelId | ''
+  planModel: UniqueModelId | ''
+  smallModel: UniqueModelId | ''
   instructions: string
-  accessiblePaths: string[]
   mcps: string[]
-  allowedTools: string[]
+  /** Opt-out list of disabled tool names (empty = all enabled). */
+  disabledTools: string[]
 
   // configuration.* derived fields we edit in the library UI.
   avatar: string
@@ -159,9 +160,8 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null): AgentFor
     planModel: agent?.planModel ?? '',
     smallModel: agent?.smallModel ?? '',
     instructions: agent?.instructions ?? '',
-    accessiblePaths: [...(agent?.accessiblePaths ?? [])],
     mcps: [...(agent?.mcps ?? [])],
-    allowedTools: [...(agent?.allowedTools ?? [])],
+    disabledTools: uniqueStrings(agent?.disabledTools ?? []),
     avatar: asString(cfg.avatar),
     permissionMode: asString(cfg.permission_mode),
     maxTurns: asFormMaxTurns(cfg.max_turns),
@@ -175,17 +175,18 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null): AgentFor
 export function applyAgentFormPatch(
   current: AgentFormState,
   patch: Partial<AgentFormState>,
-  tools: Tool[] = []
+  _tools: Tool[] = []
 ): AgentFormState {
+  void _tools
   const next: AgentFormState = { ...current, ...patch }
-  const currentMode = normalizePermissionMode(current.permissionMode)
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'disabledTools')) {
+    next.disabledTools = uniqueStrings(next.disabledTools)
+  }
 
   if (Object.prototype.hasOwnProperty.call(patch, 'permissionMode')) {
     const nextMode = normalizePermissionMode(patch.permissionMode)
     next.permissionMode = nextMode
-    if (nextMode !== currentMode) {
-      next.allowedTools = mergePermissionModeTools(current.allowedTools, currentMode, nextMode, tools)
-    }
     if (
       nextMode !== 'bypassPermissions' &&
       current.soulEnabled &&
@@ -197,7 +198,6 @@ export function applyAgentFormPatch(
 
   if (patch.soulEnabled === true && !current.soulEnabled) {
     next.permissionMode = 'bypassPermissions'
-    next.allowedTools = mergePermissionModeTools(current.allowedTools, currentMode, 'bypassPermissions', tools)
   }
 
   return next
@@ -232,17 +232,19 @@ function buildConfigurationPayload(form: AgentFormState): AgentConfiguration | u
  * so the backend can apply its own defaults.
  */
 export function buildCreateAgentPayload(form: AgentFormState, type: AgentType = 'claude-code'): CreateAgentDto {
+  const disabledTools = uniqueStrings(form.disabledTools)
   return {
     type,
     name: form.name.trim(),
-    model: form.model.trim(),
-    accessiblePaths: form.accessiblePaths,
+    // Create is gated by validateAgentCreateForm (modelMissing=false), so the
+    // trimmed draft value is a real UniqueModelId here.
+    model: form.model.trim() as UniqueModelId,
     description: form.description || undefined,
     instructions: form.instructions || undefined,
     planModel: form.planModel || undefined,
     smallModel: form.smallModel || undefined,
     mcps: form.mcps.length > 0 ? form.mcps : undefined,
-    allowedTools: form.allowedTools.length > 0 ? form.allowedTools : undefined,
+    disabledTools: disabledTools.length > 0 ? disabledTools : undefined,
     configuration: buildConfigurationPayload(form)
   }
 }
@@ -304,7 +306,7 @@ export function diffAgentUpdate(
     dirty = true
   }
   if (baseline.model !== next.model) {
-    dto.model = next.model
+    if (next.model) dto.model = next.model
     dirty = true
   }
   if (baseline.planModel !== next.planModel) {
@@ -319,16 +321,13 @@ export function diffAgentUpdate(
     dto.instructions = next.instructions
     dirty = true
   }
-  if (!arraysEqual(baseline.accessiblePaths, next.accessiblePaths)) {
-    dto.accessiblePaths = next.accessiblePaths
-    dirty = true
-  }
   if (!arraysEqual(baseline.mcps, next.mcps)) {
     dto.mcps = next.mcps
     dirty = true
   }
-  if (!arraysEqual(baseline.allowedTools, next.allowedTools)) {
-    dto.allowedTools = next.allowedTools
+  const nextDisabledTools = uniqueStrings(next.disabledTools)
+  if (!stringSetsEqual(baseline.disabledTools, nextDisabledTools)) {
+    dto.disabledTools = nextDisabledTools
     dirty = true
   }
 
@@ -380,6 +379,20 @@ export function diffAgentUpdate(
 function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
+  return true
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  return Array.from(new Set(values))
+}
+
+function stringSetsEqual(a: readonly string[], b: readonly string[]): boolean {
+  const aSet = new Set(a)
+  const bSet = new Set(b)
+  if (aSet.size !== bSet.size) return false
+  for (const value of aSet) {
+    if (!bSet.has(value)) return false
+  }
   return true
 }
 

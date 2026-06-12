@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
 import { cacheService } from '@renderer/data/CacheService'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useSessions } from '@renderer/hooks/agents/useSessions'
-import type { CreateSessionForm } from '@renderer/types'
+import { type CreateSessionForm, useSessions } from '@renderer/hooks/agents/useSession'
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -11,30 +11,33 @@ const logger = loggerService.withContext('useCreateDefaultSession')
 /**
  * Returns a stable callback that creates a default agent session and updates UI state.
  */
-export const useCreateDefaultSession = (agentId: string | null) => {
+export const useCreateDefaultSession = (agentId: string | null, workspace: AgentSessionWorkspaceSource | null) => {
   const { agent } = useAgent(agentId)
   const { createSession } = useSessions(agentId)
   const { t } = useTranslation()
   const [creatingSession, setCreatingSession] = useState(false)
 
   const createDefaultSession = useCallback(async () => {
-    if (!agentId || !agent || creatingSession) {
+    if (!agentId || !agent || !workspace || creatingSession) {
+      return null
+    }
+
+    if (!agent.model) {
+      window.toast.error(t('error.model.not_exists'))
       return null
     }
 
     setCreatingSession(true)
     try {
       const session = {
-        ...agent,
-        id: undefined,
-        name: t('common.unnamed')
+        name: t('common.unnamed'),
+        workspace
       } satisfies CreateSessionForm
 
       const created = await createSession(session)
 
       if (created) {
-        const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
-        cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: created.id })
+        cacheService.set('agent.active_session_id', created.id)
       }
 
       return created
@@ -44,7 +47,7 @@ export const useCreateDefaultSession = (agentId: string | null) => {
     } finally {
       setCreatingSession(false)
     }
-  }, [agentId, agent, createSession, creatingSession, t])
+  }, [agentId, agent, workspace, createSession, creatingSession, t])
 
   return {
     createDefaultSession,

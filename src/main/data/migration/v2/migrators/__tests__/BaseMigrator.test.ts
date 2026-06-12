@@ -1,5 +1,6 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { sql } from 'drizzle-orm'
@@ -35,13 +36,19 @@ class ProbeMigrator extends BaseMigrator {
 async function insertAgent(db: ReturnType<typeof setupTestDatabase>['db'], id: string) {
   await db
     .insert(agentTable)
-    .values({ id, type: 'claude-code', name: 'A', instructions: 'i', model: 'claude-3-5-sonnet', sortOrder: 0 })
+    .values({ id, type: 'claude-code', name: 'A', instructions: 'i', model: null, orderKey: 'a0' })
 }
 
 async function insertSession(db: ReturnType<typeof setupTestDatabase>['db'], id: string, agentId: string) {
-  await db
-    .insert(agentSessionTable)
-    .values({ id, agentType: 'claude-code', agentId, name: 'S', instructions: 'i', model: 'claude-3-5-sonnet' })
+  const workspaceId = `workspace-${id}`
+  await db.insert(agentWorkspaceTable).values({
+    id: workspaceId,
+    name: workspaceId,
+    path: `/tmp/${workspaceId}`,
+    type: 'user',
+    orderKey: 'a0'
+  })
+  await db.insert(agentSessionTable).values({ id, agentId, name: 'S', workspaceId, orderKey: 'a0' })
 }
 
 describe('BaseMigrator.assertOwnedForeignKeys', () => {

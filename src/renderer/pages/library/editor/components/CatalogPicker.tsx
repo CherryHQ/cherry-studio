@@ -75,6 +75,23 @@ export function BoundCatalogRow({ item, onDisable }: { item: CatalogItem; onDisa
   )
 }
 
+function CatalogBadges({ item }: { item: CatalogItem }) {
+  if (!item.inactiveBadge && !item.statusBadge) return null
+  return (
+    <span className="flex shrink-0 items-center gap-1">
+      {item.inactiveBadge ? (
+        <span className="rounded-3xs bg-warning/10 px-1 py-px text-warning text-xs">{item.inactiveBadge}</span>
+      ) : null}
+      {item.statusBadge ? (
+        <span
+          className={`rounded-3xs px-1 py-px text-xs ${item.statusBadgeClassName ?? 'bg-muted text-muted-foreground'}`}>
+          {item.statusBadge}
+        </span>
+      ) : null}
+    </span>
+  )
+}
+
 export const BoundCatalogList: FC<{
   items: CatalogItem[]
   loading?: boolean
@@ -140,7 +157,6 @@ export const AddCatalogPopover: FC<{
     const q = keyword.trim().toLowerCase()
     return items.filter((it) => {
       if (enabledIds.has(it.id)) return false
-      if (it.pickable === false) return false
       if (!q) return true
       return it.name.toLowerCase().includes(q) || (it.description ?? '').toLowerCase().includes(q)
     })
@@ -199,7 +215,10 @@ export const AddCatalogPopover: FC<{
                   description={it.description || undefined}
                   descriptionClassName="text-muted-foreground/80"
                   descriptionLines={1}
+                  disabled={it.pickable === false}
+                  suffix={<CatalogBadges item={it} />}
                   onClick={() => {
+                    if (it.pickable === false) return
                     onAdd(it.id)
                     setOpen(false)
                     setKeyword('')

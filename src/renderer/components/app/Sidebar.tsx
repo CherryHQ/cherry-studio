@@ -2,7 +2,6 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { modelGenerating } from '@renderer/hooks/useModel'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
@@ -20,13 +19,13 @@ import {
   Sparkle
 } from 'lucide-react'
 import type { Ref } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { OpenClawSidebarIcon } from '../Icons/SvgIcon'
 import UserPopup from '../Popups/UserPopup'
 import { Sidebar as UISidebar } from '../Sidebar'
-import { getSidebarLayout } from '../Sidebar/constants'
+import { getSidebarDisplayWidth, getSidebarLayout, normalizeSidebarWidth } from '../Sidebar/constants'
 import type { SidebarMenuItem, SidebarUser } from '../Sidebar/types'
 
 const APP_LOGO = <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />
@@ -35,7 +34,7 @@ const noop = () => {}
 const routePrefixMap: Record<SidebarIconType, string> = {
   assistants: '/app/chat',
   agents: '/app/agents',
-  store: '/app/assistant',
+  store: '/app/library',
   paintings: '/app/paintings',
   translate: '/app/translate',
   mini_app: '/app/mini-app',
@@ -77,15 +76,31 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const { activeTab, updateTab, openTab } = useTabs()
 
-  // Sidebar width — persisted across restarts
-  const [persistedWidth, setPersistedWidth] = usePersistCache('ui.sidebar.width')
-  const [sidebarWidth, setSidebarWidth] = useState(persistedWidth)
+  // Sidebar width — persisted across restarts. Dragging through the
+  // intermediate 50-120px range uses a local preview width so the UI can
+  // follow the cursor without persisting unstable widths.
+  const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
+  const [previewSidebarWidth, setPreviewSidebarWidth] = useState<number | null>(null)
+  const activeSidebarWidth = previewSidebarWidth ?? sidebarWidth
 
-  // Sync local width to CSS variable and persist cache
+  useLayoutEffect(() => {
+    document.documentElement.style.setProperty('--sidebar-width', `${getSidebarDisplayWidth(activeSidebarWidth)}px`)
+  }, [activeSidebarWidth])
+
+  // Migration, not dead code: the resize path only persists normalized widths,
+  // but older builds (three-state layout, default 65) persisted intermediate
+  // values that must be collapsed once on load. Writing derived state back
+  // cannot loop — normalizeSidebarWidth is idempotent and the write is guarded
+  // by the inequality check. Skip while a drag preview is active so the
+  // write-back does not clobber it.
   useEffect(() => {
-    document.documentElement.style.setProperty('--sidebar-width', `${sidebarWidth}px`)
-    setPersistedWidth(sidebarWidth)
-  }, [sidebarWidth, setPersistedWidth])
+    if (previewSidebarWidth !== null) return
+
+    const normalizedWidth = normalizeSidebarWidth(sidebarWidth)
+    if (normalizedWidth !== sidebarWidth) {
+      setSidebarWidth(normalizedWidth)
+    }
+  }, [previewSidebarWidth, setSidebarWidth, sidebarWidth])
 
   // User avatar
   const avatar = useAvatar()
@@ -100,7 +115,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   // Floating sidebar (hover reveal when hidden)
   const [hoverVisible, setHoverVisible] = useState(false)
-  const layout = getSidebarLayout(sidebarWidth)
+  const layout = getSidebarLayout(activeSidebarWidth)
 
   // Menu items
   const pathname = activeTab?.url || '/'
@@ -131,12 +146,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       const menuId = menuItemId as SidebarIconType
       const path = getMenuPath(menuId)
       if (!path) return
-
-      try {
-        await modelGenerating()
-      } catch {
-        return
-      }
 
       if (activeTab?.isPinned) {
         openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
@@ -169,10 +178,16 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   return (
     <div ref={ref} id="app-sidebar" className="relative h-full [-webkit-app-region:no-drag]">
-      <UISidebar width={sidebarWidth} setWidth={setSidebarWidth} onHoverChange={setHoverVisible} {...sidebarProps} />
+      <UISidebar
+        width={activeSidebarWidth}
+        setWidth={setSidebarWidth}
+        onHoverChange={setHoverVisible}
+        onResizePreview={setPreviewSidebarWidth}
+        {...sidebarProps}
+      />
       {hoverVisible && layout === 'hidden' && (
         <UISidebar
-          width={sidebarWidth}
+          width={activeSidebarWidth}
           setWidth={setSidebarWidth}
           isFloating
           onDismiss={() => setHoverVisible(false)}

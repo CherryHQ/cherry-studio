@@ -109,13 +109,13 @@ function mockManagedWindows({
   mainWindow: MockBrowserWindow
   settingsWindow?: MockBrowserWindow
 }) {
+  // Mirror production getWindowsByType: it returns live BrowserWindow instances and skips destroyed ones.
   windowManagerMock.getWindowsByType.mockImplementation((type: string) => {
-    if (type === WindowType.Main) return [{ id: 'main-window-id' }]
-    if (type === WindowType.Settings && settingsWindow) return [{ id: 'settings-window-id' }]
+    if (type === WindowType.Main) return mainWindow.isDestroyed() ? [] : [mainWindow]
+    if (type === WindowType.Settings && settingsWindow) return settingsWindow.isDestroyed() ? [] : [settingsWindow]
     return []
   })
   windowManagerMock.getWindow.mockImplementation((id: string) => {
-    if (id === 'main-window-id') return mainWindow
     if (id === 'settings-window-id') return settingsWindow
     return undefined
   })

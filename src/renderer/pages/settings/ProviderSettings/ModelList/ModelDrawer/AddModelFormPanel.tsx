@@ -1,17 +1,17 @@
 import { Button } from '@cherrystudio/ui'
-import { useModelMutations, useModels } from '@renderer/hooks/useModels'
-import { useProvider } from '@renderer/hooks/useProviders'
-import ProviderActions from '@renderer/pages/settings/ProviderSettings/primitives/ProviderActions'
-import ProviderSection from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSection'
-import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { isNewApiProvider } from '@renderer/pages/settings/ProviderSettings/utils/provider'
+import { useModelMutations, useModels } from '@renderer/hooks/useModel'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { isNewApiProvider } from '@shared/utils/provider'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import ProviderActions from '../../primitives/ProviderActions'
+import ProviderSection from '../../primitives/ProviderSection'
+import { drawerClasses } from '../../primitives/ProviderSettingsPrimitives'
 import { getInitialAddModelFormState, splitModelIds } from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
@@ -210,7 +210,7 @@ export default function AddModelFormPanel({
     <form
       id={formId}
       data-testid={dataTestId}
-      className={drawerClasses.form}
+      className="flex min-h-0 flex-col gap-4 py-0"
       onSubmit={(event) => void handleFormSubmit(event)}>
       <ProviderSection className={drawerClasses.section}>
         <div className={drawerClasses.fieldList}>
@@ -232,7 +232,7 @@ export default function AddModelFormPanel({
       <ProviderActions>
         <Button
           type="button"
-          variant="outline"
+          variant="ghost"
           className={drawerClasses.toggleButton}
           onClick={() => setShowMoreSettings((current) => !current)}>
           {t('settings.moresetting.label')}

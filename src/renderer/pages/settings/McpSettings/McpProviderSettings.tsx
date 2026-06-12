@@ -1,9 +1,8 @@
 import { Button, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import Scrollbar from '@renderer/components/Scrollbar'
 import db from '@renderer/databases'
-import { useMcpServers } from '@renderer/hooks/useMcpServers'
+import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import type { McpServer } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
 import { Check, Plus, SquareArrowOutUpRight } from 'lucide-react'
@@ -11,7 +10,8 @@ import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { getMcpProviderLogo, getProviderDisplayName, type ProviderConfig } from './providers/config'
+import { SettingsContentColumn } from '..'
+import { getProviderDisplayName, type ProviderConfig } from './providers/config'
 import { isSameMcpServerCandidate, toCreateMcpServerDto } from './utils'
 
 const logger = loggerService.withContext('McpProviderSettings')
@@ -118,13 +118,10 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
   }, [provider, t, token])
 
   const isFetchDisabled = !token
-  const ProviderLogo = getMcpProviderLogo(provider.key)
-
   return (
     <DetailContainer>
       <ProviderHeader>
         <div className="flex min-w-0 items-center gap-3">
-          {ProviderLogo && <ProviderLogo.Avatar size={36} shape="circle" />}
           <div className="min-w-0">
             <div className="flex min-w-0 items-center gap-1.5">
               <ProviderName>{getProviderDisplayName(provider, t)}</ProviderName>
@@ -192,7 +189,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
               <ServerItem key={server.id}>
                 <div className="flex flex-1 flex-row items-center gap-3">
                   {server.logoUrl && (
-                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
                       <img src={server.logoUrl} alt={server.name} className="h-full w-full object-cover" />
                     </div>
                   )}
@@ -232,12 +229,8 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
   )
 }
 
-const DetailContainer = ({ className, children, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
-  <Scrollbar className={cn('flex h-[calc(100vh-var(--navbar-height))] flex-col', className)} {...props}>
-    <div className="flex min-h-full w-full flex-col px-6 py-4">
-      <div className="mx-auto w-full max-w-3xl">{children}</div>
-    </div>
-  </Scrollbar>
+const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof SettingsContentColumn>) => (
+  <SettingsContentColumn className={cn('w-full min-w-0', className)} {...props} />
 )
 
 const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

@@ -18,7 +18,7 @@ Value type is inferred from the schema. Hooks pin the cache entry (refcounted) �
 import { useCache, useSharedCache, usePersistCache } from '@data/hooks/useCache'
 
 // Memory — single renderer
-const [generating, setGenerating] = useCache('chat.generating', false)
+const [generating, setGenerating] = useCache('chat.web_search.searching', false)
 
 // Shared — all windows
 const [activeSearches, setActive] = useSharedCache('chat.web_search.active_searches')
@@ -42,12 +42,12 @@ import { cacheService } from '@data/CacheService'
 
 ```typescript
 // Schema keys (Fixed or Template) — type-inferred
-cacheService.set('chat.generating', true)
-cacheService.set('chat.generating', true, 30_000)          // with TTL (ms)
-cacheService.get('chat.generating')                         // boolean
-cacheService.has('chat.generating')
-cacheService.hasTTL('chat.generating')
-cacheService.delete('chat.generating')
+cacheService.set('chat.web_search.searching', true)
+cacheService.set('chat.web_search.searching', true, 30_000)          // with TTL (ms)
+cacheService.get('chat.web_search.searching')                         // boolean
+cacheService.has('chat.web_search.searching')
+cacheService.hasTTL('chat.web_search.searching')
+cacheService.delete('chat.web_search.searching')
 
 // Casual (Memory tier only, no schema match allowed)
 cacheService.setCasual<TopicCache>(`topic:${id}`, data, 30_000)

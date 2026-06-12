@@ -1,15 +1,14 @@
 import { loggerService } from '@logger'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
-import { useModels } from '@renderer/hooks/useModels'
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useModels } from '@renderer/hooks/useModel'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { type ApiKeyConnectivity, HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { toV1ModelForCheckApi, toV1ProviderShim } from '@renderer/pages/settings/ProviderSettings/utils/v1ProviderShim'
+import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
 import { checkApi as runCheckApi } from '@renderer/services/ApiService'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
-import { isRerankModel } from '@shared/utils/model'
+import type { Model } from '@shared/data/types/model'
 import { isEmpty } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +21,7 @@ import { useProviderEndpoints } from './useProviderEndpoints'
 const logger = loggerService.withContext('ProviderSettings:ConnectionCheck')
 
 export function useProviderConnectionCheck(providerId: string) {
-  const { provider } = useProvider(providerId)
+  const { provider, updateProvider } = useProvider(providerId)
   const [connectionCheckOpen, setConnectionCheckOpen] = useState(false)
   const { models } = useModels(
     { providerId },
@@ -30,7 +29,7 @@ export function useProviderConnectionCheck(providerId: string) {
   )
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
-  const { inputApiKey } = useAuthenticationApiKey()
+  const { commitInputApiKeyNow, inputApiKey } = useAuthenticationApiKey()
   const { apiHost, anthropicApiHost } = useProviderEndpoints(provider)
   const [apiKeyConnectivity, setApiKeyConnectivity] = useState<ApiKeyConnectivity>({
     kind: 'idle',
@@ -38,7 +37,7 @@ export function useProviderConnectionCheck(providerId: string) {
     checking: false
   })
 
-  const checkableModels = useMemo(() => models.filter((model) => !isRerankModel(model)), [models])
+  const checkableModels = models
   const checkableApiKeys = useMemo(() => splitApiKeyString(formatApiKeys(inputApiKey)).filter(Boolean), [inputApiKey])
 
   // AbortController + runId pair guards against stale callbacks landing on the
@@ -76,17 +75,6 @@ export function useProviderConnectionCheck(providerId: string) {
     setConnectionCheckOpen(true)
   }, [checkableApiKeys, i18n, provider])
 
-  const resolveApiHostForModel = useCallback(
-    (selectedModel: Model) => {
-      if (selectedModel.endpointTypes?.includes(ENDPOINT_TYPE.ANTHROPIC_MESSAGES)) {
-        return anthropicApiHost || apiHost
-      }
-
-      return apiHost
-    },
-    [anthropicApiHost, apiHost]
-  )
-
   const startConnectionCheck = useCallback(
     async ({ model, apiKey }: { model?: Model; apiKey: string }) => {
       if (!provider || !model) {
@@ -103,23 +91,37 @@ export function useProviderConnectionCheck(providerId: string) {
       const controller = new AbortController()
       abortControllerRef.current = controller
       const runId = ++runIdRef.current
+      // Distinguishes a local save failure from a real probe failure in the
+      // catch, so the user isn't sent debugging network/key when persistence broke.
+      let didCommitApiKey = false
 
       try {
         setApiKeyConnectivity({ kind: 'checking', checking: true, status: HealthStatus.NOT_CHECKED, model })
 
-        // Transitional bridge: connection checking still calls the legacy
-        // ApiService `checkApi` path, which expects v1 provider/model shapes.
-        // Remove this conversion once that check path consumes runtime
-        // Data API entities directly.
-        const v1Provider = toV1ProviderShim(provider, {
-          models,
-          apiKey,
-          apiHost: resolveApiHostForModel(model)
-        })
+        // Persist the pending key BEFORE running the check. The check resolves
+        // credentials from the saved provider (getRotatedApiKey in main), so
+        // without flushing first it would validate a stale saved key: a new bad
+        // key typed within the input debounce window could pass against an old
+        // good key and then enable the provider on never-checked credentials.
+        // If saving fails it throws into the catch, surfacing only the failure
+        // path. Committing changes provider.apiKeys but not provider.id / host /
+        // inputApiKey, so it does not trip the abort effect.
+        await commitInputApiKeyNow()
+        didCommitApiKey = true
 
-        await runCheckApi(v1Provider, toV1ModelForCheckApi(model), undefined, controller.signal)
+        if (runId !== runIdRef.current || controller.signal.aborted) return
+
+        await runCheckApi(model.id, { signal: controller.signal })
 
         if (runId !== runIdRef.current) return
+
+        // Enable the provider (if disabled) only after a successful check. Enable
+        // swallows its own errors, so it never diverts to the failure path.
+        await enableProviderWhenModelsAvailable(provider, updateProvider, checkableModels.length, 'connection_check')
+
+        // The enable await can interleave with a newer check; drop this run if it
+        // was superseded or aborted before touching success state.
+        if (runId !== runIdRef.current || controller.signal.aborted) return
 
         window.toast.success({
           timeout: 2000,
@@ -136,10 +138,18 @@ export function useProviderConnectionCheck(providerId: string) {
       } catch (error) {
         if (runId !== runIdRef.current || controller.signal.aborted) return
 
-        logger.error('Provider connection check failed', { providerId: provider.id, modelId: model.id, error })
+        if (didCommitApiKey) {
+          logger.error('Provider connection check failed', { providerId: provider.id, modelId: model.id, error })
+        } else {
+          logger.error('Failed to persist pending API key before connection check', {
+            providerId: provider.id,
+            modelId: model.id,
+            error
+          })
+        }
         window.toast.error({
           timeout: 8000,
-          title: i18n.t('message.api.connection.failed')
+          title: i18n.t(didCommitApiKey ? 'message.api.connection.failed' : 'settings.provider.api_key.save_failed')
         })
 
         setApiKeyConnectivity({
@@ -152,7 +162,7 @@ export function useProviderConnectionCheck(providerId: string) {
         setConnectionCheckOpen(false)
       }
     },
-    [abortInFlightCheck, i18n, models, provider, resolveApiHostForModel, setTimeoutTimer]
+    [abortInFlightCheck, checkableModels.length, commitInputApiKeyNow, i18n, provider, setTimeoutTimer, updateProvider]
   )
 
   const checkApi = useCallback(async () => {

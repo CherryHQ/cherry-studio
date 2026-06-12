@@ -5,9 +5,9 @@
  */
 
 import { loggerService } from '@logger'
-import type { AgentType, BuiltinMcpServerName, BuiltinOcrProviderId } from '@renderer/types'
+import type { BuiltinMcpServerName, BuiltinOcrProviderId } from '@renderer/types'
 import { BuiltinMcpServerNames } from '@renderer/types'
-import { SHORTCUT_DEFINITIONS, type ShortcutLabelKey } from '@shared/shortcuts/definitions'
+import type { AgentType } from '@shared/data/types/agent'
 
 import i18n from './index'
 
@@ -207,14 +207,6 @@ export const getSidebarIconLabel = (key: string): string => {
   return getLabel(sidebarIconKeyMap, key)
 }
 
-const shortcutLabelKeyMap = Object.fromEntries(
-  SHORTCUT_DEFINITIONS.map((definition) => [definition.labelKey, `settings.shortcuts.${definition.labelKey}`])
-) as Record<ShortcutLabelKey, string>
-
-export const getShortcutLabel = (key: ShortcutLabelKey): string => {
-  return getLabel(shortcutLabelKeyMap, key)
-}
-
 const selectionDescriptionKeyMap = {
   linux: 'selection.settings.toolbar.trigger_mode.description_note.linux',
   mac: 'selection.settings.toolbar.trigger_mode.description_note.mac',
@@ -279,8 +271,7 @@ const mcpProviderDescriptionKeyMap = {
   bailian: 'settings.mcp.sync.providerDescriptions.bailian',
   lanyun: 'settings.mcp.sync.providerDescriptions.lanyun',
   mcprouter: 'settings.mcp.sync.providerDescriptions.mcprouter',
-  modelscope: 'settings.mcp.sync.providerDescriptions.modelscope',
-  tokenflux: 'settings.mcp.sync.providerDescriptions.tokenflux'
+  modelscope: 'settings.mcp.sync.providerDescriptions.modelscope'
 } as const
 
 export const getMcpProviderDescriptionLabel = (key: string): string => {

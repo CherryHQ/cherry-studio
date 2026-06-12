@@ -217,7 +217,7 @@ export interface BatchCreateResult {
  *
  * | Phase 1 — wired | Phase 2 Batch 0 — wired | Phase 2 — type-only |
  * |---|---|---|
- * | `getDanglingState`, `batchGetDanglingStates` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, `permanentDelete` | everything else |
+ * | `getDanglingState`, `batchGetDanglingStates` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, `permanentDelete`, `getMetadata` | everything else |
  *
  * Remaining `@phase 2` method shapes are *design drafts*; signatures may shift
  * when each channel actually lands alongside its first FileManager consumer.
@@ -337,7 +337,9 @@ export interface FileIpcApi {
    *
    * Side effect: updates DanglingCache based on stat outcome (external only).
    *
-   * @phase 2 — not yet wired
+   * @phase 2 — path-handle branch wired (`IpcChannel.File_GetMetadata` →
+   * `FileManager.registerIpcHandlers`, direct `fs.stat`); the entry-id branch
+   * is still `@phase 2` (not yet wired).
    */
   getMetadata(handle: FileHandle): Promise<PhysicalFileMetadata>
 
@@ -514,9 +516,9 @@ export interface FileIpcApi {
    */
   showInFolder(handle: FileHandle): Promise<void>
 
-  // ─── I. Directory Listing (arbitrary path) ───
+  // ─── I. Path Queries (arbitrary path) ───
   //
-  // Section status: all `@phase 2`.
+  // Section status: mixed; check each method's `@phase` tag.
 
   /**
    * List contents of an arbitrary directory.

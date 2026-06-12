@@ -1,13 +1,12 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { useCache } from '@renderer/data/hooks/useCache'
-import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
-import { useAgents } from '@renderer/hooks/agents/useAgents'
-import { useApiServer } from '@renderer/hooks/useApiServer'
+import { useCommandHandler } from '@renderer/features/command'
+import { useAgents } from '@renderer/hooks/agents/useAgent'
+import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
+import { useApiGateway } from '@renderer/hooks/useApiGateway'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowAssistants, useShowTopics } from '@renderer/hooks/useStore'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
@@ -23,49 +22,41 @@ import { AgentEmpty, AgentServerDisabled, AgentServerStopped } from './component
 
 const AgentPage = () => {
   const { isLeftNavbar } = useNavbarPosition()
-  const { showAssistants, toggleShowAssistants } = useShowAssistants()
-  const { showTopics, toggleShowTopics } = useShowTopics()
+  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { topicPosition } = useSettings()
-  const [activeAgentId] = useCache('agent.active_id')
   const { agents } = useAgents()
-  const { setActiveAgentId } = useActiveAgent()
-  const { apiServerConfig, apiServerRunning, apiServerLoading } = useApiServer()
+  const { apiGatewayConfig, apiGatewayRunning, apiGatewayLoading } = useApiGateway()
   const { t } = useTranslation()
 
-  // TODO: Replace with sidebar toggle logic once the new sidebar UI is implemented
-  useShortcut('general.toggle_sidebar', () => {
+  // Seed `agent.active_session_id` to the most-recent session when nothing is set.
+  useAgentSessionInitializer()
+
+  useCommandHandler('app.sidebar.toggle', () => {
     if (topicPosition === 'left') {
-      void toggleShowAssistants()
+      toggleShowSidebar()
       return
     }
 
     void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
   })
 
-  useShortcut('topic.toggle_show_topics', () => {
+  useCommandHandler('topic.sidebar.toggle', () => {
     if (topicPosition === 'right') {
-      void toggleShowTopics()
+      toggleShowSidebar()
     } else {
       void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
     }
   })
 
-  // Auto-select first agent when none is active
   useEffect(() => {
-    if (!activeAgentId && agents && agents.length > 0) {
-      void setActiveAgentId(agents[0].id)
-    }
-  }, [activeAgentId, agents, setActiveAgentId])
-
-  useEffect(() => {
-    const canMinimize = topicPosition === 'left' ? !showAssistants : !showAssistants && !showTopics
-    void window.api.window.setMinimumSize(canMinimize ? SECOND_MIN_WINDOW_WIDTH : MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
+    void window.api.window.setMinimumSize(showSidebar ? MIN_WINDOW_WIDTH : SECOND_MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT)
     return () => {
       void window.api.window.resetMinimumSize()
     }
-  }, [showAssistants, showTopics, topicPosition])
+  }, [showSidebar])
 
-  if (!apiServerConfig.enabled) {
+  if (!apiGatewayConfig.enabled) {
     return (
       <Container>
         <Navbar>
@@ -76,7 +67,7 @@ const AgentPage = () => {
     )
   }
 
-  if (!apiServerLoading && !apiServerRunning) {
+  if (!apiGatewayLoading && !apiGatewayRunning) {
     return (
       <Container>
         <Navbar>
@@ -105,7 +96,7 @@ const AgentPage = () => {
         id={isLeftNavbar ? 'content-container' : undefined}
         className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
         <AnimatePresence initial={false}>
-          {showAssistants && (
+          {showSidebar && (
             <ErrorBoundary>
               <motion.div
                 initial={{ width: 0, opacity: 0 }}

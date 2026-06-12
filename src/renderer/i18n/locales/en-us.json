@@ -221,9 +221,11 @@
         "intervalUnit": "minutes",
         "lastRun": "Last Run",
         "logs": {
+          "cancelled": "Cancelled",
+          "completed": "Completed",
           "duration": "Duration",
           "empty": "No run history yet.",
-          "error": "Error",
+          "failed": "Failed",
           "justNow": "just now",
           "label": "Run History",
           "loadError": "Failed to load run history",
@@ -232,7 +234,6 @@
           "running": "Running...",
           "search": "Search logs...",
           "status": "Status",
-          "success": "Success",
           "viewSession": "View session"
         },
         "name": {
@@ -394,10 +395,18 @@
           "failed": "Failed to reorder sessions"
         }
       },
+      "tool": {
+        "disabled": "The {{toolName}} tool is disabled for this agent."
+      },
       "update": {
         "error": {
           "failed": "Failed to update the session"
         }
+      },
+      "workspace_status": {
+        "inaccessible": "Workspace path is not accessible: {{path}}",
+        "missing": "Workspace path does not exist: {{path}}",
+        "not_directory": "Workspace path is not a directory: {{path}}"
       }
     },
     "settings": {
@@ -773,19 +782,19 @@
     },
     "warning": {
       "enable_and_start": "Enable & Start",
-      "enable_server": "Enable API Server to use agents.",
-      "enable_server_description": "The API server must be enabled for agents to work. You can enable it directly or configure it in settings.",
-      "server_not_running": "API Server is enabled but not running. Please check the server configuration.",
-      "server_not_running_description": "The API server needs to be running for agents to work. You can start it directly or check the settings."
+      "enable_server": "Enable API Gateway to use agents.",
+      "enable_server_description": "The API Gateway must be enabled for agents to work. You can enable it directly or configure it in settings.",
+      "server_not_running": "API Gateway is enabled but not running. Please check the server configuration.",
+      "server_not_running_description": "The API Gateway needs to be running for agents to work. You can start it directly or check the settings."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "Copy",
       "regenerate": "Regenerate",
       "restart": {
         "button": "Restart",
-        "tooltip": "Restart Server"
+        "tooltip": "Restart Gateway"
       },
       "start": "Start",
       "stop": "Stop"
@@ -795,7 +804,7 @@
     },
     "authHeaderText": "Use in Authorization header:",
     "configuration": "Configuration",
-    "description": "Expose Cherry Studio's AI capabilities through OpenAI-compatible HTTP APIs",
+    "description": "Expose Cherry Studio's AI capabilities through OpenAI- and Anthropic-compatible HTTP APIs",
     "documentation": {
       "title": "API Documentation"
     },
@@ -807,8 +816,8 @@
         "placeholder": "API key will be auto-generated"
       },
       "port": {
-        "description": "TCP port number for the HTTP server (1000-65535)",
-        "helpText": "Stop server to change port",
+        "description": "TCP port number for the gateway (1000-65535)",
+        "helpText": "Stop the gateway to change port",
         "label": "Port"
       },
       "url": {
@@ -819,22 +828,22 @@
     "messages": {
       "apiKeyCopied": "API Key copied to clipboard",
       "apiKeyRegenerated": "API Key regenerated",
-      "notEnabled": "The API Server is not enabled.",
-      "operationFailed": "API Server operation failed: ",
-      "restartError": "Failed to restart API Server: ",
-      "restartFailed": "API Server restart failed: ",
-      "restartSuccess": "API Server restarted successfully",
-      "startError": "Failed to start API Server: ",
-      "startSuccess": "API Server started successfully",
-      "stopError": "Failed to stop API Server: ",
-      "stopSuccess": "API Server stopped successfully",
-      "urlCopied": "Server URL copied to clipboard"
+      "notEnabled": "The API Gateway is not enabled.",
+      "operationFailed": "API Gateway operation failed: ",
+      "restartError": "Failed to restart API Gateway: ",
+      "restartFailed": "API Gateway restart failed: ",
+      "restartSuccess": "API Gateway restarted successfully",
+      "startError": "Failed to start API Gateway: ",
+      "startSuccess": "API Gateway started successfully",
+      "stopError": "Failed to stop API Gateway: ",
+      "stopSuccess": "API Gateway stopped successfully",
+      "urlCopied": "Gateway URL copied to clipboard"
     },
     "status": {
       "running": "Running",
       "stopped": "Stopped"
     },
-    "title": "API Server"
+    "title": "API Gateway"
   },
   "appMenu": {
     "about": "About",
@@ -1185,7 +1194,7 @@
       "auto_resize": "Auto resize height",
       "clear": {
         "content": "Do you want to clear all messages of the current topic?",
-        "label": "Clear {{Command}}",
+        "label": "Clear",
         "title": "Clear all messages?"
       },
       "collapse": "Collapse",
@@ -1203,7 +1212,7 @@
       "generate_image_not_supported": "The model does not support generating images.",
       "knowledge_base": "Knowledge Base",
       "new": {
-        "context": "Clear Context {{Command}}"
+        "context": "Clear Context"
       },
       "new_session": "New Session {{Command}}",
       "new_topic": "New Topic {{Command}}",
@@ -1230,6 +1239,7 @@
         "title": "Resources"
       },
       "send": "Send",
+      "send_failed": "Failed to send message",
       "settings": "Settings",
       "slash_commands": {
         "description": "Agent session slash commands",
@@ -2148,23 +2158,17 @@
         },
         "note": {
           "description": "Select existing notes as knowledge base sources",
-          "empty_description": "Selectable notes will appear here after the real notes list is connected. For now, use files, folders, URLs, or sitemaps.",
+          "empty_description": "Selectable notes will appear here after the real notes list is connected. For now, use files, folders, or URLs.",
           "empty_title": "Notes are not connected yet"
         },
         "placeholder": {
           "supported_formats": "Supports PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Click to select files or drag them here"
         },
-        "sitemap": {
-          "description": "Enter a sitemap URL:",
-          "help": "Pages listed in the sitemap will be read and indexed",
-          "placeholder": "https://example.com/sitemap.xml"
-        },
         "sources": {
           "directory": "Folder",
           "file": "File",
           "note": "Note",
-          "sitemap": "Website",
           "url": "URL"
         },
         "submit": {
@@ -2202,9 +2206,6 @@
           "file": {
             "title": "File"
           },
-          "sitemap": {
-            "title": "Website Sync"
-          },
           "url": {
             "title": "URL"
           }
@@ -2217,7 +2218,6 @@
         "directory": "Folders",
         "file": "Files",
         "note": "Notes",
-        "sitemap": "Websites",
         "url": "URLs"
       },
       "preview": {
@@ -2614,9 +2614,6 @@
           "temperature": {
             "hint": "Controls randomness when enabled"
           },
-          "tool_use_mode": {
-            "hint": "Controls how tools are exposed to the model"
-          },
           "top_p": {
             "hint": "Limits token sampling range when enabled"
           }
@@ -2638,9 +2635,6 @@
         "tags": "Tags",
         "temperature": "Temperature",
         "title": "Basic settings",
-        "tool_use_function": "Function",
-        "tool_use_mode": "Tool call mode",
-        "tool_use_prompt": "Prompt",
         "top_p": "Top-P",
         "unlimited": "Unlimited"
       },
@@ -3418,6 +3412,7 @@
     },
     "stream_output": "Stream output",
     "type": {
+      "audio": "Audio",
       "embedding": "Embedding",
       "free": "Free",
       "function_calling": "Tool",
@@ -3425,6 +3420,7 @@
       "rerank": "Reranker",
       "select": "Model Types",
       "text": "Text",
+      "video": "Video",
       "vision": "Vision",
       "websearch": "WebSearch"
     }
@@ -4704,6 +4700,10 @@
       },
       "sort_label": "Sort",
       "unpin": "Unpin"
+    },
+    "workspace": {
+      "empty_text": "No workspaces yet",
+      "placeholder": "Select workspace"
     }
   },
   "settings": {
@@ -4930,10 +4930,10 @@
         "title": "Data Directory"
       },
       "divider": {
-        "basic": "Basic Data Settings",
-        "cloud_storage": "Cloud Backup Settings",
-        "export_settings": "Export Settings",
-        "import_settings": "Import Settings",
+        "basic": "Basic Data",
+        "cloud_storage": "Cloud Backup",
+        "export_settings": "Export",
+        "import_settings": "Import",
         "third_party": "Third-party Connections"
       },
       "export_menu": {
@@ -4947,7 +4947,7 @@
         "obsidian": "Export to Obsidian",
         "plain_text": "Copy as Plain Text",
         "siyuan": "Export to SiYuan Note",
-        "title": "Export Menu Settings",
+        "title": "Export Menu",
         "yuque": "Export to Yuque"
       },
       "export_to_phone": {
@@ -5024,7 +5024,7 @@
       "import_settings": {
         "button": "Import Json File",
         "chatgpt": "Import from ChatGPT",
-        "title": "Import Outside Application Data"
+        "title": "Import App Data"
       },
       "joplin": {
         "check": {
@@ -5039,7 +5039,7 @@
           "title": "Include Reasoning Chain in Export"
         },
         "help": "In Joplin options, enable the web clipper (no browser extension needed), confirm the port, and copy the auth token here.",
-        "title": "Joplin Configuration",
+        "title": "Joplin",
         "token": "Joplin Authorization Token",
         "token_placeholder": "Joplin Authorization Token",
         "url": "Joplin Web Clipper Service URL",
@@ -5234,7 +5234,7 @@
             "title": "Restore from Nutstore"
           }
         },
-        "title": "Nutstore Configuration",
+        "title": "Nutstore",
         "username": "Nutstore Username"
       },
       "obsidian": {
@@ -5244,7 +5244,7 @@
         "default_vault_loading": "Loading Obsidian vault...",
         "default_vault_no_vaults": "No Obsidian vaults found",
         "default_vault_placeholder": "Please select the default Obsidian vault",
-        "title": "Obsidian Configuration"
+        "title": "Obsidian"
       },
       "s3": {
         "accessKeyId": {
@@ -5367,7 +5367,7 @@
         },
         "title": {
           "help": "S3 compatible object storage services, such as AWS S3, Cloudflare R2, Aliyun OSS, Tencent COS, etc.",
-          "label": "S3 Compatible Storage",
+          "label": "S3 Storage",
           "tooltip": "S3 Compatible Storage Configuration Document"
         }
       },
@@ -5386,14 +5386,14 @@
         },
         "root_path": "Siyuan Note Root Path",
         "root_path_placeholder": "e.g.: /CherryStudio",
-        "title": "Siyuan Note Configuration",
+        "title": "Siyuan Note",
         "token": {
           "help": "Get Siyuan Note Token",
           "label": "Siyuan Note Token"
         },
         "token_placeholder": "Please enter Siyuan Note Token"
       },
-      "title": "Data Settings",
+      "title": "Data",
       "webdav": {
         "autoSync": {
           "label": "Auto Backup",
@@ -5490,7 +5490,7 @@
         "help": "Get Yuque Token",
         "repo_url": "Yuque URL",
         "repo_url_placeholder": "https://www.yuque.com/username/xxx",
-        "title": "Yuque Configuration",
+        "title": "Yuque",
         "token": "Yuque Token",
         "token_placeholder": "Please enter the Yuque Token"
       }
@@ -5586,7 +5586,7 @@
         "title": "General"
       },
       "display": {
-        "title": "Display Settings"
+        "title": "Display"
       },
       "emoji_picker": "Emoji Picker",
       "image_upload": "Image Upload",
@@ -5862,8 +5862,7 @@
           "bailian": "Alibaba Cloud Bailian Platform MCP Service",
           "lanyun": "Lanyun Technology Cloud Platform MCP Service",
           "mcprouter": "MCP Router Platform MCP Service",
-          "modelscope": "ModelScope Platform MCP Service",
-          "tokenflux": "TokenFlux Platform MCP Service"
+          "modelscope": "ModelScope Platform MCP Service"
         },
         "selectProvider": "Select Provider:",
         "setToken": "Enter Your Token",
@@ -5921,7 +5920,7 @@
       "user": "User"
     },
     "menuGroups": {
-      "appSettings": "App Settings",
+      "appSettings": "Settings",
       "integrations": "Models",
       "productivity": "Productivity",
       "services": "Plugins",
@@ -6125,22 +6124,25 @@
         }
       },
       "api_key": "API Key",
-      "available_count": "{{count}} available",
       "base_url": "Base URL",
-      "bulk_disable": "Close all",
-      "bulk_enable": "Select all",
+      "bulk_disable": "Disable all",
+      "bulk_enable": "Enable all",
       "check": {
         "all": "All",
         "all_models_passed": "All models check passed",
         "button_caption": "Health check",
         "disabled": "Not enabled",
-        "disclaimer": "Health check requires sending requests, please use it with caution. Models that charge per request may incur additional costs, please bear the responsibility.",
+        "disclaimer": "Health check sends real requests to the selected models and API keys. Per-request billing or concurrent checks may incur significant costs. Review before starting.",
         "drawer_result_hint": "Results remain here until you close the drawer or run the check again.",
         "enable_concurrent": "Concurrent",
         "enabled": "Enabled",
         "failed": "Failed",
         "failed_to_start": "Failed to start health check",
+        "generation_output_audio": "audio",
+        "generation_output_image": "an image",
+        "generation_output_video": "a video",
         "keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
+        "model_button_caption": "Check all models",
         "model_status_failed": "{{count}} models completely inaccessible",
         "model_status_partial": "{{count}} models had inaccessible keys",
         "model_status_passed": "{{count}} models passed health checks",
@@ -6148,6 +6150,7 @@
         "no_api_keys": "No API keys found, please add API keys first.",
         "no_results": "No results",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "{{count}} skipped",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Passed",
@@ -6159,16 +6162,28 @@
         "retry": "Check again",
         "select_api_key": "Select the API key to use:",
         "single": "Single",
+        "skip_reason_generation_cost": "This model's health check would generate {{output}} and consume quota, so it is skipped by default.",
+        "skip_reason_unsupported_probe": "This model type does not have a low-cost health check yet, so it is skipped by default.",
         "start": "Start",
         "status_checking": "Checking…",
+        "status_skipped": "Skipped",
         "timeout": "Timeout",
         "title": "Model health check",
         "use_all_keys": "Key(s)"
       },
-      "copy_model_id_tooltip": "Click to copy model ID: {{id}}",
+      "collapse_all": "Collapse all",
       "default_assistant_model": "Default Assistant Model",
-      "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
+      "default_assistant_model_description": "Used when an assistant has no model.",
+      "docs": "Model docs",
       "empty": "No models found",
+      "enabled_models": "Enabled",
+      "expand_all": "Expand all",
+      "filter": {
+        "clear": "Clear model filter",
+        "label": "Filter models"
+      },
+      "group_disable": "Disable this group",
+      "group_enable": "Enable this group",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",
@@ -6234,6 +6249,8 @@
         "sync_switch_to_deprecate": "Mark deprecated instead",
         "sync_will_deprecate": "Will be marked deprecated"
       },
+      "more_actions": "More model list actions",
+      "not_enabled_models": "Disabled",
       "provider_id": "Provider ID",
       "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",
@@ -6376,7 +6393,7 @@
             "title": "API Key Management"
           },
           "new_key": {
-            "placeholder": "Enter one or more keys"
+            "placeholder": "Enter API key"
           }
         },
         "options": {
@@ -6433,10 +6450,10 @@
         "label": "API Key",
         "label_placeholder": "Label",
         "list_description": "Manage multiple API keys for this provider",
-        "placeholder": "Use commas to separate multiple keys",
+        "placeholder": "Enter API key",
         "save_failed": "Failed to save API keys",
         "show_key": "Show key",
-        "tip": "Use commas to separate multiple keys",
+        "tip": "Add one API key at a time",
         "unnamed": "API Key"
       },
       "api_version": "API Version",
@@ -6717,11 +6734,11 @@
       "all_enable": "Enable All",
       "bind_first_to_enable": "Bind a shortcut first to change its enabled state",
       "categories": {
-        "assistant": "AI Assistant Tools",
-        "chat": "Message Interaction",
-        "general": "Global and Window",
+        "assistant": "AI Tools",
+        "chat": "Messages",
+        "general": "General",
         "title": "Shortcut Groups",
-        "topic": "Conversation and Topics"
+        "topic": "Conversations"
       },
       "clear_shortcut": "Clear Shortcut",
       "clear_topic": "Clear Messages",
@@ -6753,7 +6770,9 @@
       "show_app": "Show/Hide App",
       "show_settings": "Open Settings",
       "title": "Keyboard Shortcuts",
+      "toggle_left_sidebar": "Toggle Left Sidebar",
       "toggle_new_context": "Clear Context",
+      "toggle_right_sidebar": "Toggle Right Sidebar",
       "toggle_show_topics": "Toggle Topics",
       "toggle_sidebar": "Toggle Sidebar",
       "zoom_in": "Zoom In",
@@ -6878,13 +6897,6 @@
             "description": "Google's open-source OCR engine that runs fully locally.",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "Authentication",
-          "description": "Description",
-          "language_packs": "Language Packs",
-          "model_parameters": "Model Parameters",
-          "status": "Status"
         },
         "title": "Document Parsing"
       },
@@ -7069,21 +7081,34 @@
     "translate": "Translate"
   },
   "trace": {
+    "agent": "Agent",
     "backList": "Back To List",
-    "edasSupport": "Powered by Alibaba Cloud EDAS",
+    "cachedTokens": "Cached",
     "endTime": "End Time",
     "inputs": "Inputs",
     "label": "Call Chain",
+    "model": "Model",
     "name": "Node Name",
     "noTraceList": "No trace information found",
+    "operation": "Operation",
     "outputs": "Outputs",
-    "parentId": "Parent Id",
+    "pollError": "Polling failed",
+    "reasoningTokens": "Reasoning",
+    "requestHeaders": "Request Headers",
+    "requestMethod": "Request Method",
+    "requestUrl": "Request URL",
+    "responseHeaders": "Response Headers",
+    "responseStatus": "Response Status",
+    "serverDescription": "Server Description",
+    "serverName": "Server Name",
+    "serverType": "Server Type",
     "spanDetail": "Span Details",
     "spendTime": "Spend Time",
     "startTime": "Start Time",
+    "status": "Status",
     "tag": "Tag",
     "tokenUsage": "Token Usage",
-    "traceWindow": "Call Chain Window"
+    "toolCalls": "Tool Calls"
   },
   "translate": {
     "alter_language": "Alternative Language",

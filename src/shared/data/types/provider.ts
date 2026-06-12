@@ -25,17 +25,16 @@ const CatalogApiFeaturesSchema = z.object({
   streamOptions: z.boolean().optional(),
   developerRole: z.boolean().optional(),
   serviceTier: z.boolean().optional(),
-  verbosity: z.boolean().optional(),
-  enableThinking: z.boolean().optional()
+  verbosity: z.boolean().optional()
 })
 
 /** Provider website schema (type used for catalog ProviderWebsite type) */
 const ProviderWebsiteSchema = z.object({
   website: z.object({
-    official: z.string().url().optional(),
-    docs: z.string().url().optional(),
-    apiKey: z.string().url().optional(),
-    models: z.string().url().optional()
+    official: z.url().optional(),
+    docs: z.url().optional(),
+    apiKey: z.url().optional(),
+    models: z.url().optional()
   })
 })
 
@@ -162,9 +161,16 @@ export const ProviderWebsitesSchema = z.object({
 export type ProviderWebsites = z.infer<typeof ProviderWebsitesSchema>
 
 export const ProviderSettingsSchema = z.object({
-  // OpenAI / Groq
-  serviceTier: z.string().optional(),
-  verbosity: z.string().optional(),
+  // OpenAI / Groq.
+  //
+  // PATCH semantics for these nullable override fields, applied by `ProviderService.update`'s shallow
+  // merge: key absent = leave the stored value unchanged; `null` = explicitly clear the stored
+  // override; a value = set it. Downstream, `null` and absent produce byte-identical requests
+  // (consumers guard on truthiness / `!= null`), so `null` exists only as the PATCH-level "clear"
+  // marker — the renderer's "off" (null) and "ignore" (absent) options are equivalent on the wire.
+  serviceTier: z.string().nullable().optional(),
+  verbosity: z.string().nullable().optional(),
+  summaryText: z.enum(['auto', 'detailed', 'concise']).nullable().optional(),
 
   // Azure-specific
   apiVersion: z.string().optional(),
@@ -229,7 +235,9 @@ export const EndpointConfigSchema = z.object({
   /** How this endpoint type expects reasoning parameters */
   reasoningFormatType: ReasoningFormatTypeSchema.optional(),
   /** URLs for fetching available models via this endpoint type */
-  modelsApiUrls: ModelsApiUrlsSchema.optional()
+  modelsApiUrls: ModelsApiUrlsSchema.optional(),
+  /** AI SDK adapter family that handles this endpoint. Carried over from the catalog */
+  adapterFamily: z.string().optional()
 })
 
 export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
@@ -270,8 +278,7 @@ export const DEFAULT_API_FEATURES: RuntimeApiFeatures = {
   streamOptions: true,
   developerRole: false,
   serviceTier: false,
-  verbosity: false,
-  enableThinking: true
+  verbosity: false
 }
 
 export const DEFAULT_PROVIDER_SETTINGS: ProviderSettings = {}

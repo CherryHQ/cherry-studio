@@ -1,7 +1,7 @@
 import { Dialog, DialogContent } from '@cherrystudio/ui'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { resolveKnowledgeFileEntryData } from '@renderer/utils/knowledgeFileEntry'
+import { resolveKnowledgeFileData } from '@renderer/utils/knowledgeFileEntry'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -41,7 +41,7 @@ const resolveSelectedFileEntryData = async (file: File) => {
     return Promise.reject(filePath)
   }
 
-  return resolveKnowledgeFileEntryData(filePath, file.name)
+  return resolveKnowledgeFileData(filePath, file.name)
 }
 
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
@@ -51,7 +51,6 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [selectedDirectories, setSelectedDirectories] = useState<DirectoryItem[]>([])
   const [urlValue, setUrlValue] = useState('')
-  const [sitemapValue, setSitemapValue] = useState('')
   const [submitErrorMessage, setSubmitErrorMessage] = useState('')
   const [isResolvingSubmit, setIsResolvingSubmit] = useState(false)
   const { submit: submitKnowledgeItems, isSubmitting: isSubmittingItems } = useAddKnowledgeItems(selectedBaseId)
@@ -61,7 +60,6 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     setSelectedFiles([])
     setSelectedDirectories([])
     setUrlValue('')
-    setSitemapValue('')
     setSubmitErrorMessage('')
     setIsResolvingSubmit(false)
   }, [])
@@ -146,12 +144,10 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         return selectedDirectories.length > 0
       case 'url':
         return urlValue.trim().length > 0
-      case 'sitemap':
-        return sitemapValue.trim().length > 0
       case 'note':
         return false
     }
-  }, [activeSource, selectedBaseId, selectedDirectories.length, selectedFiles.length, sitemapValue, urlValue])
+  }, [activeSource, selectedBaseId, selectedDirectories.length, selectedFiles.length, urlValue])
 
   const handleSubmit = useCallback(() => {
     if (!canSubmit || isResolvingSubmit) {
@@ -198,19 +194,6 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         ])
       }
 
-      if (activeSource === 'sitemap') {
-        const url = sitemapValue.trim()
-        return submitKnowledgeItems([
-          {
-            type: 'sitemap' as const,
-            data: {
-              source: url,
-              url
-            }
-          }
-        ])
-      }
-
       return Promise.resolve()
     })()
 
@@ -231,7 +214,6 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     isResolvingSubmit,
     selectedDirectories,
     selectedFiles,
-    sitemapValue,
     submitKnowledgeItems,
     t,
     urlValue
@@ -243,21 +225,16 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent size="lg" className="flex max-h-[70vh] flex-col overflow-hidden">
         <AddKnowledgeItemDialogHeader title={t('knowledge.data_source.add_dialog.title')} />
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden pr-1">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pr-1">
           <AddKnowledgeItemDialogSourceTabs
             activeSource={activeSource}
             selectedDirectories={selectedDirectories}
             selectedFiles={selectedFiles}
-            sitemapValue={sitemapValue}
             urlValue={urlValue}
             onDirectoryRemove={handleDirectoryRemove}
             onDirectorySelect={handleDirectorySelect}
             onFileDrop={handleFileDrop}
             onFileRemove={handleFileRemove}
-            onSitemapValueChange={(value) => {
-              setSubmitErrorMessage('')
-              setSitemapValue(value)
-            }}
             onUrlValueChange={(value) => {
               setSubmitErrorMessage('')
               setUrlValue(value)

@@ -40,20 +40,13 @@ export const AssistantSettingsSchema = z.object({
   maxTokens: z.number().int().positive(),
   /** disabled = use model's own default */
   enableMaxTokens: z.boolean(),
-  /** from DEFAULT_CONTEXTCOUNT */
-  contextCount: z.number().int().positive(),
   /** streaming provides better UX */
   streamOutput: z.boolean(),
   /** let model decide.
    *  String (not enum) because providers define custom values (e.g. 'xlow', 'high-reasoning'). */
   reasoning_effort: z.string(),
-  /** Qwen-specific thinking mode */
-  qwenThinkMode: z.boolean(),
-
   // -- Tool use --
   mcpMode: McpModeSchema,
-  /** gracefully falls back to prompt if not supported */
-  toolUseMode: z.enum(['function', 'prompt']),
   maxToolCalls: z.number().int().positive(),
   enableMaxToolCalls: z.boolean(),
 
@@ -77,6 +70,9 @@ export const AssistantSettingsSchema = z.object({
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
+/** Renderer-side sentinel for "default assistant" routing in runtime */
+export const DEFAULT_ASSISTANT_ID = 'default' as const
+
 /** Pre-computed default settings object — avoids runtime parse() on every row conversion */
 export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   temperature: 1.0,
@@ -85,12 +81,9 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   enableTopP: false,
   maxTokens: 4096,
   enableMaxTokens: false,
-  contextCount: 5,
   streamOutput: true,
   reasoning_effort: 'default',
-  qwenThinkMode: false,
   mcpMode: 'auto',
-  toolUseMode: 'function',
   maxToolCalls: 20,
   enableMaxToolCalls: true,
   enableWebSearch: false,

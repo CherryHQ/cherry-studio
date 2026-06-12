@@ -1,15 +1,14 @@
 import { PageHeader } from '@cherrystudio/ui'
 import { useReorder } from '@data/hooks/useReorder'
-import { useModels } from '@renderer/hooks/useModels'
-import { useProviders } from '@renderer/hooks/useProviders'
+import { useModels } from '@renderer/hooks/useModel'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import {
-  canManageProvider,
-  isAnthropicSupportedProvider,
   isProviderSettingsListVisibleProvider,
   matchKeywordsInProvider
-} from '@renderer/pages/settings/ProviderSettings/utils/provider'
+} from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import type { Provider } from '@shared/data/types/provider'
+import { canManageProvider, isAnthropicSupportedProvider } from '@shared/utils/provider'
 import { Plus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -35,15 +34,14 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   const { t } = useTranslation()
   const { providers } = useProviders()
   const { models: allModels } = useModels()
-  const { applyReorderedList } = useReorder('/providers')
+  const { applyReorderedList } = useReorder('/providers', { revalidateOnSuccess: false })
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 
-  const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'enabled')
+  const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'all')
   const [searchText, setSearchText] = useState('')
   const [dragging, setDragging] = useState(false)
   const [contextProviderId, setContextProviderId] = useState<string | null>(null)
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
-  const autoDefaultedFilterRef = useRef(false)
 
   const handleToggleGroup = useCallback((presetProviderId: string) => {
     setExpandedGroups((prev) => ({ ...prev, [presetProviderId]: !prev[presetProviderId] }))
@@ -64,6 +62,8 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
   const itemRefs = useRef(new Map<string, HTMLDivElement | null>())
   const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const lastProvidersRef = useRef(providers)
+  const lastSelectedProviderIdRef = useRef(selectedProviderId)
 
   useEffect(() => {
     if (!filterModeHint) {
@@ -72,15 +72,6 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
     setFilterMode(filterModeHint)
   }, [filterModeHint])
-
-  useEffect(() => {
-    if (autoDefaultedFilterRef.current) return
-    if (filterModeHint || providers.length === 0) return
-    autoDefaultedFilterRef.current = true
-    if (!providers.some((p) => p.isEnabled)) {
-      setFilterMode('all')
-    }
-  }, [filterModeHint, providers])
 
   useEffect(() => {
     if (!selectedProviderId) return
@@ -158,6 +149,21 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       return
     }
 
+    // Skip the auto-scroll when the providers list reference itself changed
+    // since the last effect run — i.e. a reorder / create / delete / update
+    // landed — BUT the user's selection did not change. In that case, jumping
+    // them back would be an unexpected scroll snap. If the selected item itself
+    // changed (e.g. initial load, new provider created, or manual selection),
+    // we always perform the scroll.
+    const providersChanged = providers !== lastProvidersRef.current
+    const selectionChanged = selectedProviderId !== lastSelectedProviderIdRef.current
+    const wasEmpty = lastProvidersRef.current.length === 0
+    lastProvidersRef.current = providers
+    lastSelectedProviderIdRef.current = selectedProviderId
+    if (providersChanged && !selectionChanged && !wasEmpty) {
+      return
+    }
+
     const scrollSelectedItem = () => {
       const selectedItem = itemRefs.current.get(selectedProviderId)
       const scroller = scrollerRef.current
@@ -187,7 +193,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
     const frameId = window.requestAnimationFrame(scrollSelectedItem)
     return () => window.cancelAnimationFrame(frameId)
-  }, [filteredProviders, selectedProviderId])
+  }, [providers, selectedProviderId])
 
   const handleDragStateChange = useCallback((nextDragging: boolean) => {
     setDragging(nextDragging)

@@ -20,7 +20,7 @@ describe('useAddKnowledgeItems', () => {
     mockInvalidateCache.mockResolvedValue(undefined)
     mockAddItems.mockResolvedValue(undefined)
     ;(window as any).api = {
-      knowledgeRuntime: {
+      knowledge: {
         addItems: mockAddItems
       }
     }
@@ -40,13 +40,6 @@ describe('useAddKnowledgeItems', () => {
         data: {
           source: 'https://example.com/article',
           url: 'https://example.com/article'
-        }
-      },
-      {
-        type: 'sitemap' as const,
-        data: {
-          source: 'https://docs.cherry-ai.com/sitemap-pages.xml',
-          url: 'https://docs.cherry-ai.com/sitemap-pages.xml'
         }
       }
     ]

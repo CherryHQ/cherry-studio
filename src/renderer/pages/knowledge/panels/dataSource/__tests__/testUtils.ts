@@ -64,13 +64,11 @@ export const createNoteItem = ({
 
 export const createFileItem = ({
   id,
-  fileEntryId = '019606a0-0000-7000-8000-000000000001',
   originName = 'internal.pdf',
   source = `/tmp/${originName}`,
   status = 'completed'
 }: {
   id: string
-  fileEntryId?: string
   originName?: string
   source?: string
   status?: KnowledgeItemOf<'file'>['status']
@@ -81,7 +79,7 @@ export const createFileItem = ({
   type: 'file',
   data: {
     source,
-    fileEntryId
+    relativePath: originName
   }
 })
 
@@ -98,25 +96,6 @@ export const createUrlItem = ({
   ...createLeafLifecycle(status),
   id,
   type: 'url',
-  data: {
-    source,
-    url: source
-  }
-})
-
-export const createSitemapItem = ({
-  id,
-  source = `https://example.com/${id}.xml`,
-  status = 'completed'
-}: {
-  id: string
-  source?: string
-  status?: KnowledgeItemOf<'sitemap'>['status']
-}): KnowledgeItemOf<'sitemap'> => ({
-  ...baseFields,
-  ...createContainerLifecycle(status),
-  id,
-  type: 'sitemap',
   data: {
     source,
     url: source

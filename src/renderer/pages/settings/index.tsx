@@ -11,14 +11,14 @@ export const SettingContainer = ({
 }: React.ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode }) => (
   <div
     data-theme-mode={theme}
-    className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto p-4 [&::-webkit-scrollbar]:hidden', className)}
+    className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto p-4 [&::-webkit-scrollbar]:hidden', className)}
     {...props}
   />
 )
 
 // Canonical settings page container — mirrors the model service (Provider Settings) detail column:
 // outer px-6 py-4 + inner mx-auto max-w-3xl. Use for "simple right-content" settings pages.
-// Pages with their own internal split layout (Data / Integration / MCP / WebSearch / FileProcessing / Channels / Skills)
+// Pages with their own internal split layout (Data / Integration / MCP / WebSearch / FileProcessing / Channels)
 // keep SettingContainer instead. See DESIGN.md §4 "Settings Page Content Container".
 export const SettingsContentColumn = ({
   className,
@@ -29,7 +29,10 @@ export const SettingsContentColumn = ({
 }: React.ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode; innerClassName?: string }) => (
   <div
     data-theme-mode={theme}
-    className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4 [&::-webkit-scrollbar]:hidden', className)}
+    className={cn(
+      'flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4 pt-3 [&::-webkit-scrollbar]:hidden',
+      className
+    )}
     {...rest}>
     <div className={cn('mx-auto w-full max-w-3xl', innerClassName)}>{children}</div>
   </div>
@@ -43,7 +46,7 @@ export const SettingsContentBody = ({
   children,
   ...rest
 }: React.ComponentPropsWithoutRef<'div'> & { innerClassName?: string }) => (
-  <div className={cn('flex min-h-full w-full flex-col px-6 py-4', className)} {...rest}>
+  <div className={cn('flex min-h-full w-full flex-col px-6 py-4 pt-3', className)} {...rest}>
     <div className={cn('mx-auto w-full max-w-3xl', innerClassName)}>{children}</div>
   </div>
 )
@@ -60,7 +63,7 @@ export const SettingSubtitle = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & { ref?: React.RefObject<HTMLDivElement | null> }) => (
-  <div ref={ref} className={cn('mt-4 select-none font-bold text-(--color-foreground) text-sm', className)} {...props} />
+  <div ref={ref} className={cn('select-none font-bold text-foreground text-sm', className)} {...props} />
 )
 
 export const SettingDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -68,11 +71,14 @@ export const SettingDescription = ({ className, ...props }: React.ComponentProps
 )
 
 export const SettingRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex min-h-6 items-center justify-between', className)} {...props} />
+  <div className={cn('flex min-h-6 flex-wrap items-center justify-between gap-x-4 gap-y-2', className)} {...props} />
 )
 
 export const SettingRowTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex items-center text-foreground text-sm leading-4.5', className)} {...props} />
+  <div
+    className={cn('flex min-w-0 flex-wrap items-center text-foreground text-sm leading-4.5', className)}
+    {...props}
+  />
 )
 
 export const SettingHelpTextRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -84,7 +90,7 @@ export const SettingHelpText = ({ className, ...props }: React.ComponentPropsWit
 )
 
 export const SettingHelpLink = ({ className, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-  <a className={cn('cursor-pointer text-(--color-primary) text-[11px] hover:underline', className)} {...props} />
+  <a className={cn('cursor-pointer text-[11px] text-primary hover:underline', className)} {...props} />
 )
 
 export const SettingTitleExternalLink = ({
@@ -96,7 +102,7 @@ export const SettingTitleExternalLink = ({
   <a
     target={target}
     rel={rel}
-    className={cn('inline-flex items-center text-(--color-primary) hover:underline', className)}
+    className={cn('inline-flex items-center text-primary hover:underline', className)}
     {...props}
   />
 )
@@ -128,7 +134,7 @@ export const settingsSubmenuSectionTitleClassName =
 
 export const settingsSubmenuDividerClassName = 'my-1 bg-transparent'
 
-export const settingsContentScrollClassName = 'flex-1 min-h-0'
+export const settingsContentScrollClassName = 'flex-1 min-h-0 min-w-0 overflow-x-hidden'
 
 export const settingsContentBodyClassName = 'flex min-h-full w-full flex-col px-6 py-4'
 

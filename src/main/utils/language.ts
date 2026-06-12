@@ -52,9 +52,13 @@ export const getI18n = (): Record<string, any> => {
 
 /**
  * Get translation by key path (e.g., 'dialog.save_file')
- * This is a simplified version for main process, similar to i18next's t() function
+ * This is a simplified version for main process, similar to i18next's t() function.
+ *
+ * Supports i18next-style `{{var}}` interpolation: pass `params` and any
+ * `{{name}}` placeholder in the resolved string is replaced with `params.name`.
+ * Placeholders without a matching param are left intact.
  */
-export const t = (key: string): string => {
+export const t = (key: string, params?: Record<string, string | number>): string => {
   const locale = getI18n()
   const keys = key.split('.')
   let result: any = locale.translation
@@ -64,5 +68,13 @@ export const t = (key: string): string => {
       return key
     }
   }
-  return typeof result === 'string' ? result : key
+  if (typeof result !== 'string') {
+    return key
+  }
+  if (!params) {
+    return result
+  }
+  return result.replace(/\{\{\s*(\w+)\s*\}\}/g, (match: string, name: string) =>
+    name in params ? String(params[name]) : match
+  )
 }

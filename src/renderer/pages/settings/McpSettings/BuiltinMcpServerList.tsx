@@ -1,6 +1,6 @@
 import { Badge, Button, Popover, PopoverContent, PopoverTrigger, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { useMcpServers } from '@renderer/hooks/useMcpServers'
+import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { getBuiltInMcpServerDescriptionLabel } from '@renderer/i18n/label'
 import { builtinMcpServers } from '@renderer/store/mcp'
 import { cn } from '@renderer/utils/style'
@@ -123,7 +123,7 @@ const BuiltinMcpServerList: FC = () => {
                   </PopoverContent>
                 </Popover>
               </div>
-              <div className="ml-3 flex min-w-[86px] shrink-0 items-center justify-end self-center">
+              <div className="ml-3 flex min-w-21.5 shrink-0 items-center justify-end self-center">
                 {isInstalled ? (
                   <div className="inline-flex h-7 items-center gap-1.5 rounded-lg px-2 text-muted-foreground text-xs">
                     <Check size={13} className="text-success/75" />

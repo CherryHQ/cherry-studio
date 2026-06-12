@@ -30,7 +30,7 @@ class FileStorage {
   // singleton at the bottom of this file
   // (`export const fileStorage = new FileStorage()`). That singleton is
   // instantiated during the static import graph of `src/main/index.ts`
-  // (via both `ipc.ts` and the `ApiServerService → ApiServer → routes
+  // (via both `ipc.ts` and the `ApiGatewayService → ApiGateway → routes
   // → KnowledgeService` chain), BEFORE `application.bootstrap()` runs
   // and builds the path registry. The previous shape used field
   // initializers (`private storageDir = application.getPath(...)`),
@@ -487,7 +487,8 @@ class FileStorage {
   }
 
   public createTempFile = async (_: Electron.IpcMainInvokeEvent, fileName: string): Promise<string> => {
-    return path.join(this.tempDir, `temp_file_${uuidv4()}_${fileName}`)
+    // `fileName` is renderer-supplied; basename it so a value like `../../evil` can't escape tempDir.
+    return path.join(this.tempDir, `temp_file_${uuidv4()}_${path.basename(fileName)}`)
   }
 
   public writeFile = async (

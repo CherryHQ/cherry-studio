@@ -5,8 +5,6 @@ import type { SerializedError } from '@renderer/types/error'
 import type {
   BaseMessageBlock,
   CitationMessageBlock,
-  CodeMessageBlock,
-  CompactMessageBlock,
   ErrorMessageBlock,
   FileMessageBlock,
   ImageMessageBlock,
@@ -14,8 +12,7 @@ import type {
   Message,
   ThinkingMessageBlock,
   ToolMessageBlock,
-  TranslationMessageBlock,
-  VideoMessageBlock
+  TranslationMessageBlock
 } from '@renderer/types/newMessage'
 import {
   AssistantMessageStatus,
@@ -70,28 +67,6 @@ export function createMainTextBlock(
     ...baseBlock,
     content,
     knowledgeBaseIds: overrides.knowledgeBaseIds
-  }
-}
-
-/**
- * Creates a Code Message Block.
- * @param messageId - The ID of the parent message.
- * @param content - The code content.
- * @param language - The programming language of the code.
- * @param overrides - Optional properties to override the defaults.
- * @returns A CodeMessageBlock object.
- */
-export function createCodeBlock(
-  messageId: string,
-  content: string,
-  language: string,
-  overrides: Partial<Omit<CodeMessageBlock, 'id' | 'messageId' | 'type' | 'content' | 'language'>> = {}
-): CodeMessageBlock {
-  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.CODE, overrides)
-  return {
-    ...baseBlock,
-    content,
-    language
   }
 }
 
@@ -279,41 +254,6 @@ export function createCitationBlock(
   }
 }
 
-export function createVideoBlock(
-  messageId: string,
-  overrides: Partial<Omit<VideoMessageBlock, 'id' | 'messageId' | 'type'>> = {}
-): VideoMessageBlock {
-  const { filePath, url, ...baseOverrides } = overrides
-  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.VIDEO, baseOverrides)
-  return {
-    ...baseBlock,
-    url: url,
-    filePath: filePath
-  }
-}
-
-/**
- * Creates a Compact Message Block for /compact command responses.
- * @param messageId - The ID of the parent message.
- * @param content - The summary text.
- * @param compactedContent - The compacted content extracted from XML tags.
- * @param overrides - Optional properties to override the defaults.
- * @returns A CompactMessageBlock object.
- */
-export function createCompactBlock(
-  messageId: string,
-  content: string,
-  compactedContent: string,
-  overrides: Partial<Omit<CompactMessageBlock, 'id' | 'messageId' | 'type' | 'content' | 'compactedContent'>> = {}
-): CompactMessageBlock {
-  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.COMPACT, overrides)
-  return {
-    ...baseBlock,
-    content,
-    compactedContent
-  }
-}
-
 /**
  * Creates a new Message object
  * @param role - The role of the message sender ('user' or 'assistant').
@@ -419,54 +359,3 @@ export function resetMessage(
     // NOTE: Add any other fields here that should be reset upon message regeneration
   }
 }
-
-/**
- * Resets an existing assistant message to a clean state, ready for regeneration.
- * It clears blocks and response-specific data, while retaining core identifiers.
- *
- * @param originalMessage The assistant message to reset.
- * @param updates Optional partial message object to override default reset values (e.g., status).
- * @returns A new message object representing the reset state.
- */
-export const resetAssistantMessage = (
-  originalMessage: Message,
-  updates?: Partial<Pick<Message, 'status' | 'updatedAt' | 'model' | 'modelId'>> // Primarily allow updating status
-): Message => {
-  // Ensure we are only resetting assistant messages
-  if (originalMessage.role !== 'assistant') {
-    logger.warn(
-      `[resetAssistantMessage] Attempted to reset a non-assistant message (ID: ${originalMessage.id}, Role: ${originalMessage.role}). Returning original.`
-    )
-    return originalMessage
-  }
-
-  // Create the base reset message
-  return {
-    // --- Retain Core Identifiers ---
-    id: originalMessage.id, // Keep the same message ID
-    topicId: originalMessage.topicId,
-    askId: originalMessage.askId, // Keep the link to the original user query
-
-    // --- Retain Identity ---
-    role: 'assistant',
-    assistantId: originalMessage.assistantId,
-    agentSessionId: originalMessage.agentSessionId,
-    model: originalMessage.model, // Keep the model information
-    modelId: originalMessage.modelId,
-
-    // --- Reset Response Content & Status ---
-    blocks: [], // <<< CRITICAL: Clear the blocks array
-    mentions: undefined, // Clear any mentions
-    status: AssistantMessageStatus.PENDING, // Default to PENDING
-    metrics: undefined, // Clear performance metrics
-    usage: undefined, // Clear token usage data
-
-    // --- Timestamps ---
-    createdAt: originalMessage.createdAt, // Keep original creation timestamp
-
-    // --- Apply Overrides ---
-    ...updates // Apply any specific updates passed in (e.g., a different status)
-  }
-}
-
-// 需要一个重置助手消息

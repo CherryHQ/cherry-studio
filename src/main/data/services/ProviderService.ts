@@ -8,7 +8,7 @@
 
 import { application } from '@application'
 import { userModelTable } from '@data/db/schemas/userModel'
-import type { NewUserProvider, UserProvider } from '@data/db/schemas/userProvider'
+import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
@@ -28,12 +28,12 @@ import type {
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq, sql, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('DataApi:ProviderService')
 
-type NewUserProviderInput = Omit<NewUserProvider, 'orderKey'>
+type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
 
 function normalizeApiKeyEntry(entry: ApiKeyEntry): ApiKeyEntry {
   const key = entry.key.trim()
@@ -69,7 +69,7 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
 /**
  * Convert database row to Provider entity
  */
-function rowToRuntimeProvider(row: UserProvider): Provider {
+function rowToRuntimeProvider(row: UserProviderRow): Provider {
   const presetMetadata = providerRegistryService.getProviderDisplayMetadata(
     row.providerId,
     row.presetProviderId ?? undefined
@@ -158,17 +158,26 @@ class ProviderService {
   async list(query: ListProvidersQuery): Promise<Provider[]> {
     const db = application.get('DbService').getDb()
 
-    let rows: UserProvider[]
+    const conditions: SQLWrapper[] = []
 
     if (query.enabled !== undefined) {
-      rows = await db
-        .select()
-        .from(userProviderTable)
-        .where(eq(userProviderTable.isEnabled, query.enabled))
-        .orderBy(asc(userProviderTable.orderKey))
-    } else {
-      rows = await db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey))
+      conditions.push(eq(userProviderTable.isEnabled, query.enabled))
     }
+
+    if (query.endpointType !== undefined) {
+      // endpointConfigs is a JSON text column: { "anthropic-messages": {...}, "openai-chat": {...} }
+      // Check if the key exists and is not null
+      conditions.push(sql`json_extract(${userProviderTable.endpointConfigs}, ${'$.' + query.endpointType}) IS NOT NULL`)
+    }
+
+    const rows =
+      conditions.length > 0
+        ? await db
+            .select()
+            .from(userProviderTable)
+            .where(and(...conditions))
+            .orderBy(asc(userProviderTable.orderKey))
+        : await db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey))
 
     return rows.map(rowToRuntimeProvider)
   }
@@ -202,7 +211,8 @@ class ProviderService {
       apiKeys: dto.apiKeys ?? [],
       authConfig: dto.authConfig ?? null,
       apiFeatures: dto.apiFeatures ?? null,
-      providerSettings: dto.providerSettings ?? null
+      providerSettings: dto.providerSettings ?? null,
+      isEnabled: false
     }
 
     const row = await withSqliteErrors(
@@ -210,7 +220,7 @@ class ProviderService {
         await db.transaction(async (tx) => {
           return (await insertWithOrderKey(tx, userProviderTable, values, {
             pkColumn: userProviderTable.providerId
-          })) as UserProvider
+          })) as UserProviderRow
         }),
       {
         unique: () => DataApiErrorFactory.conflict(`Provider '${dto.providerId}' already exists`, 'Provider')
@@ -226,28 +236,52 @@ class ProviderService {
    * Update an existing provider
    */
   async update(providerId: string, dto: UpdateProviderDto): Promise<Provider> {
-    const db = application.get('DbService').getDb()
+    // Read + merge + write the providerSettings JSON in ONE serialized write
+    // transaction. A bare read-then-update would let two concurrent PATCHes both
+    // read the same old providerSettings and have the later write clobber the
+    // other's keys (lost update); withWriteTx serializes them so each merges on
+    // the latest row value.
+    const row = await application.get('DbService').withWriteTx(async (tx) => {
+      // Read the raw row's providerSettings, not the merged entity. PATCH
+      // semantics require merging with the stored partial, not with runtime
+      // defaults — otherwise DEFAULT_PROVIDER_SETTINGS would be persisted
+      // into the row and break the "row stores only overrides" contract.
+      const [current] = await tx
+        .select({ providerSettings: userProviderTable.providerSettings })
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, providerId))
+        .limit(1)
 
-    // Build update object
-    const updates: Partial<NewUserProvider> = {}
+      if (!current) {
+        throw DataApiErrorFactory.notFound('Provider', providerId)
+      }
 
-    if (dto.name !== undefined) updates.name = dto.name
-    if (dto.endpointConfigs !== undefined) updates.endpointConfigs = dto.endpointConfigs
-    if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
-    if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
-    if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
-    if (dto.providerSettings !== undefined) updates.providerSettings = dto.providerSettings
-    if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
+      const updates: Partial<InsertUserProviderRow> = {}
 
-    const [row] = await db
-      .update(userProviderTable)
-      .set(updates)
-      .where(eq(userProviderTable.providerId, providerId))
-      .returning()
+      if (dto.name !== undefined) updates.name = dto.name
+      if (dto.endpointConfigs !== undefined) updates.endpointConfigs = dto.endpointConfigs
+      if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
+      if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
+      if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
+      if (dto.providerSettings !== undefined) {
+        updates.providerSettings = {
+          ...(current.providerSettings as Partial<ProviderSettings> | null),
+          ...dto.providerSettings
+        }
+      }
+      if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
 
-    if (!row) {
-      throw DataApiErrorFactory.notFound('Provider', providerId)
-    }
+      const [updated] = await tx
+        .update(userProviderTable)
+        .set(updates)
+        .where(eq(userProviderTable.providerId, providerId))
+        .returning()
+
+      if (!updated) {
+        throw DataApiErrorFactory.notFound('Provider', providerId)
+      }
+      return updated
+    })
 
     logger.info('Updated provider', { providerId, changes: Object.keys(dto) })
 

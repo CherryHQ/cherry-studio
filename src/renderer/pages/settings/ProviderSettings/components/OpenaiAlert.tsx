@@ -21,7 +21,7 @@ export default function OpenaiAlert({ message }: Props) {
 
   return (
     <div
-      className="mx-0 my-[5px] flex w-full items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-foreground text-sm"
+      className="mx-0 my-1.25 flex w-full items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-foreground text-sm"
       role="alert">
       <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
       <p className="min-w-0 flex-1">{resolvedMessage}</p>

@@ -14,7 +14,7 @@ import {
 import { loggerService } from '@logger'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { TopView } from '@renderer/components/TopView'
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBases'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -28,7 +28,7 @@ import {
   processTopicContent
 } from '@renderer/utils/knowledge'
 import { resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
-import type { KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
+import type { KnowledgeAddItemInput } from '@shared/data/types/knowledge'
 import { Check } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -305,7 +305,7 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         throw new Error('Knowledge base is not properly configured. Please check the knowledge base settings.')
       }
 
-      const items: KnowledgeRuntimeAddItemInput[] = []
+      const items: KnowledgeAddItemInput[] = []
       const noteSource = getNoteSource(source, title)
 
       if (isNoteMode) {

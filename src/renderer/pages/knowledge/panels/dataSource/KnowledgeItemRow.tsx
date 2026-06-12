@@ -11,7 +11,6 @@ import {
   TableRow
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { useQuery } from '@data/hooks/useDataApi'
 import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
@@ -212,7 +211,7 @@ const KnowledgeItemRowMoreMenu = ({
         side="bottom"
         sideOffset={4}
         collisionPadding={8}
-        className="z-30 w-30"
+        className="z-30 w-max max-w-56"
         onClick={(event) => event.stopPropagation()}
         onOpenAutoFocus={(event) => event.preventDefault()}
         onCloseAutoFocus={(event) => event.preventDefault()}>
@@ -243,17 +242,14 @@ const KnowledgeItemRow = ({
     i18n: { language },
     t
   } = useTranslation()
-  const { data: fileEntry } = useQuery('/files/entries/:id', {
-    params: { id: item.type === 'file' ? item.data.fileEntryId : '' },
-    enabled: item.type === 'file'
-  })
-  const { icon, metaParts, status, suffix, title } = toKnowledgeItemRowViewModel(item, language, fileEntry)
+  const { icon, metaParts, status, suffix, title } = toKnowledgeItemRowViewModel(item, language)
   const Icon = icon.icon
   const failureReason = item.status === 'failed' ? item.error : null
   const canReindex = item.status === 'completed' || item.status === 'failed'
   const canViewChunks = item.status === 'completed'
   const typeLabel = t(dataSourceTypeDisplayConfig[item.type].filterLabelKey)
   const updatedAt = formatRelativeTime(item.updatedAt, language)
+  const fullTitle = 'source' in item.data ? item.data.source : title
 
   return (
     <TableRow
@@ -282,9 +278,11 @@ const KnowledgeItemRow = ({
           <span className="flex size-6 shrink-0 items-center justify-center rounded bg-background-subtle">
             <Icon className={cn('size-3.5', icon.iconClassName)} />
           </span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
-              <span className="min-w-0 truncate text-foreground text-sm">{title}</span>
+              <span className="min-w-0 truncate text-foreground text-sm" title={fullTitle}>
+                {title}
+              </span>
               {suffix ? <span className="shrink-0 text-foreground-muted text-xs uppercase">{suffix}</span> : null}
             </div>
             {metaParts.length > 0 ? (

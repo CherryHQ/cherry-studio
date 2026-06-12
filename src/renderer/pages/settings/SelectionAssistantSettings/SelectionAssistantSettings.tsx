@@ -282,7 +282,7 @@ const SelectionAssistantSettings: FC = () => {
               </SettingLabel>
               <div style={{ marginRight: '16px' }}>{opacityValue}%</div>
               <Slider
-                className="w-[100px]"
+                className="w-25"
                 min={20}
                 max={100}
                 inverted

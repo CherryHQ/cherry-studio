@@ -11,12 +11,12 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCopilot } from '@renderer/hooks/useCopilot'
-import { useProvider } from '@renderer/hooks/useProviders'
-import { getProviderHostTopology } from '@renderer/pages/settings/ProviderSettings/utils/providerTopology'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { cn, validateApiHost } from '@renderer/utils'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig } from '@shared/data/types/provider'
-import { trim } from 'lodash'
+import { getProviderHostTopology } from '@shared/utils/providerTopology'
+import { isEmpty, trim } from 'lodash'
 import { Braces, List, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -137,7 +137,7 @@ export function mergeEndpointConfigs(
     } else if (type === primary) {
       const rest = { ...out[type] }
       delete rest.baseUrl
-      if (Object.keys(rest).length > 0) {
+      if (!isEmpty(rest)) {
         out[type] = rest
       } else {
         delete out[type]
@@ -291,7 +291,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
     }
 
     if (primaryDraft !== previousPrimaryBaseUrl) {
-      syncProviderModels({ ...provider, endpointConfigs: nextEndpointConfigs }).catch((error) => {
+      syncProviderModels().catch((error) => {
         logger.error('Background model sync after baseUrl change failed', error as Error, { providerId })
       })
     }

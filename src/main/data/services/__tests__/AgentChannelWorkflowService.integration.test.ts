@@ -19,12 +19,15 @@ const { syncChannelMock, disconnectChannelMock } = vi.hoisted(() => ({
   disconnectChannelMock: vi.fn()
 }))
 
-vi.mock('@main/services/agents/services/channels', () => ({
-  channelManager: {
-    syncChannel: syncChannelMock,
-    disconnectChannel: disconnectChannelMock
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    ChannelManager: {
+      syncChannel: syncChannelMock,
+      disconnectChannel: disconnectChannelMock
+    }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
 
 // Import AFTER mocks
 import { agentChannelWorkflowService } from '../AgentChannelWorkflowService'
@@ -44,8 +47,8 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
       type: 'claude-code',
       name: `Agent ${id}`,
       instructions: 'test',
-      model: 'claude-3-5-sonnet',
-      sortOrder: 0
+      model: null,
+      orderKey: 'a0'
     })
   }
 
@@ -58,6 +61,7 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
       type: 'telegram',
       name: 'Original Name',
       agentId: 'agent-rollback-1',
+      workspace: { type: 'system' },
       config: TELEGRAM_CONFIG,
       isActive: true,
       activeChatIds: ['chat-1', 'chat-2'],
@@ -92,6 +96,7 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
     expect(after.type).toBe(snapshot.type)
     expect(after.agentId).toBe(snapshot.agentId)
     expect(after.sessionId).toBe(snapshot.sessionId)
+    expect(after.workspace).toEqual(snapshot.workspace)
     expect(after.config).toEqual(snapshot.config)
     expect(after.isActive).toBe(snapshot.isActive)
     expect(after.activeChatIds).toEqual(snapshot.activeChatIds)
@@ -111,6 +116,7 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
       type: 'telegram',
       name: 'Null-Field Channel',
       // agentId / sessionId / activeChatIds / permissionMode left NULL
+      workspace: { type: 'system' },
       config: TELEGRAM_CONFIG,
       isActive: true
     })

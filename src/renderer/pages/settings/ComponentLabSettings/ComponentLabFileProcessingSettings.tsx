@@ -6,7 +6,7 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import type { FileProcessingArtifact, FileProcessingJobOutput } from '@shared/data/types/fileProcessing'
-import type { FilePath } from '@shared/file/types'
+import { createFilePathHandle, type FilePath } from '@shared/file/types'
 import type { FileMetadata } from '@types'
 import { CheckCircle2, CircleAlert, FileText, Image, Loader2, Play, Upload } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
@@ -24,6 +24,17 @@ const TEXT_PREVIEW_LIMIT = 500
 
 type LabFeature = Extract<FileProcessorFeature, 'image_to_text' | 'document_to_markdown'>
 type LabRunStatus = JobSnapshot['status'] | 'idle' | 'starting'
+
+const LAB_STATUS_LABEL_KEYS: Record<LabRunStatus, string> = {
+  cancelled: 'settings.componentLab.fileProcessing.status.cancelled',
+  completed: 'settings.componentLab.fileProcessing.status.completed',
+  delayed: 'settings.componentLab.fileProcessing.status.delayed',
+  failed: 'settings.componentLab.fileProcessing.status.failed',
+  idle: 'settings.componentLab.fileProcessing.status.idle',
+  pending: 'settings.componentLab.fileProcessing.status.pending',
+  running: 'settings.componentLab.fileProcessing.status.running',
+  starting: 'settings.componentLab.fileProcessing.status.starting'
+}
 
 type LabSectionConfig = {
   feature: LabFeature
@@ -96,7 +107,7 @@ function getDurationSeconds(durationMs: number | undefined): string {
 
 function getArtifactPreview(artifact: FileProcessingArtifact): string {
   if (artifact.kind === 'file') {
-    return artifact.fileEntryId
+    return artifact.path
   }
 
   return artifact.text.length > TEXT_PREVIEW_LIMIT ? `${artifact.text.slice(0, TEXT_PREVIEW_LIMIT)}...` : artifact.text
@@ -146,7 +157,7 @@ function ProcessorIdleHeader({ processor }: { processor: FileProcessorMerged }) 
         </div>
         <Badge variant="outline" className="gap-1">
           <StatusIcon status="idle" />
-          {t(`settings.componentLab.fileProcessing.status.idle`)}
+          {t(LAB_STATUS_LABEL_KEYS.idle)}
         </Badge>
       </div>
 
@@ -195,7 +206,7 @@ function ProcessorJobView({
         </div>
         <Badge variant={status === 'failed' || status === 'cancelled' ? 'destructive' : 'outline'} className="gap-1">
           <StatusIcon status={status} />
-          {t(`settings.componentLab.fileProcessing.status.${status}`)}
+          {t(LAB_STATUS_LABEL_KEYS[status])}
         </Badge>
       </div>
 
@@ -321,13 +332,20 @@ const ComponentLabFileProcessingSettings: FC = () => {
       setRuns((current) => ({ ...current, [section.feature]: {} }))
 
       const startedAt = Date.now()
-      const fileEntry = window.api.file.ensureExternalEntry({ externalPath: file.path as FilePath })
+      const filePath = file.path as FilePath
       const results = await Promise.allSettled(
         processorsForFeature.map(async (processor) => {
-          const entry = await fileEntry
+          const output =
+            section.feature === 'document_to_markdown'
+              ? {
+                  kind: 'path' as const,
+                  path: (await window.api.file.createTempFile(`lab-${processor.id}.md`)) as FilePath
+                }
+              : undefined
           const job = await window.api.fileProcessing.startJob({
             feature: section.feature,
-            fileEntryId: entry.id,
+            file: createFilePathHandle(filePath),
+            ...(output ? { output } : {}),
             processorId: processor.id
           })
           return { processorId: processor.id, jobId: job.id }

@@ -7,12 +7,18 @@ import { usePullReconcileSubmit } from '../usePullReconcileSubmit'
 const { reconcileTriggerMock } = vi.hoisted(() => ({
   reconcileTriggerMock: vi.fn()
 }))
+const useProviderMock = vi.fn()
+const updateProviderMock = vi.fn()
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useMutation: () => ({
     trigger: reconcileTriggerMock,
     isLoading: false
   })
+}))
+
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 
 vi.mock('../modelSync', () => ({
@@ -35,6 +41,13 @@ describe('usePullReconcileSubmit', () => {
   beforeEach(() => {
     reconcileTriggerMock.mockReset()
     reconcileTriggerMock.mockResolvedValue([])
+    useProviderMock.mockReset()
+    updateProviderMock.mockReset()
+    updateProviderMock.mockResolvedValue(undefined)
+    useProviderMock.mockReturnValue({
+      provider: { id: 'cherryin', isEnabled: true },
+      updateProvider: updateProviderMock
+    })
     window.toast = {
       success: vi.fn(),
       error: vi.fn()
@@ -79,6 +92,55 @@ describe('usePullReconcileSubmit', () => {
     expect(onApplyCommitted).toHaveBeenCalled()
     expect(window.toast.success).toHaveBeenCalled()
     expect(window.toast.error).not.toHaveBeenCalled()
+  })
+
+  it('enables a disabled provider when pull reconcile leaves at least one model', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'cherryin', isEnabled: false },
+      updateProvider: updateProviderMock
+    })
+    reconcileTriggerMock.mockResolvedValueOnce([{ id: 'cherryin::model-0' }])
+    const onApplyCommitted = vi.fn()
+    const { result } = renderHook(() => usePullReconcileSubmit({ providerId: 'cherryin', onApplyCommitted }))
+
+    await act(async () => {
+      await result.current.confirmApply({
+        toAdd: [
+          {
+            id: 'cherryin::model-0',
+            providerId: 'cherryin',
+            apiModelId: 'model-0',
+            name: 'Model 0',
+            capabilities: [],
+            supportsStreaming: true,
+            isEnabled: true,
+            isHidden: false
+          } as Model
+        ],
+        toRemove: []
+      })
+    })
+
+    expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true })
+  })
+
+  it('keeps a disabled provider disabled when pull reconcile leaves zero models', async () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'cherryin', isEnabled: false },
+      updateProvider: updateProviderMock
+    })
+    reconcileTriggerMock.mockResolvedValueOnce([])
+    const onApplyCommitted = vi.fn()
+    const { result } = renderHook(() => usePullReconcileSubmit({ providerId: 'cherryin', onApplyCommitted }))
+
+    await act(async () => {
+      await result.current.confirmApply({
+        toAdd: [],
+        toRemove: ['cherryin::old-model']
+      })
+    })
+
+    expect(updateProviderMock).not.toHaveBeenCalled()
   })
 
   it('surfaces reconcile failure without committing the drawer', async () => {

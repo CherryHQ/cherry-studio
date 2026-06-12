@@ -10,7 +10,7 @@ const addApiKeyTriggerMock = vi.fn()
 const navigateMock = vi.fn()
 const popupShowMock = vi.fn()
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: () => ({
     createProvider: createProviderMock
   }),

@@ -164,8 +164,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.data_source.filters.file': '文件',
           'knowledge.data_source.filters.note': '笔记',
           'knowledge.data_source.filters.directory': '目录',
-          'knowledge.data_source.filters.url': '网址',
-          'knowledge.data_source.filters.sitemap': '网站',
+          'knowledge.data_source.filters.url': '链接',
           'knowledge.data_source.table.select_row': '选择行',
           'common.more': '更多',
           'knowledge.rag.file_processing': '文件处理'
@@ -199,31 +198,14 @@ describe('KnowledgeItemRow', () => {
     })
   })
 
-  it('renders the file suffix and meta parts from the file entry row view model', () => {
-    mockUseQuery.mockReturnValueOnce({
-      data: {
-        id: '019606a0-0000-7000-8000-000000000001',
-        name: '季度报告',
-        ext: 'pdf',
-        origin: 'external',
-        externalPath: '/tmp/季度报告.pdf',
-        createdAt: 1776948000000,
-        updatedAt: 1776948000000
-      },
-      isLoading: false,
-      error: undefined
-    })
-
+  it('renders the file suffix and meta parts from the knowledge item path', () => {
     render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', originName: 'old-name.md' })} {...defaultHandlers} />)
 
-    expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
-    expect(screen.getByText('pdf')).toBeInTheDocument()
+    expect(screen.getByText('old-name.md')).toBeInTheDocument()
+    expect(screen.getByText('md')).toBeInTheDocument()
     expect(screen.getByText('文件')).toBeInTheDocument()
     expect(screen.getAllByText('刚刚')).toHaveLength(2)
-    expect(mockUseQuery).toHaveBeenCalledWith('/files/entries/:id', {
-      params: { id: '019606a0-0000-7000-8000-000000000001' },
-      enabled: true
-    })
+    expect(mockUseQuery).not.toHaveBeenCalledWith('/files/entries/:id', expect.anything())
   })
 
   it('falls back to the file source when the file entry is not loaded', () => {

@@ -2,6 +2,7 @@ import { join } from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { DIAGNOSTICS_ENABLED } from '@main/core/diagnostics'
 import {
   BaseService,
   type Disposable,
@@ -630,13 +631,17 @@ export class WindowManager extends BaseService {
     }
   }
 
-  /** Get all managed windows info */
-  public getAllWindows(): ManagedWindow[] {
-    return Array.from(this.windows.values())
+  /** Get all live BrowserWindow instances of a specific type (skips destroyed) */
+  public getWindowsByType(type: WindowType): BrowserWindow[] {
+    const windowIds = this.windowsByType.get(type)
+    if (!windowIds) return []
+    return Array.from(windowIds)
+      .map((id) => this.windows.get(id)?.window)
+      .filter((window): window is BrowserWindow => window !== undefined && !window.isDestroyed())
   }
 
-  /** Get all windows of a specific type */
-  public getWindowsByType(type: WindowType): WindowInfo[] {
+  /** Get serializable metadata for all windows of a specific type */
+  public getWindowInfosByType(type: WindowType): WindowInfo[] {
     const windowIds = this.windowsByType.get(type)
     if (!windowIds) return []
     return Array.from(windowIds)
@@ -1349,6 +1354,7 @@ export class WindowManager extends BaseService {
    * @returns Window ID (UUID)
    */
   private createWindow<T>(type: WindowType, args?: OpenWindowArgs<T>, suppressAutoShow = false): string {
+    const t0 = DIAGNOSTICS_ENABLED ? performance.now() : 0
     const metadata = getWindowTypeMetadata(type)
     const windowId = uuidv4()
     const config = mergeWindowOptions(type, args?.options)
@@ -1458,6 +1464,14 @@ export class WindowManager extends BaseService {
     // before the first open) is applied here without requiring a separate arg on
     // createWindow.
     this.updateDockVisibility()
+
+    // Opt-in (CS_DIAGNOSTICS): synchronous construction cost + paint latency.
+    if (DIAGNOSTICS_ENABLED) {
+      logger.info(`[Diagnostics/window] ${type} sync-build ${(performance.now() - t0).toFixed(1)}ms`)
+      window.once('ready-to-show', () => {
+        logger.info(`[Diagnostics/window] ${type} ready-to-show +${(performance.now() - t0).toFixed(1)}ms`)
+      })
+    }
 
     logger.debug('Window created', { windowId, type })
     return windowId

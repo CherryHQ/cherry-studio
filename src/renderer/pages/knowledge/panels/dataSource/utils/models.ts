@@ -1,27 +1,18 @@
 import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
-import type { FileEntry } from '@shared/data/types/file'
 import type { KnowledgeItemOf, KnowledgeItemStatus, KnowledgeItemType } from '@shared/data/types/knowledge'
 import type { LucideIcon } from 'lucide-react'
-import { Boxes, FileText, Folder, Globe, Link2, StickyNote } from 'lucide-react'
+import { FileText, Folder, Link2, StickyNote } from 'lucide-react'
 
-export type DataSourceFilter = 'all' | KnowledgeItemType
 export type DataSourceStatus = 'completed' | 'processing' | 'failed'
 export type DataSourceStatusIcon = 'check' | 'loader' | 'alert'
 
 export interface DataSourceDisplayContext {
-  fileEntry?: FileEntry
   language: string
 }
 
 export interface DataSourceIconMeta {
   icon: LucideIcon
   iconClassName: string
-}
-
-export interface DataSourceFilterDefinition {
-  value: DataSourceFilter
-  labelKey: string
-  icon: LucideIcon
 }
 
 export interface DataSourceStatusViewModel {
@@ -71,20 +62,13 @@ const getPathName = (source: string) => {
   return name || normalizedSource || source
 }
 
-const getFileTitle = (item: KnowledgeItemOf<'file'>, fileEntry?: FileEntry) => {
-  if (!fileEntry) {
-    return getPathName(item.data.source)
-  }
+const getFileTitle = (item: KnowledgeItemOf<'file'>) => getPathName(item.data.source || item.data.relativePath)
 
-  return fileEntry.ext ? `${fileEntry.name}.${fileEntry.ext}` : fileEntry.name
-}
-
-const getFileSuffix = (item: KnowledgeItemOf<'file'>, fileEntry?: FileEntry) => {
+const getFileSuffix = (item: KnowledgeItemOf<'file'>) => {
   const fallbackName = getPathName(item.data.source)
   const fallbackExt = fallbackName.includes('.') ? fallbackName.split('.').pop() : undefined
-  const ext = fileEntry?.ext ?? fallbackExt
 
-  return (ext || 'FILE').toLowerCase()
+  return (fallbackExt || 'FILE').toLowerCase()
 }
 
 export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): DataSourceStatusViewModel => {
@@ -157,8 +141,8 @@ export const dataSourceTypeDisplayConfig: DataSourceTypeDisplayConfigMap = {
       icon: FileText,
       iconClassName: 'text-blue-500'
     },
-    getTitle: (item, { fileEntry }) => getFileTitle(item, fileEntry),
-    getSuffix: (item, { fileEntry }) => getFileSuffix(item, fileEntry),
+    getTitle: (item) => getFileTitle(item),
+    getSuffix: (item) => getFileSuffix(item),
     getMetaParts: (item, { language }) => getRelativeMetaParts(item.updatedAt, language),
     getStatus: resolveDataSourceStatusViewModel
   },
@@ -179,7 +163,7 @@ export const dataSourceTypeDisplayConfig: DataSourceTypeDisplayConfigMap = {
       icon: Folder,
       iconClassName: 'text-violet-500'
     },
-    getTitle: (item) => item.data.source,
+    getTitle: (item) => getPathName(item.data.source),
     getSuffix: () => '',
     getMetaParts: (item, { language }) => getRelativeMetaParts(item.updatedAt, language),
     getStatus: resolveDataSourceStatusViewModel
@@ -194,33 +178,5 @@ export const dataSourceTypeDisplayConfig: DataSourceTypeDisplayConfigMap = {
     getSuffix: () => '',
     getMetaParts: (item, { language }) => getRelativeMetaParts(item.updatedAt, language),
     getStatus: resolveDataSourceStatusViewModel
-  },
-  sitemap: {
-    filterLabelKey: 'knowledge.data_source.filters.sitemap',
-    icon: {
-      icon: Globe,
-      iconClassName: 'text-emerald-500'
-    },
-    getTitle: (item) => item.data.source,
-    getSuffix: () => '',
-    getMetaParts: (item, { language }) => getRelativeMetaParts(item.updatedAt, language),
-    getStatus: resolveDataSourceStatusViewModel
   }
 }
-
-const dataSourceTypeDisplayEntries = Object.entries(dataSourceTypeDisplayConfig) as Array<
-  [KnowledgeItemType, DataSourceTypeDisplayConfigMap[KnowledgeItemType]]
->
-
-export const dataSourceFilterDefinitions: DataSourceFilterDefinition[] = [
-  {
-    value: 'all',
-    labelKey: 'knowledge.data_source.filters.all',
-    icon: Boxes
-  },
-  ...dataSourceTypeDisplayEntries.map(([value, config]) => ({
-    value,
-    labelKey: config.filterLabelKey,
-    icon: config.icon.icon
-  }))
-]

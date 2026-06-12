@@ -13,8 +13,10 @@ const mockPaths: MigrationPaths = {
   cherryHome: '/tmp/test-cherryhome',
   databaseFile: '/tmp/test-userdata/cherrystudio.sqlite',
   knowledgeBaseDir: '/tmp/test-userdata/Data/KnowledgeBase',
+  filesDataDir: '/tmp/test-userdata/Data/Files',
   versionLogFile: '/tmp/test-userdata/version.log',
   legacyAgentDbFile: '/tmp/test-userdata/Data/agents.db',
+  agentWorkspacesDir: '/tmp/test-userdata/Data/AgentWorkspaces',
   customMiniAppsFile: '/tmp/test-userdata/Data/Files/custom-minapps.json',
   legacyConfigFile: '/tmp/test-cherryhome/config/config.json',
   migrationsFolder: '/tmp/test-migrations'
@@ -98,6 +100,32 @@ describe('MigrationEngine', () => {
       'chat:execute',
       'chat:validate'
     ])
+  })
+
+  it('aggregates prepare and execute warnings into the migrator result on success', async () => {
+    const events: string[] = []
+    const migrator = createTestMigrator('knowledge', 1, events)
+    migrator.prepare.mockResolvedValueOnce({ success: true, itemCount: 0, warnings: ['prepare warn'] } as any)
+    migrator.execute.mockResolvedValueOnce({ success: true, processedCount: 0, warnings: ['execute warn'] } as any)
+
+    engine.registerMigrators([migrator as any])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result.success).toBe(true)
+    expect(result.migratorResults).toHaveLength(1)
+    expect(result.migratorResults[0].warnings).toEqual(['prepare warn', 'execute warn'])
+  })
+
+  it('omits the warnings field when a migrator reports none', async () => {
+    const events: string[] = []
+    const migrator = createTestMigrator('clean', 1, events)
+
+    engine.registerMigrators([migrator as any])
+
+    const result = await engine.run({}, '/tmp/dexie_export')
+
+    expect(result.migratorResults[0].warnings).toBeUndefined()
   })
 
   it('logs failed runs with an Error object so stack/cause are preserved', async () => {

@@ -14,7 +14,7 @@ import {
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { TopView } from '@renderer/components/TopView'
-import { useModelMutations, useModels } from '@renderer/hooks/useModels'
+import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType, parseUniqueModelId } from '@shared/data/types/model'
@@ -113,12 +113,12 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
           onCancel()
         }
       }}>
-      <DialogContent className="provider-settings-default-scope gap-5 rounded-2xl border-[color:var(--color-border-fg-muted)] bg-popover p-5 sm:max-w-md">
+      <DialogContent className="provider-settings-default-scope gap-5 rounded-2xl border-(--color-border-fg-muted) bg-popover p-5 sm:max-w-md">
         <DialogHeader className="gap-1.5 pr-6">
-          <DialogTitle className="text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
+          <DialogTitle className="text-(length:--font-size-body-md) text-foreground/90 leading-(--line-height-body-md)">
             {title}
           </DialogTitle>
-          <DialogDescription className="text-[length:var(--font-size-body-sm)] text-muted-foreground/80 leading-[var(--line-height-body-sm)]">
+          <DialogDescription className="text-(length:--font-size-body-sm) text-muted-foreground/80 leading-(--line-height-body-sm)">
             {t('settings.models.add.endpoint_type.tooltip')}
           </DialogDescription>
         </DialogHeader>

@@ -30,7 +30,7 @@ Used by subtree id-based operations: `deleteItems` and `reindexItems`.
 
 This helper is not used by `addItems` because `addItems` receives new item payloads, not persisted item ids.
 
-### `KnowledgeOrchestrationService.getRootItemsInBase`
+### `KnowledgeService.getRootItemsInBase`
 
 Private helper used only by single-item chunk operations.
 
@@ -70,7 +70,7 @@ Used by `listItemChunks` and `deleteItemChunk`.
 - Rejects failed bases through `assertBaseCanRunRuntimeOperation`.
 - Loads the requested item and rejects items outside the requested `baseId`.
 - Allows chunk list/delete only when the requested item itself is `completed`.
-- For completed `directory` / `sitemap` list requests, also rejects if any descendant is `deleting`.
+- For completed `directory` list requests, also rejects if any descendant is `deleting`.
 
 The UI should only expose chunk viewing for completed rows, but the service guard remains the backend authority for stale or direct IPC calls. The extra container descendant check exists because container reconciliation ignores `deleting` children, so a container can stay `completed` while cleanup is still pending below it.
 
@@ -264,7 +264,7 @@ The child scheduling compensation mirrors `addItems`: once a child job was accep
 
 ## Shutdown
 
-`KnowledgeOrchestrationService` does not cancel knowledge jobs during service shutdown. Knowledge job handlers use JobManager `recovery: 'retry'`, so unfinished pending, delayed, or running rows are left for JobManager startup recovery instead of being terminal-cancelled while their knowledge items still show active statuses.
+`KnowledgeService` does not cancel knowledge jobs during service shutdown. Knowledge job handlers use JobManager `recovery: 'retry'`, so unfinished pending, delayed, or running rows are left for JobManager startup recovery instead of being terminal-cancelled while their knowledge items still show active statuses.
 
 ## Review Checklist
 

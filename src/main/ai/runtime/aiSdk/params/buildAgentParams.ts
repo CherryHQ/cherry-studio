@@ -1,0 +1,295 @@
+import type { FetchFunction, ProviderOptions } from '@ai-sdk/provider-utils'
+import { application } from '@application'
+import type { AiPlugin } from '@cherrystudio/ai-core'
+import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constant'
+import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
+import { isFunctionCallingModel } from '@shared/utils/model'
+import { stepCountIs, type StopCondition, type ToolSet } from 'ai'
+
+import { createHttpTraceFetch } from '../../../observability'
+import { providerToAiSdkConfig } from '../../../provider/config'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '../../../provider/endpoint'
+import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
+import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
+import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
+import { resolveAssistantMcpToolIds } from '../../../tools/adapters/aiSdk/mcp/resolveAssistantMcpTools'
+import { registry } from '../../../tools/adapters/aiSdk/registry'
+import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
+import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
+import type { AiBaseRequest, CallOverrides } from '../../../types/requests'
+import { filterStandardParams } from '../../../utils/modelParameters'
+import {
+  buildCapabilityProviderOptions,
+  extractAiSdkStandardParams,
+  mergeCustomProviderParameters
+} from '../../../utils/options'
+import { getCustomParameters } from '../../../utils/reasoning'
+import type { AgentLoopHooks, AgentOptions } from '../loop'
+import { assembleSystemPrompt } from './assembleSystemPrompt'
+import { buildTelemetry } from './buildTelemetry'
+import { resolveCapabilities } from './capabilities'
+import { collectFromFeatures } from './collectFromFeatures'
+import type { RequestFeature } from './feature'
+import { INTERNAL_FEATURES } from './features'
+import type { RequestScope, SdkConfig } from './scope'
+
+export interface BuildAgentParamsInput {
+  request: AiBaseRequest & {
+    chatId?: string
+    messageId?: string
+  }
+  signal: AbortSignal | undefined
+  provider: Provider
+  model: Model
+  assistant?: Assistant
+  /** Caller-supplied features merged after `INTERNAL_FEATURES`. */
+  extraFeatures?: readonly RequestFeature[]
+}
+
+export interface BuiltAgentParams {
+  sdkConfig: SdkConfig
+  tools: ToolSet | undefined
+  plugins: AiPlugin<any, any>[]
+  system: string | undefined
+  options: AgentOptions
+  /** Hook contributions from features — caller composes with its own internal hooks. */
+  hookParts: ReadonlyArray<Partial<AgentLoopHooks>>
+}
+
+export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
+  const { request, signal, provider, model, assistant, extraFeatures } = input
+
+  const sdkConfig = await resolveSdkConfig(provider, model)
+  applyHttpTrace(sdkConfig, request.chatId, model)
+  const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model)
+    ? await resolveTools(request, assistant, model)
+    : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
+  const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
+
+  const { endpointType } = resolveEffectiveEndpoint(provider, model)
+  const aiSdkProviderId = resolveAiSdkProviderId(provider, endpointType)
+
+  const requestContext: RequestContext = {
+    requestId: request.messageId ?? crypto.randomUUID(),
+    topicId: request.chatId,
+    assistant,
+    abortSignal: signal
+  }
+
+  const scope: RequestScope = {
+    request,
+    signal,
+    registry,
+    assistant,
+    model,
+    provider,
+    capabilities,
+    sdkConfig,
+    endpointType,
+    aiSdkProviderId,
+    requestContext,
+    mcpToolIds
+  }
+
+  const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
+  const contributions = collectFromFeatures(scope, features)
+
+  const system = await assembleSystemPrompt({ assistant, model, tools, deferredEntries })
+  const options = buildAgentOptions(scope, contributions.stopConditions)
+
+  return {
+    sdkConfig,
+    tools,
+    plugins: contributions.modelAdapters,
+    system,
+    options,
+    hookParts: contributions.hookParts
+  }
+}
+
+async function resolveSdkConfig(provider: Provider, model: Model): Promise<SdkConfig> {
+  return {
+    ...(await providerToAiSdkConfig(provider, model)),
+    modelId: model.apiModelId ?? model.id
+  }
+}
+
+export function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
+  if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
+  const settings = sdkConfig.providerSettings as { fetch?: FetchFunction }
+  settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, {
+    topicId,
+    modelName: model.name ?? model.id
+  })
+}
+
+/**
+ * Skip the entire tool-resolution path (registry sync, defer exposition,
+ * meta-tool injection) when the model can't consume tools at all. Without
+ * this gate, a non-function-calling model gets the meta-tools + system-
+ * prompt section pushed at it for nothing — pure token waste with no way
+ * for the model to act on it.
+ *
+ * "Can consume" means the model supports native function calling (the
+ * provider's tool API).
+ */
+function canModelConsumeTools(model: Model): boolean {
+  return isFunctionCallingModel(model)
+}
+
+/**
+ * Tool selection: pick MCP ids (caller wins, else derived from assistant),
+ * sync the MCP entries into the registry, then materialise the active
+ * `ToolSet` via `applies` predicates and defer exposition.
+ */
+async function resolveTools(
+  request: BuildAgentParamsInput['request'],
+  assistant: Assistant | undefined,
+  model: Model
+): Promise<{
+  tools: ToolSet | undefined
+  deferredEntries: ToolEntry[]
+  mcpToolIds: ReadonlySet<string>
+}> {
+  let mcpIdList = request.mcpToolIds
+  if (!mcpIdList && request.assistantId) {
+    mcpIdList = await resolveAssistantMcpToolIds(request.assistantId)
+  }
+  const mcpToolIds = new Set(mcpIdList ?? [])
+  if (mcpToolIds.size) {
+    // Scope the registry sync to servers that actually own a selected tool —
+    // avoids paying the per-server `listTools` round-trip for every active
+    // server when only one was picked for this request.
+    await syncMcpToolsToRegistry(undefined, { selectedToolIds: mcpToolIds })
+  }
+
+  const activeEntries = registry.selectActive({ assistant, mcpToolIds })
+  let tools: ToolSet | undefined
+  if (activeEntries.length > 0) {
+    tools = {}
+    for (const entry of activeEntries) tools[entry.name] = entry.tool
+  }
+  // First-class client tools (no `execute`) supplied per request by assistant-less
+  // callers (the API gateway). Merged here so they share the registry/defer-exposition
+  // path instead of being mutated onto raw SDK params.
+  const clientTools = request.callOverrides?.tools
+  if (clientTools && Object.keys(clientTools).length > 0) {
+    tools = { ...tools, ...clientTools }
+  }
+  const exposed = applyDeferExposition(tools, registry, model.contextWindow)
+  return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, mcpToolIds }
+}
+
+/**
+ * Assemble `AgentOptions`: capability-driven providerOptions overlaid with
+ * the user's customParameters (split into AI-SDK standard params vs
+ * provider-scoped params), per-call headers/maxRetries, stop-after-N-tools,
+ * and the tool-call repair function.
+ */
+function buildAgentOptions(scope: RequestScope, featureStopConditions: StopCondition<ToolSet>[]): AgentOptions {
+  const { assistant, capabilities, model, provider, sdkConfig, requestContext, request, aiSdkProviderId } = scope
+
+  let providerOptions =
+    assistant && capabilities ? buildCapabilityProviderOptions(assistant, model, provider, capabilities) : {}
+  let standardParams: Partial<Record<string, unknown>> = {}
+  if (assistant) {
+    const customParams = getCustomParameters(assistant)
+    if (Object.keys(customParams).length > 0) {
+      const split = extractAiSdkStandardParams(customParams)
+      standardParams = filterStandardParams(split.standardParams, model)
+      providerOptions = mergeCustomProviderParameters(providerOptions, split.providerParams, aiSdkProviderId)
+    }
+  }
+
+  // Highest-precedence per-request overrides (assistant-less callers, e.g. the API gateway).
+  const callOverrides = request.callOverrides
+  const overridden = applyCallOverrides({ standardParams, providerOptions }, callOverrides, model)
+  standardParams = overridden.standardParams
+  providerOptions = overridden.providerOptions as typeof providerOptions
+
+  const { headers, maxRetries } = request.requestOptions ?? {}
+  const baseStopWhen = assistant ? resolveStopWhenForAssistant(assistant) : undefined
+  const stopWhen = composeStopWhen(baseStopWhen, featureStopConditions)
+  const telemetry = buildTelemetry(scope)
+
+  return {
+    maxRetries: maxRetries ?? 0,
+    ...(stopWhen && { stopWhen }),
+    ...(headers && { headers }),
+    ...(callOverrides?.toolChoice && { toolChoice: callOverrides.toolChoice }),
+    ...(Object.keys(providerOptions).length > 0 && { providerOptions }),
+    ...(telemetry && { telemetry }),
+    ...standardParams,
+    context: requestContext,
+    repairToolCall: createAiRepair({
+      providerId: sdkConfig.providerId,
+      providerSettings: sdkConfig.providerSettings,
+      modelId: sdkConfig.modelId
+    })
+  }
+}
+
+/**
+ * Merge per-request `callOverrides` (highest precedence) onto base sampling params +
+ * providerOptions. Sampling passes through `filterStandardParams` for model-capability
+ * gating (e.g. topK dropped for Gemini 3.x / Claude 4.7); providerOptions merge
+ * per-provider so other providers' keys aren't clobbered. Exported for unit testing.
+ */
+export function applyCallOverrides(
+  base: { standardParams: Partial<Record<string, unknown>>; providerOptions: ProviderOptions },
+  callOverrides: CallOverrides | undefined,
+  model: Model
+): { standardParams: Partial<Record<string, unknown>>; providerOptions: ProviderOptions } {
+  if (!callOverrides) return base
+
+  const sampling: Partial<Record<string, unknown>> = {}
+  if (callOverrides.temperature !== undefined) sampling.temperature = callOverrides.temperature
+  if (callOverrides.maxOutputTokens !== undefined) sampling.maxOutputTokens = callOverrides.maxOutputTokens
+  if (callOverrides.topP !== undefined) sampling.topP = callOverrides.topP
+  if (callOverrides.topK !== undefined) sampling.topK = callOverrides.topK
+  if (callOverrides.stopSequences !== undefined) sampling.stopSequences = callOverrides.stopSequences
+  const standardParams = { ...base.standardParams, ...filterStandardParams(sampling, model) }
+
+  let providerOptions = base.providerOptions
+  if (callOverrides.providerOptions) {
+    const merged: ProviderOptions = { ...providerOptions }
+    for (const [pid, opts] of Object.entries(callOverrides.providerOptions)) {
+      merged[pid] = { ...merged[pid], ...opts }
+    }
+    providerOptions = merged
+  }
+  return { standardParams, providerOptions }
+}
+
+/** Mirrors the AI SDK / `ToolLoopAgent` default step cap (`stepCountIs(20)`). Used as the fallback
+ *  bound when a feature contributes a `stopWhen` but no assistant base supplies one — passing any
+ *  explicit `stopWhen` otherwise suppresses the SDK default and leaves the tool loop uncapped. */
+const SDK_DEFAULT_STEP_COUNT = 20
+
+/**
+ * OR the assistant's step cap with feature-contributed stop conditions. An explicit `stopWhen`
+ * suppresses the loop's default `stepCountIs(20)`, so when a feature contributes a condition but no
+ * assistant base supplies a cap, fall back to that default — otherwise an assistant-less tool loop
+ * (e.g. a `chatId`-only steer-yield request) would run unbounded.
+ */
+export function composeStopWhen(
+  baseStopWhen: StopCondition<ToolSet> | undefined,
+  featureStopConditions: StopCondition<ToolSet>[]
+): StopCondition<ToolSet> | StopCondition<ToolSet>[] | undefined {
+  if (featureStopConditions.length === 0) return baseStopWhen
+  const base = baseStopWhen ?? stepCountIs(SDK_DEFAULT_STEP_COUNT)
+  return [base, ...featureStopConditions]
+}
+
+function resolveStopWhenForAssistant(assistant: Assistant): ReturnType<typeof stepCountIs> {
+  const enableMaxToolCalls = assistant.settings?.enableMaxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.enableMaxToolCalls
+  if (!enableMaxToolCalls) {
+    return stepCountIs(DEFAULT_ASSISTANT_SETTINGS.maxToolCalls)
+  }
+  const raw = assistant.settings?.maxToolCalls
+  const valid = raw !== undefined && raw >= MIN_TOOL_CALLS && raw <= MAX_TOOL_CALLS
+  const count = valid ? raw : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
+  return stepCountIs(count)
+}

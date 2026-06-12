@@ -1,7 +1,8 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils'
-import { ChevronDown, ChevronUp, Copy, FileText } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Copy, FileText } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -18,6 +19,7 @@ interface RecallResultCardProps {
 const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
   const { t } = useTranslation()
   const [isExpanded, setIsExpanded] = useState(false)
+  const [copied, setCopiedTemporarily] = useTemporaryValue(false, 2000)
   const scoreLabel =
     item.scoreKind === 'relevance'
       ? t('knowledge.recall.result_relevance', { score: formatRecallPercent(item.score) })
@@ -26,6 +28,7 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
   const copyContent = async () => {
     try {
       await navigator.clipboard.writeText(item.plainText)
+      setCopiedTemporarily(true)
     } catch (error) {
       const normalizedError = normalizeKnowledgeError(error)
       logger.error('Failed to copy recall result content', normalizedError, {
@@ -55,9 +58,9 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
           type="button"
           variant="ghost"
           aria-label={t('knowledge.recall.copy')}
-          className="size-5 min-h-5 shrink-0 rounded p-0 text-foreground-muted opacity-0 shadow-none transition-all hover:bg-accent hover:text-foreground group-hover/chunk:opacity-100"
+          className={`size-5 min-h-5 shrink-0 rounded p-0 shadow-none transition-all hover:bg-accent hover:text-foreground group-hover/chunk:opacity-100 ${copied ? 'text-success opacity-100' : 'text-foreground-muted opacity-0'}`}
           onClick={() => void copyContent()}>
-          <Copy className="size-3" />
+          {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
         </Button>
         <Button
           type="button"
@@ -68,8 +71,9 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
           {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
         </Button>
       </div>
-      <div className="overflow-hidden px-3 pb-3">
-        <p className={`text-foreground-secondary text-sm leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>
+      <div className="min-w-0 overflow-hidden px-3 pb-3">
+        <p
+          className={`wrap-anywhere min-w-0 whitespace-normal text-foreground-secondary text-sm leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>
           {item.content}
         </p>
       </div>

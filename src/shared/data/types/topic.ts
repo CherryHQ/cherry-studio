@@ -7,6 +7,8 @@
 
 import * as z from 'zod'
 
+import { TraceIdSchema } from './trace'
+
 export const TopicIdSchema = z.uuidv4()
 export const TopicNameSchema = z.string().min(1).max(255)
 /** Entity-side name validator: DB DEFAULT '' means a stored row may have an empty name. */
@@ -14,6 +16,11 @@ export const TopicNameEntitySchema = z.string().max(255)
 
 /**
  * Complete topic entity as stored in database.
+ *
+ * Pin state lives in the polymorphic `pin` table (entityType='topic'); the
+ * legacy `isPinned` / `pinnedOrder` fields were dropped during the v2.x
+ * migration. Order is stored as a fractional-indexing `orderKey`, scoped by
+ * `groupId` (NULL and non-NULL are distinct partitions).
  */
 export const TopicSchema = z.strictObject({
   /** Topic ID */
@@ -23,11 +30,13 @@ export const TopicSchema = z.strictObject({
   /** Whether the name was manually edited by user */
   isNameManuallyEdited: z.boolean(),
   /** Last-used assistant ID (updated on message send) */
-  assistantId: z.string().nullable().optional(),
+  assistantId: z.string().optional(),
   /** Active node ID in the message tree */
-  activeNodeId: z.string().nullable().optional(),
+  activeNodeId: z.string().optional(),
   /** Group ID for organization */
-  groupId: z.string().nullable().optional(),
+  groupId: z.string().optional(),
+  /** Container-level OTel trace id */
+  traceId: TraceIdSchema.optional(),
   /** Fractional-indexing order key, partitioned by groupId. */
   orderKey: z.string(),
   /** Creation timestamp (ISO string) */

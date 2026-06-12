@@ -81,7 +81,7 @@ const RecallTestProvider = ({ baseId, children }: RecallTestProviderProps) => {
     const startTime = performance.now()
 
     try {
-      const searchResults = await window.api.knowledgeRuntime.search(searchBaseId, trimmedQuery)
+      const searchResults = await window.api.knowledge.search(searchBaseId, trimmedQuery)
       logger.info('Knowledge recall search IPC result', {
         baseId: searchBaseId,
         query: trimmedQuery,

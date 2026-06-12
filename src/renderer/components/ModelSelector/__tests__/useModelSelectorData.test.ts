@@ -11,10 +11,10 @@ const mockUseModelsFn = vi.fn()
 const mockUseProvidersFn = vi.fn()
 const mockUsePinsFn = vi.fn()
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModelsFn(...args)
 }))
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: (...args: unknown[]) => mockUseProvidersFn(...args)
 }))
 vi.mock('@renderer/hooks/usePins', () => ({
@@ -227,6 +227,59 @@ describe('useModelSelectorData', () => {
     const { result } = renderHook(() => useModelSelectorData({ searchText: 'claude' }))
 
     expect(result.current.modelItems.map((m) => m.modelId)).toEqual(['anthropic::claude-3'])
+  })
+
+  it('matches model abbreviations as ordered characters', () => {
+    wireDeps({
+      providers: [makeProvider('deepseek')],
+      models: [makeModel('deepseek-v4', 'deepseek', { name: 'DeepSeekV4' })]
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: 'deepv4' }))
+
+    expect(result.current.modelItems.map((m) => m.modelId)).toEqual(['deepseek::deepseek-v4'])
+  })
+
+  it('matches short model abbreviations as ordered characters', () => {
+    wireDeps({
+      providers: [makeProvider('deepseek')],
+      models: [makeModel('deepseek-v4', 'deepseek', { name: 'DeepSeekV4' })]
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: 'dv' }))
+
+    expect(result.current.modelItems.map((m) => m.modelId)).toEqual(['deepseek::deepseek-v4'])
+  })
+
+  it('ranks separator-insensitive exact matches before loose abbreviation matches', () => {
+    wireDeps({
+      providers: [makeProvider('openai')],
+      models: [
+        makeModel('gpt-4', 'openai', { name: 'GPT-4' }),
+        makeModel('giant-prompt-tool-4', 'openai', { name: 'A Giant Prompt Tool 4' })
+      ]
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: 'gpt4' }))
+
+    expect(result.current.modelItems.map((m) => m.modelId)).toEqual(['openai::gpt-4', 'openai::giant-prompt-tool-4'])
+  })
+
+  it('ranks token-initial abbreviations before compact loose character matches', () => {
+    wireDeps({
+      providers: [makeProvider('siliconflow')],
+      models: [
+        makeModel('funaudio-cosyvoice', 'siliconflow', { name: 'FunAudioLLM/CosyVoice2-0.5' }),
+        makeModel('deepseek-v3', 'siliconflow', { name: 'Pro/deepseek-ai/DeepSeek-V3' })
+      ]
+    })
+
+    const { result } = renderHook(() => useModelSelectorData({ searchText: 'dsv' }))
+
+    expect(result.current.modelItems.map((m) => m.modelId)).toEqual([
+      'siliconflow::deepseek-v3',
+      'siliconflow::funaudio-cosyvoice'
+    ])
   })
 
   it('resolvedSelectedModelIds keeps order, dedupes, and drops non-selectable ids', () => {
