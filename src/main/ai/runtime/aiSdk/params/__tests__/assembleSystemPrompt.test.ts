@@ -120,11 +120,11 @@ describe('assembleSystemPrompt', () => {
 
   it('omits the persisted-output protocol without fs__read', async () => {
     const result = await assembleSystemPrompt({
-      assistant: undefined,
+      assistant: makeAssistant({ prompt: 'base' }),
       model,
-      tools: {},
+      tools: { other_tool: {} as never },
       deferredEntries: []
     })
-    expect(result ?? '').not.toContain('<context-persistence>')
+    expect(result).not.toContain('<context-persistence>')
   })
 })

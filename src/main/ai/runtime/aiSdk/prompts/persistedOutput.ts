@@ -7,10 +7,10 @@
 import { CONTEXT_PERSIST_THRESHOLD_CHARS } from '@shared/ai/builtinTools'
 
 export const PERSISTED_OUTPUT_SYSTEM_PROMPT = `<context-persistence>
-Tool outputs that exceed the size threshold are automatically replaced with a marker like:
+For tool outputs that exceed the size threshold, only the head and tail are kept inline, with a marker in between like:
 
 <persisted-output>
-output truncated (N lines, M chars total)
+output truncated (N lines, M chars total; first X chars shown above, last Y chars shown below)
 Full output saved to: /absolute/path/to/persisted_file.txt
 URI (alternative): context://vfs/...
 </persisted-output>
