@@ -119,6 +119,7 @@
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",
+    "@paddleocr/api-sdk": "^0.2.0",
     "@agentic/searxng": "^7.3.3",
     "@agentic/tavily": "^7.3.3",
     "@ai-sdk/amazon-bedrock": "^4.0.96",

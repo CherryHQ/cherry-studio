@@ -6,8 +6,8 @@ import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels/ChannelManager'
-import { DxtService } from '@main/ai/mcp/DxtService'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
+import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService } from '@main/ai/observability/adapters/claudeCode/ClaudeCodeTraceBridgeService'
 import { NodeTraceService } from '@main/ai/observability/runtime/NodeTraceService'
@@ -111,7 +111,7 @@ export const services = {
   CherryInOauthService,
   MainWindowService,
   QuickAssistantService,
-  DxtService,
+  McpPackageService,
   McpRuntimeService,
   McpCatalogService,
   OpenClawService,
