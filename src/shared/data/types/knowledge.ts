@@ -209,7 +209,7 @@ const KnowledgeItemSharedSchema = z.strictObject({
  */
 export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
   // relativePath / indexedRelativePath are always produced by main-side helpers
-  // (copyFileIntoKnowledgeBase, toKnowledgeRelativePath, ...), never raw caller
+  // (copyFileIntoKnowledgeBaseAt, toKnowledgeRelativePath, ...), never raw caller
   // input. The base-relative, POSIX-normalized, no-traversal invariant is
   // enforced imperatively by assertSafeKnowledgeRelativePath at the filesystem
   // boundary (getKnowledgeBaseFilePath). This schema only validates shape, so a

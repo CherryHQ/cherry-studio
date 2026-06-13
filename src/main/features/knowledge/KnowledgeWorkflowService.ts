@@ -29,11 +29,12 @@ import { isContainerKnowledgeItem } from './utils/items'
 import { planKnowledgeItemSource } from './utils/sources/sourcePlanning'
 import {
   assertKnowledgeFileTargetAvailable,
-  copyFileIntoKnowledgeBase,
+  copyFileIntoKnowledgeBaseAt,
   deleteKnowledgeItemFilesBestEffort,
   getKnowledgeBaseFilePath,
   getKnowledgeSourceRelativePath,
-  getProcessedMarkdownRelativePath
+  getProcessedMarkdownRelativePath,
+  reserveImportedFileRelativePath
 } from './utils/storage/pathStorage'
 
 const logger = loggerService.withContext('Knowledge:WorkflowService')
@@ -55,11 +56,21 @@ export class KnowledgeWorkflowService {
     await this.knowledgeLockManager.withBaseMutationLock(base.id, async () => {
       try {
         const reservedPaths = await this.loadReservedKnowledgeFilePaths(base.id, base.fileProcessorId)
+        const resolvedFileRelativePaths = new Map<KnowledgeAddItemInput, string>()
         for (const input of inputs) {
-          this.reserveRuntimeAddItemInputPaths(base.fileProcessorId, input, reservedPaths)
+          if (input.type === 'file') {
+            resolvedFileRelativePaths.set(
+              input,
+              this.resolveRuntimeFileRelativePath(base.fileProcessorId, input, reservedPaths)
+            )
+          }
         }
         for (const input of inputs) {
-          const createInput = await this.prepareRuntimeAddItemInput(base.id, input)
+          const createInput = await this.prepareRuntimeAddItemInput(
+            base.id,
+            input,
+            resolvedFileRelativePaths.get(input)
+          )
           if (createInput.type === 'file') {
             copiedFileItems.push(createInput)
           }
@@ -295,13 +306,18 @@ export class KnowledgeWorkflowService {
 
   private async prepareRuntimeAddItemInput(
     baseId: string,
-    input: KnowledgeAddItemInput
+    input: KnowledgeAddItemInput,
+    resolvedRelativePath: string | undefined
   ): Promise<CreateKnowledgeItemDto> {
     if (input.type !== 'file') {
       return input
     }
 
-    const relativePath = await copyFileIntoKnowledgeBase(baseId, input.data.path)
+    if (resolvedRelativePath === undefined) {
+      throw new Error('File knowledge item is missing a resolved relative path')
+    }
+
+    const relativePath = await copyFileIntoKnowledgeBaseAt(baseId, input.data.path, resolvedRelativePath)
     return {
       groupId: input.groupId,
       type: 'file',
@@ -312,20 +328,14 @@ export class KnowledgeWorkflowService {
     }
   }
 
-  private reserveRuntimeAddItemInputPaths(
+  private resolveRuntimeFileRelativePath(
     fileProcessorId: string | null | undefined,
-    input: KnowledgeAddItemInput,
+    input: Extract<KnowledgeAddItemInput, { type: 'file' }>,
     reservedPaths: Set<string>
-  ): void {
-    if (input.type !== 'file') {
-      return
-    }
-
-    const relativePath = getKnowledgeSourceRelativePath(input.data.path)
-    this.reserveKnowledgeFilePath(reservedPaths, relativePath)
-    if (needsProcessedArtifactReservation(fileProcessorId, relativePath)) {
-      this.reserveKnowledgeFilePath(reservedPaths, getProcessedMarkdownRelativePath(relativePath))
-    }
+  ): string {
+    const sourceRelativePath = getKnowledgeSourceRelativePath(input.data.path)
+    const reserveProcessedArtifact = needsProcessedArtifactReservation(fileProcessorId, sourceRelativePath)
+    return reserveImportedFileRelativePath(sourceRelativePath, reserveProcessedArtifact, reservedPaths)
   }
 
   private async loadReservedKnowledgeFilePaths(
@@ -349,14 +359,6 @@ export class KnowledgeWorkflowService {
     }
 
     return reservedPaths
-  }
-
-  private reserveKnowledgeFilePath(reservedPaths: Set<string>, relativePath: string): void {
-    if (reservedPaths.has(relativePath)) {
-      throw new Error(`Knowledge file already exists: ${relativePath}`)
-    }
-
-    reservedPaths.add(relativePath)
   }
 
   private async assertKnowledgeRelativePathNotReserved(

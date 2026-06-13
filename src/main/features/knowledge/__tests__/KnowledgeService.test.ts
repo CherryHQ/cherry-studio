@@ -37,7 +37,7 @@ const {
   listMock,
   registerHandlerMock,
   rerankKnowledgeSearchResultsMock,
-  copyFileIntoKnowledgeBaseMock,
+  copyFileIntoKnowledgeBaseAtMock,
   deleteKnowledgeItemFilesBestEffortMock,
   fsLstatMock,
   fsStatMock,
@@ -68,7 +68,7 @@ const {
   listMock: vi.fn(),
   registerHandlerMock: vi.fn(),
   rerankKnowledgeSearchResultsMock: vi.fn(),
-  copyFileIntoKnowledgeBaseMock: vi.fn(),
+  copyFileIntoKnowledgeBaseAtMock: vi.fn(),
   deleteKnowledgeItemFilesBestEffortMock: vi.fn(),
   fsLstatMock: vi.fn(),
   fsStatMock: vi.fn(),
@@ -165,7 +165,7 @@ vi.mock('../utils/storage/pathStorage', async () => {
   const actual = await vi.importActual<typeof PathStorage>('../utils/storage/pathStorage')
   return {
     ...actual,
-    copyFileIntoKnowledgeBase: copyFileIntoKnowledgeBaseMock,
+    copyFileIntoKnowledgeBaseAt: copyFileIntoKnowledgeBaseAtMock,
     deleteKnowledgeItemFilesBestEffort: deleteKnowledgeItemFilesBestEffortMock
   }
 })
@@ -303,9 +303,9 @@ describe('KnowledgeService', () => {
       birthtime: new Date('2026-04-08T00:00:00.000Z')
     })
     fsLstatMock.mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' }))
-    copyFileIntoKnowledgeBaseMock.mockImplementation(async (_baseId: string, sourcePath: string) => {
-      return sourcePath.split('/').pop() ?? sourcePath
-    })
+    copyFileIntoKnowledgeBaseAtMock.mockImplementation(
+      async (_baseId: string, _sourcePath: string, relativePath: string) => relativePath
+    )
     knowledgeItemCreateMock.mockImplementation(
       async (baseId: string, input: { type?: string; data: { source: string } }) => {
         createdItemBaseIds.set(input.data.source, baseId)
@@ -702,8 +702,8 @@ describe('KnowledgeService', () => {
     expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
       {
         feature: 'document_to_markdown',
-        file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/source.pdf' },
-        output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/source.md' },
+        file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.pdf' },
+        output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' },
         context: { dataId: 'file-1' },
         processorId: 'doc2x'
       },
@@ -731,36 +731,35 @@ describe('KnowledgeService', () => {
     expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.index-documents', expect.anything(), expect.anything())
   })
 
-  it('rejects duplicate uploaded file names before creating knowledge items', async () => {
+  it('auto-renames a duplicate uploaded file name instead of rejecting the import', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: null }))
 
-    await expect(
-      service.addItems('kb-1', [
-        { type: 'file', data: { source: '/Users/me/a/notes.md', path: '/Users/me/a/notes.md' } },
-        { type: 'file', data: { source: '/Users/me/b/notes.md', path: '/Users/me/b/notes.md' } }
-      ])
-    ).rejects.toThrow('Knowledge file already exists: notes.md')
+    await service.addItems('kb-1', [
+      { type: 'file', data: { source: '/Users/me/a/notes.md', path: '/Users/me/a/notes.md' } },
+      { type: 'file', data: { source: '/Users/me/b/notes.md', path: '/Users/me/b/notes.md' } }
+    ])
 
-    expect(knowledgeItemCreateMock).not.toHaveBeenCalled()
-    expect(copyFileIntoKnowledgeBaseMock).not.toHaveBeenCalled()
-    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+    // Both imports land; the second's relativePath is deduped (`_N`) rather than refused.
+    expect(knowledgeItemCreateMock).toHaveBeenCalledTimes(2)
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(1, 'kb-1', '/Users/me/a/notes.md', 'notes.md')
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(2, 'kb-1', '/Users/me/b/notes.md', 'notes_1.md')
   })
 
-  it('rejects duplicate processed markdown names before creating knowledge items', async () => {
+  it('auto-renames a file whose processed-markdown name would collide', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: 'doc2x' }))
 
-    await expect(
-      service.addItems('kb-1', [
-        { type: 'file', data: { source: '/Users/me/a/brief.pdf', path: '/Users/me/a/brief.pdf' } },
-        { type: 'file', data: { source: '/Users/me/b/brief.docx', path: '/Users/me/b/brief.docx' } }
-      ])
-    ).rejects.toThrow('Knowledge file already exists: brief.md')
+    await service.addItems('kb-1', [
+      { type: 'file', data: { source: '/Users/me/a/brief.pdf', path: '/Users/me/a/brief.pdf' } },
+      { type: 'file', data: { source: '/Users/me/b/brief.docx', path: '/Users/me/b/brief.docx' } }
+    ])
 
-    expect(knowledgeItemCreateMock).not.toHaveBeenCalled()
-    expect(copyFileIntoKnowledgeBaseMock).not.toHaveBeenCalled()
-    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
+    // brief.pdf reserves brief.pdf + its brief.md output; brief.docx would also emit
+    // brief.md, so it is bumped to brief_1.docx (whose brief_1.md sibling is free).
+    expect(knowledgeItemCreateMock).toHaveBeenCalledTimes(2)
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(1, 'kb-1', '/Users/me/a/brief.pdf', 'brief.pdf')
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(2, 'kb-1', '/Users/me/b/brief.docx', 'brief_1.docx')
   })
 
   it('passes the parent job when starting file processing during reindex', async () => {
@@ -781,8 +780,8 @@ describe('KnowledgeService', () => {
     expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
       {
         feature: 'document_to_markdown',
-        file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/source.pdf' },
-        output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/source.md' },
+        file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.pdf' },
+        output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' },
         context: { dataId: 'file-1' },
         processorId: 'doc2x'
       },
