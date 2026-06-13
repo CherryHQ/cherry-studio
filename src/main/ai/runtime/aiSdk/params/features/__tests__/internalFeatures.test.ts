@@ -7,6 +7,7 @@
  */
 
 import type { Assistant } from '@shared/data/types/assistant'
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it, vi } from 'vitest'
@@ -46,7 +47,9 @@ function makeScope(overrides: {
       assistant: overrides.assistant as Assistant | undefined,
       abortSignal: new AbortController().signal
     },
-    mcpToolIds: new Set(overrides.mcpToolIds ?? [])
+    mcpToolIds: new Set(overrides.mcpToolIds ?? []),
+    contextSettings: DEFAULT_CONTEXT_SETTINGS,
+    compressionModel: null
   }
 }
 
