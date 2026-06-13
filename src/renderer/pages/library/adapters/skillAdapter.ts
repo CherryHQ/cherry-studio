@@ -15,7 +15,7 @@ const logger = loggerService.withContext('SkillAdapter')
  *
  * No `agentId` is passed by the resource library: it reads the global skill
  * library, so `isEnabled` is always `false` there. Per-agent enablement state
- * belongs to the agent editor's Skills tab (`useInstalledSkills(agentId)`).
+ * belongs to the agent edit dialog's Skills tab (`useInstalledSkills(agentId)`).
  *
  * `search` is forwarded to `GET /skills` and evaluated server-side.
  */
@@ -116,7 +116,7 @@ export function useSkillMutations() {
 /**
  * Per-skill mutation hook. Only uninstall lives here today — toggle is
  * agent-scoped and stays with `useInstalledSkills(agentId)` in the agent
- * editor, since the library list view has no agent context.
+ * dialog, since the library list view has no agent context.
  */
 export function useSkillMutationsById(id: string) {
   const invalidate = useInvalidateCache()

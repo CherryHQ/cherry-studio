@@ -112,6 +112,7 @@
     "pdf-parse": "^2.4.5",
     "selection-hook": "2.0.1",
     "sharp": "0.34.5",
+    "streamdown": "^2.5.0",
     "tesseract.js": "6.0.1",
     "turndown": "7.2.0",
     "ws": "^8.18.2",
@@ -119,7 +120,6 @@
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",
-    "@paddleocr/api-sdk": "^0.2.0",
     "@agentic/searxng": "^7.3.3",
     "@agentic/tavily": "^7.3.3",
     "@ai-sdk/amazon-bedrock": "^4.0.96",
@@ -200,6 +200,7 @@
     "@opentelemetry/sdk-trace-base": "^2.0.0",
     "@opentelemetry/sdk-trace-node": "^2.0.0",
     "@opeoginni/github-copilot-openai-compatible": "^1.0.0",
+    "@paddleocr/api-sdk": "^0.2.0",
     "@pierre/diffs": "^1.1.3",
     "@playwright/test": "^1.55.1",
     "@radix-ui/react-context-menu": "^2.2.16",

@@ -39,6 +39,18 @@ const ASSISTANT_MUTABLE_FIELDS = {
 } as const
 
 /**
+ * Create-only assistant fields.
+ *
+ * `source` is intentionally accepted only at create time: bundled assistant
+ * catalog imports stamp their preset UUID; later edits should not rewrite
+ * provenance.
+ */
+const ASSISTANT_CREATE_FIELDS = {
+  ...ASSISTANT_MUTABLE_FIELDS,
+  source: true
+} as const
+
+/**
  * Shared tag-binding field for Create / Update DTOs.
  * Semantics mirror `mcpServerIds`/`knowledgeBaseIds`:
  *   - `undefined` → leave existing bindings untouched
@@ -52,7 +64,7 @@ const TagIdsField = z.array(TagIdSchema).optional()
  * - `name` is required (non-empty)
  * - `mcpServerIds` / `knowledgeBaseIds` / `tagIds` are synced to junction tables
  */
-export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS)
+export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_CREATE_FIELDS)
   .partial()
   .required({ name: true })
   .extend({ tagIds: TagIdsField })
