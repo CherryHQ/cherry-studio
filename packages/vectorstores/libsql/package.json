@@ -1,7 +1,7 @@
 {
   "name": "@vectorstores/libsql",
   "description": "libSQL/Turso Storage for vectorstores",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
