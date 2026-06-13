@@ -5682,12 +5682,18 @@
           },
           "invalid": "Intrare invalidă, te rugăm să verifici formatul JSON",
           "json": "Importă din JSON",
+          "mcpb": "Importă pachetul MCPB",
+          "mcpbFile": "Fișier pachet MCPB",
+          "mcpbHelp": "Selectați un fișier .mcpb care conține un pachet de server MCP",
+          "mcpbProcessFailed": "Nu s-a putut procesa fișierul MCPB",
           "method": "Metodă import",
           "nameExists": "Serverul există deja: {{name}}",
           "noDxtFile": "Te rugăm să selectezi un fișier DXT",
+          "noMcpbFile": "Vă rugăm să selectați un fișier MCPB",
           "oneServer": "Doar o singură configurație de server MCP la un moment dat",
           "placeholder": "Lipește configurația JSON a serverului MCP",
           "selectDxtFile": "Selectează fișierul DXT",
+          "selectMcpbFile": "Selectați fișierul MCPB",
           "tooltip": "Te rugăm să copiezi JSON-ul de configurare (prioritizând configurațiile\n NPX sau UVX) din pagina de introducere a serverelor MCP și să-l lipești în caseta de intrare."
         },
         "label": "Adaugă server"
