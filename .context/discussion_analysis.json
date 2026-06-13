@@ -1,13 +1,25 @@
 {
-  "generated_at": "2026-06-12T00:00:00Z",
-  "generated_by": "daily-analysis-agent",
-  "data_source": "GitHub Discussions (GraphQL API not available via MCP; data inferred from issues with 'discussion' label)",
-  "data_notes": "Full Discussions GraphQL query requires gh CLI with GITHUB_TOKEN. Run scripts/analyze_discussions.py after fetching /tmp/gh_discussions.json.",
-  "discussion_label_issues": {
-    "count_in_sampled_200": 9,
-    "sample": [
-      {"number": 14132, "title": "[Discussion]: Agent topic names are always generated", "comments": 4, "url": "https://github.com/CherryHQ/cherry-studio/issues/14132"}
+  "generated_at": "2026-06-13",
+  "note": "Discussions data requires GraphQL API access not available via current MCP tools. Data below is inferred from issue labels.",
+  "discussion_signals_from_issues": {
+    "issues_with_discussion_label": 7,
+    "issues_with_help_wanted_label": 7,
+    "top_discussion_topics": [
+      "PaddleOCR local Python path configuration (#16034)",
+      "MCP connectivity issues",
+      "Custom model routing in Agent (#15071)"
     ]
   },
-  "fetch_command": "gh api graphql -f query='{ repository(owner: \"CherryHQ\", name: \"cherry-studio\") { discussions(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { number title category { name } author { login } createdAt updatedAt upvoteCount comments { totalCount } answer { author { login } createdAt } } } } }' > /tmp/gh_discussions.json"
+  "community_health_indicators": {
+    "new_issues_today": 7,
+    "issues_with_comments_sample": "Most new issues receive triage labels within hours",
+    "bot_automation": "inactive-bot closing stale issues — 82% of 30d closures are bot-driven",
+    "language": "Majority of issues are in Chinese, auto-translated by Claude bot"
+  },
+  "recommended_actions": [
+    "Review and triage 20% unlabeled new issues",
+    "Address #13462 (Pending 91 days) - reasoning param drop for custom model IDs",
+    "Investigate Agent multi-round WeChat/QQ timeout bug (#15721)",
+    "Consider reducing zombie backlog (284 issues >90d)"
+  ]
 }

@@ -1,45 +1,71 @@
 {
-  "generated_at": "2026-06-12T00:00:00+00:00",
+  "generated_at": "2026-06-13",
+  "total_open": 943,
   "health_buckets": {
-    "Active": {"count": 116, "pct": 100.0},
-    "Aging": {"count": 0, "pct": 0.0},
-    "Stale": {"count": 0, "pct": 0.0},
-    "Zombie": {"count": 0, "pct": 0.0}
+    "active_0_7d": {"count": 115, "pct": 12.2},
+    "aging_8_30d": {"count": 291, "pct": 30.8},
+    "stale_31_90d": {"count": 253, "pct": 26.8},
+    "zombie_90d_plus": {"count": 284, "pct": 30.1}
   },
-  "data_note": "Health computed from 116 deduplicated issues (most recently updated). Repo total=937. Sampling bias: MCP returns issues sorted by updatedAt DESC, so all sampled issues are Active by definition.",
-  "inactive_label_proxy": {
-    "count": 23,
-    "pct_of_sampled": 19.8,
-    "note": "'inactive' label applied by maintainers — effective stale/zombie proxy in lieu of full corpus scan"
+  "closed_30d": {
+    "total": 389,
+    "resolution": {
+      "avg_days_to_close": 37.7,
+      "fast_within_1d": 11,
+      "medium_1_7d": 1,
+      "slow_7d_plus": 88,
+      "note": "82 of 100 sampled closures carry 'inactive' label — majority are automated staleness closes, not active fixes"
+    },
+    "top_closed_labels": {
+      "inactive": 82,
+      "UI/UX": 32,
+      "Models": 25,
+      "Assistant": 15,
+      "needs-repro": 6,
+      "MCP": 5,
+      "internal_team": 4,
+      "help wanted": 4,
+      "discussion": 4,
+      "Data": 3
+    }
   },
-  "bug_issues_total": 104,
-  "p1_issues": [
+  "p1_issues": [],
+  "notable_open_bugs": [
     {
-      "number": 16016,
-      "title": "[Bug]: Agent fails with ECONNREFUSED when a stale system proxy is set (Claude Code subprocess blindly inherits system HTTP_PROXY)",
-      "labels": ["BUG", "Connectivity", "internal_team"],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16016"
+      "number": 16035,
+      "title": "[Bug]: Earlier 'thoughts' continuously retime when viewing agent history",
+      "labels": ["UI/UX"],
+      "created_at": "2026-06-13",
+      "age_days": 0
+    },
+    {
+      "number": 16032,
+      "title": "Internet error (MCP/Connectivity)",
+      "labels": ["needs-more-info", "MCP", "Connectivity"],
+      "created_at": "2026-06-13",
+      "age_days": 0
+    },
+    {
+      "number": 15721,
+      "title": "[Bug]: Unable to receive execution results from WeChat/QQ after Agent multi-round tasks",
+      "labels": ["Assistant", "Connectivity"],
+      "created_at": "2026-06-05",
+      "age_days": 8
+    },
+    {
+      "number": 13462,
+      "title": "[Feature/Pending]: Migrate third-party OpenAI Responses providers to @ai-sdk/open-responses",
+      "labels": ["Pending", "Models"],
+      "created_at": "2026-03-14",
+      "age_days": 91,
+      "note": "90+ day old Pending item - reasoning params silently dropped for non-canonical model IDs"
     }
   ],
-  "high_comment_issues": [
-    {"number": 6505, "title": "[FAQ&反馈]: 划词助手 / Selection Assistant", "comments": 360},
-    {"number": 6696, "title": "功能请求：重新生成回答时，或者编辑信息时，可以保留以前的信息并允许随时切换。", "comments": 9},
-    {"number": 14018, "title": "[Feature]: aiCore Audio/Video Capability Completion + AI SDK v6", "comments": 8},
-    {"number": 14080, "title": "[Bug]: cannot scroll to search result", "comments": 5},
-    {"number": 15990, "title": "[Feature]: CherryAI 默认服务商、默认模型与默认助手初始化方案设计", "comments": 5}
-  ],
-  "unlabeled_issues": [
-    {"number": 16008, "title": "[Bug] Custom system prompts are not mapped to the instructions field in Responses API mode", "created_at": "2026-06-12T09:03:58Z"},
-    {"number": 16006, "title": "[Feature]: Add auto TTS function & built-in OCR for vision-less LLM models", "created_at": "2026-06-12T05:16:09Z"},
-    {"number": 15982, "title": "[Feature]: Add Sub-Agent Calling Mechanism between Agents", "created_at": "2026-06-11T09:05:59Z"},
-    {"number": 15944, "title": "[Other]: Tracking — src/main chat-page split consolidated into 8 backend review PRs", "created_at": "2026-06-10T11:15:02Z"},
-    {"number": 15962, "title": "[Bug]: API address cannot end with #", "created_at": "2026-06-11T00:26:34Z"},
-    {"number": 15169, "title": "[Feature]: Add WeCom and DingTalk Channel Adapters for CherryClaw", "created_at": "2026-05-18T13:13:54Z"},
-    {"number": 15949, "title": "[Feature]: Autonomous Mode should clearly indicate that it disables MCP tools", "created_at": "2026-06-10T14:03:23Z"},
-    {"number": 15947, "title": "[Bug]: Auto-updater infinite retry loop against gitcode.com WAF produces 26GB+ of log files in one day", "created_at": "2026-06-10T12:20:31Z"},
-    {"number": 15842, "title": "Showcase inquiry for Cherry Studio as a practical AI workspace", "created_at": "2026-06-09T10:49:29Z"},
-    {"number": 15836, "title": "[Bug]: DeepSeek V4+ reasoning_effort dropped for OpenAI-compatible providers on main", "created_at": "2026-06-09T07:58:46Z"},
-    {"number": 15833, "title": "Upgrade eslint-plugin-react-hooks (5.2.0 → 7.x)", "created_at": "2026-06-09T07:10:54Z"},
-    {"number": 15828, "title": "[Feature]: Support configuring multiple provider types for a single provider", "created_at": "2026-06-09T03:03:09Z"}
+  "observations": [
+    "30.1% of open issues are zombie (>90 days) — high backlog pressure",
+    "20% of recent issues arrive unlabeled — triage gap",
+    "82% of 30d closures are bot-inactive, not active resolution",
+    "No P1/critical/urgent labels found in current issue set",
+    "UI/UX and Models are the dominant active issue categories"
   ]
 }

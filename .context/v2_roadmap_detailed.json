@@ -1,37 +1,45 @@
 {
-  "generated_at": "2026-06-12T00:00:00Z",
-  "generated_by": "daily-analysis-agent",
+  "generated_at": "2026-06-13",
+  "v2_strategy": "v2 branch was merged into main; main is now the default development branch for v2 work",
   "v2_branch_status": {
     "open_prs": 0,
-    "merged_prs_30d": 21,
-    "note": "v2 branch merged into main; active development on main. 21 PRs targeting v2 base merged in last 30 days."
+    "merged_prs_30d": 18,
+    "note": "No open PRs targeting v2. All new v2 feature work is going directly to main."
   },
-  "v2_merged_prs_30d_sample": [
-    {"number": 15371, "title": "refactor(knowledge): knowledge workflow jobs round2"},
-    {"number": 15363, "title": "feat(file-manager): unified DirectoryTreeBuilder primitive for knowledge and projects"},
-    {"number": 15356, "title": "refactor(file-entry): use file entries for knowledge and projects"},
-    {"number": 15330, "title": "feat(file): register chat_message FileRefSourceType and backend"},
-    {"number": 15309, "title": "refactor(knowledge): knowledge v2 RFC and implement round 1"}
-  ],
-  "active_tracks": [
+  "recent_v2_merges_sample": [
     {
-      "track": "Data Layer",
-      "status": "in_progress",
-      "replacing": ["Redux", "Dexie", "ElectronStore"],
-      "adopting": ["Cache", "Preference", "DataApi (SQLite + Drizzle)"],
-      "open_issues_with_v2_label": 2
-    },
-    {
-      "track": "UI Layer",
-      "status": "in_progress",
-      "replacing": ["antd", "HeroUI", "styled-components"],
-      "adopting": ["@cherrystudio/ui (Tailwind CSS + Shadcn UI)"]
-    },
-    {
-      "track": "Knowledge/File",
-      "status": "active",
-      "evidence": "5+ v2-base PRs merged in last 30d targeting knowledge/file-manager/file-entry"
+      "number": 15371,
+      "title": "refactor(knowledge): knowledge workflow jobs round2",
+      "merged_at": "2026-05-28T12:33:18Z",
+      "author": "eeee0717",
+      "description": "Replaced legacy knowledge runtime task flow with durable workflow/job handlers"
     }
   ],
-  "blocked_issues": [{"label": "Blocked: v2", "count_in_sampled_200": 1}]
+  "main_branch_v2_signals_30d": {
+    "prs_with_v2_label": 2,
+    "total_merged_prs": 167,
+    "pr_type_breakdown": {
+      "fix": 53,
+      "feat": 26,
+      "refactor": 8,
+      "chore": 6
+    },
+    "top_contributors": {
+      "DeJeune": 16,
+      "ousugo": 13,
+      "kangfenmao": 11,
+      "Raymond8196": 10,
+      "eeee0717": 8
+    }
+  },
+  "v2_data_layer_progress": {
+    "removing": ["Redux", "Dexie", "ElectronStore"],
+    "adopting": ["Cache", "Preference", "DataApi"],
+    "knowledge_module": "Active (workflow jobs refactor landed in May)",
+    "ipc_framework": "In progress (PR #16033 - IpcApi type-safe framework opened 2026-06-13)"
+  },
+  "v1_maintenance": {
+    "open_prs_targeting_v1": 12,
+    "note": "12 open PRs still target v1 branch for hotfix/maintenance work"
+  }
 }

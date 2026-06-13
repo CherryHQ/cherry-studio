@@ -1,64 +1,86 @@
 {
-  "generated_at": "2026-06-12T00:00:00+00:00",
-  "open_issues": {
-    "count": 116,
-    "total_in_repo": 937
+  "generated_at": "2026-06-13T00:00:00Z",
+  "issues": {
+    "total_open": 943,
+    "closed_30d": 389,
+    "age_distribution": {
+      "active_0_7d": 115,
+      "aging_8_30d": 291,
+      "stale_31_90d": 253,
+      "zombie_90d_plus": 284
+    },
+    "unlabeled_pct_recent_100": 20.0,
+    "top_labels_recent_100": {
+      "internal_team": 25,
+      "UI/UX": 19,
+      "Models": 17,
+      "MCP": 12,
+      "help wanted": 7,
+      "discussion": 7,
+      "Assistant": 7,
+      "Connectivity": 6,
+      "needs-repro": 4,
+      "Data": 4
+    },
+    "newest_issues": [
+      {"number": 16037, "title": "[Feature]: Add a setting to convert responses to speech during output", "created_at": "2026-06-13T17:33:10Z", "labels": []},
+      {"number": 16035, "title": "[Bug]: Earlier 'thoughts' continuously retime when viewing agent history", "created_at": "2026-06-13T16:55:20Z", "labels": ["UI/UX"]},
+      {"number": 16034, "title": "[Discussion]: How to configure local PaddleOCR Python path?", "created_at": "2026-06-13T16:09:13Z", "labels": ["help wanted", "discussion"]},
+      {"number": 16032, "title": "Internet error", "created_at": "2026-06-13T13:43:43Z", "labels": ["needs-more-info", "MCP", "Connectivity"]},
+      {"number": 16031, "title": "[Feature]: Allow Users to Select MinerU Parsing Mode (Pipeline / VLM / Hybrid)", "created_at": "2026-06-13T13:17:41Z", "labels": ["UI/UX"]}
+    ]
   },
-  "open_prs": {
-    "count": 200,
-    "by_base": {
-      "main": 182,
-      "v1": 17,
+  "prs": {
+    "total_open": 100,
+    "merged_30d": 167,
+    "open_base_branches": {
+      "main": 87,
+      "v1": 12,
       "feat/chat-page": 1
-    }
+    },
+    "open_age_distribution": {
+      "fresh_0_3d": 34,
+      "review_ready_4_14d": 51,
+      "aging_15_30d": 15,
+      "stale_30d_plus": 0
+    },
+    "top_contributors_30d": {
+      "DeJeune": 16,
+      "ousugo": 13,
+      "kangfenmao": 11,
+      "Raymond8196": 10,
+      "eeee0717": 8,
+      "AtomsH4": 7,
+      "github-actions[bot]": 5,
+      "zhangjiadi225": 5
+    },
+    "pr_types_30d": {
+      "fix": 53,
+      "feat": 26,
+      "refactor": 8,
+      "chore": 6,
+      "i18n-auto-sync": 5
+    },
+    "recent_daily_merges": [
+      {"date": "2026-06-13", "count": 3},
+      {"date": "2026-06-12", "count": 14},
+      {"date": "2026-06-11", "count": 11},
+      {"date": "2026-06-10", "count": 4},
+      {"date": "2026-06-09", "count": 9},
+      {"date": "2026-06-08", "count": 2},
+      {"date": "2026-06-07", "count": 2}
+    ],
+    "newest_prs": [
+      {"number": 16033, "title": "feat(ipc): IpcApi framework for type-safe IPC", "author": "0xfullex", "base": "main", "created_at": "2026-06-13T16:08:24Z"},
+      {"number": 16030, "title": "fix(provider-registry): correct model registry metadata", "author": "ousugo", "base": "main", "created_at": "2026-06-13T13:06:00Z"},
+      {"number": 16029, "title": "fix(image-export): warm up html-to-image to fix blank first capture", "author": "kovsu", "base": "main", "created_at": "2026-06-13T10:18:58Z"},
+      {"number": 16027, "title": "fix(proxy): TCP-probe system proxy before injecting into child processes", "author": "legeling", "base": "main", "created_at": "2026-06-13T05:26:26Z"},
+      {"number": 16026, "title": "feat(renderer-components): split shared list and code viewers", "author": "kangfenmao", "base": "main", "created_at": "2026-06-13T04:50:09Z"}
+    ]
   },
-  "closed_issues_30d": 416,
-  "closed_prs_30d": 100,
-  "label_distribution": [
-    {"label": "internal_team", "count": 35},
-    {"label": "UI/UX", "count": 31},
-    {"label": "inactive", "count": 23},
-    {"label": "Models", "count": 17},
-    {"label": "Assistant", "count": 15},
-    {"label": "MCP", "count": 11},
-    {"label": "Connectivity", "count": 6},
-    {"label": "help wanted", "count": 6},
-    {"label": "discussion", "count": 6},
-    {"label": "Data", "count": 5},
-    {"label": "needs-repro", "count": 4},
-    {"label": "feature", "count": 4},
-    {"label": "RAG", "count": 4},
-    {"label": "community_feedback", "count": 4},
-    {"label": "needs-more-info", "count": 3},
-    {"label": "Performance", "count": 3},
-    {"label": "BUG", "count": 1},
-    {"label": "Docs", "count": 1},
-    {"label": "Blocked: v2", "count": 1},
-    {"label": "OCR", "count": 1}
-  ],
-  "unlabeled_pct": 10.3,
-  "p1_issues": [
-    {
-      "number": 16016,
-      "title": "[Bug]: Agent fails with ECONNREFUSED when a stale system proxy is set (Claude Code subprocess blindly inherits system HTTP_PROXY)",
-      "labels": ["BUG", "Connectivity", "internal_team"],
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16016"
-    }
-  ],
-  "v2_prs": {
-    "open": 0,
-    "merged_30d": 21
-  },
-  "top_issues_by_comments": [
-    {"number": 6505, "title": "[FAQ&反馈]: 划词助手 / Selection Assistant", "comments": 360},
-    {"number": 6696, "title": "功能请求：重新生成回答时，或者编辑信息时，可以保留以前的信息并允许随时切换。", "comments": 9},
-    {"number": 14018, "title": "[Feature]: aiCore Audio/Video Capability Completion + AI SDK v6 New Feature Adoption + Provider Bug Fixes", "comments": 8},
-    {"number": 14080, "title": "[Bug]: cannot scroll to search result", "comments": 5},
-    {"number": 15990, "title": "[Feature]: CherryAI 默认服务商、默认模型与默认助手初始化方案设计", "comments": 5},
-    {"number": 14129, "title": "Feature request - Vercel credit balance.", "comments": 4},
-    {"number": 14132, "title": "[Discussion]: Agent topic names are always generated", "comments": 4},
-    {"number": 14989, "title": "[Bug]: Thinking process display anomaly for Gemini/Gemma models in OpenAI compatibility mode", "comments": 3},
-    {"number": 15669, "title": "[Feature]: User-Level Memory Shared Across All Agents (Implementation of #14738)", "comments": 3},
-    {"number": 15656, "title": "[Feature]: Preprocess Multimodal Inputs to Text for Non-Vision Models — Reuse Knowledge Base Preprocess Pipeline in Chat", "comments": 3}
-  ]
+  "v2_branch": {
+    "open_prs": 0,
+    "merged_prs_30d": 18,
+    "note": "v2 branch merged into main; most v2 work now targets main directly"
+  }
 }
