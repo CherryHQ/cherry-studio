@@ -24,7 +24,7 @@ import type { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data
 import { AssistantSettingsSchema, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { ZodType } from 'zod'
 
-import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
+import { legacyChatModelToUniqueId } from '../transformers/ModelTransformers'
 
 function sanitizeLegacySettings(legacy: Record<string, unknown>): Record<string, unknown> {
   const shape = AssistantSettingsSchema.shape as Record<string, ZodType>
@@ -129,7 +129,7 @@ export interface OldAssistant {
 // ============================================================================
 
 export interface AssistantTransformResult {
-  assistant: InsertAssistantRow
+  assistant: Omit<InsertAssistantRow, 'orderKey'>
   mcpServers: (typeof assistantMcpServerTable.$inferInsert)[]
   knowledgeBases: (typeof assistantKnowledgeBaseTable.$inferInsert)[]
   tags: string[]
@@ -146,7 +146,7 @@ export interface AssistantTransformResult {
  * Prefers `model` over `defaultModel` (defaultModel is the settings-level fallback).
  */
 function extractPrimaryModelId(source: OldAssistant): string | null {
-  return legacyModelToUniqueId(source.model) ?? legacyModelToUniqueId(source.defaultModel)
+  return legacyChatModelToUniqueId(source.model) ?? legacyChatModelToUniqueId(source.defaultModel)
 }
 
 function extractMcpServerIds(source: OldAssistant): string[] {
@@ -202,8 +202,7 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
       emoji: source.emoji ?? '🌟',
       description: source.description ?? '',
       modelId: primaryModelId ?? null,
-      settings,
-      orderKey: ''
+      settings
     },
     mcpServers: mcpServerIds.map((mcpServerId) => ({ assistantId, mcpServerId })),
     knowledgeBases: knowledgeBaseIds.map((knowledgeBaseId) => ({ assistantId, knowledgeBaseId })),

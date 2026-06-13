@@ -608,6 +608,32 @@ describe('FileProcessingSettings', () => {
     ).toHaveTextContent('PP-StructureV3')
   })
 
+  it('shows only OCR-safe model options for PaddleOCR image_to_text', async () => {
+    render(<FileProcessingSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[0]
+    )
+
+    expect(screen.getByRole('button', { name: 'PP-OCRv6' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PP-OCRv5' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'PaddleOCR-VL-1.5' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'PP-StructureV3' })).not.toBeInTheDocument()
+  })
+
+  it('shows only document parsing model options for PaddleOCR document_to_markdown', async () => {
+    render(<FileProcessingSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[1]
+    )
+
+    expect(screen.getByRole('button', { name: 'PaddleOCR-VL-1.5' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PaddleOCR-VL' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PP-StructureV3' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'PP-OCRv6' })).not.toBeInTheDocument()
+  })
+
   it('manages Tesseract language packs with the settings combobox', async () => {
     overridesMock.value = {
       tesseract: {

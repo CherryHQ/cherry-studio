@@ -1,10 +1,16 @@
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAssistant, useDefaultAssistant } from '../useAssistant'
+import {
+  composeDefaultAssistant,
+  resolveDefaultAssistantOption,
+  useAssistant,
+  useDefaultAssistant
+} from '../useAssistant'
 
 function queryResult(data?: unknown) {
   return {
@@ -53,6 +59,20 @@ describe('useDefaultAssistant', () => {
     expect(result.current.assistant.settings).toBeDefined()
     expect(result.current.assistant.mcpServerIds).toEqual([])
     expect(result.current.assistant.knowledgeBaseIds).toEqual([])
+  })
+})
+
+describe('resolveDefaultAssistantOption', () => {
+  it('uses the seeded default assistant instead of the renderer sentinel when present', () => {
+    const fallback = composeDefaultAssistant(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+    const seeded = {
+      ...fallback,
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'Default Assistant',
+      modelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+    }
+
+    expect(resolveDefaultAssistantOption([seeded], fallback)).toBe(seeded)
   })
 })
 
