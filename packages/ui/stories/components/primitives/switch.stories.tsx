@@ -316,7 +316,6 @@ export const DescriptionSwitchPositions: Story = {
 export const DescriptionSwitchSizes: Story = {
   render: () => (
     <div className="flex w-96 flex-col gap-6">
-      <DescriptionSwitch label="Extra small switch" description="Dense table rows and compact controls" size="xs" />
       <DescriptionSwitch label="Small switch" description="Compact size for dense layouts" size="sm" />
       <DescriptionSwitch label="Medium switch" description="Default size for most use cases" size="md" defaultChecked />
       <DescriptionSwitch label="Large switch" description="Larger size for emphasis" size="lg" />

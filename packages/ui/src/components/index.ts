@@ -85,13 +85,21 @@ export { DraggableList, useDraggableReorder } from './composites/draggable-list'
 export type { EditableNumberProps } from './composites/editable-number'
 export { default as EditableNumber } from './composites/editable-number'
 export {
+  FieldHeader,
+  FieldHeaderAction,
   Form,
+  FormActions,
   FormControl,
   FormDescription,
   FormField,
+  FormGrid,
   FormItem,
   FormLabel,
   FormMessage,
+  FormSection,
+  type FormSectionProps,
+  InlineSettingField,
+  type InlineSettingFieldProps,
   useFormField
 } from './composites/form'
 // Tooltip variants

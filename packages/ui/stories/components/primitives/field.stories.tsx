@@ -52,6 +52,28 @@ export const Default: Story = {
   )
 }
 
+export const Compact: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Use `density="compact"` on Field (and FieldContent) for dense settings panels — tightens the gaps between label, control, and description.'
+      }
+    }
+  },
+  render: () => (
+    <div className="flex w-80 flex-col gap-6">
+      <Field density="compact">
+        <FieldLabel htmlFor="compact-email">Email</FieldLabel>
+        <FieldContent density="compact">
+          <Input id="compact-email" density="compact" type="email" placeholder="compact" />
+          <FieldDescription>Tight spacing for dense panels.</FieldDescription>
+        </FieldContent>
+      </Field>
+    </div>
+  )
+}
+
 export const Horizontal: Story = {
   render: () => (
     <div className="w-96">

@@ -29,6 +29,30 @@ export const Basic: Story = {
   )
 }
 
+// Compact density
+export const Compact: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Use `density="compact"` for dense settings panels and embedded forms. Renders at min-h-12 with smaller padding instead of the default min-h-16.'
+      }
+    }
+  },
+  render: () => (
+    <div className="flex w-[400px] flex-col gap-4">
+      <div>
+        <div className="mb-2 text-sm font-medium">Default</div>
+        <Textarea.Input placeholder="default density" />
+      </div>
+      <div>
+        <div className="mb-2 text-sm font-medium">Compact</div>
+        <Textarea.Input density="compact" placeholder="compact density" />
+      </div>
+    </div>
+  )
+}
+
 // With Label
 export const WithLabel: Story = {
   render: () => (

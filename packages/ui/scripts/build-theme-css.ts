@@ -8,10 +8,7 @@ const __dirname = path.dirname(__filename)
 const STYLES_DIR = path.resolve(__dirname, '../src/styles')
 const THEME_OUTPUT_PATH = path.join(STYLES_DIR, 'theme.css')
 
-const RUNTIME_THEME_INPUT_LINES = [
-  '--cs-theme-primary: var(--cs-primary);',
-  '--cs-theme-ring: color-mix(in srgb, var(--cs-theme-primary) 40%, transparent);'
-]
+const RUNTIME_THEME_INPUT_LINES = ['--cs-theme-primary: var(--cs-primary);']
 
 const COMPATIBILITY_ALIAS_LINES = ['--primary: var(--color-primary);', '--ring: var(--color-ring);']
 
@@ -20,7 +17,7 @@ const PRIMARY_SEMANTIC_LINES = [
   '--color-primary-hover: var(--cs-primary-hover);',
   '--color-primary-soft: color-mix(in srgb, var(--color-primary) 60%, transparent);',
   '--color-primary-mute: color-mix(in srgb, var(--color-primary) 30%, transparent);',
-  '--color-ring: var(--cs-theme-ring);'
+  '--color-ring: var(--cs-ring);'
 ]
 
 const SPACING_COMMENT_LINES = [

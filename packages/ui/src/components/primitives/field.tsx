@@ -46,7 +46,7 @@ function FieldGroup({ className, ...props }: React.ComponentProps<'div'>) {
   )
 }
 
-const fieldVariants = cva('group/field flex w-full gap-3 data-[invalid=true]:text-destructive', {
+const fieldVariants = cva('group/field flex w-full data-[invalid=true]:text-destructive', {
   variants: {
     orientation: {
       vertical: ['flex-col [&>*]:w-full [&>.sr-only]:w-auto'],
@@ -60,16 +60,34 @@ const fieldVariants = cva('group/field flex w-full gap-3 data-[invalid=true]:tex
         '@md/field-group:[&>[data-slot=field-label]]:flex-auto',
         '@md/field-group:has-[>[data-slot=field-content]]:items-start @md/field-group:has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px'
       ]
+    },
+    density: {
+      default: 'gap-3',
+      compact: 'gap-2'
     }
   },
   defaultVariants: {
-    orientation: 'vertical'
+    orientation: 'vertical',
+    density: 'default'
+  }
+})
+
+const fieldContentVariants = cva('group/field-content flex flex-1 flex-col leading-snug', {
+  variants: {
+    density: {
+      default: 'gap-1.5',
+      compact: 'gap-1'
+    }
+  },
+  defaultVariants: {
+    density: 'default'
   }
 })
 
 function Field({
   className,
   orientation = 'vertical',
+  density = 'default',
   ...props
 }: React.ComponentProps<'div'> & VariantProps<typeof fieldVariants>) {
   return (
@@ -77,20 +95,19 @@ function Field({
       role="group"
       data-slot="field"
       data-orientation={orientation}
-      className={cn(fieldVariants({ orientation }), className)}
+      data-density={density}
+      className={cn(fieldVariants({ orientation, density }), className)}
       {...props}
     />
   )
 }
 
-function FieldContent({ className, ...props }: React.ComponentProps<'div'>) {
-  return (
-    <div
-      data-slot="field-content"
-      className={cn('group/field-content flex flex-1 flex-col gap-1.5 leading-snug', className)}
-      {...props}
-    />
-  )
+function FieldContent({
+  className,
+  density = 'default',
+  ...props
+}: React.ComponentProps<'div'> & VariantProps<typeof fieldContentVariants>) {
+  return <div data-slot="field-content" className={cn(fieldContentVariants({ density }), className)} {...props} />
 }
 
 function FieldLabel({ className, ...props }: React.ComponentProps<typeof Label>) {

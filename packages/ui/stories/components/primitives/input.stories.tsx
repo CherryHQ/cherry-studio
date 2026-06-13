@@ -47,6 +47,24 @@ export const Default: Story = {
   }
 }
 
+// Compact density
+export const Compact: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Use `density="compact"` for dense settings panels and embedded forms. Renders at h-8 with smaller padding instead of the default h-9.'
+      }
+    }
+  },
+  render: () => (
+    <div className="flex w-80 flex-col gap-3">
+      <Input placeholder="default density" />
+      <Input density="compact" placeholder="compact density" />
+    </div>
+  )
+}
+
 // With Value
 export const WithValue: Story = {
   args: {

@@ -7,26 +7,24 @@ import { useId } from 'react'
 const switchRootVariants = cva(
   [
     'cs-switch cs-switch-root',
-    'group relative cursor-pointer peer inline-flex shrink-0 items-center rounded-full shadow-xs outline-none transition-all',
-    'data-[state=unchecked]:bg-gray-500/20 data-[state=checked]:bg-brand-600',
-    'disabled:cursor-not-allowed disabled:opacity-40',
-    'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
+    'peer group/switch inline-flex shrink-0 items-center rounded-full border border-transparent shadow-xs transition-all outline-none',
+    'data-[state=checked]:bg-[var(--color-primary)] data-[state=unchecked]:bg-input dark:data-[state=unchecked]:bg-input/80',
+    'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50',
+    'disabled:cursor-not-allowed disabled:opacity-50'
   ],
   {
     variants: {
       size: {
-        xs: ['h-4.5 w-8'],
-        sm: ['w-9 h-5'],
-        md: ['w-11 h-5.5'],
-        lg: ['w-11 h-6']
+        sm: ['h-3.5 w-6'],
+        default: ['h-[1.15rem] w-8']
       },
       loading: {
         false: null,
-        true: ['bg-brand-300!']
+        true: ['cursor-progress']
       }
     },
     defaultVariants: {
-      size: 'md',
+      size: 'default',
       loading: false
     }
   }
@@ -35,103 +33,83 @@ const switchRootVariants = cva(
 const switchThumbVariants = cva(
   [
     'cs-switch cs-switch-thumb',
-    'pointer-events-none block rounded-full ring-0 transition-all data-[state=unchecked]:translate-x-0'
+    'pointer-events-none block rounded-full bg-background ring-0 transition-transform',
+    'data-[state=checked]:translate-x-[calc(100%-2px)] data-[state=unchecked]:translate-x-0',
+    'dark:data-[state=checked]:bg-primary-foreground dark:data-[state=unchecked]:bg-foreground'
   ],
   {
     variants: {
       size: {
-        xs: ['ml-[1px] size-4 data-[state=checked]:translate-x-3.5'],
-        sm: ['size-4.5 ml-[1px] data-[state=checked]:translate-x-4'],
-        md: ['size-[19px] ml-0.5 data-[state=checked]:translate-x-[21px]'],
-        lg: ['size-5 ml-[3px] data-[state=checked]:translate-x-4.5']
+        sm: ['size-3'],
+        default: ['size-4']
       },
       loading: {
         false: null,
-        true: ['bg-brand-300!']
+        true: null
       }
     },
-    compoundVariants: [
-      {
-        size: 'xs',
-        loading: true,
-        className: 'ml-0.5 size-3.5 data-[state=checked]:translate-x-3.5'
-      },
-      {
-        size: 'sm',
-        loading: true,
-        className: 'size-3.5 ml-0.5 data-[state=checked]:translate-x-4.5'
-      },
-      {
-        size: 'md',
-        loading: true,
-        className: 'size-4 ml-1 data-[state=checked]:translate-x-5'
-      },
-      {
-        size: 'lg',
-        loading: true,
-        className: 'size-4.5 ml-1 data-[state=checked]:translate-x-4.5'
-      }
-    ]
+    defaultVariants: {
+      size: 'default',
+      loading: false
+    }
   }
 )
 
-const switchThumbSvgVariants = cva(['transition-all'], {
-  variants: {
-    loading: {
-      false: null,
-      true: ['animate-spin']
-    }
-  },
-  defaultVariants: {
-    loading: false
-  }
-})
+type SwitchSize = 'xs' | 'sm' | 'md' | 'lg' | 'default'
+type ShadcnSwitchSize = 'sm' | 'default'
 
-// Enhanced Switch component with loading state support
+/**
+ * Maps legacy SwitchSize values to shadcn-compatible sizes.
+ * @deprecated xs maps to sm. Use sm directly.
+ * @deprecated lg maps to default. Use md or default directly.
+ * @deprecated default maps to default. Use md or default explicitly.
+ */
+const shadcnSwitchSizeBySize: Record<SwitchSize, ShadcnSwitchSize> = {
+  xs: 'sm',
+  sm: 'default',
+  md: 'default',
+  lg: 'default',
+  default: 'default'
+}
+
 interface SwitchProps extends Omit<React.ComponentProps<typeof SwitchPrimitive.Root>, 'children'> {
-  /** When true, displays a loading animation in the switch thumb. Defaults to false when undefined. */
+  /** When true, adds cursor-progress and a data-loading attribute to indicate a loading state. Defaults to false when undefined. */
   loading?: boolean
-  size?: 'xs' | 'sm' | 'md' | 'lg'
+  size?: SwitchSize
   classNames?: {
     root?: string
     thumb?: string
+    /** @deprecated The shadcn Switch thumb no longer renders an internal SVG. */
     thumbSvg?: string
   }
 }
 
-function Switch({ loading = false, size = 'md', className, classNames, ...props }: SwitchProps) {
+function Switch({ loading = false, size = 'default', className, classNames, ...props }: SwitchProps) {
+  const shadcnSize = shadcnSwitchSizeBySize[size]
+
   return (
     <SwitchPrimitive.Root
       data-slot="switch"
-      className={cn(switchRootVariants({ size, loading }), className, classNames?.root)}
+      data-size={shadcnSize}
+      data-loading={loading ? true : undefined}
+      className={cn(switchRootVariants({ size: shadcnSize, loading }), className, classNames?.root)}
       {...props}>
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"
-        className={cn(switchThumbVariants({ size, loading }), classNames?.thumb)}>
-        <svg
-          width="inherit"
-          height="inherit"
-          viewBox="0 0 19 19"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className={cn(switchThumbSvgVariants({ loading }), classNames?.thumbSvg)}>
-          <path
-            d="M9.5 0C14.7467 0 19 4.25329 19 9.5C19 14.7467 14.7467 19 9.5 19C4.25329 19 0 14.7467 0 9.5C0 4.25329 4.25329 0 9.5 0ZM9.5 6.33301C8.91711 6.33301 8.44445 6.8058 8.44434 7.38867V11.6113C8.44445 12.1942 8.91711 12.667 9.5 12.667C10.0829 12.667 10.5555 12.1942 10.5557 11.6113V7.38867C10.5555 6.8058 10.0829 6.33301 9.5 6.33301Z"
-            fill="white"
-          />
-        </svg>
-      </SwitchPrimitive.Thumb>
+        className={cn(switchThumbVariants({ size: shadcnSize, loading }), classNames?.thumb)}
+      />
     </SwitchPrimitive.Root>
   )
 }
 
-interface DescriptionSwitchProps extends SwitchProps {
+interface DescriptionSwitchProps extends Omit<SwitchProps, 'size'> {
   /** Text label displayed next to the switch. */
   label: string
   /** Optional helper text shown below the label. */
   description?: string
   /** Switch position relative to label. Defaults to 'right'. */
   position?: 'left' | 'right'
+  size?: 'sm' | 'md' | 'lg'
 }
 
 // TODO: It's not finished. We need to use Typography components instead of native html element.
