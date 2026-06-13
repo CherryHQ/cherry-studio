@@ -40,7 +40,7 @@ import { calculateDirectorySize } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { isSafeExternalUrl } from './utils/externalUrlSafety'
 import { hasWritePermission, isPathInside, untildify } from './utils/file'
-import { getCpuName, getDeviceType, getHostname } from './utils/system'
+import { getCpuName, getDeviceType, getGpuNames, getHostname } from './utils/system'
 import { compress, decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
@@ -512,8 +512,11 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.ExternalApps_DetectInstalled, () => externalAppsService.detectInstalledApps())
 
   // OVMS — operation handlers registered by OvmsManager.onInit() (activated only on Win+Intel)
-  // Condition logic must stay in sync with OvmsManager's @Conditional(onPlatform('win32'), onCpuVendor('intel'))
-  ipcMain.handle(IpcChannel.Ovms_IsSupported, () => isWin && getCpuName().toLowerCase().includes('intel'))
+  // Condition logic must stay in sync with OvmsManager's @Conditional(onPlatform('win32'), onGpuVendor('intel'))
+  ipcMain.handle(
+    IpcChannel.Ovms_IsSupported,
+    () => isWin && getGpuNames().some((name) => name.toLowerCase().includes('intel'))
+  )
 
   // CherryAI
   ipcMain.handle(IpcChannel.Cherryai_GetSignature, (_, params) => generateSignature(params))

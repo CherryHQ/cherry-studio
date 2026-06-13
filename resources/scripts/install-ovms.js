@@ -6,12 +6,12 @@ const { downloadWithPowerShell } = require('./download')
 
 // Base URL for downloading OVMS binaries
 const OVMS_RELEASE_BASE_URL =
-  'https://storage.openvinotoolkit.org/repositories/openvino_model_server/packages/2025.4.1/ovms_windows_python_on.zip'
+  'https://storage.openvinotoolkit.org/repositories/openvino_model_server/packages/2026.2.0/ovms_windows_2026.2.0_python_on.zip'
 const OVMS_EX_URL = 'https://gitcode.com/gcw_ggDjjkY3/kjfile/releases/download/download/ovms_25.4_ex.zip'
 
 /**
  * error code:
- * 101: Unsupported CPU (not Intel)
+ * 101: Unsupported GPU (not Intel)
  * 102: Unsupported platform (not Windows)
  * 103: Download failed
  * 104: Installation failed
@@ -203,18 +203,38 @@ function getCpuInfo() {
 }
 
 /**
+ * Get the all GPU Names and IDs
+ */
+function getGpuInfos() {
+  // Use PowerShell to get GPU information
+  try {
+    const psCommand = `powershell -Command "Get-CimInstance -ClassName Win32_VideoController | Select-Object Name, PNPDeviceID | ConvertTo-Json"`
+    const psOutput = execSync(psCommand).toString()
+    const gpuData = JSON.parse(psOutput)
+
+    return (Array.isArray(gpuData) ? gpuData : [gpuData]).map((gpu) => ({
+      name: gpu.Name || '',
+      id: gpu.PNPDeviceID || ''
+    }))
+  } catch (error) {
+    console.error(`Failed to get GPU info: ${error.message}`)
+    return []
+  }
+}
+
+/**
  * Main function to install OVMS
  */
 async function installOvms() {
   const platform = os.platform()
   console.log(`Detected platform: ${platform}`)
 
-  const cpuName = getCpuInfo().name
-  console.log(`CPU Name: ${cpuName}`)
+  const gpuInfos = getGpuInfos()
+  gpuInfos.forEach((gpu) => console.log(`GPU Name: ${gpu.name}`))
 
-  // Check if CPU name contains "Ultra"
-  if (!cpuName.toLowerCase().includes('intel')) {
-    console.error('OVMS installation requires an Intel CPU.')
+  const hasIntelGpu = gpuInfos.some((gpu) => gpu.name.toLowerCase().includes('intel'))
+  if (!hasIntelGpu) {
+    console.error('OVMS installation requires an Intel GPU.')
     return 101
   }
 
@@ -248,16 +268,20 @@ async function installOvms() {
 }
 
 // Run the installation
-installOvms()
-  .then((retcode) => {
-    if (retcode === 0) {
-      console.log('OVMS installation successful')
-    } else {
-      console.error('OVMS installation failed')
-    }
-    process.exit(retcode)
-  })
-  .catch((error) => {
-    console.error('OVMS installation failed:', error)
-    process.exit(100)
-  })
+if (require.main === module) {
+  installOvms()
+    .then((retcode) => {
+      if (retcode === 0) {
+        console.log('OVMS installation successful')
+      } else {
+        console.error('OVMS installation failed')
+      }
+      process.exit(retcode)
+    })
+    .catch((error) => {
+      console.error('OVMS installation failed:', error)
+      process.exit(100)
+    })
+}
+
+module.exports = { getGpuInfos, getCpuInfo }

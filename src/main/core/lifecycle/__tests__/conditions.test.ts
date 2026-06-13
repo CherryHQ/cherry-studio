@@ -8,6 +8,7 @@ import {
   onArch,
   onCpuVendor,
   onEnvVar,
+  onGpuVendor,
   onPlatform,
   when
 } from '../conditions'
@@ -17,6 +18,7 @@ const baseContext: ConditionContext = {
   platform: 'win32',
   arch: 'x64',
   cpuModel: '12th Gen Intel(R) Core(TM) i7-12700H',
+  gpuModel: 'NVIDIA GeForce RTX 3070 Laptop GPU',
   env: { DEBUG: 'true', NODE_ENV: 'development' }
 }
 
@@ -71,6 +73,31 @@ describe('onCpuVendor', () => {
   it('should match AMD on AMD CPU', () => {
     const ctx: ConditionContext = { ...baseContext, cpuModel: 'AMD Ryzen 9 7950X' }
     expect(onCpuVendor('amd').matches(ctx)).toBe(true)
+  })
+})
+
+describe('onGpuVendor', () => {
+  it('should match NVIDIA GPU (case-insensitive)', () => {
+    expect(onGpuVendor('nvidia').matches(baseContext)).toBe(true)
+    expect(onGpuVendor('NVIDIA').matches(baseContext)).toBe(true)
+  })
+
+  it('should not match Intel on NVIDIA GPU', () => {
+    expect(onGpuVendor('intel').matches(baseContext)).toBe(false)
+  })
+
+  it('should not match when gpuModel is empty', () => {
+    const ctx: ConditionContext = { ...baseContext, gpuModel: '' }
+    expect(onGpuVendor('nvidia').matches(ctx)).toBe(false)
+  })
+
+  it('should match AMD on AMD GPU', () => {
+    const ctx: ConditionContext = { ...baseContext, gpuModel: 'AMD Radeon RX 7900 XTX' }
+    expect(onGpuVendor('amd').matches(ctx)).toBe(true)
+  })
+
+  it('should have a descriptive description', () => {
+    expect(onGpuVendor('nvidia').description).toBe('requires nvidia GPU')
   })
 })
 
@@ -185,6 +212,11 @@ describe('createConditionContext', () => {
   it('should return a context with cpuModel as string', () => {
     const ctx = createConditionContext()
     expect(typeof ctx.cpuModel).toBe('string')
+  })
+
+  it('should return a context with gpuModel as string', () => {
+    const ctx = createConditionContext()
+    expect(typeof ctx.gpuModel).toBe('string')
   })
 
   it('should return a context with env', () => {

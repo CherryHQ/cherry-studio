@@ -89,6 +89,8 @@ export interface ConditionContext {
   readonly arch: NodeJS.Architecture
   /** CPU model string from os.cpus()[0].model, empty string if unavailable */
   readonly cpuModel: string
+  /** GPU model string(s) joined by space, empty string if unavailable */
+  readonly gpuModel: string
   /** Environment variables */
   readonly env: Record<string, string | undefined>
 }

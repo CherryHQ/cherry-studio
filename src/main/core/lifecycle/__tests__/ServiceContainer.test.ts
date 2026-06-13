@@ -192,6 +192,7 @@ describe('ServiceContainer', () => {
       platform: 'linux',
       arch: 'x64',
       cpuModel: '12th Gen Intel(R) Core(TM) i7-12700H',
+      gpuModel: '',
       env: {}
     }
 
@@ -343,6 +344,7 @@ describe('ServiceContainer', () => {
       platform: 'darwin',
       arch: 'arm64',
       cpuModel: 'Apple M2 Max',
+      gpuModel: '',
       env: {}
     }
 
