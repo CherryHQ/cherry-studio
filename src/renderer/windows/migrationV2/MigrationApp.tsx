@@ -1,4 +1,4 @@
-import { Button, ConfirmDialog, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { Button, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
 import { AppLogo } from '@renderer/config/env'
 import { loggerService } from '@renderer/services/LoggerService'
 import { MigrationIpcChannels } from '@shared/data/migration/v2/types'
@@ -20,17 +20,6 @@ const MigrationApp: React.FC = () => {
   const actions = useMigrationActions()
   const [isLoading, setIsLoading] = useState(false)
   const startGuardRef = useRef(false)
-  const [skipConfirmOpen, setSkipConfirmOpen] = useState(false)
-  const [skipConfirmConfig, setSkipConfirmConfig] = useState<{
-    title: string
-    description: string
-    destructive: boolean
-  } | null>(null)
-
-  const openSkipConfirm = (config: { title: string; description: string; destructive: boolean }) => {
-    setSkipConfirmConfig(config)
-    setSkipConfirmOpen(true)
-  }
 
   const handleLanguageChange = (lang: string) => {
     void i18n.changeLanguage(lang)
@@ -171,13 +160,11 @@ const MigrationApp: React.FC = () => {
               <Button onClick={actions.cancel}>{t('migration.buttons.cancel')}</Button>
               <Button
                 variant="outline"
-                onClick={() =>
-                  openSkipConfirm({
-                    title: t('migration.buttons.skip_migration'),
-                    description: t('migration.introduction.confirm_skip'),
-                    destructive: false
-                  })
-                }>
+                onClick={() => {
+                  if (window.confirm(t('migration.introduction.confirm_skip'))) {
+                    void actions.skipMigration()
+                  }
+                }}>
                 {t('migration.buttons.skip_migration')}
               </Button>
             </Space>
@@ -262,13 +249,11 @@ const MigrationApp: React.FC = () => {
               <Button onClick={actions.cancel}>{t('migration.buttons.close')}</Button>
               <Button
                 variant="destructive"
-                onClick={() =>
-                  openSkipConfirm({
-                    title: t('migration.buttons.ignore_migration'),
-                    description: t('migration.version_incompatible.confirm_ignore'),
-                    destructive: true
-                  })
-                }>
+                onClick={() => {
+                  if (window.confirm(t('migration.version_incompatible.confirm_ignore'))) {
+                    void actions.skipMigration()
+                  }
+                }}>
                 {t('migration.buttons.ignore_migration')}
               </Button>
             </Space>
@@ -444,17 +429,6 @@ const MigrationApp: React.FC = () => {
       </MainContent>
 
       <Footer>{renderActionButtons()}</Footer>
-
-      <ConfirmDialog
-        open={skipConfirmOpen}
-        onOpenChange={setSkipConfirmOpen}
-        title={skipConfirmConfig?.title}
-        description={skipConfirmConfig?.description}
-        confirmText={t('migration.buttons.confirm')}
-        cancelText={t('migration.buttons.cancel')}
-        destructive={skipConfirmConfig?.destructive}
-        onConfirm={() => actions.skipMigration()}
-      />
     </Container>
   )
 }
