@@ -67,6 +67,7 @@
 | Document | Description |
 |----------|-------------|
 | [Message System](./references/messaging/message-system.md) | Message lifecycle, state management, operations |
+| [Composer Rich Clipboard](./references/messaging/composer-rich-clipboard.md) | Private composer token clipboard format and copy/paste flow |
 
 ### Knowledge
 
