@@ -1,3 +1,4 @@
+import { FS_READ_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ToolSet } from 'ai'
@@ -104,5 +105,26 @@ describe('assembleSystemPrompt', () => {
       tools: { other_tool: {} } as unknown as ToolSet
     })
     expect(out).toBe('base')
+  })
+
+  it('includes the persisted-output protocol when fs_read is active', async () => {
+    const result = await assembleSystemPrompt({
+      assistant: undefined,
+      model,
+      tools: { [FS_READ_TOOL_NAME]: {} as never },
+      deferredEntries: []
+    })
+    expect(result).toContain('<context-persistence>')
+    expect(result).toContain('fs_read')
+  })
+
+  it('omits the persisted-output protocol without fs_read', async () => {
+    const result = await assembleSystemPrompt({
+      assistant: makeAssistant({ prompt: 'base' }),
+      model,
+      tools: { other_tool: {} as never },
+      deferredEntries: []
+    })
+    expect(result).not.toContain('<context-persistence>')
   })
 })

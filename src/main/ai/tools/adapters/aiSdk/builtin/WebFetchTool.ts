@@ -29,6 +29,7 @@ const webFetchTool = tool({
 export function createWebFetchToolEntry(): ToolEntry {
   return {
     name: WEB_FETCH_TOOL_NAME,
+    truncatable: false,
     namespace: 'web',
     description: 'Fetch readable content from known web page URLs',
     defer: 'auto',

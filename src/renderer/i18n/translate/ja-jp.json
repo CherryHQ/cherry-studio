@@ -1074,12 +1074,7 @@
         "titleLabel": "タイトル",
         "titlePlaceholder": "タイトルを入力"
       },
-      "title": "アシスタント設定",
-      "tool_use_mode": {
-        "function": "関数",
-        "label": "工具調用方式",
-        "prompt": "提示詞"
-      }
+      "title": "アシスタント設定"
     },
     "tags": {
       "add": "タグ追加",

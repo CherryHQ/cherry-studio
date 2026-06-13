@@ -7,6 +7,7 @@
  */
 
 import type { Assistant } from '@shared/data/types/assistant'
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it, vi } from 'vitest'
@@ -46,7 +47,9 @@ function makeScope(overrides: {
       assistant: overrides.assistant as Assistant | undefined,
       abortSignal: new AbortController().signal
     },
-    mcpToolIds: new Set(overrides.mcpToolIds ?? [])
+    mcpToolIds: new Set(overrides.mcpToolIds ?? []),
+    contextSettings: DEFAULT_CONTEXT_SETTINGS,
+    compressionModel: null
   }
 }
 
@@ -55,9 +58,10 @@ function activeNames(scope: RequestScope): string[] {
 }
 
 describe('INTERNAL_FEATURES — decision matrix', () => {
-  it('produces nothing when there is no assistant and the resolver picks an "anthropic" adapter (no inline-tag extraction)', () => {
+  it('bare anthropic scope (no assistant): only the always-on features activate', () => {
     expect(activeNames(makeScope({ provider: { id: 'anthropic' }, model: {}, aiSdkProviderId: 'anthropic' }))).toEqual([
-      'pdf-compatibility'
+      'pdf-compatibility',
+      'context-build'
     ])
   })
 
@@ -216,5 +220,20 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(reasoning).toBeGreaterThanOrEqual(0)
     expect(simulate).toBeGreaterThanOrEqual(0)
     expect(reasoning).toBeLessThan(simulate)
+  })
+
+  // The documented hard invariant `context-build` < `anthropic-cache`:
+  // truncation must rewrite tool results before cache markers are placed.
+  it('orders context-build before anthropic-cache', () => {
+    const names = activeNames(
+      makeScope({
+        provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } } as never,
+        model: {},
+        endpointType: 'anthropic-messages',
+        aiSdkProviderId: 'anthropic'
+      })
+    )
+    expect(names.indexOf('context-build')).toBeGreaterThan(-1)
+    expect(names.indexOf('context-build')).toBeLessThan(names.indexOf('anthropic-cache'))
   })
 })

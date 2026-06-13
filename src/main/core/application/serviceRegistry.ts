@@ -47,6 +47,7 @@ import { StorageMonitorService } from '@main/services/StorageMonitorService'
 import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
+import { VfsBlobService } from '@main/services/VfsBlobService'
 import { WebSearchService } from '@main/services/webSearch'
 import { WebviewService } from '@main/services/WebviewService'
 
@@ -127,7 +128,8 @@ export const services = {
   ApiGatewayService,
   AppUpdaterService,
   SchedulerService,
-  JobManager
+  JobManager,
+  VfsBlobService
 } as const
 
 /** Auto-derived service name to instance type mapping */

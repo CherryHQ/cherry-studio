@@ -1074,12 +1074,7 @@
         "titleLabel": "标题",
         "titlePlaceholder": "输入标题"
       },
-      "title": "助手设置",
-      "tool_use_mode": {
-        "function": "函数",
-        "label": "工具调用方式",
-        "prompt": "提示词"
-      }
+      "title": "助手设置"
     },
     "tags": {
       "add": "添加标签",

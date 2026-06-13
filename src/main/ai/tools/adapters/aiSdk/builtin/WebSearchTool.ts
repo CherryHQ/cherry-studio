@@ -38,6 +38,7 @@ const webSearchTool = tool({
 export function createWebSearchToolEntry(): ToolEntry {
   return {
     name: WEB_SEARCH_TOOL_NAME,
+    truncatable: false,
     namespace: 'web',
     description: 'Search the web for current information',
     defer: 'auto',
