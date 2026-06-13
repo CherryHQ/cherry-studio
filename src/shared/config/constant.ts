@@ -1,3 +1,4 @@
+import type { LanguageVarious } from '../data/preference/preferenceTypes'
 import { codeLanguages } from './code-languages'
 
 export const imageExts = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
@@ -195,7 +196,7 @@ export const ZOOM_SHORTCUTS = [
 export const KB = 1024
 export const MB = 1024 * KB
 export const GB = 1024 * MB
-export const defaultLanguage = 'en-US'
+export const defaultLanguage: LanguageVarious = 'en-US'
 
 export enum FeedUrl {
   PRODUCTION = 'https://releases.cherry-ai.com',

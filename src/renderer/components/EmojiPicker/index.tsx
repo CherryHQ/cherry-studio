@@ -32,7 +32,7 @@ const EmojiPicker: FC<Props> = ({ onEmojiClick }) => {
           return []
         }
 
-        return loadEmojiData(defaultLanguage as LanguageVarious)
+        return loadEmojiData(defaultLanguage)
       })
       .catch((error) => {
         logger.error('Failed to load fallback emoji data', error)
