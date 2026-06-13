@@ -231,15 +231,38 @@ describe('buildChefOptions — compression wiring', () => {
 
   it('attaches compress only when enabled AND a model resolved', () => {
     const withModel = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS, compressionModel: {} as never })
-    expect(buildChefOptions(withModel)!.compress).toEqual({ model: {} })
+    const withModelOpts = buildChefOptions(withModel)!
+    expect(withModelOpts.compress).toEqual({ model: {} })
+    // Model present → chef LLM-compresses on budget; no sliding-window fallback.
+    expect(withModelOpts.onBeforeCompress).toBeUndefined()
+    expect(withModelOpts.onCompress).toBeTypeOf('function')
 
     const noModel = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS, compressionModel: null })
-    expect(buildChefOptions(noModel)!.compress).toBeUndefined()
+    const noModelOpts = buildChefOptions(noModel)!
+    expect(noModelOpts.compress).toBeUndefined()
+    // Wanted but unavailable → no-LLM sliding-window guard.
+    expect(noModelOpts.onBeforeCompress).toBeTypeOf('function')
 
     const compressOff = makeScope({
       contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, compress: { enabled: false, modelId: null } },
       compressionModel: {} as never
     })
     expect(buildChefOptions(compressOff)!.compress).toBeUndefined()
+  })
+
+  it('attaches NO budget machinery when compression is disabled (no chef Janitor → no warnings)', () => {
+    // Regression: setting onCompress/onBeforeCompress unconditionally made chef
+    // build a Janitor on every request and warn when no model/tokenizer.
+    const scope = makeScope({
+      contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, compress: { enabled: false, modelId: null } },
+      compressionModel: {} as never
+    })
+    const opts = buildChefOptions(scope)!
+    expect(opts.compress).toBeUndefined()
+    expect(opts.onCompress).toBeUndefined()
+    expect(opts.onBeforeCompress).toBeUndefined()
+    // truncate + compact still active.
+    expect(opts.truncate).toBeDefined()
+    expect(opts.compact).toBeDefined()
   })
 })

@@ -65,27 +65,31 @@ export function buildChefOptions(scope: RequestScope): ContextChefOptions | null
         .map((entry) => entry.name)
     },
 
-    // No-LLM fallback: when over budget without a compression model, drop the
-    // oldest messages instead of an LLM summary.
-    onBeforeCompress: (history, tokenInfo) => {
-      if (options.compress?.model) return undefined // let chef LLM-summarize
-      return dropOldestUntilUnderBudget(history, tokenInfo)
-    },
+    logger: { warn: (message, ...args) => logger.warn(message, { args }) }
+  }
 
-    onCompress: (summary, count) => {
+  // Compression machinery (and chef's budget Janitor) only when the user
+  // wants it. When compress is off, NONE of compress/onCompress/
+  // onBeforeCompress is set, so chef builds no Janitor — truncate + compact
+  // only, and no spurious "no tokenizer / no compressionModel" warnings.
+  if (settings.compress.enabled) {
+    options.onCompress = (summary, count) => {
       logger.info('chef compressed history (in-flight)', {
         truncatedCount: count,
         summaryPreview: summary.slice(0, 120)
       })
-    },
+    }
 
-    logger: { warn: (message, ...args) => logger.warn(message, { args }) }
-  }
-
-  if (settings.compress.enabled && scope.compressionModel) {
-    options.compress = { model: scope.compressionModel }
-  } else if (settings.compress.enabled && !scope.compressionModel) {
-    logger.debug('compress enabled but no model resolved — sliding-window fallback only')
+    if (scope.compressionModel) {
+      // LLM summarization on budget overflow (chef's default budget path).
+      options.compress = { model: scope.compressionModel }
+    } else {
+      // Wanted compression but no model resolved → no-LLM sliding-window guard.
+      // (No tokenizer is wired yet, so this can only fire once reported usage
+      // exists; wiring tokenx here is the planned follow-up — see plan notes.)
+      logger.debug('compress enabled but no model resolved — sliding-window fallback only')
+      options.onBeforeCompress = (history, tokenInfo) => dropOldestUntilUnderBudget(history, tokenInfo)
+    }
   }
 
   return options
