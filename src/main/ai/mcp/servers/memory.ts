@@ -17,6 +17,8 @@ interface Entity {
   name: string
   entityType: string
   observations: string[]
+  /** Optional list of MCP server names this entity is associated with. */
+  mcpReferences?: string[]
 }
 
 interface Relation {
@@ -37,6 +39,8 @@ class KnowledgeGraphManager {
   private entities: Map<string, Entity> // Use Map for efficient entity lookup
   private relations: Set<string> // Store stringified relations for easy Set operations
   private fileMutex: Mutex // Mutex for file writing
+  /** Process-wide lock per file path for serializing static file operations. */
+  private static fileLocks = new Map<string, Mutex>()
 
   private constructor(memoryPath: string) {
     this.memoryPath = memoryPath
@@ -151,7 +155,11 @@ class KnowledgeGraphManager {
     entities.forEach((entity) => {
       if (!this.entities.has(entity.name)) {
         // Ensure observations is always an array
-        const newEntity = { ...entity, observations: Array.isArray(entity.observations) ? entity.observations : [] }
+        const newEntity = {
+          ...entity,
+          observations: Array.isArray(entity.observations) ? entity.observations : [],
+          mcpReferences: Array.isArray(entity.mcpReferences) ? entity.mcpReferences : []
+        }
         this.entities.set(entity.name, newEntity)
         newEntities.push(newEntity)
       }
@@ -334,6 +342,131 @@ class KnowledgeGraphManager {
       relations: filteredRelations
     }
   }
+
+  /**
+   * Remove all entities whose mcpReferences array contains the given keyword,
+   * and delete any relations that reference those entities.
+   * Used as cascade cleanup when an MCP server is deleted.
+   */
+  @TraceMethod({ spanName: 'cleanupReferences', tag: 'KnowledgeGraph' })
+  async cleanupReferences(keyword: string): Promise<{ deletedEntities: number; deletedRelations: number }> {
+    if (!keyword) return { deletedEntities: 0, deletedRelations: 0 }
+
+    const lowerKeyword = keyword.toLowerCase()
+    let changed = false
+
+    // Only delete entities whose mcpReferences array contains an exact match
+    // for the keyword.  This avoids removing unrelated KG nodes that happen
+    // to share a name, type, or mention the keyword in free-text observations.
+    const namesToDelete = new Set<string>()
+    for (const [name, entity] of this.entities) {
+      if (Array.isArray(entity.mcpReferences) && entity.mcpReferences.some((r) => r.toLowerCase() === lowerKeyword)) {
+        namesToDelete.add(name)
+      }
+    }
+
+    if (namesToDelete.size === 0) {
+      return { deletedEntities: 0, deletedRelations: 0 }
+    }
+
+    // Delete the matching entities
+    for (const name of namesToDelete) {
+      if (this.entities.delete(name)) {
+        changed = true
+      }
+    }
+
+    // Delete relations involving deleted entities
+    const relationsToDelete = new Set<string>()
+    for (const relStr of this.relations) {
+      const rel = this._deserializeRelation(relStr)
+      if (namesToDelete.has(rel.from) || namesToDelete.has(rel.to)) {
+        relationsToDelete.add(relStr)
+      }
+    }
+
+    const deletedRelationsCount = relationsToDelete.size
+    for (const relStr of relationsToDelete) {
+      if (this.relations.delete(relStr)) {
+        changed = true
+      }
+    }
+
+    if (changed) {
+      await this._persistGraph()
+    }
+
+    return { deletedEntities: namesToDelete.size, deletedRelations: deletedRelationsCount }
+  }
+
+  /**
+   * Static utility to clean up references in the persisted knowledge graph file.
+   * This is used when no in-memory MemoryServer instance is active.
+   */
+  static async cleanupReferencesFromFile(
+    memoryPath: string,
+    keyword: string
+  ): Promise<{ deletedEntities: number; deletedRelations: number } | null> {
+    if (!keyword) return null
+
+    // Acquire a per-file lock so concurrent cleanups for the same path are serialized.
+    if (!KnowledgeGraphManager.fileLocks.has(memoryPath)) {
+      KnowledgeGraphManager.fileLocks.set(memoryPath, new Mutex())
+    }
+    const lock = KnowledgeGraphManager.fileLocks.get(memoryPath)!
+    const release = await lock.acquire()
+    try {
+      try {
+        await fs.access(memoryPath)
+      } catch {
+        // File doesn't exist, nothing to clean
+        return null
+      }
+
+      const data = await fs.readFile(memoryPath, 'utf-8')
+      if (data.trim() === '') return null
+
+      const graph: KnowledgeGraph = JSON.parse(data)
+
+      // Only delete entities whose mcpReferences array contains an exact match
+      // for the keyword.  This avoids removing unrelated KG nodes that happen
+      // to share a name, type, or mention the keyword in free-text observations.
+      const lowerKeyword = keyword.toLowerCase()
+      const entitiesToDelete = new Set<string>()
+      for (const entity of graph.entities) {
+        if (Array.isArray(entity.mcpReferences) && entity.mcpReferences.some((r) => r.toLowerCase() === lowerKeyword)) {
+          entitiesToDelete.add(entity.name)
+        }
+      }
+
+      if (entitiesToDelete.size === 0) return null
+
+      const remainingEntities = graph.entities.filter((e) => !entitiesToDelete.has(e.name))
+      const remainingRelations = graph.relations.filter(
+        (r) => !entitiesToDelete.has(r.from) && !entitiesToDelete.has(r.to)
+      )
+
+      const deletedCount = {
+        deletedEntities: graph.entities.length - remainingEntities.length,
+        deletedRelations: graph.relations.length - remainingRelations.length
+      }
+
+      // Only write back if something changed
+      if (deletedCount.deletedEntities > 0 || deletedCount.deletedRelations > 0) {
+        await fs.writeFile(
+          memoryPath,
+          JSON.stringify({ entities: remainingEntities, relations: remainingRelations }, null, 2)
+        )
+      }
+
+      return deletedCount
+    } catch (error) {
+      logger.error('Failed to cleanup knowledge graph references:', error as Error)
+      return null
+    } finally {
+      release()
+    }
+  }
 }
 
 class MemoryServer {
@@ -341,6 +474,30 @@ class MemoryServer {
   // Hold the manager instance, initialized asynchronously
   private knowledgeGraphManager: KnowledgeGraphManager | null = null
   private initializationPromise: Promise<void> // To track initialization
+  private resolvedPath: string
+
+  /** Static registry of live MemoryServer instances keyed by resolved memory path. */
+  private static activeInstances = new Map<string, MemoryServer>()
+
+  /**
+   * Clean up in-memory references for a given keyword across all active
+   * MemoryServer instances whose memoryPath matches the target. Falls back
+   * to file-based cleanup when no live instance is active for the path.
+   */
+  static async cleanupReferencesByName(
+    memoryPath: string,
+    keyword: string
+  ): Promise<{ deletedEntities: number; deletedRelations: number } | null> {
+    const instance = MemoryServer.activeInstances.get(memoryPath)
+    if (instance?.knowledgeGraphManager) {
+      try {
+        return await instance.knowledgeGraphManager.cleanupReferences(keyword)
+      } catch (error) {
+        logger.error('Live cleanupReferences failed, falling back to file cleanup:', error as Error)
+      }
+    }
+    return KnowledgeGraphManager.cleanupReferencesFromFile(memoryPath, keyword)
+  }
 
   constructor(envPath: string = '') {
     const memoryPath = envPath
@@ -348,6 +505,8 @@ class MemoryServer {
         ? envPath
         : path.resolve(envPath) // Use path.resolve for relative paths based on CWD
       : getDefaultMemoryPath()
+
+    this.resolvedPath = memoryPath
 
     this.server = new Server(
       {
@@ -363,12 +522,23 @@ class MemoryServer {
     // Start initialization, but don't block constructor
     this.initializationPromise = this._initializeManager(memoryPath)
     this.setupRequestHandlers() // Setup handlers immediately
+
+    // Clean up activeInstances when the MCP connection closes
+    // (triggered by McpRuntimeService client.close() → InMemoryTransport close cascade)
+    this.server.onclose = () => {
+      this.dispose()
+    }
+  }
+
+  dispose(): void {
+    MemoryServer.activeInstances.delete(this.resolvedPath)
   }
 
   // Private async method to handle manager initialization
   private async _initializeManager(memoryPath: string): Promise<void> {
     try {
       this.knowledgeGraphManager = await KnowledgeGraphManager.create(memoryPath)
+      MemoryServer.activeInstances.set(memoryPath, this)
       logger.debug('KnowledgeGraphManager initialized successfully.')
     } catch (error) {
       logger.error('Failed to initialize KnowledgeGraphManager:', error as Error)
@@ -422,6 +592,13 @@ class MemoryServer {
                         items: { type: 'string' },
                         description: 'An array of observation contents associated with the entity',
                         default: [] // Add default empty array
+                      },
+                      mcpReferences: {
+                        type: 'array',
+                        items: { type: 'string' },
+                        description:
+                          'Optional list of MCP server names this entity is associated with (used for cascade cleanup on MCP deletion)',
+                        default: []
                       }
                     },
                     required: ['name', 'entityType'] // Observations are optional now on creation
@@ -709,4 +886,5 @@ class MemoryServer {
   }
 }
 
+export { KnowledgeGraphManager, MemoryServer }
 export default MemoryServer
