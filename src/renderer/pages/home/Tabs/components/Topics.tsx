@@ -22,7 +22,6 @@ import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { isMac } from '@renderer/config/constant'
-import { prefetch } from '@renderer/data/hooks/useDataApi'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import {
@@ -628,11 +627,6 @@ export const Topics: React.FC<Props> = ({ activeTopic, setActiveTopic, position 
             <ContextMenu key={topic.id}>
               <ContextMenuTrigger asChild disabled={isManageMode}>
                 <TopicListItem
-                  onMouseEnter={() =>
-                    prefetch(`/topics/${topic.id}/messages`, {
-                      query: { limit: 999, includeSiblings: true }
-                    })
-                  }
                   className={classNames(
                     isActive && !isManageMode ? 'active' : '',
                     singlealone ? 'singlealone' : '',
