@@ -6663,6 +6663,7 @@
         "project_id": "项目 ID",
         "project_id_help": "您的 Google Cloud 项目 ID",
         "project_id_placeholder": "your-google-cloud-project-id",
+        "select_location": "选择地区",
         "service_account": {
           "auth_success": "Service Account 认证成功",
           "client_email": "客户端邮箱",
@@ -6678,7 +6679,10 @@
           "private_key": "私钥",
           "private_key_help": "从 Google Cloud Console 下载的 JSON 密钥文件中的 private_key 字段",
           "private_key_placeholder": "请输入 Service Account 私钥",
-          "title": "Service Account 配置"
+          "title": "Service Account 配置",
+          "toggle_client_email_visibility": "切换客户端邮箱的显示状态",
+          "toggle_private_key_visibility": "切换私钥的显示状态",
+          "toggle_project_id_visibility": "切换 Project ID 的显示状态"
         }
       }
     },

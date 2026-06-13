@@ -6663,6 +6663,7 @@
         "project_id": "專案 ID",
         "project_id_help": "您的 Google Cloud 專案 ID",
         "project_id_placeholder": "your-google-cloud-project-id",
+        "select_location": "[to be translated]:Select location",
         "service_account": {
           "auth_success": "服務帳戶驗證成功",
           "client_email": "Client Email",
@@ -6678,7 +6679,10 @@
           "private_key": "私密金鑰",
           "private_key_help": "從 Google Cloud Console 下載的 JSON 金鑰檔案中的 private_key 欄位",
           "private_key_placeholder": "輸入服務帳戶私密金鑰",
-          "title": "服務帳戶設定"
+          "title": "服務帳戶設定",
+          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
+          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
+          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
         }
       }
     },
