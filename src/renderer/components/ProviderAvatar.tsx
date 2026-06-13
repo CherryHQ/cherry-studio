@@ -1,9 +1,7 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
 import { Avatar, AvatarFallback, AvatarImage } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { generateColorFromChar, getFirstCharacter, getForegroundColor } from '@renderer/utils'
-import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import React from 'react'
 
 interface ProviderAvatarPrimitiveProps {
@@ -26,7 +24,9 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   className,
   style
 }) => {
-  const { theme } = useTheme()
+  const backgroundColor = generateColorFromChar(providerName)
+  const color = providerName ? getForegroundColor(backgroundColor) : 'white'
+  const fallbackContent = getFirstCharacter(providerName)
   // Resolve the icon: prefer `logo` prop, fall back to `logoSrc` for backwards compat
   const resolvedLogo = logo ?? logoSrc
 
@@ -40,6 +40,12 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
       : undefined
   const effectiveLogo = builtinIcon ?? resolvedLogo
 
+  // Radix keeps `imageLoadingStatus` on the <Avatar> root and never resets it when <AvatarImage>
+  // unmounts, so reusing one root across an image→icon / image→reset switch leaves the (now
+  // image-less) fallback suppressed and the avatar blank. Keying the root by the resolved source
+  // forces a remount so Radix starts from a clean status whenever the rendered content changes.
+  const avatarKey = typeof effectiveLogo === 'string' ? effectiveLogo : effectiveLogo ? 'builtin-icon' : 'fallback'
+
   // If logo is a CompoundIcon, render one concrete theme variant to avoid duplicate light/dark SVGs.
   if (effectiveLogo && typeof effectiveLogo !== 'string') {
     const Icon = effectiveLogo
@@ -48,9 +54,9 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
     const iconSize = resolvedSize * 0.7
 
     return (
-      <Avatar className={className} style={{ width: resolvedSize, height: resolvedSize, ...style }}>
+      <Avatar key={avatarKey} className={className} style={{ width: resolvedSize, height: resolvedSize, ...style }}>
         <AvatarFallback className="bg-background text-foreground">
-          <Icon variant={theme === ThemeMode.dark ? 'dark' : 'light'} style={{ width: iconSize, height: iconSize }} />
+          <Icon style={{ width: iconSize, height: iconSize }} />
         </AvatarFallback>
       </Avatar>
     )
@@ -60,25 +66,25 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   // (unknown id) is not a URL — fall through to the initial-character fallback below.
   if (typeof effectiveLogo === 'string' && !effectiveLogo.startsWith('icon:')) {
     return (
-      <Avatar className={className} style={{ width: size, height: size, ...style }}>
+      <Avatar key={avatarKey} className={className} style={{ width: size, height: size, ...style }}>
         <AvatarImage src={effectiveLogo} className="object-cover" draggable={false} />
+        <AvatarFallback style={{ backgroundColor, color }}>{fallbackContent}</AvatarFallback>
       </Avatar>
     )
   }
 
   // Default: generate avatar with first character and background color
-  const backgroundColor = generateColorFromChar(providerName)
-  const color = providerName ? getForegroundColor(backgroundColor) : 'white'
 
   return (
     <Avatar
+      key={avatarKey}
       className={className}
       style={{
         width: size,
         height: size,
         ...style
       }}>
-      <AvatarFallback style={{ backgroundColor, color }}>{getFirstCharacter(providerName)}</AvatarFallback>
+      <AvatarFallback style={{ backgroundColor, color }}>{fallbackContent}</AvatarFallback>
     </Avatar>
   )
 }
