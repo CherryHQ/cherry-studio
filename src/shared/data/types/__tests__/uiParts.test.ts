@@ -28,6 +28,9 @@ describe('CherryReasoningMetaSchema', () => {
   it('accepts thinkingMs as number', () => {
     expect(CherryReasoningMetaSchema.safeParse({ thinkingMs: 1234 }).success).toBe(true)
   })
+  it('accepts startedAt as number', () => {
+    expect(CherryReasoningMetaSchema.safeParse({ startedAt: 1780913860106 }).success).toBe(true)
+  })
   it('rejects thinkingMs that is not a number', () => {
     expect(CherryReasoningMetaSchema.safeParse({ thinkingMs: '1234' }).success).toBe(false)
   })
@@ -63,14 +66,15 @@ describe('readCherryMeta', () => {
     expect(meta?.references).toEqual([{ category: 'citation' }])
   })
 
-  it('reads CherryReasoningMeta from a ReasoningUIPart with thinkingMs', () => {
+  it('reads CherryReasoningMeta from a ReasoningUIPart with thinking metadata', () => {
     const part: ReasoningUIPart = {
       type: 'reasoning',
       text: 'thinking...',
-      providerMetadata: { cherry: { thinkingMs: 5000 } }
+      providerMetadata: { cherry: { thinkingMs: 5000, startedAt: 1780913860106 } }
     }
     const meta = readCherryMeta(part)
     expect(meta?.thinkingMs).toBe(5000)
+    expect(meta?.startedAt).toBe(1780913860106)
   })
 
   it('reads CherryToolMeta from a tool-foo part with transport and tool', () => {
@@ -167,10 +171,10 @@ describe('withCherryMeta', () => {
     expect(next.providerMetadata?.cherry).toEqual({ references: [{ b: 2 }] })
   })
 
-  it('writes thinkingMs onto a ReasoningUIPart', () => {
+  it('writes thinking metadata onto a ReasoningUIPart', () => {
     const part: ReasoningUIPart = { type: 'reasoning', text: '' }
-    const next = withCherryMeta(part, { thinkingMs: 1234 })
-    expect(next.providerMetadata?.cherry).toEqual({ thinkingMs: 1234 })
+    const next = withCherryMeta(part, { thinkingMs: 1234, startedAt: 1780913860106 })
+    expect(next.providerMetadata?.cherry).toEqual({ thinkingMs: 1234, startedAt: 1780913860106 })
   })
 
   // ── Compile-time negatives — `tsc --noEmit` enforces these. ──────────

@@ -82,7 +82,7 @@ export const AgentBaseSchema = z.object({
   planModel: z.string().optional(),
   smallModel: z.string().optional(),
   mcps: z.array(z.string()).optional(),
-  allowedTools: z.array(z.string()).optional(),
+  disabledTools: z.array(z.string()).optional(),
   configuration: AgentConfigurationSchema.optional()
 })
 
@@ -118,15 +118,6 @@ export type AgentEntity = z.infer<typeof AgentEntitySchema>
 
 export const isAgentEntity = (value: unknown): value is AgentEntity => {
   return AgentEntitySchema.safeParse(value).success
-}
-
-export interface ListOptions {
-  limit?: number
-  offset?: number
-  sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'sortOrder'
-  orderBy?: 'asc' | 'desc'
-  /** LIKE %kw% match against name OR description (case-insensitive). */
-  search?: string
 }
 
 // AgentSession entity representing a conversation session with one or more agents
@@ -202,7 +193,7 @@ export type BaseAgentForm = {
   description?: string
   instructions?: string
   model: string
-  allowedTools: string[]
+  disabledTools: string[]
   mcps?: string[]
   configuration?: AgentConfiguration
 }

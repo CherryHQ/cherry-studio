@@ -38,6 +38,7 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     updatedAt: '2026-04-20T00:00:00.000Z',
     tags: [],
     modelName: null,
+    orderKey: 'a0',
     ...overrides
   }
 }

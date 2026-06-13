@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a76452ed-8fee-4925-9e20-365bf5cf7090",
+  "id": "1b218189-3da2-4eb3-9e15-76310cd7c94b",
   "prevId": "08483484-877c-40f7-bae0-9e214823d99a",
   "tables": {
     "agent": {
@@ -72,8 +72,8 @@
           "autoincrement": false,
           "default": "'[]'"
         },
-        "allowed_tools": {
-          "name": "allowed_tools",
+        "disabled_tools": {
+          "name": "disabled_tools",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
@@ -1891,7 +1891,7 @@
       "checkConstraints": {
         "knowledge_base_search_mode_check": {
           "name": "knowledge_base_search_mode_check",
-          "value": "\"knowledge_base\".\"search_mode\" IN ('vector', 'bm25', 'hybrid')"
+          "value": "\"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid')"
         },
         "knowledge_base_status_check": {
           "name": "knowledge_base_status_check",

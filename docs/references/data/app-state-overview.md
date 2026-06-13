@@ -66,6 +66,7 @@ Every key currently in `app_state`. Add a row when introducing a key.
 | Key                   | Owner            | Value shape             | Notes                                                                                                                                                                                                       |
 | --------------------- | ---------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `seed:<name>`         | `SeedRunner`     | `{ version: string }`   | Seeding journal, one row per seeder. See [Database Seeding Guide](./database-seeding-guide.md).                                                                                                              |
+| `seedRunner:bootstrapCompleted` | `SeedRunner` | `{ completedAt: number }` | Bootstrap-window marker — set after the first fully-successful seeding pass; `bootstrap-only` seeders never run once present. Done-event key (see Disposability exception): never rename once shipped. |
 | `migration_v2_status` | `MigrationEngine` | `MigrationStatusValue`  | **Grandfathered exception.** Bare key predating the `<scope>:` convention; serves only the one-time v1→2.0.0 migration and disappears when the migration module is removed after 2.0.x. Do not rename; do not model new keys on it. |
 
 ## Related Source Code

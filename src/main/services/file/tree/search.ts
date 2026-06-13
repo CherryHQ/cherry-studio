@@ -79,44 +79,50 @@ const EXCLUDED_DIRS = new Set([
 
 // ─── Ripgrep binary + execution ────────────────────────────────────────────
 
+function resolveRipgrepBinaryPath(startDir: string = __dirname): string | null {
+  const executable = isWin ? 'rg.exe' : 'rg'
+  const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
+  const platform = isMac ? 'darwin' : isWin ? 'win32' : 'linux'
+  const tail = path.join(
+    'node_modules',
+    '@cherrystudio',
+    'ripgrep',
+    'vendor',
+    'ripgrep',
+    `${arch}-${platform}`,
+    executable
+  )
+
+  // Walk up parents until we find the vendored `@cherrystudio/ripgrep`
+  // checkout. This is robust to: production bundle (`out/main/…`), source
+  // layout (`src/main/services/file/tree/…` under vitest), and any future
+  // re-layering. Check the asar-unpacked sibling first: Electron can report
+  // files inside app.asar as existing, but native child processes must be
+  // spawned from the real filesystem path.
+  let dir = startDir
+  while (true) {
+    const candidate = path.join(dir, tail)
+    const unpacked = toAsarUnpackedPath(candidate)
+    if (unpacked !== candidate && fs.existsSync(unpacked)) return unpacked
+    if (fs.existsSync(candidate)) return candidate
+
+    const parent = path.dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+
+  const pathEntries = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean)
+  for (const entry of pathEntries) {
+    const candidate = path.join(entry, executable)
+    if (fs.existsSync(candidate)) return candidate
+  }
+
+  return null
+}
+
 function getRipgrepBinaryPath(): string | null {
   try {
-    const executable = isWin ? 'rg.exe' : 'rg'
-    const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
-    const platform = isMac ? 'darwin' : isWin ? 'win32' : 'linux'
-    const tail = path.join(
-      'node_modules',
-      '@cherrystudio',
-      'ripgrep',
-      'vendor',
-      'ripgrep',
-      `${arch}-${platform}`,
-      executable
-    )
-
-    // Walk up parents until we find the vendored `@cherrystudio/ripgrep`
-    // checkout. This is robust to: production bundle (`out/main/…`), source
-    // layout (`src/main/services/file/tree/…` under vitest), and any future
-    // re-layering. Also checks the asar-unpacked sibling at each step so
-    // packaged builds find the binary.
-    let dir = __dirname
-    while (true) {
-      const candidate = path.join(dir, tail)
-      if (fs.existsSync(candidate)) return candidate
-      const unpacked = toAsarUnpackedPath(candidate)
-      if (unpacked !== candidate && fs.existsSync(unpacked)) return unpacked
-
-      const parent = path.dirname(dir)
-      if (parent === dir) break
-      dir = parent
-    }
-    const pathEntries = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean)
-    for (const entry of pathEntries) {
-      const candidate = path.join(entry, executable)
-      if (fs.existsSync(candidate)) return candidate
-    }
-
-    return null
+    return resolveRipgrepBinaryPath()
   } catch (error) {
     logger.error('Failed to locate ripgrep binary:', error as Error)
     return null
