@@ -23,9 +23,7 @@
       "@renderer/*": ["./src/renderer/*"],
       "@shared/*": ["./src/shared/*"],
       "@test-mocks/*": ["./tests/__mocks__/*"],
-      "@types": ["./src/renderer/types/index.ts"],
-      "@vectorstores/libsql": ["./packages/vectorstores/libsql/src/index.ts"],
-      "@vectorstores/libsql/*": ["./packages/vectorstores/libsql/src/*"]
+      "@types": ["./src/renderer/types/index.ts"]
     },
     "tsBuildInfoFile": ".tsbuildinfo/tsconfig.web.tsbuildinfo",
     "useDefineForClassFields": true
@@ -43,7 +41,6 @@
     "packages/mcp-trace/**/*",
     "packages/provider-registry/**/*",
     "src/shared/**/*",
-    "packages/vectorstores/**/*",
     "packages/ui/**/*"
   ]
 }
