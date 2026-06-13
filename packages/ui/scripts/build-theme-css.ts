@@ -43,6 +43,34 @@ const SPACING_COMMENT_LINES = [
   '--spacing-8xl: var(--cs-size-8xl); */'
 ]
 
+const ANIMATION_LINES = [
+  '--animate-checkbox-bounce: checkbox-bounce 300ms cubic-bezier(0.4, 0, 0.2, 1);',
+  '--animate-checkbox-icon-in: checkbox-icon-in 160ms ease-out both;',
+  '',
+  '@keyframes checkbox-bounce {',
+  '  0%,',
+  '  100% {',
+  '    transform: scale(1);',
+  '  }',
+  '',
+  '  50% {',
+  '    transform: scale(1.08);',
+  '  }',
+  '}',
+  '',
+  '@keyframes checkbox-icon-in {',
+  '  from {',
+  '    opacity: 0;',
+  '    transform: scale(0.75);',
+  '  }',
+  '',
+  '  to {',
+  '    opacity: 1;',
+  '    transform: scale(1);',
+  '  }',
+  '}'
+]
+
 export interface ThemeContractInputs {
   primitiveColors: string[]
   semanticColors: string[]
@@ -89,7 +117,8 @@ export function buildThemeContractCss(inputs: ThemeContractInputs): string {
     buildSection('Status Colors', toPrefixedMappings(inputs.statusColors, 'color-')),
     buildSection('Spacing', SPACING_COMMENT_LINES),
     buildSection('Radius', toDirectMappings(inputs.radiusTokens)),
-    buildSection('Typography', toDirectMappings(inputs.typographyTokens))
+    buildSection('Typography', toDirectMappings(inputs.typographyTokens)),
+    buildSection('Animation', ANIMATION_LINES)
   ]
 
   return `/**
