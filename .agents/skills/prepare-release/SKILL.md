@@ -20,6 +20,15 @@ Defaults to `patch` if no version is specified. Always echo the resolved target 
 
 ## Workflow
 
+### Step 0: Start From v1
+
+All v1 releases must be prepared from `origin/v1`, not from the current working branch:
+
+```bash
+git fetch origin v1:refs/remotes/origin/v1 --tags
+git switch --detach origin/v1
+```
+
 ### Step 1: Determine Version
 
 1. Get the latest tag:
@@ -143,14 +152,14 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
 
 1. Create and push the release branch:
    ```bash
-   git checkout -b release/v{version}
+   git switch -c release/v{version}
    git add package.json electron-builder.yml
    git commit -m "chore: release v{version}"
    git push -u origin release/v{version}
    ```
 2. Create the PR using the `gh-create-pr` skill. If the skill tool is unavailable, read `.agents/skills/gh-create-pr/SKILL.md` and follow it manually. In CI (non-interactive) mode, skip interactive confirmation steps and create the PR directly after filling the template.
    - Use title: `chore: release v{version}`
-   - Use base branch: `main`
+   - Use base branch: `v1`
    - When filling the PR template, incorporate:
      - The generated release notes (English section only, for readability).
      - A list of included commits.
@@ -163,7 +172,7 @@ Otherwise, ask the user to confirm before proceeding to Step 6.
 
 ## CI Trigger Chain
 
-Creating a PR from `release/v*` to `main` automatically triggers:
+Creating a PR from `release/v*` to `v1` automatically triggers:
 - **`release.yml`**: Builds on macOS, Windows, Linux and creates a draft GitHub Release.
 - **`ci.yml`**: Runs lint, typecheck, and tests.
 
@@ -171,5 +180,5 @@ Creating a PR from `release/v*` to `main` automatically triggers:
 
 - Always read `electron-builder.yml` before modifying it to understand the current format.
 - Never modify files other than `package.json` and `electron-builder.yml`.
-- Never push directly to `main`.
+- Never push directly to `v1`.
 - Always show the generated release notes to the user before creating the branch/PR (unless running in CI with no interactive user).
