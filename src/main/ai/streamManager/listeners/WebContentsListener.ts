@@ -16,6 +16,20 @@ const COALESCE_WINDOW_MS = 16
 const MAX_COALESCE_AGE_MS = 16
 const MAX_COALESCE_CHARS = 2048
 
+/** Id prefix for renderer (WebContents) listeners — full form `wc:${wc.id}:${topicId}`. */
+const RENDERER_LISTENER_ID_PREFIX = 'wc:'
+
+/**
+ * True if `listener` streams to a renderer window (as opposed to an internal persistence / trace /
+ * channel listener). Carried-forward filtering (e.g. a steer continuation re-attaching the prior
+ * turn's windows) keys off this — using the predicate instead of an inline `'wc:'` literal keeps it
+ * in lockstep with the id format, so a future id-format change can't silently stop windows
+ * re-attaching to a continuation.
+ */
+export function isRendererListener(listener: Pick<StreamListener, 'id'>): boolean {
+  return listener.id.startsWith(RENDERER_LISTENER_ID_PREFIX)
+}
+
 interface PendingDelta {
   type: 'text-delta' | 'reasoning-delta' | 'tool-input-delta'
   identifier: string
@@ -40,7 +54,7 @@ export class WebContentsListener implements StreamListener {
     private readonly wc: Electron.WebContents,
     private readonly topicId: string
   ) {
-    this.id = `wc:${wc.id}:${topicId}`
+    this.id = `${RENDERER_LISTENER_ID_PREFIX}${wc.id}:${topicId}`
     // Clear the coalesce timer if the window dies between chunks — without
     // this hook a quiet stream end leaks the timer.
     this.wc.once('destroyed', () => this.discardPending())

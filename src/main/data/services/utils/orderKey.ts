@@ -76,6 +76,10 @@ interface ResetOrderOptions {
   pkColumn: AnyColumn
 }
 
+type ValuesWithoutOrderKey<TValues extends Record<string, unknown>> = TValues & {
+  orderKey?: never
+}
+
 interface ComputeOptions {
   pkColumn: AnyColumn
   scope?: SQL
@@ -125,7 +129,7 @@ export function generateOrderKeySequenceBetween(before: string | null, after: st
 export async function insertWithOrderKey<TTable extends TableWithOrderKey, TValues extends Record<string, unknown>>(
   tx: TxLike,
   table: TTable,
-  values: TValues,
+  values: ValuesWithoutOrderKey<TValues>,
   options: InsertWithOrderKeyOptions
 ): Promise<Record<string, unknown>> {
   const [row] = await insertManyWithOrderKey(tx, table, [values], options)
@@ -147,7 +151,7 @@ export async function insertWithOrderKey<TTable extends TableWithOrderKey, TValu
 export async function insertManyWithOrderKey<TTable extends TableWithOrderKey, TValues extends Record<string, unknown>>(
   tx: TxLike,
   table: TTable,
-  valuesList: TValues[],
+  valuesList: Array<ValuesWithoutOrderKey<TValues>>,
   options: InsertManyWithOrderKeyOptions
 ): Promise<Record<string, unknown>[]> {
   if (valuesList.length === 0) return []

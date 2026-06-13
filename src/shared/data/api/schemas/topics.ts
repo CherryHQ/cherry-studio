@@ -1,13 +1,13 @@
 /**
  * Topic API Schema definitions
  *
- * Contains all topic-related endpoints for CRUD operations and branch switching.
+ * Contains all topic-related endpoints for CRUD, duplication, branch switching, and ordering.
  * Entity schemas and types live in `@shared/data/types/topic`.
  */
 
 import * as z from 'zod'
 
-import { type Topic, TopicSchema } from '../../types/topic'
+import { type Topic, TopicNameSchema, TopicSchema } from '../../types/topic'
 import type { CursorPaginationResponse } from '../apiTypes'
 import type { OrderEndpoints } from './_endpointHelpers'
 
@@ -17,21 +17,12 @@ import type { OrderEndpoints } from './_endpointHelpers'
 
 /**
  * DTO for creating a new topic.
- *
- * `sourceNodeId` is a transient request-only field (not a Topic column): when
- * present, the service copies the path from root to this node into the new
- * topic — so it lives outside the entity pick set.
  */
 export const CreateTopicSchema = TopicSchema.pick({
   name: true,
   assistantId: true,
   groupId: true
-})
-  .partial()
-  .extend({
-    /** Source node ID for fork operation. */
-    sourceNodeId: z.string().optional()
-  })
+}).partial()
 export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
 
 /**
@@ -79,6 +70,28 @@ export const SetActiveNodeSchema = z.strictObject({
 export type SetActiveNodeDto = z.infer<typeof SetActiveNodeSchema>
 
 /**
+ * DTO for duplicating a topic path into a new topic.
+ *
+ * Current contract:
+ * - `nodeId` copies only the root-to-node path into the new topic and drops
+ *   siblings / descendants outside that path.
+ * - `name` lets the renderer pass a localized duplicate title; when omitted,
+ *   the service falls back to the source topic name.
+ *
+ * Intended evolution:
+ * - Omit `nodeId`: duplicate the whole topic with all branches.
+ * - Add `sourceNodeId`: copy the subpath from `sourceNodeId` to `nodeId`.
+ * - For in-place edit/resend branching, use `POST /messages/:id/siblings`.
+ */
+export const DuplicateTopicSchema = z.strictObject({
+  /** Message node to copy up to. Must belong to the source topic. */
+  nodeId: z.string().min(1),
+  /** Optional localized name for the duplicated topic. */
+  name: z.string().trim().pipe(TopicNameSchema).optional()
+})
+export type DuplicateTopicDto = z.infer<typeof DuplicateTopicSchema>
+
+/**
  * Response for active node update
  */
 export interface ActiveNodeResponse {
@@ -118,7 +131,7 @@ export type TopicSchemas = {
       query?: ListTopicsQuery
       response: CursorPaginationResponse<Topic>
     }
-    /** Create a new topic (optionally fork from existing node) */
+    /** Create a new topic. */
     POST: {
       body: CreateTopicDto
       response: Topic
@@ -161,6 +174,22 @@ export type TopicSchemas = {
       params: { id: string }
       body: SetActiveNodeDto
       response: ActiveNodeResponse
+    }
+  }
+
+  /**
+   * Duplicate action endpoint.
+   *
+   * Creates a new topic by copying the source topic's root → `nodeId` message
+   * path. The copied topic's active node is the copied `nodeId`.
+   *
+   * @example POST /topics/abc123/duplicate { "nodeId": "msg456", "name": "Source (Copy)" }
+   */
+  '/topics/:id/duplicate': {
+    POST: {
+      params: { id: string }
+      body: DuplicateTopicDto
+      response: Topic
     }
   }
 } & OrderEndpoints<'/topics'>

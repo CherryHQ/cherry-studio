@@ -56,9 +56,10 @@ AI SDK's transport interface.
 
 It does **not** serialize sends — there is no single-in-flight guard in the
 coordinator. Concurrency for a topic is arbitrated on the Main side: a chat
-resubmit to a live topic is aborted-and-restarted by `dispatch`
-(`AiStreamManager.abortAndAwait`), while an agent-session follow-up attaches
-to the running stream.
+resubmit to a live topic is persisted and queued as a steer
+(`AiStreamManager.enqueuePendingSteer`) — the running turn yields and a
+continuation answers it — while an agent-session follow-up attaches to the
+running stream.
 
 ## Per-execution demux
 

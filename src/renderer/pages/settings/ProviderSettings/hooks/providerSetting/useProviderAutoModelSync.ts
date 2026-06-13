@@ -1,6 +1,8 @@
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
+import { providerNeedsApiKeyForModelSync } from '@renderer/pages/settings/ProviderSettings/ModelList/providerModelSyncRequirements'
+import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
 import { useEffect, useMemo, useRef } from 'react'
 
@@ -12,7 +14,7 @@ const logger = loggerService.withContext('ProviderSettings:AutoModelSync')
 
 /** Triggers one automatic model sync when a provider becomes configured and has no local models. */
 export function useProviderAutoModelSync(providerId: string) {
-  const { provider } = useProvider(providerId)
+  const { provider, updateProvider } = useProvider(providerId)
   const { data: apiKeysData } = useProviderApiKeys(providerId)
   const { models } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
   const { syncProviderModels, isSyncingModels } = useProviderModelSync(providerId, { existingModels: [...models] })
@@ -26,17 +28,7 @@ export function useProviderAutoModelSync(providerId: string) {
       return true
     }
 
-    // Must stay in lockstep with `providerNeedsApiKeyForModelSync` in
-    // ModelList/modelSync.ts. `api-key-aws` is intentionally NOT excluded:
-    // unlike `iam-aws` (IAM access keys), it authenticates with an
-    // AWS-issued bearer-token api-key and therefore needs an enabled key.
-    return !(
-      provider.id === 'ollama' ||
-      provider.id === 'lmstudio' ||
-      provider.id === 'copilot' ||
-      provider.authType === 'iam-gcp' ||
-      provider.authType === 'iam-aws'
-    )
+    return providerNeedsApiKeyForModelSync(provider)
   }, [provider])
 
   const initialModelSyncSignature = useMemo(() => {
@@ -143,11 +135,15 @@ export function useProviderAutoModelSync(providerId: string) {
     }
 
     initialModelSyncSignatureRef.current = initialModelSyncSignature
-    void syncProviderModels().catch((error) => {
-      logger.error('Provider auto model sync failed', { providerId, error })
-      if (initialModelSyncSignatureRef.current === initialModelSyncSignature) {
-        initialModelSyncSignatureRef.current = null
-      }
-    })
-  }, [autoSyncDecision, initialModelSyncSignature, provider, providerId, syncProviderModels])
+    void syncProviderModels()
+      .then(async (syncedModels) => {
+        await enableProviderWhenModelsAvailable(provider, updateProvider, syncedModels.length, 'auto_model_sync')
+      })
+      .catch((error) => {
+        logger.error('Provider auto model sync failed', { providerId, error })
+        if (initialModelSyncSignatureRef.current === initialModelSyncSignature) {
+          initialModelSyncSignatureRef.current = null
+        }
+      })
+  }, [autoSyncDecision, initialModelSyncSignature, provider, providerId, syncProviderModels, updateProvider])
 }

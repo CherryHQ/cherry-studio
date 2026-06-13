@@ -274,6 +274,16 @@ describe('FileProcessingSettings', () => {
     })
   })
 
+  it('shows feature group titles so processors shared by OCR and document parsing are not ambiguous', async () => {
+    render(<FileProcessingSettings />)
+
+    expect(await screen.findByText('settings.tool.file_processing.features.image_to_text.title')).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.features.document_to_markdown.title')).toBeInTheDocument()
+    expect(
+      screen.getAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
+    ).toHaveLength(2)
+  })
+
   it('shows the provider detail header with a default badge and hides the default button', async () => {
     preferencesMock.defaultImageProcessor = 'system'
 
@@ -510,14 +520,14 @@ describe('FileProcessingSettings', () => {
     )
 
     const apiKeyLabel = screen.getByText('settings.tool.file_processing.fields.api_key')
-    const modelSection = screen.getByText('settings.tool.file_processing.sections.model_parameters')
+    const parseModelLabel = screen.getByText('settings.tool.file_processing.processors.paddleocr.fields.parse_model')
     const deploymentDescription = screen.getByText(
       'settings.tool.file_processing.processors.paddleocr.deployment.description'
     )
 
     expect(deploymentDescription).toBeInTheDocument()
-    expect(apiKeyLabel.compareDocumentPosition(modelSection)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
-    expect(modelSection.compareDocumentPosition(deploymentDescription)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(apiKeyLabel.compareDocumentPosition(parseModelLabel)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(parseModelLabel.compareDocumentPosition(deploymentDescription)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     expect(
       screen.getByRole('link', { name: /settings.tool.file_processing.processors.paddleocr.deployment.docs/ })
     ).toHaveAttribute('href', PADDLEOCR_DEPLOYMENT_URL)
@@ -596,6 +606,32 @@ describe('FileProcessingSettings', () => {
     expect(
       screen.getByRole('button', { name: 'settings.tool.file_processing.processors.paddleocr.fields.parse_model' })
     ).toHaveTextContent('PP-StructureV3')
+  })
+
+  it('shows only OCR-safe model options for PaddleOCR image_to_text', async () => {
+    render(<FileProcessingSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[0]
+    )
+
+    expect(screen.getByRole('button', { name: 'PP-OCRv6' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PP-OCRv5' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'PaddleOCR-VL-1.5' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'PP-StructureV3' })).not.toBeInTheDocument()
+  })
+
+  it('shows only document parsing model options for PaddleOCR document_to_markdown', async () => {
+    render(<FileProcessingSettings />)
+
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /settings.tool.file_processing.processors.paddleocr.name/ }))[1]
+    )
+
+    expect(screen.getByRole('button', { name: 'PaddleOCR-VL-1.5' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PaddleOCR-VL' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PP-StructureV3' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'PP-OCRv6' })).not.toBeInTheDocument()
   })
 
   it('manages Tesseract language packs with the settings combobox', async () => {

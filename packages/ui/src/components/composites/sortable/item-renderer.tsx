@@ -76,7 +76,7 @@ export function ItemRenderer<T>({
         }
         {...listeners}
         {...props}>
-        {renderItem(item, { dragging: !!dragging })}
+        {renderItem(item, { dragging: !!dragging, overlay: !!dragOverlay })}
       </div>
     </div>
   )

@@ -1,6 +1,5 @@
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { SpanEntity } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
 import type {
   AiAgentSessionWarmCloseRequest,
@@ -444,6 +443,10 @@ const api = {
       const buffer = await file.arrayBuffer()
       return ipcRenderer.invoke(IpcChannel.Mcp_UploadDxt, buffer, file.name)
     },
+    uploadMcpb: async (file: File) => {
+      const buffer = await file.arrayBuffer()
+      return ipcRenderer.invoke(IpcChannel.Mcp_UploadMcpb, buffer, file.name)
+    },
     abortTool: (callId: string) => ipcRenderer.invoke(IpcChannel.Mcp_AbortTool, callId),
     getServerVersion: (serverId: string): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetServerVersion, serverId),
@@ -694,12 +697,7 @@ const api = {
   //   ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
   // setUseSystemTitleBar: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetUseSystemTitleBar, isActive),
   trace: {
-    saveData: (topicId: string) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_DATA, topicId),
-    saveEntity: (entity: SpanEntity) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_ENTITY, entity),
-    getEntity: (spanId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_ENTITY, spanId),
-    bindTopic: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_BIND_TOPIC, topicId, traceId),
-    cleanHistory: (topicId: string, traceId: string, modelName?: string) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_HISTORY, topicId, traceId, modelName),
+    getData: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId),
     cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA)
   },
   codeCli: {

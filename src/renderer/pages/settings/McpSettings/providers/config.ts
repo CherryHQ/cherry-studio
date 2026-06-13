@@ -1,5 +1,5 @@
 import type { CompoundIcon } from '@cherrystudio/ui'
-import { Ai302, Bailian, Lanyun, Mcprouter, Modelscope, Tokenflux } from '@cherrystudio/ui/icons'
+import { Ai302, Bailian, Lanyun, Mcprouter, Modelscope } from '@cherrystudio/ui/icons'
 import type { McpServer } from '@renderer/types'
 
 import { getAI302Token, saveAI302Token, syncAi302Servers } from './302ai'
@@ -7,7 +7,6 @@ import { getBailianToken, saveBailianToken, syncBailianServers } from './bailian
 import { getTokenLanYunToken, LANYUN_KEY_HOST, saveTokenLanYunToken, syncTokenLanYunServers } from './lanyun'
 import { getMcpRouterToken, saveMcpRouterToken, syncMcpRouterServers } from './mcprouter'
 import { getModelScopeToken, MODELSCOPE_HOST, saveModelScopeToken, syncModelScopeServers } from './modelscope'
-import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_HOST } from './tokenflux'
 
 export interface SyncResult {
   success: boolean
@@ -51,17 +50,6 @@ export const providers: ProviderConfig[] = [
     getToken: getModelScopeToken,
     saveToken: saveModelScopeToken,
     syncServers: syncModelScopeServers
-  },
-  {
-    key: 'tokenflux',
-    nameKey: 'TokenFlux',
-    descriptionKey: 'settings.mcp.sync.providerDescriptions.tokenflux',
-    discoverUrl: `${TOKENFLUX_HOST}/mcps`,
-    apiKeyUrl: `${TOKENFLUX_HOST}/dashboard/api-keys`,
-    tokenFieldName: 'tokenfluxToken',
-    getToken: getTokenFluxToken,
-    saveToken: saveTokenFluxToken,
-    syncServers: syncTokenFluxServers
   },
   {
     key: 'lanyun',
@@ -108,7 +96,6 @@ export const getProviderDisplayName = (provider: ProviderConfig, t: (key: string
 
 const MCP_PROVIDER_ICONS: Record<string, CompoundIcon> = {
   modelscope: Modelscope,
-  tokenflux: Tokenflux,
   lanyun: Lanyun,
   '302ai': Ai302,
   bailian: Bailian,

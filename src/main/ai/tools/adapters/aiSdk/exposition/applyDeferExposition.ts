@@ -4,8 +4,9 @@
  * Decides which entries are deferred (via {@link shouldDefer}) and rebuilds
  * the ToolSet so the model sees:
  *   - non-deferred entries inline, exactly as before
- *   - `tool_search` + `tool_invoke` meta-tools when at least one entry is
- *     deferred, so the deferred set is still discoverable / callable
+ *   - `tool_search` + `tool_inspect` + `tool_invoke` meta-tools when at least
+ *     one entry is deferred, so the deferred set is still discoverable /
+ *     inspectable / callable
  *
  * Returns the deferred entries alongside the rebuilt ToolSet so callers
  * (system-prompt assembly, observability) can introspect what's hidden
@@ -50,13 +51,19 @@ export function applyDeferExposition(
   // are added below — they don't address themselves.
   const allowedNames = new Set(Object.keys(tools))
 
+  // Shared per-request inspect-before-invoke ledger: `tool_inspect` (and a verbose `tool_search`)
+  // record the tools whose signature the model has seen; `tool_invoke` requires membership before
+  // running one. The ledger persists across every step of one streamText loop and resets per
+  // request — the model confirms a tool's schema once per request, not once per turn.
+  const inspectedNames = new Set<string>()
+
   const inlineTools: ToolSet = {}
   for (const [name, entry] of Object.entries(tools)) {
     if (!deferredNames.has(name)) inlineTools[name] = entry
   }
-  inlineTools[TOOL_SEARCH_TOOL_NAME] = createToolSearchTool(registry, deferredNames)
-  inlineTools[TOOL_INSPECT_TOOL_NAME] = createToolInspectTool(registry, allowedNames)
-  inlineTools[TOOL_INVOKE_TOOL_NAME] = createToolInvokeTool(registry, allowedNames)
+  inlineTools[TOOL_SEARCH_TOOL_NAME] = createToolSearchTool(registry, deferredNames, inspectedNames)
+  inlineTools[TOOL_INSPECT_TOOL_NAME] = createToolInspectTool(registry, allowedNames, inspectedNames)
+  inlineTools[TOOL_INVOKE_TOOL_NAME] = createToolInvokeTool(registry, allowedNames, inspectedNames)
   // `tool_exec` (worker-thread JS sandbox with full registry access) is
   // intentionally NOT injected by default — it is a meaningful privilege-
   // escalation surface vs the renderer's prior restrictions. Re-enable
