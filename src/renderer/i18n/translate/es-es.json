@@ -5512,6 +5512,7 @@
         }
       },
       "font": {
+        "apple_native": "Fuente nativa de Apple",
         "code": "fuente de código",
         "default": "predeterminado",
         "global": "Fuente global",

@@ -5512,6 +5512,7 @@
         }
       },
       "font": {
+        "apple_native": "Police native Apple",
         "code": "police de code",
         "default": "Par défaut",
         "global": "Police de caractère globale",

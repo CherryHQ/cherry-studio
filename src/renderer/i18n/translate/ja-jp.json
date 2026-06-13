@@ -5512,6 +5512,7 @@
         }
       },
       "font": {
+        "apple_native": "Apple ネイティブフォント",
         "code": "コードフォント",
         "default": "デフォルト",
         "global": "グローバルフォント",

@@ -59,6 +59,7 @@ type SpellCheckOption = { readonly value: string; readonly label: string; readon
 type CommonSettingsSection = 'display-language' | 'system-startup' | 'privacy-advanced' | 'custom-css'
 
 const defaultFontPreviewFamily = 'Ubuntu, -apple-system, system-ui, Arial, sans-serif'
+const appleSystemFontFamily = '-apple-system'
 const logger = loggerService.withContext('CommonSettings')
 
 const spellCheckLanguageOptions: readonly SpellCheckOption[] = [
@@ -383,7 +384,11 @@ const CommonSettings: FC = () => {
         label: t('settings.display.font.default'),
         value: ''
       },
-      ...fontList.map((font) => ({ label: font, value: font }))
+      {
+        label: t('settings.display.font.apple_native'),
+        value: appleSystemFontFamily
+      },
+      ...fontList.filter((font) => font !== appleSystemFontFamily).map((font) => ({ label: font, value: font }))
     ],
     [fontList, t]
   )

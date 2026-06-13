@@ -4,6 +4,12 @@
 import { usePreference } from '@data/hooks/usePreference'
 import Color from 'color'
 
+const unquotedFontFamilyValues = new Set(['-apple-system'])
+
+const formatCssFontFamilyValue = (value: string) => {
+  return unquotedFontFamilyValues.has(value) ? value : `'${value}'`
+}
+
 export default function useUserTheme() {
   const [colorPrimary, setColorPrimary] = usePreference('ui.theme_user.color_primary')
   const [userFontFamily, setUserFontFamily] = usePreference('ui.theme_user.font_family')
@@ -11,7 +17,7 @@ export default function useUserTheme() {
 
   const setOptionalCssVar = (name: string, value?: string) => {
     if (value?.trim()) {
-      document.documentElement.style.setProperty(name, `'${value}'`)
+      document.documentElement.style.setProperty(name, formatCssFontFamilyValue(value))
       return
     }
 

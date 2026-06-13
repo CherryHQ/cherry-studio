@@ -5512,6 +5512,7 @@
         }
       },
       "font": {
+        "apple_native": "Apple Native",
         "code": "Code Font",
         "default": "Default",
         "global": "Global Font",

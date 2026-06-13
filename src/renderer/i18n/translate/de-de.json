@@ -5512,6 +5512,7 @@
         }
       },
       "font": {
+        "apple_native": "Apple-Systemschrift",
         "code": "Code-Schriftart",
         "default": "Standard",
         "global": "Globale Schriftart",
