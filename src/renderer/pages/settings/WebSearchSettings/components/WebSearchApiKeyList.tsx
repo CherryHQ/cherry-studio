@@ -1,5 +1,6 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle, Input, Tooltip } from '@cherrystudio/ui'
 import { EditIcon } from '@renderer/components/Icons'
+import { useTopViewClose } from '@renderer/components/Popups/useTopViewClose'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { TopView } from '@renderer/components/TopView'
 import { maskApiKey } from '@renderer/utils/api'
@@ -222,20 +223,8 @@ interface PopupProps extends ShowParams {
 const PopupContainer: FC<PopupProps> = ({ providerId, title, resolve }) => {
   const [open, setOpen] = useState(true)
   const { t } = useTranslation()
-  const resolvedRef = useRef(false)
-
-  const closePopup = () => {
-    if (resolvedRef.current) {
-      return
-    }
-
-    resolvedRef.current = true
-    setOpen(false)
-    window.setTimeout(() => {
-      resolve(null)
-      TopView.hide(TopViewKey)
-    }, 200)
-  }
+  const closeTopView = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
+  const closePopup = () => closeTopView(null)
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen ? setOpen(true) : closePopup())}>
@@ -254,15 +243,7 @@ const TopViewKey = 'WebSearchApiKeyListPopup'
 export class WebSearchApiKeyListPopup {
   static show(props: ShowParams) {
     return new Promise<unknown>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(value) => {
-            resolve(value)
-          }}
-        />,
-        TopViewKey
-      )
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }

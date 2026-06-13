@@ -13,13 +13,14 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { useTopViewClose } from '@renderer/components/Popups/useTopViewClose'
 import { TopView } from '@renderer/components/TopView'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -45,20 +46,15 @@ type FieldType = {
 
 const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels }) => {
   const [open, setOpen] = useState(true)
-  const resolvedRef = useRef(false)
   const [endpointType, setEndpointType] = useState<EndpointType>(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   const [submitting, setSubmitting] = useState(false)
   const { createModels } = useModelMutations()
   const { models: existingModels } = useModels({ providerId: provider.id })
   const { t } = useTranslation()
+  const close = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
 
   const closeWithResult = (data: any) => {
-    if (resolvedRef.current) {
-      return
-    }
-    resolvedRef.current = true
-    setOpen(false)
-    resolve(data)
+    close(data)
   }
 
   const onCancel = () => {
@@ -154,23 +150,16 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   )
 }
 
+const TopViewKey = 'NewApiBatchAddModelPopup'
+
 export default class NewApiBatchAddModelPopup {
   static topviewId = 0
   static hide() {
-    TopView.hide('NewApiBatchAddModelPopup')
+    TopView.hide(TopViewKey)
   }
   static show(props: ShowParams) {
     return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          {...props}
-          resolve={(v) => {
-            resolve(v)
-            this.hide()
-          }}
-        />,
-        'NewApiBatchAddModelPopup'
-      )
+      TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
 }

@@ -1,11 +1,10 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import HistoryPage from '@renderer/pages/history/HistoryPage'
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
-
-const CLOSE_ANIMATION_MS = 200
+import { useTopViewClose } from './useTopViewClose'
 
 interface Props {
   resolve: (data: any) => void
@@ -13,21 +12,9 @@ interface Props {
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
-  const resolvedRef = useRef(false)
   const { t } = useTranslation()
-
-  const resolveAfterClose = () => {
-    if (resolvedRef.current) return
-    resolvedRef.current = true
-    window.setTimeout(() => {
-      resolve({})
-    }, CLOSE_ANIMATION_MS)
-  }
-
-  const closePopup = () => {
-    setOpen(false)
-    resolveAfterClose()
-  }
+  const closeTopView = useTopViewClose({ resolve, setOpen, topViewKey: 'SearchPopup' })
+  const closePopup = () => closeTopView({})
 
   const onOpenChange = (next: boolean) => {
     if (!next) {
@@ -58,15 +45,7 @@ export default class SearchPopup {
   }
   static show() {
     return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide('SearchPopup')
-          }}
-        />,
-        'SearchPopup'
-      )
+      TopView.show(<PopupContainer resolve={resolve} />, 'SearchPopup')
     })
   }
 }
