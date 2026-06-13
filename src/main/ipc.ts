@@ -88,18 +88,19 @@ export async function registerIpc() {
 
   // spell check
   ipcMain.handle(IpcChannel.App_SetEnableSpellCheck, (_, isEnable: boolean) => {
-    // disable spell check for all webviews
+    const windows = BrowserWindow.getAllWindows()
+    windows.forEach((window) => {
+      window.webContents.session.setSpellCheckerEnabled(isEnable)
+    })
     const webviews = webContents.getAllWebContents()
     webviews.forEach((webview) => {
       webview.session.setSpellCheckerEnabled(isEnable)
     })
+    void application.get('PreferenceService').set('app.spell_check.enabled', isEnable)
   })
 
   // spell check languages
   ipcMain.handle(IpcChannel.App_SetSpellCheckLanguages, (_, languages: string[]) => {
-    if (languages.length === 0) {
-      return
-    }
     const windows = BrowserWindow.getAllWindows()
     windows.forEach((window) => {
       window.webContents.session.setSpellCheckerLanguages(languages)
