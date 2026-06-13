@@ -207,6 +207,25 @@ export class RuntimeExecutor<
   // === 辅助方法 ===
 
   /**
+   * Resolve a model id to a `LanguageModelV3` instance using this
+   * executor's configured provider + registry.
+   *
+   * Single source of truth for model resolution: respects the optional
+   * `modelResolver` (xAI responses, OpenAI chat, etc.) and falls back
+   * to `registry.languageModel('${providerId}:${modelId}')`. Both the
+   * agent path (via internal `resolveModel` → `streamText`) and external
+   * callers that need a bare `LanguageModelV3` (e.g. context-build's
+   * compression model) go through this method, so the resolution logic
+   * never forks.
+   */
+  public async languageModel(modelId: string): Promise<LanguageModelV3> {
+    if (this.config.modelResolver) {
+      return this.config.modelResolver(modelId)
+    }
+    return this.registry.languageModel(`${this.config.providerId}:${modelId}` as `${string}:${string}`)
+  }
+
+  /**
    * 解析模型：将字符串 modelId 解析为 model 对象
    *
    * 对于有 modelResolver 的配置（如 xAI responses, OpenAI chat），
@@ -215,10 +234,7 @@ export class RuntimeExecutor<
    */
   private async resolveModel(modelOrId: LanguageModel): Promise<LanguageModelV3> {
     if (typeof modelOrId === 'string') {
-      if (this.config.modelResolver) {
-        return this.config.modelResolver(modelOrId)
-      }
-      return this.registry.languageModel(`${this.config.providerId}:${modelOrId}` as `${string}:${string}`)
+      return this.languageModel(modelOrId)
     } else {
       if (!isV3Model(modelOrId)) {
         throw new Error(
