@@ -33,7 +33,9 @@ const buttonVariants = cva(
         lg: 'min-h-9 px-4 text-sm',
         icon: 'size-9',
         'icon-sm': 'size-7',
-        'icon-lg': 'size-10'
+        'icon-lg': 'size-10',
+        /** Navbar / toolbar icon button: 30px box, 18px icon (8px radius from base). */
+        'icon-navbar': 'size-[30px] [&_svg]:!size-[18px]'
       }
     },
     defaultVariants: {
@@ -84,7 +86,7 @@ function Button({
       className={cn(buttonVariants({ variant, size, className }))}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      data-loading={loading || undefined}
+      data-busy={loading || undefined || undefined}
       {...props}>
       {/* asChild mode does not support loading because Slot requires a single child element */}
       {asChild ? (
