@@ -187,7 +187,7 @@ class ProviderService {
       conditions.push(sql`json_extract(${userProviderTable.endpointConfigs}, ${'$.' + query.endpointType}) IS NOT NULL`)
     }
 
-    const rows =
+    let rows =
       conditions.length > 0
         ? await db
             .select()
@@ -195,6 +195,10 @@ class ProviderService {
             .where(and(...conditions))
             .orderBy(asc(userProviderTable.orderKey))
         : await db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey))
+
+    if (query.hasEnabledApiKey !== undefined) {
+      rows = rows.filter((row) => (row.apiKeys ?? []).some((key) => key.isEnabled) === query.hasEnabledApiKey)
+    }
 
     return rows.map(rowToRuntimeProvider)
   }
