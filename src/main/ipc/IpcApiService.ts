@@ -39,7 +39,8 @@ export class IpcApiService extends BaseService {
   protected onInit(): void {
     // Native ipcMain.handle (not BaseService.ipcHandle sugar — that is deprecated, see ipc-migration-guide.md),
     // cleaned up via registerDisposable, mirroring DataApi's IpcAdapter.
-    ipcMain.handle(IpcChannel.IpcApi_Request, (event, route: string, input: unknown, _meta?: unknown) =>
+    // Preload also forwards an optional trace `meta` 4th arg; it is ignored here until tracing is wired.
+    ipcMain.handle(IpcChannel.IpcApi_Request, (event, route: string, input: unknown) =>
       this.handleRequest(event, route, input)
     )
     this.registerDisposable(() => ipcMain.removeHandler(IpcChannel.IpcApi_Request))
