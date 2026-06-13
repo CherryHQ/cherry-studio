@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const getById = vi.fn()
 const listServers = vi.fn()
 const listTools = vi.fn()
+const runtimeListResources = vi.fn()
+const runtimeListPrompts = vi.fn()
 const cacheStore = new Map<string, unknown>()
 const cacheService = {
   has: vi.fn((key: string) => cacheStore.has(key)),
@@ -19,7 +21,9 @@ const runtimeService = {
     operation({ listTools })
   ),
   setServerStatus: vi.fn(),
-  onToolListChanged: vi.fn(() => ({ dispose: vi.fn() }))
+  onToolListChanged: vi.fn(() => ({ dispose: vi.fn() })),
+  listResources: runtimeListResources,
+  listPrompts: runtimeListPrompts
 }
 
 vi.mock('@application', async () => {
@@ -61,6 +65,8 @@ describe('McpCatalogService', () => {
     getById.mockReset()
     listServers.mockReset()
     listTools.mockReset()
+    runtimeListResources.mockReset()
+    runtimeListPrompts.mockReset()
     cacheStore.clear()
     Object.values(cacheService).forEach((mock) => mock.mockClear())
     runtimeService.getServerKey.mockClear()
@@ -134,5 +140,23 @@ describe('McpCatalogService', () => {
       'mcp.tools.server-1',
       expect.arrayContaining([expect.objectContaining({ name: 'search' })])
     )
+  })
+
+  it('delegates listResources to the runtime service', async () => {
+    const resources = [{ uri: 'file://a', name: 'a', serverId: 'server-1', serverName: 'docs' }]
+    runtimeListResources.mockResolvedValue(resources)
+
+    const service = new McpCatalogService()
+    await expect(service.listResources('server-1')).resolves.toBe(resources)
+    expect(runtimeListResources).toHaveBeenCalledWith('server-1')
+  })
+
+  it('delegates listPrompts to the runtime service', async () => {
+    const prompts = [{ id: 'p1', name: 'greet', serverId: 'server-1', serverName: 'docs' }]
+    runtimeListPrompts.mockResolvedValue(prompts)
+
+    const service = new McpCatalogService()
+    await expect(service.listPrompts('server-1')).resolves.toBe(prompts)
+    expect(runtimeListPrompts).toHaveBeenCalledWith('server-1')
   })
 })
