@@ -14,6 +14,7 @@ import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
 import { application } from '@application'
 import { createMiddleware } from '@context-chef/ai-sdk-middleware'
 import { FileSystemAdapter } from '@context-chef/core'
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import type { LanguageModelMiddleware } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -36,8 +37,21 @@ afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true })
 })
 
-function makeScope(entries: Array<{ name: string; truncatable?: boolean }> = []): RequestScope {
-  return { registry: { getAll: () => entries } } as never
+interface ScopeOverrides {
+  entries?: Array<{ name: string; truncatable?: boolean }>
+  contextSettings?: RequestScope['contextSettings']
+  compressionModel?: RequestScope['compressionModel']
+  model?: Partial<RequestScope['model']>
+}
+
+function makeScope(overrides: ScopeOverrides = {}): RequestScope {
+  return {
+    registry: { getAll: () => overrides.entries ?? [] },
+    model: { id: 'test-model', contextWindow: 200_000, ...overrides.model },
+    request: {},
+    contextSettings: overrides.contextSettings ?? DEFAULT_CONTEXT_SETTINGS,
+    compressionModel: overrides.compressionModel ?? null
+  } as never
 }
 
 /**
@@ -90,8 +104,23 @@ function makePrompt(toolName: string, chars: number): LanguageModelV3Prompt {
   ]
 }
 
+/**
+ * Expected shape after always-on `compact: { reasoning: 'before-last-message' }`
+ * runs: the stale reasoning part on the (non-final) assistant message is
+ * dropped. Everything else — system content, tool-call inputs, part- and
+ * message-level providerOptions, the json tool output — must still round-trip
+ * losslessly through chef's fromAISDK/toAISDK adapter. This helper lets the
+ * round-trip assertions stay strict on the adapter while accounting for the
+ * compaction step the feature now configures.
+ */
+function compacted(prompt: LanguageModelV3Prompt): LanguageModelV3Prompt {
+  return prompt.map((m) =>
+    m.role === 'assistant' ? { ...m, content: m.content.filter((p) => p.type !== 'reasoning') } : m
+  )
+}
+
 async function runTransform(prompt: LanguageModelV3Prompt, scope: RequestScope): Promise<LanguageModelV3Prompt> {
-  const middleware = createMiddleware(buildChefOptions(scope))
+  const middleware = createMiddleware(buildChefOptions(scope)!)
   const result = await middleware.transformParams!({
     params: { prompt } as never,
     type: 'generate',
@@ -133,32 +162,38 @@ describe('buildChefOptions → createMiddleware', () => {
   })
 
   it('preserves tools flagged truncatable: false verbatim (perTool exemption)', async () => {
-    const scope = makeScope([{ name: 'kb__search', truncatable: false }, { name: 'web__fetch' }])
+    const scope = makeScope({ entries: [{ name: 'kb__search', truncatable: false }, { name: 'web__fetch' }] })
     const out = await runTransform(makePrompt('kb__search', BIG), scope)
     expect(toolOutput(out).value).toBe('x'.repeat(BIG))
     expect(fs.readdirSync(tmpDir)).toHaveLength(0)
   })
 
-  it('round-trips a prompt under the threshold losslessly', async () => {
-    // Deep equality over the WHOLE prompt: system string content, assistant
-    // reasoning with provider thoughtSignature, tool-call input, part-level
-    // and message-level providerOptions. If this fails, the bug is in
-    // context-chef's fromAISDK/toAISDK adapter — STOP and fix upstream
-    // (@context-chef/ai-sdk-middleware), do not paper over it here.
+  it('round-trips a prompt under the threshold losslessly (modulo compacted reasoning)', async () => {
+    // Deep equality over the WHOLE prompt: system string content, tool-call
+    // input, part-level and message-level providerOptions, the json output.
+    // The stale reasoning part is intentionally dropped by the always-on
+    // `compact` step (see compacted()); everything else must survive. If the
+    // surviving fields differ, the bug is in context-chef's fromAISDK/toAISDK
+    // adapter — STOP and fix upstream (@context-chef/ai-sdk-middleware), do
+    // not paper over it here.
     const out = await runTransform(makePrompt('web__fetch', 100), makeScope())
-    expect(out).toEqual(makePrompt('web__fetch', 100))
+    expect(out).toEqual(compacted(makePrompt('web__fetch', 100)))
   })
 
-  it('leaves non-truncated portions of an oversized prompt untouched', async () => {
+  it('leaves non-truncated portions of an oversized prompt untouched (modulo compacted reasoning)', async () => {
     const out = await runTransform(makePrompt('mcp__srv__dump', BIG), makeScope())
-    const reference = makePrompt('mcp__srv__dump', BIG)
+    const reference = compacted(makePrompt('mcp__srv__dump', BIG))
     expect(out.filter((m) => m.role !== 'tool')).toEqual(reference.filter((m) => m.role !== 'tool'))
   })
 })
 
 describe('contextBuildFeature', () => {
-  it('is always active and contributes one middleware-pushing plugin', async () => {
-    expect(contextBuildFeature.applies).toBeUndefined()
+  it('is gated on contextSettings.enabled and contributes one middleware-pushing plugin', async () => {
+    expect(contextBuildFeature.applies!(makeScope())).toBe(true)
+    expect(
+      contextBuildFeature.applies!(makeScope({ contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, enabled: false } }))
+    ).toBe(false)
+
     const plugins = contextBuildFeature.contributeModelAdapters!(makeScope())
     expect(plugins).toHaveLength(1)
 
@@ -166,5 +201,45 @@ describe('contextBuildFeature', () => {
     await (plugins[0] as { configureContext: (c: unknown) => void | Promise<void> }).configureContext(ctx)
     expect(ctx.middlewares).toHaveLength(1)
     expect(typeof ctx.middlewares![0].transformParams).toBe('function')
+  })
+
+  it('pushes no middleware when context settings are disabled', async () => {
+    const scope = makeScope({ contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, enabled: false } })
+    const plugins = contextBuildFeature.contributeModelAdapters!(scope)
+    const ctx = { middlewares: undefined as LanguageModelMiddleware[] | undefined }
+    await (plugins[0] as { configureContext: (c: unknown) => void | Promise<void> }).configureContext(ctx)
+    expect(ctx.middlewares).toBeUndefined()
+  })
+})
+
+describe('buildChefOptions — compression wiring', () => {
+  it('returns null when context settings are disabled', () => {
+    const scope = makeScope({ contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, enabled: false } })
+    expect(buildChefOptions(scope)).toBeNull()
+  })
+
+  it('wires compact + truncate + contextWindow when enabled', () => {
+    const scope = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS })
+    const opts = buildChefOptions(scope)!
+    expect(opts).not.toBeNull()
+    expect(opts.compact).toEqual({ reasoning: 'before-last-message', emptyMessages: 'remove' })
+    expect(opts.truncate?.threshold).toBe(DEFAULT_CONTEXT_SETTINGS.truncateThreshold)
+    expect(typeof opts.contextWindow).toBe('number')
+    expect(opts.onBeforeCompress).toBeTypeOf('function')
+    expect(opts.logger).toBeDefined()
+  })
+
+  it('attaches compress only when enabled AND a model resolved', () => {
+    const withModel = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS, compressionModel: {} as never })
+    expect(buildChefOptions(withModel)!.compress).toEqual({ model: {} })
+
+    const noModel = makeScope({ contextSettings: DEFAULT_CONTEXT_SETTINGS, compressionModel: null })
+    expect(buildChefOptions(noModel)!.compress).toBeUndefined()
+
+    const compressOff = makeScope({
+      contextSettings: { ...DEFAULT_CONTEXT_SETTINGS, compress: { enabled: false, modelId: null } },
+      compressionModel: {} as never
+    })
+    expect(buildChefOptions(compressOff)!.compress).toBeUndefined()
   })
 })
