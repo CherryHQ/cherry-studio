@@ -1,8 +1,6 @@
 import 'katex/dist/katex.min.css'
 
-import { TableKit } from '@cherrystudio/extension-table-plus'
 import { loggerService } from '@logger'
-import { MARKDOWN_SOURCE_LINE_ATTR } from '@renderer/components/RichEditor/constants'
 import type { FormattingState } from '@renderer/components/RichEditor/types'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import {
@@ -11,57 +9,18 @@ import {
   markdownToHtml,
   markdownToPreviewText
 } from '@renderer/utils/markdownConverter'
-import type { Editor } from '@tiptap/core'
-import { Extension } from '@tiptap/core'
-import { TaskItem, TaskList } from '@tiptap/extension-list'
+import type { Editor, EditorOptions } from '@tiptap/core'
 import { migrateMathStrings } from '@tiptap/extension-mathematics'
-import Mention from '@tiptap/extension-mention'
-import {
-  getHierarchicalIndexes,
-  type TableOfContentDataItem,
-  TableOfContents
-} from '@tiptap/extension-table-of-contents'
-import Typography from '@tiptap/extension-typography'
-import { useEditor, useEditorState } from '@tiptap/react'
-import { StarterKit } from '@tiptap/starter-kit'
+import { type TableOfContentDataItem } from '@tiptap/extension-table-of-contents'
+import { useEditorState } from '@tiptap/react'
 import { t } from 'i18next'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { commandSuggestion } from './command'
-import { CodeBlockShiki } from './extensions/codeBlockShiki/codeBlockShiki'
-import { EnhancedImage } from './extensions/enhancedImage'
-import { EnhancedLink } from './extensions/enhancedLink'
-import { EnhancedMath } from './extensions/enhancedMath'
-import { Placeholder } from './extensions/placeholder'
-import { YamlFrontMatter } from './extensions/yamlFrontMatter'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
+import { createDocumentEditorPreset } from './presets/documentEditorPreset'
+import { useRichTextEditorKernel } from './useRichTextEditorKernel'
 
 const logger = loggerService.withContext('useRichEditor')
-
-// Create extension to preserve data-source-line attribute
-const SourceLineAttribute = Extension.create({
-  name: 'sourceLineAttribute',
-  addGlobalAttributes() {
-    return [
-      {
-        types: ['paragraph', 'heading', 'blockquote', 'bulletList', 'orderedList', 'listItem', 'horizontalRule'],
-        attributes: {
-          dataSourceLine: {
-            default: null,
-            parseHTML: (element) => {
-              const value = element.getAttribute(MARKDOWN_SOURCE_LINE_ATTR)
-              return value
-            },
-            renderHTML: (attributes) => {
-              if (!attributes.dataSourceLine) return {}
-              return { [MARKDOWN_SOURCE_LINE_ATTR]: attributes.dataSourceLine }
-            }
-          }
-        }
-      }
-    ]
-  }
-})
 
 export interface UseRichEditorOptions {
   /** Initial markdown content */
@@ -219,233 +178,180 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   )
 
   const handleLinkHoverEnd = useCallback(() => {}, [])
+  const editorRef = useRef<Editor | null>(null)
 
-  // TipTap editor extensions
-  const extensions = useMemo(
-    () => [
-      SourceLineAttribute,
-      StarterKit.configure({
-        heading: {
-          levels: [1, 2, 3, 4, 5, 6]
-        },
-        codeBlock: false,
-        link: false
-      }),
-      EnhancedLink.configure({
-        onLinkHover: handleLinkHover,
-        onLinkHoverEnd: handleLinkHoverEnd,
-        editable: editable
-      }),
-      TableOfContents.configure({
-        getIndex: getHierarchicalIndexes,
-        onUpdate(content) {
-          const resolveParent = (): HTMLElement | null => {
-            if (!scrollParent) return null
-            return typeof scrollParent === 'function' ? (scrollParent as () => HTMLElement)() : scrollParent
-          }
+  const showTableActionMenu = useCallback(
+    (type: 'row' | 'column', index: number, position?: { x: number; y: number }) => {
+      const currentEditor = editorRef.current
+      if (!currentEditor) return
 
-          const parent = resolveParent()
-          if (!parent) return
-          const parentTop = parent.getBoundingClientRect().top
-
-          let closestIndex = -1
-          let minDelta = Number.POSITIVE_INFINITY
-          for (let i = 0; i < content.length; i++) {
-            const rect = content[i].dom.getBoundingClientRect()
-            const delta = rect.top - parentTop
-            const inThreshold = delta >= -50 && delta < minDelta
-
-            if (inThreshold) {
-              minDelta = delta
-              closestIndex = i
+      const actions = [
+        {
+          id: type === 'row' ? 'insertRowBefore' : 'insertColumnBefore',
+          label:
+            type === 'row'
+              ? t('richEditor.action.table.insertRowBefore')
+              : t('richEditor.action.table.insertColumnBefore'),
+          action: () => {
+            if (type === 'row') {
+              currentEditor.chain().focus().addRowBefore().run()
+            } else {
+              currentEditor.chain().focus().addColumnBefore().run()
             }
-          }
-          if (closestIndex === -1) {
-            // If all are above the viewport, pick the last one above
-            for (let i = 0; i < content.length; i++) {
-              const rect = content[i].dom.getBoundingClientRect()
-              if (rect.top < parentTop) closestIndex = i
-            }
-            if (closestIndex === -1) closestIndex = 0
-          }
-
-          const normalized = content.map((item, idx) => {
-            const rect = item.dom.getBoundingClientRect()
-            const isScrolledOver = rect.top < parentTop
-            const isActive = idx === closestIndex
-            return { ...item, isActive, isScrolledOver }
-          })
-
-          setTableOfContentsItems(normalized)
-        },
-        scrollParent: (scrollParent as any) ?? window
-      }),
-      CodeBlockShiki.configure({
-        theme: activeShikiTheme,
-        defaultLanguage: 'text'
-      }),
-      EnhancedMath.configure({
-        blockOptions: {
-          onClick: (node, pos) => {
-            // Get position from the clicked element
-            let position: { x: number; y: number; top: number } | undefined
-            if (event?.target instanceof HTMLElement) {
-              const rect =
-                event.target.closest('.math-display')?.getBoundingClientRect() || event.target.getBoundingClientRect()
-              position = {
-                x: rect.left + rect.width / 2,
-                y: rect.bottom,
-                top: rect.top
-              }
-            }
-
-            const customEvent = new CustomEvent('openMathDialog', {
-              detail: {
-                defaultValue: node.attrs.latex || '',
-                position: position,
-                onSubmit: () => {
-                  editor.commands.focus()
-                },
-                onFormulaChange: (formula: string) => {
-                  editor.chain().setNodeSelection(pos).updateBlockMath({ latex: formula }).run()
-                }
-              }
-            })
-            window.dispatchEvent(customEvent)
-            return true
           }
         },
-        inlineOptions: {
-          onClick: (node, pos) => {
-            let position: { x: number; y: number; top: number } | undefined
-            if (event?.target instanceof HTMLElement) {
-              const rect =
-                event.target.closest('.math-inline')?.getBoundingClientRect() || event.target.getBoundingClientRect()
-              position = {
-                x: rect.left + rect.width / 2,
-                y: rect.bottom,
-                top: rect.top
-              }
+        {
+          id: type === 'row' ? 'insertRowAfter' : 'insertColumnAfter',
+          label:
+            type === 'row'
+              ? t('richEditor.action.table.insertRowAfter')
+              : t('richEditor.action.table.insertColumnAfter'),
+          action: () => {
+            if (type === 'row') {
+              currentEditor.chain().focus().addRowAfter().run()
+            } else {
+              currentEditor.chain().focus().addColumnAfter().run()
             }
-
-            const customEvent = new CustomEvent('openMathDialog', {
-              detail: {
-                defaultValue: node.attrs.latex || '',
-                position: position,
-                onSubmit: () => {
-                  editor.commands.focus()
-                },
-                onFormulaChange: (formula: string) => {
-                  editor.chain().setNodeSelection(pos).updateInlineMath({ latex: formula }).run()
-                }
-              }
-            })
-            window.dispatchEvent(customEvent)
-            return true
+          }
+        },
+        {
+          id: type === 'row' ? 'deleteRow' : 'deleteColumn',
+          label: type === 'row' ? t('richEditor.action.table.deleteRow') : t('richEditor.action.table.deleteColumn'),
+          action: () => {
+            if (type === 'row') {
+              currentEditor.chain().focus().deleteRow().run()
+            } else {
+              currentEditor.chain().focus().deleteColumn().run()
+            }
           }
         }
-      }),
-      EnhancedImage,
-      Placeholder.configure({
-        placeholder,
-        showOnlyWhenEditable: true,
-        showOnlyCurrent: true,
-        includeChildren: false
-      }),
-      YamlFrontMatter,
-      Mention.configure({
-        HTMLAttributes: {
-          class: 'mention'
-        },
-        suggestion: commandSuggestion
-      }),
-      Typography,
-      TableKit.configure({
-        table: {
-          resizable: true,
-          allowTableNodeSelection: true,
-          onRowActionClick: ({ rowIndex, position }) => {
-            showTableActionMenu('row', rowIndex, position)
-          },
-          onColumnActionClick: ({ colIndex, position }) => {
-            showTableActionMenu('column', colIndex, position)
-          }
-        },
-        tableRow: {},
-        tableHeader: {},
-        tableCell: {
-          allowNestedNodes: false
-        }
-      }),
-      TaskList,
-      TaskItem.configure({
-        nested: true
-      })
-    ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [placeholder, activeShikiTheme, handleLinkHover, handleLinkHoverEnd]
+      ]
+
+      let finalPosition = position
+      if (!finalPosition) {
+        const rect = currentEditor.view.dom.getBoundingClientRect()
+        finalPosition = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+      }
+
+      onShowTableActionMenu?.({ type, index, position: finalPosition, actions })
+    },
+    [onShowTableActionMenu]
   )
 
-  const editor = useEditor({
+  const handleImagePaste = useCallback(async (file: File) => {
+    try {
+      let processedFile: File | Blob = file
+      let extension = file.type.split('/')[1] ? `.${file.type.split('/')[1]}` : '.png'
+
+      if (shouldCompressImage(file)) {
+        logger.info('Image needs compression, compressing...', {
+          originalSize: file.size,
+          fileName: file.name
+        })
+
+        processedFile = await compressImage(file, {
+          maxWidth: 1200,
+          maxHeight: 1200,
+          quality: 0.8,
+          outputFormat: file.type.includes('png') ? 'png' : 'jpeg'
+        })
+
+        extension = file.type.includes('png') ? '.png' : '.jpg'
+
+        logger.info('Image compressed successfully', {
+          originalSize: file.size,
+          compressedSize: processedFile.size,
+          compressionRatio: (((file.size - processedFile.size) / file.size) * 100).toFixed(1) + '%'
+        })
+      }
+
+      const arrayBuffer = await blobToArrayBuffer(processedFile)
+      const buffer = new Uint8Array(arrayBuffer)
+      const fileMetadata = await window.api.file.savePastedImage(buffer, extension)
+
+      const currentEditor = editorRef.current
+      if (currentEditor && !currentEditor.isDestroyed) {
+        const imageUrl = `file://${fileMetadata.path}`
+        currentEditor.chain().focus().setImage({ src: imageUrl, alt: fileMetadata.origin_name }).run()
+      }
+
+      logger.info('Image pasted and saved:', fileMetadata)
+    } catch (error) {
+      logger.error('Failed to handle image paste:', error as Error)
+    }
+  }, [])
+
+  const handlePaste = useCallback<NonNullable<EditorOptions['editorProps']['handlePaste']>>(
+    (view, event) => {
+      const { selection } = view.state
+      const { $from } = selection
+      if ($from.parent.type.name === 'codeBlock') {
+        const text = event.clipboardData?.getData('text/plain') || ''
+        if (text) {
+          const tr = view.state.tr.insertText(text, selection.from, selection.to)
+          view.dispatch(tr)
+          return true
+        }
+      }
+
+      const items = Array.from(event.clipboardData?.items || [])
+      const imageItem = items.find((item) => item.type.startsWith('image/'))
+
+      if (imageItem) {
+        const file = imageItem.getAsFile()
+        if (file) {
+          void handleImagePaste(file)
+          return true
+        }
+      }
+
+      const text = event.clipboardData?.getData('text/plain') ?? ''
+      if (text) {
+        const html = markdownToHtml(text)
+        const { $from } = selection
+        const atStartOfLine = $from.parentOffset === 0
+        const inEmptyParagraph = $from.parent.type.name === 'paragraph' && $from.parent.textContent === ''
+        const currentEditor = editorRef.current
+
+        if (!currentEditor) return false
+
+        if (!atStartOfLine && !inEmptyParagraph) {
+          const cleanHtml = html.replace(/^<p>(.*?)<\/p>/s, '$1')
+          currentEditor.commands.insertContent(cleanHtml)
+        } else {
+          currentEditor.commands.insertContent(html)
+        }
+        onPaste?.(html)
+        return true
+      }
+      return false
+    },
+    [handleImagePaste, onPaste]
+  )
+
+  const extensions = useMemo(
+    () =>
+      createDocumentEditorPreset({
+        activeShikiTheme,
+        editable,
+        placeholder,
+        scrollParent,
+        getEditor: () => editorRef.current,
+        onLinkHover: handleLinkHover,
+        onLinkHoverEnd: handleLinkHoverEnd,
+        onTableActionClick: showTableActionMenu,
+        onTableOfContentsItemsChange: setTableOfContentsItems
+      }),
+    [activeShikiTheme, editable, handleLinkHover, handleLinkHoverEnd, placeholder, scrollParent, showTableActionMenu]
+  )
+
+  const editor = useRichTextEditorKernel({
     shouldRerenderOnTransaction: true,
     extensions,
     content: html || '',
-    editable: editable,
-    editorProps: {
-      handlePaste: (view, event) => {
-        // First check if we're inside a code block - if so, insert plain text
-        const { selection } = view.state
-        const { $from } = selection
-        if ($from.parent.type.name === 'codeBlock') {
-          const text = event.clipboardData?.getData('text/plain') || ''
-          if (text) {
-            const tr = view.state.tr.insertText(text, selection.from, selection.to)
-            view.dispatch(tr)
-            return true
-          }
-        }
-
-        // Handle image paste
-        const items = Array.from(event.clipboardData?.items || [])
-        const imageItem = items.find((item) => item.type.startsWith('image/'))
-
-        if (imageItem) {
-          const file = imageItem.getAsFile()
-          if (file) {
-            // Handle image paste by saving to local storage
-            void handleImagePaste(file)
-            return true
-          }
-        }
-
-        // Default behavior for non-code blocks
-        const text = event.clipboardData?.getData('text/plain') ?? ''
-        if (text) {
-          const html = markdownToHtml(text)
-          const { $from } = selection
-          const atStartOfLine = $from.parentOffset === 0
-          const inEmptyParagraph = $from.parent.type.name === 'paragraph' && $from.parent.textContent === ''
-
-          if (!atStartOfLine && !inEmptyParagraph) {
-            const cleanHtml = html.replace(/^<p>(.*?)<\/p>/s, '$1')
-            editor.commands.insertContent(cleanHtml)
-          } else {
-            editor.commands.insertContent(html)
-          }
-          onPaste?.(html)
-          return true
-        }
-        return false
-      },
-      attributes: {
-        // Allow text selection even when not editable
-        style: editable
-          ? ''
-          : 'user-select: text; -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text;',
-        // Set spellcheck attribute on the contenteditable element
-        spellcheck: enableSpellCheck ? 'true' : 'false'
-      }
-    },
+    editable,
+    enableSpellCheck,
+    handlePaste,
     onUpdate: ({ editor, transaction }) => {
       // Ignore non-user updates (initialization/mode toggles/programmatic transactions)
       // to avoid re-serializing markdown while switching view modes.
@@ -479,57 +385,9 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     }
   })
 
-  // Handle image paste function
-  const handleImagePaste = useCallback(
-    async (file: File) => {
-      try {
-        let processedFile: File | Blob = file
-        let extension = file.type.split('/')[1] ? `.${file.type.split('/')[1]}` : '.png'
-
-        // 如果图片需要压缩，先进行压缩
-        if (shouldCompressImage(file)) {
-          logger.info('Image needs compression, compressing...', {
-            originalSize: file.size,
-            fileName: file.name
-          })
-
-          processedFile = await compressImage(file, {
-            maxWidth: 1200,
-            maxHeight: 1200,
-            quality: 0.8,
-            outputFormat: file.type.includes('png') ? 'png' : 'jpeg'
-          })
-
-          // 更新扩展名
-          extension = file.type.includes('png') ? '.png' : '.jpg'
-
-          logger.info('Image compressed successfully', {
-            originalSize: file.size,
-            compressedSize: processedFile.size,
-            compressionRatio: (((file.size - processedFile.size) / file.size) * 100).toFixed(1) + '%'
-          })
-        }
-
-        // Convert file to buffer
-        const arrayBuffer = await blobToArrayBuffer(processedFile)
-        const buffer = new Uint8Array(arrayBuffer)
-
-        // Save image to local storage
-        const fileMetadata = await window.api.file.savePastedImage(buffer, extension)
-
-        // Insert image into editor using local file path
-        if (editor && !editor.isDestroyed) {
-          const imageUrl = `file://${fileMetadata.path}`
-          editor.chain().focus().setImage({ src: imageUrl, alt: fileMetadata.origin_name }).run()
-        }
-
-        logger.info('Image pasted and saved:', fileMetadata)
-      } catch (error) {
-        logger.error('Failed to handle image paste:', error as Error)
-      }
-    },
-    [editor]
-  )
+  useEffect(() => {
+    editorRef.current = editor
+  }, [editor])
 
   useEffect(() => {
     if (editor && !editor.isDestroyed) {
@@ -608,65 +466,6 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       link: { href: '', text: '' }
     })
   }, [])
-
-  // Show action menu for table rows/columns
-  const showTableActionMenu = useCallback(
-    (type: 'row' | 'column', index: number, position?: { x: number; y: number }) => {
-      if (!editor) return
-
-      const actions = [
-        {
-          id: type === 'row' ? 'insertRowBefore' : 'insertColumnBefore',
-          label:
-            type === 'row'
-              ? t('richEditor.action.table.insertRowBefore')
-              : t('richEditor.action.table.insertColumnBefore'),
-          action: () => {
-            if (type === 'row') {
-              editor.chain().focus().addRowBefore().run()
-            } else {
-              editor.chain().focus().addColumnBefore().run()
-            }
-          }
-        },
-        {
-          id: type === 'row' ? 'insertRowAfter' : 'insertColumnAfter',
-          label:
-            type === 'row'
-              ? t('richEditor.action.table.insertRowAfter')
-              : t('richEditor.action.table.insertColumnAfter'),
-          action: () => {
-            if (type === 'row') {
-              editor.chain().focus().addRowAfter().run()
-            } else {
-              editor.chain().focus().addColumnAfter().run()
-            }
-          }
-        },
-        {
-          id: type === 'row' ? 'deleteRow' : 'deleteColumn',
-          label: type === 'row' ? t('richEditor.action.table.deleteRow') : t('richEditor.action.table.deleteColumn'),
-          action: () => {
-            if (type === 'row') {
-              editor.chain().focus().deleteRow().run()
-            } else {
-              editor.chain().focus().deleteColumn().run()
-            }
-          }
-        }
-      ]
-
-      // Compute fallback position if not provided
-      let finalPosition = position
-      if (!finalPosition) {
-        const rect = editor.view.dom.getBoundingClientRect()
-        finalPosition = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
-      }
-
-      onShowTableActionMenu?.({ type, index, position: finalPosition, actions })
-    },
-    [editor, onShowTableActionMenu]
-  )
 
   useEffect(() => {
     return () => {

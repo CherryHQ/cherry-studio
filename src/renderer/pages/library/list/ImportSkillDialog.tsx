@@ -1,6 +1,6 @@
 import { Alert, Button, Dialog, DialogContent, Dropzone, DropzoneEmptyState } from '@cherrystudio/ui'
 import type { InstalledSkill } from '@types'
-import { FolderOpen, Loader2, Upload, X } from 'lucide-react'
+import { FolderOpen, Loader2, Upload } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -161,28 +161,19 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
       onOpenChange={(v) => {
         if (!v && !installing) close()
       }}>
-      <DialogContent
-        showCloseButton={false}
-        overlayClassName="bg-black/40 backdrop-blur-sm"
-        className="w-[480px] gap-0 overflow-hidden rounded-lg border-border/30 bg-card p-0 shadow-2xl sm:max-w-[480px]">
+      <DialogContent className="overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between border-border/15 border-b px-5 py-4">
+        <div>
           <div>
-            <h3 className="text-foreground text-sm">{t('library.import_skill_dialog.title')}</h3>
-            <p className="mt-0.5 text-muted-foreground/55 text-xs">{t('library.import_skill_dialog.subtitle')}</p>
+            <h3 className="font-semibold text-foreground text-lg leading-none">
+              {t('library.import_skill_dialog.title')}
+            </h3>
+            <p className="mt-2 text-foreground-secondary text-sm">{t('library.import_skill_dialog.subtitle')}</p>
           </div>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={close}
-            disabled={Boolean(installing)}
-            className="flex h-6 min-h-0 w-6 items-center justify-center rounded-3xs font-normal text-muted-foreground/40 shadow-none transition-colors hover:bg-accent/40 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
-            <X size={14} />
-          </Button>
         </div>
 
         {/* Body */}
-        <div className="px-5 py-5">
+        <div>
           <Dropzone
             disabled={Boolean(installing)}
             getFilesFromEvent={async (event) => {
@@ -202,31 +193,33 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
               const droppedFile = 'dataTransfer' in event ? event.dataTransfer?.files?.[0] : undefined
               void handleDroppedEntry(droppedFile ?? files[0])
             }}
-            className="flex cursor-pointer flex-col items-center justify-center rounded-2xs border-2 border-border/20 border-dashed bg-transparent p-8 text-center shadow-none transition-all hover:border-border/40 hover:bg-accent/10 disabled:pointer-events-none disabled:opacity-60">
+            className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-border-muted border-dashed bg-transparent p-8 text-center shadow-none transition-colors hover:border-border-hover hover:bg-accent disabled:pointer-events-none disabled:opacity-60">
             <DropzoneEmptyState>
-              <Upload size={26} strokeWidth={1.2} className="mb-3 text-muted-foreground/35" />
-              <p className="mb-1 text-muted-foreground/60 text-xs">
+              <Upload size={26} strokeWidth={1.2} className="mb-3 text-foreground-muted" />
+              <p className="mb-1 text-foreground-secondary text-xs">
                 {t('library.import_skill_dialog.local.drop_hint')}
               </p>
-              <p className="text-muted-foreground/40 text-xs">{t('library.import_skill_dialog.local.formats')}</p>
+              <p className="text-foreground-muted text-xs">{t('library.import_skill_dialog.local.formats')}</p>
             </DropzoneEmptyState>
           </Dropzone>
 
           <div className="mt-4 flex items-center gap-2">
             <Button
-              variant="ghost"
+              variant="outline"
+              size="sm"
               onClick={() => void handleZipPick()}
               disabled={Boolean(installing)}
-              className="flex h-auto min-h-0 items-center gap-1.5 rounded-3xs border border-border/30 px-3 py-1.5 font-normal text-foreground text-xs shadow-none transition-colors hover:bg-accent/40 focus-visible:ring-0 disabled:opacity-40">
-              {installing === 'zip' ? <Loader2 size={11} className="animate-spin" /> : <Upload size={11} />}
+              className="shrink-0">
+              {installing === 'zip' ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
               <span>{t('settings.skills.installFromZip')}</span>
             </Button>
             <Button
-              variant="ghost"
+              variant="outline"
+              size="sm"
               onClick={() => void handleDirPick()}
               disabled={Boolean(installing)}
-              className="flex h-auto min-h-0 items-center gap-1.5 rounded-3xs border border-border/30 px-3 py-1.5 font-normal text-foreground text-xs shadow-none transition-colors hover:bg-accent/40 focus-visible:ring-0 disabled:opacity-40">
-              {installing === 'directory' ? <Loader2 size={11} className="animate-spin" /> : <FolderOpen size={11} />}
+              className="shrink-0">
+              {installing === 'directory' ? <Loader2 size={12} className="animate-spin" /> : <FolderOpen size={12} />}
               <span>{t('settings.skills.installFromDirectory')}</span>
             </Button>
           </div>
@@ -251,7 +244,7 @@ function StatusBanner({ status }: { status: ImportStatus }) {
             type="success"
             showIcon
             message={status.message}
-            className="rounded-3xs px-3 py-2 text-xs shadow-none"
+            className="rounded-md px-3 py-2 text-xs shadow-none"
           />
         </motion.div>
       )}
@@ -261,7 +254,7 @@ function StatusBanner({ status }: { status: ImportStatus }) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
           className="mt-4">
-          <Alert type="error" showIcon message={status.message} className="rounded-3xs px-3 py-2 text-xs shadow-none" />
+          <Alert type="error" showIcon message={status.message} className="rounded-md px-3 py-2 text-xs shadow-none" />
         </motion.div>
       )}
     </AnimatePresence>

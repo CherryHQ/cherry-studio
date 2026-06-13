@@ -2669,6 +2669,8 @@
           }
         },
         "generate": "Générer une invite",
+        "generate_failed_description": "Vérifiez ou modifiez le modèle par défaut, puis réessayez.",
+        "generate_failed_title": "Impossible de générer l'invite",
         "insert_variable": "Insérer une variable",
         "label": "Invite système",
         "placeholder": "Entrez le prompt système. Des variables comme {{date}} et {{model_name}} sont prises en charge...",

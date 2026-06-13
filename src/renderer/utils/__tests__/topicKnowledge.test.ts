@@ -8,7 +8,7 @@ vi.mock('@renderer/components/Popups/SaveToKnowledgePopup', () => ({
   default: {}
 }))
 
-vi.mock('@renderer/pages/home/Messages/MessageMenubar', () => ({
+vi.mock('@renderer/components/chat/messages/frame/MessageMenuBar', () => ({
   default: {}
 }))
 

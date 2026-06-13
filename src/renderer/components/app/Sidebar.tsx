@@ -1,28 +1,29 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
+import {
+  emitResourceListReveal,
+  type ResourceListRevealSource
+} from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { AppLogo } from '@renderer/config/env'
+import {
+  findAppTabToFocus,
+  getOrderedVisibleSidebarIcons,
+  getSidebarApp,
+  getSidebarMenuPath,
+  resolveSidebarActiveItem,
+  SIDEBAR_ICON_COMPONENTS
+} from '@renderer/config/sidebar'
+import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import useAvatar from '@renderer/hooks/useAvatar'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
-import {
-  Code,
-  FileSearch,
-  Folder,
-  Languages,
-  LayoutGrid,
-  MessageCircle,
-  MousePointerClick,
-  NotepadText,
-  Palette,
-  Sparkle
-} from 'lucide-react'
 import type { Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { OpenClawSidebarIcon } from '../Icons/SvgIcon'
 import UserPopup from '../Popups/UserPopup'
 import { Sidebar as UISidebar } from '../Sidebar'
 import { getSidebarDisplayWidth, getSidebarLayout, normalizeSidebarWidth } from '../Sidebar/constants'
@@ -31,50 +32,17 @@ import type { SidebarMenuItem, SidebarUser } from '../Sidebar/types'
 const APP_LOGO = <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />
 const noop = () => {}
 
-const routePrefixMap: Record<SidebarIconType, string> = {
-  assistants: '/app/chat',
-  agents: '/app/agents',
-  store: '/app/library',
-  paintings: '/app/paintings',
-  translate: '/app/translate',
-  mini_app: '/app/mini-app',
-  knowledge: '/app/knowledge',
-  files: '/app/files',
-  code_tools: '/app/code',
-  notes: '/app/notes',
-  openclaw: '/app/openclaw'
-}
-
-const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
-  assistants: MessageCircle,
-  agents: MousePointerClick,
-  store: Sparkle,
-  paintings: Palette,
-  translate: Languages,
-  mini_app: LayoutGrid,
-  knowledge: FileSearch,
-  files: Folder,
-  code_tools: Code,
-  notes: NotepadText,
-  openclaw: OpenClawSidebarIcon
-}
-
-function getMenuPath(icon: SidebarIconType): string {
-  return routePrefixMap[icon] || ''
-}
-
-function resolveActiveItem(pathname: string): SidebarIconType | '' {
-  const match = (Object.entries(routePrefixMap) as Array<[SidebarIconType, string]>).find(
-    ([, prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`)
-  )
-  return match?.[0] || ''
+function getResourceListRevealSource(menuItemId: SidebarIconType): ResourceListRevealSource | null {
+  if (menuItemId === 'assistants' || menuItemId === 'agents') return menuItemId
+  return null
 }
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
-  const { activeTab, updateTab, openTab } = useTabs()
+  const { activeTab, tabs, updateTab, openTab, setActiveTab } = useTabs()
+  const { defaultPaintingProvider } = useSettings()
 
   // Sidebar width — persisted across restarts. Dragging through the
   // intermediate 50-120px range uses a local preview width so the UI can
@@ -122,9 +90,9 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const items = useMemo<SidebarMenuItem[]>(
     () =>
-      visibleSidebarIcons.flatMap((icon) => {
-        const path = getMenuPath(icon)
-        const Icon = iconMap[icon]
+      getOrderedVisibleSidebarIcons(visibleSidebarIcons).flatMap((icon) => {
+        const path = getSidebarMenuPath(icon, defaultPaintingProvider)
+        const Icon = SIDEBAR_ICON_COMPONENTS[icon]
         if (!path || !Icon) {
           return []
         }
@@ -136,32 +104,62 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           }
         ]
       }),
-    [visibleSidebarIcons]
+    [defaultPaintingProvider, visibleSidebarIcons]
   )
 
-  const activeItem = resolveActiveItem(pathname)
+  const activeItem = resolveSidebarActiveItem(pathname)
 
   const handleNavigate = useCallback(
-    async (menuItemId: string) => {
+    (menuItemId: string) => {
       const menuId = menuItemId as SidebarIconType
-      const path = getMenuPath(menuId)
-      if (!path) return
+      const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
+      if (!path || activeTab?.url === path) return
 
-      if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
+      const title = getDefaultRouteTitle(path)
+      const revealSource = getResourceListRevealSource(menuId)
+
+      // Uniqueness: if a tab for this app already exists, focus it instead of
+      // duplicating it (or clobbering the active tab into a second copy). Only
+      // fall through to reuse-active / open when no tab for the app exists yet.
+      const app = getSidebarApp(menuId)
+      const existingId = app ? findAppTabToFocus(app, tabs, { defaultPaintingProvider }) : undefined
+      if (existingId) {
+        if (existingId !== activeTab?.id) {
+          setActiveTab(existingId)
+        }
+        if (revealSource) {
+          emitResourceListReveal({ source: revealSource, tabId: existingId })
+        }
         return
       }
 
-      if (activeTab && activeTab.id !== 'home') {
-        // Reusing the active tab — clear any per-entity icon (e.g. a mini-app
-        // logo carried over from /app/mini-app/<id>) so the new top-level
-        // route falls back to its default Lucide icon.
-        updateTab(activeTab.id, { url: path, title: getDefaultRouteTitle(path), icon: undefined })
-      } else {
-        openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
+      if (activeTab?.isPinned) {
+        const openedId = openTab(path, { forceNew: true, title })
+        if (revealSource) {
+          emitResourceListReveal({ source: revealSource, tabId: openedId })
+        }
+        return
+      }
+
+      if (activeTab) {
+        updateTab(activeTab.id, {
+          url: path,
+          title,
+          icon: undefined,
+          metadata: clearTabInstanceMetadata(activeTab.metadata)
+        })
+        if (revealSource) {
+          emitResourceListReveal({ source: revealSource, tabId: activeTab.id })
+        }
+        return
+      }
+
+      const openedId = openTab(path, { forceNew: true, title })
+      if (revealSource) {
+        emitResourceListReveal({ source: revealSource, tabId: openedId })
       }
     },
-    [activeTab, updateTab, openTab]
+    [activeTab, tabs, updateTab, openTab, setActiveTab, defaultPaintingProvider]
   )
 
   // Common props shared between normal and floating sidebar

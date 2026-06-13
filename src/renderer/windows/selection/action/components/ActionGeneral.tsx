@@ -2,15 +2,17 @@ import { useChat } from '@ai-sdk/react'
 import { LoadingOutlined } from '@ant-design/icons'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { MessageContentProvider } from '@renderer/components/chat/messages'
+import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
+import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
-import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
-import { PartsProvider } from '@renderer/pages/home/Messages/Blocks'
-import MessageContent from '@renderer/pages/home/Messages/MessageContent'
+import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hooks/useMessageListRenderConfig'
+import { useMessagePlatformActions } from '@renderer/pages/shared/messages/hooks/useMessagePlatformActions'
 import { ipcChatTransport } from '@renderer/transport/IpcChatTransport'
-import { AssistantMessageStatus } from '@renderer/types/newMessage'
 import { getTextFromParts } from '@renderer/utils/messageUtils/partsHelpers'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
@@ -35,15 +37,18 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const { t } = useTranslation()
   const [language] = usePreference('app.language')
   const [showOriginal, setShowOriginal] = useState(false)
+  const { renderConfig } = useMessageListRenderConfig()
+  const platformActions = useMessagePlatformActions()
 
-  const { assistant: defaultAssistant } = useDefaultAssistant()
   const { assistant: chosenAssistant } = useAssistant(action.assistantId ?? '')
-  const activeAssistant = chosenAssistant ?? defaultAssistant
+  const chosenAssistantId = chosenAssistant?.id
+  const waitingForConfiguredAssistant = Boolean(action.assistantId) && !chosenAssistantId
 
   // Temporary in-memory topic — never touches SQLite, released on unmount.
-  // activeAssistant may be the synthesised default — only pass a real
-  // persisted id (chosenAssistant) to bind the temp topic to.
-  const { topicId: temporaryTopicId, ready } = useTemporaryTopic({ assistantId: chosenAssistant?.id })
+  const { topicId: temporaryTopicId, ready } = useTemporaryTopic({
+    enabled: !waitingForConfiguredAssistant,
+    assistantId: chosenAssistantId
+  })
 
   const promptContent = useMemo(() => {
     let userContent = ''
@@ -114,16 +119,17 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
 
   const latestAssistantMessage = useMemo(() => {
     if (!latestAssistantUIMsg) return null
-    return {
-      id: latestAssistantUIMsg.id,
-      role: 'assistant' as const,
-      assistantId: '',
-      topicId: '',
-      createdAt: '',
-      status: isPending ? AssistantMessageStatus.PROCESSING : AssistantMessageStatus.SUCCESS,
-      blocks: []
-    }
-  }, [latestAssistantUIMsg, isPending])
+    return toMessageListItem(
+      {
+        ...latestAssistantUIMsg,
+        metadata: {
+          ...latestAssistantUIMsg.metadata,
+          status: isPending ? 'pending' : 'success'
+        }
+      },
+      { assistantId: chosenAssistantId, topicId: temporaryTopicId ?? '' }
+    )
+  }, [chosenAssistantId, latestAssistantUIMsg, isPending, temporaryTopicId])
 
   const content = useMemo(
     () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),
@@ -134,14 +140,14 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const error = completionError
 
   const fetchResult = useCallback(() => {
-    if (!ready || !temporaryTopicId) return
-    logger.debug('Before process message', { assistant: activeAssistant })
+    if (!ready || !temporaryTopicId || waitingForConfiguredAssistant) return
+    logger.debug('Before process message', { assistantId: chosenAssistantId })
     setCompletionError(null)
     setIsPreparing(true)
     // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
     // No body fields are read by IpcChatTransport for this codepath.
     void sendMessage({ text: promptContent })
-  }, [activeAssistant, ready, temporaryTopicId, promptContent, sendMessage])
+  }, [chosenAssistantId, promptContent, ready, sendMessage, temporaryTopicId, waitingForConfiguredAssistant])
 
   useEffect(() => {
     fetchResult()
@@ -181,9 +187,13 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
         <Result>
           {isPreparing && <LoadingOutlined style={{ fontSize: 16 }} spin />}
           {!isPreparing && latestAssistantMessage && (
-            <PartsProvider value={partsMap}>
+            <MessageContentProvider
+              messages={[latestAssistantMessage]}
+              partsByMessageId={partsMap}
+              renderConfig={renderConfig}
+              actions={platformActions}>
               <MessageContent key={latestAssistantMessage.id} message={latestAssistantMessage} />
-            </PartsProvider>
+            </MessageContentProvider>
           )}
         </Result>
         {error && <ErrorMsg>{error}</ErrorMsg>}

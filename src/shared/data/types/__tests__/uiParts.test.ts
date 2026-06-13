@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest'
 
 import type { CherryMessagePart } from '../message'
 import {
+  CherryFileMetaSchema,
   CherryReasoningMetaSchema,
   CherryTextMetaSchema,
   CherryToolMetaSchema,
   readCherryMeta,
-  withCherryMeta
+  withCherryMeta,
+  withoutCherryMeta
 } from '../uiParts'
 
 // ============================================================================
@@ -47,6 +49,23 @@ describe('CherryToolMetaSchema', () => {
   })
   it('rejects tool.type outside the enum', () => {
     const bad = CherryToolMetaSchema.safeParse({ tool: { type: 'pluggable' } })
+    expect(bad.success).toBe(false)
+  })
+})
+
+describe('CherryFileMetaSchema', () => {
+  it('accepts fileEntryId and fileTokenSourceId', () => {
+    const ok = CherryFileMetaSchema.safeParse({
+      fileEntryId: 'entry-1',
+      fileTokenSourceId: 'source-1'
+    })
+
+    expect(ok.success).toBe(true)
+  })
+
+  it('rejects non-string fileTokenSourceId', () => {
+    const bad = CherryFileMetaSchema.safeParse({ fileTokenSourceId: 1 })
+
     expect(bad.success).toBe(false)
   })
 })
@@ -100,6 +119,18 @@ describe('readCherryMeta', () => {
       providerMetadata: { cherry: { transport: 'claude-agent' } }
     } as unknown as Extract<CherryMessagePart, { type: 'dynamic-tool' }>
     expect(readCherryMeta(part)?.transport).toBe('claude-agent')
+  })
+
+  it('reads CherryFileMeta from a file part with token source id', () => {
+    const part = {
+      type: 'file',
+      mediaType: 'application/pdf',
+      url: 'file:///tmp/report.pdf',
+      filename: 'report.pdf',
+      providerMetadata: { cherry: { fileEntryId: 'entry-1', fileTokenSourceId: 'source-1' } }
+    } as unknown as Extract<CherryMessagePart, { type: 'file' }>
+
+    expect(readCherryMeta(part)).toEqual({ fileEntryId: 'entry-1', fileTokenSourceId: 'source-1' })
   })
 
   it('returns undefined when providerMetadata is missing', () => {
@@ -177,6 +208,18 @@ describe('withCherryMeta', () => {
     expect(next.providerMetadata?.cherry).toEqual({ thinkingMs: 1234, startedAt: 1780913860106 })
   })
 
+  it('writes fileTokenSourceId onto a FileUIPart', () => {
+    const part = {
+      type: 'file',
+      mediaType: 'application/pdf',
+      url: 'file:///tmp/report.pdf',
+      filename: 'report.pdf'
+    } as unknown as Extract<CherryMessagePart, { type: 'file' }>
+    const next = withCherryMeta(part, { fileTokenSourceId: 'source-1' })
+
+    expect(next.providerMetadata?.cherry).toEqual({ fileTokenSourceId: 'source-1' })
+  })
+
   // ── Compile-time negatives — `tsc --noEmit` enforces these. ──────────
   it('rejects writing thinkingMs to TextUIPart at compile time', () => {
     const part: TextUIPart = { type: 'text', text: '' }
@@ -196,6 +239,70 @@ describe('withCherryMeta', () => {
     const part: TextUIPart = { type: 'text', text: '' }
     // @ts-expect-error transport is not on CherryTextMeta
     withCherryMeta(part, { transport: 'x' })
+    expect(true).toBe(true)
+  })
+})
+
+// ============================================================================
+// withoutCherryMeta — typed removal boundary
+// ============================================================================
+
+describe('withoutCherryMeta', () => {
+  it('removes one cherry field and preserves siblings plus provider metadata', () => {
+    const part = {
+      type: 'text',
+      text: 'hi',
+      providerMetadata: {
+        openai: { id: 'provider-meta' },
+        cherry: {
+          references: [{ url: 'https://ex.com' }],
+          composer: { version: 1, tokens: [] }
+        }
+      }
+    } as unknown as TextUIPart
+
+    const next = withoutCherryMeta(part, 'composer')
+
+    expect(next).toEqual({
+      type: 'text',
+      text: 'hi',
+      providerMetadata: {
+        openai: { id: 'provider-meta' },
+        cherry: {
+          references: [{ url: 'https://ex.com' }]
+        }
+      }
+    })
+  })
+
+  it('removes providerMetadata when the last cherry field is removed and no provider metadata remains', () => {
+    const part = {
+      type: 'text',
+      text: 'hi',
+      providerMetadata: {
+        cherry: {
+          composer: { version: 1, tokens: [] }
+        }
+      }
+    } as unknown as TextUIPart
+
+    expect(withoutCherryMeta(part, 'composer')).toEqual({ type: 'text', text: 'hi' })
+  })
+
+  it('preserves malformed non-object cherry metadata unchanged', () => {
+    const part = {
+      type: 'text',
+      text: 'hi',
+      providerMetadata: { cherry: 'oops', openai: { id: 'provider-meta' } }
+    } as unknown as TextUIPart
+
+    expect(withoutCherryMeta(part, 'composer')).toEqual(part)
+  })
+
+  it('rejects removing thinkingMs from TextUIPart at compile time', () => {
+    const part: TextUIPart = { type: 'text', text: '' }
+    // @ts-expect-error thinkingMs is not on CherryTextMeta
+    withoutCherryMeta(part, 'thinkingMs')
     expect(true).toBe(true)
   })
 })

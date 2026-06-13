@@ -4,6 +4,11 @@
 @import './legacy-vars.css';
 
 @source '../../../../packages/ui/src/**/*.{js,ts,jsx,tsx}';
+@source '../../../../node_modules/streamdown/dist/*.js';
+@source '../../../../node_modules/@streamdown/code/dist/*.js';
+@source '../../../../node_modules/@streamdown/cjk/dist/*.js';
+@source '../../../../node_modules/@streamdown/math/dist/*.js';
+@source '../../../../node_modules/@streamdown/mermaid/dist/*.js';
 @custom-variant dark (&:is(.dark *));
 
 /*

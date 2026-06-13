@@ -2669,6 +2669,8 @@
           }
         },
         "generate": "Generează prompt",
+        "generate_failed_description": "Verifică sau schimbă modelul implicit, apoi încearcă din nou.",
+        "generate_failed_title": "Nu s-a putut genera promptul",
         "insert_variable": "Inserează variabilă",
         "label": "Prompt de sistem",
         "placeholder": "Introduceți promptul de sistem. Variabile precum {{date}} și {{model_name}} sunt acceptate...",

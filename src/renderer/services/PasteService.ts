@@ -1,6 +1,8 @@
 import { loggerService } from '@logger'
-import type { FileMetadata } from '@renderer/types'
+import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
+import { COMPOSER_FILE_KIND, type FileMetadata, type PastedTextFileMetadata } from '@renderer/types'
 import { getFileExtension, isSupportedFile } from '@renderer/utils'
+import { withComposerFileTokenSourceId } from '@renderer/utils/messageUtils/composerFileTokenSource'
 
 const logger = loggerService.withContext('PasteService')
 
@@ -29,8 +31,6 @@ export const handlePaste = async (
   supportExts: string[],
   setFiles: (updater: (prevFiles: FileMetadata[]) => FileMetadata[]) => void,
   setText?: (text: string) => void,
-  pasteLongTextAsFile?: boolean,
-  pasteLongTextThreshold?: number,
   text?: string,
   resizeTextArea?: () => void,
   t?: (key: string) => string
@@ -40,7 +40,7 @@ export const handlePaste = async (
     const clipboardText = event.clipboardData?.getData('text')
     if (clipboardText) {
       // 1. 文本粘贴
-      if (pasteLongTextAsFile && pasteLongTextThreshold && clipboardText.length > pasteLongTextThreshold) {
+      if (clipboardText.length > LONG_TEXT_PASTE_THRESHOLD) {
         // 长文本直接转文件，阻止默认粘贴
         event.preventDefault()
 
@@ -48,7 +48,12 @@ export const handlePaste = async (
         await window.api.file.write(tempFilePath, clipboardText)
         const selectedFile = await window.api.file.get(tempFilePath)
         if (selectedFile) {
-          setFiles((prevFiles) => [...prevFiles, selectedFile])
+          const pastedTextFile: PastedTextFileMetadata = {
+            ...selectedFile,
+            origin_name: t?.('chat.input.pasted_text_file_name') ?? selectedFile.origin_name,
+            composerFileKind: COMPOSER_FILE_KIND.PASTED_TEXT
+          }
+          setFiles((prevFiles) => [...prevFiles, withComposerFileTokenSourceId(pastedTextFile)])
           if (setText && text) setText(text) // 保持输入框内容不变
           if (resizeTextArea) setTimeout(() => resizeTextArea(), 50)
         }
@@ -76,7 +81,7 @@ export const handlePaste = async (
               await window.api.file.write(tempFilePath, uint8Array)
               const selectedFile = await window.api.file.get(tempFilePath)
               if (selectedFile) {
-                setFiles((prevFiles) => [...prevFiles, selectedFile])
+                setFiles((prevFiles) => [...prevFiles, withComposerFileTokenSourceId(selectedFile)])
                 break
               }
             } else {
@@ -91,7 +96,7 @@ export const handlePaste = async (
           if (await isSupportedFile(filePath, extensionSet)) {
             const selectedFile = await window.api.file.get(filePath)
             if (selectedFile) {
-              setFiles((prevFiles) => [...prevFiles, selectedFile])
+              setFiles((prevFiles) => [...prevFiles, withComposerFileTokenSourceId(selectedFile)])
             }
           } else {
             if (t) {

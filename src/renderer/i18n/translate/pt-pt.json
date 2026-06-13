@@ -2669,6 +2669,8 @@
           }
         },
         "generate": "Gerar prompt",
+        "generate_failed_description": "Verifique ou altere o modelo predefinido e tente novamente.",
+        "generate_failed_title": "Falha ao gerar o prompt",
         "insert_variable": "Inserir variável",
         "label": "Prompt do sistema",
         "placeholder": "Insira o prompt do sistema. Variáveis como {{date}} e {{model_name}} são suportadas...",
