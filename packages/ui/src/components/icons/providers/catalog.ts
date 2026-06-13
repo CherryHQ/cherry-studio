@@ -37,6 +37,7 @@ import { CerebrasIcon } from './cerebras'
 import { CherryinIcon } from './cherryin'
 import { CloudflareIcon } from './cloudflare'
 import { CohereIcon } from './cohere'
+import { CommonstackIcon } from './commonstack'
 import { ComposioIcon } from './composio'
 import { CozeIcon } from './coze'
 import { DangbeiIcon } from './dangbei'
@@ -198,6 +199,7 @@ export const PROVIDER_ICON_CATALOG = {
   cherryin: CherryinIcon,
   cloudflare: CloudflareIcon,
   cohere: CohereIcon,
+  commonstack: CommonstackIcon,
   composio: ComposioIcon,
   coze: CozeIcon,
   dangbei: DangbeiIcon,

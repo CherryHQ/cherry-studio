@@ -38,6 +38,7 @@ const providerKeyMap = {
   cephalon: 'provider.cephalon',
   cherryai: 'provider.cherryai',
   cherryin: 'provider.cherryin',
+  commonstack: 'provider.commonstack',
   copilot: 'provider.copilot',
   dashscope: 'provider.dashscope',
   deepseek: 'provider.deepseek',
