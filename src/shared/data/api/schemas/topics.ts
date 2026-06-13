@@ -35,9 +35,12 @@ export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
 export const UpdateTopicSchema = TopicSchema.pick({
   name: true,
   isNameManuallyEdited: true,
-  assistantId: true,
   groupId: true
-}).partial()
+})
+  .partial()
+  .extend({
+    assistantId: z.string().nullable().optional()
+  })
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
 /**
@@ -99,6 +102,26 @@ export interface ActiveNodeResponse {
   activeNodeId: string
 }
 
+export interface DeleteTopicsResult {
+  deletedIds: string[]
+  deletedCount: number
+}
+
+const DeleteTopicsIdsQueryValueSchema = z
+  .string()
+  .transform((value) =>
+    value
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean)
+  )
+  .pipe(z.array(z.string().min(1)).min(1))
+
+export const DeleteTopicsQuerySchema = z.strictObject({
+  ids: DeleteTopicsIdsQueryValueSchema
+})
+export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
+
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -107,8 +130,8 @@ export interface ActiveNodeResponse {
  * Topic API Schema definitions.
  *
  * Reorder endpoints (`/topics/:id/order`, `/topics/order:batch`) are injected
- * via `& OrderEndpoints<'/topics'>`. The reorder is scoped by `groupId`
- * server-side; callers do not include the scope in the request body.
+ * via `& OrderEndpoints<'/topics'>`. Topic reorder is global; `groupId` is not
+ * used as an ordering scope.
  */
 export type TopicSchemas = {
   /**
@@ -116,6 +139,7 @@ export type TopicSchemas = {
    * @example GET /topics?limit=50
    * @example GET /topics?cursor=...&q=search
    * @example POST /topics { "name": "New Topic", "assistantId": "asst_123" }
+   * @example DELETE /topics?ids=topic_1,topic_2
    */
   '/topics': {
     /**
@@ -135,6 +159,15 @@ export type TopicSchemas = {
     POST: {
       body: CreateTopicDto
       response: Topic
+    }
+    /**
+     * Delete an explicit set of topics.
+     *
+     * Used by multi-select table flows where the selection can span assistants.
+     */
+    DELETE: {
+      query: DeleteTopicsQuery
+      response: DeleteTopicsResult
     }
   }
 
@@ -190,6 +223,19 @@ export type TopicSchemas = {
       params: { id: string }
       body: DuplicateTopicDto
       response: Topic
+    }
+  }
+
+  /**
+   * Delete all topics currently linked to an assistant.
+   *
+   * This is an explicit scoped collection delete. It does not change
+   * `DELETE /assistants/:id`, which only deletes the assistant itself.
+   */
+  '/assistants/:assistantId/topics': {
+    DELETE: {
+      params: { assistantId: string }
+      response: DeleteTopicsResult
     }
   }
 } & OrderEndpoints<'/topics'>

@@ -171,6 +171,11 @@ export const ProviderSettingsSchema = z.object({
   serviceTier: z.string().nullable().optional(),
   verbosity: z.string().nullable().optional(),
   summaryText: z.enum(['auto', 'detailed', 'concise']).nullable().optional(),
+  streamOptions: z
+    .object({
+      includeUsage: z.boolean().optional()
+    })
+    .optional(),
 
   // Azure-specific
   apiVersion: z.string().optional(),

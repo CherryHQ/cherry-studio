@@ -168,6 +168,9 @@ export enum IpcChannel {
   Tab_TryAttach = 'tab:try-attach',
   Tab_DragEnd = 'tab:drag-end',
 
+  // Sub-window (detached tab window)
+  SubWindow_SetAlwaysOnTop = 'sub-window:set-always-on-top',
+
   Knowledge_CreateBase = 'knowledge:create-base',
   Knowledge_RestoreBase = 'knowledge:restore-base',
   Knowledge_DeleteBase = 'knowledge:delete-base',

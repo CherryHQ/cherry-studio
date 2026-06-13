@@ -1,4 +1,4 @@
-import type { Assistant } from '@shared/data/types/assistant'
+import { type Assistant, ASSISTANT_SOURCE_USER } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { ToolSet } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -11,6 +11,7 @@ import { assembleSystemPrompt } from '../assembleSystemPrompt'
 
 function makeAssistant(overrides: Partial<Assistant> = {}): Assistant {
   return {
+    source: ASSISTANT_SOURCE_USER,
     prompt: 'hello',
     mcpServerIds: [],
     settings: {

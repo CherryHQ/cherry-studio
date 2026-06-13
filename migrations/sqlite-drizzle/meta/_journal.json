@@ -64,6 +64,13 @@
       "when": 1781173061755,
       "tag": "0008_fearless_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1781322439043,
+      "tag": "0009_shocking_bishop",
+      "breakpoints": true
     }
   ]
 }

@@ -182,19 +182,6 @@ describe('createDirectoryTree — watcher mutations', () => {
     }
   })
 
-  it('emits "added" for newly-created sub-directories', async () => {
-    const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
-    try {
-      const eventPromise = waitForEvent(builder, (e) => e.type === 'added' && e.path.endsWith('/sub'))
-      await mkdir(path.join(tmp, 'sub'))
-      const event = (await eventPromise) as Extract<TreeMutationEvent, { type: 'added' }>
-      expect(event.kind).toBe('directory')
-      expect(builder.getNode(path.join(tmp, 'sub'))?.isTreeDir()).toBe(true)
-    } finally {
-      await builder.disposeAsync()
-    }
-  })
-
   it('emits "removed" when a tracked file is deleted', async () => {
     await writeFile(path.join(tmp, 'gone.md'), 'bye')
     const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })

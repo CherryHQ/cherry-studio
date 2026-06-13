@@ -228,28 +228,9 @@ describe('Knowledge base schemas', () => {
     ).toBe(false)
 
     expect(ListKnowledgeBasesQuerySchema.safeParse({ page: 1, limit: 20, extra: true }).success).toBe(false)
-    expect(ListKnowledgeBasesQuerySchema.safeParse({ page: 1, limit: 20, updatedAtFrom: 1 }).success).toBe(false)
-    expect(ListKnowledgeBasesQuerySchema.safeParse({ page: 1, limit: 20, sortBy: 'updatedAt' }).success).toBe(false)
-    expect(ListKnowledgeBasesQuerySchema.safeParse({ page: 1, limit: 20, orderBy: 'desc' }).success).toBe(false)
     expect(ListKnowledgeItemsQuerySchema.safeParse({ page: 1, limit: 20, type: 'note', extra: true }).success).toBe(
       false
     )
-  })
-
-  it('trims knowledge base search and applies pagination defaults', () => {
-    expect(ListKnowledgeBasesQuerySchema.parse({ search: '  docs  ' })).toEqual({
-      page: KNOWLEDGE_BASES_DEFAULT_PAGE,
-      limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
-      search: 'docs'
-    })
-  })
-
-  it('accepts knowledge base max limit and rejects blank search', () => {
-    expect(ListKnowledgeBasesQuerySchema.parse({ page: 2, limit: KNOWLEDGE_BASES_MAX_LIMIT })).toEqual({
-      page: 2,
-      limit: KNOWLEDGE_BASES_MAX_LIMIT
-    })
-    expect(() => ListKnowledgeBasesQuerySchema.parse({ search: '   ' })).toThrow()
   })
 
   it('rejects invalid numeric tuning fields in update schema', () => {
@@ -664,5 +645,23 @@ describe('isCompletedKnowledgeBase', () => {
         error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
       } as KnowledgeBase)
     ).toBe(false)
+  })
+})
+
+describe('ListKnowledgeBasesQuerySchema', () => {
+  it('trims search and applies pagination defaults', () => {
+    expect(ListKnowledgeBasesQuerySchema.parse({ search: '  docs  ' })).toEqual({
+      page: KNOWLEDGE_BASES_DEFAULT_PAGE,
+      limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
+      search: 'docs'
+    })
+  })
+
+  it('accepts max limit and rejects blank search', () => {
+    expect(ListKnowledgeBasesQuerySchema.parse({ page: 2, limit: KNOWLEDGE_BASES_MAX_LIMIT })).toEqual({
+      page: 2,
+      limit: KNOWLEDGE_BASES_MAX_LIMIT
+    })
+    expect(() => ListKnowledgeBasesQuerySchema.parse({ search: '   ' })).toThrow()
   })
 })

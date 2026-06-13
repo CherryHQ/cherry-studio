@@ -69,6 +69,8 @@ export interface ComposerQueuedMessagePayload {
  */
 export interface TopicStatusSnapshotEntry {
   status: TopicStreamStatus
+  /** Unique per stream lifecycle; lets per-window seen state distinguish repeated turns on the same topic. */
+  turnId?: string
   activeExecutions: ActiveExecution[]
   awaitingApprovalAnchors: ActiveExecution[]
   lastCompletedAt?: number
@@ -223,8 +225,7 @@ export type AiStreamOpenResponse =
       reservedMessages?: CherryUIMessage[]
       /**
        * Backward-compatible assistant placeholder ids derived from `reservedMessages`.
-       * @deprecated Derive from `reservedMessages` at the call site; remove with the legacy home page
-       *   (its `usePendingMessages` is the only remaining reader).
+       * @deprecated Derive from `reservedMessages` at the call site; remove with the legacy home page.
        */
       placeholderIds?: string[]
     }
