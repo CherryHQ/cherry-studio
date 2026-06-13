@@ -140,5 +140,9 @@ function inferSupportedEfforts(lowerId: string, lowerName: string): string[] | u
   if (id.includes('grok-3-mini')) return ['low', 'high']
   // Perplexity deep-research
   if (id.includes('sonar-deep-research')) return ['medium']
+  // MiniMax M3: thinking is controllable (adaptive/disabled per official docs).
+  // M2.x is excluded — thinking cannot be turned off.
+  // https://platform.minimaxi.com/docs/api-reference/text-openai-api
+  if (/minimax-m3(?:\.\d+)?(?:-[\w-]+)?$/.test(id)) return ['none', 'auto']
   return undefined
 }

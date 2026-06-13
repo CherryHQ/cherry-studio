@@ -32,6 +32,8 @@ import {
   isGemini3ThinkingTokenModel,
   isGrok4FastReasoningModel,
   isHostedGemma4ThinkingModel,
+  isMiniMaxM3Model,
+  isMiniMaxReasoningModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
@@ -62,7 +64,7 @@ import type { OllamaProviderOptions } from 'ollama-ai-provider-v2'
 const logger = loggerService.withContext('reasoning')
 
 type ReasoningEffortOptionalParams = {
-  thinking?: { type: 'disabled' | 'enabled' | 'auto'; budget_tokens?: number }
+  thinking?: { type: 'disabled' | 'enabled' | 'auto' | 'adaptive'; budget_tokens?: number }
   reasoning?: { max_tokens?: number; exclude?: boolean; effort?: string; enabled?: boolean } | OpenAI.Reasoning
   reasoningEffort?: ReasoningEffortOption
   // WARN: This field will be overwrite to undefined by aisdk if the provider is openai-compatible. Use reasoningEffort instead.
@@ -116,6 +118,19 @@ export function getReasoningEffort(
     }
   }
   const reasoningEffort = assistant?.settings?.reasoning_effort as ReasoningEffortOption | undefined
+
+  // MiniMax models need explicit thinking control. M3 only accepts 'adaptive' | 'disabled'
+  // on the OpenAI-compatible endpoint; M1/M2.x use 'enabled'. Without this, M3 falls through
+  // to an empty param and cannot be turned off.
+  if (isMiniMaxReasoningModel(model)) {
+    if (reasoningEffort === 'none') {
+      return { thinking: { type: 'disabled' } }
+    }
+    if (isMiniMaxM3Model(model)) {
+      return { thinking: { type: 'adaptive' } }
+    }
+    return { thinking: { type: 'enabled' } }
+  }
 
   // reasoningEffort is not set, no extra reasoning setting
   // Generally, for every model which supports reasoning control, the reasoning effort won't be undefined.
@@ -772,7 +787,17 @@ export function getAnthropicReasoningParams(
       }
     }
   } else {
-    // 其他使用claude端點的模型，比如Kimi,Minimax等等
+    // MiniMax M3 via Anthropic endpoint: adaptive / disabled, no budgetTokens
+    // https://platform.minimaxi.com/docs/api-reference/text-anthropic-api
+    // reasoningEffort === 'none' is already handled by the early return above.
+    if (isMiniMaxM3Model(model)) {
+      return { thinking: { type: 'adaptive' }, sendReasoning: true }
+    }
+    if (isMiniMaxReasoningModel(model)) {
+      // M2.x: thinking cannot be turned off per official docs.
+      return {}
+    }
+    // 其他使用claude端點的模型，比如Kimi等等
     const maxTokens = assistant.settings?.maxTokens
     const budgetTokens = getThinkingBudget(maxTokens, reasoningEffort, model.id)
     const params: Partial<ReturnType<typeof getAnthropicReasoningParams>> = {

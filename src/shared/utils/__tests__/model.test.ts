@@ -10,6 +10,7 @@ import {
   isEmbeddingModel,
   isFunctionCallingModel,
   isGenerateImageModel,
+  isMiniMaxM3Model,
   isReasoningModel,
   isRerankModel,
   isVisionModel,
@@ -61,6 +62,16 @@ describe('shared model capability helpers', () => {
     expect(isEmbeddingModel(createModel([MODEL_CAPABILITY.EMBEDDING]))).toBe(true)
     expect(isRerankModel(createModel([MODEL_CAPABILITY.RERANK]))).toBe(true)
     expect(isGenerateImageModel(createModel([MODEL_CAPABILITY.IMAGE_GENERATION]))).toBe(true)
+  })
+
+  it('identifies MiniMax-M3 (and point releases) for adaptive thinking', () => {
+    const withId = (apiModelId: string): Model => ({ ...createModel(), apiModelId, id: `minimax::${apiModelId}` })
+    expect(isMiniMaxM3Model(withId('MiniMax-M3'))).toBe(true)
+    expect(isMiniMaxM3Model(withId('minimax-m3'))).toBe(true)
+    expect(isMiniMaxM3Model(withId('minimax-m3.1'))).toBe(true)
+    expect(isMiniMaxM3Model(withId('minimax-m3.5-pro'))).toBe(true)
+    expect(isMiniMaxM3Model(withId('minimax-m2.1'))).toBe(false)
+    expect(isMiniMaxM3Model(withId('minimax-m2'))).toBe(false)
   })
 
   it('covers known capability inference regression ids', () => {
