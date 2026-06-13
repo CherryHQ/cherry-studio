@@ -1,7 +1,9 @@
 import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { isDev } from '@renderer/config/constant'
+import WindowControls from '@renderer/components/WindowControls'
+import { isDev, isLinux, isMac } from '@renderer/config/constant'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { cn } from '@renderer/utils/style'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
@@ -40,6 +42,10 @@ const SettingsPage: FC = () => {
   const { pathname } = location
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
+  const [useSystemTitleBar] = usePreference('app.use_system_title_bar')
+  // Frameless windows host the "应用设置" title in the top region (next to the traffic lights);
+  // the Linux native-title-bar path has no top region, so it keeps the sidebar header instead.
+  const hasCustomTitleBar = !isLinux || !useSystemTitleBar
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
   const go = (path: string) => navigate({ to: path })
@@ -50,14 +56,42 @@ const SettingsPage: FC = () => {
         'flex min-h-0 flex-1 flex-col',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
       )}>
+      {/* Frameless top region (replaces the native title bar): draggable, height driven by
+          `--navbar-height` (0 when a native title bar is used). Split at `--settings-width`
+          so each segment continues its column upward — left holds the "应用设置" title past the
+          macOS traffic lights, right hosts WindowControls on Win/Linux. */}
+      <div className="flex h-(--navbar-height) shrink-0 [-webkit-app-region:drag]">
+        <div
+          className={cn(
+            'flex w-(--settings-width) min-w-(--settings-width) items-center',
+            isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
+          )}>
+          {hasCustomTitleBar && (
+            <h2
+              className={cn(
+                'truncate font-medium text-foreground text-sm leading-none',
+                isMac ? 'pl-[env(titlebar-area-x)]' : 'pl-5'
+              )}>
+              {t('settings.menuGroups.appSettings')}
+            </h2>
+          )}
+        </div>
+        <div
+          className={cn(
+            'flex min-w-0 flex-1 justify-end border-border/40 border-l',
+            isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
+          )}>
+          <WindowControls />
+        </div>
+      </div>
       <div className="flex min-h-0 flex-1 flex-row">
         <div
           className={cn(
             'flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col',
             isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
           )}>
-          <PageHeader title={t('settings.menuGroups.appSettings')} />
-          <Scrollbar className="min-h-0 flex-1 select-none">
+          {!hasCustomTitleBar && <PageHeader title={t('settings.menuGroups.appSettings')} />}
+          <Scrollbar className={cn('min-h-0 flex-1 select-none', hasCustomTitleBar && 'pt-2')}>
             <MenuList className={settingsSubmenuListClassName}>
               <MenuItem
                 className={settingsSubmenuItemClassName}

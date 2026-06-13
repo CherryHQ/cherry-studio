@@ -101,6 +101,9 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   // Settings window — singleton popup surface for application settings.
   // The renderer consumes initData as the target /settings/* route, so open()
   // can focus an existing settings window and navigate it in-place.
+  // Frameless on all platforms (mirrors Main/SubWindow): the renderer draws its own
+  // top region — traffic lights on macOS, WindowControls on Win/Linux — so there is no
+  // native title bar. See SettingsPage's top bar + SettingsApp's `--navbar-height`.
   [WindowType.Settings]: {
     type: WindowType.Settings,
     lifecycle: 'singleton',
@@ -118,6 +121,20 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       transparent: false,
       vibrancy: 'sidebar',
       visualEffectState: 'active',
+      platformOverrides: {
+        mac: {
+          titleBarStyle: 'hidden',
+          trafficLightPosition: { x: 13, y: 16 },
+          // WCO height; consumed by renderer's env(titlebar-area-height). Mirrors Main.
+          titleBarOverlay: { height: 42 }
+        },
+        win: {
+          // Frameless + renderer-drawn WindowControls (mirrors Main/SubWindow).
+          frame: false
+        }
+        // linux: frame honors `app.use_system_title_bar` preference → injected via
+        //        args.options in SettingsWindowService (mirrors MainWindowService).
+      },
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,

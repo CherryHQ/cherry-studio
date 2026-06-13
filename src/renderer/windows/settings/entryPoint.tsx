@@ -15,6 +15,7 @@ loggerService.initWindowSource('SettingsWindow')
 
 const SETTINGS_SHELL_PREFERENCE_KEYS: UnifiedPreferenceKeyType[] = [
   'app.language',
+  'app.use_system_title_bar',
   'ui.theme_mode',
   'ui.window_style',
   'ui.theme_user.color_primary',
