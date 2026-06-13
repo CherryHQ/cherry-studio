@@ -18,7 +18,6 @@
     },
     "askUserQuestion": {
       "answered": "respondido",
-      "close": "[to be translated]:Close",
       "customPlaceholder": "Introduce tu respuesta...",
       "loading": "Cargando preguntas...",
       "multiSelect": "Selección múltiple",
@@ -26,8 +25,6 @@
       "noQuestions": "No hay preguntas disponibles",
       "other": "Otro",
       "previous": "Anterior",
-      "progress": "[to be translated]:{{current}} of {{total}}",
-      "skip": "[to be translated]:Skip",
       "submit": "Enviar",
       "title": "Preguntas del Agente"
     },
@@ -218,11 +215,7 @@
         "edit": "Editar",
         "empty": "No hay tareas programadas. Agregue una para comenzar.",
         "error": {
-          "createFailed": "[to be translated]:Failed to create task",
-          "deleteFailed": "[to be translated]:Failed to delete task",
-          "loadFailed": "Error al cargar las tareas",
-          "runFailed": "[to be translated]:Failed to run task",
-          "updateFailed": "[to be translated]:Failed to update task"
+          "loadFailed": "Error al cargar las tareas"
         },
         "intervalPlaceholder": "Intervalo en minutos",
         "intervalUnit": "minutos",
@@ -333,9 +326,6 @@
       "success": "¡Git Bash detectado con éxito!",
       "tooltip": "Se requiere Git Bash para ejecutar agentes en Windows. Instálalo desde git-scm.com si no está disponible."
     },
-    "home": {
-      "welcome_title": "[to be translated]:What shall we talk about today?"
-    },
     "input": {
       "placeholder": "Introduce tu mensaje aquí, envía con {{key}} - @ seleccionar ruta, / seleccionar comando",
       "soul_placeholder": "Ayúdame a conectarme a Telegram"
@@ -345,89 +335,9 @@
         "failed": "Error al listar agentes."
       }
     },
-    "pin": {
-      "title": "[to be translated]:Pin Agent"
-    },
-    "preview_pane": {
-      "close": "[to be translated]:Close preview",
-      "code": "[to be translated]:Code",
-      "code_unavailable": "[to be translated]:Source view not available for binary files",
-      "empty": {
-        "description": "[to be translated]:Start chatting with the agent; generated code and live previews will appear here.",
-        "title": "[to be translated]:Ready"
-      },
-      "excel": {
-        "errors": {
-          "file_too_large": "[to be translated]:This Excel file exceeds the preview size limit.",
-          "invalid_request": "[to be translated]:The Excel preview request is invalid.",
-          "parse_failed": "[to be translated]:Unable to read this Excel file.",
-          "too_complex": "[to be translated]:This Excel file is too complex to preview.",
-          "unsupported_extension": "[to be translated]:Only .xlsx and .xlsm files can be previewed.",
-          "unsupported_xls": "[to be translated]:Legacy .xls files are not supported by Excel preview."
-        },
-        "warnings": {
-          "generic": "[to be translated]:Some workbook content may not be fully shown.",
-          "title": "[to be translated]:Preview notice",
-          "unsupported_images": "[to be translated]:Images are not shown in Excel preview yet."
-        }
-      },
-      "file_tree": "[to be translated]:File tree",
-      "items_one": "[to be translated]:{{count}} item",
-      "items_other": "[to be translated]:{{count}} items",
-      "maximize": "[to be translated]:Maximize",
-      "minimize": "[to be translated]:Minimize",
-      "no_search_results": "[to be translated]:No files match your search",
-      "preview": "[to be translated]:Preview",
-      "refresh": "[to be translated]:Refresh",
-      "search_placeholder": "[to be translated]:Search files...",
-      "select_file": "[to be translated]:Select a file to preview",
-      "toggle": "[to be translated]:Show preview panel",
-      "too_large": {
-        "description": "[to be translated]:File exceeds the {{limit}} preview limit.",
-        "title": "[to be translated]:File too large to preview"
-      },
-      "word": {
-        "errors": {
-          "parse_failed": "[to be translated]:Unable to render this Word document.",
-          "read_failed": "[to be translated]:Unable to read this Word document."
-        }
-      }
-    },
     "reorder": {
       "error": {
         "failed": "Error al reordenar los agentes"
-      }
-    },
-    "right_pane": {
-      "close": "[to be translated]:Close",
-      "flow": {
-        "empty": {
-          "description": "[to be translated]:Select an agent tool call to inspect its child message flow.",
-          "title": "[to be translated]:No tool selected"
-        },
-        "no_messages": {
-          "description": "[to be translated]:This tool call has no captured child message flow.",
-          "title": "[to be translated]:No messages"
-        }
-      },
-      "status": {
-        "activity": "[to be translated]:Activity",
-        "agent": "[to be translated]:Agent",
-        "context": "[to be translated]:Context",
-        "no_tasks": "[to be translated]:No active tasks",
-        "selected_tool": "[to be translated]:Selected tool",
-        "task_count": "[to be translated]:{{completed}} / {{total}} complete",
-        "tasks": "[to be translated]:Tasks",
-        "tools_active": "[to be translated]:Active",
-        "tools_done": "[to be translated]:Done",
-        "tools_failed": "[to be translated]:Failed",
-        "tools_total": "[to be translated]:Total",
-        "workspace": "[to be translated]:Workspace"
-      },
-      "tabs": {
-        "files": "[to be translated]:Files",
-        "flow": "[to be translated]:Flow",
-        "status": "[to be translated]:Status"
       }
     },
     "server": {
@@ -450,16 +360,6 @@
       "add": {
         "title": "Agregar una sesión"
       },
-      "agent": {
-        "delete": {
-          "content": "[to be translated]:Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
-          "error": {
-            "failed": "[to be translated]:Failed to delete agent chats"
-          },
-          "title": "[to be translated]:Delete agent chats",
-          "trigger": "[to be translated]:Delete agent chats"
-        }
-      },
       "allowed_tools": {
         "empty": "No hay herramientas disponibles para este agente.",
         "helper": "Elige qué herramientas quedan preaprobadas. Las no seleccionadas requerirán aprobación manual antes de usarse.",
@@ -479,97 +379,29 @@
         },
         "title": "Eliminar sesión"
       },
-      "display": {
-        "agent": "[to be translated]:Agent",
-        "time": "[to be translated]:Time",
-        "title": "[to be translated]:Display mode",
-        "workdir": "[to be translated]:Project"
-      },
       "edit": {
         "title": "Sesión de edición"
-      },
-      "empty": {
-        "description": "[to be translated]:Tasks will appear here after you start one.",
-        "title": "[to be translated]:No tasks yet"
-      },
-      "file_manager": {
-        "file_explorer": "[to be translated]:File Explorer",
-        "files": "[to be translated]:Files",
-        "finder": "[to be translated]:Finder"
       },
       "get": {
         "error": {
           "failed": "Error al obtener la sesión",
-          "not_found": "[to be translated]:Session not found",
           "null_id": "El ID de sesión es nulo"
         }
       },
-      "group": {
-        "collapse": "[to be translated]:Collapse display",
-        "collapse_all": "[to be translated]:Collapse all",
-        "conversation": "[to be translated]:Chats",
-        "drag_hint": "[to be translated]:Drag to reorder. Drag sessions to adjust display and hidden groups.",
-        "earlier": "[to be translated]:Earlier",
-        "expand_all": "[to be translated]:Expand all",
-        "no_workdir": "[to be translated]:No project",
-        "show_more": "[to be translated]:Expand display",
-        "this_week": "[to be translated]:This week",
-        "today": "[to be translated]:Today",
-        "unknown_agent": "[to be translated]:Unknown agent",
-        "yesterday": "[to be translated]:Yesterday"
-      },
       "label_one": "Sesión",
       "label_other": "Sesiones",
-      "list": {
-        "title": "[to be translated]:Sessions"
-      },
-      "pin": {
-        "title": "[to be translated]:Pin task"
-      },
       "reorder": {
         "error": {
           "failed": "Error al reordenar las sesiones"
         }
       },
-      "search": {
-        "placeholder": "[to be translated]:Search sessions"
-      },
       "tool": {
         "disabled": "La herramienta {{toolName}} está deshabilitada para este agente."
-      },
-      "unpin": {
-        "title": "[to be translated]:Unpin task"
       },
       "update": {
         "error": {
           "failed": "Error al actualizar la sesión"
         }
-      },
-      "workdir": {
-        "delete": {
-          "content": "[to be translated]:Deleting this project will also delete all sessions under it. Only database records are removed; the actual folder on disk will not be deleted.",
-          "error": {
-            "failed": "[to be translated]:Failed to delete the project"
-          },
-          "title": "[to be translated]:Delete project",
-          "trigger": "[to be translated]:Delete project"
-        },
-        "rename": {
-          "error": {
-            "failed": "[to be translated]:Failed to rename the project"
-          },
-          "title": "[to be translated]:Rename project",
-          "trigger": "[to be translated]:Rename project"
-        }
-      },
-      "workspace_selector": {
-        "create_failed": "[to be translated]:Failed to add project.",
-        "create_new": "[to be translated]:Add new project",
-        "empty_text": "[to be translated]:No projects",
-        "no_project": "[to be translated]:No project",
-        "placeholder": "[to be translated]:Select project",
-        "search_placeholder": "[to be translated]:Search projects",
-        "select_failed": "[to be translated]:Failed to select folder."
       },
       "workspace_status": {
         "inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}",
@@ -866,10 +698,8 @@
         "showDetails": "Mostrar detalles de la herramienta"
       },
       "button": {
-        "allow": "[to be translated]:Allow",
         "allowAll": "Permitir siempre",
         "cancel": "Cancelar",
-        "deny": "[to be translated]:Deny",
         "run": "Correr"
       },
       "confirmation": "¿Estás seguro de que quieres ejecutar esta herramienta de Claude?",
@@ -944,9 +774,6 @@
     "type": {
       "label": "Tipo de Agente",
       "unknown": "Tipo desconocido"
-    },
-    "unpin": {
-      "title": "[to be translated]:Unpin Agent"
     },
     "update": {
       "error": {
@@ -1057,7 +884,6 @@
     "abbr": "Asistente",
     "clear": {
       "content": "Vaciar el tema eliminará todos los temas y archivos del asistente. ¿Está seguro de que desea continuar?",
-      "menu_title": "[to be translated]:Delete all assistant conversations",
       "title": "Vaciar Tema"
     },
     "copy": {
@@ -1079,9 +905,6 @@
     "list": {
       "showByList": "Mostrar en lista",
       "showByTags": "Mostrar por etiquetas"
-    },
-    "pin": {
-      "title": "[to be translated]:Pin Assistant"
     },
     "presets": {
       "add": {
@@ -1177,11 +1000,6 @@
       },
       "title": "Biblioteca de asistentes"
     },
-    "reorder": {
-      "error": {
-        "failed": "[to be translated]:Failed to reorder assistants"
-      }
-    },
     "save": {
       "success": "Guardado exitosamente",
       "title": "Guardar en Agente Inteligente"
@@ -1275,10 +1093,7 @@
       },
       "untagged": "Sin agrupar"
     },
-    "title": "Asistente",
-    "unpin": {
-      "title": "[to be translated]:Unpin Assistant"
-    }
+    "title": "Asistente"
   },
   "auth": {
     "error": "Falló la obtención automática de la clave, por favor obténla manualmente",
@@ -1313,7 +1128,6 @@
     "download": "Descargar",
     "includes_user_questions": "Incluye preguntas del usuario",
     "manage": "Administrar",
-    "select_assistant": "[to be translated]:Select Assistant",
     "select_model": "Seleccionar Modelo",
     "show": {
       "all": "Mostrar Todo"
@@ -1358,9 +1172,6 @@
         "placeholder": "Buscar"
       }
     },
-    "conversation": {
-      "new": "[to be translated]:New Chat"
-    },
     "deeply_thought": "Profundamente pensado (tomó {{seconds}} segundos)",
     "default": {
       "description": "Hola, soy el asistente predeterminado. Puedes comenzar a conversar conmigo de inmediato.",
@@ -1379,12 +1190,8 @@
       "user_node": "Usuario",
       "view_full_content": "Ver contenido completo"
     },
-    "home": {
-      "welcome_title": "[to be translated]:What shall we talk about today?"
-    },
     "input": {
       "auto_resize": "Ajuste automático de altura",
-      "cancel_editing": "[to be translated]:Cancel editing",
       "clear": {
         "content": "¿Estás seguro de que quieres eliminar todos los mensajes de la sesión actual?",
         "label": "Limpiar mensajes {{Command}}",
@@ -1394,7 +1201,6 @@
       "context_count": {
         "tip": "Número de contextos / Número máximo de contextos"
       },
-      "editing_message": "[to be translated]:Editing sent message",
       "estimated_tokens": {
         "tip": "Número estimado de tokens"
       },
@@ -1405,17 +1211,12 @@
       "generate_image": "Generar imagen",
       "generate_image_not_supported": "El modelo no soporta la generación de imágenes",
       "knowledge_base": "Base de conocimientos",
-      "knowledge_base_disabled_by_files": "[to be translated]:Remove attached files to use Knowledge Base",
-      "knowledge_base_unavailable": "[to be translated]:Select a tool-capable model or enable prompt tool use",
-      "locate_editing_message": "[to be translated]:Locate original message",
-      "mcp_unavailable": "[to be translated]:Select a tool-capable model or enable prompt tool use",
       "new": {
         "context": "Limpiar contexto {{Command}}"
       },
       "new_session": "Nueva Sesión {{Command}}",
       "new_topic": "Nuevo tema {{Command}}",
       "paste_text_file": "Pegar en la entrada",
-      "pasted_text_file_name": "[to be translated]:Pasted text.txt",
       "pause": "Pausar",
       "placeholder": "Escribe aquí tu mensaje...",
       "placeholder_without_triggers": "Escribe tu mensaje aquí, presiona {{key}} para enviar",
@@ -1446,7 +1247,6 @@
       },
       "thinking": {
         "budget_exceeds_max": "El presupuesto de pensamiento excede el número máximo de tokens",
-        "fixed_model": "[to be translated]:Reasoning is fixed for this model",
         "label": "Pensando",
         "mode": {
           "custom": {
@@ -1460,8 +1260,7 @@
           "tokens": {
             "tip": "Establecer el número de tokens para el pensamiento"
           }
-        },
-        "unsupported_model": "[to be translated]:Current model does not support adjustable reasoning"
+        }
       },
       "tools": {
         "collapse": "Contraer",
@@ -1479,8 +1278,6 @@
       "upload": {
         "attachment": "Subir archivo adjunto",
         "document": "Subir documento (el modelo no admite imágenes)",
-        "document_only": "[to be translated]:Documents only",
-        "image_not_supported": "[to be translated]:This model does not support image uploads. Documents only.",
         "image_or_document": "Subir imagen o documento",
         "upload_from_local": "Subir archivo local..."
       },
@@ -1516,20 +1313,6 @@
       }
     },
     "message": {
-      "editing_current": "[to be translated]:This message is being edited in the composer",
-      "flow": {
-        "branches": "[to be translated]:branches",
-        "copy_topic": {
-          "created": "[to be translated]:Copied to a new topic",
-          "label": "[to be translated]:Copy as New Topic"
-        },
-        "nodes": "[to be translated]:nodes",
-        "status": {
-          "awaiting_input": "[to be translated]:Awaiting input"
-        },
-        "title": "[to be translated]:Branch Management"
-      },
-      "more": "[to be translated]:More actions",
       "new": {
         "branch": {
           "created": "Nueva rama creada",
@@ -1639,7 +1422,6 @@
             "save_failed": "Error al guardar el tema, verifica la configuración de la base de conocimientos"
           },
           "loading": "Analizando el contenido del tema...",
-          "menu_title": "[to be translated]:Save to Knowledge Base",
           "select": {
             "content": {
               "label": "Seleccionar el tipo de contenido que desea guardar",
@@ -1726,25 +1508,14 @@
       "delete": {
         "shortcut": "Mantén presionada {{key}} para eliminar directamente"
       },
-      "display": {
-        "assistant": "[to be translated]:Assistant",
-        "tag": "[to be translated]:Tag",
-        "time": "[to be translated]:Time",
-        "title": "[to be translated]:Display mode"
-      },
       "edit": {
         "placeholder": "Introduce nuevo nombre",
         "title": "Editar nombre del tema",
         "title_tip": "Consejos: hacer doble clic en el nombre del tema permite cambiar el nombre directamente en el lugar"
       },
-      "empty": {
-        "description": "[to be translated]:Create a chat and it will stay here so you can continue with its context later.",
-        "title": "[to be translated]:No chats yet"
-      },
       "export": {
         "failed": "Exportación fallida",
         "image": "Exportar como imagen",
-        "image_exporting_keep_page": "[to be translated]:Exporting image. Please stay on this page.",
         "image_saved": "Imagen guardada con éxito",
         "joplin": "Exportar a Joplin",
         "md": {
@@ -1791,17 +1562,6 @@
         "wait_for_title_naming": "Generando título...",
         "word": "Exportar como Word",
         "yuque": "Exportar a Yuque"
-      },
-      "group": {
-        "collapse": "[to be translated]:Collapse display",
-        "collapse_all": "[to be translated]:Collapse all",
-        "earlier": "[to be translated]:Earlier",
-        "expand_all": "[to be translated]:Expand all",
-        "show_more": "[to be translated]:Expand display",
-        "this_week": "[to be translated]:This week",
-        "today": "[to be translated]:Today",
-        "unknown_assistant": "[to be translated]:Unlinked Assistant",
-        "yesterday": "[to be translated]:Yesterday"
       },
       "list": "Lista de temas",
       "manage": {
@@ -1951,10 +1711,8 @@
     "add": "Agregar",
     "add_success": "Añadido con éxito",
     "advanced_settings": "Configuración avanzada",
-    "agent": "[to be translated]:Agent",
     "agent_one": "Agente",
     "agent_other": "Agentes",
-    "all": "[to be translated]:All",
     "and": "y",
     "assistant": "Agente inteligente",
     "assistant_one": "Asistente",
@@ -1968,14 +1726,12 @@
     "clear_all": "Borrar todo",
     "click_to_replace": "Haz clic para reemplazar",
     "close": "Cerrar",
-    "close_sidebar": "[to be translated]:Close sidebar",
     "collapse": "Colapsar",
     "completed": "Completado",
     "confirm": "Confirmar",
     "copied": "Copiado",
     "copy": "Copiar",
     "copy_failed": "Error al copiar",
-    "create_success": "[to be translated]:Created successfully",
     "current": "Actual",
     "cut": "Cortar",
     "default": "Predeterminado",
@@ -2020,8 +1776,6 @@
     "knowledge_base": "Base de conocimiento",
     "language": "Idioma",
     "loading": "Cargando...",
-    "maximize": "[to be translated]:Maximize",
-    "minimize": "[to be translated]:Minimize",
     "model": "Modelo",
     "models": "Modelos",
     "more": "Más",
@@ -2034,8 +1788,6 @@
     "on": "En",
     "open": "Abrir",
     "open_in": "Abrir en {{name}}",
-    "open_in_new_tab": "[to be translated]:Open in new tab",
-    "open_sidebar": "[to be translated]:Open sidebar",
     "paste": "Pegar",
     "placeholders": {
       "select": {
@@ -2088,7 +1840,6 @@
     "upload_image": "Subir archivo de imagen",
     "uploaded_image": "Imagen cargada",
     "warning": "Advertencia",
-    "yesterday": "[to be translated]:Yesterday",
     "you": "Usuario"
   },
   "dialog": {
@@ -2299,85 +2050,6 @@
     "title": "Archivo",
     "type": "Tipo"
   },
-  "globalSearch": {
-    "clear": "[to be translated]:Clear search",
-    "error": "[to be translated]:Search failed",
-    "filters": {
-      "agent": "[to be translated]:Agent",
-      "all": "[to be translated]:All",
-      "assistant": "[to be translated]:Assistant",
-      "conversation": "[to be translated]:Work",
-      "knowledge": "[to be translated]:Knowledge",
-      "label": "[to be translated]:Search type",
-      "session": "[to be translated]:Work",
-      "topic": "[to be translated]:Topic"
-    },
-    "groups": {
-      "agent": "[to be translated]:Agent",
-      "assistant": "[to be translated]:Assistant",
-      "conversation": "[to be translated]:Work",
-      "knowledge-base": "[to be translated]:Knowledge",
-      "message": "[to be translated]:Messages",
-      "recent": "[to be translated]:Recent",
-      "session": "[to be translated]:Work",
-      "topic": "[to be translated]:Topic"
-    },
-    "keyboard": {
-      "select": "[to be translated]:Select"
-    },
-    "messageSearch": {
-      "entry": "[to be translated]:Messages",
-      "hint": "[to be translated]:Type to search message content",
-      "jumpToMessage": "[to be translated]:Jump to message",
-      "more": "[to be translated]:Show {{count}} more results",
-      "open": "[to be translated]:Search messages",
-      "roles": {
-        "assistant": "[to be translated]:Assistant",
-        "system": "[to be translated]:System",
-        "tool": "[to be translated]:Tool",
-        "user": "[to be translated]:User"
-      },
-      "sourceLabel": "[to be translated]:Message source",
-      "sources": {
-        "all": "[to be translated]:All messages",
-        "session": "[to be translated]:Work messages",
-        "topic": "[to be translated]:Topic messages"
-      },
-      "viewMore": "[to be translated]:View more in Messages"
-    },
-    "no_recent": "[to be translated]:No recent routes",
-    "open": "[to be translated]:Open global search",
-    "open_failed": "[to be translated]:Failed to open search result",
-    "placeholder": "[to be translated]:Search topics, work, assistants, agents, and knowledge...",
-    "quickApps": {
-      "hide": "[to be translated]:Hide {{name}}",
-      "manage": "[to be translated]:Manage",
-      "manager_description": "[to be translated]:Drag to reorder, click the eye to hide or show",
-      "manager_title": "[to be translated]:Manage quick apps",
-      "reset": "[to be translated]:Reset",
-      "save_failed": "[to be translated]:Failed to save quick apps",
-      "show": "[to be translated]:Show {{name}}",
-      "title": "[to be translated]:Quick apps"
-    },
-    "recent_hint": "[to be translated]:Type to search work, assistants, agents, and knowledge",
-    "resultTypes": {
-      "agent": "[to be translated]:Agent",
-      "assistant": "[to be translated]:Assistant",
-      "knowledge-base": "[to be translated]:Knowledge",
-      "session": "[to be translated]:Work",
-      "topic": "[to be translated]:Topic"
-    },
-    "showMore": "[to be translated]:Show {{count}} more",
-    "timeFilters": {
-      "any": "[to be translated]:Any time",
-      "label": "[to be translated]:Updated time",
-      "messageLabel": "[to be translated]:Created time",
-      "month": "[to be translated]:Last month",
-      "quarter": "[to be translated]:Last 3 months",
-      "today": "[to be translated]:Today",
-      "week": "[to be translated]:Last 7 days"
-    }
-  },
   "gpustack": {
     "keep_alive_time": {
       "description": "Tiempo que el modelo permanece en memoria (por defecto: 5 minutos)",
@@ -2393,66 +2065,6 @@
     },
     "locate": {
       "message": "Localizar mensaje"
-    },
-    "records": {
-      "agentSubtitle": "[to be translated]:{{count}} sessions",
-      "agentTitle": "[to be translated]:Agent History",
-      "assistantSubtitle": "[to be translated]:{{count}} topics",
-      "bulkDelete": "[to be translated]:Batch Delete",
-      "bulkDeleteSessions": {
-        "description": "[to be translated]:Delete {{count}} selected session(s)?",
-        "title": "[to be translated]:Delete selected sessions"
-      },
-      "bulkDeleteTopics": {
-        "description": "[to be translated]:Delete {{count}} selected topic(s)?",
-        "title": "[to be translated]:Delete selected topics"
-      },
-      "bulkMove": "[to be translated]:Batch Move",
-      "bulkMoveTopics": {
-        "confirm": "[to be translated]:Move",
-        "description": "[to be translated]:Move {{count}} selected topic(s) to the target assistant.",
-        "empty": "[to be translated]:No assistants available",
-        "error": "[to be translated]:Failed to move topics",
-        "placeholder": "[to be translated]:Select assistant",
-        "success": "[to be translated]:Moved {{count}} topic(s)",
-        "target": "[to be translated]:Target assistant",
-        "title": "[to be translated]:Move selected topics"
-      },
-      "empty": {
-        "description": "[to be translated]:No topics for the current filters.",
-        "sessionsDescription": "[to be translated]:No sessions for the current filters.",
-        "sessionsTitle": "[to be translated]:No sessions",
-        "title": "[to be translated]:No topics"
-      },
-      "loading": {
-        "description": "[to be translated]:Loading topic list.",
-        "sessionsDescription": "[to be translated]:Loading session list.",
-        "sessionsTitle": "[to be translated]:Loading sessions",
-        "title": "[to be translated]:Loading topics"
-      },
-      "resultCount": "[to be translated]:{{count}} results",
-      "searchSession": "[to be translated]:Search sessions...",
-      "searchTopic": "[to be translated]:Search topics...",
-      "shortTitle": "[to be translated]:History",
-      "sidebar": {
-        "searchAssistant": "[to be translated]:Search assistants...",
-        "status": "[to be translated]:Status",
-        "unknownAssistant": "[to be translated]:Unlinked assistant"
-      },
-      "status": {
-        "completed": "[to be translated]:Completed",
-        "failed": "[to be translated]:Failed",
-        "running": "[to be translated]:Running"
-      },
-      "table": {
-        "actions": "[to be translated]:Actions",
-        "emptyValue": "[to be translated]:—",
-        "messages": "[to be translated]:Messages",
-        "session": "[to be translated]:Session",
-        "time": "[to be translated]:Time",
-        "title": "[to be translated]:Title"
-      },
-      "title": "[to be translated]:Topic History"
     },
     "search": {
       "match": {
@@ -2823,7 +2435,6 @@
       "browse_label": "Categorías de asistentes",
       "empty_description": "Esta categoría aún no tiene preajustes de asistente.",
       "empty_title": "No hay asistentes que agregar",
-      "go_to_chat": "[to be translated]:Go to chat",
       "mine": "Mío",
       "no_match_description": "Prueba con una palabra clave de búsqueda diferente",
       "no_match_title": "No hay asistentes coincidentes",
@@ -2862,8 +2473,7 @@
           },
           "env_vars": {
             "help": "Una CLAVE=VALOR por línea",
-            "label": "Variables de entorno",
-            "placeholder": "[to be translated]:KEY=value\nANOTHER_KEY=another_value"
+            "label": "Variables de entorno"
           },
           "heartbeat_enabled": {
             "label": "Verificación del latido"
@@ -3011,7 +2621,6 @@
         "json_invalid": "Formato JSON inválido",
         "max_tokens": "Tokens máximos",
         "max_tool_calls": "Llamadas máximas de herramientas",
-        "mcp_mode": "[to be translated]:MCP Mode",
         "model": "Modelo predeterminado",
         "model_clear": "Claro",
         "model_not_found": "Modelo no encontrado (puede haber sido eliminado): {{id}}",
@@ -3030,34 +2639,6 @@
         "unlimited": "Ilimitado"
       },
       "breadcrumb": "Biblioteca",
-      "dialogs": {
-        "create": {
-          "agent_title": "[to be translated]:New Agent",
-          "assistant_title": "[to be translated]:New Assistant",
-          "avatar_aria": "[to be translated]:Choose avatar",
-          "description_placeholder": "[to be translated]:Describe what it is for...",
-          "dialog_description": "[to be translated]:Create a lightweight assistant or agent.",
-          "model_placeholder": "[to be translated]:Select a model",
-          "model_required": "[to be translated]:Please select a model",
-          "name_placeholder": "[to be translated]:Enter a name",
-          "name_required": "[to be translated]:Please enter a name",
-          "submit": "[to be translated]:Create",
-          "submit_failed": "[to be translated]:Create failed"
-        },
-        "edit": {
-          "advanced_tab": "[to be translated]:Advanced",
-          "agent_description": "[to be translated]:Quickly adjust this agent's essentials.",
-          "agent_title": "[to be translated]:Edit Agent",
-          "assistant_description": "[to be translated]:Quickly adjust this assistant's essentials.",
-          "assistant_title": "[to be translated]:Edit Assistant",
-          "basic_tab": "[to be translated]:Basic",
-          "knowledge_tab": "[to be translated]:Knowledge",
-          "permission_tab": "[to be translated]:Permission",
-          "prompt_tab": "[to be translated]:Prompt",
-          "save_failed": "[to be translated]:Save failed",
-          "tools_tab": "[to be translated]:Tools"
-        }
-      },
       "knowledge": {
         "add": "Agregar base de conocimientos",
         "desc": "Vincula una o más bases de conocimiento; se recuperarán fragmentos relevantes durante el chat",
@@ -3278,7 +2859,6 @@
     "title": "Biblioteca",
     "toolbar": {
       "add_tag_placeholder": "Nombre de la etiqueta...",
-      "all_tags": "[to be translated]:All tags",
       "new_resource": "Nuevo recurso",
       "search_placeholder": "Buscar recursos...",
       "tag_button": "Etiqueta"
@@ -3375,7 +2955,6 @@
       "chunk_overlap_too_large": "El solapamiento del fragmento no puede ser mayor que el tamaño del fragmento",
       "copy": "Fallo al copiar",
       "dimension_too_large": "La dimensión del contenido es demasiado grande",
-      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
       "enter": {
         "api": {
           "host": "Ingrese su dirección API",
@@ -3426,7 +3005,6 @@
         "no_api_key": "No se ha configurado la clave API de Notion o la ID de la base de datos de Notion",
         "no_content": "No hay contenido que exportar a Notion"
       },
-      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "siyuan": {
         "export": "Error al exportar la nota de Siyuan, verifique el estado de la conexión y revise la configuración según la documentación",
         "no_config": "No se ha configurado la dirección API o el token de Siyuan"
@@ -3485,10 +3063,6 @@
         "bubble": "Burbuja",
         "label": "Estilo de mensaje",
         "plain": "Simple"
-      },
-      "user_content": {
-        "collapse": "[to be translated]:Collapse",
-        "expand": "[to be translated]:Expand"
       },
       "video": {
         "error": {
@@ -3556,76 +3130,6 @@
     "tools": {
       "abort_failed": "Error al interrumpir la llamada de la herramienta",
       "aborted": "Llamada de la herramienta interrumpida",
-      "activity": {
-        "archive": "[to be translated]:archive",
-        "assistantTask": "[to be translated]:task",
-        "availableFeatures": "[to be translated]:available features",
-        "availableResources": "[to be translated]:available resources",
-        "branch": "[to be translated]:code branch",
-        "build": "[to be translated]:Build",
-        "building": "[to be translated]:Building",
-        "check": "[to be translated]:Check",
-        "checking": "[to be translated]:Checking",
-        "codeFiles": "[to be translated]:code files",
-        "codeHostInfo": "[to be translated]:code hosting information",
-        "commandName": "[to be translated]:{{name}} command",
-        "configFiles": "[to be translated]:project docs and config files",
-        "copy": "[to be translated]:Copy",
-        "copying": "[to be translated]:Copying",
-        "create": "[to be translated]:Create",
-        "creating": "[to be translated]:Creating",
-        "currentFolder": "[to be translated]:current folder",
-        "delete": "[to be translated]:Delete",
-        "deleting": "[to be translated]:Deleting",
-        "documentFiles": "[to be translated]:document files",
-        "download": "[to be translated]:Download",
-        "downloading": "[to be translated]:Downloading",
-        "executeCommand": "[to be translated]:Run command",
-        "executingCommand": "[to be translated]:Running command",
-        "extract": "[to be translated]:Extract",
-        "extracting": "[to be translated]:Extracting",
-        "file": "[to be translated]:file",
-        "fileList": "[to be translated]:file list",
-        "folder": "[to be translated]:folder",
-        "handle": "[to be translated]:Handle",
-        "handling": "[to be translated]:Handling",
-        "imageFiles": "[to be translated]:image files",
-        "install": "[to be translated]:Install",
-        "installing": "[to be translated]:Installing",
-        "matchingFiles": "[to be translated]:matching files",
-        "modify": "[to be translated]:Modify",
-        "modifying": "[to be translated]:Modifying",
-        "move": "[to be translated]:Move",
-        "moving": "[to be translated]:Moving",
-        "open": "[to be translated]:Open",
-        "opening": "[to be translated]:Opening",
-        "plan": "[to be translated]:execution plan",
-        "projectChanges": "[to be translated]:project changes",
-        "projectChecks": "[to be translated]:project checks",
-        "projectDependencies": "[to be translated]:project dependencies",
-        "projectFiles": "[to be translated]:project files",
-        "projectRootFiles": "[to be translated]:project root files",
-        "projectTask": "[to be translated]:project task",
-        "relatedContent": "[to be translated]:related content",
-        "repository": "[to be translated]:code repository",
-        "search": "[to be translated]:Find",
-        "searching": "[to be translated]:Finding",
-        "switch": "[to be translated]:Switch",
-        "switching": "[to be translated]:Switching",
-        "sync": "[to be translated]:Sync",
-        "syncing": "[to be translated]:Syncing",
-        "taskList": "[to be translated]:task list",
-        "translationFiles": "[to be translated]:translation files",
-        "upload": "[to be translated]:Upload",
-        "uploading": "[to be translated]:Uploading",
-        "view": "[to be translated]:View",
-        "viewing": "[to be translated]:Viewing",
-        "webPage": "[to be translated]:web page",
-        "webSearch": "[to be translated]:web content",
-        "workspace": "[to be translated]:workspace",
-        "write": "[to be translated]:Save",
-        "writing": "[to be translated]:Saving"
-      },
       "approvalRequired": "La herramienta \"{{tool}}\" requiere aprobación",
       "autoApproveEnabled": "Esta herramienta tiene habilitada la aprobación automática",
       "cancelled": "Cancelado",
@@ -3654,18 +3158,6 @@
       },
       "noData": "No hay datos disponibles para esta herramienta.",
       "pending": "Pendiente",
-      "placeholder": {
-        "elapsed": {
-          "days": "[to be translated]:{{days}}d {{hours}}h {{minutes}}m {{seconds}}s",
-          "hours": "[to be translated]:{{hours}}h {{minutes}}m {{seconds}}s",
-          "minutes": "[to be translated]:{{minutes}}m {{seconds}}s",
-          "seconds": "[to be translated]:{{seconds}}s"
-        },
-        "generating": "[to be translated]:Writing response",
-        "preparing": "[to be translated]:Preparing response",
-        "thinking": "[to be translated]:Thinking",
-        "usingTools": "[to be translated]:Working on the task"
-      },
       "preview": "Vista previa",
       "raw": "Crudo",
       "runningCount": "{{count}} herramientas en ejecución",
@@ -3690,7 +3182,6 @@
         "success": "Éxito"
       },
       "streaming": "Transmisión",
-      "thinkingHeader": "[to be translated]:Thinking",
       "truncated": "Salida truncada (original: {{size}})",
       "units": {
         "done_one": "{{count}} Hecho",
@@ -3735,7 +3226,6 @@
     "websearch": {
       "cutoff": "Truncando el contenido de búsqueda...",
       "fetch_complete": "{{count}} resultados de búsqueda",
-      "fetch_empty": "[to be translated]:No search results found",
       "partial_failure": "{{count}} resultados de búsqueda, algunas búsquedas fallaron"
     }
   },
@@ -3921,12 +3411,6 @@
     "search": {
       "placeholder": "Buscar modelo...",
       "tooltip": "Buscar modelo"
-    },
-    "selection": {
-      "context_window": "[to be translated]:Context {{count}}",
-      "remove_model": "[to be translated]:Remove {{name}}",
-      "restore_default": "[to be translated]:Restore assistant model",
-      "selected_models": "[to be translated]:Selected models"
     },
     "stream_output": "Salida en flujo",
     "type": {
@@ -5219,12 +4703,6 @@
       "sort_label": "Ordenar",
       "unpin": "Desanclar"
     },
-    "create_dialog": {
-      "refresh_failed": "[to be translated]:Created, but failed to refresh the list"
-    },
-    "edit_dialog": {
-      "refresh_failed": "[to be translated]:Saved, but failed to refresh the list"
-    },
     "workspace": {
       "empty_text": "Aún no hay espacios de trabajo",
       "placeholder": "Seleccionar espacio de trabajo"
@@ -5405,17 +4883,7 @@
         "triggerSelectedCount": "{{count}} modelos seleccionados",
         "valueProp": "Propuesta de Valor Actual"
       },
-      "title": "Componente de Desarrollo Lab",
-      "toolPermission": {
-        "builtinMode": "[to be translated]:Built-in",
-        "currentRequest": "[to be translated]:Current request",
-        "description": "[to be translated]:Preview the bottom tool permission composer with built-in and MCP tool requests.",
-        "latestResponse": "[to be translated]:Latest response",
-        "mcpMode": "[to be translated]:MCP",
-        "noResponse": "[to be translated]:No response submitted yet",
-        "resetPreview": "[to be translated]:Reset preview",
-        "title": "[to be translated]:Tool Permission"
-      }
+      "title": "Componente de Desarrollo Lab"
     },
     "data": {
       "app_data": {
@@ -6111,19 +5579,7 @@
         "title": "Copia de seguridad y restauración de datos"
       },
       "common": {
-        "menu": {
-          "presentation_mode": {
-            "cherry": "[to be translated]:Cherry",
-            "native": "[to be translated]:Native",
-            "restart": {
-              "content": "[to be translated]:Changing the menu style requires restarting the app to take effect. Do you want to restart now?",
-              "title": "[to be translated]:Restart Required"
-            },
-            "title": "[to be translated]:Context menu style"
-          }
-        },
         "sections": {
-          "chat_settings": "[to be translated]:Chat Settings",
           "custom_css": "CSS personalizado",
           "display_language": "Pantalla e idioma",
           "privacy_advanced": "Privacidad y Avanzado",
@@ -6382,13 +5838,6 @@
         "text": "Texto",
         "uri": "URI"
       },
-      "runtimeStatus": {
-        "connected": "[to be translated]:Connected",
-        "connecting": "[to be translated]:Connecting",
-        "disabled": "[to be translated]:Disabled",
-        "error": "[to be translated]:Error",
-        "unavailable": "[to be translated]:Unavailable"
-      },
       "search": {
         "placeholder": "Buscar servidores MCP...",
         "tooltip": "Buscar servidores MCP"
@@ -6514,8 +5963,7 @@
       "prompt": "Palabra de indicación",
       "show_message_outline": "Mostrar esquema del mensaje",
       "title": "Configuración de mensajes",
-      "use_serif_font": "Usar fuente serif",
-      "wide_mode": "[to be translated]:Wide layout mode"
+      "use_serif_font": "Usar fuente serif"
     },
     "miniApps": {
       "cache_change_notice": "Los cambios surtirán efecto cuando el número de miniaplicaciones abiertas aumente o disminuya hasta alcanzar el valor configurado",
@@ -6891,7 +6339,6 @@
         "title": "nivel de detalle"
       }
     },
-    "parameter_settings": "[to be translated]:Parameter Settings",
     "plugins": {
       "bunDescription": "Entorno de ejecución de JavaScript utilizado por los servicios MCP y las cadenas de herramientas relacionadas.",
       "description": "Administrar herramientas binarias y dependencias de tiempo de ejecución requeridas por la aplicación.",
@@ -6920,8 +6367,7 @@
       },
       "title": "Gestión de Prompts",
       "titleLabel": "Título",
-      "titlePlaceholder": "Introduce el título del prompt",
-      "variablePlaceholder": "[to be translated]:${variable}"
+      "titlePlaceholder": "Introduce el título del prompt"
     },
     "provider": {
       "add": {
@@ -7255,14 +6701,6 @@
       "close": "Cerrar",
       "confirm": "Confirmar",
       "forward": "Adelante",
-      "mcp": {
-        "agentEmpty": "[to be translated]:No MCP servers configured for this agent",
-        "assistantEmpty": "[to be translated]:No MCP servers configured for this assistant",
-        "autoEmpty": "[to be translated]:No enabled MCP servers",
-        "description": "[to be translated]:View current MCP server status",
-        "disabled": "[to be translated]:MCP is disabled for this assistant",
-        "unknownServer": "[to be translated]:Unknown MCP server"
-      },
       "multiple": "Selección múltiple",
       "noResult": "No se encontraron resultados",
       "page": "Página",
@@ -7306,7 +6744,6 @@
       },
       "clear_shortcut": "Borrar atajo",
       "clear_topic": "Vaciar mensaje",
-      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "Ya utilizado por \"{{name}}\"",
       "copy_last_message": "Copiar el último mensaje",
       "edit_last_user_message": "Editar último mensaje de usuario",
@@ -7314,11 +6751,8 @@
       "enabled": "habilitar",
       "exit_fullscreen": "Salir de pantalla completa",
       "label": "Tecla",
-      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "Nuevo tema",
       "occupied_by_other_application": "Este atajo ya está en uso por el sistema u otra aplicación",
-      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
-      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "Presionar atajo",
       "quick_assistant": "Asistente rápido",
       "rename_topic": "Renombrar tema",
@@ -7626,16 +7060,10 @@
       "title": "Escala"
     }
   },
-  "subWindow": {
-    "back_to_main": "[to be translated]:Back to Main Window",
-    "pin": "[to be translated]:Keep on Top",
-    "unpin": "[to be translated]:Cancel Keep on Top"
-  },
   "tab": {
     "close": "Cerrar pestaña",
     "move_to_first": "Mover al primero",
     "new": "Nueva pestaña",
-    "open_in_new_window": "[to be translated]:Open in New Window",
     "pin": "Anclar pestaña",
     "unpin": "Desanclar pestaña"
   },

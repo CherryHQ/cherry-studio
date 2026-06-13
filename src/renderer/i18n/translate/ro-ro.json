@@ -18,7 +18,6 @@
     },
     "askUserQuestion": {
       "answered": "răspuns",
-      "close": "[to be translated]:Close",
       "customPlaceholder": "Introdu răspunsul tău...",
       "loading": "Se încarcă întrebările...",
       "multiSelect": "Selecție multiplă",
@@ -26,8 +25,6 @@
       "noQuestions": "Nu sunt disponibile întrebări",
       "other": "Altele",
       "previous": "Anterior",
-      "progress": "[to be translated]:{{current}} of {{total}}",
-      "skip": "[to be translated]:Skip",
       "submit": "Trimite",
       "title": "Întrebări de la Agent"
     },
@@ -218,11 +215,7 @@
         "edit": "Editează",
         "empty": "Nu există sarcini programate. Adăugați una pentru a începe.",
         "error": {
-          "createFailed": "[to be translated]:Failed to create task",
-          "deleteFailed": "[to be translated]:Failed to delete task",
-          "loadFailed": "Nu s-au putut încărca sarcinile",
-          "runFailed": "[to be translated]:Failed to run task",
-          "updateFailed": "[to be translated]:Failed to update task"
+          "loadFailed": "Nu s-au putut încărca sarcinile"
         },
         "intervalPlaceholder": "Interval în minute",
         "intervalUnit": "minute",
@@ -333,9 +326,6 @@
       "success": "Git Bash a fost detectat cu succes!",
       "tooltip": "Git Bash este necesar pentru a rula agenți pe Windows. Instalează-l de pe git-scm.com dacă nu este disponibil."
     },
-    "home": {
-      "welcome_title": "[to be translated]:What shall we talk about today?"
-    },
     "input": {
       "placeholder": "Introdu mesajul aici, trimite cu {{key}} - @ selectează calea, / selectează comanda",
       "soul_placeholder": "Ajută-mă să mă conectez la Telegram"
@@ -345,89 +335,9 @@
         "failed": "Nu s-a putut afișa lista de agenți."
       }
     },
-    "pin": {
-      "title": "[to be translated]:Pin Agent"
-    },
-    "preview_pane": {
-      "close": "[to be translated]:Close preview",
-      "code": "[to be translated]:Code",
-      "code_unavailable": "[to be translated]:Source view not available for binary files",
-      "empty": {
-        "description": "[to be translated]:Start chatting with the agent; generated code and live previews will appear here.",
-        "title": "[to be translated]:Ready"
-      },
-      "excel": {
-        "errors": {
-          "file_too_large": "[to be translated]:This Excel file exceeds the preview size limit.",
-          "invalid_request": "[to be translated]:The Excel preview request is invalid.",
-          "parse_failed": "[to be translated]:Unable to read this Excel file.",
-          "too_complex": "[to be translated]:This Excel file is too complex to preview.",
-          "unsupported_extension": "[to be translated]:Only .xlsx and .xlsm files can be previewed.",
-          "unsupported_xls": "[to be translated]:Legacy .xls files are not supported by Excel preview."
-        },
-        "warnings": {
-          "generic": "[to be translated]:Some workbook content may not be fully shown.",
-          "title": "[to be translated]:Preview notice",
-          "unsupported_images": "[to be translated]:Images are not shown in Excel preview yet."
-        }
-      },
-      "file_tree": "[to be translated]:File tree",
-      "items_one": "[to be translated]:{{count}} item",
-      "items_other": "[to be translated]:{{count}} items",
-      "maximize": "[to be translated]:Maximize",
-      "minimize": "[to be translated]:Minimize",
-      "no_search_results": "[to be translated]:No files match your search",
-      "preview": "[to be translated]:Preview",
-      "refresh": "[to be translated]:Refresh",
-      "search_placeholder": "[to be translated]:Search files...",
-      "select_file": "[to be translated]:Select a file to preview",
-      "toggle": "[to be translated]:Show preview panel",
-      "too_large": {
-        "description": "[to be translated]:File exceeds the {{limit}} preview limit.",
-        "title": "[to be translated]:File too large to preview"
-      },
-      "word": {
-        "errors": {
-          "parse_failed": "[to be translated]:Unable to render this Word document.",
-          "read_failed": "[to be translated]:Unable to read this Word document."
-        }
-      }
-    },
     "reorder": {
       "error": {
         "failed": "Nu s-a reușit reordonarea agenților"
-      }
-    },
-    "right_pane": {
-      "close": "[to be translated]:Close",
-      "flow": {
-        "empty": {
-          "description": "[to be translated]:Select an agent tool call to inspect its child message flow.",
-          "title": "[to be translated]:No tool selected"
-        },
-        "no_messages": {
-          "description": "[to be translated]:This tool call has no captured child message flow.",
-          "title": "[to be translated]:No messages"
-        }
-      },
-      "status": {
-        "activity": "[to be translated]:Activity",
-        "agent": "[to be translated]:Agent",
-        "context": "[to be translated]:Context",
-        "no_tasks": "[to be translated]:No active tasks",
-        "selected_tool": "[to be translated]:Selected tool",
-        "task_count": "[to be translated]:{{completed}} / {{total}} complete",
-        "tasks": "[to be translated]:Tasks",
-        "tools_active": "[to be translated]:Active",
-        "tools_done": "[to be translated]:Done",
-        "tools_failed": "[to be translated]:Failed",
-        "tools_total": "[to be translated]:Total",
-        "workspace": "[to be translated]:Workspace"
-      },
-      "tabs": {
-        "files": "[to be translated]:Files",
-        "flow": "[to be translated]:Flow",
-        "status": "[to be translated]:Status"
       }
     },
     "server": {
@@ -450,16 +360,6 @@
       "add": {
         "title": "Adaugă o sesiune"
       },
-      "agent": {
-        "delete": {
-          "content": "[to be translated]:Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
-          "error": {
-            "failed": "[to be translated]:Failed to delete agent chats"
-          },
-          "title": "[to be translated]:Delete agent chats",
-          "trigger": "[to be translated]:Delete agent chats"
-        }
-      },
       "allowed_tools": {
         "empty": "Niciun instrument disponibil pentru acest agent.",
         "helper": "Instrumentele pre-aprobate rulează fără aprobare manuală. Instrumentele neselectate necesită aprobare înainte de utilizare.",
@@ -479,97 +379,29 @@
         },
         "title": "Șterge sesiunea"
       },
-      "display": {
-        "agent": "[to be translated]:Agent",
-        "time": "[to be translated]:Time",
-        "title": "[to be translated]:Display mode",
-        "workdir": "[to be translated]:Project"
-      },
       "edit": {
         "title": "Editează sesiunea"
-      },
-      "empty": {
-        "description": "[to be translated]:Tasks will appear here after you start one.",
-        "title": "[to be translated]:No tasks yet"
-      },
-      "file_manager": {
-        "file_explorer": "[to be translated]:File Explorer",
-        "files": "[to be translated]:Files",
-        "finder": "[to be translated]:Finder"
       },
       "get": {
         "error": {
           "failed": "Nu s-a putut obține sesiunea",
-          "not_found": "[to be translated]:Session not found",
           "null_id": "ID-ul sesiunii este nul"
         }
       },
-      "group": {
-        "collapse": "[to be translated]:Collapse display",
-        "collapse_all": "[to be translated]:Collapse all",
-        "conversation": "[to be translated]:Chats",
-        "drag_hint": "[to be translated]:Drag to reorder. Drag sessions to adjust display and hidden groups.",
-        "earlier": "[to be translated]:Earlier",
-        "expand_all": "[to be translated]:Expand all",
-        "no_workdir": "[to be translated]:No project",
-        "show_more": "[to be translated]:Expand display",
-        "this_week": "[to be translated]:This week",
-        "today": "[to be translated]:Today",
-        "unknown_agent": "[to be translated]:Unknown agent",
-        "yesterday": "[to be translated]:Yesterday"
-      },
       "label_one": "Sesiune",
       "label_other": "Sesiuni",
-      "list": {
-        "title": "[to be translated]:Sessions"
-      },
-      "pin": {
-        "title": "[to be translated]:Pin task"
-      },
       "reorder": {
         "error": {
           "failed": "Nu s-a putut reordona sesiunile"
         }
       },
-      "search": {
-        "placeholder": "[to be translated]:Search sessions"
-      },
       "tool": {
         "disabled": "Instrumentul {{toolName}} este dezactivat pentru acest agent."
-      },
-      "unpin": {
-        "title": "[to be translated]:Unpin task"
       },
       "update": {
         "error": {
           "failed": "Nu s-a putut actualiza sesiunea"
         }
-      },
-      "workdir": {
-        "delete": {
-          "content": "[to be translated]:Deleting this project will also delete all sessions under it. Only database records are removed; the actual folder on disk will not be deleted.",
-          "error": {
-            "failed": "[to be translated]:Failed to delete the project"
-          },
-          "title": "[to be translated]:Delete project",
-          "trigger": "[to be translated]:Delete project"
-        },
-        "rename": {
-          "error": {
-            "failed": "[to be translated]:Failed to rename the project"
-          },
-          "title": "[to be translated]:Rename project",
-          "trigger": "[to be translated]:Rename project"
-        }
-      },
-      "workspace_selector": {
-        "create_failed": "[to be translated]:Failed to add project.",
-        "create_new": "[to be translated]:Add new project",
-        "empty_text": "[to be translated]:No projects",
-        "no_project": "[to be translated]:No project",
-        "placeholder": "[to be translated]:Select project",
-        "search_placeholder": "[to be translated]:Search projects",
-        "select_failed": "[to be translated]:Failed to select folder."
       },
       "workspace_status": {
         "inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}",
@@ -866,10 +698,8 @@
         "showDetails": "Afișează detaliile instrumentului"
       },
       "button": {
-        "allow": "[to be translated]:Allow",
         "allowAll": "Permiteți întotdeauna",
         "cancel": "Anulează",
-        "deny": "[to be translated]:Deny",
         "run": "Rulează"
       },
       "confirmation": "Ești sigur că vrei să rulezi acest instrument Claude?",
@@ -944,9 +774,6 @@
     "type": {
       "label": "Tip agent",
       "unknown": "Tip necunoscut"
-    },
-    "unpin": {
-      "title": "[to be translated]:Unpin Agent"
     },
     "update": {
       "error": {
@@ -1057,7 +884,6 @@
     "abbr": "Asistenți",
     "clear": {
       "content": "Golirea subiectului va șterge toate subiectele și fișierele din asistent. Ești sigur că vrei să continui?",
-      "menu_title": "[to be translated]:Delete all assistant conversations",
       "title": "Șterge subiectele"
     },
     "copy": {
@@ -1079,9 +905,6 @@
     "list": {
       "showByList": "Vizualizare listă",
       "showByTags": "Vizualizare etichete"
-    },
-    "pin": {
-      "title": "[to be translated]:Pin Assistant"
     },
     "presets": {
       "add": {
@@ -1177,11 +1000,6 @@
       },
       "title": "Bibliotecă de asistenți"
     },
-    "reorder": {
-      "error": {
-        "failed": "[to be translated]:Failed to reorder assistants"
-      }
-    },
     "save": {
       "success": "Salvat cu succes",
       "title": "Salvează în biblioteca de asistenți"
@@ -1275,10 +1093,7 @@
       },
       "untagged": "Neetichetat"
     },
-    "title": "Asistenți",
-    "unpin": {
-      "title": "[to be translated]:Unpin Assistant"
-    }
+    "title": "Asistenți"
   },
   "auth": {
     "error": "Obținerea automată a cheii API a eșuat, te rugăm să o obții manual",
@@ -1313,7 +1128,6 @@
     "download": "Descarcă",
     "includes_user_questions": "Include întrebările tale",
     "manage": "Gestionează",
-    "select_assistant": "[to be translated]:Select Assistant",
     "select_model": "Selectează modelul",
     "show": {
       "all": "Afișează tot"
@@ -1358,9 +1172,6 @@
         "placeholder": "Caută"
       }
     },
-    "conversation": {
-      "new": "[to be translated]:New Chat"
-    },
     "deeply_thought": "Gândit profund ({{seconds}} secunde)",
     "default": {
       "description": "Salut, sunt Asistentul Implicit. Poți începe să discuți cu mine imediat",
@@ -1379,12 +1190,8 @@
       "user_node": "Utilizator",
       "view_full_content": "Vezi conținutul complet"
     },
-    "home": {
-      "welcome_title": "[to be translated]:What shall we talk about today?"
-    },
     "input": {
       "auto_resize": "Redimensionare automată înălțime",
-      "cancel_editing": "[to be translated]:Cancel editing",
       "clear": {
         "content": "Vrei să ștergi toate mesajele subiectului curent?",
         "label": "Șterge {{Command}}",
@@ -1394,7 +1201,6 @@
       "context_count": {
         "tip": "Context / Context maxim"
       },
-      "editing_message": "[to be translated]:Editing sent message",
       "estimated_tokens": {
         "tip": "Tokeni estimați"
       },
@@ -1405,17 +1211,12 @@
       "generate_image": "Generează imagine",
       "generate_image_not_supported": "Modelul nu acceptă generarea de imagini.",
       "knowledge_base": "Bază de cunoștințe",
-      "knowledge_base_disabled_by_files": "[to be translated]:Remove attached files to use Knowledge Base",
-      "knowledge_base_unavailable": "[to be translated]:Select a tool-capable model or enable prompt tool use",
-      "locate_editing_message": "[to be translated]:Locate original message",
-      "mcp_unavailable": "[to be translated]:Select a tool-capable model or enable prompt tool use",
       "new": {
         "context": "Șterge contextul {{Command}}"
       },
       "new_session": "Sesiune nouă {{Command}}",
       "new_topic": "Subiect nou {{Command}}",
       "paste_text_file": "Lipește în intrare",
-      "pasted_text_file_name": "[to be translated]:Pasted text.txt",
       "pause": "Pauză",
       "placeholder": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite - @ pentru a selecta modelul, / pentru a include instrumente",
       "placeholder_without_triggers": "Scrie mesajul tău aici, apasă {{key}} pentru a trimite",
@@ -1446,7 +1247,6 @@
       },
       "thinking": {
         "budget_exceeds_max": "Bugetul de gândire depășește numărul maxim de tokeni",
-        "fixed_model": "[to be translated]:Reasoning is fixed for this model",
         "label": "Gândire",
         "mode": {
           "custom": {
@@ -1460,8 +1260,7 @@
           "tokens": {
             "tip": "Setează numărul de tokeni de gândire de utilizat."
           }
-        },
-        "unsupported_model": "[to be translated]:Current model does not support adjustable reasoning"
+        }
       },
       "tools": {
         "collapse": "Restrânge",
@@ -1479,8 +1278,6 @@
       "upload": {
         "attachment": "Încarcă atașament",
         "document": "Încarcă fișier document (modelul nu acceptă imagini)",
-        "document_only": "[to be translated]:Documents only",
-        "image_not_supported": "[to be translated]:This model does not support image uploads. Documents only.",
         "image_or_document": "Încarcă imagine sau fișier document",
         "upload_from_local": "Încarcă fișier local..."
       },
@@ -1516,20 +1313,6 @@
       }
     },
     "message": {
-      "editing_current": "[to be translated]:This message is being edited in the composer",
-      "flow": {
-        "branches": "[to be translated]:branches",
-        "copy_topic": {
-          "created": "[to be translated]:Copied to a new topic",
-          "label": "[to be translated]:Copy as New Topic"
-        },
-        "nodes": "[to be translated]:nodes",
-        "status": {
-          "awaiting_input": "[to be translated]:Awaiting input"
-        },
-        "title": "[to be translated]:Branch Management"
-      },
-      "more": "[to be translated]:More actions",
       "new": {
         "branch": {
           "created": "Ramură nouă creată",
@@ -1639,7 +1422,6 @@
             "save_failed": "Nu s-a putut salva subiectul, te rugăm să verifici configurația bazei de cunoștințe"
           },
           "loading": "Se analizează conținutul subiectului...",
-          "menu_title": "[to be translated]:Save to Knowledge Base",
           "select": {
             "content": {
               "label": "Selectează tipurile de conținut pentru salvare",
@@ -1726,25 +1508,14 @@
       "delete": {
         "shortcut": "Ține apăsat {{key}} pentru a șterge direct"
       },
-      "display": {
-        "assistant": "[to be translated]:Assistant",
-        "tag": "[to be translated]:Tag",
-        "time": "[to be translated]:Time",
-        "title": "[to be translated]:Display mode"
-      },
       "edit": {
         "placeholder": "Introdu noul nume",
         "title": "Editează numele",
         "title_tip": "Sfat: Fă dublu clic pe numele subiectului pentru a-l redenumi direct"
       },
-      "empty": {
-        "description": "[to be translated]:Create a chat and it will stay here so you can continue with its context later.",
-        "title": "[to be translated]:No chats yet"
-      },
       "export": {
         "failed": "Exportul a eșuat",
         "image": "Exportă ca imagine",
-        "image_exporting_keep_page": "[to be translated]:Exporting image. Please stay on this page.",
         "image_saved": "Imagine salvată cu succes",
         "joplin": "Exportă în Joplin",
         "md": {
@@ -1791,17 +1562,6 @@
         "wait_for_title_naming": "Se generează titlul...",
         "word": "Exportă ca Word",
         "yuque": "Exportă în Yuque"
-      },
-      "group": {
-        "collapse": "[to be translated]:Collapse display",
-        "collapse_all": "[to be translated]:Collapse all",
-        "earlier": "[to be translated]:Earlier",
-        "expand_all": "[to be translated]:Expand all",
-        "show_more": "[to be translated]:Expand display",
-        "this_week": "[to be translated]:This week",
-        "today": "[to be translated]:Today",
-        "unknown_assistant": "[to be translated]:Unlinked Assistant",
-        "yesterday": "[to be translated]:Yesterday"
       },
       "list": "Listă subiecte",
       "manage": {
@@ -1951,10 +1711,8 @@
     "add": "Adaugă",
     "add_success": "Adăugat cu succes",
     "advanced_settings": "Setări avansate",
-    "agent": "[to be translated]:Agent",
     "agent_one": "Agent",
     "agent_other": "Agenți",
-    "all": "[to be translated]:All",
     "and": "și",
     "assistant": "Asistent",
     "assistant_one": "Asistent",
@@ -1968,14 +1726,12 @@
     "clear_all": "Șterge tot",
     "click_to_replace": "Faceți clic pentru a înlocui",
     "close": "Închide",
-    "close_sidebar": "[to be translated]:Close sidebar",
     "collapse": "Restrânge",
     "completed": "Finalizat",
     "confirm": "Confirmă",
     "copied": "Copiat",
     "copy": "Copiază",
     "copy_failed": "Copiere eșuată",
-    "create_success": "[to be translated]:Created successfully",
     "current": "Curent",
     "cut": "Decupează",
     "default": "Implicit",
@@ -2020,8 +1776,6 @@
     "knowledge_base": "Bază de cunoștințe",
     "language": "Limbă",
     "loading": "Se încarcă...",
-    "maximize": "[to be translated]:Maximize",
-    "minimize": "[to be translated]:Minimize",
     "model": "Model",
     "models": "Modele",
     "more": "Mai mult",
@@ -2034,8 +1788,6 @@
     "on": "Pornit",
     "open": "Deschide",
     "open_in": "Deschide în {{name}}",
-    "open_in_new_tab": "[to be translated]:Open in new tab",
-    "open_sidebar": "[to be translated]:Open sidebar",
     "paste": "Lipește",
     "placeholders": {
       "select": {
@@ -2088,7 +1840,6 @@
     "upload_image": "Încarcă fișier imagine",
     "uploaded_image": "Imagine încărcată",
     "warning": "Avertisment",
-    "yesterday": "[to be translated]:Yesterday",
     "you": "Tu"
   },
   "dialog": {
@@ -2299,85 +2050,6 @@
     "title": "Fișiere",
     "type": "Tip"
   },
-  "globalSearch": {
-    "clear": "[to be translated]:Clear search",
-    "error": "[to be translated]:Search failed",
-    "filters": {
-      "agent": "[to be translated]:Agent",
-      "all": "[to be translated]:All",
-      "assistant": "[to be translated]:Assistant",
-      "conversation": "[to be translated]:Work",
-      "knowledge": "[to be translated]:Knowledge",
-      "label": "[to be translated]:Search type",
-      "session": "[to be translated]:Work",
-      "topic": "[to be translated]:Topic"
-    },
-    "groups": {
-      "agent": "[to be translated]:Agent",
-      "assistant": "[to be translated]:Assistant",
-      "conversation": "[to be translated]:Work",
-      "knowledge-base": "[to be translated]:Knowledge",
-      "message": "[to be translated]:Messages",
-      "recent": "[to be translated]:Recent",
-      "session": "[to be translated]:Work",
-      "topic": "[to be translated]:Topic"
-    },
-    "keyboard": {
-      "select": "[to be translated]:Select"
-    },
-    "messageSearch": {
-      "entry": "[to be translated]:Messages",
-      "hint": "[to be translated]:Type to search message content",
-      "jumpToMessage": "[to be translated]:Jump to message",
-      "more": "[to be translated]:Show {{count}} more results",
-      "open": "[to be translated]:Search messages",
-      "roles": {
-        "assistant": "[to be translated]:Assistant",
-        "system": "[to be translated]:System",
-        "tool": "[to be translated]:Tool",
-        "user": "[to be translated]:User"
-      },
-      "sourceLabel": "[to be translated]:Message source",
-      "sources": {
-        "all": "[to be translated]:All messages",
-        "session": "[to be translated]:Work messages",
-        "topic": "[to be translated]:Topic messages"
-      },
-      "viewMore": "[to be translated]:View more in Messages"
-    },
-    "no_recent": "[to be translated]:No recent routes",
-    "open": "[to be translated]:Open global search",
-    "open_failed": "[to be translated]:Failed to open search result",
-    "placeholder": "[to be translated]:Search topics, work, assistants, agents, and knowledge...",
-    "quickApps": {
-      "hide": "[to be translated]:Hide {{name}}",
-      "manage": "[to be translated]:Manage",
-      "manager_description": "[to be translated]:Drag to reorder, click the eye to hide or show",
-      "manager_title": "[to be translated]:Manage quick apps",
-      "reset": "[to be translated]:Reset",
-      "save_failed": "[to be translated]:Failed to save quick apps",
-      "show": "[to be translated]:Show {{name}}",
-      "title": "[to be translated]:Quick apps"
-    },
-    "recent_hint": "[to be translated]:Type to search work, assistants, agents, and knowledge",
-    "resultTypes": {
-      "agent": "[to be translated]:Agent",
-      "assistant": "[to be translated]:Assistant",
-      "knowledge-base": "[to be translated]:Knowledge",
-      "session": "[to be translated]:Work",
-      "topic": "[to be translated]:Topic"
-    },
-    "showMore": "[to be translated]:Show {{count}} more",
-    "timeFilters": {
-      "any": "[to be translated]:Any time",
-      "label": "[to be translated]:Updated time",
-      "messageLabel": "[to be translated]:Created time",
-      "month": "[to be translated]:Last month",
-      "quarter": "[to be translated]:Last 3 months",
-      "today": "[to be translated]:Today",
-      "week": "[to be translated]:Last 7 days"
-    }
-  },
   "gpustack": {
     "keep_alive_time": {
       "description": "Timpul în minute pentru a menține conexiunea activă; implicit este 5 minute.",
@@ -2393,66 +2065,6 @@
     },
     "locate": {
       "message": "Localizează mesajul"
-    },
-    "records": {
-      "agentSubtitle": "[to be translated]:{{count}} sessions",
-      "agentTitle": "[to be translated]:Agent History",
-      "assistantSubtitle": "[to be translated]:{{count}} topics",
-      "bulkDelete": "[to be translated]:Batch Delete",
-      "bulkDeleteSessions": {
-        "description": "[to be translated]:Delete {{count}} selected session(s)?",
-        "title": "[to be translated]:Delete selected sessions"
-      },
-      "bulkDeleteTopics": {
-        "description": "[to be translated]:Delete {{count}} selected topic(s)?",
-        "title": "[to be translated]:Delete selected topics"
-      },
-      "bulkMove": "[to be translated]:Batch Move",
-      "bulkMoveTopics": {
-        "confirm": "[to be translated]:Move",
-        "description": "[to be translated]:Move {{count}} selected topic(s) to the target assistant.",
-        "empty": "[to be translated]:No assistants available",
-        "error": "[to be translated]:Failed to move topics",
-        "placeholder": "[to be translated]:Select assistant",
-        "success": "[to be translated]:Moved {{count}} topic(s)",
-        "target": "[to be translated]:Target assistant",
-        "title": "[to be translated]:Move selected topics"
-      },
-      "empty": {
-        "description": "[to be translated]:No topics for the current filters.",
-        "sessionsDescription": "[to be translated]:No sessions for the current filters.",
-        "sessionsTitle": "[to be translated]:No sessions",
-        "title": "[to be translated]:No topics"
-      },
-      "loading": {
-        "description": "[to be translated]:Loading topic list.",
-        "sessionsDescription": "[to be translated]:Loading session list.",
-        "sessionsTitle": "[to be translated]:Loading sessions",
-        "title": "[to be translated]:Loading topics"
-      },
-      "resultCount": "[to be translated]:{{count}} results",
-      "searchSession": "[to be translated]:Search sessions...",
-      "searchTopic": "[to be translated]:Search topics...",
-      "shortTitle": "[to be translated]:History",
-      "sidebar": {
-        "searchAssistant": "[to be translated]:Search assistants...",
-        "status": "[to be translated]:Status",
-        "unknownAssistant": "[to be translated]:Unlinked assistant"
-      },
-      "status": {
-        "completed": "[to be translated]:Completed",
-        "failed": "[to be translated]:Failed",
-        "running": "[to be translated]:Running"
-      },
-      "table": {
-        "actions": "[to be translated]:Actions",
-        "emptyValue": "[to be translated]:—",
-        "messages": "[to be translated]:Messages",
-        "session": "[to be translated]:Session",
-        "time": "[to be translated]:Time",
-        "title": "[to be translated]:Title"
-      },
-      "title": "[to be translated]:Topic History"
     },
     "search": {
       "match": {
@@ -2823,7 +2435,6 @@
       "browse_label": "Categorii de asistenți",
       "empty_description": "Această categorie nu are încă presetări de asistent.",
       "empty_title": "Niciun asistent de adăugat",
-      "go_to_chat": "[to be translated]:Go to chat",
       "mine": "Al meu",
       "no_match_description": "Încearcă un alt cuvânt cheie de căutare",
       "no_match_title": "Niciun asistent potrivit",
@@ -2862,8 +2473,7 @@
           },
           "env_vars": {
             "help": "Un KEY=VALUE pe linie",
-            "label": "Variabile de mediu",
-            "placeholder": "[to be translated]:KEY=value\nANOTHER_KEY=another_value"
+            "label": "Variabile de mediu"
           },
           "heartbeat_enabled": {
             "label": "Verificare bătăi inimii"
@@ -3011,7 +2621,6 @@
         "json_invalid": "Format JSON invalid",
         "max_tokens": "Tokeni maximi",
         "max_tool_calls": "Apeluri maxime de instrumente",
-        "mcp_mode": "[to be translated]:MCP Mode",
         "model": "Model implicit",
         "model_clear": "Clar",
         "model_not_found": "Modelul nu a fost găsit (poate a fost eliminat): {{id}}",
@@ -3030,34 +2639,6 @@
         "unlimited": "Nelimitat"
       },
       "breadcrumb": "Bibliotecă",
-      "dialogs": {
-        "create": {
-          "agent_title": "[to be translated]:New Agent",
-          "assistant_title": "[to be translated]:New Assistant",
-          "avatar_aria": "[to be translated]:Choose avatar",
-          "description_placeholder": "[to be translated]:Describe what it is for...",
-          "dialog_description": "[to be translated]:Create a lightweight assistant or agent.",
-          "model_placeholder": "[to be translated]:Select a model",
-          "model_required": "[to be translated]:Please select a model",
-          "name_placeholder": "[to be translated]:Enter a name",
-          "name_required": "[to be translated]:Please enter a name",
-          "submit": "[to be translated]:Create",
-          "submit_failed": "[to be translated]:Create failed"
-        },
-        "edit": {
-          "advanced_tab": "[to be translated]:Advanced",
-          "agent_description": "[to be translated]:Quickly adjust this agent's essentials.",
-          "agent_title": "[to be translated]:Edit Agent",
-          "assistant_description": "[to be translated]:Quickly adjust this assistant's essentials.",
-          "assistant_title": "[to be translated]:Edit Assistant",
-          "basic_tab": "[to be translated]:Basic",
-          "knowledge_tab": "[to be translated]:Knowledge",
-          "permission_tab": "[to be translated]:Permission",
-          "prompt_tab": "[to be translated]:Prompt",
-          "save_failed": "[to be translated]:Save failed",
-          "tools_tab": "[to be translated]:Tools"
-        }
-      },
       "knowledge": {
         "add": "Adaugă bază de cunoștințe",
         "desc": "Conectează una sau mai multe baze de cunoștințe; fragmentele relevante vor fi recuperate în timpul conversației",
@@ -3278,7 +2859,6 @@
     "title": "Bibliotecă",
     "toolbar": {
       "add_tag_placeholder": "Nume etichetă...",
-      "all_tags": "[to be translated]:All tags",
       "new_resource": "Resursă nouă",
       "search_placeholder": "Caută resurse...",
       "tag_button": "Etichetă"
@@ -3375,7 +2955,6 @@
       "chunk_overlap_too_large": "Suprapunerea fragmentelor nu poate fi mai mare decât dimensiunea fragmentului",
       "copy": "Copiere eșuată",
       "dimension_too_large": "Dimensiunea conținutului este prea mare",
-      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
       "enter": {
         "api": {
           "host": "Te rugăm să introduci mai întâi gazda (host) API",
@@ -3426,7 +3005,6 @@
         "no_api_key": "ApiKey-ul Notion sau DatabaseID-ul Notion nu sunt configurate",
         "no_content": "Nu există nimic de exportat în Notion."
       },
-      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "siyuan": {
         "export": "Nu s-a putut exporta în Siyuan Note, te rugăm să verifici starea conexiunii și configurarea conform documentației",
         "no_config": "Adresa API Siyuan Note sau tokenul nu sunt configurate"
@@ -3485,10 +3063,6 @@
         "bubble": "Bulă",
         "label": "Stil mesaj",
         "plain": "Simplu"
-      },
-      "user_content": {
-        "collapse": "[to be translated]:Collapse",
-        "expand": "[to be translated]:Expand"
       },
       "video": {
         "error": {
@@ -3556,76 +3130,6 @@
     "tools": {
       "abort_failed": "Anularea apelului instrumentului a eșuat",
       "aborted": "Apelul instrumentului a fost anulat",
-      "activity": {
-        "archive": "[to be translated]:archive",
-        "assistantTask": "[to be translated]:task",
-        "availableFeatures": "[to be translated]:available features",
-        "availableResources": "[to be translated]:available resources",
-        "branch": "[to be translated]:code branch",
-        "build": "[to be translated]:Build",
-        "building": "[to be translated]:Building",
-        "check": "[to be translated]:Check",
-        "checking": "[to be translated]:Checking",
-        "codeFiles": "[to be translated]:code files",
-        "codeHostInfo": "[to be translated]:code hosting information",
-        "commandName": "[to be translated]:{{name}} command",
-        "configFiles": "[to be translated]:project docs and config files",
-        "copy": "[to be translated]:Copy",
-        "copying": "[to be translated]:Copying",
-        "create": "[to be translated]:Create",
-        "creating": "[to be translated]:Creating",
-        "currentFolder": "[to be translated]:current folder",
-        "delete": "[to be translated]:Delete",
-        "deleting": "[to be translated]:Deleting",
-        "documentFiles": "[to be translated]:document files",
-        "download": "[to be translated]:Download",
-        "downloading": "[to be translated]:Downloading",
-        "executeCommand": "[to be translated]:Run command",
-        "executingCommand": "[to be translated]:Running command",
-        "extract": "[to be translated]:Extract",
-        "extracting": "[to be translated]:Extracting",
-        "file": "[to be translated]:file",
-        "fileList": "[to be translated]:file list",
-        "folder": "[to be translated]:folder",
-        "handle": "[to be translated]:Handle",
-        "handling": "[to be translated]:Handling",
-        "imageFiles": "[to be translated]:image files",
-        "install": "[to be translated]:Install",
-        "installing": "[to be translated]:Installing",
-        "matchingFiles": "[to be translated]:matching files",
-        "modify": "[to be translated]:Modify",
-        "modifying": "[to be translated]:Modifying",
-        "move": "[to be translated]:Move",
-        "moving": "[to be translated]:Moving",
-        "open": "[to be translated]:Open",
-        "opening": "[to be translated]:Opening",
-        "plan": "[to be translated]:execution plan",
-        "projectChanges": "[to be translated]:project changes",
-        "projectChecks": "[to be translated]:project checks",
-        "projectDependencies": "[to be translated]:project dependencies",
-        "projectFiles": "[to be translated]:project files",
-        "projectRootFiles": "[to be translated]:project root files",
-        "projectTask": "[to be translated]:project task",
-        "relatedContent": "[to be translated]:related content",
-        "repository": "[to be translated]:code repository",
-        "search": "[to be translated]:Find",
-        "searching": "[to be translated]:Finding",
-        "switch": "[to be translated]:Switch",
-        "switching": "[to be translated]:Switching",
-        "sync": "[to be translated]:Sync",
-        "syncing": "[to be translated]:Syncing",
-        "taskList": "[to be translated]:task list",
-        "translationFiles": "[to be translated]:translation files",
-        "upload": "[to be translated]:Upload",
-        "uploading": "[to be translated]:Uploading",
-        "view": "[to be translated]:View",
-        "viewing": "[to be translated]:Viewing",
-        "webPage": "[to be translated]:web page",
-        "webSearch": "[to be translated]:web content",
-        "workspace": "[to be translated]:workspace",
-        "write": "[to be translated]:Save",
-        "writing": "[to be translated]:Saving"
-      },
       "approvalRequired": "Instrumentul „{{tool}}” necesită aprobare",
       "autoApproveEnabled": "Aprobare automată activată pentru acest instrument",
       "cancelled": "Anulat",
@@ -3654,18 +3158,6 @@
       },
       "noData": "Nu sunt disponibile date pentru acest instrument",
       "pending": "În așteptare",
-      "placeholder": {
-        "elapsed": {
-          "days": "[to be translated]:{{days}}d {{hours}}h {{minutes}}m {{seconds}}s",
-          "hours": "[to be translated]:{{hours}}h {{minutes}}m {{seconds}}s",
-          "minutes": "[to be translated]:{{minutes}}m {{seconds}}s",
-          "seconds": "[to be translated]:{{seconds}}s"
-        },
-        "generating": "[to be translated]:Writing response",
-        "preparing": "[to be translated]:Preparing response",
-        "thinking": "[to be translated]:Thinking",
-        "usingTools": "[to be translated]:Working on the task"
-      },
       "preview": "Previzualizare",
       "raw": "Brut",
       "runningCount": "{{count}} instrumente în execuție",
@@ -3690,7 +3182,6 @@
         "success": "Succes"
       },
       "streaming": "Streaming",
-      "thinkingHeader": "[to be translated]:Thinking",
       "truncated": "Ieșire trunchiată (original: {{size}})",
       "units": {
         "done_one": "{{count}} Finalizat",
@@ -3735,7 +3226,6 @@
     "websearch": {
       "cutoff": "Se trunchiază conținutul căutării...",
       "fetch_complete": "{{count}} rezultat(e) căutare",
-      "fetch_empty": "[to be translated]:No search results found",
       "partial_failure": "{{count}} rezultat(e) căutare, unele căutări au eșuat"
     }
   },
@@ -3921,12 +3411,6 @@
     "search": {
       "placeholder": "Caută modele...",
       "tooltip": "Caută modele"
-    },
-    "selection": {
-      "context_window": "[to be translated]:Context {{count}}",
-      "remove_model": "[to be translated]:Remove {{name}}",
-      "restore_default": "[to be translated]:Restore assistant model",
-      "selected_models": "[to be translated]:Selected models"
     },
     "stream_output": "Ieșire flux",
     "type": {
@@ -5219,12 +4703,6 @@
       "sort_label": "Sortează",
       "unpin": "Anulați fixarea"
     },
-    "create_dialog": {
-      "refresh_failed": "[to be translated]:Created, but failed to refresh the list"
-    },
-    "edit_dialog": {
-      "refresh_failed": "[to be translated]:Saved, but failed to refresh the list"
-    },
     "workspace": {
       "empty_text": "Niciun spațiu de lucru încă",
       "placeholder": "Selectați spațiul de lucru"
@@ -5405,17 +4883,7 @@
         "triggerSelectedCount": "{{count}} modele selectate",
         "valueProp": "Propunerea de valoare actuală"
       },
-      "title": "Componenta Laborator Dezvoltare",
-      "toolPermission": {
-        "builtinMode": "[to be translated]:Built-in",
-        "currentRequest": "[to be translated]:Current request",
-        "description": "[to be translated]:Preview the bottom tool permission composer with built-in and MCP tool requests.",
-        "latestResponse": "[to be translated]:Latest response",
-        "mcpMode": "[to be translated]:MCP",
-        "noResponse": "[to be translated]:No response submitted yet",
-        "resetPreview": "[to be translated]:Reset preview",
-        "title": "[to be translated]:Tool Permission"
-      }
+      "title": "Componenta Laborator Dezvoltare"
     },
     "data": {
       "app_data": {
@@ -6111,19 +5579,7 @@
         "title": "Backup și recuperare date"
       },
       "common": {
-        "menu": {
-          "presentation_mode": {
-            "cherry": "[to be translated]:Cherry",
-            "native": "[to be translated]:Native",
-            "restart": {
-              "content": "[to be translated]:Changing the menu style requires restarting the app to take effect. Do you want to restart now?",
-              "title": "[to be translated]:Restart Required"
-            },
-            "title": "[to be translated]:Context menu style"
-          }
-        },
         "sections": {
-          "chat_settings": "[to be translated]:Chat Settings",
           "custom_css": "CSS personalizat",
           "display_language": "Afișare și limbă",
           "privacy_advanced": "Confidențialitate și avansat",
@@ -6382,13 +5838,6 @@
         "text": "Text",
         "uri": "URI"
       },
-      "runtimeStatus": {
-        "connected": "[to be translated]:Connected",
-        "connecting": "[to be translated]:Connecting",
-        "disabled": "[to be translated]:Disabled",
-        "error": "[to be translated]:Error",
-        "unavailable": "[to be translated]:Unavailable"
-      },
       "search": {
         "placeholder": "Caută servere MCP...",
         "tooltip": "Caută servere MCP"
@@ -6514,8 +5963,7 @@
       "prompt": "Afișează prompt",
       "show_message_outline": "Afișează conturul mesajului",
       "title": "Setări mesaje",
-      "use_serif_font": "Folosește font serif",
-      "wide_mode": "[to be translated]:Wide layout mode"
+      "use_serif_font": "Folosește font serif"
     },
     "miniApps": {
       "cache_change_notice": "Modificările vor intra în vigoare când numărul de mini-aplicații deschise atinge valoarea setată",
@@ -6891,7 +6339,6 @@
         "title": "Verbozitate"
       }
     },
-    "parameter_settings": "[to be translated]:Parameter Settings",
     "plugins": {
       "bunDescription": "Runtime JavaScript folosit de serviciile MCP și de toolchain-urile aferente.",
       "description": "Gestionați instrumentele binare și dependențele de runtime necesare aplicației.",
@@ -6920,8 +6367,7 @@
       },
       "title": "Gestionarea prompturilor",
       "titleLabel": "Titlu",
-      "titlePlaceholder": "Introduceți titlul solicitării",
-      "variablePlaceholder": "[to be translated]:${variable}"
+      "titlePlaceholder": "Introduceți titlul solicitării"
     },
     "provider": {
       "add": {
@@ -7255,14 +6701,6 @@
       "close": "Închide",
       "confirm": "Confirmă",
       "forward": "Înainte",
-      "mcp": {
-        "agentEmpty": "[to be translated]:No MCP servers configured for this agent",
-        "assistantEmpty": "[to be translated]:No MCP servers configured for this assistant",
-        "autoEmpty": "[to be translated]:No enabled MCP servers",
-        "description": "[to be translated]:View current MCP server status",
-        "disabled": "[to be translated]:MCP is disabled for this assistant",
-        "unknownServer": "[to be translated]:Unknown MCP server"
-      },
       "multiple": "Selecție multiplă",
       "noResult": "Niciun rezultat găsit",
       "page": "Pagină",
@@ -7306,7 +6744,6 @@
       },
       "clear_shortcut": "Șterge comanda rapidă",
       "clear_topic": "Șterge mesajele",
-      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "Deja folosit de \"{{name}}\"",
       "copy_last_message": "Copiază ultimul mesaj",
       "edit_last_user_message": "Editează ultimul mesaj al utilizatorului",
@@ -7314,11 +6751,8 @@
       "enabled": "Activează",
       "exit_fullscreen": "Ieși din ecran complet",
       "label": "Tastă",
-      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "Subiect nou",
       "occupied_by_other_application": "Această comandă rapidă este deja utilizată de sistem sau de o altă aplicație",
-      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
-      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "Apasă comanda rapidă",
       "quick_assistant": "Asistent rapid",
       "rename_topic": "Redenumește subiectul",
@@ -7626,16 +7060,10 @@
       "title": "Zoom pagină"
     }
   },
-  "subWindow": {
-    "back_to_main": "[to be translated]:Back to Main Window",
-    "pin": "[to be translated]:Keep on Top",
-    "unpin": "[to be translated]:Cancel Keep on Top"
-  },
   "tab": {
     "close": "Închide fila",
     "move_to_first": "Mută la început",
     "new": "Filă nouă",
-    "open_in_new_window": "[to be translated]:Open in New Window",
     "pin": "Fixează fila",
     "unpin": "Anulați fixarea filei"
   },
