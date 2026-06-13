@@ -5,8 +5,10 @@ import {
   captureScrollable,
   captureScrollableAsBlob,
   captureScrollableAsDataURL,
+  compressAvatarImage,
   compressImage,
   convertToBase64,
+  fileToAvatarDataUrl,
   makeSvgSizeAdaptive
 } from '../image'
 
@@ -46,6 +48,38 @@ describe('utils/image', () => {
       const result = await compressImage(file)
       expect(result).toBeInstanceOf(File)
       expect(result.name).toBe('compressed.png')
+    })
+  })
+
+  describe('compressAvatarImage', () => {
+    it('should return GIF files unchanged to preserve animation', async () => {
+      const gif = new File(['gif'], 'a.gif', { type: 'image/gif' })
+      const result = await compressAvatarImage(gif)
+      // GIFs bypass compression entirely, so the same File instance comes back.
+      expect(result).toBe(gif)
+    })
+
+    it('should compress non-GIF images', async () => {
+      const png = new File(['png'], 'a.png', { type: 'image/png' })
+      const result = await compressAvatarImage(png)
+      expect(result).not.toBe(png)
+      expect(result.name).toBe('compressed.png')
+    })
+  })
+
+  describe('fileToAvatarDataUrl', () => {
+    it('should encode a compressed non-GIF image as a base64 data URL', async () => {
+      const png = new File(['hello'], 'a.png', { type: 'image/png' })
+      const dataUrl = await fileToAvatarDataUrl(png)
+      // The mocked compressor yields a PNG, so the encoded result is a PNG data URL.
+      expect(dataUrl).toMatch(/^data:image\/png;base64,/)
+    })
+
+    it('should encode a GIF without compressing it', async () => {
+      const gif = new File(['gif-bytes'], 'a.gif', { type: 'image/gif' })
+      const dataUrl = await fileToAvatarDataUrl(gif)
+      // Untouched GIF bytes encode to a gif data URL (not the compressor's png).
+      expect(dataUrl).toMatch(/^data:image\/gif;base64,/)
     })
   })
 
