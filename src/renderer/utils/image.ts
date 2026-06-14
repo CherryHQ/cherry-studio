@@ -129,7 +129,9 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       }
 
       // Warm up html-to-image resource caches before taking the final canvas.
-      await htmlToImage.toCanvas(el, captureOptions)
+      const warmupCanvas = await htmlToImage.toCanvas(el, captureOptions)
+      warmupCanvas.width = 0
+      warmupCanvas.height = 0
       const canvas = await htmlToImage.toCanvas(el, captureOptions)
 
       // Restore original styles
