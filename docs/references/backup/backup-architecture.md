@@ -119,7 +119,7 @@ flowchart TB
 | Backup policy | 被引用域缺失的例外？哪些唯一键要合并？ | `omittedReferenceOverrides`、`uniqueMergeRules` |
 | Operations | 有无备份专用行为？没有是否明确 schema-only？ | `operations` |
 
-内部排除项（`app_state` / `job` / `job_schedule` / `*_fts` / `__drizzle_migrations`）由全局显式排除集维护，带 reason，不进 contributor。
+内部排除项（`app_state` / `job` / `*_fts` / `__drizzle_migrations`）由全局显式排除集维护，带 reason，不进 contributor（`job_schedule` 是共享表，按 type row-scope 归 AGENTS，非整表排除）。
 
 ### 4. TOPICS contributor 示例
 
@@ -194,7 +194,7 @@ flowchart TB
 ```mermaid
 flowchart TB
   C[各域 Contributor 静态导出] --> CM[ContributorManager 收集]
-  CM --> FN[finalize 启动期校验 22 不变量 不连 DB]
+  CM --> FN[finalize 启动期校验 24 不变量 不连 DB]
   FN --> BR[BackupRegistry 规则视图]
   FN --> X[失败则启动中断 报 domain table owner 不变量]
   BR --> EX[ExportOrchestrator 查询]
@@ -203,7 +203,7 @@ flowchart TB
   CT[coverage test CI] -.DB 表覆盖兜底.-> FN
 ```
 
-注册到消费链路：各域 Contributor 静态导出 → ContributorManager 收集 → finalize 启动期校验 22 不变量（不连 DB）→ 通过则产出 BackupRegistry 供 orchestrator 查询，失败则启动中断并报 domain/table/owner/不变量。BackupService（WhenReady）@DependsOn(ContributorManager) 保证 finalize 先完成；DB 实际表覆盖由 coverage test（CI）兜底，故 finalize 不连 DB。
+注册到消费链路：各域 Contributor 静态导出 → ContributorManager 收集 → finalize 启动期校验 24 不变量（不连 DB）→ 通过则产出 BackupRegistry 供 orchestrator 查询，失败则启动中断并报 domain/table/owner/不变量。BackupService（WhenReady）@DependsOn(ContributorManager) 保证 finalize 先完成；DB 实际表覆盖由 coverage test（CI）兜底，故 finalize 不连 DB。
 
 各 hook 调用时机与缺省：collectFileResources（导出前收集文件/缺省空集）、beforeArchive（剥离后仅改备份副本/no-op）、remapJsonFields（导入前 RENAME 重映射 fileId/原行不变）、transformRow（导入前/原行，返回 null 跳过该行）、afterImport（域导入后 FTS 重建/no-op）、restoreResources（DB 导入前事务外/无）、cloneAggregate（仅 renamable 聚合 RENAME/缺则 finalize 拒）。**聚合根被 SKIP 时其成员 transformRow 不调用**。
 
@@ -296,4 +296,4 @@ flowchart TB
 - 用户自填模型服务密钥默认随自用备份恢复；企业统一下发 key 不属此备份；不做分享模式。
 - 恢复前先自动保存当前状态（整库 DB 快照 + 受影响文件快照）；失败或用户撤销可回到恢复前；RestoreRecoveryPoint 为 in-scope 必交付。
 - 恢复写路径走 `DbService.withWriteTx` + `defer_foreign_keys=ON`（非 FK OFF）显式 cascade。
-- 实施前提：`agent_task` 当前 main 不存在（agent.task 已迁移 JobManager，`agent_channel_task.taskId` 指向被排除的 `job_schedule`）；spec 以当前 main 表集为准，row-scope 机制不引入（字段已移除）。`painting`/`agent_workspace` 仅 main 有，spec 含（post-sync 目标态）。
+- 实施前提：`agent_task` 当前 main 不存在（agent.task 已迁移 JobManager）；task 定义在 `job_schedule.type='agent.task'`，按 row-scope 归 AGENTS（§1.3），`agent_channel_task.taskId` 指向这些行。`painting`/`agent_workspace` 仅 main 有，spec 含（post-sync 目标态）。
