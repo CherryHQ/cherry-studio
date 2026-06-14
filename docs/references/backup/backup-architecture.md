@@ -99,7 +99,7 @@ flowchart TB
   D[Drizzle schemas] --> CG[codegen 生成 refs]
   CG --> T[表 列 主键 JSON引用 清单]
   T --> BC[BackupContributor schema policy operations]
-  BC --> CM[ContributorManager finalize 22 不变量]
+  BC --> CM[ContributorManager finalize 23 不变量]
   CM --> BR[BackupRegistry]
   BR --> EX[ExportOrchestrator]
   BR --> IM[ImportOrchestrator]
@@ -130,13 +130,13 @@ flowchart TB
 | 域类型 | 聚合边界注意点 |
 |---|---|
 | ASSISTANTS | RENAME 克隆时成员 assistantId 重映射到新根 PK |
-| AGENTS | agent_workspace/agent_channel 单表 renamable:false；agent_channel_task 是 junction（双 cascade FK，taskId 指向被排除的 job_schedule），cascade-prune 非 optional；agent_task 当前 main 不存在（已迁移 JobManager） |
+| AGENTS | agent_workspace/agent_channel 单表 renamable:false；agent_channel_task 是 junction（双 cascade FK）；**job_schedule.type='agent.task' row-scope 归 AGENTS**（Agent task 定义，否则设计性丢失用户 task）；agent_task 当前 main 不存在（已迁移 JobManager） |
 | FILE_STORAGE | restoreResources() 先于 DB 行导入，返回 skippedFileEntryIds；renamable:false，RENAME 退化为 SKIP |
 | PROVIDERS | 聚合 user_provider + user_model(providerId)；natural-key，默认 FIELD_MERGE（apiKeys/authConfig 字段合并，防丢 API key）；renamable:false（user_model.id 派生键） |
 
 ### 6. 实现侧类型契约
 
-`EntityGraphSchema`：`tables` / `references`（kind: optional|owning|junction）/ `primaryKeys`（kind: uuid-v4|uuid-v7|natural|composite|autoincrement(finalize 拒绝)，ambiguous 标注）/ **`aggregates`**（`AggregateBoundary { root, identityKey, identityClass, conflictDefault, members[{table, viaColumn, cascade}], renamable }`）/ `fileRefSourcePolicies` / `jsonSoftReferences`（rowScopes 已移除，零消费者）。
+`EntityGraphSchema`：`tables` / `references`（kind: optional|owning|junction）/ `primaryKeys`（kind: uuid-v4|uuid-v7|natural|composite|autoincrement(finalize 拒绝)，ambiguous 标注）/ **`aggregates`**（`AggregateBoundary { root, identityKey, identityClass, conflictDefault, members[{table, viaColumn, cascade}], renamable }`）/ `fileRefSourcePolicies` / `jsonSoftReferences` / `rowScopes?`（共享表行分区，如 job_schedule.type='agent.task' 归 AGENTS，F1）。
 
 `BackupContributorPolicy`：`omittedReferenceOverrides`（仅例外，须绑定事实+非冗余+reason）、`uniqueMergeRules`、`fieldMergePolicies`（FIELD_MERGE 列级合并）。**不含** restoreRemap / idStrategies（over-design，移除）。
 
