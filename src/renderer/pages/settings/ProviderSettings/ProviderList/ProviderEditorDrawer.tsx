@@ -1,4 +1,4 @@
-import { Button, Input, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { Button, Field, FieldError, FieldLabel, Input, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
@@ -99,6 +99,8 @@ export default function ProviderEditorDrawer({
   const [logoDirty, setLogoDirty] = useState(false)
   const [logoPickerOpen, setLogoPickerOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [nameTouched, setNameTouched] = useState(false)
+  const [baseUrlTouched, setBaseUrlTouched] = useState(false)
   const previousOpenRef = useRef(false)
 
   const editingProvider = mode?.kind === 'edit' ? mode.provider : null
@@ -127,7 +129,9 @@ export default function ProviderEditorDrawer({
     }
 
     setName(editingProvider?.name ?? '')
+    setNameTouched(false)
     setBaseUrl('')
+    setBaseUrlTouched(false)
     setApiKey('')
     setSecondaryUrls({})
     setMoreEndpointsOpen(false)
@@ -248,13 +252,17 @@ export default function ProviderEditorDrawer({
     throw new Error(`Unhandled provider editor mode kind: ${(_exhaustive as { kind: string }).kind}`)
   }
 
-  const submittable = (() => {
-    if (!name.trim() || !mode) return false
-    if (mode.kind === 'create-custom') return baseUrl.trim().length > 0
-    return true
-  })()
+  // Validation surfaces inline beneath each field (see showNameError /
+  // showBaseUrlError) rather than by disabling the button, so the button only
+  // gates on having an active mode and not already submitting.
+  const submittable = Boolean(mode)
+
+  const showNameError = nameTouched && !name.trim()
+  const showBaseUrlError = Boolean(urlForm?.requireBaseUrl) && baseUrlTouched && !baseUrl.trim()
 
   const handleSubmit = async () => {
+    setNameTouched(true)
+    setBaseUrlTouched(true)
     const payload = buildSubmit()
     if (!payload) return
 
@@ -325,7 +333,14 @@ export default function ProviderEditorDrawer({
           onLogoPickerOpenChange={setLogoPickerOpen}
         />
 
-        <NameField name={name} onNameChange={setName} onEnter={handleSubmit} disableEnter={isSubmitting} />
+        <NameField
+          name={name}
+          showError={showNameError}
+          onNameChange={setName}
+          onBlur={() => setNameTouched(true)}
+          onEnter={handleSubmit}
+          disableEnter={isSubmitting}
+        />
 
         {urlForm && (
           <>
@@ -335,6 +350,8 @@ export default function ProviderEditorDrawer({
               value={baseUrl}
               onChange={setBaseUrl}
               required={urlForm.requireBaseUrl}
+              error={showBaseUrlError ? t('settings.provider.base_url.required') : undefined}
+              onBlur={() => setBaseUrlTouched(true)}
             />
             <ApiKeyField value={apiKey} onChange={setApiKey} />
             <MoreEndpointsDisclosure
@@ -445,28 +462,38 @@ function AvatarSection({
 
 interface NameFieldProps {
   name: string
+  showError: boolean
   onNameChange: (value: string) => void
+  onBlur: () => void
   onEnter: () => void
   disableEnter: boolean
 }
 
-function NameField({ name, onNameChange, onEnter, disableEnter }: NameFieldProps) {
+function NameField({ name, showError, onNameChange, onBlur, onEnter, disableEnter }: NameFieldProps) {
   const { t } = useTranslation()
   return (
-    <div className="space-y-2">
-      <label className="font-medium text-[13px] text-foreground/85">{t('settings.provider.add.name.label')}</label>
+    <Field className="gap-2">
+      <FieldLabel required className="text-[13px] text-foreground/85">
+        {t('settings.provider.add.name.label')}
+      </FieldLabel>
       <Input
         value={name}
         placeholder={t('settings.provider.add.name.placeholder')}
         maxLength={32}
+        aria-invalid={showError}
         onChange={(event) => onNameChange(event.target.value)}
+        onBlur={onBlur}
         onKeyDown={(event) => {
           if (event.key === 'Enter' && !event.nativeEvent.isComposing && !disableEnter) {
             onEnter()
           }
         }}
       />
-    </div>
+      <FieldError
+        className="text-xs"
+        errors={showError ? [{ message: t('settings.provider.add.name.required') }] : undefined}
+      />
+    </Field>
   )
 }
 
@@ -514,17 +541,25 @@ interface BaseUrlFieldProps {
   value: string
   onChange: (value: string) => void
   required?: boolean
+  error?: string
+  onBlur?: () => void
 }
 
-function BaseUrlField({ label, placeholder, value, onChange, required }: BaseUrlFieldProps) {
+function BaseUrlField({ label, placeholder, value, onChange, required, error, onBlur }: BaseUrlFieldProps) {
   return (
-    <div className="space-y-2">
-      <label className="font-medium text-[13px] text-foreground">
+    <Field className="gap-2">
+      <FieldLabel required={required} className="text-[13px] text-foreground">
         {label}
-        {required && <span className="ms-1 text-destructive/70">*</span>}
-      </label>
-      <Input value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
-    </div>
+      </FieldLabel>
+      <Input
+        value={value}
+        placeholder={placeholder}
+        aria-invalid={Boolean(error)}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
+      />
+      <FieldError className="text-xs" errors={error ? [{ message: error }] : undefined} />
+    </Field>
   )
 }
 
