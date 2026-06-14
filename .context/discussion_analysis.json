@@ -1,25 +1,5 @@
 {
-  "generated_at": "2026-06-13",
-  "note": "Discussions data requires GraphQL API access not available via current MCP tools. Data below is inferred from issue labels.",
-  "discussion_signals_from_issues": {
-    "issues_with_discussion_label": 7,
-    "issues_with_help_wanted_label": 7,
-    "top_discussion_topics": [
-      "PaddleOCR local Python path configuration (#16034)",
-      "MCP connectivity issues",
-      "Custom model routing in Agent (#15071)"
-    ]
-  },
-  "community_health_indicators": {
-    "new_issues_today": 7,
-    "issues_with_comments_sample": "Most new issues receive triage labels within hours",
-    "bot_automation": "inactive-bot closing stale issues — 82% of 30d closures are bot-driven",
-    "language": "Majority of issues are in Chinese, auto-translated by Claude bot"
-  },
-  "recommended_actions": [
-    "Review and triage 20% unlabeled new issues",
-    "Address #13462 (Pending 91 days) - reasoning param drop for custom model IDs",
-    "Investigate Agent multi-round WeChat/QQ timeout bug (#15721)",
-    "Consider reducing zombie backlog (284 issues >90d)"
-  ]
+  "generated_at": "2026-06-14T00:00:00Z",
+  "note": "GitHub Discussions GraphQL API not available via MCP tooling; data sourced from issue tracker only",
+  "total": 0
 }

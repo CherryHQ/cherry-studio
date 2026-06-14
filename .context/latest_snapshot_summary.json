@@ -1,86 +1,59 @@
 {
-  "generated_at": "2026-06-13T00:00:00Z",
+  "generated_at": "2026-06-14T00:00:00Z",
   "issues": {
-    "total_open": 943,
-    "closed_30d": 389,
+    "total_open": 942,
+    "closed_30d": 0,
     "age_distribution": {
-      "active_0_7d": 115,
-      "aging_8_30d": 291,
-      "stale_31_90d": 253,
-      "zombie_90d_plus": 284
+      "active_0_7d": 428,
+      "aging_8_30d": 30,
+      "stale_31_90d": 39,
+      "zombie_90d_plus": 445
     },
-    "unlabeled_pct_recent_100": 20.0,
-    "top_labels_recent_100": {
-      "internal_team": 25,
-      "UI/UX": 19,
-      "Models": 17,
-      "MCP": 12,
-      "help wanted": 7,
-      "discussion": 7,
-      "Assistant": 7,
-      "Connectivity": 6,
-      "needs-repro": 4,
-      "Data": 4
+    "p1_count": 1,
+    "uncategorized_pct": 44.5,
+    "top_labels": {
+      "BUG": 104,
+      "Models": 62,
+      "UI/UX": 42,
+      "inactive": 37,
+      "internal_team": 30,
+      "MCP": 28,
+      "Assistant": 18,
+      "Data": 14,
+      "feature": 11,
+      "Connectivity": 9,
+      "needs-repro": 9,
+      "v2": 5,
+      "area/UI/UX": 5,
+      "help wanted": 4,
+      "discussion": 4
     },
-    "newest_issues": [
-      {"number": 16037, "title": "[Feature]: Add a setting to convert responses to speech during output", "created_at": "2026-06-13T17:33:10Z", "labels": []},
-      {"number": 16035, "title": "[Bug]: Earlier 'thoughts' continuously retime when viewing agent history", "created_at": "2026-06-13T16:55:20Z", "labels": ["UI/UX"]},
-      {"number": 16034, "title": "[Discussion]: How to configure local PaddleOCR Python path?", "created_at": "2026-06-13T16:09:13Z", "labels": ["help wanted", "discussion"]},
-      {"number": 16032, "title": "Internet error", "created_at": "2026-06-13T13:43:43Z", "labels": ["needs-more-info", "MCP", "Connectivity"]},
-      {"number": 16031, "title": "[Feature]: Allow Users to Select MinerU Parsing Mode (Pipeline / VLM / Hybrid)", "created_at": "2026-06-13T13:17:41Z", "labels": ["UI/UX"]}
-    ]
+    "sample_size": 220,
+    "sample_note": "Estimated from 220 sampled issues (newest 100 + oldest 100 + 100 bugs)"
   },
   "prs": {
     "total_open": 100,
-    "merged_30d": 167,
-    "open_base_branches": {
-      "main": 87,
-      "v1": 12,
-      "feat/chat-page": 1
+    "draft": 13,
+    "health": {
+      "Active": 70,
+      "Aging": 30
     },
-    "open_age_distribution": {
-      "fresh_0_3d": 34,
-      "review_ready_4_14d": 51,
-      "aging_15_30d": 15,
-      "stale_30d_plus": 0
-    },
-    "top_contributors_30d": {
-      "DeJeune": 16,
-      "ousugo": 13,
-      "kangfenmao": 11,
-      "Raymond8196": 10,
-      "eeee0717": 8,
-      "AtomsH4": 7,
-      "github-actions[bot]": 5,
-      "zhangjiadi225": 5
-    },
-    "pr_types_30d": {
-      "fix": 53,
-      "feat": 26,
-      "refactor": 8,
-      "chore": 6,
-      "i18n-auto-sync": 5
-    },
-    "recent_daily_merges": [
-      {"date": "2026-06-13", "count": 3},
-      {"date": "2026-06-12", "count": 14},
-      {"date": "2026-06-11", "count": 11},
-      {"date": "2026-06-10", "count": 4},
-      {"date": "2026-06-09", "count": 9},
-      {"date": "2026-06-08", "count": 2},
-      {"date": "2026-06-07", "count": 2}
-    ],
-    "newest_prs": [
-      {"number": 16033, "title": "feat(ipc): IpcApi framework for type-safe IPC", "author": "0xfullex", "base": "main", "created_at": "2026-06-13T16:08:24Z"},
-      {"number": 16030, "title": "fix(provider-registry): correct model registry metadata", "author": "ousugo", "base": "main", "created_at": "2026-06-13T13:06:00Z"},
-      {"number": 16029, "title": "fix(image-export): warm up html-to-image to fix blank first capture", "author": "kovsu", "base": "main", "created_at": "2026-06-13T10:18:58Z"},
-      {"number": 16027, "title": "fix(proxy): TCP-probe system proxy before injecting into child processes", "author": "legeling", "base": "main", "created_at": "2026-06-13T05:26:26Z"},
-      {"number": 16026, "title": "feat(renderer-components): split shared list and code viewers", "author": "kangfenmao", "base": "main", "created_at": "2026-06-13T04:50:09Z"}
-    ]
+    "closed_30d": 100,
+    "merged_30d": 30,
+    "v2_open": 0,
+    "v2_merged_30d": 0
   },
-  "v2_branch": {
-    "open_prs": 0,
-    "merged_prs_30d": 18,
-    "note": "v2 branch merged into main; most v2 work now targets main directly"
-  }
+  "p1_urgent_issues": [
+    {
+      "number": 13193,
+      "title": "[Bug]: [AI_APICallError: Resource not found, default use responses API] Could not call Azure openai in the latest macos app",
+      "labels": [
+        "P1",
+        "Models"
+      ],
+      "updatedAt": "2026-03-05T08:47:59Z",
+      "days_since_update": 101,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
+    }
+  ]
 }

@@ -1,45 +1,9 @@
 {
-  "generated_at": "2026-06-13",
-  "v2_strategy": "v2 branch was merged into main; main is now the default development branch for v2 work",
-  "v2_branch_status": {
-    "open_prs": 0,
-    "merged_prs_30d": 18,
-    "note": "No open PRs targeting v2. All new v2 feature work is going directly to main."
-  },
-  "recent_v2_merges_sample": [
-    {
-      "number": 15371,
-      "title": "refactor(knowledge): knowledge workflow jobs round2",
-      "merged_at": "2026-05-28T12:33:18Z",
-      "author": "eeee0717",
-      "description": "Replaced legacy knowledge runtime task flow with durable workflow/job handlers"
-    }
-  ],
-  "main_branch_v2_signals_30d": {
-    "prs_with_v2_label": 2,
-    "total_merged_prs": 167,
-    "pr_type_breakdown": {
-      "fix": 53,
-      "feat": 26,
-      "refactor": 8,
-      "chore": 6
-    },
-    "top_contributors": {
-      "DeJeune": 16,
-      "ousugo": 13,
-      "kangfenmao": 11,
-      "Raymond8196": 10,
-      "eeee0717": 8
-    }
-  },
-  "v2_data_layer_progress": {
-    "removing": ["Redux", "Dexie", "ElectronStore"],
-    "adopting": ["Cache", "Preference", "DataApi"],
-    "knowledge_module": "Active (workflow jobs refactor landed in May)",
-    "ipc_framework": "In progress (PR #16033 - IpcApi type-safe framework opened 2026-06-13)"
-  },
-  "v1_maintenance": {
-    "open_prs_targeting_v1": 12,
-    "note": "12 open PRs still target v1 branch for hotfix/maintenance work"
+  "generated_at": "2026-06-14T00:00:00Z",
+  "v2_open_prs": [],
+  "v2_merged_last_30d": [],
+  "summary": {
+    "open": 0,
+    "merged_30d": 0
   }
 }
