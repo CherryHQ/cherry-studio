@@ -99,7 +99,7 @@ flowchart TB
   D[Drizzle schemas] --> CG[codegen 生成 refs]
   CG --> T[表 列 主键 JSON引用 清单]
   T --> BC[BackupContributor schema policy operations]
-  BC --> CM[ContributorManager finalize 23 不变量]
+  BC --> CM[ContributorManager finalize 24 不变量]
   CM --> BR[BackupRegistry]
   BR --> EX[ExportOrchestrator]
   BR --> IM[ImportOrchestrator]
