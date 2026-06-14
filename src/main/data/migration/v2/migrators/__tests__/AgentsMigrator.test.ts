@@ -23,7 +23,7 @@ vi.mock('@application', async () => {
 })
 
 import { LegacyAgentsDbReader } from '../../utils/LegacyAgentsDbReader'
-import { AgentsMigrator, backfillAgentOrderKeys } from '../AgentsMigrator'
+import { AgentsMigrator, backfillAgentOrderKeys, migrateAgentMcps } from '../AgentsMigrator'
 import { AGENTS_TABLE_MIGRATION_SPECS } from '../mappings/AgentsDbMappings'
 
 function createCounts() {
@@ -376,5 +376,43 @@ describe('AgentsMigrator', () => {
 
     expect(getExecutedSql(run)[0]).toBe("ATTACH DATABASE '/mock/feature.agents.db_file' AS agents_legacy")
     expect(getExecutedSql(run).at(-1)).toBe('DETACH DATABASE agents_legacy')
+  })
+
+  describe('migrateAgentMcps', () => {
+    it('inserts junction rows from legacy mcps JSON arrays', async () => {
+      const all = vi.fn().mockResolvedValue([
+        { agentId: 'agent-1', mcpId: 'mcp-a' },
+        { agentId: 'agent-1', mcpId: 'mcp-b' },
+        { agentId: 'agent-2', mcpId: 'mcp-a' }
+      ])
+      const valuesFn = vi.fn().mockResolvedValue(undefined)
+      const insert = vi.fn().mockReturnValue({ values: valuesFn })
+
+      await migrateAgentMcps({ all, insert } as never)
+
+      expect(all).toHaveBeenCalledTimes(1)
+      // Batch insert — single values() call with 3 rows
+      expect(insert).toHaveBeenCalledTimes(1)
+      expect(valuesFn).toHaveBeenCalledTimes(1)
+      const valuesCall = valuesFn.mock.calls[0][0]
+      expect(valuesCall).toHaveLength(3)
+      expect(valuesCall).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ agentId: 'agent-1', mcpServerId: 'mcp-a' }),
+          expect.objectContaining({ agentId: 'agent-1', mcpServerId: 'mcp-b' }),
+          expect.objectContaining({ agentId: 'agent-2', mcpServerId: 'mcp-a' })
+        ])
+      )
+    })
+
+    it('skips insert when no rows match the query', async () => {
+      const all = vi.fn().mockResolvedValue([])
+      const insert = vi.fn()
+
+      await migrateAgentMcps({ all, insert } as never)
+
+      expect(all).toHaveBeenCalledTimes(1)
+      expect(insert).not.toHaveBeenCalled()
+    })
   })
 })

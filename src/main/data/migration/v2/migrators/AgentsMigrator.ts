@@ -1,5 +1,6 @@
 import { agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -161,6 +162,7 @@ export class AgentsMigrator extends BaseMigrator {
         db: ctx.db,
         filesDataDir: ctx.paths.filesDataDir
       })
+      await migrateAgentMcps(ctx.db)
 
       await ctx.db.run(sql.raw('COMMIT'))
       committed = true
@@ -931,6 +933,36 @@ export async function importLegacySessionMessages(
 
   logger.info('Imported legacy agent session messages with UUID ids', { imported })
   return imported
+}
+
+/**
+ * Migrate legacy `agent.mcps` JSON arrays into `agent_mcp_server` junction
+ * table rows. Only migrates MCP IDs that exist in the v2 `mcp_server` table
+ * to avoid FK constraint violations. Runs while agents_legacy is attached.
+ */
+export async function migrateAgentMcps(db: DbType): Promise<void> {
+  const rows = await db.all<{ agentId: string; mcpId: string }>(
+    sql.raw(
+      `SELECT DISTINCT a.id AS agentId, je.value AS mcpId
+       FROM agents_legacy.agents a, json_each(a.mcps) AS je
+       WHERE json_type(a.mcps) = 'array'
+         AND json_array_length(a.mcps) > 0
+         AND a.id IN (SELECT id FROM agent)
+         AND je.value IN (SELECT id FROM mcp_server)`
+    )
+  )
+  if (rows.length === 0) return
+
+  const now = Date.now()
+  await db.insert(agentMcpServerTable).values(
+    rows.map((row) => ({
+      agentId: row.agentId,
+      mcpServerId: row.mcpId,
+      createdAt: now,
+      updatedAt: now
+    }))
+  )
+  logger.info('Migrated agent MCP associations to junction table', { rows: rows.length })
 }
 
 /**

@@ -8,6 +8,7 @@
 
 import { application } from '@application'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateMcpServerDto, ListMcpServersQuery, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
@@ -136,12 +137,20 @@ export class McpServerService {
   }
 
   /**
-   * Delete an MCP server
+   * Delete an MCP server and cascade-remove its associations from all agents.
+   * Junction table rows are explicitly removed first so we can identify affected
+   * agents for event emission; FK ON DELETE CASCADE is a safety net.
    */
   async delete(id: string): Promise<void> {
     await this.getById(id)
 
-    await this.db.delete(mcpServerTable).where(eq(mcpServerTable.id, id))
+    let affectedAgentIds: string[] = []
+    await application.get('DbService').withWriteTx(async (tx) => {
+      affectedAgentIds = await agentService.removeMcpFromAllAgentsTx(tx, id)
+      await tx.delete(mcpServerTable).where(eq(mcpServerTable.id, id))
+    })
+
+    await agentService.emitAgentUpdatedForIds(affectedAgentIds)
 
     logger.info('Deleted MCP server', { id })
   }
