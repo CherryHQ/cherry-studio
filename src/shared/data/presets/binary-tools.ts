@@ -8,7 +8,7 @@ export interface BinaryToolPreset extends ManagedBinary {
   homepage?: string
 }
 
-export const PREDEFINED_BINARY_TOOLS: BinaryToolPreset[] = [
+export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
   {
     name: 'uv',
     displayName: 'uv',

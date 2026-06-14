@@ -212,6 +212,13 @@ const TOOLS = [
         binaries: ['rg.exe'],
         strip: `ripgrep-${RG_VERSION}-x86_64-pc-windows-msvc`,
         sha256: 'd0f534024c42afd6cb4d38907c25cd2b249b79bbe6cc1dbee8e3e37c2b6e25a1'
+      },
+      'win32-arm64': {
+        url: rgUrl('x86_64-pc-windows-msvc', 'zip'),
+        archive: 'zip',
+        binaries: ['rg.exe'],
+        strip: `ripgrep-${RG_VERSION}-x86_64-pc-windows-msvc`,
+        sha256: 'd0f534024c42afd6cb4d38907c25cd2b249b79bbe6cc1dbee8e3e37c2b6e25a1'
       }
     }
   }

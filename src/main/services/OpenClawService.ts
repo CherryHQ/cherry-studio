@@ -914,7 +914,7 @@ export class OpenClawService extends BaseService {
   }
 
   /**
-   * Perform OpenClaw update by running `openclaw update`.
+   * Perform OpenClaw update through BinaryManager so mise remains the owner.
    */
   public async performUpdate(): Promise<OperationResult> {
     try {
@@ -928,23 +928,11 @@ export class OpenClawService extends BaseService {
         await this.stopGateway()
       }
 
-      this.sendInstallProgress('Running openclaw update...')
-      const shellEnv = await getShellEnv()
-      const { code, stdout, stderr } = await this.execOpenClawCommandWithResult(
-        openclawPath,
-        ['update'],
-        shellEnv,
-        60000
-      )
+      this.sendInstallProgress('Updating OpenClaw via BinaryManager...')
+      await application.get('BinaryManager').installTool({ name: 'openclaw', tool: 'npm:openclaw' })
+      void refreshShellEnv()
 
-      if (code !== 0) {
-        const errMsg = stderr.trim() || `Update failed with code ${code}`
-        logger.error('OpenClaw update failed:', { error: errMsg })
-        this.sendInstallProgress(errMsg, 'error')
-        return { success: false, message: errMsg }
-      }
-
-      logger.info('OpenClaw updated successfully', { output: stdout.trim() })
+      logger.info('OpenClaw updated successfully')
       this.sendInstallProgress('OpenClaw updated successfully!')
       return { success: true }
     } catch (error) {

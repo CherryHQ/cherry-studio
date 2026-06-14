@@ -113,9 +113,8 @@ describe('BinaryManager', () => {
 
       mockFs.readFileSync.mockReturnValue(
         JSON.stringify({
-          updatedAt: '2026-01-01T00:00:00.000Z',
           tools: {
-            fd: { name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0', installedAt: '2026-01-01T00:00:00.000Z' }
+            fd: { tool: 'github:sharkdp/fd', version: '10.0.0' }
           }
         })
       )
@@ -138,9 +137,8 @@ describe('BinaryManager', () => {
 
       mockFs.readFileSync.mockReturnValue(
         JSON.stringify({
-          updatedAt: '2026-01-01T00:00:00.000Z',
           tools: {
-            fd: { name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0', installedAt: '2026-01-01T00:00:00.000Z' }
+            fd: { tool: 'github:sharkdp/fd', version: '10.0.0' }
           }
         })
       )
@@ -162,9 +160,8 @@ describe('BinaryManager', () => {
 
       mockFs.readFileSync.mockReturnValue(
         JSON.stringify({
-          updatedAt: '2026-01-01T00:00:00.000Z',
           tools: {
-            fd: { name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0', installedAt: '2026-01-01T00:00:00.000Z' }
+            fd: { tool: 'github:sharkdp/fd', version: '10.0.0' }
           }
         })
       )
@@ -246,9 +243,8 @@ describe('BinaryManager', () => {
       mockFs.existsSync.mockReturnValue(true)
       mockFs.readFileSync.mockReturnValue(
         JSON.stringify({
-          updatedAt: '2026-01-01T00:00:00.000Z',
           tools: {
-            fd: { name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0', installedAt: '2026-01-01T00:00:00.000Z' }
+            fd: { tool: 'github:sharkdp/fd', version: '10.0.0' }
           }
         })
       )
@@ -341,7 +337,7 @@ describe('BinaryManager', () => {
       expect(channels).toContain('binary:install-tool')
       expect(channels).toContain('binary:remove-tool')
       expect(channels).toContain('binary:get-state')
-      expect(channels).toContain('binary:reconcile')
+      expect(channels).not.toContain('binary:reconcile')
       expect(channels).toContain('binary:search-registry')
       expect(channels).toContain('binary:get-tool-dir')
     })
@@ -373,14 +369,16 @@ describe('BinaryManager', () => {
       ['fd', 'tool; echo', undefined],
       ['fd', 'tool name', undefined],
       ['fd', '../../../etc/passwd', undefined],
-      ['fd', 'github://evil', undefined]
+      ['fd', 'github://evil', undefined],
+      ['fd', '--verbose', undefined]
     ])('rejects invalid tool key=%j tool=%j', (name, tool, version) => {
       expect(() => validateManagedBinary({ name, tool, version })).toThrow('Invalid tool key')
     })
 
     it.each([
       ['fd', 'fd', 'version; echo'],
-      ['fd', 'fd', 'ver sion']
+      ['fd', 'fd', 'ver sion'],
+      ['fd', 'fd', '-rf']
     ])('rejects invalid version=%j', (name, tool, version) => {
       expect(() => validateManagedBinary({ name, tool, version })).toThrow('Invalid tool version')
     })
@@ -651,16 +649,13 @@ describe('BinaryManager', () => {
 
       mockFs.readFileSync.mockReturnValue(
         JSON.stringify({
-          updatedAt: '2026-01-01T00:00:00.000Z',
           tools: {
             valid: {
-              name: 'fd',
               tool: 'github:sharkdp/fd',
-              version: '10.0.0',
-              installedAt: '2026-01-01T00:00:00.000Z'
+              version: '10.0.0'
             },
-            broken: { name: 'bad', tool: undefined, version: '1.0.0' },
-            injected: { name: 'evil', tool: '../../../etc/passwd', version: '1.0.0' }
+            broken: { tool: undefined, version: '1.0.0' },
+            injected: { tool: '../../../etc/passwd', version: '1.0.0' }
           }
         })
       )

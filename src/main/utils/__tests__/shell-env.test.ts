@@ -15,7 +15,7 @@ vi.mock('@application', () => ({
     getPath: (key: string) => {
       const base = 'C:\\Users\\test\\.cherrystudio'
       if (key === 'cherry.bin') return `${base}\\bin`
-      if (key === 'feature.binaries.data') return `${base}\\mise`
+      if (key === 'feature.binary.data') return `${base}\\binary-manager`
       if (key === 'sys.home') return 'C:\\Users\\test'
       return `/mock/${key}`
     }
@@ -90,10 +90,10 @@ describe('shell-env – Windows registry PATH', () => {
     const env = await refreshShellEnv()
 
     // System PATH comes first, user PATH second.
-    const pathValue = env.Path
+    const pathValue = [env.Path, env.PATH].filter(Boolean).join(';')
     expect(pathValue).toContain('C:\\System')
     expect(pathValue).toContain('C:\\User')
-    expect(pathValue.indexOf('C:\\System')).toBeLessThan(pathValue.indexOf('C:\\User'))
+    expect(pathValue).toContain('C:\\System;C:\\User')
   })
 
   it('should use only user PATH when system PATH is unavailable', async () => {
@@ -183,7 +183,7 @@ describe('shell-env – Windows registry PATH', () => {
     const env = await refreshShellEnv()
 
     expect(env.Path).toContain('.cherrystudio')
-    expect(env.Path).toContain('mise')
+    expect(env.Path).toContain('binary-manager')
     expect(env.Path).toContain('shims')
     expect(env.Path).toContain('bin')
   })

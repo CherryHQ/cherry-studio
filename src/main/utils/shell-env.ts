@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 import { execFileSync, spawn } from 'child_process'
 
-import { getBinarySearchDirs } from './process'
+import { getBinarySearchDirs, mergeBinaryExecutionEnv } from './process'
 
 const logger = loggerService.withContext('ShellEnv')
 
@@ -61,6 +61,12 @@ const appendCherryToolDirsToPath = (env: Record<string, string>) => {
   if (!isWin) {
     env.PATH = updatedPath
   }
+}
+
+const applyBinaryExecutionEnv = (env: Record<string, string>) => {
+  const merged = mergeBinaryExecutionEnv(env)
+  Object.keys(env).forEach((key) => delete env[key])
+  Object.assign(env, merged)
 }
 
 /**
@@ -136,6 +142,7 @@ function getWindowsEnvironment(): Record<string, string> {
   }
 
   appendCherryToolDirsToPath(env)
+  applyBinaryExecutionEnv(env)
   return env
 }
 
@@ -294,6 +301,7 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
       }
 
       appendCherryToolDirsToPath(env)
+      applyBinaryExecutionEnv(env)
 
       resolveOnce(env)
     })
@@ -313,6 +321,7 @@ async function fetchShellEnv(): Promise<Record<string, string>> {
       fallbackEnv[key] = process.env[key] || ''
     }
     appendCherryToolDirsToPath(fallbackEnv)
+    applyBinaryExecutionEnv(fallbackEnv)
     return fallbackEnv
   }
 }

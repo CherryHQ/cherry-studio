@@ -10,9 +10,9 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { isUserInChina } from '@main/utils/ipService'
-import { getBinaryPath } from '@main/utils/process'
+import { getBinaryExecutionEnv, getBinaryPath } from '@main/utils/process'
 import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
-import { PREDEFINED_BINARY_TOOLS } from '@shared/data/presets/binary-tools'
+import { PRESETS_BINARY_TOOLS } from '@shared/data/presets/binary-tools'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow } from 'electron'
 
@@ -57,7 +57,7 @@ const MISE_PASSTHROUGH_ENV = [
 ]
 
 const TOOL_NAME_RE = /^[a-zA-Z][a-zA-Z0-9_-]*$/
-const TOOL_KEY_RE = /^(?!.*\.\.)(?!.*\/\/)[a-zA-Z0-9@:/_.-]+$/
+const TOOL_KEY_RE = /^(?!.*\.\.)(?!.*\/\/)[a-zA-Z0-9@][a-zA-Z0-9@:/_.-]*$/
 
 // Matches a resolved semver version (1.2.3, 1.2.3-rc.1, 1.2.3+build). Used to
 // distinguish "concrete version we can persist and compare for equality" from
@@ -110,13 +110,15 @@ export class BinaryManager extends BaseService {
     }
     logger.info('mise binary found', { path: this.miseBin })
     this.isolatedEnv = await this.buildIsolatedEnv()
+  }
 
+  protected override onAllReady() {
     const prefService = application.get('PreferenceService')
-    const predefinedNames = new Set(PREDEFINED_BINARY_TOOLS.map((t) => t.name))
-    const tools = prefService.get('feature.binaries.tools')
+    const predefinedNames = new Set(PRESETS_BINARY_TOOLS.map((t) => t.name))
+    const tools = prefService.get('feature.binary.tools')
     const cleaned = tools.filter((t) => !predefinedNames.has(t.name))
     if (cleaned.length < tools.length) {
-      void prefService.set('feature.binaries.tools', cleaned)
+      void prefService.set('feature.binary.tools', cleaned)
       logger.info('Cleaned predefined tools from custom tools preference', {
         removed: tools.filter((t) => predefinedNames.has(t.name)).map((t) => t.name)
       })
@@ -127,11 +129,6 @@ export class BinaryManager extends BaseService {
   }
 
   private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.Binary_Reconcile, async () => {
-      const tools = application.get('PreferenceService').get('feature.binaries.tools')
-      return this.reconcile(tools)
-    })
-
     this.ipcHandle(IpcChannel.Binary_InstallTool, async (_event, tool: ManagedBinary) => {
       validateManagedBinary(tool)
       return this.installTool(tool)
@@ -215,11 +212,21 @@ export class BinaryManager extends BaseService {
 
     for (const tool of tools) {
       try {
-        const bundledVersion = this.readVersionMarker(path.join(bundledDir, tool.versionFile))
-        if (!bundledVersion) continue
+        const versionPath = path.join(bundledDir, tool.versionFile)
+        const bundledVersion = this.readVersionMarker(versionPath)
+        if (!bundledVersion) {
+          logger.error(`Expected bundled ${tool.name} version marker missing`, new Error(`Missing ${versionPath}`))
+          continue
+        }
 
-        const firstBundled = path.join(bundledDir, tool.binaries[0])
-        if (!fs.existsSync(firstBundled)) continue
+        const missingBundled = tool.binaries.filter((bin) => !fs.existsSync(path.join(bundledDir, bin)))
+        if (missingBundled.length > 0) {
+          logger.error(
+            `Expected bundled ${tool.name} binaries missing`,
+            new Error(`Missing ${missingBundled.join(', ')} in ${bundledDir}`)
+          )
+          continue
+        }
 
         // Re-extract when any expected destination binary is missing, even if
         // the first one is present and the version marker matches — guards
@@ -234,7 +241,6 @@ export class BinaryManager extends BaseService {
         for (const bin of tool.binaries) {
           const src = path.join(bundledDir, bin)
           const dest = path.join(binDir, bin)
-          if (!fs.existsSync(src)) continue
           const tmp = `${dest}.tmp-${process.pid}`
           await fsp.copyFile(src, tmp)
           if (!isWin) await fsp.chmod(tmp, 0o755)
@@ -286,7 +292,6 @@ export class BinaryManager extends BaseService {
   // NPM_CONFIG_REGISTRY and PIP_INDEX_URL are passed through and overridden
   // with mirror URLs for China users so that npm/pipx backends work reliably.
   private async buildIsolatedEnv(): Promise<Record<string, string>> {
-    const dataDir = application.getPath('feature.binaries.data')
     const env: Record<string, string> = {}
 
     for (const key of MISE_PASSTHROUGH_ENV) {
@@ -316,18 +321,7 @@ export class BinaryManager extends BaseService {
       }
     }
 
-    env['MISE_DATA_DIR'] = dataDir
-    env['MISE_CONFIG_DIR'] = path.join(dataDir, 'config')
-    env['MISE_CACHE_DIR'] = path.join(dataDir, 'cache')
-    env['MISE_STATE_DIR'] = path.join(dataDir, 'state')
-    env['MISE_SHIMS_DIR'] = path.join(dataDir, 'shims')
-    env['HOME'] = path.join(dataDir, 'home')
-    env['XDG_CONFIG_HOME'] = path.join(dataDir, 'xdg', 'config')
-    env['XDG_CACHE_HOME'] = path.join(dataDir, 'xdg', 'cache')
-    env['XDG_STATE_HOME'] = path.join(dataDir, 'xdg', 'state')
-    env['MISE_YES'] = '1'
-    env['MISE_NO_ANALYTICS'] = '1'
-    env['MISE_EXPERIMENTAL'] = '1'
+    Object.assign(env, getBinaryExecutionEnv())
 
     const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') || (isWin ? 'Path' : 'PATH')
     const pathSegments = [
@@ -428,12 +422,12 @@ export class BinaryManager extends BaseService {
   }
 
   private loadState(): BinaryState {
-    const statePath = application.getPath('feature.binaries.state_file')
+    const statePath = application.getPath('feature.binary.state_file')
     try {
       const data = fs.readFileSync(statePath, 'utf-8')
       const parsed = JSON.parse(data)
       if (!parsed || typeof parsed !== 'object' || typeof parsed.tools !== 'object' || parsed.tools === null) {
-        return { updatedAt: '', tools: {} }
+        return { tools: {} }
       }
       const validTools: Record<string, ToolInstallState> = {}
       for (const [key, entry] of Object.entries(parsed.tools)) {
@@ -441,7 +435,6 @@ export class BinaryManager extends BaseService {
         if (
           e &&
           typeof e === 'object' &&
-          typeof e.name === 'string' &&
           typeof e.tool === 'string' &&
           typeof e.version === 'string' &&
           TOOL_KEY_RE.test(e.tool)
@@ -451,10 +444,10 @@ export class BinaryManager extends BaseService {
           logger.warn('Discarding malformed tool entry from state', { key })
         }
       }
-      return { updatedAt: String(parsed.updatedAt ?? ''), tools: validTools }
+      return { tools: validTools }
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-        return { updatedAt: '', tools: {} }
+        return { tools: {} }
       }
       logger.error('Failed to load mise state', err as Error)
       throw err
@@ -462,7 +455,7 @@ export class BinaryManager extends BaseService {
   }
 
   private saveState(state: BinaryState) {
-    const statePath = application.getPath('feature.binaries.state_file')
+    const statePath = application.getPath('feature.binary.state_file')
     const dir = path.dirname(statePath)
     fs.mkdirSync(dir, { recursive: true })
     const tmp = statePath + '.tmp'
@@ -514,10 +507,8 @@ export class BinaryManager extends BaseService {
           logger.info('Installing tool', { name: tool.name, tool: tool.tool, version: tool.version || 'latest' })
           const installedVersion = await this.installWithMise(tool)
           state.tools[tool.name] = {
-            name: tool.name,
             tool: tool.tool,
-            version: installedVersion,
-            installedAt: new Date().toISOString()
+            version: installedVersion
           }
           result.installed.push(tool.name)
           logger.info('Tool installed', { name: tool.name, version: installedVersion })
@@ -529,7 +520,6 @@ export class BinaryManager extends BaseService {
       }
 
       try {
-        state.updatedAt = new Date().toISOString()
         this.saveState(state)
       } catch (err) {
         logger.error('Failed to persist reconcile state', err as Error)
@@ -542,6 +532,7 @@ export class BinaryManager extends BaseService {
   }
 
   async installTool(tool: ManagedBinary): Promise<{ version: string }> {
+    validateManagedBinary(tool)
     if (!this.miseBin) {
       throw new Error('mise binary not available')
     }
@@ -550,12 +541,9 @@ export class BinaryManager extends BaseService {
       const version = await this.installWithMise(tool)
       const state = this.loadState()
       state.tools[tool.name] = {
-        name: tool.name,
         tool: tool.tool,
-        version,
-        installedAt: new Date().toISOString()
+        version
       }
-      state.updatedAt = new Date().toISOString()
       this.saveState(state)
 
       return { version }
@@ -623,7 +611,6 @@ export class BinaryManager extends BaseService {
       }
 
       delete state.tools[toolName]
-      state.updatedAt = new Date().toISOString()
       this.saveState(state)
     })
   }

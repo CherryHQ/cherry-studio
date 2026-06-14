@@ -327,7 +327,7 @@ export interface PreferenceSchemas {
     // redux/settings/apiServer.port
     'feature.api_gateway.port': number
     // target-key-definitions/complex/complex
-    'feature.binaries.tools': PreferenceTypes.ManagedBinary[]
+    'feature.binary.tools': PreferenceTypes.ManagedBinary[]
     // target-key-definitions/complex/complex
     'feature.code_cli.overrides': PreferenceTypes.CodeCliOverrides
     // redux/preprocess/defaultProvider
@@ -647,7 +647,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.api_gateway.enabled': false,
     'feature.api_gateway.host': '127.0.0.1',
     'feature.api_gateway.port': 23333,
-    'feature.binaries.tools': [] as PreferenceTypes.ManagedBinary[],
+    'feature.binary.tools': [] as PreferenceTypes.ManagedBinary[],
     'feature.code_cli.overrides': {} as PreferenceTypes.CodeCliOverrides,
     'feature.file_processing.default_document_to_markdown': null,
     'feature.file_processing.default_image_to_text': null,

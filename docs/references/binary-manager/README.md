@@ -8,7 +8,7 @@ BinaryManager is the single lifecycle service responsible for acquiring and mana
 
 - Implementation: `src/main/services/BinaryManager.ts`
 - IPC channels: `src/shared/IpcChannel.ts` (`Binary_*`)
-- Persisted state: `feature.binaries.tools` preference + `feature.binaries.state_file` path
+- Persisted state: `feature.binary.tools` preference + `feature.binary.state_file` path
 - Preset catalog: `src/shared/data/presets/binary-tools.ts`
 - Renderer entry point: `src/renderer/pages/settings/McpSettings/EnvironmentDependencies.tsx`
 
@@ -18,10 +18,11 @@ BinaryManager is the single lifecycle service responsible for acquiring and mana
 
 | Tool | Status | Reason |
 |---|---|---|
-| uv, bun, ripgrep, fd, rtk | **In** — bundled + mise-managed | Single relocatable binaries |
+| uv, bun, ripgrep | **In** — bundled + mise-managed | Single relocatable binaries |
+| fd, rtk | **In** — mise-managed | Single relocatable binaries installed on demand |
 | claude-code, gh, opencode, gemini-cli, etc. | **In** — mise-managed | Installable via `npm:` / `pipx:` / mise registry |
 | OvmsManager | **Out** — domain service | OS-specific multi-file tarball, hardware detection, generated config |
-| Tesseract (`appUserData/tesseract`) | **Out** — data/models | Not a CLI binary; OCR data files live with `OvOcrService` |
+| Tesseract (`feature.ocr.tesseract`) | **Out** — data/models | Not a CLI binary; OCR data files live with `TesseractRuntimeService` |
 
 When adding a new tool, ask: *can mise install this as a single binary?* If yes, it goes in BinaryManager. If it needs hardware checks, multi-file extraction, or post-install patching, it stays with its domain service.
 
@@ -31,17 +32,17 @@ These are the stable boundaries that survive across versions and renderer reload
 
 | Surface | Value | Used by |
 |---|---|---|
-| Preference key | `feature.binaries.tools` → `ManagedBinary[]` | Renderer custom-tool list |
-| Path key | `feature.binaries.data` → `~/.cherrystudio/mise` | mise install root |
-| Path key | `feature.binaries.state_file` → `~/.cherrystudio/mise/state.json` | Install state on disk |
+| Preference key | `feature.binary.tools` → `ManagedBinary[]` | Renderer custom-tool list |
+| Path key | `feature.binary.data` → `~/.cherrystudio/binary-manager` | mise install root |
+| Path key | `feature.binary.state_file` → `~/.cherrystudio/binary-manager/state.json` | Install state on disk |
 | Path key | `cherry.bin` → `~/.cherrystudio/bin` | Bundled-binary extraction target |
-| IPC | `binary:reconcile`, `binary:install-tool`, `binary:remove-tool`, `binary:get-state`, `binary:search-registry`, `binary:get-tool-dir`, `binary:probe-bundled` | Renderer → main |
+| IPC | `binary:install-tool`, `binary:remove-tool`, `binary:get-state`, `binary:search-registry`, `binary:get-tool-dir`, `binary:probe-bundled` | Renderer → main |
 | IPC events | `binary:state-changed`, `binary:reconcile-failed` | Main → renderer |
 | Types | `ManagedBinary`, `BinaryState`, `ToolInstallState` (`src/shared/data/preference/preferenceTypes.ts`) | Both sides |
 
 `ManagedBinary` is `{ name, tool, version? }` where `tool` is a mise tool spec (`npm:foo`, `pipx:bar`, `gh`, `claude`, …). Adding new fields requires regenerating preference schemas via `cd v2-refactor-temp/tools/data-classify && npm run generate`.
 
-> **No v1→v2 migrator.** v2 data is throwaway per [CLAUDE.md](../../../CLAUDE.md) — the v2 pref key (`feature.binaries.tools`) has no predecessor in v1, so there is intentionally nothing to migrate.
+> **No v1→v2 migrator.** v2 data is throwaway per [CLAUDE.md](../../../CLAUDE.md) — the v2 pref key (`feature.binary.tools`) has no predecessor in v1, so there is intentionally nothing to migrate.
 
 ## Path resolution: one resolver, two sources
 
@@ -51,7 +52,11 @@ getBinaryPath(name)  →  mise shim → cherry.bin → binary name (PATH fallbac
                         mise-managed bundled     resolved by user shell at exec
 ```
 
-`getBinaryPath()` in `src/main/utils/process.ts` is the **only** path resolver. Direct `os.homedir() + HOME_CHERRY_DIR` joins are forbidden — use `application.getPath('cherry.bin')` / `application.getPath('feature.binaries.data')` instead.
+`getBinaryPath()` in `src/main/utils/process.ts` is the **only** path resolver. Direct `os.homedir() + HOME_CHERRY_DIR` joins are forbidden — use `application.getPath('cherry.bin')` / `application.getPath('feature.binary.data')` instead.
+
+## Why state is a file, not DataApi / Preference
+
+BinaryManager state is operational cache for installed shim metadata, not user-authored business data. It must be readable before renderer windows exist, written atomically alongside the tool manager's filesystem operations, and safe to rebuild from `mise` plus the user's `feature.binary.tools` preference if lost. A small JSON file keeps that operational state close to the binaries it describes without adding a SQLite/DataApi boundary for non-business data.
 
 ## State contract: bundled vs mise-managed
 
@@ -65,7 +70,7 @@ Three sources for a tool to be available, in order of precedence:
 
 **Why we don't seed `BinaryState` on extraction:** BinaryState is the authoritative record of "user actively installed via mise". Writing extraction artifacts into it would conflate two sources (build-time bundled vs runtime user-installed), force a `source` discriminator on every entry, and cause state drift every time a release ships with a new bundled version. The probe-bundled IPC keeps the two sources orthogonal: BinaryState answers "what did the user install?", the filesystem probe answers "what shipped in the box?".
 
-The bundled set is currently `bun`, `uv`, `rg`. mise itself is also bundled but is internal infrastructure, not user-visible.
+The bundled set is currently `bun`, `uv`, `rg`. mise itself is also bundled but is internal infrastructure, not user-visible. RTK is installed on demand from Settings → Plugins instead of being extracted automatically at startup.
 
 **Precedence when both sources are present.** `getBinarySearchDirs()` lists the mise shims directory before `cherry.bin`, so if a user clicks *Install via mise* on a bundled tool (e.g. `uv`), the mise-managed version wins at `getBinaryPath('uv')` and consumers immediately use the newer copy. The bundled copy stays on disk as a fallback when the mise shim is absent or broken; the UI re-probes after install and updates the "managed / bundled" label accordingly.
 
@@ -86,13 +91,13 @@ export CHERRY_GITHUB_TOKEN=ghp_xxx   # optional, only needed if installs fail wi
 - `NPM_CONFIG_REGISTRY=https://registry.npmmirror.com`
 - `PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple`
 
-These are passthrough — if the user already has either var in their shell env, the user value wins. Mirror selection happens once per install and applies to all `npm:` / `pipx:` backends without per-tool configuration.
+These are passthrough — if the user already has either var in their shell env, the user value wins. Mirror selection happens once per app launch and applies to all `npm:` / `pipx:` backends without per-tool configuration.
 
 ## Adding a new managed binary
 
 **Preset (built-in tool, appears in the predefined list):**
 
-1. Add an entry to `PREDEFINED_BINARY_TOOLS` in `src/shared/data/presets/binary-tools.ts`:
+1. Add an entry to `PRESETS_BINARY_TOOLS` in `src/shared/data/presets/binary-tools.ts`:
    ```ts
    {
      name: 'gh',           // executable name (also the mise shim name)
@@ -107,8 +112,8 @@ These are passthrough — if the user already has either var in their shell env,
 
 **Custom (user-added from the settings UI):**
 
-1. User clicks "Add Tool" and provides a name + mise spec.
-2. Renderer writes to `feature.binaries.tools` preference; BinaryManager picks it up on the next reconcile.
+1. User clicks "Add Tool" and selects a registry result.
+2. Renderer writes to `feature.binary.tools` preference after `binary:install-tool` succeeds; BinaryManager reconciles saved tools during startup.
 
 **To bundle the binary at build time** (so it's available without mise install — only for tools small enough to ship):
 
@@ -125,7 +130,7 @@ const result = await application.get('BinaryManager').installTool({
   name: 'gh',
   tool: 'gh'
 })
-// result is ToolInstallState — version, install path, timestamps
+// result is { version: string }
 ```
 
 Examples: `OpenClawService.install()` calls `installTool({name: 'openclaw', tool: 'npm:openclaw'})`; `CodeCliService.run()` calls `installTool()` lazily when the executable isn't on disk.

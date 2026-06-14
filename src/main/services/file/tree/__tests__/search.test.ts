@@ -34,6 +34,7 @@ vi.mock('node:fs', async (importOriginal) => {
 vi.mock('@main/utils/process', async () => {
   const { testRipgrepPath } = await import('./ripgrepTestUtils')
   return {
+    getBinaryExecutionEnv: () => ({}),
     getBinaryPath: async (name?: string) => (name === 'rg' ? testRipgrepPath() : (name ?? ''))
   }
 })

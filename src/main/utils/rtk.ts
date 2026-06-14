@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import { promisify } from 'node:util'
 
 import { loggerService } from '@logger'
-import { getBinaryPath } from '@main/utils/process'
+import { getBinaryExecutionEnv, getBinaryPath } from '@main/utils/process'
 import { gte as semverGte } from 'semver'
 
 const execFileAsync = promisify(execFile)
@@ -30,13 +30,14 @@ async function checkRtkAvailable(): Promise<boolean> {
   if (!fs.existsSync(resolved)) {
     rtkPath = null
     rtkAvailable = false
-    logger.debug('rtk binary not found')
+    logger.warn('rtk binary not found; command rewrite disabled until RTK is installed from Settings → Plugins')
     return false
   }
   rtkPath = resolved
 
   try {
     const { stdout } = await execFileAsync(rtkPath, ['--version'], {
+      env: { ...process.env, ...getBinaryExecutionEnv() },
       timeout: REWRITE_TIMEOUT_MS
     })
     const match = stdout.match(/(\d+\.\d+\.\d+)/)
@@ -71,6 +72,7 @@ export async function rtkRewrite(command: string): Promise<string | null> {
 
   try {
     const { stdout } = await execFileAsync(rtkPath, ['rewrite', command], {
+      env: { ...process.env, ...getBinaryExecutionEnv() },
       timeout: REWRITE_TIMEOUT_MS
     })
     const rewritten = stdout.trim()

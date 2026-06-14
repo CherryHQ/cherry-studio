@@ -482,7 +482,6 @@ export enum IpcChannel {
   WindowManager_Reused = 'window-manager:reused',
 
   // BinaryManager (tool manager)
-  Binary_Reconcile = 'binary:reconcile',
   Binary_InstallTool = 'binary:install-tool',
   Binary_RemoveTool = 'binary:remove-tool',
   Binary_GetState = 'binary:get-state',

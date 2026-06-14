@@ -16,7 +16,7 @@ import { loggerService } from '@logger'
 import { cn } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
-import { type BinaryToolPreset, PREDEFINED_BINARY_TOOLS } from '@shared/data/presets/binary-tools'
+import { type BinaryToolPreset, PRESETS_BINARY_TOOLS } from '@shared/data/presets/binary-tools'
 import { useNavigate } from '@tanstack/react-router'
 import {
   Download,
@@ -53,7 +53,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const [binaryState, setBinaryState] = useState<BinaryState | null>(null)
   const [bundled, setBundled] = useState<Record<string, string | null>>({})
   const [installingTools, setInstallingTools] = useState<Set<string>>(new Set())
-  const [customTools, setCustomTools] = usePreference('feature.binaries.tools')
+  const [customTools, setCustomTools] = usePreference('feature.binary.tools')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const { t } = useTranslation()
@@ -118,7 +118,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   }
 
   const handleAddCustomTool = async (tool: ManagedBinary) => {
-    const allNames = [...PREDEFINED_BINARY_TOOLS.map((p) => p.name), ...customTools.map((c) => c.name)]
+    const allNames = [...PRESETS_BINARY_TOOLS.map((p) => p.name), ...customTools.map((c) => c.name)]
     if (allNames.includes(tool.name)) {
       window.toast.error(t('settings.plugins.duplicateName'))
       throw new Error('duplicate')
@@ -145,7 +145,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
     void window.api.binaryManager.getToolDir(toolName).then((dir) => window.api.openPath(dir))
   }
 
-  const totalCount = PREDEFINED_BINARY_TOOLS.length + customTools.length
+  const totalCount = PRESETS_BINARY_TOOLS.length + customTools.length
 
   if (mini) {
     const uvAvailable = Boolean(binaryState?.tools.uv) || 'uv' in bundled
@@ -175,7 +175,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {PREDEFINED_BINARY_TOOLS.map((tool) => {
+        {PRESETS_BINARY_TOOLS.map((tool) => {
           const installed = binaryState?.tools[tool.name]
           const bundledVersion = bundled[tool.name]
           const source: ToolSource = installed ? 'mise' : tool.name in bundled ? 'bundled' : 'none'

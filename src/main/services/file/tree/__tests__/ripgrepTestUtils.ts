@@ -61,8 +61,6 @@ function systemRipgrepPath(): string | null {
  */
 export function testRipgrepPath(): string {
   const roots = [
-    packageRootFromResolve('@cherrystudio/ripgrep'),
-    pnpmPackageRoot('@cherrystudio+ripgrep@', '@cherrystudio/ripgrep'),
     packageRootFromResolve('@anthropic-ai/claude-agent-sdk'),
     pnpmPackageRoot('@anthropic-ai+claude-agent-sdk@', '@anthropic-ai/claude-agent-sdk')
   ].filter((root): root is string => Boolean(root))

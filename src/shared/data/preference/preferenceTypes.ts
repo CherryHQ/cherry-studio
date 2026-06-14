@@ -328,13 +328,10 @@ export type ManagedBinary = {
 }
 
 export interface ToolInstallState {
-  name: string
   tool: string
   version: string
-  installedAt: string
 }
 
 export interface BinaryState {
-  updatedAt: string
   tools: Record<string, ToolInstallState>
 }

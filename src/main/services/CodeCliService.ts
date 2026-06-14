@@ -24,7 +24,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { isMac, isWin } from '@main/core/platform'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
-import { getBinaryPath, isBinaryExists } from '@main/utils/process'
+import { getBinaryExecutionEnv, getBinaryPath, isBinaryExists } from '@main/utils/process'
 import type { TerminalConfig, TerminalConfigWithCommand } from '@shared/config/constant'
 import {
   codeCLI,
@@ -715,6 +715,7 @@ export class CodeCliService extends BaseService {
         const versionCommand = `"${execPath}"`
 
         const { stdout } = await execAsync(`${versionCommand} --version`, {
+          env: { ...process.env, ...getBinaryExecutionEnv() },
           timeout: 10000
         })
         // Extract version number from output (format may vary by tool)
@@ -728,7 +729,9 @@ export class CodeCliService extends BaseService {
       logger.info(`${cliTool} is not installed`)
     }
 
-    // Get latest version from npm (with cache)
+    const miseSpec = this.getMiseToolSpec(cliTool)
+
+    // Get latest version from the backend registry (with cache)
     const cacheKey = `${packageName}-latest`
     const cached = this.versionCache.get(cacheKey)
     const now = Date.now()
@@ -737,28 +740,14 @@ export class CodeCliService extends BaseService {
       logger.info(`Using cached latest version for ${packageName}: ${cached.version}`)
       latestVersion = cached.version
     } else {
-      logger.info(`Fetching latest version for ${packageName} from npm`)
+      logger.info(`Fetching latest version for ${packageName}`)
       try {
-        // Get registry URL
-        const registryUrl = await this.getNpmRegistryUrl()
-
-        // Fetch package info directly from npm registry API
-        const packageUrl = `${registryUrl}/${packageName}/latest`
-        const response = await fetch(packageUrl, {
-          signal: AbortSignal.timeout(15000)
-        })
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch package info: ${response.statusText}`)
-        }
-
-        const packageInfo = await response.json()
-        latestVersion = packageInfo.version
+        latestVersion = await this.fetchLatestVersion(packageName, miseSpec.tool)
         logger.info(`${packageName} latest version: ${latestVersion}`)
 
         // Cache the result
         this.versionCache.set(cacheKey, {
-          version: latestVersion!,
+          version: latestVersion,
           timestamp: now
         })
         logger.debug(`Cached latest version for ${packageName}`)
@@ -782,6 +771,35 @@ export class CodeCliService extends BaseService {
       latest: latestVersion,
       needsUpdate
     }
+  }
+
+  private async fetchLatestVersion(packageName: string, toolSpec: string): Promise<string> {
+    if (toolSpec.startsWith('pipx:')) {
+      const response = await fetch(`https://pypi.org/pypi/${encodeURIComponent(packageName)}/json`, {
+        signal: AbortSignal.timeout(15000)
+      })
+      if (!response.ok) {
+        throw new Error(`Failed to fetch package info: ${response.statusText}`)
+      }
+      const packageInfo = (await response.json()) as { info?: { version?: string } }
+      if (!packageInfo.info?.version) {
+        throw new Error(`Missing PyPI version for ${packageName}`)
+      }
+      return packageInfo.info.version
+    }
+
+    const registryUrl = await this.getNpmRegistryUrl()
+    const response = await fetch(`${registryUrl}/${packageName}/latest`, {
+      signal: AbortSignal.timeout(15000)
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to fetch package info: ${response.statusText}`)
+    }
+    const packageInfo = (await response.json()) as { version?: string }
+    if (!packageInfo.version) {
+      throw new Error(`Missing npm version for ${packageName}`)
+    }
+    return packageInfo.version
   }
 
   /**
@@ -845,6 +863,7 @@ export class CodeCliService extends BaseService {
     options: { autoUpdateToLatest?: boolean; terminal?: string } = {}
   ): Promise<CodeToolsRunResult> {
     logger.info(`Starting CLI tool launch: ${cliTool} in directory: ${directory}`)
+    env = { ...getBinaryExecutionEnv(), ...env }
     logger.debug(`Environment variables:`, Object.keys(env))
     logger.debug(`Options:`, options)
 

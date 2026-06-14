@@ -18,7 +18,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 import { loggerService } from '@logger'
-import { getBinaryPath } from '@main/utils/process'
+import { getBinaryExecutionEnv, getBinaryPath } from '@main/utils/process'
 import type { DirectoryListOptions, FilePath } from '@shared/file/types'
 
 import { defaultRipgrepGlobArgs } from './gitignore'
@@ -95,6 +95,7 @@ async function executeRipgrep(args: string[]): Promise<{ exitCode: number; outpu
 
   return new Promise((resolve, reject) => {
     const child = spawn(ripgrepBinaryPath, ['--no-config', '--ignore-case', ...args], {
+      env: { ...process.env, ...getBinaryExecutionEnv() },
       stdio: ['pipe', 'pipe', 'pipe']
     })
 

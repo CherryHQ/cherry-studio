@@ -55,10 +55,38 @@ export async function getBinaryName(name: string): Promise<string> {
  *
  * Single source of truth for the binary path layout — both `getBinaryPath()`
  * and the PATH-appending logic in `shell-env.ts` consume this. Do not hand-join
- * `cherry.bin` / `feature.binaries.data` elsewhere.
+ * `cherry.bin` / `feature.binary.data` elsewhere.
  */
 export function getBinarySearchDirs(): string[] {
-  return [path.join(application.getPath('feature.binaries.data'), 'shims'), application.getPath('cherry.bin')]
+  return [path.join(application.getPath('feature.binary.data'), 'shims'), application.getPath('cherry.bin')]
+}
+
+export function getBinaryExecutionEnv(): Record<string, string> {
+  const dataDir = application.getPath('feature.binary.data')
+  return {
+    MISE_DATA_DIR: dataDir,
+    MISE_CONFIG_DIR: path.join(dataDir, 'config'),
+    MISE_CACHE_DIR: path.join(dataDir, 'cache'),
+    MISE_STATE_DIR: path.join(dataDir, 'state'),
+    MISE_SHIMS_DIR: path.join(dataDir, 'shims'),
+    HOME: path.join(dataDir, 'home'),
+    XDG_CONFIG_HOME: path.join(dataDir, 'xdg', 'config'),
+    XDG_CACHE_HOME: path.join(dataDir, 'xdg', 'cache'),
+    XDG_STATE_HOME: path.join(dataDir, 'xdg', 'state'),
+    MISE_YES: '1',
+    MISE_NO_ANALYTICS: '1',
+    MISE_EXPERIMENTAL: '1'
+  }
+}
+
+export function mergeBinaryExecutionEnv(env: Record<string, string>): Record<string, string> {
+  const binaryEnv = getBinaryExecutionEnv()
+  const pathKey = Object.keys(env).find((key) => key.toLowerCase() === 'path') || (isWin ? 'Path' : 'PATH')
+  const pathSeparator = isWin ? ';' : path.delimiter
+  const pathValue = [binaryEnv.MISE_SHIMS_DIR, env[pathKey] || env.PATH || ''].filter(Boolean).join(pathSeparator)
+  const merged = { ...env, ...binaryEnv, [pathKey]: pathValue }
+  if (!isWin) merged.PATH = pathValue
+  return merged
 }
 
 export async function getBinaryPath(name?: string): Promise<string> {
