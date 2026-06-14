@@ -27,7 +27,7 @@
 ### 不做什么（non-goals）
 - 多设备实时同步、远程推送
 - 分享 / 排障脱敏导出
-- 智能语义合并（MERGE）
+- 智能语义合并（全局 MERGE / 差集删除）；natural-key 聚合的字段级 FIELD_MERGE 不在此列（见 §三.1）
 - 用户可见域级选择 UI（架构层支持，UI 不暴露）
 - 自增或前缀主键的 ID 重排（本库不存在此类）
 
@@ -73,7 +73,7 @@ flowchart LR
   subgraph S3[恢复消费]
     C1[读 manifest 定范围] --> C2[建 RestoreRecoveryPoint]
     C2 --> C3[聚合边界冲突策略]
-    C3 --> C4[导入 rows FK OFF 走 withWriteTx]
+    C3 --> C4[导入 rows defer FK 走 withWriteTx]
     C4 --> C5[FTS 重建与一致性检查]
     C5 --> C6[结果页与撤销入口]
   end
@@ -99,7 +99,7 @@ flowchart TB
   D[Drizzle schemas] --> CG[codegen 生成 refs]
   CG --> T[表 列 主键 JSON引用 清单]
   T --> BC[BackupContributor schema policy operations]
-  BC --> CM[ContributorManager finalize 19 不变量]
+  BC --> CM[ContributorManager finalize 22 不变量]
   CM --> BR[BackupRegistry]
   BR --> EX[ExportOrchestrator]
   BR --> IM[ImportOrchestrator]
@@ -130,15 +130,15 @@ flowchart TB
 | 域类型 | 聚合边界注意点 |
 |---|---|
 | ASSISTANTS | RENAME 克隆时成员 assistantId 重映射到新根 PK |
-| AGENTS | agent_task/agent_workspace/agent_channel 单表 renamable:false；agent_channel_task 双 FK 走 references optional |
+| AGENTS | agent_workspace/agent_channel 单表 renamable:false；agent_channel_task 是 junction（双 cascade FK，taskId 指向被排除的 job_schedule），cascade-prune 非 optional；agent_task 当前 main 不存在（已迁移 JobManager） |
 | FILE_STORAGE | restoreResources() 先于 DB 行导入，返回 skippedFileEntryIds；renamable:false，RENAME 退化为 SKIP |
-| PROVIDERS | 聚合 user_provider + user_model(providerId)；renamable:false（user_model.id 派生键） |
+| PROVIDERS | 聚合 user_provider + user_model(providerId)；natural-key，默认 FIELD_MERGE（apiKeys/authConfig 字段合并，防丢 API key）；renamable:false（user_model.id 派生键） |
 
 ### 6. 实现侧类型契约
 
-`EntityGraphSchema`：`tables` / `references`（kind: optional|owning）/ `primaryKeys`（kind: uuid-v4|uuid-v7|natural|composite，ambiguous 标注）/ **`aggregates`**（`AggregateBoundary { root, identityKey, members[{table, viaColumn, cascade}], renamable }`）/ `fileRefSourcePolicies` / `jsonSoftReferences` / `rowScopes?`（本期不启用）。
+`EntityGraphSchema`：`tables` / `references`（kind: optional|owning|junction）/ `primaryKeys`（kind: uuid-v4|uuid-v7|natural|composite|autoincrement(finalize 拒绝)，ambiguous 标注）/ **`aggregates`**（`AggregateBoundary { root, identityKey, identityClass, conflictDefault, members[{table, viaColumn, cascade}], renamable }`）/ `fileRefSourcePolicies` / `jsonSoftReferences`（rowScopes 已移除，零消费者）。
 
-`BackupContributorPolicy`：`omittedReferenceOverrides`（仅例外，须绑定事实+非冗余+reason）、`uniqueMergeRules`。**不含** restoreRemap / idStrategies（over-design，移除）。
+`BackupContributorPolicy`：`omittedReferenceOverrides`（仅例外，须绑定事实+非冗余+reason）、`uniqueMergeRules`、`fieldMergePolicies`（FIELD_MERGE 列级合并）。**不含** restoreRemap / idStrategies（over-design，移除）。
 
 > [!WARNING]
 > **类型入口**：`DbTableName` / `DbColumnName` 必须来自 Drizzle codegen，不能靠手写 as 认证。列名是 camelCase 实际 DB 列名（`topicId` / `providerId` / `fileEntryId`）。
@@ -194,7 +194,7 @@ flowchart TB
 ```mermaid
 flowchart TB
   C[各域 Contributor 静态导出] --> CM[ContributorManager 收集]
-  CM --> FN[finalize 启动期校验 19 不变量 不连 DB]
+  CM --> FN[finalize 启动期校验 22 不变量 不连 DB]
   FN --> BR[BackupRegistry 规则视图]
   FN --> X[失败则启动中断 报 domain table owner 不变量]
   BR --> EX[ExportOrchestrator 查询]
@@ -203,7 +203,7 @@ flowchart TB
   CT[coverage test CI] -.DB 表覆盖兜底.-> FN
 ```
 
-注册到消费链路：各域 Contributor 静态导出 → ContributorManager 收集 → finalize 启动期校验 19 不变量（不连 DB）→ 通过则产出 BackupRegistry 供 orchestrator 查询，失败则启动中断并报 domain/table/owner/不变量。BackupService（WhenReady）@DependsOn(ContributorManager) 保证 finalize 先完成；DB 实际表覆盖由 coverage test（CI）兜底，故 finalize 不连 DB。
+注册到消费链路：各域 Contributor 静态导出 → ContributorManager 收集 → finalize 启动期校验 22 不变量（不连 DB）→ 通过则产出 BackupRegistry 供 orchestrator 查询，失败则启动中断并报 domain/table/owner/不变量。BackupService（WhenReady）@DependsOn(ContributorManager) 保证 finalize 先完成；DB 实际表覆盖由 coverage test（CI）兜底，故 finalize 不连 DB。
 
 各 hook 调用时机与缺省：collectFileResources（导出前收集文件/缺省空集）、beforeArchive（剥离后仅改备份副本/no-op）、remapJsonFields（导入前 RENAME 重映射 fileId/原行不变）、transformRow（导入前/原行，返回 null 跳过该行）、afterImport（域导入后 FTS 重建/no-op）、restoreResources（DB 导入前事务外/无）、cloneAggregate（仅 renamable 聚合 RENAME/缺则 finalize 拒）。**聚合根被 SKIP 时其成员 transformRow 不调用**。
 
@@ -226,15 +226,19 @@ flowchart TB
 
 当前文件级回滚只覆盖 FILE_STORAGE 覆盖写入，不覆盖 DB 行导入中途失败，也不覆盖 API key / 偏好 / provider / assistant / agent / 聊天记录等 SQLite 数据。补恢复编排层 RestoreRecoveryPoint：整库 DB pre-snapshot + restore journal + 受影响文件快照（同 restoreId）。**执行分层严格分离**（符合 V2 withWriteTx「fn 内仅 DB ops、不做文件 IO」约束）：
 
-1. 停写或持 DbService writeMutex 后用 VACUUM INTO 建快照（须事务外）
+1. **RESTORE BARRIER** acquire（静默 WhenReady DB writers + 阻塞 renderer mutation，全程）后用 VACUUM INTO 建快照（须事务外，持 withExclusiveAccess 写锁）
 2. contributor restoreResources 文件 IO 在 withWriteTx 之外、之前
 3. 仅 DB 行导入在 withWriteTx 内
-4. 失败整库回滚是应用级动作（libsql 持连接无法替换文件：停写→关 DbService 连接→用快照替换 live .sqlite→重连）
+4. 失败整库回滚是应用级动作（libsql 持连接无法替换文件）：checkpoint(TRUNCATE) 后关连接，再安全文件提升（integrity_check + fsync+rename 原子替换 live .sqlite + 删 stale -wal/-shm + rename-aside 回退），最后重连
 
 本方案将其作为 in-scope 必交付项（现状 createSnapshot 已用 VACUUM INTO 建 pre-restore-snapshot，但仅创建不使用：失败仅 warn 继续、无回滚/撤销/journal/文件快照；本方案补齐持锁快照 + 回滚 + journal + 文件快照 + 失败阻塞）。**snapshot 创建失败 SHALL 阻塞恢复**（现状 warn 继续，属 breaking）。**合并语义下首要价值是「撤销成功恢复」**（用户回退），其次才是失败回滚。contributor 不负责整库快照与回滚。
 
 > [!IMPORTANT]
-> 恢复写事务内 PRAGMA foreign_keys=OFF，cascade/SET_NULL/DELETE_ROW 由 importer 按 contributor policy 显式执行（不依赖 SQLite ON DELETE）；FK OFF 使恢复完全依赖 contributor 声明，故 ReferenceKind 须忠实复刻 schema onDelete（cascade→owning、set null→optional），由 finalize 校验。DB 写走 DbService.withWriteTx（fn 内仅 DB ops，文件恢复已在事务外）。
+> 恢复写事务内 PRAGMA defer_foreign_keys=ON（非 foreign_keys=OFF——后者在事务内是 SQLite 文档明确的 no-op，且 DbService 每次 reconnect 重放 foreign_keys=ON），FK 延迟到 COMMIT，COMMIT 前 PRAGMA foreign_key_check 验证整图一致。cascade/SET_NULL/DELETE_ROW 仍由 importer 按 contributor policy 显式执行（不依赖 SQLite ON DELETE）；ReferenceKind 须忠实复刻 schema onDelete（cascade/restrict 转 owning/junction、set null/no action 转 optional、set default 拒绝），由 finalize #19 校验。DB 写走 DbService.withWriteTx（fn 内仅 DB ops，文件恢复已在事务外）。
+>
+> **恢复安全三件套（针对 PR #12659 review B1/B2/B3）**：① RESTORE BARRIER（应用级写屏障，区别于逐事务 writeMutex）静默 WhenReady DB writers + 阻塞 renderer mutation，跨 snapshot-文件-DB-promote 全程；② 安全文件提升 rollback 序列防 WAL sidecar replay 覆盖快照；③ journal 持久状态机（6 态）+ on-boot crash recovery + completed 门。详见 openspec specs/backup-restore-safety/。
+>
+> **Upstream prerequisites（gating）**：依赖 DbService 新增 withExclusiveAccess/closeAllConnections/checkpointAndClose/reconnect + PreferenceService.reloadFromDb，须先合 upstream API PR 再合 backup 实现。
 
 ---
 
@@ -248,7 +252,7 @@ flowchart TB
 | 精简模式范围 | 配置/设置域 + 聊天记录 + Agent 历史/配置：PREFERENCES、PROVIDERS、PROMPTS、MCP_SERVERS、TAGS_GROUPS、ASSISTANTS、AGENTS、MINIAPPS、SKILLS、TOPICS |
 | 精简模式排除 | KNOWLEDGE、TRANSLATE_HISTORY、PAINTINGS、FILE_STORAGE；不导出/恢复 file_entry、file_ref、文件 blob、知识库源文件 |
 | API key | 自用完整/精简备份默认含模型服务 API key / auth config；结果页统一展示范围，不单独强调；不做分享/排障脱敏模式 |
-| 恢复冲突默认 | 默认 SKIP（聚合根边界），减少重复项；RENAME 显式保留两边；OVERWRITE 显式以备份为准 |
+| 恢复冲突默认 | 按 identityClass：uuid-entity 默认 SKIP（幂等重导入）；natural-key/slot 默认 FIELD_MERGE（如 PROVIDERS 保留本地 API key + 合并远程，防丢数据）；RENAME 显式保留两边；OVERWRITE 显式以备份为准 |
 | 恢复语义 | 合并语义：仅本地存在记录一律保留，不差集删除 |
 | 结果页 | SKIP 后不展示跳过/未导入明细；缺失文件点击 Toast「无法加载文件」 |
 
@@ -256,9 +260,9 @@ flowchart TB
 
 命名采用「精简」（现网已有该口径）。tooltip 定稿：「精简模式：备份时跳过备份图片、知识库、文档、HTML 等数据文件，仅备份聊天记录、配置和 API key，减少空间占用，加快备份速度」。知识库先排除（知识库负责人确认仅需 `{baseId}` 文件夹 + 两表，见第五章）。
 
-### 3. API key 默认随备份走
+### 3. API key 默认随备份走（含威胁模型）
 
-自用备份默认含 API key，符合换机后继续可用预期。企业后台下发 key 不属用户本地备份；不做分享模式；备份加密是独立增强。
+自用备份默认含 API key（明文），符合换机后继续可用预期。**威胁模型**：归档可被复制出设备（云盘/IM/物理拷贝），任何获得归档者可提取明文 API key。**用户可见警告**（导出确认页 + 恢复结果页显示明文凭证警告）。企业后台下发 key 不属用户本地备份；不做分享模式；备份加密重分类为 time-boxed 后续 gap（非永久 Non-goal，§三.6 P1 跟踪）。
 
 ### 4. 恢复默认策略
 
@@ -287,9 +291,9 @@ flowchart TB
 
 ## 四、实施前置约束
 
-- 恢复默认 SKIP 跳过冲突备份内容、保留本地版本；冲突按用户可理解的最小完整对象（聚合根）判断。仅本地存在一律保留（合并语义）。
+- 恢复冲突默认按 identityClass：uuid-entity 默认 SKIP 跳过冲突、保留本地版本；natural-key/slot 默认 FIELD_MERGE（保留本地凭证 + 合并远程，防丢数据）。冲突按用户可理解的最小完整对象（聚合根）判断。仅本地存在一律保留（合并语义）。
 - 精简备份覆盖换机后最影响继续使用的内容：聊天、助手/Agent 配置、模型服务配置、常用设置；不含附件、知识库、翻译历史、paintings。
 - 用户自填模型服务密钥默认随自用备份恢复；企业统一下发 key 不属此备份；不做分享模式。
 - 恢复前先自动保存当前状态（整库 DB 快照 + 受影响文件快照）；失败或用户撤销可回到恢复前；RestoreRecoveryPoint 为 in-scope 必交付。
-- 恢复写路径走 `DbService.withWriteTx` + FK OFF 显式 cascade。
-- 实施前提：本方案基于分支目标态（`agent_task` 已合入 main）；`origin/main` 态任务定义在 `job_schedule`，需切 row-scope。当前分支落后 main（缺 `painting`/`agent_workspace`），需先同步。
+- 恢复写路径走 `DbService.withWriteTx` + `defer_foreign_keys=ON`（非 FK OFF）显式 cascade。
+- 实施前提：`agent_task` 当前 main 不存在（agent.task 已迁移 JobManager，`agent_channel_task.taskId` 指向被排除的 `job_schedule`）；spec 以当前 main 表集为准，row-scope 机制不引入（字段已移除）。`painting`/`agent_workspace` 仅 main 有，spec 含（post-sync 目标态）。
