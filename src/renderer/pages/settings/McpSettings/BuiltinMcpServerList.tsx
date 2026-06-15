@@ -1,7 +1,7 @@
 import { Badge, Button, Popover, PopoverContent, PopoverTrigger, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
-import { getBuiltInMcpServerDescriptionLabel } from '@renderer/i18n/label'
+import { getBuiltInMcpServerDescriptionLabelKey } from '@renderer/i18n/label'
 import { builtinMcpServers } from '@renderer/store/mcp'
 import { cn } from '@renderer/utils/style'
 import { Check, Plus } from 'lucide-react'
@@ -36,10 +36,10 @@ const BuiltinMcpServerList: FC = () => {
 
       if (!keyword) return true
 
-      const description = getBuiltInMcpServerDescriptionLabel(server.name).toLowerCase()
+      const description = t(getBuiltInMcpServerDescriptionLabelKey(server.name)).toLowerCase()
       return server.name.toLowerCase().includes(keyword) || description.includes(keyword)
     })
-  }, [filter, mcpServers, searchText])
+  }, [filter, mcpServers, searchText, t])
 
   return (
     <div className="mb-5">
@@ -105,13 +105,13 @@ const BuiltinMcpServerList: FC = () => {
                 <Popover>
                   <PopoverTrigger asChild>
                     <div className="line-clamp-2 cursor-pointer text-[13px] text-muted-foreground leading-5 transition-colors hover:text-foreground">
-                      {getBuiltInMcpServerDescriptionLabel(server.name)}
+                      {t(getBuiltInMcpServerDescriptionLabelKey(server.name))}
                     </div>
                   </PopoverTrigger>
                   <PopoverContent align="start" side="top" className="w-auto max-w-100">
                     <div className="mb-2 font-semibold text-foreground text-sm">{server.name}</div>
                     <div className="wrap-break-word whitespace-pre-wrap text-[14px] text-foreground leading-normal">
-                      {getBuiltInMcpServerDescriptionLabel(server.name)}
+                      {t(getBuiltInMcpServerDescriptionLabelKey(server.name))}
                       {server.reference && (
                         <a
                           href={server.reference}

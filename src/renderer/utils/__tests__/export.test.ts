@@ -34,9 +34,9 @@ vi.mock('@renderer/i18n', () => ({
   }
 }))
 
-// Mock getProviderLabel
+// Mock getProviderLabelKey
 vi.mock('@renderer/i18n/label', () => ({
-  getProviderLabel: vi.fn((providerId: string) => providerId || 'Unknown Provider')
+  getProviderLabelKey: vi.fn((providerId: string) => providerId || 'Unknown Provider')
 }))
 
 // Mock the find utility functions - crucial for the test
