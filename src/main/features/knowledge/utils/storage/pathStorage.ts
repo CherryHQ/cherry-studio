@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { copy, ensureDir, remove, removeDir } from '@main/utils/file/fs'
+import { copy, ensureDir, remove, removeDir, write } from '@main/utils/file/fs'
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import type { FilePath } from '@shared/file/types'
 
@@ -74,11 +74,13 @@ export function getProcessedMarkdownRelativePath(relativePath: string): string {
 }
 
 /**
- * Reserve a free relative path for an imported source file (auto-renaming on collision via
+ * Reserve a free relative path for an imported material (auto-renaming on collision via
  * a `_N` suffix) and return it. When `reserveProcessedArtifact`, the prospective
  * processed-markdown sibling must also be free at the chosen suffix, and both are reserved
  * together — so a processor later emitting `paper.md` can never disagree with the source.
- * Mutates `reservedPaths`.
+ * Mutates `reservedPaths`. The single dedup entry point: file imports (upload + the v1→v2
+ * migrator's copied files) and URL-snapshot capture/restore all reserve names through it
+ * (snapshots pass `false` — markdown has no processed artifact).
  */
 export function reserveImportedFileRelativePath(
   sourceRelativePath: string,
@@ -109,6 +111,37 @@ export async function copyFileIntoKnowledgeBaseAt(
   await ensureDir(path.dirname(destPath) as FilePath)
   await copy(sourcePath as FilePath, destPath)
   return relativePath
+}
+
+/** Write in-memory content (e.g. a captured URL snapshot) to a base-relative file. */
+export async function writeFileIntoKnowledgeBaseAt(
+  baseId: string,
+  relativePath: string,
+  content: string
+): Promise<string> {
+  const destPath = getKnowledgeBaseFilePath(baseId, relativePath)
+  await assertTargetAvailable(destPath)
+  await ensureDir(path.dirname(destPath) as FilePath)
+  await write(destPath, content)
+  return relativePath
+}
+
+/**
+ * Collect the base-relative paths already occupied by an item set — every file's
+ * source and indexed-artifact path, and every captured URL/note snapshot path. Used
+ * to pick a non-colliding name for a new snapshot.
+ */
+export function collectKnowledgeReservedRelativePaths(items: Array<{ type: string; data: unknown }>): Set<string> {
+  const reserved = new Set<string>()
+  for (const item of items) {
+    if (typeof item.data !== 'object' || item.data === null) {
+      continue
+    }
+    const data = item.data as { relativePath?: unknown; indexedRelativePath?: unknown }
+    if (typeof data.relativePath === 'string') reserved.add(data.relativePath)
+    if (typeof data.indexedRelativePath === 'string') reserved.add(data.indexedRelativePath)
+  }
+  return reserved
 }
 
 export async function assertKnowledgeFileTargetAvailable(baseId: string, relativePath: string): Promise<void> {

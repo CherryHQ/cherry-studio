@@ -6,8 +6,9 @@ import path from 'node:path'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { copyMock, ensureDirMock, removeMock, removeDirMock, lstatMock, errorMock } = vi.hoisted(() => ({
+const { copyMock, writeMock, ensureDirMock, removeMock, removeDirMock, lstatMock, errorMock } = vi.hoisted(() => ({
   copyMock: vi.fn(),
+  writeMock: vi.fn(),
   ensureDirMock: vi.fn(),
   removeMock: vi.fn(),
   removeDirMock: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock('node:fs/promises', () => ({
 
 vi.mock('@main/utils/file/fs', () => ({
   copy: copyMock,
+  write: writeMock,
   ensureDir: ensureDirMock,
   remove: removeMock,
   removeDir: removeDirMock
@@ -46,6 +48,8 @@ const {
   getProcessedMarkdownRelativePath,
   reserveImportedFileRelativePath,
   copyFileIntoKnowledgeBaseAt,
+  writeFileIntoKnowledgeBaseAt,
+  collectKnowledgeReservedRelativePaths,
   deleteKnowledgeItemFiles,
   deleteKnowledgeItemFilesBestEffort
 } = await import('../pathStorage')
@@ -171,6 +175,62 @@ describe('pathStorage relative-path safety', () => {
         'Knowledge file already exists'
       )
       expect(copyMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('writeFileIntoKnowledgeBaseAt', () => {
+    beforeEach(() => {
+      vi.clearAllMocks()
+      lstatMock.mockRejectedValue(enoent())
+      ensureDirMock.mockResolvedValue(undefined)
+      writeMock.mockResolvedValue(undefined)
+    })
+
+    it('rejects an unsafe target relative path before any filesystem write', async () => {
+      await expect(writeFileIntoKnowledgeBaseAt(BASE_ID, '../escape.md', 'hi')).rejects.toThrow(
+        'Invalid knowledge relative path'
+      )
+      expect(writeMock).not.toHaveBeenCalled()
+    })
+
+    it('creates parent directories and writes the content for a nested target', async () => {
+      const relativePath = 'docs/sub/page.md'
+      await expect(writeFileIntoKnowledgeBaseAt(BASE_ID, relativePath, '# hi')).resolves.toBe(relativePath)
+      const destPath = path.join(MATERIAL_DIR, relativePath)
+      expect(ensureDirMock).toHaveBeenCalledWith(path.dirname(destPath))
+      expect(writeMock).toHaveBeenCalledWith(destPath, '# hi')
+    })
+
+    it('throws when the target already exists', async () => {
+      lstatMock.mockResolvedValueOnce({})
+      await expect(writeFileIntoKnowledgeBaseAt(BASE_ID, 'page.md', '# hi')).rejects.toThrow(
+        'Knowledge file already exists'
+      )
+      expect(writeMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('collectKnowledgeReservedRelativePaths', () => {
+    it('collects file source and indexed-artifact paths and url/note snapshot paths', () => {
+      const reserved = collectKnowledgeReservedRelativePaths([
+        { type: 'file', data: { relativePath: 'a.pdf', indexedRelativePath: 'a.md' } },
+        { type: 'url', data: { source: 'https://x', url: 'https://x', relativePath: 'x.md' } },
+        { type: 'note', data: { source: 'n', content: 'body', relativePath: 'n.md' } },
+        { type: 'note', data: { source: 'uncaptured', content: 'body' } },
+        { type: 'directory', data: { source: 'd', path: '/d' } }
+      ])
+
+      expect(reserved).toEqual(new Set(['a.pdf', 'a.md', 'x.md', 'n.md']))
+    })
+
+    it('ignores items with non-string or missing path fields', () => {
+      const reserved = collectKnowledgeReservedRelativePaths([
+        { type: 'url', data: { source: 'https://x', url: 'https://x' } },
+        { type: 'file', data: null as unknown as object },
+        { type: 'file', data: { relativePath: 42 } as unknown as object }
+      ])
+
+      expect(reserved.size).toBe(0)
     })
   })
 })

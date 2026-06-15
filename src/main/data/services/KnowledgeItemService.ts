@@ -530,6 +530,88 @@ export class KnowledgeItemService {
     return rowToKnowledgeItem(row)
   }
 
+  async updateUrlSnapshotRelativePath(id: string, relativePath: string): Promise<KnowledgeItem> {
+    const dbService = application.get('DbService')
+    const row = await dbService.withWriteTx(async (tx) => {
+      const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
+
+      if (!existingRow) {
+        throw DataApiErrorFactory.notFound('KnowledgeItem', id)
+      }
+
+      const existingItem = rowToKnowledgeItem(existingRow)
+      if (existingItem.type !== 'url') {
+        throw DataApiErrorFactory.validation({
+          type: [`Knowledge item must be a url to store a snapshot relative path: ${id}`]
+        })
+      }
+
+      const [updatedRow] = await tx
+        .update(knowledgeItemTable)
+        .set({
+          data: {
+            ...existingItem.data,
+            relativePath
+          }
+        })
+        .where(eq(knowledgeItemTable.id, id))
+        .returning()
+
+      if (!updatedRow) {
+        throw DataApiErrorFactory.dataInconsistent(
+          'KnowledgeItem',
+          `Knowledge item url snapshot path update result missing for id '${id}'`
+        )
+      }
+
+      return updatedRow
+    })
+
+    logger.info('Updated knowledge url snapshot relative path', { id, relativePath })
+    return rowToKnowledgeItem(row)
+  }
+
+  async updateNoteSnapshotRelativePath(id: string, relativePath: string): Promise<KnowledgeItem> {
+    const dbService = application.get('DbService')
+    const row = await dbService.withWriteTx(async (tx) => {
+      const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
+
+      if (!existingRow) {
+        throw DataApiErrorFactory.notFound('KnowledgeItem', id)
+      }
+
+      const existingItem = rowToKnowledgeItem(existingRow)
+      if (existingItem.type !== 'note') {
+        throw DataApiErrorFactory.validation({
+          type: [`Knowledge item must be a note to store a snapshot relative path: ${id}`]
+        })
+      }
+
+      const [updatedRow] = await tx
+        .update(knowledgeItemTable)
+        .set({
+          data: {
+            ...existingItem.data,
+            relativePath
+          }
+        })
+        .where(eq(knowledgeItemTable.id, id))
+        .returning()
+
+      if (!updatedRow) {
+        throw DataApiErrorFactory.dataInconsistent(
+          'KnowledgeItem',
+          `Knowledge item note snapshot path update result missing for id '${id}'`
+        )
+      }
+
+      return updatedRow
+    })
+
+    logger.info('Updated knowledge note snapshot relative path', { id, relativePath })
+    return rowToKnowledgeItem(row)
+  }
+
   private async reconcileContainers(
     baseId: string,
     startContainerIds: Array<string | null | undefined>

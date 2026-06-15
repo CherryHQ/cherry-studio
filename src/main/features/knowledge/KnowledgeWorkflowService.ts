@@ -55,22 +55,13 @@ export class KnowledgeWorkflowService {
 
     await this.knowledgeLockManager.withBaseMutationLock(base.id, async () => {
       try {
+        // Reserve every existing on-disk path up front, then let each new file
+        // claim a collision-free name (auto-renaming with a numeric suffix)
+        // against the same growing set, so a same-named batch add no longer
+        // throws — earlier inputs are visible when deduping later ones.
         const reservedPaths = await this.loadReservedKnowledgeFilePaths(base.id, base.fileProcessorId)
-        const resolvedFileRelativePaths = new Map<KnowledgeAddItemInput, string>()
         for (const input of inputs) {
-          if (input.type === 'file') {
-            resolvedFileRelativePaths.set(
-              input,
-              this.resolveRuntimeFileRelativePath(base.fileProcessorId, input, reservedPaths)
-            )
-          }
-        }
-        for (const input of inputs) {
-          const createInput = await this.prepareRuntimeAddItemInput(
-            base.id,
-            input,
-            resolvedFileRelativePaths.get(input)
-          )
+          const createInput = await this.prepareRuntimeAddItemInput(base.id, base.fileProcessorId, input, reservedPaths)
           if (createInput.type === 'file') {
             copiedFileItems.push(createInput)
           }
@@ -306,18 +297,51 @@ export class KnowledgeWorkflowService {
 
   private async prepareRuntimeAddItemInput(
     baseId: string,
+    fileProcessorId: string | null | undefined,
     input: KnowledgeAddItemInput,
-    resolvedRelativePath: string | undefined
+    reservedPaths: Set<string>
   ): Promise<CreateKnowledgeItemDto> {
+    if (input.type === 'url') {
+      if (!input.data.snapshotPath) {
+        return input
+      }
+      // Restore: copy the captured snapshot markdown into this base under a
+      // collision-free name and pin the item to it, so the first index reads the
+      // snapshot offline (see ensureUrlSnapshot) instead of re-fetching the page.
+      const snapshotName = getKnowledgeSourceRelativePath(input.data.snapshotPath)
+      const relativePath = reserveImportedFileRelativePath(snapshotName, false, reservedPaths)
+      await copyFileIntoKnowledgeBaseAt(baseId, input.data.snapshotPath, relativePath)
+      return {
+        groupId: input.groupId,
+        type: 'url',
+        data: { source: input.data.source, url: input.data.url, relativePath }
+      }
+    }
+
     if (input.type !== 'file') {
       return input
     }
 
-    if (resolvedRelativePath === undefined) {
-      throw new Error('File knowledge item is missing a resolved relative path')
+    const fileName = getKnowledgeSourceRelativePath(input.data.path)
+    // A restore that carries a processed artifact reserves the artifact slot too, even if
+    // the destination base has no processor configured, so the copied `.md` cannot collide.
+    const reserveArtifact =
+      needsProcessedArtifactReservation(fileProcessorId, fileName) || Boolean(input.data.indexedPath)
+    const relativePath = reserveImportedFileRelativePath(fileName, reserveArtifact, reservedPaths)
+    await copyFileIntoKnowledgeBaseAt(baseId, input.data.path, relativePath)
+
+    if (input.data.indexedPath) {
+      // Copy the already-processed artifact next to the source under the reserved name
+      // and pin the item to it, so indexing skips the file processor (see needsFileProcessing).
+      const indexedRelativePath = getProcessedMarkdownRelativePath(relativePath)
+      await copyFileIntoKnowledgeBaseAt(baseId, input.data.indexedPath, indexedRelativePath)
+      return {
+        groupId: input.groupId,
+        type: 'file',
+        data: { source: input.data.source, relativePath, indexedRelativePath }
+      }
     }
 
-    const relativePath = await copyFileIntoKnowledgeBaseAt(baseId, input.data.path, resolvedRelativePath)
     return {
       groupId: input.groupId,
       type: 'file',
@@ -328,16 +352,6 @@ export class KnowledgeWorkflowService {
     }
   }
 
-  private resolveRuntimeFileRelativePath(
-    fileProcessorId: string | null | undefined,
-    input: Extract<KnowledgeAddItemInput, { type: 'file' }>,
-    reservedPaths: Set<string>
-  ): string {
-    const sourceRelativePath = getKnowledgeSourceRelativePath(input.data.path)
-    const reserveProcessedArtifact = needsProcessedArtifactReservation(fileProcessorId, sourceRelativePath)
-    return reserveImportedFileRelativePath(sourceRelativePath, reserveProcessedArtifact, reservedPaths)
-  }
-
   private async loadReservedKnowledgeFilePaths(
     baseId: string,
     fileProcessorId: string | null | undefined
@@ -346,6 +360,17 @@ export class KnowledgeWorkflowService {
     const items = await knowledgeItemService.getItemsByBaseId(baseId)
 
     for (const item of items) {
+      if (item.type === 'url' || item.type === 'note') {
+        // URL/note snapshots live as base files under `raw/` too; reserve any already-captured
+        // snapshot path so a colliding new copy auto-renames to `_N` instead of hard-failing
+        // the on-disk copy (mirrors collectKnowledgeReservedRelativePaths, the all-type reserved
+        // set ensure{Url,Note}Snapshot use on the index path).
+        if (item.data.relativePath) {
+          reservedPaths.add(item.data.relativePath)
+        }
+        continue
+      }
+
       if (item.type !== 'file') {
         continue
       }
@@ -369,7 +394,17 @@ export class KnowledgeWorkflowService {
   ): Promise<void> {
     const items = await knowledgeItemService.getItemsByBaseId(baseId)
     const conflictingItem = items.find((item) => {
-      if (item.id === itemId || item.type !== 'file') {
+      if (item.id === itemId) {
+        return false
+      }
+
+      // URL/note snapshots also occupy a `raw/` path; a processed-artifact name that
+      // lands on one would collide on disk, so treat them as reserved here too.
+      if (item.type === 'url' || item.type === 'note') {
+        return item.data.relativePath === relativePath
+      }
+
+      if (item.type !== 'file') {
         return false
       }
 
