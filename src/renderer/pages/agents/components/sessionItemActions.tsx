@@ -83,6 +83,7 @@ sessionActionRegistry.registerAction({
     title: t('agent.session.delete.title'),
     description: t('agent.session.delete.content'),
     confirmText: t('common.delete'),
+    cancelText: t('common.cancel'),
     destructive: true
   })
 })
