@@ -248,44 +248,6 @@ describe('RestoreKnowledgeBaseDialog', () => {
     await waitFor(() => expect(restoreBase).toHaveBeenCalled())
   })
 
-  it('uses the initial embedding model and dimensions when supplied from the RAG config panel', async () => {
-    const restoredBase = createKnowledgeBase({
-      id: 'restored-base',
-      status: 'completed',
-      error: null,
-      dimensions: 3072,
-      embeddingModelId: 'openai::text-embedding-3-small'
-    })
-    const restoreBase = vi.fn().mockResolvedValue(restoredBase)
-
-    render(
-      <RestoreKnowledgeBaseDialog
-        open
-        base={createKnowledgeBase({ dimensions: 1024 })}
-        initialEmbeddingModelId="openai::text-embedding-3-small"
-        initialDimensions={3072}
-        isRestoring={false}
-        restoreBase={restoreBase}
-        onOpenChange={vi.fn()}
-        onRestored={vi.fn()}
-      />
-    )
-
-    expect(screen.getByLabelText('嵌入维度')).toHaveValue('3072')
-
-    fireEvent.click(screen.getByRole('button', { name: '重建' }))
-
-    await waitFor(() =>
-      expect(restoreBase).toHaveBeenCalledWith({
-        sourceBaseId: 'source-base',
-        name: 'Legacy KB_副本',
-        embeddingModelId: 'openai::text-embedding-3-small',
-        dimensions: 3072
-      })
-    )
-    expect(mockEmbedMany).not.toHaveBeenCalled()
-  })
-
   it('probes dimensions when the RAG config panel supplies a new embedding model without dimensions', async () => {
     mockEmbedMany.mockResolvedValueOnce({ embeddings: [new Array(2048).fill(0)] })
     const restoredBase = createKnowledgeBase({
@@ -351,9 +313,9 @@ describe('RestoreKnowledgeBaseDialog', () => {
     expect(onOpenChange).not.toHaveBeenCalled()
   })
 
-  it('shows a manual dimensions input when embedding dimensions cannot be fetched', async () => {
+  it('shows an error and keeps the dialog open when embedding dimensions cannot be fetched', async () => {
     mockEmbedMany.mockRejectedValueOnce(new Error('probe failed'))
-    const restoreBase = vi.fn().mockResolvedValue(createKnowledgeBase({ dimensions: 2048 }))
+    const restoreBase = vi.fn().mockResolvedValue(createKnowledgeBase())
     const onOpenChange = vi.fn()
     const onRestored = vi.fn()
 
@@ -372,51 +334,10 @@ describe('RestoreKnowledgeBaseDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('获取嵌入维度失败: probe failed'))
-    expect(screen.getByLabelText('嵌入维度')).toBeInTheDocument()
+    expect(screen.queryByLabelText('嵌入维度')).not.toBeInTheDocument()
     expect(restoreBase).not.toHaveBeenCalled()
     expect(onRestored).not.toHaveBeenCalled()
     expect(onOpenChange).not.toHaveBeenCalled()
-
-    fireEvent.change(screen.getByLabelText('嵌入维度'), { target: { value: '2048' } })
-    fireEvent.click(screen.getByRole('button', { name: '重建' }))
-
-    await waitFor(() =>
-      expect(restoreBase).toHaveBeenCalledWith({
-        sourceBaseId: 'source-base',
-        name: 'Legacy KB_副本',
-        embeddingModelId: 'openai::text-embedding-3-small',
-        dimensions: 2048
-      })
-    )
-    expect(mockEmbedMany).toHaveBeenCalledTimes(1)
-    expect(onRestored).toHaveBeenCalledWith(expect.objectContaining({ dimensions: 2048 }))
-    expect(onOpenChange).toHaveBeenCalledWith(false)
-  })
-
-  it('requires a valid manual dimensions value after automatic probing fails', async () => {
-    mockEmbedMany.mockRejectedValueOnce(new Error('probe failed'))
-    const restoreBase = vi.fn().mockResolvedValue(createKnowledgeBase())
-
-    render(
-      <RestoreKnowledgeBaseDialog
-        open
-        base={createKnowledgeBase()}
-        isRestoring={false}
-        restoreBase={restoreBase}
-        onOpenChange={vi.fn()}
-        onRestored={vi.fn()}
-      />
-    )
-
-    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
-    fireEvent.click(screen.getByRole('button', { name: '重建' }))
-
-    await waitFor(() => expect(screen.getByLabelText('嵌入维度')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByRole('button', { name: '重建' }))
-
-    expect(await screen.findByText('无效的嵌入维度')).toBeInTheDocument()
-    expect(restoreBase).not.toHaveBeenCalled()
   })
 
   it('closes the dialog on cancel without restoring', () => {

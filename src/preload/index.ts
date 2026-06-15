@@ -353,15 +353,7 @@ const api = {
     search: (baseId: string, query: string): Promise<KnowledgeVectorSearchResult[]> =>
       ipcRenderer.invoke(IpcChannel.Knowledge_Search, { baseId, query }),
     listItemChunks: (baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_ListItemChunks, { baseId, itemId }),
-    deleteItemChunk: (baseId: string, itemId: string, chunkId: string): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_DeleteItemChunk, { baseId, itemId, chunkId })
-  },
-  knowledgeBase: {
-    // v1 renderer knowledge path retired. Only base deletion remains, still
-    // invoked by the v1 Redux store/knowledge slice until that slice is removed
-    // in the unified step. v2 knowledge runs via window.api.knowledge.*.
-    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id)
+      ipcRenderer.invoke(IpcChannel.Knowledge_ListItemChunks, { baseId, itemId })
   },
   window: {
     setMinimumSize: (width: number, height: number) =>

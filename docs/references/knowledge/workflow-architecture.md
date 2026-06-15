@@ -67,12 +67,14 @@ Round 1 job types:
 
 - `knowledge.prepare-root`: expand a container and schedule each child.
 - `knowledge.index-documents`: read/chunk/embed/write vectors for a concrete document source. Empty reader results or zero chunks still write an empty vector set and complete the item.
-- `knowledge.delete-subtree`: cancel active subtree jobs, delete vectors, detach Knowledge file refs, then delete resolved item ids with `deleteItemsByIds`. Detached `FileEntry` rows are preserved by the file module's no-reference policy.
-- `knowledge.reindex-subtree`: for terminal subtrees only, delete vectors, remove stale container descendants, reset selected root state, then call `scheduleItem`. Selected leaf root source refs remain attached and are repaired by `index-documents` from `knowledge_item.data`.
+- `knowledge.delete-subtree`: cancel active subtree jobs, delete vectors, delete base-directory files, then delete resolved item ids with `deleteItemsByIds`. The create/index path no longer registers knowledge `file_ref`, so there is no separate file-ref detach step; any historical `FileEntry` rows are left to the file module's no-reference policy.
+- `knowledge.reindex-subtree`: for terminal subtrees only, delete vectors, remove stale container descendants, reset selected root state, then call `scheduleItem`. Selected leaf roots keep their source files on disk and are repaired by `index-documents` from `knowledge_item.data`.
 
-- `knowledge.check-file-processing-result`: poll or inspect the FileProcessing job, attach the markdown artifact on success, then schedule indexing.
+- `knowledge.check-file-processing-result`: poll or inspect the FileProcessing job, record the converted markdown's location on the item (via `updateIndexedRelativePath`) on success, then schedule indexing.
 
-`knowledge_base.fileProcessorId` controls source planning for supported file items. When a source needs conversion, the workflow starts FileProcessing, schedules `knowledge.check-file-processing-result`, attaches the converted markdown as a `processed_artifact` ref, then indexes that artifact.
+`knowledge_base.fileProcessorId` controls source planning for supported file items. When a source needs conversion, the workflow starts FileProcessing, schedules `knowledge.check-file-processing-result`, records the converted markdown's location on the item via `updateIndexedRelativePath` (the `indexedRelativePath` leaf field, not a separate file-ref artifact row), then indexes that markdown.
+
+> Status (2026-06-08): baseline behavior. `check-file-processing-result` is a polling job: `scheduleFileProcessingCheck` reschedules it at `FILE_PROCESSING_CHECK_DELAY_MS = 5_000` (5s) intervals until the FileProcessing job reaches a terminal state; if it is still unfinished after `FILE_PROCESSING_MAX_WAIT_MS = 30 * 60 * 1000` (30 minutes), the remote job is cancelled and the item is marked `failed`. On success the output's relative path is recorded via `updateIndexedRelativePath`, then `index-documents` is scheduled.
 
 ## Mutation And Crash Semantics
 

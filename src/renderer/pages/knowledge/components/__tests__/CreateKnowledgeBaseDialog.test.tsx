@@ -223,7 +223,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     expect(screen.getByText('知识库嵌入模型是必需的')).toBeInTheDocument()
   })
 
-  it('does not render a manual dimensions input before automatic probing fails', () => {
+  it('does not render a dimensions input because dimensions are probed automatically', () => {
     render(
       <CreateKnowledgeBaseDialog
         open
@@ -403,9 +403,9 @@ describe('CreateKnowledgeBaseDialog', () => {
     expect(onOpenChange).not.toHaveBeenCalled()
   })
 
-  it('shows a manual dimensions input when embedding dimensions cannot be fetched', async () => {
+  it('shows an error and keeps the dialog open when embedding dimensions cannot be fetched', async () => {
     mockEmbedMany.mockRejectedValueOnce(new Error('probe failed'))
-    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase({ dimensions: 2048 }))
+    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase())
     const onOpenChange = vi.fn()
     const onCreated = vi.fn()
 
@@ -425,51 +425,10 @@ describe('CreateKnowledgeBaseDialog', () => {
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('获取嵌入维度失败: probe failed'))
-    expect(screen.getByLabelText('嵌入维度')).toBeInTheDocument()
+    expect(screen.queryByLabelText('嵌入维度')).not.toBeInTheDocument()
     expect(createBase).not.toHaveBeenCalled()
     expect(onCreated).not.toHaveBeenCalled()
     expect(onOpenChange).not.toHaveBeenCalled()
-
-    fireEvent.change(screen.getByLabelText('嵌入维度'), { target: { value: '2048' } })
-    fireEvent.click(screen.getByRole('button', { name: '创建' }))
-
-    await waitFor(() =>
-      expect(createBase).toHaveBeenCalledWith({
-        name: 'My Base',
-        embeddingModelId: 'openai::text-embedding-3-small',
-        dimensions: 2048
-      })
-    )
-    expect(mockEmbedMany).toHaveBeenCalledTimes(1)
-    expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({ dimensions: 2048 }))
-    expect(onOpenChange).toHaveBeenCalledWith(false)
-  })
-
-  it('requires a valid manual dimensions value after automatic probing fails', async () => {
-    mockEmbedMany.mockRejectedValueOnce(new Error('probe failed'))
-    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase())
-
-    render(
-      <CreateKnowledgeBaseDialog
-        open
-        groups={[]}
-        isCreating={false}
-        createBase={createBase}
-        onOpenChange={vi.fn()}
-        onCreated={vi.fn()}
-      />
-    )
-
-    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
-    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
-    fireEvent.click(screen.getByRole('button', { name: '创建' }))
-
-    await waitFor(() => expect(screen.getByLabelText('嵌入维度')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByRole('button', { name: '创建' }))
-
-    expect(await screen.findByText('无效的嵌入维度')).toBeInTheDocument()
-    expect(createBase).not.toHaveBeenCalled()
   })
 
   it('submits the selected group id in the request payload', async () => {

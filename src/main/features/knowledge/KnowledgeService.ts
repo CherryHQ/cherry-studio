@@ -11,7 +11,6 @@ import {
   type KnowledgeAddItemInput,
   KnowledgeAddItemInputSchema,
   type KnowledgeBase,
-  KnowledgeChunkMetadataSchema,
   type KnowledgeItem,
   type KnowledgeItemChunk,
   type KnowledgeItemStatus,
@@ -19,7 +18,7 @@ import {
   type RestoreKnowledgeBaseDto
 } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
-import { MetadataMode } from '@vectorstores/core'
+import { estimateTokenCount } from 'tokenx'
 
 import { createCheckFileProcessingResultJobHandler } from './jobs/checkFileProcessingResultJobHandler'
 import { createDeleteSubtreeJobHandler } from './jobs/deleteSubtreeJobHandler'
@@ -43,21 +42,30 @@ import {
   KnowledgeAddItemsPayloadSchema,
   KnowledgeBasePayloadSchema,
   KnowledgeCreateBasePayloadSchema,
-  KnowledgeDeleteItemChunkPayloadSchema,
   KnowledgeItemChunksPayloadSchema,
   KnowledgeItemsPayloadSchema,
   KnowledgeRestoreBasePayloadSchema,
   KnowledgeSearchPayloadSchema
 } from './types/ipc'
-import { mapChunkDocument } from './utils/indexing/chunk'
 import { embedKnowledgeQuery } from './utils/indexing/embed'
 import { rerankKnowledgeSearchResults } from './utils/indexing/rerank'
 import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './utils/search'
 import { getKnowledgeBaseFilePath } from './utils/storage/pathStorage'
+import type { KnowledgeIndexStore } from './vectorstore/indexStore/KnowledgeIndexStore'
+import type { KnowledgeIndexSearchMatch } from './vectorstore/indexStore/model'
 
 const logger = loggerService.withContext('KnowledgeService')
 const SEARCH_TOKEN_PATTERN = /[\p{L}\p{N}_]+/u
 const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
+/**
+ * Fetch this many × the requested result count as index candidates. The index
+ * store only filters by material state; the item-visibility filter (missing /
+ * other-base / not-completed) runs afterwards in the caller and can drop matches,
+ * so over-fetching keeps the final set from shrinking below topK.
+ */
+const KNOWLEDGE_SEARCH_OVERFETCH_FACTOR = 5
+/** Hard ceiling on fetched candidates, bounding the brute-force vector scan and rerank cost regardless of topK. */
+const KNOWLEDGE_SEARCH_CANDIDATE_CAP = 200
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
 
@@ -96,13 +104,33 @@ export class KnowledgeService extends BaseService {
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
 
     try {
-      await vectorStoreService.createStore(base)
+      await vectorStoreService.getIndexStore(base)
     } catch (error) {
-      await knowledgeBaseService.delete(base.id)
+      await this.rollbackFailedBaseCreation(base.id)
       throw error
     }
 
     return base
+  }
+
+  /**
+   * Undo a half-created base after its index store failed to open: remove the
+   * orphaned `.cherry/` directory `getIndexStore` left on disk and drop the DB
+   * row. Both steps are best-effort and logged — a cleanup failure must never
+   * mask the original open error the caller needs to see.
+   */
+  private async rollbackFailedBaseCreation(baseId: string): Promise<void> {
+    const vectorStoreService = application.get('KnowledgeVectorStoreService')
+    try {
+      await vectorStoreService.deleteStore(baseId)
+    } catch (cleanupError) {
+      logger.warn('Failed to remove index store dir during createBase rollback', cleanupError as Error, { baseId })
+    }
+    try {
+      await knowledgeBaseService.delete(baseId)
+    } catch (cleanupError) {
+      logger.warn('Failed to delete knowledge base row during createBase rollback', cleanupError as Error, { baseId })
+    }
   }
 
   async deleteBase(baseId: string): Promise<void> {
@@ -232,41 +260,36 @@ export class KnowledgeService extends BaseService {
     }
 
     const base = await knowledgeBaseService.getById(baseId)
-    const queryEmbedding = await embedKnowledgeQuery(base, query)
+    // Stored search mode and the index store's mode are the same enum now, so no mapping.
+    const mode = base.searchMode
+    // BM25 is lexical only; skip the embedding round-trip when the query won't use it.
+    const queryEmbedding = mode === 'bm25' ? undefined : await embedKnowledgeQuery(base, query)
+
+    const resolvedTopK = base.documentCount ?? 10
+    const candidateLimit = Math.min(resolvedTopK * KNOWLEDGE_SEARCH_OVERFETCH_FACTOR, KNOWLEDGE_SEARCH_CANDIDATE_CAP)
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
-    const vectorStore = await vectorStoreService.createStore(base)
-    const results = await vectorStore.query({
-      queryStr: query,
-      queryEmbedding,
-      mode: base.searchMode ?? 'default',
-      similarityTopK: base.documentCount ?? 10,
-      alpha: base.hybridAlpha
-    })
-    const nodes = results.nodes ?? []
+    const store = await vectorStoreService.getIndexStore(base)
+    const matches = await this.runStoreOperation(store, baseId, 'search', () =>
+      store.search({
+        queryText: query,
+        queryEmbedding,
+        mode,
+        topK: candidateLimit,
+        alpha: base.hybridAlpha
+      })
+    )
+
     const scoreKind = getInitialSearchScoreKind(base)
-    const searchResults = nodes.map((node, index) => {
-      const metadata = KnowledgeChunkMetadataSchema.parse(node.metadata ?? {})
-
-      return {
-        pageContent: node.getContent(MetadataMode.NONE),
-        score: results.similarities[index] ?? 0,
-        scoreKind,
-        rank: index + 1,
-        metadata,
-        itemId: metadata.itemId,
-        chunkId: node.id_
-      }
-    })
-
-    const visibleSearchResults = await this.filterVisibleSearchResults(baseId, searchResults)
+    const visibleSearchResults = await this.toVisibleSearchResults(baseId, matches, scoreKind)
+    const topResults = this.trimToTopK(visibleSearchResults, resolvedTopK, baseId)
 
     if (base.rerankModelId) {
-      const rerankedResults = await rerankKnowledgeSearchResults(base, query, visibleSearchResults)
+      const rerankedResults = await rerankKnowledgeSearchResults(base, query, topResults)
       return withSearchRanks(applyRelevanceThreshold(rerankedResults, base.threshold))
     }
 
-    return withSearchRanks(applyRelevanceThreshold(visibleSearchResults, base.threshold))
+    return withSearchRanks(applyRelevanceThreshold(topResults, base.threshold))
   }
 
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {
@@ -286,41 +309,97 @@ export class KnowledgeService extends BaseService {
     }
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
-    const vectorStore = await vectorStoreService.createStore(base)
-    const chunkGroups = await Promise.all(leafItems.map((item) => vectorStore.listByExternalId(item.id)))
+    const store = await vectorStoreService.getIndexStore(base)
+    const chunkGroups = await this.runStoreOperation(store, knowledgeBaseId, 'listItemChunks', () =>
+      Promise.all(
+        leafItems.map(async (leafItem) => {
+          const units = await store.listMaterialUnits(leafItem.id)
+          return units.map(
+            (unit): KnowledgeItemChunk => ({
+              id: unit.unitId,
+              itemId: leafItem.id,
+              content: unit.text,
+              metadata: {
+                itemId: leafItem.id,
+                itemType: leafItem.type,
+                source: leafItem.data.source,
+                chunkIndex: unit.unitIndex,
+                tokenCount: estimateTokenCount(unit.text)
+              }
+            })
+          )
+        })
+      )
+    )
 
-    return chunkGroups.flat().map(mapChunkDocument)
+    return chunkGroups.flat()
   }
 
-  async deleteItemChunk(baseId: string, itemId: string, chunkId: string): Promise<void> {
-    const knowledgeBaseId = toKnowledgeBaseId(baseId)
-    const knowledgeItemId = toKnowledgeItemId(itemId)
-    await this.assertBaseCanRunRuntimeOperation(knowledgeBaseId, 'deleteItemChunk')
-
-    await this.knowledgeLockManager.withBaseMutationLock(knowledgeBaseId, async () => {
-      await this.assertItemCanRunChunkOperation(knowledgeBaseId, knowledgeItemId, 'delete chunk')
-
-      const base = await knowledgeBaseService.getById(knowledgeBaseId)
-      const vectorStoreService = application.get('KnowledgeVectorStoreService')
-      const vectorStore = await vectorStoreService.createStore(base)
-
-      await vectorStore.deleteByIdAndExternalId(chunkId, knowledgeItemId)
-    })
-  }
-
-  private async filterVisibleSearchResults(
+  /**
+   * Turn raw index matches into visible search results: fetch each match's
+   * knowledge item once, drop any that is missing, in another base, or not
+   * completed, and reconstruct the chunk metadata (item type / source from the
+   * item; chunk index from the unit; token count recomputed from the body).
+   */
+  private async toVisibleSearchResults(
     baseId: string,
-    searchResults: KnowledgeSearchResult[]
+    matches: KnowledgeIndexSearchMatch[],
+    scoreKind: KnowledgeSearchResult['scoreKind']
   ): Promise<KnowledgeSearchResult[]> {
-    const uniqueItemIds = [...new Set(searchResults.map((result) => result.itemId).filter((id): id is string => !!id))]
-    const visibleItemIds = new Set<string>()
+    const itemsById = await this.loadVisibleItems(
+      baseId,
+      matches.map((match) => match.materialId)
+    )
+
+    const results: KnowledgeSearchResult[] = []
+    for (const match of matches) {
+      const item = itemsById.get(match.materialId)
+      if (!item) {
+        continue
+      }
+      results.push({
+        pageContent: match.text,
+        score: match.score,
+        scoreKind,
+        rank: results.length + 1,
+        metadata: {
+          itemId: match.materialId,
+          itemType: item.type,
+          source: item.data.source,
+          chunkIndex: match.unitIndex,
+          tokenCount: estimateTokenCount(match.text)
+        },
+        itemId: match.materialId,
+        chunkId: match.unitId
+      })
+    }
+    return results
+  }
+
+  /** Keep the highest-scored `topK` visible results, discarding the over-fetched tail. */
+  private trimToTopK(results: KnowledgeSearchResult[], topK: number, baseId: string): KnowledgeSearchResult[] {
+    if (results.length <= topK) {
+      return results
+    }
+    logger.debug('Trimmed over-fetched knowledge search results to topK', {
+      baseId,
+      visibleCandidates: results.length,
+      topK
+    })
+    return results.slice(0, topK)
+  }
+
+  /** Fetch the distinct items behind the matches, keeping only those visible in this base (same base, completed). */
+  private async loadVisibleItems(baseId: string, materialIds: string[]): Promise<Map<string, KnowledgeItem>> {
+    const uniqueIds = [...new Set(materialIds)]
+    const visibleItems = new Map<string, KnowledgeItem>()
 
     await Promise.all(
-      uniqueItemIds.map(async (itemId) => {
+      uniqueIds.map(async (materialId) => {
         try {
-          const item = await knowledgeItemService.getById(itemId)
+          const item = await knowledgeItemService.getById(materialId)
           if (item.baseId === baseId && item.status === 'completed') {
-            visibleItemIds.add(itemId)
+            visibleItems.set(materialId, item)
           }
         } catch (error) {
           if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
@@ -331,7 +410,34 @@ export class KnowledgeService extends BaseService {
       })
     )
 
-    return searchResults.filter((result) => result.itemId && visibleItemIds.has(result.itemId))
+    return visibleItems
+  }
+
+  /**
+   * Run a per-base index-store interaction, translating the error raised when the
+   * store is closed mid-flight — a concurrent {@link deleteBase} or app shutdown
+   * closed the driver — into a defined, retryable DataApiError instead of leaking
+   * the opaque driver-level error to the renderer. Genuine query errors rethrow
+   * unchanged.
+   */
+  private async runStoreOperation<T>(
+    store: KnowledgeIndexStore,
+    baseId: string,
+    operation: string,
+    run: () => Promise<T>
+  ): Promise<T> {
+    try {
+      return await run()
+    } catch (error) {
+      if (store.isClosed()) {
+        logger.warn('Knowledge index store was closed during operation', { baseId, operation })
+        throw DataApiErrorFactory.invalidOperation(
+          operation,
+          `Knowledge base '${baseId}' index store was closed during ${operation}; retry the operation`
+        )
+      }
+      throw error
+    }
   }
 
   private async cancelAllJobsForBase(baseId: string): Promise<void> {
@@ -539,19 +645,6 @@ export class KnowledgeService extends BaseService {
     this.ipcHandle(IpcChannel.Knowledge_ListItemChunks, async (_, payload: unknown) => {
       const { baseId, itemId } = KnowledgeItemChunksPayloadSchema.parse(payload)
       return await this.listItemChunks(baseId, itemId)
-    })
-    this.ipcHandle(IpcChannel.Knowledge_DeleteItemChunk, async (_, payload: unknown) => {
-      const { baseId, itemId, chunkId } = KnowledgeDeleteItemChunkPayloadSchema.parse(payload)
-      return await this.deleteItemChunk(baseId, itemId, chunkId)
-    })
-    // v1 bridge: the legacy Redux store/knowledge slice still calls
-    // window.api.knowledgeBase.delete(id) (a raw base id) until that slice is
-    // removed in the unified step. Route it to the v2 deletion path.
-    this.ipcHandle(IpcChannel.KnowledgeBase_Delete, async (_, id: unknown) => {
-      if (typeof id !== 'string' || id.trim().length === 0) {
-        throw new Error('KnowledgeBase_Delete requires a non-empty base id')
-      }
-      return await this.deleteBase(id)
     })
   }
 }

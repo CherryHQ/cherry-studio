@@ -244,7 +244,7 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   documentCount: 6,
   status: 'completed',
   error: null,
-  searchMode: 'default',
+  searchMode: 'vector',
   hybridAlpha: undefined,
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
@@ -276,10 +276,9 @@ describe('RagConfigPanel', () => {
         chunkOverlap: '64',
         embeddingModelId: 'openai::text-embedding-3-small',
         rerankModelId: null,
-        dimensions: '1536',
         documentCount: 6,
         threshold: 0.1,
-        searchMode: 'default',
+        searchMode: 'vector',
         hybridAlpha: null
       },
       embeddingModels: [
@@ -309,7 +308,7 @@ describe('RagConfigPanel', () => {
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
       searchModeOptions: [
         { value: 'hybrid', label: '混合检索（推荐）' },
-        { value: 'default', label: '向量检索' },
+        { value: 'vector', label: '向量检索' },
         { value: 'bm25', label: '全文检索' }
       ],
       save: mockSave,
@@ -355,9 +354,6 @@ describe('RagConfigPanel', () => {
     expect(screen.getByText('重排模型 (Rerank)')).toBeInTheDocument()
     expect(screen.getByText('不使用')).toBeInTheDocument()
     expect(screen.getByLabelText('嵌入模型')).toHaveValue('openai::text-embedding-3-small')
-    expect(screen.getByDisplayValue('1536')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '刷新向量维度' })).not.toBeDisabled()
-    expect(screen.queryByRole('button', { name: '获取嵌入维度' })).not.toBeInTheDocument()
     expect(screen.getByDisplayValue('512')).toBeInTheDocument()
     expect(screen.getByDisplayValue('64')).toBeInTheDocument()
     expect(screen.queryByText('Hybrid Alpha')).not.toBeInTheDocument()
@@ -444,59 +440,18 @@ describe('RagConfigPanel', () => {
     expect(mockSave).not.toHaveBeenCalled()
   })
 
-  it('clears dimensions and opens rebuild dialog without old dimensions when embedding model changes', () => {
+  it('opens the rebuild flow when the embedding model changes', () => {
     const onRestoreBase = vi.fn()
 
     renderRagConfigPanel(onRestoreBase)
 
     fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'voyage::voyage-3-large' } })
-    expect(screen.queryByDisplayValue('1536')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重建' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
     expect(mockSave).not.toHaveBeenCalled()
     expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
       embeddingModelId: 'voyage::voyage-3-large'
-    })
-  })
-
-  it('opens rebuild dialog and changes the action label when dimensions change', () => {
-    const onRestoreBase = vi.fn()
-
-    renderRagConfigPanel(onRestoreBase)
-
-    fireEvent.change(screen.getByDisplayValue('1536'), { target: { value: '4096' } })
-    expect(screen.getByRole('button', { name: '重建' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: '重建' }))
-
-    expect(mockSave).not.toHaveBeenCalled()
-    expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
-      embeddingModelId: 'openai::text-embedding-3-small',
-      dimensions: 4096
-    })
-  })
-
-  it('refreshes embedding dimensions and opens the rebuild flow with the fetched value', async () => {
-    const onRestoreBase = vi.fn()
-
-    renderRagConfigPanel(onRestoreBase)
-
-    fireEvent.click(screen.getByRole('button', { name: '刷新向量维度' }))
-
-    await waitFor(() => {
-      expect(mockEmbedMany).toHaveBeenCalledWith({
-        uniqueModelId: 'openai::text-embedding-3-small',
-        values: ['test']
-      })
-      expect(screen.getByDisplayValue('2048')).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: '重建' }))
-
-    expect(mockSave).not.toHaveBeenCalled()
-    expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
-      embeddingModelId: 'openai::text-embedding-3-small',
-      dimensions: 2048
     })
   })
 
@@ -519,7 +474,6 @@ describe('RagConfigPanel', () => {
         chunkOverlap: '64',
         embeddingModelId: 'openai::text-embedding-3-small',
         rerankModelId: null,
-        dimensions: '1536',
         documentCount: 6,
         threshold: 0.1,
         searchMode: 'hybrid',
@@ -528,7 +482,7 @@ describe('RagConfigPanel', () => {
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
       searchModeOptions: [
         { value: 'hybrid', label: '混合检索（推荐）' },
-        { value: 'default', label: '向量检索' },
+        { value: 'vector', label: '向量检索' },
         { value: 'bm25', label: '全文检索' }
       ],
       embeddingModels: [
@@ -568,7 +522,6 @@ describe('RagConfigPanel', () => {
         chunkOverlap: '64',
         embeddingModelId: 'openai::text-embedding-3-small',
         rerankModelId: 'jina::rerank',
-        dimensions: '1536',
         documentCount: 6,
         threshold: 0.1,
         searchMode: 'hybrid',
@@ -577,7 +530,7 @@ describe('RagConfigPanel', () => {
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
       searchModeOptions: [
         { value: 'hybrid', label: '混合检索（推荐）' },
-        { value: 'default', label: '向量检索' },
+        { value: 'vector', label: '向量检索' },
         { value: 'bm25', label: '全文检索' }
       ],
       embeddingModels: [

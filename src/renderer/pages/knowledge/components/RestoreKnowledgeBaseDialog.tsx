@@ -15,7 +15,6 @@ interface RestoreKnowledgeBaseDialogProps {
   open: boolean
   base: KnowledgeBase
   initialEmbeddingModelId?: string | null
-  initialDimensions?: number | null
   isRestoring: boolean
   restoreBase: (input: RestoreKnowledgeBaseInput) => Promise<KnowledgeBase>
   onOpenChange: (open: boolean) => void
@@ -25,30 +24,20 @@ interface RestoreKnowledgeBaseDialogProps {
 interface RestoreKnowledgeBaseFormValues {
   name: string
   embeddingModelId: string | null
-  dimensions: string
 }
 
 const createInitialValues = (
   name: string,
-  embeddingModelId: string | null | undefined,
-  dimensions: number | null | undefined
+  embeddingModelId: string | null | undefined
 ): RestoreKnowledgeBaseFormValues => ({
   name,
-  embeddingModelId: embeddingModelId ?? null,
-  dimensions: dimensions == null ? '' : dimensions.toString()
+  embeddingModelId: embeddingModelId ?? null
 })
-
-const parseKnowledgeDimensions = (dimensions: string) => {
-  const parsedDimensions = Number(dimensions)
-
-  return Number.isSafeInteger(parsedDimensions) && parsedDimensions > 0 ? parsedDimensions : null
-}
 
 const RestoreKnowledgeBaseDialog = ({
   open,
   base,
   initialEmbeddingModelId,
-  initialDimensions,
   isRestoring,
   restoreBase,
   onOpenChange,
@@ -57,33 +46,20 @@ const RestoreKnowledgeBaseDialog = ({
   const { t } = useTranslation()
   const defaultName = t('knowledge.restore.default_name', { name: base.name })
   const [values, setValues] = useState<RestoreKnowledgeBaseFormValues>(() =>
-    createInitialValues(defaultName, initialEmbeddingModelId, initialDimensions)
+    createInitialValues(defaultName, initialEmbeddingModelId)
   )
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
-  const [hasAttemptedManualDimensionsSubmit, setHasAttemptedManualDimensionsSubmit] = useState(false)
-  const [isManualDimensionsVisible, setIsManualDimensionsVisible] = useState(initialDimensions != null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const { fetchDimensions, isFetchingDimensions } = useEmbeddingDimensions()
 
   useEffect(() => {
-    setValues(createInitialValues(defaultName, initialEmbeddingModelId, initialDimensions))
+    setValues(createInitialValues(defaultName, initialEmbeddingModelId))
     setHasAttemptedSubmit(false)
-    setHasAttemptedManualDimensionsSubmit(false)
-    setIsManualDimensionsVisible(initialDimensions != null)
     setSubmitError(null)
-  }, [base.id, defaultName, initialDimensions, initialEmbeddingModelId, open])
-
-  const manualDimensions = parseKnowledgeDimensions(values.dimensions)
-  const isManualDimensionsInvalid = isManualDimensionsVisible && hasAttemptedManualDimensionsSubmit && !manualDimensions
+  }, [base.id, defaultName, initialEmbeddingModelId, open])
 
   const handleEmbeddingModelChange = (embeddingModelId: string | null) => {
-    setValues((currentValues) => ({
-      ...currentValues,
-      embeddingModelId,
-      dimensions: ''
-    }))
-    setHasAttemptedManualDimensionsSubmit(false)
-    setIsManualDimensionsVisible(false)
+    setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
     setSubmitError(null)
   }
 
@@ -98,23 +74,11 @@ const RestoreKnowledgeBaseDialog = ({
 
     let dimensions: number
 
-    if (isManualDimensionsVisible) {
-      setHasAttemptedManualDimensionsSubmit(true)
-
-      if (!manualDimensions) {
-        return
-      }
-
-      dimensions = manualDimensions
-    } else {
-      try {
-        dimensions = await fetchDimensions(values.embeddingModelId)
-      } catch (error) {
-        setIsManualDimensionsVisible(true)
-        setHasAttemptedManualDimensionsSubmit(false)
-        setSubmitError(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
-        return
-      }
+    try {
+      dimensions = await fetchDimensions(values.embeddingModelId)
+    } catch (error) {
+      setSubmitError(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
+      return
     }
 
     let restoredBase: KnowledgeBase
@@ -170,25 +134,6 @@ const RestoreKnowledgeBaseDialog = ({
                 <FieldError>{t('knowledge.embedding_model_required')}</FieldError>
               ) : null}
             </KnowledgeDialogField>
-
-            {isManualDimensionsVisible ? (
-              <KnowledgeDialogField>
-                <Label htmlFor="knowledge-restore-dimensions">{t('knowledge.dimensions')}</Label>
-                <Input
-                  id="knowledge-restore-dimensions"
-                  value={values.dimensions}
-                  inputMode="numeric"
-                  aria-invalid={isManualDimensionsInvalid}
-                  onChange={(event) =>
-                    setValues((currentValues) => ({
-                      ...currentValues,
-                      dimensions: event.target.value.replace(/\D/g, '')
-                    }))
-                  }
-                />
-                {isManualDimensionsInvalid ? <FieldError>{t('knowledge.dimensions_error_invalid')}</FieldError> : null}
-              </KnowledgeDialogField>
-            ) : null}
 
             {submitError ? <FieldError>{submitError}</FieldError> : null}
           </KnowledgeDialogBody>
