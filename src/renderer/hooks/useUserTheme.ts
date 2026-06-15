@@ -6,8 +6,11 @@ import Color from 'color'
 
 const unquotedFontFamilyValues = new Set(['-apple-system'])
 
-const formatCssFontFamilyValue = (value: string) => {
-  return unquotedFontFamilyValues.has(value) ? value : `'${value}'`
+const formatCssFontFamilyValue = (value: string): string => {
+  if (unquotedFontFamilyValues.has(value)) return value
+
+  const escapedValue = value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+  return `"${escapedValue}"`
 }
 
 export default function useUserTheme() {
