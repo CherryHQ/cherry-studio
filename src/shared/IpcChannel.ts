@@ -356,6 +356,10 @@ export enum IpcChannel {
   DataApi_Unsubscribe = 'data-api:unsubscribe',
   DataApi_Stream = 'data-api:stream',
 
+  // IpcApi: RPC-over-IPC command channel (renderer→main request, main→renderer event)
+  IpcApi_Request = 'ipc-api:request',
+  IpcApi_Event = 'ipc-api:event',
+
   // Topic auto-rename push (main → renderer; payload: { topicId })
   Topic_AutoRenamed = 'topic:auto-renamed',
   // Agent session auto-rename push (main → renderer; payload: { sessionId })
