@@ -1,4 +1,5 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { backupToWebdav } from '@renderer/services/BackupService'
 import dayjs from 'dayjs'
@@ -17,6 +18,8 @@ interface WebdavModalProps {
     filenamePlaceholder?: string
   }
 }
+
+const logger = loggerService.withContext('WebdavModals')
 
 export function useWebdavBackupModal({ backupMethod }: { backupMethod?: typeof backupToWebdav } = {}) {
   const [customFileName, setCustomFileName] = useState('')
@@ -39,8 +42,16 @@ export function useWebdavBackupModal({ backupMethod }: { backupMethod?: typeof b
 
   const showBackupModal = useCallback(async () => {
     // 获取默认文件名
-    const deviceType = await ipcApi.request('system.get_device_type')
-    const hostname = await ipcApi.request('system.get_hostname')
+    let deviceType = 'unknown'
+    let hostname = 'unknown'
+    try {
+      ;[deviceType, hostname] = await Promise.all([
+        ipcApi.request('system.get_device_type'),
+        ipcApi.request('system.get_hostname')
+      ])
+    } catch (error) {
+      logger.warn('Failed to get device type or hostname for WebDAV backup filename', error as Error)
+    }
     const timestamp = dayjs().format('YYYYMMDDHHmmss')
     const defaultFileName = `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
     setCustomFileName(defaultFileName)

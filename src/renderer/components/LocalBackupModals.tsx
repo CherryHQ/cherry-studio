@@ -63,8 +63,16 @@ export function useLocalBackupModal(localBackupDir: string | undefined) {
 
   const showBackupModal = useCallback(async () => {
     // 获取默认文件名
-    const deviceType = await ipcApi.request('system.get_device_type')
-    const hostname = await ipcApi.request('system.get_hostname')
+    let deviceType = 'unknown'
+    let hostname = 'unknown'
+    try {
+      ;[deviceType, hostname] = await Promise.all([
+        ipcApi.request('system.get_device_type'),
+        ipcApi.request('system.get_hostname')
+      ])
+    } catch (error) {
+      logger.warn('Failed to get device type or hostname for local backup filename', error as Error)
+    }
     const timestamp = dayjs().format('YYYYMMDDHHmmss')
     const defaultFileName = `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
     setCustomFileName(defaultFileName)

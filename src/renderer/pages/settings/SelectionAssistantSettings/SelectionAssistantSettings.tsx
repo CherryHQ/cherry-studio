@@ -1,5 +1,6 @@
 import { Button, RadioGroup, RadioGroupItem, Slider, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { getSelectionDescriptionLabelKey } from '@renderer/i18n/label'
@@ -26,6 +27,8 @@ import {
 import MacProcessTrustHintModal from './components/MacProcessTrustHintModal'
 import SelectionActionsList from './components/SelectionActionsList'
 import SelectionFilterListModal from './components/SelectionFilterListModal'
+
+const logger = loggerService.withContext('SelectionAssistantSettings')
 
 const SelectionAssistantSettings: FC = () => {
   const { theme } = useTheme()
@@ -58,8 +61,13 @@ const SelectionAssistantSettings: FC = () => {
   // force disable selection assistant on non-windows systems
   useEffect(() => {
     const checkMacProcessTrust = async () => {
-      const isTrusted = await ipcApi.request('system.is_process_trusted')
-      if (!isTrusted) {
+      try {
+        const isTrusted = await ipcApi.request('system.is_process_trusted')
+        if (!isTrusted) {
+          void setSelectionEnabled(false)
+        }
+      } catch (error) {
+        logger.warn('Failed to check macOS accessibility trust', error as Error)
         void setSelectionEnabled(false)
       }
     }
@@ -82,8 +90,14 @@ const SelectionAssistantSettings: FC = () => {
     if (!isSupportedOS) return
 
     if (isMac && checked) {
-      const isTrusted = await ipcApi.request('system.is_process_trusted')
-      if (!isTrusted) {
+      try {
+        const isTrusted = await ipcApi.request('system.is_process_trusted')
+        if (!isTrusted) {
+          setIsMacTrustModalOpen(true)
+          return
+        }
+      } catch (error) {
+        logger.warn('Failed to check macOS accessibility trust before enabling selection assistant', error as Error)
         setIsMacTrustModalOpen(true)
         return
       }

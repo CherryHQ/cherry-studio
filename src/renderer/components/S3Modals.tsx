@@ -10,6 +10,7 @@ import {
   Input,
   Spinner
 } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
 import { backupToS3 } from '@renderer/services/BackupService'
 import { formatFileSize } from '@renderer/utils'
@@ -22,6 +23,8 @@ interface BackupFile {
   modifiedTime: string
   size: number
 }
+
+const logger = loggerService.withContext('S3Modals')
 
 export function useS3BackupModal() {
   const [customFileName, setCustomFileName] = useState('')
@@ -44,8 +47,16 @@ export function useS3BackupModal() {
 
   const showBackupModal = useCallback(async () => {
     // 获取默认文件名
-    const deviceType = await ipcApi.request('system.get_device_type')
-    const hostname = await ipcApi.request('system.get_hostname')
+    let deviceType = 'unknown'
+    let hostname = 'unknown'
+    try {
+      ;[deviceType, hostname] = await Promise.all([
+        ipcApi.request('system.get_device_type'),
+        ipcApi.request('system.get_hostname')
+      ])
+    } catch (error) {
+      logger.warn('Failed to get device type or hostname for S3 backup filename', error as Error)
+    }
     const timestamp = dayjs().format('YYYYMMDDHHmmss')
     const defaultFileName = `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
     setCustomFileName(defaultFileName)
