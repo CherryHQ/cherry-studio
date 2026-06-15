@@ -26,8 +26,8 @@ function createFileProcessingJobSnapshot(overrides: Partial<ReturnType<typeof cr
     type: 'file-processing.remote-poll',
     input: {
       feature: 'document_to_markdown',
-      file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/source.pdf' },
-      output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/source.md' },
+      file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.pdf' },
+      output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' },
       context: { dataId: FILE_ITEM_ID },
       processorId: 'doc2x'
     }
@@ -171,7 +171,7 @@ describe('check-file-processing-result job handler', () => {
       createFileProcessingJobSnapshot({
         status: 'completed',
         output: {
-          artifact: { kind: 'file', format: 'markdown', path: '/mock/feature.knowledgebase.data/kb-1/source.md' }
+          artifact: { kind: 'file', format: 'markdown', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' }
         }
       })
     )
@@ -192,7 +192,7 @@ describe('check-file-processing-result job handler', () => {
       createFileProcessingJobSnapshot({
         status: 'completed',
         output: {
-          artifact: { kind: 'file', format: 'markdown', path: '/mock/feature.knowledgebase.data/kb-1/source.md' }
+          artifact: { kind: 'file', format: 'markdown', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' }
         }
       })
     )
@@ -215,8 +215,8 @@ describe('check-file-processing-result job handler', () => {
       createFileProcessingJobSnapshot({
         input: {
           feature: 'document_to_markdown',
-          file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/source.pdf' },
-          output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/source.md' },
+          file: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.pdf' },
+          output: { kind: 'path', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' },
           context: { dataId: 'other-item' },
           processorId: 'doc2x'
         }
@@ -242,7 +242,7 @@ describe('check-file-processing-result job handler', () => {
       createFileProcessingJobSnapshot({
         status: 'completed',
         output: {
-          artifact: { kind: 'file', format: 'markdown', path: '/mock/feature.knowledgebase.data/kb-1/source.md' }
+          artifact: { kind: 'file', format: 'markdown', path: '/mock/feature.knowledgebase.data/kb-1/raw/source.md' }
         }
       })
     )

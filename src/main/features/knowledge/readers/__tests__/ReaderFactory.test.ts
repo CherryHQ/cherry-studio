@@ -174,7 +174,7 @@ describe('loadKnowledgeItemDocuments', () => {
     const docs = await loadKnowledgeItemDocuments(item)
 
     expect(readerSpies[expectedReader as keyof typeof readerSpies]).toHaveBeenCalledWith(
-      `/mock/feature.knowledgebase.data/base-1/sample${ext}`
+      `/mock/feature.knowledgebase.data/base-1/raw/sample${ext}`
     )
     expect(docs[0]).toMatchObject({
       metadata: {
@@ -187,7 +187,7 @@ describe('loadKnowledgeItemDocuments', () => {
     const item = createFileItem('.log')
     const docs = await loadKnowledgeItemDocuments(item)
 
-    expect(readerSpies.text).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/sample.log')
+    expect(readerSpies.text).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/raw/sample.log')
     expect(docs[0]).toMatchObject({
       metadata: {
         source: '/tmp/sample.log'
@@ -207,7 +207,7 @@ describe('loadKnowledgeItemDocuments', () => {
 
     const docs = await loadKnowledgeItemDocuments(item)
 
-    expect(readerSpies.markdown).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/source.md')
+    expect(readerSpies.markdown).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/raw/source.md')
     expect(docs[0]).toMatchObject({
       metadata: {
         source: '/tmp/source.pdf'
@@ -220,7 +220,9 @@ describe('loadKnowledgeItemDocuments', () => {
 
     const docs = await loadKnowledgeItemDocuments(item)
 
-    expect(customReaderSpies.drafts).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/sample.draftsexport')
+    expect(customReaderSpies.drafts).toHaveBeenCalledWith(
+      '/mock/feature.knowledgebase.data/base-1/raw/sample.draftsexport'
+    )
     expect(docs[0]).toMatchObject({
       metadata: {
         source: '/tmp/sample.draftsexport'
@@ -233,7 +235,7 @@ describe('loadKnowledgeItemDocuments', () => {
 
     const docs = await loadKnowledgeItemDocuments(item)
 
-    expect(customReaderSpies.epub).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/sample.epub')
+    expect(customReaderSpies.epub).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/base-1/raw/sample.epub')
     expect(docs[0]).toMatchObject({
       metadata: {
         source: '/tmp/sample.epub'
