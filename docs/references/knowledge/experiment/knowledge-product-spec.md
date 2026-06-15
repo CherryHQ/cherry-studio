@@ -21,7 +21,7 @@
 | PDF processor output | The generated Markdown is an **independent, visible file**; search indexes/returns the Markdown; deleting the PDF keeps the md *(target state / v2.x — in current v2 the md is **not** a separate item, only the PDF item's `indexedRelativePath`; deleting the PDF item deletes both md and PDF)* |
 | Agent-created material | Writing into the base directory makes an ordinary visible material — no hidden output pool; the user can edit freely |
 
-Same-path conflicts offer three choices (overwrite / keep copy `_2` / skip); keep-copy auto-renames with a `_N` suffix and is **landed** (live upload + v1 migration), while overwrite / skip are still target state. Duplicate content is not blocked (the agent tidies it later).
+Same-path conflicts offer three choices (overwrite / keep copy `_1` / skip); keep-copy auto-renames with a `_N` suffix and is **landed** (live upload + v1 migration), while overwrite / skip are still target state. Duplicate content is not blocked (the agent tidies it later).
 
 ## 4. Agent capability boundaries
 
@@ -41,7 +41,7 @@ Same-path conflicts offer three choices (overwrite / keep copy `_2` / skip); kee
 | 7 | Cloud documents are stored as local snapshots with manual refresh (later capability) |
 | 8 | PDF-generated Markdown is an independent visible file; search returns the Markdown; deleting the PDF keeps the md *(target state / v2.x — current v2: md is not a separate item, deleting the PDF deletes both)* |
 | 9 | Agent writes go through the create-material API (not a raw file drop into the folder), then are immediately visible |
-| 10 | Same-path conflicts offer three choices, copies use `_2`/`_3` suffixes (keep-copy / auto-rename `_N` landed for both live upload and v1 migration; overwrite / skip still target state) |
+| 10 | Same-path conflicts offer three choices, copies use `_1`/`_2` suffixes (keep-copy / auto-rename `_N` landed for both live upload and v1 migration; overwrite / skip still target state) |
 | 11 | Duplicate content is not blocked |
 | 12 | Imported originals are not tracked — their external edits/deletion never change the base; a base copy is removed only by an explicit in-app delete (`missing` is a lazy read-time flag, not a watcher signal) |
 | 13 | list shows all visible bases; search requires an id but is not candidate-limited; candidates ≠ permission boundary |
