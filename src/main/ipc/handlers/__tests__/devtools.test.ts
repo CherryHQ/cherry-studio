@@ -1,31 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { appGetMock, toggleDevToolsMock, windowIsDestroyedMock } = vi.hoisted(() => ({
-  appGetMock: vi.fn(),
-  toggleDevToolsMock: vi.fn(),
-  windowIsDestroyedMock: vi.fn()
-}))
+const { toggleDevToolsMock, windowIsDestroyedMock, windowManager } = vi.hoisted(() => {
+  const toggleDevToolsMock = vi.fn()
+  const windowIsDestroyedMock = vi.fn()
+  const windowManager = {
+    getWindow: vi.fn(() => ({
+      isDestroyed: windowIsDestroyedMock,
+      webContents: { toggleDevTools: toggleDevToolsMock }
+    }))
+  }
 
-vi.mock('@application', () => ({ application: { get: appGetMock } }))
+  return { toggleDevToolsMock, windowIsDestroyedMock, windowManager }
+})
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ WindowManager: windowManager })
+})
 
 import { devtoolsHandlers } from '../devtools'
-
-const windowManager = {
-  getWindow: vi.fn(() => ({
-    isDestroyed: windowIsDestroyedMock,
-    webContents: { toggleDevTools: toggleDevToolsMock }
-  }))
-}
 
 const ctx = (senderId: string | null) => ({ senderId })
 
 beforeEach(() => {
   vi.clearAllMocks()
   windowIsDestroyedMock.mockReturnValue(false)
-  appGetMock.mockImplementation((name: string) => {
-    if (name === 'WindowManager') return windowManager
-    throw new Error(`Unexpected application.get(${name})`)
-  })
 })
 
 describe('devtoolsHandlers', () => {
