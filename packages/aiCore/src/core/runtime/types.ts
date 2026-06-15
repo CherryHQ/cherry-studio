@@ -41,8 +41,6 @@ export type streamTextParams = Parameters<typeof streamText>[0]
 // Embedding types (AI SDK v6 only has embedMany, no embed)
 export type EmbedManyParams = Omit<Parameters<typeof embedMany>[0], 'model'> & {
   model: string | EmbeddingModelV3
-  /** Wraps the resolved embedding model (e.g. retry) before the call */
-  wrapModel?: (model: EmbeddingModelV3) => EmbeddingModelV3
 }
 export type EmbedManyResult = Awaited<ReturnType<typeof embedMany>>
 

@@ -37,7 +37,7 @@ import type { AgentLoopHooks } from './runtime/aiSdk/loop'
 import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
 import { buildAgentParams } from './runtime/aiSdk/params/buildAgentParams'
 import type { RequestFeature } from './runtime/aiSdk/params/feature'
-import { createEmbeddingRetryWrap, createRetryableWrap } from './runtime/aiSdk/retry/createRetryableWrap'
+import { createRetryableWrap } from './runtime/aiSdk/retry/createRetryableWrap'
 import { WebContentsListener } from './streamManager/listeners/WebContentsListener'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
 import type { AppProviderSettingsMap } from './types'
@@ -45,6 +45,14 @@ import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequ
 import { buildImageProviderOptions, normalizeAspectRatio } from './utils/imageOptions'
 
 const logger = loggerService.withContext('AiService')
+
+/**
+ * Max concurrent `doEmbed` batches for `embedMany`. AI SDK defaults to
+ * `Infinity`, which fires every batch of a long document at once and is the
+ * primary embedding rate-limit trigger. Bounded fan-out trades a little
+ * throughput for far fewer 429s.
+ */
+const EMBEDDING_MAX_PARALLEL_CALLS = 5
 
 // ── Request types ──────────────────────────────────────────────────
 
@@ -529,6 +537,17 @@ export class AiService extends BaseService {
 
   // ── Embedding ──
 
+  /**
+   * AI SDK `maxRetries` derived from the retry preference (0 when retry is
+   * disabled). Embedding/rerank use the SDK's built-in per-batch retry
+   * (respects `Retry-After` + exponential backoff) rather than ai-retry —
+   * there is no cross-model fallback for these, so the model wrapper adds no value.
+   */
+  private maxRetriesFromPreference(): number {
+    const preferences = application.get('PreferenceService')
+    return preferences.get('chat.retry.enabled') ? Math.max(0, preferences.get('chat.retry.max_attempts')) : 0
+  }
+
   async embedMany(request: AsInProcess<AiEmbedRequest>): Promise<AiEmbedResult> {
     logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
     const signal = request.requestOptions?.signal
@@ -538,8 +557,12 @@ export class AiService extends BaseService {
     const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
       model: sdkConfig.modelId,
       values: request.values,
-      ...(signal ? { abortSignal: signal } : {}),
-      wrapModel: createEmbeddingRetryWrap()
+      // A long document splits into many batches and embedMany defaults to
+      // unbounded parallelism — firing them all at once is the main rate-limit
+      // trigger. Cap fan-out; the SDK's built-in retry handles transient 429s.
+      maxParallelCalls: EMBEDDING_MAX_PARALLEL_CALLS,
+      maxRetries: request.requestOptions?.maxRetries ?? this.maxRetriesFromPreference(),
+      ...(signal ? { abortSignal: signal } : {})
     })
 
     this.trackUsage(model, { inputTokens: result.usage?.tokens ?? 0, outputTokens: 0 })
@@ -547,11 +570,6 @@ export class AiService extends BaseService {
   }
 
   // ── Reranking ──
-
-  private rerankDefaultMaxRetries(): number {
-    const preferences = application.get('PreferenceService')
-    return preferences.get('chat.retry.enabled') ? Math.max(0, preferences.get('chat.retry.max_attempts')) : 0
-  }
 
   async rerank(request: AsInProcess<AiRerankRequest>): Promise<AiRerankResult> {
     logger.info('rerank started', { assistantId: request.assistantId, count: request.documents.length })
@@ -573,7 +591,7 @@ export class AiService extends BaseService {
       ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
       // ai-retry doesn't support RerankingModelV3 — use the AI SDK's built-in
       // exponential-backoff retry, defaulted from the retry preference.
-      maxRetries: request.requestOptions?.maxRetries ?? this.rerankDefaultMaxRetries(),
+      maxRetries: request.requestOptions?.maxRetries ?? this.maxRetriesFromPreference(),
       ...(signal ? { abortSignal: signal } : {})
     }
 

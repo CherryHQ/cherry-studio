@@ -1,4 +1,4 @@
-import type { EmbeddingModelV3, LanguageModelV3 } from '@ai-sdk/provider'
+import type { LanguageModelV3 } from '@ai-sdk/provider'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { APICallError } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -29,7 +29,7 @@ vi.mock('@cherrystudio/ai-core', () => ({
   resolveLanguageModel: (...args: unknown[]) => resolveLanguageModel(...args)
 }))
 
-const { createEmbeddingRetryWrap, createRetryableWrap } = await import('../createRetryableWrap')
+const { createRetryableWrap } = await import('../createRetryableWrap')
 
 function makeApiError(statusCode: number): APICallError {
   return new APICallError({
@@ -161,49 +161,6 @@ describe('createRetryableWrap', () => {
 
       expect(primaryGenerate).toHaveBeenCalledTimes(3)
       expect(result.content).toEqual(okResult.content)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-})
-
-describe('createEmbeddingRetryWrap', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    MockMainPreferenceServiceUtils.resetMocks()
-  })
-
-  it('returns undefined when retry is disabled', () => {
-    setRetryPreferences({ 'chat.retry.enabled': false })
-    expect(createEmbeddingRetryWrap()).toBeUndefined()
-  })
-
-  it('retries the same embedding model on 429 without switching models', async () => {
-    vi.useFakeTimers()
-    try {
-      setRetryPreferences()
-      const doEmbed = vi
-        .fn()
-        .mockRejectedValueOnce(makeApiError(429))
-        .mockResolvedValue({ embeddings: [[0.1]], usage: { tokens: 1 } })
-      const base = {
-        specificationVersion: 'v3',
-        provider: 'test',
-        modelId: 'embed-1',
-        maxEmbeddingsPerCall: 10,
-        supportsParallelCalls: true,
-        doEmbed
-      } as unknown as EmbeddingModelV3
-
-      const wrap = createEmbeddingRetryWrap()
-      const wrapped = wrap!(base)
-
-      const pending = wrapped.doEmbed({ values: ['a'] } as never)
-      await vi.advanceTimersByTimeAsync(2_000)
-      const result = await pending
-
-      expect(doEmbed).toHaveBeenCalledTimes(2)
-      expect(result.embeddings).toEqual([[0.1]])
     } finally {
       vi.useRealTimers()
     }

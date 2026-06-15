@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockGenerateImage = vi.fn()
 const mockRerank = vi.fn()
+const mockEmbedMany = vi.fn()
 const mockDownloadImageAsBase64 = vi.fn()
 const mockApplicationGet = vi.fn()
 const mockMessageGetById = vi.fn()
@@ -48,7 +49,7 @@ vi.mock('@main/data/services/MessageService', () => ({
 
 vi.mock('@cherrystudio/ai-core', () => ({
   createAgent: vi.fn(),
-  embedMany: vi.fn(),
+  embedMany: (...args: unknown[]) => mockEmbedMany(...args),
   generateImage: (...args: unknown[]) => mockGenerateImage(...args),
   rerank: (...args: unknown[]) => mockRerank(...args)
 }))
@@ -601,6 +602,58 @@ describe('AiService tool approval', () => {
         abortSignal: abortController.signal
       })
     )
+  })
+
+  it('caps embedMany parallelism and derives maxRetries from the retry preference', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'trackUsage').mockReturnValue(undefined as never)
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embed' },
+      model: { id: 'test-provider::test-embed' }
+    } as never)
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'PreferenceService'
+        ? {
+            get: (key: string) =>
+              key === 'chat.retry.enabled' ? true : key === 'chat.retry.max_attempts' ? 3 : undefined
+          }
+        : undefined
+    )
+    mockEmbedMany.mockResolvedValue({ embeddings: [[0.1]], usage: { tokens: 4 } })
+
+    await service.embedMany({ uniqueModelId: 'test-provider::test-embed', values: ['a', 'b'] })
+
+    expect(mockEmbedMany).toHaveBeenCalledWith(
+      'test-provider',
+      {},
+      expect.objectContaining({
+        model: 'test-embed',
+        values: ['a', 'b'],
+        maxParallelCalls: 5,
+        maxRetries: 3
+      })
+    )
+    // ai-retry no longer wraps the embedding model — the SDK's built-in retry owns it.
+    expect(mockEmbedMany.mock.calls[0][2]).not.toHaveProperty('wrapModel')
+  })
+
+  it('uses maxRetries 0 for embedMany when retry is disabled', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'trackUsage').mockReturnValue(undefined as never)
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-embed' },
+      model: { id: 'test-provider::test-embed' }
+    } as never)
+    mockApplicationGet.mockImplementation((name: string) =>
+      name === 'PreferenceService'
+        ? { get: (key: string) => (key === 'chat.retry.enabled' ? false : undefined) }
+        : undefined
+    )
+    mockEmbedMany.mockResolvedValue({ embeddings: [[0.1]], usage: { tokens: 1 } })
+
+    await service.embedMany({ uniqueModelId: 'test-provider::test-embed', values: ['a'] })
+
+    expect(mockEmbedMany.mock.calls[0][2]).toEqual(expect.objectContaining({ maxRetries: 0, maxParallelCalls: 5 }))
   })
 
   it('checks rerank models with rerank before embedding or text generation', async () => {

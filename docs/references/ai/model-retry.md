@@ -79,21 +79,24 @@ so the renderer can show a "retrying…" status line. The chunk is transient —
 nothing is persisted. All logging goes through
 `loggerService.withContext('ModelRetry')`.
 
-### Embeddings (`createEmbeddingRetryWrap`)
+### Embeddings & Rerank — no ai-retry
 
-Same-model transient retry **only** — no cross-model fallback, because
-vectors from different embedding models live in incompatible spaces and
-mixing them would corrupt the index. Wired via the `wrapModel` field on
-`EmbedManyParams` (`RuntimeExecutor.embedMany` applies it to the resolved
-embedding model).
+Neither uses the ai-retry model wrapper. There is no cross-model fallback for
+embeddings (vectors from different models live in incompatible spaces and would
+corrupt the index) or rerank (`ai-retry` has no `RerankingModelV3` support), so
+the wrapper adds no value — and AI SDK's built-in retry already does the right
+thing per batch (respects `Retry-After` + exponential backoff). Both
+`AiService.embedMany` and `AiService.rerank` therefore default the SDK's
+`maxRetries` from the retry preference (0 when disabled; an explicit
+`requestOptions.maxRetries` still wins).
 
-### Rerank
-
-`ai-retry` does not support `RerankingModelV3`. Instead, `AiService.rerank`
-defaults the AI SDK's built-in `maxRetries` (exponential backoff) from
-`chat.retry.max_attempts` when retry is enabled; an explicit
-`requestOptions.maxRetries` still wins. The existing degrade-to-vector-results
-fallback in `knowledge/utils/indexing/rerank.ts` is unchanged.
+Embeddings additionally cap fan-out. `embedMany` splits a long document into
+many `doEmbed` batches and defaults to **unbounded** parallelism
+(`maxParallelCalls: Infinity`) — firing them all at once is the main embedding
+rate-limit trigger. `AiService.embedMany` sets `maxParallelCalls`
+(`EMBEDDING_MAX_PARALLEL_CALLS = 5`) to bound concurrency; the per-batch retry
+handles the residual 429s. The degrade-to-vector-results fallback in
+`knowledge/utils/indexing/rerank.ts` is unchanged.
 
 ## Interaction with other retry knobs
 

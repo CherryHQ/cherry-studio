@@ -6,7 +6,7 @@
  * Streaming caveat: ai-retry can only retry/fall back before the first
  * content chunk is emitted; mid-stream errors surface as stream errors.
  */
-import type { EmbeddingModelV3, LanguageModelV3 } from '@ai-sdk/provider'
+import type { LanguageModelV3 } from '@ai-sdk/provider'
 import { application } from '@application'
 import { resolveLanguageModel } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
@@ -121,37 +121,6 @@ export async function createRetryableWrap(options: CreateRetryableWrapOptions): 
         logger.error('model call failed after retries', {
           attempts: context.attempts.length,
           lastModelId: context.current.model.modelId
-        })
-      }
-    })
-}
-
-/**
- * Same-model-only transient retry for embedding calls. No cross-model
- * fallback: vectors from different embedding models live in incompatible
- * spaces, so mixing them would corrupt the index.
- */
-export function createEmbeddingRetryWrap(): ((model: EmbeddingModelV3) => EmbeddingModelV3) | undefined {
-  const preferences = application.get('PreferenceService')
-  if (!preferences.get('chat.retry.enabled')) return undefined
-
-  const maxAttempts = Math.max(1, preferences.get('chat.retry.max_attempts'))
-  const backoffEnabled = preferences.get('chat.retry.backoff_enabled')
-
-  return (base) =>
-    createRetryable({
-      model: base,
-      retries: [
-        retryAfterDelay({
-          maxAttempts,
-          delay: RETRY_BASE_DELAY_MS,
-          ...(backoffEnabled && { backoffFactor: 2 })
-        })
-      ],
-      onRetry: (context) => {
-        logger.info('retrying embedding call', {
-          modelId: context.current.model.modelId,
-          attempt: context.attempts.length
         })
       }
     })
