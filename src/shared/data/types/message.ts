@@ -145,8 +145,12 @@ export interface CherryUIMessageMetadata {
   modelSnapshot?: ModelSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
-  /** Trace id for the assistant execution that produced this message. */
-  traceId?: string | null
+  /**
+   * Whether this message is on the currently-active branch of the topic tree. Seeded `true` on
+   * locally-reserved skeletons (the row being created is the active leaf). The full branch-tree
+   * recompute is owned by the chat-page renderer slice.
+   */
+  isActiveBranch?: boolean
 
   /** Creation timestamp (ISO). */
   createdAt?: string
@@ -443,8 +447,6 @@ export const MessageSchema = z.strictObject({
   modelId: z.string().nullable().optional(),
   /** Snapshot of model at message creation time */
   modelSnapshot: ModelSnapshotSchema.nullable().optional(),
-  /** Trace ID for tracking */
-  traceId: z.string().nullable().optional(),
   /** Statistics: token usage, performance metrics */
   stats: MessageStatsSchema.nullable().optional(),
   /** Creation timestamp (ISO string) */

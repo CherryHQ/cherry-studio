@@ -7,7 +7,7 @@ import * as React from 'react'
 const selectTriggerVariants = cva(
   cn(
     'inline-flex items-center justify-between rounded-md border-1 text-sm transition-colors outline-none font-normal',
-    'bg-zinc-50 dark:bg-zinc-900',
+    'bg-transparent dark:bg-input/30',
     'text-foreground'
   ),
   {

@@ -15,14 +15,6 @@ import { createContext, use } from 'react'
  * V2 chat overrides injected via React Context. Operations delegate to
  * DataApi + useChat.
  */
-/** Optional trace hints passed alongside `deleteMessage`. Used to evict
- *  the span-cache entries for a terminated assistant turn. Absent for
- *  user messages and for multi-select delete, in which case the
- *  override falls back to clearing the whole topic's active traces. */
-export interface DeleteMessageTraceOptions {
-  traceId?: string
-  modelName?: string
-}
 
 /** Options carried alongside a regenerate request. */
 export interface RegenerateOptions {
@@ -46,7 +38,7 @@ export interface RegenerateOptions {
 export interface V2ChatOverrides {
   regenerate: (messageId?: string, options?: RegenerateOptions) => Promise<void>
   resend: (messageId?: string) => Promise<void>
-  deleteMessage: (id: string, traceOptions?: DeleteMessageTraceOptions) => Promise<void>
+  deleteMessage: (id: string) => Promise<void>
   deleteMessageGroup: (id: string) => Promise<void>
   pause: () => void
   clearTopicMessages: () => Promise<void>

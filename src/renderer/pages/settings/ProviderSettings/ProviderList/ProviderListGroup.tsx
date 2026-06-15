@@ -34,10 +34,10 @@ export interface ProviderListGroupProps {
 /**
  * Collapsible sidebar group for ≥2 providers sharing a `presetProviderId`.
  *
- * The header itself isn't selectable/draggable — it just toggles expansion.
- * Children render through the same `<ReorderableList>` the flat list uses, so
- * in-group drag-reorder and the parent's orderKey diffing keep working
- * unchanged.
+ * The header is the group's outer drag surface and still toggles expansion on
+ * click. Children render through the same `<ReorderableList>` the flat list
+ * uses, so in-group drag-reorder and the parent's orderKey diffing keep
+ * working unchanged.
  */
 export default function ProviderListGroup({
   presetProviderId,
@@ -67,22 +67,29 @@ export default function ProviderListGroup({
         data-has-selected={containsSelected ? 'true' : 'false'}
         onClick={onToggle}
         className={cn(providerListClasses.groupHeader, headerHighlight && providerListClasses.groupHeaderHasSelected)}>
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <ProviderAvatar
-            provider={{ id: presetProviderId, name: label }}
-            size={18}
-            className={providerListClasses.itemAvatar}
-          />
-          <span className={cn(providerListClasses.itemLabel, 'text-foreground')}>{label}</span>
-          <span className={providerListClasses.groupCount}>{members.length}</span>
+        <div className={providerListClasses.itemMain}>
+          <span aria-hidden className={providerListClasses.itemDragHandleSpacer} />
+          <div className={providerListClasses.itemIdentity}>
+            <ProviderAvatar
+              provider={{ id: presetProviderId, name: label }}
+              size={26}
+              className={providerListClasses.itemAvatar}
+            />
+            <span className={cn(providerListClasses.itemLabel, 'text-foreground')}>{label}</span>
+            <span className={providerListClasses.groupCount}>{members.length}</span>
+          </div>
         </div>
         <ChevronRight
-          size={10}
+          size={12}
           className={cn(providerListClasses.groupChevron, expanded && providerListClasses.groupChevronOpen)}
         />
       </button>
       {expanded && (
-        <div id={bodyId} className={providerListClasses.groupBody}>
+        <div
+          id={bodyId}
+          className={providerListClasses.groupBody}
+          onPointerDown={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}>
           <ReorderableList
             items={items}
             visibleItems={members}

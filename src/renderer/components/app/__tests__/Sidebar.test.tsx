@@ -1,33 +1,24 @@
-// @vitest-environment jsdom
-import '@testing-library/jest-dom/vitest'
+import { usePersistCache } from '@data/hooks/useCache'
+import { fireEvent, render } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { MockUseCacheUtils } from '../../../../../tests/__mocks__/renderer/useCache'
+import { MockUsePreferenceUtils } from '../../../../../tests/__mocks__/renderer/usePreference'
+import Sidebar from '../Sidebar'
 
-const { languageState, translate } = vi.hoisted(() => {
-  const labels: Record<string, Record<string, string>> = {
-    'en-US': {
-      assistants: 'Assistants'
-    },
-    'zh-CN': {
-      assistants: '助手'
-    }
-  }
+vi.mock('@renderer/config/env', () => ({
+  AppLogo: 'app-logo.png'
+}))
 
-  return {
-    languageState: { language: 'en-US' },
-    translate: (key: string) => labels[languageState.language]?.[key] ?? key
-  }
-})
+vi.mock('@renderer/hooks/useAvatar', () => ({
+  default: () => ''
+}))
 
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    i18n: {
-      language: languageState.language
-    },
-    t: (key: string) => translate(key)
+vi.mock('@renderer/hooks/useTabs', () => ({
+  useTabs: () => ({
+    activeTab: { id: 'home', url: '/app/chat' },
+    openTab: vi.fn(),
+    updateTab: vi.fn()
   })
 }))
 
@@ -35,78 +26,81 @@ vi.mock('@renderer/i18n/label', () => ({
   getSidebarIconLabelKey: (key: string) => key
 }))
 
-vi.mock('@renderer/i18n', () => ({
-  default: {
-    t: (key: string) => key
-  }
-}))
-
 vi.mock('@renderer/utils/routeTitle', () => ({
-  getDefaultRouteTitle: (url: string) => url
+  getDefaultRouteTitle: (path: string) => path
 }))
 
-vi.mock('@renderer/hooks/useAvatar', () => ({
-  default: () => null
-}))
-
-vi.mock('@renderer/hooks/useModel', () => ({
-  modelGenerating: vi.fn().mockResolvedValue(undefined)
-}))
-
-vi.mock('@renderer/hooks/useSettings', () => ({
-  useSettings: () => ({
-    defaultPaintingProvider: 'zhipu'
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? key
   })
-}))
-
-vi.mock('@renderer/hooks/useTabs', () => ({
-  useTabs: () => ({
-    activeTab: {
-      id: 'home',
-      type: 'route',
-      url: '/home'
-    },
-    openTab: vi.fn(),
-    updateTab: vi.fn()
-  })
-}))
-
-vi.mock('@renderer/config/env', () => ({
-  AppLogo: 'app-logo.png',
-  UserAvatar: 'user-avatar.png',
-  isLocalAi: false
 }))
 
 vi.mock('../../Popups/UserPopup', () => ({
-  default: {
-    show: vi.fn()
-  }
+  default: { show: vi.fn() }
 }))
 
-import Sidebar from '../Sidebar'
+vi.mock('../../Sidebar', () => ({
+  Sidebar: ({ width, onResizePreview }: { width: number; onResizePreview?: (width: number | null) => void }) => (
+    <div>
+      <button type="button" data-testid="preview-80" onClick={() => onResizePreview?.(80)} />
+      <button type="button" data-testid="preview-null" onClick={() => onResizePreview?.(null)} />
+      <div data-testid="ui-sidebar" data-width={width} />
+    </div>
+  )
+}))
 
-describe('Sidebar language refresh', () => {
+// Total writes through the setters returned for the 'ui.sidebar.width' key,
+// across every render of the component.
+function countSidebarWidthWrites() {
+  const mocked = vi.mocked(usePersistCache)
+  return mocked.mock.calls.reduce((total, call, index) => {
+    if (call[0] !== 'ui.sidebar.width') return total
+    const result = mocked.mock.results[index]
+    if (result.type !== 'return') return total
+    const [, setValue] = result.value as [unknown, ReturnType<typeof vi.fn>]
+    return total + setValue.mock.calls.length
+  }, 0)
+}
+
+describe('App Sidebar', () => {
   beforeEach(() => {
-    languageState.language = 'en-US'
-    MockUsePreferenceUtils.resetMocks()
     MockUseCacheUtils.resetMocks()
+    MockUsePreferenceUtils.resetMocks()
     MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.icons.visible', ['assistants'])
-    MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', 170)
+    document.documentElement.style.removeProperty('--sidebar-width')
   })
 
-  afterEach(() => {
-    cleanup()
-    vi.clearAllMocks()
-  })
+  it('migrates a persisted intermediate sidebar width to icon width and converges', () => {
+    MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', 80)
 
-  it('refreshes menu item labels when the app language changes', () => {
     const { rerender } = render(<Sidebar />)
 
-    expect(screen.getByRole('button', { name: 'Assistants' })).toBeInTheDocument()
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.sidebar.width')).toBe(50)
+    expect(countSidebarWidthWrites()).toBe(1)
 
-    languageState.language = 'zh-CN'
     rerender(<Sidebar />)
 
-    expect(screen.getByRole('button', { name: '助手' })).toBeInTheDocument()
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.sidebar.width')).toBe(50)
+    expect(countSidebarWidthWrites()).toBe(1)
+  })
+
+  it('uses the resize preview width for rendering and CSS variable without persisting it', () => {
+    const { getByTestId } = render(<Sidebar />)
+
+    expect(getByTestId('ui-sidebar')).toHaveAttribute('data-width', '50')
+    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('50px')
+
+    fireEvent.click(getByTestId('preview-80'))
+
+    expect(getByTestId('ui-sidebar')).toHaveAttribute('data-width', '80')
+    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('80px')
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.sidebar.width')).toBe(50)
+    expect(countSidebarWidthWrites()).toBe(0)
+
+    fireEvent.click(getByTestId('preview-null'))
+
+    expect(getByTestId('ui-sidebar')).toHaveAttribute('data-width', '50')
+    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('50px')
   })
 })

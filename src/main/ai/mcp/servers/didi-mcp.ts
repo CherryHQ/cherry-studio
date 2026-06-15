@@ -14,7 +14,7 @@ import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 
-const logger = loggerService.withContext('DiDiMCPServer')
+const logger = loggerService.withContext('DiDiMcpServer')
 
 export class DiDiMcpServer {
   private _server: Server

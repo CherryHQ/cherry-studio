@@ -50,9 +50,8 @@ interface FileTreeNodeProps {
 }
 
 /**
- * Single row in the skill file tree. Mirrors the recursive renderer in
- * `pages/settings/SkillsSettings`, but rebuilt on Tailwind so the library
- * tree visually aligns with the rest of the resource library.
+ * Single row in the skill file tree, styled to align with the rest of the
+ * resource library.
  */
 export const FileTreeNode: FC<FileTreeNodeProps> = memo(
   ({ node, depth, expandedDirs, selectedFile, onToggleDir, onSelectFile }) => {

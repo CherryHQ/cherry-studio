@@ -102,14 +102,31 @@ describe('download', () => {
         expect(mockClick).toHaveBeenCalled()
       })
 
+      it('should handle SVG data URLs via direct download without fetch (CSP)', () => {
+        const now = Date.now()
+        vi.spyOn(Date, 'now').mockReturnValue(now)
+
+        const svgDataUrl = 'data:image/svg+xml;base64,' + btoa('<svg xmlns="http://www.w3.org/2000/svg"/>')
+
+        download(svgDataUrl)
+
+        const element = mockCreateElement.mock.results[0].value
+        expect(element.href).toBe(svgDataUrl)
+        expect(element.download).toBe(`${now}_download.svg`)
+        expect(mockClick).toHaveBeenCalled()
+        // data:image/svg+xml 不应走 fetch，否则会被 CSP connect-src 阻止
+        expect(mockFetch).not.toHaveBeenCalled()
+      })
+
       it('should handle different MIME types in data URLs', async () => {
         const now = Date.now()
         vi.spyOn(Date, 'now').mockReturnValue(now)
 
-        // 只有 image/png 和 image/jpeg 会直接下载
+        // image/png、image/jpeg 和 image/svg+xml 会直接下载
         const directDownloadTests = [
           { url: 'data:image/jpeg;base64,xxx', expectedExt: '.jpg' },
-          { url: 'data:image/png;base64,xxx', expectedExt: '.png' }
+          { url: 'data:image/png;base64,xxx', expectedExt: '.png' },
+          { url: 'data:image/svg+xml;base64,xxx', expectedExt: '.svg' }
         ]
 
         directDownloadTests.forEach(({ url, expectedExt }) => {

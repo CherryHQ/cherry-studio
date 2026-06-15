@@ -1,6 +1,7 @@
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
+import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -85,6 +86,11 @@ export async function getModels(filter: ModelsFilter = {}): Promise<ApiModelsRes
     // Deduplicate by the gateway-addressable id ("providerId:modelId").
     const uniqueModels = new Map<string, ApiModel>()
     for (const model of models) {
+      const apiModelId = model.apiModelId ?? model.id
+      if (isManagedCherryAiDefaultModel(model.providerId, apiModelId)) {
+        continue
+      }
+
       const provider = providers.find((p) => p.id === model.providerId)
       const apiModel = transformModelToOpenAi(model, provider)
       if (!uniqueModels.has(apiModel.id)) {
