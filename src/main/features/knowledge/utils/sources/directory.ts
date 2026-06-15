@@ -81,6 +81,7 @@ async function expandDirectoryNode(
     // Namespace each file under the directory owner's item id and keep its
     // subtree path (from `treePath`, already POSIX) so siblings sharing a
     // basename across subdirectories don't collide and the hierarchy survives.
+    // The whole tree resolves under the base material root (raw/) via the helper.
     const subtreePath = node.treePath.replace(/^\/+/, '')
     const relativePath = await copyFileIntoKnowledgeBaseAt(baseId, node.externalPath, `${ownerId}/${subtreePath}`)
     signal.throwIfAborted()

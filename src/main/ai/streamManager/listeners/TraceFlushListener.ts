@@ -34,7 +34,7 @@ export class TraceFlushListener implements StreamListener {
     if (isTopicDone === false) return
 
     try {
-      await application.get('SpanCacheService').saveSpans(this.topicId)
+      await application.get('TraceStorageService').saveSpans(this.topicId)
     } catch (err) {
       logger.warn('Failed to save trace spans', { topicId: this.topicId, err })
     }

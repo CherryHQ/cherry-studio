@@ -17,11 +17,12 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { resolveDefaultAssistantOption, useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import type { Assistant } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
 import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
+import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { Check, ChevronDown, Info } from 'lucide-react'
 import type React from 'react'
@@ -49,16 +50,17 @@ const QuickAssistantSettings: FC = () => {
   const { defaultModel } = useDefaultModel()
   const [assistantSelectOpen, setAssistantSelectOpen] = useState(false)
 
-  // Take the "default assistant" from the assistant list first.
   const defaultAssistant = useMemo(
-    () => assistants.find((a) => a.id === _defaultAssistant.id) || _defaultAssistant,
+    () => resolveDefaultAssistantOption(assistants, _defaultAssistant),
     [assistants, _defaultAssistant]
   )
   const assistantOptions = useMemo(
     () => [defaultAssistant, ...assistants.filter((assistant) => assistant.id !== defaultAssistant.id)],
     [assistants, defaultAssistant]
   )
-  const selectedAssistant = assistantOptions.find((assistant) => assistant.id === quickAssistantId) || defaultAssistant
+  const selectedAssistantId = quickAssistantId === DEFAULT_ASSISTANT_ID ? defaultAssistant.id : quickAssistantId
+  const selectedAssistant =
+    assistantOptions.find((assistant) => assistant.id === selectedAssistantId) || defaultAssistant
   const handleAssistantSelect = (assistantId: string) => {
     void setQuickAssistantId(assistantId)
   }
@@ -145,7 +147,7 @@ const QuickAssistantSettings: FC = () => {
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className="h-[34px] w-[300px] justify-between px-2 shadow-none"
+                        className="h-8.5 w-75 justify-between px-2 shadow-none"
                         aria-expanded={assistantSelectOpen}>
                         <AssistantOption
                           assistant={selectedAssistant}
@@ -156,7 +158,7 @@ const QuickAssistantSettings: FC = () => {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent
-                      className="w-[300px] p-0"
+                      className="w-75 p-0"
                       align="end"
                       onFocusOutside={(event) => {
                         // The embedded quick assistant preview auto-focuses its input on render.
@@ -180,7 +182,7 @@ const QuickAssistantSettings: FC = () => {
                                   defaultAssistantId={defaultAssistant.id}
                                   defaultModel={defaultModel}
                                 />
-                                {assistant.id === quickAssistantId && (
+                                {assistant.id === selectedAssistantId && (
                                   <Check size={14} className="ml-auto text-primary" />
                                 )}
                               </CommandItem>
@@ -213,7 +215,7 @@ const QuickAssistantSettings: FC = () => {
         </SettingGroup>
       )}
       {enableQuickAssistant && (
-        <div className="mx-auto mt-5 h-[460px] w-full overflow-hidden rounded-[10px] border-[0.5px] border-border bg-background">
+        <div className="mx-auto mt-5 h-115 w-full overflow-hidden rounded-[10px] border-[0.5px] border-border bg-background">
           <HomeWindow draggable={false} />
         </div>
       )}

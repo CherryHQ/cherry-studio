@@ -1,17 +1,9 @@
 import { Input, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import { useQuery } from '@data/hooks/useDataApi'
-import { permissionModeCards } from '@renderer/config/agent'
-import {
-  computeModeDefaults,
-  mergeAutoApprovedTools,
-  normalizeAllowedToolRules,
-  normalizePermissionMode
-} from '@renderer/hooks/agents/permissionMode'
 import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
 import type { Tool } from '@shared/ai/tool'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { uniq } from 'lodash'
 import { Network, Search, Sparkles, Wrench } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
@@ -39,7 +31,7 @@ type ToolTab = 'tools' | 'mcp' | 'skills'
  *
  * Data sources:
  * - **内置工具**: `tools` prop from `useAgentTools(...)`;
- *   `form.allowedTools` stores manual approvals, while permission mode supplies auto-approved defaults.
+ *   `form.disabledTools` stores the opt-out list; empty means all tools are enabled.
  * - **MCP Server**: `useQuery('/mcp-servers').items`; `form.mcps` stores bound
  *   ids. Inactive servers remain visible in the bound list (with a "未启用"
  *   badge) but are excluded from the add popover (`pickable: false`).
@@ -54,50 +46,36 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
   const canManageSkills = Boolean(agent.id)
 
   // --- 内置工具 ----------------------------------------------------------------
-  const permissionMode = normalizePermissionMode(form.permissionMode)
-  const selectedModeCard = useMemo(
-    () => permissionModeCards.find((card) => card.mode === permissionMode),
-    [permissionMode]
-  )
-  const explicitToolIds = useMemo(() => normalizeAllowedToolRules(form.allowedTools, tools), [form.allowedTools, tools])
-  const autoToolIds = useMemo(
-    () => computeModeDefaults(permissionMode, tools).filter((id) => !explicitToolIds.includes(id)),
-    [explicitToolIds, permissionMode, tools]
-  )
+  const disabledToolIds = useMemo(() => new Set(form.disabledTools), [form.disabledTools])
   const builtinCatalog = useMemo<CatalogItem[]>(
     () =>
       tools
         .filter((tool) => tool.origin !== 'mcp')
         .map((tool) => {
-          const isAuto = autoToolIds.includes(tool.id)
-          const modeName = selectedModeCard
-            ? t(selectedModeCard.titleKey, selectedModeCard.titleFallback)
-            : permissionMode
+          const isAuto = tool.approval === 'auto'
           return {
             id: tool.id,
             name: tool.name,
             description: tool.description,
             icon: <Wrench size={13} strokeWidth={1.5} className="text-foreground/55" />,
             statusBadge: isAuto ? t('agent.settings.tooling.preapproved.autoBadge', 'Added by mode') : undefined,
-            statusBadgeClassName: isAuto ? 'bg-success/10 text-success' : undefined,
-            disableToggle: isAuto,
-            disabledReason: isAuto
-              ? t('agent.settings.tooling.preapproved.autoDisabledTooltip', { mode: modeName })
-              : undefined
+            statusBadgeClassName: isAuto ? 'bg-success/10 text-success' : undefined
           }
         }),
-    [autoToolIds, permissionMode, selectedModeCard, t, tools]
+    [t, tools]
   )
-  const approvedToolIds = useMemo(
-    () => mergeAutoApprovedTools(form.allowedTools, permissionMode, tools),
-    [form.allowedTools, permissionMode, tools]
+  const enabledBuiltinIds = useMemo(
+    () => new Set(builtinCatalog.filter((item) => !disabledToolIds.has(item.id)).map((item) => item.id)),
+    [builtinCatalog, disabledToolIds]
   )
-  const allowedIds = useMemo(() => new Set(approvedToolIds), [approvedToolIds])
-  const boundBuiltin = useMemo(() => builtinCatalog.filter((it) => allowedIds.has(it.id)), [builtinCatalog, allowedIds])
-  const enableBuiltin = (id: string) => onChange({ allowedTools: uniq([...explicitToolIds, id]) })
+  const boundBuiltin = useMemo(
+    () => builtinCatalog.filter((item) => enabledBuiltinIds.has(item.id)),
+    [builtinCatalog, enabledBuiltinIds]
+  )
+  const enableBuiltin = (id: string) => onChange({ disabledTools: form.disabledTools.filter((x) => x !== id) })
   const disableBuiltin = (id: string) => {
-    if (autoToolIds.includes(id)) return
-    onChange({ allowedTools: uniq(explicitToolIds.filter((x) => x !== id)) })
+    if (disabledToolIds.has(id)) return
+    onChange({ disabledTools: [...form.disabledTools, id] })
   }
 
   // --- MCP Server --------------------------------------------------------------
@@ -238,7 +216,7 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
         {activeTab === 'tools' && (
           <AddCatalogPopover
             items={builtinCatalog}
-            enabledIds={allowedIds}
+            enabledIds={enabledBuiltinIds}
             onAdd={enableBuiltin}
             disabled={builtinCatalog.length === 0}
             triggerLabel={t('library.config.agent.section.tools.add')}

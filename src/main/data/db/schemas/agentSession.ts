@@ -14,6 +14,7 @@ export const agentSessionTable = sqliteTable(
     workspaceId: text()
       .notNull()
       .references(() => agentWorkspaceTable.id, { onDelete: 'cascade' }),
+    traceId: text(),
     ...orderKeyColumns,
     ...createUpdateTimestamps
   },

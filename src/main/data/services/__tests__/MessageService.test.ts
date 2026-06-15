@@ -4,7 +4,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
-import { DataApiError } from '@shared/data/api'
+import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { MessageData } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -287,6 +287,26 @@ describe('MessageService', () => {
           expect(item.message.parentId).toEqual(expect.any(String))
         }
       }
+    })
+
+    it('rejects an explicit node outside the requested topic', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-1', activeNodeId: null, orderKey: 'a0' },
+        { id: 'topic-2', activeNodeId: 'other-node', orderKey: 'a1' }
+      ])
+      await dbh.db.insert(messageTable).values({
+        id: 'other-node',
+        parentId: null,
+        topicId: 'topic-2',
+        role: 'user',
+        data: mainText('other'),
+        status: 'success',
+        siblingsGroupId: 0
+      })
+
+      await expect(messageService.getBranchMessages('topic-1', { nodeId: 'other-node' })).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
     })
   })
 
@@ -1020,6 +1040,46 @@ describe('MessageService', () => {
     })
   })
 
+  describe('copyPathRowsTx', () => {
+    it('rejects rows whose parent has not been copied', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'source-topic', orderKey: 'a0' },
+        { id: 'target-topic', orderKey: 'a1' }
+      ])
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'source-root',
+          parentId: null,
+          topicId: 'source-topic',
+          role: 'user',
+          data: mainText('root'),
+          status: 'success',
+          siblingsGroupId: 0
+        },
+        {
+          id: 'source-child',
+          parentId: 'source-root',
+          topicId: 'source-topic',
+          role: 'assistant',
+          data: mainText('child'),
+          status: 'success',
+          siblingsGroupId: 0
+        }
+      ])
+      const childRows = await dbh.db.select().from(messageTable).where(eq(messageTable.id, 'source-child'))
+      expect(childRows).toHaveLength(1)
+
+      await expect(
+        dbh.db.transaction((tx) => messageService.copyPathRowsTx(tx, childRows, { topicId: 'target-topic' }))
+      ).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION
+      })
+
+      const targetRows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'target-topic'))
+      expect(targetRows).toHaveLength(0)
+    })
+  })
+
   describe('createUserMessageWithPlaceholders — placeholder id override', () => {
     it('uses the caller-supplied id when provided, generates otherwise', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-res', activeNodeId: null, orderKey: 'a0' })
@@ -1423,6 +1483,100 @@ describe('MessageService', () => {
     it('throws NOT_FOUND when nodeId belongs to a different topic', async () => {
       await seedPathTree()
       await expect(messageService.getPathThrough('topic-2', 'm-a1')).rejects.toThrow(DataApiError)
+    })
+  })
+
+  describe('applyToolApprovalDecisions', () => {
+    const toolPart = (callId: string, approvalId: string) =>
+      ({
+        type: 'tool-fetch_url',
+        toolCallId: callId,
+        state: 'approval-requested',
+        input: {},
+        approval: { id: approvalId }
+      }) as unknown
+
+    const stateOf = (parts: MessageData['parts'] | undefined, approvalId: string): string | undefined => {
+      const p = (parts ?? []).find((x) => (x as { approval?: { id: string } }).approval?.id === approvalId)
+      return (p as { state?: string } | undefined)?.state
+    }
+
+    async function seedAnchorWithTwoApprovals() {
+      await dbh.db.insert(topicTable).values({ id: 'topic-ap', activeNodeId: 'anchor', orderKey: 'a0' })
+      await dbh.db.insert(messageTable).values({
+        id: 'anchor',
+        parentId: null,
+        topicId: 'topic-ap',
+        role: 'assistant',
+        data: { parts: [toolPart('c-a', 'ap-a'), toolPart('c-b', 'ap-b')] as MessageData['parts'] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 100,
+        updatedAt: 100
+      })
+    }
+
+    // The fix's core property: each call re-reads the anchor's CURRENT parts inside the transaction
+    // and merges its decision, so a second decision sees the first's committed write (rather than a
+    // stale snapshot taken before it). That re-read is exactly what makes the real `withWriteTx`
+    // mutex safe under concurrency — the production mutex serializes whole calls; here we assert the
+    // per-call read-modify-write picks up committed state. (The test DbService mock's `withWriteTx`
+    // is a non-serializing passthrough, so true concurrency is the mutex's job, asserted at that level.)
+    it('re-reads committed state per call so a later decision preserves the earlier one', async () => {
+      await seedAnchorWithTwoApprovals()
+
+      const r1 = await messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-a', approved: true }])
+      expect(r1?.appliedApprovalIds).toEqual(['ap-a'])
+      expect(r1?.alreadySettledApprovalIds).toEqual([])
+      expect(stateOf(r1?.parts, 'ap-a')).toBe('approval-responded')
+      expect(stateOf(r1?.parts, 'ap-b')).toBe('approval-requested')
+
+      // The second call must re-read the row (now A=responded) and add B — NOT overwrite from a stale
+      // [A:req, B:req] snapshot. So both end up responded; the returned parts drive the pending check.
+      const r2 = await messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-b', approved: false }])
+      expect(r2?.appliedApprovalIds).toEqual(['ap-b'])
+      expect(r2?.alreadySettledApprovalIds).toEqual([])
+      expect(stateOf(r2?.parts, 'ap-a')).toBe('approval-responded')
+      expect(stateOf(r2?.parts, 'ap-b')).toBe('approval-responded')
+
+      const committed = await messageService.getById('anchor')
+      expect(stateOf(committed.data.parts, 'ap-a')).toBe('approval-responded')
+      expect(stateOf(committed.data.parts, 'ap-b')).toBe('approval-responded')
+    })
+
+    it('returns null for a missing anchor (stale click on a deleted message)', async () => {
+      await seedAnchorWithTwoApprovals()
+      expect(
+        await messageService.applyToolApprovalDecisions('gone', [{ approvalId: 'ap-a', approved: true }])
+      ).toBeNull()
+    })
+
+    it('leaves the row untouched for an overlay-only decision (target part not on the row)', async () => {
+      await seedAnchorWithTwoApprovals()
+      const before = await messageService.getById('anchor')
+      const res = await messageService.applyToolApprovalDecisions('anchor', [
+        { approvalId: 'not-on-row', approved: true }
+      ])
+      expect(res).not.toBeNull()
+      const after = await messageService.getById('anchor')
+      expect(after.updatedAt).toBe(before.updatedAt) // no write performed
+      expect(res?.parts).toEqual(before.data.parts)
+      expect(res?.appliedApprovalIds).toEqual([])
+      expect(res?.alreadySettledApprovalIds).toEqual([])
+      expect(stateOf(after.data.parts, 'ap-a')).toBe('approval-requested')
+    })
+
+    it('reports already-settled decisions so stale duplicate clicks do not re-dispatch', async () => {
+      await seedAnchorWithTwoApprovals()
+      await messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-a', approved: true }])
+
+      const duplicate = await messageService.applyToolApprovalDecisions('anchor', [
+        { approvalId: 'ap-a', approved: false }
+      ])
+
+      expect(duplicate?.appliedApprovalIds).toEqual([])
+      expect(duplicate?.alreadySettledApprovalIds).toEqual(['ap-a'])
+      expect(stateOf(duplicate?.parts, 'ap-a')).toBe('approval-responded')
     })
   })
 })

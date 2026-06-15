@@ -395,6 +395,9 @@
           "failed": "Не удалось изменить порядок сеансов"
         }
       },
+      "tool": {
+        "disabled": "Инструмент {{toolName}} отключен для этого агента."
+      },
       "update": {
         "error": {
           "failed": "Не удалось обновить сеанс"
@@ -5679,12 +5682,18 @@
           },
           "invalid": "Неверный ввод, проверьте формат JSON",
           "json": "Импорт из JSON",
+          "mcpb": "Импортировать пакет MCPB",
+          "mcpbFile": "Файл пакета MCPB",
+          "mcpbHelp": "Выберите файл .mcpb, содержащий пакет сервера MCP",
+          "mcpbProcessFailed": "Не удалось обработать файл MCPB",
           "method": "Метод импорта",
           "nameExists": "Сервер уже существует: {{name}}",
           "noDxtFile": "Пожалуйста, выберите DXT-файл",
+          "noMcpbFile": "Пожалуйста, выберите файл MCPB",
           "oneServer": "Можно сохранить только один конфигурационный файл MCP",
           "placeholder": "Вставьте JSON-конфигурацию сервера MCP",
           "selectDxtFile": "Выберите файл DXT",
+          "selectMcpbFile": "Выберите файл MCPB",
           "tooltip": "Скопируйте JSON-конфигурацию (приоритет NPX или UVX конфигураций) со страницы введения MCP Servers и вставьте ее в поле ввода."
         },
         "label": "Добавить сервер"
@@ -5859,8 +5868,7 @@
           "bailian": "Сервис MCP платформы Alibaba Cloud Bailian",
           "lanyun": "Lanyun Technology Cloud Platform MCP Service",
           "mcprouter": "Платформа маршрутизатора MCP Сервис MCP",
-          "modelscope": "Служба MCP платформы ModelScope",
-          "tokenflux": "Сервис MCP платформы TokenFlux"
+          "modelscope": "Служба MCP платформы ModelScope"
         },
         "selectProvider": "Выберите провайдера:",
         "setToken": "Введите ваш токен",
@@ -6122,7 +6130,6 @@
         }
       },
       "api_key": "API ключ",
-      "available_count": "{{count}} доступно",
       "base_url": "Базовый URL",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6141,6 +6148,7 @@
         "generation_output_image": "изображение",
         "generation_output_video": "видео",
         "keys_status_count": "Прошло: {{count_passed}} ключей, Не прошло: {{count_failed}} ключей",
+        "model_button_caption": "Проверить все модели",
         "model_status_failed": "{{count}} моделей полностью недоступны",
         "model_status_partial": "{{count}} моделей недоступны с некоторыми ключами",
         "model_status_passed": "{{count}} моделей прошли проверку состояния",
@@ -6169,11 +6177,18 @@
         "title": "Проверка состояния моделей",
         "use_all_keys": "Использовать все ключи"
       },
-      "copy_model_id_tooltip": "Н to copy model ID: {{id}}",
+      "collapse_all": "Свернуть все",
       "default_assistant_model": "Модель ассистента по умолчанию",
       "default_assistant_model_description": "Используется, если у ассистента нет модели.",
+      "docs": "Документация модели",
       "empty": "Модели не найдены",
-      "group_disable": "Закрыть эту группу",
+      "enabled_models": "Включены",
+      "expand_all": "Развернуть все",
+      "filter": {
+        "clear": "Очистить фильтр моделей",
+        "label": "Фильтровать модели"
+      },
+      "group_disable": "Отключить эту группу",
       "group_enable": "Включить эту группу",
       "list_title": "Model list",
       "manage": {
@@ -6240,6 +6255,8 @@
         "sync_switch_to_deprecate": "Mark deprecated instead",
         "sync_will_deprecate": "Will be marked deprecated"
       },
+      "more_actions": "Дополнительные действия со списком моделей",
+      "not_enabled_models": "Отключены",
       "provider_id": "ID провайдера",
       "provider_key_add_confirm": "Добавить API ключ для {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Не удалось добавить API ключ для {{provider}}, данные пусты",
@@ -6646,6 +6663,7 @@
         "project_id": "ID проекта",
         "project_id_help": "Ваш ID проекта Google Cloud",
         "project_id_placeholder": "your-google-cloud-project-id",
+        "select_location": "[to be translated]:Select location",
         "service_account": {
           "auth_success": "Service Account успешно аутентифицирован",
           "client_email": "Email клиента",
@@ -6661,7 +6679,10 @@
           "private_key": "Приватный ключ",
           "private_key_help": "Поле private_key из файла ключа JSON, загруженного из Google Cloud Console",
           "private_key_placeholder": "Введите приватный ключ Service Account",
-          "title": "Конфигурация Service Account"
+          "title": "Конфигурация Service Account",
+          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
+          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
+          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
         }
       }
     },
@@ -6759,7 +6780,9 @@
       "show_app": "Показать/скрыть приложение",
       "show_settings": "Открыть настройки",
       "title": "Горячие клавиши",
+      "toggle_left_sidebar": "Переключить левую боковую панель",
       "toggle_new_context": "Очистить контекст",
+      "toggle_right_sidebar": "Переключить правую боковую панель",
       "toggle_show_topics": "Переключить отображение топиков",
       "toggle_sidebar": "Свернуть боковую панель",
       "zoom_in": "Увеличить",
@@ -6884,13 +6907,6 @@
             "description": "Открытый OCR-движок от Google, работающий полностью локально.",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "Аутентификация",
-          "description": "Описание",
-          "language_packs": "Языковые пакеты",
-          "model_parameters": "Параметры модели",
-          "status": "Статус"
         },
         "title": "Разбор документов"
       },
@@ -7073,6 +7089,36 @@
     "settings": "Настройки",
     "store": "Библиотека помощников",
     "translate": "Перевод"
+  },
+  "trace": {
+    "agent": "Агент",
+    "backList": "Вернуться к списку",
+    "cachedTokens": "Кэшированный",
+    "endTime": "Время окончания",
+    "inputs": "Входы",
+    "label": "Цепочка вызовов",
+    "model": "Модель",
+    "name": "Имя узла",
+    "noTraceList": "Информация о трассировке не найдена",
+    "operation": "Операция",
+    "outputs": "Выходы",
+    "pollError": "Опрос завершился неудачно",
+    "reasoningTokens": "Рассуждение",
+    "requestHeaders": "Заголовки запроса",
+    "requestMethod": "Метод запроса",
+    "requestUrl": "URL зап запроса",
+    "responseHeaders": "Заголовки ответа",
+    "responseStatus": "Статус ответа",
+    "serverDescription": "Описание сервера",
+    "serverName": "Имя сервера",
+    "serverType": "Тип сервера",
+    "spanDetail": "Детали пролёта",
+    "spendTime": "Проводить время",
+    "startTime": "Время начала",
+    "status": "Статус",
+    "tag": "Тег",
+    "tokenUsage": "Использование токенов",
+    "toolCalls": "Вызовы инструментов"
   },
   "translate": {
     "alter_language": "Альтернативный язык",

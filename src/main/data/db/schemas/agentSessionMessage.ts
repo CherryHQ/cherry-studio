@@ -21,7 +21,6 @@ export const agentSessionMessageTable = sqliteTable(
     status: text().notNull(),
     modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     modelSnapshot: text({ mode: 'json' }).$type<ModelSnapshot>(),
-    traceId: text(),
     stats: text({ mode: 'json' }).$type<MessageStats>(),
     runtimeResumeToken: text(),
     ...createUpdateTimestamps

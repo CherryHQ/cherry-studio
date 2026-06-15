@@ -6,7 +6,7 @@ import { knowledgeBaseTable } from './knowledge'
 import { mcpServerTable } from './mcpServer'
 
 // NOTE: assistant-model relationship is 1:1 (default model) stored as assistant.modelId.
-// Multi-model (@mention) list is ephemeral UI state stored in persist-cache.
+// Multi-model selector list is ephemeral UI state stored in persist-cache.
 
 /**
  * Assistant-McpServer junction table

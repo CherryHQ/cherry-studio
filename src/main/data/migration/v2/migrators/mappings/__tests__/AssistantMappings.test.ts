@@ -1,3 +1,4 @@
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { describe, expect, it } from 'vitest'
 
@@ -30,7 +31,6 @@ describe('AssistantMappings', () => {
         emoji: '🤖',
         description: 'A test assistant',
         modelId: 'openai::gpt-4',
-        orderKey: '',
         // Migrator merges legacy fields onto DEFAULT_ASSISTANT_SETTINGS so the new
         // NOT NULL settings column always sees a complete object. Per-field
         // sanitiser keeps only legacy values that validate against the v2 schema.
@@ -55,7 +55,6 @@ describe('AssistantMappings', () => {
         emoji: '🌟',
         description: '',
         modelId: null,
-        orderKey: '',
         settings: DEFAULT_ASSISTANT_SETTINGS
       })
       expect(result.mcpServers).toStrictEqual([])
@@ -87,6 +86,23 @@ describe('AssistantMappings', () => {
         defaultModel: { id: 'gpt-3.5', provider: 'openai' }
       })
       expect(result.assistant.modelId).toBe('openai::gpt-3.5')
+    })
+
+    it('should map legacy CherryAI model refs to the seeded Qwen model', () => {
+      const result = transformAssistant({
+        id: 'ast-4c',
+        model: { id: 'legacy-qwen', provider: CHERRYAI_PROVIDER_ID }
+      })
+      expect(result.assistant.modelId).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+    })
+
+    it('should set modelId to null when model provider is not a string', () => {
+      const result = transformAssistant({
+        id: 'ast-4d',
+        model: { id: 'gpt-4', provider: 42 as never }
+      })
+
+      expect(result.assistant.modelId).toBeNull()
     })
 
     it('should set modelId to null when model has missing provider or id', () => {

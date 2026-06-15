@@ -395,6 +395,9 @@
           "failed": "Nu s-a putut reordona sesiunile"
         }
       },
+      "tool": {
+        "disabled": "Instrumentul {{toolName}} este dezactivat pentru acest agent."
+      },
       "update": {
         "error": {
           "failed": "Nu s-a putut actualiza sesiunea"
@@ -5679,12 +5682,18 @@
           },
           "invalid": "Intrare invalidă, te rugăm să verifici formatul JSON",
           "json": "Importă din JSON",
+          "mcpb": "Importă pachetul MCPB",
+          "mcpbFile": "Fișier pachet MCPB",
+          "mcpbHelp": "Selectați un fișier .mcpb care conține un pachet de server MCP",
+          "mcpbProcessFailed": "Nu s-a putut procesa fișierul MCPB",
           "method": "Metodă import",
           "nameExists": "Serverul există deja: {{name}}",
           "noDxtFile": "Te rugăm să selectezi un fișier DXT",
+          "noMcpbFile": "Vă rugăm să selectați un fișier MCPB",
           "oneServer": "Doar o singură configurație de server MCP la un moment dat",
           "placeholder": "Lipește configurația JSON a serverului MCP",
           "selectDxtFile": "Selectează fișierul DXT",
+          "selectMcpbFile": "Selectați fișierul MCPB",
           "tooltip": "Te rugăm să copiezi JSON-ul de configurare (prioritizând configurațiile\n NPX sau UVX) din pagina de introducere a serverelor MCP și să-l lipești în caseta de intrare."
         },
         "label": "Adaugă server"
@@ -5859,8 +5868,7 @@
           "bailian": "Serviciul MCP al Platformei Bailian Alibaba Cloud",
           "lanyun": "Platforma Cloud Lanyun Technology - Serviciul MCP",
           "mcprouter": "Platformă Router MCP Serviciu MCP",
-          "modelscope": "Serviciul MCP al Platformei ModelScope",
-          "tokenflux": "Serviciul MCP al Platformei TokenFlux"
+          "modelscope": "Serviciul MCP al Platformei ModelScope"
         },
         "selectProvider": "Selectează furnizor:",
         "setToken": "Introdu tokenul tău",
@@ -6122,7 +6130,6 @@
         }
       },
       "api_key": "Cheie API",
-      "available_count": "{{count}} disponibile",
       "base_url": "URL de bază",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6141,6 +6148,7 @@
         "generation_output_image": "o imagine",
         "generation_output_video": "un videoclip",
         "keys_status_count": "Reușite: {{count_passed}} chei, eșuate: {{count_failed}} chei",
+        "model_button_caption": "Verifică toate modelele",
         "model_status_failed": "{{count}} modele complet inaccesibile",
         "model_status_partial": "{{count}} modele au avut chei inaccesibile",
         "model_status_passed": "{{count}} modele au trecut verificările de sănătate",
@@ -6169,11 +6177,18 @@
         "title": "Verificare sănătate model",
         "use_all_keys": "Cheie(i)"
       },
-      "copy_model_id_tooltip": "Click pentru a copia ID-ul modelului: {{id}}",
+      "collapse_all": "Restrânge tot",
       "default_assistant_model": "Model asistent implicit",
       "default_assistant_model_description": "Folosit când un asistent nu are model.",
+      "docs": "Documentația modelului",
       "empty": "Nu s-au găsit modele",
-      "group_disable": "Închide acest grup",
+      "enabled_models": "Activate",
+      "expand_all": "Extinde tot",
+      "filter": {
+        "clear": "Șterge filtrul de modele",
+        "label": "Filtrează modelele"
+      },
+      "group_disable": "Dezactivează acest grup",
       "group_enable": "Activează acest grup",
       "list_title": "Model list",
       "manage": {
@@ -6240,6 +6255,8 @@
         "sync_switch_to_deprecate": "Mark deprecated instead",
         "sync_will_deprecate": "Will be marked deprecated"
       },
+      "more_actions": "Mai multe acțiuni pentru lista de modele",
+      "not_enabled_models": "Dezactivate",
       "provider_id": "ID furnizor",
       "provider_key_add_confirm": "Vrei să adaugi cheia API pentru {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Adăugarea cheii API a furnizorului a eșuat, datele sunt goale",
@@ -6646,6 +6663,7 @@
         "project_id": "ID Proiect",
         "project_id_help": "ID-ul tău de proiect Google Cloud",
         "project_id_placeholder": "id-ul-tau-proiect-google-cloud",
+        "select_location": "[to be translated]:Select location",
         "service_account": {
           "auth_success": "Cont de serviciu autentificat cu succes",
           "client_email": "E-mail client",
@@ -6661,7 +6679,10 @@
           "private_key": "Cheie privată",
           "private_key_help": "Câmpul private_key din fișierul cheie JSON descărcat din Google Cloud Console",
           "private_key_placeholder": "Introdu cheia privată a Contului de Serviciu",
-          "title": "Configurare Cont de Serviciu"
+          "title": "Configurare Cont de Serviciu",
+          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
+          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
+          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
         }
       }
     },
@@ -6759,7 +6780,9 @@
       "show_app": "Afișează/Ascunde aplicația",
       "show_settings": "Deschide setările",
       "title": "Comenzi rapide de la tastatură",
+      "toggle_left_sidebar": "Comută bara laterală stângă",
       "toggle_new_context": "Șterge contextul",
+      "toggle_right_sidebar": "Comută bara laterală dreaptă",
       "toggle_show_topics": "Comută subiectele",
       "toggle_sidebar": "Comutare bară laterală",
       "zoom_in": "Mărește",
@@ -6884,13 +6907,6 @@
             "description": "Motorul OCR open-source de la Google care rulează complet local.",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "Autentificare",
-          "description": "Descriere",
-          "language_packs": "Pachete de limbă",
-          "model_parameters": "Parametrii modelului",
-          "status": "Stare"
         },
         "title": "Analiza documentelor"
       },
@@ -7073,6 +7089,36 @@
     "settings": "Setări",
     "store": "Bibliotecă asistenți",
     "translate": "Traducere"
+  },
+  "trace": {
+    "agent": "Agent",
+    "backList": "Înapoi la listă",
+    "cachedTokens": "În cache",
+    "endTime": "Ora de sfârșit",
+    "inputs": "Intrări",
+    "label": "Lanț de apel",
+    "model": "Model",
+    "name": "Nod Nume",
+    "noTraceList": "Nu s-a găsit nicio informație de urmărire",
+    "operation": "Operațiune",
+    "outputs": "Ieșiri",
+    "pollError": "Sondajul a eșuat",
+    "reasoningTokens": "Raționament",
+    "requestHeaders": "Antete de solicitare",
+    "requestMethod": "Metoda cererii",
+    "requestUrl": "URL solicitare",
+    "responseHeaders": "Headere de răspuns",
+    "responseStatus": "Stare Răspuns",
+    "serverDescription": "Descrierea serverului",
+    "serverName": "Nume server",
+    "serverType": "Tip server",
+    "spanDetail": "Detalii despre deschidere",
+    "spendTime": "Petreceți timp",
+    "startTime": "Ora de început",
+    "status": "Stare",
+    "tag": "Etichetă",
+    "tokenUsage": "Utilizare token",
+    "toolCalls": "Apeluri de instrumente"
   },
   "translate": {
     "alter_language": "Limbă alternativă",

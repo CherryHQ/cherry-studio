@@ -17,6 +17,11 @@ const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const SECOND_KNOWLEDGE_BASE_ID = '22222222-2222-4222-8222-222222222222'
 const FAILED_NULL_ERROR_BASE_ID = '33333333-3333-4333-8333-333333333333'
 const FAILED_EMPTY_ERROR_BASE_ID = '44444444-4444-4444-8444-444444444444'
+const ALPHA_KNOWLEDGE_BASE_ID = '55555555-5555-4555-8555-555555555555'
+const BETA_KNOWLEDGE_BASE_ID = '66666666-6666-4666-8666-666666666666'
+const OTHER_KNOWLEDGE_BASE_ID = '77777777-7777-4777-8777-777777777777'
+const LITERAL_KNOWLEDGE_BASE_ID = '88888888-8888-4888-8888-888888888888'
+const EXPANDED_KNOWLEDGE_BASE_ID = '99999999-9999-4999-8999-999999999999'
 const FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abc'
 const OTHER_BASE_FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abd'
 const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000a01' as FileEntryId
@@ -63,7 +68,6 @@ describe('KnowledgeBaseService', () => {
       threshold: 0.55,
       documentCount: 5,
       searchMode: 'hybrid',
-      hybridAlpha: 0.7,
       ...overrides
     }
     await dbh.db.insert(knowledgeBaseTable).values(values)
@@ -118,6 +122,29 @@ describe('KnowledgeBaseService', () => {
       expect(result.total).toBe(2)
       expect(result.page).toBe(2)
       expect(result.items).toHaveLength(1)
+    })
+
+    it('should search knowledge bases by name and keep pagination total scoped to the search', async () => {
+      await seedKnowledgeBase({ id: ALPHA_KNOWLEDGE_BASE_ID, name: 'Alpha Research' })
+      await seedKnowledgeBase({ id: BETA_KNOWLEDGE_BASE_ID, name: 'Beta Research' })
+      await seedKnowledgeBase({ id: OTHER_KNOWLEDGE_BASE_ID, name: 'Operations' })
+
+      const result = await service.list({ page: 1, limit: 1, search: 'Research' })
+
+      expect(result.total).toBe(2)
+      expect(result.page).toBe(1)
+      expect(result.items).toHaveLength(1)
+      expect(result.items[0].name).toContain('Research')
+    })
+
+    it('treats % and _ in knowledge base search as literal characters', async () => {
+      await seedKnowledgeBase({ id: LITERAL_KNOWLEDGE_BASE_ID, name: 'Vector 100%_notes' })
+      await seedKnowledgeBase({ id: EXPANDED_KNOWLEDGE_BASE_ID, name: 'Vector 100xxnotes' })
+
+      const result = await service.list({ page: 1, limit: 10, search: '100%_' })
+
+      expect(result.total).toBe(1)
+      expect(result.items.map((item) => item.id)).toEqual([LITERAL_KNOWLEDGE_BASE_ID])
     })
 
     it('should include non-deleting item counts for each knowledge base', async () => {
@@ -299,7 +326,6 @@ describe('KnowledgeBaseService', () => {
       expect(row.threshold).toBeNull()
       expect(row.documentCount).toBeNull()
       expect(row.searchMode).toBe('hybrid')
-      expect(row.hybridAlpha).toBeNull()
       expect(row.status).toBe('completed')
       expect(row.error).toBeNull()
     })
@@ -321,6 +347,27 @@ describe('KnowledgeBaseService', () => {
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, result.id))
       expect(row.chunkSize).toBe(100)
       expect(row.chunkOverlap).toBe(20)
+    })
+
+    it('should persist a per-base hybridAlpha, and default it to null when omitted', async () => {
+      const withAlpha = await service.create({
+        name: 'Hybrid Tuned',
+        dimensions: 1024,
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+        searchMode: 'hybrid',
+        hybridAlpha: 0.8
+      })
+      expect(withAlpha.hybridAlpha).toBe(0.8)
+
+      const defaulted = await service.create({
+        name: 'Hybrid Default',
+        dimensions: 1024,
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+        searchMode: 'hybrid'
+      })
+      expect(defaulted.hybridAlpha).toBeUndefined()
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, defaulted.id))
+      expect(row.hybridAlpha).toBeNull()
     })
 
     it('should reject create when default chunkOverlap does not fit explicit chunkSize', async () => {
@@ -423,14 +470,12 @@ describe('KnowledgeBaseService', () => {
       const result = await service.update(KNOWLEDGE_BASE_ID, {
         name: '  Updated Base  ',
         chunkSize: 1024,
-        chunkOverlap: 128,
-        hybridAlpha: 0.9
+        chunkOverlap: 128
       })
 
       expect(result.name).toBe('Updated Base')
       expect(result.chunkSize).toBe(1024)
       expect(result.chunkOverlap).toBe(128)
-      expect(result.hybridAlpha).toBe(0.9)
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(row.name).toBe('Updated Base')
@@ -457,28 +502,50 @@ describe('KnowledgeBaseService', () => {
       expect(row.fileProcessorId).toBeNull()
     })
 
+    it('should update and persist the per-base hybridAlpha', async () => {
+      await seedKnowledgeBase({ searchMode: 'hybrid' })
+
+      const result = await service.update(KNOWLEDGE_BASE_ID, { hybridAlpha: 0.9 })
+
+      expect(result.hybridAlpha).toBe(0.9)
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
+      expect(row.hybridAlpha).toBe(0.9)
+    })
+
     it('should clear stale hybrid config when search mode changes during update', async () => {
-      await seedKnowledgeBase({
-        chunkSize: 256,
-        chunkOverlap: 120,
-        searchMode: 'hybrid',
-        hybridAlpha: 0.7
-      })
+      await seedKnowledgeBase({ chunkSize: 256, chunkOverlap: 120, searchMode: 'hybrid', hybridAlpha: 0.7 })
 
-      const result = await service.update(KNOWLEDGE_BASE_ID, {
-        searchMode: 'default'
-      })
+      const result = await service.update(KNOWLEDGE_BASE_ID, { searchMode: 'vector' })
 
-      expect(result.searchMode).toBe('default')
-      expect(result.chunkSize).toBe(256)
-      expect(result.chunkOverlap).toBe(120)
+      expect(result.searchMode).toBe('vector')
       expect(result.hybridAlpha).toBeUndefined()
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
-      expect(row.searchMode).toBe('default')
-      expect(row.chunkSize).toBe(256)
-      expect(row.chunkOverlap).toBe(120)
+      expect(row.searchMode).toBe('vector')
       expect(row.hybridAlpha).toBeNull()
+    })
+
+    it('should reject an unrelated update that surfaces pre-existing invalid hybrid config', async () => {
+      await seedKnowledgeBase({ searchMode: 'vector', hybridAlpha: 0.7 })
+
+      await expect(service.update(KNOWLEDGE_BASE_ID, { name: 'Renamed Base' })).rejects.toThrow(
+        'Hybrid alpha requires hybrid search mode'
+      )
+    })
+
+    it('should reject explicitly provided hybridAlpha when search mode is not hybrid', async () => {
+      await seedKnowledgeBase({ searchMode: 'hybrid', hybridAlpha: 0.7 })
+
+      await expect(service.update(KNOWLEDGE_BASE_ID, { searchMode: 'vector', hybridAlpha: 0.7 })).rejects.toMatchObject(
+        {
+          code: ErrorCode.VALIDATION_ERROR,
+          details: {
+            fieldErrors: {
+              hybridAlpha: ['Hybrid alpha requires hybrid search mode']
+            }
+          }
+        }
+      )
     })
 
     it('should reject shrinking chunkSize when the existing chunkOverlap no longer fits', async () => {
@@ -510,34 +577,6 @@ describe('KnowledgeBaseService', () => {
         details: {
           fieldErrors: {
             chunkOverlap: ['Chunk overlap must be smaller than chunk size']
-          }
-        }
-      })
-    })
-
-    it('should not silently clean stale dependent fields during unrelated updates', async () => {
-      await seedKnowledgeBase({ searchMode: 'default', hybridAlpha: 0.7 })
-
-      await expect(
-        service.update(KNOWLEDGE_BASE_ID, {
-          name: 'Renamed Base'
-        })
-      ).rejects.toThrow('Hybrid alpha requires hybrid search mode')
-    })
-
-    it('should reject explicitly provided hybridAlpha when search mode is not hybrid', async () => {
-      await seedKnowledgeBase({ searchMode: 'hybrid', hybridAlpha: 0.7 })
-
-      await expect(
-        service.update(KNOWLEDGE_BASE_ID, {
-          searchMode: 'default',
-          hybridAlpha: 0.7
-        })
-      ).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR,
-        details: {
-          fieldErrors: {
-            hybridAlpha: ['Hybrid alpha requires hybrid search mode']
           }
         }
       })

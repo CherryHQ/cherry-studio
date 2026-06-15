@@ -69,7 +69,7 @@ describe('orphanCheckerRegistry', () => {
         error: 'missing_embedding_model',
         chunkSize: 1024,
         chunkOverlap: 200,
-        searchMode: 'default'
+        searchMode: 'vector'
       })
     }
 
@@ -182,7 +182,7 @@ describe('orphanCheckerRegistry', () => {
         error: 'missing_embedding_model',
         chunkSize: 1024,
         chunkOverlap: 200,
-        searchMode: 'default'
+        searchMode: 'vector'
       })
       await dbh.db.insert(knowledgeItemTable).values({
         id,
@@ -306,7 +306,6 @@ describe('orphanCheckerRegistry', () => {
         siblingsGroupId: 0,
         modelId: null,
         modelSnapshot: null,
-        traceId: null,
         stats: null,
         createdAt: Date.now(),
         updatedAt: Date.now()
@@ -349,7 +348,6 @@ describe('orphanCheckerRegistry', () => {
             siblingsGroupId: 0,
             modelId: null,
             modelSnapshot: null,
-            traceId: null,
             stats: null,
             createdAt: Date.now(),
             updatedAt: Date.now()

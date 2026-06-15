@@ -48,7 +48,8 @@ const EMPTY_AGENT_FOR_CREATE: AgentDetail = {
   model: null,
   modelName: null,
   createdAt: '',
-  updatedAt: ''
+  updatedAt: '',
+  orderKey: ''
 }
 
 /**
@@ -110,7 +111,6 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
   const { tools } = useAgentTools({
     type: editAgent?.type ?? 'claude-code',
     mcps: form.mcps,
-    allowedTools: form.allowedTools,
     permissionMode: form.permissionMode
   })
   const onChange = useCallback(

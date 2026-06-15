@@ -395,6 +395,9 @@
           "failed": "Échec du réordonnancement des sessions"
         }
       },
+      "tool": {
+        "disabled": "L'outil {{toolName}} est désactivé pour cet agent."
+      },
       "update": {
         "error": {
           "failed": "Échec de la mise à jour de la session"
@@ -5679,12 +5682,18 @@
           },
           "invalid": "Entrée invalide, veuillez vérifier le format JSON",
           "json": "Importer depuis JSON",
+          "mcpb": "Importer le bundle MCPB",
+          "mcpbFile": "Fichier Bundle MCPB",
+          "mcpbHelp": "Sélectionnez un fichier .mcpb contenant un bundle de serveur MCP",
+          "mcpbProcessFailed": "Échec du traitement du fichier MCPB",
           "method": "Méthode d'importation",
           "nameExists": "Le serveur existe déjà : {{name}}",
           "noDxtFile": "Veuillez sélectionner un fichier DXT",
+          "noMcpbFile": "Veuillez sélectionner un fichier MCPB",
           "oneServer": "Une seule configuration de serveur MCP peut être enregistrée à la fois",
           "placeholder": "Collez la configuration JSON du serveur MCP",
           "selectDxtFile": "Sélectionner le fichier DXT",
+          "selectMcpbFile": "Sélectionner le fichier MCPB",
           "tooltip": "Veuillez copier la configuration JSON depuis la page d'introduction de MCP Servers (de préférence la configuration NPX ou UVX) et la coller dans le champ de saisie"
         },
         "label": "Ajouter un serveur"
@@ -5859,8 +5868,7 @@
           "bailian": "Service MCP de la plateforme Bailian d'Alibaba Cloud",
           "lanyun": "Plateforme Cloud Lanyun Technology Service MCP",
           "mcprouter": "Plateforme de routeur MCP Service MCP",
-          "modelscope": "Service MCP de la plateforme ModelScope",
-          "tokenflux": "Service MCP de la plateforme TokenFlux"
+          "modelscope": "Service MCP de la plateforme ModelScope"
         },
         "selectProvider": "Выберите провайдера:",
         "setToken": "Введите ваш токен",
@@ -6122,7 +6130,6 @@
         }
       },
       "api_key": "Clé API",
-      "available_count": "{{count}} disponibles",
       "base_url": "URL de base",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6141,6 +6148,7 @@
         "generation_output_image": "une image",
         "generation_output_video": "une vidéo",
         "keys_status_count": "Passé : {{count_passed}} clés, échoué : {{count_failed}} clés",
+        "model_button_caption": "Vérifier tous les modèles",
         "model_status_failed": "{{count}} modèles sont totalement inaccessibles",
         "model_status_partial": "Parmi eux, {{count}} modèles sont inaccessibles avec certaines clés",
         "model_status_passed": "{{count}} modèles ont passé le contrôle de santé",
@@ -6169,11 +6177,18 @@
         "title": "Test de santé des modèles",
         "use_all_keys": "Utiliser toutes les clés"
       },
-      "copy_model_id_tooltip": "Cliquez pour copier l’ID du modèle : {{id}}",
+      "collapse_all": "Tout réduire",
       "default_assistant_model": "Modèle d'assistant par défaut",
       "default_assistant_model_description": "Utilisé lorsqu'un assistant n'a pas de modèle.",
+      "docs": "Documentation du modèle",
       "empty": "Aucun modèle",
-      "group_disable": "Fermer ce groupe",
+      "enabled_models": "Activés",
+      "expand_all": "Tout développer",
+      "filter": {
+        "clear": "Effacer le filtre des modèles",
+        "label": "Filtrer les modèles"
+      },
+      "group_disable": "Désactiver ce groupe",
       "group_enable": "Activer ce groupe",
       "list_title": "Model list",
       "manage": {
@@ -6240,6 +6255,8 @@
         "sync_switch_to_deprecate": "Mark deprecated instead",
         "sync_will_deprecate": "Will be marked deprecated"
       },
+      "more_actions": "Plus d'actions pour la liste des modèles",
+      "not_enabled_models": "Désactivés",
       "provider_id": "Identifiant du fournisseur",
       "provider_key_add_confirm": "Voulez-vous ajouter une clé API pour {{provider}} ?",
       "provider_key_add_failed_by_empty_data": "Échec de l'ajout de la clé API du fournisseur, les données sont vides",
@@ -6646,6 +6663,7 @@
         "project_id": "ID du projet",
         "project_id_help": "Votre identifiant de projet Google Cloud",
         "project_id_placeholder": "votre-id-projet-google-cloud",
+        "select_location": "[to be translated]:Select location",
         "service_account": {
           "auth_success": "Authentification du compte de service réussie",
           "client_email": "E-mail du client",
@@ -6661,7 +6679,10 @@
           "private_key": "Clé privée",
           "private_key_help": "Champ private_key provenant du fichier de clé JSON téléchargé depuis Google Cloud Console",
           "private_key_placeholder": "Veuillez saisir la clé privée du compte de service",
-          "title": "Configuration du compte de service"
+          "title": "Configuration du compte de service",
+          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
+          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
+          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
         }
       }
     },
@@ -6759,7 +6780,9 @@
       "show_app": "Afficher l'application",
       "show_settings": "Ouvrir les paramètres",
       "title": "Raccourcis",
+      "toggle_left_sidebar": "Basculer la barre latérale gauche",
       "toggle_new_context": "Effacer le contexte",
+      "toggle_right_sidebar": "Basculer la barre latérale droite",
       "toggle_show_topics": "Basculer l'affichage des sujets",
       "toggle_sidebar": "Basculer la barre latérale",
       "zoom_in": "Agrandir l'interface",
@@ -6884,13 +6907,6 @@
             "description": "Moteur OCR open-source de Google qui fonctionne entièrement en local.",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "Authentification",
-          "description": "Description",
-          "language_packs": "Packs linguistiques",
-          "model_parameters": "Paramètres du modèle",
-          "status": "Statut"
         },
         "title": "Analyse de documents"
       },
@@ -7073,6 +7089,36 @@
     "settings": "Paramètres",
     "store": "Bibliothèque d'assistants",
     "translate": "Traduire"
+  },
+  "trace": {
+    "agent": "Agent",
+    "backList": "Retour à la liste",
+    "cachedTokens": "En cache",
+    "endTime": "Heure de fin",
+    "inputs": "Entrées",
+    "label": "Chaîne d'appel",
+    "model": "Modèle",
+    "name": "Nom du nœud",
+    "noTraceList": "Aucune information de trace trouvée",
+    "operation": "Opération",
+    "outputs": "Sorties",
+    "pollError": "Échec du sondage",
+    "reasoningTokens": "Raisonnement",
+    "requestHeaders": "En-têtes de requête",
+    "requestMethod": "Méthode de requête",
+    "requestUrl": "URL de la requête",
+    "responseHeaders": "En-têtes de réponse",
+    "responseStatus": "Statut de la réponse",
+    "serverDescription": "Description du serveur",
+    "serverName": "Nom du serveur",
+    "serverType": "Type de serveur",
+    "spanDetail": "Détails de la portée",
+    "spendTime": "Passer du temps",
+    "startTime": "Heure de début",
+    "status": "Statut",
+    "tag": "Étiquette",
+    "tokenUsage": "Utilisation des jetons",
+    "toolCalls": "Appels d'outils"
   },
   "translate": {
     "alter_language": "Langue de secours",

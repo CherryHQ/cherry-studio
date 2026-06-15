@@ -34,7 +34,7 @@ export function ModelCapabilityToggles({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1 font-[weight:var(--font-weight-semibold)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]">
+        <div className="text-(length:--font-size-body-md) flex items-center gap-1 font-semibold text-foreground/90 leading-(--line-height-body-md)">
           {t('models.type.select')}
           <WarnTooltip content={t('settings.moresetting.check.warn')} />
         </div>

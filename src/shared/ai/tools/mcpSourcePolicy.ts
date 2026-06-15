@@ -32,21 +32,7 @@ export function isMcpToolDisabledBySource(server: McpServer, tool: McpPolicyTool
   return server.disabledTools?.some((value) => matchesMcpSourceToolRule(value, server, tool)) ?? false
 }
 
-/**
- * Built-in tools that run arbitrary, model-supplied code against the user's real,
- * authenticated browser session (`@cherry/browser`'s `execute`). These ALWAYS require
- * explicit approval — auto-approve must not be reachable even via per-server config —
- * because prompt injection on page content could otherwise exfiltrate logged-in session
- * data unattended. Keyed by built-in server name (`BuiltinMcpServerNames.browser`).
- */
-const ALWAYS_FORCE_PROMPT_BUILTIN_TOOLS: Readonly<Record<string, readonly string[]>> = {
-  '@cherry/browser': ['execute']
-}
-
 export function isMcpToolForcePromptBySource(server: McpServer, tool: McpPolicyTool): boolean {
-  if (ALWAYS_FORCE_PROMPT_BUILTIN_TOOLS[server.name]?.includes(tool.name)) {
-    return true
-  }
   return server.disabledAutoApproveTools?.some((value) => matchesMcpSourceToolRule(value, server, tool)) ?? false
 }
 

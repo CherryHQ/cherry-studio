@@ -395,6 +395,9 @@
           "failed": "Không thể sắp xếp lại các phiên"
         }
       },
+      "tool": {
+        "disabled": "Công cụ {{toolName}} đã bị tắt cho agent này."
+      },
       "update": {
         "error": {
           "failed": "Không cập nhật được phiên"
@@ -5679,12 +5682,18 @@
           },
           "invalid": "Đầu vào không hợp lệ, vui lòng kiểm tra định dạng JSON",
           "json": "Nhập từ JSON",
+          "mcpb": "Nhập gói MCPB",
+          "mcpbFile": "Tệp Gói MCPB",
+          "mcpbHelp": "Chọn một tệp .mcpb chứa gói máy chủ MCP",
+          "mcpbProcessFailed": "Không thể xử lý tệp MCPB",
           "method": "Phương thức nhập",
           "nameExists": "Máy chủ đã tồn tại: {{name}}",
           "noDxtFile": "Vui lòng chọn một tệp DXT",
+          "noMcpbFile": "Vui lòng chọn một tệp MCPB",
           "oneServer": "Chỉ một cấu hình máy chủ MCP tại một thời điểm",
           "placeholder": "Dán cấu hình JSON máy chủ MCP",
           "selectDxtFile": "Chọn tệp DXT",
+          "selectMcpbFile": "Chọn tệp MCPB",
           "tooltip": "Vui lòng sao chép cấu hình JSON (ưu tiên cấu hình NPX hoặc UVX) từ trang giới thiệu MCP Servers và dán vào ô nhập."
         },
         "label": "Thêm Máy chủ"
@@ -5859,8 +5868,7 @@
           "bailian": "Dịch vụ MCP Nền tảng Bailian của Alibaba Cloud",
           "lanyun": "Nền tảng Công nghệ Đám mây Lanyun Dịch vụ MCP",
           "mcprouter": "Nền tảng Định tuyến MCP Dịch vụ MCP",
-          "modelscope": "Dịch vụ MCP nền tảng ModelScope",
-          "tokenflux": "Dịch vụ MCP Nền tảng TokenFlux"
+          "modelscope": "Dịch vụ MCP nền tảng ModelScope"
         },
         "selectProvider": "Chọn Nhà cung cấp:",
         "setToken": "Nhập mã thông báo của bạn",
@@ -6122,7 +6130,6 @@
         }
       },
       "api_key": "Khóa API",
-      "available_count": "Có {{count}} mục",
       "base_url": "URL cơ sở",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6141,6 +6148,7 @@
         "generation_output_image": "một hình ảnh",
         "generation_output_video": "một video",
         "keys_status_count": "Đã vượt qua: {{count_passed}} khóa, không vượt qua: {{count_failed}} khóa",
+        "model_button_caption": "Kiểm tra tất cả mô hình",
         "model_status_failed": "{{count}} mô hình hoàn toàn không thể truy cập",
         "model_status_partial": "{{count}} mô hình có các khóa không thể truy cập",
         "model_status_passed": "{{count}} modèles ont passé les contrôles de santé",
@@ -6169,12 +6177,19 @@
         "title": "Kontrola zdraví modelu",
         "use_all_keys": "Clave(s)"
       },
-      "copy_model_id_tooltip": "Nhấp để sao chép ID mô hình: {{id}}",
+      "collapse_all": "Thu gọn tất cả",
       "default_assistant_model": "Mô hình Trợ lý Mặc định",
       "default_assistant_model_description": "Dùng khi trợ lý chưa có mô hình",
+      "docs": "Tài liệu mô hình",
       "empty": "Không tìm thấy mô hình nào",
-      "group_disable": "Đóng nhóm này",
-      "group_enable": "Kích hoạt nhóm này",
+      "enabled_models": "Đã bật",
+      "expand_all": "Mở rộng tất cả",
+      "filter": {
+        "clear": "Xóa bộ lọc mô hình",
+        "label": "Lọc mô hình"
+      },
+      "group_disable": "Tắt nhóm này",
+      "group_enable": "Bật nhóm này",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",
@@ -6240,6 +6255,8 @@
         "sync_switch_to_deprecate": "Mark deprecated instead",
         "sync_will_deprecate": "Will be marked deprecated"
       },
+      "more_actions": "Thêm hành động cho danh sách mô hình",
+      "not_enabled_models": "Đã tắt",
       "provider_id": "ID Nhà cung cấp",
       "provider_key_add_confirm": "Bạn có muốn thêm khóa API cho {{provider}} không?",
       "provider_key_add_failed_by_empty_data": "Không thể thêm khóa API của nhà cung cấp, dữ liệu trống",
@@ -6646,6 +6663,7 @@
         "project_id": "ID Dự án",
         "project_id_help": "ID dự án Google Cloud của bạn",
         "project_id_placeholder": "id-dự-án-google-cloud-của-bạn",
+        "select_location": "[to be translated]:Select location",
         "service_account": {
           "auth_success": "Tài khoản dịch vụ đã xác thực thành công",
           "client_email": "Email của khách hàng",
@@ -6661,7 +6679,10 @@
           "private_key": "Khóa riêng",
           "private_key_help": "Trường private_key từ tệp khóa JSON đã tải xuống từ Google Cloud Console",
           "private_key_placeholder": "Nhập khóa riêng của Tài khoản Dịch vụ",
-          "title": "Cấu hình Tài khoản Dịch vụ"
+          "title": "Cấu hình Tài khoản Dịch vụ",
+          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
+          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
+          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
         }
       }
     },
@@ -6759,7 +6780,9 @@
       "show_app": "Hiện/Ẩn ứng dụng",
       "show_settings": "Mở Cài đặt",
       "title": "Phím tắt",
+      "toggle_left_sidebar": "Bật/tắt thanh bên trái",
       "toggle_new_context": "Ngữ cảnh rõ ràng",
+      "toggle_right_sidebar": "Bật/tắt thanh bên phải",
       "toggle_show_topics": "Chuyển đổi chủ đề",
       "toggle_sidebar": "Chuyển đổi thanh bên",
       "zoom_in": "Phóng to",
@@ -6884,13 +6907,6 @@
             "description": "Công cụ OCR mã nguồn mở của Google chạy hoàn toàn cục bộ.",
             "name": "Tesseract OCR"
           }
-        },
-        "sections": {
-          "authentication": "Xác thực",
-          "description": "Mô tả",
-          "language_packs": "Gói ngôn ngữ",
-          "model_parameters": "Tham số mô hình",
-          "status": "Trạng thái"
         },
         "title": "Phân tích tài liệu"
       },
@@ -7073,6 +7089,36 @@
     "settings": "Cài đặt",
     "store": "Thư viện Trợ lý",
     "translate": "Dịch"
+  },
+  "trace": {
+    "agent": "Đại lý",
+    "backList": "Quay lại danh sách",
+    "cachedTokens": "Đã lưu trong bộ nhớ đệm",
+    "endTime": "Thời gian kết thúc",
+    "inputs": "Đầu vào",
+    "label": "Chuỗi gọi",
+    "model": "Mô hình",
+    "name": "Tên nút",
+    "noTraceList": "Không tìm thấy thông tin dấu vết",
+    "operation": "Hoạt động",
+    "outputs": "Đầu ra",
+    "pollError": "Kiểm tra phiếu thất bại",
+    "reasoningTokens": "Lập luận",
+    "requestHeaders": "Tiêu đề yêu cầu",
+    "requestMethod": "Phương thức yêu cầu",
+    "requestUrl": "URL yêu cầu",
+    "responseHeaders": "Tiêu đề phản hồi",
+    "responseStatus": "Trạng thái phản hồi",
+    "serverDescription": "Mô tả Máy chủ",
+    "serverName": "Tên Máy Chủ",
+    "serverType": "Loại Máy Chủ",
+    "spanDetail": "Chi tiết Span",
+    "spendTime": "[to be translated]:Spend Time",
+    "startTime": "[to be translated]:Start Time",
+    "status": "[to be translated]:Status",
+    "tag": "Thẻ",
+    "tokenUsage": "Mức sử dụng Token",
+    "toolCalls": "Cuộc gọi công cụ"
   },
   "translate": {
     "alter_language": "Ngôn ngữ thay thế",

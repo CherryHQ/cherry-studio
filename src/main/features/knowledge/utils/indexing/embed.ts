@@ -3,42 +3,22 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { isCompletedKnowledgeBase } from '@shared/data/types/knowledge'
 import { UniqueModelIdSchema } from '@shared/data/types/model'
-import { type Document as VectorStoreDocument, NodeRelationship, TextNode } from '@vectorstores/core'
 
 export async function embedKnowledgeQuery(base: KnowledgeBase, query: string): Promise<number[]> {
-  const embeddings = await embedKnowledgeValues(base, [query])
-  return embeddings[0]
+  const [embedding] = await embedKnowledgeTexts(base, [query])
+  return embedding
 }
 
-export async function embedKnowledgeDocuments(
+/** Embed an array of texts in order, validating the model's output dimensions. Empty input → empty output. */
+export async function embedKnowledgeTexts(
   base: KnowledgeBase,
-  documents: VectorStoreDocument[],
+  values: string[],
   signal?: AbortSignal
-): Promise<TextNode[]> {
-  if (documents.length === 0) {
+): Promise<number[][]> {
+  if (values.length === 0) {
     return []
   }
 
-  const values = documents.map((document) => document.text)
-  const embeddings = await embedKnowledgeValues(base, values, signal)
-
-  return documents.map(
-    (document, index) =>
-      new TextNode({
-        text: document.text,
-        embedding: embeddings[index],
-        metadata: document.metadata,
-        relationships: {
-          [NodeRelationship.SOURCE]: {
-            nodeId: String(document.metadata.itemId),
-            metadata: document.metadata
-          }
-        }
-      })
-  )
-}
-
-async function embedKnowledgeValues(base: KnowledgeBase, values: string[], signal?: AbortSignal): Promise<number[][]> {
   const uniqueModelId = parseEmbeddingModelId(base)
   const result = await application.get('AiService').embedMany({
     uniqueModelId,

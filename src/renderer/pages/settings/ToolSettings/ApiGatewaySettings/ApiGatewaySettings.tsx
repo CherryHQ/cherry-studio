@@ -169,7 +169,7 @@ const ApiGatewaySettings: FC = () => {
                 <SettingRowTitle>{t('apiGateway.fields.url.label')}</SettingRowTitle>
                 <FieldDescription>{t('apiGateway.messages.notEnabled')}</FieldDescription>
               </FieldText>
-              <Input className="w-[420px] font-mono text-xs" value={serverUrl} readOnly disabled />
+              <Input className="w-105 font-mono text-xs" value={serverUrl} readOnly disabled />
             </SettingRow>
           </>
         )}
@@ -207,7 +207,7 @@ const ApiGatewaySettings: FC = () => {
             <FieldDescription>{t('apiGateway.authHeaderText')}</FieldDescription>
           </FieldText>
           <Input
-            className="w-[420px] font-mono text-xs"
+            className="w-105 font-mono text-xs"
             value={`Authorization: Bearer ${apiKey || 'your-api-key'}`}
             readOnly
           />
@@ -226,7 +226,7 @@ const HeaderRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'
 )
 
 const PageDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-2 max-w-[560px] text-foreground-muted text-xs leading-5', className)} {...props} />
+  <div className={cn('mt-2 max-w-140 text-foreground-muted text-xs leading-5', className)} {...props} />
 )
 
 const WarningBanner = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -286,7 +286,7 @@ const FieldText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'
 )
 
 const InlineInputGroup = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('flex w-[420px] items-center gap-2', className)} {...props} />
+  <div className={cn('flex w-105 items-center gap-2', className)} {...props} />
 )
 
 export default ApiGatewaySettings

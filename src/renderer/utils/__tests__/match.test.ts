@@ -1,19 +1,19 @@
+import i18n from '@renderer/i18n'
 import type { Provider, SystemProvider } from '@renderer/types'
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import { includeKeywords, matchKeywordsInProvider, matchKeywordsInString } from '../match'
 
-// Mock i18n to return English provider labels
-vi.mock('@renderer/i18n/label', () => ({
-  getProviderLabel: vi.fn((id: string) => {
-    const labelMap: Record<string, string> = {
-      dashscope: 'Alibaba Cloud',
-      openai: 'OpenAI',
-      anthropic: 'Anthropic'
-    }
-    return labelMap[id] || id
-  })
-}))
+// 测试环境的 mock 偏好默认语言是 zh-CN，显式切到 en-US 以匹配英文断言
+const previousLanguage = i18n.language
+
+beforeAll(async () => {
+  await i18n.changeLanguage('en-US')
+})
+
+afterAll(async () => {
+  await i18n.changeLanguage(previousLanguage)
+})
 
 describe('match', () => {
   const provider = {
