@@ -11,7 +11,7 @@ vi.mock('@cherrystudio/ui', () => ({
   }
 }))
 
-vi.mock('@renderer/i18n/label', () => ({ getProviderLabel: (id: string) => id }))
+vi.mock('@renderer/i18n/label', () => ({ getProviderLabelKey: (id: string) => id }))
 vi.mock('@renderer/pages/settings/ProviderSettings/components/ProviderAvatar', () => ({
   ProviderAvatar: () => null
 }))
