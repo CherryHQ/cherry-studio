@@ -6,7 +6,7 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { languageState, translate } = vi.hoisted(() => {
+const { languageState, getT } = vi.hoisted(() => {
   const labels: Record<string, Record<string, string>> = {
     'en-US': {
       assistants: 'Assistants'
@@ -16,9 +16,17 @@ const { languageState, translate } = vi.hoisted(() => {
     }
   }
 
+  // One stable `t` per language, mirroring react-i18next: its identity changes
+  // only when the language changes. This lets the test fail if `t` is dropped
+  // from the Sidebar label useMemo deps (a fresh `t` every render would mask it).
+  const tByLanguage: Record<string, (key: string) => string> = {}
+  for (const language of Object.keys(labels)) {
+    tByLanguage[language] = (key: string) => labels[language]?.[key] ?? key
+  }
+
   return {
     languageState: { language: 'en-US' },
-    translate: (key: string) => labels[languageState.language]?.[key] ?? key
+    getT: () => tByLanguage[languageState.language]
   }
 })
 
@@ -27,7 +35,7 @@ vi.mock('react-i18next', () => ({
     i18n: {
       language: languageState.language
     },
-    t: (key: string) => translate(key)
+    t: getT()
   })
 }))
 
