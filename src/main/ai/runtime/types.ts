@@ -54,7 +54,7 @@ export type AgentRuntimeEvent =
    *  steer user message sorts between them instead of dangling after the whole turn. */
   | { type: 'steer-boundary'; inputs: AgentRuntimeUserInput[] }
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
-  | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
+  | { type: 'compaction-complete'; anchor: AgentSessionCompactionAnchorData }
   | { type: 'compaction-error'; error: string }
   | { type: 'context-usage'; usage: AgentSessionContextUsage }
   | { type: 'error'; error: unknown }

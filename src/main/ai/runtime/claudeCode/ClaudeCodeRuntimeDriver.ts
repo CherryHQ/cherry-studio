@@ -226,9 +226,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       await this.toolPolicySnapshot?.update(update.agent)
       return true
     }
-    if (this.toolPolicySnapshot?.getPermissionMode() === update.permissionMode) return true
-    await this.query.setPermissionMode(update.permissionMode ?? 'default')
     this.toolPolicySnapshot?.setPermissionMode(update.permissionMode)
+    await this.query.setPermissionMode(update.permissionMode ?? 'default')
     return true
   }
 
@@ -408,10 +407,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
       if (message.compact_result === 'failed' || message.compact_error) {
         this.eventQueue.push({ type: 'compaction-error', error: message.compact_error ?? 'Compaction failed' })
-        return true
-      }
-      if (message.compact_result === 'success') {
-        this.eventQueue.push({ type: 'compaction-complete' })
         return true
       }
       return true

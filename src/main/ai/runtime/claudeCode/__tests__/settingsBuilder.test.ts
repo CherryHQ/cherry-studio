@@ -208,6 +208,49 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(mocks.reconcileAgentSkills).toHaveBeenCalledWith('agent-1', '/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
+  })
+
+  it('denies a disabled tool via a PreToolUse hook so the gate fires in all permission modes', async () => {
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: vi.fn(),
+      isDisabled: vi.fn((tool: string) => tool === 'Bash'),
+      update: vi.fn(),
+      setPermissionMode: vi.fn()
+    })
+    const disabledSession = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const disabledSettings = await buildClaudeCodeSessionSettings(disabledSession as never, {} as never)
+
+    const hooks = disabledSettings.hooks?.PreToolUse?.[0]?.hooks ?? []
+    const runHooks = (toolName: string) =>
+      Promise.all(
+        hooks.map((hook) =>
+          hook(
+            { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: {} } as never,
+            'tool-use-1',
+            {} as never
+          )
+        )
+      )
+
+    const disabled = await runHooks('Bash')
+    expect(disabled).toContainEqual(
+      expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
+    )
+
+    const enabled = await runHooks('Read')
+    expect(
+      enabled.every(
+        (out) =>
+          (out as { hookSpecificOutput?: { permissionDecision?: string } })?.hookSpecificOutput?.permissionDecision !==
+          'deny'
+      )
+    ).toBe(true)
   })
 
   it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {

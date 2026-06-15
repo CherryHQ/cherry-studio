@@ -14,7 +14,7 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
-import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -43,18 +43,6 @@ const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
 
 export type AgentSessionRuntimeStatus = 'active' | 'idle'
 export type AgentSessionRuntimeTerminalStatus = 'success' | 'paused' | 'error'
-
-type AgentTurnStopIntent = 'interrupt' | 'user-stop'
-
-interface TurnStopPolicy {
-  turnStatus: AgentSessionRuntimeTerminalStatus
-  closeSession: boolean
-}
-
-const STOP_POLICY: Record<AgentTurnStopIntent, TurnStopPolicy> = {
-  interrupt: { turnStatus: 'paused', closeSession: false },
-  'user-stop': { turnStatus: 'paused', closeSession: true }
-}
 
 export interface BeginAgentSessionTurnInput {
   sessionId: string
@@ -88,7 +76,6 @@ export interface AgentSessionRuntimeSnapshot {
   lastTerminalStatus?: AgentSessionRuntimeTerminalStatus
   resumeToken?: string
   activeToolCount: number
-  interruptRequested: boolean
 }
 
 type AgentSessionTurn = {
@@ -100,7 +87,6 @@ type AgentSessionTurn = {
   terminalStatus?: AgentSessionRuntimeTerminalStatus
   controller?: ReadableStreamDefaultController<UIMessageChunk>
   activeToolIds: Set<string>
-  interruptRequested: boolean
 }
 
 type AgentSessionRuntimeEntry = {
@@ -132,8 +118,6 @@ type AgentSessionRuntimeEntry = {
   /** The injected steer(s) carried to the continuation turn for its rename/seed context (U2 is already
    *  persisted by the provider — these do NOT create a new user row). */
   rollSteerInputs?: AgentRuntimeUserInput[]
-  /** SDK `turn-complete` arrived while A2 was not ready yet; close A2 after replaying the roll buffer. */
-  rollCompleted?: boolean
   compacting?: boolean
 }
 
@@ -213,8 +197,7 @@ export class AgentSessionRuntimeService extends BaseService {
       userMessage,
       modelId: input.modelId,
       admitted: false,
-      activeToolIds: new Set(),
-      interruptRequested: false
+      activeToolIds: new Set()
     }
 
     if (existing?.status === 'idle') {
@@ -264,46 +247,23 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   async applyAgentPolicyUpdate(agentId: string, update: AgentRuntimePolicyUpdate): Promise<void> {
-    const updates: Array<{
-      entry: AgentSessionRuntimeEntry
-      connection: AgentRuntimeConnection
-      promise: Promise<boolean> | boolean
-    }> = []
+    const updates: Array<Promise<boolean> | boolean> = []
     for (const entry of this.entries.values()) {
-      if (entry.agentId !== agentId) continue
-      const { connection } = entry
-      if (!connection?.applyPolicyUpdate) continue
-      updates.push({ entry, connection, promise: connection.applyPolicyUpdate(update) })
+      if (entry.agentId !== agentId || !entry.connection?.applyPolicyUpdate) continue
+      updates.push(entry.connection.applyPolicyUpdate(update))
     }
-    const results = await Promise.allSettled(updates.map(({ promise }) => promise))
-    for (const [index, result] of results.entries()) {
-      const updateTarget = updates[index]
-      if (!updateTarget) continue
-      const { entry, connection } = updateTarget
-      const { sessionId } = entry
-
-      if (result.status === 'rejected') {
-        logger.error('Failed to apply live agent policy update; closing runtime connection', {
-          agentId,
-          sessionId,
-          error: result.reason
-        })
-        this.closeFailedPolicyUpdateConnection(entry, connection)
-        continue
-      }
-
-      if (result.value === false) {
-        logger.warn('Live agent policy update had no live query; detaching runtime connection', { agentId, sessionId })
-        this.detachPolicyUpdateConnection(entry, connection)
-      }
-    }
+    await Promise.allSettled(updates)
   }
 
   private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
-    if (updates.configuration !== undefined) {
+    const configuration = updates.configuration as { permission_mode?: unknown } | undefined
+    const hasPermissionModeUpdate =
+      configuration !== undefined && Object.prototype.hasOwnProperty.call(configuration, 'permission_mode')
+
+    if (hasPermissionModeUpdate) {
       await this.applyAgentPolicyUpdate(agentId, {
         type: 'permission-mode',
-        permissionMode: agent.configuration?.permission_mode
+        permissionMode: configuration.permission_mode as AgentPermissionMode | undefined
       })
     }
 
@@ -328,7 +288,9 @@ export class AgentSessionRuntimeService extends BaseService {
           this.clearIdleTimer(entry)
           turn.controller = controller
 
-          const onAbort = () => this.stopTurn(entry, turn.interruptRequested ? 'interrupt' : 'user-stop')
+          // A user Stop is the only abort source now (steer no longer interrupts) — tear the
+          // session down so `connection.close()` kills the warm query and its subagent.
+          const onAbort = () => this.closeSession(entry.sessionId)
           if (input.signal.aborted) {
             onAbort()
             return
@@ -394,7 +356,6 @@ export class AgentSessionRuntimeService extends BaseService {
       entry.rolling = false
       entry.rollBuffer = undefined
       entry.rollSteerInputs = undefined
-      entry.rollCompleted = false
     }
 
     entry.status = 'idle'
@@ -450,7 +411,12 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!entry) return false
     // `rolling`: A1a just closed at a steer boundary and the continuation (A2) is coming — keep the
     // stream alive so A2 carries the renderer listeners.
-    return entry.pendingTurns.length > 0 || entry.startingNextTurn === true || entry.rolling === true
+    return (
+      entry.pendingTurns.length > 0 ||
+      entry.startingNextTurn === true ||
+      entry.rolling === true ||
+      entry.compacting === true
+    )
   }
 
   inspect(sessionId: string): AgentSessionRuntimeSnapshot | undefined {
@@ -466,8 +432,7 @@ export class AgentSessionRuntimeService extends BaseService {
       pendingMessageCount: entry.pendingTurns.length,
       lastTerminalStatus: entry.lastTerminalStatus,
       resumeToken: entry.lastResumeToken,
-      activeToolCount: turn?.activeToolIds.size ?? 0,
-      interruptRequested: turn?.interruptRequested ?? false
+      activeToolCount: turn?.activeToolIds.size ?? 0
     }
   }
 
@@ -499,11 +464,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (entry.connection) return true
     // Share a single in-flight connect across concurrent callers so two streams opening at once
     // can't each spin up a connection (the second would leak/clobber the first).
-    if (entry.connecting) {
-      const connected = await entry.connecting
-      if (!connected || !this.isCurrentEntry(entry)) return false
-      return true
-    }
+    if (entry.connecting) return entry.connecting
 
     const connecting = this.connect(entry).finally(() => {
       if (entry.connecting === connecting) entry.connecting = undefined
@@ -582,7 +543,6 @@ export class AgentSessionRuntimeService extends BaseService {
         entry.rolling = true
         entry.rollBuffer = []
         entry.rollSteerInputs = event.inputs
-        entry.rollCompleted = false
         this.closeCurrentTurn(entry, 'success')
         break
       case 'steer-undelivered':
@@ -607,11 +567,6 @@ export class AgentSessionRuntimeService extends BaseService {
         this.persistContextUsage(entry, event.usage)
         break
       case 'turn-complete':
-        if (entry.rolling) {
-          entry.rollCompleted = true
-          this.refreshContextUsage(entry)
-          break
-        }
         this.closeCurrentTurn(entry, 'success')
         this.refreshContextUsage(entry)
         break
@@ -633,11 +588,11 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
-  private handleCompactionComplete(entry: AgentSessionRuntimeEntry, anchor?: AgentSessionCompactionAnchorData): void {
+  private handleCompactionComplete(entry: AgentSessionRuntimeEntry, anchor: AgentSessionCompactionAnchorData): void {
     entry.compacting = false
 
     const turn = entry.currentTurn
-    if (anchor && turn?.controller && !turn.terminalStatus) {
+    if (turn?.controller && !turn.terminalStatus) {
       this.enqueueTurnChunk(turn, {
         type: 'data-compaction-anchor',
         id: crypto.randomUUID(),
@@ -645,9 +600,8 @@ export class AgentSessionRuntimeService extends BaseService {
       } as UIMessageChunk)
     }
 
-    // Completed-run metrics ride the `data-compaction-anchor` chunk above (the UI's source); the cache
-    // state only tracks `status`. A no-anchor success (which can follow the boundary) therefore can't
-    // clobber any token stats — it just leaves the compacting state.
+    // Completed-run metrics ride the data-compaction-anchor chunk above (the UI's source); the cache
+    // state only tracks `status`.
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
       status: 'idle'
     })
@@ -719,28 +673,18 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private enqueueTurnChunk(turn: AgentSessionTurn, chunk: UIMessageChunk): void {
-    const toolChunk = chunk as { type?: string; toolCallId?: string }
-    if ((toolChunk.type === 'tool-input-start' || toolChunk.type === 'tool-input-available') && toolChunk.toolCallId) {
-      turn.activeToolIds.add(toolChunk.toolCallId)
+    if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
+      turn.activeToolIds.add(chunk.toolCallId)
     } else if (
-      (toolChunk.type === 'tool-output-available' ||
-        toolChunk.type === 'tool-output-error' ||
-        toolChunk.type === 'tool-output-denied') &&
-      toolChunk.toolCallId
+      (chunk.type === 'tool-output-available' ||
+        chunk.type === 'tool-output-error' ||
+        chunk.type === 'tool-output-denied') &&
+      chunk.toolCallId
     ) {
-      turn.activeToolIds.delete(toolChunk.toolCallId)
+      turn.activeToolIds.delete(chunk.toolCallId)
     }
 
     turn.controller?.enqueue(chunk)
-  }
-
-  private stopTurn(entry: AgentSessionRuntimeEntry, intent: AgentTurnStopIntent): void {
-    const policy = STOP_POLICY[intent]
-    if (policy.closeSession) {
-      this.closeSession(entry.sessionId)
-      return
-    }
-    this.closeCurrentTurn(entry, policy.turnStatus)
   }
 
   private closeCurrentTurn(entry: AgentSessionRuntimeEntry, status: AgentSessionRuntimeTerminalStatus): void {
@@ -824,8 +768,7 @@ export class AgentSessionRuntimeService extends BaseService {
       userMessage: nextMessage,
       modelId: entry.modelId,
       admitted: false,
-      activeToolIds: new Set(),
-      interruptRequested: false
+      activeToolIds: new Set()
     }
 
     const messages = createRuntimeSeedMessages(nextMessage, assistantMessageId)
@@ -901,7 +844,6 @@ export class AgentSessionRuntimeService extends BaseService {
       rootSpan?.end()
       entry.rolling = false
       entry.rollBuffer = undefined
-      entry.rollCompleted = false
       application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, serializeError(error))
       this.markTurnTerminal(entry.sessionId, 'error')
       return
@@ -921,8 +863,7 @@ export class AgentSessionRuntimeService extends BaseService {
       modelId: entry.modelId,
       // Pre-admitted: the steer was already delivered via the hook, so `admitTurn` must NOT re-send it.
       admitted: true,
-      activeToolIds: new Set(),
-      interruptRequested: false
+      activeToolIds: new Set()
     }
 
     const messages = createRuntimeSeedMessages(steerMessage, assistantMessageId)
@@ -962,12 +903,9 @@ export class AgentSessionRuntimeService extends BaseService {
   private flushRollBuffer(entry: AgentSessionRuntimeEntry, turn: AgentSessionTurn): void {
     if (!entry.rolling || entry.currentTurn !== turn) return
     const buffered = entry.rollBuffer ?? []
-    const completed = entry.rollCompleted === true
     entry.rolling = false
     entry.rollBuffer = undefined
-    entry.rollCompleted = false
     for (const chunk of buffered) this.enqueueTurnChunk(turn, chunk)
-    if (completed) this.closeCurrentTurn(entry, 'success')
   }
 
   private startRuntimeRootSpan(entry: AgentSessionRuntimeEntry): Span | undefined {
@@ -1058,34 +996,19 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.rolling = false
     entry.rollBuffer = undefined
     entry.rollSteerInputs = undefined
-    entry.rollCompleted = false
-    application.get('CacheService').deleteShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId))
-    application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId))
+    if (entry.compacting) {
+      application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
+        status: 'idle'
+      })
+    }
     entry.compacting = false
+    application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId))
 
     const connection = this.closeConnection(entry)
     entry.currentTurn = undefined
     entry.startingNextTurn = false
 
     void Promise.resolve(connection?.close()).catch((error) =>
-      logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
-    )
-  }
-
-  private closeFailedPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
-    if (entry.connection !== connection) return
-    const turn = entry.currentTurn
-    if (turn && !turn.terminalStatus) {
-      turn.interruptRequested = true
-      application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-policy-update-failed')
-    }
-    this.detachPolicyUpdateConnection(entry, connection)
-  }
-
-  private detachPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
-    if (entry.connection !== connection) return
-    this.closeConnection(entry)
-    void Promise.resolve(connection.close()).catch((error) =>
       logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
     )
   }
