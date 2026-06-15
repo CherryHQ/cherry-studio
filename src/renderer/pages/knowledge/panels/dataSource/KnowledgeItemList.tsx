@@ -59,7 +59,7 @@ const KnowledgeItemList = ({
   const someSelected = !allSelected && items.some((item) => selectedIds.has(item.id))
 
   return (
-    <Scrollbar className={cn('min-h-0 flex-1 px-3 pt-3 pb-6', '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden')}>
+    <Scrollbar className={cn('min-h-0 flex-1 px-3 pb-6', '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden')}>
       <Table className="table-fixed border-separate border-spacing-x-0 border-spacing-y-1.5 text-sm">
         <colgroup>
           <col className="w-10" />
@@ -83,8 +83,7 @@ const KnowledgeItemList = ({
               </div>
             </TableHead>
             <TableHead className="font-medium text-foreground-muted text-xs">
-              <div className="flex h-10 min-w-0 items-center gap-2">
-                <span className="size-6 shrink-0" aria-hidden="true" />
+              <div className="flex h-10 min-w-0 items-center">
                 <span>{t('knowledge.data_source.table.columns.name')}</span>
               </div>
             </TableHead>
