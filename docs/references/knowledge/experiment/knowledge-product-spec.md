@@ -18,10 +18,10 @@
 | Local file / folder | Copied into the base (one-shot copy), name kept, hierarchy kept; the imported original is **never tracked** afterward — its later edits or deletion never affect the base copy; deleting the in-base copy never touches the original |
 | URL | A **snapshot** (fetched as Markdown), not a live reference; refresh = re-fetch and overwrite (confirmation required) |
 | Note | Copied as the base's own snapshot, default name from the source; no auto-sync, refresh-overwrite needs confirmation |
-| PDF processor output | The generated Markdown is an **independent, visible file**; search indexes/returns the Markdown; deleting the PDF keeps the md |
+| PDF processor output | The generated Markdown is an **independent, visible file**; search indexes/returns the Markdown; deleting the PDF keeps the md *(target state / v2.x — in current v2 the md is **not** a separate item, only the PDF item's `indexedRelativePath`; deleting the PDF item deletes both md and PDF)* |
 | Agent-created material | Writing into the base directory makes an ordinary visible material — no hidden output pool; the user can edit freely |
 
-Same-path conflicts offer three choices (overwrite / keep copy `_2` / skip) as the target state; duplicate content is not blocked (the agent tidies it later).
+Same-path conflicts offer three choices (overwrite / keep copy `_2` / skip); keep-copy auto-renames with a `_N` suffix and is **landed** (live upload + v1 migration), while overwrite / skip are still target state. Duplicate content is not blocked (the agent tidies it later).
 
 ## 4. Agent capability boundaries
 
@@ -39,9 +39,9 @@ Same-path conflicts offer three choices (overwrite / keep copy `_2` / skip) as t
 | 5 | Uploads copy without renaming; folders keep their hierarchy |
 | 6 | URLs are fetched as Markdown; refresh overwrites and updates the index |
 | 7 | Cloud documents are stored as local snapshots with manual refresh (later capability) |
-| 8 | PDF-generated Markdown is an independent visible file; search returns the Markdown; deleting the PDF keeps the md |
+| 8 | PDF-generated Markdown is an independent visible file; search returns the Markdown; deleting the PDF keeps the md *(target state / v2.x — current v2: md is not a separate item, deleting the PDF deletes both)* |
 | 9 | Agent writes go through the create-material API (not a raw file drop into the folder), then are immediately visible |
-| 10 | Same-path conflicts offer three choices, copies use `_2`/`_3` suffixes (target state; currently reject-on-conflict) |
+| 10 | Same-path conflicts offer three choices, copies use `_2`/`_3` suffixes (keep-copy / auto-rename `_N` landed for both live upload and v1 migration; overwrite / skip still target state) |
 | 11 | Duplicate content is not blocked |
 | 12 | Imported originals are not tracked — their external edits/deletion never change the base; a base copy is removed only by an explicit in-app delete (`missing` is a lazy read-time flag, not a watcher signal) |
 | 13 | list shows all visible bases; search requires an id but is not candidate-limited; candidates ≠ permission boundary |
