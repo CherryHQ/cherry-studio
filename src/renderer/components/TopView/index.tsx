@@ -5,6 +5,7 @@ import AppModalProvider from '@renderer/components/AppModal'
 import { useAgentSessionAutoRenameSync } from '@renderer/hooks/agents/useSession'
 import { useAppInit } from '@renderer/hooks/useAppInit'
 import { useTopicAutoRenameSync } from '@renderer/hooks/useTopic'
+import { ipcApi } from '@renderer/ipc'
 import type { PropsWithChildren } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -88,7 +89,7 @@ const TopViewContent: React.FC<Props> = ({ children }) => {
       if (!enableQuitFullScreen) return
 
       if (e.key === 'Escape' && !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-        void window.api.windowManager.setFullScreen(false)
+        void ipcApi.request('window.set_full_screen', false)
       }
     }
     window.addEventListener('keydown', handleKeyDown)

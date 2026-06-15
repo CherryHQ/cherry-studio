@@ -3,7 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useTabs } from '@renderer/hooks/useTabs'
-import { getSidebarIconLabel } from '@renderer/i18n/label'
+import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
 import {
@@ -131,12 +131,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         return [
           {
             id: icon,
-            label: getSidebarIconLabel(icon),
+            label: t(getSidebarIconLabelKey(icon)),
             icon: Icon
           }
         ]
       }),
-    [visibleSidebarIcons]
+    [visibleSidebarIcons, t]
   )
 
   const activeItem = resolveActiveItem(pathname)
