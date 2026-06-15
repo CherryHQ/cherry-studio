@@ -140,6 +140,10 @@ vi.mock('react-i18next', () => ({
         return `确认删除选中的 ${options?.count} 个数据源`
       }
 
+      if (key === 'knowledge.meta.updated_at') {
+        return `更新于 ${options?.time ?? ''}`
+      }
+
       return (
         (
           {
@@ -218,12 +222,28 @@ describe('DataSourcePanel', () => {
 
   it('renders loading and empty states through the list composition without changing panel behavior', () => {
     const { rerender } = render(
-      <DataSourcePanel items={[]} isLoading onAdd={vi.fn()} onDelete={vi.fn()} onReindex={vi.fn()} />
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
     )
 
     expect(screen.getByText('加载中...')).toBeInTheDocument()
 
-    rerender(<DataSourcePanel items={[]} isLoading={false} onAdd={vi.fn()} onDelete={vi.fn()} onReindex={vi.fn()} />)
+    rerender(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
 
     expect(screen.getByText('上传第一个数据源')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
@@ -237,7 +257,14 @@ describe('DataSourcePanel', () => {
     const onAdd = vi.fn()
 
     const { rerender } = render(
-      <DataSourcePanel items={[]} isLoading={false} onAdd={onAdd} onDelete={vi.fn()} onReindex={vi.fn()} />
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading={false}
+        onAdd={onAdd}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
     )
 
     expect(screen.getByText('暂无数据源')).toBeInTheDocument()
@@ -256,7 +283,16 @@ describe('DataSourcePanel', () => {
     expect(onAdd).not.toHaveBeenCalled()
     expect(filePickerClick).toHaveBeenCalledTimes(1)
 
-    rerender(<DataSourcePanel items={[]} isLoading={false} onAdd={onAdd} onDelete={vi.fn()} onReindex={vi.fn()} />)
+    rerender(
+      <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
+        items={[]}
+        isLoading={false}
+        onAdd={onAdd}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
     fireEvent.click(screen.getByRole('button', { name: '链接' }))
 
     expect(onAdd).toHaveBeenCalledWith('url')
@@ -265,6 +301,7 @@ describe('DataSourcePanel', () => {
   it('uses the first non-empty note line as the title and leaves blank notes without the old fallback label', () => {
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createNoteItem({ id: 'note-1', content: '\n \n  第一行标题  \n第二行内容' }),
           createNoteItem({ id: 'note-2', content: '\n   \n' })
@@ -284,6 +321,7 @@ describe('DataSourcePanel', () => {
   it('renders url and directory items from their required source fields and keeps the ready count correct', () => {
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' }),
           createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })
@@ -300,11 +338,13 @@ describe('DataSourcePanel', () => {
     expect(directoryTitle).toBeInTheDocument()
     expect(directoryTitle).toHaveAttribute('title', '/Users/eeee/本地资料夹')
     expect(screen.getByText('已就绪 2/2')).toBeInTheDocument()
+    expect(screen.getByText('更新于 刚刚')).toBeInTheDocument()
   })
 
   it('renders processing directory rows as processing when no phase is available', () => {
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹', status: 'processing' })]}
         isLoading={false}
         onAdd={vi.fn()}
@@ -325,6 +365,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
         onAdd={onAdd}
@@ -344,6 +385,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
         onAdd={onAdd}
@@ -367,6 +409,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
         onAdd={onAdd}
@@ -386,6 +429,7 @@ describe('DataSourcePanel', () => {
 
     const { rerender } = render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
           createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
@@ -402,6 +446,7 @@ describe('DataSourcePanel', () => {
 
     rerender(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
         onAdd={vi.fn()}
@@ -431,6 +476,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[item]}
         isLoading={false}
         onAdd={vi.fn()}
@@ -451,6 +497,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[item]}
         isLoading={false}
         onAdd={vi.fn()}
@@ -471,6 +518,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
         onAdd={vi.fn()}
@@ -497,6 +545,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
         onAdd={vi.fn()}
@@ -520,6 +569,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
         onAdd={vi.fn()}
@@ -541,6 +591,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
           createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
@@ -566,6 +617,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
           createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
@@ -593,6 +645,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
           createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
@@ -636,6 +689,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
           createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
@@ -663,6 +717,7 @@ describe('DataSourcePanel', () => {
   it('selects all rows from the header checkbox and clears selection when toggled again from all selected', async () => {
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
           createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
@@ -698,6 +753,7 @@ describe('DataSourcePanel', () => {
   it('shows the header select-all checkbox as partially selected after deselecting one selected row', () => {
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
           createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
@@ -719,6 +775,7 @@ describe('DataSourcePanel', () => {
   it('prunes selected item ids when the backing item list changes', async () => {
     const { rerender } = render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[
           createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
           createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
@@ -735,6 +792,7 @@ describe('DataSourcePanel', () => {
 
     rerender(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createFileItem({ id: 'file-2', originName: '会议记录.pdf' })]}
         isLoading={false}
         onAdd={vi.fn()}
@@ -755,6 +813,7 @@ describe('DataSourcePanel', () => {
 
     render(
       <DataSourcePanel
+        updatedAt="2026-04-15T09:00:00+08:00"
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
         onAdd={vi.fn()}

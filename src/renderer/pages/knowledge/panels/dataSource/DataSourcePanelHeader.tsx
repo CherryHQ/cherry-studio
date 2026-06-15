@@ -1,4 +1,5 @@
 import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
 import type { KnowledgeItemType } from '@shared/data/types/knowledge'
 import { Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { useCallback, useState } from 'react'
@@ -10,6 +11,7 @@ interface DataSourcePanelHeaderProps {
   readyCount: number
   totalCount: number
   selectedCount: number
+  updatedAt: string
   onBulkReindex: () => void
   onBulkDelete: () => void
   onCancelBulk: () => void
@@ -20,12 +22,13 @@ const DataSourcePanelHeader = ({
   readyCount,
   totalCount,
   selectedCount,
+  updatedAt,
   onBulkReindex,
   onBulkDelete,
   onCancelBulk,
   onAdd
 }: DataSourcePanelHeaderProps) => {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [isSourceMenuOpen, setIsSourceMenuOpen] = useState(false)
 
   const handleSourceSelect = useCallback(
@@ -62,7 +65,10 @@ const DataSourcePanelHeader = ({
   }
 
   return (
-    <div className="flex min-w-0 items-center justify-end gap-2">
+    <div className="flex min-w-0 items-center justify-between gap-2">
+      <span className="min-w-0 truncate text-foreground-muted text-xs leading-4">
+        {t('knowledge.meta.updated_at', { time: formatRelativeTime(updatedAt, i18n.language) })}
+      </span>
       <div className="flex shrink-0 items-center gap-2">
         {totalCount > 0 ? (
           <span className="text-foreground-muted text-xs leading-4">

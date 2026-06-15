@@ -8,10 +8,9 @@ import {
   PopoverContent,
   PopoverTrigger
 } from '@cherrystudio/ui'
-import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { FlaskConical, MoreHorizontal, PencilLine, SlidersHorizontal, Trash2 } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import KnowledgeBaseIcon from './KnowledgeBaseIcon'
@@ -19,29 +18,17 @@ import { statusBadgeClassNames } from './statusStyles'
 
 interface DetailHeaderProps {
   base: KnowledgeBase
-  itemCount: number
   onOpenRagConfig: () => void
   onOpenRecallTest: () => void
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
   onDeleteBase: (baseId: string) => Promise<void> | void
 }
 
-const DetailHeader = ({
-  base,
-  itemCount,
-  onOpenRagConfig,
-  onOpenRecallTest,
-  onRenameBase,
-  onDeleteBase
-}: DetailHeaderProps) => {
-  const { t, i18n } = useTranslation()
+const DetailHeader = ({ base, onOpenRagConfig, onOpenRecallTest, onRenameBase, onDeleteBase }: DetailHeaderProps) => {
+  const { t } = useTranslation()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
-  const formattedUpdatedAt = useMemo(
-    () => formatRelativeTime(base.updatedAt, i18n.language),
-    [base.updatedAt, i18n.language]
-  )
   const statusLabelKey = `knowledge.status.${base.status}` as const
   const statusLabel = t(statusLabelKey)
 
@@ -60,27 +47,20 @@ const DetailHeader = ({
 
   return (
     <>
-      <header className="shrink-0 px-3 py-3.5">
+      <header className="shrink-0 px-3 pt-3.5 pb-2">
         <div className="flex min-w-0 items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <KnowledgeBaseIcon />
 
-            <div className="flex min-w-0 flex-col gap-1.5">
-              <div className="flex min-w-0 items-center gap-2">
-                <h1 className="min-w-0 truncate font-bold text-2xl text-foreground leading-8">{base.name}</h1>
-                <Badge
-                  variant="outline"
-                  className={`${statusBadgeClassNames[base.status]} shrink-0`}
-                  aria-label={statusLabel}
-                  title={statusLabel}>
-                  {statusLabel}
-                </Badge>
-              </div>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-foreground-muted text-xs leading-4">
-                <span>{t('knowledge.meta.data_sources_count', { count: itemCount })}</span>
-                <span aria-hidden="true">·</span>
-                <span>{t('knowledge.meta.updated_at', { time: formattedUpdatedAt })}</span>
-              </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <h1 className="min-w-0 truncate font-bold text-2xl text-foreground leading-8">{base.name}</h1>
+              <Badge
+                variant="outline"
+                className={`${statusBadgeClassNames[base.status]} shrink-0`}
+                aria-label={statusLabel}
+                title={statusLabel}>
+                {statusLabel}
+              </Badge>
             </div>
           </div>
 

@@ -40,7 +40,6 @@ const KnowledgePageDetailSection = () => {
     <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
       <DetailHeader
         base={selectedBase}
-        itemCount={selectedBaseItems.length}
         onOpenRagConfig={openRagConfigDrawer}
         onOpenRecallTest={openRecallTestDrawer}
         onRenameBase={openRenameBaseDialog}
@@ -54,6 +53,7 @@ const KnowledgePageDetailSection = () => {
           <DataSourcePanel
             items={selectedBaseItems}
             isLoading={isItemsLoading}
+            updatedAt={selectedBase.updatedAt}
             onAdd={openAddSourceDialog}
             onItemClick={openItemChunks}
             onDelete={deleteItem}

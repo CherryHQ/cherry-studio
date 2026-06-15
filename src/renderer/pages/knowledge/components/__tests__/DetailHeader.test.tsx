@@ -172,11 +172,10 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
 })
 
 describe('DetailHeader', () => {
-  it('renders the current selected base item count and completed status', () => {
+  it('renders the base name and completed status', () => {
     const { container } = render(
       <DetailHeader
         base={createKnowledgeBase()}
-        itemCount={3}
         onOpenRagConfig={vi.fn()}
         onOpenRecallTest={vi.fn()}
         onRenameBase={vi.fn()}
@@ -184,8 +183,6 @@ describe('DetailHeader', () => {
       />
     )
 
-    expect(screen.getByText('3 数据源')).toBeInTheDocument()
-    expect(screen.getByText('更新于 2小时前')).toBeInTheDocument()
     expect(screen.getByText('就绪')).toBeInTheDocument()
     expect(screen.getByText('就绪')).toHaveClass('bg-success/10', 'text-success')
     expect(screen.getByText('就绪')).toHaveAttribute('aria-label', '就绪')
@@ -199,7 +196,6 @@ describe('DetailHeader', () => {
     render(
       <DetailHeader
         base={createKnowledgeBase({ status: 'failed', error: 'missing_embedding_model' })}
-        itemCount={0}
         onOpenRagConfig={vi.fn()}
         onOpenRecallTest={vi.fn()}
         onRenameBase={vi.fn()}
@@ -220,7 +216,6 @@ describe('DetailHeader', () => {
     render(
       <DetailHeader
         base={createKnowledgeBase({ status: 'failed', error: null })}
-        itemCount={0}
         onOpenRagConfig={vi.fn()}
         onOpenRecallTest={vi.fn()}
         onRenameBase={vi.fn()}
@@ -240,7 +235,6 @@ describe('DetailHeader', () => {
     render(
       <DetailHeader
         base={createKnowledgeBase()}
-        itemCount={0}
         onOpenRagConfig={onOpenRagConfig}
         onOpenRecallTest={onOpenRecallTest}
         onRenameBase={vi.fn()}
@@ -261,7 +255,6 @@ describe('DetailHeader', () => {
     render(
       <DetailHeader
         base={createKnowledgeBase()}
-        itemCount={0}
         onOpenRagConfig={vi.fn()}
         onOpenRecallTest={vi.fn()}
         onRenameBase={vi.fn()}
@@ -281,7 +274,6 @@ describe('DetailHeader', () => {
     render(
       <DetailHeader
         base={createKnowledgeBase()}
-        itemCount={0}
         onOpenRagConfig={vi.fn()}
         onOpenRecallTest={vi.fn()}
         onRenameBase={onRenameBase}
@@ -304,7 +296,6 @@ describe('DetailHeader', () => {
     render(
       <DetailHeader
         base={createKnowledgeBase()}
-        itemCount={0}
         onOpenRagConfig={vi.fn()}
         onOpenRecallTest={vi.fn()}
         onRenameBase={vi.fn()}

@@ -16,6 +16,7 @@ import { getReadyCount } from './utils/selectors'
 export interface DataSourcePanelProps {
   items: KnowledgeItem[]
   isLoading: boolean
+  updatedAt: string
   onAdd: (source?: KnowledgeItemType, files?: File[]) => void
   onItemClick?: (itemId: string) => void
   onDelete: (item: KnowledgeItem) => void | Promise<unknown>
@@ -55,7 +56,15 @@ const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: Knowledge
   )
 }
 
-const DataSourcePanel = ({ items, isLoading, onAdd, onItemClick, onDelete, onReindex }: DataSourcePanelProps) => {
+const DataSourcePanel = ({
+  items,
+  isLoading,
+  updatedAt,
+  onAdd,
+  onItemClick,
+  onDelete,
+  onReindex
+}: DataSourcePanelProps) => {
   const { t } = useTranslation()
   const { previewSource } = usePreviewKnowledgeSource()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -169,13 +178,14 @@ const DataSourcePanel = ({ items, isLoading, onAdd, onItemClick, onDelete, onRei
 
   return (
     <KnowledgePanelShell
-      headerClassName="shrink-0 px-3 pt-4"
+      headerClassName="shrink-0 px-3 pt-1"
       header={
         <div className="border-border-muted border-b pb-3">
           <DataSourcePanelHeader
             readyCount={readyCount}
             totalCount={items.length}
             selectedCount={selectedIds.size}
+            updatedAt={updatedAt}
             onBulkReindex={handleBulkReindex}
             onBulkDelete={() => setIsBulkDeleteOpen(true)}
             onCancelBulk={handleCancelBulk}
