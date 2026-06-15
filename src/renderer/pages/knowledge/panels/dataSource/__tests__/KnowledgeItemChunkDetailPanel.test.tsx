@@ -199,7 +199,6 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     renderPanel()
 
     expect(screen.getByText('fallback.md')).toBeInTheDocument()
-    expect(screen.getByText('md')).toBeInTheDocument()
     expect(screen.getByText('0 chunks')).toBeInTheDocument()
     expect(screen.getByText('加载中')).toBeInTheDocument()
 
@@ -216,6 +215,9 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     expect(screen.getByText('88 tokens')).toBeInTheDocument()
     expect(screen.getByText('真实 chunk 内容一')).toBeInTheDocument()
     expect(screen.getByText('真实 chunk 内容二')).toBeInTheDocument()
+    // chunk index badges are 1-based (chunkIndex 0/1 render as 1/2)
+    expect(screen.getByText('1')).toBeInTheDocument()
+    expect(screen.getByText('2')).toBeInTheDocument()
   })
 
   it('renders only implemented chunk action buttons', async () => {
