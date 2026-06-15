@@ -139,8 +139,7 @@ export function getAssistantPresetCatalogKey(preset: Pick<AssistantCatalogPreset
 export function toCreateAssistantDtoFromCatalogPreset(preset: AssistantCatalogPreset): CreateAssistantDto {
   const dto: CreateAssistantDto = {
     name: preset.name.trim(),
-    prompt: preset.prompt?.trim() || '',
-    source: preset.id
+    prompt: preset.prompt?.trim() || ''
   }
 
   const description = preset.description?.trim()

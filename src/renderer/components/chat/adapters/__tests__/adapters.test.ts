@@ -47,7 +47,6 @@ function createSession(overrides: Partial<AgentSessionEntity> = {}): AgentSessio
 function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
   return {
     id: 'assistant-1',
-    source: 'user',
     name: 'Assistant title',
     prompt: '',
     emoji: '🍒',

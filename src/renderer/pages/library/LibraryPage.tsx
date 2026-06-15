@@ -1,9 +1,7 @@
 import { Alert, Button } from '@cherrystudio/ui'
 import PromptEditDialog from '@renderer/components/PromptEditDialog'
-import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import { useAgentModelFilter } from '@renderer/hooks/agents/useAgentModelFilter'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
-import { buildChatAssistantRouteUrl } from '@renderer/pages/home/routeSearch'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
@@ -79,7 +77,6 @@ function buildTags(resources: ResourceItem[], backendTags: Tag[], filterType?: R
 
 export default function LibraryPage() {
   const { t } = useTranslation()
-  const tabs = useOptionalTabsContext()
   const [sidebarFilter, setSidebarFilter] = useState<LibrarySidebarFilter>(() => ({
     resourceType: DEFAULT_RESOURCE_TYPE
   }))
@@ -150,13 +147,6 @@ export default function LibraryPage() {
     () => tagList.tags.map((t) => t.name).sort((a, b) => a.localeCompare(b, 'zh')),
     [tagList.tags]
   )
-  const assistantByCatalogSource = useMemo(() => {
-    const map = new Map<string, Assistant>()
-    for (const resource of allResources) {
-      if (resource.type === 'assistant') map.set(resource.raw.source, resource.raw)
-    }
-    return map
-  }, [allResources])
 
   const noop = useCallback(() => {}, [])
   const handleClosePromptDialog = useCallback(() => {
@@ -241,23 +231,6 @@ export default function LibraryPage() {
       }
     },
     [addAssistantPreset, t]
-  )
-
-  const getAddedAssistantForPreset = useCallback(
-    (preset: AssistantCatalogPreset) => assistantByCatalogSource.get(preset.id),
-    [assistantByCatalogSource]
-  )
-
-  const handleOpenAssistantChat = useCallback(
-    (assistant: Assistant) => {
-      setPreviewAssistantPreset(null)
-      tabs?.openTab(buildChatAssistantRouteUrl(assistant.id), {
-        forceNew: true,
-        title: assistant.name,
-        icon: assistant.emoji
-      })
-    },
-    [tabs]
   )
 
   const handlePreviewAssistantPreset = useCallback((preset: AssistantCatalogPreset) => {
@@ -391,8 +364,6 @@ export default function LibraryPage() {
             presets: assistantCatalog.presets,
             onTabChange: handleAssistantTabChange,
             onAddPreset: handleAddAssistantPreset,
-            onOpenAssistant: handleOpenAssistantChat,
-            getAddedAssistant: getAddedAssistantForPreset,
             onPreviewPreset: handlePreviewAssistantPreset
           }
         : undefined,
@@ -400,15 +371,12 @@ export default function LibraryPage() {
       activeAssistantCatalogTab,
       assistantCatalog.presets,
       assistantCatalog.tabs,
-      getAddedAssistantForPreset,
       handleAddAssistantPreset,
       handleAssistantTabChange,
-      handleOpenAssistantChat,
       handlePreviewAssistantPreset,
       isAssistantLibrary
     ]
   )
-  const previewAddedAssistant = previewAssistantPreset ? getAddedAssistantForPreset(previewAssistantPreset) : undefined
 
   return (
     <div className="flex min-h-0 flex-1 bg-background">
@@ -483,10 +451,8 @@ export default function LibraryPage() {
         preset={previewAssistantPreset}
         open={Boolean(previewAssistantPreset)}
         adding={previewAssistantPresetAdding}
-        addedAssistant={previewAddedAssistant}
         onOpenChange={handlePreviewOpenChange}
         onAdd={handleAddPreviewAssistantPreset}
-        onOpenAssistant={handleOpenAssistantChat}
       />
       <ImportAssistantDialog open={assistantImportOpen} onOpenChange={setAssistantImportOpen} onImported={refetch} />
       <ImportSkillDialog open={skillImportOpen} onOpenChange={setSkillImportOpen} onInstalled={refetch} />

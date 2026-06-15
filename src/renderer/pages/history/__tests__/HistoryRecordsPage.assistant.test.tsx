@@ -389,7 +389,6 @@ function createTopic(overrides: Partial<Topic> = {}): Topic {
 function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
   return {
     id: 'assistant-alpha',
-    source: 'user',
     name: 'Alpha assistant',
     prompt: '',
     emoji: 'A',

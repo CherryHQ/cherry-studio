@@ -524,69 +524,33 @@ describe('ResourceGrid assistant catalog actions', () => {
     prompt: 'Prompt',
     group: ['Tools']
   }
-  const addedAssistant = {
-    id: 'assistant-added',
-    source: preset.id,
-    name: 'Catalog Assistant',
-    emoji: '🤖'
-  } as any
 
-  it('uses add before a preset is installed and go-to-chat after it is installed', async () => {
+  it('adds a preset from the catalog card', async () => {
     const user = userEvent.setup()
     const onAddPreset = vi.fn()
-    const onOpenAssistant = vi.fn()
-    const { rerender } = render(
+
+    render(
       <AssistantCatalogPresetContent
         presets={[preset]}
         search=""
         addingPresetKeys={new Set()}
-        getAddedAssistant={() => undefined}
         onAddPreset={onAddPreset}
-        onOpenAssistant={onOpenAssistant}
         onPreviewPreset={vi.fn()}
       />
     )
 
     await user.click(screen.getByRole('button', { name: 'library.assistant_catalog.add' }))
     expect(onAddPreset).toHaveBeenCalledWith(preset)
-    expect(onOpenAssistant).not.toHaveBeenCalled()
-
-    rerender(
-      <AssistantCatalogPresetContent
-        presets={[preset]}
-        search=""
-        addingPresetKeys={new Set()}
-        getAddedAssistant={() => addedAssistant}
-        onAddPreset={onAddPreset}
-        onOpenAssistant={onOpenAssistant}
-        onPreviewPreset={vi.fn()}
-      />
-    )
-
-    await user.click(screen.getByRole('button', { name: 'library.assistant_catalog.go_to_chat' }))
-    expect(onOpenAssistant).toHaveBeenCalledWith(addedAssistant)
   })
 
-  it('shows go-to-chat in the preview dialog for installed presets', async () => {
+  it('adds a preset from the preview dialog', async () => {
     const user = userEvent.setup()
     const onAdd = vi.fn()
-    const onOpenAssistant = vi.fn()
 
-    render(
-      <AssistantPresetPreviewDialog
-        preset={preset}
-        open
-        addedAssistant={addedAssistant}
-        onOpenChange={vi.fn()}
-        onAdd={onAdd}
-        onOpenAssistant={onOpenAssistant}
-      />
-    )
+    render(<AssistantPresetPreviewDialog preset={preset} open onOpenChange={vi.fn()} onAdd={onAdd} />)
 
-    await user.click(screen.getByRole('button', { name: 'library.assistant_catalog.go_to_chat' }))
-
-    expect(onOpenAssistant).toHaveBeenCalledWith(addedAssistant)
-    expect(onAdd).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'library.assistant_catalog.add' }))
+    expect(onAdd).toHaveBeenCalled()
   })
 })
 

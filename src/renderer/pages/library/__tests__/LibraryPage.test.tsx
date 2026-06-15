@@ -275,8 +275,6 @@ vi.mock('../list/ResourceGrid', () => ({
       activeTab: string
       presets: any[]
       onTabChange: (tabId: string) => void
-      getAddedAssistant: (preset: any) => any | undefined
-      onOpenAssistant: (assistant: any) => void
     }
     onDuplicate: (resource: any) => void
     onEdit: (resource: any) => void
@@ -287,11 +285,6 @@ vi.mock('../list/ResourceGrid', () => ({
   }) => (
     <div data-testid="resource-grid" data-resource-type={activeResourceType}>
       <div data-testid="assistant-catalog-active-tab">{assistantCatalog?.activeTab ?? ''}</div>
-      <div data-testid="assistant-catalog-added-assistant">
-        {assistantCatalog?.presets[0]
-          ? (assistantCatalog.getAddedAssistant(assistantCatalog.presets[0])?.id ?? '')
-          : ''}
-      </div>
       <input aria-label="library search" value={search} onChange={(event) => onSearchChange(event.target.value)} />
       <button type="button" onClick={() => onCreate('assistant')}>
         create assistant
@@ -304,15 +297,6 @@ vi.mock('../list/ResourceGrid', () => ({
       </button>
       <button type="button" onClick={() => assistantCatalog?.onTabChange('custom')}>
         select custom tab
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          const preset = assistantCatalog?.presets[0]
-          const assistant = preset ? assistantCatalog?.getAddedAssistant(preset) : undefined
-          if (assistant) assistantCatalog?.onOpenAssistant(assistant)
-        }}>
-        open added preset assistant
       </button>
       <button type="button" disabled={!resources[0]} onClick={() => onDuplicate(resources[0])}>
         duplicate first
@@ -476,37 +460,6 @@ describe('LibraryPage create flow', () => {
     await waitFor(() => {
       expect(screen.getByTestId('assistant-catalog-active-tab')).toHaveTextContent('__mine__')
       expect(resourceLibraryOptionsMock.at(-1)?.search).toBe('needle')
-    })
-  })
-
-  it('resolves installed catalog presets by source and opens them in a new chat tab', async () => {
-    const user = userEvent.setup()
-    const presetId = '550e8400-e29b-41d4-a716-446655440000'
-    assistantCatalogMock.presets = [{ id: presetId, name: 'Preset Assistant' }]
-    allResourcesMock.push({
-      id: 'assistant-added',
-      type: 'assistant',
-      name: 'Preset Assistant',
-      description: '',
-      avatar: '🤖',
-      tags: [],
-      createdAt: '2024-01-01T00:00:00.000Z',
-      updatedAt: '2024-01-01T00:00:00.000Z',
-      raw: { id: 'assistant-added', source: presetId, name: 'Preset Assistant', emoji: '🤖', tags: [] }
-    })
-
-    render(<LibraryPage />)
-
-    await user.click(screen.getByRole('button', { name: 'select assistant type' }))
-
-    expect(screen.getByTestId('assistant-catalog-added-assistant')).toHaveTextContent('assistant-added')
-
-    await user.click(screen.getByRole('button', { name: 'open added preset assistant' }))
-
-    expect(openTabMock).toHaveBeenCalledWith('/app/chat?assistantId=assistant-added', {
-      forceNew: true,
-      title: 'Preset Assistant',
-      icon: '🤖'
     })
   })
 

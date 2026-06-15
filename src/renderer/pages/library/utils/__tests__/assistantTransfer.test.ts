@@ -17,7 +17,6 @@ function createTag(id: string, name: string, color: string | null = '#3b82f6'): 
 function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
   return {
     id: 'ast-1',
-    source: 'user',
     name: '写作助手',
     prompt: 'You are helpful',
     emoji: '✍️',
