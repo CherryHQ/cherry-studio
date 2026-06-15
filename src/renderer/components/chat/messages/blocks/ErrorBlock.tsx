@@ -2,7 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
+import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import type { SerializedError } from '@renderer/types/error'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { classifyError } from '@renderer/utils/errorClassifier'
@@ -47,7 +47,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
       return (
         <Trans
           i18nKey={i18nKey}
-          values={{ provider: getProviderLabel(providerId) }}
+          values={{ provider: t(getProviderLabelKey(providerId)) }}
           components={{
             provider: (
               <Link style={{ color: 'var(--color-primary)' }} to="/settings/provider" search={{ id: providerId }} />
@@ -65,7 +65,7 @@ const ErrorMessage: React.FC<{ error: Props['error'] }> = ({ error }) => {
   if (typeof errorStatus === 'number' && HTTP_ERROR_CODES.includes(errorStatus)) {
     return (
       <span>
-        {getHttpMessageLabel(errorStatus.toString())} {error?.message}
+        {t(getHttpMessageLabelKey(errorStatus.toString()))} {error?.message}
       </span>
     )
   }

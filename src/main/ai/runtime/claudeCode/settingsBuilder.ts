@@ -517,8 +517,10 @@ async function buildEnvironment(
       'CLAUDE_CONFIG_DIR',
       'CLAUDE_CODE_USE_BEDROCK',
       'CLAUDE_CODE_GIT_BASH_PATH',
+      'ENABLE_TOOL_SEARCH',
       'CHERRY_STUDIO_NODE_PROXY_RULES',
       'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
+      'CHERRY_STUDIO_BUN_PATH',
       'NODE_OPTIONS',
       '__PROTO__',
       'CONSTRUCTOR',
@@ -575,7 +577,16 @@ async function buildToolPermissions(
   // connected channel). Channels are fetched once here so the predicates stay synchronous.
   const cwd = session.workspace?.path
   const conditionContext: ClaudeToolContext | undefined = cwd
-    ? { cwd, channels: await channelService.listChannels({ agentId: agent.id }).catch(() => []) }
+    ? {
+        cwd,
+        channels: await channelService.listChannels({ agentId: agent.id }).catch((error) => {
+          logger.warn('Failed to list channels for tool policy context', {
+            agentId: agent.id,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          return []
+        })
+      }
     : undefined
 
   const toolPolicySnapshot = await ensureToolPolicySnapshot(session.id, agent, {
@@ -649,34 +660,6 @@ async function buildToolPermissions(
     return { hookSpecificOutput: { hookEventName: 'PreToolUse', updatedInput: { ...toolInput, command: rewritten } } }
   }
 
-  // Real mid-turn steer (the agent SDK has no native steer API): when a steer is stashed via the
-  // connection's `redirect()`, inject it as `additionalContext` before the next tool runs so the
-  // model can change direction without aborting. If the turn ends with no tool call, the connection
-  // emits `steer-undelivered` and the host queues it as the next turn instead.
-  const steerHook: HookCallback = async (input): Promise<HookJSONOutput> => {
-    if (!input || input.hook_event_name !== 'PreToolUse') return {}
-    // Resolve the steer holder by id at fire-time — the prewarm-baked hook must read the live
-    // holder the connection wired, not a holder instance captured before this connection existed.
-    const holder = getSteerHolder(session.id)
-    const taken = holder.pending.splice(0)
-    if (taken.length === 0) return {}
-    const text = taken
-      .map(extractSteerText)
-      .filter((t) => t.trim())
-      .join('\n\n')
-    if (!text) return {}
-    logger.info('Injecting steer into the running turn via PreToolUse hook', {
-      sessionId: session.id,
-      count: taken.length
-    })
-    // Arm the connection's `steer-boundary` (rolls A1a + A2) — fired only when we actually inject.
-    holder.onInjected?.(taken)
-    return {
-      continue: true,
-      hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: wrapSteerReminder(text) }
-    }
-  }
-
   // disabledTools enforcement runs as a PreToolUse hook, not in `canUseTool`: the SDK skips
   // `canUseTool` for auto-approved paths (bypassPermissions / acceptEdits / default safe-tools), but
   // PreToolUse hooks fire on every tool call regardless of permission mode. The snapshot's disabled
@@ -695,6 +678,37 @@ async function buildToolPermissions(
         permissionDecision: 'deny',
         permissionDecisionReason: `The ${toolName} tool is disabled for this agent.`
       }
+    }
+  }
+
+  // Real mid-turn steer (the agent SDK has no native steer API): when a steer is stashed via the
+  // connection's `redirect()`, inject it as `additionalContext` before the next tool runs so the
+  // model can change direction without aborting. If the turn ends with no tool call, the connection
+  // emits `steer-undelivered` and the host queues it as the next turn instead.
+  const steerHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+    if (!input || input.hook_event_name !== 'PreToolUse') return {}
+    // Resolve the steer holder by id at fire-time — the prewarm-baked hook must read the live
+    // holder the connection wired, not a holder instance captured before this connection existed.
+    const holder = getSteerHolder(session.id)
+    const taken = holder.pending.splice(0)
+    if (taken.length === 0) return {}
+    const text = taken
+      .map(extractSteerText)
+      .filter((t) => t.trim())
+      .join('\n\n')
+    if (!text) {
+      holder.pending.unshift(...taken)
+      return {}
+    }
+    logger.info('Injecting steer into the running turn via PreToolUse hook', {
+      sessionId: session.id,
+      count: taken.length
+    })
+    // Arm the connection's `steer-boundary` (rolls A1a + A2) — fired only when we actually inject.
+    holder.onInjected?.(taken)
+    return {
+      continue: true,
+      hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: wrapSteerReminder(text) }
     }
   }
 
@@ -737,6 +751,7 @@ export async function buildSystemPrompt(
   // Channel security (still scoped per session — channels link to a session)
   const linkedChannel = await channelService.findBySessionId(session.id)
   const channelSecurityBlock = linkedChannel ? `\n\n${CHANNEL_SECURITY_PROMPT}` : ''
+  const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
   const langInstruction = getLanguageInstruction()
 
   // Assistant mode
@@ -751,8 +766,6 @@ export async function buildSystemPrompt(
       return instructions
     }
   }
-
-  const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
 
   // Soul mode
   if (soulEnabled) {

@@ -177,6 +177,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
     this.adapterModelId = request.sdkModelId
     this.approvalEmitter = request.settings.approvalEmitter
+    // Bind the approval emit once for the connection's lifetime — it only pushes into the connection
+    // event queue, so it never varies per turn. (The prior per-turn rebind was the mirror of the
+    // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
     this.bindApprovalEmitter()
     this.mcpToolMetadata = request.settings.mcpToolMetadata
     this.toolPolicySnapshot = request.settings.toolPolicySnapshot
@@ -303,6 +306,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           this.emitUsageMetadata(result.message.usage)
           await this.emitContextUsage()
           this.adapter = undefined
+          // NOTE: do NOT dispose the approval emitter here. It is session-scoped — it lives across
+          // turns on the warm connection and is torn down only on close/error (below). Disposing it
+          // per turn evicted the session emitter, so the next turn's `canUseTool` resolved no emitter
+          // and denied with "Approval emitter not ready" (the approval never reached the renderer).
+          // Steers not injected by the hook this turn (the turn called no tool after they arrived) →
+          // hand them back so the host queues them as the next turn (the steer_undelivered fallback).
           const undelivered = this.steerHolder?.pending.splice(0) ?? []
           if (undelivered.length > 0) this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
           this.eventQueue.push({ type: 'turn-complete' })
@@ -342,6 +351,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.approvalEmitter.emit = (chunk) => this.eventQueue.push({ type: 'chunk', chunk })
   }
 
+  /**
+   * Tear down all session-scoped resources. This is the ONLY place they are disposed — wired only to
+   * close()/the query-loop error path, never to a turn boundary. Centralising disposal here is what
+   * keeps the lifetime correct: there is no per-resource dispose for a turn handler to misplace.
+   * Idempotent (each holder's dispose is), so the close-after-error double call is safe.
+   */
   private teardownSession(): void {
     this.approvalEmitter?.dispose?.()
     this.steerHolder?.dispose()

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   modelGetByKey: vi.fn(),
   findBySessionId: vi.fn(),
   createToolPolicySnapshot: vi.fn(),
+  listChannels: vi.fn(),
   applicationGet: vi.fn(),
   applicationGetPath: vi.fn(),
   getLoginShellEnvironment: vi.fn(),
@@ -15,7 +16,8 @@ const mocks = vi.hoisted(() => ({
   getProxyEnvironment: vi.fn(),
   getPathStatus: vi.fn(),
   getAppLanguage: vi.fn(),
-  resolveRequire: vi.fn()
+  resolveRequire: vi.fn(),
+  loggerWarn: vi.fn()
 }))
 
 vi.mock('node:module', async (importOriginal) => {
@@ -34,7 +36,7 @@ vi.mock('electron', () => ({
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
+    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: mocks.loggerWarn, error: vi.fn() }))
   }
 }))
 
@@ -45,7 +47,7 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
     findBySessionId: mocks.findBySessionId,
-    listChannels: vi.fn(async () => [])
+    listChannels: mocks.listChannels
   }
 }))
 
@@ -172,10 +174,11 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.findBySessionId.mockResolvedValue(null)
     mocks.createToolPolicySnapshot.mockResolvedValue({
       resolve: vi.fn(),
-      isDisabled: vi.fn(),
+      isDisabled: vi.fn(() => false),
       update: vi.fn(),
       setPermissionMode: vi.fn()
     })
+    mocks.listChannels.mockResolvedValue([])
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') {
         return { get: vi.fn(() => undefined) }
@@ -211,17 +214,19 @@ describe('buildClaudeCodeSessionSettings', () => {
   it('denies a disabled tool via a PreToolUse hook so the gate fires in all permission modes', async () => {
     mocks.createToolPolicySnapshot.mockResolvedValue({
       resolve: vi.fn(),
-      isDisabled: vi.fn((tool: string) => tool === 'Bash')
+      isDisabled: vi.fn((tool: string) => tool === 'Bash'),
+      update: vi.fn(),
+      setPermissionMode: vi.fn()
     })
-    const session = {
+    const disabledSession = {
       id: 'session-1',
       agentId: 'agent-1',
       workspace: { type: 'user', path: '/workspace/project' }
     }
 
-    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const disabledSettings = await buildClaudeCodeSessionSettings(disabledSession as never, {} as never)
 
-    const hooks = settings.hooks?.PreToolUse?.[0]?.hooks ?? []
+    const hooks = disabledSettings.hooks?.PreToolUse?.[0]?.hooks ?? []
     const runHooks = (toolName: string) =>
       Promise.all(
         hooks.map((hook) =>
@@ -246,6 +251,85 @@ describe('buildClaudeCodeSessionSettings', () => {
           'deny'
       )
     ).toBe(true)
+  })
+
+  it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    // The session-scoped steer holder is wired onto the settings — the driver reads it from here and
+    // the connection's redirect() fills `pending`. Without it the whole agent steer is inert.
+    expect(settings.steerHolder).toBeDefined()
+
+    const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
+    expect(preToolUse).toHaveLength(3) // disabledToolHook + rtkRewriteHook + steerHook
+
+    const steerHook = preToolUse![2] as unknown as (input: {
+      hook_event_name: string
+    }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
+
+    // No queued steer → the hook no-ops.
+    expect(await steerHook({ hook_event_name: 'PreToolUse' })).toEqual({})
+
+    // A steer stashed mid-turn is drained and injected as additionalContext (model redirects without
+    // aborting); `onInjected` fires so the connection can arm its steer-boundary.
+    const onInjected = vi.fn()
+    settings.steerHolder!.onInjected = onInjected
+    settings.steerHolder!.pending.push({
+      message: { data: { parts: [{ type: 'text', text: 'change direction now' }] } }
+    } as never)
+
+    const output = await steerHook({ hook_event_name: 'PreToolUse' })
+
+    expect(output.continue).toBe(true)
+    expect(output.hookSpecificOutput?.additionalContext).toContain('change direction now')
+    expect(settings.steerHolder!.pending).toHaveLength(0) // drained in place
+    expect(onInjected).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps an empty-text steer pending when the PreToolUse hook cannot inject it', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
+    const steerHook = preToolUse![2] as unknown as (input: {
+      hook_event_name: string
+    }) => Promise<{ continue?: boolean; hookSpecificOutput?: { additionalContext?: string } }>
+    const onInjected = vi.fn()
+    settings.steerHolder!.onInjected = onInjected
+    const emptySteer = { message: { data: { parts: [{ type: 'text', text: '   ' }] } } } as never
+    settings.steerHolder!.pending.push(emptySteer)
+
+    await expect(steerHook({ hook_event_name: 'PreToolUse' })).resolves.toEqual({})
+
+    expect(settings.steerHolder!.pending).toEqual([emptySteer])
+    expect(onInjected).not.toHaveBeenCalled()
+  })
+
+  it('warns and falls back to no channels when channel lookup fails during tool-policy build', async () => {
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+    mocks.listChannels.mockRejectedValueOnce(new Error('channel db down'))
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.cwd).toBe('/workspace/project')
+    expect(mocks.loggerWarn).toHaveBeenCalledWith('Failed to list channels for tool policy context', {
+      agentId: 'agent-1',
+      error: 'channel db down'
+    })
   })
 
   // Warm-pool correctness: hooks baked at prewarm must resolve session state by id at fire-time, so

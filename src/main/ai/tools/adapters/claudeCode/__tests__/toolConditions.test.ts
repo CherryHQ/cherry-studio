@@ -44,6 +44,16 @@ describe('resolveDisallowedTools', () => {
     expect(withAgent).toEqual(base)
   })
 
+  it('passes external MCP disabled entries through to the SDK disallowedTools list', () => {
+    const disallowed = new Set(
+      resolveDisallowedTools({ disabledTools: ['mcp__docs__search_docs', 'mcp__docs__*', 'Agent'] })
+    )
+
+    expect(disallowed.has('mcp__docs__search_docs')).toBe(true)
+    expect(disallowed.has('mcp__docs__*')).toBe(true)
+    expect(disallowed.has('Agent')).toBe(false)
+  })
+
   it('treats predicate-gated tools as enabled when no ctx is supplied', () => {
     const disallowed = new Set(resolveDisallowedTools({}))
     expect(disallowed.has('EnterWorktree')).toBe(false)

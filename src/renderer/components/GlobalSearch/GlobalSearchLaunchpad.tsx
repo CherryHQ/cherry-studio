@@ -19,7 +19,7 @@ import { useConversationNavigator } from '@renderer/hooks/useConversationNavigat
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTabs } from '@renderer/hooks/useTabs'
-import { getSidebarIconLabel } from '@renderer/i18n/label'
+import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import { ArrowLeft, Eye, EyeOff, GripVertical, RotateCcw } from 'lucide-react'
 import type { FC } from 'react'
@@ -208,7 +208,7 @@ export const GlobalSearchLaunchpad: FC<GlobalSearchLaunchpadProps> = ({
       {
         id: icon,
         icon: <Icon size={32} className="icon" />,
-        text: getSidebarIconLabel(icon),
+        text: t(getSidebarIconLabelKey(icon)),
         path,
         bgColor: APP_ICON_BACKGROUNDS[icon]
       }
@@ -308,10 +308,10 @@ function GlobalSearchQuickAppManager({
     () =>
       icons.map((icon) => ({
         icon,
-        label: getSidebarIconLabel(icon),
+        label: t(getSidebarIconLabelKey(icon)),
         visible: visibleIcons.has(icon)
       })),
-    [icons, visibleIcons]
+    [icons, visibleIcons, t]
   )
 
   return (

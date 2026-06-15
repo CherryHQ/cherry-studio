@@ -55,12 +55,12 @@ vi.mock('@renderer/hooks/useSettings', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getSidebarIconLabel: (icon: string) =>
+  getSidebarIconLabelKey: (icon: string) =>
     ({
       agents: 'Agent',
       assistants: 'Chat',
       translate: 'Translate'
-    })[icon]
+    })[icon] ?? icon
 }))
 
 vi.mock('@renderer/utils/routeTitle', () => ({

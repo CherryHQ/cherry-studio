@@ -1,6 +1,6 @@
 import { CustomTag } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { getProviderLabel } from '@renderer/i18n/label'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { ArrowUpRight } from 'lucide-react'
@@ -60,7 +60,7 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true, onBefore
           size={11}
           onClick={handleTagClick}
           style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          {getProviderLabel(providerId)}
+          {t(getProviderLabelKey(providerId))}
           <ArrowUpRight size={12} />
         </CustomTag>
       </div>
@@ -75,7 +75,7 @@ export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true, onBefore
         type="button"
         className="cursor-pointer border-0 bg-transparent p-0 text-(--color-primary) text-xs hover:underline"
         onClick={navigateToProvider}>
-        {getProviderLabel(providerId)}
+        {t(getProviderLabelKey(providerId))}
       </button>
     </div>
   )

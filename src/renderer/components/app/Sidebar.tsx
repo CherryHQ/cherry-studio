@@ -17,7 +17,7 @@ import { clearTabInstanceMetadata } from '@renderer/config/tabInstanceMetadata'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTabs } from '@renderer/hooks/useTabs'
-import { getSidebarIconLabel } from '@renderer/i18n/label'
+import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
 import type { Ref } from 'react'
@@ -99,12 +99,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         return [
           {
             id: icon,
-            label: getSidebarIconLabel(icon),
+            label: t(getSidebarIconLabelKey(icon)),
             icon: Icon
           }
         ]
       }),
-    [defaultPaintingProvider, visibleSidebarIcons]
+    [defaultPaintingProvider, visibleSidebarIcons, t]
   )
 
   const activeItem = resolveSidebarActiveItem(pathname)

@@ -5,8 +5,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   CallToolRequestSchema,
   type CallToolResult,
+  GetPromptRequestSchema,
   ListPromptsRequestSchema,
   ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
   ListToolsRequestSchema,
   type Prompt as SdkPrompt,
   ReadResourceRequestSchema,
@@ -120,6 +122,10 @@ export async function createSdkMcpServerInstance(mcpId: string): Promise<McpServ
     }
   })
 
+  rawServer.setRequestHandler(ListResourceTemplatesRequestSchema, async () => {
+    return { resourceTemplates: [] }
+  })
+
   rawServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const { uri } = request.params
     try {
@@ -143,6 +149,21 @@ export async function createSdkMcpServerInstance(mcpId: string): Promise<McpServ
       }
     } catch (error) {
       logger.error('SDK bridge: failed to list prompts', { mcpId, error })
+      throw error
+    }
+  })
+
+  rawServer.setRequestHandler(GetPromptRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params
+    try {
+      logger.debug('SDK bridge: getting prompt', { mcpId, prompt: name })
+      return await application.get('McpRuntimeService').getPrompt({
+        serverId: serverConfig.id,
+        name,
+        args
+      })
+    } catch (error) {
+      logger.error('SDK bridge: failed to get prompt', { mcpId, prompt: name, error })
       throw error
     }
   })

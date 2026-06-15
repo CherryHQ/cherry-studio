@@ -21,7 +21,7 @@ vi.mock('@renderer/hooks/usePins', () => ({
   usePins: (...args: unknown[]) => mockUsePinsFn(...args)
 }))
 vi.mock('@renderer/i18n/label', () => ({
-  getProviderLabel: (id: string) => `label(${id})`
+  getProviderLabelKey: (id: string) => `label(${id})`
 }))
 
 // ─── Fixtures ─────────────────────────────────────────────────────────

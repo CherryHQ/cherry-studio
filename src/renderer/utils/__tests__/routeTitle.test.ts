@@ -24,7 +24,13 @@ vi.mock('@renderer/i18n', () => ({
   }
 }))
 
-import { getDefaultRouteTitle, getRouteTitleKey, isPageTitledRoute, isTopLevelRoute } from '../routeTitle'
+import {
+  getDefaultRouteTitle,
+  getRouteTitleKey,
+  isPageTitledRoute,
+  isTopLevelRoute,
+  shouldAutoLocalizeRouteTitle
+} from '../routeTitle'
 
 describe('routeTitle', () => {
   beforeEach(() => {
@@ -156,6 +162,26 @@ describe('routeTitle', () => {
       expect(isPageTitledRoute('/app/files')).toBe(false)
       expect(isPageTitledRoute('/app/paintings/zhipu')).toBe(false)
       expect(isPageTitledRoute('/settings')).toBe(false)
+    })
+  })
+
+  describe('shouldAutoLocalizeRouteTitle', () => {
+    it.each([
+      // Top-level routes always re-localize.
+      ['/app/chat', true],
+      ['/settings', true],
+      ['/app/paintings', true],
+      // Paintings sub-routes inherit the section title (splat route, no per-entity title).
+      ['/app/paintings/zhipu', true],
+      // Any /settings sub-route re-localizes.
+      ['/settings/provider/openai', true],
+      // mini-app and chat sub-routes preserve caller-supplied per-entity titles.
+      ['/app/mini-app/weather', false],
+      ['/app/chat/123', false],
+      // Unknown routes are not auto-localized.
+      ['/unknown', false]
+    ])('should return %s -> %s', (url, expected) => {
+      expect(shouldAutoLocalizeRouteTitle(url)).toBe(expected)
     })
   })
 })

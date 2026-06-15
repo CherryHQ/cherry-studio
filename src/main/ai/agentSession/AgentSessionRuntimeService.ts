@@ -4,7 +4,7 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import type { Span } from '@opentelemetry/api'
+import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import {
   AGENT_SESSION_COMPACTION_CACHE_KEY,
   type AgentSessionCompactionAnchorData,
@@ -609,8 +609,13 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private handleCompactionError(entry: AgentSessionRuntimeEntry, error: string): void {
+    this.settleCompactionError(entry, error)
+  }
+
+  private settleCompactionError(entry: AgentSessionRuntimeEntry, error: string): void {
     entry.compacting = false
-    // The failure surfaces via the turn error and is logged here; the cache state only tracks status.
+    // The failure is surfaced to the user through the turn error (handleRuntimeError) and logged here;
+    // the compaction cache state only needs to leave the compacting status.
     logger.warn('Agent session compaction failed', { sessionId: entry.sessionId, error })
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
       status: 'idle'
@@ -636,6 +641,10 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
+    if (entry.compacting) {
+      this.settleCompactionError(entry, error instanceof Error ? error.message : String(error))
+    }
+
     const turn = entry.currentTurn
     if (turn?.controller && !turn.terminalStatus) {
       turn.controller.error(error)
@@ -733,6 +742,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // point re-queuing the message — the retry would just fail the same way, and a re-queued
       // message is silently cleared by the idle TTL anyway. Instead surface the failure to the
       // live renderer and settle the turn so the session doesn't sit idle on a doomed message.
+      rootSpan?.setStatus({ code: SpanStatusCode.ERROR, message: 'Placeholder save failed' })
       rootSpan?.end()
       application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, serializeError(error))
       this.markTurnTerminal(entry.sessionId, 'error')
@@ -744,6 +754,7 @@ export class AgentSessionRuntimeService extends BaseService {
     // mirroring every other async method here — otherwise a dead entry gets resurrected
     // into a doomed runtime turn with no backing agent connection.
     if (!this.isCurrentEntry(entry)) {
+      rootSpan?.setStatus({ code: SpanStatusCode.ERROR, message: 'Entry invalidated mid-turn' })
       rootSpan?.end()
       return
     }

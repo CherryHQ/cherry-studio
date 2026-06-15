@@ -370,7 +370,7 @@ export class AiStreamManager extends BaseService {
 
     // Enqueue-only dispatch with no live stream to attach to. Two legitimate producers reach here,
     // both with the user row already persisted/enqueued, so there's nothing to START — no-op instead
-    // of throwing (and leave any grace-period stream untouched for late renderer reads):
+    // of throwing (and keep any grace-period stream available for late renderer reads):
     //   1. an agent-session follow-up landing in the inter-turn drain window (`isSessionBusy` true
     //      while the settled stream is terminal-in-grace, so `hasLiveStream` is false); the runtime's
     //      `pendingTurns` opens the next turn.
@@ -378,6 +378,7 @@ export class AiStreamManager extends BaseService {
     //      `enqueuePendingSteer` handles); the steer continuation is chained separately.
     // Do NOT re-add a throw for chat — case 2 is reachable and correct.
     if (input.models.length === 0) {
+      for (const listener of input.listeners) this.addListener(input.topicId, listener)
       logger.debug('send(): empty models with no live stream — enqueue-only, nothing to start', {
         topicId: input.topicId
       })

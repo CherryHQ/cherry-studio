@@ -130,8 +130,24 @@ describe('ClaudeCodeStreamAdapter', () => {
 
     expect(result).toEqual({ type: 'continue' })
     expect(parts).toEqual([])
-    expect(loggerMocks.debug).not.toHaveBeenCalledWith(
-      expect.stringContaining('Unhandled claude system message subtype')
+    expect(loggerMocks.debug).not.toHaveBeenCalledWith(expect.stringContaining('Received system message subtype:'))
+  })
+
+  it('acknowledges an unhandled system message subtype at debug without emitting chunks', () => {
+    const { adapter, parts } = createAdapter()
+
+    const result = adapter.handleMessage({
+      type: 'system',
+      subtype: 'api_retry',
+      session_id: 'sdk-control',
+      uuid: crypto.randomUUID()
+    } as any)
+
+    expect(result).toEqual({ type: 'continue' })
+    expect(parts).toEqual([])
+    expect(loggerMocks.debug).toHaveBeenCalledWith(
+      expect.stringContaining('Received system message subtype: api_retry'),
+      expect.anything()
     )
   })
 
@@ -210,9 +226,51 @@ describe('ClaudeCodeStreamAdapter', () => {
         })
       }
     ])
-    expect(loggerMocks.debug).not.toHaveBeenCalledWith(
-      expect.stringContaining('Unhandled claude system message subtype')
-    )
+    expect(loggerMocks.debug).not.toHaveBeenCalledWith(expect.stringContaining('Received system message subtype:'))
+  })
+
+  it('maps task_updated through mapTaskStatus non-completed branches (S5)', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'task_updated',
+      session_id: 'sdk-task',
+      uuid: 'task-updated-failed-uuid',
+      task_id: 'task-9',
+      patch: { status: 'failed', description: 'Render slides', error: 'render crashed' }
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'task_updated',
+      session_id: 'sdk-task',
+      uuid: 'task-updated-running-uuid',
+      task_id: 'task-9',
+      patch: { status: 'running', description: 'Render slides' }
+    } as any)
+
+    expect(parts).toEqual([
+      {
+        type: 'data-agent-task-event',
+        id: 'task-task-9-updated-task-updated-failed-uuid',
+        data: expect.objectContaining({
+          event: 'updated',
+          taskId: 'task-9',
+          status: 'error', // mapTaskStatus('failed')
+          error: 'render crashed',
+          activeText: undefined // only set while in_progress
+        })
+      },
+      {
+        type: 'data-agent-task-event',
+        id: 'task-task-9-updated-task-updated-running-uuid',
+        data: expect.objectContaining({
+          event: 'updated',
+          status: 'in_progress', // mapTaskStatus('running')
+          activeText: 'Render slides'
+        })
+      }
+    ])
   })
 
   it('maps text content block deltas', () => {

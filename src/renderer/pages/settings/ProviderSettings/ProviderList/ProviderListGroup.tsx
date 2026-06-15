@@ -1,5 +1,5 @@
 import { ReorderableList } from '@cherrystudio/ui'
-import { getProviderLabel } from '@renderer/i18n/label'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils'
@@ -54,7 +54,7 @@ export default function ProviderListGroup({
 }: ProviderListGroupProps) {
   const { t } = useTranslation()
   const bodyId = useId()
-  const label = getProviderLabel(presetProviderId)
+  const label = t(getProviderLabelKey(presetProviderId))
   const headerHighlight = !expanded && containsSelected
 
   return (

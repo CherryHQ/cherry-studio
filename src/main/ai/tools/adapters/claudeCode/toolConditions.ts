@@ -56,6 +56,7 @@ export function resolveDisallowedTools(
   ctx?: ClaudeToolContext
 ): string[] {
   const userDisabled = new Set(agent.disabledTools ?? [])
+  const registeredToolNames = new Set(CLAUDE_TOOL_DEFS.map((def) => def.name))
   const blocked = new Set<string>()
 
   for (const def of CLAUDE_TOOL_DEFS) {
@@ -83,6 +84,10 @@ export function resolveDisallowedTools(
         changed = true
       }
     }
+  }
+
+  for (const toolName of userDisabled) {
+    if (toolName.startsWith('mcp__') && !registeredToolNames.has(toolName)) blocked.add(toolName)
   }
 
   return [...blocked]
