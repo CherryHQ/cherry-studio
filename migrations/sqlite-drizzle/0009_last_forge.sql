@@ -17,5 +17,4 @@ DROP TABLE `agent_workspace`;--> statement-breakpoint
 ALTER TABLE `__new_agent_workspace` RENAME TO `agent_workspace`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint
 CREATE UNIQUE INDEX `agent_workspace_path_unique_idx` ON `agent_workspace` (`path`);--> statement-breakpoint
-CREATE INDEX `agent_workspace_order_key_idx` ON `agent_workspace` (`order_key`);--> statement-breakpoint
-ALTER TABLE `assistant` ADD `source` text DEFAULT 'user' NOT NULL;
+CREATE INDEX `agent_workspace_order_key_idx` ON `agent_workspace` (`order_key`);
