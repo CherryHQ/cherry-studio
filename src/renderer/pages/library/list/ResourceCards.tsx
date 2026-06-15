@@ -17,7 +17,9 @@ interface AssistantCatalogPresetContentProps {
   presets: AssistantCatalogPreset[]
   search: string
   addingPresetKeys: ReadonlySet<string>
+  addedAssistantPresets: Readonly<Record<string, string>>
   onAddPreset: (preset: AssistantCatalogPreset) => void
+  onOpenPresetChat: (assistantId: string) => void
   onPreviewPreset: (preset: AssistantCatalogPreset) => void
   rows?: AssistantCatalogPreset[][]
   columnCount?: number
@@ -30,7 +32,9 @@ export function AssistantCatalogPresetContent({
   presets,
   search,
   addingPresetKeys,
+  addedAssistantPresets,
   onAddPreset,
+  onOpenPresetChat,
   onPreviewPreset,
   rows,
   columnCount,
@@ -81,7 +85,9 @@ export function AssistantCatalogPresetContent({
                     key={`${presetKey}-${virtualRow.index}-${index}`}
                     preset={preset}
                     adding={addingPresetKeys.has(presetKey)}
+                    addedAssistantId={addedAssistantPresets[presetKey]}
                     onAdd={onAddPreset}
+                    onOpenChat={onOpenPresetChat}
                     onPreview={onPreviewPreset}
                   />
                 )
@@ -102,7 +108,9 @@ export function AssistantCatalogPresetContent({
             key={`${presetKey}-${index}`}
             preset={preset}
             adding={addingPresetKeys.has(presetKey)}
+            addedAssistantId={addedAssistantPresets[presetKey]}
             onAdd={onAddPreset}
+            onOpenChat={onOpenPresetChat}
             onPreview={onPreviewPreset}
           />
         )
@@ -114,15 +122,25 @@ export function AssistantCatalogPresetContent({
 interface AssistantPresetCardProps {
   preset: AssistantCatalogPreset
   adding: boolean
+  addedAssistantId?: string
   onAdd: (preset: AssistantCatalogPreset) => void
+  onOpenChat: (assistantId: string) => void
   onPreview: (preset: AssistantCatalogPreset) => void
 }
 
-function AssistantPresetGridCard({ preset, adding, onAdd, onPreview }: AssistantPresetCardProps) {
+function AssistantPresetGridCard({
+  preset,
+  adding,
+  addedAssistantId,
+  onAdd,
+  onOpenChat,
+  onPreview
+}: AssistantPresetCardProps) {
   const { t } = useTranslation()
   const summary = getPresetSummary(preset)
   const groups = (preset.group || []).slice(0, 2)
   const extraGroupCount = Math.max((preset.group || []).length - groups.length, 0)
+  const actionLabel = addedAssistantId ? t('library.assistant_catalog.go_to_chat') : t('library.assistant_catalog.add')
 
   return (
     <div
@@ -155,14 +173,18 @@ function AssistantPresetGridCard({ preset, adding, onAdd, onPreview }: Assistant
       <div className="mt-3 flex items-center justify-end">
         <Button
           variant="default"
-          disabled={adding}
+          disabled={!addedAssistantId && adding}
           onClick={(e) => {
             e.stopPropagation()
-            onAdd(preset)
+            if (addedAssistantId) {
+              onOpenChat(addedAssistantId)
+            } else {
+              onAdd(preset)
+            }
           }}
           size="sm"
           className="shrink-0">
-          {t('library.assistant_catalog.add')}
+          {actionLabel}
         </Button>
       </div>
     </div>

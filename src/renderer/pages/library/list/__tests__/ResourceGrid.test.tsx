@@ -27,6 +27,8 @@ vi.mock('react-i18next', () => ({
           'common.delete': '删除',
           'common.rename': '重命名',
           'common.save': '保存',
+          'library.assistant_catalog.add': '添加',
+          'library.assistant_catalog.go_to_chat': '去对话',
           'library.toolbar.all_tags': '全部标签',
           'library.toolbar.tag_button': '标签'
         }) satisfies Record<string, string>
@@ -534,23 +536,80 @@ describe('ResourceGrid assistant catalog actions', () => {
         presets={[preset]}
         search=""
         addingPresetKeys={new Set()}
+        addedAssistantPresets={{}}
         onAddPreset={onAddPreset}
+        onOpenPresetChat={vi.fn()}
         onPreviewPreset={vi.fn()}
       />
     )
 
-    await user.click(screen.getByRole('button', { name: 'library.assistant_catalog.add' }))
+    await user.click(screen.getByRole('button', { name: '添加' }))
     expect(onAddPreset).toHaveBeenCalledWith(preset)
+  })
+
+  it('opens chat for an added preset from the catalog card', async () => {
+    const user = userEvent.setup()
+    const onAddPreset = vi.fn()
+    const onOpenPresetChat = vi.fn()
+
+    render(
+      <AssistantCatalogPresetContent
+        presets={[preset]}
+        search=""
+        addingPresetKeys={new Set()}
+        addedAssistantPresets={{ [preset.id]: 'assistant-created' }}
+        onAddPreset={onAddPreset}
+        onOpenPresetChat={onOpenPresetChat}
+        onPreviewPreset={vi.fn()}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: '去对话' }))
+    expect(onOpenPresetChat).toHaveBeenCalledWith('assistant-created')
+    expect(onAddPreset).not.toHaveBeenCalled()
   })
 
   it('adds a preset from the preview dialog', async () => {
     const user = userEvent.setup()
     const onAdd = vi.fn()
+    const onOpenChange = vi.fn()
 
-    render(<AssistantPresetPreviewDialog preset={preset} open onOpenChange={vi.fn()} onAdd={onAdd} />)
+    render(
+      <AssistantPresetPreviewDialog
+        preset={preset}
+        open
+        onOpenChange={onOpenChange}
+        onAdd={onAdd}
+        onOpenChat={vi.fn()}
+      />
+    )
 
-    await user.click(screen.getByRole('button', { name: 'library.assistant_catalog.add' }))
+    await user.click(screen.getByRole('button', { name: '添加' }))
     expect(onAdd).toHaveBeenCalled()
+    expect(onOpenChange).not.toHaveBeenCalled()
+  })
+
+  it('opens chat for an added preset from the preview dialog', async () => {
+    const user = userEvent.setup()
+    const onAdd = vi.fn()
+    const onOpenChat = vi.fn()
+    const onOpenChange = vi.fn()
+
+    render(
+      <AssistantPresetPreviewDialog
+        preset={preset}
+        open
+        addedAssistantId="assistant-created"
+        onOpenChange={onOpenChange}
+        onAdd={onAdd}
+        onOpenChat={onOpenChat}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: '去对话' }))
+    expect(onOpenChat).toHaveBeenCalledWith('assistant-created')
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(onAdd).not.toHaveBeenCalled()
   })
 })
 

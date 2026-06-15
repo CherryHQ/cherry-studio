@@ -16,11 +16,21 @@ interface Props {
   preset: AssistantCatalogPreset | null
   open: boolean
   adding?: boolean
+  addedAssistantId?: string
   onOpenChange: (open: boolean) => void
   onAdd: () => Promise<void> | void
+  onOpenChat: (assistantId: string) => void
 }
 
-export function AssistantPresetPreviewDialog({ preset, open, adding = false, onOpenChange, onAdd }: Props) {
+export function AssistantPresetPreviewDialog({
+  preset,
+  open,
+  adding = false,
+  addedAssistantId,
+  onOpenChange,
+  onAdd,
+  onOpenChat
+}: Props) {
   const { t } = useTranslation()
 
   if (!preset) return null
@@ -28,6 +38,7 @@ export function AssistantPresetPreviewDialog({ preset, open, adding = false, onO
   const description = preset.description?.trim()
   const prompt = preset.prompt?.trim()
   const groups = (preset.group || []).slice(0, 3)
+  const isAdded = Boolean(addedAssistantId)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -81,8 +92,19 @@ export function AssistantPresetPreviewDialog({ preset, open, adding = false, onO
           <Button variant="outline" disabled={adding} onClick={() => onOpenChange(false)}>
             {t('common.cancel')}
           </Button>
-          <Button variant="emphasis" loading={adding} onClick={() => void onAdd()}>
-            {t('library.assistant_catalog.add')}
+          <Button
+            variant="emphasis"
+            loading={!isAdded && adding}
+            disabled={!isAdded && adding}
+            onClick={() => {
+              if (addedAssistantId) {
+                onOpenChat(addedAssistantId)
+                onOpenChange(false)
+              } else {
+                void onAdd()
+              }
+            }}>
+            {isAdded ? t('library.assistant_catalog.go_to_chat') : t('library.assistant_catalog.add')}
           </Button>
         </DialogFooter>
       </DialogContent>
