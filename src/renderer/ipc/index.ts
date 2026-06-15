@@ -1,4 +1,4 @@
-import { IpcError, type IpcResult } from '@shared/ipc/errors'
+import { IpcError, IpcErrorCode, type IpcResult } from '@shared/ipc/errors'
 import type { IpcEventName, IpcRoute } from '@shared/ipc/schemas'
 import type { EventPayload, InputFor, OutputFor } from '@shared/ipc/types'
 
@@ -18,7 +18,7 @@ async function unwrap<T>(pending: Promise<unknown>): Promise<T> {
   if (typeof result !== 'object' || result === null || !('ok' in result)) {
     // Main always returns an IpcResult; a malformed value means a broken handler
     // registration or transport — surface a typed error, not an opaque TypeError.
-    throw new IpcError('INTERNAL', 'IpcApi returned a malformed result')
+    throw new IpcError(IpcErrorCode.INTERNAL, 'IpcApi returned a malformed result')
   }
   const envelope = result as IpcResult<T>
   if (envelope.ok) return envelope.data

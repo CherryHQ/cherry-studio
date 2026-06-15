@@ -1,5 +1,5 @@
 import type { RouteDef } from '@shared/ipc/define'
-import { IpcError } from '@shared/ipc/errors'
+import { IpcError, IpcErrorCode } from '@shared/ipc/errors'
 import type { IpcContext, IpcHandlersFor } from '@shared/ipc/types'
 
 /**
@@ -21,14 +21,18 @@ export class IpcRouter<S extends Record<string, RouteDef>> {
   ) {}
 
   async dispatch(route: string, input: unknown, ctx: IpcContext): Promise<unknown> {
-    const def = this.schemas[route as keyof S]
-    if (!def) {
-      throw new IpcError('ROUTE_NOT_FOUND', `Unknown IpcApi route: ${route}`)
+    // Own-property guard: a bare `schemas[route]` resolves inherited members
+    // (__proto__, constructor, toString, …) to truthy Object.prototype values, which
+    // would slip past a plain truthiness check and surface as an INTERNAL TypeError.
+    // Any non-own key is simply an unknown route.
+    if (!Object.hasOwn(this.schemas, route)) {
+      throw new IpcError(IpcErrorCode.ROUTE_NOT_FOUND, `Unknown IpcApi route: ${route}`)
     }
+    const def = this.schemas[route as keyof S]
 
     const parsed = def.input.safeParse(input)
     if (!parsed.success) {
-      throw new IpcError('VALIDATION_FAILED', `Invalid input for ${route}`, { issues: parsed.error.issues })
+      throw new IpcError(IpcErrorCode.VALIDATION_FAILED, `Invalid input for ${route}`, { issues: parsed.error.issues })
     }
 
     const handler = this.handlers[route as keyof S]

@@ -2,13 +2,14 @@ import { BaseService, Phase } from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
 import { IpcError } from '@shared/ipc/errors'
 import { IpcChannel } from '@shared/IpcChannel'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { ipcMain } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { IpcApiService } from '../IpcApiService'
 
-const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
-vi.mock('@application', () => ({ application: { get: appGetMock } }))
+const { appGetMock, getPathMock } = vi.hoisted(() => ({ appGetMock: vi.fn(), getPathMock: vi.fn(() => '/app') }))
+vi.mock('@application', () => ({ application: { get: appGetMock, getPath: getPathMock } }))
 
 const dispatchMock = vi.fn()
 const sendSpy = vi.fn()
@@ -97,6 +98,28 @@ describe('IpcApiService request handling', () => {
 
     expect(result).toEqual({ ok: false, error: expect.objectContaining({ code: 'FORBIDDEN_SENDER' }) })
     expect(dispatchMock).not.toHaveBeenCalled()
+  })
+
+  it('logs a warning (audit trail) when a sender is rejected', async () => {
+    const svc = makeService()
+    ;(svc as unknown as { onInit(): void }).onInit()
+
+    await registeredHandler()(webviewEvent, 'demo.add', { a: 1 })
+
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Rejected IpcApi request from untrusted sender',
+      expect.objectContaining({ route: 'demo.add', senderType: 'webview' })
+    )
+  })
+
+  it('does not log a rejection warning for a trusted dispatch', async () => {
+    dispatchMock.mockResolvedValue({})
+    const svc = makeService()
+    ;(svc as unknown as { onInit(): void }).onInit()
+
+    await registeredHandler()(trustedEvent, 'demo.add', {})
+
+    expect(mockMainLoggerService.warn).not.toHaveBeenCalled()
   })
 
   it('serializes a thrown IpcError into a structured { ok: false, error } result (never rejects)', async () => {

@@ -11,6 +11,31 @@ export interface SerializedIpcError {
 }
 
 /**
+ * The error codes the IpcApi framework itself produces. This const is the single
+ * source of truth for the *known* codes — throw sites reference it instead of bare
+ * string literals, so a typo is a compile error, not a silent miscategorized error.
+ *
+ * `code` stays an open `string` across the boundary on purpose: codes are rebuilt
+ * via {@link IpcError.fromJSON}, migrated domains throw their own codes, and
+ * {@link IpcError.from} normalizes arbitrary throws to `INTERNAL` — a closed union
+ * would be a lie at the deserialization boundary. The `IpcErrorCode` type therefore
+ * keeps the framework literals (for IDE completion / branching on known codes) while
+ * the `(string & {})` tail leaves the set open for domain and unknown codes.
+ */
+export const IpcErrorCode = {
+  /** Route key is not an own-property of the request registry. */
+  ROUTE_NOT_FOUND: 'ROUTE_NOT_FOUND',
+  /** Input failed the route's zod schema (carries `{ issues }`). */
+  VALIDATION_FAILED: 'VALIDATION_FAILED',
+  /** Sender frame failed the source-trust gate (`validateSender`). */
+  FORBIDDEN_SENDER: 'FORBIDDEN_SENDER',
+  /** Catch-all for any non-`IpcError` throw. */
+  INTERNAL: 'INTERNAL'
+} as const
+
+export type IpcErrorCode = (typeof IpcErrorCode)[keyof typeof IpcErrorCode] | (string & {})
+
+/**
  * The structured result envelope every IpcApi request resolves to. The main side
  * returns it (it never throws to `ipcMain.handle`, which would drop `code`/`data`)
  * and the renderer facade unwraps it. Single source of truth shared by both
@@ -31,7 +56,7 @@ export class IpcError extends Error {
   readonly code: string
   readonly data?: unknown
 
-  constructor(code: string, message: string = code, data?: unknown) {
+  constructor(code: IpcErrorCode, message: string = code, data?: unknown) {
     super(message)
     this.name = 'IpcError'
     this.code = code
@@ -51,7 +76,7 @@ export class IpcError extends Error {
   /** Normalize any thrown value into an IpcError (INTERNAL for unknown causes). */
   static from(value: unknown): IpcError {
     if (value instanceof IpcError) return value
-    if (value instanceof Error) return new IpcError('INTERNAL', value.message)
-    return new IpcError('INTERNAL', String(value))
+    if (value instanceof Error) return new IpcError(IpcErrorCode.INTERNAL, value.message)
+    return new IpcError(IpcErrorCode.INTERNAL, String(value))
   }
 }

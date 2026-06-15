@@ -55,6 +55,8 @@ This projects the trust asymmetry into schema shape: **requests are zod values**
 
 A renderer-received event payload is constructed by main (the TCB) itself; validating it buys no security. So events are pure types (compile-time correctness only), no runtime `parse`. Requests must `parse` because renderer→main crosses into the privileged side and is untrusted. The asymmetry is decided by the trust boundary, not by direction magic.
 
+**Caveat — types ≠ semantic validity.** "No `parse`" settles *security*, not *correctness*. A type-correct payload can still be business-invalid: a number out of range, a string that isn't a real enum member, two fields that break an invariant. The same gap applies to a request's `output`, which the router never `parse`s either (only `input` is). Outbound validity is the **emitter's** responsibility at the construction site — build payloads from statically-typed values, and validate-at-ingestion when data originates from an untrusted upstream (e.g. a MiniApp reply laundered through main) — not the transport layer's. This is deliberate, so read "no `parse`" as "no validity risk *owned by transport*", not "no validity risk".
+
 ## Caller Identity — `IpcContext`
 
 `dispatch` passes a handler a second argument beyond `input`: a controlled `IpcContext` exposing **only** the caller window id, never the raw `WebContents`/`event`.
@@ -67,6 +69,8 @@ export interface IpcContext {
 ```
 
 Caller identity **must** be derived by main from the real `event.sender` (`WindowManager.getWindowIdByWebContents`). It is never put in `input` — a renderer could forge a window id and operate another window (privilege escalation). Continuous push-back to the caller (streams) does **not** go through `ctx`; a service holds a listener registry and directs `send` by topic.
+
+**`senderId: null` semantics.** `null` means the caller passed the source-trust gate (`validateSender`) but is **not a managed WindowManager window**. `validateSender` (frame-URL allowlist) and `senderId` (WindowManager registry) are two independent trust sources that are not cross-checked — so a side-effecting handler must **decide how to treat `senderId: null`** (refuse, or fall back to a non-window-scoped path) rather than assume a window is present. Today no trusted-but-unmanaged window reaches a sensitive route, but that is held by per-window configuration, not by a check here; new side-effecting routes should gate on `senderId` explicitly.
 
 > DataApi handlers have no caller-window concept (it must be remotable). IpcApi has `IpcContext` precisely because it is local and bound to main window capabilities — another reason the two cannot merge.
 
@@ -86,7 +90,7 @@ The router maps invalid input to `VALIDATION_FAILED` and unknown routes to `ROUT
 
 Two orthogonal, both-required gates at the single request entry:
 
-1. **Source trust** (`validateSender`): one channel funnels every capability, so verify the caller first. All web frames (iframes, `<webview>` guests) can send IPC, and this app runs with `webviewTag: true` + `webSecurity: false` + MiniApps loading arbitrary remote URLs. Per Electron's security checklist, the sender is verified: embedded `<webview>` content is rejected by WebContents type; only the **top-level frame** is trusted (a sub-frame such as an embedded `<iframe>` is rejected even if its URL looks app-owned, since `webSecurity:false` lets sub-frames share the renderer); and the frame URL must be the app's own (`file:` in production, the dev-server origin in development). Remote origins are rejected.
+1. **Source trust** (`validateSender`): one channel funnels every capability, so verify the caller first. All web frames (iframes, `<webview>` guests) can send IPC, and this app runs with `webviewTag: true` + `webSecurity: false` + MiniApps loading arbitrary remote URLs. Per Electron's security checklist, the sender is verified: embedded `<webview>` content is rejected by WebContents type; only the **top-level frame** is trusted (a sub-frame such as an embedded `<iframe>` is rejected even if its URL looks app-owned, since `webSecurity:false` lets sub-frames share the renderer); and the frame URL must be the app's own — in production a `file:` path **inside the app bundle root** (`application.getPath('app.root')`), so any other local file (a downloaded/exported HTML opened in an `ipcRenderer`-reachable window) is rejected; in development, exactly the dev-server origin. Remote origins are rejected.
 2. **Input validation** (zod `parse`): always on for every request route — input is parsed before the handler runs.
 
 `input` being valid ≠ `sender` being trusted; both gates are necessary. Events (built by the TCB) are pure types, not validated.

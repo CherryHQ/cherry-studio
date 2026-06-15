@@ -64,6 +64,21 @@ describe('IpcRouter.dispatch', () => {
     expect((err as IpcError).message).toContain('demo.nope')
   })
 
+  // A bare `schemas[route]` resolves inherited Object.prototype members (truthy) for
+  // these keys, slips past `if (!def)`, and surfaces as an INTERNAL TypeError. The
+  // own-property guard must treat any non-own key as an unknown route.
+  it.each(['__proto__', 'constructor', 'toString', 'valueOf', 'hasOwnProperty'])(
+    'rejects inherited prototype key %s with ROUTE_NOT_FOUND, never reaching a handler',
+    async (route: string) => {
+      const { router, echo, whoami } = makeRouter()
+      const err = await router.dispatch(route, {}, ctx).catch((e: unknown) => e)
+      expect(err).toBeInstanceOf(IpcError)
+      expect((err as IpcError).code).toBe('ROUTE_NOT_FOUND')
+      expect(echo).not.toHaveBeenCalled()
+      expect(whoami).not.toHaveBeenCalled()
+    }
+  )
+
   it('propagates a handler error unchanged (the service layer normalizes it)', async () => {
     const boom = new Error('handler exploded')
     const { router } = makeRouter({

@@ -17,7 +17,13 @@ export type WindowId = string
  * renderer-supplied window id (which would be a privilege-escalation vector).
  */
 export interface IpcContext {
-  /** The caller window's WindowId, or `null` when the sender is not a managed window. */
+  /**
+   * The caller window's WindowId, or `null` when the sender passed the source-trust
+   * gate but is **not a managed WindowManager window** — `validateSender` (frame-URL
+   * allowlist) and this registry are independent trust sources that are not
+   * cross-checked. A side-effecting handler must decide how to treat `null` (refuse,
+   * or use a non-window-scoped path) rather than assume a window is present.
+   */
   senderId: WindowId | null
 }
 
