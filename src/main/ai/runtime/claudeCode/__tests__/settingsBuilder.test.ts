@@ -145,11 +145,14 @@ vi.mock('../ToolApprovalRegistry', () => ({
   }
 }))
 
-const { buildClaudeCodeSessionSettings } = await import('../settingsBuilder')
+const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot } = await import('../settingsBuilder')
 
 describe('buildClaudeCodeSessionSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // The per-session snapshot registry is module-level state; reset session-1 (reused across
+    // tests) so each build creates a fresh snapshot instead of refreshing a prior test's instance.
+    disposeToolPolicySnapshot('session-1')
     mocks.resolveRequire.mockImplementation((specifier: string) => {
       if (specifier === '@anthropic-ai/claude-agent-sdk') return '/sdk/index.js'
       return `/native/${specifier}/claude`
@@ -167,7 +170,12 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
     mocks.modelGetByKey.mockResolvedValue({ apiModelId: 'claude-api' })
     mocks.findBySessionId.mockResolvedValue(null)
-    mocks.createToolPolicySnapshot.mockResolvedValue({ resolve: vi.fn(), isDisabled: vi.fn() })
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: vi.fn(),
+      isDisabled: vi.fn(),
+      update: vi.fn(),
+      setPermissionMode: vi.fn()
+    })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') {
         return { get: vi.fn(() => undefined) }
@@ -238,5 +246,108 @@ describe('buildClaudeCodeSessionSettings', () => {
           'deny'
       )
     ).toBe(true)
+  })
+
+  // Warm-pool correctness: hooks baked at prewarm must resolve session state by id at fire-time, so
+  // a warm-hit connection's live updates (snapshot refresh / re-bound emitter / new steer holder)
+  // reach the running subprocess instead of a stale per-build instance.
+  describe('warm-pool session-state resolution', () => {
+    const sessionWith = (id: string) =>
+      ({ id, agentId: 'agent-1', workspace: { type: 'user', path: '/workspace/project' } }) as never
+
+    const preToolUseHooks = (settings: Awaited<ReturnType<typeof buildClaudeCodeSessionSettings>>) =>
+      settings.hooks?.PreToolUse?.[0]?.hooks ?? []
+
+    const runHooks = (settings: Awaited<ReturnType<typeof buildClaudeCodeSessionSettings>>, toolName: string) =>
+      Promise.all(
+        preToolUseHooks(settings).map((hook) =>
+          hook(
+            { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: {} } as never,
+            'tool-use-1',
+            {} as never
+          )
+        )
+      )
+
+    it('reuses one snapshot per session so a warm-hit refresh is seen by the prewarm-baked hook (Bug A)', async () => {
+      // Each create returns a fresh stateful snapshot; `update()` simulates the connect-time policy
+      // disabling Bash. With the fix, both builds share one snapshot and the prewarm hook sees it.
+      const created: Array<{ update: ReturnType<typeof vi.fn> }> = []
+      mocks.createToolPolicySnapshot.mockImplementation(async () => {
+        const disabled = new Set<string>()
+        const snap = {
+          resolve: vi.fn(),
+          isDisabled: (tool: string) => disabled.has(tool),
+          update: vi.fn(async () => {
+            disabled.add('Bash')
+          }),
+          setPermissionMode: vi.fn()
+        }
+        created.push(snap)
+        return snap
+      })
+
+      const prewarm = await buildClaudeCodeSessionSettings(sessionWith('warm-a'), {} as never)
+      await buildClaudeCodeSessionSettings(sessionWith('warm-a'), {} as never)
+
+      // Deduped: created once, refreshed (not recreated) on the second build.
+      expect(mocks.createToolPolicySnapshot).toHaveBeenCalledTimes(1)
+      expect(created).toHaveLength(1)
+      expect(created[0].update).toHaveBeenCalledTimes(1)
+
+      // The prewarm-baked disabled-tool hook now denies Bash because it reads the refreshed snapshot.
+      const out = await runHooks(prewarm, 'Bash')
+      expect(out).toContainEqual(
+        expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
+      )
+    })
+
+    it('steers via the live holder after the original is disposed and rebuilt (Bug B)', async () => {
+      const prewarm = await buildClaudeCodeSessionSettings(sessionWith('warm-b'), {} as never)
+      // Simulate the connection that prewarm baked for closing — disposes + evicts the holder.
+      prewarm.steerHolder?.dispose()
+
+      // Reconnect builds a brand-new holder; the host stashes a steer into it via redirect().
+      const reconnect = await buildClaudeCodeSessionSettings(sessionWith('warm-b'), {} as never)
+      const onInjected = vi.fn()
+      reconnect.steerHolder!.onInjected = onInjected
+      reconnect.steerHolder!.pending.push({
+        message: { data: { parts: [{ type: 'text', text: 'go north instead' }] } }
+      } as never)
+
+      // The prewarm-baked steer hook resolves the live holder by id → injects the steer.
+      const out = await runHooks(prewarm, 'Read')
+      const additionalContexts = out.map(
+        (o) => (o as { hookSpecificOutput?: { additionalContext?: string } })?.hookSpecificOutput?.additionalContext
+      )
+      expect(additionalContexts).toContainEqual(expect.stringContaining('go north instead'))
+      expect(onInjected).toHaveBeenCalledTimes(1)
+    })
+
+    it('approves via the re-bound emitter after the original is disposed and rebuilt (approval)', async () => {
+      const prewarm = await buildClaudeCodeSessionSettings(sessionWith('warm-c'), {} as never)
+      // The emitter the prewarm built is disposed when its connection closes.
+      prewarm.approvalEmitter?.dispose?.()
+
+      // Reconnect builds a fresh emitter holder and binds the live stream's emit.
+      const reconnect = await buildClaudeCodeSessionSettings(sessionWith('warm-c'), {} as never)
+      const boundEmit = vi.fn()
+      reconnect.approvalEmitter!.emit = boundEmit
+
+      // The prewarm-baked canUseTool resolves the emitter by id → emits on the live one. The returned
+      // promise stays pending on the approval (never resolves here), so we do NOT await it — the emit
+      // fires synchronously while constructing that promise.
+      const pending = prewarm.canUseTool!('SomeTool', {}, { signal: { aborted: false }, toolUseID: 'tu-1' } as never)
+      void pending
+      expect(boundEmit).toHaveBeenCalledTimes(1)
+      expect(boundEmit).toHaveBeenCalledWith(expect.objectContaining({ type: 'tool-approval-request' }))
+    })
+
+    it('disposeToolPolicySnapshot evicts the snapshot so the next build recreates it (dispose)', async () => {
+      await buildClaudeCodeSessionSettings(sessionWith('warm-d'), {} as never)
+      disposeToolPolicySnapshot('warm-d')
+      await buildClaudeCodeSessionSettings(sessionWith('warm-d'), {} as never)
+      expect(mocks.createToolPolicySnapshot).toHaveBeenCalledTimes(2)
+    })
   })
 })

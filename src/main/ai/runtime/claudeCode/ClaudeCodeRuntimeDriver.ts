@@ -36,7 +36,11 @@ import type {
   AgentSessionRuntimeDriver
 } from '../types'
 import { buildClaudeCodeQueryRequestForAgentSession } from './agentSessionWarmup'
-import { AgentSessionWorkspaceError, prepareClaudeCodeWorkspaceDirectory } from './settingsBuilder'
+import {
+  AgentSessionWorkspaceError,
+  disposeToolPolicySnapshot,
+  prepareClaudeCodeWorkspaceDirectory
+} from './settingsBuilder'
 import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage } from './streamAdapter'
 import type { McpToolDisplayMetadata, SteerHolder, ToolApprovalEmitterHolder } from './types'
 
@@ -239,6 +243,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.disposeApprovalEmitter()
     this.steerBoundaryPending = undefined
     this.steerHolder?.dispose()
+    disposeToolPolicySnapshot(this.input.sessionId)
     this.query?.close()
     this.eventQueue.close()
   }

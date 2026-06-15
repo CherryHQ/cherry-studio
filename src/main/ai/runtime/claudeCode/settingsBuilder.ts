@@ -95,6 +95,13 @@ function getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHol
   return holder
 }
 
+// Non-creating read of the live approval-emitter holder. A warm-pooled query's baked `canUseTool`
+// resolves the emitter by id at fire-time and must NOT resurrect an evicted holder — `undefined`
+// means no live stream is bound, so the approval is denied.
+function peekToolApprovalEmitter(sessionId: string): ToolApprovalEmitterHolder | undefined {
+  return toolApprovalEmitters.get(sessionId)
+}
+
 // Session-keyed so a warm-pooled query's PreToolUse steer hook and the live connection's
 // `redirect()` reference the SAME holder (the warm pool strips closures from its signature, so the
 // query carries prewarm-time hooks — they must resolve session state by id, not by closure).
@@ -114,6 +121,38 @@ function getSteerHolder(sessionId: string): SteerHolder {
     steerHolders.set(sessionId, holder)
   }
   return holder
+}
+
+// Session-keyed for the same reason as the steer/approval holders: a warm-pooled query's baked
+// `canUseTool` + disabled-tool hook must resolve the live snapshot by id at fire-time, not capture a
+// per-build instance. Without this, a warm-hit connection rebuilds a fresh snapshot the running
+// subprocess never sees, so mid-session tool-policy updates would silently no-op.
+type ToolPolicySnapshot = Awaited<ReturnType<typeof createClaudeAgentToolPolicySnapshot>>
+const toolPolicySnapshots = new Map<string, ToolPolicySnapshot>()
+
+async function ensureToolPolicySnapshot(
+  sessionId: string,
+  agent: AgentEntity,
+  options: Parameters<typeof createClaudeAgentToolPolicySnapshot>[1]
+): Promise<ToolPolicySnapshot> {
+  const existing = toolPolicySnapshots.get(sessionId)
+  if (existing) {
+    // Connect (including a warm-hit) refreshes the shared instance with the current agent so a
+    // policy change made between prewarm and connect is honored on the running subprocess.
+    await existing.update(agent)
+    return existing
+  }
+  const snapshot = await createClaudeAgentToolPolicySnapshot(agent, options)
+  toolPolicySnapshots.set(sessionId, snapshot)
+  return snapshot
+}
+
+function getToolPolicySnapshot(sessionId: string): ToolPolicySnapshot | undefined {
+  return toolPolicySnapshots.get(sessionId)
+}
+
+export function disposeToolPolicySnapshot(sessionId: string): void {
+  toolPolicySnapshots.delete(sessionId)
 }
 
 function extractSteerText(input: AgentRuntimeUserInput): string {
@@ -235,12 +274,9 @@ export async function buildClaudeCodeSessionSettings(
   // stream exits abnormally.
   const approvalEmitter = getToolApprovalEmitterHolder(session.id)
   const steerHolder = getSteerHolder(session.id)
-  const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
-    session,
-    agent,
-    approvalEmitter,
-    steerHolder
-  )
+  // The hooks resolve the approval emitter / steer holder by session id at fire-time, so they are
+  // not passed in; the holders above are created here only to expose them on `settings`.
+  const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(session, agent)
 
   // 5. System prompt
   const systemPrompt = await buildSystemPrompt(session, agent, cwd)
@@ -524,9 +560,7 @@ async function discoverPlugins(cwd: string, agentId: string): Promise<SdkPluginC
 
 async function buildToolPermissions(
   session: AgentSessionEntity,
-  agent: AgentEntity,
-  approvalEmitter: ToolApprovalEmitterHolder,
-  steerHolder: SteerHolder
+  agent: AgentEntity
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -544,7 +578,7 @@ async function buildToolPermissions(
     ? { cwd, channels: await channelService.listChannels({ agentId: agent.id }).catch(() => []) }
     : undefined
 
-  const toolPolicySnapshot = await createClaudeAgentToolPolicySnapshot(agent, {
+  const toolPolicySnapshot = await ensureToolPolicySnapshot(session.id, agent, {
     autoAllowRuntimeNamePrefixes: [
       // cherry-tools is injected for every session. Auto-allowing it (no per-call approval) is a
       // deliberate decision (matches feat/chat-page): none of its tools have side effects in the
@@ -564,13 +598,21 @@ async function buildToolPermissions(
       return { behavior: 'deny', message: 'Tool request was cancelled' }
     }
 
-    const access = toolPolicySnapshot.resolve(toolName, input)
+    // Resolve the snapshot by id at fire-time — a warm-pooled query's baked `canUseTool` must read
+    // the live session snapshot, not a per-build instance the running subprocess never sees.
+    const snapshot = getToolPolicySnapshot(session.id)
+    if (!snapshot) {
+      logger.warn('canUseTool fired with no live tool-policy snapshot — denying', { toolName })
+      return { behavior: 'deny', message: 'Tool policy not ready' }
+    }
+
+    const access = snapshot.resolve(toolName, input)
     if (access?.approval === 'auto') {
       return { behavior: 'allow', updatedInput: input }
     }
 
     const approvalId = randomUUID()
-    const emit = approvalEmitter.emit
+    const emit = peekToolApprovalEmitter(session.id)?.emit
     if (!emit) {
       logger.warn('Approval requested but no emitter bound — denying', { approvalId, toolName })
       return { behavior: 'deny', message: 'Approval emitter not ready' }
@@ -613,7 +655,10 @@ async function buildToolPermissions(
   // emits `steer-undelivered` and the host queues it as the next turn instead.
   const steerHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
-    const taken = steerHolder.pending.splice(0)
+    // Resolve the steer holder by id at fire-time — the prewarm-baked hook must read the live
+    // holder the connection wired, not a holder instance captured before this connection existed.
+    const holder = getSteerHolder(session.id)
+    const taken = holder.pending.splice(0)
     if (taken.length === 0) return {}
     const text = taken
       .map(extractSteerText)
@@ -625,7 +670,7 @@ async function buildToolPermissions(
       count: taken.length
     })
     // Arm the connection's `steer-boundary` (rolls A1a + A2) — fired only when we actually inject.
-    steerHolder.onInjected?.(taken)
+    holder.onInjected?.(taken)
     return {
       continue: true,
       hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext: wrapSteerReminder(text) }
@@ -640,7 +685,10 @@ async function buildToolPermissions(
   const disabledToolHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')
-    if (!toolName || !toolPolicySnapshot.isDisabled(toolName)) return {}
+    if (!toolName) return {}
+    // Resolve by id at fire-time so a warm-pooled query's baked hook sees the live disabled set.
+    const snapshot = getToolPolicySnapshot(session.id)
+    if (!snapshot || !snapshot.isDisabled(toolName)) return {}
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
