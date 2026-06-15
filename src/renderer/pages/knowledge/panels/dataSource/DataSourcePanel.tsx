@@ -1,8 +1,7 @@
 import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem, KnowledgeItemType } from '@shared/data/types/knowledge'
-import type { ChangeEvent } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
@@ -67,7 +66,6 @@ const DataSourcePanel = ({
 }: DataSourcePanelProps) => {
   const { t } = useTranslation()
   const { previewSource } = usePreviewKnowledgeSource()
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [pendingDeleteItem, setPendingDeleteItem] = useState<KnowledgeItem | null>(null)
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false)
@@ -146,35 +144,7 @@ const DataSourcePanel = ({
     setPendingDeleteItem(null)
   }
 
-  const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? [])
-    event.target.value = ''
-
-    if (files.length > 0) {
-      onAdd('file', files)
-    }
-  }
-
-  const openFilePicker = useCallback(() => {
-    fileInputRef.current?.click()
-  }, [])
-
-  const handleAddSource = useCallback(
-    (source?: KnowledgeItemType, files?: File[]) => {
-      if (source === 'file' && !files?.length) {
-        openFilePicker()
-        return
-      }
-
-      if (files?.length) {
-        onAdd(source, files)
-        return
-      }
-
-      onAdd(source)
-    },
-    [onAdd, openFilePicker]
-  )
+  const handleAddSource = useCallback((source: KnowledgeItemType) => onAdd(source), [onAdd])
 
   return (
     <KnowledgePanelShell
@@ -193,15 +163,6 @@ const DataSourcePanel = ({
           />
         </div>
       }>
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        className="sr-only"
-        tabIndex={-1}
-        aria-hidden="true"
-        onChange={handleFileSelect}
-      />
       <div className="flex min-h-0 flex-1 flex-col">
         {!isLoading && items.length === 0 ? (
           <DataSourceEmptyState onAddSource={handleAddSource} />

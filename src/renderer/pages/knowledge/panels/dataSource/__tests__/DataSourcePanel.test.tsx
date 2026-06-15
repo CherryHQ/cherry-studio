@@ -275,13 +275,11 @@ describe('DataSourcePanel', () => {
     expect(screen.getByRole('button', { name: '链接' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '网站' })).not.toBeInTheDocument()
 
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
-    const filePickerClick = vi.spyOn(fileInput, 'click')
+    expect(document.querySelector('input[type="file"]')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: '文件' }))
 
-    expect(onAdd).not.toHaveBeenCalled()
-    expect(filePickerClick).toHaveBeenCalledTimes(1)
+    expect(onAdd).toHaveBeenCalledWith('file')
 
     rerender(
       <DataSourcePanel
@@ -380,7 +378,7 @@ describe('DataSourcePanel', () => {
     expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
   })
 
-  it('opens the file picker after selecting the file source from the header menu', () => {
+  it('opens the add dialog when selecting the file source from the header menu', () => {
     const onAdd = vi.fn()
 
     render(
@@ -394,14 +392,12 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
-    const filePickerClick = vi.spyOn(fileInput, 'click')
+    expect(document.querySelector('input[type="file"]')).toBeNull()
 
     fireEvent.mouseEnter(screen.getByRole('button', { name: '添加数据源' }))
     fireEvent.click(screen.getByRole('menuitem', { name: '文件' }))
 
-    expect(onAdd).not.toHaveBeenCalled()
-    expect(filePickerClick).toHaveBeenCalledTimes(1)
+    expect(onAdd).toHaveBeenCalledWith('file')
   })
 
   it('shows source choices on header add hover and forwards the selected source', () => {
