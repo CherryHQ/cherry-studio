@@ -177,6 +177,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
     this.adapterModelId = request.sdkModelId
     this.approvalEmitter = request.settings.approvalEmitter
+    // Bind the approval emit once for the connection's lifetime — it only pushes into the connection
+    // event queue, so it never varies per turn. (The prior per-turn rebind was the mirror of the
+    // now-removed per-turn dispose; both gone, the emitter is plainly session-scoped.)
+    this.bindApprovalEmitter()
     this.mcpToolMetadata = request.settings.mcpToolMetadata
     this.toolPolicySnapshot = request.settings.toolPolicySnapshot
     this.steerHolder = request.settings.steerHolder
@@ -241,10 +245,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   close(): void {
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
-    this.disposeApprovalEmitter()
     this.steerBoundaryPending = undefined
-    this.steerHolder?.dispose()
-    disposeToolPolicySnapshot(this.input.sessionId)
+    this.teardownSession()
     this.query?.close()
     this.eventQueue.close()
   }
@@ -305,7 +307,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           this.emitUsageMetadata(result.message.usage)
           await this.emitContextUsage()
           this.adapter = undefined
-          this.disposeApprovalEmitter()
+          // NOTE: do NOT dispose the approval emitter here. It is session-scoped — it lives across
+          // turns on the warm connection and is torn down only on close/error (below). Disposing it
+          // per turn evicted the session emitter, so the next turn's `canUseTool` resolved no emitter
+          // and denied with "Approval emitter not ready" (the approval never reached the renderer).
           // Steers not injected by the hook this turn (the turn called no tool after they arrived) →
           // hand them back so the host queues them as the next turn (the steer_undelivered fallback).
           const undelivered = this.steerHolder?.pending.splice(0) ?? []
@@ -320,7 +325,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // instead of dropping the partial response and surfacing an error.
       const salvaged = this.adapter?.handleTruncationError(error) ?? false
       this.adapter = undefined
-      this.disposeApprovalEmitter()
+      // The query stream ended (errored) → the connection is dead; tear the whole session down here
+      // rather than relying on a later close() to dispose the steer holder / snapshot.
+      this.teardownSession()
       this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error })
     } finally {
       this.query = undefined
@@ -329,7 +336,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private createAdapter(modelId: string): ClaudeCodeStreamAdapter {
-    this.bindApprovalEmitter()
     return new ClaudeCodeStreamAdapter({
       modelId,
       streamOptions: {} as never,
@@ -346,8 +352,16 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.approvalEmitter.emit = (chunk) => this.eventQueue.push({ type: 'chunk', chunk })
   }
 
-  private disposeApprovalEmitter(): void {
+  /**
+   * Tear down all session-scoped resources. This is the ONLY place they are disposed — wired only to
+   * close()/the query-loop error path, never to a turn boundary. Centralising disposal here is what
+   * keeps the lifetime correct: there is no per-resource dispose for a turn handler to misplace.
+   * Idempotent (each holder's dispose is), so the close-after-error double call is safe.
+   */
+  private teardownSession(): void {
     this.approvalEmitter?.dispose?.()
+    this.steerHolder?.dispose()
+    disposeToolPolicySnapshot(this.input.sessionId)
   }
 
   private updateResumeToken(resumeToken: string): void {
