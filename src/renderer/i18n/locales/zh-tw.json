@@ -6271,6 +6271,16 @@
         "setting_title": "快速模型設定",
         "tooltip": "建議選擇輕量模型，不建議選擇思考模型"
       },
+      "retry": {
+        "backoff": "指數退避",
+        "description": "自動重試失敗的模型呼叫，並回退到其他模型",
+        "fallback_models": "回退模型",
+        "fallback_models_count": "已選擇 {{count}} 個模型",
+        "fallback_models_description": "主模型失敗時依序嘗試的模型",
+        "label": "模型呼叫重試",
+        "max_attempts": "最大重試次數",
+        "tooltip": "重試與回退僅在模型開始輸出內容前生效"
+      },
       "toolbar": {
         "custom_add": "自訂",
         "filter_close": "關閉篩選",

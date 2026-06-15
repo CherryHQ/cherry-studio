@@ -6271,6 +6271,16 @@
         "setting_title": "Quick model setup",
         "tooltip": "It is recommended to choose a lightweight model and not recommended to choose a thinking model."
       },
+      "retry": {
+        "backoff": "Exponential backoff",
+        "description": "Automatically retry failed model calls and fall back to other models",
+        "fallback_models": "Fallback models",
+        "fallback_models_count": "{{count}} models selected",
+        "fallback_models_description": "Models tried in order when the primary model fails",
+        "label": "Model Call Retry",
+        "max_attempts": "Max retry attempts",
+        "tooltip": "Retries and fallbacks only apply before the model starts streaming content"
+      },
       "toolbar": {
         "custom_add": "Custom",
         "filter_close": "Close filter",

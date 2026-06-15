@@ -66,6 +66,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       providerSettings: params.providerSettings,
       modelId: params.modelId,
       plugins: params.plugins,
+      wrapModel: params.wrapModel,
       agentSettings: {
         // Tools
         tools: toolsWithHooks as ToolSet,

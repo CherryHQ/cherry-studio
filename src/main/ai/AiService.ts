@@ -37,6 +37,7 @@ import type { AgentLoopHooks } from './runtime/aiSdk/loop'
 import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
 import { buildAgentParams } from './runtime/aiSdk/params/buildAgentParams'
 import type { RequestFeature } from './runtime/aiSdk/params/feature'
+import { createEmbeddingRetryWrap, createRetryableWrap } from './runtime/aiSdk/retry/createRetryableWrap'
 import { WebContentsListener } from './streamManager/listeners/WebContentsListener'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
 import type { AppProviderSettingsMap } from './types'
@@ -326,17 +327,26 @@ export class AiService extends BaseService {
 
     const preparedMessages = await resolveUIMessageFileUrls(request.messages ?? [])
 
+    const agentRef: { current?: Agent } = {}
+    const wrapModel = await createRetryableWrap({
+      primaryProviderId: sdkConfig.providerId,
+      primaryModelId: sdkConfig.modelId,
+      onRetryEvent: (event) => agentRef.current?.write({ type: 'data-retry', data: event, transient: true })
+    })
+
     const agent = new Agent({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
       messageId: request.messageId,
       plugins,
+      wrapModel,
       tools,
       system,
       options,
       hookParts: [this.analyticsHookPart(model), ...hookParts]
     })
+    agentRef.current = agent
 
     return agent.stream(preparedMessages, signal)
   }
@@ -371,6 +381,10 @@ export class AiService extends BaseService {
       providerSettings: sdkConfig.providerSettings,
       modelId: sdkConfig.modelId,
       plugins,
+      wrapModel: await createRetryableWrap({
+        primaryProviderId: sdkConfig.providerId,
+        primaryModelId: sdkConfig.modelId
+      }),
       tools,
       system: request.system ?? system,
       options,
@@ -489,7 +503,8 @@ export class AiService extends BaseService {
     const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
       model: sdkConfig.modelId,
       values: request.values,
-      ...(signal ? { abortSignal: signal } : {})
+      ...(signal ? { abortSignal: signal } : {}),
+      wrapModel: createEmbeddingRetryWrap()
     })
 
     this.trackUsage(model, { inputTokens: result.usage?.tokens ?? 0, outputTokens: 0 })
@@ -497,6 +512,11 @@ export class AiService extends BaseService {
   }
 
   // ── Reranking ──
+
+  private rerankDefaultMaxRetries(): number {
+    const preferences = application.get('PreferenceService')
+    return preferences.get('chat.retry.enabled') ? Math.max(0, preferences.get('chat.retry.max_attempts')) : 0
+  }
 
   async rerank(request: AsInProcess<AiRerankRequest>): Promise<AiRerankResult> {
     logger.info('rerank started', { assistantId: request.assistantId, count: request.documents.length })
@@ -516,7 +536,9 @@ export class AiService extends BaseService {
       documents: request.documents,
       ...(request.topN !== undefined ? { topN: request.topN } : {}),
       ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
-      ...(options.maxRetries !== undefined ? { maxRetries: options.maxRetries } : {}),
+      // ai-retry doesn't support RerankingModelV3 — use the AI SDK's built-in
+      // exponential-backoff retry, defaulted from the retry preference.
+      maxRetries: request.requestOptions?.maxRetries ?? this.rerankDefaultMaxRetries(),
       ...(signal ? { abortSignal: signal } : {})
     }
 

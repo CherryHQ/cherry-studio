@@ -6271,6 +6271,16 @@
         "setting_title": "Быстрая настройка модели",
         "tooltip": "Рекомендуется выбирать легковесную модель, не рекомендуется выбирать модель с функцией размышления"
       },
+      "retry": {
+        "backoff": "[to be translated]:Exponential backoff",
+        "description": "[to be translated]:Automatically retry failed model calls and fall back to other models",
+        "fallback_models": "[to be translated]:Fallback models",
+        "fallback_models_count": "[to be translated]:{{count}} models selected",
+        "fallback_models_description": "[to be translated]:Models tried in order when the primary model fails",
+        "label": "[to be translated]:Model Call Retry",
+        "max_attempts": "[to be translated]:Max retry attempts",
+        "tooltip": "[to be translated]:Retries and fallbacks only apply before the model starts streaming content"
+      },
       "toolbar": {
         "custom_add": "Пользовательский",
         "filter_close": "Close filter",
@@ -7079,6 +7089,36 @@
     "settings": "Настройки",
     "store": "Библиотека помощников",
     "translate": "Перевод"
+  },
+  "trace": {
+    "agent": "[to be translated]:Agent",
+    "backList": "[to be translated]:Back To List",
+    "cachedTokens": "[to be translated]:Cached",
+    "endTime": "[to be translated]:End Time",
+    "inputs": "[to be translated]:Inputs",
+    "label": "[to be translated]:Call Chain",
+    "model": "[to be translated]:Model",
+    "name": "[to be translated]:Node Name",
+    "noTraceList": "[to be translated]:No trace information found",
+    "operation": "[to be translated]:Operation",
+    "outputs": "[to be translated]:Outputs",
+    "pollError": "[to be translated]:Polling failed",
+    "reasoningTokens": "[to be translated]:Reasoning",
+    "requestHeaders": "[to be translated]:Request Headers",
+    "requestMethod": "[to be translated]:Request Method",
+    "requestUrl": "[to be translated]:Request URL",
+    "responseHeaders": "[to be translated]:Response Headers",
+    "responseStatus": "[to be translated]:Response Status",
+    "serverDescription": "[to be translated]:Server Description",
+    "serverName": "[to be translated]:Server Name",
+    "serverType": "[to be translated]:Server Type",
+    "spanDetail": "[to be translated]:Span Details",
+    "spendTime": "[to be translated]:Spend Time",
+    "startTime": "[to be translated]:Start Time",
+    "status": "[to be translated]:Status",
+    "tag": "[to be translated]:Tag",
+    "tokenUsage": "[to be translated]:Token Usage",
+    "toolCalls": "[to be translated]:Tool Calls"
   },
   "translate": {
     "alter_language": "Альтернативный язык",

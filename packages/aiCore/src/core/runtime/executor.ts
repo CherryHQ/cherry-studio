@@ -176,7 +176,7 @@ export class RuntimeExecutor<
    * 批量嵌入文本
    */
   async embedMany(params: EmbedManyParams): Promise<EmbedManyResult> {
-    const { model: modelOrId, ...options } = params
+    const { model: modelOrId, wrapModel, ...options } = params
 
     // 解析 embedding 模型
     const embeddingModel =
@@ -185,7 +185,7 @@ export class RuntimeExecutor<
         : modelOrId
 
     return _embedMany({
-      model: embeddingModel,
+      model: wrapModel ? wrapModel(embeddingModel) : embeddingModel,
       ...options
     })
   }

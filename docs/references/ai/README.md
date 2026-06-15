@@ -23,6 +23,7 @@ translate, summarisation) and the renderer-side transport that connects to it.
 | [Params Pipeline](./params-pipeline.md) | `buildAgentParams` + `RequestFeature` model: how capabilities, plugins, tools, and provider-specific quirks are composed |
 | [Tool Registry](./tool-registry.md) | Built-in tools (knowledge / web search), MCP tools, meta-tools (`tool_search` / `tool_inspect` / `tool_invoke` / `tool_exec`), deferred exposition |
 | [Provider Resolution](./provider-resolution.md) | `Provider.endpointConfigs` schema, endpoint resolution chain, variant suffixes, custom provider extensions (aihubmix, newapi) |
+| [Model Retry & Fallback](./model-retry.md) | `ai-retry` integration: same-model transient retry + user-configured fallback models, `wrapModel` hook, `chat.retry.*` preferences, embedding/rerank policies |
 | [Observability (trace / telemetry)](./observability.md) | `AiSdkSpanAdapter`, root span propagation, OTel attribute shape, local span projection, sinks |
 
 ### Renderer-side glue

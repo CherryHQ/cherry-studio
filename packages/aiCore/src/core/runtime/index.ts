@@ -38,6 +38,19 @@ export async function createExecutor<
 }
 
 /**
+ * 解析任意 provider 的语言模型实例（middleware 已应用）
+ * 用于构造 retry/fallback 等需要独立模型实例的场景
+ */
+export async function resolveLanguageModel<
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
+>(providerId: T, options: TSettingsMap[T], modelId: string) {
+  const executor = await createExecutor<TSettingsMap, T>(providerId, options)
+  executor.pluginEngine.usePlugins([executor.createResolveModelPlugin(), executor.createConfigureContextPlugin()])
+  return executor.pluginEngine.resolveModel(modelId)
+}
+
+/**
  * 直接流式文本生成
  */
 export async function streamText<

@@ -128,6 +128,34 @@
       "description": "Default chat model UniqueModelId (provider::modelId, from complex mapping llm_model_ids_to_unique)"
     },
     {
+      "targetKey": "chat.retry.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable model call retry/fallback (v2 新增，非迁移)"
+    },
+    {
+      "targetKey": "chat.retry.fallback_model_ids",
+      "type": "string[]",
+      "defaultValue": [],
+      "status": "classified",
+      "description": "Fallback model UniqueModelIds tried in order on failure (v2 新增，非迁移)"
+    },
+    {
+      "targetKey": "chat.retry.max_attempts",
+      "type": "number",
+      "defaultValue": 3,
+      "status": "classified",
+      "description": "Max same-model retry attempts for transient errors (v2 新增，非迁移)"
+    },
+    {
+      "targetKey": "chat.retry.backoff_enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Exponential backoff between retry attempts (v2 新增，非迁移)"
+    },
+    {
       "targetKey": "topic.naming.model_id",
       "type": "string",
       "defaultValue": null,
