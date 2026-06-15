@@ -1,15 +1,15 @@
 import type { RouteDef } from '../define'
+import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
 
 /**
  * Global request registry — the single source of truth the main router parses
- * against. Stage 0 ships empty; each migrated domain spreads its own
- * `*RequestSchemas` object here (e.g. `...windowRequestSchemas`).
+ * against. Each migrated domain spreads its own `*RequestSchemas` object here.
  *
  * Renderer code MUST `import type` from this module so the zod schema *values*
  * never enter the renderer bundle (see ipc-overview.md, "zod across processes").
  */
 export const ipcRequestSchemas = {
-  // ...domainRequestSchemas — added per domain during migration
+  ...selectionRequestSchemas
 } satisfies Record<string, RouteDef>
 
 export type IpcRequestSchemas = typeof ipcRequestSchemas
@@ -18,11 +18,9 @@ export type IpcRoute = keyof IpcRequestSchemas
 
 /**
  * Global event registry (pure types — main is the TCB that constructs events, so
- * the renderer trusts them and never re-parses). Stage 0 ships empty; each domain
- * intersects its own `*EventSchemas` type here.
+ * the renderer trusts them and never re-parses). Each migrated domain intersects
+ * its own `*EventSchemas` type here.
  */
-export type IpcEventSchemas = {
-  // ['window.maximized_changed']: { maximized: boolean } — added per domain during migration
-}
+export type IpcEventSchemas = SelectionEventSchemas
 /** Union of all declared event names (`never` until a domain is migrated). */
 export type IpcEventName = keyof IpcEventSchemas

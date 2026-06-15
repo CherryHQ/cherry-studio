@@ -3,6 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { isMac } from '@renderer/config/constant'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n'
+import { ipcApi } from '@renderer/ipc'
 import { defaultLanguage } from '@shared/config/constant'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { Slider } from 'antd'
@@ -78,7 +79,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
   // would leak stale pin/opacity/slider/scroll state across same-type reuses.
   useEffect(() => {
     setIsPinned(isAutoPin)
-    void window.api.selection.pinActionWindow(isAutoPin)
+    void ipcApi.request('selection.pin_action_window', isAutoPin)
     setOpacity(actionWindowOpacity)
     setShowOpacitySlider(false)
     isAutoScrollEnabled.current = true
@@ -91,10 +92,10 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
 
   useEffect(() => {
     if (isAutoPin) {
-      void window.api.selection.pinActionWindow(true)
+      void ipcApi.request('selection.pin_action_window', true)
       setIsPinned(true)
     } else {
-      void window.api.selection.pinActionWindow(false)
+      void ipcApi.request('selection.pin_action_window', false)
       setIsPinned(false)
     }
   }, [isAutoPin])
@@ -160,7 +161,7 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
    */
   const togglePin = () => {
     setIsPinned(!isPinned)
-    void window.api.selection.pinActionWindow(!isPinned)
+    void ipcApi.request('selection.pin_action_window', !isPinned)
   }
 
   const handleWindowFocus = () => {

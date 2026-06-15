@@ -82,9 +82,20 @@ describe('IpcHandlersFor exhaustiveness', () => {
   })
 })
 
-describe('stage-0 global registry is empty', () => {
-  it('exposes no routes or events until a domain is migrated', () => {
-    expectTypeOf<IpcRoute>().toEqualTypeOf<never>()
-    expectTypeOf<IpcEventName>().toEqualTypeOf<never>()
+describe('global registry reflects migrated domains', () => {
+  // Extend these unions as each new domain is migrated onto IpcApi.
+  it('exposes the migrated selection request routes', () => {
+    expectTypeOf<IpcRoute>().toEqualTypeOf<
+      | 'selection.hide_toolbar'
+      | 'selection.write_to_clipboard'
+      | 'selection.determine_toolbar_size'
+      | 'selection.process_action'
+      | 'selection.pin_action_window'
+      | 'selection.get_linux_env_info'
+    >()
+  })
+
+  it('exposes the migrated selection event names', () => {
+    expectTypeOf<IpcEventName>().toEqualTypeOf<'selection.text_selected' | 'selection.toolbar_visibility_change'>()
   })
 })
