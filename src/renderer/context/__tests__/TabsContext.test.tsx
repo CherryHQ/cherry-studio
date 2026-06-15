@@ -37,9 +37,17 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  usePersistCache: () => [[], vi.fn()]
-}))
+vi.mock('@renderer/data/hooks/useCache', () => {
+  // Return stable references across renders. With a fresh [] every render the
+  // `tabs` useMemo would recompute unconditionally, masking whether
+  // `i18n.language` is actually wired into its dependency array — so the
+  // language-flip assertion below would pass even if the dep were dropped.
+  const pinnedTabs: unknown[] = []
+  const setPinnedTabs = vi.fn()
+  return {
+    usePersistCache: () => [pinnedTabs, setPinnedTabs]
+  }
+})
 
 import { TabsProvider, useTabsContext } from '../TabsContext'
 
