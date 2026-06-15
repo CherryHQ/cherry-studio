@@ -6348,6 +6348,7 @@
       "addToolDescription": "使用 mise 工具鍵新增工具（例如 github:sharkdp/fd、uv、bun）。",
       "coreDepsMissing": "核心依賴未安裝",
       "customTools": "自訂工具",
+      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
       "description": "管理應用程式執行所需的二進位工具和執行階段依賴。",
       "duplicateName": "已存在相同名稱的工具",
       "fieldVersion": "版本（選填，預設為最新）",

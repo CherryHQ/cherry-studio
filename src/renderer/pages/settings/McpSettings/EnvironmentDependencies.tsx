@@ -56,6 +56,9 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
   const [customTools, setCustomTools] = usePreference('feature.binary.tools')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  // Retain the last target name so the confirm dialog keeps its message during the close animation.
+  const deleteNameRef = useRef('')
+  if (deleteTarget) deleteNameRef.current = deleteTarget
   const { t } = useTranslation()
   const navigate = useNavigate()
   const mountedRef = useRef(true)
@@ -174,7 +177,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.plugins.description')}</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {PRESETS_BINARY_TOOLS.map((tool) => {
           const installed = binaryState?.tools[tool.name]
           const bundledVersion = bundled[tool.name]
@@ -204,8 +207,8 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         </div>
       </div>
 
-      {customTools.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {customTools.length > 0 ? (
+        <div role="list" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {customTools.map((tool) => {
             const installed = binaryState?.tools[tool.name]
             return (
@@ -223,6 +226,10 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
             )
           })}
         </div>
+      ) : (
+        <div className="rounded-xl border border-border border-dashed bg-card/50 px-4 py-6 text-center text-muted-foreground text-xs leading-5">
+          {t('settings.plugins.customToolsEmpty')}
+        </div>
       )}
 
       <AddToolDialog open={showAddDialog} onOpenChange={setShowAddDialog} onAdd={handleAddCustomTool} />
@@ -231,7 +238,7 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
         open={!!deleteTarget}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title={t('settings.plugins.removeConfirmTitle')}
-        description={t('settings.plugins.removeConfirmMessage', { name: deleteTarget })}
+        description={t('settings.plugins.removeConfirmMessage', { name: deleteNameRef.current })}
         destructive
         onConfirm={async () => {
           if (deleteTarget) await handleRemoveCustomTool(deleteTarget)
@@ -251,12 +258,14 @@ const BinaryToolPresetCard: FC<{
   onOpenPath: () => void
 }> = ({ tool, source, installedVersion, installing, onInstall, onUpdate, onOpenPath }) => {
   const { t } = useTranslation()
-  const description = t(`settings.plugins.tools.${tool.name}`, { defaultValue: tool.description })
+  const description = t(`settings.plugins.tools.${tool.name}`)
   const present = source !== 'none'
   const isBundled = source === 'bundled'
 
   return (
-    <div className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
+    <div
+      role="listitem"
+      className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div
@@ -299,40 +308,36 @@ const BinaryToolPresetCard: FC<{
               onClick={onUpdate}
               disabled={installing}
               title={t('settings.plugins.update')}>
-              {installing ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+              {installing ? (
+                <Loader2 className="size-3.5 motion-safe:animate-spin" />
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
             </Button>
           </div>
         )}
       </div>
 
-      <p className="mt-2.5 line-clamp-2 text-muted-foreground text-xs leading-4">{description}</p>
+      <p className="mt-2.5 line-clamp-2 text-muted-foreground text-xs leading-4" title={description}>
+        {description}
+      </p>
 
       <div className="mt-3 flex items-center gap-3">
-        <a
-          href={tool.repoUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+        <button
+          type="button"
           className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
-          onClick={(e) => {
-            e.preventDefault()
-            void window.api.openWebsite(tool.repoUrl)
-          }}>
+          onClick={() => void window.api.openWebsite(tool.repoUrl)}>
           <ExternalLink className="size-3" />
           {tool.repoUrl.replace('https://github.com/', '')}
-        </a>
+        </button>
         {tool.homepage && (
-          <a
-            href={tool.homepage}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
             className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 transition-colors hover:text-foreground"
-            onClick={(e) => {
-              e.preventDefault()
-              void window.api.openWebsite(tool.homepage!)
-            }}>
+            onClick={() => void window.api.openWebsite(tool.homepage!)}>
             <SquareArrowOutUpRight className="size-3" />
             {tool.homepage.replace(/^https?:\/\//, '')}
-          </a>
+          </button>
         )}
         {present && (
           <button
@@ -381,7 +386,9 @@ const CustomToolCard: FC<{
   const { t } = useTranslation()
 
   return (
-    <div className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
+    <div
+      role="listitem"
+      className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div
@@ -411,7 +418,11 @@ const CustomToolCard: FC<{
               onClick={onUpdate}
               disabled={installing}
               title={t('settings.plugins.update')}>
-              {installing ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+              {installing ? (
+                <Loader2 className="size-3.5 motion-safe:animate-spin" />
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
             </Button>
           )}
           {installed && (
@@ -553,7 +564,7 @@ function AddToolDialog({
               onChange={(e) => setQuery(e.target.value)}
             />
             {searching && (
-              <Loader2 className="-translate-y-1/2 absolute top-1/2 right-3 size-3.5 animate-spin text-muted-foreground" />
+              <Loader2 className="-translate-y-1/2 absolute top-1/2 right-3 size-3.5 text-muted-foreground motion-safe:animate-spin" />
             )}
             {results.length > 0 && (
               <div className="absolute top-full right-0 left-0 z-10 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-popover shadow-md">
@@ -591,7 +602,7 @@ function AddToolDialog({
             {t('common.cancel')}
           </Button>
           <Button onClick={handleSubmit} disabled={!selectedName.trim() || !selectedTool.trim() || adding}>
-            {adding && <Loader2 className="size-3.5 animate-spin" />}
+            {adding && <Loader2 className="size-3.5 motion-safe:animate-spin" />}
             {t('common.add')}
           </Button>
         </DialogFooter>

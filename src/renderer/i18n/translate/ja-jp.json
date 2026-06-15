@@ -6348,6 +6348,7 @@
       "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
       "coreDepsMissing": "Core dependencies not installed",
       "customTools": "Custom Tools",
+      "customToolsEmpty": "[to be translated]:No custom tools yet. Add one to get started.",
       "description": "アプリに必要なバイナリツールとランタイム依存関係を管理します。",
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
