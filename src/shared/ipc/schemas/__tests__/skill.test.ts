@@ -9,21 +9,12 @@ describe('skillRequestSchemas', () => {
         'skill.install',
         'skill.install_from_directory',
         'skill.install_from_zip',
-        'skill.list',
         'skill.list_files',
-        'skill.list_local',
         'skill.read_file',
         'skill.toggle',
         'skill.uninstall'
       ].sort()
     )
-  })
-
-  it('list accepts omitted input or an optional agentId', () => {
-    const schema = skillRequestSchemas['skill.list'].input
-    expect(schema.safeParse(undefined).success).toBe(true)
-    expect(schema.safeParse({ agentId: 'agent-1' }).success).toBe(true)
-    expect(schema.safeParse({ agentId: 7 }).success).toBe(false)
   })
 
   it('validates install route inputs', () => {
@@ -52,7 +43,6 @@ describe('skillRequestSchemas', () => {
       skillRequestSchemas['skill.read_file'].input.safeParse({ skillId: 'skill-1', filename: 'SKILL.md' }).success
     ).toBe(true)
     expect(skillRequestSchemas['skill.list_files'].input.safeParse({ skillId: 'skill-1' }).success).toBe(true)
-    expect(skillRequestSchemas['skill.list_local'].input.safeParse({ workdir: '/tmp/workspace' }).success).toBe(true)
   })
 
   it('validates skill result envelopes', () => {

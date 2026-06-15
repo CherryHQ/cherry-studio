@@ -14,15 +14,6 @@ function errorMessage(error: unknown): string {
 }
 
 export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
-  'skill.list': async (input) => {
-    try {
-      const data = await skillService.list(input?.agentId ? { agentId: input.agentId } : {})
-      return success(data)
-    } catch (error) {
-      logger.error('Failed to list skills', { error: errorMessage(error) })
-      return failure(error)
-    }
-  },
   'skill.install': async (options) => {
     try {
       const data = await skillService.install(options)
@@ -83,15 +74,6 @@ export const skillHandlers: IpcHandlersFor<typeof skillRequestSchemas> = {
       return success(data)
     } catch (error) {
       logger.error('Failed to list skill files', { skillId, error: errorMessage(error) })
-      return failure(error)
-    }
-  },
-  'skill.list_local': async ({ workdir }) => {
-    try {
-      const data = await skillService.listLocal(workdir)
-      return success(data)
-    } catch (error) {
-      logger.error('Failed to list local plugins', { workdir, error: errorMessage(error) })
       return failure(error)
     }
   }

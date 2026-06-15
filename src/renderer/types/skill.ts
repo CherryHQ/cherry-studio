@@ -155,7 +155,6 @@ export const InstalledSkillSchema = z.object({
 export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
 
 export type {
-  LocalSkill,
   SkillFileNode,
   SkillInstallFromDirectoryOptions,
   SkillInstallFromZipOptions,

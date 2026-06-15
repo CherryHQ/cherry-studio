@@ -30,23 +30,11 @@ export interface SkillFileNode {
   children?: SkillFileNode[]
 }
 
-export interface LocalSkill {
-  name: string
-  description?: string
-  filename: string
-}
-
 const skillFileNodeSchema: z.ZodType<SkillFileNode> = z.object({
   name: z.string(),
   path: z.string(),
   type: z.enum(['file', 'directory']),
   children: z.lazy(() => skillFileNodeSchema.array()).optional()
-})
-
-const localSkillSchema: z.ZodType<LocalSkill> = z.object({
-  name: z.string(),
-  description: z.string().optional(),
-  filename: z.string()
 })
 
 const skillResultSchema = <T extends z.ZodType>(data: T) =>
@@ -56,10 +44,6 @@ const skillResultSchema = <T extends z.ZodType>(data: T) =>
   ]) as z.ZodType<SkillResult<z.infer<T>>>
 
 export const skillRequestSchemas = {
-  'skill.list': defineRoute({
-    input: z.object({ agentId: z.string().optional() }).optional(),
-    output: skillResultSchema(InstalledSkillSchema.array())
-  }),
   'skill.install': defineRoute({
     input: z.object({ installSource: z.string().min(1) }),
     output: skillResultSchema(InstalledSkillSchema)
@@ -87,10 +71,6 @@ export const skillRequestSchemas = {
   'skill.list_files': defineRoute({
     input: z.object({ skillId: z.string().min(1) }),
     output: skillResultSchema(skillFileNodeSchema.array())
-  }),
-  'skill.list_local': defineRoute({
-    input: z.object({ workdir: z.string().min(1) }),
-    output: skillResultSchema(localSkillSchema.array())
   })
 }
 

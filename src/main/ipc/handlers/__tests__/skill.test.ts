@@ -8,8 +8,7 @@ const skillServiceMock = vi.hoisted(() => ({
   installFromZip: vi.fn(),
   installFromDirectory: vi.fn(),
   readFile: vi.fn(),
-  listFiles: vi.fn(),
-  listLocal: vi.fn()
+  listFiles: vi.fn()
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({ skillService: skillServiceMock }))
@@ -42,16 +41,6 @@ beforeEach(() => {
 })
 
 describe('skillHandlers', () => {
-  it('list delegates optional agentId and returns the SkillResult envelope', async () => {
-    const skills = [createSkill()]
-    skillServiceMock.list.mockResolvedValueOnce(skills)
-
-    const result = await skillHandlers['skill.list']({ agentId: 'agent-1' }, ctx)
-
-    expect(skillServiceMock.list).toHaveBeenCalledWith({ agentId: 'agent-1' })
-    expect(result).toEqual({ success: true, data: skills })
-  })
-
   it('install / uninstall / toggle delegate to SkillService', async () => {
     const skill = createSkill({ isEnabled: true })
     skillServiceMock.install.mockResolvedValueOnce(skill)
@@ -87,12 +76,10 @@ describe('skillHandlers', () => {
     })
   })
 
-  it('read_file / list_files / list_local delegate to SkillService', async () => {
+  it('read_file / list_files delegate to SkillService', async () => {
     const fileTree = [{ name: 'SKILL.md', path: 'SKILL.md', type: 'file' }]
-    const localSkills = [{ name: 'Local Skill', filename: 'local-skill' }]
     skillServiceMock.readFile.mockResolvedValueOnce('# Skill')
     skillServiceMock.listFiles.mockResolvedValueOnce(fileTree)
-    skillServiceMock.listLocal.mockResolvedValueOnce(localSkills)
 
     await expect(skillHandlers['skill.read_file']({ skillId: 'skill-1', filename: 'SKILL.md' }, ctx)).resolves.toEqual({
       success: true,
@@ -101,10 +88,6 @@ describe('skillHandlers', () => {
     await expect(skillHandlers['skill.list_files']({ skillId: 'skill-1' }, ctx)).resolves.toEqual({
       success: true,
       data: fileTree
-    })
-    await expect(skillHandlers['skill.list_local']({ workdir: '/tmp/workspace' }, ctx)).resolves.toEqual({
-      success: true,
-      data: localSkills
     })
   })
 
