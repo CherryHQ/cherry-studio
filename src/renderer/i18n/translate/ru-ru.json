@@ -7045,6 +7045,84 @@
       "show": "Показать значок в трее",
       "title": "Трей"
     },
+    "usage": {
+      "cards": {
+        "activeDays": "[to be translated]:Active days",
+        "costHint": "[to be translated]:Cost is grouped by currency.",
+        "dailyAverage": "[to be translated]:Daily average",
+        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
+        "none": "[to be translated]:N/A",
+        "peakDay": "[to be translated]:Peak day",
+        "streak": "[to be translated]:Longest streak: {{days}} days",
+        "topModel": "[to be translated]:Top model",
+        "totalCost": "[to be translated]:Total cost",
+        "totalTokens": "[to be translated]:Total tokens"
+      },
+      "empty": {
+        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
+        "title": "[to be translated]:No usage yet"
+      },
+      "explore": {
+        "allProviders": "[to be translated]:All providers",
+        "breakdown": "[to be translated]:Breakdown",
+        "clearDate": "[to be translated]:Clear date filter",
+        "entries": "[to be translated]:Entries",
+        "loadMore": "[to be translated]:Load more",
+        "loading": "[to be translated]:Loading...",
+        "noBreakdown": "[to be translated]:No breakdown data",
+        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
+        "noEntries": "[to be translated]:No entries",
+        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
+        "provider": "[to be translated]:Provider",
+        "selectedDate": "[to be translated]:Selected date: {{date}}",
+        "title": "[to be translated]:Explore",
+        "totalEntries": "[to be translated]:{{count}} entries"
+      },
+      "groupBy": {
+        "apiKey": "[to be translated]:API key",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider"
+      },
+      "heatmap": {
+        "ariaDate": "[to be translated]:Usage on {{date}}",
+        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
+        "title": "[to be translated]:Daily activity"
+      },
+      "metric": {
+        "cost": "[to be translated]:Cost",
+        "tokens": "[to be translated]:Tokens"
+      },
+      "modality": {
+        "embedding": "[to be translated]:Embedding",
+        "image": "[to be translated]:Image",
+        "language": "[to be translated]:Language"
+      },
+      "overview": {
+        "title": "[to be translated]:Overview"
+      },
+      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{activeDays}} active days / longest {{streak}} days",
+      "table": {
+        "apiKey": "[to be translated]:API key",
+        "cost": "[to be translated]:Cost",
+        "date": "[to be translated]:Date",
+        "modality": "[to be translated]:Type",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
+        "tokens": "[to be translated]:Tokens"
+      },
+      "title": "[to be translated]:Usage Footprint",
+      "tooltip": {
+        "cost": "[to be translated]:Cost {{value}}",
+        "requests": "[to be translated]:{{count}} requests",
+        "tokens": "[to be translated]:{{value}} tokens"
+      },
+      "window": {
+        "30d": "[to be translated]:Last 30 days",
+        "365d": "[to be translated]:Last year",
+        "90d": "[to be translated]:Last 90 days",
+        "all": "[to be translated]:All time"
+      }
+    },
     "use_system_title_bar": {
       "confirm": {
         "content": "Изменение стиля заголовка требует перезапуска приложения. Перезапустить сейчас?",
@@ -7078,6 +7156,36 @@
     "settings": "Настройки",
     "store": "Библиотека помощников",
     "translate": "Перевод"
+  },
+  "trace": {
+    "agent": "[to be translated]:Agent",
+    "backList": "[to be translated]:Back To List",
+    "cachedTokens": "[to be translated]:Cached",
+    "endTime": "[to be translated]:End Time",
+    "inputs": "[to be translated]:Inputs",
+    "label": "[to be translated]:Call Chain",
+    "model": "[to be translated]:Model",
+    "name": "[to be translated]:Node Name",
+    "noTraceList": "[to be translated]:No trace information found",
+    "operation": "[to be translated]:Operation",
+    "outputs": "[to be translated]:Outputs",
+    "pollError": "[to be translated]:Polling failed",
+    "reasoningTokens": "[to be translated]:Reasoning",
+    "requestHeaders": "[to be translated]:Request Headers",
+    "requestMethod": "[to be translated]:Request Method",
+    "requestUrl": "[to be translated]:Request URL",
+    "responseHeaders": "[to be translated]:Response Headers",
+    "responseStatus": "[to be translated]:Response Status",
+    "serverDescription": "[to be translated]:Server Description",
+    "serverName": "[to be translated]:Server Name",
+    "serverType": "[to be translated]:Server Type",
+    "spanDetail": "[to be translated]:Span Details",
+    "spendTime": "[to be translated]:Spend Time",
+    "startTime": "[to be translated]:Start Time",
+    "status": "[to be translated]:Status",
+    "tag": "[to be translated]:Tag",
+    "tokenUsage": "[to be translated]:Token Usage",
+    "toolCalls": "[to be translated]:Tool Calls"
   },
   "translate": {
     "alter_language": "Альтернативный язык",

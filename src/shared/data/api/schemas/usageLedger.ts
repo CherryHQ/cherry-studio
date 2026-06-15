@@ -61,6 +61,10 @@ export const UsageLedgerStatsQuerySchema = z
 /** Parsed query parameters for usage ledger aggregation. */
 export type UsageLedgerStatsQuery = z.infer<typeof UsageLedgerStatsQuerySchema>
 
+export const UsageLedgerTimelineQuerySchema = z.object(TimeRangeFields).strict()
+/** Parsed query parameters for usage ledger daily timeline. */
+export type UsageLedgerTimelineQuery = z.infer<typeof UsageLedgerTimelineQuerySchema>
+
 // ============================================================================
 // Responses
 // ============================================================================
@@ -95,6 +99,18 @@ export interface UsageLedgerStatsResponse {
   buckets: UsageLedgerStatsBucket[]
 }
 
+export interface UsageLedgerTimelineBucket {
+  /** Local calendar date, formatted as YYYY-MM-DD. */
+  date: string
+  totalTokens: number
+  totalCost: number
+  entryCount: number
+}
+
+export interface UsageLedgerTimelineResponse {
+  buckets: UsageLedgerTimelineBucket[]
+}
+
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -113,6 +129,14 @@ export type UsageLedgerSchemas = {
     GET: {
       query: UsageLedgerStatsQuery
       response: UsageLedgerStatsResponse
+    }
+  }
+
+  '/usage-ledger/timeline': {
+    /** Aggregate usage/cost into local-calendar daily buckets */
+    GET: {
+      query?: UsageLedgerTimelineQuery
+      response: UsageLedgerTimelineResponse
     }
   }
 }

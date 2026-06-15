@@ -7045,6 +7045,84 @@
       "show": "Show Tray Icon",
       "title": "Tray"
     },
+    "usage": {
+      "cards": {
+        "activeDays": "Active days",
+        "costHint": "Cost is grouped by currency.",
+        "dailyAverage": "Daily average",
+        "mixedCurrency": "Multiple currencies are shown separately.",
+        "none": "N/A",
+        "peakDay": "Peak day",
+        "streak": "Longest streak: {{days}} days",
+        "topModel": "Top model",
+        "totalCost": "Total cost",
+        "totalTokens": "Total tokens"
+      },
+      "empty": {
+        "description": "Usage appears after AI requests create ledger entries.",
+        "title": "No usage yet"
+      },
+      "explore": {
+        "allProviders": "All providers",
+        "breakdown": "Breakdown",
+        "clearDate": "Clear date filter",
+        "entries": "Entries",
+        "loadMore": "Load more",
+        "loading": "Loading...",
+        "noBreakdown": "No breakdown data",
+        "noBreakdownDescription": "Try a broader window or a different provider.",
+        "noEntries": "No entries",
+        "noEntriesDescription": "Try a broader window or a different provider.",
+        "provider": "Provider",
+        "selectedDate": "Selected date: {{date}}",
+        "title": "Explore",
+        "totalEntries": "{{count}} entries"
+      },
+      "groupBy": {
+        "apiKey": "API key",
+        "model": "Model",
+        "provider": "Provider"
+      },
+      "heatmap": {
+        "ariaDate": "Usage on {{date}}",
+        "costDisabled": "Cost view is available only when this window has one currency.",
+        "title": "Daily activity"
+      },
+      "metric": {
+        "cost": "Cost",
+        "tokens": "Tokens"
+      },
+      "modality": {
+        "embedding": "Embedding",
+        "image": "Image",
+        "language": "Language"
+      },
+      "overview": {
+        "title": "Overview"
+      },
+      "summary": "{{window}} / {{tokens}} tokens / {{activeDays}} active days / longest {{streak}} days",
+      "table": {
+        "apiKey": "API key",
+        "cost": "Cost",
+        "date": "Date",
+        "modality": "Type",
+        "model": "Model",
+        "provider": "Provider",
+        "tokens": "Tokens"
+      },
+      "title": "Usage Footprint",
+      "tooltip": {
+        "cost": "Cost {{value}}",
+        "requests": "{{count}} requests",
+        "tokens": "{{value}} tokens"
+      },
+      "window": {
+        "30d": "Last 30 days",
+        "365d": "Last year",
+        "90d": "Last 90 days",
+        "all": "All time"
+      }
+    },
     "use_system_title_bar": {
       "confirm": {
         "content": "Changing the title bar style requires restarting the app to take effect. Do you want to restart now?",

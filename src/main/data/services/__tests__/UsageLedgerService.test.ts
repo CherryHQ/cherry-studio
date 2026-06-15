@@ -60,6 +60,14 @@ async function seedProvider(
     })
 }
 
+function localDateKey(value: number): string {
+  const date = new Date(value)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 describe('UsageLedgerService', () => {
   const dbh = setupTestDatabase()
 
@@ -483,6 +491,76 @@ describe('UsageLedgerService', () => {
       const { buckets } = await usageLedgerService.stats({ groupBy: 'provider', from: 2000 })
       expect(buckets).toHaveLength(1)
       expect(buckets[0]).toMatchObject({ providerId: 'openai', totalCost: 2, entryCount: 1 })
+    })
+  })
+
+  describe('timeline', () => {
+    const base = {
+      providerId: 'openai',
+      modelId: 'openai::gpt-4o',
+      apiKeyAttribution: 'none'
+    } as const
+
+    it('collapses rows on the same local day into one bucket', async () => {
+      const first = new Date(2026, 0, 2, 1).getTime()
+      const second = new Date(2026, 0, 2, 23).getTime()
+
+      await dbh.db.insert(usageLedgerTable).values([
+        { ...base, messageId: 'm1', totalTokens: 100, cost: 0.25, createdAt: first, updatedAt: first },
+        { ...base, messageId: 'm2', totalTokens: 50, cost: 0.75, createdAt: second, updatedAt: second }
+      ])
+
+      const { buckets } = await usageLedgerService.timeline({})
+
+      expect(buckets).toEqual([
+        {
+          date: localDateKey(first),
+          totalTokens: 150,
+          totalCost: 1,
+          entryCount: 2
+        }
+      ])
+    })
+
+    it('returns multi-day buckets in ascending order without empty-day gaps', async () => {
+      const day1 = new Date(2026, 0, 1, 12).getTime()
+      const day3 = new Date(2026, 0, 3, 12).getTime()
+
+      await dbh.db.insert(usageLedgerTable).values([
+        { ...base, messageId: 'm3', totalTokens: 30, cost: 0.3, createdAt: day3, updatedAt: day3 },
+        { ...base, messageId: 'm1', totalTokens: 10, cost: 0.1, createdAt: day1, updatedAt: day1 }
+      ])
+
+      const { buckets } = await usageLedgerService.timeline({})
+
+      expect(buckets.map((bucket) => bucket.date)).toEqual([localDateKey(day1), localDateKey(day3)])
+      expect(buckets.map((bucket) => bucket.totalTokens)).toEqual([10, 30])
+    })
+
+    it('respects inclusive from and to bounds', async () => {
+      const before = new Date(2026, 0, 1, 12).getTime()
+      const from = new Date(2026, 0, 2, 0).getTime()
+      const inside = new Date(2026, 0, 2, 12).getTime()
+      const to = new Date(2026, 0, 2, 23, 59, 59, 999).getTime()
+      const after = new Date(2026, 0, 3, 12).getTime()
+
+      await dbh.db.insert(usageLedgerTable).values([
+        { ...base, messageId: 'm-before', totalTokens: 10, cost: 0.1, createdAt: before, updatedAt: before },
+        { ...base, messageId: 'm-from', totalTokens: 20, cost: 0.2, createdAt: from, updatedAt: from },
+        { ...base, messageId: 'm-inside', totalTokens: 30, cost: 0.3, createdAt: inside, updatedAt: inside },
+        { ...base, messageId: 'm-to', totalTokens: 40, cost: 0.4, createdAt: to, updatedAt: to },
+        { ...base, messageId: 'm-after', totalTokens: 50, cost: 0.5, createdAt: after, updatedAt: after }
+      ])
+
+      const { buckets } = await usageLedgerService.timeline({ from, to })
+
+      expect(buckets).toHaveLength(1)
+      expect(buckets[0]).toMatchObject({
+        date: localDateKey(inside),
+        totalTokens: 90,
+        entryCount: 3
+      })
+      expect(buckets[0].totalCost).toBeCloseTo(0.9)
     })
   })
 

@@ -37,7 +37,9 @@ import type {
   UsageLedgerListResponse,
   UsageLedgerStatsBucket,
   UsageLedgerStatsQuery,
-  UsageLedgerStatsResponse
+  UsageLedgerStatsResponse,
+  UsageLedgerTimelineQuery,
+  UsageLedgerTimelineResponse
 } from '@shared/data/api/schemas/usageLedger'
 import type { Message } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -585,6 +587,36 @@ export class UsageLedgerService {
     }))
 
     return { buckets }
+  }
+
+  async timeline(query: UsageLedgerTimelineQuery): Promise<UsageLedgerTimelineResponse> {
+    await this.ensureReconciled()
+
+    const db = application.get('DbService').getDb()
+
+    const conditions: SQL[] = []
+    if (query.from !== undefined) conditions.push(gte(usageLedgerTable.createdAt, query.from))
+    if (query.to !== undefined) conditions.push(lte(usageLedgerTable.createdAt, query.to))
+    const where = conditions.length > 0 ? and(...conditions) : undefined
+
+    const dayBucket = sql<string>`date(${usageLedgerTable.createdAt} / 1000, 'unixepoch', 'localtime')`
+
+    const rows = await db
+      .select({
+        date: dayBucket,
+        totalTokens: sql<number>`coalesce(sum(${usageLedgerTable.totalTokens}), 0)`,
+        // Naive cross-currency sum for timeline shape only. The renderer
+        // defaults to token intensity and enables cost mode only for an
+        // effectively single-currency ledger window.
+        totalCost: sql<number>`coalesce(sum(${usageLedgerTable.cost}), 0)`,
+        entryCount: sql<number>`count(*)`
+      })
+      .from(usageLedgerTable)
+      .where(where)
+      .groupBy(dayBucket)
+      .orderBy(asc(dayBucket))
+
+    return { buckets: rows }
   }
 }
 

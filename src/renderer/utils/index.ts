@@ -6,6 +6,8 @@ import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('Utils')
 
+export { formatCompactNumber } from './number'
+
 /**
  * 异步执行一个函数。
  * @param {() => void} fn 要执行的函数
