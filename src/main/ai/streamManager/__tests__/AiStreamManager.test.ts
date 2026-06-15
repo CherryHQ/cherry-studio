@@ -116,6 +116,7 @@ const fakeCacheService = {
   })
 }
 const mockSaveSpans = vi.fn<(topicId: string) => Promise<void>>(async () => undefined)
+const mockWillContinueTopic = vi.fn<(topicId: string) => boolean>(() => false)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -127,7 +128,8 @@ vi.mock('@application', async () => {
   return mockApplicationFactory({
     AiService: { streamText: mockStreamText },
     CacheService: fakeCacheService,
-    TraceStorageService: { saveSpans: mockSaveSpans }
+    TraceStorageService: { saveSpans: mockSaveSpans },
+    AgentSessionRuntimeService: { willContinueTopic: mockWillContinueTopic }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
@@ -199,6 +201,7 @@ describe('AiStreamManager', () => {
       pendingStream((request.requestOptions as { signal?: AbortSignal } | undefined)?.signal)
     )
     mockSaveSpans.mockResolvedValue(undefined)
+    mockWillContinueTopic.mockReturnValue(false)
     sharedCacheStore.clear()
   })
 
@@ -355,6 +358,31 @@ describe('AiStreamManager', () => {
       expect(result.executionIds).toEqual(['provider-a::model-a'])
       expect(mockStreamText).toHaveBeenCalledTimes(1)
       expect(mgr.inspect('agent-session:s1')?.listenerIds).toEqual(['l:a', 'l:b'])
+    })
+
+    it('attaches a follow-up subscriber to a grace-period stream so the next turn carries it', async () => {
+      // Drive an agent-session turn to terminal-but-kept-alive: the inter-turn
+      // drain/grace window where the runtime will open the next turn.
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:s1'
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [new FakeListener('l:a')]
+      })
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+      // Settled stream is terminal-in-grace (not live), so a follow-up takes the
+      // enqueue-only branch (models: []), not the live inject branch.
+      expect(mgr.inspect(topicId)?.status).not.toBe('streaming')
+
+      const result = mgr.send({ topicId, models: [], listeners: [new FakeListener('l:b')] })
+
+      expect(result.mode).toBe('injected')
+      expect(result.executionIds).toEqual([]) // enqueue-only branch, not inject
+      // The follow-up subscriber must be attached to the grace stream so
+      // startRuntimeTurn carries it into the next runtime turn instead of dropping it.
+      expect(mgr.inspect(topicId)?.listenerIds).toContain('l:b')
     })
   })
 
@@ -582,6 +610,24 @@ describe('AiStreamManager', () => {
       await mgr.onExecutionDone('agent-session:session-1', 'provider-a::model-a')
 
       expect(mockSaveSpans).toHaveBeenCalledWith('agent-session:session-1')
+    })
+
+    it('keeps an agent-session stream alive when the runtime will continue', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:session-1'
+      const listener = new FakeListener(`l:${topicId}`)
+      startSingle(mgr, {
+        topicId,
+        modelId: 'provider-a::model-a',
+        request: req(topicId),
+        listeners: [listener]
+      })
+
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+
+      expect(listener.doneResults).toHaveLength(1)
+      expect(listener.doneResults[0].isTopicDone).toBe(false)
+      expect(mgr.inspect(topicId)).toBeDefined()
     })
 
     it('does not let trace flush failure block terminal completion', async () => {

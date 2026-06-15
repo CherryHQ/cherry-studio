@@ -1,7 +1,7 @@
 /**
  * Owns `agent-session:{id}` topics. Reads state from sessions /
  * agents, persists through `agentSessionMessageService`, single-model
- * only (no @mention fan-out), passes `userMessage` for the inject path.
+ * only (no selector fan-out), passes `userMessage` for the inject path.
  */
 
 import { agentService } from '@data/services/AgentService'
@@ -9,15 +9,33 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { application } from '@main/core/application'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId } from '@shared/data/types/model'
+import type { UIMessage } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
-import { startAiTurnTrace } from '../../observability'
+import { applyTurnInputAttributes, startAiTurnTrace } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime'
 import type { StreamListener } from '../types'
 import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
 import type { MainDispatchRequest } from './dispatch'
+
+function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessage {
+  return {
+    id: row.id,
+    role: row.role,
+    parts: row.data.parts ?? [],
+    metadata: {
+      status: row.status,
+      createdAt: row.createdAt,
+      modelId: row.modelId ?? undefined,
+      modelSnapshot: row.modelSnapshot ?? undefined,
+      stats: row.stats ?? undefined,
+      ...(row.stats?.totalTokens ? { totalTokens: row.stats.totalTokens } : {})
+    }
+  } as CherryUIMessage
+}
 
 export class AgentChatContextProvider implements ChatContextProvider {
   readonly name = 'agent-session'
@@ -50,6 +68,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
     await driver.validateSession(session)
 
     const uniqueModelId = agent.model
+    const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
+    const modelSnapshot = { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
 
     const userMessageId = uuidv7()
     const userMessageParts = req.userMessageParts ?? []
@@ -78,7 +98,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       // Follow-up to an in-flight session: persist the user row, hand the message to the
       // runtime so it opens the next turn (interrupt → re-dispatch), and attach
       // the new subscriber. No new placeholder/model — that would orphan a row.
-      await agentSessionMessageService.saveMessage({
+      const savedUserMessage = await agentSessionMessageService.saveMessage({
         sessionId,
         message: {
           id: userMessageId,
@@ -94,6 +114,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         models: [],
         userMessageId,
+        reservedMessages: [toReservedAgentUIMessage(savedUserMessage)],
         listeners: [subscriber],
         isMultiModel: false
       }
@@ -101,9 +122,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const assistantMessageId = uuidv7()
 
-    // Application root span. Claude Code child spans join this trace through TRACEPARENT.
+    // Container trace for this live runtime entry. Continuation turns reuse this trace while the
+    // entry stays warm; no session-table migration is required for this PR.
     const turnTrace = startAiTurnTrace(
-      'chat.turn',
+      'ai.turn',
       {
         attributes: {
           'cs.topic_id': req.topicId,
@@ -119,7 +141,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const traceId = turnTrace.traceId
 
     // Atomic user + pending-assistant write so `useAgentSessionParts` observes both at once.
-    await agentSessionMessageService.saveMessages({
+    const savedMessages = await agentSessionMessageService.saveMessages({
       sessionId,
       messages: [
         {
@@ -133,9 +155,19 @@ export class AgentChatContextProvider implements ChatContextProvider {
           role: 'assistant',
           status: 'pending',
           data: { parts: [] },
-          modelId: uniqueModelId
+          modelId: uniqueModelId,
+          modelSnapshot
         }
       ]
+    })
+
+    // Author the turn span's input/identity here (where the agent + user message live).
+    applyTurnInputAttributes(turnTrace.rootSpan, {
+      modelId: uniqueModelId,
+      topicId: req.topicId,
+      operation: 'invoke_agent',
+      messages: [{ id: userMessageId, role: 'user', parts: userMessageParts }] as UIMessage[],
+      agentName: agent.name
     })
 
     const runtime = application.get('AgentSessionRuntimeService').beginTurn({
@@ -146,8 +178,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       modelId: uniqueModelId,
       assistantMessageId,
       userMessage,
-      traceId,
-      rootSpanId: turnTrace.rootSpanId
+      traceId
     })
 
     return {
@@ -171,6 +202,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         }
       ],
       userMessageId,
+      reservedMessages: savedMessages.map(toReservedAgentUIMessage),
       listeners: [subscriber, ...runtime.listeners],
       isMultiModel: false
     }
