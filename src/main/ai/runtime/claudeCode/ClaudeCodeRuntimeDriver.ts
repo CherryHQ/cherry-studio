@@ -177,6 +177,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
     this.adapterModelId = request.sdkModelId
     this.approvalEmitter = request.settings.approvalEmitter
+    this.bindApprovalEmitter()
     this.mcpToolMetadata = request.settings.mcpToolMetadata
     this.toolPolicySnapshot = request.settings.toolPolicySnapshot
     this.steerHolder = request.settings.steerHolder
@@ -240,10 +241,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   close(): void {
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
-    this.disposeApprovalEmitter()
     this.steerBoundaryPending = undefined
-    this.steerHolder?.dispose()
-    disposeToolPolicySnapshot(this.input.sessionId)
+    this.teardownSession()
     this.query?.close()
     this.eventQueue.close()
   }
@@ -304,9 +303,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
           this.emitUsageMetadata(result.message.usage)
           await this.emitContextUsage()
           this.adapter = undefined
-          this.disposeApprovalEmitter()
-          // Steers not injected by the hook this turn (the turn called no tool after they arrived) →
-          // hand them back so the host queues them as the next turn (the steer_undelivered fallback).
           const undelivered = this.steerHolder?.pending.splice(0) ?? []
           if (undelivered.length > 0) this.eventQueue.push({ type: 'steer-undelivered', inputs: undelivered })
           this.eventQueue.push({ type: 'turn-complete' })
@@ -319,7 +315,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       // instead of dropping the partial response and surfacing an error.
       const salvaged = this.adapter?.handleTruncationError(error) ?? false
       this.adapter = undefined
-      this.disposeApprovalEmitter()
+      // The query stream ended (errored) → the connection is dead; tear the whole session down here
+      // rather than relying on a later close() to dispose the steer holder / snapshot.
+      this.teardownSession()
       this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error })
     } finally {
       this.query = undefined
@@ -328,7 +326,6 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   }
 
   private createAdapter(modelId: string): ClaudeCodeStreamAdapter {
-    this.bindApprovalEmitter()
     return new ClaudeCodeStreamAdapter({
       modelId,
       streamOptions: {} as never,
@@ -345,8 +342,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.approvalEmitter.emit = (chunk) => this.eventQueue.push({ type: 'chunk', chunk })
   }
 
-  private disposeApprovalEmitter(): void {
+  private teardownSession(): void {
     this.approvalEmitter?.dispose?.()
+    this.steerHolder?.dispose()
+    disposeToolPolicySnapshot(this.input.sessionId)
   }
 
   private updateResumeToken(resumeToken: string): void {

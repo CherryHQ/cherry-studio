@@ -583,4 +583,45 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
     expect(dispose).toHaveBeenCalled()
   })
+
+  it('keeps the session approval emitter across turns — disposes only on close, not on turn-complete', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const dispose = vi.fn()
+    const approvalEmitter: any = { dispose }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValue({
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { approvalEmitter },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    // Turn 1 runs to completion.
+    void connection.send({ message: userMessage() })
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-1', usage: { output_tokens: 1 } })
+    let evt = await events.next()
+    while (evt.value?.type !== 'turn-complete') evt = await events.next()
+
+    // Regression: a completed turn must NOT dispose the session-scoped approval emitter (doing so
+    // evicted it, so the next turn's canUseTool found no emitter and denied "Approval emitter not ready").
+    expect(dispose).not.toHaveBeenCalled()
+
+    // Turn 2's approval still reaches the stream — the emitter survived turn 1.
+    approvalEmitter.emit({ type: 'tool-approval-request', approvalId: 'approval-2', toolCallId: 'tool-2' } as any)
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'tool-approval-request', approvalId: 'approval-2' } }
+    })
+
+    // Teardown is the only place that disposes.
+    void connection.close()
+    expect(dispose).toHaveBeenCalled()
+  })
 })
