@@ -664,16 +664,15 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private enqueueTurnChunk(turn: AgentSessionTurn, chunk: UIMessageChunk): void {
-    const toolChunk = chunk as { type?: string; toolCallId?: string }
-    if ((toolChunk.type === 'tool-input-start' || toolChunk.type === 'tool-input-available') && toolChunk.toolCallId) {
-      turn.activeToolIds.add(toolChunk.toolCallId)
+    if ((chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') && chunk.toolCallId) {
+      turn.activeToolIds.add(chunk.toolCallId)
     } else if (
-      (toolChunk.type === 'tool-output-available' ||
-        toolChunk.type === 'tool-output-error' ||
-        toolChunk.type === 'tool-output-denied') &&
-      toolChunk.toolCallId
+      (chunk.type === 'tool-output-available' ||
+        chunk.type === 'tool-output-error' ||
+        chunk.type === 'tool-output-denied') &&
+      chunk.toolCallId
     ) {
-      turn.activeToolIds.delete(toolChunk.toolCallId)
+      turn.activeToolIds.delete(chunk.toolCallId)
     }
 
     turn.controller?.enqueue(chunk)
