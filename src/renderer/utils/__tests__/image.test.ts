@@ -5,7 +5,6 @@ import {
   captureScrollable,
   captureScrollableAsBlob,
   captureScrollableAsDataURL,
-  compressAvatarImage,
   compressImage,
   convertToBase64,
   fileToAvatarDataUrl,
@@ -47,22 +46,6 @@ describe('utils/image', () => {
       const file = new File(['img'], 'img.png', { type: 'image/png' })
       const result = await compressImage(file)
       expect(result).toBeInstanceOf(File)
-      expect(result.name).toBe('compressed.png')
-    })
-  })
-
-  describe('compressAvatarImage', () => {
-    it('should return GIF files unchanged to preserve animation', async () => {
-      const gif = new File(['gif'], 'a.gif', { type: 'image/gif' })
-      const result = await compressAvatarImage(gif)
-      // GIFs bypass compression entirely, so the same File instance comes back.
-      expect(result).toBe(gif)
-    })
-
-    it('should compress non-GIF images', async () => {
-      const png = new File(['png'], 'a.png', { type: 'image/png' })
-      const result = await compressAvatarImage(png)
-      expect(result).not.toBe(png)
       expect(result.name).toBe('compressed.png')
     })
   })

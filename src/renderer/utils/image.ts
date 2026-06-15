@@ -33,21 +33,14 @@ export const compressImage = async (file: File): Promise<File> => {
 }
 
 /**
- * 处理上传的头像图片：GIF 原样保留以保留动画，其余压缩到头像尺寸。
- * @param {File} file 用户上传的图片文件
- * @returns {Promise<File>} 处理后的图片文件
- */
-export const compressAvatarImage = async (file: File): Promise<File> => {
-  return file.type === 'image/gif' ? file : compressImage(file)
-}
-
-/**
  * 将上传的头像图片转换为可直接存储/预览的 base64 data URL。
+ * GIF 原样保留以保留动画，其余压缩到头像尺寸。
  * @param {File} file 用户上传的图片文件
  * @returns {Promise<string>} base64 data URL
  */
 export const fileToAvatarDataUrl = async (file: File): Promise<string> => {
-  const base64 = await convertToBase64(await compressAvatarImage(file))
+  const processed = file.type === 'image/gif' ? file : await compressImage(file)
+  const base64 = await convertToBase64(processed)
   if (typeof base64 !== 'string') {
     throw new Error('Failed to encode avatar image')
   }
