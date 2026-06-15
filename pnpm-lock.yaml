@@ -127,6 +127,9 @@ importers:
       '@vectorstores/core':
         specifier: ^0.1.8
         version: 0.1.8
+      '@vectorstores/env':
+        specifier: ^0.1.0
+        version: 0.1.0
       '@vectorstores/readers':
         specifier: ^0.1.8
         version: 0.1.8(@vectorstores/core@0.1.8)(@vectorstores/env@0.1.0)(encoding@0.1.13)
