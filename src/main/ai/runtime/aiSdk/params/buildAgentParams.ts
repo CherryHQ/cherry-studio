@@ -1,6 +1,6 @@
 import type { FetchFunction, ProviderOptions } from '@ai-sdk/provider-utils'
+import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
-import { application } from '@main/core/application'
 import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/config/constant'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
@@ -116,12 +116,6 @@ async function resolveSdkConfig(provider: Provider, model: Model): Promise<SdkCo
   }
 }
 
-/**
- * In developer mode, wrap the provider's `fetch` so every raw HTTP exchange
- * (url, redacted headers, truncated bodies) lands as an `http.request` span
- * in the trace viewer. Off when developer mode is disabled — the wrapper is
- * never installed, so there's zero overhead on the normal path.
- */
 export function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
   if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
   const settings = sdkConfig.providerSettings as { fetch?: FetchFunction }
