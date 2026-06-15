@@ -3988,7 +3988,7 @@
     "invalid_model": "無效模型",
     "json_parse_error": "無效的 JSON 格式",
     "multi_select": {
-      "label": "多模型並行（與多助理互斥）"
+      "label": "多模型同時回答"
     },
     "no_matches": "無可用模型",
     "parameter_name": "參數名稱",
@@ -5300,7 +5300,7 @@
       "create_new": "新建助手",
       "empty_text": "暫無助手",
       "multi_hint": "（與多模型互斥）",
-      "multi_label": "多助手並行",
+      "multi_label": "多助手同時回答",
       "search_placeholder": "搜尋助手…"
     },
     "common": {

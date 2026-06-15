@@ -3988,7 +3988,7 @@
     "invalid_model": "无效模型",
     "json_parse_error": "JSON 格式无效",
     "multi_select": {
-      "label": "多模型并行（与多助手互斥）"
+      "label": "多模型同时回答"
     },
     "no_matches": "无可用模型",
     "parameter_name": "参数名称",
@@ -5300,7 +5300,7 @@
       "create_new": "新建助手",
       "empty_text": "暂无助手",
       "multi_hint": "（与多模型互斥）",
-      "multi_label": "多助手并行",
+      "multi_label": "多助手同时回答",
       "search_placeholder": "搜索助手…"
     },
     "common": {

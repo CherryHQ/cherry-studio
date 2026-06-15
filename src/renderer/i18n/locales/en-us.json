@@ -3988,7 +3988,7 @@
     "invalid_model": "Invalid Model",
     "json_parse_error": "Invalid JSON format",
     "multi_select": {
-      "label": "Multi-model parallel (mutually exclusive with multi-assistant)"
+      "label": "Multi-model simultaneous responses"
     },
     "no_matches": "No models available",
     "parameter_name": "Parameter Name",
@@ -5300,7 +5300,7 @@
       "create_new": "New Assistant",
       "empty_text": "No assistants yet",
       "multi_hint": "(mutually exclusive with multi-model)",
-      "multi_label": "Multi-assistant parallel",
+      "multi_label": "Multi-assistant simultaneous responses",
       "search_placeholder": "Search assistants…"
     },
     "common": {
