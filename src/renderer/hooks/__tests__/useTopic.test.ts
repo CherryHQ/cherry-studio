@@ -26,4 +26,12 @@ describe('useTopicMutations', () => {
     expect(deleteTrigger).toHaveBeenCalledWith({ query: { ids: 'topic-a,topic-b' } })
     expect(deleted).toBe(response)
   })
+
+  it('exposes selected-topic delete loading through isDeleting', () => {
+    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/topics', vi.fn(), { isLoading: true })
+
+    const { result } = renderHook(() => useTopicMutations())
+
+    expect(result.current.isDeleting).toBe(true)
+  })
 })

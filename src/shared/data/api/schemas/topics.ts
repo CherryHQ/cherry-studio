@@ -161,6 +161,8 @@ export type TopicSchemas = {
      * Delete an explicit set of topics.
      *
      * Used by multi-select table flows where the selection can span assistants.
+     * This operation is all-or-nothing: if any supplied ID does not resolve to
+     * a non-deleted topic, the request fails and no selected topics are deleted.
      */
     DELETE: {
       query: DeleteTopicsQuery

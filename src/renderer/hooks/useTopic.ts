@@ -275,7 +275,7 @@ export function useTopicMutations() {
     // would trigger a fetch that 404s and caches an error in SWR.
     refresh: ['/topics']
   })
-  const { trigger: deleteManyTrigger } = useMutation('DELETE', '/topics', {
+  const { trigger: deleteManyTrigger, isLoading: isDeletingMany } = useMutation('DELETE', '/topics', {
     refresh: ['/topics', '/pins']
   })
 
@@ -333,7 +333,7 @@ export function useTopicMutations() {
     refreshTopics,
     isCreating,
     isUpdating,
-    isDeleting
+    isDeleting: isDeleting || isDeletingMany
   }
 }
 

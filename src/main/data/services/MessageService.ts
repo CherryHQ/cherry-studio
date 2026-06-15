@@ -182,6 +182,23 @@ type MessageContentSearchInput = {
 }
 
 export class MessageService {
+  async purgeByTopicIdsTx(tx: DbOrTx, topicIds: string[]): Promise<string[]> {
+    const uniqueTopicIds = Array.from(new Set(topicIds))
+    if (uniqueTopicIds.length === 0) return []
+
+    const rows = await tx
+      .select({ id: messageTable.id })
+      .from(messageTable)
+      .where(inArray(messageTable.topicId, uniqueTopicIds))
+    const deletedIds = rows.map((row) => row.id)
+
+    if (deletedIds.length > 0) {
+      await tx.delete(messageTable).where(inArray(messageTable.id, deletedIds))
+    }
+
+    return deletedIds
+  }
+
   /**
    * Get tree structure for visualization
    *

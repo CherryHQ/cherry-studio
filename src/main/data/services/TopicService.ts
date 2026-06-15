@@ -271,7 +271,7 @@ export class TopicService {
 
   /**
    * Hard delete + tag/pin purge. Any future soft-delete path MUST also
-   * call `pinService.purgeForEntityTx(tx, 'topic', id)` — a surviving pin row
+   * call `pinService.purgeForEntitiesTx(tx, 'topic', [id])` — a surviving pin row
    * makes `listByCursor`'s JOIN silently hide the topic from both sections.
    *
    * TODO: Clean up associated files (images, attachments) from disk.
@@ -313,7 +313,8 @@ export class TopicService {
     }
     if (deletedIds.length === 0) return []
 
-    await tx.delete(messageTable).where(inArray(messageTable.topicId, deletedIds))
+    const { messageService } = await import('./MessageService')
+    await messageService.purgeByTopicIdsTx(tx, deletedIds)
     await tagService.purgeForEntitiesTx(tx, 'topic', deletedIds)
     await pinService.purgeForEntitiesTx(tx, 'topic', deletedIds)
     await tx.delete(topicTable).where(inArray(topicTable.id, deletedIds))
