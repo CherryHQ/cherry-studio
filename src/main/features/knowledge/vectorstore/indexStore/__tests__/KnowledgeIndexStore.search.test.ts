@@ -47,6 +47,18 @@ describe('KnowledgeIndexStore.search', () => {
     expect(matches[0].score).toBeGreaterThan(matches[1].score)
   })
 
+  it('vector mode drops a degenerate zero-norm embedding instead of ranking it first', async () => {
+    await indexMaterial('m1', 'a.md', 'apple pie', [1, 0, 0])
+    // A zero vector has undefined cosine distance (libsql returns NULL). Without the
+    // `dist IS NOT NULL` guard it sorts first under `ORDER BY dist` and scores a perfect
+    // `1 - Number(null) = 1`, outranking the real hit — so it must be excluded entirely.
+    await indexMaterial('m2', 'b.md', 'banana bread', [0, 0, 0])
+
+    const matches = await store.search({ queryText: '', queryEmbedding: [1, 1, 0], mode: 'vector', topK: 10 })
+
+    expect(matches.map((m) => m.materialId)).toEqual(['m1'])
+  })
+
   it('bm25 mode returns only units whose body matches the query tokens', async () => {
     await indexMaterial('m1', 'a.md', 'apple pie', [1, 0, 0])
     await indexMaterial('m2', 'b.md', 'banana bread', [0, 1, 0])

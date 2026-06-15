@@ -263,6 +263,9 @@ export class KnowledgeIndexStore {
     // Invariant, not a check: a base's embedding model and dimensions are immutable
     // (changing them means migrating to a new base), so `queryEmbedding` and every
     // stored `vector_blob` share one dimension — cosine never compares mismatched lengths.
+    // `WHERE dist IS NOT NULL` drops degenerate (zero-norm) vectors: cosine distance is
+    // undefined for them, and SQLite coerces that NULL/NaN to NULL — which would otherwise
+    // sort first under `ORDER BY dist` and score `1 - Number(null) = 1`, outranking real hits.
     const result = await this.driver.execute(
       `SELECT su.unit_id, su.material_id, su.unit_index, st.text AS body,
               ${this.vectorIndex.buildDistanceExpression('e.vector_blob')} AS dist
@@ -270,6 +273,7 @@ export class KnowledgeIndexStore {
        JOIN search_text st
          ON st.embedding_text_hash = e.embedding_text_hash AND st.target_type = 'search_unit' AND st.kind = 'body'
        JOIN search_unit su ON su.unit_id = st.target_id
+       WHERE dist IS NOT NULL
        ORDER BY dist
        LIMIT ?`,
       [this.vectorIndex.bindQueryVector(queryEmbedding), topK]
