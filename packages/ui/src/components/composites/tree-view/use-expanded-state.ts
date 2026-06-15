@@ -22,13 +22,23 @@ export function useExpandedState(options: UseExpandedStateOptions): UseExpandedS
 
   const toggle = useCallback(
     (id: string) => {
-      const next = new Set(current)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      if (!isControlled) setInternal(next)
-      onExpandedChange?.(next)
+      if (isControlled) {
+        const next = new Set(controlled)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        onExpandedChange?.(next)
+        return
+      }
+
+      setInternal((previous) => {
+        const next = new Set(previous)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        onExpandedChange?.(next)
+        return next
+      })
     },
-    [current, isControlled, onExpandedChange]
+    [controlled, isControlled, onExpandedChange]
   )
 
   const isExpanded = useCallback((id: string) => current.has(id), [current])

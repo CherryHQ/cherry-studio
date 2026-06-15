@@ -5,7 +5,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { TreeView } from '../TreeView'
+import { TreeView } from '../tree-view'
 import type { RenderRowFn, TreeNodeAdapter } from '../types'
 
 interface Node {

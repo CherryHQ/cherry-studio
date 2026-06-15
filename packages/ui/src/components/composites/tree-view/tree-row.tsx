@@ -1,27 +1,26 @@
 import { memo, useCallback } from 'react'
 
-import { useTreeActions, useTreeDrag, useTreeSelection } from './contexts'
-import type { RenderRowFn } from './types'
+import { useTreeActions, useTreeSelection } from './contexts'
+import type { DragPosition, RenderRowFn } from './types'
 
 interface TreeRowProps<T> {
   id: string
   node: T
   depth: number
   hasChildren: boolean
+  isDragging: boolean
+  isDragOver: boolean
+  dragPosition: DragPosition | null
   renderRow: RenderRowFn<T>
 }
 
 function TreeRowInner<T>(props: TreeRowProps<T>) {
-  const { id, node, depth, hasChildren, renderRow } = props
+  const { id, node, depth, hasChildren, isDragging, isDragOver, dragPosition, renderRow } = props
   const { toggleExpanded, selectNode, getDragHandleProps } = useTreeActions()
   const { expandedIds, selectedId } = useTreeSelection()
-  const { draggedId, dragOverId, dragPosition } = useTreeDrag()
 
   const isExpanded = expandedIds.has(id)
   const isSelected = selectedId === id
-  const isDragging = draggedId === id
-  const isDragOver = dragOverId === id
-  const effectiveDragPosition = isDragOver ? dragPosition : null
 
   const toggle = useCallback(() => {
     if (hasChildren) toggleExpanded(id)
@@ -40,7 +39,7 @@ function TreeRowInner<T>(props: TreeRowProps<T>) {
         isSelected,
         isDragging,
         isDragOver,
-        dragPosition: effectiveDragPosition,
+        dragPosition,
         toggleExpanded: toggle,
         selectNode: select,
         dragHandleProps: getDragHandleProps(id)

@@ -4,17 +4,15 @@ import { useCallback, useMemo } from 'react'
 import {
   TreeActionsContext,
   type TreeActionsContextValue,
-  TreeDragContext,
-  type TreeDragContextValue,
   TreeSelectionContext,
   type TreeSelectionContextValue
 } from './contexts'
-import { flattenTree } from './flattenTree'
-import { TreeRow } from './TreeRow'
+import { flattenTree } from './flatten-tree'
+import { TreeRow } from './tree-row'
 import type { FlatTreeItem, TreeViewProps } from './types'
-import { useExpandedState } from './useExpandedState'
-import { useSelectionState } from './useSelectionState'
-import { useTreeDragAndDrop } from './useTreeDragAndDrop'
+import { useExpandedState } from './use-expanded-state'
+import { useSelectionState } from './use-selection-state'
+import { useTreeDragAndDrop } from './use-tree-drag-and-drop'
 
 /**
  * Data-agnostic tree renderer.
@@ -27,6 +25,9 @@ import { useTreeDragAndDrop } from './useTreeDragAndDrop'
  * Interactions are all opt-in:
  * - Selection enables when `selectedId` or `onSelectedChange` is provided.
  * - DnD enables only when `onMove` is provided. Without it, rows are not draggable.
+ *
+ * This is a headless renderer: callers own row markup, tree roles, roving
+ * focus, keyboard navigation, and rejecting descendant drops in `onMove`.
  *
  * Virtualization is delegated to an optional `renderList` slot — TreeView produces
  * the flat list + sticky metadata but never imports a virtualizer itself.
@@ -65,14 +66,20 @@ export function TreeView<T>(props: TreeViewProps<T>) {
     [data, adapter, expanded.expandedIds]
   )
 
+  const flatById = useMemo(() => {
+    const map = new Map<string, FlatTreeItem<T>>()
+    for (const item of flat) map.set(item.id, item)
+    return map
+  }, [flat])
+
   const canHaveChildrenById = useCallback(
     (id: string): boolean => {
-      const found = flat.find((item) => item.id === id)
+      const found = flatById.get(id)
       if (!found) return false
       const fn = adapter.canHaveChildren
       return fn ? fn(found.node) : true
     },
-    [adapter, flat]
+    [adapter, flatById]
   )
 
   const drag = useTreeDragAndDrop({
@@ -97,15 +104,6 @@ export function TreeView<T>(props: TreeViewProps<T>) {
     [expanded.expandedIds, selection.selectedId]
   )
 
-  const dragValue = useMemo<TreeDragContextValue>(
-    () => ({
-      draggedId: drag.draggedId,
-      dragOverId: drag.dragOverId,
-      dragPosition: drag.dragPosition
-    }),
-    [drag.draggedId, drag.dragOverId, drag.dragPosition]
-  )
-
   const renderItem = useCallback(
     (index: number) => {
       const item = flat[index]
@@ -119,11 +117,14 @@ export function TreeView<T>(props: TreeViewProps<T>) {
           node={item.node}
           depth={item.depth}
           hasChildren={hasChildren}
+          isDragging={drag.draggedId === item.id}
+          isDragOver={drag.dragOverId === item.id}
+          dragPosition={drag.dragOverId === item.id ? drag.dragPosition : null}
           renderRow={renderRow}
         />
       )
     },
-    [flat, adapter, renderRow]
+    [flat, adapter, renderRow, drag.draggedId, drag.dragOverId, drag.dragPosition]
   )
 
   const isSticky = useCallback(
@@ -149,9 +150,7 @@ export function TreeView<T>(props: TreeViewProps<T>) {
 
   return (
     <TreeActionsContext value={actionsValue}>
-      <TreeSelectionContext value={selectionValue}>
-        <TreeDragContext value={dragValue}>{body}</TreeDragContext>
-      </TreeSelectionContext>
+      <TreeSelectionContext value={selectionValue}>{body}</TreeSelectionContext>
     </TreeActionsContext>
   )
 }

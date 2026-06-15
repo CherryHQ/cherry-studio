@@ -1,11 +1,10 @@
 import { createContext, use } from 'react'
 
-import type { DragPosition, TreeDragHandleProps } from './types'
+import type { TreeDragHandleProps } from './types'
 
 /**
- * Split into three contexts so high-frequency drag updates do not re-render rows
- * that only consume selection/expansion state. Mirrors the proven pattern in
- * NotesSidebar (5 contexts) but collapsed to the minimum needed for v1.
+ * Split actions from selection so stable row handlers do not change when
+ * selection changes. High-frequency drag row state is passed by props.
  */
 
 export interface TreeActionsContextValue {
@@ -19,15 +18,8 @@ export interface TreeSelectionContextValue {
   selectedId: string | null
 }
 
-export interface TreeDragContextValue {
-  draggedId: string | null
-  dragOverId: string | null
-  dragPosition: DragPosition | null
-}
-
 export const TreeActionsContext = createContext<TreeActionsContextValue | null>(null)
 export const TreeSelectionContext = createContext<TreeSelectionContextValue | null>(null)
-export const TreeDragContext = createContext<TreeDragContextValue | null>(null)
 
 function ensure<T>(value: T | null, name: string): T {
   if (value === null) {
@@ -42,8 +34,4 @@ export function useTreeActions(): TreeActionsContextValue {
 
 export function useTreeSelection(): TreeSelectionContextValue {
   return ensure(use(TreeSelectionContext), 'useTreeSelection')
-}
-
-export function useTreeDrag(): TreeDragContextValue {
-  return ensure(use(TreeDragContext), 'useTreeDrag')
 }
