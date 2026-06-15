@@ -1,6 +1,7 @@
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { describe, expect, it } from 'vitest'
 
+import { resolveMcpPackageIconUrl } from '../mcpPackage'
 import { isSameMcpServerCandidate, toCreateMcpServerDto, toUpdateMcpServerDto } from '../utils'
 
 describe('McpSettings utils', () => {
@@ -69,5 +70,24 @@ describe('McpSettings utils', () => {
       name: 'Fetch',
       isActive: true
     })
+  })
+
+  it('preserves absolute package icon URLs and paths', () => {
+    expect(resolveMcpPackageIconUrl('https://example.com/icon.png', '/tmp/server')).toBe('https://example.com/icon.png')
+    expect(resolveMcpPackageIconUrl('http://example.com/icon.png', '/tmp/server')).toBe('http://example.com/icon.png')
+    expect(resolveMcpPackageIconUrl('file:///tmp/icon.png', '/tmp/server')).toBe('file:///tmp/icon.png')
+    expect(resolveMcpPackageIconUrl('/tmp/icon.png', '/tmp/server')).toBe('/tmp/icon.png')
+    expect(resolveMcpPackageIconUrl('C:\\tmp\\icon.png', 'C:\\server')).toBe('C:\\tmp\\icon.png')
+  })
+
+  it('resolves relative package icon paths against the extraction directory', () => {
+    expect(resolveMcpPackageIconUrl('assets/icon.png', '/tmp/server')).toBe('/tmp/server/assets/icon.png')
+    expect(resolveMcpPackageIconUrl('assets/icon.png', '/tmp/server/')).toBe('/tmp/server/assets/icon.png')
+  })
+
+  it('rejects relative package icon paths that escape the extraction directory', () => {
+    expect(resolveMcpPackageIconUrl('../secret.png', '/tmp/server')).toBeUndefined()
+    expect(resolveMcpPackageIconUrl('assets/../../secret.png', '/tmp/server')).toBeUndefined()
+    expect(resolveMcpPackageIconUrl('%2e%2e/secret.png', '/tmp/server')).toBeUndefined()
   })
 })

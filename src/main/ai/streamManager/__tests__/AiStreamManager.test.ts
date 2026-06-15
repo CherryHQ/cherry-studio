@@ -1,4 +1,5 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -244,6 +245,16 @@ describe('AiStreamManager', () => {
       ).toThrow('duplicate modelId')
     })
 
+    it('no-ops an enqueue-only send (empty models, not live) instead of throwing', () => {
+      // A steer landing in the inter-turn drain window reaches send with no models and no live
+      // stream: the user message is already persisted, so send must not require a model nor start
+      // a stream — just return without effect.
+      const result = mgr.send({ topicId: 'a', models: [], listeners: [new FakeListener('l:a')] })
+
+      expect(result).toEqual({ mode: 'injected', executionIds: [] })
+      expect(mgr.inspect('a')).toBeUndefined()
+    })
+
     it('evicts finished stream and creates new one', async () => {
       startSingle(mgr, {
         topicId: 'a',
@@ -278,9 +289,11 @@ describe('AiStreamManager', () => {
       expect(mockStreamText).toHaveBeenCalledTimes(1)
 
       const l2 = new FakeListener('l:a') // same id → upsert
+      // A live-topic inject carries no models (the running stream owns execution; a steer / agent
+      // follow-up is enqueued separately by its provider). Non-empty models here is the refused race.
       const result = mgr.send({
         topicId: 'a',
-        models: [{ modelId: 'provider-a::model-a', request: req('a') }],
+        models: [],
         listeners: [l2]
       })
 
@@ -297,6 +310,30 @@ describe('AiStreamManager', () => {
       mgr.onChunk('a', 'provider-a::model-a', chunk('x'))
       expect(l1.chunks).toHaveLength(0)
       expect(l2.chunks).toHaveLength(1)
+    })
+
+    it('refuses to inject a prepared turn onto a live topic (approval continue-conversation race)', () => {
+      // A non-empty `models` reaching the inject path means a prepared turn (e.g. an approval
+      // `continue-conversation`) raced a concurrent submit that started a live turn. send() runs under
+      // the per-topic dispatch lock, so throwing here is atomic w.r.t. the racing submit — it must NOT
+      // silently inject-drop the prepared models behind a success shape (the approved tool never runs).
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('wc:1')]
+      })
+      expect(mockStreamText).toHaveBeenCalledTimes(1)
+
+      expect(() =>
+        mgr.send({
+          topicId: 'a',
+          models: [{ modelId: 'provider-a::model-a', request: req('a') }],
+          listeners: [new FakeListener('wc:2')]
+        })
+      ).toThrow(/refusing to inject/)
+      // No second stream launched; the live stream is untouched.
+      expect(mockStreamText).toHaveBeenCalledTimes(1)
     })
 
     it('upserts an agent-session follow-up subscriber without restarting the stream', () => {
@@ -741,36 +778,303 @@ describe('AiStreamManager', () => {
     })
   })
 
-  // ── abortAndAwait ───────────────────────────────────────────────
-  // Used by the dispatcher to restart a chat turn: abort the live stream,
-  // wait for its execution loop to settle (persist as paused), then evict
-  // so the next `send()` starts fresh with no orphan stream on the topic.
+  // ── steer chaining ──────────────────────────────────────────────
+  // Chat mirrors the agent runtime: a busy submit is persisted and enqueued here; the running turn
+  // yields (`hasPendingSteer` → stop condition) and `onExecutionDone` chains a `steer-continuation`
+  // dispatch that answers it. No second loop, no idle flicker, FIFO drain.
 
-  describe('abortAndAwait', () => {
-    it('aborts a live stream, settles its loop, and evicts the topic', async () => {
-      // readUIMessageStream's accumulator needs real microtask/timer
-      // scheduling; fake timers starve it (see live finalMessage test).
-      vi.useRealTimers()
+  describe('steer chaining', () => {
+    // Flush the queueMicrotask-deferred continuation (and its awaited dispatch) under fake timers.
+    const flush = async () => {
+      for (let i = 0; i < 6; i++) await Promise.resolve()
+    }
+    const steerReq = (topicId: string, userMessageId: string) => ({
+      trigger: 'steer-continuation',
+      topicId,
+      userMessageId
+    })
 
-      const listener = new FakeListener('l:a')
+    it('drains a steer that lands right after a clean `done` settle (inter-turn race)', async () => {
+      // The turn completed cleanly before the steer's enqueue landed, so no terminal hook fired to
+      // chain it — `enqueuePendingSteer` must drain it itself.
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
       startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
         request: req('a'),
-        listeners: [listener]
+        listeners: [new FakeListener('wc:1')]
       })
-      expect(mgr.inspect('a')!.status).toBe('pending')
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      dispatchSpy.mockClear()
 
-      await mgr.abortAndAwait('a', 'steer-restart')
+      mgr.enqueuePendingSteer('a', 'u1')
+      expect(mgr.hasPendingSteer('a')).toBe(true)
 
-      // The loop settled as paused (partial persisted) and the stream was evicted.
-      expect(listener.pausedResults).toHaveLength(1)
-      expect(mgr.inspect('a')).toBeUndefined()
+      await flush()
+      expect(dispatchSpy).toHaveBeenCalledTimes(1)
+      expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u1'))
+      expect(mgr.hasPendingSteer('a')).toBe(false)
     })
 
-    it('is a no-op when the topic has no live stream', async () => {
-      await expect(mgr.abortAndAwait('missing', 'steer-restart')).resolves.toBeUndefined()
-      expect(mgr.inspect('missing')).toBeUndefined()
+    it('a finished turn with a queued steer chains a continuation instead of finishing (no idle flicker)', async () => {
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
+
+      // Steer arrives while the turn is live → queued, not started.
+      mgr.enqueuePendingSteer('a', 'u2')
+      expect(dispatchSpy).not.toHaveBeenCalled()
+
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+
+      // The assistant bubble finalises but the topic stays busy (isTopicDone=false), and no
+      // terminal `done` is broadcast to the status cache.
+      expect(listener.doneResults).toHaveLength(1)
+      expect(listener.doneResults[0].isTopicDone).toBe(false)
+      expect((sharedCacheStore.get('topic.stream.statuses.a') as any)?.status).not.toBe('done')
+
+      await flush()
+      expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u2'))
+    })
+
+    it('drains multiple steers FIFO — only the head starts until the next turn finishes', async () => {
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('wc:1')]
+      })
+      // Both steers queued while the turn is live...
+      mgr.enqueuePendingSteer('a', 'u1')
+      mgr.enqueuePendingSteer('a', 'u2')
+      expect(dispatchSpy).not.toHaveBeenCalled()
+
+      // ...the turn finishes → only the head chains; the rest waits for the continuation to finish.
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      await flush()
+      expect(dispatchSpy).toHaveBeenCalledTimes(1)
+      expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u1'))
+      expect(mgr.hasPendingSteer('a')).toBe(true)
+    })
+
+    it('drops a queued steer when the turn is aborted instead of chaining onto it', async () => {
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
+      mgr.enqueuePendingSteer('a', 'u2')
+
+      mgr.abort('a', 'user-requested')
+      await mgr.onExecutionPaused('a', 'provider-a::model-a')
+
+      await flush()
+      expect(dispatchSpy).not.toHaveBeenCalled()
+      expect(mgr.hasPendingSteer('a')).toBe(false)
+    })
+
+    // ── failure paths: queue-drop, no-chain-on-error, continuation-launch failure ──
+
+    it('drops — does not chain — a steer that lands after an aborted settle (Stop race)', async () => {
+      // The user pressed Stop; the steer's enqueue lands AFTER the abort settled. It must not start a
+      // turn after Stop, nor sit queued for a later unrelated turn to chain — it's dropped (the
+      // persisted row stays resendable).
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('wc:1')]
+      })
+      mgr.abort('a', 'user-requested')
+      await mgr.onExecutionPaused('a', 'provider-a::model-a')
+
+      mgr.enqueuePendingSteer('a', 'u1')
+
+      await flush()
+      expect(dispatchSpy).not.toHaveBeenCalled()
+      expect(mgr.hasPendingSteer('a')).toBe(false)
+    })
+
+    it('drops a steer landing after abort() but before the loop settles, even after a prior clean turn', async () => {
+      // Stop race after a prior clean turn: a new turn is live, the user presses Stop (`abort()` flips
+      // the stream to 'aborted' synchronously), and the steer enqueue lands BEFORE `onExecutionPaused`
+      // runs. The enqueue reads 'aborted' off the in-grace stream and drops — it must not drain off
+      // the earlier turn's clean 'done'.
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+
+      // 1) an earlier clean turn (settles to 'done')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l1')]
+      })
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      dispatchSpy.mockClear()
+
+      // 2) a new live turn, 3) Stop (abort is synchronous), 4) steer lands before onExecutionPaused runs
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l2')]
+      })
+      mgr.abort('a', 'user-requested')
+      mgr.enqueuePendingSteer('a', 'u1')
+
+      await flush()
+      expect(dispatchSpy).not.toHaveBeenCalled()
+      expect(mgr.hasPendingSteer('a')).toBe(false)
+    })
+
+    it('does not chain while an execution is awaiting approval', async () => {
+      // A turn that ends `awaiting-approval` with a steer queued must NOT launch a continuation: the
+      // user's Approve dispatches `continue-conversation`, which a live continuation would swallow.
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const listener = new FakeListener('wc:1')
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
+      // Drive the execution into awaiting-approval, then complete it.
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'tool-approval-request' } as unknown as UIMessageChunk)
+      mgr.enqueuePendingSteer('a', 'u1')
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+
+      await flush()
+      expect(dispatchSpy).not.toHaveBeenCalled()
+      expect(mgr.hasPendingSteer('a')).toBe(true) // still queued, waiting for the approval to resolve
+    })
+
+    it('answers a steer that lands in the chaining window instead of dropping it (variant A)', async () => {
+      // A first steer is queued and the turn chains (status flips to 'done'); a SECOND steer lands in
+      // that chaining window. The old shadow flag wasn't recorded on the chaining settle, so the late
+      // steer read `undefined` and was dropped; now it reads 'done' off the in-grace stream and stays.
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('wc:1')]
+      })
+      mgr.enqueuePendingSteer('a', 's0') // queued while live
+      await mgr.onExecutionDone('a', 'provider-a::model-a') // clean done + queued steer → chains
+      mgr.enqueuePendingSteer('a', 's1') // lands in the chaining window
+
+      await flush()
+      expect(dispatchSpy).toHaveBeenCalled() // s0's continuation launched
+      expect(mgr.hasPendingSteer('a')).toBe(true) // s1 retained for the next drain, not dropped
+    })
+
+    it('queues a steer that lands after the turn parked on approval, without launching (variant B)', async () => {
+      // As above, but the steer lands AFTER the park (not before): it must still queue for the
+      // post-approval continuation, not read a non-live status and drop.
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('wc:1')]
+      })
+      mgr.onChunk('a', 'provider-a::model-a', { type: 'tool-approval-request' } as unknown as UIMessageChunk)
+      await mgr.onExecutionDone('a', 'provider-a::model-a') // parks → 'awaiting-approval', no steer queued yet
+      mgr.enqueuePendingSteer('a', 's1') // lands after the park
+
+      await flush()
+      expect(dispatchSpy).not.toHaveBeenCalled() // not launched while parked
+      expect(mgr.hasPendingSteer('a')).toBe(true) // queued for the continuation Approve dispatches
+    })
+
+    it('never chains a steer onto a multi-model turn that resolved to error, in either settle order', async () => {
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const twoModels = (topicId: string) => ({
+        topicId,
+        models: [
+          { modelId: 'provider-a::model-a' as const, request: req(topicId) },
+          { modelId: 'provider-b::model-b' as const, request: req(topicId) }
+        ],
+        listeners: [new FakeListener(`wc:${topicId}`)]
+      })
+
+      // topic 'a': error settles FIRST, the clean done LAST (the order that mis-recorded 'done' pre-fix).
+      mgr.send(twoModels('a'))
+      mgr.enqueuePendingSteer('a', 's-a')
+      await mgr.onExecutionError('a', 'provider-a::model-a', error('boom'))
+      await mgr.onExecutionDone('a', 'provider-b::model-b') // resolves topic to 'error'
+
+      // topic 'b': clean done FIRST, error LAST.
+      mgr.send(twoModels('b'))
+      mgr.enqueuePendingSteer('b', 's-b')
+      await mgr.onExecutionDone('b', 'provider-a::model-a') // topic still live (B streaming)
+      await mgr.onExecutionError('b', 'provider-b::model-b', error('boom'))
+
+      await flush()
+      // Neither order chains onto an errored topic; both drop the queued steer (rows stay resendable).
+      expect(dispatchSpy).not.toHaveBeenCalled()
+      expect(mgr.hasPendingSteer('a')).toBe(false)
+      expect(mgr.hasPendingSteer('b')).toBe(false)
+    })
+
+    it('writes a terminal error and notifies carried windows when the continuation fails to launch', async () => {
+      const wc = new FakeListener('wc:1')
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [wc] })
+      mgr.enqueuePendingSteer('a', 'u1') // queued while live
+
+      vi.spyOn(mgr, 'dispatch').mockRejectedValue(new Error('steer row deleted'))
+      await mgr.onExecutionDone('a', 'provider-a::model-a') // chains → startNextChatTurn → dispatch throws
+      await flush()
+
+      // Status cache dropped out of the live state (not stuck `streaming`/`pending`).
+      expect((sharedCacheStore.get('topic.stream.statuses.a') as any)?.status).toBe('error')
+      // The carried renderer window was told the turn errored.
+      expect(wc.errorResults).toHaveLength(1)
+      // Queue cleared, not stranded; no live stream left behind.
+      expect(mgr.hasPendingSteer('a')).toBe(false)
+      expect(mgr.hasLiveStream('a')).toBe(false)
+    })
+
+    // The single line that prevents the prior turn's PersistenceListener from being carried into the
+    // continuation (and writing onto the OLD assistant row) is the renderer-listener filter — cover it.
+    it('carries only renderer listeners into the continuation; persistence/trace are dropped', async () => {
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const addSpy = vi.spyOn(mgr, 'addListener')
+      const wc1 = new FakeListener('wc:1:a')
+      const wc2 = new FakeListener('wc:2:a')
+      const persist = new FakeListener('persistence:sqlite:a:provider-a::model-a')
+      const trace = new FakeListener('trace:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [wc1, persist, trace, wc2]
+      })
+      mgr.enqueuePendingSteer('a', 'u1')
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      await flush()
+
+      // The continuation's dispatch subscriber is a renderer (wc) listener — never the prior turn's
+      // persistence/trace listener (carrying that would write onto the old assistant row / re-flush).
+      const [subscriber, sentReq] = dispatchSpy.mock.calls[0]
+      expect(subscriber.id.startsWith('wc:')).toBe(true)
+      expect(sentReq).toEqual(steerReq('a', 'u1'))
+      // The other window is re-attached; persistence/trace listeners are not carried at all.
+      const reattachedIds = addSpy.mock.calls.map(([, l]) => l.id)
+      expect(reattachedIds).toContain('wc:2:a')
+      expect(reattachedIds).not.toContain('persistence:sqlite:a:provider-a::model-a')
+      expect(reattachedIds).not.toContain('trace:a')
+    })
+
+    it('falls back to the null listener when the finished turn had no renderer windows', async () => {
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      // Only a persistence listener (e.g. every window closed mid-turn) — nothing to carry.
+      const persist = new FakeListener('persistence:sqlite:a:provider-a::model-a')
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [persist] })
+      mgr.enqueuePendingSteer('a', 'u1')
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+      await flush()
+
+      // The null sentinel (isAlive() === false) drives the windowless continuation, not the
+      // persistence listener.
+      const [subscriber] = dispatchSpy.mock.calls[0]
+      expect(subscriber.isAlive()).toBe(false)
+      expect(subscriber.id.startsWith('persistence:')).toBe(false)
     })
   })
 
@@ -808,6 +1112,59 @@ describe('AiStreamManager', () => {
       expect(listener.doneResults).toHaveLength(0)
       expect(listener.pausedResults[0].status).toBe('paused')
       expect(mgr.inspect('a')!.status).toBe('aborted')
+    })
+
+    it('pauses the idle timer while a tool is awaiting approval — a long deliberation is not killed', async () => {
+      vi.useRealTimers()
+
+      const controlled = controlledStream()
+      mockStreamText.mockImplementationOnce(async () => controlled.stream)
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: { ...req('a'), requestOptions: { timeout: 30 } },
+        listeners: [listener]
+      })
+
+      // The approval-request chunk flows through the loop's onChunk callback, which re-arms the
+      // idle watchdog to the generous approval bound (default 2 h). The stream then stays open with
+      // no further chunks (the human is deliberating).
+      controlled.enqueue({ type: 'start' } as UIMessageChunk)
+      controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' } as UIMessageChunk)
+
+      // Wait well past the 30ms idle timeout — the approval re-arm uses the 2 h bound, so no abort.
+      await new Promise((resolve) => setTimeout(resolve, 90))
+
+      expect(listener.pausedResults).toHaveLength(0)
+      expect(mgr.inspect('a')!.status).not.toBe('aborted')
+    })
+
+    it('still bounds an approval wait — an unresponsive renderer is aborted after the approval timeout', async () => {
+      vi.useRealTimers()
+      // Tight approval bound so the test doesn't wait 2 h; the normal idle timeout stays longer so it
+      // can't be what fires.
+      const boundedMgr = createManager({ approvalIdleTimeoutMs: 40 })
+
+      const controlled = controlledStream()
+      mockStreamText.mockImplementationOnce(async () => controlled.stream)
+
+      const listener = new FakeListener('l:a')
+      startSingle(boundedMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: { ...req('a'), requestOptions: { timeout: 10_000 } },
+        listeners: [listener]
+      })
+
+      controlled.enqueue({ type: 'start' } as UIMessageChunk)
+      controlled.enqueue({ type: 'tool-approval-request', toolCallId: 'tc-1', approvalId: 'a-1' } as UIMessageChunk)
+
+      // No approval response ever arrives (window closed/crashed) → the approval bound fires.
+      await new Promise((resolve) => setTimeout(resolve, 120))
+
+      expect(boundedMgr.inspect('a')!.status).toBe('aborted')
     })
   })
 
@@ -1149,7 +1506,7 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l:t')]
       })
 
-      // `tool-approval-request` sets exec.awaitingApproval and flips pending → streaming.
+      // `tool-approval-request` records the pending toolCallId and flips pending → streaming.
       mgr.onChunk('t', 'p::m', { type: 'tool-approval-request' } as UIMessageChunk)
       expect(statusSequence('t')).toEqual(['pending', 'streaming'])
 
@@ -1169,11 +1526,11 @@ describe('AiStreamManager', () => {
         listeners: [new FakeListener('l:t')]
       })
 
-      // Approval request sets exec.awaitingApproval and flips pending → streaming.
+      // Approval request records the pending toolCallId and flips pending → streaming.
       mgr.onChunk('t', 'p::m', { type: 'tool-approval-request' } as UIMessageChunk)
       expect(statusSequence('t')).toEqual(['pending', 'streaming'])
 
-      // The tool output for the same call resolves the approval: exec.awaitingApproval clears.
+      // The tool output for the same call clears that toolCallId from the pending set.
       mgr.onChunk('t', 'p::m', { type: 'tool-output-available' } as UIMessageChunk)
 
       // resolveTerminalStatus no longer finds a paused exec, so the terminal status is `done`,
@@ -1182,6 +1539,80 @@ describe('AiStreamManager', () => {
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
       expect(mgr.inspect('t')!.status).toBe('done')
       expect(mgr.inspect('t')!.status).not.toBe('awaiting-approval')
+    })
+
+    it('keeps awaiting-approval when a sibling tool resolves while another approval is still pending', async () => {
+      startSingle(mgr, {
+        topicId: 't',
+        modelId: 'p::m',
+        request: req('t'),
+        listeners: [new FakeListener('l:t')]
+      })
+
+      // One tool is awaiting approval; a parallel tool is still running.
+      mgr.onChunk('t', 'p::m', { type: 'tool-approval-request', toolCallId: 'call-approve' } as UIMessageChunk)
+      // The sibling's output clears only its own toolCallId — the pending approval must survive
+      // (pre-fix this single boolean was cleared by any tool-output and the topic settled to `done`).
+      mgr.onChunk('t', 'p::m', { type: 'tool-output-available', toolCallId: 'call-other' } as UIMessageChunk)
+
+      await mgr.onExecutionDone('t', 'p::m')
+      expect(mgr.inspect('t')!.status).toBe('awaiting-approval')
+    })
+
+    // ── Teardown clears the awaiting-approval flag (no manager-side settle) ──
+    //
+    // A turn torn down (paused/errored) while a tool is `approval-requested`
+    // gets no `tool-output-*` to clear it. The manager only clears the pending-approval
+    // set so the status resolves to plain aborted/error and the `awaitingApprovalAnchors`
+    // anchor drops; the dangling tool part is terminalized to `output-error` by
+    // `finalizeInterruptedParts` (persistence already, re-attach below) — NOT by
+    // the manager minting a chunk or rewriting `finalMessage`.
+
+    /** Drive a `tool-approval-request` so the exec is awaiting approval; return the private exec. */
+    const startAwaitingApproval = (topicId: string, modelId: UniqueModelId) => {
+      mgr.onChunk(topicId, modelId, { type: 'tool-approval-request' } as UIMessageChunk)
+      // biome-ignore lint/suspicious/noExplicitAny: reach the private exec to drive the abort path
+      return (mgr as any).activeStreams.get(topicId).executions.get(modelId)
+    }
+
+    const anchorsOf = (topicId: string) =>
+      (sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as { awaitingApprovalAnchors?: unknown[] } | undefined)
+        ?.awaitingApprovalAnchors ?? []
+
+    it('onExecutionPaused while awaiting approval clears the flag → status aborted, anchor dropped, no minted chunk', async () => {
+      const listener = new FakeListener('l:t')
+      startSingle(mgr, { topicId: 't', modelId: 'p::m', request: req('t'), listeners: [listener] })
+
+      const exec = startAwaitingApproval('t', 'p::m')
+      exec.status = 'aborted'
+      await mgr.onExecutionPaused('t', 'p::m')
+
+      expect(mgr.inspect('t')!.status).toBe('aborted')
+      expect(anchorsOf('t')).toEqual([])
+      // The manager does not fabricate a settle chunk — finalize owns that.
+      expect(listener.chunks.some((c) => c.type === 'tool-output-denied' || c.type === 'tool-output-error')).toBe(false)
+    })
+
+    it('onExecutionError while awaiting approval clears the flag → status error, anchor dropped', async () => {
+      const listener = new FakeListener('l:t')
+      startSingle(mgr, { topicId: 't', modelId: 'p::m', request: req('t'), listeners: [listener] })
+
+      startAwaitingApproval('t', 'p::m')
+      await mgr.onExecutionError('t', 'p::m', error('boom'))
+
+      expect(mgr.inspect('t')!.status).toBe('error')
+      expect(anchorsOf('t')).toEqual([])
+    })
+
+    it('onExecutionDone while awaiting approval keeps awaiting-approval (MCP continue)', async () => {
+      const listener = new FakeListener('l:t')
+      startSingle(mgr, { topicId: 't', modelId: 'p::m', request: req('t'), listeners: [listener] })
+
+      startAwaitingApproval('t', 'p::m')
+      await mgr.onExecutionDone('t', 'p::m')
+
+      expect(mgr.inspect('t')!.status).toBe('awaiting-approval')
+      expect(anchorsOf('t')).toHaveLength(1)
     })
 
     it('multi-model: flips on first chunk from any execution and stays pending if an execution errors before any chunks', async () => {

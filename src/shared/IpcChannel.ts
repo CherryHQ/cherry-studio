@@ -85,6 +85,7 @@ export enum IpcChannel {
   Mcp_ServersUpdated = 'mcp:servers-updated',
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
   Mcp_UploadDxt = 'mcp:upload-dxt',
+  Mcp_UploadMcpb = 'mcp:upload-mcpb',
   Mcp_AbortTool = 'mcp:abort-tool',
   Mcp_GetServerVersion = 'mcp:get-server-version',
   Mcp_Progress = 'mcp:progress',
@@ -354,6 +355,10 @@ export enum IpcChannel {
   DataApi_Subscribe = 'data-api:subscribe',
   DataApi_Unsubscribe = 'data-api:unsubscribe',
   DataApi_Stream = 'data-api:stream',
+
+  // IpcApi: RPC-over-IPC command channel (renderer→main request, main→renderer event)
+  IpcApi_Request = 'ipc-api:request',
+  IpcApi_Event = 'ipc-api:event',
 
   // Topic auto-rename push (main → renderer; payload: { topicId })
   Topic_AutoRenamed = 'topic:auto-renamed',

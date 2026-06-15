@@ -1,3 +1,4 @@
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 
 export interface AiChatRequestBody {
@@ -5,8 +6,10 @@ export interface AiChatRequestBody {
   topicId: string
   /** Explicit parent node — message id at the current branch tip, or null for first message. */
   parentAnchorId?: string
-  /** Models mentioned via @ in the input (multi-model fan-out). */
+  /** Models selected by the composer model selector (multi-model fan-out). */
   mentionedModels?: UniqueModelId[]
+  /** User message parts to persist/display for submit-message turns. */
+  userMessageParts?: CherryMessagePart[]
   /** Uploaded file metadata. */
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
 }
@@ -22,7 +25,10 @@ export type {
   AiStreamDetachRequest,
   AiStreamOpenRequest,
   AiStreamOpenResponse,
+  AiToolApprovalRespondRequest,
+  AiToolApprovalRespondResponse,
   ApprovalDecision,
+  ComposerQueuedMessagePayload,
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload,

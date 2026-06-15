@@ -6,8 +6,8 @@ import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
 import { ChannelManager } from '@main/ai/channels/ChannelManager'
-import { DxtService } from '@main/ai/mcp/DxtService'
 import { McpCatalogService } from '@main/ai/mcp/McpCatalogService'
+import { McpPackageService } from '@main/ai/mcp/McpPackageService'
 import { McpRuntimeService } from '@main/ai/mcp/McpRuntimeService'
 import { ClaudeCodeTraceBridgeService } from '@main/ai/observability/adapters/claudeCode/ClaudeCodeTraceBridgeService'
 import { NodeTraceService } from '@main/ai/observability/runtime/NodeTraceService'
@@ -21,6 +21,7 @@ import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { FileProcessingService, TesseractRuntimeService } from '@main/features/fileProcessing'
 import { KnowledgeService } from '@main/features/knowledge'
 import { KnowledgeVectorStoreService } from '@main/features/knowledge/vectorstore/KnowledgeVectorStoreService'
+import { IpcApiService } from '@main/ipc/IpcApiService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
@@ -80,6 +81,7 @@ export const services = {
   DbService,
   CacheService,
   DataApiService,
+  IpcApiService,
   SubWindowService,
   PreferenceService,
   TesseractRuntimeService,
@@ -111,7 +113,7 @@ export const services = {
   CherryInOauthService,
   MainWindowService,
   QuickAssistantService,
-  DxtService,
+  McpPackageService,
   McpRuntimeService,
   McpCatalogService,
   OpenClawService,

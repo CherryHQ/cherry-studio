@@ -8,7 +8,7 @@ import StreamZip from 'node-stream-zip'
 import * as path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
-const logger = loggerService.withContext('DxtService')
+const logger = loggerService.withContext('McpPackageService')
 
 /**
  * Ensure a target path is within the base directory to prevent path traversal attacks.
@@ -49,9 +49,7 @@ export function assertZipEntriesWithin(entryNames: string[], baseDir: string): v
   }
 }
 
-// Type definitions
-export interface DxtManifest {
-  dxt_version: string
+interface BaseMcpPackageManifest {
   name: string
   display_name?: string
   version: string
@@ -100,14 +98,33 @@ export interface DxtManifest {
   }
 }
 
-export interface DxtUploadResult {
+export interface DxtManifest extends BaseMcpPackageManifest {
+  dxt_version: string
+}
+
+export interface McpbManifest extends BaseMcpPackageManifest {
+  manifest_version: string
+}
+
+export type McpPackageManifest = DxtManifest | McpbManifest
+
+type ParsedMcpPackageManifest = BaseMcpPackageManifest & {
+  dxt_version?: string
+  manifest_version?: string
+}
+
+export interface McpPackageUploadResult {
   success: boolean
   data?: {
-    manifest: DxtManifest
+    manifest: McpPackageManifest
     extractDir: string
   }
   error?: string
 }
+
+export type McpPackageFormat = 'dxt' | 'mcpb'
+
+const MCP_PACKAGE_UPLOAD_MAX_BYTES = 100 * 1024 * 1024
 
 /**
  * Validate and sanitize a command to prevent path traversal attacks.
@@ -216,7 +233,7 @@ export function performVariableSubstitution(
 }
 
 /**
- * Process-affecting environment variables that must never be set from DXT-derived config.
+ * Process-affecting environment variables that must never be set from MCP package config.
  * These can alter how the spawned process loads code (preloading shared libraries, injecting
  * Node flags), so a malicious manifest could use them to execute arbitrary code despite the
  * command/arg validation above.
@@ -224,8 +241,8 @@ export function performVariableSubstitution(
 const DXT_ENV_DENYLIST = ['NODE_OPTIONS', 'LD_PRELOAD', 'LD_LIBRARY_PATH']
 
 /**
- * Validate a DXT-derived environment map and build a new sanitized object.
- * DXT env values bypass the command/arg validation, so apply equivalent hardening here:
+ * Validate an MCP package environment map and build a new sanitized object.
+ * Package env values bypass the command/arg validation, so apply equivalent hardening here:
  * reject null bytes in keys/values and denylist process-affecting variables.
  *
  * @throws Error if a key/value contains a null byte or a key is denylisted
@@ -239,23 +256,69 @@ export function buildResolvedEnv(
 
   for (const [key, value] of Object.entries(env)) {
     if (key.includes('\0')) {
-      throw new Error('Invalid DXT env: null byte detected in environment variable name')
+      throw new Error('Invalid MCP package env: null byte detected in environment variable name')
     }
 
     // Denylist process-affecting variables (DYLD_* on macOS, plus exact matches above).
-    if (DXT_ENV_DENYLIST.includes(key) || key.startsWith('DYLD_')) {
-      throw new Error(`Invalid DXT env: environment variable "${key}" is not allowed`)
+    const canonicalKey = key.toUpperCase()
+    if (DXT_ENV_DENYLIST.includes(canonicalKey) || canonicalKey.startsWith('DYLD_')) {
+      throw new Error(`Invalid MCP package env: environment variable "${key}" is not allowed`)
     }
 
     const substituted = performVariableSubstitution(value, extractDir, userConfig)
     if (substituted.includes('\0')) {
-      throw new Error(`Invalid DXT env: null byte detected in value of environment variable "${key}"`)
+      throw new Error(`Invalid MCP package env: null byte detected in value of environment variable "${key}"`)
     }
 
     resolvedEnv[key] = substituted
   }
 
   return resolvedEnv
+}
+
+export function validatePackageUploadPayload(
+  fileBuffer: ArrayBuffer | NodeJS.ArrayBufferView,
+  fileName: string,
+  packageFormat: McpPackageFormat
+): Buffer {
+  if (typeof fileName !== 'string') {
+    throw new Error('Invalid MCP package upload: file name must be a string')
+  }
+
+  const trimmedFileName = fileName.trim()
+  if (!trimmedFileName) {
+    throw new Error('Invalid MCP package upload: file name cannot be empty')
+  }
+  if (trimmedFileName !== fileName) {
+    throw new Error('Invalid MCP package upload: file name cannot contain leading or trailing whitespace')
+  }
+  if (trimmedFileName.includes('\0') || /[/\\]/.test(trimmedFileName)) {
+    throw new Error('Invalid MCP package upload: file name cannot contain path separators')
+  }
+  if (!/^[A-Za-z0-9._ ()@+-]+$/.test(trimmedFileName)) {
+    throw new Error('Invalid MCP package upload: file name contains unsupported characters')
+  }
+  if (path.extname(trimmedFileName).toLowerCase() !== `.${packageFormat}`) {
+    throw new Error(`Invalid MCP package upload: expected a .${packageFormat} file`)
+  }
+
+  let buffer: Buffer
+  if (fileBuffer instanceof ArrayBuffer) {
+    buffer = Buffer.from(fileBuffer)
+  } else if (ArrayBuffer.isView(fileBuffer)) {
+    buffer = Buffer.from(fileBuffer.buffer, fileBuffer.byteOffset, fileBuffer.byteLength)
+  } else {
+    throw new Error('Invalid MCP package upload: file buffer must be an ArrayBuffer')
+  }
+
+  if (buffer.byteLength === 0) {
+    throw new Error('Invalid MCP package upload: file buffer cannot be empty')
+  }
+  if (buffer.byteLength > MCP_PACKAGE_UPLOAD_MAX_BYTES) {
+    throw new Error('Invalid MCP package upload: file exceeds the 100 MiB size limit')
+  }
+
+  return buffer
 }
 
 export function applyPlatformOverrides(mcpConfig: any, extractDir: string, userConfig?: Record<string, any>): any {
@@ -312,9 +375,9 @@ export interface ResolvedMcpConfig {
   env?: Record<string, string>
 }
 
-@Injectable('DxtService')
+@Injectable('McpPackageService')
 @ServicePhase(Phase.WhenReady)
-export class DxtService extends BaseService {
+export class McpPackageService extends BaseService {
   private get tempDir(): string {
     return application.getPath('feature.dxt.uploads.temp')
   }
@@ -364,6 +427,44 @@ export class DxtService extends BaseService {
     }
   }
 
+  private async replacePackageDirectory(source: string, destination: string, serverDirName: string): Promise<void> {
+    const stagedDir = ensurePathWithin(this.mcpDir, path.join(this.mcpDir, `${serverDirName}.staged-${uuidv4()}`))
+    const backupDir = ensurePathWithin(this.mcpDir, path.join(this.mcpDir, `${serverDirName}.backup-${uuidv4()}`))
+    let hasBackup = false
+
+    try {
+      await this.moveDirectory(source, stagedDir)
+
+      if (fs.existsSync(destination)) {
+        logger.debug(`Moving existing server directory to backup: ${destination}`)
+        fs.renameSync(destination, backupDir)
+        hasBackup = true
+      }
+
+      fs.renameSync(stagedDir, destination)
+
+      if (hasBackup) {
+        try {
+          fs.rmSync(backupDir, { recursive: true, force: true })
+        } catch (error) {
+          logger.warn(`Failed to remove old MCP package backup: ${backupDir}`, error as Error)
+        }
+      }
+    } catch (error) {
+      if (hasBackup && !fs.existsSync(destination) && fs.existsSync(backupDir)) {
+        fs.renameSync(backupDir, destination)
+      }
+      if (fs.existsSync(stagedDir)) {
+        try {
+          fs.rmSync(stagedDir, { recursive: true, force: true })
+        } catch (cleanupError) {
+          logger.warn(`Failed to remove staged MCP package directory: ${stagedDir}`, cleanupError as Error)
+        }
+      }
+      throw error
+    }
+  }
+
   protected async onInit(): Promise<void> {
     this.registerIpcHandlers()
   }
@@ -375,8 +476,9 @@ export class DxtService extends BaseService {
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.Mcp_UploadDxt, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
       try {
+        const fileData = validatePackageUploadPayload(fileBuffer, fileName, 'dxt')
         const tempPath = await fileStorage.createTempFile(event, fileName)
-        await fileStorage.writeFile(event, tempPath, Buffer.from(fileBuffer))
+        await fileStorage.writeFile(event, tempPath, fileData)
         return await this.uploadDxt(event, tempPath)
       } catch (error) {
         logger.error('DXT upload error:', error as Error)
@@ -386,19 +488,46 @@ export class DxtService extends BaseService {
         }
       }
     })
+    this.ipcHandle(IpcChannel.Mcp_UploadMcpb, async (event, fileBuffer: ArrayBuffer, fileName: string) => {
+      try {
+        const fileData = validatePackageUploadPayload(fileBuffer, fileName, 'mcpb')
+        const tempPath = await fileStorage.createTempFile(event, fileName)
+        await fileStorage.writeFile(event, tempPath, fileData)
+        return await this.uploadMcpb(event, tempPath)
+      } catch (error) {
+        logger.error('MCPB upload error:', error as Error)
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : 'Failed to upload MCPB file'
+        }
+      }
+    })
   }
 
-  public async uploadDxt(_: Electron.IpcMainInvokeEvent, filePath: string): Promise<DxtUploadResult> {
-    const tempExtractDir = path.join(this.tempDir, `dxt_${uuidv4()}`)
+  public async uploadDxt(event: Electron.IpcMainInvokeEvent, filePath: string): Promise<McpPackageUploadResult> {
+    return this.uploadPackage(event, filePath, 'dxt')
+  }
+
+  public async uploadMcpb(event: Electron.IpcMainInvokeEvent, filePath: string): Promise<McpPackageUploadResult> {
+    return this.uploadPackage(event, filePath, 'mcpb')
+  }
+
+  private async uploadPackage(
+    _: Electron.IpcMainInvokeEvent,
+    filePath: string,
+    packageFormat: McpPackageFormat
+  ): Promise<McpPackageUploadResult> {
+    const packageLabel = packageFormat === 'mcpb' ? 'MCPB' : 'DXT'
+    const tempExtractDir = path.join(this.tempDir, `${packageFormat}_${uuidv4()}`)
 
     try {
       // Validate file exists
       if (!fs.existsSync(filePath)) {
-        throw new Error('DXT file not found')
+        throw new Error(`${packageLabel} file not found`)
       }
 
-      // Extract the DXT file (which is a ZIP archive) to a temporary directory
-      logger.debug(`Extracting DXT file: ${filePath}`)
+      // Extract the package file (which is a ZIP archive) to a temporary directory
+      logger.debug(`Extracting ${packageLabel} file: ${filePath}`)
 
       const zip = new StreamZip.async({ file: filePath })
       try {
@@ -412,15 +541,24 @@ export class DxtService extends BaseService {
       // Read and validate the manifest.json
       const manifestPath = path.join(tempExtractDir, 'manifest.json')
       if (!fs.existsSync(manifestPath)) {
-        throw new Error('manifest.json not found in DXT file')
+        throw new Error(`manifest.json not found in ${packageLabel} file`)
       }
 
       const manifestContent = fs.readFileSync(manifestPath, 'utf-8')
-      const manifest: DxtManifest = JSON.parse(manifestContent)
+      const parsedManifest: ParsedMcpPackageManifest = JSON.parse(manifestContent)
 
       // Validate required fields in manifest
-      if (!manifest.dxt_version) {
-        throw new Error('Invalid manifest: missing dxt_version')
+      let manifest: McpPackageManifest
+      if (packageFormat === 'mcpb') {
+        if (!parsedManifest.manifest_version) {
+          throw new Error('Invalid manifest: missing manifest_version')
+        }
+        manifest = { ...parsedManifest, manifest_version: parsedManifest.manifest_version }
+      } else {
+        if (!parsedManifest.dxt_version) {
+          throw new Error('Invalid manifest: missing dxt_version')
+        }
+        manifest = { ...parsedManifest, dxt_version: parsedManifest.dxt_version }
       }
       if (!manifest.name) {
         throw new Error('Invalid manifest: missing name')
@@ -445,18 +583,12 @@ export class DxtService extends BaseService {
       const serverDirName = `server-${manifest.name}`
       const finalExtractDir = ensurePathWithin(this.mcpDir, path.join(this.mcpDir, serverDirName))
 
-      // Clean up any existing version of this server
-      if (fs.existsSync(finalExtractDir)) {
-        logger.debug(`Removing existing server directory: ${finalExtractDir}`)
-        fs.rmSync(finalExtractDir, { recursive: true, force: true })
-      }
+      // Stage the new package first, then swap directories so a failed install
+      // does not destroy the last working version.
+      await this.replacePackageDirectory(tempExtractDir, finalExtractDir, serverDirName)
+      logger.debug(`${packageLabel} server extracted to: ${finalExtractDir}`)
 
-      // Move the temporary directory to the final location
-      // Use recursive copy + remove instead of rename to handle cross-filesystem moves
-      await this.moveDirectory(tempExtractDir, finalExtractDir)
-      logger.debug(`DXT server extracted to: ${finalExtractDir}`)
-
-      // Clean up the uploaded DXT file if it's in temp directory
+      // Clean up the uploaded package file if it's in temp directory
       if (filePath.startsWith(this.tempDir)) {
         fs.unlinkSync(filePath)
       }
@@ -475,8 +607,8 @@ export class DxtService extends BaseService {
         fs.rmSync(tempExtractDir, { recursive: true, force: true })
       }
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to process DXT file'
-      logger.error('DXT upload error:', error as Error)
+      const errorMessage = error instanceof Error ? error.message : `Failed to process ${packageLabel} file`
+      logger.error(`${packageLabel} upload error:`, error as Error)
 
       return {
         success: false,
@@ -486,11 +618,11 @@ export class DxtService extends BaseService {
   }
 
   /**
-   * Get resolved MCP configuration for a DXT server with platform overrides and variable substitution
+   * Get resolved MCP configuration for a package server with platform overrides and variable substitution
    */
   public getResolvedMcpConfig(dxtPath: string, userConfig?: Record<string, any>): ResolvedMcpConfig | null {
     try {
-      // Read the manifest from the DXT server directory
+      // Read the manifest from the package server directory
       const manifestPath = path.join(dxtPath, 'manifest.json')
       if (!fs.existsSync(manifestPath)) {
         logger.error(`Manifest not found: ${manifestPath}`)
@@ -498,7 +630,7 @@ export class DxtService extends BaseService {
       }
 
       const manifestContent = fs.readFileSync(manifestPath, 'utf-8')
-      const manifest: DxtManifest = JSON.parse(manifestContent)
+      const manifest: McpPackageManifest = JSON.parse(manifestContent)
 
       if (!manifest.server?.mcp_config) {
         logger.error('No mcp_config found in manifest')
@@ -521,13 +653,13 @@ export class DxtService extends BaseService {
     }
   }
 
-  public cleanupDxtServer(serverName: string): boolean {
+  public cleanupPackageServer(serverName: string): boolean {
     try {
       const serverDirName = `server-${serverName}`
       const serverDir = ensurePathWithin(this.mcpDir, path.join(this.mcpDir, serverDirName))
 
       if (fs.existsSync(serverDir)) {
-        logger.debug(`Removing DXT server directory: ${serverDir}`)
+        logger.debug(`Removing package server directory: ${serverDir}`)
         fs.rmSync(serverDir, { recursive: true, force: true })
         return true
       }
@@ -535,7 +667,7 @@ export class DxtService extends BaseService {
       logger.warn(`Server directory not found: ${serverDir}`)
       return false
     } catch (error) {
-      logger.error('Failed to cleanup DXT server:', error as Error)
+      logger.error('Failed to cleanup package server:', error as Error)
       return false
     }
   }
@@ -552,4 +684,4 @@ export class DxtService extends BaseService {
   }
 }
 
-export default DxtService
+export default McpPackageService

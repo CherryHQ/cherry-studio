@@ -1,9 +1,10 @@
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import type { StopCondition, ToolSet } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { makeModel } from '../../../../__tests__/fixtures'
 import type { CallOverrides } from '../../../../types/requests'
-import { applyCallOverrides } from '../buildAgentParams'
+import { applyCallOverrides, composeStopWhen } from '../buildAgentParams'
 
 /**
  * Covers the first-class per-request override merge that replaced the old
@@ -67,5 +68,34 @@ describe('applyCallOverrides', () => {
       makeModel()
     )
     expect(result.providerOptions.anthropic).toEqual({ existing: 1, shared: 'override', added: 2 })
+  })
+})
+
+describe('composeStopWhen', () => {
+  const cond = (): StopCondition<ToolSet> => () => false
+
+  it('returns the assistant base unchanged when no feature contributes a condition', () => {
+    const base = cond()
+    expect(composeStopWhen(base, [])).toBe(base)
+    expect(composeStopWhen(undefined, [])).toBeUndefined()
+  })
+
+  it('OR-s the assistant base with feature conditions', () => {
+    const base = cond()
+    const feature = cond()
+    expect(composeStopWhen(base, [feature])).toEqual([base, feature])
+  })
+
+  it('falls back to the SDK default step cap when a feature contributes without an assistant base', async () => {
+    const feature = cond()
+    const result = composeStopWhen(undefined, [feature])
+
+    expect(Array.isArray(result)).toBe(true)
+    const conditions = result as StopCondition<ToolSet>[]
+    expect(conditions).toHaveLength(2)
+    expect(conditions[1]).toBe(feature)
+    // The injected fallback caps the tool loop at the SDK default of 20 steps.
+    expect(await conditions[0]({ steps: new Array(20) } as never)).toBe(true)
+    expect(await conditions[0]({ steps: new Array(19) } as never)).toBe(false)
   })
 })
