@@ -258,6 +258,28 @@ describe('BinaryManager', () => {
       expect(savedState.tools.fd).toBeUndefined()
     })
 
+    it('uninstalls mise versions so the isolated data dir does not accumulate', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+
+      mockFs.existsSync.mockReturnValue(true)
+      mockFs.readFileSync.mockReturnValue(
+        JSON.stringify({
+          tools: {
+            fd: { tool: 'github:sharkdp/fd', version: '10.0.0' }
+          }
+        })
+      )
+      mockExecFileAsync.mockResolvedValue({ stdout: '', stderr: '' })
+
+      await service.removeTool('fd')
+
+      const miseArgs = mockExecFileAsync.mock.calls.map((c: any[]) => c[1])
+      expect(miseArgs).toContainEqual(['unuse', '-g', 'github:sharkdp/fd'])
+      expect(miseArgs).toContainEqual(['uninstall', '--all', 'github:sharkdp/fd'])
+    })
+
     it('succeeds even if binary does not exist on disk', async () => {
       const service = new BinaryManager()
 

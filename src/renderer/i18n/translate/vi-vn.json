@@ -7142,9 +7142,9 @@
     "serverName": "Tên Máy Chủ",
     "serverType": "Loại Máy Chủ",
     "spanDetail": "Chi tiết Span",
-    "spendTime": "[to be translated]:Spend Time",
-    "startTime": "[to be translated]:Start Time",
-    "status": "[to be translated]:Status",
+    "spendTime": "Thời gian xử lý",
+    "startTime": "Thời gian bắt đầu",
+    "status": "Trạng thái",
     "tag": "Thẻ",
     "tokenUsage": "Mức sử dụng Token",
     "toolCalls": "Cuộc gọi công cụ"

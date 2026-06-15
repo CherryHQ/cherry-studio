@@ -601,9 +601,13 @@ export class BinaryManager extends BaseService {
       if (this.miseBin) {
         try {
           await this.runMise(['unuse', '-g', existing.tool], os.tmpdir())
+          // `unuse` only drops the global config entry; the installed versions
+          // linger under the isolated data dir (installs/cache/downloads) and
+          // accumulate across install/remove cycles. Uninstall them too.
+          await this.runMise(['uninstall', '--all', existing.tool], os.tmpdir())
           await this.runMise(['reshim'], os.tmpdir())
         } catch (err) {
-          logger.warn('Failed to unuse mise tool', {
+          logger.warn('Failed to remove mise tool', {
             name: toolName,
             error: err instanceof Error ? err.message : String(err)
           })
