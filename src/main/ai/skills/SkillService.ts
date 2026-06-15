@@ -15,7 +15,7 @@ import type {
   SkillInstallFromZipOptions,
   SkillInstallOptions,
   SkillToggleOptions
-} from '@types'
+} from '@shared/ipc/schemas/skill'
 import { net } from 'electron'
 import StreamZip from 'node-stream-zip'
 

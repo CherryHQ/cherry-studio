@@ -9,11 +9,16 @@ const uninstallSkillMock = vi.hoisted(() => vi.fn())
 const installSkillMock = vi.hoisted(() => vi.fn())
 const installSkillFromZipMock = vi.hoisted(() => vi.fn())
 const installSkillFromDirectoryMock = vi.hoisted(() => vi.fn())
+const ipcRequestMock = vi.hoisted(() => vi.fn())
 const toastErrorMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useQuery: useQueryMock,
   useInvalidateCache: () => invalidateMock
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcRequestMock }
 }))
 
 import { useInstalledSkills, useSkillInstall } from '../useSkills'
@@ -62,11 +67,10 @@ describe('useInstalledSkills', () => {
     }))
     uninstallSkillMock.mockResolvedValue({ success: true, data: undefined })
 
-    vi.stubGlobal('api', {
-      skill: {
-        toggle: toggleSkillMock,
-        uninstall: uninstallSkillMock
-      }
+    ipcRequestMock.mockImplementation((route: string, input: unknown) => {
+      if (route === 'skill.toggle') return toggleSkillMock(input)
+      if (route === 'skill.uninstall') return uninstallSkillMock(input)
+      throw new Error(`Unexpected route ${route}`)
     })
     vi.stubGlobal('toast', { error: toastErrorMock })
   })
@@ -104,7 +108,7 @@ describe('useInstalledSkills', () => {
     })
 
     expect(uninstallSuccess).toBe(true)
-    expect(uninstallSkillMock).toHaveBeenCalledWith('skill-1')
+    expect(uninstallSkillMock).toHaveBeenCalledWith({ skillId: 'skill-1' })
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
@@ -118,7 +122,7 @@ describe('useInstalledSkills', () => {
     })
 
     expect(uninstallSuccess).toBe(true)
-    expect(uninstallSkillMock).toHaveBeenCalledWith('skill-1')
+    expect(uninstallSkillMock).toHaveBeenCalledWith({ skillId: 'skill-1' })
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
@@ -169,12 +173,11 @@ describe('useSkillInstall', () => {
     installSkillFromZipMock.mockResolvedValue({ success: true, data: createSkill({ id: 'skill-zip' }) })
     installSkillFromDirectoryMock.mockResolvedValue({ success: true, data: createSkill({ id: 'skill-directory' }) })
 
-    vi.stubGlobal('api', {
-      skill: {
-        install: installSkillMock,
-        installFromZip: installSkillFromZipMock,
-        installFromDirectory: installSkillFromDirectoryMock
-      }
+    ipcRequestMock.mockImplementation((route: string, input: unknown) => {
+      if (route === 'skill.install') return installSkillMock(input)
+      if (route === 'skill.install_from_zip') return installSkillFromZipMock(input)
+      if (route === 'skill.install_from_directory') return installSkillFromDirectoryMock(input)
+      throw new Error(`Unexpected route ${route}`)
     })
     vi.stubGlobal('toast', { error: toastErrorMock })
   })

@@ -154,47 +154,12 @@ export const InstalledSkillSchema = z.object({
 })
 export type InstalledSkill = z.infer<typeof InstalledSkillSchema>
 
-// ============================================================================
-// IPC option types
-// ============================================================================
-
-export interface SkillInstallOptions {
-  installSource: string
-}
-
-export interface SkillToggleOptions {
-  skillId: string
-  agentId: string
-  isEnabled: boolean
-}
-
-export interface SkillInstallFromZipOptions {
-  zipFilePath: string
-}
-
-export interface SkillInstallFromDirectoryOptions {
-  directoryPath: string
-}
-
-export type SkillResult<T> = { success: true; data: T } | { success: false; error: unknown }
-
-// ============================================================================
-// File tree node (for skill detail file browser)
-// ============================================================================
-
-export interface SkillFileNode {
-  name: string
-  path: string // relative path from skill root
-  type: 'file' | 'directory'
-  children?: SkillFileNode[]
-}
-
-// ============================================================================
-// Legacy plugins (per-agent .claude/commands/ and .claude/agents/)
-// ============================================================================
-
-export interface LocalSkill {
-  name: string
-  description?: string
-  filename: string
-}
+export type {
+  LocalSkill,
+  SkillFileNode,
+  SkillInstallFromDirectoryOptions,
+  SkillInstallFromZipOptions,
+  SkillInstallOptions,
+  SkillResult,
+  SkillToggleOptions
+} from '@shared/ipc/schemas/skill'

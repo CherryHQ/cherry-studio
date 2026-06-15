@@ -392,7 +392,7 @@ export default defineConfig([
       'renderer-styles/no-legacy-css-vars': process.env.NO_LEGACY_CSS_WARN ? 'off' : 'warn'
     }
   },
-  // Schema key naming convention (cache & preferences)
+  // Schema key naming convention (cache, preferences, paths, and IPC routes)
   // Supports both fixed keys and template keys:
   // - Fixed: 'app.user.avatar', 'chat.multi_select_mode'
   // - Template: 'scroll.position.${topicId}', 'entity.cache.${type}_${id}'
@@ -402,6 +402,7 @@ export default defineConfig([
     files: [
       'src/shared/data/cache/cacheSchemas.ts',
       'src/shared/data/preference/preferenceSchemas.ts',
+      'src/shared/ipc/schemas/**/*.ts',
       'src/main/core/paths/pathRegistry.ts'
     ],
     plugins: {

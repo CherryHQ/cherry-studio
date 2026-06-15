@@ -7,10 +7,15 @@ const installSkillMock = vi.hoisted(() => vi.fn())
 const installSkillFromZipMock = vi.hoisted(() => vi.fn())
 const installSkillFromDirectoryMock = vi.hoisted(() => vi.fn())
 const uninstallSkillMock = vi.hoisted(() => vi.fn())
+const ipcRequestMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useInvalidateCache: () => invalidateMock,
   useQuery: vi.fn()
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: ipcRequestMock }
 }))
 
 import { useSkillMutations, useSkillMutationsById } from '../skillAdapter'
@@ -46,13 +51,12 @@ describe('skillAdapter mutations', () => {
     })
     uninstallSkillMock.mockResolvedValue({ success: true, data: undefined })
 
-    vi.stubGlobal('api', {
-      skill: {
-        install: installSkillMock,
-        installFromZip: installSkillFromZipMock,
-        installFromDirectory: installSkillFromDirectoryMock,
-        uninstall: uninstallSkillMock
-      }
+    ipcRequestMock.mockImplementation((route: string, input: unknown) => {
+      if (route === 'skill.install') return installSkillMock(input)
+      if (route === 'skill.install_from_zip') return installSkillFromZipMock(input)
+      if (route === 'skill.install_from_directory') return installSkillFromDirectoryMock(input)
+      if (route === 'skill.uninstall') return uninstallSkillMock(input)
+      throw new Error(`Unexpected route ${route}`)
     })
   })
 
@@ -97,7 +101,7 @@ describe('skillAdapter mutations', () => {
       await result.current.uninstallSkill()
     })
 
-    expect(uninstallSkillMock).toHaveBeenCalledWith('skill-1')
+    expect(uninstallSkillMock).toHaveBeenCalledWith({ skillId: 'skill-1' })
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
@@ -109,7 +113,7 @@ describe('skillAdapter mutations', () => {
       await result.current.uninstallSkill()
     })
 
-    expect(uninstallSkillMock).toHaveBeenCalledWith('skill-1')
+    expect(uninstallSkillMock).toHaveBeenCalledWith({ skillId: 'skill-1' })
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 })

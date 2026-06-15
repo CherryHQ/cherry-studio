@@ -1,5 +1,6 @@
 import type { RouteDef } from '../define'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
+import { type SkillEventSchemas, skillRequestSchemas } from './skill'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
 
 /**
@@ -11,6 +12,7 @@ import { type WindowEventSchemas, windowRequestSchemas } from './window'
  */
 export const ipcRequestSchemas = {
   ...selectionRequestSchemas,
+  ...skillRequestSchemas,
   ...windowRequestSchemas
 } satisfies Record<string, RouteDef>
 
@@ -23,6 +25,6 @@ export type IpcRoute = keyof IpcRequestSchemas
  * the renderer trusts them and never re-parses). Each migrated domain intersects
  * its own `*EventSchemas` type here.
  */
-export type IpcEventSchemas = SelectionEventSchemas & WindowEventSchemas
+export type IpcEventSchemas = SelectionEventSchemas & SkillEventSchemas & WindowEventSchemas
 /** Union of all declared event names (`never` until a domain is migrated). */
 export type IpcEventName = keyof IpcEventSchemas

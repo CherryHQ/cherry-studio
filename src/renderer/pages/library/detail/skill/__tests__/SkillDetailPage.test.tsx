@@ -75,6 +75,16 @@ vi.mock('@renderer/components/RichEditor', () => ({
   default: () => <article>rich editor</article>
 }))
 
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: (route: string, input: { skillId: string; filename?: string }) => {
+      if (route === 'skill.list_files') return listFilesMock(input)
+      if (route === 'skill.read_file') return readSkillFileMock(input)
+      throw new Error(`Unexpected route ${route}`)
+    }
+  }
+}))
+
 vi.mock('../../../editor/ConfigEditorShell', () => ({
   ResourceEditorShell: ({
     children,
@@ -152,15 +162,6 @@ describe('SkillDetailPage', () => {
       data: '# Review Helper'
     })
 
-    Object.defineProperty(window, 'api', {
-      configurable: true,
-      value: {
-        skill: {
-          listFiles: listFilesMock,
-          readSkillFile: readSkillFileMock
-        }
-      }
-    })
     Object.defineProperty(window, 'toast', {
       configurable: true,
       value: {

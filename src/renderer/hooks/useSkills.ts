@@ -1,5 +1,6 @@
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { searchSkills } from '@renderer/services/SkillSearchService'
 import type { InstalledSkill, SkillResult, SkillSearchResult } from '@types'
 import { useCallback, useRef, useState } from 'react'
@@ -57,7 +58,7 @@ export function useInstalledSkills(agentId?: string) {
         return false
       }
       try {
-        const result = await window.api.skill.toggle({ agentId, skillId, isEnabled })
+        const result = await ipcApi.request('skill.toggle', { agentId, skillId, isEnabled })
         const skill = unwrapSkillResult(result)
         if (!skill) throw new Error('Skill toggle returned no result')
         await refreshSkillsBestEffort(invalidate)
@@ -72,7 +73,7 @@ export function useInstalledSkills(agentId?: string) {
   const uninstall = useCallback(
     async (skillId: string) => {
       try {
-        const result = await window.api.skill.uninstall(skillId)
+        const result = await ipcApi.request('skill.uninstall', { skillId })
         unwrapSkillResult(result)
         await refreshSkillsBestEffort(invalidate)
         return true
@@ -151,7 +152,7 @@ export function useSkillInstall() {
     async (installSource: string): Promise<{ skill: InstalledSkill | null; error?: string }> => {
       setInstallingKey(installSource)
       try {
-        const skill = unwrapSkillResult(await window.api.skill.install({ installSource }))
+        const skill = unwrapSkillResult(await ipcApi.request('skill.install', { installSource }))
         await refreshSkillsBestEffort(invalidate)
         return { skill }
       } catch (err) {
@@ -167,7 +168,7 @@ export function useSkillInstall() {
     async (zipFilePath: string): Promise<InstalledSkill | null> => {
       setInstallingKey('zip')
       try {
-        const skill = unwrapSkillResult(await window.api.skill.installFromZip({ zipFilePath }))
+        const skill = unwrapSkillResult(await ipcApi.request('skill.install_from_zip', { zipFilePath }))
         await refreshSkillsBestEffort(invalidate)
         return skill
       } catch (error) {
@@ -183,7 +184,7 @@ export function useSkillInstall() {
     async (directoryPath: string): Promise<InstalledSkill | null> => {
       setInstallingKey('directory')
       try {
-        const skill = unwrapSkillResult(await window.api.skill.installFromDirectory({ directoryPath }))
+        const skill = unwrapSkillResult(await ipcApi.request('skill.install_from_directory', { directoryPath }))
         await refreshSkillsBestEffort(invalidate)
         return skill
       } catch (error) {

@@ -1,6 +1,8 @@
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import type { InstalledSkill } from '@shared/data/types/agent'
+import type { SkillResult } from '@shared/ipc/schemas/skill'
 import { useCallback } from 'react'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
@@ -9,7 +11,7 @@ const logger = loggerService.withContext('SkillAdapter')
 
 /**
  * List hook for skill resources. `GET /skills` is read-only — install / uninstall
- * still ride the IPC channels (`window.api.skill.*`) because they touch the
+ * still ride the IpcApi skill routes because they touch the
  * filesystem (clone repos, extract ZIPs, manage symlinks under each agent's
  * `.claude/skills/`) and aren't a good fit for the DataApi contract.
  *
@@ -44,17 +46,13 @@ export const skillAdapter: ResourceAdapter<InstalledSkill> = {
 }
 
 /**
- * Unwrap the `SkillResult<T>` envelope returned by every `window.api.skill.*`
+ * Unwrap the `SkillResult<T>` envelope returned by every skill IpcApi route.
  * IPC. Throws on failure so callers can use try/catch instead of branching on
  * `result.success` themselves — mirrors how DataApi mutations bubble errors.
  */
-function unwrapSkillResult<T>(
-  result: { success: true; data: T } | { success: false; error: unknown },
-  fallbackMessage: string
-): T {
+function unwrapSkillResult<T>(result: SkillResult<T>, fallbackMessage: string): T {
   if (result.success) return result.data
-  if (result.error instanceof Error) throw result.error
-  throw new Error(typeof result.error === 'string' ? result.error : fallbackMessage)
+  throw new Error(result.error || fallbackMessage)
 }
 
 /**
@@ -82,7 +80,7 @@ export function useSkillMutations() {
 
   const install = useCallback(
     async (installSource: string): Promise<InstalledSkill> => {
-      const result = await window.api.skill.install({ installSource })
+      const result = await ipcApi.request('skill.install', { installSource })
       const skill = unwrapSkillResult(result, 'Failed to install skill')
       await refresh()
       return skill
@@ -92,7 +90,7 @@ export function useSkillMutations() {
 
   const installFromZip = useCallback(
     async (zipFilePath: string): Promise<InstalledSkill> => {
-      const result = await window.api.skill.installFromZip({ zipFilePath })
+      const result = await ipcApi.request('skill.install_from_zip', { zipFilePath })
       const skill = unwrapSkillResult(result, 'Failed to install skill from ZIP')
       await refresh()
       return skill
@@ -102,7 +100,7 @@ export function useSkillMutations() {
 
   const installFromDirectory = useCallback(
     async (directoryPath: string): Promise<InstalledSkill> => {
-      const result = await window.api.skill.installFromDirectory({ directoryPath })
+      const result = await ipcApi.request('skill.install_from_directory', { directoryPath })
       const skill = unwrapSkillResult(result, 'Failed to install skill from directory')
       await refresh()
       return skill
@@ -122,7 +120,7 @@ export function useSkillMutationsById(id: string) {
   const invalidate = useInvalidateCache()
 
   const uninstallSkill = useCallback(async (): Promise<void> => {
-    const result = await window.api.skill.uninstall(id)
+    const result = await ipcApi.request('skill.uninstall', { skillId: id })
     unwrapSkillResult(result, 'Failed to uninstall skill')
     try {
       await invalidate('/skills')

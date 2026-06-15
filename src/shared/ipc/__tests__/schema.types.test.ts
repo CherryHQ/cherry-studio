@@ -8,8 +8,7 @@ import type { IpcContext, IpcHandlersFor } from '../types'
 /**
  * A local, throwaway schema map that exercises the reusable type machinery.
  *
- * Stage 0 ships no real domains, so the *global* registry is empty (asserted at
- * the bottom). The inference logic that matters lives in the generic
+ * The inference logic that matters lives in the generic
  * `IpcHandlersFor<S>`, tested here against `sample` so it is verifiable before
  * any domain is migrated.
  */
@@ -84,7 +83,7 @@ describe('IpcHandlersFor exhaustiveness', () => {
 
 describe('global registry reflects migrated domains', () => {
   // Extend these unions as each new domain is migrated onto IpcApi.
-  it('exposes the migrated selection + window request routes', () => {
+  it('exposes the migrated selection + skill + window request routes', () => {
     expectTypeOf<IpcRoute>().toEqualTypeOf<
       | 'selection.hide_toolbar'
       | 'selection.write_to_clipboard'
@@ -92,6 +91,15 @@ describe('global registry reflects migrated domains', () => {
       | 'selection.process_action'
       | 'selection.pin_action_window'
       | 'selection.get_linux_env_info'
+      | 'skill.list'
+      | 'skill.install'
+      | 'skill.uninstall'
+      | 'skill.toggle'
+      | 'skill.install_from_zip'
+      | 'skill.install_from_directory'
+      | 'skill.read_file'
+      | 'skill.list_files'
+      | 'skill.list_local'
       | 'window.close'
       | 'window.minimize'
       | 'window.maximize'

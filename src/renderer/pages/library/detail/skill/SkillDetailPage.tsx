@@ -2,6 +2,7 @@ import { Alert, Badge, Button, ConfirmDialog, Separator } from '@cherrystudio/ui
 import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
 import RichEditor from '@renderer/components/RichEditor'
+import { ipcApi } from '@renderer/ipc'
 import { useSkillMutationsById } from '@renderer/pages/library/adapters/skillAdapter'
 import { ResourceEditorShell } from '@renderer/pages/library/editor/ConfigEditorShell'
 import type { InstalledSkill, SkillFileNode } from '@types'
@@ -84,8 +85,8 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
   useEffect(() => {
     let cancelled = false
     setLoadingTree(true)
-    void window.api.skill
-      .listFiles(skill.id)
+    void ipcApi
+      .request('skill.list_files', { skillId: skill.id })
       .then((result) => {
         if (cancelled) return
         if (result.success) {
@@ -127,8 +128,8 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
     }
     let cancelled = false
     setLoadingContent(true)
-    void window.api.skill
-      .readSkillFile(skill.id, selectedFile)
+    void ipcApi
+      .request('skill.read_file', { skillId: skill.id, filename: selectedFile })
       .then((result) => {
         if (cancelled) return
         if (result.success) {
