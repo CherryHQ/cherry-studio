@@ -4,7 +4,15 @@ import '@testing-library/jest-dom/vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../dropdown-menu'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger
+} from '../dropdown-menu'
 import { PortalContainerProvider } from '../portal-container'
 
 beforeAll(() => {
@@ -65,5 +73,24 @@ describe('DropdownMenuContent', () => {
       pagePortalContainer.remove()
       portalContainer.remove()
     }
+  })
+
+  it('hides closed content during Radix close animations', () => {
+    render(
+      <DropdownMenu open>
+        <DropdownMenuTrigger>Open</DropdownMenuTrigger>
+        <DropdownMenuContent data-testid="content">
+          <DropdownMenuSub open>
+            <DropdownMenuSubTrigger>More</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent data-testid="sub-content">
+              <DropdownMenuItem>Alpha</DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+
+    expect(screen.getByTestId('content')).toHaveClass('data-[state=closed]:hidden')
+    expect(screen.getByTestId('sub-content')).toHaveClass('data-[state=closed]:hidden')
   })
 })
