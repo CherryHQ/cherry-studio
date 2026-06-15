@@ -459,24 +459,9 @@ export enum IpcChannel {
   Ai_ListModels = 'ai:list-models',
   Ai_Agent_RunTask = 'ai:agent:run-task',
 
-  // WindowManager
-  SettingsWindow_Open = 'settings-window:open',
-  WindowManager_Open = 'window-manager:open',
-  WindowManager_Close = 'window-manager:close',
-  WindowManager_Minimize = 'window-manager:minimize',
-  WindowManager_Maximize = 'window-manager:maximize',
-  WindowManager_Unmaximize = 'window-manager:unmaximize',
-  WindowManager_SetFullScreen = 'window-manager:set-full-screen',
-  WindowManager_IsMaximized = 'window-manager:is-maximized',
-  WindowManager_IsFullScreen = 'window-manager:is-full-screen',
-  WindowManager_GetInitData = 'window-manager:get-init-data',
-  // All three below are sent only to the originating window's webContents.
-  // macOS unreliable for maximize/unmaximize (electron#3325, #28699) — use FullscreenChanged on macOS.
-  WindowManager_MaximizedChanged = 'window-manager:maximized-changed',
-  // OS-level only; does NOT cover HTML5 element.requestFullscreen() or macOS setSimpleFullScreen.
-  WindowManager_FullscreenChanged = 'window-manager:fullscreen-changed',
-  // Payload = the initData passed to open(); omitted if none supplied, not fired on fresh creation.
-  WindowManager_Reused = 'window-manager:reused'
+  // Settings window — legacy "open a named window" channel (preload `settings.openSettings`).
+  // The former WindowManager_* control + event channels were migrated to IpcApi (`window.*`).
+  SettingsWindow_Open = 'settings-window:open'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

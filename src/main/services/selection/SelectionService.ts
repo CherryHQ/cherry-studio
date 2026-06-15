@@ -1214,7 +1214,7 @@ export class SelectionService extends BaseService implements Activatable {
     const wm = application.get('WindowManager')
 
     // open({ initData }) atomically stores the action payload and, for the
-    // pool-recycle path, emits WindowManager_Reused with the same payload so
+    // pool-recycle path, emits window.reused with the same payload so
     // the renderer can update in-place. For recycled windows the renderer has
     // been mounted and its listener registered since warmup, so the DOM is
     // ready on the next tick. For fresh windows the renderer mounts,
