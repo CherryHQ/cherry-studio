@@ -109,6 +109,7 @@ const {
   buildInjectedMcpAllowedTools,
   assertClaudeCodeWorkspaceDirectory,
   buildMcpServers,
+  disposeToolPolicySnapshot,
   formatNetworkProbeLine,
   prepareClaudeCodeWorkspaceDirectory
 } = await import('../settingsBuilder')
@@ -184,6 +185,9 @@ describe('buildMcpServers', () => {
 
 describe('buildClaudeCodeSessionSettings tool permissions', () => {
   beforeEach(() => {
+    // The per-session snapshot registry is module-level state; reset the session these tests reuse
+    // so each build creates a fresh snapshot instead of refreshing a prior test's instance.
+    disposeToolPolicySnapshot('sess-1')
     mockGetPathStatus.mockReset()
     mockGetPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     settingsMocks.mockGetAgent.mockReset()
