@@ -468,7 +468,9 @@ export class CacheService extends BaseService {
     return result
   }
 
-  // ============ Persist Cache Relay ============
+  // ============ Persist Cache Interface (Reserved) ============
+
+  // TODO: Implement persist cache in future
 
   // ============ IPC Handlers for Cache Synchronization ============
 

@@ -21,7 +21,6 @@ beforeEach(() => {
   broadcastSync.mockClear()
   onSync.mockClear()
   getAllShared.mockClear()
-  localStorage.clear()
 
   Object.defineProperty(window, 'api', {
     configurable: true,
