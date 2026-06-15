@@ -96,6 +96,8 @@ import type {
   SkillResult,
   SkillToggleOptions
 } from '../renderer/types/skill'
+import { ipcApi } from './ipc'
+
 // OpenClaw types
 type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 
@@ -821,6 +823,8 @@ const api = {
       return () => ipcRenderer.off(channel, listener)
     }
   },
+  // IpcApi RPC channel — generic forwarder; the typed facade lives in src/renderer/ipc
+  ipcApi,
   topic: {
     onAutoRenamed: (callback: (payload: { topicId: string }) => void) => {
       const listener = (_: any, payload: { topicId: string }) => callback(payload)

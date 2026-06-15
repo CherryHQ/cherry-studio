@@ -21,6 +21,7 @@ import { ApiGatewayService } from '@main/features/apiGateway/ApiGatewayService'
 import { FileProcessingService, TesseractRuntimeService } from '@main/features/fileProcessing'
 import { KnowledgeService } from '@main/features/knowledge'
 import { KnowledgeVectorStoreService } from '@main/features/knowledge/vectorstore/KnowledgeVectorStoreService'
+import { IpcApiService } from '@main/ipc/IpcApiService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
@@ -80,6 +81,7 @@ export const services = {
   DbService,
   CacheService,
   DataApiService,
+  IpcApiService,
   SubWindowService,
   PreferenceService,
   TesseractRuntimeService,
