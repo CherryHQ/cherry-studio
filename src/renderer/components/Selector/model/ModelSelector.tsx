@@ -21,7 +21,9 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { SelectorShellLayout } from '../shell/SelectorShell'
 import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '../shell/SelectorShell'
+import { ModelSelectorDetailCard } from './ModelSelectorDetailCard'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
 import type { FlatListItem, ModelSelectorModelItem, ModelSelectorProps, ModelSelectorSelectionType } from './types'
@@ -151,6 +153,7 @@ function ModelRow({
   showPinActions,
   isPinActionDisabled,
   isSelected,
+  detailPortalContainer,
   t
 }: {
   item: ModelSelectorModelItem
@@ -161,6 +164,7 @@ function ModelRow({
   showPinActions: boolean
   isPinActionDisabled: boolean
   isSelected: boolean
+  detailPortalContainer?: SelectorShellLayout['portalContainer']
   t: (key: string) => string
 }) {
   const icon = resolveIcon(item.modelIdentifier, item.provider.id)
@@ -202,37 +206,47 @@ function ModelRow({
     ) : null
 
   return (
-    <ModelSelectorRow
-      selected={isSelected}
-      focused={isFocused}
-      showSelectedIndicator={!showCheckbox && isSelected}
-      checkbox={checkbox}
-      leading={leading}
-      trailing={trailing}
-      actions={
-        showPinActions ? (
-          <ModelSelectorRowActionButton
-            disabled={isPinActionDisabled}
-            aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
-            className="size-4 rounded-sm hover:bg-transparent"
-            pinned={item.isPinned}
-            selected={isSelected}
-            onClick={() => onPin(item.modelId)}>
-            <Pin className="size-3" />
-          </ModelSelectorRowActionButton>
-        ) : undefined
-      }
-      onSelect={() => onSelect(item)}
-      rootProps={{ className: 'pr-0.5' }}
-      optionProps={{ 'data-testid': `model-selector-item-${item.modelId}` }}>
-      <span className="truncate">{item.model.name}</span>
-      {item.showIdentifier && item.modelIdentifier !== item.model.name && (
-        <span className="max-w-[45%] truncate font-mono text-muted-foreground text-xs" title={item.modelIdentifier}>
-          {item.modelIdentifier}
+    <ModelSelectorDetailCard item={item} provider={item.provider} portalContainer={detailPortalContainer}>
+      <ModelSelectorRow
+        selected={isSelected}
+        focused={isFocused}
+        showSelectedIndicator={!showCheckbox && isSelected}
+        checkbox={checkbox}
+        leading={leading}
+        trailing={trailing}
+        actions={
+          showPinActions ? (
+            <ModelSelectorRowActionButton
+              disabled={isPinActionDisabled}
+              aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
+              className="size-4 rounded-sm hover:bg-transparent"
+              pinned={item.isPinned}
+              selected={isSelected}
+              onClick={() => onPin(item.modelId)}>
+              <Pin className="size-3" />
+            </ModelSelectorRowActionButton>
+          ) : undefined
+        }
+        onSelect={() => onSelect(item)}
+        rootProps={{ className: 'pr-0.5' }}
+        optionProps={{ 'data-testid': `model-selector-item-${item.modelId}` }}>
+        <span className="min-w-0 max-w-full shrink-0 truncate" title={item.model.name}>
+          {item.model.name}
         </span>
-      )}
-      {item.isPinned && <span className="shrink-0 truncate text-muted-foreground text-xs">| {providerName}</span>}
-    </ModelSelectorRow>
+        {item.showIdentifier && item.modelIdentifier !== item.model.name && (
+          <span
+            className="min-w-0 flex-[1_999_0%] truncate font-mono text-muted-foreground text-xs"
+            title={item.modelIdentifier}>
+            {item.modelIdentifier}
+          </span>
+        )}
+        {item.isPinned && (
+          <span className="min-w-0 flex-[1_999_0%] truncate text-muted-foreground text-xs" title={providerName}>
+            | {providerName}
+          </span>
+        )}
+      </ModelSelectorRow>
+    </ModelSelectorDetailCard>
   )
 }
 
@@ -595,7 +609,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   }, [deferredSearchText, focusItem, isLoading, open, selectedTagsKey])
 
   const rowRenderer = useCallback(
-    (item: FlatListItem) => {
+    (item: FlatListItem, detailPortalContainer?: SelectorShellLayout['portalContainer']) => {
       if (item.type === 'group') {
         const groupTitle =
           item.groupKind === 'pinned' ? t('models.pinned') : item.provider ? getProviderDisplayName(item.provider) : ''
@@ -641,6 +655,7 @@ export function ModelSelector(props: ModelSelectorProps) {
             onSelect={handleSelectItem}
             showCheckbox={multiple && multiSelectMode}
             showPinActions={showPinActions}
+            detailPortalContainer={detailPortalContainer}
             t={t}
           />
         </div>
@@ -648,7 +663,6 @@ export function ModelSelector(props: ModelSelectorProps) {
     },
     [
       focusedItemKey,
-      handleClose,
       handleNavigateToProviderSettings,
       handleSelectItem,
       handleTogglePin,
@@ -737,7 +751,7 @@ export function ModelSelector(props: ModelSelectorProps) {
         mountStrategy={mountStrategy}
         contentHeight={DEFAULT_SELECTOR_CONTENT_HEIGHT}
         data-testid="model-selector-content">
-        {({ availableListHeight }) => {
+        {({ availableListHeight, portalContainer: detailPortalContainer }) => {
           const visibleListHeight = availableListHeight === undefined ? initialListHeight : availableListHeight
           const virtualListHeight = Math.max(0, visibleListHeight - MODEL_SELECTOR_LIST_VERTICAL_PADDING)
 
@@ -757,7 +771,7 @@ export function ModelSelector(props: ModelSelectorProps) {
                 scrollPaddingStart={ITEM_HEIGHT}
                 onScroll={handleListScroll}
                 overscan={6}>
-                {rowRenderer}
+                {(item) => rowRenderer(item, detailPortalContainer)}
               </DynamicVirtualList>
             </div>
           ) : (

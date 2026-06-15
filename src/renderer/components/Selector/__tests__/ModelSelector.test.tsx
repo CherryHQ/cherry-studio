@@ -21,14 +21,16 @@ const {
   mockScrollToIndex,
   mockLoggerError,
   mockVirtualListSizes,
-  mockAvailablePopoverHeight
+  mockAvailablePopoverHeight,
+  mockHoverCardContentProps
 } = vi.hoisted(() => ({
   mockUseModelSelectorData: vi.fn(),
   mockOpenSettingsWindow: vi.fn(),
   mockScrollToIndex: vi.fn(),
   mockLoggerError: vi.fn(),
   mockVirtualListSizes: [] as number[],
-  mockAvailablePopoverHeight: { value: undefined as number | undefined }
+  mockAvailablePopoverHeight: { value: undefined as number | undefined },
+  mockHoverCardContentProps: [] as Array<{ portalContainer?: unknown; side?: string; align?: string }>
 }))
 
 vi.mock('@logger', () => ({
@@ -54,6 +56,10 @@ vi.mock('@renderer/i18n/label', () => ({
 
 vi.mock('@cherrystudio/ui/icons', () => ({
   resolveIcon: () => null
+}))
+
+vi.mock('@renderer/config/models/reasoning', () => ({
+  getModelSupportedReasoningEffortOptions: () => undefined
 }))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
@@ -103,6 +109,22 @@ vi.mock('@cherrystudio/ui', () => {
         </button>
       )
     },
+    HoverCard: ({ children }: { children: ReactNode }) => <>{children}</>,
+    HoverCardContent: ({
+      portalContainer,
+      side,
+      align
+    }: HTMLAttributes<HTMLDivElement> & {
+      portalContainer?: unknown
+      side?: string
+      align?: string
+      sideOffset?: number
+      collisionPadding?: number
+    }) => {
+      mockHoverCardContentProps.push({ portalContainer, side, align })
+      return null
+    },
+    HoverCardTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
     Input: ({
       ref,
       ...props
@@ -329,6 +351,7 @@ describe('ModelSelector', () => {
     mockScrollToIndex.mockReset()
     mockLoggerError.mockReset()
     mockVirtualListSizes.length = 0
+    mockHoverCardContentProps.length = 0
     mockAvailablePopoverHeight.value = undefined
     mockOpenSettingsWindow.mockResolvedValue(undefined)
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
@@ -759,6 +782,72 @@ describe('ModelSelector', () => {
 
     await waitFor(() => expect(mockOpenSettingsWindow).toHaveBeenCalledWith('/settings/provider?id=cherryin'))
     expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('prioritizes model names over identifiers in row truncation', () => {
+    const longModelName = 'DeepSeek-V3.2-Thinking-Agent-Long-Display-Name'
+    const longIdentifier = 'agent/deepseek-v3.2-thinking-agent-very-long-routing-identifier'
+    const modelId = 'openai::deepseek-v3.2-thinking-agent' as UniqueModelId
+    const model = makeModel(modelId, longModelName)
+    const item = makeModelItem(modelId, {
+      model,
+      modelIdentifier: longIdentifier,
+      showIdentifier: true,
+      isPinned: true
+    })
+
+    mockUseModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: [item],
+        modelItems: [item],
+        selectableModelsById: new Map([[modelId, model]])
+      })
+    )
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    const option = screen.getByTestId(`model-selector-item-${modelId}`)
+    expect(option.querySelector('.overflow-hidden')).toBeInTheDocument()
+
+    const modelName = screen.getByText(longModelName)
+    const identifier = screen.getByText(longIdentifier)
+    const providerName = screen.getByText('| OpenAI')
+
+    expect(modelName).toHaveClass('min-w-0', 'max-w-full', 'shrink-0', 'truncate')
+    expect(modelName).toHaveAttribute('title', longModelName)
+    expect(identifier).toHaveClass('min-w-0', 'flex-[1_999_0%]', 'truncate', 'font-mono')
+    expect(identifier).not.toHaveClass('max-w-[45%]')
+    expect(identifier).toHaveAttribute('title', longIdentifier)
+    expect(providerName).toHaveClass('min-w-0', 'flex-[1_999_0%]', 'truncate')
+    expect(providerName).toHaveAttribute('title', 'OpenAI')
+  })
+
+  it('passes the selector portal container to model detail hover cards', () => {
+    const portalContainer = document.createElement('div')
+    const item = makeModelItem('openai::gpt-4' as UniqueModelId)
+
+    mockUseModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: [item],
+        modelItems: [item]
+      })
+    )
+
+    render(
+      <ModelSelector
+        open
+        multiple={false}
+        trigger={<button type="button">open</button>}
+        portalContainer={portalContainer}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(mockHoverCardContentProps.at(-1)).toMatchObject({
+      portalContainer,
+      side: 'right',
+      align: 'start'
+    })
   })
 
   it('sets the default popover target height for long model lists', () => {

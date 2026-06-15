@@ -3965,6 +3965,14 @@
     "add_parameter": "Add Parameter",
     "all": "All",
     "custom_parameters": "Custom Parameters",
+    "detail": {
+      "context_window": "Context window",
+      "image_modes": "Image modes",
+      "max_input_tokens": "Max input",
+      "max_output_tokens": "Max output",
+      "model_id": "Model ID",
+      "provider": "Provider"
+    },
     "dimensions": "Dimensions {{dimensions}}",
     "edit": "Edit Model",
     "embedding": "Embedding",
