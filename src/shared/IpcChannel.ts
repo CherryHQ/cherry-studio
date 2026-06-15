@@ -314,6 +314,9 @@ export enum IpcChannel {
   SearchWindow_Close = 'search-window:close',
   SearchWindow_OpenUrl = 'search-window:open-url',
 
+  // Sub Window
+  SubWindow_SetAlwaysOnTop = 'sub-window:set-always-on-top',
+
   // Provider
   Provider_AddKey = 'provider:add-key',
 

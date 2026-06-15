@@ -141,13 +141,13 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   // ready-to-show auto-show fallback). Init payload (tabId, url, title, type,
   // isPinned) flows via initData and useWindowInitData<SubWindowInitData>() in
   // the renderer.
-  // NOTE on future evolution: if this ever changes to `lifecycle: 'pooled'`,
-  // the Win/Linux content-bounds move path in SubWindowService (electron#27651)
-  // requires `useContentSize: true` here — otherwise resetPooledWindowGeometry's
-  // content-bounds branch is skipped and cached size drifts across reuse.
   [WindowType.SubWindow]: {
     type: WindowType.SubWindow,
-    lifecycle: 'default',
+    lifecycle: 'pooled',
+    poolConfig: {
+      standbySize: 1,
+      warmup: 'eager'
+    },
     htmlPath: 'windows/subWindow/index.html',
     // preload omitted → defaults to 'index.js' (full API preload).
     showMode: 'manual',
@@ -156,6 +156,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       height: 600,
       minWidth: 400,
       minHeight: 300,
+      useContentSize: true,
       autoHideMenuBar: true,
       transparent: false,
       vibrancy: 'sidebar',
@@ -390,9 +391,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       // visibleOnAllWorkspaces:
       //   - hideOnBlur is driven per-instance by the renderer's `isAutoClose && !isPinned`
       //     logic (see ActionWindow.tsx) — too case-specific for a WM default.
-      //   - alwaysOnTop is toggled at runtime by the `selection.pin_action_window`
-      //     IpcApi handler via wm.behavior.setAlwaysOnTop; passing no level lets
-      //     Electron use its default ('floating' on macOS).
+      //   - alwaysOnTop is toggled at runtime by pinActionWindow via wm.setAlwaysOnTop;
+      //     passing no level lets Electron use its default ('floating' on macOS).
       //   - setVisibleOnAllWorkspaces's true/false options differ per call in the
       //     full-screen show sequence; see SelectionService.showActionWindow.
       macShowInDock: false

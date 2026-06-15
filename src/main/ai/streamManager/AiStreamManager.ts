@@ -22,6 +22,7 @@ import { type UIMessageChunk } from 'ai'
 import * as z from 'zod'
 
 import { isAgentSessionTopic } from '../agentSession/topic'
+import { applyTurnOutputAttributes } from '../observability'
 import type { AiStreamRequest, CallOverrides } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context'
@@ -62,14 +63,16 @@ const StreamOpenRequestSchema = z.intersection(
 )
 
 /**
- * Finalize the turn's root span. Idempotent — subsequent calls no-op because
- * `exec.rootSpan` is cleared.
+ * Finalize the turn's `ai.turn` span: write the turn-boundary output (final answer + tool
+ * count, translation delegated to the obs module), set status, end. Idempotent — subsequent
+ * calls no-op because `exec.rootSpan` is cleared.
  */
 function endRootSpan(exec: StreamExecution, outcome: 'ok' | 'aborted' | 'error', error?: SerializedError): void {
   const span = exec.rootSpan
   if (!span) return
   exec.rootSpan = undefined
   try {
+    if (exec.finalMessage) applyTurnOutputAttributes(span, exec.finalMessage)
     if (outcome === 'ok') {
       span.setStatus({ code: SpanStatusCode.OK })
     } else if (outcome === 'aborted') {
@@ -202,6 +205,7 @@ export class AiStreamManager extends BaseService {
    *  the `hasLiveStream` snapshot and orphan a PENDING placeholder row. */
   private readonly dispatchLock = new KeyedMutex()
   private readonly config: AiStreamManagerConfig
+  private nextStreamTurnSequence = 0
   /** Per-topic FIFO of steer user-message ids persisted while a turn was live. Chat's analogue of
    *  the agent runtime's `pendingTurns`; drained one continuation turn at a time. */
   private readonly pendingSteers = new Map<string, string[]>()
@@ -397,6 +401,7 @@ export class AiStreamManager extends BaseService {
 
     const stream: ActiveStream = {
       topicId: input.topicId,
+      turnId: `${Date.now()}:${++this.nextStreamTurnSequence}`,
       executions,
       listeners: new Map(input.listeners.map((l) => [l.id, l])),
       // `pending` → `streaming` on first chunk.

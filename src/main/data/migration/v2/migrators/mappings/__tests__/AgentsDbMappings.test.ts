@@ -114,6 +114,10 @@ describe('AgentsDbMappings', () => {
     const statements = buildAgentsImportStatements('/tmp/agents.db', schemaInfo)
     const channelsInsert = statements.find((s) => s.startsWith('INSERT INTO agent_channel '))
 
+    expect(channelsInsert).toContain(
+      'INSERT INTO agent_channel (id, type, name, agent_id, session_id, workspace, config'
+    )
+    expect(channelsInsert).toContain('\'{"type":"system"}\' AS workspace')
     expect(channelsInsert).toContain('(agent_id IS NULL OR agent_id IN (SELECT id FROM agent))')
     expect(channelsInsert).toContain('(session_id IS NULL OR session_id IN (SELECT id FROM agent_session))')
   })
@@ -297,6 +301,7 @@ describe('AgentsDbMappings', () => {
     expect(agentSkillInsert).toContain('COALESCE(is_enabled, 0) AS is_enabled')
 
     const channelInsert = find('agent_channel')
+    expect(channelInsert).toContain('\'{"type":"system"}\' AS workspace')
     expect(channelInsert).toContain('COALESCE(is_active, 1) AS is_active')
     expect(channelInsert).toContain("COALESCE(active_chat_ids, '[]') AS active_chat_ids")
     expect(channelInsert).toContain("COALESCE(created_at, CAST(strftime('%s', 'now') AS INTEGER) * 1000) AS created_at")
