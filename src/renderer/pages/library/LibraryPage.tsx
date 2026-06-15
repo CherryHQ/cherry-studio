@@ -7,6 +7,7 @@ import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Prompt } from '@shared/data/types/prompt'
 import type { Tag } from '@shared/data/types/tag'
+import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -32,6 +33,7 @@ import { ResourceGrid } from './list/ResourceGrid'
 import {
   ASSISTANT_CATALOG_MY_TAB,
   type AssistantCatalogPreset,
+  getAssistantPresetCatalogKey,
   toCreateAssistantDtoFromCatalogPreset,
   useAssistantPresetCatalog
 } from './list/useAssistantPresetCatalog'
@@ -77,6 +79,7 @@ function buildTags(resources: ResourceItem[], backendTags: Tag[], filterType?: R
 
 export default function LibraryPage() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const [sidebarFilter, setSidebarFilter] = useState<LibrarySidebarFilter>(() => ({
     resourceType: DEFAULT_RESOURCE_TYPE
   }))
@@ -93,6 +96,7 @@ export default function LibraryPage() {
   const [activeAssistantCatalogTab, setActiveAssistantCatalogTab] = useState(ASSISTANT_CATALOG_MY_TAB)
   const [previewAssistantPreset, setPreviewAssistantPreset] = useState<AssistantCatalogPreset | null>(null)
   const [previewAssistantPresetAdding, setPreviewAssistantPresetAdding] = useState(false)
+  const [addedAssistantPresets, setAddedAssistantPresets] = useState<Record<string, string>>({})
 
   const activeResourceType = sidebarFilter.resourceType
   const isAssistantLibrary = activeResourceType === 'assistant'
@@ -215,11 +219,16 @@ export default function LibraryPage() {
 
   const addAssistantPreset = useCallback(
     async (preset: AssistantCatalogPreset) => {
-      await createAssistant(toCreateAssistantDtoFromCatalogPreset(preset))
+      const assistant = await createAssistant(toCreateAssistantDtoFromCatalogPreset(preset))
+      setAddedAssistantPresets((current) => ({
+        ...current,
+        [getAssistantPresetCatalogKey(preset)]: assistant.id
+      }))
       refetch()
       window.toast.success(t('common.add_success'))
+      return assistant
     },
-    [createAssistant, refetch, t]
+    [createAssistant, refetch, setAddedAssistantPresets, t]
   )
 
   const handleAddAssistantPreset = useCallback(
@@ -237,13 +246,19 @@ export default function LibraryPage() {
     setPreviewAssistantPreset(preset)
   }, [])
 
+  const handleOpenAssistantPresetChat = useCallback(
+    (assistantId: string) => {
+      void navigate({ to: '/app/chat', search: { assistantId } })
+    },
+    [navigate]
+  )
+
   const handleAddPreviewAssistantPreset = useCallback(async () => {
     if (!previewAssistantPreset || previewAssistantPresetAdding) return
 
     setPreviewAssistantPresetAdding(true)
     try {
       await addAssistantPreset(previewAssistantPreset)
-      setPreviewAssistantPreset(null)
     } catch (error) {
       window.toast.error(error instanceof Error ? error.message : t('library.assistant_catalog.add_failed'))
     } finally {
@@ -362,17 +377,21 @@ export default function LibraryPage() {
             activeTab: activeAssistantCatalogTab,
             tabs: assistantCatalog.tabs,
             presets: assistantCatalog.presets,
+            addedAssistantPresets,
             onTabChange: handleAssistantTabChange,
             onAddPreset: handleAddAssistantPreset,
+            onOpenPresetChat: handleOpenAssistantPresetChat,
             onPreviewPreset: handlePreviewAssistantPreset
           }
         : undefined,
     [
       activeAssistantCatalogTab,
+      addedAssistantPresets,
       assistantCatalog.presets,
       assistantCatalog.tabs,
       handleAddAssistantPreset,
       handleAssistantTabChange,
+      handleOpenAssistantPresetChat,
       handlePreviewAssistantPreset,
       isAssistantLibrary
     ]
@@ -451,8 +470,14 @@ export default function LibraryPage() {
         preset={previewAssistantPreset}
         open={Boolean(previewAssistantPreset)}
         adding={previewAssistantPresetAdding}
+        addedAssistantId={
+          previewAssistantPreset
+            ? addedAssistantPresets[getAssistantPresetCatalogKey(previewAssistantPreset)]
+            : undefined
+        }
         onOpenChange={handlePreviewOpenChange}
         onAdd={handleAddPreviewAssistantPreset}
+        onOpenChat={handleOpenAssistantPresetChat}
       />
       <ImportAssistantDialog open={assistantImportOpen} onOpenChange={setAssistantImportOpen} onImported={refetch} />
       <ImportSkillDialog open={skillImportOpen} onOpenChange={setSkillImportOpen} onInstalled={refetch} />

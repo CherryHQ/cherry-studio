@@ -12,10 +12,12 @@ const {
   createAssistantMock,
   createPromptMock,
   duplicateAssistantMock,
+  navigateMock,
   openTabMock,
   refetchSpy,
   resourceLibraryOptionsMock,
   toastErrorMock,
+  toastSuccessMock,
   updatePromptMock
 } = vi.hoisted(() => ({
   allResourcesMock: [] as any[],
@@ -31,10 +33,12 @@ const {
   createAssistantMock: vi.fn(),
   createPromptMock: vi.fn(),
   duplicateAssistantMock: vi.fn(),
+  navigateMock: vi.fn(),
   openTabMock: vi.fn(),
   refetchSpy: vi.fn(),
   resourceLibraryOptionsMock: [] as any[],
   toastErrorMock: vi.fn(),
+  toastSuccessMock: vi.fn(),
   updatePromptMock: vi.fn()
 }))
 
@@ -89,9 +93,16 @@ vi.mock('@renderer/context/TabsContext', () => ({
   })
 }))
 
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigateMock
+}))
+
 vi.mock('../list/useAssistantPresetCatalog', () => ({
   ASSISTANT_CATALOG_MY_TAB: '__mine__',
-  toCreateAssistantDtoFromCatalogPreset: vi.fn(),
+  getAssistantPresetCatalogKey: (preset: { id: string }) => preset.id,
+  toCreateAssistantDtoFromCatalogPreset: (preset: { name: string }) => ({
+    name: preset.name
+  }),
   useAssistantPresetCatalog: () => assistantCatalogMock
 }))
 
@@ -138,6 +149,42 @@ vi.mock('../list/ImportAssistantDialog', () => ({
 
 vi.mock('../list/ImportSkillDialog', () => ({
   ImportSkillDialog: () => null
+}))
+
+vi.mock('../list/AssistantPresetPreviewDialog', () => ({
+  AssistantPresetPreviewDialog: ({
+    addedAssistantId,
+    onAdd,
+    onOpenChange,
+    onOpenChat,
+    open,
+    preset
+  }: {
+    addedAssistantId?: string
+    onAdd: () => Promise<void> | void
+    onOpenChange: (open: boolean) => void
+    onOpenChat: (assistantId: string) => void
+    open: boolean
+    preset: { id: string; name: string } | null
+  }) =>
+    open && preset ? (
+      <div role="dialog" data-testid="assistant-preset-preview-dialog">
+        <output data-testid="preview-added-assistant-id">{addedAssistantId ?? ''}</output>
+        <button type="button" onClick={() => void onAdd()}>
+          preview add preset
+        </button>
+        <button
+          type="button"
+          disabled={!addedAssistantId}
+          onClick={() => {
+            if (!addedAssistantId) return
+            onOpenChat(addedAssistantId)
+            onOpenChange(false)
+          }}>
+          preview go to chat
+        </button>
+      </div>
+    ) : null
 }))
 
 vi.mock('@renderer/components/PromptEditDialog', () => ({
@@ -274,7 +321,11 @@ vi.mock('../list/ResourceGrid', () => ({
     assistantCatalog?: {
       activeTab: string
       presets: any[]
+      addedAssistantPresets: Record<string, string>
       onTabChange: (tabId: string) => void
+      onAddPreset: (preset: any) => Promise<void> | void
+      onOpenPresetChat: (assistantId: string) => void
+      onPreviewPreset: (preset: any) => void
     }
     onDuplicate: (resource: any) => void
     onEdit: (resource: any) => void
@@ -298,6 +349,25 @@ vi.mock('../list/ResourceGrid', () => ({
       <button type="button" onClick={() => assistantCatalog?.onTabChange('custom')}>
         select custom tab
       </button>
+      <button
+        type="button"
+        disabled={!assistantCatalog?.presets[0]}
+        onClick={() => assistantCatalog?.onPreviewPreset(assistantCatalog.presets[0])}>
+        preview catalog preset
+      </button>
+      <button
+        type="button"
+        disabled={!assistantCatalog?.presets[0]}
+        onClick={() => void assistantCatalog?.onAddPreset(assistantCatalog.presets[0])}>
+        add catalog preset
+      </button>
+      <output data-testid="added-assistant-id">{assistantCatalog?.addedAssistantPresets?.['preset-1'] ?? ''}</output>
+      <button
+        type="button"
+        disabled={!assistantCatalog?.addedAssistantPresets?.['preset-1']}
+        onClick={() => assistantCatalog?.onOpenPresetChat(assistantCatalog.addedAssistantPresets['preset-1'])}>
+        go to catalog chat
+      </button>
       <button type="button" disabled={!resources[0]} onClick={() => onDuplicate(resources[0])}>
         duplicate first
       </button>
@@ -320,16 +390,19 @@ describe('LibraryPage create flow', () => {
     createPromptMock.mockReset()
     createPromptMock.mockResolvedValue({ id: 'prompt-created' })
     duplicateAssistantMock.mockReset()
+    navigateMock.mockReset()
     openTabMock.mockReset()
     refetchSpy.mockReset()
     resourceLibraryOptionsMock.length = 0
     toastErrorMock.mockReset()
+    toastSuccessMock.mockReset()
     updatePromptMock.mockReset()
     updatePromptMock.mockResolvedValue({ id: 'prompt-updated' })
     Object.defineProperty(window, 'toast', {
       configurable: true,
       value: {
-        error: toastErrorMock
+        error: toastErrorMock,
+        success: toastSuccessMock
       }
     })
   })
@@ -460,6 +533,69 @@ describe('LibraryPage create flow', () => {
     await waitFor(() => {
       expect(screen.getByTestId('assistant-catalog-active-tab')).toHaveTextContent('__mine__')
       expect(resourceLibraryOptionsMock.at(-1)?.search).toBe('needle')
+    })
+  })
+
+  it('stores an added catalog preset in page state and opens its chat', async () => {
+    const user = userEvent.setup()
+    assistantCatalogMock.tabs = [
+      { id: '__mine__', label: 'library.assistant_catalog.mine', count: 0 },
+      { id: 'custom', label: 'Custom', count: 1 }
+    ]
+    assistantCatalogMock.presets = [{ id: 'preset-1', name: 'Catalog Preset' }]
+
+    render(<LibraryPage />)
+
+    await user.click(screen.getByRole('button', { name: 'select assistant type' }))
+    await user.click(screen.getByRole('button', { name: 'select custom tab' }))
+    await user.click(screen.getByRole('button', { name: 'add catalog preset' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('added-assistant-id')).toHaveTextContent('assistant-created')
+    })
+    expect(createAssistantMock).toHaveBeenCalledWith({ name: 'Catalog Preset' })
+    expect(toastSuccessMock).toHaveBeenCalledWith('common.add_success')
+
+    await user.click(screen.getByRole('button', { name: 'go to catalog chat' }))
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/app/chat',
+      search: { assistantId: 'assistant-created' }
+    })
+  })
+
+  it('keeps the preset preview open after adding and closes it after opening chat', async () => {
+    const user = userEvent.setup()
+    assistantCatalogMock.tabs = [
+      { id: '__mine__', label: 'library.assistant_catalog.mine', count: 0 },
+      { id: 'custom', label: 'Custom', count: 1 }
+    ]
+    assistantCatalogMock.presets = [{ id: 'preset-1', name: 'Catalog Preset' }]
+
+    render(<LibraryPage />)
+
+    await user.click(screen.getByRole('button', { name: 'select assistant type' }))
+    await user.click(screen.getByRole('button', { name: 'select custom tab' }))
+    await user.click(screen.getByRole('button', { name: 'preview catalog preset' }))
+
+    expect(screen.getByTestId('assistant-preset-preview-dialog')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'preview go to chat' })).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'preview add preset' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('assistant-preset-preview-dialog')).toBeInTheDocument()
+      expect(screen.getByTestId('preview-added-assistant-id')).toHaveTextContent('assistant-created')
+    })
+
+    await user.click(screen.getByRole('button', { name: 'preview go to chat' }))
+
+    expect(navigateMock).toHaveBeenCalledWith({
+      to: '/app/chat',
+      search: { assistantId: 'assistant-created' }
+    })
+    await waitFor(() => {
+      expect(screen.queryByTestId('assistant-preset-preview-dialog')).not.toBeInTheDocument()
     })
   })
 

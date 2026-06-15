@@ -45,8 +45,10 @@ interface AssistantCatalogGridState {
   activeTab: string
   tabs: AssistantCatalogTab[]
   presets: AssistantCatalogPreset[]
+  addedAssistantPresets: Readonly<Record<string, string>>
   onTabChange: (tabId: string) => void
   onAddPreset: (preset: AssistantCatalogPreset) => Promise<void> | void
+  onOpenPresetChat: (assistantId: string) => void
   onPreviewPreset: (preset: AssistantCatalogPreset) => void
 }
 
@@ -468,7 +470,9 @@ export const ResourceGrid: FC<Props> = ({
             presets={assistantCatalog.presets}
             search={search}
             addingPresetKeys={addingPresetKeys}
+            addedAssistantPresets={assistantCatalog.addedAssistantPresets}
             onAddPreset={(preset) => void handleAddPreset(preset)}
+            onOpenPresetChat={assistantCatalog.onOpenPresetChat}
             onPreviewPreset={assistantCatalog.onPreviewPreset}
           />
         ) : isLoading ? (
@@ -602,7 +606,9 @@ interface VirtualizedAssistantPresetGridProps {
   presets: AssistantCatalogPreset[]
   search: string
   addingPresetKeys: ReadonlySet<string>
+  addedAssistantPresets: Readonly<Record<string, string>>
   onAddPreset: (preset: AssistantCatalogPreset) => void
+  onOpenPresetChat: (assistantId: string) => void
   onPreviewPreset: (preset: AssistantCatalogPreset) => void
 }
 
@@ -612,7 +618,9 @@ function VirtualizedAssistantPresetGrid({
   presets,
   search,
   addingPresetKeys,
+  addedAssistantPresets,
   onAddPreset,
+  onOpenPresetChat,
   onPreviewPreset
 }: VirtualizedAssistantPresetGridProps) {
   const rows = useMemo(() => {
@@ -635,7 +643,9 @@ function VirtualizedAssistantPresetGrid({
       presets={presets}
       search={search}
       addingPresetKeys={addingPresetKeys}
+      addedAssistantPresets={addedAssistantPresets}
       onAddPreset={onAddPreset}
+      onOpenPresetChat={onOpenPresetChat}
       onPreviewPreset={onPreviewPreset}
       virtualRows={rowVirtualizer.getVirtualItems()}
       totalHeight={rowVirtualizer.getTotalSize()}
