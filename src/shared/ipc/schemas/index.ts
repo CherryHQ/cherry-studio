@@ -1,5 +1,8 @@
 import type { RouteDef } from '../define'
+import { devtoolsRequestSchemas } from './devtools'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
+import { systemRequestSchemas } from './system'
+import { terminalRequestSchemas } from './terminal'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
 
 /**
@@ -10,7 +13,10 @@ import { type WindowEventSchemas, windowRequestSchemas } from './window'
  * never enter the renderer bundle (see ipc-overview.md, "zod across processes").
  */
 export const ipcRequestSchemas = {
+  ...devtoolsRequestSchemas,
   ...selectionRequestSchemas,
+  ...systemRequestSchemas,
+  ...terminalRequestSchemas,
   ...windowRequestSchemas
 } satisfies Record<string, RouteDef>
 

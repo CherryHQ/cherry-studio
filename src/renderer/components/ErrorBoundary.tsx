@@ -1,4 +1,5 @@
 import { Alert, Button } from '@cherrystudio/ui'
+import { ipcApi } from '@renderer/ipc'
 import { formatErrorMessage } from '@renderer/utils/error'
 import type { ComponentType, ReactNode } from 'react'
 import type { FallbackProps } from 'react-error-boundary'
@@ -8,7 +9,7 @@ const DefaultFallback: ComponentType<FallbackProps> = (props: FallbackProps): Re
   const { t } = useTranslation()
   const { error } = props
   const debug = async () => {
-    await window.api.devTools.toggle()
+    await ipcApi.request('devtools.toggle')
   }
   const reload = async () => {
     await window.api.reload()

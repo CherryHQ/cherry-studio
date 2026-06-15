@@ -26,6 +26,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import useUserTheme from '@renderer/hooks/useUserTheme'
 import i18n from '@renderer/i18n'
+import { ipcApi } from '@renderer/ipc'
 import type { NotificationSource } from '@renderer/types/notification'
 import { isValidProxyUrl } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
@@ -200,7 +201,7 @@ const CommonSettings: FC = () => {
   useEffect(() => {
     const loadSystemFonts = async () => {
       try {
-        const fonts = await window.api.getSystemFonts()
+        const fonts = await ipcApi.request('system.get_fonts')
         setFontList(fonts)
       } catch (error) {
         logger.error('Failed to get system fonts', error as Error)

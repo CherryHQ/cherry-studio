@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { preferenceService } from '@renderer/data/PreferenceService'
+import { ipcApi } from '@renderer/ipc'
 import store from '@renderer/store'
 import { defaultLanguage } from '@shared/config/constant'
 
@@ -67,7 +68,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
 
   if (userSystemPrompt.includes('{{system}}')) {
     try {
-      const systemType = await window.api.system.getDeviceType()
+      const systemType = await ipcApi.request('system.get_device_type')
       userSystemPrompt = userSystemPrompt.replace(/{{system}}/g, systemType)
     } catch (error) {
       logger.error('Failed to get system type:', error as Error)

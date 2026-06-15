@@ -1,5 +1,6 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import { backupToLocal } from '@renderer/services/BackupService'
 import dayjs from 'dayjs'
 import { useCallback, useState } from 'react'
@@ -62,8 +63,8 @@ export function useLocalBackupModal(localBackupDir: string | undefined) {
 
   const showBackupModal = useCallback(async () => {
     // 获取默认文件名
-    const deviceType = await window.api.system.getDeviceType()
-    const hostname = await window.api.system.getHostname()
+    const deviceType = await ipcApi.request('system.get_device_type')
+    const hostname = await ipcApi.request('system.get_hostname')
     const timestamp = dayjs().format('YYYYMMDDHHmmss')
     const defaultFileName = `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
     setCustomFileName(defaultFileName)

@@ -8,6 +8,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import i18n from '@renderer/i18n'
+import { ipcApi } from '@renderer/ipc'
 import { runAsyncFunction } from '@renderer/utils'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { debounce } from 'lodash'
@@ -72,7 +73,7 @@ const AboutSettings: FC = () => {
   }
 
   const debug = async () => {
-    await window.api.devTools.toggle()
+    await ipcApi.request('devtools.toggle')
   }
 
   const showEnterprise = async () => {

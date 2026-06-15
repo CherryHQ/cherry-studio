@@ -1,4 +1,5 @@
 import { Button, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { ipcApi } from '@renderer/ipc'
 import type { FC } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
 
@@ -16,7 +17,7 @@ const MacProcessTrustHintModal: FC<MacProcessTrustHintModalProps> = ({ open, onC
   }
 
   const handleConfirm = async () => {
-    void window.api.mac.requestProcessTrust()
+    void ipcApi.request('system.request_process_trust')
     onClose()
   }
 

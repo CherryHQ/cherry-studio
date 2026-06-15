@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import db from '@renderer/databases'
 import { upgradeToV7, upgradeToV8 } from '@renderer/databases/upgrades'
 import i18n from '@renderer/i18n'
+import { ipcApi } from '@renderer/ipc'
 import store from '@renderer/store'
 import { setLocalBackupSyncState, setS3SyncState, setWebDAVSyncState } from '@renderer/store/backup'
 import type { S3Config, WebDavConfig } from '@renderer/types'
@@ -228,8 +229,8 @@ export async function backupToWebdav({
   let deviceType = 'unknown'
   let hostname = 'unknown'
   try {
-    deviceType = (await window.api.system.getDeviceType()) || 'unknown'
-    hostname = (await window.api.system.getHostname()) || 'unknown'
+    deviceType = (await ipcApi.request('system.get_device_type')) || 'unknown'
+    hostname = (await ipcApi.request('system.get_hostname')) || 'unknown'
   } catch (error) {
     logger.error('Failed to get device type or hostname:', error as Error)
   }
@@ -425,8 +426,8 @@ export async function backupToS3({
   let deviceType = 'unknown'
   let hostname = 'unknown'
   try {
-    deviceType = (await window.api.system.getDeviceType()) || 'unknown'
-    hostname = (await window.api.system.getHostname()) || 'unknown'
+    deviceType = (await ipcApi.request('system.get_device_type')) || 'unknown'
+    hostname = (await ipcApi.request('system.get_hostname')) || 'unknown'
   } catch (error) {
     logger.error('Failed to get device type or hostname:', error as Error)
   }
@@ -1061,8 +1062,8 @@ export async function backupToLocal({
   let deviceType = 'unknown'
   let hostname = 'unknown'
   try {
-    deviceType = (await window.api.system.getDeviceType()) || 'unknown'
-    hostname = (await window.api.system.getHostname()) || 'unknown'
+    deviceType = (await ipcApi.request('system.get_device_type')) || 'unknown'
+    hostname = (await ipcApi.request('system.get_hostname')) || 'unknown'
   } catch (error) {
     logger.error('Failed to get device type or hostname:', error as Error)
   }

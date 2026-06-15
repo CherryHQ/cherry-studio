@@ -31,11 +31,7 @@ export enum IpcChannel {
   App_InstallBunBinary = 'app:install-bun-binary',
   App_InstallOvmsBinary = 'app:install-ovms-binary',
   App_LogToMain = 'app:log-to-main',
-  App_GetSystemFonts = 'app:get-system-fonts',
   App_GetIpCountry = 'app:get-ip-country',
-
-  App_MacIsProcessTrusted = 'app:mac-is-process-trusted',
-  App_MacRequestProcessTrust = 'app:mac-request-process-trust',
 
   App_QuoteToMain = 'app:quote-to-main',
 
@@ -286,18 +282,6 @@ export enum IpcChannel {
   // zip
   Zip_Compress = 'zip:compress',
   Zip_Decompress = 'zip:decompress',
-
-  // system
-  System_GetDeviceType = 'system:getDeviceType',
-  System_GetHostname = 'system:getHostname',
-  System_GetCpuName = 'system:getCpuName',
-  System_CheckGitBash = 'system:checkGitBash',
-  System_GetGitBashPath = 'system:getGitBashPath',
-  System_GetGitBashPathInfo = 'system:getGitBashPathInfo',
-  System_SetGitBashPath = 'system:setGitBashPath',
-
-  // DevTools
-  System_ToggleDevTools = 'system:toggleDevTools',
 
   // events
   BackupProgress = 'backup-progress',

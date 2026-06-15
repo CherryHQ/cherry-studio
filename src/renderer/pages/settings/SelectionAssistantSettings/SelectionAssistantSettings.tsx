@@ -58,7 +58,7 @@ const SelectionAssistantSettings: FC = () => {
   // force disable selection assistant on non-windows systems
   useEffect(() => {
     const checkMacProcessTrust = async () => {
-      const isTrusted = await window.api.mac.isProcessTrusted()
+      const isTrusted = await ipcApi.request('system.is_process_trusted')
       if (!isTrusted) {
         void setSelectionEnabled(false)
       }
@@ -82,7 +82,7 @@ const SelectionAssistantSettings: FC = () => {
     if (!isSupportedOS) return
 
     if (isMac && checked) {
-      const isTrusted = await window.api.mac.isProcessTrusted()
+      const isTrusted = await ipcApi.request('system.is_process_trusted')
       if (!isTrusted) {
         setIsMacTrustModalOpen(true)
         return

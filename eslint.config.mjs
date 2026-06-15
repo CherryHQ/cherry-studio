@@ -402,7 +402,8 @@ export default defineConfig([
     files: [
       'src/shared/data/cache/cacheSchemas.ts',
       'src/shared/data/preference/preferenceSchemas.ts',
-      'src/main/core/paths/pathRegistry.ts'
+      'src/main/core/paths/pathRegistry.ts',
+      'src/shared/ipc/schemas/**/*.ts'
     ],
     plugins: {
       'data-schema-key': {

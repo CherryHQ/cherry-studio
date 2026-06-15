@@ -5,27 +5,18 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { generateSignature } from '@main/ai/provider/cherryai'
-import { isMac, isWin } from '@main/core/platform'
+import { isWin } from '@main/core/platform'
 import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
 import { getIpCountry } from '@main/utils/ipService'
-import {
-  autoDiscoverGitBash,
-  getBinaryPath,
-  getGitBashPathInfo,
-  isBinaryExists,
-  runInstallScript,
-  validateGitBashPath
-} from '@main/utils/process'
+import { getBinaryPath, isBinaryExists, runInstallScript } from '@main/utils/process'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { extractPdfText } from '@shared/utils/pdf'
 import type { Notification } from '@types'
-import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
-import fontList from 'font-list'
+import { app, BrowserWindow, dialog, ipcMain, session, shell, webContents } from 'electron'
 
 import { skillService } from './ai/skills/SkillService'
 import { appService } from './services/AppService'
-import { ConfigKeys, configManager } from './services/ConfigManager'
 import { copilotService } from './services/CopilotService'
 import { ExportService } from './services/ExportService'
 import { externalAppsService } from './services/ExternalAppsService'
@@ -40,7 +31,7 @@ import { calculateDirectorySize } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { isSafeExternalUrl } from './utils/externalUrlSafety'
 import { hasWritePermission, isPathInside, untildify } from './utils/file'
-import { getCpuName, getDeviceType, getHostname } from './utils/system'
+import { getCpuName } from './utils/system'
 import { compress, decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
@@ -110,29 +101,6 @@ export async function registerIpc() {
   // launch on boot
   ipcMain.handle(IpcChannel.App_SetLaunchOnBoot, async (_, isLaunchOnBoot: boolean) => {
     await appService.setAppLaunchOnBoot(isLaunchOnBoot)
-  })
-
-  //only for mac
-  if (isMac) {
-    ipcMain.handle(IpcChannel.App_MacIsProcessTrusted, (): boolean => {
-      return systemPreferences.isTrustedAccessibilityClient(false)
-    })
-
-    //return is only the current state, not the new state
-    ipcMain.handle(IpcChannel.App_MacRequestProcessTrust, (): boolean => {
-      return systemPreferences.isTrustedAccessibilityClient(true)
-    })
-  }
-
-  // Get System Fonts
-  ipcMain.handle(IpcChannel.App_GetSystemFonts, async () => {
-    try {
-      const fonts = await fontList.getFonts()
-      return fonts.map((font: string) => font.replace(/^"(.*)"$/, '$1')).filter((font: string) => font.length > 0)
-    } catch (error) {
-      logger.error('Failed to get system fonts:', error as Error)
-      return []
-    }
   })
 
   // Get IP Country
@@ -296,75 +264,6 @@ export async function registerIpc() {
   // zip
   ipcMain.handle(IpcChannel.Zip_Compress, (_, text: string) => compress(text))
   ipcMain.handle(IpcChannel.Zip_Decompress, (_, text: Buffer) => decompress(text))
-
-  // system
-  ipcMain.handle(IpcChannel.System_GetDeviceType, getDeviceType)
-  ipcMain.handle(IpcChannel.System_GetHostname, getHostname)
-  ipcMain.handle(IpcChannel.System_GetCpuName, getCpuName)
-  ipcMain.handle(IpcChannel.System_CheckGitBash, () => {
-    if (!isWin) {
-      return true // Non-Windows systems don't need Git Bash
-    }
-
-    try {
-      // Use autoDiscoverGitBash to handle auto-discovery and persistence
-      const bashPath = autoDiscoverGitBash()
-      if (bashPath) {
-        logger.info('Git Bash is available', { path: bashPath })
-        return true
-      }
-
-      logger.warn('Git Bash not found. Please install Git for Windows from https://git-scm.com/downloads/win')
-      return false
-    } catch (error) {
-      logger.error('Unexpected error checking Git Bash', error as Error)
-      return false
-    }
-  })
-
-  ipcMain.handle(IpcChannel.System_GetGitBashPath, () => {
-    if (!isWin) {
-      return null
-    }
-
-    const customPath = configManager.get(ConfigKeys.GitBashPath)
-    return customPath ?? null
-  })
-
-  // Returns { path, source } where source is 'manual' | 'auto' | null
-  ipcMain.handle(IpcChannel.System_GetGitBashPathInfo, () => {
-    return getGitBashPathInfo()
-  })
-
-  ipcMain.handle(IpcChannel.System_SetGitBashPath, (_, newPath: string | null) => {
-    if (!isWin) {
-      return false
-    }
-
-    if (!newPath) {
-      // Clear manual setting and re-run auto-discovery
-      configManager.set(ConfigKeys.GitBashPath, null)
-      configManager.set(ConfigKeys.GitBashPathSource, null)
-      // Re-run auto-discovery to restore auto-discovered path if available
-      autoDiscoverGitBash()
-      return true
-    }
-
-    const validated = validateGitBashPath(newPath)
-    if (!validated) {
-      return false
-    }
-
-    // Set path with 'manual' source
-    configManager.set(ConfigKeys.GitBashPath, validated)
-    configManager.set(ConfigKeys.GitBashPathSource, 'manual')
-    return true
-  })
-
-  ipcMain.handle(IpcChannel.System_ToggleDevTools, (e) => {
-    const win = BrowserWindow.fromWebContents(e.sender)
-    win && win.webContents.toggleDevTools()
-  })
 
   // backup
   ipcMain.handle(IpcChannel.Backup_Backup, backupManager.backup.bind(backupManager))

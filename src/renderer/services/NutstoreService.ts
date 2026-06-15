@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import i18n from '@renderer/i18n'
+import { ipcApi } from '@renderer/ipc'
 import store from '@renderer/store'
 import { setNutstoreSyncState } from '@renderer/store/nutstore'
 import type { WebDavConfig } from '@renderer/types'
@@ -131,7 +132,7 @@ export async function backupToNutstore({
 
   let deviceType = 'unknown'
   try {
-    deviceType = (await window.api.system.getDeviceType()) || 'unknown'
+    deviceType = (await ipcApi.request('system.get_device_type')) || 'unknown'
   } catch (error) {
     logger.error('[backupToNutstore] Failed to get device type:', error as Error)
   }
