@@ -762,6 +762,36 @@ describe('KnowledgeService', () => {
     expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(2, 'kb-1', '/Users/me/b/brief.docx', 'brief_1.docx')
   })
 
+  it('auto-renames against a file imported in an earlier addItems call, not just within one call', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: null }))
+    // A prior import already stored notes.md; loadReservedKnowledgeFilePaths must surface
+    // the existing row's relativePath so a later import of the same name deduplicates
+    // against it rather than colliding and failing the whole batch at assertTargetAvailable.
+    knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([createFileItem('file-existing', 'kb-1', '/old/notes.md')])
+
+    await service.addItems('kb-1', [
+      { type: 'file', data: { source: '/Users/me/c/notes.md', path: '/Users/me/c/notes.md' } }
+    ])
+
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith('kb-1', '/Users/me/c/notes.md', 'notes_1.md')
+  })
+
+  it('auto-renames against the processed-markdown sibling reserved for an earlier-imported document', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: 'doc2x' }))
+    // The stored brief.pdf reserves both brief.pdf and its derived brief.md sibling. A later
+    // brief.md import must dedupe against that derived reservation — guarding the sibling
+    // derivation in loadReservedKnowledgeFilePaths, not just the stored relativePath.
+    knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([createFileItem('file-existing', 'kb-1', '/old/brief.pdf')])
+
+    await service.addItems('kb-1', [
+      { type: 'file', data: { source: '/Users/me/c/brief.md', path: '/Users/me/c/brief.md' } }
+    ])
+
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenCalledWith('kb-1', '/Users/me/c/brief.md', 'brief_1.md')
+  })
+
   it('passes the parent job when starting file processing during reindex', async () => {
     const service = new KnowledgeService()
     const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
