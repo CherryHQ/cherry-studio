@@ -151,7 +151,6 @@ export const SVG_ATTRIBUTES = [
   'stroke-opacity',
   'strokeWidth',
   'stroke-width',
-  'style',
   'surfaceScale',
   'targetX',
   'targetY',

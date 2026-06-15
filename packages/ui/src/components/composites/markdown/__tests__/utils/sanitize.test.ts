@@ -59,7 +59,7 @@ describe('Markdown sanitize schema', () => {
     expect(output).toContain('<h1 id="user-content-location">Title</h1>')
   })
 
-  it('strips raw style elements from untrusted markdown html', async () => {
+  it('strips raw style elements and SVG inline style attributes from untrusted markdown html', async () => {
     const { sanitize } = defaultRehypePlugins as Record<string, any>
     const [sanitizeFn, schema] = sanitize
 
@@ -68,11 +68,18 @@ describe('Markdown sanitize schema', () => {
         .use(rehypeParse, { fragment: true })
         .use(sanitizeFn, createMarkdownSanitizeSchema(schema))
         .use(rehypeStringify)
-        .process('<style>*{background:url("https://attacker.example/leak")}</style><p>Safe</p>')
+        .process(
+          [
+            '<style>*{background:url("https://attacker.example/leak")}</style>',
+            '<svg><rect width="10" height="10" style="background:url(https://attacker.example/svg-leak)"></rect></svg>',
+            '<p>Safe</p>'
+          ].join('')
+        )
     )
 
     expect(output).toContain('<p>Safe</p>')
     expect(output).not.toContain('<style>')
+    expect(output).not.toContain('style=')
     expect(output).not.toContain('attacker.example')
   })
 
