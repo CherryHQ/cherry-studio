@@ -138,7 +138,7 @@ export interface ApprovalDecision {
   approvalId: string
   approved: boolean
   reason?: string
-  updatedInput?: unknown
+  updatedInput?: Record<string, unknown>
 }
 
 export interface AiToolApprovalRespondRequest extends ApprovalDecision {

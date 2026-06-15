@@ -4,11 +4,10 @@
  * Each tool declares its own metadata, its dependencies, and (optionally) a predicate for when it
  * is enabled. The allowed/disallowed set for a session is *derived* from those declarations plus a
  * runtime context — there are no side tables of tool-name relationships. This drives backend policy
- * (which tools are blocked / the canUseTool catalog), the edit-dialog catalog UI, and chat rendering,
- * replacing the previously hand-maintained, drifting lists in `builtinTools.ts`, the renderer's
- * `AgentToolsType` + `toolRendererRegistry`, and the `ToolHeader` icon/label switches.
+ * (which tools are blocked / the canUseTool catalog) and the edit-dialog catalog UI.
  *
- * See v2-refactor-temp/docs/ai/declarative-tool-registry.md.
+ * Migration in progress: this is intended to replace the hand-maintained lists in `builtinTools.ts`
+ * and the renderer's tool metadata, which still coexist until those call sites are ported.
  */
 
 import type { ClaudeToolDescriptor } from './toolRules'
@@ -36,23 +35,15 @@ export interface ClaudeToolDescriptorDef {
   description: string
   /** Other tools this one requires — if any is disabled, this tool is disabled too (transitively). */
   dependsOn?: readonly string[]
-  /**
-   * SDK tools only (`mcpServer` unset). `false` marks a runtime/experimental tool that is NOT a
-   * member of the SDK `ToolInputSchemas` union (agent-teams, ToolSearch, legacy Task/BashOutput) —
-   * the drift guard skips it. Defaults to `true` for SDK tools.
-   */
-  sdkTyped?: boolean
   /** Set for in-process MCP tools — the server hosting this tool (drives injection). */
   mcpServer?: 'cherry-tools' | 'claw' | 'agent-memory' | 'skills'
-  /** MCP tools only — the bare wire name within the server (e.g. `web_search`). */
-  mcpWireName?: string
 }
 
 /**
  * The registry. Keys are stable friendly identifiers; `name` is the runtime tool name.
  * For SDK tools key === name; for MCP tools key is friendly (e.g. `CherryWebSearch`).
  */
-export const CLAUDE_TOOL_REGISTRY = {
+const CLAUDE_TOOL_REGISTRY = {
   // ── shell ────────────────────────────────────────────────────────
   Bash: {
     name: 'Bash',
@@ -67,8 +58,7 @@ export const CLAUDE_TOOL_REGISTRY = {
     category: 'shell',
     exposure: 'internal',
     description: 'Retrieves output from a running background shell',
-    dependsOn: ['Bash'],
-    sdkTyped: false
+    dependsOn: ['Bash']
   },
   REPL: {
     name: 'REPL',
@@ -104,8 +94,7 @@ export const CLAUDE_TOOL_REGISTRY = {
     name: 'Task',
     category: 'orchestration',
     exposure: 'internal',
-    description: 'Runs a sub-agent to handle complex, multi-step tasks',
-    sdkTyped: false
+    description: 'Runs a sub-agent to handle complex, multi-step tasks'
   },
   TaskOutput: {
     name: 'TaskOutput',
@@ -170,8 +159,7 @@ export const CLAUDE_TOOL_REGISTRY = {
     name: 'ToolSearch',
     category: 'orchestration',
     exposure: 'internal',
-    description: 'Searches for available tools by name',
-    sdkTyped: false
+    description: 'Searches for available tools by name'
   },
   ListMcpResources: {
     name: 'ListMcpResources',
@@ -234,27 +222,24 @@ export const CLAUDE_TOOL_REGISTRY = {
     description: 'Sends a push notification'
   },
   // Agent-teams tools — runtime-injected behind CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS,
-  // NOT members of the SDK ToolInputSchemas union (drift guard skips them).
+  // NOT members of the SDK ToolInputSchemas union.
   SendMessage: {
     name: 'SendMessage',
     category: 'orchestration',
     exposure: 'internal',
-    description: 'Sends a message to another agent in the team',
-    sdkTyped: false
+    description: 'Sends a message to another agent in the team'
   },
   TeamCreate: {
     name: 'TeamCreate',
     category: 'orchestration',
     exposure: 'internal',
-    description: 'Creates an agent team',
-    sdkTyped: false
+    description: 'Creates an agent team'
   },
   TeamDelete: {
     name: 'TeamDelete',
     category: 'orchestration',
     exposure: 'internal',
-    description: 'Deletes an agent team',
-    sdkTyped: false
+    description: 'Deletes an agent team'
   },
 
   // ── context (external / persistent context) ──────────────────────
@@ -279,32 +264,28 @@ export const CLAUDE_TOOL_REGISTRY = {
     category: 'context',
     exposure: 'user',
     description: 'Searches the web via your configured provider',
-    mcpServer: 'cherry-tools',
-    mcpWireName: 'web_search'
+    mcpServer: 'cherry-tools'
   },
   CherryWebFetch: {
     name: 'mcp__cherry-tools__web_fetch',
     category: 'context',
     exposure: 'user',
     description: 'Fetches and reads a web page',
-    mcpServer: 'cherry-tools',
-    mcpWireName: 'web_fetch'
+    mcpServer: 'cherry-tools'
   },
   CherryKbSearch: {
     name: 'mcp__cherry-tools__kb_search',
     category: 'context',
     exposure: 'user',
     description: 'Searches your knowledge bases',
-    mcpServer: 'cherry-tools',
-    mcpWireName: 'kb_search'
+    mcpServer: 'cherry-tools'
   },
   CherryKbList: {
     name: 'mcp__cherry-tools__kb_list',
     category: 'context',
     exposure: 'internal',
     description: 'Lists your knowledge bases',
-    mcpServer: 'cherry-tools',
-    mcpWireName: 'kb_list'
+    mcpServer: 'cherry-tools'
   },
   // claw (agent autonomy / channels). notify/config need a connected channel to do anything.
   ClawCron: {
@@ -312,8 +293,7 @@ export const CLAUDE_TOOL_REGISTRY = {
     category: 'orchestration',
     exposure: 'user',
     description: 'Manages the in-app scheduler',
-    mcpServer: 'claw',
-    mcpWireName: 'cron'
+    mcpServer: 'claw'
   },
   // notify/config are condition-gated (agent has a connected channel) — see toolConditions.ts.
   ClawNotify: {
@@ -321,16 +301,14 @@ export const CLAUDE_TOOL_REGISTRY = {
     category: 'orchestration',
     exposure: 'internal',
     description: 'Sends a notification through a connected channel',
-    mcpServer: 'claw',
-    mcpWireName: 'notify'
+    mcpServer: 'claw'
   },
   ClawConfig: {
     name: 'mcp__claw__config',
     category: 'orchestration',
     exposure: 'internal',
     description: 'Inspects and manages this agent configuration and channels',
-    mcpServer: 'claw',
-    mcpWireName: 'config'
+    mcpServer: 'claw'
   },
   // agent-memory (cross-session memory)
   AgentMemory: {
@@ -338,8 +316,7 @@ export const CLAUDE_TOOL_REGISTRY = {
     category: 'context',
     exposure: 'user',
     description: 'Stores and recalls cross-session memory',
-    mcpServer: 'agent-memory',
-    mcpWireName: 'memory'
+    mcpServer: 'agent-memory'
   },
   // skills (marketplace + authoring)
   Skills: {
@@ -347,8 +324,7 @@ export const CLAUDE_TOOL_REGISTRY = {
     category: 'context',
     exposure: 'internal',
     description: 'Searches, installs, and authors skills',
-    mcpServer: 'skills',
-    mcpWireName: 'skills'
+    mcpServer: 'skills'
   }
 } as const satisfies Record<string, ClaudeToolDescriptorDef>
 
@@ -358,10 +334,6 @@ export const CLAUDE_TOOL_DEFS: readonly ClaudeToolDescriptorDef[] = Object.value
 
 /** A tool is an in-process MCP tool iff it declares a hosting server. */
 export const isMcpTool = (def: ClaudeToolDescriptorDef): boolean => def.mcpServer !== undefined
-
-/** SDK builtin tools that are members of the typed `ToolInputSchemas` union (drift-guard scope). */
-export const claudeSdkTypedToolNames = (): string[] =>
-  CLAUDE_TOOL_DEFS.filter((def) => !isMcpTool(def) && def.sdkTyped !== false).map((def) => def.name)
 
 /**
  * Descriptors for the canUseTool / catalog policy layer: every non-disabled SDK tool.

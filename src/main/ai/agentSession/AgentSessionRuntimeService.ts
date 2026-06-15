@@ -645,12 +645,11 @@ export class AgentSessionRuntimeService extends BaseService {
       } as UIMessageChunk)
     }
 
+    // Completed-run metrics ride the `data-compaction-anchor` chunk above (the UI's source); the cache
+    // state only tracks `status`. A no-anchor success (which can follow the boundary) therefore can't
+    // clobber any token stats — it just leaves the compacting state.
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
-      status: 'idle',
-      lastCompletedAt: anchor?.completedAt ?? new Date().toISOString(),
-      ...(anchor?.preTokens !== undefined ? { preTokens: anchor.preTokens } : {}),
-      ...(anchor?.postTokens !== undefined ? { postTokens: anchor.postTokens } : {}),
-      ...(anchor?.durationMs !== undefined ? { durationMs: anchor.durationMs } : {})
+      status: 'idle'
     })
     this.refreshContextUsage(entry)
   }
@@ -661,9 +660,11 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private settleCompactionError(entry: AgentSessionRuntimeEntry, error: string): void {
     entry.compacting = false
+    // The failure is surfaced to the user through the turn error (handleRuntimeError) and logged here;
+    // the compaction cache state only needs to leave the compacting status.
+    logger.warn('Agent session compaction failed', { sessionId: entry.sessionId, error })
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
-      status: 'idle',
-      lastError: error
+      status: 'idle'
     })
   }
 

@@ -719,8 +719,35 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(service.isSessionBusy('session-1')).toBe(false)
     expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.compaction.session-1', {
-      status: 'idle',
-      lastCompletedAt: expect.any(String)
+      status: 'idle'
+    })
+  })
+
+  it('a no-anchor compaction success following the boundary leaves status idle without clobbering (B2)', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    service.markTurnTerminal('session-1', 'success')
+
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-start' })
+    // The boundary carries the token anchor (its metrics ride the data-compaction-anchor chunk).
+    ;(service as any).handleRuntimeEvent(getEntry(service), {
+      type: 'compaction-complete',
+      anchor: {
+        trigger: 'auto',
+        completedAt: '2026-06-09T12:00:00.000Z',
+        preTokens: 52_000,
+        postTokens: 14_000,
+        durationMs: 1234
+      }
+    })
+    mocks.cacheSetShared.mockClear()
+
+    // A no-anchor `status: success` can arrive right after the boundary. It must only flip status to
+    // idle — never write empty token fields or reset a timestamp (the old bug clobbered both).
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-complete' })
+
+    expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.compaction.session-1', {
+      status: 'idle'
     })
   })
 
@@ -736,9 +763,51 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(service.isSessionBusy('session-1')).toBe(false)
     expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.compaction.session-1', {
-      status: 'idle',
-      lastError: 'runtime closed'
+      status: 'idle'
     })
+  })
+
+  it('swallows a getContextUsage rejection during refresh and logs a warning (S5)', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const usageError = new Error('usage boom')
+    entry.connection = {
+      getContextUsage: vi.fn().mockRejectedValue(usageError),
+      send: vi.fn(),
+      close: vi.fn(),
+      events: []
+    } as any
+
+    expect(() => (service as any).refreshContextUsage(entry)).not.toThrow()
+
+    await vi.waitFor(() =>
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Failed to refresh agent session context usage',
+        expect.objectContaining({ sessionId: 'session-1', error: usageError })
+      )
+    )
+  })
+
+  it('warns for an abort but errors for a real failure when the runtime ends with no active turn (S5)', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    service.markTurnTerminal('session-1', 'success') // no live (non-terminal) turn remains
+    const entry = getEntry(service)
+
+    const abort = Object.assign(new Error('aborted'), { name: 'AbortError' })
+    ;(service as any).handleRuntimeError(entry, abort)
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Agent runtime connection ended without an active turn',
+      expect.objectContaining({ sessionId: 'session-1', error: abort })
+    )
+
+    const boom = new Error('real failure')
+    ;(service as any).handleRuntimeError(entry, boom)
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+      'Agent runtime connection ended without an active turn',
+      expect.objectContaining({ sessionId: 'session-1', error: boom })
+    )
   })
 
   it('persists context usage events from the runtime', () => {
@@ -862,11 +931,7 @@ describe('AgentSessionRuntimeService', () => {
       done: false
     })
     expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.compaction.session-1', {
-      status: 'idle',
-      lastCompletedAt: '2026-06-09T12:00:00.000Z',
-      preTokens: 52_000,
-      postTokens: 14_000,
-      durationMs: 1234
+      status: 'idle'
     })
     await vi.waitFor(() =>
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
