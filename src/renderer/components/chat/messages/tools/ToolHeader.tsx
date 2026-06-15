@@ -482,19 +482,24 @@ const HeaderContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'
 // Label variant: no border/padding, for use inside Collapse header
 const LabelContainer = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={['flex min-w-0 items-center gap-1 text-[13px] leading-5', className].filter(Boolean).join(' ')}
+    className={['flex min-w-0 max-w-full items-center gap-1 overflow-hidden text-[13px] leading-5', className]
+      .filter(Boolean)
+      .join(' ')}
     {...props}
   />
 )
 
 const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<typeof Flex>) => (
-  <Flex className={['shrink-0 [&_.name]:whitespace-nowrap', className].filter(Boolean).join(' ')} {...props} />
+  <Flex
+    className={['min-w-0 max-w-full shrink items-center overflow-hidden', className].filter(Boolean).join(' ')}
+    {...props}
+  />
 )
 
 const Description = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
   <span
     className={[
-      'inline-flex min-w-0 max-w-full shrink items-center overflow-hidden text-ellipsis whitespace-nowrap font-normal text-[13px] text-foreground-secondary',
+      'inline-block min-w-0 max-w-full shrink truncate font-normal text-[13px] text-foreground-secondary',
       className
     ]
       .filter(Boolean)
@@ -563,7 +568,7 @@ const McpToolHeader: FC<McpToolHeaderProps> = ({
         <span className={getToolIconClassName(isIconBreathing)}>
           <Wrench size={14} />
         </span>
-        <span className="name">
+        <span className="name min-w-0 max-w-full truncate">
           {tool.serverName} : {tool.name}
         </span>
         {autoApproved && (
@@ -634,7 +639,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
     <Container>
       <ToolName className={getToolNameClassName(variant)}>
         <span className={getToolIconClassName(isIconBreathing)}>{propIcon || getAgentToolIcon(toolName)}</span>
-        <span className="name">{displayLabel}</span>
+        <span className="name min-w-0 max-w-full truncate">{displayLabel}</span>
       </ToolName>
       {description && <Description>{description}</Description>}
       {stats && <Stats>{stats}</Stats>}
