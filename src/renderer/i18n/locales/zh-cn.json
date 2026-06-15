@@ -508,7 +508,7 @@
         "agent": "智能体",
         "time": "时间",
         "title": "展示方式",
-        "workdir": "项目"
+        "workdir": "工作目录"
       },
       "edit": {
         "title": "编辑会话"
@@ -536,7 +536,7 @@
         "drag_hint": "拖拽可排序，也可拖拽任务调整展示/隐藏分组。",
         "earlier": "更早",
         "expand_all": "全部展开",
-        "no_workdir": "无项目",
+        "no_workdir": "无工作目录",
         "show_more": "展开显示",
         "this_week": "本周",
         "today": "今天",
@@ -572,28 +572,28 @@
       },
       "workdir": {
         "delete": {
-          "content": "删除该项目会同时删除该项目下的所有任务；只会删除数据库记录，不会删除磁盘上的真实目录。",
+          "content": "删除该工作目录会同时删除该工作目录下的所有任务；只会删除数据库记录，不会删除磁盘上的真实目录。",
           "error": {
-            "failed": "删除项目失败"
+            "failed": "删除工作目录失败"
           },
-          "title": "删除项目",
-          "trigger": "删除项目"
+          "title": "删除工作目录",
+          "trigger": "删除工作目录"
         },
         "rename": {
           "error": {
-            "failed": "重命名项目失败"
+            "failed": "重命名工作目录失败"
           },
-          "title": "重命名项目",
-          "trigger": "重命名项目"
+          "title": "重命名工作目录",
+          "trigger": "重命名工作目录"
         }
       },
       "workspace_selector": {
-        "create_failed": "添加项目失败。",
-        "create_new": "添加新项目",
-        "empty_text": "暂无项目",
-        "no_project": "不使用项目",
-        "placeholder": "选择项目",
-        "search_placeholder": "搜索项目",
+        "create_failed": "添加工作目录失败。",
+        "create_new": "添加新工作目录",
+        "empty_text": "暂无工作目录",
+        "no_project": "不使用工作目录",
+        "placeholder": "选择工作目录",
+        "search_placeholder": "搜索工作目录",
         "select_failed": "选择文件夹失败。"
       },
       "workspace_status": {

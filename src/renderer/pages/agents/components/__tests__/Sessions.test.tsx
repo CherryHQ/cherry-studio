@@ -412,7 +412,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.display.agent': 'Agent',
         'agent.session.display.time': 'Time',
         'agent.session.display.title': 'Display mode',
-        'agent.session.display.workdir': 'Project',
+        'agent.session.display.workdir': 'Work directory',
         'agent.session.empty.description': 'Tasks will appear here after you start one.',
         'agent.session.empty.title': 'No tasks yet',
         'agent.edit.title': 'Edit Agent',
@@ -432,7 +432,7 @@ vi.mock('react-i18next', () => ({
         'agent.session.group.drag_hint': 'Drag to reorder. Drag tasks to adjust display and hidden groups.',
         'agent.session.group.earlier': 'Earlier',
         'agent.session.group.expand_all': 'Expand all',
-        'agent.session.group.no_workdir': 'No project',
+        'agent.session.group.no_workdir': 'No work directory',
         'agent.session.group.show_more': 'Expand display',
         'agent.session.group.this_week': 'This week',
         'agent.session.group.today': 'Today',
@@ -446,13 +446,13 @@ vi.mock('react-i18next', () => ({
         'agent.session.update.error.failed': 'Failed to update task',
         'agent.session.unpin.title': 'Unpin task',
         'agent.session.workdir.delete.content':
-          'Deleting this project also deletes tasks under it. The actual folder is not deleted.',
-        'agent.session.workdir.delete.error.failed': 'Failed to delete project',
-        'agent.session.workdir.delete.title': 'Delete project',
-        'agent.session.workdir.delete.trigger': 'Delete project',
-        'agent.session.workdir.rename.error.failed': 'Failed to rename project',
-        'agent.session.workdir.rename.title': 'Rename project',
-        'agent.session.workdir.rename.trigger': 'Rename project',
+          'Deleting this work directory also deletes tasks under it. The actual folder is not deleted.',
+        'agent.session.workdir.delete.error.failed': 'Failed to delete work directory',
+        'agent.session.workdir.delete.title': 'Delete work directory',
+        'agent.session.workdir.delete.trigger': 'Delete work directory',
+        'agent.session.workdir.rename.error.failed': 'Failed to rename work directory',
+        'agent.session.workdir.rename.title': 'Rename work directory',
+        'agent.session.workdir.rename.trigger': 'Rename work directory',
         'agent.unpin.title': 'Unpin Agent',
         'chat.topics.delete.shortcut': 'Hold Ctrl to delete directly',
         'common.cancel': 'Cancel',
@@ -840,8 +840,8 @@ describe('Sessions', () => {
 
     render(<SessionsForTest onStartDraftSession={onStartDraftSession} />)
 
-    const projectSection = screen.getByRole('button', { name: 'Project' })
-    const noProjectSection = screen.getByRole('button', { name: 'No project' })
+    const projectSection = screen.getByRole('button', { name: 'Work directory' })
+    const noProjectSection = screen.getByRole('button', { name: 'No work directory' })
     expect(projectSection.compareDocumentPosition(noProjectSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('System session')).toBeInTheDocument()
     const systemSessionRow = screen.getByText('System session').closest('[role="option"]')
@@ -1033,7 +1033,7 @@ describe('Sessions', () => {
 
     render(<SessionsForTest />)
 
-    expect(screen.queryByRole('button', { name: 'No project' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'No work directory' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha agent' })).toBeInTheDocument()
     expect(screen.getByText('System session')).toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
@@ -1534,7 +1534,7 @@ describe('Sessions', () => {
     render(<SessionsForTest />)
 
     const displayModeContent = openSessionListOptions()
-    fireEvent.click(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Project' }))
+    fireEvent.click(within(displayModeContent as HTMLElement).getByRole('button', { name: 'Work directory' }))
 
     expect(preferenceMocks.setPreference).toHaveBeenCalledWith('agent.session.display_mode', 'workdir')
   })
@@ -1738,7 +1738,7 @@ describe('Sessions', () => {
     const workdirGroup = workdirGroupButton.closest('div')
     expect(workdirGroup).not.toBeNull()
     expect(
-      within(workdirGroup as HTMLElement).queryByRole('button', { name: 'Delete project' })
+      within(workdirGroup as HTMLElement).queryByRole('button', { name: 'Delete work directory' })
     ).not.toBeInTheDocument()
 
     fireEvent.pointerDown(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
@@ -1809,10 +1809,10 @@ describe('Sessions', () => {
     const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
     expect(workdirGroup).not.toBeNull()
     fireEvent.pointerDown(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename project' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename work directory' }))
 
     const dialog = await screen.findByRole('dialog')
-    expect(dialog).toHaveTextContent('Rename project')
+    expect(dialog).toHaveTextContent('Rename work directory')
     const input = within(dialog).getByLabelText('Name')
     expect(input).toHaveValue('Project A Workspace')
 
@@ -1877,7 +1877,9 @@ describe('Sessions', () => {
     const workdirGroup = screen.getByRole('button', { name: 'Project A Workspace' }).closest('div')
     expect(workdirGroup).not.toBeNull()
     fireEvent.pointerDown(within(workdirGroup as HTMLElement).getByRole('button', { name: 'More' }))
-    const deleteWorkspaceButton = within(workdirGroup as HTMLElement).getByRole('menuitem', { name: 'Delete project' })
+    const deleteWorkspaceButton = within(workdirGroup as HTMLElement).getByRole('menuitem', {
+      name: 'Delete work directory'
+    })
     expect(deleteWorkspaceButton.querySelector('svg')).toHaveClass('lucide-custom', 'text-destructive')
     fireEvent.click(deleteWorkspaceButton)
 
@@ -1888,7 +1890,7 @@ describe('Sessions', () => {
     )
     expect(window.modal.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: 'Deleting this project also deletes tasks under it. The actual folder is not deleted.'
+        content: 'Deleting this work directory also deletes tasks under it. The actual folder is not deleted.'
       })
     )
     expect(dataApiMocks.mutationOptions.get('DELETE /agent-workspaces/:workspaceId')?.refresh).toEqual([

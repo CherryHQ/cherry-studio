@@ -30,11 +30,11 @@ vi.mock('react-i18next', async (importOriginal) => {
     useTranslation: () => ({
       t: (key: string) =>
         ({
-          'agent.session.workspace_selector.create_failed': 'Failed to add project',
-          'agent.session.workspace_selector.create_new': 'Add new project',
-          'agent.session.workspace_selector.empty_text': 'No projects',
-          'agent.session.workspace_selector.no_project': 'No project',
-          'agent.session.workspace_selector.search_placeholder': 'Search projects',
+          'agent.session.workspace_selector.create_failed': 'Failed to add work directory',
+          'agent.session.workspace_selector.create_new': 'Add new work directory',
+          'agent.session.workspace_selector.empty_text': 'No work directories',
+          'agent.session.workspace_selector.no_project': 'No work directory',
+          'agent.session.workspace_selector.search_placeholder': 'Search work directories',
           'agent.session.workspace_selector.select_failed': 'Failed to select folder'
         })[key] ?? key
     })
@@ -166,8 +166,8 @@ describe('WorkspaceSelector', () => {
     )
     openPopover()
 
-    const addProjectButton = screen.getByRole('button', { name: 'Add new project' })
-    const noProjectButton = screen.getByRole('button', { name: 'No project' })
+    const addProjectButton = screen.getByRole('button', { name: 'Add new work directory' })
+    const noProjectButton = screen.getByRole('button', { name: 'No work directory' })
     expect(addProjectButton.compareDocumentPosition(noProjectButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     fireEvent.click(noProjectButton)
@@ -179,7 +179,7 @@ describe('WorkspaceSelector', () => {
     renderSelector()
     openPopover()
 
-    fireEvent.change(screen.getByPlaceholderText('Search projects'), { target: { value: 'projects' } })
+    fireEvent.change(screen.getByPlaceholderText('Search work directories'), { target: { value: 'projects' } })
 
     expect(screen.queryByRole('option', { name: /\/Users\/jd\/cherry-studio/ })).not.toBeInTheDocument()
     expect(screen.getByRole('option', { name: /cherry-studio-1/ })).toBeInTheDocument()
@@ -216,7 +216,7 @@ describe('WorkspaceSelector', () => {
     const { onChange } = renderSelector()
     openPopover()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add new project' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add new work directory' }))
 
     await waitFor(() =>
       expect(selectFolderMock).toHaveBeenCalledWith({ properties: ['openDirectory', 'createDirectory'] })
@@ -230,7 +230,7 @@ describe('WorkspaceSelector', () => {
     const { onChange } = renderSelector()
     openPopover()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add new project' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add new work directory' }))
 
     await waitFor(() =>
       expect(createWorkspaceMock).toHaveBeenCalledWith({

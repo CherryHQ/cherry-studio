@@ -508,7 +508,7 @@
         "agent": "[to be translated]:Agent",
         "time": "[to be translated]:Time",
         "title": "[to be translated]:Display mode",
-        "workdir": "[to be translated]:Project"
+        "workdir": "工作目錄"
       },
       "edit": {
         "title": "編輯工作階段"
@@ -536,7 +536,7 @@
         "drag_hint": "拖曳以重新排序。拖曳任務以調整顯示與隱藏分組。",
         "earlier": "[to be translated]:Earlier",
         "expand_all": "[to be translated]:Expand all",
-        "no_workdir": "[to be translated]:No project",
+        "no_workdir": "無工作目錄",
         "show_more": "[to be translated]:Expand display",
         "this_week": "[to be translated]:This week",
         "today": "[to be translated]:Today",
@@ -572,28 +572,28 @@
       },
       "workdir": {
         "delete": {
-          "content": "刪除此專案也會刪除其下所有任務。只會移除資料庫記錄，磁碟上的實際資料夾不會被刪除。",
+          "content": "刪除此工作目錄也會刪除其下所有任務。只會移除資料庫記錄，磁碟上的實際資料夾不會被刪除。",
           "error": {
-            "failed": "[to be translated]:Failed to delete the project"
+            "failed": "刪除工作目錄失敗"
           },
-          "title": "[to be translated]:Delete project",
-          "trigger": "[to be translated]:Delete project"
+          "title": "刪除工作目錄",
+          "trigger": "刪除工作目錄"
         },
         "rename": {
           "error": {
-            "failed": "[to be translated]:Failed to rename the project"
+            "failed": "重新命名工作目錄失敗"
           },
-          "title": "[to be translated]:Rename project",
-          "trigger": "[to be translated]:Rename project"
+          "title": "重新命名工作目錄",
+          "trigger": "重新命名工作目錄"
         }
       },
       "workspace_selector": {
-        "create_failed": "[to be translated]:Failed to add project.",
-        "create_new": "[to be translated]:Add new project",
-        "empty_text": "[to be translated]:No projects",
-        "no_project": "[to be translated]:No project",
-        "placeholder": "[to be translated]:Select project",
-        "search_placeholder": "[to be translated]:Search projects",
+        "create_failed": "新增工作目錄失敗。",
+        "create_new": "新增工作目錄",
+        "empty_text": "暫無工作目錄",
+        "no_project": "不使用工作目錄",
+        "placeholder": "選擇工作目錄",
+        "search_placeholder": "搜尋工作目錄",
         "select_failed": "[to be translated]:Failed to select folder."
       },
       "workspace_status": {

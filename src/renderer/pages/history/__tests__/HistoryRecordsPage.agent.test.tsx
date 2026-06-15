@@ -282,8 +282,8 @@ vi.mock('react-i18next', () => ({
       const fallback = typeof fallbackOrOptions === 'string' ? fallbackOrOptions : undefined
       const options = typeof fallbackOrOptions === 'object' ? fallbackOrOptions : maybeOptions
       const labels: Record<string, string> = {
-        'agent.session.display.workdir': 'Project',
-        'agent.session.group.no_workdir': 'No project',
+        'agent.session.display.workdir': 'Work directory',
+        'agent.session.group.no_workdir': 'No work directory',
         'agent.session.delete.content': 'Delete this task?',
         'agent.session.delete.title': 'Delete task',
         'agent.session.edit.title': 'Edit task',

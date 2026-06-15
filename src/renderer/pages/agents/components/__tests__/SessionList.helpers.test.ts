@@ -33,7 +33,7 @@ const SESSION_GROUP_LABELS = {
     unknown: 'Unknown agent'
   },
   workdir: {
-    none: 'No project'
+    none: 'No work directory'
   }
 }
 
@@ -244,7 +244,7 @@ describe('SessionList helpers', () => {
   it('treats system workspaces as the dedicated no-project display group only in workdir mode', () => {
     const systemWorkspace = makeWorkspace('/Users/jd/Data/Agents/system/2026-05-25/120000-session', {
       id: 'system-ws',
-      name: 'No project',
+      name: 'No work directory',
       type: 'system'
     })
     const session = createSession({

@@ -508,7 +508,7 @@
         "agent": "Agent",
         "time": "Time",
         "title": "Display mode",
-        "workdir": "Project"
+        "workdir": "Work directory"
       },
       "edit": {
         "title": "Edit session"
@@ -536,7 +536,7 @@
         "drag_hint": "Drag to reorder. Drag tasks to adjust display and hidden groups.",
         "earlier": "Earlier",
         "expand_all": "Expand all",
-        "no_workdir": "No project",
+        "no_workdir": "No work directory",
         "show_more": "Expand display",
         "this_week": "This week",
         "today": "Today",
@@ -572,28 +572,28 @@
       },
       "workdir": {
         "delete": {
-          "content": "Deleting this project will also delete all tasks under it. Only database records are removed; the actual folder on disk will not be deleted.",
+          "content": "Deleting this work directory will also delete all tasks under it. Only database records are removed; the actual folder on disk will not be deleted.",
           "error": {
-            "failed": "Failed to delete the project"
+            "failed": "Failed to delete the work directory"
           },
-          "title": "Delete project",
-          "trigger": "Delete project"
+          "title": "Delete work directory",
+          "trigger": "Delete work directory"
         },
         "rename": {
           "error": {
-            "failed": "Failed to rename the project"
+            "failed": "Failed to rename the work directory"
           },
-          "title": "Rename project",
-          "trigger": "Rename project"
+          "title": "Rename work directory",
+          "trigger": "Rename work directory"
         }
       },
       "workspace_selector": {
-        "create_failed": "Failed to add project.",
-        "create_new": "Add new project",
-        "empty_text": "No projects",
-        "no_project": "No project",
-        "placeholder": "Select project",
-        "search_placeholder": "Search projects",
+        "create_failed": "Failed to add work directory.",
+        "create_new": "Add new work directory",
+        "empty_text": "No work directories",
+        "no_project": "No work directory",
+        "placeholder": "Select work directory",
+        "search_placeholder": "Search work directories",
         "select_failed": "Failed to select folder."
       },
       "workspace_status": {
