@@ -192,8 +192,8 @@ const MessageErrorInfo: React.FC<{
 
       {/* Header: icon + title */}
       <div className="mb-1.5 flex items-center gap-2">
-        <div className="flex shrink-0 items-center justify-center text-foreground-muted">
-          <AlertTriangle size={15} />
+        <div className="flex shrink-0 items-center justify-center text-error-base">
+          <AlertTriangle size={15} className="lucide-custom" />
         </div>
         <div className="pr-5 font-medium text-[13px] leading-[1.4]">{aiSummary || t(classification.i18nKey)}</div>
       </div>
