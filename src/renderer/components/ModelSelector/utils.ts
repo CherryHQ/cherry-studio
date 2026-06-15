@@ -1,4 +1,5 @@
-import { getProviderLabel } from '@renderer/i18n/label'
+import i18n from '@renderer/i18n'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import type { Provider } from '@shared/data/types/provider'
 
 /**
@@ -10,7 +11,7 @@ import type { Provider } from '@shared/data/types/provider'
  */
 export function getProviderDisplayName(provider: Provider): string {
   if (provider.presetProviderId && provider.id === provider.presetProviderId) {
-    return getProviderLabel(provider.presetProviderId)
+    return i18n.t(getProviderLabelKey(provider.presetProviderId))
   }
   return provider.name
 }
