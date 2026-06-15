@@ -50,7 +50,7 @@ export const AppShell = () => {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col pr-2 pb-2">
           <main
             data-page-side-panel-root={isMac ? undefined : 'true'}
-            className="relative min-h-0 flex-1 overflow-hidden rounded-2xl bg-background">
+            className="relative min-h-0 flex-1 overflow-hidden rounded-[16px] bg-background">
             {/* Route Tabs: Only render non-dormant tabs */}
             {tabs
               .filter((t) => t.type === 'route' && !t.isDormant)
