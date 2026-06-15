@@ -147,7 +147,7 @@ describe('Combobox', () => {
     expect(screen.queryByText('Beta')).not.toBeInTheDocument()
   })
 
-  it('exposes selected multi-value removal as an accessible button', () => {
+  it('exposes selected multi-value removal as accessible controls', () => {
     const onChange = vi.fn()
 
     render(
@@ -163,6 +163,14 @@ describe('Combobox', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove Alpha' }))
 
+    expect(onChange).toHaveBeenCalledWith(['beta'])
+
+    onChange.mockClear()
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Remove Alpha' }), { key: 'Enter' })
+    expect(onChange).toHaveBeenCalledWith(['beta'])
+
+    onChange.mockClear()
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Remove Alpha' }), { key: ' ' })
     expect(onChange).toHaveBeenCalledWith(['beta'])
   })
 })
