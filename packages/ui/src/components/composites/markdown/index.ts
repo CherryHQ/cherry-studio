@@ -16,6 +16,7 @@
 export { MarkdownBlockContext, type MarkdownBlockContextValue, useMarkdownBlockContext } from './context'
 export { Markdown, type MarkdownProps } from './markdown'
 export * from './plugins'
+export { defaultMarkdownPlugins, withChatPlugins, withMath, withMermaid } from './presets'
 export { StreamingMarkdown, type StreamingMarkdownProps } from './streaming-markdown'
 export type { MarkdownSource, MarkdownStatus } from './types'
 export * from './utils'
