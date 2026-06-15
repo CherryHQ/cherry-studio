@@ -5682,12 +5682,18 @@
           },
           "invalid": "Entrada no válida, verifica el formato JSON",
           "json": "Importar desde JSON",
+          "mcpb": "Importar paquete MCPB",
+          "mcpbFile": "Archivo de paquete MCPB",
+          "mcpbHelp": "Selecciona un archivo .mcpb que contenga un paquete de servidor MCP",
+          "mcpbProcessFailed": "Error al procesar el archivo MCPB",
           "method": "Método de importación",
           "nameExists": "El servidor ya existe: {{name}}",
           "noDxtFile": "Por favor, selecciona un archivo DXT",
+          "noMcpbFile": "Por favor, seleccione un archivo MCPB",
           "oneServer": "Solo se puede guardar una configuración de servidor MCP a la vez",
           "placeholder": "Pega la configuración JSON del servidor MCP",
           "selectDxtFile": "Seleccionar archivo DXT",
+          "selectMcpbFile": "Seleccionar archivo MCPB",
           "tooltip": "Copia el JSON de configuración desde la página de descripción de MCP Servers (prioriza configuraciones NPX o UVX) y pégalo en el campo de entrada"
         },
         "label": "Agregar servidor"
