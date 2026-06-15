@@ -1,7 +1,7 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModel'
-import { getFileProcessorLabel } from '@renderer/i18n/label'
+import { getFileProcessorLabelKey } from '@renderer/i18n/label'
 import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
@@ -34,9 +34,9 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
   const fileProcessorOptions = useMemo(() => {
     return KNOWLEDGE_V2_FILE_PROCESSORS.map((processor) => ({
       value: processor.id,
-      label: getFileProcessorLabel(processor.id)
+      label: t(getFileProcessorLabelKey(processor.id))
     }))
-  }, [])
+  }, [t])
 
   const searchModeOptions = useMemo<KnowledgeSelectOption[]>(
     () => [

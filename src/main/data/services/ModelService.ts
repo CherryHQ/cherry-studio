@@ -19,6 +19,11 @@ import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateModelDto, ListModelsQuery, UpdateModelDto } from '@shared/data/api/schemas/models'
+import {
+  CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+  CHERRYAI_PROVIDER_ID,
+  isManagedCherryAiDefaultModel
+} from '@shared/data/presets/cherryai'
 import type {
   EndpointType,
   Modality,
@@ -32,6 +37,26 @@ import type { ReasoningFormatType } from '@shared/data/types/provider'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('DataApi:ModelService')
+
+function assertManagedCherryAiDefaultModelPatchAllowed(providerId: string, modelId: string, dto: UpdateModelDto): void {
+  if (!isManagedCherryAiDefaultModel(providerId, modelId) || Object.keys(dto).length === 0) {
+    return
+  }
+
+  assertManagedCherryAiDefaultModelMutationAllowed(providerId, modelId, `update model ${providerId}/${modelId}`)
+}
+
+function assertManagedCherryAiDefaultModelMutationAllowed(
+  providerId: string,
+  modelId: string,
+  operation: string
+): void {
+  if (!isManagedCherryAiDefaultModel(providerId, modelId)) {
+    return
+  }
+
+  throw DataApiErrorFactory.invalidOperation(operation, 'managed CherryAI default model cannot be modified')
+}
 
 /**
  * Resolve the effective capability set for a Model row at query-time.
@@ -326,8 +351,14 @@ class ModelService {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, toRemove)))
 
+    const managedDefaultIds = new Set<string>()
     const protectedIds = new Set<string>()
     for (const row of rows) {
+      if (providerId === CHERRYAI_PROVIDER_ID && row.id === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
+        managedDefaultIds.add(row.id)
+        continue
+      }
+
       if (row.presetModelId == null || row.presetModelId === '' || row.isDeprecated) {
         continue
       }
@@ -343,8 +374,15 @@ class ModelService {
         skippedIds: [...protectedIds]
       })
     }
+    if (managedDefaultIds.size > 0) {
+      logger.warn('Skipped managed CherryAI default model removal during reconcile', {
+        providerId,
+        skippedCount: managedDefaultIds.size,
+        skippedIds: [...managedDefaultIds]
+      })
+    }
 
-    return toRemove.filter((id) => !protectedIds.has(id))
+    return toRemove.filter((id) => !managedDefaultIds.has(id) && !protectedIds.has(id))
   }
 
   /**
@@ -521,6 +559,13 @@ class ModelService {
    */
   async create(items: CreateModelInput[]): Promise<Model[]> {
     if (items.length === 0) return []
+    for (const { dto } of items) {
+      assertManagedCherryAiDefaultModelMutationAllowed(
+        dto.providerId,
+        dto.modelId,
+        `create model ${dto.providerId}/${dto.modelId}`
+      )
+    }
 
     const db = application.get('DbService').getDb()
     const values = items.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
@@ -572,6 +617,8 @@ class ModelService {
    * Update an existing model
    */
   async update(providerId: string, modelId: string, dto: UpdateModelDto): Promise<Model> {
+    assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, dto)
+
     const db = application.get('DbService').getDb()
 
     // Fetch existing row (also verifies existence)
@@ -635,6 +682,10 @@ class ModelService {
     if (items.length === 0) return []
 
     const db = application.get('DbService').getDb()
+
+    for (const { providerId, modelId, patch } of items) {
+      assertManagedCherryAiDefaultModelPatchAllowed(providerId, modelId, patch)
+    }
 
     const dtoToDbKey = (key: string): string => {
       const mapping = UPDATE_MODEL_FIELD_MAP.find((entry) => (Array.isArray(entry) ? entry[0] === key : false))
@@ -779,9 +830,9 @@ class ModelService {
    * Delete a model
    */
   async delete(providerId: string, modelId: string): Promise<void> {
-    const db = application.get('DbService').getDb()
+    assertManagedCherryAiDefaultModelMutationAllowed(providerId, modelId, `delete model ${providerId}/${modelId}`)
 
-    await db.transaction(async (tx) => {
+    await application.get('DbService').withWriteTx(async (tx) => {
       const rows = await tx
         .delete(userModelTable)
         .where(and(eq(userModelTable.providerId, providerId), eq(userModelTable.modelId, modelId)))
@@ -804,6 +855,14 @@ class ModelService {
    */
   async batchUpsert(models: InsertUserModelRow[]): Promise<void> {
     if (models.length === 0) return
+    const managedModel = models.find((model) => isManagedCherryAiDefaultModel(model.providerId, model.modelId))
+    if (managedModel) {
+      assertManagedCherryAiDefaultModelMutationAllowed(
+        managedModel.providerId,
+        managedModel.modelId,
+        `batch upsert model ${managedModel.providerId}/${managedModel.modelId}`
+      )
+    }
 
     const db = application.get('DbService').getDb()
 

@@ -16,7 +16,7 @@ export const agentTable = sqliteTable(
     planModel: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     smallModel: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     mcps: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
-    allowedTools: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+    disabledTools: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
     configuration: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull().default(sql`'{}'`),
     ...orderKeyColumns,
     ...createUpdateDeleteTimestamps

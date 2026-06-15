@@ -53,7 +53,7 @@ The merged object is built as `{ ...secondary, ...primary, /* explicit overrides
 |-------|-----------|----------|
 | Missing/invalid id | `!id` or `typeof id !== 'string'` | Skip source, log warning |
 | Same id across sources | `sourceById.has(id)` | Merge field-by-field (see above); silent at info-log level — v1's initialState seeds id='default' in both `assistants[0]` and `defaultAssistant`, so this fires on essentially every real-user migration |
-| Legacy id `'default'` | `id === LEGACY_DEFAULT_ASSISTANT_ID` | Remap to a fresh UUID before merge / insert (see "Legacy default-assistant remap" below) |
+| Legacy id `'default'` | `rawId === 'default'` | Remap to a fresh UUID before merge / insert (see "Legacy default-assistant remap" below) |
 | Transform failure | `transformAssistant()` throws | Skip merged source, log warning |
 | All sources skipped | `totalRawSources > 0 && skippedCount > 0 && preparedResults.length === 0` | Fail prepare phase |
 | Dangling `model` ref | `userModelTable` lookup miss | Drop `modelId` (set to null), log warning |
@@ -63,7 +63,7 @@ The merged object is built as `{ ...secondary, ...primary, /* explicit overrides
 
 ## Legacy default-assistant remap
 
-v2 has **no system-reserved `'default'` assistant row**. The renderer composes a runtime default from `Preference.defaultModelId` (and other UI-level defaults), so `assistant` is empty for new installs and contains only user-created/migrated rows for upgraders.
+v2 has **no system-reserved `'default'` assistant row**. New installs get the managed default assistant through `DefaultAssistantSeeder`; upgraded profiles get only user-created/migrated rows from this migrator.
 
 To preserve user customizations made to v1's default assistant, `recordSource()` rewrites the legacy literal `'default'` to a freshly generated UUID before inserting into `sourceById`. Both v1 sources for that id (`assistants[0]` and the standalone `defaultAssistant` slot) collide on the same UUID and merge under the standard primary-wins contract. The remap (`'default' → UUID`) is held on the migrator instance for the duration of `prepare`/`execute` and exposed through `ctx.sharedData` so `ChatMigrator` can rewrite any `topic.assistantId === 'default'` to the same UUID rather than orphaning the topic.
 
@@ -80,7 +80,7 @@ If v1 had no `'default'` source at all (no `assistants[0]/defaultAssistant`), no
 
 ## Order-Key Backfill
 
-`transformAssistant()` leaves `orderKey` as an empty placeholder because legacy Redux assistants have no stable per-row fractional key. `AssistantMigrator.execute()` stamps the prepared assistant rows with `assignOrderKeysInSequence()` immediately before insert, preserving the merged source order used by `recordSource()`.
+Legacy Redux assistants have no stable per-row fractional key, so `transformAssistant()` omits `orderKey`. `AssistantMigrator.execute()` stamps the prepared assistant rows with `assignOrderKeysInSequence()` immediately before insert, preserving the merged source order used by `recordSource()`.
 
 ## Dropped Relationship Rows
 

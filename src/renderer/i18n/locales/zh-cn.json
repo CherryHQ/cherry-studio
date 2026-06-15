@@ -395,6 +395,9 @@
           "failed": "会话排序失败"
         }
       },
+      "tool": {
+        "disabled": "{{toolName}} 工具已被此智能体禁用。"
+      },
       "update": {
         "error": {
           "failed": "更新会话失败"
@@ -5679,12 +5682,18 @@
           },
           "invalid": "无效输入，请检查 JSON 格式",
           "json": "从 JSON 导入",
+          "mcpb": "导入 MCPB 包",
+          "mcpbFile": "MCPB 包文件",
+          "mcpbHelp": "选择包含 MCP 服务器的 .mcpb 文件",
+          "mcpbProcessFailed": "处理 MCPB 文件失败",
           "method": "导入方式",
           "nameExists": "服务器已存在：{{name}}",
           "noDxtFile": "请选择一个 DXT 文件",
+          "noMcpbFile": "请选择一个 MCPB 文件",
           "oneServer": "每次只能保存一個 MCP 伺服器配置",
           "placeholder": "粘贴 MCP 服务器 JSON 配置",
           "selectDxtFile": "选择 DXT 文件",
+          "selectMcpbFile": "选择 MCPB 文件",
           "tooltip": "请从 MCP Servers 的介绍页面复制配置 JSON（优先使用\n NPX 或 UVX 配置），并粘贴到输入框中"
         },
         "label": "添加服务器"
@@ -6654,6 +6663,7 @@
         "project_id": "项目 ID",
         "project_id_help": "您的 Google Cloud 项目 ID",
         "project_id_placeholder": "your-google-cloud-project-id",
+        "select_location": "选择地区",
         "service_account": {
           "auth_success": "Service Account 认证成功",
           "client_email": "客户端邮箱",
@@ -6669,7 +6679,10 @@
           "private_key": "私钥",
           "private_key_help": "从 Google Cloud Console 下载的 JSON 密钥文件中的 private_key 字段",
           "private_key_placeholder": "请输入 Service Account 私钥",
-          "title": "Service Account 配置"
+          "title": "Service Account 配置",
+          "toggle_client_email_visibility": "切换客户端邮箱的显示状态",
+          "toggle_private_key_visibility": "切换私钥的显示状态",
+          "toggle_project_id_visibility": "切换 Project ID 的显示状态"
         }
       }
     },
@@ -7076,6 +7089,36 @@
     "settings": "设置",
     "store": "助手库",
     "translate": "翻译"
+  },
+  "trace": {
+    "agent": "智能体",
+    "backList": "返回列表",
+    "cachedTokens": "缓存",
+    "endTime": "结束时间",
+    "inputs": "输入",
+    "label": "调用链",
+    "model": "模型",
+    "name": "节点名称",
+    "noTraceList": "没有找到Trace信息",
+    "operation": "操作",
+    "outputs": "输出",
+    "pollError": "轮询失败",
+    "reasoningTokens": "推理",
+    "requestHeaders": "请求头",
+    "requestMethod": "请求方法",
+    "requestUrl": "请求URL",
+    "responseHeaders": "响应头",
+    "responseStatus": "响应状态",
+    "serverDescription": "服务器描述",
+    "serverName": "服务器名称",
+    "serverType": "服务器类型",
+    "spanDetail": "Span详情",
+    "spendTime": "消耗时间",
+    "startTime": "开始时间",
+    "status": "状态",
+    "tag": "标签",
+    "tokenUsage": "Token使用量",
+    "toolCalls": "工具调用"
   },
   "translate": {
     "alter_language": "备用语言",

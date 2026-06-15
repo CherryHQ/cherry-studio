@@ -79,4 +79,10 @@ describe('fetchWebSearchContent', () => {
 
     await expect(fetchWebSearchContent('https://example.com/article')).rejects.toThrow('HTTP error: 500')
   })
+
+  it('rejects private/metadata addresses before fetching (SSRF guard)', async () => {
+    await expect(fetchWebSearchContent('http://169.254.169.254/latest/meta-data/')).rejects.toThrow(/local or private/)
+    // Blocked before any network call.
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })

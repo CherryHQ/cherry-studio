@@ -1,6 +1,5 @@
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { SpanEntity } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
 import type {
   AiAgentSessionWarmCloseRequest,
@@ -34,7 +33,6 @@ import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes
 import type {
   FileProcessorFeature,
   FileProcessorId,
-  SelectionActionItem,
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
   UnifiedPreferenceType,
@@ -95,6 +93,8 @@ import type {
   SkillResult,
   SkillToggleOptions
 } from '../renderer/types/skill'
+import { ipcApi } from './ipc'
+
 // OpenClaw types
 type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 
@@ -444,6 +444,10 @@ const api = {
       const buffer = await file.arrayBuffer()
       return ipcRenderer.invoke(IpcChannel.Mcp_UploadDxt, buffer, file.name)
     },
+    uploadMcpb: async (file: File) => {
+      const buffer = await file.arrayBuffer()
+      return ipcRenderer.invoke(IpcChannel.Mcp_UploadMcpb, buffer, file.name)
+    },
     abortTool: (callId: string) => ipcRenderer.invoke(IpcChannel.Mcp_AbortTool, callId),
     getServerVersion: (serverId: string): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetServerVersion, serverId),
@@ -555,46 +559,15 @@ const api = {
       }
     }
   },
-  windowManager: {
+  settings: {
+    // NOTE: misplaced API, kept here as an interim home. `openSettings` opens the
+    // Settings *window* — a navigation/feature concern, NOT a window-control primitive —
+    // yet it was historically grouped under `windowManager`. It is parked under `settings`
+    // so it stops leaking into the window domain, but the underlying `SettingsWindow_Open`
+    // IPC is still legacy (not on IpcApi). FOLLOW-UP: migrate it onto a proper settings /
+    // navigation IpcApi domain and remove this stopgap.
     openSettings: (path: SettingsPath = '/settings/provider'): Promise<string> =>
-      ipcRenderer.invoke(IpcChannel.SettingsWindow_Open, path),
-
-    // Retrieve init data that the main process stored for this window via
-    // wm.setInitData() or wm.open({ initData }). Returns null when no data was set or when
-    // the sender window is not managed by WindowManager (e.g., detached devtools).
-    // Renderers that also need to update on reuse should prefer the useWindowInitData
-    // hook (hooks/useWindowInitData), which also listens for WindowManager_Reused.
-    getInitData: <T = unknown>(): Promise<T | null> => ipcRenderer.invoke(IpcChannel.WindowManager_GetInitData),
-
-    minimize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.WindowManager_Minimize),
-    maximize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.WindowManager_Maximize),
-    unmaximize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.WindowManager_Unmaximize),
-    close: (): Promise<void> => ipcRenderer.invoke(IpcChannel.WindowManager_Close),
-    isMaximized: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.WindowManager_IsMaximized),
-
-    setFullScreen: (value: boolean): Promise<void> => ipcRenderer.invoke(IpcChannel.WindowManager_SetFullScreen, value),
-    isFullScreen: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.WindowManager_IsFullScreen),
-
-    onMaximizedChange: (callback: (isMaximized: boolean) => void): (() => void) => {
-      const listener = (_: Electron.IpcRendererEvent, isMaximized: boolean) => callback(isMaximized)
-      ipcRenderer.on(IpcChannel.WindowManager_MaximizedChanged, listener)
-      return () => ipcRenderer.off(IpcChannel.WindowManager_MaximizedChanged, listener)
-    },
-    onFullscreenChange: (callback: (isFullscreen: boolean) => void): (() => void) => {
-      const listener = (_: Electron.IpcRendererEvent, isFullscreen: boolean) => callback(isFullscreen)
-      ipcRenderer.on(IpcChannel.WindowManager_FullscreenChanged, listener)
-      return () => ipcRenderer.off(IpcChannel.WindowManager_FullscreenChanged, listener)
-    }
-  },
-  selection: {
-    hideToolbar: () => ipcRenderer.invoke(IpcChannel.Selection_ToolbarHide),
-    writeToClipboard: (text: string) => ipcRenderer.invoke(IpcChannel.Selection_WriteToClipboard, text),
-    determineToolbarSize: (width: number, height: number) =>
-      ipcRenderer.invoke(IpcChannel.Selection_ToolbarDetermineSize, width, height),
-    processAction: (actionItem: SelectionActionItem, isFullScreen: boolean = false) =>
-      ipcRenderer.invoke(IpcChannel.Selection_ProcessAction, actionItem, isFullScreen),
-    pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned),
-    getLinuxEnvInfo: () => ipcRenderer.invoke(IpcChannel.Selection_GetLinuxEnvInfo)
+      ipcRenderer.invoke(IpcChannel.SettingsWindow_Open, path)
   },
   wechat: {
     onQrLogin: (
@@ -694,12 +667,7 @@ const api = {
   //   ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
   // setUseSystemTitleBar: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetUseSystemTitleBar, isActive),
   trace: {
-    saveData: (topicId: string) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_DATA, topicId),
-    saveEntity: (entity: SpanEntity) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_ENTITY, entity),
-    getEntity: (spanId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_ENTITY, spanId),
-    bindTopic: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_BIND_TOPIC, topicId, traceId),
-    cleanHistory: (topicId: string, traceId: string, modelName?: string) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_HISTORY, topicId, traceId, modelName),
+    getData: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId),
     cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA)
   },
   codeCli: {
@@ -818,6 +786,8 @@ const api = {
       return () => ipcRenderer.off(channel, listener)
     }
   },
+  // IpcApi RPC channel — generic forwarder; the typed facade lives in src/renderer/ipc
+  ipcApi,
   topic: {
     onAutoRenamed: (callback: (payload: { topicId: string }) => void) => {
       const listener = (_: any, payload: { topicId: string }) => callback(payload)

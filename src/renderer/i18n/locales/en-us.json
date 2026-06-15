@@ -395,6 +395,9 @@
           "failed": "Failed to reorder sessions"
         }
       },
+      "tool": {
+        "disabled": "The {{toolName}} tool is disabled for this agent."
+      },
       "update": {
         "error": {
           "failed": "Failed to update the session"
@@ -5679,12 +5682,18 @@
           },
           "invalid": "Invalid input, please check JSON format",
           "json": "Import from JSON",
+          "mcpb": "Import MCPB Bundle",
+          "mcpbFile": "MCPB Bundle File",
+          "mcpbHelp": "Select a .mcpb file containing an MCP server bundle",
+          "mcpbProcessFailed": "Failed to process MCPB file",
           "method": "Import Method",
           "nameExists": "Server already exists: {{name}}",
           "noDxtFile": "Please select a DXT file",
+          "noMcpbFile": "Please select an MCPB file",
           "oneServer": "Only one MCP server configuration at a time",
           "placeholder": "Paste MCP server JSON config",
           "selectDxtFile": "Select DXT File",
+          "selectMcpbFile": "Select MCPB File",
           "tooltip": "Please copy the configuration JSON (prioritizing\n NPX or UVX configurations) from the MCP Servers introduction page and paste it into the input box."
         },
         "label": "Add Server"
@@ -6654,6 +6663,7 @@
         "project_id": "Project ID",
         "project_id_help": "Your Google Cloud project ID",
         "project_id_placeholder": "your-google-cloud-project-id",
+        "select_location": "Select location",
         "service_account": {
           "auth_success": "Service Account authenticated successfully",
           "client_email": "Client Email",
@@ -6669,7 +6679,10 @@
           "private_key": "Private Key",
           "private_key_help": "The private_key field from the JSON key file downloaded from Google Cloud Console",
           "private_key_placeholder": "Enter Service Account private key",
-          "title": "Service Account Configuration"
+          "title": "Service Account Configuration",
+          "toggle_client_email_visibility": "Toggle client email visibility",
+          "toggle_private_key_visibility": "Toggle private key visibility",
+          "toggle_project_id_visibility": "Toggle project ID visibility"
         }
       }
     },
@@ -7076,6 +7089,36 @@
     "settings": "Settings",
     "store": "Assistant Library",
     "translate": "Translate"
+  },
+  "trace": {
+    "agent": "Agent",
+    "backList": "Back To List",
+    "cachedTokens": "Cached",
+    "endTime": "End Time",
+    "inputs": "Inputs",
+    "label": "Call Chain",
+    "model": "Model",
+    "name": "Node Name",
+    "noTraceList": "No trace information found",
+    "operation": "Operation",
+    "outputs": "Outputs",
+    "pollError": "Polling failed",
+    "reasoningTokens": "Reasoning",
+    "requestHeaders": "Request Headers",
+    "requestMethod": "Request Method",
+    "requestUrl": "Request URL",
+    "responseHeaders": "Response Headers",
+    "responseStatus": "Response Status",
+    "serverDescription": "Server Description",
+    "serverName": "Server Name",
+    "serverType": "Server Type",
+    "spanDetail": "Span Details",
+    "spendTime": "Spend Time",
+    "startTime": "Start Time",
+    "status": "Status",
+    "tag": "Tag",
+    "tokenUsage": "Token Usage",
+    "toolCalls": "Tool Calls"
   },
   "translate": {
     "alter_language": "Alternative Language",

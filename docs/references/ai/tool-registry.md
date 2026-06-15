@@ -29,22 +29,25 @@ unambiguous):
 
 | Source | Name pattern | Example |
 |---|---|---|
-| Built-in | `<namespace>__<verb>` | `web__search`, `kb__search` |
+| Built-in | fixed wire name (`<namespace>_<verb>`) | `web_search`, `kb_search` |
 | MCP | `mcp__<camelCase(server)>__<camelCase(tool)>` | `mcp__gmail__sendMessage` |
 | Meta | `tool_<verb>` | `tool_search`, `tool_invoke`, `tool_inspect` (`tool_exec` is defined but not injected — see below) |
+
+The built-in wire names live in `@shared/ai/builtinTools` (single-underscore,
+e.g. `web_search`); they are not derived from a `__` segment convention like MCP.
 
 ## Built-in tools
 
 `src/main/ai/tools/adapters/aiSdk/builtin/` registers **four** entries:
 
-- `web__search` (`WebSearchTool.ts` → `createWebSearchToolEntry`) — namespace
+- `web_search` (`WebSearchTool.ts` → `createWebSearchToolEntry`) — namespace
   `web`. Talks to the configured web-search provider via the
   renderer-shared search service.
-- `web__fetch` (`WebSearchTool.ts` → `createWebFetchToolEntry`) — namespace
+- `web_fetch` (`WebFetchTool.ts` → `createWebFetchToolEntry`) — namespace
   `web`. Fetches a URL's content.
-- `kb__search` (`KnowledgeSearchTool.ts`) — semantic search over the active
+- `kb_search` (`KnowledgeSearchTool.ts`) — semantic search over the active
   knowledge base.
-- `kb__list` (`KnowledgeListTool.ts`) — enumerate available knowledge bases /
+- `kb_list` (`KnowledgeListTool.ts`) — enumerate available knowledge bases /
   documents.
 
 Registration happens in `builtin/index.ts` (`registerBuiltinTools`). Each
