@@ -5682,12 +5682,18 @@
           },
           "invalid": "Ungültige Eingabe, bitte JSON-Format überprüfen",
           "json": "Von JSON importieren",
+          "mcpb": "MCPB-Bundle importieren",
+          "mcpbFile": "MCPB-Bündeldatei",
+          "mcpbHelp": "Wählen Sie eine .mcpb-Datei mit einem MCP-Server-Bundle aus",
+          "mcpbProcessFailed": "Fehler beim Verarbeiten der MCPB-Datei",
           "method": "Importmethode",
           "nameExists": "Server existiert bereits: {{name}}",
           "noDxtFile": "Eine DXT-Datei auswählen",
+          "noMcpbFile": "Bitte wählen Sie eine MCPB-Datei",
           "oneServer": "Nur eine MCP-Server-Konfiguration kann gespeichert werden",
           "placeholder": "MCP-Server-JSON-Konfiguration einfügen",
           "selectDxtFile": "DXT-Datei auswählen",
+          "selectMcpbFile": "MCPB-Datei auswählen",
           "tooltip": "Konfigurations-JSON von MCP-Servers kopieren (Vorzugsweise NPX oder UVX-Konfigurationen verwenden) und in das Eingabefeld einfügen"
         },
         "label": "Server hinzufügen"

@@ -22,6 +22,7 @@ import { SseListener } from '@main/ai/streamManager'
 import type { StreamListener } from '@main/ai/streamManager/types'
 import type { CallOverrides } from '@main/ai/types/requests'
 import { application } from '@main/core/application'
+import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { v4 as uuidv4 } from 'uuid'
@@ -95,6 +96,9 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   }
   const providerId = modelString.slice(0, sepIdx)
   const modelId = modelString.slice(sepIdx + 1)
+  if (isManagedCherryAiDefaultModel(providerId, modelId)) {
+    throw new Error('CherryAI managed default model is not available through the API gateway')
+  }
   const uniqueModelId = createUniqueModelId(providerId, modelId)
 
   const isStreaming = 'stream' in params && (params as { stream?: boolean }).stream === true

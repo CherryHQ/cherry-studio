@@ -1,3 +1,5 @@
+import fs from 'fs'
+import os from 'os'
 import path from 'path'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -6,9 +8,17 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-const { assertZipEntriesWithin, buildResolvedEnv, ensurePathWithin, validateArgs, validateCommand } = await import(
-  '../DxtService'
-)
+const { application } = await import('@application')
+
+const {
+  assertZipEntriesWithin,
+  buildResolvedEnv,
+  ensurePathWithin,
+  McpPackageService,
+  validateArgs,
+  validateCommand,
+  validatePackageUploadPayload
+} = await import('../McpPackageService')
 
 describe('ensurePathWithin', () => {
   // Use path.join to construct cross-platform compatible paths
@@ -301,5 +311,72 @@ describe('buildResolvedEnv', () => {
     expect(() => buildResolvedEnv({ NODE_OPTIONS: '--require ./evil.js' }, extractDir)).toThrow('is not allowed')
     expect(() => buildResolvedEnv({ LD_PRELOAD: '/tmp/evil.so' }, extractDir)).toThrow('is not allowed')
     expect(() => buildResolvedEnv({ DYLD_INSERT_LIBRARIES: '/tmp/evil.dylib' }, extractDir)).toThrow('is not allowed')
+  })
+
+  it('denylists process-affecting environment variables case-insensitively', () => {
+    expect(() => buildResolvedEnv({ node_options: '--require ./evil.js' }, extractDir)).toThrow('is not allowed')
+    expect(() => buildResolvedEnv({ ld_preload: '/tmp/evil.so' }, extractDir)).toThrow('is not allowed')
+    expect(() => buildResolvedEnv({ dyld_insert_libraries: '/tmp/evil.dylib' }, extractDir)).toThrow('is not allowed')
+  })
+})
+
+describe('validatePackageUploadPayload', () => {
+  it('accepts a matching package extension and returns a buffer', () => {
+    const data = new Uint8Array([1, 2, 3])
+
+    const buffer = validatePackageUploadPayload(data, 'server.mcpb', 'mcpb')
+
+    expect(Buffer.isBuffer(buffer)).toBe(true)
+    expect([...buffer]).toEqual([1, 2, 3])
+  })
+
+  it('rejects path-like file names before temp file creation', () => {
+    const data = new Uint8Array([1])
+
+    expect(() => validatePackageUploadPayload(data, '../server.dxt', 'dxt')).toThrow('path separators')
+    expect(() => validatePackageUploadPayload(data, 'nested/server.dxt', 'dxt')).toThrow('path separators')
+  })
+
+  it('rejects wrong extensions, empty names, and empty payloads', () => {
+    expect(() => validatePackageUploadPayload(new Uint8Array([1]), 'server.zip', 'dxt')).toThrow('expected a .dxt')
+    expect(() => validatePackageUploadPayload(new Uint8Array([1]), '', 'dxt')).toThrow('cannot be empty')
+    expect(() => validatePackageUploadPayload(new Uint8Array(), 'server.dxt', 'dxt')).toThrow('cannot be empty')
+  })
+})
+
+describe('McpPackageService package directory replacement', () => {
+  it('stages the new package before swapping it into the final directory', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'mcp-package-'))
+    const finalDir = path.join(root, 'server-demo')
+    const sourceDir = path.join(root, 'source')
+    const getPath = vi.mocked(application.getPath)
+    const defaultGetPath = (key: string, filename?: string): string =>
+      filename ? `/mock/${key}/${filename}` : `/mock/${key}`
+
+    getPath.mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.mcp') {
+        return filename ? path.join(root, filename) : root
+      }
+      return defaultGetPath(key, filename)
+    })
+
+    fs.mkdirSync(finalDir)
+    fs.writeFileSync(path.join(finalDir, 'version.txt'), 'old')
+    fs.mkdirSync(sourceDir)
+    fs.writeFileSync(path.join(sourceDir, 'version.txt'), 'new')
+
+    try {
+      const service = new McpPackageService()
+
+      await (service as any).replacePackageDirectory(sourceDir, finalDir, 'server-demo')
+
+      expect(fs.readFileSync(path.join(finalDir, 'version.txt'), 'utf-8')).toBe('new')
+      expect(fs.readdirSync(root).filter((entry) => entry.includes('.staged-') || entry.includes('.backup-'))).toEqual(
+        []
+      )
+    } finally {
+      getPath.mockImplementation(defaultGetPath)
+      fs.rmSync(root, { recursive: true, force: true })
+    }
   })
 })

@@ -5682,12 +5682,18 @@
           },
           "invalid": "Invalid input, please check JSON format",
           "json": "Import from JSON",
+          "mcpb": "Import MCPB Bundle",
+          "mcpbFile": "MCPB Bundle File",
+          "mcpbHelp": "Select a .mcpb file containing an MCP server bundle",
+          "mcpbProcessFailed": "Failed to process MCPB file",
           "method": "Import Method",
           "nameExists": "Server already exists: {{name}}",
           "noDxtFile": "Please select a DXT file",
+          "noMcpbFile": "Please select an MCPB file",
           "oneServer": "Only one MCP server configuration at a time",
           "placeholder": "Paste MCP server JSON config",
           "selectDxtFile": "Select DXT File",
+          "selectMcpbFile": "Select MCPB File",
           "tooltip": "Please copy the configuration JSON (prioritizing\n NPX or UVX configurations) from the MCP Servers introduction page and paste it into the input box."
         },
         "label": "Add Server"

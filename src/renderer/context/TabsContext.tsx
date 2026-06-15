@@ -2,11 +2,12 @@ import { loggerService } from '@logger'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { uuid } from '@renderer/utils'
-import { getDefaultRouteTitle, isTopLevelRoute } from '@renderer/utils/routeTitle'
+import { getDefaultRouteTitle, shouldAutoLocalizeRouteTitle } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState, TabType } from '@shared/data/cache/cacheValueTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ReactNode } from 'react'
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('TabsContext')
 
@@ -21,15 +22,12 @@ const DEFAULT_TAB: Tab = {
 
 function withLocalizedRouteTitle(tab: Tab): Tab {
   if (tab.type !== 'route') return tab
-  // Only auto-localize titles for top-level and settings routes. Parameterized
-  // routes (e.g. /app/mini-app/<id>) preserve the title supplied at openTab
-  // time so callers can pass per-entity names like a mini-app's display name.
-  if (!isTopLevelRoute(tab.url) && !isSettingsRouteTab(tab)) return tab
+  // Only auto-localize routes whose titles come from route defaults.
+  // Parameterized routes (e.g. /app/mini-app/<id>) preserve the title supplied
+  // at openTab time so callers can pass per-entity names like a mini-app's
+  // display name.
+  if (!shouldAutoLocalizeRouteTitle(tab.url)) return tab
   return { ...tab, title: getDefaultRouteTitle(tab.url) }
-}
-
-function isSettingsRouteTab(tab: Tab): boolean {
-  return tab.type === 'route' && tab.url.startsWith('/settings')
 }
 
 /**
@@ -84,6 +82,8 @@ export interface TabsContextValue {
 const TabsContext = createContext<TabsContextValue | null>(null)
 
 export function TabsProvider({ children }: { children: ReactNode }) {
+  const { i18n } = useTranslation()
+
   // Pinned tabs - persistent storage
   const [pinnedTabs, setPinnedTabsRaw] = usePersistCache('ui.tab.pinned_tabs')
 
@@ -137,7 +137,9 @@ export function TabsProvider({ children }: { children: ReactNode }) {
   const tabs = useMemo(() => {
     const home = withLocalizedRouteTitle({ ...DEFAULT_TAB })
     return [home, ...(pinnedTabs || []).map(withLocalizedRouteTitle), ...normalTabs.map(withLocalizedRouteTitle)]
-  }, [pinnedTabs, normalTabs])
+    // getDefaultRouteTitle reads the shared i18n instance; language refreshes those derived titles.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinnedTabs, normalTabs, i18n.language])
 
   /**
    * Hibernate tab (manual)

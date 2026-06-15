@@ -5682,12 +5682,18 @@
           },
           "invalid": "无效输入，请检查 JSON 格式",
           "json": "从 JSON 导入",
+          "mcpb": "导入 MCPB 包",
+          "mcpbFile": "MCPB 包文件",
+          "mcpbHelp": "选择包含 MCP 服务器的 .mcpb 文件",
+          "mcpbProcessFailed": "处理 MCPB 文件失败",
           "method": "导入方式",
           "nameExists": "服务器已存在：{{name}}",
           "noDxtFile": "请选择一个 DXT 文件",
+          "noMcpbFile": "请选择一个 MCPB 文件",
           "oneServer": "每次只能保存一個 MCP 伺服器配置",
           "placeholder": "粘贴 MCP 服务器 JSON 配置",
           "selectDxtFile": "选择 DXT 文件",
+          "selectMcpbFile": "选择 MCPB 文件",
           "tooltip": "请从 MCP Servers 的介绍页面复制配置 JSON（优先使用\n NPX 或 UVX 配置），并粘贴到输入框中"
         },
         "label": "添加服务器"
