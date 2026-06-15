@@ -40,12 +40,6 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
       : undefined
   const effectiveLogo = builtinIcon ?? resolvedLogo
 
-  // Radix keeps `imageLoadingStatus` on the <Avatar> root and never resets it when <AvatarImage>
-  // unmounts, so reusing one root across an image→icon / image→reset switch leaves the (now
-  // image-less) fallback suppressed and the avatar blank. Keying the root by the resolved source
-  // forces a remount so Radix starts from a clean status whenever the rendered content changes.
-  const avatarKey = typeof effectiveLogo === 'string' ? effectiveLogo : effectiveLogo ? 'builtin-icon' : 'fallback'
-
   // If logo is a CompoundIcon, render one concrete theme variant to avoid duplicate light/dark SVGs.
   if (effectiveLogo && typeof effectiveLogo !== 'string') {
     const Icon = effectiveLogo
@@ -54,7 +48,7 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
     const iconSize = resolvedSize * 0.7
 
     return (
-      <Avatar key={avatarKey} className={className} style={{ width: resolvedSize, height: resolvedSize, ...style }}>
+      <Avatar className={className} style={{ width: resolvedSize, height: resolvedSize, ...style }}>
         <AvatarFallback className="bg-background text-foreground">
           <Icon style={{ width: iconSize, height: iconSize }} />
         </AvatarFallback>
@@ -66,7 +60,7 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   // (unknown id) is not a URL — fall through to the initial-character fallback below.
   if (typeof effectiveLogo === 'string' && !effectiveLogo.startsWith('icon:')) {
     return (
-      <Avatar key={avatarKey} className={className} style={{ width: size, height: size, ...style }}>
+      <Avatar className={className} style={{ width: size, height: size, ...style }}>
         <AvatarImage src={effectiveLogo} className="object-cover" draggable={false} />
         <AvatarFallback style={{ backgroundColor, color }}>{fallbackContent}</AvatarFallback>
       </Avatar>
@@ -74,10 +68,8 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   }
 
   // Default: generate avatar with first character and background color
-
   return (
     <Avatar
-      key={avatarKey}
       className={className}
       style={{
         width: size,
