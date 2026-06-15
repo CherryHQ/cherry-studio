@@ -87,7 +87,7 @@ flowchart LR
 |---|---|---|
 | Entity facts（schema） | 表归属、引用事实、主键形态、聚合边界、file-ref source、JSON 软引用 | SET_NULL/DELETE_ROW 动作、导入顺序、恢复策略 |
 | Backup policy | 省略引用 override、唯一键合并 | 数据库 I/O、文件操作、异步 hook（remap/idStrategies 已移除） |
-| Operations | 文件资源发现、beforeArchive、JSON remap、逐行 transform、afterImport、blob 恢复、cloneAggregate | 可用纯数据表达的事实和策略 |
+| Operations | 文件资源发现、beforeArchive、逐行 transform、afterImport、blob 恢复、cloneAggregate | 可用纯数据表达的事实和策略 |
 
 > [!IMPORTANT]
 > **核心机制是 `schema.aggregates`（聚合边界）**，把 object-boundary SKIP/OVERWRITE/RENAME 从文字描述提升为静态可校验机制。
@@ -136,12 +136,27 @@ flowchart TB
 
 ### 6. 实现侧类型契约
 
-`EntityGraphSchema`：`tables` / `references`（kind: optional|owning|junction）/ `primaryKeys`（kind: uuid-v4|uuid-v7|natural|composite|autoincrement(finalize 拒绝)，ambiguous 标注）/ **`aggregates`**（`AggregateBoundary { root, identityKey, identityClass, conflictDefault, members[{table, viaColumn, cascade}], renamable }`）/ `fileRefSourcePolicies` / `jsonSoftReferences` / `rowScopes?`（共享表行分区，如 job_schedule.type='agent.task' 归 AGENTS，F1）。
+`EntityGraphSchema`：`tables` / `references`（kind: optional|owning|junction）/ `primaryKeys`（kind: uuid-v4|uuid-v7|natural|composite|autoincrement(finalize 拒绝)，ambiguous 标注）/ **`aggregates`**（`AggregateBoundary { root, renamable, [identityKey?], [identityClass?], [conflictDefault?], [members?] }`——除 `root` 与 `renamable` 外其余字段全部从 `references + primaryKeys` 派生，contributor 显式声明仅用于偏离默认）/ `fileRefSourcePolicies` / `jsonSoftReferences` / `rowScopes?`（共享表行分区，如 job_schedule.type='agent.task' 归 AGENTS，F1）。派生规则：identityKey=root PK；identityClass=primaryKeys[root].kind → uuid-entity|natural-key（slot 须显式）；conflictDefault=identityClass 映射（uuid-entity→SKIP；natural-key/slot→FIELD_MERGE）；members=域内指向 root 的 owning include references 源表（junction 表与跨域 ref 不计入，#14 拒绝漂移）。
 
 `BackupContributorPolicy`：`omittedReferenceOverrides`（仅例外，须绑定事实+非冗余+reason）、`uniqueMergeRules`、`fieldMergePolicies`（FIELD_MERGE 列级合并）。**不含** restoreRemap / idStrategies（over-design，移除）。
 
 > [!WARNING]
 > **类型入口**：`DbTableName` / `DbColumnName` 必须来自 Drizzle codegen，不能靠手写 as 认证。列名是 camelCase 实际 DB 列名（`topicId` / `providerId` / `fileEntryId`）。
+
+#### 6.2. `AggregateBoundary` 派生公式（fact-derived, 反对手写冗余）
+
+`AggregateBoundary` 六字段中,只有 `root`（领域事实：哪个表是"对象"的语义根）与 `renamable`（领域事实：能否安全克隆）是真新信息;其余四个字段**默认从 `references + primaryKeys` 派生**,contributor 显式声明仅在偏离默认派生时使用,显式 override 也须与派生结果自洽（finalize #14 拒绝漂移）。
+
+| 字段 | 缺省派生 | 何时显式 | 例外 reason |
+|------|----------|----------|-------------|
+| `root` | —（手写） | 必填 | — |
+| `renamable` | —（手写） | 必填 | — |
+| `identityKey` | `primaryKeys[root].columns`（root 的 PK 列） | PK 是复合且 alignment 键非全 PK | "natural-key 复合 PK 用单列" |
+| `identityClass` | `primaryKeys[root].kind` → `uuid-v4`/`uuid-v7` 映 `uuid-entity`,`natural` 映 `natural-key` | `slot`（预定义槽位） | "preset provider slot,非 codegen 可推断" |
+| `conflictDefault` | `uuid-entity`→`SKIP`;`natural-key`/`slot`→`FIELD_MERGE` | 偏离默认映射 | "PROVIDERS 整集合 OVERWRITE 而非字段合并" |
+| `members` | 域内指向 root 的 owning include references 源表（junction 表与跨域 ref 不计入） | 需排除默认成员（如"message.parentId 自引用不计入聚合"） | "self-ref 不参与聚合" |
+
+派生由 `finalize` 启动期完成,**不**在 hook 调用期。`omittedReferenceOverrides` 已确立的"仅例外、须绑定事实 + reason"模式同样适用于此处。
 
 #### Codegen 落地方案
 
@@ -205,7 +220,7 @@ flowchart TB
 
 注册到消费链路：各域 Contributor 静态导出 → ContributorManager 收集 → finalize 启动期校验 24 不变量（不连 DB）→ 通过则产出 BackupRegistry 供 orchestrator 查询，失败则启动中断并报 domain/table/owner/不变量。BackupService（WhenReady）@DependsOn(ContributorManager) 保证 finalize 先完成；DB 实际表覆盖由 coverage test（CI）兜底，故 finalize 不连 DB。
 
-各 hook 调用时机与缺省：collectFileResources（导出前收集文件/缺省空集）、beforeArchive（剥离后仅改备份副本/no-op）、remapJsonFields（导入前 RENAME 重映射 fileId/原行不变）、transformRow（导入前/原行，返回 null 跳过该行）、afterImport（域导入后 FTS 重建/no-op）、restoreResources（DB 导入前事务外/无）、cloneAggregate（仅 renamable 聚合 RENAME/缺则 finalize 拒）。**聚合根被 SKIP 时其成员 transformRow 不调用**。
+各 hook 调用时机与缺省：collectFileResources（导出前收集文件/缺省空集）、beforeArchive（剥离后仅改备份副本/no-op）、transformRow（导入前/原行，返回 null 跳过该行）、afterImport（域导入后 FTS 重建/no-op）、restoreResources（DB 导入前事务外/无）、cloneAggregate（仅 renamable 聚合 RENAME/缺则 finalize 拒）。**聚合根被 SKIP 时其成员 transformRow 不调用**。
 
 > [!TIP]
 > **lifecycle**：ContributorManager 与 BackupService 均 WhenReady，BackupService 须 `@DependsOn(ContributorManager)`；finalize 只校验静态一致性、**不连 DB**（DB 覆盖由 coverage test 保证，避免 WhenReady 服务违规依赖 DbService）。
@@ -214,13 +229,49 @@ flowchart TB
 
 | 检查点 | 证据 |
 |---|---|
-| 表归属 | §1 矩阵 + coverage test（39 表全覆盖） |
+| 表归属 | §1 矩阵 + coverage test（post-sync 目标态全表覆盖；pre-sync 按当前态动态计算） |
 | 聚合边界 | schema.aggregates + finalize #13-16 |
 | 引用事实 | ReferenceKind 派生 + finalize #6/7 |
 | JSON 软引用 | D19 + finalize #12 |
 | 文件一致性 | restoreResources + 一致性检查 |
 | 恢复安全 | RestoreRecoveryPoint（in-scope） |
 | 恢复语义 | 合并语义，不差集删除 |
+
+### 8.5. finalize 24 不变量（完整清单）
+
+`ContributorManager.finalize()` 启动期校验以下 24 条不变量（不连 DB，纯内存）。每条失败抛 `ContributorFinalizeError(invariantId, payload)`，payload 含 `domain/table/sourceType/owner/违反不变量` 字段。
+
+| # | 不变量 | 失败定位 payload |
+|---|--------|------------------|
+| 1 | 每域恰一 contributor（14 域） | `{ missingDomains \| extraDomains }` |
+| 2 | 每张 Drizzle 用户数据表恰一 owner 或带 reason 排除 | `{ table, status: 'unowned' \| 'multi-owned', owners }` |
+| 3 | 无表被多 contributor 拥有 | `{ table, owners }` |
+| 4 | ALWAYS_STRIP / INFRASTRUCTURE 表不被 contributor 拥有 | `{ table, declaredBy }` |
+| 5 | 排除集运行时表（job）确无 contributor 声明；job_schedule 不整表排除（type='agent.task' row-scope 归 AGENTS） | `{ table }` |
+| 6 | references / policy 引用的表属于声明方 owner | `{ domain, table }` |
+| 7 | omittedReferenceOverrides 绑定已声明 reference + 非冗余 + reason | `{ domain, reference, reason }` |
+| 8 | 每个 owned 表有恰一个 primary-key fact，列存在于 codegen | `{ table, expectedColumns }` |
+| 9 | 主键 kind 非 ambiguous | `{ table }` |
+| 10 | references 派生的依赖图无环 | `{ cycle: domains[] }` |
+| 11 | 每个 FileRefSourceType 有 owner 或 runtime-only 排除 | `{ unownedSourceType }` |
+| 12 | 每个已知 JSON soft-ref 字段已分类或排除 | `{ table, column }` |
+| 13 | 每个 aggregate.root 在 owner，identityKey 是其 PK | `{ domain, aggregate }` |
+| 14 | 每个 aggregate.member.viaColumn 是真实 FK 列指向 root.identityKey | `{ domain, aggregate, member }` |
+| 15 | aggregate 成员表属于同一 contributor | `{ domain, aggregate, member }` |
+| 16 | renamable:true 聚合的 operations.cloneAggregate 存在 | `{ domain, aggregate }` |
+| 17 | schema 深度冻结 | N/A（内部） |
+| 18 | 失败信息含 domain/table/sourceType/owner/违反不变量 | N/A（内部） |
+| 19 | 每个 EntityReference.kind 与生成的 FK onDelete 自洽 | `{ domain, reference, schemaOnDelete, declaredKind }` |
+| 20 | junction/co-owned FK 不声明 optional；NOT NULL 列不可 SET_NULL | `{ domain, reference, column, nullability }` |
+| 21 | natural-key/slot 聚合显式 conflictDefault 非 SKIP | `{ domain, aggregate, identityClass, conflictDefault }` |
+| 22 | 主键 kind 非 autoincrement | `{ table, kind: 'autoincrement' }` |
+| 23 | 共享表 row-scope 覆盖穷尽 | `{ table, uncoveredTypes }` |
+| 24 | 声明的 EntityReference 对应生成的 FK | `{ domain, reference }` |
+
+**实施依据**：
+- #19 / #24 须 codegen 生成 `DB_FOREIGN_KEYS`（`getTableConfig()` 读 FK 信息）作数据源
+- #5 取决于 `job_schedule` 的 row-scope 覆盖（F1）
+- #14/#15 派生自 owning include references（§6 `AggregateBoundary` 派生规则）
 
 ### 9. 恢复前快照与撤销恢复（恢复编排层）
 
@@ -266,10 +317,17 @@ flowchart TB
 
 ### 4. 恢复默认策略
 
-产品诉求"恢复后尽量不要大量重复项"，默认做法是「跳过」——本机已有的内容不再重复导入。恢复只会往本机补充备份里的新内容，**不会删除本机已有但备份里没有的数据**（只增不删）。
+默认做法是「跳过」——本机已有相同 identityKey 的对象不再重复导入。两条独立理由：
+
+1. **不破坏本地**：恢复是合并语义（只增不删，不差集删除本机独有数据）。SKIP 是"合并"的天然默认——备份中已存在本机的对象不动，本机独有对象保留，备份独有的对象补进来。
+2. **重复恢复幂等**：本方案已**移除 id remap、保留源主键**。同一份备份恢复两次：第二次源 uuid 撞 → SKIP 命中 → 整组不写。SKIP 在此作为"幂等去重"机制，避免重复恢复产生冗余行。
 
 > [!NOTE]
-> 边界：跳过不是智能合并，只处理系统能识别的重复——按完整对象整体判断（一个话题连同它的所有消息、一次 Agent 会话连同它的消息、一套助手或模型服务配置），要么整体导入要么整体跳过，不会出现导入一半。识别「同名助手」这类语义重复需要后续单独做。
+> **"大量重复"产生路径在 remap 移除后已基本消失**。原 remap 时代，每次恢复给记录生成新 uuid，重复恢复同一备份会反复当新导入 → 成倍重复。remap 移除后该路径断掉。
+>
+> 残留的"相似记录并存"（两台设备各自建的同名话题，uuid 不同）属**语义去重**——SKIP 不触发（identityKey 不撞），导入后两边并存。这已在 §一 non-goals「不做语义合并」明确排除。
+>
+> **边界**：跳过不是智能合并，只处理系统能识别的重复——按完整对象整体判断（一个话题连同它的所有消息、一次 Agent 会话连同它的消息、一套助手或模型服务配置），要么整体导入要么整体跳过，不会出现导入一半。识别「同名助手」这类语义重复需要后续单独做。
 
 ### 5. 关联内容缺失如何解释
 
@@ -291,7 +349,7 @@ flowchart TB
 
 ## 四、实施前置约束
 
-- 恢复冲突默认按 identityClass：uuid-entity 默认 SKIP 跳过冲突、保留本地版本；natural-key/slot 默认 FIELD_MERGE（保留本地凭证 + 合并远程，防丢数据）。冲突按用户可理解的最小完整对象（聚合根）判断。仅本地存在一律保留（合并语义）。
+- 恢复冲突默认按 identityClass：uuid-entity 默认 SKIP 跳过冲突、保留本地版本；natural-key/slot 默认 FIELD_MERGE（保留本地凭证 + 合并远程，防丢数据）。冲突按用户可理解的最小完整对象（聚合根）判断。仅本地存在一律保留（合并语义）。FIELD_MERGE 走列级合并会**就地修改**两边都存在的本地行字段（不是只增不删，而是局部覆盖），所以该路径的本地行修改须在 §9 pre-snapshot 回滚保护范围内（误改可撤销）。
 - 精简备份覆盖换机后最影响继续使用的内容：聊天、助手/Agent 配置、模型服务配置、常用设置；不含附件、知识库、翻译历史、paintings。
 - 用户自填模型服务密钥默认随自用备份恢复；企业统一下发 key 不属此备份；不做分享模式。
 - 恢复前先自动保存当前状态（整库 DB 快照 + 受影响文件快照）；失败或用户撤销可回到恢复前；RestoreRecoveryPoint 为 in-scope 必交付。
