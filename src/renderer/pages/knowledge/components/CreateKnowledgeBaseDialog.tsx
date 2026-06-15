@@ -47,6 +47,9 @@ type CreateKnowledgeBaseFormValues = Omit<CreateKnowledgeBaseInput, 'dimensions'
   dimensions: string
 }
 
+// Radix Select forbids an empty option value, so represent the default (ungrouped) group with a sentinel.
+const DEFAULT_GROUP_OPTION_VALUE = '__default__'
+
 const createInitialInput = (groupId?: string): CreateKnowledgeBaseFormValues => ({
   name: '',
   groupId,
@@ -259,17 +262,18 @@ const CreateKnowledgeBaseDialogRoot = ({
               <KnowledgeDialogField>
                 <Label>{t('knowledge.add.group')}</Label>
                 <Select
-                  value={values.groupId}
+                  value={values.groupId ?? DEFAULT_GROUP_OPTION_VALUE}
                   onValueChange={(groupId) =>
                     setValues((currentValues) => ({
                       ...currentValues,
-                      groupId
+                      groupId: groupId === DEFAULT_GROUP_OPTION_VALUE ? undefined : groupId
                     }))
                   }>
                   <SelectTrigger size="sm" className="w-full">
                     <SelectValue placeholder={t(DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY)} />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value={DEFAULT_GROUP_OPTION_VALUE}>{t(DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY)}</SelectItem>
                     {groups.map((group) => (
                       <SelectItem key={group.id} value={group.id}>
                         {group.name}

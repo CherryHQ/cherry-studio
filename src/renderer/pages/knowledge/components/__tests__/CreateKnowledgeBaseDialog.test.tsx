@@ -304,7 +304,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     expect(screen.queryByRole('button', { name: '默认' })).not.toBeInTheDocument()
   })
 
-  it('uses the default knowledge group as the group placeholder', () => {
+  it('renders the default group as a selectable option alongside the real groups', () => {
     render(
       <CreateKnowledgeBaseDialog
         open
@@ -317,9 +317,41 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     expect(screen.getByText('分组')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: '默认' })).toHaveLength(1)
+    // The trigger renders the default label and the list now offers an explicit default option.
+    expect(screen.getAllByRole('button', { name: '默认' })).toHaveLength(2)
     expect(screen.getByRole('button', { name: 'Research' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
+  })
+
+  it('submits without a group id when the default group option is selected', async () => {
+    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase())
+
+    render(
+      <CreateKnowledgeBaseDialog
+        open
+        groups={[createGroup(), createGroup({ id: 'group-2', name: 'Archive', orderKey: 'a1' })]}
+        initialGroupId="group-2"
+        isCreating={false}
+        createBase={createBase}
+        onOpenChange={vi.fn()}
+        onCreated={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
+    // Switch the preselected group back to the default group via the explicit option (last "默认" button is the item).
+    const defaultOptions = screen.getAllByRole('button', { name: '默认' })
+    fireEvent.click(defaultOptions[defaultOptions.length - 1])
+    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.click(screen.getByRole('button', { name: '创建' }))
+
+    await waitFor(() =>
+      expect(createBase).toHaveBeenCalledWith({
+        name: 'My Base',
+        embeddingModelId: 'openai::text-embedding-3-small',
+        dimensions: 1536
+      })
+    )
   })
 
   it('ignores a stale initial group id when there are no real groups', async () => {
