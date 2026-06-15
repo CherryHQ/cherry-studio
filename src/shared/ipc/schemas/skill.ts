@@ -37,7 +37,7 @@ const skillFileNodeSchema: z.ZodType<SkillFileNode> = z.object({
   children: z.lazy(() => skillFileNodeSchema.array()).optional()
 })
 
-const skillResultSchema = <T extends z.ZodType>(data: T) =>
+const skillResultSchema = <T extends z.ZodType>(data: T): z.ZodType<SkillResult<z.infer<T>>> =>
   z.union([
     z.object({ success: z.literal(true), data }),
     z.object({ success: z.literal(false), error: z.string() })

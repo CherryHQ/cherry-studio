@@ -100,4 +100,13 @@ describe('skillHandlers', () => {
       error: 'install failed'
     })
   })
+
+  it('stringifies non-Error thrown values in failed SkillResult', async () => {
+    skillServiceMock.install.mockRejectedValueOnce('install failed')
+
+    await expect(skillHandlers['skill.install']({ installSource: 'skills.sh:owner/repo' }, ctx)).resolves.toEqual({
+      success: false,
+      error: 'install failed'
+    })
+  })
 })
