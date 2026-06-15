@@ -13,6 +13,14 @@ import { createMathPlugin } from '@streamdown/math'
 import { mermaid } from '@streamdown/mermaid'
 import type { PluginConfig } from 'streamdown'
 
+export interface WithMathOptions {
+  singleDollar?: boolean
+}
+
+export interface WithChatPluginsOptions {
+  singleDollarMath?: boolean
+}
+
 /** Code (Shiki highlighting) + CJK line-break tweaks. */
 export const defaultMarkdownPlugins: PluginConfig = {
   code,
@@ -20,7 +28,7 @@ export const defaultMarkdownPlugins: PluginConfig = {
 }
 
 /** KaTeX math plugin. `singleDollar` enables `$x$` inline math (off by default). */
-export function withMath(opts?: { singleDollar?: boolean }): PluginConfig['math'] {
+export function withMath(opts?: WithMathOptions): PluginConfig['math'] {
   return createMathPlugin({ singleDollarTextMath: opts?.singleDollar ?? false })
 }
 
@@ -33,7 +41,7 @@ export function withMermaid(): PluginConfig['mermaid'] {
  * Composer preset bundling all four plugins (code + cjk + math + mermaid).
  * Suitable for chat surfaces that render the full markdown surface.
  */
-export function withChatPlugins(opts?: { singleDollarMath?: boolean }): PluginConfig {
+export function withChatPlugins(opts?: WithChatPluginsOptions): PluginConfig {
   return {
     ...defaultMarkdownPlugins,
     math: withMath({ singleDollar: opts?.singleDollarMath ?? false }),
