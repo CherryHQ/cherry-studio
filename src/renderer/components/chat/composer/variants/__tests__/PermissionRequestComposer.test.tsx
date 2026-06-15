@@ -27,6 +27,14 @@ vi.mock('react-i18next', async (importOriginal) => ({
   })
 }))
 
+vi.mock('@renderer/components/CodeViewer', () => ({
+  default: ({ maxHeight, value }: { maxHeight?: number; value: string }) => (
+    <div data-max-height={maxHeight} data-testid="code-viewer">
+      {value}
+    </div>
+  )
+}))
+
 const part = {
   type: 'tool-CustomTool',
   toolName: 'CustomTool',
@@ -141,9 +149,46 @@ describe('PermissionRequestComposer', () => {
 
     expect(screen.getByText('lookup_docs')).toBeInTheDocument()
     expect(screen.getByText('Search project documentation.')).toBeInTheDocument()
+    expect(screen.getByTestId('permission-preview')).not.toHaveClass('overflow-y-auto')
+    expect(screen.getByTestId('permission-mcp-args-scroll')).toHaveClass('max-h-60', 'overflow-y-auto')
     expect(screen.queryByText('Docs : lookup_docs')).not.toBeInTheDocument()
     expect(screen.getByText('query')).toBeInTheDocument()
     expect(screen.getByText('composer')).toBeInTheDocument()
+  })
+
+  it('bounds builtin previews that do not own their own scroll region', () => {
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
+
+    expect(screen.getByTestId('permission-preview')).not.toHaveClass('overflow-y-auto')
+    expect(screen.getByTestId('permission-builtin-body-scroll')).toHaveClass('max-h-60', 'overflow-y-auto')
+  })
+
+  it('does not add a fallback body scroller when the tool content owns scrolling', () => {
+    render(
+      <PermissionRequestComposer
+        request={makeRequest({
+          title: 'Write',
+          toolResponse: {
+            id: 'write-call-1',
+            toolCallId: 'write-call-1',
+            status: 'pending',
+            arguments: {
+              file_path: '/tmp/cherry-approval-long-preview-note.md',
+              content: '# Long approval preview\n\nA long document body.'
+            },
+            tool: {
+              id: 'Write',
+              name: 'Write',
+              type: 'builtin'
+            }
+          }
+        })}
+        onRespond={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-max-height', '240')
+    expect(screen.queryByTestId('permission-builtin-body-scroll')).not.toBeInTheDocument()
   })
 
   it('hides the request title when it only repeats the tool name', () => {
