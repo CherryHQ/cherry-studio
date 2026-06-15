@@ -1,9 +1,23 @@
 {
-  "generated_at": "2026-06-14T00:00:00Z",
+  "generated_at": "2026-06-15T00:00:00Z",
+  "status": "v2 branch merged into main — active development continues on main",
   "v2_open_prs": [],
   "v2_merged_last_30d": [],
+  "main_branch_activity": {
+    "merged_prs_last_30d": 164,
+    "open_prs": 100,
+    "draft_prs": 9,
+    "recent_merges_today": [
+      {"number": 15950, "title": "feat(data-api): bulk delete-by-query for topics and agent-sessions"},
+      {"number": 15965, "title": "refactor(ai-devtools): gate AI SDK devtools on isDev build flag"},
+      {"number": 16012, "title": "feat(vertex): port credential import from v1 to main with fixes"},
+      {"number": 16030, "title": "fix(provider-registry): correct model registry metadata"},
+      {"number": 15973, "title": "feat(knowledge): engine-portable per-base index store and retrieval"}
+    ]
+  },
   "summary": {
     "open": 0,
-    "merged_30d": 0
+    "merged_30d": 0,
+    "main_merged_30d": 164
   }
 }
