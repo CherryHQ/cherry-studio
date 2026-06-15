@@ -140,6 +140,31 @@ vi.mock('../../../hooks', () => ({
   })
 }))
 
+vi.mock('../../../components/KnowledgeModelSelect', () => ({
+  isEmbeddingModel: () => true,
+  isRerankModel: () => true,
+  KnowledgeModelSelect: ({
+    value,
+    placeholder,
+    onChange,
+    'aria-label': ariaLabel
+  }: {
+    value: string | null
+    placeholder: string
+    onChange: (modelId: string | null) => void
+    'aria-label'?: string
+  }) => (
+    <div>
+      <span>{value ?? placeholder}</span>
+      <input
+        aria-label={ariaLabel ?? placeholder}
+        value={value ?? ''}
+        onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
+      />
+    </div>
+  )
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
@@ -282,16 +307,11 @@ describe('RagConfigPanel', () => {
         }
       ],
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      embeddingModelOptions: [
-        { value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' },
-        { value: 'voyage::voyage-3-large', label: 'voyage-3-large · voyage' }
-      ],
       searchModeOptions: [
         { value: 'hybrid', label: '混合检索（推荐）' },
         { value: 'default', label: '向量检索' },
         { value: 'bm25', label: '全文检索' }
       ],
-      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }],
       save: mockSave,
       isLoading: false,
       error: undefined
@@ -333,8 +353,8 @@ describe('RagConfigPanel', () => {
     expect(screen.getByText('文档处理')).toBeInTheDocument()
     expect(screen.getByText('请求文档片段数 (Top K)')).toBeInTheDocument()
     expect(screen.getByText('重排模型 (Rerank)')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '不使用' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'text-embedding-3-small · openai' })).toBeInTheDocument()
+    expect(screen.getByText('不使用')).toBeInTheDocument()
+    expect(screen.getByLabelText('嵌入模型')).toHaveValue('openai::text-embedding-3-small')
     expect(screen.getByDisplayValue('1536')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '刷新向量维度' })).not.toBeDisabled()
     expect(screen.queryByRole('button', { name: '获取嵌入维度' })).not.toBeInTheDocument()
@@ -429,8 +449,8 @@ describe('RagConfigPanel', () => {
 
     renderRagConfigPanel(onRestoreBase)
 
-    fireEvent.click(screen.getByRole('button', { name: 'voyage-3-large · voyage' }))
-    expect(screen.getByDisplayValue('')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'voyage::voyage-3-large' } })
+    expect(screen.queryByDisplayValue('1536')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '重建' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
@@ -506,7 +526,6 @@ describe('RagConfigPanel', () => {
         hybridAlpha: 0.6
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' }],
       searchModeOptions: [
         { value: 'hybrid', label: '混合检索（推荐）' },
         { value: 'default', label: '向量检索' },
@@ -525,7 +544,6 @@ describe('RagConfigPanel', () => {
           isHidden: false
         }
       ],
-      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }],
       save: mockSave,
       isLoading: false,
       error: undefined
@@ -557,7 +575,6 @@ describe('RagConfigPanel', () => {
         hybridAlpha: 0.6
       },
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
-      embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' }],
       searchModeOptions: [
         { value: 'hybrid', label: '混合检索（推荐）' },
         { value: 'default', label: '向量检索' },
@@ -576,7 +593,6 @@ describe('RagConfigPanel', () => {
           isHidden: false
         }
       ],
-      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }],
       save: mockSave,
       isLoading: false,
       error: undefined

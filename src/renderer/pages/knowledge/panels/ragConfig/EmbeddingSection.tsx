@@ -4,17 +4,16 @@ import type { Model } from '@shared/data/types/model'
 import { RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import type { KnowledgeSelectOption } from '../../types'
-import { RagFieldLabel, RagNumericField, RagSelectField } from './panelPrimitives'
+import { isEmbeddingModel, KnowledgeModelSelect } from '../../components/KnowledgeModelSelect'
+import { RagFieldLabel, RagNumericField } from './panelPrimitives'
 
 interface EmbeddingSectionProps {
   embeddingModelId: string | null
   embeddingModel?: Model
-  embeddingModelOptions: KnowledgeSelectOption[]
   dimensions: string
   dimensionsErrorCode?: 'dimensionsInvalid'
   isFetchingDimensions?: boolean
-  onEmbeddingModelChange: (embeddingModelId: string) => void
+  onEmbeddingModelChange: (embeddingModelId: string | null) => void
   onDimensionsChange: (dimensions: string) => void
   onRefreshDimensions: () => void
 }
@@ -22,7 +21,6 @@ interface EmbeddingSectionProps {
 const EmbeddingSection = ({
   embeddingModelId,
   embeddingModel,
-  embeddingModelOptions,
   dimensions,
   dimensionsErrorCode,
   isFetchingDimensions = false,
@@ -36,11 +34,12 @@ const EmbeddingSection = ({
     <div className="flex flex-col gap-4">
       <div>
         <RagFieldLabel label={t('knowledge.rag.embedding_model')} hint={t('knowledge.rag.hints.embedding_model')} />
-        <RagSelectField
-          value={embeddingModelId ?? undefined}
-          options={embeddingModelOptions}
+        <KnowledgeModelSelect
+          aria-label={t('knowledge.rag.embedding_model')}
+          value={embeddingModelId}
           placeholder={t('knowledge.not_set')}
-          onValueChange={onEmbeddingModelChange}
+          filter={isEmbeddingModel}
+          onChange={onEmbeddingModelChange}
         />
       </div>
 

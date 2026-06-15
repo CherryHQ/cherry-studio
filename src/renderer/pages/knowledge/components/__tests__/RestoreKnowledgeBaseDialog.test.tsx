@@ -17,6 +17,27 @@ vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: (...args: unknown[]) => mockUseProviders(...args)
 }))
 
+vi.mock('../KnowledgeModelSelect', () => ({
+  isEmbeddingModel: () => true,
+  KnowledgeModelSelect: ({
+    value,
+    placeholder,
+    onChange,
+    'aria-label': ariaLabel
+  }: {
+    value: string | null
+    placeholder: string
+    onChange: (modelId: string | null) => void
+    'aria-label'?: string
+  }) => (
+    <input
+      aria-label={ariaLabel ?? placeholder}
+      value={value ?? ''}
+      onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
+    />
+  )
+}))
+
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
   const SelectContext = React.createContext<{ onValueChange?: (value: string) => void }>({})
@@ -174,7 +195,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
     expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'lg')
     expect(screen.getByLabelText('名称')).toHaveValue('Legacy KB_副本')
 
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
     await waitFor(() =>
@@ -221,7 +242,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
     expect(mockEmbedMany).not.toHaveBeenCalled()
     expect(screen.getByText('知识库嵌入模型是必需的')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
     await waitFor(() => expect(restoreBase).toHaveBeenCalled())
@@ -322,7 +343,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('知识库重建失败: restore failed'))
@@ -347,7 +368,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('获取嵌入维度失败: probe failed'))
@@ -387,7 +408,7 @@ describe('RestoreKnowledgeBaseDialog', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
     fireEvent.click(screen.getByRole('button', { name: '重建' }))
 
     await waitFor(() => expect(screen.getByLabelText('嵌入维度')).toBeInTheDocument())

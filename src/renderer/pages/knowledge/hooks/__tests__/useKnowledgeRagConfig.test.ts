@@ -134,16 +134,15 @@ describe('useKnowledgeRagConfig', () => {
       { value: 'mistral', label: 'Mistral' },
       { value: 'open-mineru', label: 'Open MinerU' }
     ])
-    expect(result.current.embeddingModelOptions).toEqual([
+    expect(result.current.embeddingModels).toEqual([
       {
-        value: 'openai::text-embedding-3-small',
-        label: 'text-embedding-3-small · openai'
-      }
-    ])
-    expect(result.current.rerankModelOptions).toEqual([
-      {
-        value: 'jina::jina-reranker-v2-base-multilingual',
-        label: 'jina-reranker-v2-base-multilingual · jina'
+        id: 'openai::text-embedding-3-small',
+        providerId: 'openai',
+        name: 'text-embedding-3-small',
+        capabilities: [MODEL_CAPABILITY.EMBEDDING],
+        supportsStreaming: false,
+        isEnabled: true,
+        isHidden: false
       }
     ])
     expect(result.current.searchModeOptions).toEqual([
@@ -155,7 +154,6 @@ describe('useKnowledgeRagConfig', () => {
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('system')
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('ovocr')
     expect(mockUseModels).toHaveBeenCalledWith({ capability: MODEL_CAPABILITY.EMBEDDING, enabled: true })
-    expect(mockUseModels).toHaveBeenCalledWith({ capability: MODEL_CAPABILITY.RERANK, enabled: true })
     expect(mockUseMutation).toHaveBeenCalledWith('PATCH', '/knowledge-bases/:id', {
       refresh: ['/knowledge-bases']
     })
@@ -189,13 +187,12 @@ describe('useKnowledgeRagConfig', () => {
     })
   })
 
-  it('returns empty model options when no enabled runtime models are available', () => {
+  it('returns empty embedding models when no enabled runtime models are available', () => {
     mockUseModels.mockReturnValue({ models: [] })
 
     const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
 
-    expect(result.current.embeddingModelOptions).toEqual([])
-    expect(result.current.rerankModelOptions).toEqual([])
+    expect(result.current.embeddingModels).toEqual([])
   })
 
   it('propagates save failures to the caller', async () => {

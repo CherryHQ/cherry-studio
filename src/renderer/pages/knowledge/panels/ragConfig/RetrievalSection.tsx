@@ -2,14 +2,13 @@ import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 import type { KnowledgeSearchMode } from '@shared/data/types/knowledge'
 import { useTranslation } from 'react-i18next'
 
+import { isRerankModel, KnowledgeModelSelect } from '../../components/KnowledgeModelSelect'
 import { RagFieldLabel, RagSelectField, RagSliderField } from './panelPrimitives'
 
-const EMPTY_OPTION_VALUE = '__none__'
 const DEFAULT_HYBRID_ALPHA = 0.5
 
 interface RetrievalSectionProps {
   searchModeOptions: KnowledgeSelectOption[]
-  rerankModelOptions: KnowledgeSelectOption[]
   documentCount: number
   threshold: number
   searchMode: KnowledgeSearchMode
@@ -24,7 +23,6 @@ interface RetrievalSectionProps {
 
 const RetrievalSection = ({
   searchModeOptions,
-  rerankModelOptions,
   documentCount,
   threshold,
   searchMode,
@@ -96,10 +94,14 @@ const RetrievalSection = ({
 
       <div>
         <RagFieldLabel label={t('knowledge.rag.rerank_model')} hint={t('knowledge.rag.hints.rerank_model')} />
-        <RagSelectField
-          value={rerankModelId ?? EMPTY_OPTION_VALUE}
-          options={[{ value: EMPTY_OPTION_VALUE, label: t('knowledge.rag.rerank_disabled') }, ...rerankModelOptions]}
-          onValueChange={(value) => onRerankModelChange(value === EMPTY_OPTION_VALUE ? null : value)}
+        <KnowledgeModelSelect
+          aria-label={t('knowledge.rag.rerank_model')}
+          value={rerankModelId}
+          placeholder={t('knowledge.rag.rerank_disabled')}
+          filter={isRerankModel}
+          allowClear
+          clearAriaLabel={t('knowledge.rag.rerank_disabled')}
+          onChange={onRerankModelChange}
         />
       </div>
     </div>

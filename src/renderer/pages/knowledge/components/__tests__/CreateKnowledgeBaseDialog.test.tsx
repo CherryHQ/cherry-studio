@@ -1,6 +1,5 @@
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,6 +16,27 @@ vi.mock('@renderer/hooks/useModel', () => ({
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: (...args: unknown[]) => mockUseProviders(...args)
+}))
+
+vi.mock('../KnowledgeModelSelect', () => ({
+  isEmbeddingModel: () => true,
+  KnowledgeModelSelect: ({
+    value,
+    placeholder,
+    onChange,
+    'aria-label': ariaLabel
+  }: {
+    value: string | null
+    placeholder: string
+    onChange: (modelId: string | null) => void
+    'aria-label'?: string
+  }) => (
+    <input
+      aria-label={ariaLabel ?? placeholder}
+      value={value ?? ''}
+      onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
+    />
+  )
 }))
 
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
@@ -173,7 +193,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'lg')
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() => expect(createBase).not.toHaveBeenCalled())
@@ -234,37 +254,9 @@ describe('CreateKnowledgeBaseDialog', () => {
     expect(screen.getByText('名称')).toBeInTheDocument()
     expect(screen.getByLabelText('名称')).toBeInTheDocument()
     expect(screen.queryByText('分组')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '未设置' })).toBeInTheDocument()
+    expect(screen.getByLabelText('嵌入模型')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '取消' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '创建' })).toBeInTheDocument()
-  })
-
-  it('renders only embedding models from enabled providers', () => {
-    mockUseModels.mockReturnValue({
-      models: [
-        { id: 'openai::text-embedding-3-small', providerId: 'openai' },
-        { id: 'disabled-provider::embedding-model', providerId: 'disabled-provider' }
-      ]
-    })
-    mockUseProviders.mockReturnValue({
-      providers: [{ id: 'openai', isEnabled: true }]
-    })
-
-    render(
-      <CreateKnowledgeBaseDialog
-        open
-        groups={[]}
-        isCreating={false}
-        createBase={vi.fn().mockResolvedValue(createKnowledgeBase())}
-        onOpenChange={vi.fn()}
-        onCreated={vi.fn()}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: 'text-embedding-3-small · openai' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'embedding-model · disabled-provider' })).not.toBeInTheDocument()
-    expect(mockUseModels).toHaveBeenCalledWith({ capability: MODEL_CAPABILITY.EMBEDDING, enabled: true })
-    expect(mockUseProviders).toHaveBeenCalledWith({ enabled: true })
   })
 
   it('closes the dialog on cancel without sending a request', () => {
@@ -342,7 +334,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     // Switch the preselected group back to the default group via the explicit option (last "默认" button is the item).
     const defaultOptions = screen.getAllByRole('button', { name: '默认' })
     fireEvent.click(defaultOptions[defaultOptions.length - 1])
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() =>
@@ -370,7 +362,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() =>
@@ -403,7 +395,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('知识库创建失败: create failed'))
@@ -429,7 +421,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('获取嵌入维度失败: probe failed'))
@@ -469,7 +461,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() => expect(screen.getByLabelText('嵌入维度')).toBeInTheDocument())
@@ -496,7 +488,7 @@ describe('CreateKnowledgeBaseDialog', () => {
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
     fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() =>
@@ -525,7 +517,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() =>

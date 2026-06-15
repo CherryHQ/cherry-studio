@@ -11,14 +11,10 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
-import { useModels } from '@renderer/hooks/useModel'
-import { useProviders } from '@renderer/hooks/useProvider'
-import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Group } from '@shared/data/types/group'
 import type { CreateKnowledgeBaseDto, KnowledgeBase } from '@shared/data/types/knowledge'
-import { isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,6 +26,7 @@ import {
   KnowledgeDialogFooter,
   KnowledgeDialogHeader
 } from './KnowledgeDialogLayout'
+import { isEmbeddingModel, KnowledgeModelSelect } from './KnowledgeModelSelect'
 
 interface CreateKnowledgeBaseDialogProps {
   open: boolean
@@ -61,15 +58,6 @@ const parseKnowledgeDimensions = (dimensions: string) => {
   const parsedDimensions = Number(dimensions)
 
   return Number.isSafeInteger(parsedDimensions) && parsedDimensions > 0 ? parsedDimensions : null
-}
-
-export const formatKnowledgeModelOptionLabel = (uniqueModelId: string) => {
-  if (!isUniqueModelId(uniqueModelId)) {
-    return uniqueModelId
-  }
-
-  const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-  return `${modelId} · ${providerId}`
 }
 
 const CreateKnowledgeBaseDialogHeader = ({ title }: { title: string }) => {
@@ -123,13 +111,7 @@ const CreateKnowledgeBaseDialogRoot = ({
   onCreated
 }: CreateKnowledgeBaseDialogProps) => {
   const { t } = useTranslation()
-  const { models: embeddingModels } = useModels({
-    capability: MODEL_CAPABILITY.EMBEDDING,
-    enabled: true
-  })
-  const { providers: enabledProviders } = useProviders({ enabled: true })
   const groupIds = useMemo(() => new Set(groups.map((group) => group.id)), [groups])
-  const enabledProviderIds = useMemo(() => new Set(enabledProviders.map((provider) => provider.id)), [enabledProviders])
   const normalizedInitialGroupId = initialGroupId && groupIds.has(initialGroupId) ? initialGroupId : undefined
   const [values, setValues] = useState<CreateKnowledgeBaseFormValues>(() =>
     createInitialInput(normalizedInitialGroupId)
@@ -160,20 +142,10 @@ const CreateKnowledgeBaseDialogRoot = ({
     })
   }, [groupIds])
 
-  const embeddingModelOptions = useMemo<KnowledgeSelectOption[]>(
-    () =>
-      embeddingModels
-        .filter((model) => enabledProviderIds.has(model.providerId))
-        .map((model) => ({
-          value: model.id,
-          label: formatKnowledgeModelOptionLabel(model.id)
-        })),
-    [embeddingModels, enabledProviderIds]
-  )
   const manualDimensions = parseKnowledgeDimensions(values.dimensions)
   const isManualDimensionsInvalid = isManualDimensionsVisible && hasAttemptedManualDimensionsSubmit && !manualDimensions
 
-  const handleEmbeddingModelChange = (embeddingModelId: string) => {
+  const handleEmbeddingModelChange = (embeddingModelId: string | null) => {
     setValues((currentValues) => ({
       ...currentValues,
       embeddingModelId,
@@ -286,25 +258,14 @@ const CreateKnowledgeBaseDialogRoot = ({
 
             <KnowledgeDialogField>
               <Label>{t('knowledge.embedding_model')}</Label>
-              <Select value={values.embeddingModelId ?? undefined} onValueChange={handleEmbeddingModelChange}>
-                <SelectTrigger
-                  size="sm"
-                  className="w-full"
-                  aria-invalid={hasAttemptedSubmit && !values.embeddingModelId}>
-                  <SelectValue placeholder={t('knowledge.not_set')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {embeddingModelOptions.length > 0 ? (
-                    embeddingModelOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <div className="px-2.5 py-2 text-foreground-muted text-sm">{t('knowledge.not_set')}</div>
-                  )}
-                </SelectContent>
-              </Select>
+              <KnowledgeModelSelect
+                aria-label={t('knowledge.embedding_model')}
+                value={values.embeddingModelId}
+                placeholder={t('knowledge.not_set')}
+                filter={isEmbeddingModel}
+                invalid={hasAttemptedSubmit && !values.embeddingModelId}
+                onChange={handleEmbeddingModelChange}
+              />
               {hasAttemptedSubmit && !values.embeddingModelId ? (
                 <FieldError>{t('knowledge.embedding_model_required')}</FieldError>
               ) : null}

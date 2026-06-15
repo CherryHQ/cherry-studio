@@ -49,16 +49,8 @@ const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
 
 const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
   const { t } = useTranslation()
-  const {
-    initialValues,
-    embeddingModels,
-    fileProcessorOptions,
-    embeddingModelOptions,
-    rerankModelOptions,
-    searchModeOptions,
-    save,
-    isLoading
-  } = useKnowledgeRagConfig(base)
+  const { initialValues, embeddingModels, fileProcessorOptions, searchModeOptions, save, isLoading } =
+    useKnowledgeRagConfig(base)
   const [values, setValues] = useState(initialValues)
 
   useEffect(() => {
@@ -125,7 +117,7 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
     }
   }
 
-  const handleEmbeddingModelChange = (embeddingModelId: string) => {
+  const handleEmbeddingModelChange = (embeddingModelId: string | null) => {
     setValues((currentValues) => ({
       ...currentValues,
       embeddingModelId,
@@ -161,7 +153,6 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
           <EmbeddingSection
             embeddingModelId={values.embeddingModelId}
             embeddingModel={selectedEmbeddingModel}
-            embeddingModelOptions={embeddingModelOptions}
             dimensions={values.dimensions}
             dimensionsErrorCode={validationErrorCodes.dimensions}
             isFetchingDimensions={isFetchingDimensions}
@@ -174,7 +165,6 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
 
           <RetrievalSection
             searchModeOptions={searchModeOptions}
-            rerankModelOptions={rerankModelOptions}
             documentCount={values.documentCount}
             threshold={values.threshold}
             searchMode={values.searchMode}
