@@ -1780,6 +1780,8 @@
       "payload": "Conteúdo da solicitação muito grande, reduza o tamanho do arquivo ou do texto",
       "proxy": "Erro de proxy ou certificado SSL, verifique as configurações de proxy e de rede",
       "quota": "Quota da conta esgotada, recarregue ou mude de fornecedor",
+      "rate_limit": "Demasiados pedidos num curto espaço de tempo. Aguarde um momento e tente novamente, ou mude para um modelo com um limite de taxa mais elevado",
+      "region": "Serviço indisponível na sua região. Configure um proxy ou mude para um fornecedor disponível na sua área",
       "server": "Erro no servidor, tente novamente mais tarde",
       "stream": "Resposta interrompida, verifique a estabilidade da rede ou tente novamente",
       "unknown": "Ocorreu um erro",
@@ -1791,6 +1793,7 @@
     "http": {
       "400": "Erro na solicitação, por favor verifique se os parâmetros da solicitação estão corretos. Se você alterou as configurações do modelo, redefina para as configurações padrão",
       "401": "Falha na autenticação, por favor verifique se a chave da API está correta",
+      "402": "Pagamento necessário. O saldo ou quota da sua conta está esgotada — carregue no site do fornecedor ou mude para outro fornecedor",
       "403": "Acesso negado, por favor traduza a mensagem de erro específica para verificar o motivo, ou entre em contato com o fornecedor de serviços para perguntar sobre o motivo da proibição",
       "404": "O modelo não existe ou a rota da solicitação está incorreta",
       "429": "Taxa de solicitação excedeu o limite, por favor tente novamente mais tarde",
