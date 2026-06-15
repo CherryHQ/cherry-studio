@@ -9,7 +9,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { startAiTurnTrace } from '../../../observability'
+import { startAiChildTurnSpan } from '../../../observability'
 import { PersistenceListener } from '../../listeners/PersistenceListener'
 import type { StreamListener } from '../../types'
 import type { MainSteerContinuationRequest } from '../dispatch'
@@ -26,7 +26,9 @@ vi.mock('../modelResolution', () => ({
 }))
 
 vi.mock('../../../observability', () => ({
-  startAiTurnTrace: vi.fn(() => ({ rootSpan: { end: vi.fn() }, traceId: 'trace-1' }))
+  startAiChildTurnSpan: vi.fn(() => ({ rootSpan: { end: vi.fn() }, traceId: 'trace-1' })),
+  deriveRootSpanId: vi.fn(() => '1'.repeat(16)),
+  applyTurnInputAttributes: vi.fn()
 }))
 
 const { PersistentChatContextProvider } = await import('../PersistentChatContextProvider')
@@ -184,7 +186,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
 
   it('fans out @-mentioned siblings: shared siblingsGroupId, one placeholder per model, aligned placeholders[i]/turnRootSpans[i]', async () => {
     // Two @-mentioned models → two assistant placeholders sharing one siblings group.
-    // Assert the per-model row and span line up so a fan-out never crosses streams.
+    // All placeholders share the container traceId now; assert the per-model row and span
+    // line up by index (keyed on modelId) so a fan-out never crosses streams.
     const MODEL_A = createUniqueModelId('openai', 'gpt-4o') // already seeded in beforeEach
     const MODEL_B = createUniqueModelId('anthropic', 'claude-sonnet-4-5')
     // Placeholder rows FK to user_model(id) — seed the second @-mentioned model.
@@ -210,9 +213,9 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     // Distinct span per call so index alignment is observable.
     const spanA = { end: vi.fn() }
     const spanB = { end: vi.fn() }
-    vi.mocked(startAiTurnTrace)
-      .mockReturnValueOnce({ rootSpan: spanA, traceId: 'trace-a' } as unknown as ReturnType<typeof startAiTurnTrace>)
-      .mockReturnValueOnce({ rootSpan: spanB, traceId: 'trace-b' } as unknown as ReturnType<typeof startAiTurnTrace>)
+    vi.mocked(startAiChildTurnSpan)
+      .mockReturnValueOnce({ rootSpan: spanA } as unknown as ReturnType<typeof startAiChildTurnSpan>)
+      .mockReturnValueOnce({ rootSpan: spanB } as unknown as ReturnType<typeof startAiChildTurnSpan>)
 
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
