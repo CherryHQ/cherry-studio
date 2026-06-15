@@ -254,7 +254,7 @@ describe('DetailHeader', () => {
     expect(onOpenRagConfig).toHaveBeenCalledOnce()
     expect(onOpenRecallTest).toHaveBeenCalledOnce()
     expect(screen.queryByText('RAG 配置')).not.toBeInTheDocument()
-    expect(screen.queryByText('召回测试')).not.toBeInTheDocument()
+    expect(screen.getByText('召回测试')).toBeInTheDocument()
   })
 
   it('opens the more menu and shows rename and delete actions', () => {

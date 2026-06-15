@@ -10,7 +10,7 @@ import {
 } from '@cherrystudio/ui'
 import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { MoreHorizontal, PencilLine, SlidersHorizontal, Trash2, Zap } from 'lucide-react'
+import { FlaskConical, MoreHorizontal, PencilLine, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -85,6 +85,10 @@ const DetailHeader = ({
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
+            <Button type="button" variant="ghost" size="sm" onClick={onOpenRecallTest}>
+              <FlaskConical size={14} />
+              {t('knowledge.tabs.recall_test')}
+            </Button>
             <Button
               type="button"
               variant="ghost"
@@ -92,14 +96,6 @@ const DetailHeader = ({
               aria-label={t('knowledge.tabs.rag_config')}
               onClick={onOpenRagConfig}>
               <SlidersHorizontal size={14} />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t('knowledge.tabs.recall_test')}
-              onClick={onOpenRecallTest}>
-              <Zap size={14} />
             </Button>
             <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
               <PopoverTrigger asChild>
