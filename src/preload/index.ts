@@ -136,7 +136,6 @@ export function tracedInvoke(channel: string, spanContext: SpanContext | undefin
 
 // Custom APIs for renderer
 const api = {
-  getAppInfo: () => ipcRenderer.invoke(IpcChannel.App_Info),
   reload: () => ipcRenderer.invoke(IpcChannel.MainWindow_Reload),
   checkForUpdate: () => ipcRenderer.invoke(IpcChannel.App_CheckForUpdate),
   // setLanguage: (lang: string) => ipcRenderer.invoke(IpcChannel.App_SetLanguage, lang),

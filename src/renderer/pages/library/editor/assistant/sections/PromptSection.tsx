@@ -38,7 +38,7 @@ const logger = loggerService.withContext('LibraryAssistantPromptSection')
  * TODO(v2-llm-migration): `usePromptProcessor` → `replacePromptVariables`
  * transitively reads Redux (`store.getState().llm.defaultModel?.name` fallback
  * when `assistant.modelName` is null) and legacy IPC
- * (`window.api.system.getDeviceType()` / `window.api.getAppInfo().arch` for
+ * (`window.api.system.getDeviceType()` / `ipcApi.request('app.get_info').arch` for
  * {{system}} / {{arch}}). Same Redux / legacy-IPC cluster as BasicSection's
  * ModelAvatar / SelectChatModelPopup / useProviders — should land together in
  * the same follow-up PR. Kept here so the editor matches legacy UX.

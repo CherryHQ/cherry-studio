@@ -7,6 +7,7 @@ import { useNote } from '@renderer/hooks/useNote'
 import { useActiveNode, useFileContent, useFileContentSync } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
+import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import {
   addDir,
@@ -252,7 +253,7 @@ const NotesPage: FC = () => {
     async function initialize() {
       if (!notesPath) {
         // 首次启动，获取默认路径
-        const info = await window.api.getAppInfo()
+        const info = await ipcApi.request('app.get_info')
         const defaultPath = info.notesPath
         updateNotesPath(defaultPath)
         return

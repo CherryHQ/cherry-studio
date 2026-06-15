@@ -7,7 +7,6 @@ export enum IpcChannel {
   App_CheckForUpdate = 'app:check-for-update',
   App_QuitAndInstall = 'app:quit-and-install',
   Application_Quit = 'application:quit',
-  App_Info = 'app:info',
   App_SetAutoUpdate = 'app:set-auto-update',
   App_SetTestPlan = 'app:set-test-plan',
   App_SetTestChannel = 'app:set-test-channel',

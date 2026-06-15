@@ -86,6 +86,7 @@ describe('global registry reflects migrated domains', () => {
   // Extend these unions as each new domain is migrated onto IpcApi.
   it('exposes the migrated selection + window request routes', () => {
     expectTypeOf<IpcRoute>().toEqualTypeOf<
+      | 'app.get_info'
       | 'selection.hide_toolbar'
       | 'selection.write_to_clipboard'
       | 'selection.determine_toolbar_size'

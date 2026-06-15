@@ -126,7 +126,6 @@ vi.mock('../../primitives/ProviderSettingsDrawer', () => ({
 describe('Model drawers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(window as any).api.getAppInfo = vi.fn().mockResolvedValue({})
     ;(window as any).toast = {
       success: vi.fn(),
       error: vi.fn()

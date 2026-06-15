@@ -170,10 +170,6 @@ describe('ProviderList', () => {
       configurable: true,
       value: vi.fn()
     })
-    ;(window as any).api = {
-      ...(window as any).api,
-      getAppInfo: vi.fn().mockResolvedValue({ appDataPath: '' })
-    }
     ;(window as any).modal = { confirm: vi.fn() }
     ;(window as any).toast = { error: vi.fn(), success: vi.fn() }
   })

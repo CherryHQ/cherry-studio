@@ -6,6 +6,7 @@ import db from '@renderer/databases'
 import { useAppUpdateHandler, useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import i18n, { setDayjsLocale } from '@renderer/i18n'
+import { ipcApi } from '@renderer/ipc'
 import { delay, runAsyncFunction } from '@renderer/utils'
 import { defaultLanguage } from '@shared/config/constant'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -65,7 +66,7 @@ export function useAppInit() {
 
   useEffect(() => {
     const checkForUpdates = async () => {
-      const { isPackaged } = await window.api.getAppInfo()
+      const { isPackaged } = await ipcApi.request('app.get_info')
 
       if (!isPackaged || !autoCheckUpdate) {
         return
@@ -77,7 +78,7 @@ export function useAppInit() {
 
     // Initial check with delay
     void runAsyncFunction(async () => {
-      const { isPackaged } = await window.api.getAppInfo()
+      const { isPackaged } = await ipcApi.request('app.get_info')
       if (isPackaged && autoCheckUpdate) {
         await delay(2)
         await checkForUpdates()
@@ -110,7 +111,7 @@ export function useAppInit() {
 
   useEffect(() => {
     // set files path
-    void window.api.getAppInfo().then((info) => {
+    void ipcApi.request('app.get_info').then((info) => {
       cacheService.set('app.path.files', info.filesPath)
       cacheService.set('app.path.resources', info.resourcesPath)
     })

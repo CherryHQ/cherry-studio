@@ -6,10 +6,11 @@ import LanTransferPopup from '@renderer/components/Popups/LanTransferPopup'
 import RestorePopup from '@renderer/components/Popups/RestorePopup'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import { reset } from '@renderer/services/BackupService'
-import type { AppInfo } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
 import { occupiedDirs } from '@shared/config/constant'
+import type { AppInfo } from '@shared/ipc/schemas/app'
 import { FolderInput, FolderOpen, FolderOutput, SaveIcon } from 'lucide-react'
 import type React from 'react'
 import { useEffect, useState } from 'react'
@@ -26,7 +27,7 @@ const BasicDataSettings: React.FC = () => {
   const [skipBackupFile, setSkipBackupFile] = usePreference('data.backup.general.skip_backup_file')
 
   useEffect(() => {
-    void window.api.getAppInfo().then(setAppInfo)
+    void ipcApi.request('app.get_info').then(setAppInfo)
     void window.api.getCacheSize().then(setCacheSize)
   }, [])
 
@@ -190,7 +191,7 @@ const BasicDataSettings: React.FC = () => {
           await window.api.setAppDataPath(newPath)
           window.toast.success(t('settings.data.app_data.path_changed_without_copy'))
 
-          setAppInfo(await window.api.getAppInfo())
+          setAppInfo(await ipcApi.request('app.get_info'))
 
           setTimeoutTimer(
             'showMigrationConfirmModal_2',
@@ -332,7 +333,7 @@ const BasicDataSettings: React.FC = () => {
       const newDataPath = await window.api.getDataPathFromArgs()
       if (!newDataPath) return
 
-      const originalPath = (await window.api.getAppInfo())?.appDataPath
+      const originalPath = (await ipcApi.request('app.get_info'))?.appDataPath
       if (!originalPath) return
 
       const title = (
@@ -358,7 +359,7 @@ const BasicDataSettings: React.FC = () => {
       try {
         await startMigration(originalPath, newDataPath, progressInterval, updateProgress, loadingModal)
 
-        setAppInfo(await window.api.getAppInfo())
+        setAppInfo(await ipcApi.request('app.get_info'))
 
         setTimeoutTimer(
           'handleDataMigration',

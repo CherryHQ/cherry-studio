@@ -3,12 +3,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { replacePromptVariables } from '../prompt'
 
+const { ipcRequestMock } = vi.hoisted(() => ({ ipcRequestMock: vi.fn() }))
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: ipcRequestMock
+  }
+}))
+
 // Mock window.api
 const mockApi = {
   system: {
     getDeviceType: vi.fn()
-  },
-  getAppInfo: vi.fn()
+  }
 }
 
 vi.mock('@renderer/store', () => {
@@ -50,7 +56,7 @@ describe('prompt', () => {
 
     // 设置默认的 mock 返回值
     mockApi.system.getDeviceType.mockResolvedValue('macOS')
-    mockApi.getAppInfo.mockResolvedValue({ arch: 'darwin64' })
+    ipcRequestMock.mockResolvedValue({ arch: 'darwin64' })
   })
 
   afterEach(() => {
@@ -93,7 +99,7 @@ describe('prompt', () => {
 
     it('should handle API errors gracefully and use fallback values', async () => {
       mockApi.system.getDeviceType.mockRejectedValue(new Error('API Error'))
-      mockApi.getAppInfo.mockRejectedValue(new Error('API Error'))
+      ipcRequestMock.mockRejectedValue(new Error('API Error'))
 
       const userPrompt = 'System: {{system}}, Architecture: {{arch}}'
       const result = await replacePromptVariables(userPrompt)

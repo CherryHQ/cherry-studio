@@ -510,20 +510,6 @@ export type WebDavConfig = {
   disableStream?: boolean
 }
 
-export type AppInfo = {
-  version: string
-  isPackaged: boolean
-  appPath: string
-  configPath: string
-  appDataPath: string
-  resourcesPath: string
-  filesPath: string
-  logsPath: string
-  arch: string
-  isPortable: boolean
-  installPath: string
-}
-
 export interface Shortcut {
   key: string
   shortcut: string[]

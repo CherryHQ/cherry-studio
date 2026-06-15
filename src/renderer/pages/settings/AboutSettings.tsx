@@ -8,6 +8,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import i18n from '@renderer/i18n'
+import { ipcApi } from '@renderer/ipc'
 import { runAsyncFunction } from '@renderer/utils'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { debounce } from 'lodash'
@@ -65,7 +66,7 @@ const AboutSettings: FC = () => {
   const mailto = async () => {
     const email = 'support@cherry-ai.com'
     const subject = `${APP_NAME} Feedback`
-    const version = (await window.api.getAppInfo()).version
+    const version = (await ipcApi.request('app.get_info')).version
     const platform = window.electron.process.platform
     const url = `mailto:${email}?subject=${subject}&body=%0A%0AVersion: ${version} | Platform: ${platform}`
     onOpenWebsite(url)
@@ -80,7 +81,7 @@ const AboutSettings: FC = () => {
   }
 
   const showReleases = async () => {
-    const { appPath } = await window.api.getAppInfo()
+    const { appPath } = await ipcApi.request('app.get_info')
     openSmartMiniApp({
       appId: 'cherrystudio-releases',
       name: t('settings.about.releases.title'),
@@ -150,7 +151,7 @@ const AboutSettings: FC = () => {
 
   useEffect(() => {
     void runAsyncFunction(async () => {
-      const appInfo = await window.api.getAppInfo()
+      const appInfo = await ipcApi.request('app.get_info')
       setVersion(appInfo.version)
       setIsPortable(appInfo.isPortable)
     })

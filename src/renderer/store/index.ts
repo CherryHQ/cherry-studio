@@ -123,7 +123,7 @@ export type AppDispatch = typeof store.dispatch
 //     // Use setTimeout to ensure this runs after the store is fully initialized
 //     setTimeout(async () => {
 //       try {
-//         const info = await window.api.getAppInfo()
+//         const info = await ipcApi.request('app.get_info')
 //         store.dispatch(setNotesPath(info.notesPath))
 //         logger.info('Initialized notes path on startup:', info.notesPath)
 //       } catch (error) {

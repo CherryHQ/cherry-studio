@@ -1,5 +1,4 @@
 import fs from 'node:fs'
-import { arch } from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
@@ -20,7 +19,7 @@ import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { extractPdfText } from '@shared/utils/pdf'
 import type { Notification } from '@types'
-import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
+import { BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
 import { skillService } from './ai/skills/SkillService'
@@ -60,21 +59,6 @@ export async function registerIpc() {
   //     mw.webContents.send(IpcChannel.App_SaveData)
   //   }
   // })
-
-  ipcMain.handle(IpcChannel.App_Info, () => ({
-    version: app.getVersion(),
-    isPackaged: app.isPackaged,
-    appPath: application.getPath('app.root'),
-    filesPath: application.getPath('feature.files.data'),
-    notesPath: application.getPath('feature.notes.data'),
-    configPath: application.getPath('cherry.config'),
-    appDataPath: application.getPath('app.userdata'),
-    resourcesPath: application.getPath('app.root.resources'),
-    logsPath: logger.getLogsDir(),
-    arch: arch(),
-    isPortable: isWin && 'PORTABLE_EXECUTABLE_DIR' in process.env,
-    installPath: application.getPath('app.install')
-  }))
 
   // MainWindow_Reload handler moved into MainWindowService.registerIpcHandlers.
   // Application_Quit is registered by Application.registerApplicationIpc()

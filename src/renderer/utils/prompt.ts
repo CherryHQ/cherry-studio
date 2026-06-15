@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { preferenceService } from '@renderer/data/PreferenceService'
+import { ipcApi } from '@renderer/ipc'
 import store from '@renderer/store'
 import { defaultLanguage } from '@shared/config/constant'
 
@@ -87,7 +88,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
 
   if (userSystemPrompt.includes('{{arch}}')) {
     try {
-      const appInfo = await window.api.getAppInfo()
+      const appInfo = await ipcApi.request('app.get_info')
       userSystemPrompt = userSystemPrompt.replace(/{{arch}}/g, appInfo.arch)
     } catch (error) {
       logger.error('Failed to get architecture:', error as Error)

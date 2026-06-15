@@ -42,7 +42,6 @@ describe('CherryInOauth', () => {
       confirm: vi.fn()
     }
     ;(window as any).api = {
-      getAppInfo: vi.fn().mockResolvedValue({}),
       cherryin: {
         getBalance: vi.fn().mockResolvedValue({
           balance: 128.5,

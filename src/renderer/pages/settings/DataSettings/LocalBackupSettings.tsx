@@ -6,9 +6,10 @@ import { LocalBackupManager } from '@renderer/components/LocalBackupManager'
 import { LocalBackupModal, useLocalBackupModal } from '@renderer/components/LocalBackupModals'
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { ipcApi } from '@renderer/ipc'
 import { startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { useAppSelector } from '@renderer/store'
-import type { AppInfo } from '@renderer/types'
+import type { AppInfo } from '@shared/ipc/schemas/app'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -29,7 +30,7 @@ const LocalBackupSettings: React.FC = () => {
   const [appInfo, setAppInfo] = useState<AppInfo>()
 
   useEffect(() => {
-    void window.api.getAppInfo().then(setAppInfo)
+    void ipcApi.request('app.get_info').then(setAppInfo)
   }, [])
 
   useEffect(() => {

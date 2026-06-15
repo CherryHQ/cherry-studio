@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import Selector from '@renderer/components/Selector'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { ipcApi } from '@renderer/ipc'
 import {
   SettingContainer,
   SettingDivider,
@@ -77,7 +78,7 @@ const NotesSettings: FC = () => {
 
   const handleResetToDefault = async () => {
     try {
-      const info = await window.api.getAppInfo()
+      const info = await ipcApi.request('app.get_info')
       setTempPath(info.notesPath)
       updateNotesPath(info.notesPath)
       window.toast.success(t('notes.settings.data.reset_to_default'))
