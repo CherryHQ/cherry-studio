@@ -5,6 +5,7 @@ import '@renderer/databases'
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { ipcApi } from '@renderer/ipc'
 import type { UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
 import { DEFAULT_SETTINGS_PATH, normalizeSettingsPath } from '@shared/data/types/settingsPath'
 import { createRoot } from 'react-dom/client'
@@ -39,7 +40,7 @@ async function preloadSettingsPreferences() {
 
 async function getInitialSettingsPath() {
   try {
-    return normalizeSettingsPath(await window.api.windowManager.getInitData<unknown>())
+    return normalizeSettingsPath(await ipcApi.request('window.get_init_data'))
   } catch (error) {
     logger.error('Failed to get settings window init data', error as Error)
     return DEFAULT_SETTINGS_PATH

@@ -1,5 +1,6 @@
 import type { RouteDef } from '../define'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
+import { type WindowEventSchemas, windowRequestSchemas } from './window'
 
 /**
  * Global request registry — the single source of truth the main router parses
@@ -9,7 +10,8 @@ import { type SelectionEventSchemas, selectionRequestSchemas } from './selection
  * never enter the renderer bundle (see ipc-overview.md, "zod across processes").
  */
 export const ipcRequestSchemas = {
-  ...selectionRequestSchemas
+  ...selectionRequestSchemas,
+  ...windowRequestSchemas
 } satisfies Record<string, RouteDef>
 
 export type IpcRequestSchemas = typeof ipcRequestSchemas
@@ -21,6 +23,6 @@ export type IpcRoute = keyof IpcRequestSchemas
  * the renderer trusts them and never re-parses). Each migrated domain intersects
  * its own `*EventSchemas` type here.
  */
-export type IpcEventSchemas = SelectionEventSchemas
+export type IpcEventSchemas = SelectionEventSchemas & WindowEventSchemas
 /** Union of all declared event names (`never` until a domain is migrated). */
 export type IpcEventName = keyof IpcEventSchemas

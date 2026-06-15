@@ -34,6 +34,10 @@ Anti-pattern to avoid: a JSDoc `{@link X}` plus a separate `expectTypeOf` test �
 
 **Lighter alternative.** If the value is opaque pass-through (main forwards it as `initData` and never reads its fields) and the renderer already type-locks the shape, `z.custom<X>()` drops the field mirror at the cost of no runtime field validation. Pick per ROI.
 
+## Return Values: `void` When Meaningless
+
+A legacy handler often `return`s an internal status the caller never reads — e.g. WindowManager's `close`/`minimize` return a "was the window found" boolean, but the preload already typed it `Promise<void>` and every call site ignores it. Declare the route `output: z.void()` in that case. Give a non-void output **only** when a caller actually consumes the value (a query like `window.is_maximized → boolean`, `window.get_init_data → unknown`). The handler may still compute the internal value; the thin adapter just discards it. This keeps the typed surface honest about what callers can rely on.
+
 ## Two Service Shapes
 
 | Service kind | Migration form |
