@@ -13,6 +13,33 @@ For each domain, in **one atomic PR** (the four actions must land together, or t
 
 Each PR is independently revertible.
 
+**Test the handler, not the schema.** `handlers/__tests__/<domain>.test.ts` covers the real behavior (senderId routing, null fallback, delegation). Per-domain schemas are thin contracts locked by compile-time checks plus the one framework type test (`src/shared/ipc/__tests__/schema.types.test.ts`) — do not copy a `schemas/__tests__` template. See [ipc-usage.md](./ipc-usage.md#testing).
+
+## Schema Authoring: Mirroring an Existing Type
+
+When a request input reuses a TS type defined elsewhere (a preference type, a shared model), bind the validating zod schema to that type at the definition with `z.ZodType<X>`, so a drift is a compile error **there** — not in a far-away test:
+
+```ts
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+// repo convention — see uiParts.ts, legacyFileMetadata.ts
+const selectionActionItemSchema: z.ZodType<SelectionActionItem> = z.object({ id: z.string() /* …all fields… */ })
+```
+
+Two enforcement layers, only the second costs anything:
+
+| Layer | Guarantees |
+|---|---|
+| Handler contract (`handler → svc.method(x: X)`) | schema covers every **required** field of `X` — free, the handler already passes it |
+| `z.ZodType<X>` annotation | **exact** equality (optionals present, no extras) |
+
+Anti-pattern to avoid: a JSDoc `{@link X}` plus a separate `expectTypeOf` test — the import reads as unused and the check drifts away from the definition.
+
+**Lighter alternative.** If the value is opaque pass-through (main forwards it as `initData` and never reads its fields) and the renderer already type-locks the shape, `z.custom<X>()` drops the field mirror at the cost of no runtime field validation. Pick per ROI.
+
+## Return Values: `void` When Meaningless
+
+A legacy handler often `return`s an internal status the caller never reads — e.g. WindowManager's `close`/`minimize` return a "was the window found" boolean, but the preload already typed it `Promise<void>` and every call site ignores it. Declare the route `output: z.void()` in that case. Give a non-void output **only** when a caller actually consumes the value (a query like `window.is_maximized → boolean`, `window.get_init_data → unknown`). The handler may still compute the internal value; the thin adapter just discards it. This keeps the typed surface honest about what callers can rely on.
+
 ## Two Service Shapes
 
 | Service kind | Migration form |

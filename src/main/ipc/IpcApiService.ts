@@ -92,8 +92,20 @@ export class IpcApiService extends BaseService {
     application.get('WindowManager').broadcast(IpcChannel.IpcApi_Event, event, payload)
   }
 
-  /** Direct a typed event at one window; a no-op if that window is already gone. */
+  /**
+   * Direct a typed event at one window; a no-op if that window is gone OR destroyed.
+   *
+   * `getWindow` reads the registry without filtering destroyed windows, and a window's
+   * `destroy()` is synchronous while the `'closed'` handler that unregisters it runs a
+   * tick later — so in that gap a bare `getWindow(id)?.webContents.send` would hit a
+   * destroyed webContents and throw. The `isDestroyed()` guard closes that gap, matching
+   * the "skips destroyed windows" contract of `WindowManager.broadcast` (so `send` and
+   * `broadcast` give the same safety guarantee).
+   */
   send<E extends IpcEventName>(windowId: WindowId, event: E, payload: EventPayload<E>): void {
-    application.get('WindowManager').getWindow(windowId)?.webContents.send(IpcChannel.IpcApi_Event, event, payload)
+    const window = application.get('WindowManager').getWindow(windowId)
+    if (window && !window.isDestroyed()) {
+      window.webContents.send(IpcChannel.IpcApi_Event, event, payload)
+    }
   }
 }

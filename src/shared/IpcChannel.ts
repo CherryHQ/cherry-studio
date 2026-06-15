@@ -176,10 +176,6 @@ export enum IpcChannel {
   Knowledge_ReindexItems = 'knowledge:reindex-items',
   Knowledge_Search = 'knowledge:search',
   Knowledge_ListItemChunks = 'knowledge:list-item-chunks',
-  Knowledge_DeleteItemChunk = 'knowledge:delete-item-chunk',
-  // v1 bridge: still invoked by the v1 Redux store/knowledge slice until that
-  // slice is removed in the unified step. Routed to the v2 KnowledgeService.
-  KnowledgeBase_Delete = 'knowledge-base:delete',
 
   FileProcessing_StartJob = 'file-processing:start-job',
   FileProcessing_ListAvailableProcessors = 'file-processing:list-available-processors',
@@ -326,16 +322,6 @@ export enum IpcChannel {
   WebSearch_FetchUrls = 'web-search:fetch-urls',
   WebSearch_CheckProvider = 'web-search:check-provider',
 
-  //Selection Assistant
-  Selection_TextSelected = 'selection:text-selected',
-  Selection_ToolbarHide = 'selection:toolbar-hide',
-  Selection_ToolbarVisibilityChange = 'selection:toolbar-visibility-change',
-  Selection_ToolbarDetermineSize = 'selection:toolbar-determine-size',
-  Selection_WriteToClipboard = 'selection:write-to-clipboard',
-  Selection_ActionWindowPin = 'selection:action-window-pin',
-  Selection_ProcessAction = 'selection:process-action',
-  Selection_GetLinuxEnvInfo = 'selection:get-linux-env-info',
-
   // Data: Preference
   Preference_Get = 'preference:get',
   Preference_Set = 'preference:set',
@@ -469,24 +455,9 @@ export enum IpcChannel {
   Ai_ListModels = 'ai:list-models',
   Ai_Agent_RunTask = 'ai:agent:run-task',
 
-  // WindowManager
-  SettingsWindow_Open = 'settings-window:open',
-  WindowManager_Open = 'window-manager:open',
-  WindowManager_Close = 'window-manager:close',
-  WindowManager_Minimize = 'window-manager:minimize',
-  WindowManager_Maximize = 'window-manager:maximize',
-  WindowManager_Unmaximize = 'window-manager:unmaximize',
-  WindowManager_SetFullScreen = 'window-manager:set-full-screen',
-  WindowManager_IsMaximized = 'window-manager:is-maximized',
-  WindowManager_IsFullScreen = 'window-manager:is-full-screen',
-  WindowManager_GetInitData = 'window-manager:get-init-data',
-  // All three below are sent only to the originating window's webContents.
-  // macOS unreliable for maximize/unmaximize (electron#3325, #28699) — use FullscreenChanged on macOS.
-  WindowManager_MaximizedChanged = 'window-manager:maximized-changed',
-  // OS-level only; does NOT cover HTML5 element.requestFullscreen() or macOS setSimpleFullScreen.
-  WindowManager_FullscreenChanged = 'window-manager:fullscreen-changed',
-  // Payload = the initData passed to open(); omitted if none supplied, not fired on fresh creation.
-  WindowManager_Reused = 'window-manager:reused'
+  // Settings window — legacy "open a named window" channel (preload `settings.openSettings`).
+  // The former WindowManager_* control + event channels were migrated to IpcApi (`window.*`).
+  SettingsWindow_Open = 'settings-window:open'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

@@ -21,6 +21,7 @@ import { type SerializedError, serializeError } from '@shared/types/error'
 import { type UIMessageChunk } from 'ai'
 import * as z from 'zod'
 
+import { isAgentSessionTopic } from '../agentSession/topic'
 import type { AiStreamRequest, CallOverrides } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context'
@@ -365,7 +366,7 @@ export class AiStreamManager extends BaseService {
 
     // Enqueue-only dispatch with no live stream to attach to. Two legitimate producers reach here,
     // both with the user row already persisted/enqueued, so there's nothing to START — no-op instead
-    // of throwing (and leave any grace-period stream untouched for late renderer reads):
+    // of throwing (and keep any grace-period stream available for late renderer reads):
     //   1. an agent-session follow-up landing in the inter-turn drain window (`isSessionBusy` true
     //      while the settled stream is terminal-in-grace, so `hasLiveStream` is false); the runtime's
     //      `pendingTurns` opens the next turn.
@@ -373,6 +374,7 @@ export class AiStreamManager extends BaseService {
     //      `enqueuePendingSteer` handles); the steer continuation is chained separately.
     // Do NOT re-add a throw for chat — case 2 is reachable and correct.
     if (input.models.length === 0) {
+      for (const listener of input.listeners) this.addListener(input.topicId, listener)
       logger.debug('send(): empty models with no live stream — enqueue-only, nothing to start', {
         topicId: input.topicId
       })
@@ -657,6 +659,10 @@ export class AiStreamManager extends BaseService {
     // Compute topic status first so listeners get isTopicDone
     stream.status = this.resolveTerminalStatus(stream)
     const topicDone = !isLiveStatus(stream.status)
+    const agentChaining =
+      topicDone &&
+      isAgentSessionTopic(topicId) &&
+      application.get('AgentSessionRuntimeService').willContinueTopic(topicId)
 
     // Chain the next chat turn only on a CLEAN topic-done. Keying off the resolved status (not
     // `topicDone`, which is also true for error/aborted/awaiting-approval) makes the decision
@@ -666,11 +672,12 @@ export class AiStreamManager extends BaseService {
     // done with isTopicDone=false when chaining (the bubble finalises, the topic stays busy), skip the
     // terminal lifecycle, and start the continuation with the carried renderer listeners.
     const chatChaining = stream.status === 'done' && this.hasPendingSteer(topicId)
+    const chaining = agentChaining || chatChaining
 
-    await this.broadcastExecutionDone(stream, exec, topicDone && !chatChaining)
+    await this.broadcastExecutionDone(stream, exec, topicDone && !chaining)
 
     if (chatChaining) this.scheduleNextChatTurn(topicId)
-    else if (topicDone) {
+    else if (topicDone && !agentChaining) {
       // A sibling errored/aborted (this exec finished clean but the topic didn't): drop the queue,
       // matching onExecutionError/onExecutionPaused. A clean 'done' or an approval-park keeps it.
       if (stream.status === 'error' || stream.status === 'aborted') this.dropPendingSteers(topicId, stream.status)

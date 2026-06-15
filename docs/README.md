@@ -72,6 +72,8 @@
 
 | Document | Description |
 |----------|-------------|
+| [Knowledge Product Spec](./references/knowledge/experiment/knowledge-product-spec.md) | Condensed product semantics for Agent-managed knowledge bases (full version lives in Feishu) |
+| [Knowledge Technical Design](./references/knowledge/experiment/knowledge-technical-design.md) | Condensed per-base index.sqlite schema, index store contracts, and retrieval decisions (full version lives in Feishu) |
 | [KnowledgeService](./references/knowledge/knowledge-service.md) | Concurrency control and workload management |
 | [Knowledge Operation Guards](./references/knowledge/operation-guards.md) | Guard, enqueue failure, and recovery semantics for add/delete/reindex |
 

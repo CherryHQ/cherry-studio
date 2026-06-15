@@ -68,7 +68,7 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
   const searchModeOptions = useMemo<KnowledgeSelectOption[]>(
     () => [
       { value: 'hybrid', label: t('knowledge.rag.search_mode.hybrid') },
-      { value: 'default', label: t('knowledge.rag.search_mode.default') },
+      { value: 'vector', label: t('knowledge.rag.search_mode.vector') },
       { value: 'bm25', label: t('knowledge.rag.search_mode.bm25') }
     ],
     [t]
