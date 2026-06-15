@@ -11,23 +11,15 @@ import { usePreviewKnowledgeSource } from '../../hooks/usePreviewKnowledgeSource
 import DataSourcePanelHeader from './DataSourcePanelHeader'
 import KnowledgeItemList from './KnowledgeItemList'
 import { dataSourceTypeDisplayConfig } from './utils/models'
-import { getItemTitle, getReadyCount } from './utils/selectors'
+import { getReadyCount } from './utils/selectors'
 
 export interface DataSourcePanelProps {
   items: KnowledgeItem[]
   isLoading: boolean
-  searchQuery?: string
   onAdd: (source?: KnowledgeItemType, files?: File[]) => void
   onItemClick?: (itemId: string) => void
   onDelete: (item: KnowledgeItem) => void | Promise<unknown>
   onReindex: (item: KnowledgeItem) => void | Promise<unknown>
-}
-
-const matchesSearch = (item: KnowledgeItem, query: string) => {
-  if (!query) {
-    return true
-  }
-  return getItemTitle(item).toLowerCase().includes(query.toLowerCase())
 }
 
 const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: KnowledgeItemType) => void }) => {
@@ -63,15 +55,7 @@ const DataSourceEmptyState = ({ onAddSource }: { onAddSource: (source: Knowledge
   )
 }
 
-const DataSourcePanel = ({
-  items,
-  isLoading,
-  searchQuery = '',
-  onAdd,
-  onItemClick,
-  onDelete,
-  onReindex
-}: DataSourcePanelProps) => {
+const DataSourcePanel = ({ items, isLoading, onAdd, onItemClick, onDelete, onReindex }: DataSourcePanelProps) => {
   const { t } = useTranslation()
   const { previewSource } = usePreviewKnowledgeSource()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -79,16 +63,14 @@ const DataSourcePanel = ({
   const [pendingDeleteItem, setPendingDeleteItem] = useState<KnowledgeItem | null>(null)
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false)
 
-  const visibleItems = useMemo(() => items.filter((item) => matchesSearch(item, searchQuery)), [items, searchQuery])
-
   useEffect(() => {
     setSelectedIds((prev) => {
-      const visibleItemIds = new Set(visibleItems.map((item) => item.id))
-      const next = new Set([...prev].filter((itemId) => visibleItemIds.has(itemId)))
+      const itemIds = new Set(items.map((item) => item.id))
+      const next = new Set([...prev].filter((itemId) => itemIds.has(itemId)))
 
       return next.size === prev.size ? prev : next
     })
-  }, [visibleItems])
+  }, [items])
 
   const readyCount = useMemo(() => getReadyCount(items), [items])
 
@@ -108,9 +90,9 @@ const DataSourcePanel = ({
 
   const handleToggleAll = useCallback(
     (next: boolean) => {
-      setSelectedIds(next ? new Set(visibleItems.map((item) => item.id)) : new Set())
+      setSelectedIds(next ? new Set(items.map((item) => item.id)) : new Set())
     },
-    [visibleItems]
+    [items]
   )
 
   const handleCancelBulk = useCallback(() => {
@@ -118,7 +100,7 @@ const DataSourcePanel = ({
   }, [])
 
   const handleBulkReindex = useCallback(async () => {
-    const targets = visibleItems.filter((item) => selectedIds.has(item.id))
+    const targets = items.filter((item) => selectedIds.has(item.id))
     try {
       await Promise.all(targets.map((item) => onReindex(item)))
     } catch (error) {
@@ -126,10 +108,10 @@ const DataSourcePanel = ({
       return
     }
     setSelectedIds(new Set())
-  }, [onReindex, selectedIds, t, visibleItems])
+  }, [items, onReindex, selectedIds, t])
 
   const handleBulkDelete = useCallback(async () => {
-    const targets = visibleItems.filter((item) => selectedIds.has(item.id))
+    const targets = items.filter((item) => selectedIds.has(item.id))
     try {
       await Promise.all(targets.map((item) => onDelete(item)))
     } catch (error) {
@@ -138,7 +120,7 @@ const DataSourcePanel = ({
     }
     setSelectedIds(new Set())
     setIsBulkDeleteOpen(false)
-  }, [onDelete, selectedIds, t, visibleItems])
+  }, [items, onDelete, selectedIds, t])
 
   const handleConfirmDelete = async () => {
     if (!pendingDeleteItem) {
@@ -215,7 +197,7 @@ const DataSourcePanel = ({
           <DataSourceEmptyState onAddSource={handleAddSource} />
         ) : (
           <KnowledgeItemList
-            items={visibleItems}
+            items={items}
             allItemsCount={items.length}
             isLoading={isLoading}
             selectedIds={selectedIds}

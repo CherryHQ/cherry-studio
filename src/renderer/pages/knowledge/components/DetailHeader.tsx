@@ -6,12 +6,11 @@ import {
   MenuList,
   Popover,
   PopoverContent,
-  PopoverTrigger,
-  SearchInput
+  PopoverTrigger
 } from '@cherrystudio/ui'
 import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { MoreHorizontal, PencilLine, Search, SlidersHorizontal, Trash2, Zap } from 'lucide-react'
+import { MoreHorizontal, PencilLine, SlidersHorizontal, Trash2, Zap } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -21,8 +20,6 @@ import { statusBadgeClassNames } from './statusStyles'
 interface DetailHeaderProps {
   base: KnowledgeBase
   itemCount: number
-  searchQuery?: string
-  onSearchChange?: (value: string) => void
   onOpenRagConfig: () => void
   onOpenRecallTest: () => void
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
@@ -32,19 +29,14 @@ interface DetailHeaderProps {
 const DetailHeader = ({
   base,
   itemCount,
-  searchQuery = '',
-  onSearchChange,
   onOpenRagConfig,
   onOpenRecallTest,
   onRenameBase,
   onDeleteBase
 }: DetailHeaderProps) => {
   const { t, i18n } = useTranslation()
-  const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const canSearch = Boolean(onSearchChange)
-  const isSearchVisible = isSearchOpen || searchQuery.length > 0
 
   const formattedUpdatedAt = useMemo(
     () => formatRelativeTime(base.updatedAt, i18n.language),
@@ -65,17 +57,6 @@ const DetailHeader = ({
     await onDeleteBase(base.id)
     setIsDeleteDialogOpen(false)
   }, [base.id, onDeleteBase])
-
-  const handleSearchBlur = useCallback(() => {
-    if (searchQuery.length === 0) {
-      setIsSearchOpen(false)
-    }
-  }, [searchQuery])
-
-  const handleSearchClear = useCallback(() => {
-    onSearchChange?.('')
-    setIsSearchOpen(false)
-  }, [onSearchChange])
 
   return (
     <>
@@ -104,31 +85,6 @@ const DetailHeader = ({
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
-            {canSearch ? (
-              isSearchVisible ? (
-                <div className="w-36 shrink-0 [&_[data-slot=input-group-addon]]:py-1 [&_[data-slot=input-group-control]]:h-7 [&_[data-slot=input-group-control]]:py-0 [&_[data-slot=input-group]]:h-7">
-                  <SearchInput
-                    autoFocus
-                    value={searchQuery}
-                    className="h-7 py-0 text-xs"
-                    placeholder={t('knowledge.data_source.toolbar.search_placeholder')}
-                    onChange={(event) => onSearchChange?.(event.target.value)}
-                    onBlur={handleSearchBlur}
-                    onClear={handleSearchClear}
-                    clearLabel={t('common.clear')}
-                  />
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={t('knowledge.data_source.toolbar.search_placeholder')}
-                  onClick={() => setIsSearchOpen(true)}>
-                  <Search size={14} />
-                </Button>
-              )
-            ) : null}
             <Button
               type="button"
               variant="ghost"

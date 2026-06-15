@@ -381,28 +381,7 @@ describe('DataSourcePanel', () => {
     expect(onAdd).toHaveBeenCalledWith('directory')
   })
 
-  it('filters rows with the search query controlled by the detail header', () => {
-    render(
-      <DataSourcePanel
-        items={[
-          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
-          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
-        ]}
-        isLoading={false}
-        searchQuery="季度"
-        onAdd={vi.fn()}
-        onDelete={vi.fn()}
-        onReindex={vi.fn()}
-      />
-    )
-
-    expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
-    expect(screen.queryByText('会议记录.pdf')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '搜索数据源' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
-  })
-
-  it('prunes selected item ids when search hides selected rows', async () => {
+  it('prunes selected item ids when items are removed', async () => {
     const onDelete = vi.fn().mockResolvedValue(undefined)
 
     const { rerender } = render(
@@ -423,12 +402,8 @@ describe('DataSourcePanel', () => {
 
     rerender(
       <DataSourcePanel
-        items={[
-          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
-          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
-        ]}
+        items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
-        searchQuery="季度"
         onAdd={vi.fn()}
         onDelete={onDelete}
         onReindex={vi.fn()}

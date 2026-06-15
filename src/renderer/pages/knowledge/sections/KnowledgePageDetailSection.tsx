@@ -1,6 +1,5 @@
 import { PageSidePanel } from '@cherrystudio/ui'
 import { useDeleteKnowledgeItem, useKnowledgeItems, useReindexKnowledgeItem } from '@renderer/hooks/useKnowledgeItems'
-import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import DetailHeader from '../components/DetailHeader'
@@ -12,7 +11,6 @@ import RecallTestPanel from '../panels/recallTest/RecallTestPanel'
 
 const KnowledgePageDetailSection = () => {
   const { t } = useTranslation()
-  const [dataSourceSearchQuery, setDataSourceSearchQuery] = useState('')
   const {
     selectedBase,
     selectedBaseId,
@@ -43,8 +41,6 @@ const KnowledgePageDetailSection = () => {
       <DetailHeader
         base={selectedBase}
         itemCount={selectedBaseItems.length}
-        searchQuery={dataSourceSearchQuery}
-        onSearchChange={selectedItemId ? undefined : setDataSourceSearchQuery}
         onOpenRagConfig={openRagConfigDrawer}
         onOpenRecallTest={openRecallTestDrawer}
         onRenameBase={openRenameBaseDialog}
@@ -58,7 +54,6 @@ const KnowledgePageDetailSection = () => {
           <DataSourcePanel
             items={selectedBaseItems}
             isLoading={isItemsLoading}
-            searchQuery={dataSourceSearchQuery}
             onAdd={openAddSourceDialog}
             onItemClick={openItemChunks}
             onDelete={deleteItem}
