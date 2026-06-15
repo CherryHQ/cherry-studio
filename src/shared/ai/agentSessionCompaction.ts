@@ -8,15 +8,12 @@ export interface AgentSessionCompactionAnchorData {
   durationMs?: number
 }
 
+// The cache state is read only for `status` (the composer's "compacting" indicator). Completed-run
+// metrics reach the UI via the `data-compaction-anchor` message chunk (see MessagePartsRenderer), and
+// compaction failures surface through the turn error — so no outcome fields live here. Keeping the
+// union to `idle | compacting` removes the illegal combinations the old flat `idle` branch allowed.
 export type AgentSessionCompactionState =
-  | {
-      status: 'idle'
-      lastCompletedAt?: string
-      lastError?: string
-      preTokens?: number
-      postTokens?: number
-      durationMs?: number
-    }
+  | { status: 'idle' }
   | {
       status: 'compacting'
       startedAt: string

@@ -600,21 +600,20 @@ export class AgentSessionRuntimeService extends BaseService {
       } as UIMessageChunk)
     }
 
+    // Completed-run metrics ride the data-compaction-anchor chunk above (the UI's source); the cache
+    // state only tracks `status`.
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
-      status: 'idle',
-      lastCompletedAt: anchor.completedAt,
-      ...(anchor.preTokens !== undefined ? { preTokens: anchor.preTokens } : {}),
-      ...(anchor.postTokens !== undefined ? { postTokens: anchor.postTokens } : {}),
-      ...(anchor.durationMs !== undefined ? { durationMs: anchor.durationMs } : {})
+      status: 'idle'
     })
     this.refreshContextUsage(entry)
   }
 
   private handleCompactionError(entry: AgentSessionRuntimeEntry, error: string): void {
     entry.compacting = false
+    // The failure surfaces via the turn error and is logged here; the cache state only tracks status.
+    logger.warn('Agent session compaction failed', { sessionId: entry.sessionId, error })
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
-      status: 'idle',
-      lastError: error
+      status: 'idle'
     })
   }
 
@@ -989,8 +988,7 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.rollSteerInputs = undefined
     if (entry.compacting) {
       application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
-        status: 'idle',
-        lastError: 'Session closed during compaction'
+        status: 'idle'
       })
     }
     entry.compacting = false

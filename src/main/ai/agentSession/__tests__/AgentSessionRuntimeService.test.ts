@@ -622,11 +622,7 @@ describe('AgentSessionRuntimeService', () => {
       done: false
     })
     expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.compaction.session-1', {
-      status: 'idle',
-      lastCompletedAt: '2026-06-09T12:00:00.000Z',
-      preTokens: 52_000,
-      postTokens: 14_000,
-      durationMs: 1234
+      status: 'idle'
     })
     await vi.waitFor(() =>
       expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
