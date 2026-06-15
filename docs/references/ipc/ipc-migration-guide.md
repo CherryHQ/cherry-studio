@@ -13,6 +13,27 @@ For each domain, in **one atomic PR** (the four actions must land together, or t
 
 Each PR is independently revertible.
 
+## Schema Authoring: Mirroring an Existing Type
+
+When a request input reuses a TS type defined elsewhere (a preference type, a shared model), bind the validating zod schema to that type at the definition with `z.ZodType<X>`, so a drift is a compile error **there** — not in a far-away test:
+
+```ts
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+// repo convention — see uiParts.ts, legacyFileMetadata.ts
+const selectionActionItemSchema: z.ZodType<SelectionActionItem> = z.object({ id: z.string() /* …all fields… */ })
+```
+
+Two enforcement layers, only the second costs anything:
+
+| Layer | Guarantees |
+|---|---|
+| Handler contract (`handler → svc.method(x: X)`) | schema covers every **required** field of `X` — free, the handler already passes it |
+| `z.ZodType<X>` annotation | **exact** equality (optionals present, no extras) |
+
+Anti-pattern to avoid: a JSDoc `{@link X}` plus a separate `expectTypeOf` test — the import reads as unused and the check drifts away from the definition.
+
+**Lighter alternative.** If the value is opaque pass-through (main forwards it as `initData` and never reads its fields) and the renderer already type-locks the shape, `z.custom<X>()` drops the field mirror at the cost of no runtime field validation. Pick per ROI.
+
 ## Two Service Shapes
 
 | Service kind | Migration form |

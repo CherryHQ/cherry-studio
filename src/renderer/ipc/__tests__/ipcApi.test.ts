@@ -6,8 +6,8 @@ import { ipcApi } from '../index'
 const requestMock = vi.fn()
 const onMock = vi.fn()
 
-// IpcRoute/IpcEventName are `never` in stage 0, so the typed facade is uncallable
-// by design; tests drive the runtime behavior through `as never` casts.
+// These exercise the facade's runtime plumbing with throwaway route/event names,
+// so they cast past the typed signatures rather than coupling to real routes.
 const request = ipcApi.request as unknown as (route: string, input?: unknown) => Promise<unknown>
 const on = ipcApi.on as unknown as (event: string, cb: (p: unknown) => void) => () => void
 

@@ -3,6 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { getSelectionDescriptionLabelKey } from '@renderer/i18n/label'
+import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
@@ -73,7 +74,7 @@ const SelectionAssistantSettings: FC = () => {
 
   useEffect(() => {
     if (isLinux) {
-      void window.api.selection.getLinuxEnvInfo().then(setLinuxEnvInfo)
+      void ipcApi.request('selection.get_linux_env_info').then(setLinuxEnvInfo)
     }
   }, [])
 
