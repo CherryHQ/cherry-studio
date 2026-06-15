@@ -262,11 +262,28 @@ describe('SelectedModelsTrigger', () => {
     expect(screen.getByRole('button', { name: 'Selected models' })).not.toHaveClass('w-8')
   })
 
-  it('calls the restore callback from the popover content', () => {
-    const onRestore = vi.fn()
+  it('does not render popover content for an empty model selection', () => {
     render(
       <SelectedModelsTrigger
         models={[]}
+        assistantModel={modelA}
+        providers={providers}
+        fallbackLabel="Select model"
+        onModelsChange={vi.fn()}
+        onRestore={vi.fn()}
+      />
+    )
+
+    openSelectedModelsPopover()
+
+    expect(screen.queryByTestId('selected-models-popover')).not.toBeInTheDocument()
+  })
+
+  it('calls the restore callback from the multi-model popover content', () => {
+    const onRestore = vi.fn()
+    render(
+      <SelectedModelsTrigger
+        models={[modelA, modelB]}
         assistantModel={modelA}
         providers={providers}
         fallbackLabel="Select model"

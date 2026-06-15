@@ -83,7 +83,7 @@ export const SelectedModelsTrigger = ({
     ? `${singleModel.name}${singleProviderName ? ` | ${singleProviderName}` : ''}`
     : fallbackLabel
   const selectedModelsLabel = t('models.selection.selected_models')
-  const hasSelectionPopover = models.length !== 1
+  const hasSelectionPopover = models.length > 1
   const canShowSelectionPopover = hasSelectionPopover && !suppressSelectionPopover
   const hasVisibleTriggerIcon = models.length > 0
 
