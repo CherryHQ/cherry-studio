@@ -99,9 +99,10 @@ fallback in `knowledge/utils/indexing/rerank.ts` is unchanged.
 
 - **AI SDK `maxRetries`** stays `0` for chat calls (`buildAgentParams`) —
   ai-retry owns retries; enabling both would multiply attempts.
-- **`AgentLoopHooks.onError` returning `'retry'`** is a separate (still
-  unimplemented) loop-level mechanism and is orthogonal to this model-level
-  wrapper.
+- **`AgentLoopHooks.onError`** is a notification hook only; the loop always
+  aborts after it. There is no turn-level retry in the agent loop — call-level
+  retry/fallback is this model wrapper, and restarting a whole turn is the
+  stream manager's abort-and-restart concern.
 
 ## Limitations
 

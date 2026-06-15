@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 
-import type { AgentLoopHooks, ErrorContext } from '../loop'
+import type { AgentLoopHooks } from '../loop'
 
 const logger = loggerService.withContext('composeHooks')
 
@@ -14,12 +14,12 @@ export function composeHooks(parts: ReadonlyArray<Partial<AgentLoopHooks>>): Age
     onToolExecutionStart: chainVoid(parts, 'onToolExecutionStart'),
     onToolExecutionEnd: chainVoid(parts, 'onToolExecutionEnd'),
     onFinish: chainVoid(parts, 'onFinish'),
-    onError: chainOnError(parts),
+    onError: chainVoid(parts, 'onError'),
     prepareStep: chainPrepareStep(parts)
   }
 }
 
-type VoidHookKey = 'onStart' | 'onStepFinish' | 'onToolExecutionStart' | 'onToolExecutionEnd' | 'onFinish'
+type VoidHookKey = 'onStart' | 'onStepFinish' | 'onToolExecutionStart' | 'onToolExecutionEnd' | 'onFinish' | 'onError'
 
 function chainVoid<K extends VoidHookKey>(
   parts: ReadonlyArray<Partial<AgentLoopHooks>>,
@@ -39,26 +39,6 @@ function chainVoid<K extends VoidHookKey>(
     }
   }
   return composed as AgentLoopHooks[K]
-}
-
-function chainOnError(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentLoopHooks['onError'] | undefined {
-  const fns = parts.map((p) => p.onError).filter((f): f is NonNullable<AgentLoopHooks['onError']> => Boolean(f))
-  if (fns.length === 0) return undefined
-  if (fns.length === 1) return fns[0]
-  return async (ctx: ErrorContext) => {
-    let action: 'retry' | 'abort' = 'abort'
-    for (const fn of fns) {
-      try {
-        const r = await fn(ctx)
-        if (r === 'retry') action = 'retry'
-      } catch (err) {
-        // A throwing handler contributes no decision; isolate it and continue
-        // the chain so every handler is still invoked (mirrors chainVoid).
-        logger.warn('composed onError hook threw; continuing chain', err as Error)
-      }
-    }
-    return action
-  }
 }
 
 /**

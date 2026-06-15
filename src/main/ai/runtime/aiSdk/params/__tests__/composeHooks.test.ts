@@ -92,25 +92,9 @@ describe('composeHooks', () => {
   })
 
   describe('onError', () => {
-    it("returns 'retry' if any part returns 'retry'", async () => {
-      const composed = composeHooks([
-        { onError: () => 'abort' as const },
-        { onError: () => 'retry' as const },
-        { onError: () => 'abort' as const }
-      ])
-      const ctx: ErrorContext = { error: new Error('x') }
-      expect(await composed.onError!(ctx)).toBe('retry')
-    })
-
-    it("defaults to 'abort' when no part returns 'retry'", async () => {
-      const composed = composeHooks([{ onError: () => 'abort' as const }, { onError: () => 'abort' as const }])
-      const ctx: ErrorContext = { error: new Error('x') }
-      expect(await composed.onError!(ctx)).toBe('abort')
-    })
-
-    it('runs every part even after a retry decision', async () => {
-      const a = vi.fn(() => 'retry' as const)
-      const b = vi.fn(() => 'abort' as const)
+    it('runs every onError part (void fan-out)', async () => {
+      const a = vi.fn()
+      const b = vi.fn()
       const composed = composeHooks([{ onError: a }, { onError: b }])
       const ctx: ErrorContext = { error: new Error('x') }
       await composed.onError!(ctx)
@@ -122,11 +106,10 @@ describe('composeHooks', () => {
       const a = vi.fn(() => {
         throw new Error('boom')
       })
-      const b = vi.fn(() => 'retry' as const)
+      const b = vi.fn()
       const composed = composeHooks([{ onError: a }, { onError: b }])
       const ctx: ErrorContext = { error: new Error('x') }
-      // The throwing handler contributes no decision; b's 'retry' still wins.
-      expect(await composed.onError!(ctx)).toBe('retry')
+      await composed.onError!(ctx)
       expect(a).toHaveBeenCalledTimes(1)
       expect(b).toHaveBeenCalledTimes(1)
     })
