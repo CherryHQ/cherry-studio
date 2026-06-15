@@ -43,6 +43,7 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
@@ -784,7 +785,7 @@ describe('ModelSelector', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it('prioritizes model names over identifiers in row truncation', () => {
+  it('does not render model identifiers in rows', () => {
     const longModelName = 'DeepSeek-V3.2-Thinking-Agent-Long-Display-Name'
     const longIdentifier = 'agent/deepseek-v3.2-thinking-agent-very-long-routing-identifier'
     const modelId = 'openai::deepseek-v3.2-thinking-agent' as UniqueModelId
@@ -810,14 +811,11 @@ describe('ModelSelector', () => {
     expect(option.querySelector('.overflow-hidden')).toBeInTheDocument()
 
     const modelName = screen.getByText(longModelName)
-    const identifier = screen.getByText(longIdentifier)
     const providerName = screen.getByText('| OpenAI')
 
     expect(modelName).toHaveClass('min-w-0', 'max-w-full', 'shrink-0', 'truncate')
     expect(modelName).toHaveAttribute('title', longModelName)
-    expect(identifier).toHaveClass('min-w-0', 'flex-[1_999_0%]', 'truncate', 'font-mono')
-    expect(identifier).not.toHaveClass('max-w-[45%]')
-    expect(identifier).toHaveAttribute('title', longIdentifier)
+    expect(screen.queryByText(longIdentifier)).toBeNull()
     expect(providerName).toHaveClass('min-w-0', 'flex-[1_999_0%]', 'truncate')
     expect(providerName).toHaveAttribute('title', 'OpenAI')
   })

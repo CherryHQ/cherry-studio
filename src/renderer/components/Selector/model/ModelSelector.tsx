@@ -233,13 +233,6 @@ function ModelRow({
         <span className="min-w-0 max-w-full shrink-0 truncate" title={item.model.name}>
           {item.model.name}
         </span>
-        {item.showIdentifier && item.modelIdentifier !== item.model.name && (
-          <span
-            className="min-w-0 flex-[1_999_0%] truncate font-mono text-muted-foreground text-xs"
-            title={item.modelIdentifier}>
-            {item.modelIdentifier}
-          </span>
-        )}
         {item.isPinned && (
           <span className="min-w-0 flex-[1_999_0%] truncate text-muted-foreground text-xs" title={providerName}>
             | {providerName}
