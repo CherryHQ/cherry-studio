@@ -101,12 +101,10 @@ vi.mock('@cherrystudio/ui', async () => {
     Checkbox: ({
       checked,
       onCheckedChange,
-      size: _size,
       ...props
     }: {
       checked?: boolean
       onCheckedChange?: (checked: boolean) => void
-      size?: string
       [key: string]: unknown
     }) => (
       <input
