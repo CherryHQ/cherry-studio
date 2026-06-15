@@ -1,0 +1,435 @@
+<svg id="cherry-studio-logo" xmlns="http://www.w3.org/2000/svg" width="1120" height="1024" viewBox="0 0 1120 1024" role="img" aria-label="Cherry Studio animated logo">
+  <defs>
+    <linearGradient id="bg-gradient" x1="180" y1="80" x2="850" y2="930" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff6268"/>
+      <stop offset="0.58" stop-color="#ff575f"/>
+      <stop offset="1" stop-color="#f64c58"/>
+    </linearGradient>
+    <radialGradient id="mark-warmth" cx="55%" cy="68%" r="46%">
+      <stop offset="0" stop-color="#ffd9db" stop-opacity="0.42"/>
+      <stop offset="0.48" stop-color="#fff7f8" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-mark-shadow" x="-18%" y="-16%" width="136%" height="142%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="20" stdDeviation="23" flood-color="#b63742" flood-opacity="0.28"/>
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#8d2430" flood-opacity="0.15"/>
+    </filter>
+    <filter id="soft-leaf-shadow" x="-30%" y="-34%" width="160%" height="170%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="13" stdDeviation="15" flood-color="#b63742" flood-opacity="0.18"/>
+    </filter>
+    <clipPath id="center-cherry-clip" clipPathUnits="userSpaceOnUse">
+      <rect x="13" y="33" width="33" height="37"/>
+    </clipPath>
+    <clipPath id="right-cherry-clip" clipPathUnits="userSpaceOnUse">
+      <rect x="36" y="13" width="33" height="48"/>
+    </clipPath>
+    <mask id="wordmark-brush-cherry-mask" maskUnits="userSpaceOnUse" x="96" y="730" width="520" height="320">
+      <g id="wordmark-cherry-brush-strokes">
+        <path id="wordmark-cherry-brush-main" class="wordmark-brush-stroke wordmark-brush-cherry" pathLength="1" d="M146 906 C274 820 417 846 532 905 C560 919 585 928 610 934" fill="none" stroke="#fff" stroke-width="232" stroke-linecap="butt" stroke-linejoin="round"/>
+        <path id="wordmark-cherry-brush-top" class="wordmark-brush-stroke wordmark-brush-cherry wordmark-brush-detail" pathLength="1" d="M164 832 C292 793 422 818 546 862 C568 870 590 876 610 880" fill="none" stroke="#fff" stroke-width="72" stroke-linecap="butt" stroke-linejoin="round" opacity="0.72"/>
+        <path id="wordmark-cherry-brush-bottom" class="wordmark-brush-stroke wordmark-brush-cherry wordmark-brush-detail" pathLength="1" d="M182 968 C320 936 453 948 590 970" fill="none" stroke="#fff" stroke-width="64" stroke-linecap="butt" stroke-linejoin="round" opacity="0.54"/>
+      </g>
+    </mask>
+    <mask id="wordmark-brush-studio-mask" maskUnits="userSpaceOnUse" x="560" y="730" width="496" height="320">
+      <g id="wordmark-studio-brush-strokes">
+        <path id="wordmark-studio-brush-main" class="wordmark-brush-stroke wordmark-brush-studio" pathLength="1" d="M590 902 C664 956 782 966 974 830" fill="none" stroke="#fff" stroke-width="232" stroke-linecap="butt" stroke-linejoin="round"/>
+        <path id="wordmark-studio-brush-top" class="wordmark-brush-stroke wordmark-brush-studio wordmark-brush-detail" pathLength="1" d="M592 830 C665 795 765 805 894 846" fill="none" stroke="#fff" stroke-width="120" stroke-linecap="round" stroke-linejoin="round" opacity="0.88"/>
+        <path id="wordmark-studio-brush-bottom" class="wordmark-brush-stroke wordmark-brush-studio wordmark-brush-detail" pathLength="1" d="M620 970 C726 991 830 973 932 928" fill="none" stroke="#fff" stroke-width="64" stroke-linecap="butt" stroke-linejoin="round" opacity="0.54"/>
+      </g>
+    </mask>
+    <style>
+      :root {
+        --p2m-duration: 3000ms;
+        --p2m-wordmark-duration: 4200ms;
+        --p2m-ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+        --p2m-ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
+        --p2m-ease-coil: cubic-bezier(0.34, 0, 0.14, 1);
+        --p2m-overshoot: 1.035;
+      }
+
+      #cherry-studio-logo,
+      #logo-mark,
+      .motion-part,
+      #cherries,
+      #background {
+        transform-box: fill-box;
+        transform-origin: center;
+      }
+
+      #background {
+        animation: cherry-bg-rise var(--p2m-duration) both;
+      }
+
+      #logo-mark {
+        animation: cherry-mark-stage var(--p2m-duration) both;
+      }
+
+      #left-cherry {
+        animation: cherry-left-arrive var(--p2m-duration) both;
+      }
+
+      #center-cherry {
+        animation: cherry-center-arrive var(--p2m-duration) both;
+      }
+
+      #right-cherry {
+        animation: cherry-right-arrive var(--p2m-duration) both;
+      }
+
+      #leaf-check {
+        transform-origin: 52% 72%;
+        animation: cherry-leaf-settle var(--p2m-duration) both;
+      }
+
+      #wordmark {
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: wordmark-ink-settle var(--p2m-wordmark-duration) both;
+      }
+
+      .wordmark-brush-stroke {
+        stroke-dasharray: 1;
+        stroke-dashoffset: 0;
+      }
+
+      .wordmark-brush-cherry {
+        animation: wordmark-brush-cherry-write var(--p2m-wordmark-duration) both;
+      }
+
+      .wordmark-brush-cherry.wordmark-brush-detail {
+        animation-name: wordmark-brush-cherry-detail-write;
+      }
+
+      .wordmark-brush-studio {
+        animation: wordmark-brush-studio-write var(--p2m-wordmark-duration) both;
+      }
+
+      .wordmark-brush-studio.wordmark-brush-detail {
+        animation-name: wordmark-brush-studio-detail-write;
+      }
+
+      #inner-warmth-left,
+      #inner-warmth-right {
+        animation: cherry-warmth-bloom var(--p2m-duration) both;
+      }
+
+      @keyframes cherry-bg-rise {
+        0% {
+          opacity: 0;
+          transform: scale(0.9);
+          animation-timing-function: cubic-bezier(0.34, 0, 0.14, 1);
+        }
+        8% {
+          opacity: 1;
+          transform: scale(1.018);
+          animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        18% {
+          transform: scale(0.998);
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        48% {
+          transform: scale(1);
+        }
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      @keyframes cherry-mark-stage {
+        0%, 30% {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+          animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        38% {
+          opacity: 1;
+          transform: translateY(-0.8px) scale(1.006);
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        46% {
+          transform: translateY(0.3px) scale(0.999);
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        54% {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      @keyframes cherry-left-arrive {
+        0% {
+          opacity: 0;
+          transform: translate(-8px, 12px) rotate(-4deg) scale(0.94);
+          animation-timing-function: cubic-bezier(0.34, 0, 0.14, 1);
+        }
+        14% {
+          opacity: 0;
+          transform: translate(-8px, 12px) rotate(-4deg) scale(0.94);
+          animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        32% {
+          opacity: 1;
+          transform: translate(0.8px, -0.5px) rotate(0.45deg) scale(1.01);
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        42% {
+          transform: translate(0, 0.2px) rotate(-0.1deg) scale(0.999);
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        50% {
+          opacity: 1;
+          transform: translate(0, 0) rotate(0deg) scale(1);
+        }
+        100% {
+          opacity: 1;
+          transform: translate(0, 0) rotate(0deg) scale(1);
+        }
+      }
+
+      @keyframes cherry-center-arrive {
+        0%, 15% {
+          opacity: 0;
+          transform: translate(0, 14px) rotate(-1deg) scale(0.94);
+          animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        33% {
+          opacity: 1;
+          transform: translate(0, -0.7px) rotate(0.3deg) scale(1.01);
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        43% {
+          opacity: 1;
+          transform: translate(0, 0.2px) rotate(-0.08deg) scale(0.999);
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        51% {
+          opacity: 1;
+          transform: translate(0, 0) rotate(0deg) scale(1);
+        }
+        100% {
+          opacity: 1;
+          transform: translate(0, 0) rotate(0deg) scale(1);
+        }
+      }
+
+      @keyframes cherry-right-arrive {
+        0% {
+          opacity: 0;
+          transform: translate(8px, 12px) rotate(4deg) scale(0.94);
+          animation-timing-function: cubic-bezier(0.34, 0, 0.14, 1);
+        }
+        16% {
+          opacity: 0;
+          transform: translate(8px, 12px) rotate(4deg) scale(0.94);
+          animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        34% {
+          opacity: 1;
+          transform: translate(-0.8px, -0.7px) rotate(-0.35deg) scale(1.01);
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        44% {
+          transform: translate(0.2px, 0) rotate(0.08deg) scale(0.999);
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        52% {
+          opacity: 1;
+          transform: translate(0, 0) rotate(0deg) scale(1);
+        }
+        100% {
+          opacity: 1;
+          transform: translate(0, 0) rotate(0deg) scale(1);
+        }
+      }
+
+      @keyframes cherry-leaf-settle {
+        0% {
+          opacity: 0;
+          transform: translate(0, -16px) rotate(-8deg) scale(0.84);
+          animation-timing-function: cubic-bezier(0.34, 0, 0.14, 1);
+        }
+        12% {
+          opacity: 0;
+          transform: translate(0, -16px) rotate(-8deg) scale(0.84);
+          animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        30% {
+          opacity: 1;
+          transform: translate(0, 0.8px) rotate(0.8deg) scale(1.025);
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        40% {
+          transform: translate(0, -0.2px) rotate(-0.15deg) scale(0.999);
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        48% {
+          opacity: 1;
+          transform: translate(0, 0) rotate(0deg) scale(1);
+        }
+        100% {
+          opacity: 1;
+          transform: translate(0, 0) rotate(0deg) scale(1);
+        }
+      }
+
+      @keyframes cherry-warmth-bloom {
+        0%, 30% {
+          opacity: 0;
+        }
+        42% {
+          opacity: 0.64;
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        52% {
+          opacity: 0.56;
+        }
+        100% {
+          opacity: 0.56;
+        }
+      }
+
+      @keyframes wordmark-ink-settle {
+        0%, 24% {
+          opacity: 0;
+          transform: translateY(14px) scale(0.985);
+          animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        32% {
+          opacity: 0.7;
+          transform: translateY(5px) scale(0.995);
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        94% {
+          opacity: 1;
+          transform: translateY(0) scale(1.002);
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      @keyframes wordmark-brush-cherry-write {
+        0%, 24% {
+          stroke-dashoffset: 1;
+          animation-timing-function: cubic-bezier(0.34, 0, 0.14, 1);
+        }
+        62% {
+          stroke-dashoffset: 0;
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        100% {
+          stroke-dashoffset: 0;
+        }
+      }
+
+      @keyframes wordmark-brush-cherry-detail-write {
+        0%, 28% {
+          stroke-dashoffset: 1;
+          animation-timing-function: cubic-bezier(0.34, 0, 0.14, 1);
+        }
+        68% {
+          stroke-dashoffset: 0;
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        100% {
+          stroke-dashoffset: 0;
+        }
+      }
+
+      @keyframes wordmark-brush-studio-write {
+        0%, 44% {
+          stroke-dashoffset: 1;
+          animation-timing-function: cubic-bezier(0.34, 0, 0.14, 1);
+        }
+        94% {
+          stroke-dashoffset: 0;
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        100% {
+          stroke-dashoffset: 0;
+        }
+      }
+
+      @keyframes wordmark-brush-studio-detail-write {
+        0%, 48% {
+          stroke-dashoffset: 1;
+          animation-timing-function: cubic-bezier(0.34, 0, 0.14, 1);
+        }
+        98% {
+          stroke-dashoffset: 0;
+          animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        100% {
+          stroke-dashoffset: 0;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+    </style>
+  </defs>
+
+  <metadata>
+    Wordmark outlines generated from Pacifico Regular, distributed by Google Fonts under the SIL Open Font License 1.1.
+  </metadata>
+
+  <g id="logo-lockup-position" transform="translate(304 110) scale(0.5)">
+    <g id="logo-lockup-mark">
+      <rect id="background" width="1024" height="1024" rx="512" ry="512" fill="url(#bg-gradient)"/>
+    
+      <g id="logo-position" transform="translate(162 146) scale(10.9)">
+        <g id="logo-mark">
+          <g id="cherries" filter="url(#soft-mark-shadow)">
+            <g id="left-cherry" class="motion-part">
+              <path id="left-cherry-shape" fill="#fffdfb" d="M16.72,51.21c-4.45,0-8.64-1.78-11.81-5.01-3.17-3.23-4.91-7.51-4.91-12.04s1.74-8.81,4.91-12.04,7.36-5.01,11.81-5.01,8.71,1.82,11.82,4.99c2.32,2.36,2.32,6.2,0,8.56-2.32,2.36-6.08,2.36-8.4,0-.9-.92-2.15-1.45-3.43-1.45-2.63,0-4.85,2.26-4.85,4.94s2.22,4.94,4.85,4.94c1.28,0,2.52-.53,3.43-1.45,2.32-2.36,6.08-2.36,8.4,0,2.32,2.36,2.32,6.2,0,8.56-3.11,3.17-7.42,4.99-11.82,4.99Z"/>
+            </g>
+            <g id="center-cherry" class="motion-part" clip-path="url(#center-cherry-clip)">
+              <path id="center-cherry-shape" fill="#fffdfb" d="M32.05,66.73c-4.45,0-8.64-1.78-11.81-5.01s-4.91-7.51-4.91-12.04,1.79-8.88,4.9-12.06c2.32-2.36,6.08-2.36,8.4,0,2.32,2.36,2.32,6.2,0,8.56-.9.92-1.42,2.19-1.42,3.49,0,2.68,2.22,4.94,4.85,4.94s4.85-2.26,4.85-4.94c0-.95-.23-2.31-1.32-3.43-3.13-3.19-4.92-7.6-4.92-12.09s1.74-8.81,4.91-12.04,7.36-5.01,11.81-5.01,8.64,1.78,11.81,5.01,4.91,7.51,4.91,12.04-1.79,8.88-4.9,12.06c-2.32,2.36-6.08,2.36-8.4,0-2.32-2.36-2.32-6.2,0-8.56.9-.92,1.42-2.19,1.42-3.49,0-2.68-2.22-4.94-4.85-4.94s-4.85,2.26-4.85,4.94c0,1.31.53,2.6,1.45,3.53,3.1,3.16,4.8,7.42,4.8,11.99s-1.74,8.81-4.91,12.04c-3.17,3.23-7.36,5.01-11.81,5.01Z"/>
+            </g>
+            <g id="right-cherry" class="motion-part" clip-path="url(#right-cherry-clip)">
+              <path id="right-cherry-shape" fill="#fffdfb" d="M32.05,66.73c-4.45,0-8.64-1.78-11.81-5.01s-4.91-7.51-4.91-12.04,1.79-8.88,4.9-12.06c2.32-2.36,6.08-2.36,8.4,0,2.32,2.36,2.32,6.2,0,8.56-.9.92-1.42,2.19-1.42,3.49,0,2.68,2.22,4.94,4.85,4.94s4.85-2.26,4.85-4.94c0-.95-.23-2.31-1.32-3.43-3.13-3.19-4.92-7.6-4.92-12.09s1.74-8.81,4.91-12.04,7.36-5.01,11.81-5.01,8.64,1.78,11.81,5.01,4.91,7.51,4.91,12.04-1.79,8.88-4.9,12.06c-2.32,2.36-6.08,2.36-8.4,0-2.32-2.36-2.32-6.2,0-8.56.9-.92,1.42-2.19,1.42-3.49,0-2.68-2.22-4.94-4.85-4.94s-4.85,2.26-4.85,4.94c0,1.31.53,2.6,1.45,3.53,3.1,3.16,4.8,7.42,4.8,11.99s-1.74,8.81-4.91,12.04c-3.17,3.23-7.36,5.01-11.81,5.01Z"/>
+            </g>
+            <ellipse id="inner-warmth-left" cx="26.2" cy="48.8" rx="16.5" ry="11.6" fill="url(#mark-warmth)" opacity="0.62"/>
+            <ellipse id="inner-warmth-right" cx="52.6" cy="43.2" rx="8.8" ry="13.8" fill="url(#mark-warmth)" opacity="0.52"/>
+          </g>
+          <g id="leaf-check" class="motion-part" filter="url(#soft-leaf-shadow)">
+            <path id="leaf-check-shape" fill="#fffdfb" d="M32.05,19.09l-9.72-9.12c-1.5-1.4-1.57-3.75-.17-5.25,1.4-1.49,3.75-1.57,5.25-.17l3.89,3.65,5.53-6.83c1.29-1.59,3.63-1.84,5.22-.55,1.59,1.29,1.84,3.63.55,5.22l-10.56,13.05Z"/>
+          </g>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <g id="wordmark-position" transform="translate(-145.6 -255.84) scale(1.26)">
+    <g id="wordmark" fill="#f24d5b">
+      <g id="wordmark-cherry" mask="url(#wordmark-brush-cherry-mask)">
+        <path id="wordmark-glyph-1" d="M231.226 925.935 Q215.871 925.935 204.516 920.323 Q193.161 914.71 187.097 904.387 Q181.032 894.065 181.032 880.387 Q181.032 861.419 188.194 846.71 Q195.355 832 207.613 823.935 Q219.871 815.871 234.839 815.871 Q248.774 815.871 256 823.032 Q263.226 830.194 263.226 841.935 Q263.226 849.806 260.452 854.581 Q257.677 859.355 252.516 859.355 Q248.903 859.355 246.839 857.677 Q244.774 856 244.774 852.774 Q244.774 851.613 245.29 848.516 Q246.065 844.645 246.065 842.323 Q246.065 830.581 233.548 830.581 Q225.032 830.581 217.29 836.129 Q209.548 841.677 204.774 852.452 Q200 863.226 200 878.065 Q200 893.548 208.645 902 Q217.29 910.452 234.194 910.452 Q242.581 910.452 251.161 908.323 Q259.742 906.194 270.194 901.806 Q272.129 901.032 273.419 901.032 Q275.484 901.032 276.516 902.581 Q277.548 904.129 277.548 906.581 Q277.548 914.452 269.032 918.194 Q259.871 922.194 250 924.065 Q240.129 925.935 231.226 925.935 Z"/>
+        <path id="wordmark-glyph-2" d="M339.097 896.516 Q340.774 896.516 341.742 898.065 Q342.71 899.613 342.71 902.323 Q342.71 907.484 340.258 910.323 Q334.323 917.161 328.065 921.548 Q321.806 925.935 313.806 925.935 Q307.226 925.935 303.871 922.129 Q300.516 918.323 300.516 911.097 Q300.516 907.484 302.323 898.194 Q304 890.065 304 886.968 Q304 884.903 302.581 884.903 Q300.903 884.903 297.806 889.226 Q294.71 893.548 291.613 900.645 Q288.516 907.742 286.581 915.613 Q284.129 925.935 274.452 925.935 Q270.581 925.935 269.355 923.161 Q268.129 920.387 268.129 913.161 Q268.129 909.032 268.258 906.581 L268.387 896.258 Q268.387 876.387 272.452 854.839 Q276.516 833.29 284.452 818.645 Q292.387 804 303.484 804 Q309.419 804 313.097 809.097 Q316.774 814.194 316.774 822.323 Q316.774 835.355 309.161 849.355 Q301.548 863.355 284.387 882.065 Q284 888.774 284 895.871 Q288.258 884.903 293.484 878 Q298.71 871.097 303.806 868.129 Q308.903 865.161 313.161 865.161 Q321.548 865.161 321.548 873.548 Q321.548 878.581 318.71 891.742 Q316.258 902.968 316.258 906.581 Q316.258 911.742 320 911.742 Q322.581 911.742 326.129 908.581 Q329.677 905.419 335.613 898.323 Q337.161 896.516 339.097 896.516 Z M300.774 816.774 Q298.452 816.774 295.613 823.419 Q292.774 830.065 290.129 841.355 Q287.484 852.645 285.806 865.935 Q293.806 856.516 299.032 845.419 Q304.258 834.323 304.258 825.29 Q304.258 821.161 303.355 818.968 Q302.452 816.774 300.774 816.774 Z"/>
+        <path id="wordmark-glyph-3" d="M389.806 896.516 Q391.484 896.516 392.452 898.065 Q393.419 899.613 393.419 902.323 Q393.419 907.484 390.968 910.323 Q386.194 916.129 377.484 921.032 Q368.774 925.935 358.839 925.935 Q345.29 925.935 337.806 918.581 Q330.323 911.226 330.323 898.452 Q330.323 889.548 334.065 881.871 Q337.806 874.194 344.452 869.677 Q351.097 865.161 359.484 865.161 Q366.968 865.161 371.484 869.613 Q376 874.065 376 881.677 Q376 890.581 369.613 896.968 Q363.226 903.355 348 907.097 Q351.226 913.032 360.258 913.032 Q366.065 913.032 373.484 908.968 Q380.903 904.903 386.323 898.323 Q387.871 896.516 389.806 896.516 Z M357.29 877.806 Q352.516 877.806 349.226 883.355 Q345.935 888.903 345.935 896.774 L345.935 897.032 Q353.548 895.226 357.935 891.613 Q362.323 888 362.323 883.226 Q362.323 880.774 360.968 879.29 Q359.613 877.806 357.29 877.806 Z"/>
+        <path id="wordmark-glyph-4" d="M392.129 925.935 Q387.226 925.935 385.226 920.774 Q383.226 915.613 383.226 904.258 Q383.226 887.484 388 872.387 Q389.161 868.645 391.806 866.903 Q394.452 865.161 399.226 865.161 Q401.806 865.161 402.839 865.806 Q403.871 866.452 403.871 868.258 Q403.871 870.323 401.935 877.548 Q400.645 882.71 399.871 886.581 Q399.097 890.452 398.581 896.129 Q402.839 885.032 408.129 878.065 Q413.419 871.097 418.516 868.129 Q423.613 865.161 427.871 865.161 Q436.258 865.161 436.258 873.548 Q436.258 875.226 435.097 881.677 Q434.065 886.839 434.065 888.129 Q434.065 892.645 437.29 892.645 Q440.903 892.645 446.581 886.968 Q448.258 885.29 450.065 885.29 Q451.742 885.29 452.71 886.774 Q453.677 888.258 453.677 890.71 Q453.677 895.484 451.097 898.194 Q447.484 901.935 442.645 904.581 Q437.806 907.226 432.387 907.226 Q425.548 907.226 422 903.742 Q418.452 900.258 418.452 894.323 Q418.452 892.387 418.839 890.452 Q419.097 887.871 419.097 886.968 Q419.097 884.903 417.677 884.903 Q415.742 884.903 412.581 889.226 Q409.419 893.548 406.323 900.645 Q403.226 907.742 401.29 915.613 Q399.871 921.677 398 923.806 Q396.129 925.935 392.129 925.935 Z"/>
+        <path id="wordmark-glyph-5" d="M450.839 925.935 Q445.935 925.935 443.935 920.774 Q441.935 915.613 441.935 904.258 Q441.935 887.484 446.71 872.387 Q447.871 868.645 450.516 866.903 Q453.161 865.161 457.935 865.161 Q460.516 865.161 461.548 865.806 Q462.581 866.452 462.581 868.258 Q462.581 870.323 460.645 877.548 Q459.355 882.71 458.581 886.581 Q457.806 890.452 457.29 896.129 Q461.548 885.032 466.839 878.065 Q472.129 871.097 477.226 868.129 Q482.323 865.161 486.581 865.161 Q494.968 865.161 494.968 873.548 Q494.968 875.226 493.806 881.677 Q492.774 886.839 492.774 888.129 Q492.774 892.645 496 892.645 Q499.613 892.645 505.29 886.968 Q506.968 885.29 508.774 885.29 Q510.452 885.29 511.419 886.774 Q512.387 888.258 512.387 890.71 Q512.387 895.484 509.806 898.194 Q506.194 901.935 501.355 904.581 Q496.516 907.226 491.097 907.226 Q484.258 907.226 480.71 903.742 Q477.161 900.258 477.161 894.323 Q477.161 892.387 477.548 890.452 Q477.806 887.871 477.806 886.968 Q477.806 884.903 476.387 884.903 Q474.452 884.903 471.29 889.226 Q468.129 893.548 465.032 900.645 Q461.935 907.742 460 915.613 Q458.581 921.677 456.71 923.806 Q454.839 925.935 450.839 925.935 Z"/>
+        <path id="wordmark-glyph-6" d="M545.548 865.161 Q548.516 865.161 549.677 865.935 Q550.839 866.71 550.839 868.516 Q550.839 871.613 547.484 890.581 Q544.516 908.774 544 912.129 Q539.226 945.29 530.839 964.645 Q522.452 984 508.516 984 Q501.935 984 497.806 979.935 Q493.677 975.871 493.677 969.29 Q493.677 963.226 496.452 956.903 Q499.226 950.581 506.774 942.387 Q514.323 934.194 528.129 923.613 L528.516 920.645 Q529.419 915.871 530.581 906.968 Q528 916.258 523.355 921.097 Q518.71 925.935 513.548 925.935 Q507.742 925.935 504.065 920.581 Q500.387 915.226 500.387 907.226 Q500.387 897.548 501.677 889.484 Q502.968 881.419 505.935 872.387 Q507.226 868.516 509.548 866.839 Q511.871 865.161 516.903 865.161 Q519.742 865.161 520.839 866.065 Q521.935 866.968 521.935 868.774 Q521.935 869.806 520.516 875.742 Q519.226 880.516 518.452 884.387 Q517.419 889.677 516.645 894.516 Q515.871 899.355 515.871 902.452 Q515.871 907.355 518.581 907.355 Q520.516 907.355 523.419 903.484 Q526.323 899.613 529.613 891.742 Q532.903 883.871 536 872.387 Q537.032 868.516 539.161 866.839 Q541.29 865.161 545.548 865.161 Z M509.935 971.484 Q513.161 971.484 517.161 964 Q521.161 956.516 525.161 939.097 Q515.226 947.484 510.774 954.387 Q506.323 961.29 506.323 966.452 Q506.323 968.645 507.161 970.065 Q508 971.484 509.935 971.484 Z"/>
+      </g>
+      <g id="wordmark-studio" mask="url(#wordmark-brush-studio-mask)">
+        <path id="wordmark-glyph-7" d="M628.516 926.323 Q611.355 926.323 601.032 919.806 Q590.71 913.29 590.71 899.871 Q590.71 892.774 593.161 889.032 Q595.613 885.29 600.387 885.29 Q603.871 885.29 606.065 887.097 Q608.258 888.903 608.258 891.742 Q608.258 894.323 607.871 896.258 Q607.871 896.774 607.677 898.065 Q607.484 899.355 607.484 900.774 Q607.484 906.581 613.355 909.419 Q619.226 912.258 629.806 912.258 Q640.774 912.258 646.968 908.323 Q653.161 904.387 653.161 897.29 Q653.161 892.903 650.323 889.742 Q647.484 886.581 643.226 884.452 Q638.968 882.323 631.226 879.226 Q621.29 875.355 615.032 871.871 Q608.774 868.387 604.323 862.387 Q599.871 856.387 599.871 847.484 Q599.871 838.194 604.839 830.968 Q609.806 823.742 619.161 819.742 Q628.516 815.742 641.161 815.742 Q650.581 815.742 658.452 818.516 Q666.323 821.29 671.032 826.968 Q675.742 832.645 675.742 840.903 Q675.742 849.032 673.29 853.161 Q670.839 857.29 666.065 857.29 Q662.71 857.29 660.452 855.226 Q658.194 853.161 658.194 850.323 Q658.194 847.871 658.581 845.806 Q658.968 841.935 658.968 840.903 Q658.968 835.484 653.677 832.645 Q648.387 829.806 640.516 829.806 Q629.419 829.806 623.548 833.871 Q617.677 837.935 617.677 845.29 Q617.677 850.194 620.71 853.677 Q623.742 857.161 628.258 859.484 Q632.774 861.806 640.903 865.032 Q650.71 869.032 656.645 872.258 Q662.581 875.484 666.774 881.032 Q670.968 886.581 670.968 894.71 Q670.968 909.935 659.419 918.129 Q647.871 926.323 628.516 926.323 Z"/>
+        <path id="wordmark-glyph-8" d="M738.194 896.516 Q739.871 896.516 740.839 898.065 Q741.806 899.613 741.806 902.323 Q741.806 907.484 739.355 910.323 Q733.806 917.161 727.226 921.548 Q720.645 925.935 712.129 925.935 Q685.806 925.935 685.806 888.903 Q685.806 883.226 686.194 877.419 L681.161 877.419 Q677.29 877.419 675.935 876 Q674.581 874.581 674.581 871.484 Q674.581 864.258 680.387 864.258 L687.742 864.258 Q689.935 850.065 694.452 838.323 Q698.968 826.581 705.355 819.613 Q711.742 812.645 719.097 812.645 Q724.516 812.645 727.613 817.419 Q730.71 822.194 730.71 829.419 Q730.71 849.419 713.935 864.258 L728.387 864.258 Q730.452 864.258 731.355 865.161 Q732.258 866.065 732.258 868.516 Q732.258 877.419 717.677 877.419 L701.935 877.419 Q701.677 883.871 701.677 887.484 Q701.677 900.903 704.839 906.323 Q708 911.742 714.839 911.742 Q720.387 911.742 724.645 908.387 Q728.903 905.032 734.71 898.323 Q736.258 896.516 738.194 896.516 Z M715.613 825.032 Q713.677 825.032 711.29 829.871 Q708.903 834.71 706.774 843.29 Q704.645 851.871 703.226 862.323 Q710.839 855.742 714.645 847.548 Q718.452 839.355 718.452 832.645 Q718.452 825.032 715.613 825.032 Z"/>
+        <path id="wordmark-glyph-9" d="M744.516 925.935 Q738.71 925.935 735.032 920.581 Q731.355 915.226 731.355 907.226 Q731.355 897.548 732.645 889.484 Q733.935 881.419 736.903 872.387 Q738.194 868.516 740.516 866.839 Q742.839 865.161 747.871 865.161 Q750.71 865.161 751.806 866.065 Q752.903 866.968 752.903 868.774 Q752.903 869.806 751.484 875.742 Q750.194 880.516 749.419 884.387 Q746.839 897.935 746.839 902.452 Q746.839 905.161 747.484 906.258 Q748.129 907.355 749.548 907.355 Q751.484 907.355 754.387 903.484 Q757.29 899.613 760.581 891.742 Q763.871 883.871 766.968 872.387 Q768 868.516 770.129 866.839 Q772.258 865.161 776.516 865.161 Q779.484 865.161 780.645 865.871 Q781.806 866.581 781.806 868.516 Q781.806 871.742 778.581 886.194 Q774.968 902.71 774.968 906.581 Q774.968 909.032 776 910.387 Q777.032 911.742 778.71 911.742 Q781.29 911.742 784.839 908.581 Q788.387 905.419 794.323 898.323 Q795.871 896.516 797.806 896.516 Q799.484 896.516 800.452 898.065 Q801.419 899.613 801.419 902.323 Q801.419 907.484 798.968 910.323 Q793.419 917.161 787.032 921.548 Q780.645 925.935 772.516 925.935 Q766.323 925.935 763.419 921.161 Q760.516 916.387 760.516 907.742 Q758.323 916.516 753.935 921.226 Q749.548 925.935 744.516 925.935 Z"/>
+        <path id="wordmark-glyph-10" d="M864.258 896.516 Q865.935 896.516 866.903 898.065 Q867.871 899.613 867.871 902.323 Q867.871 907.484 865.419 910.323 Q860.129 916.774 853.806 921.355 Q847.484 925.935 841.29 925.935 Q831.484 925.935 826.323 914.452 Q820.903 921.29 816.839 923.613 Q812.774 925.935 807.355 925.935 Q799.484 925.935 794.387 920.065 Q789.29 914.194 789.29 904.774 Q789.29 894.452 793.677 885.613 Q798.065 876.774 805.742 871.161 Q813.419 865.548 822.968 864.516 Q825.419 839.484 832.323 821.742 Q839.226 804 850.452 804 Q856 804 859.677 809.032 Q863.355 814.065 863.355 824.258 Q863.355 838.71 856.258 858.065 Q849.161 877.419 837.29 897.806 Q837.806 905.29 839.548 908.516 Q841.29 911.742 844 911.742 Q847.484 911.742 851.097 908.645 Q854.71 905.548 860.774 898.323 Q862.323 896.516 864.258 896.516 Z M849.032 816.645 Q846.581 816.645 844.129 825.355 Q841.677 834.065 839.935 848.129 Q838.194 862.194 837.419 877.548 Q851.871 846.065 851.871 826.968 Q851.871 822.065 851.032 819.355 Q850.194 816.645 849.032 816.645 Z M811.871 912.903 Q814.323 912.903 816.774 910.903 Q819.226 908.903 822.968 903.484 Q821.677 896.516 821.677 887.871 Q821.677 884.774 821.935 877.806 Q814.839 880 810.129 887.29 Q805.419 894.581 805.419 903.484 Q805.419 912.903 811.871 912.903 Z"/>
+        <path id="wordmark-glyph-11" d="M874.323 856.645 Q868.903 856.645 866.194 854.129 Q863.484 851.613 863.484 847.097 Q863.484 842.581 867.032 839.548 Q870.581 836.516 875.871 836.516 Q880.645 836.516 883.613 838.839 Q886.581 841.161 886.581 845.419 Q886.581 850.581 883.226 853.613 Q879.871 856.645 874.323 856.645 Z M873.29 925.935 Q864.903 925.935 861.097 920 Q857.29 914.065 857.29 904.258 Q857.29 898.452 858.774 889.355 Q860.258 880.258 862.581 872.387 Q863.742 868.258 865.677 866.71 Q867.613 865.161 871.871 865.161 Q878.452 865.161 878.452 869.548 Q878.452 872.774 876 884.516 Q872.903 898.71 872.903 903.742 Q872.903 907.613 873.935 909.677 Q874.968 911.742 877.419 911.742 Q879.742 911.742 883.226 908.516 Q886.71 905.29 892.516 898.323 Q894.065 896.516 896 896.516 Q897.677 896.516 898.645 898.065 Q899.613 899.613 899.613 902.323 Q899.613 907.484 897.161 910.323 Q884.387 925.935 873.29 925.935 Z"/>
+        <path id="wordmark-glyph-12" d="M910.968 925.935 Q903.355 925.935 898 922.129 Q892.645 918.323 889.935 912.129 Q887.226 905.935 887.226 898.839 Q887.226 889.032 890.903 881.355 Q894.581 873.677 900.903 869.355 Q907.226 865.032 915.097 865.032 Q922.71 865.032 928.129 868.839 Q933.548 872.645 936.258 878.839 Q938.968 885.032 938.968 892.129 Q938.968 901.935 935.226 909.613 Q931.484 917.29 925.097 921.613 Q918.71 925.935 910.968 925.935 Z M912.387 912 Q916.774 912 919.806 907.226 Q922.839 902.452 922.839 893.29 Q922.839 886.194 920.258 882.581 Q917.677 878.968 914.065 878.968 Q909.419 878.968 906.387 883.677 Q903.355 888.387 903.355 897.677 Q903.355 905.032 905.935 908.516 Q908.516 912 912.387 912 Z"/>
+      </g>
+    </g>
+  </g>
+</svg>
