@@ -121,6 +121,29 @@ flowchart TB
 
 内部排除项（`app_state` / `job` / `*_fts` / `__drizzle_migrations`）由全局显式排除集维护，带 reason，不进 contributor（`job_schedule` 是共享表，按 type row-scope 归 AGENTS，非整表排除）。
 
+### 3.5. 域总览（14 域）
+
+`finalize #1` 要求恰 14 域。下表集中列出（散落信息见 §3.1 精简范围 + §5 各域注意点）。`identityClass` / 默认 `conflictDefault` 为 finalize 派生值（§6.2 派生规则），显式声明仅用于偏离默认。
+
+| 域 | 聚合根（+ include 成员） | identityClass | renamable | 默认 conflictDefault | 精简 |
+|---|---|---|---|---|---|
+| PREFERENCES | `preference`[scope,key] / `note` | natural-key / uuid-entity | false | FIELD_MERGE / SKIP | ✓ |
+| PROVIDERS | `user_provider` + `user_model` | natural-key | false | FIELD_MERGE | ✓ |
+| PROMPTS | `prompt` | uuid-entity | false | SKIP | ✓ |
+| MCP_SERVERS | `mcp_server` | uuid-entity | false | SKIP | ✓ |
+| TAGS_GROUPS | `tag` / `group` / `pin`（均单表） | uuid-entity | false | SKIP | ✓ |
+| ASSISTANTS | `assistant` + `assistant_mcp_server`/`assistant_knowledge_base` | uuid-entity | true | SKIP | ✓ |
+| AGENTS | `agent_session`(+`agent_session_message`) / `agent_workspace` / `agent_channel` / `agent` + `job_schedule`(type='agent.task') row-scope | uuid-entity | session:true，其余 false | SKIP | ✓ |
+| MINIAPPS | `mini_app`(app_id) | natural-key | false | FIELD_MERGE | ✓ |
+| SKILLS | `agent_global_skill` | uuid-entity | false | SKIP | ✓ |
+| TOPICS | `topic` + `message` | uuid-entity | true | SKIP | ✓ |
+| KNOWLEDGE | `knowledge_base` + `knowledge_item` | uuid-entity | true | SKIP | ✗ |
+| TRANSLATE_HISTORY | `translate_language` + `translate_history` | natural-key(langCode) | false | FIELD_MERGE | ✗ |
+| PAINTINGS | `painting`（单表） | uuid-entity | false | SKIP | ✗ |
+| FILE_STORAGE | `file_entry` + `file_ref` | uuid-entity | false | SKIP | ✗ |
+
+> 精简模式（§3.1）：10 域含、4 域（KNOWLEDGE / TRANSLATE_HISTORY / PAINTINGS / FILE_STORAGE）排除。junction 表（`agent_channel_task` / `agent_skill`）不计入聚合成员，走独立 junction reference。
+
 ### 4. TOPICS contributor 示例
 
 聚合根 `topic` + 成员 `message(topicId)`；冲突 → 整组（topic + 其 message 树）按策略处理。
@@ -153,7 +176,7 @@ flowchart TB
 | `renamable` | —（手写） | 必填 | — |
 | `identityKey` | `primaryKeys[root].columns`（root 的 PK 列） | PK 是复合且 alignment 键非全 PK | "natural-key 复合 PK 用单列" |
 | `identityClass` | `primaryKeys[root].kind` → `uuid-v4`/`uuid-v7` 映 `uuid-entity`,`natural` 映 `natural-key` | `slot`（预定义槽位） | "preset provider slot,非 codegen 可推断" |
-| `conflictDefault` | `uuid-entity`→`SKIP`;`natural-key`/`slot`→`FIELD_MERGE` | 偏离默认映射 | "PROVIDERS 整集合 OVERWRITE 而非字段合并" |
+| `conflictDefault` | `uuid-entity`→`SKIP`;`natural-key`/`slot`→`FIELD_MERGE` | 某域要偏离默认（如改 OVERWRITE）时显式声明 | "现网无域偏离（PROVIDERS 走 FIELD_MERGE）；如有须带 reason + finalize #21 校验" |
 | `members` | 域内指向 root 的 owning include references 源表（junction 表与跨域 ref 不计入） | 需排除默认成员（如"message.parentId 自引用不计入聚合"） | "self-ref 不参与聚合" |
 
 派生由 `finalize` 启动期完成,**不**在 hook 调用期。`omittedReferenceOverrides` 已确立的"仅例外、须绑定事实 + reason"模式同样适用于此处。
@@ -287,7 +310,7 @@ flowchart TB
 > [!IMPORTANT]
 > 恢复写事务内 PRAGMA defer_foreign_keys=ON（非 foreign_keys=OFF——后者在事务内是 SQLite 文档明确的 no-op，且 DbService 每次 reconnect 重放 foreign_keys=ON），FK 延迟到 COMMIT，COMMIT 前 PRAGMA foreign_key_check 验证整图一致。cascade/SET_NULL/DELETE_ROW 仍由 importer 按 contributor policy 显式执行（不依赖 SQLite ON DELETE）；ReferenceKind 须忠实复刻 schema onDelete（cascade/restrict 转 owning/junction、set null/no action 转 optional、set default 拒绝），由 finalize #19 校验。DB 写走 DbService.withWriteTx（fn 内仅 DB ops，文件恢复已在事务外）。
 >
-> **恢复安全三件套（针对 PR #12659 review B1/B2/B3）**：① RESTORE BARRIER（应用级写屏障，区别于逐事务 writeMutex）静默 WhenReady DB writers + 阻塞 renderer mutation，跨 snapshot-文件-DB-promote 全程；② 安全文件提升 rollback 序列防 WAL sidecar replay 覆盖快照；③ journal 持久状态机（6 态）+ on-boot crash recovery + completed 门。详见 openspec specs/backup-restore-safety/。
+> **恢复安全三件套（针对 PR #12659 review B1/B2/B3）**：① RESTORE BARRIER（应用级写屏障，区别于逐事务 writeMutex）静默 WhenReady DB writers + 阻塞 renderer mutation，跨 snapshot-文件-DB-promote 全程；② 安全文件提升 rollback 序列防 WAL sidecar replay 覆盖快照；③ journal 持久状态机（6 态）+ on-boot crash recovery + completed 门。详见 `openspec/changes/modular-backup-contributors-refined/specs/backup-restore-safety/`（6 文件：restore-barrier / restore-recovery-point / import-orchestrator / export-orchestrator / backup-service-lifecycle / spec；change 合入后并入 `openspec/specs/backup-restore/`）。
 >
 > **Upstream prerequisites（gating）**：依赖 DbService 新增 withExclusiveAccess/closeAllConnections/checkpointAndClose/reconnect + PreferenceService.reloadFromDb，须先合 upstream API PR 再合 backup 实现。
 
@@ -303,7 +326,8 @@ flowchart TB
 | 精简模式范围 | 配置/设置域 + 聊天记录 + Agent 历史/配置：PREFERENCES、PROVIDERS、PROMPTS、MCP_SERVERS、TAGS_GROUPS、ASSISTANTS、AGENTS、MINIAPPS、SKILLS、TOPICS |
 | 精简模式排除 | KNOWLEDGE、TRANSLATE_HISTORY、PAINTINGS、FILE_STORAGE；不导出/恢复 file_entry、file_ref、文件 blob、知识库源文件 |
 | API key | 自用完整/精简备份默认含模型服务 API key / auth config；结果页统一展示范围，不单独强调；不做分享/排障脱敏模式 |
-| 恢复冲突默认 | 按 identityClass：uuid-entity 默认 SKIP（幂等重导入）；natural-key/slot 默认 FIELD_MERGE（如 PROVIDERS 保留本地 API key + 合并远程，防丢数据）；RENAME 显式保留两边；OVERWRITE 显式以备份为准 |
+| 恢复冲突默认（按 identityClass） | uuid-entity 默认 SKIP（幂等重导入）；natural-key/slot 默认 FIELD_MERGE（如 PROVIDERS 保留本地 API key + 合并远程，防丢数据） |
+| 用户显式覆盖（不依赖 identityClass） | RENAME 显式保留两边（仅 `renamable:true`，否则退化 SKIP + 统一告知）；OVERWRITE 显式以备份为准（行级整替换，保留本机独有成员，见 §6.1） |
 | 恢复语义 | 合并语义：仅本地存在记录一律保留，不差集删除 |
 | 结果页 | SKIP 后不展示跳过/未导入明细；缺失文件点击 Toast「无法加载文件」 |
 
