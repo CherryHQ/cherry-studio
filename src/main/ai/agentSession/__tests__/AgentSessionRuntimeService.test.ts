@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   pauseRuntimeTurn: vi.fn(),
   broadcastTopicError: vi.fn(),
   cacheSetShared: vi.fn(),
-  cacheMergePersist: vi.fn()
+  cacheDeleteShared: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
@@ -129,7 +129,7 @@ describe('AgentSessionRuntimeService', () => {
           broadcastTopicError: mocks.broadcastTopicError
         }
       }
-      if (name === 'CacheService') return { mergePersist: mocks.cacheMergePersist, setShared: mocks.cacheSetShared }
+      if (name === 'CacheService') return { setShared: mocks.cacheSetShared, deleteShared: mocks.cacheDeleteShared }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -506,9 +506,7 @@ describe('AgentSessionRuntimeService', () => {
     await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
 
     await vi.waitFor(() =>
-      expect(mocks.cacheMergePersist).toHaveBeenCalledWith('agent.session.context_usage.by_session', {
-        'session-1': usage
-      })
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
     )
 
     events.push({ type: 'turn-complete' })
@@ -551,9 +549,7 @@ describe('AgentSessionRuntimeService', () => {
 
     ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'context-usage', usage })
 
-    expect(mocks.cacheMergePersist).toHaveBeenCalledWith('agent.session.context_usage.by_session', {
-      'session-1': usage
-    })
+    expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
   })
 
   it('enqueues a compaction anchor into the current turn and refreshes context usage on completion', async () => {
@@ -598,7 +594,7 @@ describe('AgentSessionRuntimeService', () => {
     await vi.waitFor(() =>
       expect(connection.send).toHaveBeenCalledWith({ message: userMessage('user-1'), systemReminder: false })
     )
-    mocks.cacheMergePersist.mockClear()
+    mocks.cacheSetShared.mockClear()
     connection.getContextUsage.mockClear()
 
     events.push({
@@ -633,9 +629,7 @@ describe('AgentSessionRuntimeService', () => {
       durationMs: 1234
     })
     await vi.waitFor(() =>
-      expect(mocks.cacheMergePersist).toHaveBeenCalledWith('agent.session.context_usage.by_session', {
-        'session-1': usage
-      })
+      expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
     )
 
     events.push({ type: 'turn-complete' })

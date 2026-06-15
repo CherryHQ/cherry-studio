@@ -119,53 +119,5 @@ describe('renderer CacheService equality semantics', () => {
       service.setPersist(key, [{ id: 't1' }, { id: 't2' }] as any)
       expect(broadcastSync).toHaveBeenCalledTimes(1)
     })
-
-    it('merges main-origin persist patches and saves them locally', async () => {
-      vi.useFakeTimers()
-      const key = 'agent.session.context_usage.by_session'
-      const existingUsage = { percentage: 21 }
-      const nextUsage = { percentage: 42 }
-      localStorage.setItem(
-        'cs_cache_persist',
-        JSON.stringify({
-          [key]: {
-            'session-1': existingUsage
-          }
-        })
-      )
-
-      const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
-      const service = await createService()
-      const sync = onSync.mock.calls[0]?.[0] as (message: {
-        type: 'persist'
-        key: string
-        value: unknown
-        merge?: boolean
-      }) => void
-      setItemSpy.mockClear()
-      broadcastSync.mockClear()
-
-      sync({
-        type: 'persist',
-        key,
-        value: {
-          'session-2': nextUsage
-        },
-        merge: true
-      })
-
-      expect(service.getPersist(key as any)).toEqual({
-        'session-1': existingUsage,
-        'session-2': nextUsage
-      })
-      expect(broadcastSync).not.toHaveBeenCalled()
-
-      vi.advanceTimersByTime(200)
-      expect(setItemSpy).toHaveBeenCalledWith(
-        'cs_cache_persist',
-        expect.stringContaining('"session-2":{"percentage":42}')
-      )
-      vi.useRealTimers()
-    })
   })
 })

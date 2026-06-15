@@ -2,7 +2,7 @@ import type { McpTool } from '@types'
 import type { UpdateInfo } from 'builder-util-runtime'
 
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
-import type { AgentSessionContextUsageBySession } from '../../ai/agentSessionContextUsage'
+import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
 import type { ExternalAppId } from '../../externalApp/types'
 import type { MiniApp } from '../types/miniApp'
 import type { WebSearchStatus } from '../types/webSearch'
@@ -127,5 +127,5 @@ export type CachePaintingGenerationState = {
   progress: number | null
 }
 
-export type CacheAgentSessionContextUsageBySession = AgentSessionContextUsageBySession
+export type CacheAgentSessionContextUsage = AgentSessionContextUsage | null
 export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null

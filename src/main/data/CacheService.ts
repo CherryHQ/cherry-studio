@@ -20,13 +20,7 @@
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
-import type {
-  InferSharedCacheValue,
-  ProcessKey,
-  RendererPersistCacheKey,
-  RendererPersistCacheSchema,
-  SharedCacheKey
-} from '@shared/data/cache/cacheSchemas'
+import type { InferSharedCacheValue, ProcessKey, SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { isTemplateKey, templateToRegex } from '@shared/data/cache/templateKey'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -475,26 +469,6 @@ export class CacheService extends BaseService {
   }
 
   // ============ Persist Cache Relay ============
-
-  /**
-   * Relay a shallow merge patch for renderer persist cache.
-   *
-   * Main does not own localStorage-backed persist state, so it sends patches
-   * instead of full values to avoid replacing data already held by renderers.
-   */
-  mergePersist<K extends RendererPersistCacheKey>(
-    key: K,
-    value: RendererPersistCacheSchema[K] extends Record<string, unknown>
-      ? Partial<RendererPersistCacheSchema[K]>
-      : RendererPersistCacheSchema[K]
-  ): void {
-    this.broadcastSync({
-      type: 'persist',
-      key,
-      value,
-      merge: true
-    })
-  }
 
   // ============ IPC Handlers for Cache Synchronization ============
 

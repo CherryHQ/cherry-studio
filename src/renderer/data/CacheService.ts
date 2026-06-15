@@ -1028,31 +1028,6 @@ export class CacheService {
     }, 200) // 200ms debounce
   }
 
-  private applyPersistSync(message: CacheSyncMessage): void {
-    const key = message.key as RendererPersistCacheKey
-    const currentValue = this.persistCache.get(key) ?? DefaultRendererPersistCache[key]
-    const nextValue =
-      message.merge && this.isRecord(currentValue) && this.isRecord(message.value)
-        ? { ...currentValue, ...message.value }
-        : message.value
-
-    if (isEqual(currentValue, nextValue)) {
-      logger.verbose(`Skipped persist cache sync for key "${message.key}" - value unchanged`)
-      return
-    }
-
-    this.persistCache.set(key, nextValue)
-    this.notifySubscribers(message.key)
-
-    if (message.merge) {
-      this.schedulePersistSave()
-    }
-  }
-
-  private isRecord(value: unknown): value is Record<string, unknown> {
-    return value !== null && typeof value === 'object' && !Array.isArray(value)
-  }
-
   /**
    * Broadcast cache sync message to other windows via IPC
    * @param message - Cache sync message to broadcast
@@ -1088,9 +1063,9 @@ export class CacheService {
         }
         this.notifySubscribers(message.key)
       } else if (message.type === 'persist') {
-        // Renderer-origin replacements stay memory-only in peer windows. Main-origin
-        // merge patches are also persisted because there is no renderer writer.
-        this.applyPersistSync(message)
+        // Update persist cache (other windows only update memory, not localStorage)
+        this.persistCache.set(message.key as RendererPersistCacheKey, message.value)
+        this.notifySubscribers(message.key)
       }
     })
   }

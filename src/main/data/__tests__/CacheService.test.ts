@@ -245,27 +245,6 @@ describe('CacheService subscription', () => {
     })
   })
 
-  describe('mergePersist', () => {
-    it('broadcasts persist merge patches to renderer windows', async () => {
-      const { BrowserWindow } = (await import('electron')) as any
-      const webContents = { send: vi.fn() }
-      BrowserWindow.getAllWindows.mockReturnValue([{ isDestroyed: () => false, id: 99, webContents }])
-
-      service.mergePersist('agent.session.context_usage.by_session', {
-        'session-1': { percentage: 42 }
-      } as any)
-
-      expect(webContents.send).toHaveBeenCalledWith(IpcChannel.Cache_Sync, {
-        type: 'persist',
-        key: 'agent.session.context_usage.by_session',
-        value: {
-          'session-1': { percentage: 42 }
-        },
-        merge: true
-      })
-    })
-  })
-
   // ---------------------------------------------------------------------------
   // Shared cache — template key
   // ---------------------------------------------------------------------------

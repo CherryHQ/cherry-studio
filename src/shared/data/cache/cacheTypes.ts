@@ -22,7 +22,6 @@ export interface CacheSyncMessage {
   type: 'shared' | 'persist'
   key: string
   value: any
-  merge?: boolean
   expireAt?: number // Absolute Unix timestamp for precise cross-window sync
 }
 

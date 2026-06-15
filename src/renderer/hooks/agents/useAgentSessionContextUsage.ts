@@ -1,8 +1,10 @@
-import { usePersistCache } from '@renderer/data/hooks/useCache'
+import { useSharedCache } from '@renderer/data/hooks/useCache'
 import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
+
+const EMPTY_SESSION_ID = '__none__'
 
 interface AgentSessionContextUsageState {
   usage: AgentSessionContextUsage | null
@@ -13,9 +15,9 @@ export function useAgentSessionContextUsage(
   sessionId: string | undefined,
   expectedModels?: readonly (string | null | undefined)[]
 ): AgentSessionContextUsageState {
-  const [usageBySession] = usePersistCache(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY)
-  const cachedUsage = sessionId ? (usageBySession?.[sessionId] ?? null) : null
-  const effectiveUsage = isExpectedModelUsage(cachedUsage, expectedModels) ? cachedUsage : null
+  const [cachedUsage] = useSharedCache(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID))
+  const sessionUsage = sessionId ? (cachedUsage ?? null) : null
+  const effectiveUsage = isExpectedModelUsage(sessionUsage, expectedModels) ? sessionUsage : null
   const percentage =
     effectiveUsage?.percentage === undefined ? null : Math.round(Math.min(100, Math.max(0, effectiveUsage.percentage)))
 

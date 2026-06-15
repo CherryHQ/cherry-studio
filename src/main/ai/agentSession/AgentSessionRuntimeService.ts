@@ -633,9 +633,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private persistContextUsage(entry: AgentSessionRuntimeEntry, usage: AgentSessionContextUsage): void {
     if (!this.isCurrentEntry(entry)) return
-    application.get('CacheService').mergePersist(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY, {
-      [entry.sessionId]: usage
-    })
+    application.get('CacheService').setShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId), usage)
   }
 
   private handleRuntimeError(entry: AgentSessionRuntimeEntry, error: unknown): void {
@@ -996,6 +994,7 @@ export class AgentSessionRuntimeService extends BaseService {
       })
     }
     entry.compacting = false
+    application.get('CacheService').deleteShared(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(entry.sessionId))
 
     const connection = this.closeConnection(entry)
     entry.currentTurn = undefined
