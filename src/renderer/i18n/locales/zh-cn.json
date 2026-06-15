@@ -3965,6 +3965,14 @@
     "add_parameter": "添加参数",
     "all": "全部",
     "custom_parameters": "自定义参数",
+    "detail": {
+      "context_window": "上下文窗口",
+      "image_modes": "图像模式",
+      "max_input_tokens": "最大输入",
+      "max_output_tokens": "最大输出",
+      "model_id": "模型 ID",
+      "provider": "服务商"
+    },
     "dimensions": "{{dimensions}} 维",
     "edit": "编辑模型",
     "embedding": "嵌入",

@@ -3965,6 +3965,14 @@
     "add_parameter": "新增參數",
     "all": "全部",
     "custom_parameters": "自訂參數",
+    "detail": {
+      "context_window": "上下文視窗",
+      "image_modes": "圖像模式",
+      "max_input_tokens": "最大輸入",
+      "max_output_tokens": "最大輸出",
+      "model_id": "模型 ID",
+      "provider": "服務商"
+    },
     "dimensions": "{{dimensions}} 維",
     "edit": "編輯模型",
     "embedding": "嵌入",

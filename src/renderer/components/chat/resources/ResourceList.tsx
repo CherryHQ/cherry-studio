@@ -434,7 +434,13 @@ type RenameFieldProps<T extends ResourceListItemBase> = Omit<
   ref?: Ref<HTMLInputElement>
 }
 
-function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...props }: RenameFieldProps<T>) {
+function RenameField<T extends ResourceListItemBase>({
+  item,
+  className,
+  ref,
+  onPointerDown,
+  ...props
+}: RenameFieldProps<T>) {
   const actions = useResourceListActions()
   const { getItemId, getItemLabel } = useResourceListItemAccessors<T>()
   const id = getItemId(item)
@@ -474,6 +480,10 @@ function RenameField<T extends ResourceListItemBase>({ item, className, ref, ...
         className
       )}
       onBlur={(event) => commitRename(event.currentTarget.value)}
+      onPointerDown={(event) => {
+        onPointerDown?.(event)
+        event.stopPropagation()
+      }}
       onKeyDown={(event) => {
         if (event.key === 'Enter') {
           event.preventDefault()

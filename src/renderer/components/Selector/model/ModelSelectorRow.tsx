@@ -1,6 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import type { ComponentPropsWithoutRef, KeyboardEvent, MouseEvent, ReactNode } from 'react'
+import type { ComponentPropsWithoutRef, KeyboardEvent, MouseEvent, ReactNode, Ref } from 'react'
 
 export const MODEL_SELECTOR_ROW_CLASS =
   'group relative flex w-full items-center gap-1 rounded-[10px] px-2 py-1.5 text-left text-xs transition-colors'
@@ -17,7 +17,8 @@ type DataAttributes = {
   [key: `data-${string}`]: string | number | boolean | undefined
 }
 
-type ModelSelectorRowProps = {
+type ModelSelectorRowProps = Omit<ComponentPropsWithoutRef<'div'>, 'children' | 'onSelect'> & {
+  ref?: Ref<HTMLDivElement>
   selected: boolean
   focused?: boolean
   disabled?: boolean
@@ -33,6 +34,7 @@ type ModelSelectorRowProps = {
 }
 
 export function ModelSelectorRow({
+  ref,
   selected,
   focused = false,
   disabled = false,
@@ -44,20 +46,25 @@ export function ModelSelectorRow({
   actions,
   onSelect,
   rootProps,
-  optionProps
+  optionProps,
+  className,
+  ...props
 }: ModelSelectorRowProps) {
   const { className: rootClassName, ...restRootProps } = rootProps ?? {}
   const { className: optionClassName, onClick: onOptionClick, ...restOptionProps } = optionProps ?? {}
 
   return (
     <div
+      {...props}
       {...restRootProps}
+      ref={ref}
       className={cn(
         MODEL_SELECTOR_ROW_CLASS,
         selected && 'bg-accent/70 text-foreground',
         !selected && !disabled && focused && 'bg-accent/60',
         !selected && !disabled && !focused && 'text-foreground hover:bg-accent/60',
         disabled && 'cursor-not-allowed text-muted-foreground opacity-50',
+        className,
         rootClassName
       )}
       data-model-selector-row>
@@ -87,7 +94,7 @@ export function ModelSelectorRow({
         }}>
         {checkbox}
         {leading}
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">{children}</div>
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">{children}</div>
         {trailing}
       </div>
       {actions ? <div className="ml-0 flex shrink-0 items-center gap-1">{actions}</div> : null}

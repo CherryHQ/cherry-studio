@@ -25,6 +25,7 @@ export const DEFAULT_SELECTOR_CONTENT_HEIGHT = 344
 
 export type SelectorShellLayout = {
   availableListHeight?: number
+  portalContainer?: PopoverContentProps['portalContainer'] | null
 }
 
 export type SelectorShellSearch = {
@@ -354,10 +355,13 @@ export function SelectorShell({
     }
   }, [])
 
-  const layout = useMemo(() => ({ availableListHeight }), [availableListHeight])
   const shouldRenderContent = mountStrategy === 'lazy-keep' ? open || hasOpened : true
   const shouldForceMount = mountStrategy === 'lazy-keep' || forceMount ? true : undefined
   const resolvedPortalContainer = portalContainer ?? pagePortalContainer ?? localPortalContainer ?? undefined
+  const layout = useMemo(
+    () => ({ availableListHeight, portalContainer: resolvedPortalContainer ?? null }),
+    [availableListHeight, resolvedPortalContainer]
+  )
   const canRenderContent = shouldRenderContent && resolvedPortalContainer !== undefined
   const body = canRenderContent ? (typeof children === 'function' ? children(layout) : children) : null
 
