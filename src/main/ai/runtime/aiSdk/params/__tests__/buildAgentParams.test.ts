@@ -15,6 +15,7 @@ import { createFsReadToolEntry } from '../../../../tools/adapters/aiSdk/builtin/
 import type { RequestContext } from '../../../../tools/adapters/aiSdk/context'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
+import type { AgentOptions } from '../../loop/types'
 import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
 
@@ -61,9 +62,14 @@ vi.mock('@main/data/services/McpServerService', () => ({
   mcpServerService: { list: () => ({ items: [] }) }
 }))
 
-const { applyCallOverrides, buildAgentParams, composeStopWhen, resolveToolCallLimit, resolveTools } = await import(
-  '../buildAgentParams'
-)
+const {
+  applyCallOverrides,
+  applyResponsesInstructions,
+  buildAgentParams,
+  composeStopWhen,
+  resolveToolCallLimit,
+  resolveTools
+} = await import('../buildAgentParams')
 
 beforeEach(() => {
   preferenceGetMock.mockReturnValue(null)
@@ -1481,6 +1487,47 @@ describe('applyCallOverrides', () => {
       makeModel()
     )
     expect(result.providerOptions.anthropic).toEqual({ existing: 1, shared: 'override', added: 2 })
+  })
+})
+
+describe('applyResponsesInstructions', () => {
+  const optionsWith = (providerOptions?: ProviderOptions): AgentOptions =>
+    ({ maxRetries: 0, ...(providerOptions && { providerOptions }) }) as AgentOptions
+
+  it('mirrors the system prompt into openai.instructions for Responses-endpoint models', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, 'YOU-ARE-REPRO-BOT', ENDPOINT_TYPE.OPENAI_RESPONSES)
+    expect(options.providerOptions?.openai?.instructions).toBe('YOU-ARE-REPRO-BOT')
+  })
+
+  it('merges into an existing openai providerOptions block without clobbering siblings', () => {
+    const options = optionsWith({ openai: { reasoningEffort: 'low' } })
+    applyResponsesInstructions(options, 'SYS', ENDPOINT_TYPE.OPENAI_RESPONSES)
+    expect(options.providerOptions?.openai).toMatchObject({ reasoningEffort: 'low', instructions: 'SYS' })
+  })
+
+  it('does not overwrite an instructions value the user already set', () => {
+    const options = optionsWith({ openai: { instructions: 'USER-SET' } })
+    applyResponsesInstructions(options, 'SYS', ENDPOINT_TYPE.OPENAI_RESPONSES)
+    expect(options.providerOptions?.openai?.instructions).toBe('USER-SET')
+  })
+
+  it('does nothing for non-Responses endpoints (Chat Completions)', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, 'SYS', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    expect(options.providerOptions).toBeUndefined()
+  })
+
+  it('does nothing when the endpoint is undefined', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, 'SYS', undefined)
+    expect(options.providerOptions).toBeUndefined()
+  })
+
+  it('does nothing when there is no system prompt', () => {
+    const options = optionsWith()
+    applyResponsesInstructions(options, undefined, ENDPOINT_TYPE.OPENAI_RESPONSES)
+    expect(options.providerOptions).toBeUndefined()
   })
 })
 

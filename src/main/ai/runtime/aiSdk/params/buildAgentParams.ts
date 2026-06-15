@@ -302,6 +302,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     requestedMaxOutputTokens,
     input.getRepairUsagePlugins
   )
+  applyResponsesInstructions(options, system, endpointType)
 
   return {
     sdkConfig,
@@ -313,6 +314,27 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     hookParts: contributions.hookParts,
     nativeFileSupport,
     fileAttachments
+  }
+}
+
+/**
+ * OpenAI Responses API expects the system prompt in the top-level `instructions`
+ * field. The AI SDK only turns `system` into an input message and leaves
+ * `instructions` empty, which lets relay servers inject their own default system
+ * prompt and override the user's. Mirror the assembled system prompt into
+ * `providerOptions.openai.instructions` for Responses-endpoint models, unless the
+ * user already set it explicitly. (#16008)
+ */
+export function applyResponsesInstructions(
+  options: AgentOptions,
+  system: string | undefined,
+  endpointType: EndpointType | undefined
+): void {
+  if (!system || endpointType !== ENDPOINT_TYPE.OPENAI_RESPONSES) return
+  const providerOptions = (options.providerOptions ??= {})
+  const openai = (providerOptions.openai ??= {})
+  if (openai.instructions == null) {
+    openai.instructions = system
   }
 }
 
