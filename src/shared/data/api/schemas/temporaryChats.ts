@@ -31,10 +31,6 @@ export interface PersistTemporaryChatResponse {
   messageCount: number
 }
 
-export interface UpdateTemporaryTopicDto {
-  assistantId?: string | null
-}
-
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -44,7 +40,6 @@ export interface UpdateTemporaryTopicDto {
  *
  * Mirrors a strict subset of the persistent topic / message API:
  * - POST   /temporary/topics
- * - PATCH  /temporary/topics/:id
  * - DELETE /temporary/topics/:id
  * - POST   /temporary/topics/:topicId/messages
  * - GET    /temporary/topics/:topicId/messages
@@ -74,12 +69,6 @@ export type TemporaryChatSchemas = {
    * @example DELETE /temporary/topics/abc123
    */
   '/temporary/topics/:id': {
-    /** Update the send context for an existing temporary topic without changing its id. */
-    PATCH: {
-      params: { id: string }
-      body: UpdateTemporaryTopicDto
-      response: Topic
-    }
     /** Destroy a temporary topic and all its messages. Returns 404 when id is unknown. */
     DELETE: {
       params: { id: string }
