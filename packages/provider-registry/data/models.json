@@ -708,7 +708,7 @@
         "web-search",
         "computer-use"
       ],
-      "contextWindow": 200000,
+      "contextWindow": 1000000,
       "description": "Sonnet 4.6 is Anthropic's most capable Sonnet-class model yet, with frontier performance across coding, agents, and professional work. It excels at iterative development, complex codebase navigation, end-to-end project management with memory, polished document creation, and confident computer use for web QA and workflow automation.",
       "family": "claude-sonnet",
       "id": "claude-sonnet-4-6",
@@ -754,7 +754,7 @@
         "web-search",
         "computer-use"
       ],
-      "contextWindow": 200000,
+      "contextWindow": 1000000,
       "description": "Opus 4.6 is Anthropic’s strongest model for coding and long-running professional tasks. It is built for agents that operate across entire workflows rather than single prompts, making it especially effective for large codebases, complex refactors, and multi-step debugging that unfolds over time. The model shows deeper contextual understanding, stronger problem decomposition, and greater reliability on hard engineering tasks than prior generations.\n\nBeyond coding, Opus 4.6 excels at sustained knowledge work. It produces near-production-ready documents, plans, and analyses in a single pass, and maintains coherence across very long outputs and extended sessions. This makes it a strong default for tasks that require persistence, judgment, and follow-through, such as technical design, migration planning, and end-to-end project execution.\n\nFor users upgrading from earlier Opus versions, see our [official migration guide here](https://openrouter.ai/docs/guides/guides/model-migrations/claude-4-6-opus)\n",
       "family": "claude-opus",
       "id": "claude-opus-4-6",
@@ -839,12 +839,12 @@
         "audio-recognition",
         "video-recognition"
       ],
-      "contextWindow": 1000000,
+      "contextWindow": 1048576,
       "description": "Gemini 3 Pro is Google’s flagship frontier model for high-precision multimodal reasoning, combining strong performance across text, image, video, audio, and code with a 1M-token context window. Reasoning Details must be preserved when using multi-turn tool calling, see our docs here: https://openrouter.ai/docs/use-cases/reasoning-tokens#preserving-reasoning-blocks. It delivers state-of-the-art benchmark results in general reasoning, STEM problem solving, factual QA, and multimodal understanding, including leading scores on LMArena, GPQA Diamond, MathArena Apex, MMMU-Pro, and Video-MMMU. Interactions emphasize depth and interpretability: the model is designed to infer intent with minimal prompting and produce direct, insight-focused responses.\n\nBuilt for advanced development and agentic workflows, Gemini 3 Pro provides robust tool-calling, long-horizon planning stability, and strong zero-shot generation for complex UI, visualization, and coding tasks. It excels at agentic coding (SWE-Bench Verified, Terminal-Bench 2.0), multimodal analysis, and structured long-form tasks such as research synthesis, planning, and interactive learning experiences. Suitable applications include autonomous agents, coding assistants, multimodal analytics, scientific reasoning, and high-context information processing.",
       "family": "gemini-pro",
       "id": "gemini-3-pro-preview",
       "inputModalities": ["text", "image", "video", "audio"],
-      "maxOutputTokens": 64000,
+      "maxOutputTokens": 65536,
       "name": "Gemini 3 Pro Preview",
       "openWeights": false,
       "outputModalities": ["text"],
@@ -1259,7 +1259,7 @@
     },
     {
       "capabilities": ["function-call", "structured-output", "image-recognition", "file-input"],
-      "contextWindow": 1000000,
+      "contextWindow": 1047576,
       "description": "For tasks that demand low latency, GPT‑4.1 nano is the fastest and cheapest model in the GPT-4.1 series. It delivers exceptional performance at a small size with its 1 million token context window, and scores 80.1% on MMLU, 50.3% on GPQA, and 9.8% on Aider polyglot coding – even higher than GPT‑4o mini. It’s ideal for tasks like classification or autocompletion.",
       "family": "gpt-nano",
       "id": "gpt-4-1-nano",
@@ -1313,14 +1313,14 @@
     },
     {
       "capabilities": ["function-call", "reasoning"],
-      "contextWindow": 200000,
+      "contextWindow": 204800,
       "description": "GLM-4.7 is Z.ai’s latest flagship model, featuring upgrades in two key areas: enhanced programming capabilities and more stable multi-step reasoning/execution. It demonstrates significant improvements in executing complex agent tasks while delivering more natural conversational experiences and superior front-end aesthetics.",
       "family": "glm",
       "id": "glm-4-7",
       "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "name": "glm-4.7",
-      "openWeights": false,
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
       "pricing": {
@@ -1432,14 +1432,14 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "file-input"],
-      "contextWindow": 128000,
+      "contextWindow": 262144,
       "description": "Mistral Large 3 2512 is Mistral’s most capable model to date, featuring a sparse mixture-of-experts architecture with 41B active parameters (675B total), and released under the Apache 2.0 license.",
       "family": "mistral-large",
       "id": "mistral-large-2512",
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 262144,
       "name": "mistral-large-2512",
-      "openWeights": false,
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "mistral",
       "pricing": {
@@ -1458,14 +1458,14 @@
     },
     {
       "capabilities": ["function-call", "reasoning"],
-      "contextWindow": 1000000,
+      "contextWindow": 196608,
       "description": "MiniMax-M2 is a compact, high-efficiency large language model optimized for end-to-end coding and agentic workflows. With 10 billion activated parameters (230 billion total), it delivers near-frontier intelligence across general reasoning, tool use, and multi-step task execution while maintaining low latency and deployment efficiency.\n\nThe model excels in code generation, multi-file editing, compile-run-fix loops, and test-validated repair, showing strong results on SWE-Bench Verified, Multi-SWE-Bench, and Terminal-Bench. It also performs competitively in agentic evaluations such as BrowseComp and GAIA, effectively handling long-horizon planning, retrieval, and recovery from execution errors.\n\nBenchmarked by [Artificial Analysis](https://artificialanalysis.ai/models/minimax-m2), MiniMax-M2 ranks among the top open-source models for composite intelligence, spanning mathematics, science, and instruction-following. Its small activation footprint enables fast inference, high concurrency, and improved unit economics, making it well-suited for large-scale agents, developer assistants, and reasoning-driven applications that require responsiveness and cost efficiency.\n\nTo avoid degrading this model's performance, MiniMax highly recommends preserving reasoning between turns. Learn more about using reasoning_details to pass back reasoning in our [docs](https://openrouter.ai/docs/use-cases/reasoning-tokens#preserving-reasoning-blocks).",
       "family": "minimax",
       "id": "minimax-m2",
       "inputModalities": ["text"],
       "maxOutputTokens": 128000,
       "name": "MiniMax-M2",
-      "openWeights": false,
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "minimax",
       "pricing": {
@@ -1635,7 +1635,7 @@
       "maxOutputTokens": 32768,
       "name": "gemini-2.5-flash-image",
       "openWeights": false,
-      "outputModalities": ["text"],
+      "outputModalities": ["image", "text"],
       "ownedBy": "google",
       "pricing": {
         "cacheRead": {
@@ -1660,15 +1660,15 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "file-input"],
-      "contextWindow": 128000,
+      "capabilities": ["function-call", "file-input"],
+      "contextWindow": 1000000,
       "description": "DeepSeek-V3 is the latest model from the DeepSeek team, building upon the instruction following and coding abilities of the previous versions. Pre-trained on nearly 15 trillion tokens, the reported evaluations reveal that the model outperforms other open-source models and rivals leading closed-source models.\n\nFor model details, please visit [the DeepSeek-V3 repo](https://github.com/deepseek-ai/DeepSeek-V3) for more information, or see the [launch announcement](https://api-docs.deepseek.com/news/news1226).",
       "family": "deepseek",
       "id": "deepseek-chat",
       "inputModalities": ["text"],
-      "maxOutputTokens": 8192,
+      "maxOutputTokens": 384000,
       "name": "Deepseek-Chat",
-      "openWeights": false,
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "deepseek",
       "pricing": {
@@ -1691,7 +1691,7 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "file-input", "web-search"],
-      "contextWindow": 1000000,
+      "contextWindow": 1047576,
       "description": "GPT-4.1 Mini is a mid-sized model delivering performance competitive with GPT-4o at substantially lower latency and cost. It retains a 1 million token context window and scores 45.1% on hard instruction evals, 35.8% on MultiChallenge, and 84.1% on IFEval. Mini also shows strong coding ability (e.g., 31.6% on Aider’s polyglot diff benchmark) and vision understanding, making it suitable for interactive applications with tight performance constraints.",
       "family": "gpt-mini",
       "id": "gpt-4-1-mini",
@@ -1728,11 +1728,11 @@
         "audio-recognition",
         "video-recognition"
       ],
-      "contextWindow": 2000000,
+      "contextWindow": 1048576,
       "description": "Gemini-2.0-flash Lightweight Official Version",
       "family": "gemini-flash-lite",
       "id": "gemini-2-0-flash-lite",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "maxOutputTokens": 8192,
       "name": "gemini-2.0-flash-lite",
       "openWeights": false,
@@ -2050,7 +2050,7 @@
         "web-search",
         "image-generation"
       ],
-      "contextWindow": 32768,
+      "contextWindow": 65536,
       "description": "Nano Banana Pro is Google’s most advanced image-generation and editing model, built on Gemini 3 Pro. It extends the original Nano Banana with significantly improved multimodal reasoning, real-world grounding, and high-fidelity visual synthesis. The model generates context-rich graphics, from infographics and diagrams to cinematic composites, and can incorporate real-time information via Search grounding.\n\nIt offers industry-leading text rendering in images (including long passages and multilingual layouts), consistent multi-image blending, and accurate identity preservation across up to five subjects. Nano Banana Pro adds fine-grained creative controls such as localized edits, lighting and focus adjustments, camera transformations, and support for 2K/4K outputs and flexible aspect ratios. It is designed for professional-grade design, product visualization, storyboarding, and complex multi-element compositions while remaining efficient for general image creation workflows.",
       "id": "gemini-3-pro-image-preview",
       "imageGeneration": {
@@ -2072,10 +2072,10 @@
         }
       },
       "inputModalities": ["text", "image"],
-      "maxOutputTokens": 64000,
+      "maxOutputTokens": 32768,
       "name": "gemini-3-pro-image-preview",
       "openWeights": false,
-      "outputModalities": ["text"],
+      "outputModalities": ["image", "text"],
       "ownedBy": "google",
       "pricing": {
         "cacheRead": {
@@ -2118,7 +2118,7 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "file-input", "web-search"],
-      "contextWindow": 1000000,
+      "contextWindow": 1047576,
       "description": "GPT-4.1 is a flagship large language model optimized for advanced instruction following, real-world software engineering, and long-context reasoning. It supports a 1 million token context window and outperforms GPT-4o and GPT-4.5 across coding (54.6% SWE-bench Verified), instruction compliance (87.4% IFEval), and multimodal understanding benchmarks. It is tuned for precise code diffs, agent reliability, and high recall in large document contexts, making it ideal for agents, IDE tooling, and enterprise knowledge retrieval.",
       "family": "gpt",
       "id": "gpt-4-1",
@@ -2212,14 +2212,14 @@
     },
     {
       "capabilities": ["function-call", "reasoning"],
-      "contextWindow": 200000,
+      "contextWindow": 204800,
       "description": "Compared with GLM-4.5, this generation brings several key improvements:\n\nLonger context window: The context window has been expanded from 128K to 200K tokens, enabling the model to handle more complex agentic tasks.\nSuperior coding performance: The model achieves higher scores on code benchmarks and demonstrates better real-world performance in applications such as Claude Code、Cline、Roo Code and Kilo Code, including improvements in generating visually polished front-end pages.\nAdvanced reasoning: GLM-4.6 shows a clear improvement in reasoning performance and supports tool use during inference, leading to stronger overall capability.\nMore capable agents: GLM-4.6 exhibits stronger performance in tool using and search-based agents, and integrates more effectively within agent frameworks.\nRefined writing: Better aligns with human preferences in style and readability, and performs more naturally in role-playing scenarios.",
       "family": "glm",
       "id": "glm-4-6",
       "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "name": "glm-4.6",
-      "openWeights": false,
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
       "pricing": {
@@ -2309,14 +2309,14 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
-      "contextWindow": 128000,
+      "contextWindow": 131072,
       "description": "Qwen3-235B-A22B is a 235B parameter mixture-of-experts (MoE) model developed by Qwen, activating 22B parameters per forward pass. It supports seamless switching between a \"thinking\" mode for complex reasoning, math, and code tasks, and a \"non-thinking\" mode for general conversational efficiency. The model demonstrates strong reasoning ability, multilingual support (100+ languages and dialects), advanced instruction-following, and agent tool-calling capabilities. It natively handles a 32K token context window and extends up to 131K tokens using YaRN-based scaling.",
       "family": "qwen",
       "id": "qwen3-a22b",
       "inputModalities": ["text"],
       "maxOutputTokens": 16384,
       "name": "Qwen3-235B-A22B",
-      "openWeights": false,
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
@@ -2369,13 +2369,13 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "file-input"],
-      "contextWindow": 128000,
+      "contextWindow": 1000000,
       "family": "deepseek-thinking",
       "id": "deepseek-reasoner",
       "inputModalities": ["text"],
-      "maxOutputTokens": 128000,
+      "maxOutputTokens": 384000,
       "name": "Deepseek-Reasoner",
-      "openWeights": false,
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "deepseek",
       "pricing": {
@@ -2427,7 +2427,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 65536,
       "name": "qwen3-coder-480b-a35b-instruct",
-      "openWeights": false,
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
@@ -2484,14 +2484,14 @@
     },
     {
       "capabilities": ["function-call", "reasoning"],
-      "contextWindow": 1000000,
+      "contextWindow": 204800,
       "description": "MiniMax-M2.1 is a lightweight, state-of-the-art large language model optimized for coding, agentic workflows, and modern application development. With only 10 billion activated parameters, it delivers a major jump in real-world capability while maintaining exceptional latency, scalability, and cost efficiency.\n\nCompared to its predecessor, M2.1 delivers cleaner, more concise outputs and faster perceived response times. It shows leading multilingual coding performance across major systems and application languages, achieving 49.4% on Multi-SWE-Bench and 72.5% on SWE-Bench Multilingual, and serves as a versatile agent “brain” for IDEs, coding tools, and general-purpose assistance.\n\nTo avoid degrading this model's performance, MiniMax highly recommends preserving reasoning between turns. Learn more about using reasoning_details to pass back reasoning in our [docs](https://openrouter.ai/docs/use-cases/reasoning-tokens#preserving-reasoning-blocks).",
       "family": "minimax",
       "id": "minimax-m2-1",
       "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "name": "MiniMax-M2.1",
-      "openWeights": false,
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "minimax",
       "pricing": {
@@ -2688,10 +2688,10 @@
       "description": "GLM-4.6V is a large multimodal model designed for high-fidelity visual understanding and long-context reasoning across images, documents, and mixed media. It supports up to 128K tokens, processes complex page layouts and charts directly as visual inputs, and integrates native multimodal function calling to connect perception with downstream tool execution. The model also enables interleaved image-text generation and UI reconstruction workflows, including screenshot-to-HTML synthesis and iterative visual editing.",
       "family": "glm",
       "id": "glm-4-6v",
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["image", "text", "video"],
       "maxOutputTokens": 32768,
       "name": "GLM-4.6V",
-      "openWeights": false,
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
       "pricing": {
@@ -2792,7 +2792,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 131072,
       "name": "GLM-5",
-      "openWeights": false,
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
       "pricing": {
@@ -2821,7 +2821,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 98304,
       "name": "GLM-4.5-Flash",
-      "openWeights": true,
+      "openWeights": false,
       "outputModalities": ["text"],
       "ownedBy": "zhipu",
       "reasoning": {
@@ -3404,12 +3404,12 @@
     },
     {
       "capabilities": ["function-call", "reasoning"],
-      "contextWindow": 256000,
+      "contextWindow": 262144,
       "description": "MiMo-V2-Flash is an open-source foundation language model developed by Xiaomi. It is a Mixture-of-Experts model with 309B total parameters and 15B active parameters, adopting hybrid attention architecture. MiMo-V2-Flash supports a hybrid-thinking toggle and a 256K context window, and excels at reasoning, coding, and agent scenarios. On SWE-bench Verified and SWE-bench Multilingual, MiMo-V2-Flash ranks as the top #1 open-source model globally, delivering performance comparable to Claude Sonnet 4.5 while costing only about 3.5% as much.\n\nUsers can control the reasoning behaviour with the `reasoning` `enabled` boolean. [Learn more in our docs](https://openrouter.ai/docs/use-cases/reasoning-tokens#enable-reasoning-with-default-config).",
       "family": "mimo",
       "id": "mimo-v2-flash",
       "inputModalities": ["text"],
-      "maxOutputTokens": 32000,
+      "maxOutputTokens": 65536,
       "name": "MiMo-V2-Flash",
       "openWeights": true,
       "outputModalities": ["text"],
@@ -3716,7 +3716,7 @@
       "family": "qwen",
       "id": "qwen3",
       "inputModalities": ["text"],
-      "maxOutputTokens": 8192,
+      "maxOutputTokens": 16384,
       "name": "Qwen3 14B",
       "openWeights": true,
       "outputModalities": ["text"],
@@ -3767,7 +3767,7 @@
       "description": "The Qwen3.5 series 397B-A17B native vision-language model is built on a hybrid architecture that integrates a linear attention mechanism with a sparse mixture-of-experts model, achieving higher inference efficiency. It delivers state-of-the-art performance comparable to leading-edge models across a wide range of tasks, including language understanding, logical reasoning, code generation, agent-based tasks, image understanding, video understanding, and graphical user interface (GUI) interactions. With its robust code-generation and agent capabilities, the model exhibits strong generalization across diverse agent.",
       "family": "qwen",
       "id": "qwen3-5-a17b",
-      "inputModalities": ["text", "image", "video"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "maxOutputTokens": 65536,
       "name": "Qwen3.5 397B-A17B",
       "openWeights": true,
@@ -3872,7 +3872,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call"],
       "contextWindow": 262144,
       "description": "Qwen3-Coder-30B-A3B-Instruct is a 30.5B parameter Mixture-of-Experts (MoE) model with 128 experts (8 active per forward pass), designed for advanced code generation, repository-scale understanding, and agentic tool use. Built on the Qwen3 architecture, it supports a native context length of 256K tokens (extendable to 1M with Yarn) and performs strongly in tasks involving function calls, browser use, and structured code completion.\n\nThis model is optimized for instruction-following without “thinking mode”, and integrates well with OpenAI-compatible tool-use formats. ",
       "family": "qwen",
@@ -3898,7 +3898,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none"]
       }
     },
     {
@@ -4184,7 +4184,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call"],
       "contextWindow": 262144,
       "description": "Qwen3-Max is an updated release built on the Qwen3 series, offering major improvements in reasoning, instruction following, multilingual support, and long-tail knowledge coverage compared to the January 2025 version. It delivers higher accuracy in math, coding, logic, and science tasks, follows complex instructions in Chinese and English more reliably, reduces hallucinations, and produces higher-quality responses for open-ended Q&A, writing, and conversation. The model supports over 100 languages with stronger translation and commonsense reasoning, and is optimized for retrieval-augmented generation (RAG) and tool calling, though it does not include a dedicated “thinking” mode.",
       "family": "qwen",
@@ -4210,11 +4210,7 @@
         }
       },
       "reasoning": {
-        "supportedEfforts": ["none", "low", "medium", "high"],
-        "thinkingTokenLimits": {
-          "max": 81920,
-          "min": 0
-        }
+        "supportedEfforts": ["none"]
       }
     },
     {
@@ -4264,7 +4260,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 65536,
       "name": "Qwen3 Coder Plus",
-      "openWeights": true,
+      "openWeights": false,
       "outputModalities": ["text"],
       "ownedBy": "alibaba",
       "pricing": {
@@ -5107,12 +5103,12 @@
     },
     {
       "capabilities": ["function-call", "reasoning"],
-      "contextWindow": 131072,
+      "contextWindow": 262144,
       "description": "NVIDIA Nemotron 3 Nano 30B A3B is a small language MoE model with highest compute efficiency and accuracy for developers to build specialized agentic AI systems.\n\nThe model is fully open with open-weights, datasets and recipes so developers can easily\ncustomize, optimize, and deploy the model on their infrastructure for maximum privacy and\nsecurity.\n\nNote: For the free endpoint, all prompts and output are logged to improve the provider's model and its product and services. Please do not upload any personal, confidential, or otherwise sensitive information. This is a trial use only. Do not use for production or business-critical systems.",
       "family": "nemotron",
       "id": "nemotron-3-nano-a3b",
       "inputModalities": ["text"],
-      "maxOutputTokens": 131072,
+      "maxOutputTokens": 262144,
       "name": "nemotron-3-nano-30b-a3b",
       "openWeights": true,
       "outputModalities": ["text"],
@@ -5158,12 +5154,12 @@
       "ownedBy": "nvidia"
     },
     {
-      "contextWindow": 128000,
+      "contextWindow": 131072,
       "id": "llama-3-3-nemotron-super-v1",
       "inputModalities": ["text"],
-      "maxOutputTokens": 4096,
+      "maxOutputTokens": 131072,
       "name": "Llama 3.3 Nemotron Super 49b V1",
-      "openWeights": false,
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "meta",
       "family": "nemotron",
@@ -5254,13 +5250,13 @@
     },
     {
       "capabilities": ["function-call", "reasoning"],
-      "contextWindow": 128000,
+      "contextWindow": 131072,
       "description": "Llama-3.3-Nemotron-Super-49B-v1.5 is a 49B-parameter, English-centric reasoning/chat model derived from Meta’s Llama-3.3-70B-Instruct with a 128K context. It’s post-trained for agentic workflows (RAG, tool calling) via SFT across math, code, science, and multi-turn chat, followed by multiple RL stages; Reward-aware Preference Optimization (RPO) for alignment, RL with Verifiable Rewards (RLVR) for step-wise reasoning, and iterative DPO to refine tool-use behavior. A distillation-driven Neural Architecture Search (“Puzzle”) replaces some attention blocks and varies FFN widths to shrink memory footprint and improve throughput, enabling single-GPU (H100/H200) deployment while preserving instruction following and CoT quality.\n\nIn internal evaluations (NeMo-Skills, up to 16 runs, temp = 0.6, top_p = 0.95), the model reports strong reasoning/coding results, e.g., MATH500 pass@1 = 97.4, AIME-2024 = 87.5, AIME-2025 = 82.71, GPQA = 71.97, LiveCodeBench (24.10–25.02) = 73.58, and MMLU-Pro (CoT) = 79.53. The model targets practical inference efficiency (high tokens/s, reduced VRAM) with Transformers/vLLM support and explicit “reasoning on/off” modes (chat-first defaults, greedy recommended when disabled). Suitable for building agents, assistants, and long-context retrieval systems where balanced accuracy-to-cost and reliable tool use matter.\n",
       "id": "llama-3-3-nemotron-super-v1-5",
       "inputModalities": ["text"],
-      "maxOutputTokens": 4096,
+      "maxOutputTokens": 131072,
       "name": "Llama 3.3 Nemotron Super 49b V1.5",
-      "openWeights": false,
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "meta",
       "pricing": {
@@ -6029,7 +6025,7 @@
       "family": "deepseek-thinking",
       "id": "deepseek-r1",
       "inputModalities": ["text"],
-      "maxOutputTokens": 4096,
+      "maxOutputTokens": 32768,
       "name": "Deepseek R1",
       "openWeights": true,
       "outputModalities": ["text"],
@@ -6189,7 +6185,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call"],
       "contextWindow": 256000,
       "description": "Command A is Cohere most performant model to date, excelling at tool use, agents, retrieval augmented generation (RAG), and multilingual use cases. Command A has a context length of 256K, only requires two GPUs to run, and has 150% higher throughput compared to Command R+ 08-2024.",
       "family": "command-a",
@@ -6215,7 +6211,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call"],
       "contextWindow": 128000,
       "description": "command-r-08-2024 is an update of the [Command R](/models/cohere/command-r) with improved performance for multilingual retrieval-augmented generation (RAG) and tool use. More broadly, it is better at math, code and reasoning and is competitive with the previous version of the larger Command R+ model.\n\nRead the launch post [here](https://docs.cohere.com/changelog/command-gets-refreshed).\n\nUse of this model is subject to Cohere's [Usage Policy](https://docs.cohere.com/docs/usage-policy) and [SaaS Agreement](https://cohere.com/saas-agreement).",
       "family": "command-r",
@@ -6241,7 +6237,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call"],
       "contextWindow": 128000,
       "description": "command-r-plus-08-2024 is an update of the [Command R+](/models/cohere/command-r-plus) with roughly 50% higher throughput and 25% lower latencies as compared to the previous Command R+ version, while keeping the hardware footprint the same.\n\nRead the launch post [here](https://docs.cohere.com/changelog/command-gets-refreshed).\n\nUse of this model is subject to Cohere's [Usage Policy](https://docs.cohere.com/docs/usage-policy) and [SaaS Agreement](https://cohere.com/saas-agreement).",
       "family": "command-r",
@@ -6278,7 +6274,7 @@
       "ownedBy": "cohere"
     },
     {
-      "capabilities": ["function-call", "reasoning"],
+      "capabilities": ["function-call"],
       "contextWindow": 128000,
       "description": "Command R7B (12-2024) is a small, fast update of the Command R+ model, delivered in December 2024. It excels at RAG, tool use, agents, and similar tasks requiring complex reasoning and multiple steps.\n\nUse of this model is subject to Cohere's [Usage Policy](https://docs.cohere.com/docs/usage-policy) and [SaaS Agreement](https://cohere.com/saas-agreement).",
       "family": "command-r",
@@ -6685,7 +6681,7 @@
         "file-input",
         "web-search"
       ],
-      "contextWindow": 128000,
+      "contextWindow": 400000,
       "description": "GPT-5.1-Codex is a specialized version of GPT-5.1 optimized for software engineering and coding workflows. It is designed for both interactive development sessions and long, independent execution of complex engineering tasks. The model supports building projects from scratch, feature development, debugging, large-scale refactoring, and code review. Compared to GPT-5.1, Codex is more steerable, adheres closely to developer instructions, and produces cleaner, higher-quality code outputs. Reasoning effort can be adjusted with the `reasoning.effort` parameter. Read the [docs here](https://openrouter.ai/docs/use-cases/reasoning-tokens#reasoning-effort-level)\n\nCodex integrates into developer environments including the CLI, IDE extensions, GitHub, and cloud tasks. It adapts reasoning effort dynamically—providing fast responses for small tasks while sustaining extended multi-hour runs for large projects. The model is trained to perform structured code reviews, catching critical flaws by reasoning over dependencies and validating behavior against tests. It also supports multimodal inputs such as images or screenshots for UI development and integrates tool use for search, dependency installation, and environment setup. Codex is intended specifically for agentic coding applications.",
       "family": "gpt-codex",
       "id": "gpt-5-1-codex",
@@ -6722,7 +6718,7 @@
         "file-input",
         "web-search"
       ],
-      "contextWindow": 128000,
+      "contextWindow": 400000,
       "description": "GPT-5.1-Codex-Mini is a smaller and faster version of GPT-5.1-Codex",
       "family": "gpt-codex",
       "id": "gpt-5-1-codex-mini",
@@ -6774,7 +6770,7 @@
         "file-input",
         "web-search"
       ],
-      "contextWindow": 128000,
+      "contextWindow": 400000,
       "description": "GPT-5.1-Codex-Max is OpenAI’s latest agentic coding model, designed for long-running, high-context software development tasks. It is based on an updated version of the 5.1 reasoning stack and trained on agentic workflows spanning software engineering, mathematics, and research. \nGPT-5.1-Codex-Max delivers faster performance, improved reasoning, and higher token efficiency across the development lifecycle. ",
       "family": "gpt-codex",
       "id": "gpt-5-1-codex-max",
@@ -6804,12 +6800,12 @@
     },
     {
       "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition", "file-input"],
-      "contextWindow": 128000,
+      "contextWindow": 1048576,
       "description": "Gemini 3.1 Pro Preview is Google’s frontier reasoning model, delivering enhanced software engineering performance, improved agentic reliability, and more efficient token usage across complex workflows. Building on the multimodal foundation of the Gemini 3 series, it combines high-precision reasoning across text, image, video, audio, and code with a 1M-token context window. Reasoning Details must be preserved when using multi-turn tool calling, see our docs here: https://openrouter.ai/docs/use-cases/reasoning-tokens#preserving-reasoning. The 3.1 update introduces measurable gains in SWE benchmarks and real-world coding environments, along with stronger autonomous task execution in structured domains such as finance and spreadsheet-based workflows.\n\nDesigned for advanced development and agentic systems, Gemini 3.1 Pro Preview improves long-horizon stability and tool orchestration while increasing token efficiency. It introduces a new medium thinking level to better balance cost, speed, and performance. The model excels in agentic coding, structured planning, multimodal analysis, and workflow automation, making it well-suited for autonomous agents, financial modeling, spreadsheet automation, and high-context enterprise tasks.",
       "family": "gemini-pro",
       "id": "gemini-3-1-pro-preview",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 64000,
+      "inputModalities": ["audio", "image", "text", "video"],
+      "maxOutputTokens": 65536,
       "name": "Gemini 3.1 Pro Preview",
       "openWeights": false,
       "outputModalities": ["text"],
@@ -6929,7 +6925,7 @@
       "family": "gemini-flash-lite",
       "id": "gemini-2-5-flash-lite",
       "inputModalities": ["text", "image", "video", "audio"],
-      "maxOutputTokens": 65535,
+      "maxOutputTokens": 65536,
       "name": "gemini-2.5-flash-lite",
       "openWeights": false,
       "outputModalities": ["text"],
@@ -7116,12 +7112,12 @@
         "file-input",
         "web-search"
       ],
-      "contextWindow": 131072,
+      "contextWindow": 200000,
       "description": "OpenAI o3-mini is a cost-efficient language model optimized for STEM reasoning tasks, particularly excelling in science, mathematics, and coding.\n\nThis model supports the `reasoning_effort` parameter, which can be set to \"high\", \"medium\", or \"low\" to control the thinking time of the model. The default is \"medium\". OpenRouter also offers the model slug `openai/o3-mini-high` to default the parameter to \"high\".\n\nThe model features three adjustable reasoning effort levels and supports key developer capabilities including function calling, structured outputs, and streaming, though it does not include vision processing capabilities.\n\nThe model demonstrates significant improvements over its predecessor, with expert testers preferring its responses 56% of the time and noting a 39% reduction in major errors on complex questions. With medium reasoning effort settings, o3-mini matches the performance of the larger o1 model on challenging reasoning evaluations like AIME and GPQA, while maintaining lower latency and cost.",
       "family": "o",
       "id": "o3-mini",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 131072,
+      "inputModalities": ["text"],
+      "maxOutputTokens": 100000,
       "name": "o3-mini",
       "openWeights": false,
       "outputModalities": ["text"],
@@ -7311,12 +7307,12 @@
         "file-input",
         "web-search"
       ],
-      "contextWindow": 131072,
+      "contextWindow": 200000,
       "description": "o3 is a well-rounded and powerful model across domains. It sets a new standard for math, science, coding, and visual reasoning tasks. It also excels at technical writing and instruction-following. Use it to think through multi-step problems that involve analysis across text, code, and images. ",
       "family": "o",
       "id": "o3",
       "inputModalities": ["text", "image"],
-      "maxOutputTokens": 131072,
+      "maxOutputTokens": 100000,
       "name": "o3",
       "openWeights": false,
       "outputModalities": ["text"],
@@ -7641,7 +7637,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 128000,
       "name": "Devstral Medium",
-      "openWeights": true,
+      "openWeights": false,
       "outputModalities": ["text"],
       "ownedBy": "mistral",
       "pricing": {
@@ -7947,11 +7943,11 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
-      "contextWindow": 128000,
+      "contextWindow": 256000,
       "family": "mistral-small",
       "id": "mistral-small-latest",
       "inputModalities": ["text", "image"],
-      "maxOutputTokens": 16384,
+      "maxOutputTokens": 256000,
       "name": "Mistral Small",
       "openWeights": true,
       "outputModalities": ["text"],
@@ -8143,13 +8139,13 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "file-input"],
-      "contextWindow": 128000,
+      "contextWindow": 262144,
       "family": "mistral-medium",
       "id": "mistral-medium-latest",
       "inputModalities": ["text", "image"],
-      "maxOutputTokens": 16384,
+      "maxOutputTokens": 262144,
       "name": "Mistral Medium",
-      "openWeights": true,
+      "openWeights": false,
       "outputModalities": ["text"],
       "ownedBy": "mistral",
       "pricing": {
@@ -8200,7 +8196,7 @@
       "inputModalities": ["text"],
       "maxOutputTokens": 16384,
       "name": "Magistral Medium",
-      "openWeights": true,
+      "openWeights": false,
       "outputModalities": ["text"],
       "ownedBy": "mistral",
       "pricing": {
@@ -8463,7 +8459,7 @@
       "description": "The 2024-11-20 version of GPT-4o offers a leveled-up creative writing ability with more natural, engaging, and tailored writing to improve relevance & readability. It’s also better at working with uploaded files, providing deeper insights & more thorough responses.\n\nGPT-4o (\"o\" for \"omni\") is OpenAI's latest AI model, supporting both text and image inputs with text outputs. It maintains the intelligence level of [GPT-4 Turbo](/models/openai/gpt-4-turbo) while being twice as fast and 50% more cost-effective. GPT-4o also offers improved performance in processing non-English languages and enhanced visual capabilities.",
       "family": "gpt",
       "id": "gpt-4o-2024-11-20",
-      "inputModalities": ["text", "image", "audio"],
+      "inputModalities": ["image", "text"],
       "maxOutputTokens": 16384,
       "name": "GPT-4o (2024-11-20)",
       "openWeights": false,
@@ -8820,14 +8816,14 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
-      "contextWindow": 131072,
+      "contextWindow": 128000,
       "description": "NVIDIA Nemotron Nano 2 VL is a 12-billion-parameter open multimodal reasoning model designed for video understanding and document intelligence. It introduces a hybrid Transformer-Mamba architecture, combining transformer-level accuracy with Mamba’s memory-efficient sequence modeling for significantly higher throughput and lower latency.\n\nThe model supports inputs of text and multi-image documents, producing natural-language outputs. It is trained on high-quality NVIDIA-curated synthetic datasets optimized for optical-character recognition, chart reasoning, and multimodal comprehension.\n\nNemotron Nano 2 VL achieves leading results on OCRBench v2 and scores ≈ 74 average across MMMU, MathVista, AI2D, OCRBench, OCR-Reasoning, ChartQA, DocVQA, and Video-MME—surpassing prior open VL baselines. With Efficient Video Sampling (EVS), it handles long-form videos while reducing inference cost.\n\nOpen-weights, training data, and fine-tuning recipes are released under a permissive NVIDIA open license, with deployment supported across NeMo, NIM, and major inference runtimes.",
       "family": "nemotron",
       "id": "nemotron-nano-v2-vl",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 131072,
+      "inputModalities": ["image", "text", "video"],
+      "maxOutputTokens": 128000,
       "name": "Nvidia Nemotron Nano 12B V2 VL",
-      "openWeights": false,
+      "openWeights": true,
       "outputModalities": ["text"],
       "ownedBy": "nvidia",
       "pricing": {
@@ -9813,12 +9809,12 @@
     },
     {
       "capabilities": ["embedding"],
-      "contextWindow": 8192,
+      "contextWindow": 2048,
       "description": "gemini-embedding-001 provides a unified cutting edge experience across domains, including science, legal, finance, and coding. This embedding model has consistently held a top spot on the Massive Text Embedding Benchmark (MTEB) Multilingual leaderboard since the experimental launch in March.",
       "family": "gemini-embedding",
       "id": "gemini-embedding-001",
       "inputModalities": ["text"],
-      "maxOutputTokens": 1536,
+      "maxOutputTokens": 1,
       "name": "Gemini Embedding 001",
       "openWeights": false,
       "outputModalities": ["text"],
@@ -10650,12 +10646,12 @@
     },
     {
       "capabilities": ["function-call", "image-recognition", "file-input", "web-search"],
-      "contextWindow": 127000,
+      "contextWindow": 128000,
       "description": "Sonar is lightweight, affordable, fast, and simple to use — now featuring citations and the ability to customize sources. It is designed for companies seeking to integrate lightweight question-and-answer features optimized for speed.",
       "family": "sonar",
       "id": "sonar",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 8000,
+      "inputModalities": ["text"],
+      "maxOutputTokens": 4096,
       "name": "Sonar",
       "openWeights": false,
       "outputModalities": ["text"],
@@ -10681,7 +10677,7 @@
       "family": "sonar-pro",
       "id": "sonar-pro",
       "inputModalities": ["text", "image"],
-      "maxOutputTokens": 8000,
+      "maxOutputTokens": 8192,
       "name": "Sonar Pro",
       "openWeights": false,
       "outputModalities": ["text"],
@@ -10702,12 +10698,12 @@
     },
     {
       "capabilities": ["reasoning", "web-search"],
-      "contextWindow": 127000,
+      "contextWindow": 128000,
       "description": "Note: Sonar Pro pricing includes Perplexity search pricing. See [details here](https://docs.perplexity.ai/guides/pricing#detailed-pricing-breakdown-for-sonar-reasoning-pro-and-sonar-pro)\n\nSonar Reasoning Pro is a premier reasoning model powered by DeepSeek R1 with Chain of Thought (CoT). Designed for advanced use cases, it supports in-depth, multi-step queries with a larger context window and can surface more citations per search, enabling more comprehensive and extensible responses.",
       "family": "sonar-reasoning",
       "id": "sonar-reasoning-pro",
-      "inputModalities": ["text"],
-      "maxOutputTokens": 8000,
+      "inputModalities": ["image", "text"],
+      "maxOutputTokens": 4096,
       "name": "Sonar Reasoning Pro",
       "openWeights": false,
       "outputModalities": ["text"],
@@ -13890,7 +13886,7 @@
       "family": "kimi-thinking",
       "id": "kimi-k2-thinking",
       "inputModalities": ["text"],
-      "maxOutputTokens": 65535,
+      "maxOutputTokens": 262144,
       "name": "Kimi K2 Thinking TEE",
       "openWeights": true,
       "outputModalities": ["text"],
@@ -41323,7 +41319,7 @@
         }
       },
       "openWeights": true,
-      "inputModalities": ["text", "image", "video"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "outputModalities": ["text"],
       "family": "qwen"
     },
@@ -41359,7 +41355,7 @@
         }
       },
       "openWeights": true,
-      "inputModalities": ["text", "image", "video"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "outputModalities": ["text"],
       "family": "qwen"
     },
@@ -41395,7 +41391,7 @@
         }
       },
       "openWeights": true,
-      "inputModalities": ["text", "image", "video"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "outputModalities": ["text"],
       "family": "qwen"
     },
@@ -41532,7 +41528,7 @@
         }
       },
       "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "outputModalities": ["text"],
       "family": "gemini-flash-lite",
       "reasoning": {
@@ -43931,14 +43927,14 @@
       "name": "Grok 4.20 Reasoning",
       "ownedBy": "xai",
       "family": "grok",
-      "contextWindow": 2000000,
-      "maxOutputTokens": 2000000,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 30000,
       "openWeights": false,
       "inputModalities": ["text", "image"],
       "outputModalities": ["text"],
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "image-recognition", "file-input"],
       "reasoning": {
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none"]
       },
       "pricing": {
         "input": {
@@ -43961,7 +43957,7 @@
       "ownedBy": "xai",
       "family": "grok",
       "contextWindow": 1000000,
-      "maxOutputTokens": 1000000,
+      "maxOutputTokens": 30000,
       "openWeights": false,
       "inputModalities": ["text", "image"],
       "outputModalities": ["text"],
@@ -44047,10 +44043,10 @@
       "name": "Kimi K2.6",
       "ownedBy": "moonshot",
       "family": "kimi-k2.6",
-      "contextWindow": 262000,
-      "maxOutputTokens": 262000,
+      "contextWindow": 262144,
+      "maxOutputTokens": 262144,
       "openWeights": true,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["image", "text", "video"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -44072,14 +44068,357 @@
       }
     },
     {
+      "capabilities": [
+        "function-call",
+        "structured-output",
+        "reasoning",
+        "image-recognition",
+        "file-input",
+        "video-recognition"
+      ],
+      "contextWindow": 262144,
+      "family": "kimi-k2",
+      "id": "kimi-k2-7-code",
+      "inputModalities": ["text", "image", "video"],
+      "maxOutputTokens": 262144,
+      "name": "Kimi K2.7 Code",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "moonshot",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.16
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.95
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": []
+      }
+    },
+    {
+      "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition", "file-input"],
+      "contextWindow": 262144,
+      "family": "mistral-medium",
+      "id": "mistral-medium-2604",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 262144,
+      "name": "Mistral Medium 3.5",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "mistral",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 7.5
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "contextWindow": 256000,
+      "family": "mistral-small",
+      "id": "mistral-small-2603",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 256000,
+      "name": "Mistral Small 4",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "mistral",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "contextWindow": 8192,
+      "family": "gemini-pro",
+      "id": "gemini-2-5-pro-tts",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 16384,
+      "name": "Gemini 2.5 Pro TTS",
+      "openWeights": false,
+      "outputModalities": ["audio"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 20
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none"]
+      }
+    },
+    {
+      "capabilities": [
+        "function-call",
+        "structured-output",
+        "reasoning",
+        "image-recognition",
+        "audio-recognition",
+        "file-input",
+        "video-recognition"
+      ],
+      "contextWindow": 1048576,
+      "family": "gemini-flash-lite",
+      "id": "gemini-3-1-flash-lite",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "maxOutputTokens": 65536,
+      "name": "Gemini 3.1 Flash Lite",
+      "openWeights": false,
+      "outputModalities": ["text"],
+      "ownedBy": "google",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.025
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["audio-generation"],
+      "contextWindow": 8192,
+      "family": "gemini-flash",
+      "id": "gemini-2-5-flash-tts",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 16384,
+      "name": "Gemini 2.5 Flash TTS",
+      "openWeights": false,
+      "outputModalities": ["audio"],
+      "ownedBy": "google",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.5
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 10
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "structured-output", "image-recognition", "file-input"],
+      "contextWindow": 128000,
+      "family": "gpt",
+      "id": "gpt-5-3-chat-latest",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 16384,
+      "name": "GPT-5.3 Chat (latest)",
+      "openWeights": false,
+      "outputModalities": ["text"],
+      "ownedBy": "openai",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.175
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.75
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 14
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 128000,
+      "family": "nemotron",
+      "id": "llama-3-1-nemotron-ultra-253b",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 8192,
+      "name": "Llama 3.1 Nemotron Ultra 253B",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "nvidia",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.06
+        },
+        "cacheWrite": {
+          "currency": "USD",
+          "perMillionTokens": 0.75
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.6
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.8
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 1048576,
+      "family": "mimo",
+      "id": "mimo-v2-5-pro-ultraspeed",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 131072,
+      "name": "MiMo-V2.5-Pro-UltraSpeed",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "xiaomi",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.0108
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.305
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 2.61
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 131072,
+      "family": "sarvam",
+      "id": "sarvam-105b",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 131072,
+      "name": "Sarvam 105B",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "sarvam",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.04
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.16
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 128000,
+      "family": "sarvam",
+      "id": "sarvam-30b",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 128000,
+      "name": "Sarvam 30B",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "sarvam",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.02
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
+      "capabilities": ["function-call", "reasoning"],
+      "contextWindow": 256000,
+      "family": "step",
+      "id": "step-3-5-flash-2603",
+      "inputModalities": ["text"],
+      "maxOutputTokens": 256000,
+      "name": "Step 3.5 Flash 2603",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "stepfun",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.02
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.1
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        }
+      },
+      "reasoning": {
+        "supportedEfforts": ["none", "auto"]
+      }
+    },
+    {
       "id": "glm-5-1",
       "name": "GLM 5.1",
       "ownedBy": "zhipu",
       "family": "glm",
-      "contextWindow": 202800,
-      "maxOutputTokens": 64000,
-      "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "contextWindow": 200000,
+      "maxOutputTokens": 131072,
+      "openWeights": true,
+      "inputModalities": ["text"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -44101,14 +44440,43 @@
       }
     },
     {
+      "id": "glm-5-2",
+      "name": "GLM 5.2",
+      "ownedBy": "zhipu",
+      "family": "glm",
+      "contextWindow": 1000000,
+      "maxOutputTokens": 131072,
+      "openWeights": true,
+      "inputModalities": ["text"],
+      "outputModalities": ["text"],
+      "capabilities": ["function-call", "structured-output", "reasoning"],
+      "reasoning": {
+        "supportedEfforts": ["high", "max"]
+      },
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      }
+    },
+    {
       "id": "glm-5v-turbo",
       "name": "GLM 5V Turbo",
       "ownedBy": "zhipu",
       "family": "glm",
       "contextWindow": 200000,
-      "maxOutputTokens": 128000,
+      "maxOutputTokens": 131072,
       "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["image", "text", "video"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -44134,8 +44502,8 @@
       "name": "GLM 5 Turbo",
       "ownedBy": "zhipu",
       "family": "glm",
-      "contextWindow": 202800,
-      "maxOutputTokens": 131100,
+      "contextWindow": 200000,
+      "maxOutputTokens": 131072,
       "openWeights": false,
       "inputModalities": ["text"],
       "outputModalities": ["text"],
@@ -44163,10 +44531,10 @@
       "name": "Gemini 3.5 Flash",
       "ownedBy": "google",
       "family": "gemini-flash",
-      "contextWindow": 1000000,
-      "maxOutputTokens": 64000,
+      "contextWindow": 1048576,
+      "maxOutputTokens": 65536,
       "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -44193,8 +44561,8 @@
       "ownedBy": "google",
       "family": "gemma",
       "contextWindow": 262144,
-      "maxOutputTokens": 131072,
-      "openWeights": false,
+      "maxOutputTokens": 32768,
+      "openWeights": true,
       "inputModalities": ["text", "image"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition", "file-input"],
@@ -44218,8 +44586,8 @@
       "ownedBy": "google",
       "family": "gemma",
       "contextWindow": 262144,
-      "maxOutputTokens": 131072,
-      "openWeights": false,
+      "maxOutputTokens": 32768,
+      "openWeights": true,
       "inputModalities": ["text", "image"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition", "file-input"],
@@ -44332,7 +44700,7 @@
       "name": "GPT 5.5 Pro",
       "ownedBy": "openai",
       "family": "gpt",
-      "contextWindow": 1000000,
+      "contextWindow": 1050000,
       "maxOutputTokens": 128000,
       "openWeights": false,
       "inputModalities": ["text", "image"],
@@ -44357,7 +44725,7 @@
       "name": "GPT 5.5",
       "ownedBy": "openai",
       "family": "gpt",
-      "contextWindow": 1000000,
+      "contextWindow": 1050000,
       "maxOutputTokens": 128000,
       "openWeights": false,
       "inputModalities": ["text", "image"],
@@ -44419,8 +44787,8 @@
       "name": "NVIDIA Nemotron Cascade 2",
       "ownedBy": "nvidia",
       "family": "nemotron",
-      "contextWindow": 262144,
-      "maxOutputTokens": 131072,
+      "contextWindow": 256000,
+      "maxOutputTokens": 32768,
       "openWeights": true,
       "inputModalities": ["text"],
       "outputModalities": ["text"],
@@ -44510,7 +44878,7 @@
       "ownedBy": "nvidia",
       "family": "nemotron",
       "contextWindow": 1000000,
-      "maxOutputTokens": 65536,
+      "maxOutputTokens": 128000,
       "openWeights": true,
       "inputModalities": ["text"],
       "outputModalities": ["text"],
@@ -44636,10 +45004,10 @@
       "name": "MiMo M2.5",
       "ownedBy": "xiaomi",
       "family": "mimo-v2.5",
-      "contextWindow": 1050000,
-      "maxOutputTokens": 131100,
-      "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "contextWindow": 1048576,
+      "maxOutputTokens": 131072,
+      "openWeights": true,
+      "inputModalities": ["audio", "image", "text", "video"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -44665,8 +45033,8 @@
       "name": "MiMo V2 Omni",
       "ownedBy": "xiaomi",
       "family": "mimo",
-      "contextWindow": 265000,
-      "maxOutputTokens": 265000,
+      "contextWindow": 262144,
+      "maxOutputTokens": 131072,
       "openWeights": false,
       "inputModalities": ["text", "image", "audio", "video"],
       "outputModalities": ["text"],
@@ -44701,8 +45069,8 @@
       "name": "MiMo V2 Pro",
       "ownedBy": "xiaomi",
       "family": "mimo",
-      "contextWindow": 1000000,
-      "maxOutputTokens": 128000,
+      "contextWindow": 1048576,
+      "maxOutputTokens": 131072,
       "openWeights": false,
       "inputModalities": ["text"],
       "outputModalities": ["text"],
@@ -44730,10 +45098,10 @@
       "name": "MiMo V2.5 Pro",
       "ownedBy": "xiaomi",
       "family": "mimo-v2.5-pro",
-      "contextWindow": 1050000,
-      "maxOutputTokens": 131000,
-      "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "contextWindow": 1048576,
+      "maxOutputTokens": 131072,
+      "openWeights": true,
+      "inputModalities": ["text"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -44923,7 +45291,7 @@
       "family": "step",
       "contextWindow": 256000,
       "maxOutputTokens": 256000,
-      "openWeights": false,
+      "openWeights": true,
       "inputModalities": ["text", "image"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
@@ -44983,10 +45351,10 @@
       "name": "Qwen3.6 35B A3B",
       "ownedBy": "alibaba",
       "family": "qwen3.6",
-      "contextWindow": 131056,
-      "maxOutputTokens": 131056,
+      "contextWindow": 262144,
+      "maxOutputTokens": 65536,
       "openWeights": true,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["audio", "image", "text", "video"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -45008,10 +45376,10 @@
       "name": "Qwen 3.7 Max",
       "ownedBy": "alibaba",
       "family": "qwen-max",
-      "contextWindow": 991000,
-      "maxOutputTokens": 64000,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 65536,
       "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "reasoning", "file-input"],
       "reasoning": {
@@ -45041,7 +45409,7 @@
       "name": "Qwen3.6 Flash",
       "ownedBy": "alibaba",
       "family": "qwen3.6",
-      "contextWindow": 991800,
+      "contextWindow": 1000000,
       "maxOutputTokens": 65536,
       "openWeights": false,
       "inputModalities": ["text", "image", "video"],
@@ -45066,10 +45434,10 @@
       "name": "Qwen 3.6 27B",
       "ownedBy": "alibaba",
       "family": "qwen3.6",
-      "contextWindow": 256000,
-      "maxOutputTokens": 256000,
-      "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "contextWindow": 262144,
+      "maxOutputTokens": 65536,
+      "openWeights": true,
+      "inputModalities": ["audio", "image", "text", "video"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -45120,9 +45488,9 @@
       "ownedBy": "alibaba",
       "family": "qwen-plus",
       "contextWindow": 1000000,
-      "maxOutputTokens": 64000,
+      "maxOutputTokens": 65536,
       "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["image", "text", "video"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
@@ -45155,7 +45523,7 @@
       "contextWindow": 1000000,
       "maxOutputTokens": 384000,
       "openWeights": true,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition"],
       "reasoning": {
@@ -45184,7 +45552,7 @@
       "contextWindow": 1000000,
       "maxOutputTokens": 384000,
       "openWeights": true,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["text"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "structured-output", "reasoning"],
       "reasoning": {
@@ -45211,7 +45579,7 @@
       "ownedBy": "minimax",
       "family": "minimax",
       "contextWindow": 204800,
-      "maxOutputTokens": 131100,
+      "maxOutputTokens": 131072,
       "openWeights": true,
       "inputModalities": ["text"],
       "outputModalities": ["text"],
@@ -45243,14 +45611,14 @@
       "name": "MiniMax M3",
       "ownedBy": "minimax",
       "family": "minimax-m3",
-      "contextWindow": 1000000,
-      "maxOutputTokens": 1000000,
+      "contextWindow": 512000,
+      "maxOutputTokens": 128000,
       "openWeights": false,
-      "inputModalities": ["text", "image"],
+      "inputModalities": ["image", "text", "video"],
       "outputModalities": ["text"],
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "reasoning": {
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": []
       },
       "pricing": {
         "input": {
