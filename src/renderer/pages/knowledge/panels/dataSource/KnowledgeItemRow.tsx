@@ -242,7 +242,7 @@ const KnowledgeItemRow = ({
     i18n: { language },
     t
   } = useTranslation()
-  const { icon, metaParts, status, suffix, title } = toKnowledgeItemRowViewModel(item, language)
+  const { icon, metaParts, status, title } = toKnowledgeItemRowViewModel(item, language)
   const Icon = icon.icon
   const failureReason = item.status === 'failed' ? item.error : null
   const canReindex = item.status === 'completed' || item.status === 'failed'
@@ -279,11 +279,10 @@ const KnowledgeItemRow = ({
             <Icon className={cn('size-3.5', icon.iconClassName)} />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="flex min-w-0 items-center gap-1.5">
+            <div className="flex min-w-0 items-center">
               <span className="min-w-0 truncate text-foreground text-sm" title={fullTitle}>
                 {title}
               </span>
-              {suffix ? <span className="shrink-0 text-foreground-muted text-xs uppercase">{suffix}</span> : null}
             </div>
             {metaParts.length > 0 ? (
               <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-foreground-muted text-xs leading-4">
