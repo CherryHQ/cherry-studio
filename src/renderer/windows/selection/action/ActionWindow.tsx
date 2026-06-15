@@ -20,7 +20,7 @@ import ActionTranslate from './components/ActionTranslate'
 /**
  * Outer shell. Pulls the current action payload via `useWindowInitData`, which
  * transparently handles both cold-start (pooled warmup / first mount) and
- * reuse (`WindowManager_Reused` payload on pool recycle). No `key={resetKey}`
+ * reuse (`window.reused` payload on pool recycle). No `key={resetKey}`
  * remount — `SelectionActionContent` stays mounted across recycles and
  * receives `action` as a prop. Per-action state is reset in a single
  * `useEffect([action])` inside the content component.
@@ -149,11 +149,11 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
   }, [actionWindowOpacity])
 
   const handleMinimize = () => {
-    void window.api.windowManager.minimize()
+    void ipcApi.request('window.minimize')
   }
 
   const handleClose = () => {
-    void window.api.windowManager.close()
+    void ipcApi.request('window.close')
   }
 
   /**

@@ -2,6 +2,7 @@ import type { IpcRequestSchemas } from '@shared/ipc/schemas'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
 import { selectionHandlers } from './selection'
+import { windowHandlers } from './window'
 
 /**
  * Global request handler map — exactly one handler per declared route, exhaustive
@@ -13,5 +14,6 @@ import { selectionHandlers } from './selection'
  * exposure surface.
  */
 export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
-  ...selectionHandlers
+  ...selectionHandlers,
+  ...windowHandlers
 }

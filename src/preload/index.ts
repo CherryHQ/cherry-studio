@@ -559,36 +559,15 @@ const api = {
       }
     }
   },
-  windowManager: {
+  settings: {
+    // NOTE: misplaced API, kept here as an interim home. `openSettings` opens the
+    // Settings *window* — a navigation/feature concern, NOT a window-control primitive —
+    // yet it was historically grouped under `windowManager`. It is parked under `settings`
+    // so it stops leaking into the window domain, but the underlying `SettingsWindow_Open`
+    // IPC is still legacy (not on IpcApi). FOLLOW-UP: migrate it onto a proper settings /
+    // navigation IpcApi domain and remove this stopgap.
     openSettings: (path: SettingsPath = '/settings/provider'): Promise<string> =>
-      ipcRenderer.invoke(IpcChannel.SettingsWindow_Open, path),
-
-    // Retrieve init data that the main process stored for this window via
-    // wm.setInitData() or wm.open({ initData }). Returns null when no data was set or when
-    // the sender window is not managed by WindowManager (e.g., detached devtools).
-    // Renderers that also need to update on reuse should prefer the useWindowInitData
-    // hook (hooks/useWindowInitData), which also listens for WindowManager_Reused.
-    getInitData: <T = unknown>(): Promise<T | null> => ipcRenderer.invoke(IpcChannel.WindowManager_GetInitData),
-
-    minimize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.WindowManager_Minimize),
-    maximize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.WindowManager_Maximize),
-    unmaximize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.WindowManager_Unmaximize),
-    close: (): Promise<void> => ipcRenderer.invoke(IpcChannel.WindowManager_Close),
-    isMaximized: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.WindowManager_IsMaximized),
-
-    setFullScreen: (value: boolean): Promise<void> => ipcRenderer.invoke(IpcChannel.WindowManager_SetFullScreen, value),
-    isFullScreen: (): Promise<boolean> => ipcRenderer.invoke(IpcChannel.WindowManager_IsFullScreen),
-
-    onMaximizedChange: (callback: (isMaximized: boolean) => void): (() => void) => {
-      const listener = (_: Electron.IpcRendererEvent, isMaximized: boolean) => callback(isMaximized)
-      ipcRenderer.on(IpcChannel.WindowManager_MaximizedChanged, listener)
-      return () => ipcRenderer.off(IpcChannel.WindowManager_MaximizedChanged, listener)
-    },
-    onFullscreenChange: (callback: (isFullscreen: boolean) => void): (() => void) => {
-      const listener = (_: Electron.IpcRendererEvent, isFullscreen: boolean) => callback(isFullscreen)
-      ipcRenderer.on(IpcChannel.WindowManager_FullscreenChanged, listener)
-      return () => ipcRenderer.off(IpcChannel.WindowManager_FullscreenChanged, listener)
-    }
+      ipcRenderer.invoke(IpcChannel.SettingsWindow_Open, path)
   },
   wechat: {
     onQrLogin: (
