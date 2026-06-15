@@ -31,6 +31,7 @@ import { loggerService } from '@logger'
 import { isProvisioned, provisionBuiltinAgent } from '@main/ai/agents/builtin/BuiltinAgentProvisioner'
 import { PromptBuilder } from '@main/ai/agents/cherryclaw/prompt'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
+import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import ClawServer from '@main/ai/mcp/servers/claw'
 import WorkspaceMemoryServer from '@main/ai/mcp/servers/workspaceMemory'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
@@ -48,6 +49,7 @@ import getLoginShellEnvironment from '@main/utils/shell-env'
 import {
   CHANNEL_SECURITY_PROMPT,
   GLOBALLY_DISALLOWED_TOOLS,
+  REPORT_ARTIFACTS_PROMPT,
   SOUL_MODE_DISALLOWED_TOOLS
 } from '@shared/ai/claudecode/constants'
 import { languageEnglishNameMap } from '@shared/config/languages'
@@ -492,6 +494,13 @@ async function buildToolPermissions(
   const isAssistant = agentConfig?.builtin_role === 'assistant'
   const toolPolicySnapshot = await createClaudeAgentToolPolicySnapshot(agent, {
     autoAllowRuntimeNamePrefixes: [
+      // cherry-tools is injected for every session. Auto-allowing it (no per-call approval) is a
+      // deliberate decision (matches feat/chat-page): none of its tools have side effects in the
+      // main process — web_search/web_fetch read the network, kb_search/kb_list read the user's
+      // knowledge bases, report_artifacts only records a declaration. The untrusted-channel exposure
+      // this creates (approval-free kb reads + web_fetch URL egress for channel-linked sessions) is
+      // bounded by the system-level channel security policy (CHANNEL_SECURITY_PROMPT).
+      'mcp__cherry-tools__',
       ...(soulEnabled ? ['mcp__claw__'] : []),
       ...(isAssistant ? ['mcp__assistant__'] : [])
     ]
@@ -577,7 +586,7 @@ async function buildToolPermissions(
   }
 }
 
-async function buildSystemPrompt(
+export async function buildSystemPrompt(
   session: AgentSessionEntity,
   agent: AgentEntity,
   cwd: string
@@ -607,16 +616,21 @@ async function buildSystemPrompt(
     try {
       const context = await buildAssistantContext()
       return instructions ? `${instructions}\n\n${context}` : context
-    } catch {
+    } catch (error) {
+      // Don't silently degrade to generic behavior: a DB/fs/preference read failure here drops the
+      // entire assistant context, so surface it before falling back to the base instructions.
+      logger.error('buildAssistantContext failed; falling back to base instructions', error as Error)
       return instructions
     }
   }
+
+  const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
 
   // Soul mode
   if (soulEnabled) {
     const soulPrompt = await promptBuilder.buildSystemPrompt(cwd, agentConfig)
     const userInstructions = instructions ? `\n\n${instructions}` : ''
-    return `${soulPrompt}${userInstructions}${channelSecurityBlock}\n\n${langInstruction}`
+    return `${soulPrompt}${userInstructions}${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
   }
 
   // Standard mode
@@ -624,13 +638,13 @@ async function buildSystemPrompt(
     return {
       type: 'preset',
       preset: 'claude_code',
-      append: `${instructions}${channelSecurityBlock}\n\n${langInstruction}`
+      append: `${instructions}${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
     }
   }
   return {
     type: 'preset',
     preset: 'claude_code',
-    append: `${channelSecurityBlock}\n\n${langInstruction}`
+    append: `${channelSecurityBlock}${artifactsBlock}\n\n${langInstruction}`
   }
 }
 
@@ -655,8 +669,12 @@ export async function buildMcpServers(
     }
   }
 
-  // 3. Exa — structured web search via HTTP (free tier, no API key)
-  mcpList.exa = { type: 'http', url: 'https://mcp.exa.ai/mcp' }
+  // 3. Cherry tools
+  mcpList['cherry-tools'] = {
+    type: 'sdk',
+    name: 'cherry-tools',
+    instance: new CherryBuiltinToolsServer().mcpServer
+  }
 
   // 4. Claw — agent autonomy tools (soul mode only). Use `agent.id` instead of
   // `session.agentId` so TS can see the value is non-null after the upstream
@@ -720,6 +738,13 @@ async function resolveSourceChannel(agentId: string, sessionId: string): Promise
  */
 export function buildInjectedMcpAllowedTools(soulEnabled: boolean, isAssistant: boolean): string[] | undefined {
   const result: string[] = []
+
+  // cherry-tools is wildcarded alongside the role servers for soul + assistant agents. Plain agents
+  // get it auto-approved via the always-on `mcp__cherry-tools__` autoAllowRuntimeNamePrefixes entry
+  // instead, so they need no SDK allow-list wildcard (keeping their allowedTools undefined).
+  if ((soulEnabled || isAssistant) && !result.includes('mcp__cherry-tools__*')) {
+    result.push('mcp__cherry-tools__*')
+  }
 
   if (soulEnabled && !result.includes('mcp__claw__*')) {
     result.push('mcp__claw__*')

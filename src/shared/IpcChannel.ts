@@ -85,6 +85,7 @@ export enum IpcChannel {
   Mcp_ServersUpdated = 'mcp:servers-updated',
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
   Mcp_UploadDxt = 'mcp:upload-dxt',
+  Mcp_UploadMcpb = 'mcp:upload-mcpb',
   Mcp_AbortTool = 'mcp:abort-tool',
   Mcp_GetServerVersion = 'mcp:get-server-version',
   Mcp_Progress = 'mcp:progress',
@@ -325,16 +326,6 @@ export enum IpcChannel {
   WebSearch_FetchUrls = 'web-search:fetch-urls',
   WebSearch_CheckProvider = 'web-search:check-provider',
 
-  //Selection Assistant
-  Selection_TextSelected = 'selection:text-selected',
-  Selection_ToolbarHide = 'selection:toolbar-hide',
-  Selection_ToolbarVisibilityChange = 'selection:toolbar-visibility-change',
-  Selection_ToolbarDetermineSize = 'selection:toolbar-determine-size',
-  Selection_WriteToClipboard = 'selection:write-to-clipboard',
-  Selection_ActionWindowPin = 'selection:action-window-pin',
-  Selection_ProcessAction = 'selection:process-action',
-  Selection_GetLinuxEnvInfo = 'selection:get-linux-env-info',
-
   // Data: Preference
   Preference_Get = 'preference:get',
   Preference_Set = 'preference:set',
@@ -354,6 +345,10 @@ export enum IpcChannel {
   DataApi_Subscribe = 'data-api:subscribe',
   DataApi_Unsubscribe = 'data-api:unsubscribe',
   DataApi_Stream = 'data-api:stream',
+
+  // IpcApi: RPC-over-IPC command channel (renderer→main request, main→renderer event)
+  IpcApi_Request = 'ipc-api:request',
+  IpcApi_Event = 'ipc-api:event',
 
   // Topic auto-rename push (main → renderer; payload: { topicId })
   Topic_AutoRenamed = 'topic:auto-renamed',

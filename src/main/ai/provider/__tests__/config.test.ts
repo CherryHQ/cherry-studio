@@ -525,4 +525,49 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect((config.providerSettings as Record<string, unknown>).apiKey).toBe('sk-test-key')
     })
   })
+
+  describe('NewAPI builder', () => {
+    it('uses anthropic endpointConfig baseUrl for anthropic endpoint type', async () => {
+      const provider = makeProvider({
+        id: 'my-newapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+            baseUrl: 'https://api.newapi.com/v1',
+            adapterFamily: 'newapi'
+          },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+            baseUrl: 'https://api.newapi.com/anthropic',
+            adapterFamily: 'newapi'
+          }
+        }
+      })
+      const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('newapi')
+      const settings = config.providerSettings as Record<string, unknown>
+      expect(settings.baseURL).toBe('https://api.newapi.com/anthropic')
+    })
+
+    it('falls back to default endpoint baseURL when anthropic endpointConfig has no baseUrl', async () => {
+      const provider = makeProvider({
+        id: 'my-newapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
+            baseUrl: 'https://api.newapi.com/v1',
+            adapterFamily: 'newapi'
+          }
+        }
+      })
+      const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      const settings = config.providerSettings as Record<string, unknown>
+      expect(settings.baseURL).toBe('https://api.newapi.com/v1')
+    })
+  })
 })

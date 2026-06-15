@@ -5,6 +5,7 @@
  */
 
 import type { NormalToolResponse } from '@renderer/types'
+import { KB_SEARCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 
 import { MessageAgentTools } from './MessageAgentTools'
 import { AgentToolsType } from './MessageAgentTools/types'
@@ -30,11 +31,12 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
     return <MessageMetaTool toolResponse={toolResponse} />
   }
 
-  // New agentic builtin names (`kb__search`, `web__search`, future `web__fetch`).
-  if (toolName === 'kb__search') {
+  // Builtin web/knowledge search title cards, matched by the wire names from
+  // @shared/ai/builtinTools.
+  if (toolName === KB_SEARCH_TOOL_NAME) {
     return <MessageKnowledgeSearchToolTitle toolResponse={toolResponse} />
   }
-  if (toolName === 'web__search') {
+  if (toolName === WEB_SEARCH_TOOL_NAME) {
     return toolType === 'provider' ? null : <MessageWebSearchToolTitle toolResponse={toolResponse} />
   }
 

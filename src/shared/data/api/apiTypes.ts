@@ -231,11 +231,10 @@ export interface SearchParams {
 }
 
 /** Service-layer pagination convention used by main-side list queries. */
-export interface ListOptions {
+export interface ListOptions extends SortParams {
   limit?: number
   offset?: number
   sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'orderKey'
-  orderBy?: 'asc' | 'desc'
   /** LIKE %kw% match against name OR description (case-insensitive). */
   search?: string
 }

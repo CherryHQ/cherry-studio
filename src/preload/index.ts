@@ -33,7 +33,6 @@ import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes
 import type {
   FileProcessorFeature,
   FileProcessorId,
-  SelectionActionItem,
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
   UnifiedPreferenceType,
@@ -94,6 +93,8 @@ import type {
   SkillResult,
   SkillToggleOptions
 } from '../renderer/types/skill'
+import { ipcApi } from './ipc'
+
 // OpenClaw types
 type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
 
@@ -443,6 +444,10 @@ const api = {
       const buffer = await file.arrayBuffer()
       return ipcRenderer.invoke(IpcChannel.Mcp_UploadDxt, buffer, file.name)
     },
+    uploadMcpb: async (file: File) => {
+      const buffer = await file.arrayBuffer()
+      return ipcRenderer.invoke(IpcChannel.Mcp_UploadMcpb, buffer, file.name)
+    },
     abortTool: (callId: string) => ipcRenderer.invoke(IpcChannel.Mcp_AbortTool, callId),
     getServerVersion: (serverId: string): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetServerVersion, serverId),
@@ -584,16 +589,6 @@ const api = {
       ipcRenderer.on(IpcChannel.WindowManager_FullscreenChanged, listener)
       return () => ipcRenderer.off(IpcChannel.WindowManager_FullscreenChanged, listener)
     }
-  },
-  selection: {
-    hideToolbar: () => ipcRenderer.invoke(IpcChannel.Selection_ToolbarHide),
-    writeToClipboard: (text: string) => ipcRenderer.invoke(IpcChannel.Selection_WriteToClipboard, text),
-    determineToolbarSize: (width: number, height: number) =>
-      ipcRenderer.invoke(IpcChannel.Selection_ToolbarDetermineSize, width, height),
-    processAction: (actionItem: SelectionActionItem, isFullScreen: boolean = false) =>
-      ipcRenderer.invoke(IpcChannel.Selection_ProcessAction, actionItem, isFullScreen),
-    pinActionWindow: (isPinned: boolean) => ipcRenderer.invoke(IpcChannel.Selection_ActionWindowPin, isPinned),
-    getLinuxEnvInfo: () => ipcRenderer.invoke(IpcChannel.Selection_GetLinuxEnvInfo)
   },
   wechat: {
     onQrLogin: (
@@ -812,6 +807,8 @@ const api = {
       return () => ipcRenderer.off(channel, listener)
     }
   },
+  // IpcApi RPC channel — generic forwarder; the typed facade lives in src/renderer/ipc
+  ipcApi,
   topic: {
     onAutoRenamed: (callback: (payload: { topicId: string }) => void) => {
       const listener = (_: any, payload: { topicId: string }) => callback(payload)

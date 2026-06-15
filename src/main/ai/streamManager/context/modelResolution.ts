@@ -11,7 +11,7 @@ function nextSiblingsGroupId(): number {
   return Date.now() * 1000 + siblingsGroupCounter
 }
 
-/** Resolve the Model list from an optional `@mentioned` list, falling back to the assistant default. */
+/** Resolve the Model list from an optional selector-selected list, falling back to the assistant default. */
 export async function resolveModels(
   mentionedModelIds: UniqueModelId[] | undefined,
   defaultModelId: UniqueModelId

@@ -5,8 +5,8 @@ import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
-import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, clipboard, screen, systemPreferences } from 'electron'
+import type { BrowserWindow } from 'electron'
+import { app, clipboard, screen, systemPreferences } from 'electron'
 import type {
   KeyboardEventData,
   MouseEventData,
@@ -211,7 +211,6 @@ export class SelectionService extends BaseService implements Activatable {
 
   protected async onInit(): Promise<void> {
     this.initZoomFactor()
-    this.registerIpcHandlers()
 
     const wm = application.get('WindowManager')
 
@@ -494,7 +493,9 @@ export class SelectionService extends BaseService implements Activatable {
     // WM suffices and all cleanup still runs.
 
     window.on('show', () => {
-      window.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, true)
+      if (this.toolbarWindowId) {
+        application.get('IpcApiService').send(this.toolbarWindowId, 'selection.toolbar_visibility_change', true)
+      }
       // Mouse-key hook start tied to visibility rather than to specific call
       // sites: normal show path, crash-recovery re-open, and any future
       // caller all inherit this for free.
@@ -502,7 +503,9 @@ export class SelectionService extends BaseService implements Activatable {
     })
 
     window.on('hide', () => {
-      window.webContents.send(IpcChannel.Selection_ToolbarVisibilityChange, false)
+      if (this.toolbarWindowId) {
+        application.get('IpcApiService').send(this.toolbarWindowId, 'selection.toolbar_visibility_change', false)
+      }
       // Symmetric to the show listener — any path to hidden (business
       // `hideToolbar()`, WM blur-driven `window.hide()`, quirk-wrapped hide)
       // triggers cleanup. `stopHideByMouseKeyListener` is idempotent.
@@ -956,7 +959,9 @@ export class SelectionService extends BaseService implements Activatable {
 
     // [macOS] isFullscreen is only available on macOS
     this.showToolbarAtPosition(refPoint, refOrientation, selectionData.programName)
-    this.toolbarWindow!.webContents.send(IpcChannel.Selection_TextSelected, selectionData)
+    if (this.toolbarWindowId) {
+      application.get('IpcApiService').send(this.toolbarWindowId, 'selection.text_selected', selectionData)
+    }
   }
 
   /**
@@ -1374,21 +1379,6 @@ export class SelectionService extends BaseService implements Activatable {
     }, 50)
   }
 
-  public pinActionWindow(actionWindow: BrowserWindow, isPinned: boolean): void {
-    if (actionWindow.isDestroyed()) return
-    // Route through WindowManager so any future `behavior.alwaysOnTop` on the
-    // SelectionAction registry entry (currently none) flows automatically.
-    // With no level declared, this is equivalent to `setAlwaysOnTop(isPinned)`.
-    const wm = application.get('WindowManager')
-    const id = wm.getWindowId(actionWindow)
-    if (id !== undefined) {
-      wm.behavior.setAlwaysOnTop(id, isPinned)
-    } else {
-      // Untracked window (shouldn't happen in the normal pooled flow).
-      actionWindow.setAlwaysOnTop(isPinned)
-    }
-  }
-
   /**
    * Update trigger mode behavior
    * Switches between selection-based and alt-key based triggering
@@ -1444,53 +1434,6 @@ export class SelectionService extends BaseService implements Activatable {
     }
     if (!this.selectionHook || !this.isActivated) return false
     return this.selectionHook.writeToClipboard(text)
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Selection_ToolbarHide, () => {
-      this.hideToolbar()
-    })
-
-    this.ipcHandle(IpcChannel.Selection_WriteToClipboard, (_, text: string): boolean => {
-      return this.writeToClipboard(text) ?? false
-    })
-
-    this.ipcHandle(IpcChannel.Selection_ToolbarDetermineSize, (_, width: number, height: number) => {
-      this.determineToolbarSize(width, height)
-    })
-
-    // [macOS] only macOS has the available isFullscreen mode
-    this.ipcHandle(
-      IpcChannel.Selection_ProcessAction,
-      (_, actionItem: SelectionActionItem, isFullScreen: boolean = false) => {
-        this.processAction(actionItem, isFullScreen)
-      }
-    )
-
-    // Helper: resolve an action window from an IPC event via WindowManager.
-    // Falls back to BrowserWindow.fromWebContents if the window is not tracked by WM
-    // (e.g., race conditions during deactivate), matching the pre-migration behavior.
-    const resolveActionWindow = (event: Electron.IpcMainInvokeEvent): BrowserWindow | null => {
-      const wm = application.get('WindowManager')
-      const windowId = wm.getWindowIdByWebContents(event.sender)
-      if (windowId) {
-        return wm.getWindow(windowId) ?? null
-      }
-      return BrowserWindow.fromWebContents(event.sender)
-    }
-
-    this.ipcHandle(IpcChannel.Selection_ActionWindowPin, (event, isPinned: boolean) => {
-      const actionWindow = resolveActionWindow(event)
-      if (actionWindow && !actionWindow.isDestroyed()) {
-        this.pinActionWindow(actionWindow, isPinned)
-      }
-    })
-
-    if (isLinux) {
-      this.ipcHandle(IpcChannel.Selection_GetLinuxEnvInfo, () => {
-        return this.getLinuxEnvInfo()
-      })
-    }
   }
 
   private logInfo(message: string, forceShow: boolean = false): void {

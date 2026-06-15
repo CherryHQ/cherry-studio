@@ -71,6 +71,10 @@ vi.mock('@data/services/ModelService', () => ({
   modelService: { getByKey: settingsMocks.mockGetModelByKey }
 }))
 
+vi.mock('@main/ai/mcp/servers/cherryBuiltinTools', () => ({
+  default: vi.fn(() => ({ mcpServer: { id: 'cherry-tools' } }))
+}))
+
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
     listChannels: vi.fn().mockResolvedValue([]),
@@ -143,14 +147,16 @@ function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessi
 }
 
 describe('buildInjectedMcpAllowedTools', () => {
-  it('adds the claw + agent-memory wildcards in Soul Mode', () => {
+  it('adds the cherry-tools + claw + agent-memory wildcards in Soul Mode', () => {
     expect(buildInjectedMcpAllowedTools(true, false)).toEqual(
-      expect.arrayContaining(['mcp__claw__*', 'mcp__agent-memory__*'])
+      expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__claw__*', 'mcp__agent-memory__*'])
     )
   })
 
-  it('adds the assistant wildcard for the Cherry Assistant', () => {
-    expect(buildInjectedMcpAllowedTools(false, true)).toContain('mcp__assistant__*')
+  it('adds the cherry-tools + assistant wildcards for the Cherry Assistant', () => {
+    expect(buildInjectedMcpAllowedTools(false, true)).toEqual(
+      expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__assistant__*'])
+    )
   })
 
   it('returns undefined when neither Soul nor Assistant injects tools', () => {
@@ -167,6 +173,12 @@ describe('buildMcpServers', () => {
   it('does not inject agent-memory when Soul Mode is off', async () => {
     const result = await buildMcpServers(session, agent, false, false)
     expect(result?.['agent-memory']).toBeUndefined()
+  })
+
+  it('injects cherry-tools for every session and no longer injects exa', async () => {
+    const result = await buildMcpServers(session, agent, false, false)
+    expect(result?.['cherry-tools']).toBeDefined()
+    expect(result?.exa).toBeUndefined()
   })
 })
 
