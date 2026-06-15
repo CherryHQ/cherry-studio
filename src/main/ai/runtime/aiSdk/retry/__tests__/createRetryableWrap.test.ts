@@ -140,6 +140,31 @@ describe('createRetryableWrap', () => {
       vi.useRealTimers()
     }
   })
+
+  it('recovers across multiple retries when backoff_enabled is true', async () => {
+    vi.useFakeTimers()
+    try {
+      setRetryPreferences({ 'chat.retry.max_attempts': 3, 'chat.retry.backoff_enabled': true })
+      const wrap = await createRetryableWrap({ primaryProviderId: 'openai', primaryModelId: 'gpt-4' })
+
+      const primaryGenerate = vi
+        .fn()
+        .mockRejectedValueOnce(makeApiError(429))
+        .mockRejectedValueOnce(makeApiError(429))
+        .mockResolvedValue(okResult)
+      const wrapped = wrap!(makeFakeLanguageModel('gpt-4', primaryGenerate))
+
+      const pending = wrapped.doGenerate({ prompt: [] } as never)
+      // Advance past the base delay (1s) and the backed-off second delay (2s).
+      await vi.advanceTimersByTimeAsync(10_000)
+      const result = await pending
+
+      expect(primaryGenerate).toHaveBeenCalledTimes(3)
+      expect(result.content).toEqual(okResult.content)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe('createEmbeddingRetryWrap', () => {

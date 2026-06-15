@@ -10,7 +10,7 @@ exponential backoff), then **falls back** to the user's configured fallback
 models in order. Retry happens at the model layer — below the agent loop, so
 tool state and hook composition are untouched.
 
-```
+```text
 AiService.streamText/generateText
   └─ createRetryableWrap()              src/main/ai/runtime/aiSdk/retry/
        └─ wrapModel: (model) => createRetryable({ model, retries: [...] })

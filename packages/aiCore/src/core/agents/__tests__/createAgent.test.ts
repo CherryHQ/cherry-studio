@@ -118,6 +118,22 @@ describe('createAgent', () => {
     expect((agent as any).settings.model).toBe(wrapped)
   })
 
+  it('should await an async wrapModel and use its resolved model', async () => {
+    const wrapped = { ...mockLanguageModel, _retryWrapped: true } as LanguageModelV3
+    const wrapModel = vi.fn(async () => wrapped)
+
+    const agent = await createAgent({
+      providerId: 'openai',
+      providerSettings: mockProviderConfigs.openai,
+      modelId: 'gpt-4',
+      wrapModel,
+      agentSettings: { tools: {} }
+    })
+
+    expect(wrapModel).toHaveBeenCalledTimes(1)
+    expect((agent as any).settings.model).toBe(wrapped)
+  })
+
   it('should throw when provider is not registered', async () => {
     const { extensionRegistry } = await import('../../providers')
     vi.mocked(extensionRegistry.has).mockReturnValue(false)

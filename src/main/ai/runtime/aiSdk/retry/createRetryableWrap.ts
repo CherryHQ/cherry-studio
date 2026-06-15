@@ -87,13 +87,17 @@ export async function createRetryableWrap(options: CreateRetryableWrapOptions): 
   const backoffEnabled = preferences.get('chat.retry.backoff_enabled')
   const fallbackIds = preferences.get('chat.retry.fallback_model_ids').filter(isUniqueModelId)
 
-  const fallbackModels: LanguageModelV3[] = []
-  for (const uniqueModelId of fallbackIds) {
-    const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
-    if (providerId === options.primaryProviderId && modelId === options.primaryModelId) continue
-    const resolved = await resolveFallbackModel(uniqueModelId)
-    if (resolved) fallbackModels.push(resolved)
-  }
+  // Resolve fallbacks concurrently (this runs on the request path); Promise.all
+  // preserves the user-configured order. Primary-equal entries are dropped.
+  const fallbackModels = (
+    await Promise.all(
+      fallbackIds.map((uniqueModelId) => {
+        const { providerId, modelId } = parseUniqueModelId(uniqueModelId)
+        if (providerId === options.primaryProviderId && modelId === options.primaryModelId) return null
+        return resolveFallbackModel(uniqueModelId)
+      })
+    )
+  ).filter((model): model is LanguageModelV3 => model !== null)
 
   return (base) =>
     createRetryable({
