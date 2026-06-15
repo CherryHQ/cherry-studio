@@ -9,7 +9,7 @@ import {
 } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { getBackupProgressLabel } from '@renderer/i18n/label'
+import { getBackupProgressLabelKey } from '@renderer/i18n/label'
 import { backup, backupToLanTransfer } from '@renderer/services/BackupService'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useEffect, useState } from 'react'
@@ -73,7 +73,7 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
         progress: Math.floor(progressData.progress)
       })
     }
-    return getBackupProgressLabel(progressData.stage)
+    return t(getBackupProgressLabelKey(progressData.stage))
   }
 
   BackupPopup.hide = onCancel

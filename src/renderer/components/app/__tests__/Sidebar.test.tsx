@@ -23,7 +23,7 @@ vi.mock('@renderer/hooks/useTabs', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getSidebarIconLabel: (key: string) => key
+  getSidebarIconLabelKey: (key: string) => key
 }))
 
 vi.mock('@renderer/utils/routeTitle', () => ({

@@ -29,7 +29,7 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getFileProcessorLabel: (id: string) =>
+  getFileProcessorLabelKey: (id: string) =>
     (
       ({
         paddleocr: 'PaddleOCR',

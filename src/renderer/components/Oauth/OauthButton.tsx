@@ -1,5 +1,5 @@
 import { Button } from '@cherrystudio/ui'
-import { getProviderLabel } from '@renderer/i18n/label'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import {
   oauthWith302AI,
   oauthWithAihubmix,
@@ -55,7 +55,7 @@ const OauthButton: FC<Props> = ({ provider, onSuccess, ...buttonProps }) => {
 
   return (
     <Button onClick={onAuth} className="rounded-full" {...buttonProps}>
-      {t('settings.provider.oauth.button', { provider: getProviderLabel(provider.id) })}
+      {t('settings.provider.oauth.button', { provider: t(getProviderLabelKey(provider.id)) })}
     </Button>
   )
 }

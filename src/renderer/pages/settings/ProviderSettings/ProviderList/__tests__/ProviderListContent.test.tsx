@@ -69,7 +69,7 @@ vi.mock('@renderer/components/Scrollbar', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>
 }))
 
-vi.mock('@renderer/i18n/label', () => ({ getProviderLabel: (id: string) => id }))
+vi.mock('@renderer/i18n/label', () => ({ getProviderLabelKey: (id: string) => id }))
 vi.mock('@renderer/pages/settings/ProviderSettings/components/ProviderAvatar', () => ({
   ProviderAvatar: () => null
 }))
