@@ -54,3 +54,7 @@ zod schemas are runtime values.
 - **Renderer** must `import type` from `@shared/ipc/schemas` and `@shared/ipc/types` only. A value import would pull the entire zod schema set into the renderer bundle. This is enforced by an ESLint rule (`@typescript-eslint/no-restricted-imports` with `allowTypeImports`, scoped to `src/renderer/**` in `eslint.config.mjs`) that flags any value import of `@shared/ipc/schemas`. `IpcError` is the one exception — it is a value import, but plain TS with no zod dependency, so it is bundle-safe.
 
 Validation is always on: the router `parse`s every request route. There is no skip-validation knob (add a field later only if profiling proves a hot route needs it).
+
+## Not Unit-Tested
+
+Schemas are thin structural contracts, not behavior — do **not** add a per-domain `schemas/__tests__`. Asserting zod primitives (e.g. `z.boolean()` rejects a string, or `z.infer` yields `boolean`) only tests zod. Correctness is already locked by compile-time `IpcHandlersFor` exhaustiveness, `z.infer` driving handler/renderer types, and the one framework type test (`src/shared/ipc/__tests__/schema.types.test.ts`). Test the **handler** instead — see [ipc-usage.md](./ipc-usage.md#testing).

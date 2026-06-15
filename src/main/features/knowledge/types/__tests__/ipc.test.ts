@@ -5,7 +5,6 @@ import {
   KnowledgeAddItemsPayloadSchema,
   KnowledgeBasePayloadSchema,
   KnowledgeCreateBasePayloadSchema,
-  KnowledgeDeleteItemChunkPayloadSchema,
   KnowledgeItemChunksPayloadSchema,
   KnowledgeItemsPayloadSchema,
   KnowledgeRestoreBasePayloadSchema,
@@ -60,11 +59,6 @@ describe('knowledge runtime payload schemas', () => {
         name: 'item chunks',
         schema: KnowledgeItemChunksPayloadSchema,
         payload: { baseId: 'base-1', itemId: 'item-1' }
-      },
-      {
-        name: 'delete item chunk',
-        schema: KnowledgeDeleteItemChunkPayloadSchema,
-        payload: { baseId: 'base-1', itemId: 'item-1', chunkId: 'chunk-1' }
       }
     ]
 
@@ -93,11 +87,6 @@ describe('knowledge runtime payload schemas', () => {
         name: 'item chunks',
         schema: KnowledgeItemChunksPayloadSchema,
         payload: { baseId: 'base-1', itemId: '' }
-      },
-      {
-        name: 'delete item chunk',
-        schema: KnowledgeDeleteItemChunkPayloadSchema,
-        payload: { baseId: 'base-1', itemId: 'item-1', chunkId: '' }
       }
     ]
 

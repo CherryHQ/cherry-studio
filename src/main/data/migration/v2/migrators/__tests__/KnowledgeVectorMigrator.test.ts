@@ -4,6 +4,11 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { createClient } from '@libsql/client'
+import { ensureIndexMeta, hasLegacyVectorStoreTable } from '@main/features/knowledge/vectorstore/indexStore/indexMeta'
+import { KnowledgeIndexStore } from '@main/features/knowledge/vectorstore/indexStore/KnowledgeIndexStore'
+import { openLibsqlIndexDriver } from '@main/features/knowledge/vectorstore/indexStore/LibsqlDriver'
+import { libsqlVectorIndex } from '@main/features/knowledge/vectorstore/indexStore/LibsqlVectorIndex'
+import { createKnowledgeIndexSchema } from '@main/features/knowledge/vectorstore/indexStore/schema'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KnowledgeChunkMetadataSchema
@@ -763,6 +768,69 @@ describe('KnowledgeVectorMigrator', () => {
     if (retrySource.status === 'ok') {
       expect(retrySource.rows).toHaveLength(1)
       expect(retrySource.dbPath).toBe(dbPath)
+    }
+  })
+
+  // ⚠️ PR-A transitional contract — REWRITE THIS TEST WHEN PR B LANDS.
+  // The migrator still writes the LEGACY single-table layout into the SAME
+  // index.sqlite the runtime KnowledgeIndexStore opens, and the runtime never
+  // reads that table: the store mounts cleanly (creating its own empty tables
+  // beside the legacy one) and search returns empty even though the migrated
+  // vectors sit in the file. This test pins that known intermediate state so a
+  // change on either side fires loudly; the mount-time diagnostic in
+  // KnowledgeVectorStoreService relies on hasLegacyVectorStoreTable() to report
+  // it. PR B (migrator writes the final layout / legacy rewrite on open) must
+  // replace these expectations with "migrated vectors are searchable".
+  it('PR-A transitional contract: migrator output mounts as an empty runtime store', async () => {
+    const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
+    await createLegacyVectorDb(dbPath, [
+      {
+        id: 'legacy-file-0',
+        pageContent: 'file chunk',
+        uniqueLoaderId: 'loader-file',
+        source: '/tmp/file-1.md',
+        vector: [1, 2]
+      }
+    ])
+
+    const migrationCtx = createMigrationCtx({
+      migratedBases: [createMigratedBase()],
+      migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+      reduxData: {
+        knowledge: {
+          bases: [
+            {
+              id: LEGACY_KNOWLEDGE_BASE_ID,
+              name: 'Base 1',
+              items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+            }
+          ]
+        }
+      }
+    })
+
+    const migrator = new KnowledgeVectorMigrator() as any
+    await migrator.prepare(migrationCtx as any)
+    const executeResult = await migrator.execute(migrationCtx as any)
+    expect(executeResult.success).toBe(true)
+
+    // Open the migrated file exactly the way KnowledgeVectorStoreService.openIndexStore does.
+    const driver = await openLibsqlIndexDriver(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))
+    try {
+      await createKnowledgeIndexSchema(driver)
+      await expect(ensureIndexMeta(driver, { baseId: MIGRATED_KNOWLEDGE_BASE_ID })).resolves.toBeUndefined()
+
+      // The legacy remnant is detectable — the mount-time error log keys off this.
+      await expect(hasLegacyVectorStoreTable(driver)).resolves.toBe(true)
+
+      // The migrated vectors are invisible to the runtime store in both lanes.
+      const store = new KnowledgeIndexStore(driver, libsqlVectorIndex)
+      await expect(store.search({ queryText: 'file chunk', mode: 'bm25', topK: 10 })).resolves.toEqual([])
+      await expect(
+        store.search({ queryText: 'file chunk', queryEmbedding: [1, 2], mode: 'vector', topK: 10 })
+      ).resolves.toEqual([])
+    } finally {
+      await driver.close()
     }
   })
 
