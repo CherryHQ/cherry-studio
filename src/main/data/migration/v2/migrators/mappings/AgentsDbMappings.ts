@@ -223,6 +223,12 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'name',
       'agent_id',
       'session_id',
+      {
+        name: 'workspace',
+        expr: 'workspace',
+        sourceColumn: 'workspace',
+        fallbackExpr: '\'{"type":"system"}\''
+      },
       'config',
       notNullCol('is_active', '1'),
       notNullCol('active_chat_ids', "'[]'"),
