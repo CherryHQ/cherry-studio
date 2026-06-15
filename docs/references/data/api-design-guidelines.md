@@ -465,7 +465,7 @@ DataApiService is the **data** business-logic layer (persisting and querying rec
 |---|---|---|
 | `POST /windows/open` | No database operation, pure side effect | IPC: `IpcChannel.Window_Open` |
 | `POST /services/restart` | Process control is not a data operation | IPC: `IpcChannel.Service_Restart` |
-| `GET /system/info` | Stateless system query, no persistence | IPC: `IpcChannel.App_Info` |
+| `GET /system/info` | Stateless system query, no persistence | IpcApi: `ipcApi.request('app.get_info')` |
 | `POST /notifications/send` | Triggers external side effect | IPC: `IpcChannel.Notification_Send` |
 | `POST /backup/start` | Complex workflow orchestration, not CRUD | IPC: `IpcChannel.Backup_Backup` |
 | `POST /auth/login` | OAuth flow, external service integration | IPC: dedicated auth handler |

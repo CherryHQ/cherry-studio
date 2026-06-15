@@ -4,7 +4,7 @@
 
 ## 存储位置与路径来源
 
-- 笔记根目录来自 `window.api.getAppInfo().notesPath`。
+- 笔记根目录来自 `ipcApi.request('app.get_info').notesPath`。
 - `notesPath` 存在于 Redux（`store/note`），通过 `useNotesSettings` 读写。
 - main 侧默认目录由 `getNotesDir()` 创建。
 
