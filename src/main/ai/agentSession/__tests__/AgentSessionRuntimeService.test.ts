@@ -1612,4 +1612,35 @@ describe('AgentSessionRuntimeService', () => {
     expect(entry.status).toBe('idle')
     expect(entry.lastTerminalStatus).toBe('error')
   })
+
+  it('abandons the roll and surfaces the error when the continuation placeholder save rejects (S5)', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    // Drive the entry into a roll mid-turn: A1a closed at a steer boundary, post-steer chunks buffered,
+    // and the continuation (A2) is about to open. This is the state `startContinuationTurn` runs against.
+    entry.rolling = true
+    entry.rollBuffer = [{ type: 'text-delta', id: 'p2', delta: 'post' } as any]
+    entry.rollSteerInputs = [{ message: userMessage('user-2'), systemReminder: true }] as any
+    entry.rollCompleted = false
+
+    const saveError = new Error('db down')
+    mocks.saveMessage.mockRejectedValueOnce(saveError)
+
+    // The A2 placeholder save failed: abandon the roll (drop the buffered post-steer chunks), surface
+    // the failure to the live renderer, and settle the turn to `error` instead of idling on a doomed roll.
+    await expect((service as any).startContinuationTurn(entry)).resolves.toBeUndefined()
+
+    expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+    expect(entry.rolling).toBe(false)
+    expect(entry.rollBuffer).toBeUndefined()
+    expect(entry.rollCompleted).toBe(false)
+    expect(mocks.broadcastTopicError).toHaveBeenCalledWith(
+      entry.topicId,
+      entry.modelId,
+      expect.objectContaining({ message: expect.stringContaining('db down') })
+    )
+    expect(entry.status).toBe('idle')
+    expect(entry.lastTerminalStatus).toBe('error')
+  })
 })
