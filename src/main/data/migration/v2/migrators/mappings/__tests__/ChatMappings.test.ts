@@ -286,6 +286,9 @@ describe('transformBlocksToParts', () => {
     expect(part.input).toEqual({ query: 'test' })
     // output comes from rawMcpToolResponse.response
     expect(part.output).toEqual({ content: [{ type: 'text', text: 'result' }] })
+    expect(part.callProviderMetadata?.cherry).toMatchObject({
+      tool: { type: 'mcp', serverId: 's1', serverName: 'search' }
+    })
   })
 
   it('falls back to block fields when rawMcpToolResponse is missing', async () => {
@@ -325,6 +328,33 @@ describe('transformBlocksToParts', () => {
     const part = parts[0] as DynamicToolUIPart
     expect(part.toolName).toBe('fetch_url')
     expect(part.input).toEqual({ url: 'https://example.com' })
+  })
+
+  it('preserves provider tool metadata and fills toolCallId from raw response', async () => {
+    const { parts } = await transformBlocksToParts([
+      block('tool', {
+        toolId: '',
+        toolName: 'WebSearch',
+        metadata: {
+          rawMcpToolResponse: {
+            id: 'raw-call-id',
+            tool: { id: 'tool_web_search', name: 'WebSearch', type: 'provider' },
+            arguments: { query: 'desktop clients' },
+            status: 'done',
+            response: 'ok',
+            toolCallId: 'raw-tool-call-id'
+          }
+        }
+      })
+    ])
+
+    const part = parts[0] as DynamicToolUIPart
+    expect(part.toolName).toBe('WebSearch')
+    expect(part.toolCallId).toBe('raw-tool-call-id')
+    expect(part.input).toEqual({ query: 'desktop clients' })
+    expect(part.callProviderMetadata?.cherry).toMatchObject({
+      tool: { type: 'provider' }
+    })
   })
 
   it('transforms tool with isError to output-error state', async () => {
