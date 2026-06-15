@@ -9,7 +9,15 @@ import { visit } from 'unist-util-visit'
  * - 将空白与非字母数字字符合并为单个 '-'
  * - 多次出现的相同 slug 加上递增后缀（-1, -2...）
  */
-export function createSlugger() {
+export interface HeadingSlugger {
+  slug: (text: string) => string
+}
+
+export interface RehypeHeadingIdsOptions {
+  prefix?: string
+}
+
+export function createSlugger(): HeadingSlugger {
   const seen = new Map<string, number>()
   const normalize = (text: string): string => {
     const slug = (text || 'section')
@@ -25,14 +33,14 @@ export function createSlugger() {
       // 去除首尾 '-'
       .replace(/^-|-$/g, '')
 
-    return slug
+    return slug || 'section'
   }
 
   const slug = (text: string): string => {
     const base = normalize(text)
     const count = seen.get(base) || 0
     seen.set(base, count + 1)
-    return `${base}-${count}`
+    return count === 0 ? base : `${base}-${count}`
   }
 
   return { slug }
@@ -52,8 +60,8 @@ export function extractTextFromNode(node: Node | Text | Element | null | undefin
   return ''
 }
 
-export default function rehypeHeadingIds(options?: { prefix?: string }) {
-  return (tree: Root) => {
+export default function rehypeHeadingIds(options?: RehypeHeadingIdsOptions): (tree: Root) => void {
+  return (tree: Root): void => {
     const slugger = createSlugger()
     const prefix = options?.prefix ? `${options.prefix}--` : ''
     visit(tree, 'element', (node) => {

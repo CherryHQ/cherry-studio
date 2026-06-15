@@ -59,6 +59,42 @@ describe('Markdown sanitize schema', () => {
     expect(output).toContain('<h1 id="user-content-location">Title</h1>')
   })
 
+  it('strips raw style elements from untrusted markdown html', async () => {
+    const { sanitize } = defaultRehypePlugins as Record<string, any>
+    const [sanitizeFn, schema] = sanitize
+
+    const output = String(
+      await unified()
+        .use(rehypeParse, { fragment: true })
+        .use(sanitizeFn, createMarkdownSanitizeSchema(schema))
+        .use(rehypeStringify)
+        .process('<style>*{background:url("https://attacker.example/leak")}</style><p>Safe</p>')
+    )
+
+    expect(output).toContain('<p>Safe</p>')
+    expect(output).not.toContain('<style>')
+    expect(output).not.toContain('attacker.example')
+  })
+
+  it('filters unsafe SVG link protocols while preserving fragment references', async () => {
+    const { sanitize } = defaultRehypePlugins as Record<string, any>
+    const [sanitizeFn, schema] = sanitize
+
+    const output = String(
+      await unified()
+        .use(rehypeParse, { fragment: true })
+        .use(sanitizeFn, createMarkdownSanitizeSchema(schema))
+        .use(rehypeStringify)
+        .process(
+          '<svg><use href="#icon" xlink:href="#icon"></use><a href="javascript:alert(1)" xlink:href="javascript:alert(2)"></a></svg>'
+        )
+    )
+
+    expect(output).toContain('href="#icon"')
+    expect(output).toContain('xlink:href="#icon"')
+    expect(output).not.toContain('javascript:')
+  })
+
   it('preserves composer token placeholders without allowing unsafe span attributes', async () => {
     const { sanitize } = defaultRehypePlugins as Record<string, any>
     const [sanitizeFn, schema] = sanitize

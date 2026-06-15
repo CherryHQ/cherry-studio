@@ -3,9 +3,16 @@ import { visit } from 'unist-util-visit'
 
 const isNumeric = (value: unknown): boolean => {
   if (typeof value === 'string' && value.trim() !== '') {
-    return String(parseFloat(value)) === value.trim()
+    return /^(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())
   }
   return false
+}
+
+const isNegativeNumeric = (value: string): boolean => /^-\d/.test(value.trim())
+
+const toCssMaxWidth = (width: string): string | null => {
+  if (isNegativeNumeric(width)) return null
+  return isNumeric(width) ? `${width}px` : width
 }
 
 /**
@@ -38,9 +45,12 @@ function rehypeScalableSvg() {
         // 1. Universally set max-width from the width attribute if it exists.
         // This is safe for both simple and complex cases.
         if (width) {
-          const existingStyle = properties.style ? String(properties.style).trim().replace(/;$/, '') : ''
-          const maxWidth = `max-width: ${width}`
-          properties.style = existingStyle ? `${existingStyle}; ${maxWidth}` : maxWidth
+          const cssMaxWidth = toCssMaxWidth(width)
+          if (cssMaxWidth) {
+            const existingStyle = properties.style ? String(properties.style).trim().replace(/;$/, '') : ''
+            const maxWidth = `max-width: ${cssMaxWidth}`
+            properties.style = existingStyle ? `${existingStyle}; ${maxWidth}` : maxWidth
+          }
         }
 
         // 2. Handle viewBox creation for simple, numeric cases.

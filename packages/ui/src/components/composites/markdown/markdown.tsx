@@ -8,6 +8,7 @@
  * - For chat assistant output that grows token-by-token, use `StreamingMarkdown`.
  */
 
+import type { ReactElement } from 'react'
 import type { Components, PluginConfig } from 'streamdown'
 import type { Pluggable } from 'unified'
 
@@ -42,7 +43,7 @@ export function Markdown({
   disallowedElements,
   className,
   footnoteLabel
-}: MarkdownProps) {
+}: MarkdownProps): ReactElement {
   return (
     <MarkdownCore
       id={id}

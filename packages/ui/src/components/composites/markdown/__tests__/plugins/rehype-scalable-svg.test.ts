@@ -30,7 +30,7 @@ describe('rehypeScalableSvg', () => {
       expect(result).toContain('viewBox="0 0 100 50"')
       expect(result).toContain('width="100%"')
       expect(result).not.toContain('height=')
-      expect(result).toContain('max-width: 100')
+      expect(result).toContain('max-width: 100px')
     })
 
     it('should preserve existing viewBox and original dimensions', () => {
@@ -40,7 +40,7 @@ describe('rehypeScalableSvg', () => {
       expect(result).toContain('viewBox="0 0 100 50"')
       expect(result).toContain('width="100"')
       expect(result).toContain('height="50"')
-      expect(result).toContain('max-width: 100')
+      expect(result).toContain('max-width: 100px')
     })
 
     it('should handle different viewBox values and preserve original dimensions', () => {
@@ -50,7 +50,7 @@ describe('rehypeScalableSvg', () => {
       expect(result).toContain('viewBox="10 20 180 80"')
       expect(result).toContain('width="200"')
       expect(result).toContain('height="100"')
-      expect(result).toContain('max-width: 200')
+      expect(result).toContain('max-width: 200px')
     })
 
     it('should handle numeric width and height as strings', () => {
@@ -60,7 +60,7 @@ describe('rehypeScalableSvg', () => {
       expect(result).toContain('viewBox="0 0 300 150"')
       expect(result).toContain('width="100%"')
       expect(result).not.toContain('height=')
-      expect(result).toContain('max-width: 300')
+      expect(result).toContain('max-width: 300px')
     })
 
     it('should handle decimal numeric values', () => {
@@ -70,7 +70,17 @@ describe('rehypeScalableSvg', () => {
       expect(result).toContain('viewBox="0 0 100.5 50.25"')
       expect(result).toContain('width="100%"')
       expect(result).not.toContain('height=')
-      expect(result).toContain('max-width: 100.5')
+      expect(result).toContain('max-width: 100.5px')
+    })
+
+    it('should handle decimal values with trailing zeros', () => {
+      const html = createSvgHtml({ width: '100.0', height: '50.0' })
+      const result = processHtml(html)
+
+      expect(result).toContain('viewBox="0 0 100.0 50.0"')
+      expect(result).toContain('width="100%"')
+      expect(result).not.toContain('height=')
+      expect(result).toContain('max-width: 100.0px')
     })
   })
 
@@ -183,7 +193,7 @@ describe('rehypeScalableSvg', () => {
       expect(result).toContain('data-needs-measurement="true"')
       expect(result).toContain('width="100"')
       expect(result).toContain('height="auto"')
-      expect(result).toContain('max-width: 100')
+      expect(result).toContain('max-width: 100px')
       expect(result).not.toContain('viewBox=')
     })
   })
@@ -197,7 +207,7 @@ describe('rehypeScalableSvg', () => {
       })
       const result = processHtml(html)
 
-      expect(result).toContain('style="fill: red; stroke: blue; max-width: 100"')
+      expect(result).toContain('style="fill: red; stroke: blue; max-width: 100px"')
       expect(result).toContain('viewBox="0 0 100 50"')
       expect(result).toContain('width="100%"')
     })
@@ -210,7 +220,7 @@ describe('rehypeScalableSvg', () => {
       })
       const result = processHtml(html)
 
-      expect(result).toContain('style="fill: red; max-width: 100"')
+      expect(result).toContain('style="fill: red; max-width: 100px"')
       expect(result).toContain('viewBox="0 0 100 50"')
     })
 
@@ -222,7 +232,7 @@ describe('rehypeScalableSvg', () => {
       })
       const result = processHtml(html)
 
-      expect(result).toContain('style="max-width: 100"')
+      expect(result).toContain('style="max-width: 100px"')
       expect(result).toContain('viewBox="0 0 100 50"')
     })
 
@@ -234,7 +244,7 @@ describe('rehypeScalableSvg', () => {
       })
       const result = processHtml(html)
 
-      expect(result).toContain('style="max-width: 100"')
+      expect(result).toContain('style="max-width: 100px"')
       expect(result).toContain('viewBox="0 0 100 50"')
     })
 
@@ -309,7 +319,7 @@ describe('rehypeScalableSvg', () => {
       const testCases = [
         { value: '100', expected: true },
         { value: '0', expected: true },
-        { value: '-50', expected: true },
+        { value: '-50', expected: false },
         { value: '3.14', expected: true },
         { value: '100px', expected: false },
         { value: 'auto', expected: false },

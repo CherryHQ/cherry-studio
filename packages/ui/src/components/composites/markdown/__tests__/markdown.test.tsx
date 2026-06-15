@@ -17,7 +17,13 @@ describe('Markdown (static)', () => {
     const { container } = render(<Markdown id="m1">{'# Hello World'}</Markdown>)
     const h1 = container.querySelector('h1')
     expect(h1).not.toBeNull()
-    expect(h1?.getAttribute('id')).toBe('heading-m1--hello-world-0')
+    expect(h1?.getAttribute('id')).toBe('heading-m1--hello-world')
+  })
+
+  it('dedupes duplicate heading ids and falls back after normalization', () => {
+    const { container } = render(<Markdown id="m1">{'# Hello World\n\n# Hello World\n\n# !!!'}</Markdown>)
+    const headings = Array.from(container.querySelectorAll('h1')).map((heading) => heading.getAttribute('id'))
+    expect(headings).toEqual(['heading-m1--hello-world', 'heading-m1--hello-world-1', 'heading-m1--section'])
   })
 
   it('renders fenced code blocks', () => {

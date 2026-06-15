@@ -2,13 +2,13 @@
  * Shared rendering body for `<Markdown>` and `<StreamingMarkdown>`. Builds
  * the rehype pipeline (defaultRehypePlugins → conditional SVG scaling →
  * extended sanitize schema → SVG ID prefixing → harden → heading IDs →
- * optional animate plugin from the streaming wrapper) and hands `children`
+ * caller-supplied `extraRehypePlugins`) and hands `children`
  * to Streamdown verbatim. Any pre-processing (LaTeX bracket conversion,
  * SVG cleanup, citation tag injection) is the caller's responsibility —
  * the package stays provider-agnostic.
  */
 
-import { useCallback, useMemo } from 'react'
+import { type ReactElement, useCallback, useMemo } from 'react'
 import remarkAlert from 'remark-github-blockquote-alert'
 import {
   type AnimateOptions,
@@ -24,9 +24,37 @@ import type { Pluggable } from 'unified'
 import { MarkdownBlockContext } from './context'
 import { rehypeHeadingIds, rehypePrefixSvgReferences } from './plugins'
 import rehypeScalableSvg from './plugins/rehype-scalable-svg'
-import { createMarkdownSanitizeSchema, DISALLOWED_ELEMENTS, SVG_ELEMENT_REGEX } from './utils'
+import {
+  createMarkdownSanitizeSchema,
+  DISALLOWED_ELEMENTS,
+  type MarkdownSanitizeSchema,
+  SVG_ELEMENT_REGEX
+} from './utils'
 
 const STREAMDOWN_DEFAULT_REMARK_PLUGINS = Object.values(defaultRemarkPlugins)
+
+interface ResolvedDefaultRehypePlugins {
+  raw: Pluggable
+  sanitizeFn: Pluggable
+  sanitizeSchema: MarkdownSanitizeSchema
+  harden: Pluggable
+}
+
+function resolveDefaultRehypePlugins(): ResolvedDefaultRehypePlugins {
+  const plugins = defaultRehypePlugins as Partial<Record<string, unknown>>
+  const sanitize = plugins.sanitize
+
+  if (!plugins.raw || !plugins.harden || !Array.isArray(sanitize) || sanitize.length < 2) {
+    throw new Error('Unexpected Streamdown defaultRehypePlugins shape')
+  }
+
+  return {
+    raw: plugins.raw as Pluggable,
+    sanitizeFn: sanitize[0] as Pluggable,
+    sanitizeSchema: sanitize[1] as MarkdownSanitizeSchema,
+    harden: plugins.harden as Pluggable
+  }
+}
 
 export interface MarkdownCoreProps {
   id: string
@@ -63,8 +91,8 @@ export function MarkdownCore({
   className,
   disallowedElements = DISALLOWED_ELEMENTS,
   footnoteLabel = 'Footnotes'
-}: MarkdownCoreProps) {
-  const hasSvgElement = SVG_ELEMENT_REGEX.test(children)
+}: MarkdownCoreProps): ReactElement {
+  const hasSvgElement = useMemo(() => SVG_ELEMENT_REGEX.test(children), [children])
 
   const remarkPlugins = useMemo(() => {
     const list: Pluggable[] = [...STREAMDOWN_DEFAULT_REMARK_PLUGINS, remarkAlert as Pluggable]
@@ -73,15 +101,12 @@ export function MarkdownCore({
   }, [extraRemarkPlugins])
 
   const rehypePlugins = useMemo(() => {
-    // Streamdown's `defaultRehypePlugins` is a record of `Pluggable` entries
-    // keyed by name. Cast loosely so the merge code stays readable.
-    const { raw, sanitize, harden } = defaultRehypePlugins as Record<string, any>
-    const [sanitizeFn, schema] = sanitize as [unknown, Record<string, unknown>]
-    const extendedSchema = createMarkdownSanitizeSchema(schema)
+    const { raw, sanitizeFn, sanitizeSchema, harden } = resolveDefaultRehypePlugins()
+    const extendedSchema = createMarkdownSanitizeSchema(sanitizeSchema)
     const result: Pluggable[] = [raw]
     if (hasSvgElement) result.push(rehypeScalableSvg)
     result.push(
-      [sanitizeFn as Pluggable, extendedSchema] as Pluggable,
+      [sanitizeFn, extendedSchema] as Pluggable,
       [rehypePrefixSvgReferences, (extendedSchema as { clobberPrefix?: string }).clobberPrefix] as Pluggable,
       harden,
       [rehypeHeadingIds, { prefix: `heading-${id}` }] as Pluggable
@@ -91,7 +116,7 @@ export function MarkdownCore({
   }, [hasSvgElement, id, extraRehypePlugins])
 
   const urlTransform = useCallback((value: string, key: string, node: Parameters<typeof defaultUrlTransform>[2]) => {
-    if (value.startsWith('data:image/png') || value.startsWith('data:image/jpeg')) return value
+    if (key === 'src' && /^data:image\/(?:png|jpeg);/i.test(value)) return value
     return defaultUrlTransform(value, key, node)
   }, [])
 
