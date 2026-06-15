@@ -1,7 +1,8 @@
 /**
  * Wrap a steer message — one the user sent while the assistant was already working — so the model
- * treats it as a mid-task redirect that supersedes the in-progress instruction, rather than a fresh
- * standalone prompt. Chat wraps it into the rebuilt model history for the steer continuation.
+ * treats it as a mid-task redirect rather than a fresh prompt (invariant 7). Mirrors opencode's
+ * `insertReminders`. Shared by both runtimes: chat wraps it into the rebuilt model history; the
+ * claudeCode driver wraps it as it pushes into the live streaming-input queue.
  */
 export function wrapSteerReminder(text: string): string {
   // Defang any literal <system-reminder> open/close tags in the user text by escaping their `<`, so a

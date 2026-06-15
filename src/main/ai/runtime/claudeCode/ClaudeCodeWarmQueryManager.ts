@@ -31,8 +31,10 @@ export function stripWarmQueryOptions(options: Options): Options {
   const {
     // oxlint-disable-next-line no-unused-vars
     abortController: _abortController,
+    // oxlint-disable-next-line no-unused-vars
+    steerHolder: _steerHolder,
     ...rest
-  } = options
+  } = options as Options & { steerHolder?: unknown }
   return rest as Options
 }
 
