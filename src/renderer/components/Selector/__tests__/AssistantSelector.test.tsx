@@ -412,6 +412,22 @@ describe('AssistantSelector', () => {
     expect(onChange).toHaveBeenCalledWith('created-assistant')
   })
 
+  it('keeps the selector closed after editing an assistant from a row action', async () => {
+    renderSelector()
+    openPopover()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit assistant' })[0])
+
+    expect(await screen.findByRole('heading', { name: 'Edit Assistant' })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Renamed Assistant' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
+    await waitFor(() => expect(refetchAssistantsMock).toHaveBeenCalledTimes(1))
+    expect(screen.queryByPlaceholderText('Search assistants')).not.toBeInTheDocument()
+  })
+
   it('notifies when created assistant cannot be refreshed into the selector', async () => {
     refetchAssistantsMock.mockRejectedValueOnce(new Error('Refresh failed'))
     renderSelector()

@@ -512,7 +512,7 @@ describe('AgentSelector', () => {
     await waitFor(() => expect(screen.getByPlaceholderText('Search agents')).toBeInTheDocument())
   })
 
-  it('opens the edit dialog from a row action', async () => {
+  it('keeps the selector closed after editing an agent from a row action', async () => {
     renderSelector()
     openPopover()
 
@@ -525,7 +525,7 @@ describe('AgentSelector', () => {
 
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     await waitFor(() => expect(refetchAgentsMock).toHaveBeenCalledTimes(1))
-    await waitFor(() => expect(screen.getByPlaceholderText('Search agents')).toBeInTheDocument())
+    expect(screen.queryByPlaceholderText('Search agents')).not.toBeInTheDocument()
   })
 
   it('does not show the empty state while the agents query is loading', () => {

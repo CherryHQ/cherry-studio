@@ -220,8 +220,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       logger.warn('Failed to refresh assistants after selector edit', { error })
       window.toast?.error(t('selector.edit_dialog.refresh_failed'))
     }
-    handleSelectorOpenChange(true)
-  }, [handleSelectorOpenChange, refetch, t])
+  }, [refetch, t])
 
   const createDialog = (
     <ResourceCreateDialog
