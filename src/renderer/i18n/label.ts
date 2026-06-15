@@ -327,8 +327,3 @@ const builtInMcpDescriptionKeyMap: Record<BuiltinMcpServerName, string> = {
 export const getBuiltInMcpServerDescriptionLabelKey = (key: string): string => {
   return getLabelKey(builtInMcpDescriptionKeyMap, key, 'settings.mcp.builtinServersDescriptions.no')
 }
-
-// placeholder for future agent type labels
-// export const getAgentTypeLabelKey = (_key: AgentType) => {
-//   return 'Agent'
-// }
