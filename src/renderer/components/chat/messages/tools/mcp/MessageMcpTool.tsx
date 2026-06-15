@@ -459,14 +459,18 @@ const MarkdownContainer = ({ className, ...props }: ComponentPropsWithoutRef<'di
 
 const MessageTitleLabel = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={['flex w-full flex-row items-center justify-between gap-2 p-0', className].filter(Boolean).join(' ')}
+    className={['flex min-w-0 max-w-full flex-row items-center justify-between gap-2 overflow-hidden p-0', className]
+      .filter(Boolean)
+      .join(' ')}
     {...props}
   />
 )
 
 const TitleContent = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={['flex min-w-0 flex-1 flex-row items-center gap-1.5 leading-5', className].filter(Boolean).join(' ')}
+    className={['flex min-w-0 flex-1 flex-row items-center gap-1.5 overflow-hidden leading-5', className]
+      .filter(Boolean)
+      .join(' ')}
     {...props}
   />
 )
@@ -486,7 +490,7 @@ const StatusIconColumn = ({ className, ...props }: ComponentPropsWithoutRef<'div
 const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<typeof Flex>) => (
   <Flex
     className={[
-      'font-normal text-[13px] text-foreground-secondary transition-colors duration-150 group-hover/tool:text-foreground',
+      'min-w-0 max-w-full shrink overflow-hidden font-normal text-[13px] text-foreground-secondary transition-colors duration-150 group-hover/tool:text-foreground',
       className
     ]
       .filter(Boolean)

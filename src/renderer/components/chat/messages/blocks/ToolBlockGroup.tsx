@@ -87,7 +87,7 @@ export const ToolBlockGroupHeaderContent = React.memo(
     const lastWaitingItem = waitingItems[waitingItems.length - 1]
     if (lastWaitingItem) {
       return (
-        <div className="inline-block" key={lastWaitingItem.id}>
+        <div className="min-w-0 max-w-full overflow-hidden" key={lastWaitingItem.id}>
           <ToolHeader toolResponse={lastWaitingItem.toolResponse} variant="collapse-label" status="waiting" />
         </div>
       )
@@ -104,7 +104,7 @@ export const ToolBlockGroupHeaderContent = React.memo(
     if (lastRunningItem) {
       const lastRunningStatus = getItemEffectiveStatus(lastRunningItem, partsMap)
       return (
-        <div className="inline-block" key={lastRunningItem.id}>
+        <div className="min-w-0 max-w-full overflow-hidden" key={lastRunningItem.id}>
           <ToolHeader toolResponse={lastRunningItem.toolResponse} variant="collapse-label" status={lastRunningStatus} />
         </div>
       )
@@ -113,7 +113,7 @@ export const ToolBlockGroupHeaderContent = React.memo(
     const latestItem = showLatestWhenComplete ? items.at(-1) : undefined
     if (latestItem) {
       return (
-        <div className="inline-block" key={latestItem.id}>
+        <div className="min-w-0 max-w-full overflow-hidden" key={latestItem.id}>
           <ToolHeader
             toolResponse={latestItem.toolResponse}
             variant="collapse-label"
@@ -180,7 +180,7 @@ const ToolBlockGroup: React.FC<Props> = ({ items }) => {
         type="button"
         aria-expanded={isExpanded}
         aria-controls={contentId}
-        className="flex min-h-7 w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
+        className="flex min-h-7 min-w-0 max-w-full items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
         onClick={() => setIsExpanded((expanded) => !expanded)}>
         <ToolBlockGroupHeaderContent items={items} />
         <ChevronDown

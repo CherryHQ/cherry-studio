@@ -53,4 +53,11 @@ describe('session item actions', () => {
 
     expect(actions.map((action) => action.id)).toEqual(['session.rename', 'session.delete'])
   })
+
+  it('uses localized cancel text for the delete confirmation', () => {
+    const actions = resolveSessionMenuActions(createSessionActionFixture())
+    const deleteAction = actions.find((action) => action.id === 'session.delete')
+
+    expect(deleteAction?.confirm?.cancelText).toBe('common.cancel')
+  })
 })

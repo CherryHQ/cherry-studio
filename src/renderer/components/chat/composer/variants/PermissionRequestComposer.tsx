@@ -1,13 +1,14 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import Scrollbar from '@renderer/components/Scrollbar'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
 import { ArrowRight, Wrench } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { isValidAgentToolsType, renderTool } from '../../messages/tools/agent'
+import { AgentToolsType, isValidAgentToolsType, renderTool } from '../../messages/tools/agent'
 import { UnknownToolRenderer } from '../../messages/tools/agent/UnknownToolRenderer'
 import { ToolArgsTable } from '../../messages/tools/shared/ArgsTable'
 import { ToolDisclosure, type ToolDisclosureItem } from '../../messages/tools/shared/ToolDisclosure'
@@ -40,6 +41,28 @@ function normalizeArgs(args: ToolResponseLike['arguments']): Record<string, unkn
   return { value: args }
 }
 
+const BUILTIN_TOOLS_WITH_OWN_PREVIEW_SCROLL = new Set<string>([
+  AgentToolsType.Bash,
+  AgentToolsType.BashOutput,
+  AgentToolsType.Glob,
+  AgentToolsType.Grep,
+  AgentToolsType.Read,
+  AgentToolsType.Skill,
+  AgentToolsType.Write
+])
+
+function renderBuiltinPreviewChildren(toolName: string, children: ToolDisclosureItem['children']) {
+  if (children === undefined || children === null || BUILTIN_TOOLS_WITH_OWN_PREVIEW_SCROLL.has(toolName)) {
+    return children
+  }
+
+  return (
+    <Scrollbar className="max-h-60 overflow-x-hidden" data-testid="permission-builtin-body-scroll">
+      {children}
+    </Scrollbar>
+  )
+}
+
 export function createPermissionRequestComposerOverride({
   request,
   onRespond
@@ -63,10 +86,11 @@ function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolRe
   const item: ToolDisclosureItem = {
     ...renderedItem,
     label: <PermissionPreviewHeader toolName={toolName} />,
+    children: renderBuiltinPreviewChildren(toolName, renderedItem.children),
     classNames: {
       ...renderedItem.classNames,
       header: cn('px-3 py-2', renderedItem.classNames?.header),
-      body: cn('max-h-56 overflow-auto bg-transparent p-2 text-foreground', renderedItem.classNames?.body)
+      body: cn('max-h-none overflow-visible bg-transparent p-2 text-foreground', renderedItem.classNames?.body)
     }
   }
 
@@ -88,7 +112,9 @@ function McpPermissionPreview({ toolResponse }: { toolResponse: McpToolResponse 
     <div className="px-3 py-2">
       <PermissionPreviewHeader toolName={toolResponse.tool.name} description={toolResponse.tool.description} />
       {args ? (
-        <ToolArgsTable args={args} title={t('message.tools.sections.input')} />
+        <Scrollbar className="mt-2 max-h-60 overflow-x-hidden" data-testid="permission-mcp-args-scroll">
+          <ToolArgsTable args={args} title={t('message.tools.sections.input')} />
+        </Scrollbar>
       ) : (
         <div className="py-2 text-muted-foreground text-xs">{t('message.tools.noData')}</div>
       )}
@@ -237,7 +263,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
           </div>
         </div>
 
-        <div className="mt-2 overflow-hidden rounded-[12px] bg-muted/30">
+        <div className="mt-2 overflow-hidden rounded-[12px] bg-muted/30" data-testid="permission-preview">
           <PermissionPreview toolResponse={request.toolResponse} />
         </div>
 
