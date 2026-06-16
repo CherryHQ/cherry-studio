@@ -1785,6 +1785,7 @@
     "on": "Ligado",
     "open": "Abrir",
     "open_in": "Abrir em {{name}}",
+    "other": "[to be translated]:Other",
     "paste": "Colar",
     "placeholders": {
       "select": {
@@ -3390,6 +3391,7 @@
     },
     "pinned": "Fixado",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "Custo",
       "currency": "Moeda",
       "custom": "Personalizado",
@@ -5924,7 +5926,7 @@
       "system": "Sistema"
     },
     "messages": {
-      "cache_read_tokens": "[to be translated]:Cached input tokens read",
+      "cache_read_tokens": "Tokens de entrada em cache lidos",
       "divider": {
         "label": "Divisor de mensagens",
         "tooltip": "Não aplicável a mensagens de estilo bolha"
@@ -5957,7 +5959,7 @@
         "none": "Não mostrar"
       },
       "prompt": "Exibir palavra-chave",
-      "reasoning_tokens": "[to be translated]:Reasoning tokens",
+      "reasoning_tokens": "Tokens de raciocínio",
       "show_message_outline": "Exibir esboço da mensagem",
       "title": "Configurações de mensagem",
       "use_serif_font": "Usar fonte serif"
@@ -7047,80 +7049,130 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "[to be translated]:Active days",
-        "costHint": "[to be translated]:Cost is grouped by currency.",
-        "dailyAverage": "[to be translated]:Daily average",
-        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
-        "none": "[to be translated]:N/A",
-        "peakDay": "[to be translated]:Peak day",
-        "streak": "[to be translated]:Longest streak: {{days}} days",
-        "topModel": "[to be translated]:Top model",
-        "totalCost": "[to be translated]:Total cost",
-        "totalTokens": "[to be translated]:Total tokens"
+        "activeDays": "Dias ativos",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "costHint": "O custo é agrupado por moeda.",
+        "dailyAverage": "Média diária",
+        "lastPeriod": "vs período anterior",
+        "mixedCurrency": "Várias moedas são exibidas separadamente.",
+        "none": "N/A",
+        "peakDay": "Dia de pico",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "Maior sequência: {{days}} dias",
+        "topModel": "Top model",
+        "totalCost": "Custo total",
+        "totalRequests": "Pedidos",
+        "totalTokens": "Total de tokens",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "costBackfill": {
+        "action": "[to be translated]:Backfill historical cost",
+        "available": "[to be translated]:{{count}} historical usage records are missing cost and can be calculated with current pricing.",
+        "confirm": "[to be translated]:Will update {{count}} records. Estimated cost: {{cost}}.",
+        "noPricing": "[to be translated]:Set model pricing before backfilling historical cost.",
+        "success": "[to be translated]:Backfilled {{count}} historical cost records."
       },
       "empty": {
-        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
-        "title": "[to be translated]:No usage yet"
+        "description": "O uso aparece após as solicitações de IA criarem entradas no razão.",
+        "title": "Sem uso ainda"
       },
       "explore": {
-        "allProviders": "[to be translated]:All providers",
-        "breakdown": "[to be translated]:Breakdown",
-        "clearDate": "[to be translated]:Clear date filter",
-        "entries": "[to be translated]:Entries",
-        "loadMore": "[to be translated]:Load more",
-        "loading": "[to be translated]:Loading...",
-        "noBreakdown": "[to be translated]:No breakdown data",
-        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
-        "noEntries": "[to be translated]:No entries",
-        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
-        "provider": "[to be translated]:Provider",
-        "selectedDate": "[to be translated]:Selected date: {{date}}",
-        "title": "[to be translated]:Explore",
-        "totalEntries": "[to be translated]:{{count}} entries"
+        "activity": "[to be translated]:Activity",
+        "allProviders": "Todos os provedores",
+        "analysis": "[to be translated]:Analysis",
+        "breakdown": "Colapso",
+        "breakdownTab": "[to be translated]:Breakdown",
+        "cacheUsage": "[to be translated]:Cache usage",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "Limpar filtro de data",
+        "costDrivers": "[to be translated]:Cost drivers",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "Entradas",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "Carregar mais",
+        "loading": "Carregando...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "Sem dados detalhados",
+        "noBreakdownDescription": "Experimente uma janela mais ampla ou um provedor diferente.",
+        "noEntries": "Nenhuma entrada",
+        "noEntriesDescription": "Tente uma janela mais ampla ou um provedor diferente.",
+        "provider": "Fornecedor",
+        "requestsTab": "[to be translated]:Requests",
+        "selectedDate": "Data selecionada: {{date}}",
+        "share": "[to be translated]:Share {{value}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "Explorar",
+        "topApiKeys": "[to be translated]:Top API keys",
+        "topModels": "[to be translated]:Top models",
+        "topProviders": "[to be translated]:Top providers",
+        "topSources": "[to be translated]:Top assistants / agents",
+        "totalEntries": "{{count}} entradas"
       },
       "groupBy": {
-        "apiKey": "[to be translated]:API key",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider"
+        "apiKey": "Chave de API",
+        "model": "Modelo",
+        "provider": "Fornecedor",
+        "source": "[to be translated]:Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "[to be translated]:Usage on {{date}}",
-        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
-        "title": "[to be translated]:Daily activity"
+        "ariaDate": "Uso em {{date}}",
+        "costDisabled": "A visão de custo está disponível apenas quando esta janela possui uma única moeda.",
+        "title": "Atividade diária"
       },
       "metric": {
-        "cost": "[to be translated]:Cost",
-        "tokens": "[to be translated]:Tokens"
+        "cost": "Custo",
+        "requests": "[to be translated]:Requests",
+        "tokens": "Tokens"
       },
       "modality": {
-        "embedding": "[to be translated]:Embedding",
-        "image": "[to be translated]:Image",
-        "language": "[to be translated]:Language"
+        "embedding": "Incorporação",
+        "image": "Imagem",
+        "language": "Idioma"
       },
       "overview": {
         "title": "[to be translated]:Overview"
       },
-      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{activeDays}} active days / longest {{streak}} days",
-      "table": {
-        "apiKey": "[to be translated]:API key",
-        "cost": "[to be translated]:Cost",
-        "date": "[to be translated]:Date",
-        "modality": "[to be translated]:Type",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider",
-        "tokens": "[to be translated]:Tokens"
+      "source": {
+        "agent": "[to be translated]:Agent",
+        "assistant": "[to be translated]:Assistant",
+        "unknown": "[to be translated]:Unattributed"
       },
-      "title": "[to be translated]:Usage Footprint",
+      "summary": "{{window}} / {{tokens}} tokens / {{requests}} pedidos / {{activeDays}} dias ativos",
+      "table": {
+        "apiKey": "Chave de API",
+        "cost": "Custo",
+        "date": "Data",
+        "modality": "Tipo",
+        "model": "Modelo",
+        "provider": "Fornecedor",
+        "request": "[to be translated]:Request",
+        "source": "[to be translated]:Source",
+        "tokens": "Tokens",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "Pegada de Uso",
       "tooltip": {
-        "cost": "[to be translated]:Cost {{value}}",
-        "requests": "[to be translated]:{{count}} requests",
-        "tokens": "[to be translated]:{{value}} tokens"
+        "cost": "Custo {{value}}",
+        "metric": "{{value}}",
+        "requests": "{{count}} solicitações",
+        "tokens": "{{value}} tokens"
       },
       "window": {
-        "30d": "[to be translated]:Last 30 days",
-        "365d": "[to be translated]:Last year",
-        "90d": "[to be translated]:Last 90 days",
-        "all": "[to be translated]:All time"
+        "30d": "Últimos 30 dias",
+        "365d": "Ano passado",
+        "90d": "Últimos 90 dias",
+        "all": "Todo o tempo"
       }
     },
     "use_system_title_bar": {
@@ -7158,34 +7210,34 @@
     "translate": "Traduzir"
   },
   "trace": {
-    "agent": "[to be translated]:Agent",
-    "backList": "[to be translated]:Back To List",
-    "cachedTokens": "[to be translated]:Cached",
-    "endTime": "[to be translated]:End Time",
-    "inputs": "[to be translated]:Inputs",
-    "label": "[to be translated]:Call Chain",
-    "model": "[to be translated]:Model",
-    "name": "[to be translated]:Node Name",
-    "noTraceList": "[to be translated]:No trace information found",
-    "operation": "[to be translated]:Operation",
-    "outputs": "[to be translated]:Outputs",
-    "pollError": "[to be translated]:Polling failed",
-    "reasoningTokens": "[to be translated]:Reasoning",
-    "requestHeaders": "[to be translated]:Request Headers",
-    "requestMethod": "[to be translated]:Request Method",
-    "requestUrl": "[to be translated]:Request URL",
-    "responseHeaders": "[to be translated]:Response Headers",
-    "responseStatus": "[to be translated]:Response Status",
-    "serverDescription": "[to be translated]:Server Description",
-    "serverName": "[to be translated]:Server Name",
-    "serverType": "[to be translated]:Server Type",
-    "spanDetail": "[to be translated]:Span Details",
-    "spendTime": "[to be translated]:Spend Time",
-    "startTime": "[to be translated]:Start Time",
-    "status": "[to be translated]:Status",
-    "tag": "[to be translated]:Tag",
-    "tokenUsage": "[to be translated]:Token Usage",
-    "toolCalls": "[to be translated]:Tool Calls"
+    "agent": "Agente",
+    "backList": "Voltar à Lista",
+    "cachedTokens": "Em cache",
+    "endTime": "Hora de Término",
+    "inputs": "Entradas",
+    "label": "Cadeia de Chamadas",
+    "model": "Modelo",
+    "name": "Nome do Nó",
+    "noTraceList": "Nenhuma informação de rastreamento encontrada",
+    "operation": "Operação",
+    "outputs": "Saídas",
+    "pollError": "Falha na consulta",
+    "reasoningTokens": "Raciocínio",
+    "requestHeaders": "Cabeçalhos de Solicitação",
+    "requestMethod": "Método de Solicitação",
+    "requestUrl": "URL da Solicitação",
+    "responseHeaders": "Cabeçalhos de Resposta",
+    "responseStatus": "Status da Resposta",
+    "serverDescription": "Descrição do Servidor",
+    "serverName": "Nome do Servidor",
+    "serverType": "Tipo de Servidor",
+    "spanDetail": "Detalhes do Vão",
+    "spendTime": "Passar Tempo",
+    "startTime": "Hora de Início",
+    "status": "Estado",
+    "tag": "Etiqueta",
+    "tokenUsage": "Uso de Token",
+    "toolCalls": "Chamadas de Ferramenta"
   },
   "translate": {
     "alter_language": "Idioma alternativo",

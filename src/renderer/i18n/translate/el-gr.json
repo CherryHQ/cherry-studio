@@ -1785,6 +1785,7 @@
     "on": "Ενεργό",
     "open": "Άνοιγμα",
     "open_in": "Άνοιγμα στο {{name}}",
+    "other": "[to be translated]:Other",
     "paste": "Επικόλληση",
     "placeholders": {
       "select": {
@@ -3390,6 +3391,7 @@
     },
     "pinned": "Κατακερματισμένο",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "Κόστος",
       "currency": "Νόμισμα",
       "custom": "Προσαρμογή",
@@ -5924,7 +5926,7 @@
       "system": "Σύστημα"
     },
     "messages": {
-      "cache_read_tokens": "[to be translated]:Cached input tokens read",
+      "cache_read_tokens": "Αναγνωσμένα διακριτικά εισόδου από την προσωρινή μνήμη",
       "divider": {
         "label": "Διαχωριστική γραμμή μηνυμάτων",
         "tooltip": "Δεν ισχύει για μηνύματα με στυλ φυσαλίδας"
@@ -5957,7 +5959,7 @@
         "none": "Χωρίς εμφάνιση"
       },
       "prompt": "Λήμμα προτροπής",
-      "reasoning_tokens": "[to be translated]:Reasoning tokens",
+      "reasoning_tokens": "Δείκτες συλλογισμού",
       "show_message_outline": "Εμφάνιση πλαισίου μηνύματος",
       "title": "Ρυθμίσεις μηνυμάτων",
       "use_serif_font": "Χρήση μορφής Serif"
@@ -7047,80 +7049,130 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "[to be translated]:Active days",
-        "costHint": "[to be translated]:Cost is grouped by currency.",
-        "dailyAverage": "[to be translated]:Daily average",
-        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
-        "none": "[to be translated]:N/A",
-        "peakDay": "[to be translated]:Peak day",
-        "streak": "[to be translated]:Longest streak: {{days}} days",
-        "topModel": "[to be translated]:Top model",
-        "totalCost": "[to be translated]:Total cost",
-        "totalTokens": "[to be translated]:Total tokens"
+        "activeDays": "Ενεργές ημέρες",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "costHint": "Το κόστος ομαδοποιείται ανά νόμισμα.",
+        "dailyAverage": "Ημερήσιος μέσος όρος",
+        "lastPeriod": "σε σχέση με την προηγούμενη περίοδο",
+        "mixedCurrency": "Τα πολλαπλά νομίσματα εμφανίζονται ξεχωριστά.",
+        "none": "N/A",
+        "peakDay": "Ημέρα αιχμής",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "Μεγαλύτερο σερί: {{days}} ημέρες",
+        "topModel": "Κορυφαίο μοντέλο",
+        "totalCost": "Συνολικό κόστος",
+        "totalRequests": "Αιτήματα",
+        "totalTokens": "Συνολικά διακριτικά",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "costBackfill": {
+        "action": "[to be translated]:Backfill historical cost",
+        "available": "[to be translated]:{{count}} historical usage records are missing cost and can be calculated with current pricing.",
+        "confirm": "[to be translated]:Will update {{count}} records. Estimated cost: {{cost}}.",
+        "noPricing": "[to be translated]:Set model pricing before backfilling historical cost.",
+        "success": "[to be translated]:Backfilled {{count}} historical cost records."
       },
       "empty": {
-        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
-        "title": "[to be translated]:No usage yet"
+        "description": "Η χρήση εμφανίζεται μετά από αιτήματα AI που δημιουργούν καταχωρήσεις καθολικού.",
+        "title": "Καμία χρήση ακόμα"
       },
       "explore": {
-        "allProviders": "[to be translated]:All providers",
-        "breakdown": "[to be translated]:Breakdown",
-        "clearDate": "[to be translated]:Clear date filter",
-        "entries": "[to be translated]:Entries",
-        "loadMore": "[to be translated]:Load more",
-        "loading": "[to be translated]:Loading...",
-        "noBreakdown": "[to be translated]:No breakdown data",
-        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
-        "noEntries": "[to be translated]:No entries",
-        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
-        "provider": "[to be translated]:Provider",
-        "selectedDate": "[to be translated]:Selected date: {{date}}",
-        "title": "[to be translated]:Explore",
-        "totalEntries": "[to be translated]:{{count}} entries"
+        "activity": "[to be translated]:Activity",
+        "allProviders": "Όλοι οι πάροχοι",
+        "analysis": "[to be translated]:Analysis",
+        "breakdown": "Κατάρρευση",
+        "breakdownTab": "[to be translated]:Breakdown",
+        "cacheUsage": "[to be translated]:Cache usage",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "Καθαρισμός φίλτρου ημερομηνίας",
+        "costDrivers": "[to be translated]:Cost drivers",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "Καταχωρήσεις",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "Φόρτωση περισσότερων",
+        "loading": "Φόρτωση...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "Κανένα διαθέσιμο δεδομένο ανάλυσης",
+        "noBreakdownDescription": "Δοκιμάστε ένα ευρύτερο παράθυρο ή διαφορετικό πάροχο.",
+        "noEntries": "Καμία καταχώρηση",
+        "noEntriesDescription": "Δοκίμασε ένα ευρύτερο παράθυρο ή διαφορετικό πάροχο.",
+        "provider": "Πάροχος",
+        "requestsTab": "[to be translated]:Requests",
+        "selectedDate": "Επιλεγμένη ημερομηνία: {{date}}",
+        "share": "[to be translated]:Share {{value}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "Εξερεύνησε",
+        "topApiKeys": "[to be translated]:Top API keys",
+        "topModels": "[to be translated]:Top models",
+        "topProviders": "[to be translated]:Top providers",
+        "topSources": "[to be translated]:Top assistants / agents",
+        "totalEntries": "{{count}} καταχωρήσεις"
       },
       "groupBy": {
-        "apiKey": "[to be translated]:API key",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider"
+        "apiKey": "κλειδί API",
+        "model": "Μοντέλο",
+        "provider": "Πάροχος",
+        "source": "[to be translated]:Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "[to be translated]:Usage on {{date}}",
-        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
-        "title": "[to be translated]:Daily activity"
+        "ariaDate": "Χρήση στις {{date}}",
+        "costDisabled": "Η προβολή κόστους είναι διαθέσιμη μόνο όταν αυτό το παράθυρο έχει ένα νόμισμα.",
+        "title": "Καθημερινή δραστηριότητα"
       },
       "metric": {
-        "cost": "[to be translated]:Cost",
-        "tokens": "[to be translated]:Tokens"
+        "cost": "Κόστος",
+        "requests": "[to be translated]:Requests",
+        "tokens": "Διακριτικά"
       },
       "modality": {
-        "embedding": "[to be translated]:Embedding",
-        "image": "[to be translated]:Image",
-        "language": "[to be translated]:Language"
+        "embedding": "Ενσωμάτωση",
+        "image": "Εικόνα",
+        "language": "Γλώσσα"
       },
       "overview": {
         "title": "[to be translated]:Overview"
       },
-      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{activeDays}} active days / longest {{streak}} days",
-      "table": {
-        "apiKey": "[to be translated]:API key",
-        "cost": "[to be translated]:Cost",
-        "date": "[to be translated]:Date",
-        "modality": "[to be translated]:Type",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider",
-        "tokens": "[to be translated]:Tokens"
+      "source": {
+        "agent": "[to be translated]:Agent",
+        "assistant": "[to be translated]:Assistant",
+        "unknown": "[to be translated]:Unattributed"
       },
-      "title": "[to be translated]:Usage Footprint",
+      "summary": "{{window}} / {{tokens}} διακριτικά / {{requests}} αιτήματα / {{activeDays}} ενεργές ημέρες",
+      "table": {
+        "apiKey": "κλειδί API",
+        "cost": "Κόστος",
+        "date": "Ημερομηνία",
+        "modality": "Τύπος",
+        "model": "Μοντέλο",
+        "provider": "Πάροχος",
+        "request": "[to be translated]:Request",
+        "source": "[to be translated]:Source",
+        "tokens": "Διακριτικά",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "Αποτύπωμα Χρήσης",
       "tooltip": {
-        "cost": "[to be translated]:Cost {{value}}",
-        "requests": "[to be translated]:{{count}} requests",
-        "tokens": "[to be translated]:{{value}} tokens"
+        "cost": "Κόστος {{value}}",
+        "metric": "{{value}}",
+        "requests": "{{count}} αιτήματα",
+        "tokens": "{{value}} διακριτά"
       },
       "window": {
-        "30d": "[to be translated]:Last 30 days",
-        "365d": "[to be translated]:Last year",
-        "90d": "[to be translated]:Last 90 days",
-        "all": "[to be translated]:All time"
+        "30d": "Τελευταίες 30 ημέρες",
+        "365d": "Πέρυσι",
+        "90d": "Τελευταίες 90 ημέρες",
+        "all": "Όλοι οι χρόνοι"
       }
     },
     "use_system_title_bar": {
@@ -7158,34 +7210,34 @@
     "translate": "Μετάφραση"
   },
   "trace": {
-    "agent": "[to be translated]:Agent",
-    "backList": "[to be translated]:Back To List",
-    "cachedTokens": "[to be translated]:Cached",
-    "endTime": "[to be translated]:End Time",
-    "inputs": "[to be translated]:Inputs",
-    "label": "[to be translated]:Call Chain",
-    "model": "[to be translated]:Model",
-    "name": "[to be translated]:Node Name",
-    "noTraceList": "[to be translated]:No trace information found",
-    "operation": "[to be translated]:Operation",
-    "outputs": "[to be translated]:Outputs",
-    "pollError": "[to be translated]:Polling failed",
-    "reasoningTokens": "[to be translated]:Reasoning",
-    "requestHeaders": "[to be translated]:Request Headers",
-    "requestMethod": "[to be translated]:Request Method",
-    "requestUrl": "[to be translated]:Request URL",
-    "responseHeaders": "[to be translated]:Response Headers",
-    "responseStatus": "[to be translated]:Response Status",
-    "serverDescription": "[to be translated]:Server Description",
-    "serverName": "[to be translated]:Server Name",
-    "serverType": "[to be translated]:Server Type",
-    "spanDetail": "[to be translated]:Span Details",
-    "spendTime": "[to be translated]:Spend Time",
-    "startTime": "[to be translated]:Start Time",
-    "status": "[to be translated]:Status",
-    "tag": "[to be translated]:Tag",
-    "tokenUsage": "[to be translated]:Token Usage",
-    "toolCalls": "[to be translated]:Tool Calls"
+    "agent": "Πράκτορας",
+    "backList": "Επιστροφή στη Λίστα",
+    "cachedTokens": "Προσωρινά αποθηκευμένο",
+    "endTime": "Ώρα Λήξης",
+    "inputs": "Εισαγωες",
+    "label": "Αλυσίδα Κλήσεων",
+    "model": "Μοντέλο",
+    "name": "Όνομα Κόμβου",
+    "noTraceList": "Δεν βρέθηκαν πληροφορίες ίχνους",
+    "operation": "Λειτουργία",
+    "outputs": "Έξοδοι",
+    "pollError": "Η δειγματοληψία απέτυχε",
+    "reasoningTokens": "Συλλογισμός",
+    "requestHeaders": "Κεφαλίδες Αιτήματος",
+    "requestMethod": "Μέθοδος Αιτήματος",
+    "requestUrl": "URL Αιτήματος",
+    "responseHeaders": "Κεφαλίδες Απόκρισης",
+    "responseStatus": "Κατάσταση Απόκρισης",
+    "serverDescription": "Περιγραφή Διακομιστή",
+    "serverName": "Όνομα Διακομιστή",
+    "serverType": "Τύπος Διακομιστή",
+    "spanDetail": "Λεπτομέρειες Span",
+    "spendTime": "Αφιέρωσε Χρόνο",
+    "startTime": "Ώρα Έναρξης",
+    "status": "Κατάσταση",
+    "tag": "Ετικέτα",
+    "tokenUsage": "Χρήση Διακριτικών",
+    "toolCalls": "Κλήσεις Εργαλείων"
   },
   "translate": {
     "alter_language": "Εναλλακτική γλώσσα",

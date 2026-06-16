@@ -29,10 +29,18 @@
  */
 
 import { application } from '@application'
-import { messageTable } from '@data/db/schemas/message'
-import { type InsertUsageLedgerRow, type UsageLedgerRow, usageLedgerTable } from '@data/db/schemas/usageLedger'
+import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { assistantTable } from '@data/db/schemas/assistant'
+import { topicTable } from '@data/db/schemas/topic'
+import { type UsageLedgerRow, usageLedgerTable } from '@data/db/schemas/usageLedger'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import type {
+  UsageLedgerCostBackfillPreviewResponse,
+  UsageLedgerCostBackfillQuery,
+  UsageLedgerCostBackfillRunResponse,
   UsageLedgerListQuery,
   UsageLedgerListResponse,
   UsageLedgerStatsBucket,
@@ -41,55 +49,33 @@ import type {
   UsageLedgerTimelineQuery,
   UsageLedgerTimelineResponse
 } from '@shared/data/api/schemas/usageLedger'
-import type { Message } from '@shared/data/types/message'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { UsageLedgerAttribution, UsageLedgerEntry, UsageLedgerModality } from '@shared/data/types/usageLedger'
-import { maskApiKey } from '@shared/utils/api'
+import type { Message, MessageStats } from '@shared/data/types/message'
+import { parseUniqueModelId, type RuntimeModelPricing, type UniqueModelId } from '@shared/data/types/model'
+import type {
+  UsageLedgerAttribution,
+  UsageLedgerEntry,
+  UsageLedgerModality,
+  UsageLedgerSourceType
+} from '@shared/data/types/usageLedger'
+import { maskApiKeyForSnapshot } from '@shared/utils/api'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, gte, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm'
 
 import { providerService } from './ProviderService'
-import { enrichStatsWithCost } from './utils/costEnrichment'
+import { computeStatsCostSnapshot, enrichStatsWithCost } from './utils/costEnrichment'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:UsageLedgerService')
-
-type UsageLedgerCursor = { createdAt: number; id: string } | null
 
 /** The message fields the ledger needs — callers may pass a full `Message`. */
 export type UsageLedgerMessageInput = Pick<Message, 'id' | 'topicId' | 'role' | 'modelId' | 'stats'>
 
 interface KeyAttribution {
   attribution: UsageLedgerAttribution
+  providerName?: string
   keyId?: string
   label?: string
   masked?: string
-}
-
-function decodeCursor(raw: string | undefined): UsageLedgerCursor {
-  if (!raw) return null
-
-  // `<= 0` also rejects ":id" — Number('') is 0, which would silently match
-  // nothing instead of falling back to the first page.
-  const separator = raw.indexOf(':')
-  if (separator <= 0) return warnAndFallback(raw, 'missing or empty createdAt segment')
-
-  const createdAt = Number(raw.slice(0, separator))
-  const id = raw.slice(separator + 1)
-  if (!Number.isFinite(createdAt) || !id) {
-    return warnAndFallback(raw, 'malformed createdAt or id')
-  }
-
-  return { createdAt, id }
-}
-
-function warnAndFallback(raw: string, reason: string): UsageLedgerCursor {
-  logger.warn('decodeCursor: cursor unparseable, falling back to first page', { cursor: raw, reason })
-  return null
-}
-
-function encodeCursor(row: UsageLedgerRow): string {
-  return `${row.createdAt}:${row.id}`
 }
 
 function rowToEntry(row: UsageLedgerRow): UsageLedgerEntry {
@@ -98,6 +84,11 @@ function rowToEntry(row: UsageLedgerRow): UsageLedgerEntry {
     messageId: row.messageId,
     topicId: row.topicId,
     providerId: row.providerId,
+    providerName: row.providerName,
+    sourceType: row.sourceType as UsageLedgerSourceType | null,
+    sourceId: row.sourceId,
+    sourceName: row.sourceName,
+    sourceIcon: row.sourceIcon,
     modelId: row.modelId,
     modality: row.modality as UsageLedgerModality,
     apiKeyId: row.apiKeyId,
@@ -108,29 +99,108 @@ function rowToEntry(row: UsageLedgerRow): UsageLedgerEntry {
     outputTokens: row.outputTokens,
     totalTokens: row.totalTokens,
     reasoningTokens: row.reasoningTokens,
+    noCacheTokens: row.noCacheTokens,
     cacheReadTokens: row.cacheReadTokens,
     cacheWriteTokens: row.cacheWriteTokens,
     imageCount: row.imageCount,
     cost: row.cost,
     costCurrency: row.costCurrency,
     costSource: row.costSource as UsageLedgerEntry['costSource'],
+    costBreakdown: row.costBreakdown ?? null,
+    pricingSnapshot: row.pricingSnapshot ?? null,
+    timeFirstTokenMs: row.timeFirstTokenMs,
+    timeCompletionMs: row.timeCompletionMs,
+    timeThinkingMs: row.timeThinkingMs,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
 }
 
+async function readProviderNameMap(): Promise<Map<string, string>> {
+  const rows = await application
+    .get('DbService')
+    .getDb()
+    .select({ providerId: userProviderTable.providerId, name: userProviderTable.name })
+    .from(userProviderTable)
+
+  return new Map(rows.map((row) => [row.providerId, row.name]))
+}
+
+function resolveProviderNameSnapshot(
+  providerId: string,
+  snapshotName: string | null,
+  providerNames: Map<string, string>
+): string | null {
+  if (snapshotName && snapshotName !== providerId) {
+    return snapshotName
+  }
+
+  return providerNames.get(providerId) ?? snapshotName
+}
+
+type SourceSnapshot = {
+  type: UsageLedgerSourceType
+  id: string
+  name: string | null
+  icon: string | null
+}
+
+type UsageLedgerListServiceQuery = Omit<UsageLedgerListQuery, 'sortBy' | 'sortDirection'> &
+  Partial<Pick<UsageLedgerListQuery, 'sortBy' | 'sortDirection'>>
+
+async function resolveTopicSource(topicId: string | null | undefined): Promise<SourceSnapshot | null> {
+  if (!topicId) return null
+
+  const db = application.get('DbService').getDb()
+  const [row] = await db
+    .select({
+      assistantId: topicTable.assistantId,
+      assistantName: assistantTable.name,
+      assistantIcon: assistantTable.emoji
+    })
+    .from(topicTable)
+    .leftJoin(assistantTable, eq(topicTable.assistantId, assistantTable.id))
+    .where(eq(topicTable.id, topicId))
+    .limit(1)
+
+  return row?.assistantId
+    ? { type: 'assistant', id: row.assistantId, name: row.assistantName ?? null, icon: row.assistantIcon ?? null }
+    : null
+}
+
+async function resolveAgentSessionSource(sessionId: string | null | undefined): Promise<SourceSnapshot | null> {
+  if (!sessionId) return null
+
+  const db = application.get('DbService').getDb()
+  const [row] = await db
+    .select({
+      agentId: agentSessionTable.agentId,
+      agentName: agentTable.name,
+      agentConfiguration: agentTable.configuration
+    })
+    .from(agentSessionTable)
+    .leftJoin(agentTable, eq(agentSessionTable.agentId, agentTable.id))
+    .where(eq(agentSessionTable.id, sessionId))
+    .limit(1)
+
+  return row?.agentId
+    ? {
+        type: 'agent',
+        id: row.agentId,
+        name: row.agentName ?? null,
+        icon: getAgentAvatar(row.agentConfiguration) ?? null
+      }
+    : null
+}
+
+function getAgentAvatar(configuration: unknown): string | undefined {
+  if (!configuration || typeof configuration !== 'object' || Array.isArray(configuration)) return undefined
+  const avatar = (configuration as { avatar?: unknown }).avatar
+  return typeof avatar === 'string' ? avatar : undefined
+}
+
 /** Provider-level credentials that never flow through the apiKeys array. */
 const AUTH_CREDENTIAL_TYPES: ReadonlySet<string> = new Set(['iam-aws', 'iam-gcp', 'iam-azure'])
-
-/**
- * Mask a key for the durable snapshot. `maskApiKey` passes keys of ≤8 chars
- * through unmasked (fine for transient UI, not for a row that outlives the
- * key) — clamp those to a fixed placeholder so the raw secret is never stored.
- */
-function maskKeyForSnapshot(key: string): string {
-  const masked = maskApiKey(key)
-  return masked === key ? '****' : masked
-}
 
 /** True when the stats blob carries something worth billing. */
 function hasUsageSignal(stats: NonNullable<Message['stats']>): boolean {
@@ -149,12 +219,78 @@ function statsToColumns(stats: NonNullable<Message['stats']>) {
     outputTokens: stats.outputTokens ?? null,
     totalTokens: stats.totalTokens ?? null,
     reasoningTokens: stats.outputTokenDetails?.reasoningTokens ?? null,
+    noCacheTokens: stats.inputTokenDetails?.noCacheTokens ?? null,
     cacheReadTokens: stats.inputTokenDetails?.cacheReadTokens ?? null,
     cacheWriteTokens: stats.inputTokenDetails?.cacheWriteTokens ?? null,
     cost: stats.cost ?? null,
     costCurrency: stats.costCurrency ?? null,
-    costSource: stats.costSource ?? null
+    costSource: stats.costSource ?? null,
+    costBreakdown: stats.costBreakdown ?? null,
+    pricingSnapshot: stats.pricingSnapshot ?? null,
+    timeFirstTokenMs: stats.timeFirstTokenMs ?? null,
+    timeCompletionMs: stats.timeCompletionMs ?? null,
+    timeThinkingMs: stats.timeThinkingMs ?? null
   }
+}
+
+type CostBackfillRow = Pick<
+  UsageLedgerRow,
+  | 'id'
+  | 'inputTokens'
+  | 'outputTokens'
+  | 'totalTokens'
+  | 'reasoningTokens'
+  | 'noCacheTokens'
+  | 'cacheReadTokens'
+  | 'cacheWriteTokens'
+>
+
+type CostBackfillUpdate = {
+  id: string
+  cost: number
+  costCurrency: NonNullable<MessageStats['costCurrency']>
+  costBreakdown: NonNullable<MessageStats['costBreakdown']>
+  pricingSnapshot: NonNullable<MessageStats['pricingSnapshot']>
+}
+
+interface CostBackfillPlan extends UsageLedgerCostBackfillPreviewResponse {
+  updates: CostBackfillUpdate[]
+}
+
+function buildStatsFromLedgerRow(row: CostBackfillRow): MessageStats {
+  const inputTokenDetails: NonNullable<MessageStats['inputTokenDetails']> = {}
+  if (row.noCacheTokens != null) inputTokenDetails.noCacheTokens = row.noCacheTokens
+  if (row.cacheReadTokens != null) inputTokenDetails.cacheReadTokens = row.cacheReadTokens
+  if (row.cacheWriteTokens != null) inputTokenDetails.cacheWriteTokens = row.cacheWriteTokens
+
+  const outputTokenDetails: NonNullable<MessageStats['outputTokenDetails']> = {}
+  if (row.reasoningTokens != null) outputTokenDetails.reasoningTokens = row.reasoningTokens
+
+  return {
+    ...(row.inputTokens != null ? { inputTokens: row.inputTokens } : {}),
+    ...(row.outputTokens != null ? { outputTokens: row.outputTokens } : {}),
+    ...(row.totalTokens != null ? { totalTokens: row.totalTokens } : {}),
+    ...(Object.keys(inputTokenDetails).length > 0 ? { inputTokenDetails } : {}),
+    ...(Object.keys(outputTokenDetails).length > 0 ? { outputTokenDetails } : {})
+  }
+}
+
+function buildCostBackfillBaseConditions(query: UsageLedgerCostBackfillQuery): SQL[] {
+  const conditions: SQL[] = [
+    eq(usageLedgerTable.modelId, query.modelId),
+    inArray(usageLedgerTable.modality, ['language', 'embedding'])
+  ]
+  if (query.from !== undefined) conditions.push(gte(usageLedgerTable.createdAt, query.from))
+  if (query.to !== undefined) conditions.push(lte(usageLedgerTable.createdAt, query.to))
+  return conditions
+}
+
+function addEstimatedCost(
+  totals: Map<string, number>,
+  currency: NonNullable<MessageStats['costCurrency']>,
+  cost: number
+): void {
+  totals.set(currency, (totals.get(currency) ?? 0) + cost)
 }
 
 export interface RecordRequestInput {
@@ -166,6 +302,8 @@ export interface RecordRequestInput {
    */
   id: string
   topicId?: string | null
+  agentSessionId?: string | null
+  source?: SourceSnapshot | null
   /** UniqueModelId ("providerId::modelId"). */
   modelId: string
   stats: NonNullable<Message['stats']>
@@ -234,11 +372,20 @@ export class UsageLedgerService {
         : input.stats
 
     const key = await this.resolveKeyAttribution(providerId)
+    const source =
+      input.source ??
+      (await resolveTopicSource(input.topicId)) ??
+      (await resolveAgentSessionSource(input.agentSessionId))
 
     const values = {
       messageId: input.id,
       topicId: input.topicId ?? null,
       providerId,
+      providerName: key.providerName ?? null,
+      sourceType: source?.type ?? null,
+      sourceId: source?.id ?? null,
+      sourceName: source?.name ?? null,
+      sourceIcon: source?.icon ?? null,
       modelId: input.modelId,
       modality,
       apiKeyId: key.keyId ?? null,
@@ -267,6 +414,11 @@ export class UsageLedgerService {
             // persistence hook records with it. Whichever lands second must
             // not erase the topic.
             topicId: sql`COALESCE(excluded.topic_id, ${usageLedgerTable.topicId})`,
+            providerName: sql`COALESCE(${usageLedgerTable.providerName}, excluded.provider_name)`,
+            sourceType: sql`COALESCE(${usageLedgerTable.sourceType}, excluded.source_type)`,
+            sourceId: sql`COALESCE(${usageLedgerTable.sourceId}, excluded.source_id)`,
+            sourceName: sql`COALESCE(${usageLedgerTable.sourceName}, excluded.source_name)`,
+            sourceIcon: sql`COALESCE(${usageLedgerTable.sourceIcon}, excluded.source_icon)`,
             apiKeyId: sql`CASE WHEN ${keepStored} THEN ${usageLedgerTable.apiKeyId} ELSE excluded.api_key_id END`,
             apiKeyLabel: sql`CASE WHEN ${keepStored} THEN ${usageLedgerTable.apiKeyLabel} ELSE excluded.api_key_label END`,
             apiKeyMasked: sql`CASE WHEN ${keepStored} THEN ${usageLedgerTable.apiKeyMasked} ELSE excluded.api_key_masked END`,
@@ -276,12 +428,6 @@ export class UsageLedgerService {
           }
         })
     })
-
-    logger.debug('Recorded usage ledger entry', {
-      id: input.id,
-      providerId,
-      attribution: key.attribution
-    })
   }
 
   /**
@@ -289,245 +435,245 @@ export class UsageLedgerService {
    * See the class doc for the exact/rotation/auth/none semantics.
    */
   async resolveKeyAttribution(providerId: string): Promise<KeyAttribution> {
-    let authType: string
-    let allKeysCount = 0
     try {
       const provider = await providerService.getByProviderId(providerId)
-      authType = provider.authType
-      allKeysCount = provider.apiKeys.length
+      const authType = provider.authType
+      const allKeysCount = provider.apiKeys.length
+      const providerName = provider.name
+      if (AUTH_CREDENTIAL_TYPES.has(authType)) {
+        return { attribution: 'auth', providerName }
+      }
+
+      let allKeys: Awaited<ReturnType<typeof providerService.getApiKeys>>
+      try {
+        allKeys = allKeysCount > 0 ? await providerService.getApiKeys(providerId) : []
+      } catch {
+        return { attribution: 'none', providerName }
+      }
+      const enabled = allKeys.filter((k) => k.isEnabled)
+
+      if (enabled.length === 0) {
+        // OAuth providers without API keys authenticate via their token
+        // (e.g. claude-code CLI login); plain api-key providers with no keys
+        // (local endpoints) are simply unattributable.
+        return authType === 'oauth' ? { attribution: 'auth', providerName } : { attribution: 'none', providerName }
+      }
+
+      if (enabled.length === 1) {
+        // Rotation short-circuits on a single enabled key — deterministic.
+        const k = enabled[0]
+        return { attribution: 'exact', providerName, keyId: k.id, label: k.label, masked: maskApiKeyForSnapshot(k.key) }
+      }
+
+      // Multiple keys: the rotation pointer holds the id most recently handed
+      // out for this provider. Match against ALL keys — the key may have been
+      // disabled or relabeled between use and persist.
+      const lastUsedKeyId = providerService.getLastUsedApiKeyId(providerId)
+      if (lastUsedKeyId) {
+        const k = allKeys.find((entry) => entry.id === lastUsedKeyId)
+        if (k) {
+          return {
+            attribution: 'rotation',
+            providerName,
+            keyId: k.id,
+            label: k.label,
+            masked: maskApiKeyForSnapshot(k.key)
+          }
+        }
+      }
+      return { attribution: 'none', providerName }
     } catch {
       // Provider deleted between request and persist.
       return { attribution: 'none' }
     }
+  }
 
-    if (AUTH_CREDENTIAL_TYPES.has(authType)) {
-      return { attribution: 'auth' }
-    }
+  private async readPricingForBackfill(modelId: UniqueModelId): Promise<RuntimeModelPricing | undefined> {
+    const [row] = await application
+      .get('DbService')
+      .getDb()
+      .select({ pricing: userModelTable.pricing })
+      .from(userModelTable)
+      .where(eq(userModelTable.id, modelId))
+      .limit(1)
 
-    let allKeys: Awaited<ReturnType<typeof providerService.getApiKeys>>
-    try {
-      allKeys = allKeysCount > 0 ? await providerService.getApiKeys(providerId) : []
-    } catch {
-      return { attribution: 'none' }
-    }
-    const enabled = allKeys.filter((k) => k.isEnabled)
+    return row?.pricing ?? undefined
+  }
 
-    if (enabled.length === 0) {
-      // OAuth providers without API keys authenticate via their token
-      // (e.g. claude-code CLI login); plain api-key providers with no keys
-      // (local endpoints) are simply unattributable.
-      return authType === 'oauth' ? { attribution: 'auth' } : { attribution: 'none' }
-    }
+  private async collectCostBackfill(query: UsageLedgerCostBackfillQuery): Promise<CostBackfillPlan> {
+    const db = application.get('DbService').getDb()
+    const baseConditions = buildCostBackfillBaseConditions(query)
+    const [rows, [{ count: providerCostCount }], pricing] = await Promise.all([
+      db
+        .select({
+          id: usageLedgerTable.id,
+          inputTokens: usageLedgerTable.inputTokens,
+          outputTokens: usageLedgerTable.outputTokens,
+          totalTokens: usageLedgerTable.totalTokens,
+          reasoningTokens: usageLedgerTable.reasoningTokens,
+          noCacheTokens: usageLedgerTable.noCacheTokens,
+          cacheReadTokens: usageLedgerTable.cacheReadTokens,
+          cacheWriteTokens: usageLedgerTable.cacheWriteTokens
+        })
+        .from(usageLedgerTable)
+        .where(and(...baseConditions, isNull(usageLedgerTable.cost))),
+      db
+        .select({ count: sql<number>`count(*)` })
+        .from(usageLedgerTable)
+        .where(and(...baseConditions, eq(usageLedgerTable.costSource, 'provider'))),
+      this.readPricingForBackfill(query.modelId)
+    ])
 
-    if (enabled.length === 1) {
-      // Rotation short-circuits on a single enabled key — deterministic.
-      const k = enabled[0]
-      return { attribution: 'exact', keyId: k.id, label: k.label, masked: maskKeyForSnapshot(k.key) }
-    }
-
-    // Multiple keys: the rotation pointer holds the id most recently handed
-    // out for this provider. Match against ALL keys — the key may have been
-    // disabled or relabeled between use and persist.
-    const lastUsedKeyId = providerService.getLastUsedApiKeyId(providerId)
-    if (lastUsedKeyId) {
-      const k = allKeys.find((entry) => entry.id === lastUsedKeyId)
-      if (k) {
-        return { attribution: 'rotation', keyId: k.id, label: k.label, masked: maskKeyForSnapshot(k.key) }
+    if (!pricing) {
+      return {
+        scannedCount: rows.length,
+        recalculableCount: 0,
+        skippedNoPricingCount: rows.length,
+        skippedProviderCostCount: providerCostCount,
+        estimatedCostByCurrency: [],
+        updates: []
       }
     }
-    return { attribution: 'none' }
-  }
 
-  // ── Reconciliation ────────────────────────────────────────────────
+    const capturedAt = new Date().toISOString()
+    const totals = new Map<string, number>()
+    const updates: CostBackfillUpdate[] = []
+    let skippedNoPricingCount = 0
 
-  private reconcilePromise: Promise<void> | undefined
-
-  /**
-   * Once per process, before serving reads: backfill ledger rows for
-   * assistant messages that carry stats but have no ledger row. Covers
-   * v1-migrated history and writes lost to crashes/quits (both bypass or
-   * outrun the live hook). Failures are logged and retried on the next read.
-   */
-  private ensureReconciled(): Promise<void> {
-    this.reconcilePromise ??= this.reconcileFromMessages()
-      .then((count) => {
-        if (count > 0) logger.info('usage ledger reconciliation backfilled rows', { count })
-      })
-      .catch((err) => {
-        logger.warn('usage ledger reconciliation failed; will retry on next read', { err })
-        this.reconcilePromise = undefined
-      })
-    return this.reconcilePromise
-  }
-
-  /**
-   * Insert ledger rows for stats-bearing assistant messages that have none.
-   * Timestamps mirror the message's own `createdAt` (usage time, not
-   * reconcile time) so time-windowed stats stay meaningful. Existing rows are
-   * never touched (`onConflictDoNothing`).
-   *
-   * Attribution: the serving key was never recorded, so this is a guess at
-   * best — providers with exactly ONE configured key get that key with the
-   * explicit `backfill` confidence; everything else is honest `none`
-   * (attributing multi-key history to an arbitrary key would corrupt per-key
-   * billing).
-   *
-   * Reads `message` cross-service but read-only — the write stays on the
-   * ledger's own table.
-   */
-  async reconcileFromMessages(): Promise<number> {
-    const db = application.get('DbService').getDb()
-
-    const missing = await db
-      .select({
-        id: messageTable.id,
-        topicId: messageTable.topicId,
-        modelId: messageTable.modelId,
-        stats: messageTable.stats,
-        createdAt: messageTable.createdAt
-      })
-      .from(messageTable)
-      .leftJoin(usageLedgerTable, eq(messageTable.id, usageLedgerTable.messageId))
-      .where(
-        and(
-          eq(messageTable.role, 'assistant'),
-          isNotNull(messageTable.stats),
-          isNotNull(messageTable.modelId),
-          isNull(usageLedgerTable.id)
-        )
-      )
-
-    const attributionByProvider = new Map<string, KeyAttribution>()
-    const rows: InsertUsageLedgerRow[] = []
-
-    for (const m of missing) {
-      if (!m.stats || !hasUsageSignal(m.stats) || !m.modelId) continue
-      let providerId: string
-      try {
-        ;({ providerId } = parseUniqueModelId(m.modelId as `${string}::${string}`))
-      } catch {
+    for (const row of rows) {
+      const computed = computeStatsCostSnapshot(buildStatsFromLedgerRow(row), pricing, capturedAt)
+      if (!computed) {
+        skippedNoPricingCount++
         continue
       }
 
-      let key = attributionByProvider.get(providerId)
-      if (!key) {
-        key = await this.resolveBackfillAttribution(providerId)
-        attributionByProvider.set(providerId, key)
-      }
-
-      rows.push({
-        messageId: m.id,
-        topicId: m.topicId,
-        providerId,
-        modelId: m.modelId,
-        apiKeyId: key.keyId ?? null,
-        apiKeyLabel: key.label ?? null,
-        apiKeyMasked: key.masked ?? null,
-        apiKeyAttribution: key.attribution,
-        ...statsToColumns(m.stats),
-        createdAt: m.createdAt,
-        updatedAt: m.createdAt
+      addEstimatedCost(totals, computed.costCurrency, computed.cost)
+      updates.push({
+        id: row.id,
+        cost: computed.cost,
+        costCurrency: computed.costCurrency,
+        costBreakdown: computed.costBreakdown,
+        pricingSnapshot: computed.pricingSnapshot
       })
     }
 
-    if (rows.length === 0) return 0
+    return {
+      scannedCount: rows.length,
+      recalculableCount: updates.length,
+      skippedNoPricingCount,
+      skippedProviderCostCount: providerCostCount,
+      estimatedCostByCurrency: [...totals.entries()].map(([currency, cost]) => ({ currency, cost })),
+      updates
+    }
+  }
 
-    // Chunked to stay well under SQLite's bind-parameter limit.
-    const CHUNK = 100
+  async previewCostBackfill(query: UsageLedgerCostBackfillQuery): Promise<UsageLedgerCostBackfillPreviewResponse> {
+    const plan = await this.collectCostBackfill(query)
+    return {
+      scannedCount: plan.scannedCount,
+      recalculableCount: plan.recalculableCount,
+      skippedNoPricingCount: plan.skippedNoPricingCount,
+      skippedProviderCostCount: plan.skippedProviderCostCount,
+      estimatedCostByCurrency: plan.estimatedCostByCurrency
+    }
+  }
+
+  async runCostBackfill(query: UsageLedgerCostBackfillQuery): Promise<UsageLedgerCostBackfillRunResponse> {
+    const { updates, ...preview } = await this.collectCostBackfill(query)
+    if (updates.length === 0) {
+      return { ...preview, updatedCount: 0 }
+    }
+
+    let updatedCount = 0
+    const CHUNK_SIZE = 100
     await application.get('DbService').withWriteTx(async (tx) => {
-      for (let i = 0; i < rows.length; i += CHUNK) {
-        await tx
-          .insert(usageLedgerTable)
-          .values(rows.slice(i, i + CHUNK))
-          .onConflictDoNothing({ target: usageLedgerTable.messageId })
+      for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
+        for (const update of updates.slice(i, i + CHUNK_SIZE)) {
+          const updatedRows = await tx
+            .update(usageLedgerTable)
+            .set({
+              cost: update.cost,
+              costCurrency: update.costCurrency,
+              costSource: 'computed',
+              costBreakdown: update.costBreakdown,
+              pricingSnapshot: update.pricingSnapshot,
+              updatedAt: Date.now()
+            })
+            .where(and(eq(usageLedgerTable.id, update.id), isNull(usageLedgerTable.cost)))
+            .returning({ id: usageLedgerTable.id })
+
+          updatedCount += updatedRows.length
+        }
       }
     })
 
-    return rows.length
+    return { ...preview, updatedCount }
   }
 
-  /**
-   * Attribution for reconciled rows. Unlike live resolution there is no
-   * rotation pointer to consult — only the provider's current key inventory.
-   */
-  private async resolveBackfillAttribution(providerId: string): Promise<KeyAttribution> {
-    let authType: string
-    try {
-      authType = (await providerService.getByProviderId(providerId)).authType
-    } catch {
-      return { attribution: 'none' }
-    }
-
-    if (AUTH_CREDENTIAL_TYPES.has(authType)) {
-      return { attribution: 'auth' }
-    }
-
-    let allKeys: Awaited<ReturnType<typeof providerService.getApiKeys>>
-    try {
-      allKeys = await providerService.getApiKeys(providerId)
-    } catch {
-      return { attribution: 'none' }
-    }
-
-    if (allKeys.length === 1) {
-      const k = allKeys[0]
-      return { attribution: 'backfill', keyId: k.id, label: k.label, masked: maskKeyForSnapshot(k.key) }
-    }
-    if (allKeys.length === 0 && authType === 'oauth') {
-      return { attribution: 'auth' }
-    }
-    return { attribution: 'none' }
-  }
-
-  async list(query: UsageLedgerListQuery): Promise<UsageLedgerListResponse> {
-    await this.ensureReconciled()
-
+  async list(query: UsageLedgerListServiceQuery): Promise<UsageLedgerListResponse> {
     const db = application.get('DbService').getDb()
-    const { limit } = query
+    const { limit, page } = query
+    const offset = (page - 1) * limit
 
     const filterConditions: SQL[] = []
     if (query.providerId !== undefined) filterConditions.push(eq(usageLedgerTable.providerId, query.providerId))
     if (query.apiKeyId !== undefined) filterConditions.push(eq(usageLedgerTable.apiKeyId, query.apiKeyId))
     if (query.from !== undefined) filterConditions.push(gte(usageLedgerTable.createdAt, query.from))
     if (query.to !== undefined) filterConditions.push(lte(usageLedgerTable.createdAt, query.to))
-
-    const conditions = [...filterConditions]
-    const cursor = decodeCursor(query.cursor)
-    if (cursor) {
-      conditions.push(
-        or(
-          lt(usageLedgerTable.createdAt, cursor.createdAt),
-          and(eq(usageLedgerTable.createdAt, cursor.createdAt), gt(usageLedgerTable.id, cursor.id))
-        )!
+    const where = filterConditions.length > 0 ? and(...filterConditions) : undefined
+    const tokensPerSecond = sql<number>`CASE
+      WHEN ${usageLedgerTable.outputTokens} IS NULL
+        OR ${usageLedgerTable.outputTokens} <= 0
+        OR ${usageLedgerTable.timeCompletionMs} IS NULL
+        OR ${usageLedgerTable.timeCompletionMs} <= 0
+      THEN NULL
+      ELSE ${usageLedgerTable.outputTokens} / (
+        (CASE
+          WHEN ${usageLedgerTable.timeFirstTokenMs} IS NOT NULL
+            AND ${usageLedgerTable.timeFirstTokenMs} < ${usageLedgerTable.timeCompletionMs}
+          THEN ${usageLedgerTable.timeCompletionMs} - ${usageLedgerTable.timeFirstTokenMs}
+          ELSE ${usageLedgerTable.timeCompletionMs}
+        END) / 1000.0
       )
-    }
-
-    const where = conditions.length > 0 ? and(...conditions) : undefined
+    END`
+    const sortExpression =
+      query.sortBy === 'totalTokens'
+        ? usageLedgerTable.totalTokens
+        : query.sortBy === 'cost'
+          ? usageLedgerTable.cost
+          : query.sortBy === 'timeFirstTokenMs'
+            ? usageLedgerTable.timeFirstTokenMs
+            : query.sortBy === 'tokensPerSecond'
+              ? tokensPerSecond
+              : usageLedgerTable.createdAt
+    const sortOrder = query.sortDirection === 'asc' ? asc(sortExpression) : desc(sortExpression)
 
     const [rows, [{ count }]] = await Promise.all([
       db
         .select()
         .from(usageLedgerTable)
         .where(where)
-        .orderBy(desc(usageLedgerTable.createdAt), asc(usageLedgerTable.id))
-        .limit(limit + 1),
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(usageLedgerTable)
-        .where(filterConditions.length > 0 ? and(...filterConditions) : undefined)
+        .orderBy(sql`${sortExpression} IS NULL`, sortOrder, desc(usageLedgerTable.createdAt), asc(usageLedgerTable.id))
+        .limit(limit)
+        .offset(offset),
+      db.select({ count: sql<number>`count(*)` }).from(usageLedgerTable).where(where)
     ])
-    const pageRows = rows.slice(0, limit)
+
+    const providerNames = await readProviderNameMap()
 
     return {
-      items: pageRows.map(rowToEntry),
+      items: rows.map((row) =>
+        rowToEntry({
+          ...row,
+          providerName: resolveProviderNameSnapshot(row.providerId, row.providerName, providerNames)
+        })
+      ),
       total: count,
-      nextCursor: rows.length > limit ? encodeCursor(pageRows[pageRows.length - 1]) : undefined
+      page
     }
   }
 
   async stats(query: UsageLedgerStatsQuery): Promise<UsageLedgerStatsResponse> {
-    await this.ensureReconciled()
-
     const db = application.get('DbService').getDb()
 
     const conditions: SQL[] = []
@@ -543,11 +689,18 @@ export class UsageLedgerService {
         ? [usageLedgerTable.providerId, usageLedgerTable.apiKeyId, usageLedgerTable.costCurrency]
         : query.groupBy === 'model'
           ? [usageLedgerTable.providerId, usageLedgerTable.modelId, usageLedgerTable.costCurrency]
-          : [usageLedgerTable.providerId, usageLedgerTable.costCurrency]
+          : query.groupBy === 'source'
+            ? [usageLedgerTable.sourceType, usageLedgerTable.sourceId, usageLedgerTable.costCurrency]
+            : [usageLedgerTable.providerId, usageLedgerTable.costCurrency]
 
     const rows = await db
       .select({
         providerId: usageLedgerTable.providerId,
+        providerName: sql<string | null>`max(${usageLedgerTable.providerName})`,
+        sourceType: usageLedgerTable.sourceType,
+        sourceId: usageLedgerTable.sourceId,
+        sourceName: sql<string | null>`max(${usageLedgerTable.sourceName})`,
+        sourceIcon: sql<string | null>`max(${usageLedgerTable.sourceIcon})`,
         apiKeyId: usageLedgerTable.apiKeyId,
         modelId: usageLedgerTable.modelId,
         costCurrency: usageLedgerTable.costCurrency,
@@ -560,6 +713,9 @@ export class UsageLedgerService {
         totalInputTokens: sql<number>`coalesce(sum(${usageLedgerTable.inputTokens}), 0)`,
         totalOutputTokens: sql<number>`coalesce(sum(${usageLedgerTable.outputTokens}), 0)`,
         totalTokens: sql<number>`coalesce(sum(${usageLedgerTable.totalTokens}), 0)`,
+        totalNoCacheTokens: sql<number>`coalesce(sum(${usageLedgerTable.noCacheTokens}), 0)`,
+        totalCacheReadTokens: sql<number>`coalesce(sum(${usageLedgerTable.cacheReadTokens}), 0)`,
+        totalCacheWriteTokens: sql<number>`coalesce(sum(${usageLedgerTable.cacheWriteTokens}), 0)`,
         entryCount: sql<number>`count(*)`
       })
       .from(usageLedgerTable)
@@ -567,14 +723,27 @@ export class UsageLedgerService {
       .groupBy(...groupColumns)
       .orderBy(sql`coalesce(sum(${usageLedgerTable.cost}), 0) desc`)
 
+    const providerNames = await readProviderNameMap()
     const buckets: UsageLedgerStatsBucket[] = rows.map((row) => ({
       providerId: row.providerId,
+      providerName: resolveProviderNameSnapshot(row.providerId, row.providerName, providerNames),
       costCurrency: row.costCurrency,
       totalCost: row.totalCost,
       totalInputTokens: row.totalInputTokens,
       totalOutputTokens: row.totalOutputTokens,
       totalTokens: row.totalTokens,
+      totalNoCacheTokens: row.totalNoCacheTokens,
+      totalCacheReadTokens: row.totalCacheReadTokens,
+      totalCacheWriteTokens: row.totalCacheWriteTokens,
       entryCount: row.entryCount,
+      ...(query.groupBy === 'source'
+        ? {
+            sourceType: row.sourceType as UsageLedgerSourceType | null,
+            sourceId: row.sourceId,
+            sourceName: row.sourceName,
+            sourceIcon: row.sourceIcon
+          }
+        : {}),
       ...(query.groupBy === 'apiKey'
         ? {
             apiKeyId: row.apiKeyId,
@@ -590,8 +759,6 @@ export class UsageLedgerService {
   }
 
   async timeline(query: UsageLedgerTimelineQuery): Promise<UsageLedgerTimelineResponse> {
-    await this.ensureReconciled()
-
     const db = application.get('DbService').getDb()
 
     const conditions: SQL[] = []
@@ -605,6 +772,9 @@ export class UsageLedgerService {
       .select({
         date: dayBucket,
         totalTokens: sql<number>`coalesce(sum(${usageLedgerTable.totalTokens}), 0)`,
+        totalNoCacheTokens: sql<number>`coalesce(sum(${usageLedgerTable.noCacheTokens}), 0)`,
+        totalCacheReadTokens: sql<number>`coalesce(sum(${usageLedgerTable.cacheReadTokens}), 0)`,
+        totalCacheWriteTokens: sql<number>`coalesce(sum(${usageLedgerTable.cacheWriteTokens}), 0)`,
         // Naive cross-currency sum for timeline shape only. The renderer
         // defaults to token intensity and enables cost mode only for an
         // effectively single-currency ledger window.

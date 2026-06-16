@@ -9,14 +9,15 @@
 
 import * as z from 'zod'
 
+import { MessageStatsSchema } from './message'
+
 /**
  * How the API key was attributed at write time:
  * - `exact`: provider had exactly one enabled key — deterministic.
  * - `rotation`: resolved from the round-robin rotation pointer — best-effort
  *   (concurrent requests to the same multi-key provider may move the pointer).
- * - `backfill`: written by reconciliation (v1-migrated history, recovered
- *   lost writes) for a provider with exactly one configured key — a guess,
- *   the serving key is not recorded anywhere.
+ * - `backfill`: historical migration fallback using the provider's first
+ *   configured API key because the serving key was not recorded.
  * - `auth`: provider authenticates with a provider-level credential
  *   (IAM/OAuth), not an API key.
  * - `none`: unresolvable (no enabled keys, pointer lost on restart, key deleted).
@@ -33,6 +34,14 @@ export type UsageLedgerAttribution = z.infer<typeof UsageLedgerAttributionSchema
 export const UsageLedgerModalitySchema = z.enum(['language', 'embedding', 'image'])
 export type UsageLedgerModality = z.infer<typeof UsageLedgerModalitySchema>
 
+/**
+ * User-facing source that produced the usage:
+ * - `assistant`: regular chat topic owned by an assistant
+ * - `agent`: agent session message
+ */
+export const UsageLedgerSourceTypeSchema = z.enum(['assistant', 'agent'])
+export type UsageLedgerSourceType = z.infer<typeof UsageLedgerSourceTypeSchema>
+
 export const UsageLedgerEntrySchema = z.strictObject({
   /** UUIDv7 (time-ordered), auto-generated */
   id: z.uuidv7(),
@@ -42,6 +51,12 @@ export const UsageLedgerEntrySchema = z.strictObject({
   topicId: z.string().nullable(),
   /** Provider id snapshot */
   providerId: z.string(),
+  /** Provider display name at write time */
+  providerName: z.string().nullable(),
+  sourceType: UsageLedgerSourceTypeSchema.nullable(),
+  sourceId: z.string().nullable(),
+  sourceName: z.string().nullable(),
+  sourceIcon: z.string().nullable(),
   /** UniqueModelId ("providerId::modelId") snapshot */
   modelId: z.string().nullable(),
   modality: UsageLedgerModalitySchema,
@@ -59,6 +74,7 @@ export const UsageLedgerEntrySchema = z.strictObject({
   outputTokens: z.number().nullable(),
   totalTokens: z.number().nullable(),
   reasoningTokens: z.number().nullable(),
+  noCacheTokens: z.number().nullable(),
   cacheReadTokens: z.number().nullable(),
   cacheWriteTokens: z.number().nullable(),
   /** Generated image count (modality `image`) */
@@ -68,6 +84,11 @@ export const UsageLedgerEntrySchema = z.strictObject({
   cost: z.number().nullable(),
   costCurrency: z.string().nullable(),
   costSource: z.enum(['provider', 'computed']).nullable(),
+  costBreakdown: MessageStatsSchema.shape.costBreakdown.nullable(),
+  pricingSnapshot: MessageStatsSchema.shape.pricingSnapshot.nullable(),
+  timeFirstTokenMs: z.number().nullable(),
+  timeCompletionMs: z.number().nullable(),
+  timeThinkingMs: z.number().nullable(),
 
   /** ISO 8601 datetime */
   createdAt: z.iso.datetime(),

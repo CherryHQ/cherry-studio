@@ -10,6 +10,9 @@ const useModelsMock = vi.fn()
 const createModelMock = vi.fn()
 const deleteModelMock = vi.fn()
 const updateModelMock = vi.fn()
+const dataApiGetMock = vi.fn()
+const dataApiPostMock = vi.fn()
+const invalidateCacheMock = vi.fn()
 
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<object>()
@@ -61,6 +64,17 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     WarnTooltip: () => <span>warn</span>
   }
 })
+
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: {
+    get: (...args: any[]) => dataApiGetMock(...args),
+    post: (...args: any[]) => dataApiPostMock(...args)
+  }
+}))
+
+vi.mock('@data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => invalidateCacheMock
+}))
 
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
@@ -134,6 +148,15 @@ describe('Model drawers', () => {
     ;(window as any).modal = { confirm: vi.fn() }
 
     useModelsMock.mockReturnValue({ models: [] })
+    dataApiGetMock.mockResolvedValue({
+      scannedCount: 0,
+      recalculableCount: 0,
+      skippedNoPricingCount: 0,
+      skippedProviderCostCount: 0,
+      estimatedCostByCurrency: []
+    })
+    dataApiPostMock.mockResolvedValue({ updatedCount: 0 })
+    invalidateCacheMock.mockResolvedValue(undefined)
   })
 
   it('renders the legacy add drawer without the inner panel shell and submits through the local drawer form', async () => {
@@ -251,7 +274,9 @@ describe('Model drawers', () => {
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
-              output: { perMillionTokens: 0, currency: 'USD' }
+              output: { perMillionTokens: 0, currency: 'USD' },
+              cacheRead: { perMillionTokens: 0.5, currency: 'USD' },
+              cacheWrite: { perMillionTokens: 3.75, currency: 'USD' }
             }
           } as any
         }
@@ -267,6 +292,7 @@ describe('Model drawers', () => {
       fireEvent.click(screen.getByRole('button', { name: /settings\.moresetting\.label/i }))
     })
     expect(screen.getByTestId('provider-settings-model-more-settings')).toBeInTheDocument()
+    expect(screen.getByLabelText('models.price.cache_read')).toHaveValue(0.5)
 
     await act(async () => {
       const inputPrice = screen.getByLabelText('models.price.input')
@@ -281,6 +307,23 @@ describe('Model drawers', () => {
       expect.objectContaining({
         pricing: expect.objectContaining({
           input: expect.objectContaining({ perMillionTokens: 12.5 })
+        })
+      })
+    )
+    await act(async () => {
+      const cacheReadPrice = screen.getByLabelText('models.price.cache_read')
+      fireEvent.change(cacheReadPrice, {
+        target: { value: '1.25' }
+      })
+      fireEvent.blur(cacheReadPrice)
+    })
+    expect(updateModelMock).toHaveBeenCalledWith(
+      'openai',
+      'claude-4-sonnet',
+      expect.objectContaining({
+        pricing: expect.objectContaining({
+          cacheRead: expect.objectContaining({ perMillionTokens: 1.25 }),
+          cacheWrite: expect.objectContaining({ perMillionTokens: 3.75 })
         })
       })
     )
@@ -307,6 +350,72 @@ describe('Model drawers', () => {
     })
 
     expect(updateModelMock.mock.calls.length).toBeGreaterThan(callsBeforeSave)
+  })
+
+  it('shows a cost backfill CTA after saving model pricing and runs the backfill on click', async () => {
+    dataApiGetMock.mockResolvedValue({
+      scannedCount: 3,
+      recalculableCount: 3,
+      skippedNoPricingCount: 0,
+      skippedProviderCostCount: 0,
+      estimatedCostByCurrency: [{ currency: 'USD', cost: 0.42 }]
+    })
+    dataApiPostMock.mockResolvedValue({ updatedCount: 3 })
+    useProviderMock.mockReturnValue({
+      provider: { id: 'openai', name: 'OpenAI' }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="openai"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'openai::claude-4-sonnet',
+            providerId: 'openai',
+            name: 'claude-4-sonnet',
+            group: 'Anthropic',
+            capabilities: [],
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
+            }
+          } as any
+        }
+      />
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /settings\.moresetting\.label/i }))
+    })
+    await act(async () => {
+      const inputPrice = screen.getByLabelText('models.price.input')
+      fireEvent.change(inputPrice, {
+        target: { value: '3' }
+      })
+      fireEvent.blur(inputPrice)
+    })
+
+    expect(dataApiGetMock).toHaveBeenCalledWith('/usage-ledger/cost-backfill/preview', {
+      query: { modelId: 'openai::claude-4-sonnet' }
+    })
+    expect(screen.getByText('settings.usage.costBackfill.available')).toBeInTheDocument()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /settings\.usage\.costBackfill\.action/i }))
+    })
+
+    expect(dataApiPostMock).toHaveBeenCalledWith('/usage-ledger/cost-backfill/run', {
+      body: { modelId: 'openai::claude-4-sonnet' }
+    })
+    expect(invalidateCacheMock).toHaveBeenCalledWith([
+      '/usage-ledger/entries',
+      '/usage-ledger/stats',
+      '/usage-ledger/timeline'
+    ])
+    expect(window.toast.success).toHaveBeenCalledWith('settings.usage.costBackfill.success')
   })
 
   it('writes cherryin endpoint type back through the edit drawer save path', async () => {

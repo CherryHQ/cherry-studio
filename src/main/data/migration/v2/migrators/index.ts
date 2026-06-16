@@ -20,6 +20,7 @@ import { PreferencesMigrator } from './PreferencesMigrator'
 import { PromptMigrator } from './PromptMigrator'
 import { ProviderModelMigrator } from './ProviderModelMigrator'
 import { TranslateMigrator } from './TranslateMigrator'
+import { UsageLedgerMigrator } from './UsageLedgerMigrator'
 
 // Export migrator classes
 export {
@@ -37,7 +38,8 @@ export {
   PreferencesMigrator,
   PromptMigrator,
   ProviderModelMigrator,
-  TranslateMigrator
+  TranslateMigrator,
+  UsageLedgerMigrator
 }
 
 /**
@@ -57,6 +59,7 @@ export function getAllMigrators() {
     new KnowledgeMigrator(),
     new KnowledgeVectorMigrator(),
     new ChatMigrator(),
+    new UsageLedgerMigrator(),
     new PaintingMigrator(),
     new TranslateMigrator(),
     new PromptMigrator()

@@ -8,14 +8,18 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
+import { dataApiService } from '@data/DataApiService'
+import { useInvalidateCache } from '@data/hooks/useDataApi'
+import { loggerService } from '@logger'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
 import { useModelMutations } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils'
+import type { UsageLedgerCostBackfillPreviewResponse } from '@shared/data/api/schemas/usageLedger'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { isNewApiProvider } from '@shared/utils/provider'
-import { ChevronDown, ChevronUp, SaveIcon } from 'lucide-react'
+import { ChevronDown, ChevronUp, RefreshCw, SaveIcon } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -37,6 +41,8 @@ import { ModelCapabilityToggles } from './ModelCapabilityToggles'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
 import type { ModelCapabilityToggle, ModelDrawerMode } from './types'
 
+const logger = loggerService.withContext('EditModelDrawer')
+
 interface EditModelDrawerProps {
   providerId: string
   open: boolean
@@ -50,6 +56,7 @@ interface BuildPatchOverrides {
   currencySymbol?: ModelDrawerCurrencySymbol
   inputPrice?: string
   outputPrice?: string
+  cacheReadPrice?: string
   contextWindow?: string
   maxInputTokens?: string
   maxOutputTokens?: string
@@ -74,10 +81,36 @@ const symbolToCurrency = (symbol: string): ModelDrawerCurrency | undefined => CU
 const currencyToSymbol = (currency: string): ModelDrawerCurrencySymbol | undefined =>
   CURRENCY_CODE_TO_SYMBOL[currency as ModelDrawerCurrency]
 
+function hasBillableTokenPricing(pricing: Model['pricing'] | undefined): boolean {
+  return [pricing?.input, pricing?.output, pricing?.cacheRead, pricing?.cacheWrite].some(
+    (tier) => (tier?.perMillionTokens ?? 0) > 0
+  )
+}
+
+function pricingSignature(pricing: Model['pricing'] | undefined): string {
+  return JSON.stringify({
+    input: pricing?.input,
+    output: pricing?.output,
+    cacheRead: pricing?.cacheRead,
+    cacheWrite: pricing?.cacheWrite
+  })
+}
+
+function formatBackfillCost(value: number, currency: string): string {
+  const symbol = currency.toUpperCase() === 'CNY' ? '¥' : '$'
+  const fractionDigits = value > 0 && value < 1 ? 4 : 2
+  return `${symbol}${value.toFixed(fractionDigits)}`
+}
+
+function formatBackfillEstimate(preview: UsageLedgerCostBackfillPreviewResponse): string {
+  return preview.estimatedCostByCurrency.map((item) => formatBackfillCost(item.cost, item.currency)).join(' / ')
+}
+
 export default function EditModelDrawer({ providerId, open, model: modelProp, onClose }: EditModelDrawerProps) {
   const { t } = useTranslation()
   const { provider } = useProvider(providerId)
   const { deleteModel, updateModel } = useModelMutations()
+  const invalidateCache = useInvalidateCache()
   // Keep the last opened model around so `PageSidePanel`'s exit animation has stable content
   // after the parent clears its `editingModel` selection on close.
   const previousModelRef = useRef<Model | null>(modelProp)
@@ -95,10 +128,14 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [currencySymbol, setCurrencySymbol] = useState<ModelDrawerCurrencySymbol>('$')
   const [inputPrice, setInputPrice] = useState('0')
   const [outputPrice, setOutputPrice] = useState('0')
+  const [cacheReadPrice, setCacheReadPrice] = useState('0')
   const [contextWindow, setContextWindow] = useState('')
   const [maxInputTokens, setMaxInputTokens] = useState('')
   const [maxOutputTokens, setMaxOutputTokens] = useState('')
   const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
+  const [costBackfillPreview, setCostBackfillPreview] = useState<UsageLedgerCostBackfillPreviewResponse | null>(null)
+  const [isCostBackfillPreviewing, setIsCostBackfillPreviewing] = useState(false)
+  const [isCostBackfillRunning, setIsCostBackfillRunning] = useState(false)
 
   const mode: ModelDrawerMode = provider && isNewApiProvider(provider) ? 'new-api' : 'legacy'
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
@@ -125,16 +162,44 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setCurrencySymbol(nextCurrencySymbol ?? '$')
     setInputPrice(String(model.pricing?.input?.perMillionTokens ?? 0))
     setOutputPrice(String(model.pricing?.output?.perMillionTokens ?? 0))
+    setCacheReadPrice(String(model.pricing?.cacheRead?.perMillionTokens ?? 0))
     setContextWindow(model.contextWindow != null ? String(model.contextWindow) : '')
     setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
     setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
     setEndpointTypeTouched(false)
+    setCostBackfillPreview(null)
   }, [model, open])
 
+  const previewCostBackfill = useCallback(
+    async (pricing: Model['pricing'] | undefined) => {
+      if (!model || !hasBillableTokenPricing(pricing)) {
+        setCostBackfillPreview(null)
+        return null
+      }
+
+      setIsCostBackfillPreviewing(true)
+      try {
+        const preview = await dataApiService.get('/usage-ledger/cost-backfill/preview', {
+          query: { modelId: model.id }
+        })
+        const nextPreview = preview.recalculableCount > 0 ? preview : null
+        setCostBackfillPreview(nextPreview)
+        return nextPreview
+      } catch (error) {
+        logger.warn('Cost backfill preview failed', { modelId: model.id, error })
+        setCostBackfillPreview(null)
+        return null
+      } finally {
+        setIsCostBackfillPreviewing(false)
+      }
+    },
+    [model]
+  )
+
   const handleUpdateModel = useCallback(
-    async (patch: Partial<Model>) => {
+    async (patch: Partial<Model>, options?: { previewCostBackfill?: boolean }) => {
       if (!model) {
-        return
+        return null
       }
 
       const { modelId } = parseUniqueModelId(model.id)
@@ -149,8 +214,14 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         maxOutputTokens: patch.maxOutputTokens,
         pricing: patch.pricing
       })
+
+      if (options?.previewCostBackfill) {
+        return await previewCostBackfill(patch.pricing)
+      }
+
+      return null
     },
-    [model, providerId, updateModel]
+    [model, previewCostBackfill, providerId, updateModel]
   )
 
   const buildPatch = useCallback(
@@ -183,7 +254,12 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           output: {
             perMillionTokens: Number(overrides?.outputPrice ?? outputPrice) || 0,
             currency: finalCurrency
-          }
+          },
+          cacheRead: {
+            perMillionTokens: Number(overrides?.cacheReadPrice ?? cacheReadPrice) || 0,
+            currency: finalCurrency
+          },
+          ...(model.pricing?.cacheWrite ? { cacheWrite: model.pricing.cacheWrite } : {})
         }
       }
     },
@@ -191,6 +267,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       currencySymbol,
       endpointTypes,
       group,
+      cacheReadPrice,
       contextWindow,
       inputPrice,
       maxInputTokens,
@@ -205,8 +282,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   )
 
   const autoSave = useCallback(
-    (overrides?: BuildPatchOverrides) => {
-      void handleUpdateModel(buildPatch(overrides)).catch(() => {
+    (overrides?: BuildPatchOverrides, options?: { previewCostBackfill?: boolean }) => {
+      void handleUpdateModel(buildPatch(overrides), options).catch(() => {
         window.toast.error(t('common.error'))
       })
     },
@@ -239,10 +316,36 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       return
     }
 
-    await handleUpdateModel(buildPatch())
-    setShowMoreSettings(false)
-    onClose()
-  }, [buildPatch, endpointTypes.length, handleUpdateModel, mode, onClose])
+    const patch = buildPatch()
+    const preview = await handleUpdateModel(patch, {
+      previewCostBackfill: pricingSignature(patch.pricing) !== pricingSignature(model?.pricing)
+    })
+    if (!preview) {
+      setShowMoreSettings(false)
+      onClose()
+    }
+  }, [buildPatch, endpointTypes.length, handleUpdateModel, mode, model?.pricing, onClose])
+
+  const runCostBackfill = useCallback(async () => {
+    if (!model || !costBackfillPreview || costBackfillPreview.recalculableCount <= 0) {
+      return
+    }
+
+    setIsCostBackfillRunning(true)
+    try {
+      const result = await dataApiService.post('/usage-ledger/cost-backfill/run', {
+        body: { modelId: model.id }
+      })
+      setCostBackfillPreview(null)
+      await invalidateCache(['/usage-ledger/entries', '/usage-ledger/stats', '/usage-ledger/timeline'])
+      window.toast.success(t('settings.usage.costBackfill.success', { count: result.updatedCount }))
+    } catch (error) {
+      logger.warn('Cost backfill run failed', { modelId: model.id, error })
+      window.toast.error(t('common.error'))
+    } finally {
+      setIsCostBackfillRunning(false)
+    }
+  }, [costBackfillPreview, invalidateCache, model, t])
 
   const handleFormSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -408,7 +511,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                         }
 
                         setCurrencySymbol(nextValue)
-                        autoSave({ currencySymbol: nextValue })
+                        autoSave({ currencySymbol: nextValue }, { previewCostBackfill: true })
                       }}>
                       <SelectTrigger aria-label={t('models.price.currency')} className={drawerClasses.selectTrigger}>
                         <SelectValue />
@@ -437,7 +540,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                       onChange={(event) => {
                         setInputPrice(event.target.value)
                       }}
-                      onBlur={() => autoSave({ inputPrice })}
+                      onBlur={() => autoSave({ inputPrice }, { previewCostBackfill: true })}
                     />
                     <span className={drawerClasses.valueSuffix}>
                       {currentCurrency} / {t('models.price.million_tokens')}
@@ -458,13 +561,64 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                       onChange={(event) => {
                         setOutputPrice(event.target.value)
                       }}
-                      onBlur={() => autoSave({ outputPrice })}
+                      onBlur={() => autoSave({ outputPrice }, { previewCostBackfill: true })}
                     />
                     <span className={drawerClasses.valueSuffix}>
                       {currentCurrency} / {t('models.price.million_tokens')}
                     </span>
                   </div>
                 </ProviderField>
+
+                <ProviderField title={t('models.price.cache_read')} titleClassName={drawerClasses.fieldTitle}>
+                  <div className={drawerClasses.responsiveValueRow}>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      aria-label={t('models.price.cache_read')}
+                      value={cacheReadPrice}
+                      placeholder="0.00"
+                      className={drawerClasses.input}
+                      onChange={(event) => {
+                        setCacheReadPrice(event.target.value)
+                      }}
+                      onBlur={() => autoSave({ cacheReadPrice }, { previewCostBackfill: true })}
+                    />
+                    <span className={drawerClasses.valueSuffix}>
+                      {currentCurrency} / {t('models.price.million_tokens')}
+                    </span>
+                  </div>
+                </ProviderField>
+
+                {costBackfillPreview ? (
+                  <div className="mt-3 flex flex-col gap-2 border-border border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 space-y-1">
+                      <div className="font-medium text-foreground text-sm">
+                        {t('settings.usage.costBackfill.available', {
+                          count: costBackfillPreview.recalculableCount
+                        })}
+                      </div>
+                      <div className="text-muted-foreground text-xs">
+                        {t('settings.usage.costBackfill.confirm', {
+                          count: costBackfillPreview.recalculableCount,
+                          cost: formatBackfillEstimate(costBackfillPreview)
+                        })}
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="shrink-0"
+                      disabled={isCostBackfillRunning || isCostBackfillPreviewing}
+                      onClick={() => void runCostBackfill()}>
+                      <RefreshCw
+                        aria-hidden
+                        className={`size-4 shrink-0 text-current ${isCostBackfillRunning ? 'animate-spin' : ''}`}
+                      />
+                      {t('settings.usage.costBackfill.action')}
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             </div>
           </ProviderSection>

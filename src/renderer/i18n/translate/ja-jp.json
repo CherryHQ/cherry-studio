@@ -1785,6 +1785,7 @@
     "on": "オン",
     "open": "開く",
     "open_in": "{{name}}で開く",
+    "other": "[to be translated]:Other",
     "paste": "貼り付け",
     "placeholders": {
       "select": {
@@ -3390,6 +3391,7 @@
     },
     "pinned": "固定済み",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "コスト",
       "currency": "通貨",
       "custom": "カスタム",
@@ -5924,7 +5926,7 @@
       "system": "システム"
     },
     "messages": {
-      "cache_read_tokens": "[to be translated]:Cached input tokens read",
+      "cache_read_tokens": "キャッシュされた入力トークンが読み取られました",
       "divider": {
         "label": "メッセージ間に区切り線を表示",
         "tooltip": "バブルスタイルのメッセージには適用されません"
@@ -5957,7 +5959,7 @@
         "none": "表示しない"
       },
       "prompt": "プロンプト表示",
-      "reasoning_tokens": "[to be translated]:Reasoning tokens",
+      "reasoning_tokens": "推論トークン",
       "show_message_outline": "メッセージの概要を表示します",
       "title": "メッセージ設定",
       "use_serif_font": "セリフフォントを使用"
@@ -7047,80 +7049,130 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "[to be translated]:Active days",
-        "costHint": "[to be translated]:Cost is grouped by currency.",
-        "dailyAverage": "[to be translated]:Daily average",
-        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
-        "none": "[to be translated]:N/A",
-        "peakDay": "[to be translated]:Peak day",
-        "streak": "[to be translated]:Longest streak: {{days}} days",
-        "topModel": "[to be translated]:Top model",
-        "totalCost": "[to be translated]:Total cost",
-        "totalTokens": "[to be translated]:Total tokens"
+        "activeDays": "アクティブ日数",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "costHint": "コストは通貨別にグループ化されています。",
+        "dailyAverage": "日平均",
+        "lastPeriod": "前期間比",
+        "mixedCurrency": "複数の通貨は個別に表示されます。",
+        "none": "N/A",
+        "peakDay": "ピーク日",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "最長ストリーク: {{days}} 日",
+        "topModel": "トップモデル",
+        "totalCost": "総費用",
+        "totalRequests": "リクエスト数",
+        "totalTokens": "総トークン数",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "costBackfill": {
+        "action": "[to be translated]:Backfill historical cost",
+        "available": "[to be translated]:{{count}} historical usage records are missing cost and can be calculated with current pricing.",
+        "confirm": "[to be translated]:Will update {{count}} records. Estimated cost: {{cost}}.",
+        "noPricing": "[to be translated]:Set model pricing before backfilling historical cost.",
+        "success": "[to be translated]:Backfilled {{count}} historical cost records."
       },
       "empty": {
-        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
-        "title": "[to be translated]:No usage yet"
+        "description": "使用は、AIの要求が元帳エントリを作成した後に表示されます。",
+        "title": "まだ使用されていません"
       },
       "explore": {
-        "allProviders": "[to be translated]:All providers",
-        "breakdown": "[to be translated]:Breakdown",
-        "clearDate": "[to be translated]:Clear date filter",
-        "entries": "[to be translated]:Entries",
-        "loadMore": "[to be translated]:Load more",
-        "loading": "[to be translated]:Loading...",
-        "noBreakdown": "[to be translated]:No breakdown data",
-        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
-        "noEntries": "[to be translated]:No entries",
-        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
-        "provider": "[to be translated]:Provider",
-        "selectedDate": "[to be translated]:Selected date: {{date}}",
-        "title": "[to be translated]:Explore",
-        "totalEntries": "[to be translated]:{{count}} entries"
+        "activity": "[to be translated]:Activity",
+        "allProviders": "すべてのプロバイダー",
+        "analysis": "[to be translated]:Analysis",
+        "breakdown": "ブレークダウン",
+        "breakdownTab": "[to be translated]:Breakdown",
+        "cacheUsage": "[to be translated]:Cache usage",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "日付フィルターをクリア",
+        "costDrivers": "[to be translated]:Cost drivers",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "エントリー",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "さらに読み込む",
+        "loading": "読み込んでいます...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "内訳データなし",
+        "noBreakdownDescription": "より広いウィンドウを試すか、別のプロバイダーを使用してください。",
+        "noEntries": "エントリがありません",
+        "noEntriesDescription": "より広いウィンドウを試すか、別のプロバイダーを使ってください。",
+        "provider": "プロバイダー",
+        "requestsTab": "[to be translated]:Requests",
+        "selectedDate": "選択日: {{date}}",
+        "share": "[to be translated]:Share {{value}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "探る",
+        "topApiKeys": "[to be translated]:Top API keys",
+        "topModels": "[to be translated]:Top models",
+        "topProviders": "[to be translated]:Top providers",
+        "topSources": "[to be translated]:Top assistants / agents",
+        "totalEntries": "{{count}}件のエントリー"
       },
       "groupBy": {
-        "apiKey": "[to be translated]:API key",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider"
+        "apiKey": "APIキー",
+        "model": "モデル",
+        "provider": "プロバイダー",
+        "source": "[to be translated]:Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "[to be translated]:Usage on {{date}}",
-        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
-        "title": "[to be translated]:Daily activity"
+        "ariaDate": "{{date}}の使用",
+        "costDisabled": "コストビューは、このウィンドウが1つの通貨を持っている場合にのみ利用可能です。",
+        "title": "日々の活動"
       },
       "metric": {
-        "cost": "[to be translated]:Cost",
-        "tokens": "[to be translated]:Tokens"
+        "cost": "費用",
+        "requests": "[to be translated]:Requests",
+        "tokens": "トークン"
       },
       "modality": {
-        "embedding": "[to be translated]:Embedding",
-        "image": "[to be translated]:Image",
-        "language": "[to be translated]:Language"
+        "embedding": "埋め込み",
+        "image": "画像",
+        "language": "言語"
       },
       "overview": {
         "title": "[to be translated]:Overview"
       },
-      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{activeDays}} active days / longest {{streak}} days",
-      "table": {
-        "apiKey": "[to be translated]:API key",
-        "cost": "[to be translated]:Cost",
-        "date": "[to be translated]:Date",
-        "modality": "[to be translated]:Type",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider",
-        "tokens": "[to be translated]:Tokens"
+      "source": {
+        "agent": "[to be translated]:Agent",
+        "assistant": "[to be translated]:Assistant",
+        "unknown": "[to be translated]:Unattributed"
       },
-      "title": "[to be translated]:Usage Footprint",
+      "summary": "{{window}} / {{tokens}}トークン / {{requests}}リクエスト / {{activeDays}}アクティブ日",
+      "table": {
+        "apiKey": "APIキー",
+        "cost": "コスト",
+        "date": "日付",
+        "modality": "タイプ",
+        "model": "モデル",
+        "provider": "プロバイダー",
+        "request": "[to be translated]:Request",
+        "source": "[to be translated]:Source",
+        "tokens": "トークン",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "使用フットプリント",
       "tooltip": {
-        "cost": "[to be translated]:Cost {{value}}",
-        "requests": "[to be translated]:{{count}} requests",
-        "tokens": "[to be translated]:{{value}} tokens"
+        "cost": "コスト {{value}}",
+        "metric": "{{value}}",
+        "requests": "{{count}}件のリクエスト",
+        "tokens": "{{value}}トークン"
       },
       "window": {
-        "30d": "[to be translated]:Last 30 days",
-        "365d": "[to be translated]:Last year",
-        "90d": "[to be translated]:Last 90 days",
-        "all": "[to be translated]:All time"
+        "30d": "過去30日間",
+        "365d": "昨年",
+        "90d": "過去90日間",
+        "all": "オールタイム"
       }
     },
     "use_system_title_bar": {
@@ -7158,34 +7210,34 @@
     "translate": "翻訳"
   },
   "trace": {
-    "agent": "[to be translated]:Agent",
-    "backList": "[to be translated]:Back To List",
-    "cachedTokens": "[to be translated]:Cached",
-    "endTime": "[to be translated]:End Time",
-    "inputs": "[to be translated]:Inputs",
-    "label": "[to be translated]:Call Chain",
-    "model": "[to be translated]:Model",
-    "name": "[to be translated]:Node Name",
-    "noTraceList": "[to be translated]:No trace information found",
-    "operation": "[to be translated]:Operation",
-    "outputs": "[to be translated]:Outputs",
-    "pollError": "[to be translated]:Polling failed",
-    "reasoningTokens": "[to be translated]:Reasoning",
-    "requestHeaders": "[to be translated]:Request Headers",
-    "requestMethod": "[to be translated]:Request Method",
-    "requestUrl": "[to be translated]:Request URL",
-    "responseHeaders": "[to be translated]:Response Headers",
-    "responseStatus": "[to be translated]:Response Status",
-    "serverDescription": "[to be translated]:Server Description",
-    "serverName": "[to be translated]:Server Name",
-    "serverType": "[to be translated]:Server Type",
-    "spanDetail": "[to be translated]:Span Details",
-    "spendTime": "[to be translated]:Spend Time",
-    "startTime": "[to be translated]:Start Time",
-    "status": "[to be translated]:Status",
-    "tag": "[to be translated]:Tag",
-    "tokenUsage": "[to be translated]:Token Usage",
-    "toolCalls": "[to be translated]:Tool Calls"
+    "agent": "エージェント",
+    "backList": "リストに戻る",
+    "cachedTokens": "キャッシュされた",
+    "endTime": "終了時刻",
+    "inputs": "入力",
+    "label": "コールチェーン",
+    "model": "モデル",
+    "name": "ノード名",
+    "noTraceList": "トレース情報が見つかりません",
+    "operation": "操作",
+    "outputs": "出力",
+    "pollError": "ポーリングに失敗しました",
+    "reasoningTokens": "推論",
+    "requestHeaders": "リクエストヘッダー",
+    "requestMethod": "リクエストメソッド",
+    "requestUrl": "リクエストURL",
+    "responseHeaders": "レスポンスヘッダー",
+    "responseStatus": "レスポンスステータス",
+    "serverDescription": "サーバーの説明",
+    "serverName": "サーバー名",
+    "serverType": "サーバータイプ",
+    "spanDetail": "スパンの詳細",
+    "spendTime": "時間を費やす",
+    "startTime": "開始時刻",
+    "status": "ステータス",
+    "tag": "タグ",
+    "tokenUsage": "トークン使用量",
+    "toolCalls": "ツール呼び出し"
   },
   "translate": {
     "alter_language": "備用言語",

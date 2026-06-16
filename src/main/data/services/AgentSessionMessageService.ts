@@ -411,9 +411,11 @@ export class AgentSessionMessageService {
    */
   private recordUsageLedger(saved: AgentSessionMessageEntity): void {
     if (saved.role !== 'assistant' || !saved.stats || !saved.modelId) return
-    void usageLedgerService.recordRequest({ id: saved.id, modelId: saved.modelId, stats: saved.stats }).catch((err) => {
-      logger.warn('usage ledger record failed', { id: saved.id, err })
-    })
+    void usageLedgerService
+      .recordRequest({ id: saved.id, agentSessionId: saved.sessionId, modelId: saved.modelId, stats: saved.stats })
+      .catch((err) => {
+        logger.warn('usage ledger record failed', { id: saved.id, err })
+      })
   }
 }
 

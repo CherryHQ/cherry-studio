@@ -1785,6 +1785,7 @@
     "on": "An",
     "open": "Öffnen",
     "open_in": "In {{name}} öffnen",
+    "other": "[to be translated]:Other",
     "paste": "Einfügen",
     "placeholders": {
       "select": {
@@ -3390,6 +3391,7 @@
     },
     "pinned": "Angeheftet",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "Kosten",
       "currency": "Währung",
       "custom": "Benutzerdefiniert",
@@ -7047,80 +7049,130 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "[to be translated]:Active days",
-        "costHint": "[to be translated]:Cost is grouped by currency.",
-        "dailyAverage": "[to be translated]:Daily average",
-        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
-        "none": "[to be translated]:N/A",
-        "peakDay": "[to be translated]:Peak day",
-        "streak": "[to be translated]:Longest streak: {{days}} days",
-        "topModel": "[to be translated]:Top model",
-        "totalCost": "[to be translated]:Total cost",
-        "totalTokens": "[to be translated]:Total tokens"
+        "activeDays": "Aktive Tage",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "costHint": "Kosten werden nach Währung gruppiert.",
+        "dailyAverage": "Tagesdurchschnitt",
+        "lastPeriod": "zum vorherigen Zeitraum",
+        "mixedCurrency": "Mehrere Währungen werden separat angezeigt.",
+        "none": "N/A",
+        "peakDay": "Spitzentag",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "Längste Serie: {{days}} Tage",
+        "topModel": "Top-Modell",
+        "totalCost": "Gesamtkosten",
+        "totalRequests": "Anfragen",
+        "totalTokens": "Tokens gesamt",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "costBackfill": {
+        "action": "[to be translated]:Backfill historical cost",
+        "available": "[to be translated]:{{count}} historical usage records are missing cost and can be calculated with current pricing.",
+        "confirm": "[to be translated]:Will update {{count}} records. Estimated cost: {{cost}}.",
+        "noPricing": "[to be translated]:Set model pricing before backfilling historical cost.",
+        "success": "[to be translated]:Backfilled {{count}} historical cost records."
       },
       "empty": {
-        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
-        "title": "[to be translated]:No usage yet"
+        "description": "Nutzung erscheint, nachdem KI-Anfragen Ledger-Einträge erstellt haben.",
+        "title": "Noch keine Nutzung"
       },
       "explore": {
-        "allProviders": "[to be translated]:All providers",
-        "breakdown": "[to be translated]:Breakdown",
-        "clearDate": "[to be translated]:Clear date filter",
-        "entries": "[to be translated]:Entries",
-        "loadMore": "[to be translated]:Load more",
-        "loading": "[to be translated]:Loading...",
-        "noBreakdown": "[to be translated]:No breakdown data",
-        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
-        "noEntries": "[to be translated]:No entries",
-        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
-        "provider": "[to be translated]:Provider",
-        "selectedDate": "[to be translated]:Selected date: {{date}}",
-        "title": "[to be translated]:Explore",
-        "totalEntries": "[to be translated]:{{count}} entries"
+        "activity": "[to be translated]:Activity",
+        "allProviders": "Alle Anbieter",
+        "analysis": "[to be translated]:Analysis",
+        "breakdown": "Aufschlüsselung",
+        "breakdownTab": "[to be translated]:Breakdown",
+        "cacheUsage": "[to be translated]:Cache usage",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "Datumsfilter löschen",
+        "costDrivers": "[to be translated]:Cost drivers",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "Einträge",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "Mehr laden",
+        "loading": "Wird geladen...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "Keine Aufschlüsselungsdaten",
+        "noBreakdownDescription": "Versuchen Sie einen größeren Zeitraum oder einen anderen Anbieter.",
+        "noEntries": "Keine Einträge",
+        "noEntriesDescription": "Versuchen Sie einen größeren Zeitraum oder einen anderen Anbieter.",
+        "provider": "Anbieter",
+        "requestsTab": "[to be translated]:Requests",
+        "selectedDate": "Ausgewähltes Datum: {{date}}",
+        "share": "[to be translated]:Share {{value}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "Erkunden",
+        "topApiKeys": "[to be translated]:Top API keys",
+        "topModels": "[to be translated]:Top models",
+        "topProviders": "[to be translated]:Top providers",
+        "topSources": "[to be translated]:Top assistants / agents",
+        "totalEntries": "{{count}} Einträge"
       },
       "groupBy": {
-        "apiKey": "[to be translated]:API key",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider"
+        "apiKey": "API-Schlüssel",
+        "model": "Modell",
+        "provider": "Anbieter",
+        "source": "[to be translated]:Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "[to be translated]:Usage on {{date}}",
-        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
-        "title": "[to be translated]:Daily activity"
+        "ariaDate": "Nutzung am {{date}}",
+        "costDisabled": "Die Kostenansicht ist nur verfügbar, wenn dieser Zeitraum eine Währung enthält.",
+        "title": "Tägliche Aktivität"
       },
       "metric": {
-        "cost": "[to be translated]:Cost",
-        "tokens": "[to be translated]:Tokens"
+        "cost": "Kosten",
+        "requests": "[to be translated]:Requests",
+        "tokens": "Tokens"
       },
       "modality": {
-        "embedding": "[to be translated]:Embedding",
-        "image": "[to be translated]:Image",
-        "language": "[to be translated]:Language"
+        "embedding": "Embedding",
+        "image": "Bild",
+        "language": "Sprache"
       },
       "overview": {
         "title": "[to be translated]:Overview"
       },
-      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{activeDays}} active days / longest {{streak}} days",
-      "table": {
-        "apiKey": "[to be translated]:API key",
-        "cost": "[to be translated]:Cost",
-        "date": "[to be translated]:Date",
-        "modality": "[to be translated]:Type",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider",
-        "tokens": "[to be translated]:Tokens"
+      "source": {
+        "agent": "[to be translated]:Agent",
+        "assistant": "[to be translated]:Assistant",
+        "unknown": "[to be translated]:Unattributed"
       },
-      "title": "[to be translated]:Usage Footprint",
+      "summary": "{{window}} / {{tokens}} Tokens / {{requests}} Anfragen / {{activeDays}} aktive Tage",
+      "table": {
+        "apiKey": "API-Schlüssel",
+        "cost": "Kosten",
+        "date": "Datum",
+        "modality": "Typ",
+        "model": "Modell",
+        "provider": "Anbieter",
+        "request": "[to be translated]:Request",
+        "source": "[to be translated]:Source",
+        "tokens": "Tokens",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "Nutzungsverlauf",
       "tooltip": {
-        "cost": "[to be translated]:Cost {{value}}",
-        "requests": "[to be translated]:{{count}} requests",
-        "tokens": "[to be translated]:{{value}} tokens"
+        "cost": "Kosten {{value}}",
+        "metric": "{{value}}",
+        "requests": "{{count}} Anfragen",
+        "tokens": "{{value}} Tokens"
       },
       "window": {
-        "30d": "[to be translated]:Last 30 days",
-        "365d": "[to be translated]:Last year",
-        "90d": "[to be translated]:Last 90 days",
-        "all": "[to be translated]:All time"
+        "30d": "Letzte 30 Tage",
+        "365d": "Letztes Jahr",
+        "90d": "Letzte 90 Tage",
+        "all": "Gesamter Zeitraum"
       }
     },
     "use_system_title_bar": {

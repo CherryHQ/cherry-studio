@@ -1785,6 +1785,7 @@
     "on": "On",
     "open": "Abierto",
     "open_in": "Mở trong {{name}}",
+    "other": "[to be translated]:Other",
     "paste": "Pasta",
     "placeholders": {
       "select": {
@@ -3390,6 +3391,7 @@
     },
     "pinned": "Đã ghim",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "Chi phí",
       "currency": "Tiền tệ",
       "custom": "Tùy chỉnh",
@@ -5924,7 +5926,7 @@
       "system": "Hệ thống"
     },
     "messages": {
-      "cache_read_tokens": "[to be translated]:Cached input tokens read",
+      "cache_read_tokens": "Số lượng token đầu vào đã được đọc từ bộ nhớ cache",
       "divider": {
         "label": "Hiển thị đường phân cách giữa các tin nhắn",
         "tooltip": "Không áp dụng cho tin nhắn kiểu bong bóng"
@@ -5957,7 +5959,7 @@
         "none": ""
       },
       "prompt": "Mostrar indicación",
-      "reasoning_tokens": "[to be translated]:Reasoning tokens",
+      "reasoning_tokens": "token lý luận",
       "show_message_outline": "Hiển thị dàn bộ tin nhắn",
       "title": "Cài đặt tin nhắn",
       "use_serif_font": "Dùng phông chữ có chân"
@@ -7047,80 +7049,130 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "[to be translated]:Active days",
-        "costHint": "[to be translated]:Cost is grouped by currency.",
-        "dailyAverage": "[to be translated]:Daily average",
-        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
-        "none": "[to be translated]:N/A",
-        "peakDay": "[to be translated]:Peak day",
-        "streak": "[to be translated]:Longest streak: {{days}} days",
-        "topModel": "[to be translated]:Top model",
-        "totalCost": "[to be translated]:Total cost",
-        "totalTokens": "[to be translated]:Total tokens"
+        "activeDays": "Ngày hoạt động",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "costHint": "Chi phí được nhóm theo loại tiền tệ.",
+        "dailyAverage": "Trung bình hằng ngày",
+        "lastPeriod": "so với kỳ trước",
+        "mixedCurrency": "Nhiều loại tiền tệ được hiển thị riêng biệt.",
+        "none": "N/A",
+        "peakDay": "Ngày cao điểm",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "Chuỗi dài nhất: {{days}} ngày",
+        "topModel": "Người mẫu hàng đầu",
+        "totalCost": "Tổng chi phí",
+        "totalRequests": "Yêu cầu",
+        "totalTokens": "Tổng số token",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "costBackfill": {
+        "action": "[to be translated]:Backfill historical cost",
+        "available": "[to be translated]:{{count}} historical usage records are missing cost and can be calculated with current pricing.",
+        "confirm": "[to be translated]:Will update {{count}} records. Estimated cost: {{cost}}.",
+        "noPricing": "[to be translated]:Set model pricing before backfilling historical cost.",
+        "success": "[to be translated]:Backfilled {{count}} historical cost records."
       },
       "empty": {
-        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
-        "title": "[to be translated]:No usage yet"
+        "description": "Việc sử dụng xuất hiện sau khi các yêu cầu AI tạo các mục sổ cái.",
+        "title": "Chưa có sử dụng nào"
       },
       "explore": {
-        "allProviders": "[to be translated]:All providers",
-        "breakdown": "[to be translated]:Breakdown",
-        "clearDate": "[to be translated]:Clear date filter",
-        "entries": "[to be translated]:Entries",
-        "loadMore": "[to be translated]:Load more",
-        "loading": "[to be translated]:Loading...",
-        "noBreakdown": "[to be translated]:No breakdown data",
-        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
-        "noEntries": "[to be translated]:No entries",
-        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
-        "provider": "[to be translated]:Provider",
-        "selectedDate": "[to be translated]:Selected date: {{date}}",
-        "title": "[to be translated]:Explore",
-        "totalEntries": "[to be translated]:{{count}} entries"
+        "activity": "[to be translated]:Activity",
+        "allProviders": "Tất cả các nhà cung cấp",
+        "analysis": "[to be translated]:Analysis",
+        "breakdown": "Phân rã",
+        "breakdownTab": "[to be translated]:Breakdown",
+        "cacheUsage": "[to be translated]:Cache usage",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "Xóa bộ lọc ngày",
+        "costDrivers": "[to be translated]:Cost drivers",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "Mục",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "Tải thêm",
+        "loading": "Đang tải...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "Không có dữ liệu chi tiết",
+        "noBreakdownDescription": "Hãy thử một cửa sổ rộng hơn hoặc một nhà cung cấp khác.",
+        "noEntries": "Không có mục nào",
+        "noEntriesDescription": "Hãy thử cửa sổ rộng hơn hoặc nhà cung cấp khác.",
+        "provider": "Nhà cung cấp",
+        "requestsTab": "[to be translated]:Requests",
+        "selectedDate": "Ngày đã chọn: {{date}}",
+        "share": "[to be translated]:Share {{value}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "Khám phá",
+        "topApiKeys": "[to be translated]:Top API keys",
+        "topModels": "[to be translated]:Top models",
+        "topProviders": "[to be translated]:Top providers",
+        "topSources": "[to be translated]:Top assistants / agents",
+        "totalEntries": "{{count}} mục"
       },
       "groupBy": {
-        "apiKey": "[to be translated]:API key",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider"
+        "apiKey": "Khóa API",
+        "model": "Mô hình",
+        "provider": "Nhà cung cấp",
+        "source": "[to be translated]:Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "[to be translated]:Usage on {{date}}",
-        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
-        "title": "[to be translated]:Daily activity"
+        "ariaDate": "Sử dụng vào {{date}}",
+        "costDisabled": "Chế độ xem chi phí chỉ khả dụng khi cửa sổ này có một loại tiền tệ.",
+        "title": "Hoạt động hàng ngày"
       },
       "metric": {
-        "cost": "[to be translated]:Cost",
-        "tokens": "[to be translated]:Tokens"
+        "cost": "Chi phí",
+        "requests": "[to be translated]:Requests",
+        "tokens": "Mã thông báo"
       },
       "modality": {
-        "embedding": "[to be translated]:Embedding",
-        "image": "[to be translated]:Image",
-        "language": "[to be translated]:Language"
+        "embedding": "Nhúng",
+        "image": "Hình ảnh",
+        "language": "Ngôn ngữ"
       },
       "overview": {
         "title": "[to be translated]:Overview"
       },
-      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{activeDays}} active days / longest {{streak}} days",
-      "table": {
-        "apiKey": "[to be translated]:API key",
-        "cost": "[to be translated]:Cost",
-        "date": "[to be translated]:Date",
-        "modality": "[to be translated]:Type",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider",
-        "tokens": "[to be translated]:Tokens"
+      "source": {
+        "agent": "[to be translated]:Agent",
+        "assistant": "[to be translated]:Assistant",
+        "unknown": "[to be translated]:Unattributed"
       },
-      "title": "[to be translated]:Usage Footprint",
+      "summary": "{{window}} / {{tokens}} token / {{requests}} yêu cầu / {{activeDays}} ngày hoạt động",
+      "table": {
+        "apiKey": "Khóa API",
+        "cost": "Chi phí",
+        "date": "Ngày",
+        "modality": "Kiểu",
+        "model": "Mô hình",
+        "provider": "Nhà cung cấp",
+        "request": "[to be translated]:Request",
+        "source": "[to be translated]:Source",
+        "tokens": "Mã thông báo",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "Dấu chân sử dụng",
       "tooltip": {
-        "cost": "[to be translated]:Cost {{value}}",
-        "requests": "[to be translated]:{{count}} requests",
-        "tokens": "[to be translated]:{{value}} tokens"
+        "cost": "Giá {{value}}",
+        "metric": "{{value}}",
+        "requests": "{{count}} yêu cầu",
+        "tokens": "{{value}} mã thông báo"
       },
       "window": {
-        "30d": "[to be translated]:Last 30 days",
-        "365d": "[to be translated]:Last year",
-        "90d": "[to be translated]:Last 90 days",
-        "all": "[to be translated]:All time"
+        "30d": "30 ngày qua",
+        "365d": "Năm ngoái",
+        "90d": "90 ngày qua",
+        "all": "Mọi thời điểm"
       }
     },
     "use_system_title_bar": {
@@ -7158,34 +7210,34 @@
     "translate": "Dịch"
   },
   "trace": {
-    "agent": "[to be translated]:Agent",
-    "backList": "[to be translated]:Back To List",
-    "cachedTokens": "[to be translated]:Cached",
-    "endTime": "[to be translated]:End Time",
-    "inputs": "[to be translated]:Inputs",
-    "label": "[to be translated]:Call Chain",
-    "model": "[to be translated]:Model",
-    "name": "[to be translated]:Node Name",
-    "noTraceList": "[to be translated]:No trace information found",
-    "operation": "[to be translated]:Operation",
-    "outputs": "[to be translated]:Outputs",
-    "pollError": "[to be translated]:Polling failed",
-    "reasoningTokens": "[to be translated]:Reasoning",
-    "requestHeaders": "[to be translated]:Request Headers",
-    "requestMethod": "[to be translated]:Request Method",
-    "requestUrl": "[to be translated]:Request URL",
-    "responseHeaders": "[to be translated]:Response Headers",
-    "responseStatus": "[to be translated]:Response Status",
-    "serverDescription": "[to be translated]:Server Description",
-    "serverName": "[to be translated]:Server Name",
-    "serverType": "[to be translated]:Server Type",
-    "spanDetail": "[to be translated]:Span Details",
-    "spendTime": "[to be translated]:Spend Time",
-    "startTime": "[to be translated]:Start Time",
-    "status": "[to be translated]:Status",
-    "tag": "[to be translated]:Tag",
-    "tokenUsage": "[to be translated]:Token Usage",
-    "toolCalls": "[to be translated]:Tool Calls"
+    "agent": "Đại lý",
+    "backList": "Quay lại danh sách",
+    "cachedTokens": "Đã lưu trong bộ nhớ cache",
+    "endTime": "Thời gian kết thúc",
+    "inputs": "Đầu vào",
+    "label": "Chuỗi Gọi",
+    "model": "Mô hình",
+    "name": "Tên nút",
+    "noTraceList": "Không tìm thấy thông tin dấu vết",
+    "operation": "Hoạt động",
+    "outputs": "Đầu ra",
+    "pollError": "Kiểm tra thất bại",
+    "reasoningTokens": "Lập luận",
+    "requestHeaders": "Tiêu đề yêu cầu",
+    "requestMethod": "Phương thức yêu cầu",
+    "requestUrl": "URL yêu cầu",
+    "responseHeaders": "Tiêu đề phản hồi",
+    "responseStatus": "Trạng thái phản hồi",
+    "serverDescription": "Mô tả Máy chủ",
+    "serverName": "Tên Máy Chủ",
+    "serverType": "Loại Máy Chủ",
+    "spanDetail": "Chi tiết khoảng",
+    "spendTime": "Dành Thời Gian",
+    "startTime": "Thời gian bắt đầu",
+    "status": "Trạng thái",
+    "tag": "Nhãn",
+    "tokenUsage": "Sử dụng Token",
+    "toolCalls": "Gọi Công cụ"
   },
   "translate": {
     "alter_language": "Ngôn ngữ thay thế",

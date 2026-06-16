@@ -6,7 +6,7 @@
  */
 
 import type { MessageStats } from '@shared/data/types/message'
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { RuntimeModelPricing, UniqueModelId } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const getByKeyMock = vi.fn()
@@ -15,7 +15,7 @@ const getByProviderIdMock = vi.fn()
 vi.mock('@main/data/services/ModelService', () => ({ modelService: { getByKey: getByKeyMock } }))
 vi.mock('@main/data/services/ProviderService', () => ({ providerService: { getByProviderId: getByProviderIdMock } }))
 
-const { enrichStatsWithCost } = await import('../costEnrichment')
+const { computeStatsCostSnapshot, enrichStatsWithCost } = await import('../costEnrichment')
 
 const tokenStats: MessageStats = {
   inputTokens: 100,
@@ -31,12 +31,46 @@ const usdModel = {
     cacheRead: { perMillionTokens: 0.3, currency: 'USD' },
     cacheWrite: { perMillionTokens: 3.75, currency: 'USD' }
   }
-}
+} satisfies { pricing: RuntimeModelPricing }
 
 beforeEach(() => {
   getByKeyMock.mockReset()
   getByProviderIdMock.mockReset()
   getByProviderIdMock.mockResolvedValue({ apiFeatures: { reportsActualCost: false } })
+})
+
+describe('computeStatsCostSnapshot', () => {
+  it('generates computed cost fields with breakdown and pricing snapshot', () => {
+    const result = computeStatsCostSnapshot(tokenStats, usdModel.pricing, '2026-06-16T00:00:00.000Z')
+
+    expect(result).toMatchObject({
+      costCurrency: 'USD',
+      costSource: 'computed',
+      costBreakdown: {
+        input: 0.0003,
+        output: 0.00075,
+        cacheRead: 0.00021,
+        cacheWrite: 0.000375
+      },
+      pricingSnapshot: {
+        input: 3,
+        output: 15,
+        cacheRead: 0.3,
+        cacheWrite: 3.75,
+        capturedAt: '2026-06-16T00:00:00.000Z'
+      }
+    })
+    expect(result?.cost).toBeCloseTo(0.001635)
+  })
+
+  it('returns undefined when no token bucket can be priced', () => {
+    expect(
+      computeStatsCostSnapshot(tokenStats, {
+        input: { perMillionTokens: null, currency: 'USD' },
+        output: { perMillionTokens: null, currency: 'USD' }
+      })
+    ).toBeUndefined()
+  })
 })
 
 describe('enrichStatsWithCost', () => {

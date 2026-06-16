@@ -225,9 +225,15 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'session_id',
       {
         name: 'workspace',
-        expr: 'workspace',
-        sourceColumn: 'workspace',
-        fallbackExpr: '\'{"type":"system"}\''
+        expr:
+          "COALESCE((SELECT CASE agent_workspace.type WHEN 'user' " +
+          "THEN json_object('type', 'user', 'workspaceId', agent_workspace.id) " +
+          "ELSE json_object('type', 'system') END " +
+          'FROM agent_session ' +
+          'INNER JOIN agent_workspace ON agent_workspace.id = agent_session.workspace_id ' +
+          "WHERE agent_session.id = channels.session_id LIMIT 1), json_object('type', 'system'))",
+        sourceColumn: 'session_id',
+        fallbackExpr: "json_object('type', 'system')"
       },
       'config',
       notNullCol('is_active', '1'),

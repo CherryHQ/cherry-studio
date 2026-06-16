@@ -1785,6 +1785,7 @@
     "on": "Вкл",
     "open": "Открыть",
     "open_in": "Открыть в {{name}}",
+    "other": "[to be translated]:Other",
     "paste": "Вставить",
     "placeholders": {
       "select": {
@@ -3390,6 +3391,7 @@
     },
     "pinned": "Закреплено",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "Стоимость",
       "currency": "Валюта",
       "custom": "Пользовательский",
@@ -5924,7 +5926,7 @@
       "system": "Система"
     },
     "messages": {
-      "cache_read_tokens": "[to be translated]:Cached input tokens read",
+      "cache_read_tokens": "Кэшированные токены входных данных прочитаны",
       "divider": {
         "label": "Показывать разделитель между сообщениями",
         "tooltip": "Не применимо к сообщениям в стиле пузырей"
@@ -5957,7 +5959,7 @@
         "none": "Не показывать"
       },
       "prompt": "Показывать подсказки",
-      "reasoning_tokens": "[to be translated]:Reasoning tokens",
+      "reasoning_tokens": "Токены рассуждений",
       "show_message_outline": "Показать наброски сообщения",
       "title": "Настройки сообщений",
       "use_serif_font": "Использовать serif шрифт"
@@ -7047,80 +7049,130 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "[to be translated]:Active days",
-        "costHint": "[to be translated]:Cost is grouped by currency.",
-        "dailyAverage": "[to be translated]:Daily average",
-        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
-        "none": "[to be translated]:N/A",
-        "peakDay": "[to be translated]:Peak day",
-        "streak": "[to be translated]:Longest streak: {{days}} days",
-        "topModel": "[to be translated]:Top model",
-        "totalCost": "[to be translated]:Total cost",
-        "totalTokens": "[to be translated]:Total tokens"
+        "activeDays": "Активные дни",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "costHint": "Стоимость группируется по валюте.",
+        "dailyAverage": "Среднесуточное значение",
+        "lastPeriod": "к предыдущему периоду",
+        "mixedCurrency": "Несколько валют отображаются отдельно.",
+        "none": "N/A",
+        "peakDay": "Пковый день",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "Самая длинная серия: {{days}} дней",
+        "topModel": "Топ-модель",
+        "totalCost": "Общая стоимость",
+        "totalRequests": "Запросы",
+        "totalTokens": "Всего токенов",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "costBackfill": {
+        "action": "[to be translated]:Backfill historical cost",
+        "available": "[to be translated]:{{count}} historical usage records are missing cost and can be calculated with current pricing.",
+        "confirm": "[to be translated]:Will update {{count}} records. Estimated cost: {{cost}}.",
+        "noPricing": "[to be translated]:Set model pricing before backfilling historical cost.",
+        "success": "[to be translated]:Backfilled {{count}} historical cost records."
       },
       "empty": {
-        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
-        "title": "[to be translated]:No usage yet"
+        "description": "Использование появляется после того, как запросы ИИ создают записи в реестре.",
+        "title": "Пока нет использования"
       },
       "explore": {
-        "allProviders": "[to be translated]:All providers",
-        "breakdown": "[to be translated]:Breakdown",
-        "clearDate": "[to be translated]:Clear date filter",
-        "entries": "[to be translated]:Entries",
-        "loadMore": "[to be translated]:Load more",
-        "loading": "[to be translated]:Loading...",
-        "noBreakdown": "[to be translated]:No breakdown data",
-        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
-        "noEntries": "[to be translated]:No entries",
-        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
-        "provider": "[to be translated]:Provider",
-        "selectedDate": "[to be translated]:Selected date: {{date}}",
-        "title": "[to be translated]:Explore",
-        "totalEntries": "[to be translated]:{{count}} entries"
+        "activity": "[to be translated]:Activity",
+        "allProviders": "Все провайдеры",
+        "analysis": "[to be translated]:Analysis",
+        "breakdown": "Разбор",
+        "breakdownTab": "[to be translated]:Breakdown",
+        "cacheUsage": "[to be translated]:Cache usage",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "Очистить фильтр по дате",
+        "costDrivers": "[to be translated]:Cost drivers",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "Записи",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "Загрузить ещё",
+        "loading": "Загрузка...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "Нет данных о разбивке",
+        "noBreakdownDescription": "Попробуйте более широкое окно или другого провайдера.",
+        "noEntries": "Нет записей",
+        "noEntriesDescription": "Попробуйте более широкое окно или другого поставщика.",
+        "provider": "Поставщик",
+        "requestsTab": "[to be translated]:Requests",
+        "selectedDate": "Выбранная дата: {{date}}",
+        "share": "[to be translated]:Share {{value}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "Исследовать",
+        "topApiKeys": "[to be translated]:Top API keys",
+        "topModels": "[to be translated]:Top models",
+        "topProviders": "[to be translated]:Top providers",
+        "topSources": "[to be translated]:Top assistants / agents",
+        "totalEntries": "{{count}} записей"
       },
       "groupBy": {
-        "apiKey": "[to be translated]:API key",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider"
+        "apiKey": "Ключ API",
+        "model": "Модель",
+        "provider": "Поставщик",
+        "source": "[to be translated]:Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "[to be translated]:Usage on {{date}}",
-        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
-        "title": "[to be translated]:Daily activity"
+        "ariaDate": "Использование {{date}}",
+        "costDisabled": "Представление «Стоимость» доступно только в том случае, если в этом окне используется одна валюта.",
+        "title": "Ежедневная активность"
       },
       "metric": {
-        "cost": "[to be translated]:Cost",
-        "tokens": "[to be translated]:Tokens"
+        "cost": "Стоимость",
+        "requests": "[to be translated]:Requests",
+        "tokens": "Токены"
       },
       "modality": {
-        "embedding": "[to be translated]:Embedding",
-        "image": "[to be translated]:Image",
-        "language": "[to be translated]:Language"
+        "embedding": "Встраивание",
+        "image": "Изображение",
+        "language": "Язык"
       },
       "overview": {
         "title": "[to be translated]:Overview"
       },
-      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{activeDays}} active days / longest {{streak}} days",
-      "table": {
-        "apiKey": "[to be translated]:API key",
-        "cost": "[to be translated]:Cost",
-        "date": "[to be translated]:Date",
-        "modality": "[to be translated]:Type",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider",
-        "tokens": "[to be translated]:Tokens"
+      "source": {
+        "agent": "[to be translated]:Agent",
+        "assistant": "[to be translated]:Assistant",
+        "unknown": "[to be translated]:Unattributed"
       },
-      "title": "[to be translated]:Usage Footprint",
+      "summary": "{{window}} / {{tokens}} токенов / {{requests}} запросов / {{activeDays}} активных дней",
+      "table": {
+        "apiKey": "Ключ API",
+        "cost": "Стоимость",
+        "date": "Дата",
+        "modality": "Тип",
+        "model": "Модель",
+        "provider": "Поставщик",
+        "request": "[to be translated]:Request",
+        "source": "[to be translated]:Source",
+        "tokens": "Токены",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "След использования",
       "tooltip": {
-        "cost": "[to be translated]:Cost {{value}}",
-        "requests": "[to be translated]:{{count}} requests",
-        "tokens": "[to be translated]:{{value}} tokens"
+        "cost": "Стоимость {{value}}",
+        "metric": "{{value}}",
+        "requests": "{{count}} запросов",
+        "tokens": "{{value}} токенов"
       },
       "window": {
-        "30d": "[to be translated]:Last 30 days",
-        "365d": "[to be translated]:Last year",
-        "90d": "[to be translated]:Last 90 days",
-        "all": "[to be translated]:All time"
+        "30d": "Последние 30 дней",
+        "365d": "В прошлом году",
+        "90d": "Последние 90 дней",
+        "all": "Всё время"
       }
     },
     "use_system_title_bar": {
@@ -7158,34 +7210,34 @@
     "translate": "Перевод"
   },
   "trace": {
-    "agent": "[to be translated]:Agent",
-    "backList": "[to be translated]:Back To List",
-    "cachedTokens": "[to be translated]:Cached",
-    "endTime": "[to be translated]:End Time",
-    "inputs": "[to be translated]:Inputs",
-    "label": "[to be translated]:Call Chain",
-    "model": "[to be translated]:Model",
-    "name": "[to be translated]:Node Name",
-    "noTraceList": "[to be translated]:No trace information found",
-    "operation": "[to be translated]:Operation",
-    "outputs": "[to be translated]:Outputs",
-    "pollError": "[to be translated]:Polling failed",
-    "reasoningTokens": "[to be translated]:Reasoning",
-    "requestHeaders": "[to be translated]:Request Headers",
-    "requestMethod": "[to be translated]:Request Method",
-    "requestUrl": "[to be translated]:Request URL",
-    "responseHeaders": "[to be translated]:Response Headers",
-    "responseStatus": "[to be translated]:Response Status",
-    "serverDescription": "[to be translated]:Server Description",
-    "serverName": "[to be translated]:Server Name",
-    "serverType": "[to be translated]:Server Type",
-    "spanDetail": "[to be translated]:Span Details",
-    "spendTime": "[to be translated]:Spend Time",
-    "startTime": "[to be translated]:Start Time",
-    "status": "[to be translated]:Status",
-    "tag": "[to be translated]:Tag",
-    "tokenUsage": "[to be translated]:Token Usage",
-    "toolCalls": "[to be translated]:Tool Calls"
+    "agent": "Агент",
+    "backList": "Вернуться к списку",
+    "cachedTokens": "Кэшированный",
+    "endTime": "Время окончания",
+    "inputs": "Входы",
+    "label": "Цепочка вызовов",
+    "model": "Модель",
+    "name": "Имя узла",
+    "noTraceList": "Информация о трассировке не найдена",
+    "operation": "Операция",
+    "outputs": "Выходы",
+    "pollError": "Опрос не удался",
+    "reasoningTokens": "Рассуждение",
+    "requestHeaders": "Заголовки запроса",
+    "requestMethod": "Метод запроса",
+    "requestUrl": "URL запроса",
+    "responseHeaders": "Заголовки ответа",
+    "responseStatus": "Статус ответа",
+    "serverDescription": "Описание сервера",
+    "serverName": "Имя сервера",
+    "serverType": "Тип сервера",
+    "spanDetail": "Детали пролёта",
+    "spendTime": "Провести время",
+    "startTime": "Время начала",
+    "status": "Статус",
+    "tag": "Тег",
+    "tokenUsage": "Использование токенов",
+    "toolCalls": "Вызовы инструментов"
   },
   "translate": {
     "alter_language": "Альтернативный язык",

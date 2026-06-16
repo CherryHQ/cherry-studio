@@ -1785,6 +1785,7 @@
     "on": "On",
     "open": "Open",
     "open_in": "Open in {{name}}",
+    "other": "Other",
     "paste": "Paste",
     "placeholders": {
       "select": {
@@ -3390,6 +3391,7 @@
     },
     "pinned": "Pinned",
     "price": {
+      "cache_read": "Cache Read Price",
       "cost": "Cost",
       "currency": "Currency",
       "custom": "Custom",
@@ -7048,40 +7050,78 @@
     "usage": {
       "cards": {
         "activeDays": "Active days",
+        "cacheHitRate": "Cache hit rate",
+        "cacheObservedTokens": "Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "Starts with new requests",
         "costHint": "Cost is grouped by currency.",
         "dailyAverage": "Daily average",
+        "lastPeriod": "vs last period",
         "mixedCurrency": "Multiple currencies are shown separately.",
         "none": "N/A",
         "peakDay": "Peak day",
+        "providerAuth": "Provider auth",
         "streak": "Longest streak: {{days}} days",
         "topModel": "Top model",
         "totalCost": "Total cost",
-        "totalTokens": "Total tokens"
+        "totalRequests": "Requests",
+        "totalTokens": "Total tokens",
+        "unattributedApiKey": "Unattributed request",
+        "unattributedSource": "Unattributed source"
+      },
+      "chart": {
+        "bar": "Bar",
+        "line": "Line",
+        "pie": "Pie",
+        "stack": "Stack"
+      },
+      "costBackfill": {
+        "action": "Backfill historical cost",
+        "available": "{{count}} historical usage records are missing cost and can be calculated with current pricing.",
+        "confirm": "Will update {{count}} records. Estimated cost: {{cost}}.",
+        "noPricing": "Set model pricing before backfilling historical cost.",
+        "success": "Backfilled {{count}} historical cost records."
       },
       "empty": {
         "description": "Usage appears after AI requests create ledger entries.",
         "title": "No usage yet"
       },
       "explore": {
+        "activity": "Activity",
         "allProviders": "All providers",
+        "analysis": "Analysis",
         "breakdown": "Breakdown",
+        "breakdownTab": "Breakdown",
+        "cacheUsage": "Cache usage",
+        "chart": "Chart",
         "clearDate": "Clear date filter",
-        "entries": "Entries",
+        "costDrivers": "Cost drivers",
+        "drilldownTitle": "{{date}} drilldown",
+        "entries": "Requests",
+        "groupBy": "Group by",
         "loadMore": "Load more",
         "loading": "Loading...",
+        "metric": "Metric",
         "noBreakdown": "No breakdown data",
         "noBreakdownDescription": "Try a broader window or a different provider.",
         "noEntries": "No entries",
         "noEntriesDescription": "Try a broader window or a different provider.",
         "provider": "Provider",
+        "requestsTab": "Requests",
         "selectedDate": "Selected date: {{date}}",
+        "share": "Share {{value}}",
+        "shareLabel": "Share",
         "title": "Explore",
+        "topApiKeys": "Top API keys",
+        "topModels": "Top models",
+        "topProviders": "Top providers",
+        "topSources": "Top assistants / agents",
         "totalEntries": "{{count}} entries"
       },
       "groupBy": {
         "apiKey": "API key",
         "model": "Model",
-        "provider": "Provider"
+        "provider": "Provider",
+        "source": "Assistant / Agent"
       },
       "heatmap": {
         "ariaDate": "Usage on {{date}}",
@@ -7090,6 +7130,7 @@
       },
       "metric": {
         "cost": "Cost",
+        "requests": "Requests",
         "tokens": "Tokens"
       },
       "modality": {
@@ -7100,7 +7141,12 @@
       "overview": {
         "title": "Overview"
       },
-      "summary": "{{window}} / {{tokens}} tokens / {{activeDays}} active days / longest {{streak}} days",
+      "source": {
+        "agent": "Agent",
+        "assistant": "Assistant",
+        "unknown": "Unattributed"
+      },
+      "summary": "{{window}} / {{tokens}} tokens / {{requests}} requests",
       "table": {
         "apiKey": "API key",
         "cost": "Cost",
@@ -7108,11 +7154,17 @@
         "modality": "Type",
         "model": "Model",
         "provider": "Provider",
-        "tokens": "Tokens"
+        "request": "Request",
+        "source": "Source",
+        "tokens": "Tokens",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
       },
-      "title": "Usage Footprint",
+      "title": "Usage Analytics",
       "tooltip": {
         "cost": "Cost {{value}}",
+        "metric": "{{value}}",
         "requests": "{{count}} requests",
         "tokens": "{{value}} tokens"
       },

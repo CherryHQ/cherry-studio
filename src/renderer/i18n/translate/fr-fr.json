@@ -1785,6 +1785,7 @@
     "on": "Marche",
     "open": "Ouvrir",
     "open_in": "Ouvrir dans {{name}}",
+    "other": "[to be translated]:Other",
     "paste": "Coller",
     "placeholders": {
       "select": {
@@ -3390,6 +3391,7 @@
     },
     "pinned": "Épinglé",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "Coût",
       "currency": "Devise",
       "custom": "Personnalisé",
@@ -5924,7 +5926,7 @@
       "system": "Système"
     },
     "messages": {
-      "cache_read_tokens": "[to be translated]:Cached input tokens read",
+      "cache_read_tokens": "Jetons d'entrée mis en cache lus",
       "divider": {
         "label": "Séparateur de messages",
         "tooltip": "Non applicable aux messages de style bulle"
@@ -5957,7 +5959,7 @@
         "none": "Ne pas afficher"
       },
       "prompt": "Mot-clé d'affichage",
-      "reasoning_tokens": "[to be translated]:Reasoning tokens",
+      "reasoning_tokens": "Jetons de raisonnement",
       "show_message_outline": "Afficher le plan du message",
       "title": "Paramètres des messages",
       "use_serif_font": "Utiliser une police serif"
@@ -7047,80 +7049,130 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "[to be translated]:Active days",
-        "costHint": "[to be translated]:Cost is grouped by currency.",
-        "dailyAverage": "[to be translated]:Daily average",
-        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
-        "none": "[to be translated]:N/A",
-        "peakDay": "[to be translated]:Peak day",
-        "streak": "[to be translated]:Longest streak: {{days}} days",
-        "topModel": "[to be translated]:Top model",
-        "totalCost": "[to be translated]:Total cost",
-        "totalTokens": "[to be translated]:Total tokens"
+        "activeDays": "Jours actifs",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "costHint": "Le coût est regroupé par devise.",
+        "dailyAverage": "Moyenne quotidienne",
+        "lastPeriod": "vs période précédente",
+        "mixedCurrency": "Plusieurs devises sont affichées séparément.",
+        "none": "N/A",
+        "peakDay": "Jour de pointe",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "Série la plus longue : {{days}} jours",
+        "topModel": "Top model",
+        "totalCost": "Coût total",
+        "totalRequests": "Requêtes",
+        "totalTokens": "Total de jetons",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "costBackfill": {
+        "action": "[to be translated]:Backfill historical cost",
+        "available": "[to be translated]:{{count}} historical usage records are missing cost and can be calculated with current pricing.",
+        "confirm": "[to be translated]:Will update {{count}} records. Estimated cost: {{cost}}.",
+        "noPricing": "[to be translated]:Set model pricing before backfilling historical cost.",
+        "success": "[to be translated]:Backfilled {{count}} historical cost records."
       },
       "empty": {
-        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
-        "title": "[to be translated]:No usage yet"
+        "description": "L'utilisation apparaît après que les demandes d'IA créent des entrées de grand livre.",
+        "title": "Aucune utilisation pour le moment"
       },
       "explore": {
-        "allProviders": "[to be translated]:All providers",
-        "breakdown": "[to be translated]:Breakdown",
-        "clearDate": "[to be translated]:Clear date filter",
-        "entries": "[to be translated]:Entries",
-        "loadMore": "[to be translated]:Load more",
-        "loading": "[to be translated]:Loading...",
-        "noBreakdown": "[to be translated]:No breakdown data",
-        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
-        "noEntries": "[to be translated]:No entries",
-        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
-        "provider": "[to be translated]:Provider",
-        "selectedDate": "[to be translated]:Selected date: {{date}}",
-        "title": "[to be translated]:Explore",
-        "totalEntries": "[to be translated]:{{count}} entries"
+        "activity": "[to be translated]:Activity",
+        "allProviders": "Tous les fournisseurs",
+        "analysis": "[to be translated]:Analysis",
+        "breakdown": "Décomposition",
+        "breakdownTab": "[to be translated]:Breakdown",
+        "cacheUsage": "[to be translated]:Cache usage",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "Effacer le filtre de date",
+        "costDrivers": "[to be translated]:Cost drivers",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "Entrées",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "Charger plus",
+        "loading": "Chargement...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "Aucune donnée ventilée",
+        "noBreakdownDescription": "Essayez une fenêtre plus large ou un fournisseur différent.",
+        "noEntries": "Aucune entrée",
+        "noEntriesDescription": "Essayez une fenêtre plus large ou un fournisseur différent.",
+        "provider": "Fournisseur",
+        "requestsTab": "[to be translated]:Requests",
+        "selectedDate": "Date sélectionnée : {{date}}",
+        "share": "[to be translated]:Share {{value}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "Explorer",
+        "topApiKeys": "[to be translated]:Top API keys",
+        "topModels": "[to be translated]:Top models",
+        "topProviders": "[to be translated]:Top providers",
+        "topSources": "[to be translated]:Top assistants / agents",
+        "totalEntries": "{{count}} entrées"
       },
       "groupBy": {
-        "apiKey": "[to be translated]:API key",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider"
+        "apiKey": "Clé API",
+        "model": "Modèle",
+        "provider": "Fournisseur",
+        "source": "[to be translated]:Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "[to be translated]:Usage on {{date}}",
-        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
-        "title": "[to be translated]:Daily activity"
+        "ariaDate": "Utilisation le {{date}}",
+        "costDisabled": "La vue Coût n’est disponible que lorsque cette fenêtre possède une seule devise.",
+        "title": "Activité quotidienne"
       },
       "metric": {
-        "cost": "[to be translated]:Cost",
-        "tokens": "[to be translated]:Tokens"
+        "cost": "Coût",
+        "requests": "[to be translated]:Requests",
+        "tokens": "Jetons"
       },
       "modality": {
-        "embedding": "[to be translated]:Embedding",
-        "image": "[to be translated]:Image",
-        "language": "[to be translated]:Language"
+        "embedding": "Intégration",
+        "image": "Image",
+        "language": "Langue"
       },
       "overview": {
         "title": "[to be translated]:Overview"
       },
-      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{activeDays}} active days / longest {{streak}} days",
-      "table": {
-        "apiKey": "[to be translated]:API key",
-        "cost": "[to be translated]:Cost",
-        "date": "[to be translated]:Date",
-        "modality": "[to be translated]:Type",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider",
-        "tokens": "[to be translated]:Tokens"
+      "source": {
+        "agent": "[to be translated]:Agent",
+        "assistant": "[to be translated]:Assistant",
+        "unknown": "[to be translated]:Unattributed"
       },
-      "title": "[to be translated]:Usage Footprint",
+      "summary": "{{window}} / {{tokens}} jetons / {{requests}} requêtes / {{activeDays}} jours actifs",
+      "table": {
+        "apiKey": "clé API",
+        "cost": "Coût",
+        "date": "Date",
+        "modality": "Type",
+        "model": "Modèle",
+        "provider": "Fournisseur",
+        "request": "[to be translated]:Request",
+        "source": "[to be translated]:Source",
+        "tokens": "Jetons",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "Empreinte d'utilisation",
       "tooltip": {
-        "cost": "[to be translated]:Cost {{value}}",
-        "requests": "[to be translated]:{{count}} requests",
-        "tokens": "[to be translated]:{{value}} tokens"
+        "cost": "Coût {{value}}",
+        "metric": "{{value}}",
+        "requests": "{{count}} demandes",
+        "tokens": "{{value}} jetons"
       },
       "window": {
-        "30d": "[to be translated]:Last 30 days",
-        "365d": "[to be translated]:Last year",
-        "90d": "[to be translated]:Last 90 days",
-        "all": "[to be translated]:All time"
+        "30d": "30 derniers jours",
+        "365d": "L'année dernière",
+        "90d": "90 derniers jours",
+        "all": "Tout le temps"
       }
     },
     "use_system_title_bar": {
@@ -7158,34 +7210,34 @@
     "translate": "Traduire"
   },
   "trace": {
-    "agent": "[to be translated]:Agent",
-    "backList": "[to be translated]:Back To List",
-    "cachedTokens": "[to be translated]:Cached",
-    "endTime": "[to be translated]:End Time",
-    "inputs": "[to be translated]:Inputs",
-    "label": "[to be translated]:Call Chain",
-    "model": "[to be translated]:Model",
-    "name": "[to be translated]:Node Name",
-    "noTraceList": "[to be translated]:No trace information found",
-    "operation": "[to be translated]:Operation",
-    "outputs": "[to be translated]:Outputs",
-    "pollError": "[to be translated]:Polling failed",
-    "reasoningTokens": "[to be translated]:Reasoning",
-    "requestHeaders": "[to be translated]:Request Headers",
-    "requestMethod": "[to be translated]:Request Method",
-    "requestUrl": "[to be translated]:Request URL",
-    "responseHeaders": "[to be translated]:Response Headers",
-    "responseStatus": "[to be translated]:Response Status",
-    "serverDescription": "[to be translated]:Server Description",
-    "serverName": "[to be translated]:Server Name",
-    "serverType": "[to be translated]:Server Type",
-    "spanDetail": "[to be translated]:Span Details",
-    "spendTime": "[to be translated]:Spend Time",
-    "startTime": "[to be translated]:Start Time",
-    "status": "[to be translated]:Status",
-    "tag": "[to be translated]:Tag",
-    "tokenUsage": "[to be translated]:Token Usage",
-    "toolCalls": "[to be translated]:Tool Calls"
+    "agent": "Agent",
+    "backList": "Retour à la liste",
+    "cachedTokens": "En cache",
+    "endTime": "Heure de fin",
+    "inputs": "Entrées",
+    "label": "Chaîne d'appel",
+    "model": "Modèle",
+    "name": "Nom du nœud",
+    "noTraceList": "Aucune information de trace trouvée",
+    "operation": "Opération",
+    "outputs": "Sorties",
+    "pollError": "Échec du sondage",
+    "reasoningTokens": "Raisonnement",
+    "requestHeaders": "En-têtes de requête",
+    "requestMethod": "Méthode de requête",
+    "requestUrl": "URL de la requête",
+    "responseHeaders": "En-têtes de réponse",
+    "responseStatus": "Statut de la réponse",
+    "serverDescription": "Description du serveur",
+    "serverName": "Nom du serveur",
+    "serverType": "Type de serveur",
+    "spanDetail": "Détails de la portée",
+    "spendTime": "Passer du temps",
+    "startTime": "Heure de début",
+    "status": "Statut",
+    "tag": "Étiquette",
+    "tokenUsage": "Utilisation des jetons",
+    "toolCalls": "Appels d'outils"
   },
   "translate": {
     "alter_language": "Langue de secours",

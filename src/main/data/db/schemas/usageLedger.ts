@@ -1,3 +1,4 @@
+import type { MessageStats } from '@shared/data/types/message'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, real, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
@@ -9,8 +10,9 @@ import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
  * The ledger is the durable billing record: it must survive deletion of the
  * message, topic, provider, model, and API key it describes. Therefore it has
  * NO foreign keys — all references are plain string snapshots taken at write
- * time, and provider/key identity is denormalized (label, masked key) so rows
- * stay readable after the referenced key is deleted.
+ * time, and provider/key identity is denormalized (provider name, key label,
+ * masked key) so rows stay readable after the referenced provider/key is
+ * deleted.
  *
  * Rows are written by `recordRequest`/`recordFromMessage` from two converging
  * sources: a billing funnel in the AI pipeline (`AiService.billingHookPart`,
@@ -29,6 +31,12 @@ export const usageLedgerTable = sqliteTable(
     messageId: text().notNull(),
     topicId: text(),
     providerId: text().notNull(),
+    providerName: text(),
+    // Usage source snapshot: chat assistant, agent, or null for stateless calls.
+    sourceType: text(),
+    sourceId: text(),
+    sourceName: text(),
+    sourceIcon: text(),
     // UniqueModelId ("providerId::modelId") snapshot
     modelId: text(),
     // What kind of request this row bills: language (chat/gateway/one-shot
@@ -40,9 +48,9 @@ export const usageLedgerTable = sqliteTable(
     apiKeyLabel: text(),
     apiKeyMasked: text(),
     // How the key was attributed: exact (single enabled key), rotation
-    // (best-effort via the round-robin pointer), backfill (reconciliation
-    // guess — provider had exactly one configured key), auth (provider-level
-    // credential, e.g. IAM), none (unresolvable).
+    // (best-effort via the round-robin pointer), backfill (legacy/development
+    // compatibility), auth (provider-level credential, e.g. IAM), none
+    // (unresolvable).
     apiKeyAttribution: text().notNull().default('none'),
 
     // Token usage (AI SDK v6 names, mirrors MessageStats)
@@ -50,6 +58,7 @@ export const usageLedgerTable = sqliteTable(
     outputTokens: integer(),
     totalTokens: integer(),
     reasoningTokens: integer(),
+    noCacheTokens: integer(),
     cacheReadTokens: integer(),
     cacheWriteTokens: integer(),
     // Image-generation usage (modality 'image'): number of generated images
@@ -59,6 +68,12 @@ export const usageLedgerTable = sqliteTable(
     cost: real(),
     costCurrency: text(),
     costSource: text(),
+    costBreakdown: text({ mode: 'json' }).$type<MessageStats['costBreakdown']>(),
+    pricingSnapshot: text({ mode: 'json' }).$type<MessageStats['pricingSnapshot']>(),
+    // Performance metrics measured locally.
+    timeFirstTokenMs: integer(),
+    timeCompletionMs: integer(),
+    timeThinkingMs: integer(),
 
     ...createUpdateTimestamps
   },
@@ -66,6 +81,7 @@ export const usageLedgerTable = sqliteTable(
     uniqueIndex('usage_ledger_message_id_idx').on(t.messageId),
     index('usage_ledger_provider_created_idx').on(t.providerId, t.createdAt),
     index('usage_ledger_api_key_created_idx').on(t.apiKeyId, t.createdAt),
+    index('usage_ledger_source_created_idx').on(t.sourceType, t.sourceId, t.createdAt),
     index('usage_ledger_created_at_idx').on(t.createdAt),
     check(
       'usage_ledger_attribution_check',

@@ -1785,6 +1785,7 @@
     "on": "启用",
     "open": "打开",
     "open_in": "在 {{name}} 中打开",
+    "other": "其他",
     "paste": "粘贴",
     "placeholders": {
       "select": {
@@ -3390,6 +3391,7 @@
     },
     "pinned": "已固定",
     "price": {
+      "cache_read": "缓存读取价格",
       "cost": "花费",
       "currency": "币种",
       "custom": "自定义",
@@ -7047,80 +7049,130 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "[to be translated]:Active days",
-        "costHint": "[to be translated]:Cost is grouped by currency.",
-        "dailyAverage": "[to be translated]:Daily average",
-        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
-        "none": "[to be translated]:N/A",
-        "peakDay": "[to be translated]:Peak day",
-        "streak": "[to be translated]:Longest streak: {{days}} days",
-        "topModel": "[to be translated]:Top model",
-        "totalCost": "[to be translated]:Total cost",
-        "totalTokens": "[to be translated]:Total tokens"
+        "activeDays": "活跃天数",
+        "cacheHitRate": "缓存命中率",
+        "cacheObservedTokens": "可观测输入：{{tokens}}",
+        "cacheStartsWithNewRequests": "发送新请求后开始统计",
+        "costHint": "按币种分别统计",
+        "dailyAverage": "日均",
+        "lastPeriod": "较上期",
+        "mixedCurrency": "多种货币会分开显示",
+        "none": "N/A",
+        "peakDay": "高峰日",
+        "providerAuth": "供应商认证",
+        "streak": "最长连续天数：{{days}} 天",
+        "topModel": "用量最高模型",
+        "totalCost": "总成本",
+        "totalRequests": "请求数",
+        "totalTokens": "总 Token 数",
+        "unattributedApiKey": "未归因请求",
+        "unattributedSource": "未归因来源"
+      },
+      "chart": {
+        "bar": "柱状图",
+        "line": "折线图",
+        "pie": "饼图",
+        "stack": "分段"
+      },
+      "costBackfill": {
+        "action": "补算历史成本",
+        "available": "有 {{count}} 条历史用量缺少成本，可按当前价格补算。",
+        "confirm": "将写入 {{count}} 条记录，预计成本：{{cost}}。",
+        "noPricing": "设置模型价格后才能补算历史成本。",
+        "success": "已补算 {{count}} 条历史成本。"
       },
       "empty": {
-        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
-        "title": "[to be translated]:No usage yet"
+        "description": "有 AI 请求产生用量后，这里会显示记录。",
+        "title": "暂无使用"
       },
       "explore": {
-        "allProviders": "[to be translated]:All providers",
-        "breakdown": "[to be translated]:Breakdown",
-        "clearDate": "[to be translated]:Clear date filter",
-        "entries": "[to be translated]:Entries",
-        "loadMore": "[to be translated]:Load more",
-        "loading": "[to be translated]:Loading...",
-        "noBreakdown": "[to be translated]:No breakdown data",
-        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
-        "noEntries": "[to be translated]:No entries",
-        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
-        "provider": "[to be translated]:Provider",
-        "selectedDate": "[to be translated]:Selected date: {{date}}",
-        "title": "[to be translated]:Explore",
-        "totalEntries": "[to be translated]:{{count}} entries"
+        "activity": "活动",
+        "allProviders": "所有提供商",
+        "analysis": "分析",
+        "breakdown": "用量分布",
+        "breakdownTab": "分布",
+        "cacheUsage": "缓存使用",
+        "chart": "图表",
+        "clearDate": "清除日期筛选",
+        "costDrivers": "成本驱动",
+        "drilldownTitle": "{{date}} 明细",
+        "entries": "请求",
+        "groupBy": "分组",
+        "loadMore": "加载更多",
+        "loading": "加载中...",
+        "metric": "指标",
+        "noBreakdown": "暂无用量分布",
+        "noBreakdownDescription": "尝试扩大时间范围或更换提供商。",
+        "noEntries": "暂无记录",
+        "noEntriesDescription": "尝试扩大时间范围或更换提供商。",
+        "provider": "提供商",
+        "requestsTab": "请求",
+        "selectedDate": "选定日期：{{date}}",
+        "share": "占比 {{value}}",
+        "shareLabel": "占比",
+        "title": "探索",
+        "topApiKeys": "API 密钥最高",
+        "topModels": "模型最高",
+        "topProviders": "提供商最高",
+        "topSources": "助手 / Agent 最高",
+        "totalEntries": "{{count}} 条记录"
       },
       "groupBy": {
-        "apiKey": "[to be translated]:API key",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider"
+        "apiKey": "API 密钥",
+        "model": "模型",
+        "provider": "提供商",
+        "source": "助手 / Agent"
       },
       "heatmap": {
-        "ariaDate": "[to be translated]:Usage on {{date}}",
-        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
-        "title": "[to be translated]:Daily activity"
+        "ariaDate": "使用于 {{date}}",
+        "costDisabled": "成本视图仅在此窗口仅有一种货币时可用。",
+        "title": "日常活动"
       },
       "metric": {
-        "cost": "[to be translated]:Cost",
-        "tokens": "[to be translated]:Tokens"
+        "cost": "成本",
+        "requests": "请求数",
+        "tokens": "Token"
       },
       "modality": {
-        "embedding": "[to be translated]:Embedding",
-        "image": "[to be translated]:Image",
-        "language": "[to be translated]:Language"
+        "embedding": "嵌入",
+        "image": "图像",
+        "language": "语言"
       },
       "overview": {
-        "title": "[to be translated]:Overview"
+        "title": "概述"
       },
-      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{activeDays}} active days / longest {{streak}} days",
+      "source": {
+        "agent": "Agent",
+        "assistant": "助手",
+        "unknown": "未归因"
+      },
+      "summary": "{{window}} / {{tokens}} Token / {{requests}} 个请求",
       "table": {
-        "apiKey": "[to be translated]:API key",
-        "cost": "[to be translated]:Cost",
-        "date": "[to be translated]:Date",
-        "modality": "[to be translated]:Type",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider",
-        "tokens": "[to be translated]:Tokens"
+        "apiKey": "API密钥",
+        "cost": "成本",
+        "date": "日期",
+        "modality": "类型",
+        "model": "模型",
+        "provider": "提供商",
+        "request": "请求",
+        "source": "来源",
+        "tokens": "代币",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
       },
-      "title": "[to be translated]:Usage Footprint",
+      "title": "用量统计",
       "tooltip": {
-        "cost": "[to be translated]:Cost {{value}}",
-        "requests": "[to be translated]:{{count}} requests",
-        "tokens": "[to be translated]:{{value}} tokens"
+        "cost": "成本 {{value}}",
+        "metric": "{{value}}",
+        "requests": "{{count}} 个请求",
+        "tokens": "{{value}} 个令牌"
       },
       "window": {
-        "30d": "[to be translated]:Last 30 days",
-        "365d": "[to be translated]:Last year",
-        "90d": "[to be translated]:Last 90 days",
-        "all": "[to be translated]:All time"
+        "30d": "最近 30 天",
+        "365d": "去年",
+        "90d": "最近 90 天",
+        "all": "所有时间"
       }
     },
     "use_system_title_bar": {

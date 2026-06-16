@@ -1,17 +1,21 @@
 import { resolve } from 'node:path'
 
 import { application } from '@application'
-import { messageTable } from '@data/db/schemas/message'
+import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { assistantTable } from '@data/db/schemas/assistant'
 import { topicTable } from '@data/db/schemas/topic'
 import { usageLedgerTable } from '@data/db/schemas/usageLedger'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { UsageLedgerService, usageLedgerService } from '@data/services/UsageLedgerService'
+import { usageLedgerService } from '@data/services/UsageLedgerService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Message } from '@shared/data/types/message'
+import type { RuntimeModelPricing } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 function makeMessage(overrides: Partial<Message> = {}): Message {
@@ -29,15 +33,81 @@ function makeMessage(overrides: Partial<Message> = {}): Message {
       inputTokens: 100,
       outputTokens: 50,
       totalTokens: 150,
-      inputTokenDetails: { cacheReadTokens: 30, cacheWriteTokens: 10 },
+      inputTokenDetails: { noCacheTokens: 60, cacheReadTokens: 30, cacheWriteTokens: 10 },
       cost: 0.0042,
       costCurrency: 'USD',
-      costSource: 'computed'
+      costSource: 'computed',
+      timeFirstTokenMs: 250,
+      timeCompletionMs: 1250,
+      timeThinkingMs: 100
     },
     createdAt: '2026-06-11T00:00:00.000Z',
     updatedAt: '2026-06-11T00:00:00.000Z',
     ...overrides
   } as Message
+}
+
+async function seedAssistantTopic() {
+  await application
+    .get('DbService')
+    .getDb()
+    .insert(assistantTable)
+    .values({
+      id: 'assistant-1',
+      name: 'Test Assistant',
+      prompt: '',
+      emoji: '🌟',
+      settings: DEFAULT_ASSISTANT_SETTINGS,
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+  await application
+    .get('DbService')
+    .getDb()
+    .insert(topicTable)
+    .values({
+      id: 'topic-1',
+      assistantId: 'assistant-1',
+      activeNodeId: null,
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+}
+
+async function seedAgentSession() {
+  await application
+    .get('DbService')
+    .getDb()
+    .insert(agentTable)
+    .values({
+      id: 'agent-1',
+      type: 'claude_code',
+      name: 'Test Agent',
+      instructions: '',
+      model: null,
+      configuration: { avatar: '🧠' },
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+  await application
+    .get('DbService')
+    .getDb()
+    .insert(agentWorkspaceTable)
+    .values({
+      id: 'workspace-1',
+      name: 'Test Workspace',
+      path: '/tmp/test-workspace',
+      type: 'user',
+      orderKey: generateOrderKeyBetween(null, null)
+    })
+  await application
+    .get('DbService')
+    .getDb()
+    .insert(agentSessionTable)
+    .values({
+      id: 'session-1',
+      agentId: 'agent-1',
+      name: 'Test Session',
+      workspaceId: 'workspace-1',
+      orderKey: generateOrderKeyBetween(null, null)
+    })
 }
 
 async function seedProvider(
@@ -57,6 +127,29 @@ async function seedProvider(
       orderKey: generateOrderKeyBetween(null, null),
       apiKeys,
       ...(opts?.authConfig ? { authConfig: opts.authConfig as never } : {})
+    })
+}
+
+async function seedModelPricing(opts: { providerId?: string; modelId?: string; pricing?: RuntimeModelPricing } = {}) {
+  const providerId = opts.providerId ?? 'openai'
+  const modelId = opts.modelId ?? 'gpt-4o'
+  await application
+    .get('DbService')
+    .getDb()
+    .insert(userModelTable)
+    .values({
+      id: `${providerId}::${modelId}`,
+      providerId,
+      modelId,
+      presetModelId: modelId,
+      name: modelId,
+      isEnabled: true,
+      isHidden: false,
+      orderKey: 'a0',
+      pricing: opts.pricing ?? {
+        input: { perMillionTokens: 3, currency: 'USD' },
+        output: { perMillionTokens: 15, currency: 'USD' }
+      }
     })
 }
 
@@ -84,6 +177,7 @@ describe('UsageLedgerService', () => {
   describe('recordFromMessage', () => {
     it('records token usage and cost, deriving providerId from modelId', async () => {
       await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', label: 'Main', isEnabled: true }])
+      await seedAssistantTopic()
 
       await usageLedgerService.recordFromMessage(makeMessage())
 
@@ -93,15 +187,24 @@ describe('UsageLedgerService', () => {
         messageId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         topicId: 'topic-1',
         providerId: 'openai',
+        providerName: 'Test Provider',
+        sourceType: 'assistant',
+        sourceId: 'assistant-1',
+        sourceName: 'Test Assistant',
+        sourceIcon: '🌟',
         modelId: 'openai::gpt-4o',
         inputTokens: 100,
         outputTokens: 50,
         totalTokens: 150,
+        noCacheTokens: 60,
         cacheReadTokens: 30,
         cacheWriteTokens: 10,
         cost: 0.0042,
         costCurrency: 'USD',
-        costSource: 'computed'
+        costSource: 'computed',
+        timeFirstTokenMs: 250,
+        timeCompletionMs: 1250,
+        timeThinkingMs: 100
       })
     })
 
@@ -147,6 +250,7 @@ describe('UsageLedgerService', () => {
       expect(rows[0]).toMatchObject({
         inputTokens: 40,
         outputTokens: 20,
+        providerName: 'Test Provider',
         apiKeyId: 'key-a',
         apiKeyLabel: 'Main',
         apiKeyAttribution: 'exact'
@@ -162,7 +266,12 @@ describe('UsageLedgerService', () => {
 
       const rows = await dbh.db.select().from(usageLedgerTable)
       expect(rows).toHaveLength(1)
-      expect(rows[0]).toMatchObject({ inputTokens: 20, apiKeyId: 'key-a', apiKeyAttribution: 'exact' })
+      expect(rows[0]).toMatchObject({
+        inputTokens: 20,
+        providerName: 'Test Provider',
+        apiKeyId: 'key-a',
+        apiKeyAttribution: 'exact'
+      })
     })
   })
 
@@ -196,7 +305,9 @@ describe('UsageLedgerService', () => {
         topicId: null,
         cost: 3,
         costSource: 'computed',
-        costCurrency: 'USD'
+        costCurrency: 'USD',
+        costBreakdown: { input: 3, output: 0 },
+        pricingSnapshot: expect.objectContaining({ input: 3, output: 15, capturedAt: expect.any(String) })
       })
     })
 
@@ -273,6 +384,202 @@ describe('UsageLedgerService', () => {
       const [row] = await dbh.db.select().from(usageLedgerTable)
       expect(row).toMatchObject({ messageId: 'msg-conv', topicId: 'topic-1' })
     })
+
+    it('records agent source by agent id, not session id', async () => {
+      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
+      await seedAgentSession()
+
+      await usageLedgerService.recordRequest({
+        id: 'agent-message-1',
+        agentSessionId: 'session-1',
+        modelId: 'openai::gpt-4o',
+        stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+      })
+
+      const [row] = await dbh.db.select().from(usageLedgerTable)
+      expect(row).toMatchObject({
+        messageId: 'agent-message-1',
+        sourceType: 'agent',
+        sourceId: 'agent-1',
+        sourceName: 'Test Agent',
+        sourceIcon: '🧠'
+      })
+    })
+  })
+
+  describe('cost backfill', () => {
+    it('previews only missing-cost language and embedding rows for the target model', async () => {
+      await seedProvider([], { providerId: 'openai' })
+      await seedModelPricing()
+
+      await dbh.db.insert(usageLedgerTable).values([
+        {
+          messageId: 'missing-language',
+          providerId: 'openai',
+          modelId: 'openai::gpt-4o',
+          apiKeyAttribution: 'none',
+          inputTokens: 1_000_000,
+          outputTokens: 0,
+          totalTokens: 1_000_000,
+          createdAt: 1000,
+          updatedAt: 1000
+        },
+        {
+          messageId: 'missing-embedding',
+          providerId: 'openai',
+          modelId: 'openai::gpt-4o',
+          modality: 'embedding',
+          apiKeyAttribution: 'none',
+          inputTokens: 1_000_000,
+          totalTokens: 1_000_000,
+          createdAt: 2000,
+          updatedAt: 2000
+        },
+        {
+          messageId: 'already-computed',
+          providerId: 'openai',
+          modelId: 'openai::gpt-4o',
+          apiKeyAttribution: 'none',
+          inputTokens: 1_000_000,
+          cost: 99,
+          costCurrency: 'USD',
+          costSource: 'computed',
+          createdAt: 3000,
+          updatedAt: 3000
+        },
+        {
+          messageId: 'wrong-model',
+          providerId: 'openai',
+          modelId: 'openai::other',
+          apiKeyAttribution: 'none',
+          inputTokens: 1_000_000,
+          createdAt: 4000,
+          updatedAt: 4000
+        },
+        {
+          messageId: 'image-row',
+          providerId: 'openai',
+          modelId: 'openai::gpt-4o',
+          modality: 'image',
+          apiKeyAttribution: 'none',
+          imageCount: 1,
+          createdAt: 5000,
+          updatedAt: 5000
+        }
+      ])
+
+      const preview = await usageLedgerService.previewCostBackfill({ modelId: 'openai::gpt-4o' })
+
+      expect(preview).toMatchObject({
+        scannedCount: 2,
+        recalculableCount: 2,
+        skippedNoPricingCount: 0,
+        skippedProviderCostCount: 0,
+        estimatedCostByCurrency: [{ currency: 'USD', cost: 6 }]
+      })
+    })
+
+    it('runs backfill without overwriting existing computed or provider costs', async () => {
+      await seedProvider([], { providerId: 'openai' })
+      await seedModelPricing()
+
+      await dbh.db.insert(usageLedgerTable).values([
+        {
+          messageId: 'missing',
+          providerId: 'openai',
+          modelId: 'openai::gpt-4o',
+          apiKeyAttribution: 'none',
+          inputTokens: 1_000_000,
+          outputTokens: 1_000_000,
+          totalTokens: 2_000_000,
+          createdAt: 1000,
+          updatedAt: 1000
+        },
+        {
+          messageId: 'computed',
+          providerId: 'openai',
+          modelId: 'openai::gpt-4o',
+          apiKeyAttribution: 'none',
+          inputTokens: 1_000_000,
+          cost: 99,
+          costCurrency: 'USD',
+          costSource: 'computed',
+          createdAt: 2000,
+          updatedAt: 2000
+        },
+        {
+          messageId: 'provider-cost',
+          providerId: 'openai',
+          modelId: 'openai::gpt-4o',
+          apiKeyAttribution: 'none',
+          inputTokens: 1_000_000,
+          cost: 7,
+          costCurrency: 'USD',
+          costSource: 'provider',
+          createdAt: 3000,
+          updatedAt: 3000
+        },
+        {
+          messageId: 'image',
+          providerId: 'openai',
+          modelId: 'openai::gpt-4o',
+          modality: 'image',
+          apiKeyAttribution: 'none',
+          imageCount: 1,
+          createdAt: 4000,
+          updatedAt: 4000
+        }
+      ])
+
+      const result = await usageLedgerService.runCostBackfill({ modelId: 'openai::gpt-4o' })
+
+      expect(result).toMatchObject({
+        scannedCount: 1,
+        recalculableCount: 1,
+        skippedProviderCostCount: 1,
+        updatedCount: 1
+      })
+
+      const rows = await dbh.db.select().from(usageLedgerTable)
+      const missing = rows.find((row) => row.messageId === 'missing')
+      expect(missing).toMatchObject({
+        cost: 18,
+        costCurrency: 'USD',
+        costSource: 'computed',
+        costBreakdown: { input: 3, output: 15 },
+        pricingSnapshot: expect.objectContaining({ input: 3, output: 15, capturedAt: expect.any(String) })
+      })
+      expect(rows.find((row) => row.messageId === 'computed')).toMatchObject({ cost: 99, costSource: 'computed' })
+      expect(rows.find((row) => row.messageId === 'provider-cost')).toMatchObject({
+        cost: 7,
+        costSource: 'provider'
+      })
+      expect(rows.find((row) => row.messageId === 'image')).toMatchObject({ cost: null, costSource: null })
+    })
+
+    it('skips missing-cost rows when current model pricing is unavailable', async () => {
+      await dbh.db.insert(usageLedgerTable).values({
+        messageId: 'missing',
+        providerId: 'openai',
+        modelId: 'openai::gpt-4o',
+        apiKeyAttribution: 'none',
+        inputTokens: 1_000_000,
+        totalTokens: 1_000_000,
+        createdAt: 1000,
+        updatedAt: 1000
+      })
+
+      const result = await usageLedgerService.runCostBackfill({ modelId: 'openai::gpt-4o' })
+
+      expect(result).toMatchObject({
+        scannedCount: 1,
+        recalculableCount: 0,
+        skippedNoPricingCount: 1,
+        updatedCount: 0
+      })
+      const [row] = await dbh.db.select().from(usageLedgerTable)
+      expect(row.cost).toBeNull()
+    })
   })
 
   describe('resolveKeyAttribution', () => {
@@ -285,6 +592,7 @@ describe('UsageLedgerService', () => {
       const result = await usageLedgerService.resolveKeyAttribution('openai')
       expect(result).toEqual({
         attribution: 'exact',
+        providerName: 'Test Provider',
         keyId: 'key-a',
         label: 'Main',
         masked: expect.stringContaining('****')
@@ -300,7 +608,12 @@ describe('UsageLedgerService', () => {
       MockMainCacheServiceUtils.setCacheValue('settings.provider.openai.last_used_key_id', 'key-b')
 
       const result = await usageLedgerService.resolveKeyAttribution('openai')
-      expect(result).toMatchObject({ attribution: 'rotation', keyId: 'key-b', label: 'B' })
+      expect(result).toMatchObject({
+        attribution: 'rotation',
+        providerName: 'Test Provider',
+        keyId: 'key-b',
+        label: 'B'
+      })
     })
 
     it('returns none with multiple keys but no rotation pointer (e.g. after restart)', async () => {
@@ -309,7 +622,10 @@ describe('UsageLedgerService', () => {
         { id: 'key-b', key: 'sk-bbbbbbbbbbbbbbbbbbbbbbbbbbbb', isEnabled: true }
       ])
 
-      expect(await usageLedgerService.resolveKeyAttribution('openai')).toEqual({ attribution: 'none' })
+      expect(await usageLedgerService.resolveKeyAttribution('openai')).toEqual({
+        attribution: 'none',
+        providerName: 'Test Provider'
+      })
     })
 
     it('returns none when the pointed-at key was deleted', async () => {
@@ -319,25 +635,37 @@ describe('UsageLedgerService', () => {
       ])
       MockMainCacheServiceUtils.setCacheValue('settings.provider.openai.last_used_key_id', 'deleted-key')
 
-      expect(await usageLedgerService.resolveKeyAttribution('openai')).toEqual({ attribution: 'none' })
+      expect(await usageLedgerService.resolveKeyAttribution('openai')).toEqual({
+        attribution: 'none',
+        providerName: 'Test Provider'
+      })
     })
 
     it('attributes IAM providers to auth, not a key', async () => {
       await seedProvider([], { providerId: 'bedrock', authConfig: { type: 'iam-aws', region: 'us-east-1' } })
 
-      expect(await usageLedgerService.resolveKeyAttribution('bedrock')).toEqual({ attribution: 'auth' })
+      expect(await usageLedgerService.resolveKeyAttribution('bedrock')).toEqual({
+        attribution: 'auth',
+        providerName: 'Test Provider'
+      })
     })
 
     it('attributes keyless OAuth providers to auth', async () => {
       await seedProvider([], { providerId: 'claude-oauth', authConfig: { type: 'oauth' } })
 
-      expect(await usageLedgerService.resolveKeyAttribution('claude-oauth')).toEqual({ attribution: 'auth' })
+      expect(await usageLedgerService.resolveKeyAttribution('claude-oauth')).toEqual({
+        attribution: 'auth',
+        providerName: 'Test Provider'
+      })
     })
 
     it('returns none for api-key providers without keys and for missing providers', async () => {
       await seedProvider([], { providerId: 'ollama' })
 
-      expect(await usageLedgerService.resolveKeyAttribution('ollama')).toEqual({ attribution: 'none' })
+      expect(await usageLedgerService.resolveKeyAttribution('ollama')).toEqual({
+        attribution: 'none',
+        providerName: 'Test Provider'
+      })
       expect(await usageLedgerService.resolveKeyAttribution('ghost')).toEqual({ attribution: 'none' })
     })
 
@@ -366,27 +694,83 @@ describe('UsageLedgerService', () => {
         { ...base, messageId: 'm3', providerId: 'anthropic', apiKeyId: 'key-c', createdAt: 3000, updatedAt: 3000 }
       ])
 
-      const byProvider = await usageLedgerService.list({ limit: 50, providerId: 'openai' })
+      const byProvider = await usageLedgerService.list({ page: 1, limit: 50, providerId: 'openai' })
       expect(byProvider.items.map((i) => i.messageId)).toEqual(['m2', 'm1'])
       expect(byProvider.total).toBe(2)
 
-      const byKey = await usageLedgerService.list({ limit: 50, apiKeyId: 'key-c' })
+      const byKey = await usageLedgerService.list({ page: 1, limit: 50, apiKeyId: 'key-c' })
       expect(byKey.items.map((i) => i.messageId)).toEqual(['m3'])
 
-      const byTime = await usageLedgerService.list({ limit: 50, from: 1500, to: 2500 })
+      const byTime = await usageLedgerService.list({ page: 1, limit: 50, from: 1500, to: 2500 })
       expect(byTime.items.map((i) => i.messageId)).toEqual(['m2'])
 
-      const page1 = await usageLedgerService.list({ limit: 2 })
+      const page1 = await usageLedgerService.list({ page: 1, limit: 2 })
       expect(page1.items.map((i) => i.messageId)).toEqual(['m3', 'm2'])
-      expect(page1.nextCursor).toBeDefined()
-      const page2 = await usageLedgerService.list({ limit: 2, cursor: page1.nextCursor })
-      expect(page2.items.map((i) => i.messageId)).toEqual(['m1'])
-      expect(page2.nextCursor).toBeUndefined()
+      expect(page1.page).toBe(1)
 
-      // Malformed cursors (including ':id' whose createdAt half is empty)
-      // fall back to the first page instead of returning an empty page.
-      const emptyCreatedAt = await usageLedgerService.list({ limit: 2, cursor: ':some-id' })
-      expect(emptyCreatedAt.items.map((i) => i.messageId)).toEqual(['m3', 'm2'])
+      const page2 = await usageLedgerService.list({ page: 2, limit: 2 })
+      expect(page2.items.map((i) => i.messageId)).toEqual(['m1'])
+      expect(page2.page).toBe(2)
+    })
+
+    it('sorts entries by request metrics before paginating', async () => {
+      const base = {
+        providerId: 'openai',
+        modelId: 'openai::gpt-4o',
+        apiKeyAttribution: 'none',
+        costCurrency: 'USD'
+      } as const
+      await dbh.db.insert(usageLedgerTable).values([
+        {
+          ...base,
+          messageId: 'slow',
+          outputTokens: 10,
+          totalTokens: 20,
+          cost: 0.5,
+          timeFirstTokenMs: 900,
+          timeCompletionMs: 1900,
+          createdAt: 1000,
+          updatedAt: 1000
+        },
+        {
+          ...base,
+          messageId: 'fast',
+          outputTokens: 100,
+          totalTokens: 200,
+          cost: 0.2,
+          timeFirstTokenMs: 100,
+          timeCompletionMs: 1100,
+          createdAt: 2000,
+          updatedAt: 2000
+        },
+        {
+          ...base,
+          messageId: 'expensive',
+          outputTokens: 30,
+          totalTokens: 60,
+          cost: 2,
+          timeFirstTokenMs: 300,
+          timeCompletionMs: 900,
+          createdAt: 3000,
+          updatedAt: 3000
+        }
+      ])
+
+      await expect(usageLedgerService.list({ page: 1, limit: 3, sortBy: 'totalTokens' })).resolves.toMatchObject({
+        items: [{ messageId: 'fast' }, { messageId: 'expensive' }, { messageId: 'slow' }]
+      })
+      await expect(usageLedgerService.list({ page: 1, limit: 3, sortBy: 'cost' })).resolves.toMatchObject({
+        items: [{ messageId: 'expensive' }, { messageId: 'slow' }, { messageId: 'fast' }]
+      })
+      await expect(
+        usageLedgerService.list({ page: 1, limit: 3, sortBy: 'timeFirstTokenMs', sortDirection: 'asc' })
+      ).resolves.toMatchObject({
+        items: [{ messageId: 'fast' }, { messageId: 'expensive' }, { messageId: 'slow' }]
+      })
+      await expect(usageLedgerService.list({ page: 1, limit: 2, sortBy: 'tokensPerSecond' })).resolves.toMatchObject({
+        items: [{ messageId: 'fast' }, { messageId: 'expensive' }],
+        page: 1
+      })
     })
   })
 
@@ -466,6 +850,34 @@ describe('UsageLedgerService', () => {
       expect(buckets[0]).toMatchObject({ costCurrency: 'CNY', totalCost: 7 })
     })
 
+    it('falls back to the current provider name when old ledger rows only have the provider id snapshot', async () => {
+      await seedProvider([], { providerId: 'custom-provider' })
+      await dbh.db.insert(usageLedgerTable).values({
+        messageId: 'snapshotless-row',
+        providerId: 'custom-provider',
+        providerName: 'custom-provider',
+        modelId: 'custom-provider::model-a',
+        apiKeyAttribution: 'none',
+        totalTokens: 12,
+        cost: 0.1,
+        costCurrency: 'USD',
+        createdAt: 1000,
+        updatedAt: 1000
+      })
+
+      const stats = await usageLedgerService.stats({ groupBy: 'provider' })
+      expect(stats.buckets[0]).toMatchObject({
+        providerId: 'custom-provider',
+        providerName: 'Test Provider'
+      })
+
+      const list = await usageLedgerService.list({ page: 1, limit: 10 })
+      expect(list.items[0]).toMatchObject({
+        providerId: 'custom-provider',
+        providerName: 'Test Provider'
+      })
+    })
+
     it('aggregates by provider with a time window', async () => {
       await dbh.db.insert(usageLedgerTable).values([
         {
@@ -492,6 +904,84 @@ describe('UsageLedgerService', () => {
       expect(buckets).toHaveLength(1)
       expect(buckets[0]).toMatchObject({ providerId: 'openai', totalCost: 2, entryCount: 1 })
     })
+
+    it('aggregates by assistant and agent source', async () => {
+      await dbh.db.insert(usageLedgerTable).values([
+        {
+          messageId: 'assistant-row-1',
+          providerId: 'openai',
+          sourceType: 'assistant',
+          sourceId: 'assistant-1',
+          sourceName: 'Assistant One',
+          sourceIcon: '✨',
+          apiKeyAttribution: 'none',
+          noCacheTokens: 50,
+          cacheReadTokens: 25,
+          cacheWriteTokens: 25,
+          totalTokens: 100,
+          cost: 1,
+          costCurrency: 'USD',
+          createdAt: 1000,
+          updatedAt: 1000
+        },
+        {
+          messageId: 'assistant-row-2',
+          providerId: 'openai',
+          sourceType: 'assistant',
+          sourceId: 'assistant-1',
+          sourceName: 'Assistant One',
+          sourceIcon: '✨',
+          apiKeyAttribution: 'none',
+          noCacheTokens: 10,
+          cacheReadTokens: 5,
+          cacheWriteTokens: 5,
+          totalTokens: 20,
+          cost: 0.5,
+          costCurrency: 'USD',
+          createdAt: 2000,
+          updatedAt: 2000
+        },
+        {
+          messageId: 'agent-row',
+          providerId: 'openai',
+          sourceType: 'agent',
+          sourceId: 'agent-1',
+          sourceName: 'Agent One',
+          sourceIcon: '🧠',
+          apiKeyAttribution: 'none',
+          noCacheTokens: 100,
+          cacheReadTokens: 0,
+          cacheWriteTokens: 0,
+          totalTokens: 100,
+          cost: 0.25,
+          costCurrency: 'USD',
+          createdAt: 3000,
+          updatedAt: 3000
+        }
+      ])
+
+      const { buckets } = await usageLedgerService.stats({ groupBy: 'source' })
+      const assistant = buckets.find((bucket) => bucket.sourceType === 'assistant')
+      const agent = buckets.find((bucket) => bucket.sourceType === 'agent')
+
+      expect(assistant).toMatchObject({
+        sourceId: 'assistant-1',
+        sourceName: 'Assistant One',
+        sourceIcon: '✨',
+        totalCost: 1.5,
+        totalNoCacheTokens: 60,
+        totalCacheReadTokens: 30,
+        totalCacheWriteTokens: 30,
+        entryCount: 2
+      })
+      expect(agent).toMatchObject({
+        sourceId: 'agent-1',
+        sourceName: 'Agent One',
+        sourceIcon: '🧠',
+        totalCost: 0.25,
+        entryCount: 1
+      })
+    })
   })
 
   describe('timeline', () => {
@@ -516,6 +1006,9 @@ describe('UsageLedgerService', () => {
         {
           date: localDateKey(first),
           totalTokens: 150,
+          totalNoCacheTokens: 0,
+          totalCacheReadTokens: 0,
+          totalCacheWriteTokens: 0,
           totalCost: 1,
           entryCount: 2
         }
@@ -558,113 +1051,12 @@ describe('UsageLedgerService', () => {
       expect(buckets[0]).toMatchObject({
         date: localDateKey(inside),
         totalTokens: 90,
+        totalNoCacheTokens: 0,
+        totalCacheReadTokens: 0,
+        totalCacheWriteTokens: 0,
         entryCount: 3
       })
       expect(buckets[0].totalCost).toBeCloseTo(0.9)
-    })
-  })
-
-  describe('reconcileFromMessages', () => {
-    async function seedMessageChain(opts: { messageId: string; createdAt: number; stats: Message['stats'] }) {
-      await dbh.db
-        .insert(topicTable)
-        .values({ id: 'topic-r', activeNodeId: null, orderKey: 'a0' })
-        .onConflictDoNothing()
-      await dbh.db
-        .insert(userModelTable)
-        .values({
-          id: 'openai::gpt-4o',
-          providerId: 'openai',
-          modelId: 'gpt-4o',
-          presetModelId: 'gpt-4o',
-          name: 'gpt-4o',
-          isEnabled: true,
-          isHidden: false,
-          orderKey: 'a0'
-        })
-        .onConflictDoNothing()
-      await dbh.db.insert(messageTable).values({
-        id: opts.messageId,
-        topicId: 'topic-r',
-        parentId: null,
-        role: 'assistant',
-        data: { parts: [] },
-        status: 'success',
-        modelId: 'openai::gpt-4o',
-        stats: opts.stats ?? undefined,
-        createdAt: opts.createdAt,
-        updatedAt: opts.createdAt
-      })
-    }
-
-    it('backfills missing rows with usage-time timestamps and single-key backfill attribution', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', label: 'Main', isEnabled: true }])
-      await seedMessageChain({
-        messageId: 'm-old',
-        createdAt: 12345,
-        stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15, cost: 0.01 }
-      })
-
-      const count = await usageLedgerService.reconcileFromMessages()
-      expect(count).toBe(1)
-
-      const [row] = await dbh.db.select().from(usageLedgerTable).where(eq(usageLedgerTable.messageId, 'm-old'))
-      expect(row).toMatchObject({
-        providerId: 'openai',
-        inputTokens: 10,
-        totalTokens: 15,
-        cost: 0.01,
-        apiKeyId: 'key-a',
-        apiKeyAttribution: 'backfill',
-        createdAt: 12345,
-        updatedAt: 12345
-      })
-    })
-
-    it('uses none attribution when the provider has multiple keys', async () => {
-      await seedProvider([
-        { id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true },
-        { id: 'key-b', key: 'sk-bbbbbbbbbbbbbbbbbbbbbbbbbbbb', isEnabled: true }
-      ])
-      await seedMessageChain({ messageId: 'm-multi', createdAt: 100, stats: { totalTokens: 5 } })
-
-      await usageLedgerService.reconcileFromMessages()
-
-      const [row] = await dbh.db.select().from(usageLedgerTable).where(eq(usageLedgerTable.messageId, 'm-multi'))
-      expect(row).toMatchObject({ apiKeyId: null, apiKeyAttribution: 'none' })
-    })
-
-    it('never touches existing rows and skips messages without usage signal', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
-      await seedMessageChain({ messageId: 'm-live', createdAt: 100, stats: { totalTokens: 999 } })
-      await seedMessageChain({ messageId: 'm-timing-only', createdAt: 200, stats: { timeCompletionMs: 50 } })
-      // Existing (live-written) row for m-live with values that must survive.
-      await dbh.db.insert(usageLedgerTable).values({
-        messageId: 'm-live',
-        providerId: 'openai',
-        apiKeyAttribution: 'exact',
-        totalTokens: 111,
-        createdAt: 100,
-        updatedAt: 100
-      })
-
-      const count = await usageLedgerService.reconcileFromMessages()
-      expect(count).toBe(0)
-
-      const rows = await dbh.db.select().from(usageLedgerTable)
-      expect(rows).toHaveLength(1)
-      expect(rows[0]).toMatchObject({ messageId: 'm-live', totalTokens: 111, apiKeyAttribution: 'exact' })
-    })
-
-    it('runs lazily (once) before list/stats reads', async () => {
-      await seedProvider([{ id: 'key-a', key: 'sk-aaaaaaaaaaaaaaaaaaaaaaaaaaaa', isEnabled: true }])
-      await seedMessageChain({ messageId: 'm-lazy', createdAt: 100, stats: { totalTokens: 7 } })
-
-      // Fresh instance: the module singleton's once-per-process guard may
-      // already be latched by earlier tests.
-      const service = new UsageLedgerService()
-      const result = await service.list({ limit: 50 })
-      expect(result.items.map((i) => i.messageId)).toEqual(['m-lazy'])
     })
   })
 })

@@ -60,6 +60,16 @@ export function maskApiKey(key: string): string {
 }
 
 /**
+ * Mask an API key for durable snapshots. `maskApiKey` leaves keys of 8
+ * characters or fewer unchanged for transient UI, but ledger snapshots must
+ * never persist raw secrets.
+ */
+export function maskApiKeyForSnapshot(key: string): string {
+  const masked = maskApiKey(key)
+  return masked === key ? '****' : masked
+}
+
+/**
  * Determines whether a host or path string contains a version-like segment (e.g., /v1, /v2beta).
  *
  * @param host - The host or path string to check.

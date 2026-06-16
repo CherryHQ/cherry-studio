@@ -1,12 +1,13 @@
 /**
  * Usage Ledger API Schema definitions
  *
- * Read-only endpoints — ledger rows are written internally by the main
- * process (`UsageLedgerService.recordFromMessage`, fired from
- * `MessageService.update`), never by the renderer.
+ * Usage reporting endpoints plus explicit maintenance operations. Normal
+ * ledger rows are written internally by the main process; renderer-initiated
+ * writes are limited to user-triggered maintenance such as historical cost
+ * backfill.
  *
  * Contains endpoints for:
- * - Listing ledger entries with cursor pagination and provider/key/time filters
+ * - Listing ledger entries with page pagination and provider/key/time filters
  * - Aggregated usage/cost rollups grouped by provider, API key, or model
  *
  * Entity schemas and types live in `@shared/data/types/usageLedger`.
@@ -14,8 +15,9 @@
 
 import * as z from 'zod'
 
+import { UniqueModelIdSchema } from '../../types/model'
 import { type UsageLedgerAttribution, type UsageLedgerEntry } from '../../types/usageLedger'
-import type { CursorPaginationParams, CursorPaginationResponse } from '../apiTypes'
+import type { OffsetPaginationParams, OffsetPaginationResponse } from '../apiTypes'
 
 // ============================================================================
 // Query schemas
@@ -23,6 +25,16 @@ import type { CursorPaginationParams, CursorPaginationResponse } from '../apiTyp
 
 export const USAGE_LEDGER_DEFAULT_LIMIT = 50
 export const USAGE_LEDGER_MAX_LIMIT = 200
+export const UsageLedgerListSortBySchema = z.enum([
+  'createdAt',
+  'totalTokens',
+  'cost',
+  'timeFirstTokenMs',
+  'tokensPerSecond'
+])
+export type UsageLedgerListSortBy = z.infer<typeof UsageLedgerListSortBySchema>
+export const UsageLedgerSortDirectionSchema = z.enum(['asc', 'desc'])
+export type UsageLedgerSortDirection = z.infer<typeof UsageLedgerSortDirectionSchema>
 
 const TimeRangeFields = {
   /** Inclusive lower bound on createdAt (epoch milliseconds) */
@@ -33,26 +45,28 @@ const TimeRangeFields = {
 
 export const UsageLedgerListQuerySchema = z
   .object({
-    /** Cursor returned by the previous page. Omitted for the first page. */
-    cursor: z.string().optional(),
+    /** Page number (1-based), defaults to 1. */
+    page: z.int().positive().default(1),
     /** Positive integer, max {@link USAGE_LEDGER_MAX_LIMIT}, defaults to {@link USAGE_LEDGER_DEFAULT_LIMIT} */
     limit: z.int().positive().max(USAGE_LEDGER_MAX_LIMIT).default(USAGE_LEDGER_DEFAULT_LIMIT),
     /** Filter by provider id */
     providerId: z.string().optional(),
     /** Filter by attributed API key id */
     apiKeyId: z.string().optional(),
+    sortBy: UsageLedgerListSortBySchema.default('createdAt'),
+    sortDirection: UsageLedgerSortDirectionSchema.default('desc'),
     ...TimeRangeFields
   })
   .strict()
 /** Parsed query parameters for listing usage ledger entries. */
 export type UsageLedgerListQuery = z.infer<typeof UsageLedgerListQuerySchema>
 /** Input query parameters accepted by the API before schema defaults are applied. */
-export type UsageLedgerListQueryParams = z.input<typeof UsageLedgerListQuerySchema> & CursorPaginationParams
+export type UsageLedgerListQueryParams = z.input<typeof UsageLedgerListQuerySchema> & OffsetPaginationParams
 
 export const UsageLedgerStatsQuerySchema = z
   .object({
     /** Aggregation dimension */
-    groupBy: z.enum(['provider', 'apiKey', 'model']),
+    groupBy: z.enum(['provider', 'apiKey', 'model', 'source']),
     /** Restrict aggregation to one provider */
     providerId: z.string().optional(),
     ...TimeRangeFields
@@ -65,13 +79,22 @@ export const UsageLedgerTimelineQuerySchema = z.object(TimeRangeFields).strict()
 /** Parsed query parameters for usage ledger daily timeline. */
 export type UsageLedgerTimelineQuery = z.infer<typeof UsageLedgerTimelineQuerySchema>
 
+export const UsageLedgerCostBackfillQuerySchema = z
+  .object({
+    modelId: UniqueModelIdSchema,
+    ...TimeRangeFields
+  })
+  .strict()
+export type UsageLedgerCostBackfillQuery = z.infer<typeof UsageLedgerCostBackfillQuerySchema>
+
 // ============================================================================
 // Responses
 // ============================================================================
 
-export interface UsageLedgerListResponse extends CursorPaginationResponse<UsageLedgerEntry> {
+export interface UsageLedgerListResponse extends OffsetPaginationResponse<UsageLedgerEntry> {
   items: UsageLedgerEntry[]
   total: number
+  page: number
 }
 
 /**
@@ -82,6 +105,11 @@ export interface UsageLedgerListResponse extends CursorPaginationResponse<UsageL
  */
 export interface UsageLedgerStatsBucket {
   providerId: string
+  providerName?: string | null
+  sourceType?: UsageLedgerEntry['sourceType']
+  sourceId?: string | null
+  sourceName?: string | null
+  sourceIcon?: string | null
   apiKeyId?: string | null
   apiKeyLabel?: string | null
   apiKeyMasked?: string | null
@@ -92,6 +120,9 @@ export interface UsageLedgerStatsBucket {
   totalInputTokens: number
   totalOutputTokens: number
   totalTokens: number
+  totalNoCacheTokens: number
+  totalCacheReadTokens: number
+  totalCacheWriteTokens: number
   entryCount: number
 }
 
@@ -103,12 +134,32 @@ export interface UsageLedgerTimelineBucket {
   /** Local calendar date, formatted as YYYY-MM-DD. */
   date: string
   totalTokens: number
+  totalNoCacheTokens: number
+  totalCacheReadTokens: number
+  totalCacheWriteTokens: number
   totalCost: number
   entryCount: number
 }
 
 export interface UsageLedgerTimelineResponse {
   buckets: UsageLedgerTimelineBucket[]
+}
+
+export interface UsageLedgerCostBackfillCurrencyTotal {
+  currency: string
+  cost: number
+}
+
+export interface UsageLedgerCostBackfillPreviewResponse {
+  scannedCount: number
+  recalculableCount: number
+  skippedNoPricingCount: number
+  skippedProviderCostCount: number
+  estimatedCostByCurrency: UsageLedgerCostBackfillCurrencyTotal[]
+}
+
+export interface UsageLedgerCostBackfillRunResponse extends UsageLedgerCostBackfillPreviewResponse {
+  updatedCount: number
 }
 
 // ============================================================================
@@ -137,6 +188,22 @@ export type UsageLedgerSchemas = {
     GET: {
       query?: UsageLedgerTimelineQuery
       response: UsageLedgerTimelineResponse
+    }
+  }
+
+  '/usage-ledger/cost-backfill/preview': {
+    /** Preview historical usage rows whose missing cost can be computed from current pricing */
+    GET: {
+      query: UsageLedgerCostBackfillQuery
+      response: UsageLedgerCostBackfillPreviewResponse
+    }
+  }
+
+  '/usage-ledger/cost-backfill/run': {
+    /** Fill missing historical usage costs using current pricing for one model */
+    POST: {
+      body: UsageLedgerCostBackfillQuery
+      response: UsageLedgerCostBackfillRunResponse
     }
   }
 }

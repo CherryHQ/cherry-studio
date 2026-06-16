@@ -19,13 +19,41 @@ import { providerService } from '../ProviderService'
 
 const logger = loggerService.withContext('DataApi:CostEnrichment')
 
-function buildPricingSnapshot(pricing: RuntimeModelPricing): NonNullable<MessageStats['pricingSnapshot']> {
+export interface ComputedCostSnapshot {
+  cost: number
+  costCurrency: NonNullable<MessageStats['costCurrency']>
+  costSource: 'computed'
+  costBreakdown: NonNullable<MessageStats['costBreakdown']>
+  pricingSnapshot: NonNullable<MessageStats['pricingSnapshot']>
+}
+
+function buildPricingSnapshot(
+  pricing: RuntimeModelPricing,
+  capturedAt: string
+): NonNullable<MessageStats['pricingSnapshot']> {
   return {
     ...(pricing.input?.perMillionTokens != null ? { input: pricing.input.perMillionTokens } : {}),
     ...(pricing.output?.perMillionTokens != null ? { output: pricing.output.perMillionTokens } : {}),
     ...(pricing.cacheRead?.perMillionTokens != null ? { cacheRead: pricing.cacheRead.perMillionTokens } : {}),
     ...(pricing.cacheWrite?.perMillionTokens != null ? { cacheWrite: pricing.cacheWrite.perMillionTokens } : {}),
-    capturedAt: new Date().toISOString()
+    capturedAt
+  }
+}
+
+export function computeStatsCostSnapshot(
+  stats: MessageStats,
+  pricing: RuntimeModelPricing,
+  capturedAt = new Date().toISOString()
+): ComputedCostSnapshot | undefined {
+  const computed = computeLanguageCost(stats, pricing)
+  if (!computed) return undefined
+
+  return {
+    cost: computed.cost,
+    costCurrency: computed.currency,
+    costSource: 'computed',
+    costBreakdown: computed.breakdown,
+    pricingSnapshot: buildPricingSnapshot(pricing, capturedAt)
   }
 }
 
@@ -70,7 +98,7 @@ export async function enrichStatsWithCost(
       })
   ])
 
-  const computed = pricing ? computeLanguageCost(stats, pricing) : undefined
+  const computed = pricing ? computeStatsCostSnapshot(stats, pricing) : undefined
   const trustProvider = reportsActualCost && typeof providerCostUsd === 'number'
 
   if (!trustProvider && !computed) return stats
@@ -82,16 +110,16 @@ export async function enrichStatsWithCost(
     enriched.costCurrency = 'USD'
     // Cross-check breakdown + rate snapshot, but only when same currency to
     // avoid mixing a USD provider total with non-USD computed figures.
-    if (computed && computed.currency === 'USD' && pricing) {
-      enriched.costBreakdown = computed.breakdown
-      enriched.pricingSnapshot = buildPricingSnapshot(pricing)
+    if (computed && computed.costCurrency === 'USD') {
+      enriched.costBreakdown = computed.costBreakdown
+      enriched.pricingSnapshot = computed.pricingSnapshot
     }
-  } else if (computed && pricing) {
+  } else if (computed) {
     enriched.cost = computed.cost
     enriched.costSource = 'computed'
-    enriched.costCurrency = computed.currency
-    enriched.costBreakdown = computed.breakdown
-    enriched.pricingSnapshot = buildPricingSnapshot(pricing)
+    enriched.costCurrency = computed.costCurrency
+    enriched.costBreakdown = computed.costBreakdown
+    enriched.pricingSnapshot = computed.pricingSnapshot
   }
   return enriched
 }

@@ -1785,6 +1785,7 @@
     "on": "Pornit",
     "open": "Deschide",
     "open_in": "Deschide în {{name}}",
+    "other": "[to be translated]:Other",
     "paste": "Lipește",
     "placeholders": {
       "select": {
@@ -3390,6 +3391,7 @@
     },
     "pinned": "Fixat",
     "price": {
+      "cache_read": "[to be translated]:Cache Read Price",
       "cost": "Cost",
       "currency": "Monedă",
       "custom": "Personalizat",
@@ -5924,7 +5926,7 @@
       "system": "Sistem"
     },
     "messages": {
-      "cache_read_tokens": "[to be translated]:Cached input tokens read",
+      "cache_read_tokens": "Tokeni de intrare citiți din cache",
       "divider": {
         "label": "Afișează divizor între mesaje",
         "tooltip": "Nu se aplică mesajelor stil bulă"
@@ -5957,7 +5959,7 @@
         "none": "Niciunul"
       },
       "prompt": "Afișează prompt",
-      "reasoning_tokens": "[to be translated]:Reasoning tokens",
+      "reasoning_tokens": "Token-uri de raționament",
       "show_message_outline": "Afișează conturul mesajului",
       "title": "Setări mesaje",
       "use_serif_font": "Folosește font serif"
@@ -7047,80 +7049,130 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "[to be translated]:Active days",
-        "costHint": "[to be translated]:Cost is grouped by currency.",
-        "dailyAverage": "[to be translated]:Daily average",
-        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
-        "none": "[to be translated]:N/A",
-        "peakDay": "[to be translated]:Peak day",
-        "streak": "[to be translated]:Longest streak: {{days}} days",
-        "topModel": "[to be translated]:Top model",
-        "totalCost": "[to be translated]:Total cost",
-        "totalTokens": "[to be translated]:Total tokens"
+        "activeDays": "Zile active",
+        "cacheHitRate": "[to be translated]:Cache hit rate",
+        "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
+        "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
+        "costHint": "Costul este grupat după monedă.",
+        "dailyAverage": "Medie zilnică",
+        "lastPeriod": "față de perioada anterioară",
+        "mixedCurrency": "Mai multe monede sunt afișate separat.",
+        "none": "N/A",
+        "peakDay": "Zi de vârf",
+        "providerAuth": "[to be translated]:Provider auth",
+        "streak": "Cea mai lungă serie: {{days}} zile",
+        "topModel": "Top model",
+        "totalCost": "Cost total",
+        "totalRequests": "Solicitări",
+        "totalTokens": "Total jetoane",
+        "unattributedApiKey": "[to be translated]:Unattributed request",
+        "unattributedSource": "[to be translated]:Unattributed source"
+      },
+      "chart": {
+        "bar": "[to be translated]:Bar",
+        "line": "[to be translated]:Line",
+        "pie": "[to be translated]:Pie",
+        "stack": "[to be translated]:Stack"
+      },
+      "costBackfill": {
+        "action": "[to be translated]:Backfill historical cost",
+        "available": "[to be translated]:{{count}} historical usage records are missing cost and can be calculated with current pricing.",
+        "confirm": "[to be translated]:Will update {{count}} records. Estimated cost: {{cost}}.",
+        "noPricing": "[to be translated]:Set model pricing before backfilling historical cost.",
+        "success": "[to be translated]:Backfilled {{count}} historical cost records."
       },
       "empty": {
-        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
-        "title": "[to be translated]:No usage yet"
+        "description": "Utilizarea apare după ce solicitările AI creează intrări în registru.",
+        "title": "Nicio utilizare încă"
       },
       "explore": {
-        "allProviders": "[to be translated]:All providers",
-        "breakdown": "[to be translated]:Breakdown",
-        "clearDate": "[to be translated]:Clear date filter",
-        "entries": "[to be translated]:Entries",
-        "loadMore": "[to be translated]:Load more",
-        "loading": "[to be translated]:Loading...",
-        "noBreakdown": "[to be translated]:No breakdown data",
-        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
-        "noEntries": "[to be translated]:No entries",
-        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
-        "provider": "[to be translated]:Provider",
-        "selectedDate": "[to be translated]:Selected date: {{date}}",
-        "title": "[to be translated]:Explore",
-        "totalEntries": "[to be translated]:{{count}} entries"
+        "activity": "[to be translated]:Activity",
+        "allProviders": "Toți furnizorii",
+        "analysis": "[to be translated]:Analysis",
+        "breakdown": "Defalcare",
+        "breakdownTab": "[to be translated]:Breakdown",
+        "cacheUsage": "[to be translated]:Cache usage",
+        "chart": "[to be translated]:Chart",
+        "clearDate": "Șterge filtrul de dată",
+        "costDrivers": "[to be translated]:Cost drivers",
+        "drilldownTitle": "[to be translated]:{{date}} drilldown",
+        "entries": "Intrări",
+        "groupBy": "[to be translated]:Group by",
+        "loadMore": "Încarcă mai mult",
+        "loading": "Se încarcă...",
+        "metric": "[to be translated]:Metric",
+        "noBreakdown": "Nu există date defalcate",
+        "noBreakdownDescription": "Încearcă o fereastră mai largă sau un furnizor diferit.",
+        "noEntries": "Nicio intrare",
+        "noEntriesDescription": "Încearcă o fereastră mai largă sau un furnizor diferit.",
+        "provider": "Furnizor",
+        "requestsTab": "[to be translated]:Requests",
+        "selectedDate": "Data selectată: {{date}}",
+        "share": "[to be translated]:Share {{value}}",
+        "shareLabel": "[to be translated]:Share",
+        "title": "Explorează",
+        "topApiKeys": "[to be translated]:Top API keys",
+        "topModels": "[to be translated]:Top models",
+        "topProviders": "[to be translated]:Top providers",
+        "topSources": "[to be translated]:Top assistants / agents",
+        "totalEntries": "{{count}} intrări"
       },
       "groupBy": {
-        "apiKey": "[to be translated]:API key",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider"
+        "apiKey": "Cheie API",
+        "model": "Model",
+        "provider": "Furnizor",
+        "source": "[to be translated]:Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "[to be translated]:Usage on {{date}}",
-        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
-        "title": "[to be translated]:Daily activity"
+        "ariaDate": "Utilizare la {{date}}",
+        "costDisabled": "Vizualizarea costurilor este disponibilă doar atunci când această fereastră are o singură monedă.",
+        "title": "Activitate zilnică"
       },
       "metric": {
-        "cost": "[to be translated]:Cost",
-        "tokens": "[to be translated]:Tokens"
+        "cost": "Cost",
+        "requests": "[to be translated]:Requests",
+        "tokens": "Tokeni"
       },
       "modality": {
-        "embedding": "[to be translated]:Embedding",
-        "image": "[to be translated]:Image",
-        "language": "[to be translated]:Language"
+        "embedding": "Incorporare",
+        "image": "Imagine",
+        "language": "Limbă"
       },
       "overview": {
         "title": "[to be translated]:Overview"
       },
-      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{activeDays}} active days / longest {{streak}} days",
-      "table": {
-        "apiKey": "[to be translated]:API key",
-        "cost": "[to be translated]:Cost",
-        "date": "[to be translated]:Date",
-        "modality": "[to be translated]:Type",
-        "model": "[to be translated]:Model",
-        "provider": "[to be translated]:Provider",
-        "tokens": "[to be translated]:Tokens"
+      "source": {
+        "agent": "[to be translated]:Agent",
+        "assistant": "[to be translated]:Assistant",
+        "unknown": "[to be translated]:Unattributed"
       },
-      "title": "[to be translated]:Usage Footprint",
+      "summary": "{{window}} / {{tokens}} jetoane / {{requests}} solicitări / {{activeDays}} zile active",
+      "table": {
+        "apiKey": "Cheie API",
+        "cost": "Cost",
+        "date": "Dată",
+        "modality": "Tip",
+        "model": "Model",
+        "provider": "Furnizor",
+        "request": "[to be translated]:Request",
+        "source": "[to be translated]:Source",
+        "tokens": "Tokeni",
+        "tps": "TPS",
+        "tpsValue": "{{value}} tok/s",
+        "ttft": "TTFT"
+      },
+      "title": "Amprentă de utilizare",
       "tooltip": {
-        "cost": "[to be translated]:Cost {{value}}",
-        "requests": "[to be translated]:{{count}} requests",
-        "tokens": "[to be translated]:{{value}} tokens"
+        "cost": "Cost {{value}}",
+        "metric": "{{value}}",
+        "requests": "{{count}} solicitări",
+        "tokens": "{{value}} jetoane"
       },
       "window": {
-        "30d": "[to be translated]:Last 30 days",
-        "365d": "[to be translated]:Last year",
-        "90d": "[to be translated]:Last 90 days",
-        "all": "[to be translated]:All time"
+        "30d": "Ultimele 30 de zile",
+        "365d": "Anul trecut",
+        "90d": "Ultimele 90 de zile",
+        "all": "Tot timpul"
       }
     },
     "use_system_title_bar": {
@@ -7158,34 +7210,34 @@
     "translate": "Traducere"
   },
   "trace": {
-    "agent": "[to be translated]:Agent",
-    "backList": "[to be translated]:Back To List",
-    "cachedTokens": "[to be translated]:Cached",
-    "endTime": "[to be translated]:End Time",
-    "inputs": "[to be translated]:Inputs",
-    "label": "[to be translated]:Call Chain",
-    "model": "[to be translated]:Model",
-    "name": "[to be translated]:Node Name",
-    "noTraceList": "[to be translated]:No trace information found",
-    "operation": "[to be translated]:Operation",
-    "outputs": "[to be translated]:Outputs",
-    "pollError": "[to be translated]:Polling failed",
-    "reasoningTokens": "[to be translated]:Reasoning",
-    "requestHeaders": "[to be translated]:Request Headers",
-    "requestMethod": "[to be translated]:Request Method",
-    "requestUrl": "[to be translated]:Request URL",
-    "responseHeaders": "[to be translated]:Response Headers",
-    "responseStatus": "[to be translated]:Response Status",
-    "serverDescription": "[to be translated]:Server Description",
-    "serverName": "[to be translated]:Server Name",
-    "serverType": "[to be translated]:Server Type",
-    "spanDetail": "[to be translated]:Span Details",
-    "spendTime": "[to be translated]:Spend Time",
-    "startTime": "[to be translated]:Start Time",
-    "status": "[to be translated]:Status",
-    "tag": "[to be translated]:Tag",
-    "tokenUsage": "[to be translated]:Token Usage",
-    "toolCalls": "[to be translated]:Tool Calls"
+    "agent": "Agent",
+    "backList": "Înapoi la listă",
+    "cachedTokens": "În cache",
+    "endTime": "Ora de sfârșit",
+    "inputs": "Intrări",
+    "label": "Lanț de apelare",
+    "model": "Model",
+    "name": "Nod Nume",
+    "noTraceList": "Nu s-a găsit nicio informație de urmărire",
+    "operation": "Operațiune",
+    "outputs": "Ieșiri",
+    "pollError": "Sondajul a eșuat",
+    "reasoningTokens": "Raționament",
+    "requestHeaders": "Anteturi de solicitare",
+    "requestMethod": "Metoda cererii",
+    "requestUrl": "URL cerere",
+    "responseHeaders": "Anteturi de răspuns",
+    "responseStatus": "Stare Răspuns",
+    "serverDescription": "Descrierea serverului",
+    "serverName": "Nume Server",
+    "serverType": "Tip server",
+    "spanDetail": "Detalii despre deschidere",
+    "spendTime": "Petrece timp",
+    "startTime": "Ora de început",
+    "status": "Stare",
+    "tag": "Etichetă",
+    "tokenUsage": "Utilizare token",
+    "toolCalls": "Apeluri de instrumente"
   },
   "translate": {
     "alter_language": "Limbă alternativă",
