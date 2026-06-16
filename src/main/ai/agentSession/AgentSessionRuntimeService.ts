@@ -14,7 +14,7 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
-import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -295,7 +295,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (updates.configuration !== undefined) {
       await this.applyAgentPolicyUpdate(agentId, {
         type: 'permission-mode',
-        permissionMode: agent.configuration?.permission_mode as AgentPermissionMode | undefined
+        permissionMode: agent.configuration?.permission_mode
       })
     }
 
