@@ -85,12 +85,16 @@
   --cs-highlight-foreground: #2e4d18;
 
   /* Elevated "metallic" CTA (Button default variant) — vertical gradient that
-   * flips light-on-dark per mode. (The rim-light box-shadow lives inline in
-   * button.tsx; a box-shadow can't be a --color-* token without breaking the
-   * Tailwind @theme color namespace.) */
+   * flips light-on-dark per mode. The shadow expression itself stays inline in
+   * button.tsx (a box-shadow can't be a --color-* token under Tailwind @theme),
+   * but every color slot inside it is a token below so palette tweaks live here. */
   --cs-button-elevated-from: #323232;
   --cs-button-elevated-to: #222222;
   --cs-button-elevated-foreground: #fcfcfc;
+  --cs-button-elevated-shadow: rgba(13, 13, 13, 0.5);
+  --cs-button-elevated-rim: #333333;
+  --cs-button-elevated-highlight: rgba(255, 255, 255, 0.15);
+  --cs-button-elevated-inner-shadow: #121212;
 }
 
 /* Dark Mode */
@@ -146,4 +150,8 @@
   --cs-button-elevated-from: #f5f5f5;
   --cs-button-elevated-to: #e8e8e8;
   --cs-button-elevated-foreground: #1a1c1f;
+  --cs-button-elevated-shadow: rgba(0, 0, 0, 0.25);
+  --cs-button-elevated-rim: #d0d0d0;
+  --cs-button-elevated-highlight: rgba(255, 255, 255, 0.7);
+  --cs-button-elevated-inner-shadow: rgba(0, 0, 0, 0.08);
 }

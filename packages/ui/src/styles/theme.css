@@ -335,6 +335,10 @@
   --color-button-elevated-from: var(--cs-button-elevated-from);
   --color-button-elevated-to: var(--cs-button-elevated-to);
   --color-button-elevated-foreground: var(--cs-button-elevated-foreground);
+  --color-button-elevated-shadow: var(--cs-button-elevated-shadow);
+  --color-button-elevated-rim: var(--cs-button-elevated-rim);
+  --color-button-elevated-highlight: var(--cs-button-elevated-highlight);
+  --color-button-elevated-inner-shadow: var(--cs-button-elevated-inner-shadow);
 
   /* ==================== */
   /* Status Colors */

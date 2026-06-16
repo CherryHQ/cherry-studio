@@ -23,8 +23,8 @@ const buttonVariants = cva(
         default: cn(
           'rounded-[10px] font-semibold tracking-tight',
           'bg-gradient-to-b from-[var(--cs-button-elevated-from)] to-[var(--cs-button-elevated-to)] text-[color:var(--cs-button-elevated-foreground)]',
-          'shadow-[0_2px_4px_-1px_rgba(13,13,13,0.5),0_0_0_1px_#333,inset_0_0.5px_1px_rgba(255,255,255,0.15),inset_0_-1px_1.2px_0.35px_#121212]',
-          'dark:shadow-[0_2px_4px_-1px_rgba(0,0,0,0.25),0_0_0_1px_#d0d0d0,inset_0_0.5px_1px_rgba(255,255,255,0.7),inset_0_-1px_1.2px_0.35px_rgba(0,0,0,0.08)]',
+          'shadow-[0_2px_4px_-1px_var(--cs-button-elevated-shadow),0_0_0_1px_var(--cs-button-elevated-rim),inset_0_0.5px_1px_var(--cs-button-elevated-highlight),inset_0_-1px_1.2px_0.35px_var(--cs-button-elevated-inner-shadow)]',
+          'dark:shadow-[0_2px_4px_-1px_var(--cs-button-elevated-shadow),0_0_0_1px_var(--cs-button-elevated-rim),inset_0_0.5px_1px_var(--cs-button-elevated-highlight),inset_0_-1px_1.2px_0.35px_var(--cs-button-elevated-inner-shadow)]',
           'active:from-[var(--cs-button-elevated-to)] active:to-[var(--cs-button-elevated-from)]',
           'focus-visible:from-[var(--cs-button-elevated-to)] focus-visible:to-[var(--cs-button-elevated-from)]',
           'disabled:opacity-30 data-[loading=true]:opacity-30'
