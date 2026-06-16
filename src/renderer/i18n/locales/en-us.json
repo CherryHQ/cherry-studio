@@ -6433,6 +6433,8 @@
         "logo_upload_label": "Upload Logo",
         "name": "Name",
         "name_placeholder": "Enter name",
+        "remove_confirm_description": "Delete custom mini app \"{{name}}\"? This action cannot be undone.",
+        "remove_confirm_title": "Delete custom mini app?",
         "remove_error": "Failed to remove custom mini app.",
         "remove_success": "Custom mini app removed successfully.",
         "save_error": "Failed to save custom mini app.",

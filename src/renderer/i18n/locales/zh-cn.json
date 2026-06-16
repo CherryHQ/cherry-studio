@@ -6433,6 +6433,8 @@
         "logo_upload_label": "上传 Logo",
         "name": "名称",
         "name_placeholder": "请输入名称",
+        "remove_confirm_description": "确定要删除自定义小程序「{{name}}」吗？此操作无法撤销。",
+        "remove_confirm_title": "删除自定义小程序？",
         "remove_error": "自定义小程序删除失败",
         "remove_success": "自定义小程序删除成功",
         "save_error": "自定义小程序保存失败",
