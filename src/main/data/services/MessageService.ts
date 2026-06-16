@@ -282,6 +282,11 @@ export class MessageService {
     // Without an explicit root, the flow canvas is a topic-level view: every
     // first-turn message (child of the virtual root) starts its own tree.
     const explicitRootId = options.rootId
+    // The virtual root is never a renderable tree node; using it as an explicit root
+    // would feed it to messageToTreeNode (which throws on a parentless node).
+    if (explicitRootId && explicitRootId === virtualRootId) {
+      throw DataApiErrorFactory.invalidOperation('get tree', 'rootId cannot be the virtual root')
+    }
     const rootIds = explicitRootId
       ? [explicitRootId]
       : virtualRootId
@@ -788,6 +793,14 @@ export class MessageService {
       if (!source) {
         throw DataApiErrorFactory.notFound('Message', sourceId)
       }
+      // The virtual root has no siblings — copying its null parentId would insert a second
+      // null-parent row and hit message_topic_root_uniq.
+      if (source.role === 'root' || source.parentId === null) {
+        throw DataApiErrorFactory.invalidOperation(
+          'create sibling of the virtual root',
+          'the virtual root has no siblings'
+        )
+      }
 
       let siblingsGroupId = source.siblingsGroupId ?? 0
       if (siblingsGroupId === 0) {
@@ -848,7 +861,7 @@ export class MessageService {
     const [row] = await tx
       .select({ id: messageTable.id })
       .from(messageTable)
-      .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId)))
+      .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId), isNull(messageTable.deletedAt)))
       .limit(1)
     if (!row) {
       throw DataApiErrorFactory.invalidOperation('resolve root message', `Topic ${topicId} has no virtual root`)
@@ -1231,13 +1244,26 @@ export class MessageService {
       // parent is the root) must clear activeNodeId, not point it at the root. The parent
       // is always an ancestor (never in deletedIds), so it survives the delete below.
       let parentFallback: string | null = message.parentId
+      let parentIsRoot = false
       if (parentFallback) {
         const [parent] = await tx
           .select({ role: messageTable.role })
           .from(messageTable)
           .where(eq(messageTable.id, parentFallback))
           .limit(1)
-        if (!parent || parent.role === 'root') parentFallback = null
+        parentIsRoot = parent?.role === 'root'
+        if (!parent || parentIsRoot) parentFallback = null
+      }
+
+      // Non-cascade delete of a first-turn message (parent = virtual root) would reparent
+      // its children onto the root, promoting replies to bogus first turns (e.g. an
+      // assistant with no user prompt). The children can't live above the first turn, so
+      // require cascade. INVALID_OPERATION lets the renderer retry with cascade=true.
+      if (!cascade && parentIsRoot) {
+        throw DataApiErrorFactory.invalidOperation(
+          'reparent-delete first-turn message',
+          'deleting a first-turn message requires cascade=true'
+        )
       }
 
       if (cascade) {

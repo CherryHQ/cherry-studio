@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "8dafe9ef-c9bc-4cb5-8acc-162d6025d6e7",
+  "id": "72767170-e9b3-43e2-bae3-24b78d6d60e6",
   "prevId": "f0f0edbf-6464-4f08-914c-43c662a6c066",
   "tables": {
     "agent": {
@@ -2414,7 +2414,7 @@
           "name": "message_topic_root_uniq",
           "columns": ["topic_id"],
           "isUnique": true,
-          "where": "\"message\".\"parent_id\" is null"
+          "where": "\"message\".\"parent_id\" is null and \"message\".\"deleted_at\" is null"
         }
       },
       "foreignKeys": {
