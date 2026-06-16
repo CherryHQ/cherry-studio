@@ -308,13 +308,14 @@ class DataExtractor {
 
     const interfaceBody = interfaceMatch[1]
     const lines = interfaceBody.split('\n')
+    let depth = 0
 
     for (const line of lines) {
       const trimmed = line.trim()
       if (!trimmed || trimmed.startsWith('//') || trimmed.startsWith('/*')) continue
 
       // Match field: type pattern
-      const fieldMatch = trimmed.match(/^(\w+)(\?)?:\s*([^;]+)/)
+      const fieldMatch = depth === 0 ? trimmed.match(/^(\w+)(\?)?:\s*([^;]+)/) : null
       if (fieldMatch) {
         const fieldName = fieldMatch[1]
         let fieldType = fieldMatch[3].trim().replace(/[,;]$/, '')
@@ -324,6 +325,9 @@ class DataExtractor {
           defaultValue: null
         }
       }
+
+      depth += (trimmed.match(/\{/g) || []).length
+      depth -= (trimmed.match(/\}/g) || []).length
     }
 
     return fields
