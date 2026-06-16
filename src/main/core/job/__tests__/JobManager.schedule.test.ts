@@ -13,6 +13,7 @@
 
 import { application } from '@application'
 import { jobScheduleService } from '@data/services/JobScheduleService'
+import { jobService } from '@data/services/JobService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandler } from '@main/core/job/types'
 import { BaseService } from '@main/core/lifecycle/BaseService'
@@ -23,7 +24,7 @@ import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { MockMainDbServiceExport } from '@test-mocks/main/DbService'
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Locally augment JobRegistry so test payloads type-check. The dummy entry is
 // removed from the JS surface after compile and never enters production code.
@@ -53,6 +54,20 @@ function makeNoopHandler(): JobHandler {
 
 const baseTrigger: Trigger = { kind: 'interval', ms: 60_000 }
 const altTrigger: Trigger = { kind: 'interval', ms: 30_000 }
+
+function clearScheduleDisposables(jobManager: JobManager) {
+  const map = (jobManager as unknown as { scheduleDisposables: Map<string, Disposable> }).scheduleDisposables
+  for (const disp of map.values()) disp.dispose()
+  map.clear()
+}
+
+async function waitForImmediateJobsToDrain() {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const active = await jobService.list({ status: ['pending', 'running'] })
+    if (active.length === 0) return
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+}
 
 describe('JobManager schedule control APIs', () => {
   setupTestDatabase()
@@ -109,9 +124,12 @@ describe('JobManager schedule control APIs', () => {
   // restore the application.get() mockImplementation set in beforeAll,
   // breaking subsequent tests. Each spy below uses .mockRestore() locally.
   beforeEach(() => {
-    const map = (jobManager as unknown as { scheduleDisposables: Map<string, Disposable> }).scheduleDisposables
-    for (const disp of map.values()) disp.dispose()
-    map.clear()
+    clearScheduleDisposables(jobManager)
+  })
+
+  afterEach(async () => {
+    clearScheduleDisposables(jobManager)
+    await waitForImmediateJobsToDrain()
   })
 
   // ----------------------------------------------------------------------
