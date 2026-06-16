@@ -57,7 +57,7 @@ export const CODE_CLI_PRESET_MAP = {
   'openai-codex': { name: 'OpenAI Codex', ...DEFAULT_CONFIG },
   'iflow-cli': { name: 'iFlow CLI', ...DEFAULT_CONFIG },
   'github-copilot-cli': { name: 'GitHub Copilot CLI', ...DEFAULT_CONFIG },
-  'kimi-cli': { name: 'Kimi CLI', ...DEFAULT_CONFIG },
+  'kimi-cli': { name: 'Kimi Code', ...DEFAULT_CONFIG },
   opencode: { name: 'OpenCode', ...DEFAULT_CONFIG }
 } as const satisfies Record<CodeCliId, CodeCliPresetConfig>
 

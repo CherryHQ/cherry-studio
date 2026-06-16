@@ -1,14 +1,12 @@
-import { Button, ConfirmDialog, EmptyState, Scrollbar } from '@cherrystudio/ui'
+import { Button, EmptyState, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { normalizeKnowledgeError } from '@renderer/pages/knowledge/utils'
-import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem, KnowledgeItemChunk } from '@shared/data/types/knowledge'
-import { ArrowLeft, Trash2 } from 'lucide-react'
-import type { MouseEvent } from 'react'
+import { ArrowLeft } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { toKnowledgeItemRowViewModel } from './utils/selectors'
@@ -22,53 +20,11 @@ interface KnowledgeItemChunkDetailPanelProps {
   onBack: () => void
 }
 
-const KnowledgeItemChunkActionButton = ({
-  label,
-  className,
-  children,
-  disabled,
-  onClick
-}: {
-  label: string
-  className?: string
-  children: ReactNode
-  disabled?: boolean
-  onClick?: () => void
-}) => {
-  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    onClick?.()
-  }
-
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      aria-label={label}
-      className={cn(
-        'size-5 min-h-5 rounded p-0 text-foreground-muted shadow-none transition-colors hover:bg-accent hover:text-foreground',
-        className
-      )}
-      disabled={disabled}
-      onClick={handleClick}>
-      {children}
-    </Button>
-  )
-}
-
-const KnowledgeItemChunkCard = ({
-  chunk,
-  isDeleting,
-  onDelete
-}: {
-  chunk: KnowledgeItemChunk
-  isDeleting: boolean
-  onDelete: (chunk: KnowledgeItemChunk) => void
-}) => {
+const KnowledgeItemChunkCard = ({ chunk }: { chunk: KnowledgeItemChunk }) => {
   const { t } = useTranslation()
 
   return (
-    <div className="group/ck rounded-lg border border-border-subtle transition-all hover:border-border-hover">
+    <div className="rounded-lg border border-border-subtle transition-all hover:border-border-hover">
       <div className="flex items-center gap-2 px-3 py-2">
         <span className="flex size-5 shrink-0 items-center justify-center rounded bg-accent text-foreground-muted text-xs leading-4">
           {chunk.metadata.chunkIndex}
@@ -76,15 +32,6 @@ const KnowledgeItemChunkCard = ({
         <span className="flex-1 text-foreground-muted text-xs leading-4">
           {chunk.metadata.tokenCount} {t('knowledge.rag.tokens_unit')}
         </span>
-        <div className="flex items-center gap-0.5 opacity-0 transition-all group-hover/ck:opacity-100">
-          <KnowledgeItemChunkActionButton
-            label={t('common.delete')}
-            className="hover:bg-error-bg hover:text-error-text"
-            disabled={isDeleting}
-            onClick={() => onDelete(chunk)}>
-            <Trash2 className="size-3" />
-          </KnowledgeItemChunkActionButton>
-        </div>
       </div>
       <div className="px-3 pb-3">
         <p className="line-clamp-2 text-foreground-secondary text-sm leading-relaxed">{chunk.content}</p>
@@ -120,9 +67,6 @@ const KnowledgeItemChunkDetailPanel = ({
   const [chunks, setChunks] = useState<KnowledgeItemChunk[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
-  const [deletingChunkId, setDeletingChunkId] = useState<string | null>(null)
-  const [pendingDeleteChunk, setPendingDeleteChunk] = useState<KnowledgeItemChunk | null>(null)
-  const keepDeleteDialogOpenRef = useRef(false)
   const item = fetchedItem ?? initialItem
   const viewModel = item ? toKnowledgeItemRowViewModel(item, language) : null
   const Icon = viewModel?.icon.icon
@@ -166,41 +110,6 @@ const KnowledgeItemChunkDetailPanel = ({
       isActive = false
     }
   }, [baseId, itemId])
-
-  const handleRequestDeleteChunk = (chunk: KnowledgeItemChunk) => {
-    keepDeleteDialogOpenRef.current = false
-    setPendingDeleteChunk(chunk)
-  }
-
-  const handleConfirmDeleteChunk = async () => {
-    const chunk = pendingDeleteChunk
-    if (!chunk) {
-      return
-    }
-
-    setDeletingChunkId(chunk.id)
-    setError(null)
-    keepDeleteDialogOpenRef.current = false
-
-    try {
-      await window.api.knowledge.deleteItemChunk(baseId, chunk.itemId, chunk.id)
-      setChunks((currentChunks) => currentChunks.filter((currentChunk) => currentChunk.id !== chunk.id))
-      setPendingDeleteChunk(null)
-    } catch (chunkError) {
-      const normalizedError = normalizeKnowledgeError(chunkError)
-
-      logger.error('Failed to delete knowledge item chunk', normalizedError, {
-        baseId,
-        itemId: chunk.itemId,
-        chunkId: chunk.id
-      })
-      setError(normalizedError)
-      window.toast.error(formatErrorMessageWithPrefix(normalizedError, t('knowledge.data_source.delete_failed')))
-      keepDeleteDialogOpenRef.current = true
-    } finally {
-      setDeletingChunkId(null)
-    }
-  }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -254,35 +163,11 @@ const KnowledgeItemChunkDetailPanel = ({
         {!isItemLoading && !isLoading && !itemError && chunks.length > 0 ? (
           <div className="space-y-2">
             {chunks.map((chunk) => (
-              <KnowledgeItemChunkCard
-                key={chunk.id}
-                chunk={chunk}
-                isDeleting={deletingChunkId === chunk.id}
-                onDelete={handleRequestDeleteChunk}
-              />
+              <KnowledgeItemChunkCard key={chunk.id} chunk={chunk} />
             ))}
           </div>
         ) : null}
       </Scrollbar>
-      <ConfirmDialog
-        open={Boolean(pendingDeleteChunk)}
-        onOpenChange={(open) => {
-          if (!open) {
-            if (keepDeleteDialogOpenRef.current) {
-              keepDeleteDialogOpenRef.current = false
-              return
-            }
-            setPendingDeleteChunk(null)
-          }
-        }}
-        title={t('knowledge.data_source.chunk_delete_confirm_title')}
-        description={t('knowledge.data_source.chunk_delete_confirm_description')}
-        confirmText={t('common.delete')}
-        cancelText={t('common.cancel')}
-        destructive
-        confirmLoading={Boolean(deletingChunkId)}
-        onConfirm={handleConfirmDeleteChunk}
-      />
     </div>
   )
 }

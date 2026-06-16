@@ -11,7 +11,7 @@
 import { application } from '@application'
 import { type MessageRow, messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
-import type { DbOrTx } from '@data/db/types'
+import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -182,6 +182,13 @@ type MessageContentSearchInput = {
 }
 
 export class MessageService {
+  async purgeByTopicIdsTx(tx: Pick<DbType, 'delete'>, topicIds: string[]): Promise<void> {
+    const uniqueTopicIds = Array.from(new Set(topicIds))
+    if (uniqueTopicIds.length === 0) return
+
+    await tx.delete(messageTable).where(inArray(messageTable.topicId, uniqueTopicIds))
+  }
+
   /**
    * Get tree structure for visualization
    *

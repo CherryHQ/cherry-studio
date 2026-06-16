@@ -269,8 +269,7 @@ describe('KnowledgeMappings', () => {
         type: 'note',
         data: {
           source: 'https://dexie.example.com',
-          content: 'dexie-content',
-          sourceUrl: 'https://dexie.example.com'
+          content: 'dexie-content'
         },
         status: 'idle',
         error: null,
@@ -338,8 +337,7 @@ describe('KnowledgeMappings', () => {
         type: 'note',
         data: {
           source: 'https://example.com/origin',
-          content: '',
-          sourceUrl: 'https://example.com/origin'
+          content: ''
         }
       })
     })
@@ -369,8 +367,7 @@ describe('KnowledgeMappings', () => {
         type: 'note',
         data: {
           source: 'recoverable body',
-          content: 'recoverable body',
-          sourceUrl: ''
+          content: 'recoverable body'
         }
       })
     })

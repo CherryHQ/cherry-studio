@@ -1,7 +1,7 @@
 import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
 import { PROVIDER_ICON_CATALOG } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
-import { getProviderLabel } from '@renderer/i18n/label'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import { Search } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
@@ -19,14 +19,14 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
     const providers = Object.entries(PROVIDER_ICON_CATALOG).map(([id, icon]) => ({
       id,
       icon,
-      name: getProviderLabel(id)
+      name: t(getProviderLabelKey(id))
     }))
 
     if (!searchText) return providers
 
     const searchLower = searchText.toLowerCase()
     return providers.filter((p) => p.name.toLowerCase().includes(searchLower))
-  }, [searchText])
+  }, [searchText, t])
 
   const handleProviderClick = (event: React.MouseEvent, providerId: string) => {
     event.stopPropagation()

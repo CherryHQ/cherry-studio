@@ -10,6 +10,7 @@ import {
   createReindexSubtreeJobHandler,
   deleteItemsByIdsMock,
   deleteKnowledgeItemFilesBestEffortMock,
+  deleteMaterialMock,
   FILE_ITEM_ID,
   getJobMock,
   knowledgeItemGetSubtreeItemsMock,
@@ -17,7 +18,6 @@ import {
   knowledgeItemUpdateStatusMock,
   knowledgeLockManager,
   listMock,
-  replaceByExternalIdMock,
   scheduleItemMock,
   workflowService
 } from './jobHandlerTestUtils'
@@ -37,7 +37,7 @@ describe('reindex-subtree job handler', () => {
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job'))
 
-    expect(replaceByExternalIdMock).toHaveBeenCalledWith('note-1', [])
+    expect(deleteMaterialMock).toHaveBeenCalledWith('note-1')
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['note-1'])
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('dir-1', 'preparing')
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'dir-1', 'reindex-job')
@@ -80,7 +80,7 @@ describe('reindex-subtree job handler', () => {
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'deleting' })
     expect(listMock).not.toHaveBeenCalled()
     expect(cancelMock).not.toHaveBeenCalled()
-    expect(replaceByExternalIdMock).not.toHaveBeenCalled()
+    expect(deleteMaterialMock).not.toHaveBeenCalled()
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
     expect(scheduleItemMock).not.toHaveBeenCalled()
@@ -97,7 +97,7 @@ describe('reindex-subtree job handler', () => {
     await handler.execute(ctx)
 
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'deleting', totalFiles: 0 })
-    expect(replaceByExternalIdMock).not.toHaveBeenCalled()
+    expect(deleteMaterialMock).not.toHaveBeenCalled()
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
     expect(scheduleItemMock).not.toHaveBeenCalled()

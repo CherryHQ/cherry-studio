@@ -11,12 +11,12 @@ import {
   createNoteItem,
   deleteItemsByIdsMock,
   deleteKnowledgeItemFilesBestEffortMock,
+  deleteMaterialMock,
   FILE_ITEM_ID,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
   knowledgeLockManager,
-  listMock,
-  replaceByExternalIdMock
+  listMock
 } from './jobHandlerTestUtils'
 
 describe('delete-subtree job handler', () => {
@@ -63,7 +63,7 @@ describe('delete-subtree job handler', () => {
     expect(cancelMock).toHaveBeenCalledWith('check-job', 'knowledge-delete-subtree')
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-delete-subtree')
     expect(cancelMock).not.toHaveBeenCalledWith('unrelated-job', expect.anything())
-    expect(replaceByExternalIdMock).toHaveBeenCalledWith('note-1', [])
+    expect(deleteMaterialMock).toHaveBeenCalledWith('note-1')
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['dir-1', 'note-1'])
   })
 
@@ -121,7 +121,7 @@ describe('delete-subtree job handler', () => {
       'cancel failed'
     )
 
-    expect(replaceByExternalIdMock).not.toHaveBeenCalled()
+    expect(deleteMaterialMock).not.toHaveBeenCalled()
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
   })
 
@@ -145,7 +145,7 @@ describe('delete-subtree job handler', () => {
       'Job cancel timed out: index-job'
     )
 
-    expect(replaceByExternalIdMock).not.toHaveBeenCalled()
+    expect(deleteMaterialMock).not.toHaveBeenCalled()
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
   })
 
@@ -157,7 +157,7 @@ describe('delete-subtree job handler', () => {
 
     expect(listMock).not.toHaveBeenCalled()
     expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
-    expect(replaceByExternalIdMock).not.toHaveBeenCalled()
+    expect(deleteMaterialMock).not.toHaveBeenCalled()
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
   })
 
@@ -170,7 +170,7 @@ describe('delete-subtree job handler', () => {
 
     expect(listMock).not.toHaveBeenCalled()
     expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
-    expect(replaceByExternalIdMock).not.toHaveBeenCalled()
+    expect(deleteMaterialMock).not.toHaveBeenCalled()
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
   })
 })

@@ -689,8 +689,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
 
     expect(noteItem?.data).toEqual({
       source: 'https://streamed.example.com',
-      content: 'streamed note content',
-      sourceUrl: 'https://streamed.example.com'
+      content: 'streamed note content'
     })
     expect(fileItem?.data).toEqual({
       source: '/tmp/report.pdf',

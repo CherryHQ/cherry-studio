@@ -8,10 +8,10 @@ import type * as PathStorage from '../../utils/storage/pathStorage'
 
 const mocks = vi.hoisted(() => ({
   cancelMock: vi.fn(),
-  createStoreMock: vi.fn(),
+  getIndexStoreMock: vi.fn(),
   enqueueMock: vi.fn(),
   getJobMock: vi.fn(),
-  getStoreIfExistsMock: vi.fn(),
+  getIndexStoreIfExistsMock: vi.fn(),
   deleteItemsByIdsMock: vi.fn(),
   deleteKnowledgeItemFilesBestEffortMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
@@ -20,19 +20,28 @@ const mocks = vi.hoisted(() => ({
   knowledgeItemSetSubtreeStatusMock: vi.fn(),
   knowledgeItemUpdateStatusMock: vi.fn(),
   knowledgeItemUpdateIndexedRelativePathMock: vi.fn(),
+  knowledgeItemGetItemsByBaseIdMock: vi.fn(),
+  knowledgeItemUpdateSnapshotRelativePathMock: vi.fn(),
   listMock: vi.fn(),
   loadKnowledgeItemDocumentsMock: vi.fn(),
   prepareKnowledgeItemMock: vi.fn(),
-  replaceByExternalIdMock: vi.fn(),
+  fetchKnowledgeWebPageMock: vi.fn(),
+  captureUrlSnapshotFileMock: vi.fn(),
+  captureNoteSnapshotFileMock: vi.fn(),
+  rebuildMaterialMock: vi.fn(),
+  deleteMaterialMock: vi.fn(),
+  listExistingEmbeddingHashesMock: vi.fn(),
+  embedKnowledgeTextsMock: vi.fn(),
+  loggerWarnMock: vi.fn(),
   scheduleItemMock: vi.fn()
 }))
 
 export const {
   cancelMock,
-  createStoreMock,
+  getIndexStoreMock,
   enqueueMock,
   getJobMock,
-  getStoreIfExistsMock,
+  getIndexStoreIfExistsMock,
   deleteItemsByIdsMock,
   deleteKnowledgeItemFilesBestEffortMock,
   knowledgeBaseGetByIdMock,
@@ -41,12 +50,35 @@ export const {
   knowledgeItemSetSubtreeStatusMock,
   knowledgeItemUpdateStatusMock,
   knowledgeItemUpdateIndexedRelativePathMock,
+  knowledgeItemGetItemsByBaseIdMock,
+  knowledgeItemUpdateSnapshotRelativePathMock,
   listMock,
   loadKnowledgeItemDocumentsMock,
   prepareKnowledgeItemMock,
-  replaceByExternalIdMock,
+  fetchKnowledgeWebPageMock,
+  captureUrlSnapshotFileMock,
+  captureNoteSnapshotFileMock,
+  rebuildMaterialMock,
+  deleteMaterialMock,
+  listExistingEmbeddingHashesMock,
+  embedKnowledgeTextsMock,
+  loggerWarnMock,
   scheduleItemMock
 } = mocks
+
+/**
+ * Deterministic, text-distinguishable fake embedding: a hash↔vector mis-pairing
+ * in the handler produces a vector that no longer matches `fakeEmbedVector(body)`
+ * for the body its hash derives from, so tests can detect it. (The real embed
+ * call is mocked out; only ordering/pairing is under test here.)
+ */
+export function fakeEmbedVector(text: string): number[] {
+  let codePointSum = 0
+  for (const ch of text) {
+    codePointSum += ch.codePointAt(0) ?? 0
+  }
+  return [text.length, codePointSum, text.codePointAt(0) ?? 0]
+}
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -58,8 +90,8 @@ vi.mock('@application', async () => {
       list: listMock
     },
     KnowledgeVectorStoreService: {
-      createStore: createStoreMock,
-      getStoreIfExists: getStoreIfExistsMock
+      getIndexStore: getIndexStoreMock,
+      getIndexStoreIfExists: getIndexStoreIfExistsMock
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -69,7 +101,7 @@ vi.mock('@logger', () => ({
     withContext: () => ({
       error: vi.fn(),
       info: vi.fn(),
-      warn: vi.fn()
+      warn: mocks.loggerWarnMock
     })
   }
 }))
@@ -84,9 +116,11 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
     getById: knowledgeItemGetByIdMock,
     getSubtreeItems: knowledgeItemGetSubtreeItemsMock,
+    getItemsByBaseId: knowledgeItemGetItemsByBaseIdMock,
     deleteItemsByIds: deleteItemsByIdsMock,
     setSubtreeStatus: knowledgeItemSetSubtreeStatusMock,
     updateIndexedRelativePath: knowledgeItemUpdateIndexedRelativePathMock,
+    updateSnapshotRelativePath: knowledgeItemUpdateSnapshotRelativePathMock,
     updateStatus: knowledgeItemUpdateStatusMock
   }
 }))
@@ -97,6 +131,18 @@ vi.mock('../../readers/KnowledgeReader', () => ({
 
 vi.mock('../../utils/sources/prepare', () => ({
   prepareKnowledgeItem: prepareKnowledgeItemMock
+}))
+
+vi.mock('../../utils/sources/url', () => ({
+  fetchKnowledgeWebPage: fetchKnowledgeWebPageMock
+}))
+
+vi.mock('../../utils/sources/urlSnapshot', () => ({
+  captureUrlSnapshotFile: captureUrlSnapshotFileMock
+}))
+
+vi.mock('../../utils/sources/noteSnapshot', () => ({
+  captureNoteSnapshotFile: captureNoteSnapshotFileMock
 }))
 
 vi.mock('../../utils/storage/pathStorage', async () => {
@@ -111,9 +157,7 @@ vi.mock('../../utils/storage/pathStorage', async () => {
 })
 
 vi.mock('../../utils/indexing/embed', () => ({
-  embedKnowledgeDocuments: vi.fn(async (_base, documents: unknown[]) =>
-    documents.length === 0 ? [] : [{ id_: 'node-1', metadata: {}, getContent: () => 'chunk' }]
-  )
+  embedKnowledgeTexts: embedKnowledgeTextsMock
 }))
 
 export const { createDeleteSubtreeJobHandler } = await import('../deleteSubtreeJobHandler')
@@ -143,8 +187,7 @@ export function createBase(): KnowledgeBase {
     chunkOverlap: 200,
     threshold: undefined,
     documentCount: 10,
-    searchMode: 'default',
-    hybridAlpha: undefined,
+    searchMode: 'vector',
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }
@@ -153,14 +196,36 @@ export function createBase(): KnowledgeBase {
 export function createNoteItem(
   id = 'note-1',
   groupId: string | null = null,
-  status: Exclude<KnowledgeItemOf<'note'>['status'], 'failed'> = 'processing'
+  status: Exclude<KnowledgeItemOf<'note'>['status'], 'failed'> = 'processing',
+  // Default to an already-captured snapshot so the item is a valid indexable
+  // leaf that passes straight through ensureNoteSnapshot; pass undefined (or
+  // override `data`) to exercise the first-index capture path.
+  relativePath: string | undefined = `${id}.md`
 ): KnowledgeItemOf<'note'> {
   return {
     id,
     baseId: 'kb-1',
     groupId,
     type: 'note',
-    data: { source: id, content: `hello ${id}` },
+    data: { source: id, content: `hello ${id}`, ...(relativePath ? { relativePath } : {}) },
+    status,
+    error: null,
+    createdAt: '2026-04-08T00:00:00.000Z',
+    updatedAt: '2026-04-08T00:00:00.000Z'
+  }
+}
+
+export function createUrlItem(
+  id = 'url-1',
+  relativePath?: string,
+  status: Exclude<KnowledgeItemOf<'url'>['status'], 'failed'> = 'processing'
+): KnowledgeItemOf<'url'> {
+  return {
+    id,
+    baseId: 'kb-1',
+    groupId: null,
+    type: 'url',
+    data: { source: 'https://example.com', url: 'https://example.com', ...(relativePath ? { relativePath } : {}) },
     status,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
@@ -273,8 +338,16 @@ beforeEach(() => {
   knowledgeBaseGetByIdMock.mockResolvedValue(createBase())
   knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem())
   knowledgeItemGetSubtreeItemsMock.mockResolvedValue([])
+  knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([])
   knowledgeItemSetSubtreeStatusMock.mockResolvedValue([])
   knowledgeItemUpdateStatusMock.mockResolvedValue(createNoteItem())
+  fetchKnowledgeWebPageMock.mockResolvedValue('# Example page\n\nbody text')
+  captureUrlSnapshotFileMock.mockResolvedValue('example-page.md')
+  captureNoteSnapshotFileMock.mockResolvedValue('note-snapshot.md')
+  knowledgeItemUpdateSnapshotRelativePathMock.mockImplementation(
+    async (id: string, type: 'url' | 'note', relativePath: string) =>
+      type === 'url' ? createUrlItem(id, relativePath) : createNoteItem(id, null, 'processing', relativePath)
+  )
   loadKnowledgeItemDocumentsMock.mockResolvedValue([
     {
       text: 'hello world',
@@ -282,8 +355,20 @@ beforeEach(() => {
     }
   ])
   prepareKnowledgeItemMock.mockResolvedValue([createNoteItem('leaf-1', 'dir-1')])
-  createStoreMock.mockResolvedValue({ replaceByExternalId: replaceByExternalIdMock })
-  getStoreIfExistsMock.mockResolvedValue({ replaceByExternalId: replaceByExternalIdMock })
+  const indexStore = {
+    rebuildMaterial: rebuildMaterialMock,
+    deleteMaterial: deleteMaterialMock,
+    listExistingEmbeddingHashes: listExistingEmbeddingHashesMock
+  }
+  getIndexStoreMock.mockResolvedValue(indexStore)
+  getIndexStoreIfExistsMock.mockResolvedValue(indexStore)
+  rebuildMaterialMock.mockResolvedValue(undefined)
+  deleteMaterialMock.mockResolvedValue(undefined)
+  // No vectors stored yet by default → every chunk is embedded (prior behavior).
+  listExistingEmbeddingHashesMock.mockResolvedValue(new Set<string>())
+  embedKnowledgeTextsMock.mockImplementation(async (_base: KnowledgeBase, values: string[]) =>
+    values.map(fakeEmbedVector)
+  )
   listMock.mockResolvedValue([])
   getJobMock.mockResolvedValue(null)
   enqueueMock.mockResolvedValue({ id: 'job-index', snapshot: {}, finished: Promise.resolve({}) })
