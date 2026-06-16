@@ -71,6 +71,14 @@ const getFileSuffix = (item: KnowledgeItemOf<'file'>) => {
   return (fallbackExt || 'FILE').toLowerCase()
 }
 
+// Prefer the captured snapshot's name (derived from the page title) over the raw URL.
+// `relativePath` is written lazily on first index, so fall back to the URL while reading.
+const getUrlTitle = (item: KnowledgeItemOf<'url'>) => {
+  const snapshotName = item.data.relativePath ? getPathName(item.data.relativePath).replace(/\.md$/i, '') : ''
+
+  return snapshotName || item.data.source
+}
+
 export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): DataSourceStatusViewModel => {
   if (status === 'completed') {
     return {
@@ -174,7 +182,7 @@ export const dataSourceTypeDisplayConfig: DataSourceTypeDisplayConfigMap = {
       icon: Link2,
       iconClassName: 'text-cyan-500'
     },
-    getTitle: (item) => item.data.source,
+    getTitle: (item) => getUrlTitle(item),
     getSuffix: () => '',
     getMetaParts: (item, { language }) => getRelativeMetaParts(item.updatedAt, language),
     getStatus: resolveDataSourceStatusViewModel

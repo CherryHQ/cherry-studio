@@ -94,6 +94,22 @@ describe('cherryBuiltinTools', () => {
     expect(textOf(result)).toBe(WEB_LOOKUP_ERROR_NOTE)
   })
 
+  it('propagates AbortError instead of converting cancellation into an MCP error result', async () => {
+    const abortError = Object.assign(new Error('aborted'), { name: 'AbortError' })
+    searchKeywords.mockRejectedValue(abortError)
+
+    await expect(callCherryBuiltinTool('web_search', { query: 'hello' }, signal)).rejects.toBe(abortError)
+  })
+
+  it('propagates an aborted signal even when the provider rejects with a normal error', async () => {
+    const controller = new AbortController()
+    const error = new Error('socket closed after abort')
+    controller.abort()
+    searchKeywords.mockRejectedValue(error)
+
+    await expect(callCherryBuiltinTool('web_search', { query: 'hello' }, controller.signal)).rejects.toBe(error)
+  })
+
   it('steers away from retrying when no web search provider is configured', async () => {
     searchKeywords.mockRejectedValue(
       new Error('Default web search provider is not configured for capability searchKeywords')

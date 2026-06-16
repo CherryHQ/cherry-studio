@@ -1,13 +1,24 @@
 import type { CherryUIMessageChunk } from '@shared/data/types/message'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const loggerMocks = vi.hoisted(() => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn()
+}))
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
+    withContext: vi.fn(() => loggerMocks)
   }
 }))
 
 const { ClaudeCodeStreamAdapter } = await import('../streamAdapter')
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 function createAdapter(overrides: Partial<ConstructorParameters<typeof ClaudeCodeStreamAdapter>[0]> = {}) {
   const parts: CherryUIMessageChunk[] = []
@@ -104,6 +115,162 @@ describe('ClaudeCodeStreamAdapter', () => {
 
     expect(result).toEqual({ type: 'continue' })
     expect(parts).toEqual([])
+  })
+
+  it('acknowledges status control system messages without emitting chunks or unhandled debug logs', () => {
+    const { adapter, parts } = createAdapter()
+
+    const result = adapter.handleMessage({
+      type: 'system',
+      subtype: 'status',
+      session_id: 'sdk-control',
+      uuid: crypto.randomUUID(),
+      status: 'requesting'
+    } as any)
+
+    expect(result).toEqual({ type: 'continue' })
+    expect(parts).toEqual([])
+    expect(loggerMocks.debug).not.toHaveBeenCalledWith(expect.stringContaining('Received system message subtype:'))
+  })
+
+  it('acknowledges an unhandled system message subtype at debug without emitting chunks', () => {
+    const { adapter, parts } = createAdapter()
+
+    const result = adapter.handleMessage({
+      type: 'system',
+      subtype: 'api_retry',
+      session_id: 'sdk-control',
+      uuid: crypto.randomUUID()
+    } as any)
+
+    expect(result).toEqual({ type: 'continue' })
+    expect(parts).toEqual([])
+    expect(loggerMocks.debug).toHaveBeenCalledWith(
+      expect.stringContaining('Received system message subtype: api_retry'),
+      expect.anything()
+    )
+  })
+
+  it('maps thinking token estimates to message metadata', () => {
+    const { adapter, parts } = createAdapter()
+
+    const result = adapter.handleMessage({
+      type: 'system',
+      subtype: 'thinking_tokens',
+      session_id: 'sdk-thinking',
+      uuid: crypto.randomUUID(),
+      estimated_tokens: 100,
+      estimated_tokens_delta: 5
+    } as any)
+
+    expect(result).toEqual({ type: 'continue' })
+    expect(parts).toEqual([
+      {
+        type: 'message-metadata',
+        messageMetadata: { thoughtsTokens: 100 }
+      }
+    ])
+  })
+
+  it('maps SDK task system messages to hidden task event data parts', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'task_started',
+      session_id: 'sdk-task',
+      uuid: 'task-started-uuid',
+      task_id: 'task-1',
+      tool_use_id: 'tool-1',
+      description: 'Build launch deck',
+      subagent_type: 'general-purpose',
+      task_type: 'local_workflow',
+      workflow_name: 'deck',
+      prompt: 'Create the slides'
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'task_notification',
+      session_id: 'sdk-task',
+      uuid: 'task-finished-uuid',
+      task_id: 'task-1',
+      status: 'completed',
+      output_file: '/tmp/task.out',
+      summary: 'Build launch deck',
+      usage: { total_tokens: 120, tool_uses: 3, duration_ms: 4500 }
+    } as any)
+
+    expect(parts).toEqual([
+      {
+        type: 'data-agent-task-event',
+        id: 'task-task-1-started-task-started-uuid',
+        data: expect.objectContaining({
+          event: 'started',
+          taskId: 'task-1',
+          toolUseId: 'tool-1',
+          status: 'in_progress',
+          title: 'Build launch deck',
+          subagentType: 'general-purpose'
+        })
+      },
+      {
+        type: 'data-agent-task-event',
+        id: 'task-task-1-notification-task-finished-uuid',
+        data: expect.objectContaining({
+          event: 'notification',
+          taskId: 'task-1',
+          status: 'completed',
+          title: 'Build launch deck',
+          outputFile: '/tmp/task.out',
+          usage: { totalTokens: 120, toolUses: 3, durationMs: 4500 }
+        })
+      }
+    ])
+    expect(loggerMocks.debug).not.toHaveBeenCalledWith(expect.stringContaining('Received system message subtype:'))
+  })
+
+  it('maps task_updated through mapTaskStatus non-completed branches (S5)', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'task_updated',
+      session_id: 'sdk-task',
+      uuid: 'task-updated-failed-uuid',
+      task_id: 'task-9',
+      patch: { status: 'failed', description: 'Render slides', error: 'render crashed' }
+    } as any)
+    adapter.handleMessage({
+      type: 'system',
+      subtype: 'task_updated',
+      session_id: 'sdk-task',
+      uuid: 'task-updated-running-uuid',
+      task_id: 'task-9',
+      patch: { status: 'running', description: 'Render slides' }
+    } as any)
+
+    expect(parts).toEqual([
+      {
+        type: 'data-agent-task-event',
+        id: 'task-task-9-updated-task-updated-failed-uuid',
+        data: expect.objectContaining({
+          event: 'updated',
+          taskId: 'task-9',
+          status: 'error', // mapTaskStatus('failed')
+          error: 'render crashed',
+          activeText: undefined // only set while in_progress
+        })
+      },
+      {
+        type: 'data-agent-task-event',
+        id: 'task-task-9-updated-task-updated-running-uuid',
+        data: expect.objectContaining({
+          event: 'updated',
+          status: 'in_progress', // mapTaskStatus('running')
+          activeText: 'Render slides'
+        })
+      }
+    ])
   })
 
   it('maps text content block deltas', () => {

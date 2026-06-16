@@ -12,6 +12,7 @@
  */
 
 import { MODALITY, VENDOR_PATTERNS } from '@cherrystudio/provider-registry'
+import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import type { Model, RuntimeReasoning, ThinkingTokenLimits } from '@shared/data/types/model'
 import { MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 
@@ -48,7 +49,7 @@ export const isGenerateImageModel = (model: Model): boolean =>
   model.capabilities.includes(MODEL_CAPABILITY.IMAGE_GENERATION)
 
 export const isFreeModel = (model: Pick<Model, 'id' | 'name' | 'providerId'>): boolean => {
-  if (model.providerId === 'cherryai') {
+  if (model.providerId === CHERRYAI_PROVIDER_ID) {
     return true
   }
 

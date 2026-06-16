@@ -114,16 +114,15 @@ reindex-items(baseId, itemIds)
 - `knowledge:reindex-items`
 - `knowledge:search`
 - `knowledge:list-item-chunks`
-- `knowledge:delete-item-chunk`
 
-These IPC handlers are workflow-oriented. They validate payloads, call data services, and enqueue or execute runtime work internally.
+These IPC handlers are workflow-oriented. They validate payloads, call data services, and enqueue or execute runtime work internally. (The former `knowledge:delete-item-chunk` entrypoint was removed with the per-base index store cutover — chunks are derived index rows, replaced wholesale by reindexing.)
 
 `KnowledgeService` also owns one v1 bridge entrypoint, `knowledge-base:delete`, still invoked by the legacy Redux `store/knowledge` slice until that slice is removed in the unified step. It routes to the same `delete-base` path.
 
-Chunk IPC entrypoints are runtime inspection/mutation helpers:
+The chunk IPC entrypoint is a runtime inspection helper:
 
-- `list-item-chunks` and `delete-item-chunk` reject failed bases.
-- Both require the requested item to be `completed`.
+- `list-item-chunks` rejects failed bases.
+- It requires the requested item to be `completed`.
 - Listing chunks for a completed `directory` also rejects when the subtree still contains `deleting` descendants, because container status reconciliation ignores deleting children.
 
 ## Runtime Behavior
@@ -260,11 +259,11 @@ Search is executed by `KnowledgeService.search(baseId, query)`:
 
 1. Reject failed bases.
 2. Reject queries without searchable tokens.
-3. Resolve and run the embedding model for the query.
-4. Query the libSQL vector store.
-5. Filter results whose source items are missing, outside the base, or `deleting`.
+3. Resolve the base's `searchMode` (`vector` / `bm25` / `hybrid`) and embed the query — skipped for `bm25`, which is lexical only.
+4. Call `KnowledgeIndexStore.search` on the base's per-base index store with an over-fetched candidate limit (`topK × overfetch`, capped). The store runs the BM25 lane (`search_text_fts`, with a LIKE fallback for short CJK tokens), the brute-force vector lane, or fuses both with RRF (`hybridAlpha`).
+5. Filter results whose source items are missing, outside the base, or `deleting`, then trim to `documentCount ?? 10`.
 6. Rerank when `base.rerankModelId` is configured.
-7. Apply relevance threshold and assign ranks.
+7. Apply relevance threshold (a no-op for `ranking`-kind scores) and assign ranks.
 
 Current `KnowledgeSearchResult` includes:
 
@@ -276,12 +275,12 @@ Current `KnowledgeSearchResult` includes:
 - optional `itemId`
 - required `chunkId`
 
-`chunkId` is the vector row identity used for result-level attribution. `itemId` is populated from stored metadata when available.
+`chunkId` is the search unit identity (`search_unit.unit_id`) used for result-level attribution. `itemId` equals the unit's `material_id` (= `knowledge_item.id`).
 
 ### Current Retrieval Cost Assumption
 
-The current v2 implementation intentionally does not create a libSQL vector index and does not use `vector_top_k`.
-Similarity search currently queries the base table directly and sorts by `vector_distance_cos(...)`.
+The current v2 implementation intentionally does not create a vector index and does not use `vector_top_k`.
+Similarity search scans the `embedding` rows directly and sorts by the engine's scalar cosine distance (`vector_distance_cos` on libsql).
 
 This means retrieval cost scales roughly linearly with the number of vector rows in a single knowledge base.
 That tradeoff is currently accepted because it keeps the runtime path simpler for expected near-term corpus sizes.

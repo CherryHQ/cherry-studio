@@ -2,7 +2,7 @@ import { Button, Input, Popover, PopoverContent, PopoverTrigger } from '@cherrys
 import { loggerService } from '@logger'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ProviderLogoPicker from '@renderer/components/ProviderLogoPicker'
-import { getProviderLabel } from '@renderer/i18n/label'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn, compressImage, convertToBase64, generateColorFromChar, getForegroundColor, uuid } from '@renderer/utils'
@@ -274,7 +274,7 @@ export default function ProviderEditorDrawer({
     if (mode.kind === 'edit') return t('common.edit')
     if (mode.kind === 'duplicate') {
       const presetLabel = mode.source.presetProviderId
-        ? getProviderLabel(mode.source.presetProviderId)
+        ? t(getProviderLabelKey(mode.source.presetProviderId))
         : mode.source.name
       return t('settings.provider.duplicate.drawer_title', { name: presetLabel })
     }
@@ -358,8 +358,9 @@ export default function ProviderEditorDrawer({
 }
 
 function DuplicateHeader({ source }: { source: Provider }) {
+  const { t } = useTranslation()
   const presetId = source.presetProviderId
-  const label = presetId ? getProviderLabel(presetId) : source.name
+  const label = presetId ? t(getProviderLabelKey(presetId)) : source.name
   return (
     <div className="flex items-center gap-2 rounded-lg border border-(--section-border) bg-muted/40 px-3 py-2">
       <ProviderAvatar provider={{ id: presetId ?? source.id, name: label }} size={18} />

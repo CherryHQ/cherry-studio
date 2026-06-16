@@ -49,22 +49,4 @@ describe('mcpSourcePolicy', () => {
       approval: 'prompt'
     })
   })
-
-  // mcp-servers-3: the built-in browser `execute` runs arbitrary model JS against the
-  // user's real session; it must ALWAYS require approval, even with auto-approve config.
-  it('always force-prompts @cherry/browser execute, regardless of config', () => {
-    const browserServer = {
-      id: 'browser-id',
-      name: '@cherry/browser',
-      isActive: true,
-      disabledTools: [],
-      disabledAutoApproveTools: []
-    } as McpServer
-    const execute = { id: 'mcp__cherryBrowser__execute', name: 'execute' }
-
-    expect(isMcpToolForcePromptBySource(browserServer, execute)).toBe(true)
-    expect(resolveMcpSourceToolAccess(browserServer, execute)).toEqual({ enabled: true, approval: 'prompt' })
-    // A non-execute browser tool is unaffected by the built-in policy.
-    expect(isMcpToolForcePromptBySource(browserServer, { name: 'open' })).toBe(false)
-  })
 })

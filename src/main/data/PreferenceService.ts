@@ -273,8 +273,6 @@ export class PreferenceService extends BaseService {
         this.subscribeForWindow(windowId, keys)
       }
     })
-
-    logger.info('PreferenceService IPC handlers registered')
   }
 
   /**
