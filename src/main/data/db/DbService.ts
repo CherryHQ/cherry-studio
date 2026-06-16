@@ -215,7 +215,7 @@ export class DbService extends BaseService {
    * Called after every migration because:
    * 1. Drizzle doesn't track these in schema
    * 2. DROP TABLE removes associated triggers
-   * 3. All statements are idempotent
+   * 3. All statements use IF NOT EXISTS, so they're idempotent
    */
   private async runCustomMigrations(): Promise<void> {
     try {

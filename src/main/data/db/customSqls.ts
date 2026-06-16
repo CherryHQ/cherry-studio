@@ -18,11 +18,10 @@ import { AGENT_SESSION_MESSAGE_FTS_STATEMENTS } from './schemas/agentSessionMess
 import { MESSAGE_FTS_STATEMENTS } from './schemas/message'
 
 /**
- * Idempotent custom SQL re-run after every migration (CREATE ... IF NOT EXISTS,
- * DROP/CREATE TRIGGER). Cheap and safe to replay on every boot.
+ * All custom SQL statements to run after migrations
  */
 export const CUSTOM_SQL_STATEMENTS: string[] = [
   ...MESSAGE_FTS_STATEMENTS,
   ...AGENT_SESSION_MESSAGE_FTS_STATEMENTS
-  // Add more idempotent custom SQL arrays here as needed
+  // Add more custom SQL arrays here as needed
 ]
