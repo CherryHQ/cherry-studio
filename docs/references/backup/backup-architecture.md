@@ -153,13 +153,13 @@ flowchart TB
 | 域类型 | 聚合边界注意点 |
 |---|---|
 | ASSISTANTS | RENAME 克隆时成员 assistantId 重映射到新根 PK |
-| AGENTS | agent_workspace/agent_channel 单表 renamable:false；agent_channel_task 是 junction（双 cascade FK）；**job_schedule.type='agent.task' row-scope 归 AGENTS**（Agent task 定义，否则设计性丢失用户 task）；agent_task 当前 main 不存在（已迁移 JobManager） |
+| AGENTS | agent_workspace/agent_channel 单表 renamable:false；agent_channel_task 是 junction（双 cascade FK）；**job_schedule.type='agent.task' row-scope 归 AGENTS**（Agent task 定义，否则设计性丢失用户 task） |
 | FILE_STORAGE | restoreResources() 先于 DB 行导入，返回 skippedFileEntryIds；renamable:false，RENAME 退化为 SKIP |
 | PROVIDERS | 聚合 user_provider + user_model(providerId)；natural-key，默认 FIELD_MERGE（apiKeys/authConfig 字段合并，防丢 API key）；renamable:false（user_model.id 派生键） |
 
 ### 6. 实现侧类型契约
 
-`EntityGraphSchema`：`tables` / `references`（kind: optional|owning|junction）/ `primaryKeys`（kind: uuid-v4|uuid-v7|natural|composite|autoincrement(finalize 拒绝)，ambiguous 标注）/ **`aggregates`**（`AggregateBoundary { root, renamable, [identityKey?], [identityClass?], [conflictDefault?], [members?] }`——除 `root` 与 `renamable` 外其余字段全部从 `references + primaryKeys` 派生，contributor 显式声明仅用于偏离默认）/ `fileRefSourcePolicies` / `jsonSoftReferences` / `rowScopes?`（共享表行分区，如 job_schedule.type='agent.task' 归 AGENTS，F1）。派生规则：identityKey=root PK；identityClass=primaryKeys[root].kind：uuid-v4/v7→uuid-entity、natural/composite→natural-key（slot 须显式）；conflictDefault=identityClass 映射（uuid-entity→SKIP；natural-key/slot→FIELD_MERGE）；members=域内指向 root 的 owning include references 源表（junction 表与跨域 ref 不计入，#14 拒绝漂移）。
+`EntityGraphSchema`：`tables` / `references`（kind: optional|owning|junction）/ `primaryKeys`（kind: uuid-v4|uuid-v7|natural|composite|autoincrement(finalize 拒绝)，ambiguous 标注）/ **`aggregates`**（`AggregateBoundary { root, renamable, [identityKey?], [identityClass?], [conflictDefault?], [members?] }`——除 `root` 与 `renamable` 外其余字段全部从 `references + primaryKeys` 派生，contributor 显式声明仅用于偏离默认）/ `fileRefSourcePolicies` / `jsonSoftReferences` / `rowScopes?`（共享表行分区，如 job_schedule.type='agent.task' 归 AGENTS）。派生规则：identityKey=root PK；identityClass=primaryKeys[root].kind：uuid-v4/v7→uuid-entity、natural/composite→natural-key（slot 须显式）；conflictDefault=identityClass 映射（uuid-entity→SKIP；natural-key/slot→FIELD_MERGE）；members=域内指向 root 的 owning include references 源表（junction 表与跨域 ref 不计入，#14 拒绝漂移）。
 
 `BackupContributorPolicy`：`omittedReferenceOverrides`（仅例外，须绑定事实+非冗余+reason）、`uniqueMergeRules`、`fieldMergePolicies`（FIELD_MERGE 列级合并）。**不含** restoreRemap / idStrategies（over-design，移除）。
 
@@ -279,8 +279,8 @@ flowchart TB
 | 11 | 每个 FileRefSourceType 有 owner 或 runtime-only 排除 | `{ unownedSourceType }` |
 | 12 | 每个已知 JSON soft-ref 字段已分类或排除 | `{ table, column }` |
 | 13 | 每个 aggregate.root 在 owner，identityKey 是其 PK | `{ domain, aggregate }` |
-| 14 | 每个 aggregate.member.viaColumn 是真实 FK 列指向 root.identityKey | `{ domain, aggregate, member }` |
-| 15 | aggregate 成员表属于同一 contributor | `{ domain, aggregate, member }` |
+| 14 | aggregate.members 派生自 owning include references（junction 表与跨域 ref 不计入）+ parent 链无环唯一 | `{ domain, aggregate, member }` |
+| 15 | members 中每成员表属于本 contributor；viaColumn 是真实 FK 列指向 root.identityKey | `{ domain, aggregate, member }` |
 | 16 | renamable:true 聚合的 operations.cloneAggregate 存在 | `{ domain, aggregate }` |
 | 17 | schema 深度冻结 | N/A（内部） |
 | 18 | 失败信息含 domain/table/sourceType/owner/违反不变量 | N/A（内部） |
@@ -294,7 +294,7 @@ flowchart TB
 
 **实施依据**：
 - #19 / #24 须 codegen 生成 `DB_FOREIGN_KEYS`（`getTableConfig()` 读 FK 信息）作数据源
-- #5 取决于 `job_schedule` 的 row-scope 覆盖（F1）
+- #5 取决于 `job_schedule` 的 row-scope 覆盖
 - #14/#15 派生自 owning include references（§6 `AggregateBoundary` 派生规则）
 
 ### 9. 恢复前快照与撤销恢复（恢复编排层）
