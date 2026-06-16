@@ -2192,8 +2192,6 @@
         "reindex": "Réindexer",
         "selected_count": "{{count}} sélectionné"
       },
-      "chunk_delete_confirm_description": "Après la suppression, ce fragment ne sera plus utilisé pour la récupération. La réindexation de la source de données le générera à nouveau.",
-      "chunk_delete_confirm_title": "Supprimer le bloc ?",
       "chunks_count": "{{count}} morceaux",
       "delete_confirm_description": "Cette source de données et ses données d'index ne peuvent pas être récupérées après la suppression.",
       "delete_confirm_title": "Supprimer la source de données ?",
@@ -2250,9 +2248,7 @@
         "search_placeholder": "Sources de données de recherche"
       }
     },
-    "dimensions": "Dimensions d'incorporation",
     "dimensions_auto_set": "Réglage automatique des dimensions d'incorporation",
-    "dimensions_error_invalid": "Veuillez saisir la taille de dimension d'incorporation",
     "dimensions_size_placeholder": " Taille de dimension d'incorporation, ex. 1024",
     "drag_file": "Glissez-déposez un fichier ici",
     "embedding_model": "Modèle d'embedding",
@@ -2304,7 +2300,6 @@
       "chunk_size_invalid": "La taille du chunk doit être supérieure à 0",
       "chunking": "Fragmentation",
       "default_separator": "Auto (recommandé)",
-      "dimensions": "Dimensions de vecteur",
       "document_count": "Nombre de documents",
       "embedding_model": "Modèle d'embedding",
       "embedding_model_select": "Sélection de modèle",
@@ -2313,7 +2308,6 @@
       "hints": {
         "chunk_overlap": "Nombre de jetons chevauchants conservés entre les segments adjacents afin de réduire les ruptures sémantiques.",
         "chunk_size": "Nombre cible de jetons pour chaque fragment de document. Cela influence la granularité de la récupération et la longueur du contexte.",
-        "dimensions": "La dimension du vecteur produit par le modèle d'embedding actuel, utilisée pour créer et faire correspondre les index vectoriels.",
         "document_count": "Nombre maximal de fragments de document retournés pour chaque récupération. Des valeurs plus élevées couvrent davantage de contenu mais utilisent plus de contexte.",
         "embedding_model": "Utilisé pour convertir le contenu de la base de connaissances en vecteurs. Changer le modèle nécessite généralement de réindexer le contenu existant.",
         "hybrid_alpha": "Poids du score vectoriel dans la récupération hybride. Des valeurs plus élevées favorisent la correspondance sémantique.",
@@ -2324,9 +2318,7 @@
         "threshold_disabled": "Ce mode de récupération retourne des résultats ordonnés et n'utilise pas de seuil de similarité."
       },
       "hybrid_alpha": "Alpha Hybride",
-      "hybrid_alpha_hint": "Configurable uniquement en mode de récupération hybride",
       "processor": "Fournisseur de traitement",
-      "refresh_dimensions": "Actualiser les dimensions du vecteur",
       "rerank_disabled": "Désactivé",
       "rerank_model": "Modèle de reranking",
       "reset_action": "Restaurer les paramètres par défaut",
@@ -2336,9 +2328,9 @@
       "saved": "Enregistré",
       "search_mode": {
         "bm25": "Recherche en texte intégral",
-        "default": "Recherche vectorielle",
         "hybrid": "Recherche hybride (recommandée)",
-        "title": "Mode Recherche"
+        "title": "Mode Recherche",
+        "vector": "Recherche vectorielle"
       },
       "separator_rule": "Règle de séparateur",
       "threshold": "Seuil de similarité",
@@ -6663,7 +6655,7 @@
         "project_id": "ID du projet",
         "project_id_help": "Votre identifiant de projet Google Cloud",
         "project_id_placeholder": "votre-id-projet-google-cloud",
-        "select_location": "[to be translated]:Select location",
+        "select_location": "Sélectionner l'emplacement",
         "service_account": {
           "auth_success": "Authentification du compte de service réussie",
           "client_email": "E-mail du client",
@@ -6680,9 +6672,9 @@
           "private_key_help": "Champ private_key provenant du fichier de clé JSON téléchargé depuis Google Cloud Console",
           "private_key_placeholder": "Veuillez saisir la clé privée du compte de service",
           "title": "Configuration du compte de service",
-          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
-          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
-          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
+          "toggle_client_email_visibility": "Basculer la visibilité de l'e-mail du client",
+          "toggle_private_key_visibility": "Basculer la visibilité de la clé privée",
+          "toggle_project_id_visibility": "Basculer la visibilité de l'ID du projet"
         }
       }
     },

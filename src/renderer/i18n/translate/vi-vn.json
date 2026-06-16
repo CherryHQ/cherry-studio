@@ -2192,8 +2192,6 @@
         "reindex": "Lập chỉ mục lại",
         "selected_count": "{{count}} đã chọn"
       },
-      "chunk_delete_confirm_description": "Sau khi xóa, phần này sẽ không còn được sử dụng để truy xuất. Việc lập chỉ mục lại nguồn dữ liệu sẽ tạo ra nó một lần nữa.",
-      "chunk_delete_confirm_title": "Xóa đoạn?",
       "chunks_count": "{{count}} phần",
       "delete_confirm_description": "Nguồn dữ liệu này và dữ liệu chỉ mục của nó không thể được khôi phục sau khi xóa.",
       "delete_confirm_title": "Xóa Nguồn Dữ Liệu?",
@@ -2250,9 +2248,7 @@
         "search_placeholder": "Tìm kiếm nguồn dữ liệu"
       }
     },
-    "dimensions": "Kích thước nhúng",
     "dimensions_auto_set": "Tự động thiết lập kích thước embedding",
-    "dimensions_error_invalid": "Kích thước embedding không hợp lệ",
     "dimensions_size_placeholder": "Để trống để không truyền kích thước",
     "drag_file": "Kéo tệp vào đây",
     "embedding_model": "Mô hình Nhúng",
@@ -2304,7 +2300,6 @@
       "chunk_size_invalid": "Kích thước chunk phải lớn hơn 0",
       "chunking": "Phân đoạn",
       "default_separator": "Tự động (khuyên dùng)",
-      "dimensions": "Chiều của Véc-tơ",
       "document_count": "Số lượng tài liệu",
       "embedding_model": "Mô hình nhúng",
       "embedding_model_select": "Lựa chọn mô hình",
@@ -2313,7 +2308,6 @@
       "hints": {
         "chunk_overlap": "Số lượng token chồng lấp được giữ lại giữa các đoạn liền kề để giảm đứt gãy ngữ nghĩa.",
         "chunk_size": "Số lượng token mục tiêu cho mỗi đoạn tài liệu. Điều này ảnh hưởng đến độ chi tiết khi truy xuất và độ dài ngữ cảnh.",
-        "dimensions": "Kích thước chiều vectơ được đầu ra bởi mô hình nhúng hiện tại, dùng để tạo và khớp các chỉ mục vectơ.",
         "document_count": "Số lượng tối đa các đoạn tài liệu được trả về cho mỗi lần truy xuất. Giá trị cao hơn sẽ bao phủ nhiều nội dung hơn nhưng sử dụng nhiều ngữ cảnh hơn.",
         "embedding_model": "Dùng để chuyển nội dung cơ sở kiến thức thành các vector. Việc thay đổi mô hình thường đòi hỏi lập chỉ mục lại nội dung hiện có.",
         "hybrid_alpha": "Trọng số điểm vector trong truy xuất lai. Giá trị cao hơn ưu tiên khớp ngữ nghĩa.",
@@ -2324,9 +2318,7 @@
         "threshold_disabled": "Chế độ truy xuất này trả về kết quả có thứ tự và không sử dụng ngưỡng độ tương đồng."
       },
       "hybrid_alpha": "Hybrid Alpha",
-      "hybrid_alpha_hint": "Chỉ có thể cấu hình trong chế độ truy xuất Hybrid",
       "processor": "Nhà cung cấp xử lý",
-      "refresh_dimensions": "Làm mới kích thước vector",
       "rerank_disabled": "Vô hiệu hóa",
       "rerank_model": "Mô hình xếp hạng lại",
       "reset_action": "Khôi phục mặc định",
@@ -2336,9 +2328,9 @@
       "saved": "Đã lưu",
       "search_mode": {
         "bm25": "Tìm kiếm toàn văn",
-        "default": "Tìm kiếm Vector",
         "hybrid": "Tìm kiếm kết hợp (khuyên dùng)",
-        "title": "Chế độ tìm kiếm"
+        "title": "Chế độ tìm kiếm",
+        "vector": "Tìm kiếm Vector"
       },
       "separator_rule": "Quy tắc phân cách",
       "threshold": "Ngưỡng Độ Tương Đồng",
@@ -6663,7 +6655,7 @@
         "project_id": "ID Dự án",
         "project_id_help": "ID dự án Google Cloud của bạn",
         "project_id_placeholder": "id-dự-án-google-cloud-của-bạn",
-        "select_location": "[to be translated]:Select location",
+        "select_location": "Chọn vị trí",
         "service_account": {
           "auth_success": "Tài khoản dịch vụ đã xác thực thành công",
           "client_email": "Email của khách hàng",
@@ -6680,9 +6672,9 @@
           "private_key_help": "Trường private_key từ tệp khóa JSON đã tải xuống từ Google Cloud Console",
           "private_key_placeholder": "Nhập khóa riêng của Tài khoản Dịch vụ",
           "title": "Cấu hình Tài khoản Dịch vụ",
-          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
-          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
-          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
+          "toggle_client_email_visibility": "Chuyển đổi hiển thị email của khách hàng",
+          "toggle_private_key_visibility": "Chuyển đổi hiển thị khóa riêng tư",
+          "toggle_project_id_visibility": "Chuyển đổi hiển thị ID dự án"
         }
       }
     },
@@ -7113,9 +7105,9 @@
     "serverName": "Tên Máy Chủ",
     "serverType": "Loại Máy Chủ",
     "spanDetail": "Chi tiết Span",
-    "spendTime": "[to be translated]:Spend Time",
-    "startTime": "[to be translated]:Start Time",
-    "status": "[to be translated]:Status",
+    "spendTime": "Dành Thời Gian",
+    "startTime": "Thời gian bắt đầu",
+    "status": "Trạng thái",
     "tag": "Thẻ",
     "tokenUsage": "Mức sử dụng Token",
     "toolCalls": "Cuộc gọi công cụ"

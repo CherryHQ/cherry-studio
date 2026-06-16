@@ -2192,8 +2192,6 @@
         "reindex": "Reindexar",
         "selected_count": "{{count}} selecionado"
       },
-      "chunk_delete_confirm_description": "Após a exclusão, este bloco não será mais utilizado para recuperação. A reindexação da fonte de dados o gerará novamente.",
-      "chunk_delete_confirm_title": "Excluir Chunk?",
       "chunks_count": "{{count}} blocos",
       "delete_confirm_description": "Esta fonte de dados e seus dados de índice não podem ser recuperados após a exclusão.",
       "delete_confirm_title": "Excluir Fonte de Dados?",
@@ -2250,9 +2248,7 @@
         "search_placeholder": "Pesquisar fontes de dados"
       }
     },
-    "dimensions": "Dimensões de Incorporação",
     "dimensions_auto_set": "Definição automática de dimensões de incorporação",
-    "dimensions_error_invalid": "Por favor insira o tamanho da dimensão de incorporação",
     "dimensions_size_placeholder": " Tamanho da dimensão de incorporação, ex. 1024",
     "drag_file": "Arraste o arquivo aqui",
     "embedding_model": "Modelo de Incorporação",
@@ -2304,7 +2300,6 @@
       "chunk_size_invalid": "O tamanho do bloco deve ser maior que 0",
       "chunking": "Fragmentação",
       "default_separator": "Automático (recomendado)",
-      "dimensions": "Dimensões de Vetor",
       "document_count": "Contagem de Documentos",
       "embedding_model": "Modelo de Incorporação",
       "embedding_model_select": "Seleção de Modelo",
@@ -2313,7 +2308,6 @@
       "hints": {
         "chunk_overlap": "Número de tokens sobrepostos mantidos entre blocos adjacentes para reduzir quebras semânticas.",
         "chunk_size": "Contagem-alvo de tokens para cada fragmento de documento. Isso afeta a granularidade da recuperação e o comprimento do contexto.",
-        "dimensions": "A dimensão do vetor produzida pelo modelo de incorporação atual, usada para criar e corresponder índices vetoriais.",
         "document_count": "Número máximo de blocos de documentos retornados para cada recuperação. Valores mais altos cobrem mais conteúdo, mas utilizam mais contexto.",
         "embedding_model": "Usado para converter o conteúdo da base de conhecimento em vetores. Alterar o modelo geralmente exige reindexar o conteúdo existente.",
         "hybrid_alpha": "Peso da pontuação vetorial na recuperação híbrida. Valores mais altos favorecem o pareamento semântico.",
@@ -2324,9 +2318,7 @@
         "threshold_disabled": "Este modo de recuperação retorna resultados ordenados e não utiliza um limiar de similaridade."
       },
       "hybrid_alpha": "Alfa Híbrido",
-      "hybrid_alpha_hint": "Apenas configurável no modo de recuperação híbrida",
       "processor": "Processador de Provedor",
-      "refresh_dimensions": "Atualizar dimensões do vetor",
       "rerank_disabled": "Desativado",
       "rerank_model": "Modelo de Reorganização",
       "reset_action": "Restaurar Padrões",
@@ -2336,9 +2328,9 @@
       "saved": "Salvo",
       "search_mode": {
         "bm25": "Pesquisa de texto completo",
-        "default": "Busca Vetorial",
         "hybrid": "Busca Híbrida (recomendado)",
-        "title": "Modo de Pesquisa"
+        "title": "Modo de Pesquisa",
+        "vector": "Pesquisa Vetorial"
       },
       "separator_rule": "Regra Separadora",
       "threshold": "Limite de Similaridade",
@@ -6663,7 +6655,7 @@
         "project_id": "ID do Projeto",
         "project_id_help": "Seu ID do projeto no Google Cloud",
         "project_id_placeholder": "seu-id-do-projeto-no-google-cloud",
-        "select_location": "[to be translated]:Select location",
+        "select_location": "Selecionar local",
         "service_account": {
           "auth_success": "Autenticação da Conta de Serviço realizada com sucesso",
           "client_email": "E-mail do cliente",
@@ -6680,9 +6672,9 @@
           "private_key_help": "Campo private_key do arquivo de chave JSON baixado do Google Cloud Console",
           "private_key_placeholder": "Por favor, insira a chave privada da Conta de Serviço",
           "title": "Configuração da Conta de Serviço",
-          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
-          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
-          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
+          "toggle_client_email_visibility": "Alternar visibilidade do email do cliente",
+          "toggle_private_key_visibility": "Alternar visibilidade da chave privada",
+          "toggle_project_id_visibility": "Alternar visibilidade do ID do projeto"
         }
       }
     },
