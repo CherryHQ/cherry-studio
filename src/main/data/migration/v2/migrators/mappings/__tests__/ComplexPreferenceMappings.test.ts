@@ -221,7 +221,7 @@ describe('ComplexPreferenceMappings', () => {
       })
     })
 
-    it('should collapse the old default visible sidebar favorites to the new default set', () => {
+    it('should preserve the old default visible sidebar favorites', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')!
       const result = mapping.transform({
         visible: [
@@ -240,11 +240,23 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': ['assistants', 'agents', 'paintings', 'translate', 'store']
+        'ui.sidebar.favorites': [
+          'assistants',
+          'agents',
+          'store',
+          'paintings',
+          'translate',
+          'mini_app',
+          'knowledge',
+          'files',
+          'code_tools',
+          'notes',
+          'openclaw'
+        ]
       })
     })
 
-    it('should collapse the old default visible sidebar favorites without openclaw to the new default set', () => {
+    it('should preserve the old default visible sidebar favorites without openclaw', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')!
       const result = mapping.transform({
         visible: [
@@ -262,11 +274,22 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': ['assistants', 'agents', 'paintings', 'translate', 'store']
+        'ui.sidebar.favorites': [
+          'assistants',
+          'agents',
+          'store',
+          'paintings',
+          'translate',
+          'mini_app',
+          'knowledge',
+          'files',
+          'code_tools',
+          'notes'
+        ]
       })
     })
 
-    it('should not collapse the old default visible sidebar favorites when invisible is non-empty', () => {
+    it('should preserve old visible sidebar favorites when invisible is non-empty', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')!
       const result = mapping.transform({
         visible: [
