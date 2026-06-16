@@ -43,7 +43,7 @@
 
 ### 1. 这次重构要解决什么
 
-当前分支的 SQLite 备份代码只作规则库存和实现参照，不是要保留的架构形态。分散在多个集中式文件，新增表/引用时需改多处且易导出/恢复语义不一致。
+当前分支的 SQLite 备份代码只作规则库存和实现参照，不是要保留的架构形态。分散在多个集中式文件，新增表/引用时需改多处且易导出/恢复语义不一致。（注：下表 `DomainRegistry`/`DomainStripper`/`DomainImporter`/`FileCollector` 为早期 v2 原型名，本分支未实现；当前 backup 实现为 `LegacyBackupManager.ts`，下表描述其设想的散落结构以说明重构动机。）
 
 | 现有位置 | 承载内容 | 主要问题 |
 |---|---|---|
@@ -52,7 +52,7 @@
 | `DomainImporter.ts` | 唯一键合并、JSON 引用重映射、冲突处理 | object-boundary SKIP 无机制 |
 | `FileCollector.ts` | 消息文件引用扫描 | 文件引用来源缺统一分类 |
 
-两个基线：用户可见产品行为基线 = legacy/v1 `BackupManager.ts`（IndexedDB/LocalStorage/可选 Data）；架构设计基线 = 本方案最终 contributor 体系。
+两个基线：用户可见产品行为基线 = legacy/v1 `LegacyBackupManager.ts`（IndexedDB/LocalStorage/可选 Data）；架构设计基线 = 本方案最终 contributor 体系。
 
 ### 2. 总体方案：Entity facts + Backup policy + Operations（+ 聚合边界）
 
@@ -131,11 +131,11 @@ flowchart TB
 | PROVIDERS | `user_provider` + `user_model` | natural-key | false | FIELD_MERGE | ✓ |
 | PROMPTS | `prompt` | uuid-entity | false | SKIP | ✓ |
 | MCP_SERVERS | `mcp_server` | uuid-entity | false | SKIP | ✓ |
-| TAGS_GROUPS | `tag` / `group` / `pin`（单表）+ `entity_tag`（多态 junction，tagId→tag cascade） | uuid-entity | false | SKIP | ✓ |
+| TAGS_GROUPS | `tag` / `group` / `pin`（单表）+ `entity_tag`（多态 junction，tagId→tag cascade） | tag/pin natural-key（`tag.name`/`pin(entityType,entityId)` UNIQUE）、group uuid-entity | false | tag/pin FIELD_MERGE、group SKIP | ✓ |
 | ASSISTANTS | `assistant` + `assistant_mcp_server`/`assistant_knowledge_base` | uuid-entity | true | SKIP | ✓ |
-| AGENTS | `agent_session`(+`agent_session_message`) / `agent_workspace` / `agent_channel` / `agent` + `job_schedule`(type='agent.task') row-scope + `agent_skill`（junction ref，agentId→agent + skillId→SKILLS） | uuid-entity | session:true，其余 false | SKIP | ✓ |
+| AGENTS | `agent_session`(+`agent_session_message`) / `agent_workspace` / `agent_channel` / `agent` + `job_schedule`(type='agent.task') row-scope + `agent_skill`（junction ref，agentId→agent + skillId→SKILLS） | agent_workspace natural-key（`path` UNIQUE）、其余 uuid-entity | session:true（待决策 §5.4），其余 false | agent_workspace FIELD_MERGE、其余 SKIP | ✓ |
 | MINIAPPS | `mini_app`(app_id) | natural-key | false | FIELD_MERGE | ✓ |
-| SKILLS | `agent_global_skill` | uuid-entity | false | SKIP | ✓ |
+| SKILLS | `agent_global_skill`（`folderName` UNIQUE） | natural-key | false | FIELD_MERGE | ✓ |
 | TOPICS | `topic` + `message` | uuid-entity | true | SKIP | ✓ |
 | KNOWLEDGE | `knowledge_base` + `knowledge_item` | uuid-entity | true | SKIP | ✗ |
 | TRANSLATE_HISTORY | `translate_language`（natural-key langCode 单表）+ `translate_history`（uuid-entity 独立聚合，sourceLanguage/targetLanguage→translate_language optional ref） | natural-key / uuid-entity | false | FIELD_MERGE / SKIP | ✗ |
