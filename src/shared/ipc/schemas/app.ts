@@ -8,7 +8,6 @@ const appInfoSchema = z.object({
   appPath: z.string(),
   filesPath: z.string(),
   notesPath: z.string(),
-  configPath: z.string(),
   appDataPath: z.string(),
   resourcesPath: z.string(),
   logsPath: z.string(),

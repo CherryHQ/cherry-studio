@@ -14,7 +14,6 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     appPath: application.getPath('app.root'),
     filesPath: application.getPath('feature.files.data'),
     notesPath: application.getPath('feature.notes.data'),
-    configPath: application.getPath('cherry.config'),
     appDataPath: application.getPath('app.userdata'),
     resourcesPath: application.getPath('app.root.resources'),
     logsPath: loggerService.getLogsDir(),

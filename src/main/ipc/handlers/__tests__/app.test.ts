@@ -51,7 +51,6 @@ describe('appHandlers', () => {
       appPath: '/mock/app.root',
       filesPath: '/mock/feature.files.data',
       notesPath: '/mock/feature.notes.data',
-      configPath: '/mock/cherry.config',
       appDataPath: '/mock/app.userdata',
       resourcesPath: '/mock/app.root.resources',
       logsPath: '/mock/logs',
