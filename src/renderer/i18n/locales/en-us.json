@@ -6849,7 +6849,7 @@
           },
           "image_to_text": {
             "title": "OCR",
-            "tooltip": "Used by translation to recognize text in images"
+            "tooltip": "Used to recognize text in images"
           }
         },
         "fields": {

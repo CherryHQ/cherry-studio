@@ -6849,7 +6849,7 @@
           },
           "image_to_text": {
             "title": "OCR",
-            "tooltip": "用于翻译功能识别图片内文字内容"
+            "tooltip": "用于识别图片内文字内容"
           }
         },
         "fields": {
