@@ -141,13 +141,22 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   // ready-to-show auto-show fallback). Init payload (tabId, url, title, type,
   // isPinned) flows via initData and useWindowInitData<SubWindowInitData>() in
   // the renderer.
-  // NOTE on future evolution: if this ever changes to `lifecycle: 'pooled'`,
-  // the Win/Linux content-bounds move path in SubWindowService (electron#27651)
-  // requires `useContentSize: true` here — otherwise resetPooledWindowGeometry's
-  // content-bounds branch is skipped and cached size drifts across reuse.
   [WindowType.SubWindow]: {
     type: WindowType.SubWindow,
-    lifecycle: 'default',
+    lifecycle: 'pooled',
+    poolConfig: {
+      // INVARIANT: this pool is destroy-on-close (standbySize:1 + warmup:'eager', and NO
+      // recycleMaxSize). That is the *only* reason the SubWindow renderer is allowed to be
+      // single-init: SubWindowAppShell opens its tab once (an `initialized` ref guard) and
+      // ignores later WindowManager_Reused events. With no recycleMaxSize, close() always
+      // destroys, so a window is never handed back carrying a *different* tab — every open()
+      // either pops a pristine never-navigated standby or creates fresh. The renderer is NOT
+      // reuse-safe. Do NOT add recycleMaxSize (or otherwise enable recycle) here without first
+      // making the renderer re-initialize on window.reused; otherwise a recycled window would
+      // keep displaying its previous tab.
+      standbySize: 1,
+      warmup: 'eager'
+    },
     htmlPath: 'windows/subWindow/index.html',
     // preload omitted → defaults to 'index.js' (full API preload).
     showMode: 'manual',
@@ -156,8 +165,15 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       height: 600,
       minWidth: 400,
       minHeight: 300,
+      useContentSize: true,
       autoHideMenuBar: true,
       transparent: false,
+      // Load-bearing for SubWindowService.createWindow's show path: that path shows the window
+      // unconditionally + immediately (no ready-to-show wait), relying on the hidden window having
+      // already painted its renderer. This is Electron's default (true) — pinned explicitly so it
+      // is never silently flipped to false (which would re-introduce the empty-shell first-paint
+      // flash on reuse and the never-fires ready-to-show stuck-hidden failure mode).
+      paintWhenInitiallyHidden: true,
       vibrancy: 'sidebar',
       visualEffectState: 'active',
       platformOverrides: {

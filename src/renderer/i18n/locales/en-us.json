@@ -395,9 +395,6 @@
           "failed": "Failed to reorder sessions"
         }
       },
-      "tool": {
-        "disabled": "The {{toolName}} tool is disabled for this agent."
-      },
       "update": {
         "error": {
           "failed": "Failed to update the session"
