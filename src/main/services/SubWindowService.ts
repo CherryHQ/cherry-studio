@@ -229,18 +229,17 @@ export class SubWindowService extends BaseService {
 
     // showMode: 'manual' — WM does not auto-show. Callers that supply an initial position
     // will receive Tab_MoveWindow which shows the window after repositioning; otherwise we show
-    // it here. A pooled standby is already loaded (ready-to-show fired during pre-warm and won't
-    // fire again), so it must be shown now; a freshly-created window (empty pool) shows on
-    // ready-to-show to avoid a blank flash. resetPooledWindowGeometry has already centered it.
-    if (!hasPosition) {
-      const showWindow = () => {
-        if (!win.isDestroyed()) win.show()
-      }
-      if (win.webContents.isLoadingMainFrame()) {
-        win.once('ready-to-show', showWindow)
-      } else {
-        showWindow()
-      }
+    // it here, unconditionally and immediately, mirroring SelectionService.showActionWindow.
+    // This works for both fresh and reused windows because the SubWindow registry keeps
+    // paintWhenInitiallyHidden (Electron's default true): the hidden window — whether a freshly
+    // created one or a pre-warmed pooled standby — paints its renderer while hidden, so show()
+    // reveals already-rendered content. We deliberately do NOT gate on isLoadingMainFrame() /
+    // wait for ready-to-show: a standby's ready-to-show already fired during pre-warm and won't
+    // fire again (so a conditional wait would either flash the empty pre-warm shell or, on a
+    // failed load, leave the window stuck hidden forever). resetPooledWindowGeometry has already
+    // centered it.
+    if (!hasPosition && !win.isDestroyed()) {
+      win.show()
     }
 
     if (USE_CONTENT_BOUNDS_MOVE) {
