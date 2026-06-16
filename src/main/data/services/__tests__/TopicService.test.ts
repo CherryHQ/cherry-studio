@@ -362,6 +362,31 @@ describe('TopicService', () => {
 
       expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
     })
+
+    it('keeps all selected topics when any selected id is missing', async () => {
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-1', name: 'Topic 1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'topic-2', name: 'Topic 2', orderKey: 'a1', createdAt: 1, updatedAt: 1 }
+      ])
+      await dbh.db.insert(messageTable).values({
+        id: 'message-1',
+        topicId: 'topic-1',
+        role: 'user',
+        data: { parts: [] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      await expect(topicService.deleteByIds(['topic-1', 'missing-topic'])).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+
+      const topics = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.id))
+      expect(topics.map((topic) => topic.id)).toEqual(['topic-1', 'topic-2'])
+      expect(await dbh.db.select().from(messageTable)).toHaveLength(1)
+    })
   })
 
   describe('reorder', () => {
