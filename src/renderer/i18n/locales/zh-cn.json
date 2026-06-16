@@ -4765,6 +4765,7 @@
     "open-mineru": "Open MinerU",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
+    "orcarouter": "OrcaRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
     "paddleocr": "PaddleOCR",
