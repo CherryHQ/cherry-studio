@@ -178,6 +178,12 @@ function extractPreview(message: Message): string {
  * Convert Message to TreeNode
  */
 function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
+  if (message.parentId === null) {
+    // The virtual root is the only parentId-null row and is never a tree node — tree
+    // queries descend from its children — so a content tree node always has a parent.
+    // The guard narrows `parentId` to a non-null `string` without an assertion; it never fires.
+    throw new Error(`messageToTreeNode: message ${message.id} has no parent`)
+  }
   return {
     id: message.id,
     parentId: message.parentId,
@@ -404,12 +410,10 @@ export class MessageService {
 
     for (const row of treeRows) {
       const message = rowToMessage(row)
-      // First-turn messages hang off the virtual root in the DB; present them as
-      // logical roots (parentId = null) so the canvas renders them as independent
-      // root trees and the structural virtual root stays invisible.
-      if (virtualRootId && message.parentId === virtualRootId) {
-        message.parentId = null
-      }
+      // First-turn messages keep their real parent — the topic's virtual root. The
+      // virtual root itself is never a tree node (rootIds are its children), so no
+      // tree node / sibling group has a null parent; the canvas skips edges to the
+      // (unrendered) virtual root.
       messagesById.set(message.id, message)
       depthMap.set(message.id, row.treeDepth)
 
@@ -436,13 +440,17 @@ export class MessageService {
 
       // Check if this message is part of a siblings group
       const siblingsGroupId = message.siblingsGroupId ?? 0
-      if (siblingsGroupId !== 0) {
-        const groupKey = groupKeyFor(message.parentId, siblingsGroupId)
+      // A grouped message always has a non-null parent (the virtual root for first-turn
+      // groups, else a content message); the parentId-null virtual root is never grouped.
+      // The `parentId !== null` guard narrows it without a non-null assertion.
+      if (siblingsGroupId !== 0 && message.parentId !== null) {
+        const groupParentId = message.parentId
+        const groupKey = groupKeyFor(groupParentId, siblingsGroupId)
         if (!visitedGroups.has(groupKey)) {
           visitedGroups.add(groupKey)
 
           // Find all siblings in this group
-          const parentChildren = childrenMap.get(childrenKeyFor(message.parentId)) || []
+          const parentChildren = childrenMap.get(childrenKeyFor(groupParentId)) || []
           const groupMembers = parentChildren
             .map((id) => messagesById.get(id)!)
             .filter((m) => m && m.siblingsGroupId === siblingsGroupId)
@@ -450,7 +458,7 @@ export class MessageService {
 
           if (groupMembers.length > 1) {
             siblingsGroups.push({
-              parentId: message.parentId,
+              parentId: groupParentId,
               siblingsGroupId,
               nodes: groupMembers.map((m) => {
                 const memberChildren = childrenMap.get(m.id) || []

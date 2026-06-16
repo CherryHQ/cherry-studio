@@ -467,8 +467,8 @@ export type Message = z.infer<typeof MessageSchema>
 export interface TreeNode {
   /** Message ID */
   id: string
-  /** Parent message ID (null for root, omitted in SiblingsGroup.nodes) */
-  parentId?: string | null
+  /** Parent message ID — the topic's virtual root for first turns, else a content message; omitted in SiblingsGroup.nodes */
+  parentId: string
   /** Message role */
   role: MessageRole
   /** Content preview (first 50 characters) */
@@ -488,8 +488,8 @@ export interface TreeNode {
  * Used for multi-model responses in tree view
  */
 export interface SiblingsGroup {
-  /** Parent message ID (null for root sibling groups) */
-  parentId: string | null
+  /** Parent message ID — the virtual root for first-turn groups, else a content message */
+  parentId: string
   /** Siblings group ID (non-zero) */
   siblingsGroupId: number
   /** Nodes in this group (parentId omitted to avoid redundancy) */

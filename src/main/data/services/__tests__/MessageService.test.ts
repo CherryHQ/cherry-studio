@@ -793,7 +793,7 @@ describe('MessageService', () => {
 
       const rootNode = result.nodes.find((n) => n.id === 'm-root')
       const followNode = result.nodes.find((n) => n.id === 'm-follow')
-      expect(rootNode?.parentId).toBeNull()
+      expect(rootNode?.parentId).toBe('vroot-topic-1')
       expect(followNode?.parentId).toBe('m-a2')
 
       // Regression: preview is derived from data.parts text (was always '' when it read data.blocks).
@@ -879,9 +879,9 @@ describe('MessageService', () => {
 
       expect(result.siblingsGroups).toHaveLength(0)
       expect(result.nodes.map((node) => [node.id, node.parentId])).toEqual([
-        ['u-first', null],
+        ['u-first', 'vroot-topic-multi-root'],
         ['a-first', 'u-first'],
-        ['u-second', null],
+        ['u-second', 'vroot-topic-multi-root'],
         ['a-second', 'u-second']
       ])
       expect(result.activeNodeId).toBe('a-second')
@@ -933,10 +933,10 @@ describe('MessageService', () => {
       expect(branch.items[0].message.id).toBe(sibling.id)
       expect(branch.items[0].siblingsGroup?.map((message) => message.id)).toEqual(['u-root'])
 
-      // getTree re-nulls the first-turn group's parentId so the renderer contract is unchanged.
+      // The first-turn group's parentId is the topic's virtual root (never re-nulled).
       const tree = await messageService.getTree('topic-root-sibling', { depth: -1 })
       expect(tree.siblingsGroups).toHaveLength(1)
-      expect(tree.siblingsGroups[0].parentId).toBeNull()
+      expect(tree.siblingsGroups[0].parentId).toBe(virtualRootId)
       expect(tree.siblingsGroups[0].nodes.map((node) => node.id)).toEqual(['u-root', sibling.id])
     })
 
@@ -989,8 +989,8 @@ describe('MessageService', () => {
 
       expect(tree.activeNodeId).toBe('a-edited')
       expect(tree.siblingsGroups).toHaveLength(1)
-      // First-turn group's parentId is re-nulled in the response.
-      expect(tree.siblingsGroups[0].parentId).toBeNull()
+      // First-turn group's parentId is the topic's virtual root.
+      expect(tree.siblingsGroups[0].parentId).toBe('vroot-topic-root-flow')
       expect(tree.siblingsGroups[0].nodes.map((node) => [node.id, node.hasChildren])).toEqual([
         ['u-original', true],
         [editedRoot.id, true]
@@ -1230,20 +1230,20 @@ describe('MessageService', () => {
     })
   })
 
-  describe('getTree — re-nulls first-turn parentId', () => {
-    it('surfaces first-turn nodes with parentId:null even though they hang off the virtual root', async () => {
+  describe('getTree — keeps first-turn parentId on the virtual root', () => {
+    it('surfaces first-turn nodes with parentId set to the virtual root, which is not itself a node', async () => {
       await seedMultiModelTree()
 
       const result = await messageService.getTree('topic-1', { depth: -1 })
 
-      // m-root physically hangs off vroot-topic-1, but the response re-nulls it.
+      // m-root hangs off vroot-topic-1, and the response keeps that real parent.
       const rootNode = result.nodes.find((n) => n.id === 'm-root')
-      expect(rootNode?.parentId).toBeNull()
+      expect(rootNode?.parentId).toBe('vroot-topic-1')
       // The virtual root is never surfaced as a node.
       expect(result.nodes.some((n) => n.id === 'vroot-topic-1')).toBe(false)
     })
 
-    it('first-turn SiblingsGroup.parentId is null', async () => {
+    it('first-turn SiblingsGroup.parentId is the virtual root', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-first-group', activeNodeId: 'u-b', orderKey: 'fg0' })
       await dbh.db.insert(messageTable).values(
         withRoot('topic-first-group', [
@@ -1275,7 +1275,7 @@ describe('MessageService', () => {
       const result = await messageService.getTree('topic-first-group', { depth: -1 })
 
       expect(result.siblingsGroups).toHaveLength(1)
-      expect(result.siblingsGroups[0].parentId).toBeNull()
+      expect(result.siblingsGroups[0].parentId).toBe('vroot-topic-first-group')
       expect(result.siblingsGroups[0].siblingsGroupId).toBe(9)
       expect(result.siblingsGroups[0].nodes.map((n) => n.id)).toEqual(['u-a', 'u-b'])
     })
