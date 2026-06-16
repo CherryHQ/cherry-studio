@@ -664,4 +664,28 @@ describe('ListKnowledgeBasesQuerySchema', () => {
     })
     expect(() => ListKnowledgeBasesQuerySchema.parse({ search: '   ' })).toThrow()
   })
+
+  it('accepts sort and updatedAtFrom query fields', () => {
+    expect(
+      ListKnowledgeBasesQuerySchema.parse({
+        sortBy: 'updatedAt',
+        sortOrder: 'desc',
+        updatedAtFrom: '2026-05-01T00:00:00.000Z'
+      })
+    ).toEqual({
+      page: KNOWLEDGE_BASES_DEFAULT_PAGE,
+      limit: KNOWLEDGE_BASES_DEFAULT_LIMIT,
+      sortBy: 'updatedAt',
+      sortOrder: 'desc',
+      updatedAtFrom: '2026-05-01T00:00:00.000Z'
+    })
+  })
+
+  it('rejects invalid sort and updatedAtFrom query fields', () => {
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ sortBy: 'bogus' }).success).toBe(false)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ sortOrder: 'bogus' }).success).toBe(false)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ updatedAtFrom: 'today' }).success).toBe(false)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ updatedAtFrom: 1 }).success).toBe(false)
+    expect(ListKnowledgeBasesQuerySchema.safeParse({ orderBy: 'desc' }).success).toBe(false)
+  })
 })
