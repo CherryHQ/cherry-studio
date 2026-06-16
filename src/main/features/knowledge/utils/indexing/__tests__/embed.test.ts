@@ -1,5 +1,4 @@
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { Document, NodeRelationship } from '@vectorstores/core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -15,10 +14,9 @@ vi.mock('@application', async () => {
   } as Parameters<typeof mockApplicationFactory>[0])
 })
 
-const { embedKnowledgeDocuments, embedKnowledgeQuery } = await import('../embed')
+const { embedKnowledgeTexts, embedKnowledgeQuery } = await import('../embed')
 
 const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
-const KNOWLEDGE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 
 function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   return {
@@ -36,24 +34,10 @@ function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
     threshold: undefined,
     documentCount: 10,
     searchMode: 'hybrid',
-    hybridAlpha: undefined,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z',
     ...overrides
   }
-}
-
-function createDocument(text: string, chunkIndex: number): Document {
-  return new Document({
-    text,
-    metadata: {
-      source: `source-${chunkIndex}`,
-      itemId: KNOWLEDGE_ITEM_ID,
-      itemType: 'note',
-      chunkIndex,
-      tokenCount: text.length
-    }
-  })
 }
 
 describe('knowledge embedding', () => {
@@ -74,30 +58,24 @@ describe('knowledge embedding', () => {
     })
   })
 
-  it('embeds documents as ordered vector-store nodes', async () => {
+  it('embeds an array of texts in order, forwarding the abort signal', async () => {
     const controller = new AbortController()
-    const documents = [createDocument('first', 0), createDocument('second', 1)]
 
-    const nodes = await embedKnowledgeDocuments(createBase(), documents, controller.signal)
+    const vectors = await embedKnowledgeTexts(createBase(), ['first', 'second'], controller.signal)
 
     expect(mocks.aiEmbedManyMock).toHaveBeenCalledWith({
       uniqueModelId: 'provider::embed',
       values: ['first', 'second'],
       requestOptions: { signal: controller.signal }
     })
-    expect(nodes.map((node) => node.text)).toEqual(['first', 'second'])
-    expect(nodes.map((node) => node.embedding)).toEqual([
+    expect(vectors).toEqual([
       [0.1, 0.2, 0.3],
       [0.1, 0.2, 0.3]
     ])
-    expect(nodes[0].relationships[NodeRelationship.SOURCE]).toEqual({
-      nodeId: KNOWLEDGE_ITEM_ID,
-      metadata: documents[0].metadata
-    })
   })
 
-  it('does not call AiService for empty documents', async () => {
-    await expect(embedKnowledgeDocuments(createBase(), [])).resolves.toEqual([])
+  it('does not call AiService for empty input', async () => {
+    await expect(embedKnowledgeTexts(createBase(), [])).resolves.toEqual([])
 
     expect(mocks.aiEmbedManyMock).not.toHaveBeenCalled()
   })
@@ -119,9 +97,7 @@ describe('knowledge embedding', () => {
   it('throws a knowledge error when the vector count differs from the input count', async () => {
     mocks.aiEmbedManyMock.mockResolvedValueOnce({ embeddings: [[0.1, 0.2, 0.3]] })
 
-    await expect(
-      embedKnowledgeDocuments(createBase(), [createDocument('first', 0), createDocument('second', 1)])
-    ).rejects.toThrow(
+    await expect(embedKnowledgeTexts(createBase(), ['first', 'second'])).rejects.toThrow(
       `Invalid operation: embed knowledge content - Embedding model returned 1 vectors for 2 inputs in knowledge base '${KNOWLEDGE_BASE_ID}'`
     )
   })

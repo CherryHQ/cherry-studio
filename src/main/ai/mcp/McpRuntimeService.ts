@@ -56,7 +56,7 @@ import { EventEmitter } from 'events'
 import { v4 as uuidv4 } from 'uuid'
 import * as z from 'zod'
 
-import type { DxtService } from './DxtService'
+import type { McpPackageService } from './McpPackageService'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
 import { ServerLogBuffer } from './ServerLogBuffer'
@@ -183,7 +183,7 @@ function withCache<T extends unknown[], R>(
 
 @Injectable('McpRuntimeService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['WindowManager', 'DxtService'])
+@DependsOn(['WindowManager', 'McpPackageService'])
 export class McpRuntimeService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
@@ -193,8 +193,8 @@ export class McpRuntimeService extends BaseService {
   private readonly _onToolListChanged = new Emitter<McpToolListChangedEvent>()
   readonly onToolListChanged: Event<McpToolListChangedEvent> = this._onToolListChanged.event
 
-  private get dxtService(): DxtService {
-    return application.get('DxtService')
+  private get mcpPackageService(): McpPackageService {
+    return application.get('McpPackageService')
   }
 
   protected async onInit(): Promise<void> {
@@ -483,6 +483,7 @@ export class McpRuntimeService extends BaseService {
             }
           } else if (server.command) {
             let cmd = server.command
+            let effectiveCommand = server.command
 
             // Build a local env for the transport instead of mutating `server.env`. getServerKey(server)
             // serializes server.env, so mutating it here would shift the key after connect — connect-time
@@ -495,24 +496,25 @@ export class McpRuntimeService extends BaseService {
             // Note: getLoginShellEnvironment() is memoized, so subsequent calls are fast
             const loginShellEnv = await getLoginShellEnvironment()
 
-            // For DXT servers, use resolved configuration with platform overrides and variable substitution
+            // For package servers, use resolved configuration with platform overrides and variable substitution
             if (server.dxtPath) {
-              const resolvedConfig = this.dxtService.getResolvedMcpConfig(server.dxtPath)
+              const resolvedConfig = this.mcpPackageService.getResolvedMcpConfig(server.dxtPath)
               if (resolvedConfig) {
                 cmd = resolvedConfig.command
+                effectiveCommand = resolvedConfig.command
                 args = resolvedConfig.args
                 // Merge resolved environment variables with existing ones
                 Object.assign(connectEnv, resolvedConfig.env)
-                getServerLogger(server).debug(`Using resolved DXT config`, {
+                getServerLogger(server).debug(`Using resolved package config`, {
                   command: cmd,
                   args
                 })
               } else {
-                getServerLogger(server).warn(`Failed to resolve DXT config, falling back to manifest values`)
+                getServerLogger(server).warn(`Failed to resolve package config, falling back to manifest values`)
               }
             }
 
-            if (server.command === 'npx') {
+            if (effectiveCommand === 'npx') {
               // First, check if npx is available in user's shell environment
               const npxPath = await findCommandInShellEnv('npx', loginShellEnv)
 
@@ -562,32 +564,32 @@ export class McpRuntimeService extends BaseService {
                   connectEnv.MCP_REGISTRY_PATH = path.join(binPath, '..', 'config', 'mcp-registry.json')
                 }
               }
-            } else if (server.command === 'uvx' || server.command === 'uv') {
+            } else if (effectiveCommand === 'uvx' || effectiveCommand === 'uv') {
               // First, check if uvx/uv is available in user's shell environment
-              const uvPath = await findCommandInShellEnv(server.command, loginShellEnv)
+              const uvPath = await findCommandInShellEnv(effectiveCommand, loginShellEnv)
 
               if (uvPath) {
                 // Use system uvx/uv
                 cmd = uvPath
-                getServerLogger(server).debug(`Using system ${server.command}`, { command: cmd })
+                getServerLogger(server).debug(`Using system ${effectiveCommand}`, { command: cmd })
               } else {
                 // System command not found, try bundled version as fallback
-                getServerLogger(server).debug(`System ${server.command} not found, checking for bundled version`)
+                getServerLogger(server).debug(`System ${effectiveCommand} not found, checking for bundled version`)
 
-                if (await isBinaryExists(server.command)) {
+                if (await isBinaryExists(effectiveCommand)) {
                   // Fall back to bundled version
-                  cmd = await getBinaryPath(server.command)
-                  getServerLogger(server).info(`Using bundled ${server.command} as fallback (not found in PATH)`, {
+                  cmd = await getBinaryPath(effectiveCommand)
+                  getServerLogger(server).info(`Using bundled ${effectiveCommand} as fallback (not found in PATH)`, {
                     command: cmd
                   })
                 } else {
                   // Neither system nor bundled available
                   throw new Error(
-                    `${server.command} not found in PATH and bundled version is not available. This may indicate an installation issue.\n` +
+                    `${effectiveCommand} not found in PATH and bundled version is not available. This may indicate an installation issue.\n` +
                       'Please either:\n' +
                       '1. Install uv from https://github.com/astral-sh/uv\n' +
                       '2. Run the MCP dependencies installer from Settings\n' +
-                      `3. Restart the application if you recently installed ${server.command}`
+                      `3. Restart the application if you recently installed ${effectiveCommand}`
                   )
                 }
               }
@@ -615,10 +617,10 @@ export class McpRuntimeService extends BaseService {
               stderr: 'pipe'
             }
 
-            // For DXT servers, set the working directory to the extracted path
+            // For package servers, set the working directory to the extracted path
             if (server.dxtPath) {
               transportOptions.cwd = server.dxtPath
-              getServerLogger(server).debug(`Setting working directory for DXT server`, {
+              getServerLogger(server).debug(`Setting working directory for package server`, {
                 cwd: server.dxtPath
               })
             }
@@ -956,15 +958,15 @@ export class McpRuntimeService extends BaseService {
       }
     }
 
-    // If this is a DXT server, cleanup its directory
+    // If this is a package server, cleanup its directory
     if (server.dxtPath) {
       try {
-        const cleaned = this.dxtService.cleanupDxtServer(server.name)
+        const cleaned = this.mcpPackageService.cleanupPackageServer(server.name)
         if (cleaned) {
-          getServerLogger(server).debug(`Cleaned up DXT server directory`)
+          getServerLogger(server).debug(`Cleaned up package server directory`)
         }
       } catch (error) {
-        getServerLogger(server).error(`Failed to cleanup DXT server`, error as Error)
+        getServerLogger(server).error(`Failed to cleanup package server`, error as Error)
       }
     }
   }

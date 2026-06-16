@@ -65,11 +65,11 @@ This is the backend authority for user-triggered reindex. UI may hide the reinde
 
 ### Chunk Operations
 
-Used by `listItemChunks` and `deleteItemChunk`.
+Used by `listItemChunks`. (The chunk-level delete `deleteItemChunk` was removed with the per-base index store cutover — chunks are derived index rows now, replaced wholesale by `rebuildMaterial`.)
 
 - Rejects failed bases through `assertBaseCanRunRuntimeOperation`.
 - Loads the requested item and rejects items outside the requested `baseId`.
-- Allows chunk list/delete only when the requested item itself is `completed`.
+- Allows chunk listing only when the requested item itself is `completed`.
 - For completed `directory` list requests, also rejects if any descendant is `deleting`.
 
 The UI should only expose chunk viewing for completed rows, but the service guard remains the backend authority for stale or direct IPC calls. The extra container descendant check exists because container reconciliation ignores `deleting` children, so a container can stay `completed` while cleanup is still pending below it.
@@ -275,6 +275,6 @@ When changing these operations, check the operation-specific failure behavior be
 | `addItems` | Reject | N/A | N/A | `preparing` / `processing` | Mark unscheduled accepted rows `failed` |
 | `deleteItems` | Allow | Yes | N/A | `deleting` | Keep `deleting`; startup recovery best-effort re-enqueues |
 | `reindexItems` | Reject | Yes | Entire selected subtree must be `completed` or `failed` | None | Throw; no active state was written |
-| `listItemChunks` / `deleteItemChunk` | Reject | N/A | Requested item must be `completed`; container list rejects deleting descendants | N/A | N/A |
+| `listItemChunks` | Reject | N/A | Requested item must be `completed`; container list rejects deleting descendants | N/A | N/A |
 
 Prefer shared helpers for exact common behavior, such as base-state guards, base ownership checks, root collapse, queue names, and idempotency key builders. Keep operation flows explicit when the state or recovery semantics differ.

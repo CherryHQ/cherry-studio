@@ -167,7 +167,26 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
   it('emits resume token, chunks, and turn-complete events', async () => {
     const queryQueue = createAsyncQueue<any>()
-    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const contextUsage = {
+      categories: [],
+      totalTokens: 42,
+      maxTokens: 100,
+      rawMaxTokens: 100,
+      percentage: 42,
+      gridRows: [],
+      model: 'sonnet',
+      memoryFiles: [],
+      mcpTools: [],
+      agents: [],
+      isAutoCompactEnabled: true,
+      apiUsage: null
+    }
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(),
+      close: vi.fn(),
+      getContextUsage: vi.fn().mockResolvedValue(contextUsage)
+    }
     mocks.createClaudeQuery.mockReturnValue(query)
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
@@ -218,8 +237,113 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
     })
     await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'context-usage', usage: contextUsage }
+    })
+    await expect(events.next()).resolves.toMatchObject({
       value: { type: 'turn-complete' }
     })
+    void connection.close()
+  })
+
+  it('maps SDK compaction status and boundary messages to runtime compaction events', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    queryQueue.push({
+      type: 'system',
+      subtype: 'status',
+      status: 'compacting',
+      session_id: 'resume-1'
+    })
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'compaction-start' }
+    })
+
+    queryQueue.push({
+      type: 'system',
+      subtype: 'compact_boundary',
+      session_id: 'resume-1',
+      compact_metadata: {
+        trigger: 'auto',
+        pre_tokens: 52_000,
+        post_tokens: 14_000,
+        duration_ms: 1234
+      }
+    })
+    await expect(events.next()).resolves.toMatchObject({
+      value: {
+        type: 'compaction-complete',
+        anchor: {
+          trigger: 'auto',
+          completedAt: expect.any(String),
+          preTokens: 52_000,
+          postTokens: 14_000,
+          durationMs: 1234
+        }
+      }
+    })
+
+    void connection.close()
+  })
+
+  it('maps SDK compact failures to runtime compaction-error events', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    queryQueue.push({
+      type: 'system',
+      subtype: 'status',
+      status: null,
+      compact_result: 'failed',
+      compact_error: 'context too large',
+      session_id: 'resume-1'
+    })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'compaction-error', error: 'context too large' }
+    })
+
+    void connection.close()
+  })
+
+  it('maps SDK compact success status without a boundary to a completion event', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    queryQueue.push({
+      type: 'system',
+      subtype: 'status',
+      status: null,
+      compact_result: 'success',
+      session_id: 'resume-1'
+    })
+
+    await expect(events.next()).resolves.toEqual({
+      value: { type: 'compaction-complete' },
+      done: false
+    })
+
     void connection.close()
   })
 
@@ -283,24 +407,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('interrupts and finalizes the active adapter', async () => {
-    const queryQueue = createAsyncQueue<any>()
-    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
-    mocks.createClaudeQuery.mockReturnValue(query)
-    const connection = await new ClaudeCodeRuntimeDriver().connect({
-      sessionId: 'session-1',
-      agentId: 'agent-1',
-      modelId: 'claude-code::sonnet' as any
-    })
-
-    void connection.send({ message: userMessage() })
-    await connection.interrupt?.()
-
-    expect(query.interrupt).toHaveBeenCalled()
-    expect(mocks.adapterInstances[0].finalizeOpenParts).toHaveBeenCalled()
-    void connection.close()
-  })
-
   it('injects Claude Code trace env and skips warm query for trace turns', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -345,6 +451,122 @@ describe('ClaudeCodeRuntimeDriver', () => {
         }
       })
     })
+    void connection.close()
+  })
+
+  it('redirect declines without a live turn and stashes the steer in the holder once a turn is active', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const steerHolder = { pending: [] as unknown[], dispose: vi.fn() }
+    mocks.buildRequest.mockResolvedValueOnce({
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { steerHolder },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+
+    // No active turn (no adapter yet) → redirect declines so the host queues instead of steering.
+    expect(connection.redirect?.({ message: userMessage() })).toBe(false)
+    expect(steerHolder.pending).toHaveLength(0)
+
+    // A turn is now live → redirect stashes the steer in the shared holder for the PreToolUse hook.
+    void connection.send({ message: userMessage() })
+    expect(connection.redirect?.({ message: userMessage() })).toBe(true)
+    expect(steerHolder.pending).toHaveLength(1)
+
+    void connection.close()
+    expect(steerHolder.dispose).toHaveBeenCalled()
+  })
+
+  it('emits a steer-boundary at the first top-level message_start after a steer is injected', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const steerHolder = { pending: [] as unknown[], onInjected: undefined as any, dispose: vi.fn() }
+    mocks.buildRequest.mockResolvedValueOnce({
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { steerHolder },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    // The live connection binds onInjected so the PreToolUse hook can arm the boundary.
+    expect(typeof steerHolder.onInjected).toBe('function')
+
+    queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
+    await events.next() // resume-token
+    void connection.send({ message: userMessage() })
+    await events.next() // metadata chunk (init replayed on send)
+
+    // A message_start BEFORE injection (the pre-steer assistant message) must NOT roll.
+    queryQueue.push({ type: 'stream_event', event: { type: 'message_start' }, parent_tool_use_id: null })
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'chunk', chunk: { type: 'text-delta' } } })
+
+    // PreToolUse hook injects the steer → arms the boundary.
+    const steer = { message: userMessage() }
+    steerHolder.onInjected([steer])
+
+    // A nested (subagent) message_start carries a parent_tool_use_id → must NOT roll.
+    queryQueue.push({ type: 'stream_event', event: { type: 'message_start' }, parent_tool_use_id: 'tool-x' })
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'chunk', chunk: { type: 'text-delta' } } })
+
+    // The first TOP-LEVEL message_start after injection emits the boundary, ahead of its own chunks.
+    queryQueue.push({ type: 'stream_event', event: { type: 'message_start' }, parent_tool_use_id: null })
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'steer-boundary', inputs: [steer] } })
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'chunk', chunk: { type: 'text-delta' } } })
+
+    void connection.close()
+  })
+
+  it('drops the steer-boundary arm when the turn ends before a post-steer message', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const steerHolder = { pending: [] as unknown[], onInjected: undefined as any, dispose: vi.fn() }
+    mocks.buildRequest.mockResolvedValueOnce({
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { steerHolder },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    void connection.send({ message: userMessage() })
+    steerHolder.onInjected([{ message: userMessage() }])
+
+    // Turn ends (result) with no following top-level message_start → no boundary, just a clean turn end.
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-result', usage: {} })
+
+    const seen: any[] = []
+    for (;;) {
+      const { value, done } = await events.next()
+      if (done) break
+      seen.push(value)
+      if (value?.type === 'turn-complete') break
+    }
+    expect(seen.some((e) => e?.type === 'steer-boundary')).toBe(false)
+    expect(seen.some((e) => e?.type === 'turn-complete')).toBe(true)
+
     void connection.close()
   })
 
@@ -478,6 +700,47 @@ describe('ClaudeCodeRuntimeDriver', () => {
         }
       }
     })
+    void connection.close()
+    expect(dispose).toHaveBeenCalled()
+  })
+
+  it('keeps the session approval emitter across turns — disposes only on close, not on turn-complete', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const dispose = vi.fn()
+    const approvalEmitter: any = { dispose }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValue({
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { approvalEmitter },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    // Turn 1 runs to completion.
+    void connection.send({ message: userMessage() })
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-1', usage: { output_tokens: 1 } })
+    let evt = await events.next()
+    while (evt.value?.type !== 'turn-complete') evt = await events.next()
+
+    // Regression: a completed turn must NOT dispose the session-scoped approval emitter (doing so
+    // evicted it, so the next turn's canUseTool found no emitter and denied "Approval emitter not ready").
+    expect(dispose).not.toHaveBeenCalled()
+
+    // Turn 2's approval still reaches the stream — the emitter survived turn 1.
+    approvalEmitter.emit({ type: 'tool-approval-request', approvalId: 'approval-2', toolCallId: 'tool-2' } as any)
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'tool-approval-request', approvalId: 'approval-2' } }
+    })
+
+    // Teardown is the only place that disposes.
     void connection.close()
     expect(dispose).toHaveBeenCalled()
   })

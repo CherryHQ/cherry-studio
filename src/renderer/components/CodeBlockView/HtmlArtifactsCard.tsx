@@ -27,15 +27,11 @@ const HtmlArtifactsCard: FC<Props> = ({ html, onSave, isStreaming = false }) => 
   const hasContent = htmlContent.trim().length > 0
 
   const handleOpenExternal = async () => {
-    const path = await window.api.file.createTempFile('artifacts-preview.html')
-    await window.api.file.write(path, htmlContent)
-    const filePath = `file://${path}`
-
-    if (window.api.shell?.openExternal) {
-      void window.api.shell.openExternal(filePath)
-    } else {
+    const tempPath = await window.api.file.createTempFile('artifacts-preview.html')
+    await window.api.file.write(tempPath, htmlContent)
+    window.api.openPath(tempPath).catch(() => {
       logger.error(t('chat.artifacts.preview.openExternal.error.content'))
-    }
+    })
   }
 
   const handleDownload = async () => {

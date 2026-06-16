@@ -370,7 +370,7 @@ export interface WindowInfo {
  *   - synchronously written into `initDataStore` before `open()` returns
  *     (so renderer `getInitData` invokes always see the fresh value);
  *   - for reuse paths (pool recycle / singleton reopen), also pushed to the
- *     renderer via `IpcChannel.WindowManager_Reused` as the event payload.
+ *     renderer via the IpcApi `window.reused` event as the payload.
  *
  * Never pushed for fresh-window paths (pooled new / default / singleton first /
  * `create()` — all create paths), because the renderer is not yet ready to

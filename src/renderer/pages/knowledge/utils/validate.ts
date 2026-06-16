@@ -5,7 +5,6 @@ const knowledgeRagConfigKeys = [
   'chunkSize',
   'chunkOverlap',
   'embeddingModelId',
-  'dimensions',
   'rerankModelId',
   'documentCount',
   'threshold',
@@ -17,12 +16,10 @@ export type KnowledgeRagChunkValidationErrorCode =
   | 'chunkSizeInvalid'
   | 'chunkOverlapInvalid'
   | 'chunkOverlapMustBeSmaller'
-export type KnowledgeRagDimensionsValidationErrorCode = 'dimensionsInvalid'
 
 export interface KnowledgeRagChunkValidationErrors {
   chunkOverlap?: KnowledgeRagChunkValidationErrorCode
   chunkSize?: KnowledgeRagChunkValidationErrorCode
-  dimensions?: KnowledgeRagDimensionsValidationErrorCode
 }
 
 export const parseOptionalInteger = (value: string) => {
@@ -45,12 +42,10 @@ export const parseRequiredInteger = (value: string) => {
 }
 
 export const getKnowledgeRagChunkValidationErrors = (
-  values: Pick<KnowledgeRagConfigFormValues, 'chunkOverlap' | 'chunkSize'> &
-    Partial<Pick<KnowledgeRagConfigFormValues, 'dimensions'>>
+  values: Pick<KnowledgeRagConfigFormValues, 'chunkOverlap' | 'chunkSize'>
 ): KnowledgeRagChunkValidationErrors => {
   const chunkSize = parseOptionalInteger(values.chunkSize)
   const chunkOverlap = parseOptionalInteger(values.chunkOverlap)
-  const dimensions = values.dimensions == null ? null : parseOptionalInteger(values.dimensions)
   const errors: KnowledgeRagChunkValidationErrors = {}
 
   if (values.chunkSize && (!chunkSize || chunkSize <= 0)) {
@@ -65,10 +60,6 @@ export const getKnowledgeRagChunkValidationErrors = (
     errors.chunkOverlap = 'chunkOverlapMustBeSmaller'
   }
 
-  if (values.dimensions && (!dimensions || dimensions <= 0)) {
-    errors.dimensions = 'dimensionsInvalid'
-  }
-
   return errors
 }
 
@@ -77,8 +68,7 @@ export const getKnowledgeRagConfigFormState = (
   currentValues: KnowledgeRagConfigFormValues
 ) => {
   const validationErrorCodes = getKnowledgeRagChunkValidationErrors(currentValues)
-  const hasEmptyChunkFields =
-    currentValues.chunkSize === '' || currentValues.chunkOverlap === '' || currentValues.dimensions === ''
+  const hasEmptyChunkFields = currentValues.chunkSize === '' || currentValues.chunkOverlap === ''
   const hasValidationErrors = Object.values(validationErrorCodes).some(Boolean)
   const isDirty = knowledgeRagConfigKeys.some((key) => initialValues[key] !== currentValues[key])
 

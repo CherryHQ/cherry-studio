@@ -8,6 +8,7 @@ import {
   createPrepareRootJobHandler,
   deleteItemsByIdsMock,
   deleteKnowledgeItemFilesBestEffortMock,
+  deleteMaterialMock,
   getJobMock,
   knowledgeItemGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
@@ -15,7 +16,6 @@ import {
   knowledgeItemUpdateStatusMock,
   knowledgeLockManager,
   prepareKnowledgeItemMock,
-  replaceByExternalIdMock,
   scheduleItemMock,
   workflowService
 } from './jobHandlerTestUtils'
@@ -42,9 +42,9 @@ describe('prepare-root job handler', () => {
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
 
-    expect(replaceByExternalIdMock).toHaveBeenCalledWith('active-note', [])
+    expect(deleteMaterialMock).toHaveBeenCalledWith('active-note')
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['active-note'])
-    expect(replaceByExternalIdMock.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(deleteMaterialMock.mock.invocationCallOrder[0]).toBeLessThan(
       deleteItemsByIdsMock.mock.invocationCallOrder[0]
     )
   })
@@ -77,9 +77,9 @@ describe('prepare-root job handler', () => {
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
 
-    expect(replaceByExternalIdMock).toHaveBeenCalledWith('active-note', [])
+    expect(deleteMaterialMock).toHaveBeenCalledWith('active-note')
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['active-note'])
-    expect(replaceByExternalIdMock).not.toHaveBeenCalledWith('deleting-note', [])
+    expect(deleteMaterialMock).not.toHaveBeenCalledWith('deleting-note')
     expect(deleteItemsByIdsMock).not.toHaveBeenCalledWith('kb-1', expect.arrayContaining(['deleting-note']))
   })
 

@@ -22,4 +22,5 @@
 
 | Date | Change | Document |
 | --- | --- | --- |
+| 2026-06-12 | Default assistant and CherryAI defaults are seeded | [2026-06-12-default-assistant-name.md](./breaking-changes/2026-06-12-default-assistant-name.md) |
 | 2026-04-23 | Web Search 移除本地搜索引擎与 RAG 压缩配置 | [2026-04-23-web-search-remove-local-providers-and-rag.md](./breaking-changes/2026-04-23-web-search-remove-local-providers-and-rag.md) |

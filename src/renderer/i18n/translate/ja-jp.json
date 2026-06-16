@@ -5682,12 +5682,18 @@
           },
           "invalid": "無効な入力です。JSON形式を確認してください。",
           "json": "JSONからインポート",
+          "mcpb": "MCPBバンドルをインポート",
+          "mcpbFile": "MCPBバンドルファイル",
+          "mcpbHelp": "MCPサーバーバンドルを含む.mcpbファイルを選択してください",
+          "mcpbProcessFailed": "MCPBファイルの処理に失敗しました",
           "method": "インポート方法",
           "nameExists": "サーバーはすでに存在します: {{name}}",
           "noDxtFile": "DXTファイルを選択してください",
+          "noMcpbFile": "MCPBファイルを選択してください",
           "oneServer": "一度に1つのMCPサーバー設定のみを保存できます",
           "placeholder": "MCPサーバーJSON設定を貼り付け",
           "selectDxtFile": "DXT ファイルを選択してください",
+          "selectMcpbFile": "MCPBファイルを選択",
           "tooltip": "MCPサーバー紹介ページから設定JSON（NPXまたはUVX設定を優先）をコピーし、入力ボックスに貼り付けてください。"
         },
         "label": "サーバーを追加"
@@ -6657,6 +6663,7 @@
         "project_id": "プロジェクトID",
         "project_id_help": "Google CloudプロジェクトID",
         "project_id_placeholder": "your-google-cloud-project-id",
+        "select_location": "[to be translated]:Select location",
         "service_account": {
           "auth_success": "サービスアカウントの認証が成功しました",
           "client_email": "クライアントメール",
@@ -6672,7 +6679,10 @@
           "private_key": "秘密鍵",
           "private_key_help": "Google Cloud ConsoleからダウンロードしたJSONキーファイルのprivate_keyフィールド",
           "private_key_placeholder": "サービスアカウントの秘密鍵を入力してください",
-          "title": "サービスアカウント設定"
+          "title": "サービスアカウント設定",
+          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
+          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
+          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
         }
       }
     },
@@ -7079,6 +7089,36 @@
     "settings": "設定",
     "store": "アシスタントライブラリ",
     "translate": "翻訳"
+  },
+  "trace": {
+    "agent": "エージェント",
+    "backList": "リストに戻る",
+    "cachedTokens": "キャッシュされた",
+    "endTime": "終了時刻",
+    "inputs": "入力",
+    "label": "コールチェーン",
+    "model": "モデル",
+    "name": "ノード名",
+    "noTraceList": "トレース情報が見つかりません",
+    "operation": "操作",
+    "outputs": "出力",
+    "pollError": "ポーリングに失敗しました",
+    "reasoningTokens": "推論",
+    "requestHeaders": "リクエストヘッダー",
+    "requestMethod": "リクエストメソッド",
+    "requestUrl": "リクエストURL",
+    "responseHeaders": "レスポンスヘッダー",
+    "responseStatus": "レスポンスステータス",
+    "serverDescription": "サーバーの説明",
+    "serverName": "サーバー名",
+    "serverType": "サーバータイプ",
+    "spanDetail": "スパンの詳細",
+    "spendTime": "時間を過ごす",
+    "startTime": "開始時刻",
+    "status": "ステータス",
+    "tag": "タグ",
+    "tokenUsage": "トークン使用量",
+    "toolCalls": "ツール呼び出し"
   },
   "translate": {
     "alter_language": "備用言語",

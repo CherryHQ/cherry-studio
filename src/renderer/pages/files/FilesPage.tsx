@@ -6,7 +6,7 @@ import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ListItem from '@renderer/components/ListItem'
 import db from '@renderer/databases'
-import { getFileFieldLabel } from '@renderer/i18n/label'
+import { getFileFieldLabelKey } from '@renderer/i18n/label'
 import { handleDelete, handleRename, sortFiles, tempFilesSort } from '@renderer/services/FileAction'
 import FileManager from '@renderer/services/FileManager'
 import store from '@renderer/store'
@@ -181,7 +181,7 @@ const FilesPage: FC = () => {
                       setSortOrder('desc')
                     }
                   }}>
-                  {getFileFieldLabel(field)}
+                  {t(getFileFieldLabelKey(field))}
                   {sortField === field &&
                     (sortOrder === 'desc' ? <ArrowUpWideNarrow size={12} /> : <ArrowDownNarrowWide size={12} />)}
                 </SortButton>
