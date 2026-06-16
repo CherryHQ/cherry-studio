@@ -135,17 +135,17 @@ describe('KnowledgeMigrator legacy file copy (integration)', () => {
     const rows = await dbh.db.select({ data: knowledgeItemTable.data }).from(knowledgeItemTable)
     const relativePaths = rows.map((row) => (row.data as { relativePath: string }).relativePath).sort()
     // report.pdf appears twice in the same base → deduped; the missing one keeps its name.
-    expect(relativePaths).toEqual(['missing.pdf', 'report-1.pdf', 'report.pdf'])
+    expect(relativePaths).toEqual(['missing.pdf', 'report.pdf', 'report_1.pdf'])
 
-    // Present sources are copied into the KB dir with their finalized relativePath.
-    const copiedNames = ['report.pdf', 'report-1.pdf']
+    // Present sources are copied into the KB dir's `raw/` material root with their finalized relativePath.
+    const copiedNames = ['report.pdf', 'report_1.pdf']
     const copiedContents = copiedNames
-      .map((name) => readFileSync(path.join(knowledgeBaseDir, baseId, name), 'utf8'))
+      .map((name) => readFileSync(path.join(knowledgeBaseDir, baseId, 'raw', name), 'utf8'))
       .sort()
     expect(copiedContents).toEqual(['A', 'B'])
 
     // The missing source is not copied, but its item is kept.
-    expect(existsSync(path.join(knowledgeBaseDir, baseId, 'missing.pdf'))).toBe(false)
+    expect(existsSync(path.join(knowledgeBaseDir, baseId, 'raw', 'missing.pdf'))).toBe(false)
     const warnings = (migrator as unknown as { warnings: string[] }).warnings
     expect(warnings.some((w) => w.includes('source missing') && w.includes('c.bin'))).toBe(true)
   })
@@ -184,7 +184,7 @@ describe('KnowledgeMigrator legacy file copy (integration)', () => {
     // The stored row survives the read path that lists items — a blank
     // relativePath would throw here and poison the whole base.
     expect(FileItemDataSchema.safeParse(row.data).success).toBe(true)
-    // Copied to a real file under the base dir, not onto the base dir itself.
-    expect(readFileSync(path.join(knowledgeBaseDir, baseId, relativePath), 'utf8')).toBe('Z')
+    // Copied to a real file under the base dir's `raw/` material root, not onto the base dir itself.
+    expect(readFileSync(path.join(knowledgeBaseDir, baseId, 'raw', relativePath), 'utf8')).toBe('Z')
   })
 })

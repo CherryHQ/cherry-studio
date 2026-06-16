@@ -47,7 +47,7 @@ vi.mock('react-i18next', () => ({
       (
         ({
           'knowledge.rag.search_mode.hybrid': '混合检索（推荐）',
-          'knowledge.rag.search_mode.default': '向量检索',
+          'knowledge.rag.search_mode.vector': '向量检索',
           'knowledge.rag.search_mode.bm25': '全文检索'
         }) as Record<string, string>
       )[key] ?? key
@@ -69,7 +69,6 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   status: 'completed',
   error: null,
   searchMode: 'hybrid',
-  hybridAlpha: 0.6,
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -148,7 +147,7 @@ describe('useKnowledgeRagConfig', () => {
     ])
     expect(result.current.searchModeOptions).toEqual([
       { value: 'hybrid', label: '混合检索（推荐）' },
-      { value: 'default', label: '向量检索' },
+      { value: 'vector', label: '向量检索' },
       { value: 'bm25', label: '全文检索' }
     ])
     expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('tesseract')
@@ -167,11 +166,10 @@ describe('useKnowledgeRagConfig', () => {
         chunkOverlap: '256',
         embeddingModelId: 'voyage::voyage-3-large',
         rerankModelId: null,
-        dimensions: '4096',
         documentCount: 10,
         threshold: 0.25,
-        searchMode: 'default',
-        hybridAlpha: 0.6
+        searchMode: 'vector',
+        hybridAlpha: null
       })
     })
 
@@ -184,7 +182,7 @@ describe('useKnowledgeRagConfig', () => {
         rerankModelId: null,
         documentCount: 10,
         threshold: 0.25,
-        searchMode: 'default'
+        searchMode: 'vector'
       }
     })
   })
@@ -210,20 +208,20 @@ describe('useKnowledgeRagConfig', () => {
     })
   })
 
-  it('omits hybridAlpha when switching away from hybrid search', async () => {
+  it('builds a patch with only the changed search mode', async () => {
     const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
 
     await act(async () => {
       await result.current.save({
         ...result.current.initialValues,
-        searchMode: 'default'
+        searchMode: 'vector'
       })
     })
 
     expect(mockTrigger).toHaveBeenCalledWith({
       params: { id: 'base-1' },
       body: {
-        searchMode: 'default'
+        searchMode: 'vector'
       }
     })
   })

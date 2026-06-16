@@ -64,6 +64,13 @@
       "when": 1781173061755,
       "tag": "0008_fearless_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1781318632653,
+      "tag": "0009_secret_firelord",
+      "breakpoints": true
     }
   ]
 }

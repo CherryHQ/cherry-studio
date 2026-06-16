@@ -64,7 +64,7 @@ describe('knowledge reader metadata', () => {
       updatedAt: '2026-04-08T00:00:00.000Z'
     })
 
-    expect(loadDataMock).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/kb-1/original.txt')
+    expect(loadDataMock).toHaveBeenCalledWith('/mock/feature.knowledgebase.data/kb-1/raw/original.txt')
     expect(documents[0]?.metadata).toEqual({
       source: '/tmp/original.txt'
     })

@@ -60,7 +60,7 @@ export const KNOWLEDGE_ITEM_STATUSES = [
 export const KnowledgeItemStatusSchema = z.enum(KNOWLEDGE_ITEM_STATUSES)
 export type KnowledgeItemStatus = z.infer<typeof KnowledgeItemStatusSchema>
 
-export const KNOWLEDGE_SEARCH_MODES = ['default', 'bm25', 'hybrid'] as const
+export const KNOWLEDGE_SEARCH_MODES = ['vector', 'bm25', 'hybrid'] as const
 export const KnowledgeSearchModeSchema = z.enum(KNOWLEDGE_SEARCH_MODES)
 export type KnowledgeSearchMode = z.infer<typeof KnowledgeSearchModeSchema>
 export const DEFAULT_KNOWLEDGE_SEARCH_MODE: KnowledgeSearchMode = 'hybrid'
@@ -209,7 +209,7 @@ const KnowledgeItemSharedSchema = z.strictObject({
  */
 export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
   // relativePath / indexedRelativePath are always produced by main-side helpers
-  // (copyFileIntoKnowledgeBase, toKnowledgeRelativePath, ...), never raw caller
+  // (copyFileIntoKnowledgeBaseAt, toKnowledgeRelativePath, ...), never raw caller
   // input. The base-relative, POSIX-normalized, no-traversal invariant is
   // enforced imperatively by assertSafeKnowledgeRelativePath at the filesystem
   // boundary (getKnowledgeBaseFilePath). This schema only validates shape, so a
