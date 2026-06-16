@@ -64,7 +64,7 @@ flowchart LR
     A1[选预设 完整或精简] --> A2[ExportOrchestrator]
     A2 --> A3[查 ContributorManager]
     A3 --> A4[VACUUM INTO 复制为备份副本]
-    A4 --> A5[beforeArchive 脱敏与偏好过滤]
+    A4 --> A5[beforeArchive 偏好过滤（自用备份保留凭证，脱敏属未来分享模式）]
     A5 --> A6[收集文件与知识库资源]
   end
   subgraph S2[备份归档]
@@ -157,6 +157,14 @@ flowchart TB
 | FILE_STORAGE | restoreResources() 先于 DB 行导入，返回 skippedFileEntryIds；renamable:false，RENAME 退化为 SKIP |
 | PROVIDERS | 聚合 user_provider + user_model(providerId)；natural-key，默认 FIELD_MERGE（apiKeys/authConfig 字段合并，防丢 API key）；renamable:false（user_model.id 派生键） |
 
+#### 5.1 file_ref 归属（file_entry member，非 source-owned）
+
+`file_ref` 整表归 FILE_STORAGE（`file_entry` 的 include member，viaColumn=`fileEntryId`），**不**按 sourceType 行分区归 source 域。理由：`file_ref.fileEntryId` 是 NOT NULL cascade FK（`schemas/file.ts:131`）——文件被删则引用记录自动级联删除，是 owning member 的天然语义（满足 finalize #14/#15）。若改 source-owned row-scope（类比 job_schedule）：file_entry 未恢复（SKIP/精简排除）时 file_ref 悬空会触发 post-restore 一致性检查硬失败，且破坏一表一 owner（#2/#3）。**job_schedule 可 row-scope 是因其自包含无跨域 NOT NULL FK，与 file_ref 结构不同构。**
+
+**双轨职责**（不冲突）：`aggregates`（file_ref 作 file_entry member）管**恢复期 DB 行聚合边界**（SKIP/OVERWRITE 整组传播）；`fileRefSourcePolicies`（sourceType→ownerDomain，如 chat_message→TOPICS）管**导出期文件 blob 收集**。两者作用于不同生命周期阶段。
+
+**实施 caveat**：① 须兑现 post-restore 一致性检查（无悬空 file_ref / 无 file_entry 缺 blob，失败回滚）；② source 删除清理缺口（MessageService/KnowledgeItemService 未调 cleanupBySource，靠 OrphanRefScanner 兜底）；③ file_entry 软删除 vs file_ref 硬删除不对称（导出过滤须只取 deletedAt IS NULL）。
+
 ### 6. 实现侧类型契约
 
 `EntityGraphSchema`：`tables` / `references`（kind: optional|owning|junction）/ `primaryKeys`（kind: uuid-v4|uuid-v7|natural|composite|autoincrement(finalize 拒绝)，ambiguous 标注）/ **`aggregates`**（`AggregateBoundary { root, renamable, [identityKey?], [identityClass?], [conflictDefault?], [members?] }`——除 `root` 与 `renamable` 外其余字段全部从 `references + primaryKeys` 派生，contributor 显式声明仅用于偏离默认）/ `fileRefSourcePolicies` / `jsonSoftReferences` / `rowScopes?`（共享表行分区，如 job_schedule.type='agent.task' 归 AGENTS）。派生规则：identityKey=root PK；identityClass=primaryKeys[root].kind：uuid-v4/v7→uuid-entity、natural/composite→natural-key（slot 须显式）；conflictDefault=identityClass 映射（uuid-entity→SKIP；natural-key/slot→FIELD_MERGE）；members=域内指向 root 的 owning include references 源表（junction 表与跨域 ref 不计入，#14 拒绝漂移）。
@@ -183,7 +191,7 @@ flowchart TB
 
 #### Codegen 落地方案
 
-`scripts/generate-backup-schema-refs.ts`（tsx）发现 `schemas/*.ts` 的 `sqliteTable`，经 `getTableConfig()` 读表名/列名/PK，稳定排序输出 `dbSchemaRefs.ts`（`DB_TABLES`、`DB_COLUMNS_BY_TABLE`、`DbTableName`、`DbColumnName<TTable>`、`DB_PRIMARY_KEYS` 含 uuid-v4/v7 判定与 ambiguous 标注）。不连 DB、不启 Electron。`pnpm backup:refs:generate` 写盘，`pnpm backup:refs:check` byte-for-byte 比对（CI 强制）。
+`scripts/generate-backup-schema-refs.ts`（tsx）发现 `schemas/*.ts` 的 `sqliteTable`，经 `getTableConfig()` 读表名/列名/PK，稳定排序输出 `dbSchemaRefs.ts`（`DB_TABLES`、`DB_COLUMNS_BY_TABLE`、`DbTableName`、`DbColumnName<TTable>`、`DB_PRIMARY_KEYS` 含 uuid-v4/v7 判定与 ambiguous 标注）。不连 DB、不启 Electron。`pnpm backup:refs:generate` 写盘，`pnpm backup:refs:check` byte-for-byte 比对（CI 强制）——**两命令为 planned，实现期 PR 加 package.json scripts**。
 
 ```mermaid
 flowchart LR
@@ -271,7 +279,7 @@ flowchart TB
 | 3 | 无表被多 contributor 拥有 | `{ table, owners }` |
 | 4 | ALWAYS_STRIP / INFRASTRUCTURE 表不被 contributor 拥有 | `{ table, declaredBy }` |
 | 5 | 排除集运行时表（job）确无 contributor 声明；job_schedule 不整表排除（type='agent.task' row-scope 归 AGENTS） | `{ table }` |
-| 6 | references / policy 引用的表属于声明方 owner | `{ domain, table }` |
+| 6 | references 的 **source 表**（ref.table）属声明方 owner；target（referencedDomain）可跨域（如 message.modelId→PROVIDERS），由 target owner 校验 | `{ domain, table }` |
 | 7 | omittedReferenceOverrides 绑定已声明 reference + 非冗余 + reason | `{ domain, reference, reason }` |
 | 8 | 每个 owned 表有恰一个 primary-key fact，列存在于 codegen | `{ table, expectedColumns }` |
 | 9 | 主键 kind 非 ambiguous | `{ table }` |
