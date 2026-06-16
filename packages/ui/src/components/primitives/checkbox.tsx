@@ -12,12 +12,12 @@ const checkboxVariants = cva(
     'border-border bg-transparent',
     'hover:bg-accent/50',
     'hover:scale-[1.03] active:scale-[0.97]',
-    'data-[state=checked]:border-foreground data-[state=checked]:text-foreground',
-    'data-[state=indeterminate]:border-foreground data-[state=indeterminate]:text-foreground',
+    'data-[state=checked]:border-control-accent data-[state=checked]:bg-control-accent data-[state=checked]:text-control-accent-foreground',
+    'data-[state=indeterminate]:border-control-accent data-[state=indeterminate]:bg-control-accent data-[state=indeterminate]:text-control-accent-foreground',
     'data-[state=checked]:animate-checkbox-bounce',
-    'focus-visible:ring-3 focus-visible:ring-ring/30',
+    'focus-visible:ring-[1px] focus-visible:ring-ring/35',
     'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
-    'disabled:cursor-not-allowed disabled:border-gray-500/10 disabled:bg-background-subtle'
+    'disabled:cursor-not-allowed disabled:border-border disabled:bg-background-subtle'
   ),
   {
     variants: {

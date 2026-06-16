@@ -8,21 +8,21 @@ const switchRootVariants = cva(
   [
     'cs-switch cs-switch-root',
     'group relative cursor-pointer peer inline-flex shrink-0 items-center rounded-full shadow-xs outline-none transition-all',
-    'data-[state=unchecked]:bg-gray-500/20 data-[state=checked]:bg-brand-600',
+    'data-[state=unchecked]:bg-[color:color-mix(in_srgb,var(--color-foreground)_15%,transparent)] data-[state=checked]:bg-control-accent',
     'disabled:cursor-not-allowed disabled:opacity-40',
-    'focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
+    'focus-visible:border-ring focus-visible:ring-[1px] focus-visible:ring-ring/35'
   ],
   {
     variants: {
       size: {
-        xs: ['h-4.5 w-8'],
-        sm: ['w-9 h-5'],
-        md: ['w-11 h-5.5'],
-        lg: ['w-11 h-6']
+        xs: ['h-3.5 w-6'],
+        sm: ['h-4 w-7'],
+        md: ['h-4.5 w-8'],
+        lg: ['h-5 w-9']
       },
       loading: {
         false: null,
-        true: ['bg-brand-300!']
+        true: ['bg-control-accent/60!']
       }
     },
     defaultVariants: {
@@ -40,36 +40,36 @@ const switchThumbVariants = cva(
   {
     variants: {
       size: {
-        xs: ['ml-[1px] size-4 data-[state=checked]:translate-x-3.5'],
-        sm: ['size-4.5 ml-[1px] data-[state=checked]:translate-x-4'],
-        md: ['size-[19px] ml-0.5 data-[state=checked]:translate-x-[21px]'],
-        lg: ['size-5 ml-[3px] data-[state=checked]:translate-x-4.5']
+        xs: ['size-3 ml-[1px] data-[state=checked]:translate-x-2.5'],
+        sm: ['size-3.5 ml-[1px] data-[state=checked]:translate-x-3'],
+        md: ['size-4 ml-[1px] data-[state=checked]:translate-x-3.5'],
+        lg: ['size-4.5 ml-[1px] data-[state=checked]:translate-x-4']
       },
       loading: {
         false: null,
-        true: ['bg-brand-300!']
+        true: ['bg-control-accent/60!']
       }
     },
     compoundVariants: [
       {
         size: 'xs',
         loading: true,
-        className: 'ml-0.5 size-3.5 data-[state=checked]:translate-x-3.5'
+        className: 'ml-0.5 size-2.5 data-[state=checked]:translate-x-2.5'
       },
       {
         size: 'sm',
         loading: true,
-        className: 'size-3.5 ml-0.5 data-[state=checked]:translate-x-4.5'
+        className: 'ml-0.5 size-3 data-[state=checked]:translate-x-3'
       },
       {
         size: 'md',
         loading: true,
-        className: 'size-4 ml-1 data-[state=checked]:translate-x-5'
+        className: 'ml-0.5 size-3.5 data-[state=checked]:translate-x-3.5'
       },
       {
         size: 'lg',
         loading: true,
-        className: 'size-4.5 ml-1 data-[state=checked]:translate-x-4.5'
+        className: 'ml-0.5 size-4 data-[state=checked]:translate-x-4'
       }
     ]
   }
@@ -107,19 +107,21 @@ function Switch({ loading = false, size = 'md', className, classNames, ...props 
       {...props}>
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"
-        className={cn(switchThumbVariants({ size, loading }), classNames?.thumb)}>
-        <svg
-          width="inherit"
-          height="inherit"
-          viewBox="0 0 19 19"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          className={cn(switchThumbSvgVariants({ loading }), classNames?.thumbSvg)}>
-          <path
-            d="M9.5 0C14.7467 0 19 4.25329 19 9.5C19 14.7467 14.7467 19 9.5 19C4.25329 19 0 14.7467 0 9.5C0 4.25329 4.25329 0 9.5 0ZM9.5 6.33301C8.91711 6.33301 8.44445 6.8058 8.44434 7.38867V11.6113C8.44445 12.1942 8.91711 12.667 9.5 12.667C10.0829 12.667 10.5555 12.1942 10.5557 11.6113V7.38867C10.5555 6.8058 10.0829 6.33301 9.5 6.33301Z"
-            fill="white"
-          />
-        </svg>
+        className={cn('bg-white', switchThumbVariants({ size, loading }), classNames?.thumb)}>
+        {loading && (
+          <svg
+            width="inherit"
+            height="inherit"
+            viewBox="0 0 19 19"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+            className={cn(switchThumbSvgVariants({ loading }), classNames?.thumbSvg)}>
+            <path
+              d="M9.5 0C14.7467 0 19 4.25329 19 9.5C19 14.7467 14.7467 19 9.5 19C4.25329 19 0 14.7467 0 9.5C0 4.25329 4.25329 0 9.5 0ZM9.5 6.33301C8.91711 6.33301 8.44445 6.8058 8.44434 7.38867V11.6113C8.44445 12.1942 8.91711 12.667 9.5 12.667C10.0829 12.667 10.5555 12.1942 10.5557 11.6113V7.38867C10.5555 6.8058 10.0829 6.33301 9.5 6.33301Z"
+              fill="white"
+            />
+          </svg>
+        )}
       </SwitchPrimitive.Thumb>
     </SwitchPrimitive.Root>
   )

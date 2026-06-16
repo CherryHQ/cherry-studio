@@ -11,8 +11,12 @@ const badgeVariants = cva(
         default: 'border-transparent bg-background-subtle text-secondary-foreground [a&]:hover:bg-primary/90',
         secondary: 'border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90',
         destructive:
-          'border-transparent text-destructive bg-[red]/10 [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60',
-        outline: 'text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground'
+          'border-transparent text-destructive bg-destructive/10 [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60',
+        outline: 'text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground',
+        // Mint-green "feature highlight" pill — for "New" / "PRO" / "Beta" tags next to titles.
+        // Surface/border/text flip light↔dark via the --cs-highlight token family.
+        highlight:
+          'rounded-[5px] gap-0.5 px-1 py-px text-[10px] font-bold tracking-[0.02em] [&>svg]:size-2.5 border-highlight bg-highlight-surface text-highlight-foreground'
       }
     },
     defaultVariants: {
