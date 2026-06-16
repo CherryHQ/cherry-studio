@@ -78,8 +78,6 @@ export class ApiServer {
       timestamp: startTime
     }
 
-    logger.debug(`Processing request: ${method} ${path}`)
-
     try {
       // Find handler
       const handlerMatch = this.findHandler(path, method)

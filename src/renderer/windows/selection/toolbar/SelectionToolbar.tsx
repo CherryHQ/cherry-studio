@@ -5,15 +5,15 @@ import { loggerService } from '@logger'
 import { AppLogo } from '@renderer/config/env'
 import { useTimer } from '@renderer/hooks/useTimer'
 import i18n from '@renderer/i18n'
+import { ipcApi } from '@renderer/ipc'
+import { useIpcOn } from '@renderer/ipc/useIpcOn'
 import { defaultLanguage } from '@shared/config/constant'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { IpcChannel } from '@shared/IpcChannel'
 import { ClipboardCheck, ClipboardCopy, ClipboardX, MessageSquareHeart } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import type { TextSelectionData } from 'selection-hook'
 import styled from 'styled-components'
 
 const logger = loggerService.withContext('SelectionToolbar')
@@ -25,7 +25,10 @@ const updateWindowSize = () => {
     logger.error('Root element not found')
     return
   }
-  void window.api?.selection.determineToolbarSize(rootElement.scrollWidth, rootElement.scrollHeight)
+  void ipcApi.request('selection.determine_toolbar_size', {
+    width: rootElement.scrollWidth,
+    height: rootElement.scrollHeight
+  })
 }
 
 /**
@@ -136,44 +139,20 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     clearTimeoutTimer('copyIcon')
   }, [clearTimeoutTimer])
 
-  // listen to selectionService events
-  useEffect(() => {
-    const cleanups: (() => void)[] = []
-    // TextSelection
-    const textSelectionListenRemover = window.electron?.ipcRenderer.on(
-      IpcChannel.Selection_TextSelected,
-      (_, selectionData: TextSelectionData) => {
-        selectedText.current = selectionData.text
-        isFullScreen.current = selectionData.isFullscreen ?? false
-        const cleanup = setTimeoutTimer(
-          'textSelection',
-          () => {
-            //make sure the animation is active
-            setAnimateKey((prev) => prev + 1)
-          },
-          400
-        )
-        cleanups.push(cleanup)
-      }
-    )
+  // listen to selection events pushed from main (useIpcOn self-cleans on unmount)
+  useIpcOn('selection.text_selected', (selectionData) => {
+    selectedText.current = selectionData.text
+    isFullScreen.current = selectionData.isFullscreen ?? false
+    // make sure the animation is active; useTimer clears the same-key/unmounted timer
+    setTimeoutTimer('textSelection', () => setAnimateKey((prev) => prev + 1), 400)
+  })
 
-    // ToolbarVisibilityChange
-    const toolbarVisibilityChangeListenRemover = window.electron?.ipcRenderer.on(
-      IpcChannel.Selection_ToolbarVisibilityChange,
-      (_, isVisible: boolean) => {
-        if (!isVisible) {
-          if (!demo) updateWindowSize()
-          onHideCleanUp()
-        }
-      }
-    )
-
-    return () => {
-      textSelectionListenRemover()
-      toolbarVisibilityChangeListenRemover()
-      cleanups.forEach((cleanup) => cleanup())
+  useIpcOn('selection.toolbar_visibility_change', (isVisible) => {
+    if (!isVisible) {
+      if (!demo) updateWindowSize()
+      onHideCleanUp()
     }
-  }, [demo, onHideCleanUp, setTimeoutTimer])
+  })
 
   //make sure the toolbar size is updated when the compact mode/actionItems is changed
   useEffect(() => {
@@ -229,7 +208,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   // copy selected text to clipboard
   const handleCopy = useCallback(async () => {
     if (selectedText.current) {
-      const result = await window.api?.selection.writeToClipboard(selectedText.current)
+      const result = await ipcApi.request('selection.write_to_clipboard', selectedText.current)
 
       setCopyIconStatus(result ? 'success' : 'fail')
       setCopyIconAnimation('enter')
@@ -261,7 +240,7 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
     }
 
     void window.api?.openWebsite(actionString)
-    void window.api?.selection.hideToolbar()
+    void ipcApi.request('selection.hide_toolbar')
   }, [])
 
   /**
@@ -270,14 +249,14 @@ const SelectionToolbar: FC<{ demo?: boolean }> = ({ demo = false }) => {
   const handleQuote = (action: SelectionActionItem) => {
     if (action.selectedText) {
       void window.api?.quoteToMainWindow(action.selectedText)
-      void window.api?.selection.hideToolbar()
+      void ipcApi.request('selection.hide_toolbar')
     }
   }
 
   const handleDefaultAction = (action: SelectionActionItem) => {
     // [macOS] only macOS has the available isFullscreen mode
-    void window.api?.selection.processAction(action, isFullScreen.current)
-    void window.api?.selection.hideToolbar()
+    void ipcApi.request('selection.process_action', { actionItem: action, isFullScreen: isFullScreen.current })
+    void ipcApi.request('selection.hide_toolbar')
   }
 
   const handleAction = useCallback(

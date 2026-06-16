@@ -2157,7 +2157,8 @@
         "note": {
           "description": "Wählen Sie vorhandene Notizen als Wissensbasisquellen aus",
           "empty_description": "Auswählbare Notizen erscheinen hier, nachdem die echte Notizenliste verbunden wurde. Verwenden Sie bis dahin Dateien, Ordner, URLs oder Sitemaps.",
-          "empty_title": "Notizen sind noch nicht verbunden"
+          "empty_title": "Notizen sind noch nicht verbunden",
+          "loading": "[to be translated]:Loading notes…"
         },
         "placeholder": {
           "supported_formats": "Unterstützt PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2190,8 +2191,6 @@
         "reindex": "Neuindizierung",
         "selected_count": "{{count}} ausgewählt"
       },
-      "chunk_delete_confirm_description": "Nach dem Löschen wird dieser Chunk nicht mehr für die Abfrage verwendet. Die erneute Indizierung der Datenquelle wird ihn erneut generieren.",
-      "chunk_delete_confirm_title": "Chunk löschen?",
       "chunks_count": "{{count}} Chunks",
       "delete_confirm_description": "Diese Datenquelle und ihre Indexdaten können nach dem Löschen nicht wiederhergestellt werden.",
       "delete_confirm_title": "Datenquelle löschen?",
@@ -2248,9 +2247,7 @@
         "search_placeholder": "Datenquellen durchsuchen"
       }
     },
-    "dimensions": "Einbettungsdimensionen",
     "dimensions_auto_set": "Embedding-Dimensionen automatisch setzen",
-    "dimensions_error_invalid": "Ungültige Embedding-Dimensionen",
     "dimensions_size_placeholder": "Leer lassen, um nicht zu setzen",
     "drag_file": "Datei hierher ziehen",
     "embedding_model": "Einbettungsmodell",
@@ -2302,7 +2299,6 @@
       "chunk_size_invalid": "Die Chunk-Größe muss größer als 0 sein",
       "chunking": "Chunking",
       "default_separator": "Auto (empfohlen)",
-      "dimensions": "Vektordimensionen",
       "document_count": "Dokumentanzahl",
       "embedding_model": "Einbettungsmodell",
       "embedding_model_select": "Modellauswahl",
@@ -2311,7 +2307,6 @@
       "hints": {
         "chunk_overlap": "Anzahl der überlappenden Tokens, die zwischen benachbarten Chunks beibehalten werden, um semantische Brüche zu reduzieren.",
         "chunk_size": "Ziel-Token-Anzahl für jedes Dokument-Chunk. Dies beeinflusst die Granularität der Abrufe und die Kontextlänge.",
-        "dimensions": "Die Vektordimension, die vom aktuellen Einbettungsmodell ausgegeben wird, wird verwendet, um Vektorindizes zu erstellen und abzugleichen.",
         "document_count": "Maximale Anzahl der Dokumentblöcke, die für jede Abfrage zurückgegeben werden. Höhere Werte decken mehr Inhalt ab, verbrauchen jedoch mehr Kontext.",
         "embedding_model": "Wird verwendet, um Inhalte der Wissensdatenbank in Vektoren zu konvertieren. Eine Änderung des Modells erfordert in der Regel eine erneute Indizierung der vorhandenen Inhalte.",
         "hybrid_alpha": "Vektor-Bewertungsgewicht in der hybriden Suche. Höhere Werte bevorzugen semantische Übereinstimmung.",
@@ -2322,9 +2317,7 @@
         "threshold_disabled": "Dieser Abrufmodus liefert geordnete Ergebnisse und verwendet keinen Ähnlichkeitsschwellenwert."
       },
       "hybrid_alpha": "Hybrid Alpha",
-      "hybrid_alpha_hint": "Nur im Hybrid-Retrieval-Modus konfigurierbar",
       "processor": "Verarbeitungsanbieter",
-      "refresh_dimensions": "Vektordimensionen aktualisieren",
       "rerank_disabled": "Deaktiviert",
       "rerank_model": "Rerank-Modell",
       "reset_action": "Standardeinstellungen wiederherstellen",
@@ -2334,9 +2327,9 @@
       "saved": "G",
       "search_mode": {
         "bm25": "Volltextsuche",
-        "default": "Vektorsuche",
         "hybrid": "Hybrid-Suche (empfohlen)",
-        "title": "Suchmodus"
+        "title": "Suchmodus",
+        "vector": "[to be translated]:Vector Search"
       },
       "separator_rule": "Trennregel",
       "threshold": "Ähnlichkeitsschwelle",
@@ -5681,12 +5674,18 @@
           },
           "invalid": "Ungültige Eingabe, bitte JSON-Format überprüfen",
           "json": "Von JSON importieren",
+          "mcpb": "MCPB-Bundle importieren",
+          "mcpbFile": "MCPB-Bündeldatei",
+          "mcpbHelp": "Wählen Sie eine .mcpb-Datei mit einem MCP-Server-Bundle aus",
+          "mcpbProcessFailed": "Fehler beim Verarbeiten der MCPB-Datei",
           "method": "Importmethode",
           "nameExists": "Server existiert bereits: {{name}}",
           "noDxtFile": "Eine DXT-Datei auswählen",
+          "noMcpbFile": "Bitte wählen Sie eine MCPB-Datei",
           "oneServer": "Nur eine MCP-Server-Konfiguration kann gespeichert werden",
           "placeholder": "MCP-Server-JSON-Konfiguration einfügen",
           "selectDxtFile": "DXT-Datei auswählen",
+          "selectMcpbFile": "MCPB-Datei auswählen",
           "tooltip": "Konfigurations-JSON von MCP-Servers kopieren (Vorzugsweise NPX oder UVX-Konfigurationen verwenden) und in das Eingabefeld einfügen"
         },
         "label": "Server hinzufügen"
@@ -6658,6 +6657,7 @@
         "project_id": "Projekt-ID",
         "project_id_help": "Ihre Google Cloud Projekt-ID",
         "project_id_placeholder": "your-google-cloud-project-id",
+        "select_location": "[to be translated]:Select location",
         "service_account": {
           "auth_success": "Service Account-Authentifizierung erfolgreich",
           "client_email": "Client-E-Mail",
@@ -6673,7 +6673,10 @@
           "private_key": "Privater Schlüssel",
           "private_key_help": "private_key-Feld aus der JSON-Schlüsseldatei aus Google Cloud Console",
           "private_key_placeholder": "Service Account-Privat-Schlüssel eingeben",
-          "title": "Service Account-Konfiguration"
+          "title": "Service Account-Konfiguration",
+          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
+          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
+          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
         }
       }
     },
@@ -6743,6 +6746,7 @@
       },
       "clear_shortcut": "Shortcut löschen",
       "clear_topic": "Nachricht leeren",
+      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "Bereits von \"{{name}}\" verwendet",
       "copy_last_message": "Letzte Nachricht kopieren",
       "edit_last_user_message": "Letzte Benutzernachricht bearbeiten",
@@ -6750,8 +6754,11 @@
       "enabled": "Aktivieren",
       "exit_fullscreen": "Vollbildmodus beenden",
       "label": "Taste",
+      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "Neues Thema",
       "occupied_by_other_application": "Dieses Kürzel wird bereits vom System oder einer anderen Anwendung verwendet",
+      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
+      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "Shortcut drücken",
       "quick_assistant": "Schnellassistent",
       "rename_topic": "Thema umbenennen",
@@ -7049,22 +7056,22 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "Aktive Tage",
+        "activeDays": "[to be translated]:Active days",
         "cacheHitRate": "[to be translated]:Cache hit rate",
         "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
         "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
-        "costHint": "Kosten werden nach Währung gruppiert.",
-        "dailyAverage": "Tagesdurchschnitt",
-        "lastPeriod": "zum vorherigen Zeitraum",
-        "mixedCurrency": "Mehrere Währungen werden separat angezeigt.",
-        "none": "N/A",
-        "peakDay": "Spitzentag",
+        "costHint": "[to be translated]:Cost is grouped by currency.",
+        "dailyAverage": "[to be translated]:Daily average",
+        "lastPeriod": "[to be translated]:vs last period",
+        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
+        "none": "[to be translated]:N/A",
+        "peakDay": "[to be translated]:Peak day",
         "providerAuth": "[to be translated]:Provider auth",
-        "streak": "Längste Serie: {{days}} Tage",
-        "topModel": "Top-Modell",
-        "totalCost": "Gesamtkosten",
-        "totalRequests": "Anfragen",
-        "totalTokens": "Tokens gesamt",
+        "streak": "[to be translated]:Longest streak: {{days}} days",
+        "topModel": "[to be translated]:Top model",
+        "totalCost": "[to be translated]:Total cost",
+        "totalRequests": "[to be translated]:Requests",
+        "totalTokens": "[to be translated]:Total tokens",
         "unattributedApiKey": "[to be translated]:Unattributed request",
         "unattributedSource": "[to be translated]:Unattributed source"
       },
@@ -7082,61 +7089,61 @@
         "success": "[to be translated]:Backfilled {{count}} historical cost records."
       },
       "empty": {
-        "description": "Nutzung erscheint, nachdem KI-Anfragen Ledger-Einträge erstellt haben.",
-        "title": "Noch keine Nutzung"
+        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
+        "title": "[to be translated]:No usage yet"
       },
       "explore": {
         "activity": "[to be translated]:Activity",
-        "allProviders": "Alle Anbieter",
+        "allProviders": "[to be translated]:All providers",
         "analysis": "[to be translated]:Analysis",
-        "breakdown": "Aufschlüsselung",
+        "breakdown": "[to be translated]:Breakdown",
         "breakdownTab": "[to be translated]:Breakdown",
         "cacheUsage": "[to be translated]:Cache usage",
         "chart": "[to be translated]:Chart",
-        "clearDate": "Datumsfilter löschen",
+        "clearDate": "[to be translated]:Clear date filter",
         "costDrivers": "[to be translated]:Cost drivers",
         "drilldownTitle": "[to be translated]:{{date}} drilldown",
-        "entries": "Einträge",
+        "entries": "[to be translated]:Requests",
         "groupBy": "[to be translated]:Group by",
-        "loadMore": "Mehr laden",
-        "loading": "Wird geladen...",
+        "loadMore": "[to be translated]:Load more",
+        "loading": "[to be translated]:Loading...",
         "metric": "[to be translated]:Metric",
-        "noBreakdown": "Keine Aufschlüsselungsdaten",
-        "noBreakdownDescription": "Versuchen Sie einen größeren Zeitraum oder einen anderen Anbieter.",
-        "noEntries": "Keine Einträge",
-        "noEntriesDescription": "Versuchen Sie einen größeren Zeitraum oder einen anderen Anbieter.",
-        "provider": "Anbieter",
+        "noBreakdown": "[to be translated]:No breakdown data",
+        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
+        "noEntries": "[to be translated]:No entries",
+        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
+        "provider": "[to be translated]:Provider",
         "requestsTab": "[to be translated]:Requests",
-        "selectedDate": "Ausgewähltes Datum: {{date}}",
+        "selectedDate": "[to be translated]:Selected date: {{date}}",
         "share": "[to be translated]:Share {{value}}",
         "shareLabel": "[to be translated]:Share",
-        "title": "Erkunden",
+        "title": "[to be translated]:Explore",
         "topApiKeys": "[to be translated]:Top API keys",
         "topModels": "[to be translated]:Top models",
         "topProviders": "[to be translated]:Top providers",
         "topSources": "[to be translated]:Top assistants / agents",
-        "totalEntries": "{{count}} Einträge"
+        "totalEntries": "[to be translated]:{{count}} entries"
       },
       "groupBy": {
-        "apiKey": "API-Schlüssel",
-        "model": "Modell",
-        "provider": "Anbieter",
+        "apiKey": "[to be translated]:API key",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
         "source": "[to be translated]:Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "Nutzung am {{date}}",
-        "costDisabled": "Die Kostenansicht ist nur verfügbar, wenn dieser Zeitraum eine Währung enthält.",
-        "title": "Tägliche Aktivität"
+        "ariaDate": "[to be translated]:Usage on {{date}}",
+        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
+        "title": "[to be translated]:Daily activity"
       },
       "metric": {
-        "cost": "Kosten",
+        "cost": "[to be translated]:Cost",
         "requests": "[to be translated]:Requests",
-        "tokens": "Tokens"
+        "tokens": "[to be translated]:Tokens"
       },
       "modality": {
-        "embedding": "Embedding",
-        "image": "Bild",
-        "language": "Sprache"
+        "embedding": "[to be translated]:Embedding",
+        "image": "[to be translated]:Image",
+        "language": "[to be translated]:Language"
       },
       "overview": {
         "title": "[to be translated]:Overview"
@@ -7146,33 +7153,33 @@
         "assistant": "[to be translated]:Assistant",
         "unknown": "[to be translated]:Unattributed"
       },
-      "summary": "{{window}} / {{tokens}} Tokens / {{requests}} Anfragen / {{activeDays}} aktive Tage",
+      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
       "table": {
-        "apiKey": "API-Schlüssel",
-        "cost": "Kosten",
-        "date": "Datum",
-        "modality": "Typ",
-        "model": "Modell",
-        "provider": "Anbieter",
+        "apiKey": "[to be translated]:API key",
+        "cost": "[to be translated]:Cost",
+        "date": "[to be translated]:Date",
+        "modality": "[to be translated]:Type",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
         "request": "[to be translated]:Request",
         "source": "[to be translated]:Source",
-        "tokens": "Tokens",
-        "tps": "TPS",
-        "tpsValue": "{{value}} tok/s",
-        "ttft": "TTFT"
+        "tokens": "[to be translated]:Tokens",
+        "tps": "[to be translated]:TPS",
+        "tpsValue": "[to be translated]:{{value}} tok/s",
+        "ttft": "[to be translated]:TTFT"
       },
-      "title": "Nutzungsverlauf",
+      "title": "[to be translated]:Usage Analytics",
       "tooltip": {
-        "cost": "Kosten {{value}}",
-        "metric": "{{value}}",
-        "requests": "{{count}} Anfragen",
-        "tokens": "{{value}} Tokens"
+        "cost": "[to be translated]:Cost {{value}}",
+        "metric": "[to be translated]:{{value}}",
+        "requests": "[to be translated]:{{count}} requests",
+        "tokens": "[to be translated]:{{value}} tokens"
       },
       "window": {
-        "30d": "Letzte 30 Tage",
-        "365d": "Letztes Jahr",
-        "90d": "Letzte 90 Tage",
-        "all": "Gesamter Zeitraum"
+        "30d": "[to be translated]:Last 30 days",
+        "365d": "[to be translated]:Last year",
+        "90d": "[to be translated]:Last 90 days",
+        "all": "[to be translated]:All time"
       }
     },
     "use_system_title_bar": {
@@ -7210,34 +7217,34 @@
     "translate": "Übersetzen"
   },
   "trace": {
-    "agent": "[to be translated]:Agent",
-    "backList": "[to be translated]:Back To List",
-    "cachedTokens": "[to be translated]:Cached",
-    "endTime": "[to be translated]:End Time",
-    "inputs": "[to be translated]:Inputs",
-    "label": "[to be translated]:Call Chain",
-    "model": "[to be translated]:Model",
-    "name": "[to be translated]:Node Name",
-    "noTraceList": "[to be translated]:No trace information found",
-    "operation": "[to be translated]:Operation",
-    "outputs": "[to be translated]:Outputs",
-    "pollError": "[to be translated]:Polling failed",
-    "reasoningTokens": "[to be translated]:Reasoning",
-    "requestHeaders": "[to be translated]:Request Headers",
-    "requestMethod": "[to be translated]:Request Method",
-    "requestUrl": "[to be translated]:Request URL",
-    "responseHeaders": "[to be translated]:Response Headers",
-    "responseStatus": "[to be translated]:Response Status",
-    "serverDescription": "[to be translated]:Server Description",
-    "serverName": "[to be translated]:Server Name",
-    "serverType": "[to be translated]:Server Type",
-    "spanDetail": "[to be translated]:Span Details",
-    "spendTime": "[to be translated]:Spend Time",
-    "startTime": "[to be translated]:Start Time",
-    "status": "[to be translated]:Status",
-    "tag": "[to be translated]:Tag",
-    "tokenUsage": "[to be translated]:Token Usage",
-    "toolCalls": "[to be translated]:Tool Calls"
+    "agent": "Agent",
+    "backList": "Zurück zur Liste",
+    "cachedTokens": "Zwischengespeichert",
+    "endTime": "Endzeit",
+    "inputs": "Eingaben",
+    "label": "Aufrufkette",
+    "model": "Modell",
+    "name": "Knotenname",
+    "noTraceList": "Keine Spurinformationen gefunden",
+    "operation": "Operation",
+    "outputs": "Ausgaben",
+    "pollError": "Abfrage fehlgeschlagen",
+    "reasoningTokens": "Schlussfolgerung",
+    "requestHeaders": "Anfrage-Header",
+    "requestMethod": "Anfragemethode",
+    "requestUrl": "Anfrage-URL",
+    "responseHeaders": "Antwort-Header",
+    "responseStatus": "Antwortstatus",
+    "serverDescription": "Serverbeschreibung",
+    "serverName": "Servername",
+    "serverType": "Servertyp",
+    "spanDetail": "Spandetails",
+    "spendTime": "Zeit verbringen",
+    "startTime": "Startzeit",
+    "status": "Status",
+    "tag": "Tag",
+    "tokenUsage": "Token-Nutzung",
+    "toolCalls": "Toolaufrufe"
   },
   "translate": {
     "alter_language": "Alternative Sprache",

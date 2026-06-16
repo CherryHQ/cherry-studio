@@ -176,6 +176,7 @@ const createAssistant = (overrides: AssistantTestOverrides = {}): Assistant => (
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   ...overrides,
+  orderKey: overrides.orderKey ?? 'a0',
   // Deep-merge settings so test sites that supply only the key under test
   // don't drop the rest of the v2 schema.
   settings: { ...DEFAULT_TEST_SETTINGS, ...overrides.settings }

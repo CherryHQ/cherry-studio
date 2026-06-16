@@ -5,9 +5,11 @@
  * projection logic to guarantee that no sensitive material (apiKey, raw
  * remote-context fields) ever reaches `jobTable.metadata`.
  */
+import fs from 'node:fs/promises'
+
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import { type FileInfo, FileInfoSchema } from '@shared/file/types'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { doc2xDocumentToMarkdownHandler } from '../doc2x/document-to-markdown/handler'
 import { mineruDocumentToMarkdownHandler } from '../mineru/document-to-markdown/handler'
@@ -60,6 +62,11 @@ async function prepareRemote(
 }
 
 describe('A1 whitelist invariant: real toPersistable() never emits apiKey', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    vi.spyOn(fs, 'stat').mockResolvedValue({ size: 1024 } as never)
+  })
+
   it('doc2x.toPersistable excludes apiKey and includes publishable fields', async () => {
     const config = buildConfig('doc2x', 'https://doc2x.example.com')
     const prepared = await prepareRemote(doc2xDocumentToMarkdownHandler, config)

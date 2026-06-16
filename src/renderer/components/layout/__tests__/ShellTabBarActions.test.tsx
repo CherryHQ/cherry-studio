@@ -36,7 +36,7 @@ vi.mock('@renderer/context/ThemeProvider', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getThemeModeLabel: () => 'Light'
+  getThemeModeLabelKey: () => 'Light'
 }))
 
 vi.mock('@renderer/services/SettingsWindowService', () => ({

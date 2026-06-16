@@ -2157,7 +2157,8 @@
         "note": {
           "description": "Επιλέξτε υπάρχοντες σημειώσεις ως πηγές βάσης γνώσης",
           "empty_description": "Επιλέξιμες σημειώσεις θα εμφανιστούν εδώ αφού συνδεθεί η πραγματική λίστα σημειώσεων. Για τώρα, χρησιμοποιήστε αρχεία, φακέλους, διευθύνσεις URL ή sitemaps.",
-          "empty_title": "Οι σημειώσεις δεν έχουν συνδεθεί ακόμα"
+          "empty_title": "Οι σημειώσεις δεν έχουν συνδεθεί ακόμα",
+          "loading": "[to be translated]:Loading notes…"
         },
         "placeholder": {
           "supported_formats": "Υποστηρίζει PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2190,8 +2191,6 @@
         "reindex": "Επανεισαγωγή ευρετηρίου",
         "selected_count": "{{count}} επιλεγμένα"
       },
-      "chunk_delete_confirm_description": "Μετά τη διαγραφή, αυτό το τμήμα δεν θα χρησιμοποιείται πλέον για ανάκτηση. Η επανευρετηρίαση της πηγής δεδομένων θα το δημιουργήσει ξανά.",
-      "chunk_delete_confirm_title": "Διαγραφή Κομματιού;",
       "chunks_count": "{{count}} κομμάτια",
       "delete_confirm_description": "Αυτή η πηγή δεδομένων και τα δεδομένα ευρετηρίου της δεν μπορούν να ανακτηθούν μετά τη διαγραφή.",
       "delete_confirm_title": "Διαγραφή Πηγής Δεδομένων;",
@@ -2248,9 +2247,7 @@
         "search_placeholder": "Αναζήτηση πηγών δεδομένων"
       }
     },
-    "dimensions": "Διαστάσεις Ενσωμάτωσης",
     "dimensions_auto_set": "Αυτόματη ρύθμιση διαστάσεων ενσωμάτωσης",
-    "dimensions_error_invalid": "Παρακαλώ εισάγετε μέγεθος διαστάσεων ενσωμάτωσης",
     "dimensions_size_placeholder": " Μέγεθος διαστάσεων ενσωμάτωσης, π.χ. 1024",
     "drag_file": "Βάλτε το αρχείο εδώ",
     "embedding_model": "Μοντέλο Ενσωμάτωσης",
@@ -2302,7 +2299,6 @@
       "chunk_size_invalid": "Το μέγεθος του τμήματος πρέπει να είναι μεγαλύτερο από 0",
       "chunking": "Κατάτμηση",
       "default_separator": "Αυτόματη (συνιστάται)",
-      "dimensions": "Διανυσματικές Διαστάσεις",
       "document_count": "Καταμέτρηση Εγγράφων",
       "embedding_model": "Μοντέλο Ενσωμάτωσης",
       "embedding_model_select": "Επιλογή Μοντέλου",
@@ -2311,7 +2307,6 @@
       "hints": {
         "chunk_overlap": "Αριθμός επικαλυπτόμενων διακριτικών που διατηρούνται μεταξύ γειτονικών τμημάτων για τη μείωση των σημασιολογικών διακοπών.",
         "chunk_size": "Στόχος αριθμού token για κάθε τμήμα εγγράφου. Αυτό επηρεάζει την κοκκοποίηση ανάκτησης και το μήκος του πλαισίου.",
-        "dimensions": "Η διάσταση διανύσματος που εξάγεται από το τρέχον μοντέλο ενσωμάτωσης, που χρησιμοποιείται για τη δημιουργία και την αντιστοίχιση δεικτών διανυσμάτων.",
         "document_count": "Μέγιστος αριθμός τμημάτων εγγράφων που επιστρέφονται για κάθε ανάκτηση. Υψηλότερες τιμές καλύπτουν περισσότερο περιεχόμενο αλλά χρησιμοποιούν περισσότερο πλαίσιο.",
         "embedding_model": "Χρησιμοποιείται για τη μετατροπή του περιεχομένου της βάσης γνώσης σε διανύσματα. Η αλλαγή του μοντέλου συνήθως απαιτεί επανευρετηρίαση του υπάρχοντος περιεχομένου.",
         "hybrid_alpha": "Βάρος βαθμολογίας διανύσματος στην υβριδική ανάκτηση. Υψηλότερες τιμές ευνοούν τη σημασιολογική αντιστοίχιση.",
@@ -2322,9 +2317,7 @@
         "threshold_disabled": "Αυτή η λειτουργία ανάκτησης επιστρέφει ταξινομημένα αποτελέσματα και δεν χρησιμοποιεί κατώφλι ομοιότητας."
       },
       "hybrid_alpha": "Υβριδικό Άλφα",
-      "hybrid_alpha_hint": "Ρυθμίζεται μόνο σε λειτουργία υβριδικής ανάκτησης",
       "processor": "Πάροχος Επεξεργασίας",
-      "refresh_dimensions": "Ανανέωση διαστάσεων διανύσματος",
       "rerank_disabled": "Απενεργοποιημένο",
       "rerank_model": "Μοντέλο Ανατάξης",
       "reset_action": "Επαναφορά Προεπιλογών",
@@ -2334,9 +2327,9 @@
       "saved": "Αποθηκεύτηκε",
       "search_mode": {
         "bm25": "Πλήρης αναζήτηση κειμένου",
-        "default": "Αναζήτηση Διανυσμάτων",
         "hybrid": "Υβριδική Αναζήτηση (συνιστάται)",
-        "title": "Λειτουργία Αναζήτησης"
+        "title": "Λειτουργία Αναζήτησης",
+        "vector": "[to be translated]:Vector Search"
       },
       "separator_rule": "Κανόνας Διαχωριστικού",
       "threshold": "Κατώφλι Ομοιότητας",
@@ -5681,12 +5674,18 @@
           },
           "invalid": "Μη έγκυρη εισαγωγή, ελέγξτε τη μορφή JSON",
           "json": "Εισαγωγή από JSON",
+          "mcpb": "Εισαγωγή Δέσμης MCPB",
+          "mcpbFile": "Αρχείο Δέσμης MCPB",
+          "mcpbHelp": "Επιλέξτε ένα αρχείο .mcpb που περιέχει ένα πακέτο διακομιστή MCP",
+          "mcpbProcessFailed": "Αποτυχία επεξεργασίας αρχείου MCPB",
           "method": "Μέθοδος Εισαγωγής",
           "nameExists": "Ο διακομιστής υπάρχει ήδη: {{name}}",
           "noDxtFile": "Παρακαλώ επιλέξτε ένα αρχείο DXT",
+          "noMcpbFile": "Παρακαλώ επιλέξτε ένα αρχείο MCPB",
           "oneServer": "Μπορεί να αποθηκευτεί μόνο μία διαμόρφωση διακομιστή MCP κάθε φορά",
           "placeholder": "Επικολλήστε τη διαμόρφωση JSON του διακομιστή MCP",
           "selectDxtFile": "Επιλέξτε Αρχείο DXT",
+          "selectMcpbFile": "Επιλέξτε αίχος MCPB",
           "tooltip": "Αντιγράψτε το JSON διαμόρφωσης από τη σελίδα εισαγωγής του MCP Servers (προτιμήστε\n διαμορφώσεις NPX ή UVX) και επικολλήστε το στο πεδίο εισαγωγής"
         },
         "label": "Προσθήκη διακομιστή"
@@ -5926,7 +5925,7 @@
       "system": "Σύστημα"
     },
     "messages": {
-      "cache_read_tokens": "Αναγνωσμένα διακριτικά εισόδου από την προσωρινή μνήμη",
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "Διαχωριστική γραμμή μηνυμάτων",
         "tooltip": "Δεν ισχύει για μηνύματα με στυλ φυσαλίδας"
@@ -5959,7 +5958,7 @@
         "none": "Χωρίς εμφάνιση"
       },
       "prompt": "Λήμμα προτροπής",
-      "reasoning_tokens": "Δείκτες συλλογισμού",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "Εμφάνιση πλαισίου μηνύματος",
       "title": "Ρυθμίσεις μηνυμάτων",
       "use_serif_font": "Χρήση μορφής Serif"
@@ -6658,6 +6657,7 @@
         "project_id": "Αναγνωριστικό έργου",
         "project_id_help": "Το αναγνωριστικό έργου Google Cloud",
         "project_id_placeholder": "your-google-cloud-project-id",
+        "select_location": "[to be translated]:Select location",
         "service_account": {
           "auth_success": "Η πιστοποίηση λογαριασμού υπηρεσίας ήταν επιτυχής",
           "client_email": "Email Πελάτη",
@@ -6673,7 +6673,10 @@
           "private_key": "Ιδιωτικό κλειδί",
           "private_key_help": "Το πεδίο private_key από το αρχείο κλειδιού JSON που κατεβάσατε από το Google Cloud Console",
           "private_key_placeholder": "Παρακαλώ εισάγετε το ιδιωτικό κλειδί του λογαριασμού υπηρεσίας",
-          "title": "Διαμόρφωση λογαριασμού υπηρεσίας"
+          "title": "Διαμόρφωση λογαριασμού υπηρεσίας",
+          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
+          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
+          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
         }
       }
     },
@@ -6743,6 +6746,7 @@
       },
       "clear_shortcut": "Καθαρισμός συντομού πλήκτρου",
       "clear_topic": "Άδειασμα μηνυμάτων",
+      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "Ήδη χρησιμοποιείται από τον \"{{name}}\"",
       "copy_last_message": "Αντιγραφή του τελευταίου μηνύματος",
       "edit_last_user_message": "Επεξεργασία του τελευταίου μηνύματος χρήστη",
@@ -6750,8 +6754,11 @@
       "enabled": "ενεργοποίηση",
       "exit_fullscreen": "Έξοδος από πλήρη οθόνη",
       "label": "Πλήκτρο",
+      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "Νέο θέμα",
       "occupied_by_other_application": "Αυτή η συντόμευση χρησιμοποιείται ήδη από το σύστημα ή από άλλη εφαρμογή",
+      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
+      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "Πάτησε το συντομού πλήκτρου",
       "quick_assistant": "Συντομεύστε επιχειρηματικά",
       "rename_topic": "Μετονομασία θέματος",
@@ -7049,22 +7056,22 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "Ενεργές ημέρες",
+        "activeDays": "[to be translated]:Active days",
         "cacheHitRate": "[to be translated]:Cache hit rate",
         "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
         "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
-        "costHint": "Το κόστος ομαδοποιείται ανά νόμισμα.",
-        "dailyAverage": "Ημερήσιος μέσος όρος",
-        "lastPeriod": "σε σχέση με την προηγούμενη περίοδο",
-        "mixedCurrency": "Τα πολλαπλά νομίσματα εμφανίζονται ξεχωριστά.",
-        "none": "N/A",
-        "peakDay": "Ημέρα αιχμής",
+        "costHint": "[to be translated]:Cost is grouped by currency.",
+        "dailyAverage": "[to be translated]:Daily average",
+        "lastPeriod": "[to be translated]:vs last period",
+        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
+        "none": "[to be translated]:N/A",
+        "peakDay": "[to be translated]:Peak day",
         "providerAuth": "[to be translated]:Provider auth",
-        "streak": "Μεγαλύτερο σερί: {{days}} ημέρες",
-        "topModel": "Κορυφαίο μοντέλο",
-        "totalCost": "Συνολικό κόστος",
-        "totalRequests": "Αιτήματα",
-        "totalTokens": "Συνολικά διακριτικά",
+        "streak": "[to be translated]:Longest streak: {{days}} days",
+        "topModel": "[to be translated]:Top model",
+        "totalCost": "[to be translated]:Total cost",
+        "totalRequests": "[to be translated]:Requests",
+        "totalTokens": "[to be translated]:Total tokens",
         "unattributedApiKey": "[to be translated]:Unattributed request",
         "unattributedSource": "[to be translated]:Unattributed source"
       },
@@ -7082,61 +7089,61 @@
         "success": "[to be translated]:Backfilled {{count}} historical cost records."
       },
       "empty": {
-        "description": "Η χρήση εμφανίζεται μετά από αιτήματα AI που δημιουργούν καταχωρήσεις καθολικού.",
-        "title": "Καμία χρήση ακόμα"
+        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
+        "title": "[to be translated]:No usage yet"
       },
       "explore": {
         "activity": "[to be translated]:Activity",
-        "allProviders": "Όλοι οι πάροχοι",
+        "allProviders": "[to be translated]:All providers",
         "analysis": "[to be translated]:Analysis",
-        "breakdown": "Κατάρρευση",
+        "breakdown": "[to be translated]:Breakdown",
         "breakdownTab": "[to be translated]:Breakdown",
         "cacheUsage": "[to be translated]:Cache usage",
         "chart": "[to be translated]:Chart",
-        "clearDate": "Καθαρισμός φίλτρου ημερομηνίας",
+        "clearDate": "[to be translated]:Clear date filter",
         "costDrivers": "[to be translated]:Cost drivers",
         "drilldownTitle": "[to be translated]:{{date}} drilldown",
-        "entries": "Καταχωρήσεις",
+        "entries": "[to be translated]:Requests",
         "groupBy": "[to be translated]:Group by",
-        "loadMore": "Φόρτωση περισσότερων",
-        "loading": "Φόρτωση...",
+        "loadMore": "[to be translated]:Load more",
+        "loading": "[to be translated]:Loading...",
         "metric": "[to be translated]:Metric",
-        "noBreakdown": "Κανένα διαθέσιμο δεδομένο ανάλυσης",
-        "noBreakdownDescription": "Δοκιμάστε ένα ευρύτερο παράθυρο ή διαφορετικό πάροχο.",
-        "noEntries": "Καμία καταχώρηση",
-        "noEntriesDescription": "Δοκίμασε ένα ευρύτερο παράθυρο ή διαφορετικό πάροχο.",
-        "provider": "Πάροχος",
+        "noBreakdown": "[to be translated]:No breakdown data",
+        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
+        "noEntries": "[to be translated]:No entries",
+        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
+        "provider": "[to be translated]:Provider",
         "requestsTab": "[to be translated]:Requests",
-        "selectedDate": "Επιλεγμένη ημερομηνία: {{date}}",
+        "selectedDate": "[to be translated]:Selected date: {{date}}",
         "share": "[to be translated]:Share {{value}}",
         "shareLabel": "[to be translated]:Share",
-        "title": "Εξερεύνησε",
+        "title": "[to be translated]:Explore",
         "topApiKeys": "[to be translated]:Top API keys",
         "topModels": "[to be translated]:Top models",
         "topProviders": "[to be translated]:Top providers",
         "topSources": "[to be translated]:Top assistants / agents",
-        "totalEntries": "{{count}} καταχωρήσεις"
+        "totalEntries": "[to be translated]:{{count}} entries"
       },
       "groupBy": {
-        "apiKey": "κλειδί API",
-        "model": "Μοντέλο",
-        "provider": "Πάροχος",
+        "apiKey": "[to be translated]:API key",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
         "source": "[to be translated]:Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "Χρήση στις {{date}}",
-        "costDisabled": "Η προβολή κόστους είναι διαθέσιμη μόνο όταν αυτό το παράθυρο έχει ένα νόμισμα.",
-        "title": "Καθημερινή δραστηριότητα"
+        "ariaDate": "[to be translated]:Usage on {{date}}",
+        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
+        "title": "[to be translated]:Daily activity"
       },
       "metric": {
-        "cost": "Κόστος",
+        "cost": "[to be translated]:Cost",
         "requests": "[to be translated]:Requests",
-        "tokens": "Διακριτικά"
+        "tokens": "[to be translated]:Tokens"
       },
       "modality": {
-        "embedding": "Ενσωμάτωση",
-        "image": "Εικόνα",
-        "language": "Γλώσσα"
+        "embedding": "[to be translated]:Embedding",
+        "image": "[to be translated]:Image",
+        "language": "[to be translated]:Language"
       },
       "overview": {
         "title": "[to be translated]:Overview"
@@ -7146,33 +7153,33 @@
         "assistant": "[to be translated]:Assistant",
         "unknown": "[to be translated]:Unattributed"
       },
-      "summary": "{{window}} / {{tokens}} διακριτικά / {{requests}} αιτήματα / {{activeDays}} ενεργές ημέρες",
+      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
       "table": {
-        "apiKey": "κλειδί API",
-        "cost": "Κόστος",
-        "date": "Ημερομηνία",
-        "modality": "Τύπος",
-        "model": "Μοντέλο",
-        "provider": "Πάροχος",
+        "apiKey": "[to be translated]:API key",
+        "cost": "[to be translated]:Cost",
+        "date": "[to be translated]:Date",
+        "modality": "[to be translated]:Type",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
         "request": "[to be translated]:Request",
         "source": "[to be translated]:Source",
-        "tokens": "Διακριτικά",
-        "tps": "TPS",
-        "tpsValue": "{{value}} tok/s",
-        "ttft": "TTFT"
+        "tokens": "[to be translated]:Tokens",
+        "tps": "[to be translated]:TPS",
+        "tpsValue": "[to be translated]:{{value}} tok/s",
+        "ttft": "[to be translated]:TTFT"
       },
-      "title": "Αποτύπωμα Χρήσης",
+      "title": "[to be translated]:Usage Analytics",
       "tooltip": {
-        "cost": "Κόστος {{value}}",
-        "metric": "{{value}}",
-        "requests": "{{count}} αιτήματα",
-        "tokens": "{{value}} διακριτά"
+        "cost": "[to be translated]:Cost {{value}}",
+        "metric": "[to be translated]:{{value}}",
+        "requests": "[to be translated]:{{count}} requests",
+        "tokens": "[to be translated]:{{value}} tokens"
       },
       "window": {
-        "30d": "Τελευταίες 30 ημέρες",
-        "365d": "Πέρυσι",
-        "90d": "Τελευταίες 90 ημέρες",
-        "all": "Όλοι οι χρόνοι"
+        "30d": "[to be translated]:Last 30 days",
+        "365d": "[to be translated]:Last year",
+        "90d": "[to be translated]:Last 90 days",
+        "all": "[to be translated]:All time"
       }
     },
     "use_system_title_bar": {
@@ -7211,22 +7218,22 @@
   },
   "trace": {
     "agent": "Πράκτορας",
-    "backList": "Επιστροφή στη Λίστα",
-    "cachedTokens": "Προσωρινά αποθηκευμένο",
+    "backList": "Επιστροφή στη λίστα",
+    "cachedTokens": "Cache",
     "endTime": "Ώρα Λήξης",
-    "inputs": "Εισαγωες",
+    "inputs": "Εισόδους",
     "label": "Αλυσίδα Κλήσεων",
     "model": "Μοντέλο",
     "name": "Όνομα Κόμβου",
-    "noTraceList": "Δεν βρέθηκαν πληροφορίες ίχνους",
+    "noTraceList": "Δεν βρέθηκαν πληροφορίες ιχνηλάτησης",
     "operation": "Λειτουργία",
     "outputs": "Έξοδοι",
-    "pollError": "Η δειγματοληψία απέτυχε",
+    "pollError": "Η δημοσκόπηση απέτυχε",
     "reasoningTokens": "Συλλογισμός",
     "requestHeaders": "Κεφαλίδες Αιτήματος",
     "requestMethod": "Μέθοδος Αιτήματος",
     "requestUrl": "URL Αιτήματος",
-    "responseHeaders": "Κεφαλίδες Απόκρισης",
+    "responseHeaders": "Κεφαλίδες Απάντησης",
     "responseStatus": "Κατάσταση Απόκρισης",
     "serverDescription": "Περιγραφή Διακομιστή",
     "serverName": "Όνομα Διακομιστή",

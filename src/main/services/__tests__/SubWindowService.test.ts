@@ -15,7 +15,8 @@ const { platformState, nativeThemeState, applicationMock, windowManagerMock } = 
     getWindowsByType: vi.fn<(type: string) => unknown[]>(() => []),
     getWindowInfosByType: vi.fn<(type: string) => Array<{ id: string }>>(() => []),
     getWindowIdByWebContents: vi.fn<(wc: unknown) => string | undefined>(() => undefined),
-    broadcastToType: vi.fn<(type: string, channel: string, ...rest: unknown[]) => void>()
+    broadcastToType: vi.fn<(type: string, channel: string, ...rest: unknown[]) => void>(),
+    behavior: { setAlwaysOnTop: vi.fn<(id: string, enabled: boolean) => void>() }
   }
   const applicationMock = {
     get: vi.fn((name: string) => {
@@ -78,6 +79,10 @@ interface MockBrowserWindow extends EventEmitter {
   getOpacity: ReturnType<typeof vi.fn>
   getBounds: ReturnType<typeof vi.fn>
   getContentBounds: ReturnType<typeof vi.fn>
+  setAlwaysOnTop: ReturnType<typeof vi.fn>
+  webContents: {
+    isLoadingMainFrame: ReturnType<typeof vi.fn>
+  }
 }
 
 function createMockWindow(overrides: Partial<MockBrowserWindow> = {}): MockBrowserWindow {
@@ -91,6 +96,9 @@ function createMockWindow(overrides: Partial<MockBrowserWindow> = {}): MockBrows
   win.getOpacity = vi.fn(() => 1)
   win.getBounds = vi.fn(() => ({ x: 100, y: 100, width: 1200, height: 800 }))
   win.getContentBounds = vi.fn(() => ({ x: 100, y: 100, width: 800, height: 600 }))
+  win.setAlwaysOnTop = vi.fn()
+  // Fresh (still-loading) window by default; reused-pool tests override isLoadingMainFrame → false.
+  win.webContents = { isLoadingMainFrame: vi.fn(() => true) }
   Object.assign(win, overrides)
   return win
 }
@@ -129,6 +137,7 @@ describe('SubWindowService', () => {
     windowManagerMock.getWindowInfosByType.mockReset().mockReturnValue([])
     windowManagerMock.getWindowIdByWebContents.mockReset().mockReturnValue(undefined)
     windowManagerMock.broadcastToType.mockReset()
+    windowManagerMock.behavior.setAlwaysOnTop.mockReset()
     vi.mocked(BrowserWindow.fromWebContents).mockReset()
 
     svc = new SubWindowService()
@@ -180,7 +189,18 @@ describe('SubWindowService', () => {
       const win = createMockWindow()
       windowManagerMock.getWindow.mockReturnValue(win)
 
-      svc.createWindow({ id: 'tab-3', url: 'cherry://agent', title: 'Agent', type: 'webview', isPinned: true })
+      svc.createWindow({
+        id: 'tab-3',
+        url: 'cherry://agent',
+        title: 'Agent',
+        type: 'webview',
+        isPinned: true,
+        metadata: {
+          instanceAppId: 'agents',
+          instanceKey: 'session-1',
+          internalOnly: 'drop-me'
+        }
+      })
 
       const { args } = lastOpenCall()
       expect(args.initData).toEqual({
@@ -188,8 +208,59 @@ describe('SubWindowService', () => {
         url: 'cherry://agent',
         title: 'Agent',
         type: 'webview',
-        isPinned: true
+        isPinned: true,
+        metadata: {
+          instanceAppId: 'agents',
+          instanceKey: 'session-1'
+        }
       })
+    })
+
+    it('threads tab.icon through initData when supplied (mini-app logo / emoji descriptor)', () => {
+      const win = createMockWindow()
+      windowManagerMock.getWindow.mockReturnValue(win)
+
+      svc.createWindow({
+        id: 'tab-mini',
+        url: '/app/mini-app/chatgpt',
+        title: 'ChatGPT',
+        icon: 'chatgpt'
+      })
+
+      const { args } = lastOpenCall()
+      expect(args.initData).toMatchObject({ icon: 'chatgpt' })
+    })
+
+    it('omits icon from initData when blank or absent', () => {
+      const win = createMockWindow()
+      windowManagerMock.getWindow.mockReturnValue(win)
+
+      svc.createWindow({ id: 'tab-no-icon', url: '/app/chat', title: 'Chat' })
+
+      const { args } = lastOpenCall()
+      expect(args.initData).not.toHaveProperty('icon')
+    })
+
+    it('drops malformed tab metadata from initData', () => {
+      const win = createMockWindow()
+      windowManagerMock.getWindow.mockReturnValue(win)
+
+      svc.createWindow({
+        id: 'tab-bad-metadata',
+        url: 'cherry://agent',
+        metadata: {
+          instanceAppId: 'agents',
+          instanceKey: 123
+        }
+      })
+
+      const { args } = lastOpenCall()
+      expect(args.initData).toMatchObject({
+        tabId: 'tab-bad-metadata',
+        url: 'cherry://agent',
+        type: 'route'
+      })
+      expect(args.initData).not.toHaveProperty('metadata')
     })
 
     it('coerces unknown tab type to "route" in initData (renderer relies on the narrow union)', () => {
@@ -245,20 +316,53 @@ describe('SubWindowService', () => {
       expect((svc as any).windowState.has('tab-A')).toBe(false)
     })
 
-    it('auto-shows on ready-to-show only when no initial position was provided', () => {
+    it('shows immediately (no ready-to-show wait) when no initial position was provided', () => {
       const win = createMockWindow()
       windowManagerMock.getWindow.mockReturnValue(win)
 
       svc.createWindow({ id: 'tab-noxy', url: 'u' })
-      win.emit('ready-to-show')
-      expect(win.show).toHaveBeenCalledTimes(1)
 
-      win.show.mockClear()
-      const win2 = createMockWindow()
-      windowManagerMock.getWindow.mockReturnValue(win2)
+      // Unconditional + immediate show (mirrors SelectionService.showActionWindow): the window is
+      // shown synchronously inside createWindow, not deferred to a ready-to-show listener.
+      expect(win.show).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not show here when an initial position was provided (Tab_MoveWindow shows it)', () => {
+      const win = createMockWindow()
+      windowManagerMock.getWindow.mockReturnValue(win)
+
       svc.createWindow({ id: 'tab-xy', url: 'u', x: 10, y: 10 })
-      win2.emit('ready-to-show')
-      expect(win2.show).not.toHaveBeenCalled()
+
+      expect(win.show).not.toHaveBeenCalled()
+    })
+
+    it('shows a reused (already-loaded) standby immediately — no dependence on isLoadingMainFrame', () => {
+      // Negative control for the old stuck-hidden bug: a reused standby's ready-to-show already
+      // fired during pre-warm and never fires again. isLoadingMainFrame() returns false here, yet
+      // the window must still be shown synchronously (the old conditional would have skipped or
+      // hung on a ready-to-show wait).
+      const win = createMockWindow()
+      win.webContents.isLoadingMainFrame.mockReturnValue(false)
+      windowManagerMock.getWindow.mockReturnValue(win)
+
+      svc.createWindow({ id: 'tab-reused', url: 'u' })
+
+      expect(win.show).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not stay hidden when the load never completes (no ready-to-show fallback needed)', () => {
+      // Regression for the stuck-hidden failure mode: previously a still-loading window
+      // (isLoadingMainFrame === true) waited on ready-to-show, which on a failed load never fires,
+      // leaving the window hidden forever. Unconditional show removes that dependency entirely:
+      // even with a still-loading window and no ready-to-show emission, show() is called.
+      const win = createMockWindow()
+      win.webContents.isLoadingMainFrame.mockReturnValue(true)
+      windowManagerMock.getWindow.mockReturnValue(win)
+
+      svc.createWindow({ id: 'tab-stuck', url: 'u' })
+
+      // No ready-to-show emitted, yet the window is already shown.
+      expect(win.show).toHaveBeenCalledTimes(1)
     })
   })
 
@@ -382,6 +486,31 @@ describe('SubWindowService', () => {
       expect(result).toBe(false)
       expect(windowManagerMock.close).not.toHaveBeenCalled()
       expect(subWin.setOpacity).toHaveBeenCalledWith(1)
+    })
+  })
+
+  describe('SubWindow_SetAlwaysOnTop handler', () => {
+    it('pins via WindowManager behavior when the sender window is tracked', () => {
+      const handler = getIpcHandleHandler(svc, 'sub-window:set-always-on-top')
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue('sub-9')
+
+      const result = handler({ sender: {} } as any, true)
+
+      expect(result).toBe(true)
+      expect(windowManagerMock.behavior.setAlwaysOnTop).toHaveBeenCalledWith('sub-9', true)
+      expect(BrowserWindow.fromWebContents).not.toHaveBeenCalled()
+    })
+
+    it('ignores (returns false) when the sender is not a WindowManager-tracked window', () => {
+      const handler = getIpcHandleHandler(svc, 'sub-window:set-always-on-top')
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue(undefined)
+
+      const result = handler({ sender: {} } as any, true)
+
+      expect(result).toBe(false)
+      expect(windowManagerMock.behavior.setAlwaysOnTop).not.toHaveBeenCalled()
+      // No fallback: an untracked sender is not a sub-window, so we never poke a raw BrowserWindow.
+      expect(BrowserWindow.fromWebContents).not.toHaveBeenCalled()
     })
   })
 

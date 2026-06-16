@@ -2157,7 +2157,8 @@
         "note": {
           "description": "Selecione notas existentes como fontes da base de conhecimento",
           "empty_description": "As notas selecionáveis aparecerão aqui após a lista de notas reais ser conectada. Por enquanto, use arquivos, pastas, URLs ou mapas do site.",
-          "empty_title": "As notas ainda não estão conectadas"
+          "empty_title": "As notas ainda não estão conectadas",
+          "loading": "[to be translated]:Loading notes…"
         },
         "placeholder": {
           "supported_formats": "Suporta PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2190,8 +2191,6 @@
         "reindex": "Reindexar",
         "selected_count": "{{count}} selecionado"
       },
-      "chunk_delete_confirm_description": "Após a exclusão, este bloco não será mais utilizado para recuperação. A reindexação da fonte de dados o gerará novamente.",
-      "chunk_delete_confirm_title": "Excluir Chunk?",
       "chunks_count": "{{count}} blocos",
       "delete_confirm_description": "Esta fonte de dados e seus dados de índice não podem ser recuperados após a exclusão.",
       "delete_confirm_title": "Excluir Fonte de Dados?",
@@ -2248,9 +2247,7 @@
         "search_placeholder": "Pesquisar fontes de dados"
       }
     },
-    "dimensions": "Dimensões de Incorporação",
     "dimensions_auto_set": "Definição automática de dimensões de incorporação",
-    "dimensions_error_invalid": "Por favor insira o tamanho da dimensão de incorporação",
     "dimensions_size_placeholder": " Tamanho da dimensão de incorporação, ex. 1024",
     "drag_file": "Arraste o arquivo aqui",
     "embedding_model": "Modelo de Incorporação",
@@ -2302,7 +2299,6 @@
       "chunk_size_invalid": "O tamanho do bloco deve ser maior que 0",
       "chunking": "Fragmentação",
       "default_separator": "Automático (recomendado)",
-      "dimensions": "Dimensões de Vetor",
       "document_count": "Contagem de Documentos",
       "embedding_model": "Modelo de Incorporação",
       "embedding_model_select": "Seleção de Modelo",
@@ -2311,7 +2307,6 @@
       "hints": {
         "chunk_overlap": "Número de tokens sobrepostos mantidos entre blocos adjacentes para reduzir quebras semânticas.",
         "chunk_size": "Contagem-alvo de tokens para cada fragmento de documento. Isso afeta a granularidade da recuperação e o comprimento do contexto.",
-        "dimensions": "A dimensão do vetor produzida pelo modelo de incorporação atual, usada para criar e corresponder índices vetoriais.",
         "document_count": "Número máximo de blocos de documentos retornados para cada recuperação. Valores mais altos cobrem mais conteúdo, mas utilizam mais contexto.",
         "embedding_model": "Usado para converter o conteúdo da base de conhecimento em vetores. Alterar o modelo geralmente exige reindexar o conteúdo existente.",
         "hybrid_alpha": "Peso da pontuação vetorial na recuperação híbrida. Valores mais altos favorecem o pareamento semântico.",
@@ -2322,9 +2317,7 @@
         "threshold_disabled": "Este modo de recuperação retorna resultados ordenados e não utiliza um limiar de similaridade."
       },
       "hybrid_alpha": "Alfa Híbrido",
-      "hybrid_alpha_hint": "Apenas configurável no modo de recuperação híbrida",
       "processor": "Processador de Provedor",
-      "refresh_dimensions": "Atualizar dimensões do vetor",
       "rerank_disabled": "Desativado",
       "rerank_model": "Modelo de Reorganização",
       "reset_action": "Restaurar Padrões",
@@ -2334,9 +2327,9 @@
       "saved": "Salvo",
       "search_mode": {
         "bm25": "Pesquisa de texto completo",
-        "default": "Busca Vetorial",
         "hybrid": "Busca Híbrida (recomendado)",
-        "title": "Modo de Pesquisa"
+        "title": "Modo de Pesquisa",
+        "vector": "[to be translated]:Vector Search"
       },
       "separator_rule": "Regra Separadora",
       "threshold": "Limite de Similaridade",
@@ -5681,12 +5674,18 @@
           },
           "invalid": "Entrada inválida, verifique o formato JSON",
           "json": "Importar do JSON",
+          "mcpb": "Importar Pacote MCPB",
+          "mcpbFile": "Arquivo de Pacote MCPB",
+          "mcpbHelp": "Selecione um arquivo .mcpb contendo um pacote de servidor MCP",
+          "mcpbProcessFailed": "Falha ao processar o arquivo MCPB",
           "method": "Método de importação",
           "nameExists": "Servidor já existe: {{name}}",
           "noDxtFile": "Por favor, selecione um arquivo DXT",
+          "noMcpbFile": "Por favor, selecione um arquivo MCPB",
           "oneServer": "Apenas uma configuração de servidor MCP pode ser salva por vez",
           "placeholder": "Cole a configuração JSON do servidor MCP",
           "selectDxtFile": "Selecionar arquivo DXT",
+          "selectMcpbFile": "Selecionar Arquivo MCPB",
           "tooltip": "Copie o JSON de configuração da página de introdução do MCP Servers (prefira configurações NPX ou UVX) e cole na caixa de entrada"
         },
         "label": "Adicionar Servidor"
@@ -5926,7 +5925,7 @@
       "system": "Sistema"
     },
     "messages": {
-      "cache_read_tokens": "Tokens de entrada em cache lidos",
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "Divisor de mensagens",
         "tooltip": "Não aplicável a mensagens de estilo bolha"
@@ -5959,7 +5958,7 @@
         "none": "Não mostrar"
       },
       "prompt": "Exibir palavra-chave",
-      "reasoning_tokens": "Tokens de raciocínio",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "Exibir esboço da mensagem",
       "title": "Configurações de mensagem",
       "use_serif_font": "Usar fonte serif"
@@ -6658,6 +6657,7 @@
         "project_id": "ID do Projeto",
         "project_id_help": "Seu ID do projeto no Google Cloud",
         "project_id_placeholder": "seu-id-do-projeto-no-google-cloud",
+        "select_location": "[to be translated]:Select location",
         "service_account": {
           "auth_success": "Autenticação da Conta de Serviço realizada com sucesso",
           "client_email": "E-mail do cliente",
@@ -6673,7 +6673,10 @@
           "private_key": "Chave privada",
           "private_key_help": "Campo private_key do arquivo de chave JSON baixado do Google Cloud Console",
           "private_key_placeholder": "Por favor, insira a chave privada da Conta de Serviço",
-          "title": "Configuração da Conta de Serviço"
+          "title": "Configuração da Conta de Serviço",
+          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
+          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
+          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
         }
       }
     },
@@ -6743,6 +6746,7 @@
       },
       "clear_shortcut": "Limpar atalho",
       "clear_topic": "Limpar mensagem",
+      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "Já usado por \"{{name}}\"",
       "copy_last_message": "Copiar a última mensagem",
       "edit_last_user_message": "Editar última mensagem do usuário",
@@ -6750,8 +6754,11 @@
       "enabled": "ativar",
       "exit_fullscreen": "Sair da tela cheia",
       "label": "Tecla",
+      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "Novo tópico",
       "occupied_by_other_application": "Este atalho já está sendo usado pelo sistema ou por outro aplicativo",
+      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
+      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "Pressionar atalho",
       "quick_assistant": "Atalho de assistente",
       "rename_topic": "Renomear tópico",
@@ -7049,22 +7056,22 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "Dias ativos",
+        "activeDays": "[to be translated]:Active days",
         "cacheHitRate": "[to be translated]:Cache hit rate",
         "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
         "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
-        "costHint": "O custo é agrupado por moeda.",
-        "dailyAverage": "Média diária",
-        "lastPeriod": "vs período anterior",
-        "mixedCurrency": "Várias moedas são exibidas separadamente.",
-        "none": "N/A",
-        "peakDay": "Dia de pico",
+        "costHint": "[to be translated]:Cost is grouped by currency.",
+        "dailyAverage": "[to be translated]:Daily average",
+        "lastPeriod": "[to be translated]:vs last period",
+        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
+        "none": "[to be translated]:N/A",
+        "peakDay": "[to be translated]:Peak day",
         "providerAuth": "[to be translated]:Provider auth",
-        "streak": "Maior sequência: {{days}} dias",
-        "topModel": "Top model",
-        "totalCost": "Custo total",
-        "totalRequests": "Pedidos",
-        "totalTokens": "Total de tokens",
+        "streak": "[to be translated]:Longest streak: {{days}} days",
+        "topModel": "[to be translated]:Top model",
+        "totalCost": "[to be translated]:Total cost",
+        "totalRequests": "[to be translated]:Requests",
+        "totalTokens": "[to be translated]:Total tokens",
         "unattributedApiKey": "[to be translated]:Unattributed request",
         "unattributedSource": "[to be translated]:Unattributed source"
       },
@@ -7082,61 +7089,61 @@
         "success": "[to be translated]:Backfilled {{count}} historical cost records."
       },
       "empty": {
-        "description": "O uso aparece após as solicitações de IA criarem entradas no razão.",
-        "title": "Sem uso ainda"
+        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
+        "title": "[to be translated]:No usage yet"
       },
       "explore": {
         "activity": "[to be translated]:Activity",
-        "allProviders": "Todos os provedores",
+        "allProviders": "[to be translated]:All providers",
         "analysis": "[to be translated]:Analysis",
-        "breakdown": "Colapso",
+        "breakdown": "[to be translated]:Breakdown",
         "breakdownTab": "[to be translated]:Breakdown",
         "cacheUsage": "[to be translated]:Cache usage",
         "chart": "[to be translated]:Chart",
-        "clearDate": "Limpar filtro de data",
+        "clearDate": "[to be translated]:Clear date filter",
         "costDrivers": "[to be translated]:Cost drivers",
         "drilldownTitle": "[to be translated]:{{date}} drilldown",
-        "entries": "Entradas",
+        "entries": "[to be translated]:Requests",
         "groupBy": "[to be translated]:Group by",
-        "loadMore": "Carregar mais",
-        "loading": "Carregando...",
+        "loadMore": "[to be translated]:Load more",
+        "loading": "[to be translated]:Loading...",
         "metric": "[to be translated]:Metric",
-        "noBreakdown": "Sem dados detalhados",
-        "noBreakdownDescription": "Experimente uma janela mais ampla ou um provedor diferente.",
-        "noEntries": "Nenhuma entrada",
-        "noEntriesDescription": "Tente uma janela mais ampla ou um provedor diferente.",
-        "provider": "Fornecedor",
+        "noBreakdown": "[to be translated]:No breakdown data",
+        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
+        "noEntries": "[to be translated]:No entries",
+        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
+        "provider": "[to be translated]:Provider",
         "requestsTab": "[to be translated]:Requests",
-        "selectedDate": "Data selecionada: {{date}}",
+        "selectedDate": "[to be translated]:Selected date: {{date}}",
         "share": "[to be translated]:Share {{value}}",
         "shareLabel": "[to be translated]:Share",
-        "title": "Explorar",
+        "title": "[to be translated]:Explore",
         "topApiKeys": "[to be translated]:Top API keys",
         "topModels": "[to be translated]:Top models",
         "topProviders": "[to be translated]:Top providers",
         "topSources": "[to be translated]:Top assistants / agents",
-        "totalEntries": "{{count}} entradas"
+        "totalEntries": "[to be translated]:{{count}} entries"
       },
       "groupBy": {
-        "apiKey": "Chave de API",
-        "model": "Modelo",
-        "provider": "Fornecedor",
+        "apiKey": "[to be translated]:API key",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
         "source": "[to be translated]:Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "Uso em {{date}}",
-        "costDisabled": "A visão de custo está disponível apenas quando esta janela possui uma única moeda.",
-        "title": "Atividade diária"
+        "ariaDate": "[to be translated]:Usage on {{date}}",
+        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
+        "title": "[to be translated]:Daily activity"
       },
       "metric": {
-        "cost": "Custo",
+        "cost": "[to be translated]:Cost",
         "requests": "[to be translated]:Requests",
-        "tokens": "Tokens"
+        "tokens": "[to be translated]:Tokens"
       },
       "modality": {
-        "embedding": "Incorporação",
-        "image": "Imagem",
-        "language": "Idioma"
+        "embedding": "[to be translated]:Embedding",
+        "image": "[to be translated]:Image",
+        "language": "[to be translated]:Language"
       },
       "overview": {
         "title": "[to be translated]:Overview"
@@ -7146,33 +7153,33 @@
         "assistant": "[to be translated]:Assistant",
         "unknown": "[to be translated]:Unattributed"
       },
-      "summary": "{{window}} / {{tokens}} tokens / {{requests}} pedidos / {{activeDays}} dias ativos",
+      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
       "table": {
-        "apiKey": "Chave de API",
-        "cost": "Custo",
-        "date": "Data",
-        "modality": "Tipo",
-        "model": "Modelo",
-        "provider": "Fornecedor",
+        "apiKey": "[to be translated]:API key",
+        "cost": "[to be translated]:Cost",
+        "date": "[to be translated]:Date",
+        "modality": "[to be translated]:Type",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
         "request": "[to be translated]:Request",
         "source": "[to be translated]:Source",
-        "tokens": "Tokens",
-        "tps": "TPS",
-        "tpsValue": "{{value}} tok/s",
-        "ttft": "TTFT"
+        "tokens": "[to be translated]:Tokens",
+        "tps": "[to be translated]:TPS",
+        "tpsValue": "[to be translated]:{{value}} tok/s",
+        "ttft": "[to be translated]:TTFT"
       },
-      "title": "Pegada de Uso",
+      "title": "[to be translated]:Usage Analytics",
       "tooltip": {
-        "cost": "Custo {{value}}",
-        "metric": "{{value}}",
-        "requests": "{{count}} solicitações",
-        "tokens": "{{value}} tokens"
+        "cost": "[to be translated]:Cost {{value}}",
+        "metric": "[to be translated]:{{value}}",
+        "requests": "[to be translated]:{{count}} requests",
+        "tokens": "[to be translated]:{{value}} tokens"
       },
       "window": {
-        "30d": "Últimos 30 dias",
-        "365d": "Ano passado",
-        "90d": "Últimos 90 dias",
-        "all": "Todo o tempo"
+        "30d": "[to be translated]:Last 30 days",
+        "365d": "[to be translated]:Last year",
+        "90d": "[to be translated]:Last 90 days",
+        "all": "[to be translated]:All time"
       }
     },
     "use_system_title_bar": {
@@ -7218,12 +7225,12 @@
     "label": "Cadeia de Chamadas",
     "model": "Modelo",
     "name": "Nome do Nó",
-    "noTraceList": "Nenhuma informação de rastreamento encontrada",
+    "noTraceList": "Nenhuma informação de rastreammento encontrada",
     "operation": "Operação",
     "outputs": "Saídas",
-    "pollError": "Falha na consulta",
+    "pollError": "Falha na sondagem",
     "reasoningTokens": "Raciocínio",
-    "requestHeaders": "Cabeçalhos de Solicitação",
+    "requestHeaders": "Cabeçalhos da Solicitação",
     "requestMethod": "Método de Solicitação",
     "requestUrl": "URL da Solicitação",
     "responseHeaders": "Cabeçalhos de Resposta",
@@ -7231,13 +7238,13 @@
     "serverDescription": "Descrição do Servidor",
     "serverName": "Nome do Servidor",
     "serverType": "Tipo de Servidor",
-    "spanDetail": "Detalhes do Vão",
+    "spanDetail": "Detalhes do Span",
     "spendTime": "Passar Tempo",
     "startTime": "Hora de Início",
     "status": "Estado",
     "tag": "Etiqueta",
-    "tokenUsage": "Uso de Token",
-    "toolCalls": "Chamadas de Ferramenta"
+    "tokenUsage": "Uso de Tokens",
+    "toolCalls": "Chamadas de Ferramentas"
   },
   "translate": {
     "alter_language": "Idioma alternativo",

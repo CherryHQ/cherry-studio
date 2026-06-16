@@ -2157,7 +2157,8 @@
         "note": {
           "description": "Выберите существующие заметки в качестве источников базы знаний",
           "empty_description": "Выбираемые заметки появятся здесь после подключения списка реальных заметок. Пока используйте файлы, папки, URL-адреса или карты сайта.",
-          "empty_title": "Заметки ещё не связаны"
+          "empty_title": "Заметки ещё не связаны",
+          "loading": "[to be translated]:Loading notes…"
         },
         "placeholder": {
           "supported_formats": "Поддерживает PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2190,8 +2191,6 @@
         "reindex": "Переиндексация",
         "selected_count": "{{count}} выбрано"
       },
-      "chunk_delete_confirm_description": "После удаления этот фрагмент больше не будет использоваться для поиска. Повторная индексация источника данных сгенерирует его снова.",
-      "chunk_delete_confirm_title": "Удалить фрагмент?",
       "chunks_count": "{{count}} частей",
       "delete_confirm_description": "Этот источник данных и его индексные данные не могут быть восстановлены после удаления.",
       "delete_confirm_title": "Удалить источник данных?",
@@ -2248,9 +2247,7 @@
         "search_placeholder": "Поиск источников данных"
       }
     },
-    "dimensions": "Размерности вложений",
     "dimensions_auto_set": "Автоматическая установка размерности эмбеддинга",
-    "dimensions_error_invalid": "Неверная размерность эмбеддинга",
     "dimensions_size_placeholder": "Оставьте пустым, чтобы не устанавливать",
     "drag_file": "Перетащите файл сюда",
     "embedding_model": "Модель встраивания",
@@ -2302,7 +2299,6 @@
       "chunk_size_invalid": "Размер фрагмента должен быть больше 0",
       "chunking": "Разбиение на блоки",
       "default_separator": "Авто (рекомендуется)",
-      "dimensions": "Векторные размерности",
       "document_count": "Количество документов",
       "embedding_model": "Модель вложений",
       "embedding_model_select": "Выбор модели",
@@ -2311,7 +2307,6 @@
       "hints": {
         "chunk_overlap": "Количество перекрывающихся токенов, сохраняемых между соседними фрагментами для уменьшения семантических разрывов.",
         "chunk_size": "Целевое количество токенов для каждого фрагмента документа. Это влияет на гранулярность извлечения и длину контекста.",
-        "dimensions": "Размерность вектора, выдаваемая текущей моделью встраивания, используемой для создания и сопоставления векторных индексов.",
         "document_count": "Максимальное количество фрагментов документа, возвращаемых для каждого поиска. Более высокие значения охватывают больше контента, но используют больше контекста.",
         "embedding_model": "Используется для преобразования содержимого базы знаний в векторы. Смена модели обычно требует переиндексации существующего содержимого.",
         "hybrid_alpha": "Вес векторной оценки в гибридном поиске. Более высокие значения делают приоритетнее семантическое соответствие.",
@@ -2322,9 +2317,7 @@
         "threshold_disabled": "Этот режим извлечения возвращает упорядоченные результаты и не использует порог сходства."
       },
       "hybrid_alpha": "Гибридный Альфа",
-      "hybrid_alpha_hint": "Доступно только в режиме гибридного поиска",
       "processor": "Поставщик обработки",
-      "refresh_dimensions": "Обновить размерности векторов",
       "rerank_disabled": "Отключено",
       "rerank_model": "Переупорядочивающая модель",
       "reset_action": "Восстановить значения по умолчанию",
@@ -2334,9 +2327,9 @@
       "saved": "Сохранено",
       "search_mode": {
         "bm25": "Полнотекстовый поиск",
-        "default": "Векторный поиск",
         "hybrid": "Гибридный поиск (рекомендуется)",
-        "title": "Режим поиска"
+        "title": "Режим поиска",
+        "vector": "[to be translated]:Vector Search"
       },
       "separator_rule": "Правило разделителя",
       "threshold": "Порог сходства",
@@ -5681,12 +5674,18 @@
           },
           "invalid": "Неверный ввод, проверьте формат JSON",
           "json": "Импорт из JSON",
+          "mcpb": "Импортировать пакет MCPB",
+          "mcpbFile": "Файл пакета MCPB",
+          "mcpbHelp": "Выберите файл .mcpb, содержащий пакет сервера MCP",
+          "mcpbProcessFailed": "Не удалось обработать файл MCPB",
           "method": "Метод импорта",
           "nameExists": "Сервер уже существует: {{name}}",
           "noDxtFile": "Пожалуйста, выберите DXT-файл",
+          "noMcpbFile": "Пожалуйста, выберите файл MCPB",
           "oneServer": "Можно сохранить только один конфигурационный файл MCP",
           "placeholder": "Вставьте JSON-конфигурацию сервера MCP",
           "selectDxtFile": "Выберите файл DXT",
+          "selectMcpbFile": "Выберите файл MCPB",
           "tooltip": "Скопируйте JSON-конфигурацию (приоритет NPX или UVX конфигураций) со страницы введения MCP Servers и вставьте ее в поле ввода."
         },
         "label": "Добавить сервер"
@@ -5926,7 +5925,7 @@
       "system": "Система"
     },
     "messages": {
-      "cache_read_tokens": "Кэшированные токены входных данных прочитаны",
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "Показывать разделитель между сообщениями",
         "tooltip": "Не применимо к сообщениям в стиле пузырей"
@@ -5959,7 +5958,7 @@
         "none": "Не показывать"
       },
       "prompt": "Показывать подсказки",
-      "reasoning_tokens": "Токены рассуждений",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "Показать наброски сообщения",
       "title": "Настройки сообщений",
       "use_serif_font": "Использовать serif шрифт"
@@ -6658,6 +6657,7 @@
         "project_id": "ID проекта",
         "project_id_help": "Ваш ID проекта Google Cloud",
         "project_id_placeholder": "your-google-cloud-project-id",
+        "select_location": "[to be translated]:Select location",
         "service_account": {
           "auth_success": "Service Account успешно аутентифицирован",
           "client_email": "Email клиента",
@@ -6673,7 +6673,10 @@
           "private_key": "Приватный ключ",
           "private_key_help": "Поле private_key из файла ключа JSON, загруженного из Google Cloud Console",
           "private_key_placeholder": "Введите приватный ключ Service Account",
-          "title": "Конфигурация Service Account"
+          "title": "Конфигурация Service Account",
+          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
+          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
+          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
         }
       }
     },
@@ -6743,6 +6746,7 @@
       },
       "clear_shortcut": "Очистить сочетание клавиш",
       "clear_topic": "Очистить все сообщения",
+      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "Уже используется \"{{name}}\"",
       "copy_last_message": "Копировать последнее сообщение",
       "edit_last_user_message": "Редактировать последнее сообщение пользователя",
@@ -6750,8 +6754,11 @@
       "enabled": "Включить",
       "exit_fullscreen": "Выйти из полноэкранного режима",
       "label": "Клавиша",
+      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "Новый топик",
       "occupied_by_other_application": "Это сочетание клавиш уже используется системой или другим приложением",
+      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
+      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "Нажмите сочетание клавиш",
       "quick_assistant": "Быстрый помощник",
       "rename_topic": "Переименовать топик",
@@ -7049,22 +7056,22 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "Активные дни",
+        "activeDays": "[to be translated]:Active days",
         "cacheHitRate": "[to be translated]:Cache hit rate",
         "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
         "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
-        "costHint": "Стоимость группируется по валюте.",
-        "dailyAverage": "Среднесуточное значение",
-        "lastPeriod": "к предыдущему периоду",
-        "mixedCurrency": "Несколько валют отображаются отдельно.",
-        "none": "N/A",
-        "peakDay": "Пковый день",
+        "costHint": "[to be translated]:Cost is grouped by currency.",
+        "dailyAverage": "[to be translated]:Daily average",
+        "lastPeriod": "[to be translated]:vs last period",
+        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
+        "none": "[to be translated]:N/A",
+        "peakDay": "[to be translated]:Peak day",
         "providerAuth": "[to be translated]:Provider auth",
-        "streak": "Самая длинная серия: {{days}} дней",
-        "topModel": "Топ-модель",
-        "totalCost": "Общая стоимость",
-        "totalRequests": "Запросы",
-        "totalTokens": "Всего токенов",
+        "streak": "[to be translated]:Longest streak: {{days}} days",
+        "topModel": "[to be translated]:Top model",
+        "totalCost": "[to be translated]:Total cost",
+        "totalRequests": "[to be translated]:Requests",
+        "totalTokens": "[to be translated]:Total tokens",
         "unattributedApiKey": "[to be translated]:Unattributed request",
         "unattributedSource": "[to be translated]:Unattributed source"
       },
@@ -7082,61 +7089,61 @@
         "success": "[to be translated]:Backfilled {{count}} historical cost records."
       },
       "empty": {
-        "description": "Использование появляется после того, как запросы ИИ создают записи в реестре.",
-        "title": "Пока нет использования"
+        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
+        "title": "[to be translated]:No usage yet"
       },
       "explore": {
         "activity": "[to be translated]:Activity",
-        "allProviders": "Все провайдеры",
+        "allProviders": "[to be translated]:All providers",
         "analysis": "[to be translated]:Analysis",
-        "breakdown": "Разбор",
+        "breakdown": "[to be translated]:Breakdown",
         "breakdownTab": "[to be translated]:Breakdown",
         "cacheUsage": "[to be translated]:Cache usage",
         "chart": "[to be translated]:Chart",
-        "clearDate": "Очистить фильтр по дате",
+        "clearDate": "[to be translated]:Clear date filter",
         "costDrivers": "[to be translated]:Cost drivers",
         "drilldownTitle": "[to be translated]:{{date}} drilldown",
-        "entries": "Записи",
+        "entries": "[to be translated]:Requests",
         "groupBy": "[to be translated]:Group by",
-        "loadMore": "Загрузить ещё",
-        "loading": "Загрузка...",
+        "loadMore": "[to be translated]:Load more",
+        "loading": "[to be translated]:Loading...",
         "metric": "[to be translated]:Metric",
-        "noBreakdown": "Нет данных о разбивке",
-        "noBreakdownDescription": "Попробуйте более широкое окно или другого провайдера.",
-        "noEntries": "Нет записей",
-        "noEntriesDescription": "Попробуйте более широкое окно или другого поставщика.",
-        "provider": "Поставщик",
+        "noBreakdown": "[to be translated]:No breakdown data",
+        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
+        "noEntries": "[to be translated]:No entries",
+        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
+        "provider": "[to be translated]:Provider",
         "requestsTab": "[to be translated]:Requests",
-        "selectedDate": "Выбранная дата: {{date}}",
+        "selectedDate": "[to be translated]:Selected date: {{date}}",
         "share": "[to be translated]:Share {{value}}",
         "shareLabel": "[to be translated]:Share",
-        "title": "Исследовать",
+        "title": "[to be translated]:Explore",
         "topApiKeys": "[to be translated]:Top API keys",
         "topModels": "[to be translated]:Top models",
         "topProviders": "[to be translated]:Top providers",
         "topSources": "[to be translated]:Top assistants / agents",
-        "totalEntries": "{{count}} записей"
+        "totalEntries": "[to be translated]:{{count}} entries"
       },
       "groupBy": {
-        "apiKey": "Ключ API",
-        "model": "Модель",
-        "provider": "Поставщик",
+        "apiKey": "[to be translated]:API key",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
         "source": "[to be translated]:Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "Использование {{date}}",
-        "costDisabled": "Представление «Стоимость» доступно только в том случае, если в этом окне используется одна валюта.",
-        "title": "Ежедневная активность"
+        "ariaDate": "[to be translated]:Usage on {{date}}",
+        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
+        "title": "[to be translated]:Daily activity"
       },
       "metric": {
-        "cost": "Стоимость",
+        "cost": "[to be translated]:Cost",
         "requests": "[to be translated]:Requests",
-        "tokens": "Токены"
+        "tokens": "[to be translated]:Tokens"
       },
       "modality": {
-        "embedding": "Встраивание",
-        "image": "Изображение",
-        "language": "Язык"
+        "embedding": "[to be translated]:Embedding",
+        "image": "[to be translated]:Image",
+        "language": "[to be translated]:Language"
       },
       "overview": {
         "title": "[to be translated]:Overview"
@@ -7146,33 +7153,33 @@
         "assistant": "[to be translated]:Assistant",
         "unknown": "[to be translated]:Unattributed"
       },
-      "summary": "{{window}} / {{tokens}} токенов / {{requests}} запросов / {{activeDays}} активных дней",
+      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
       "table": {
-        "apiKey": "Ключ API",
-        "cost": "Стоимость",
-        "date": "Дата",
-        "modality": "Тип",
-        "model": "Модель",
-        "provider": "Поставщик",
+        "apiKey": "[to be translated]:API key",
+        "cost": "[to be translated]:Cost",
+        "date": "[to be translated]:Date",
+        "modality": "[to be translated]:Type",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
         "request": "[to be translated]:Request",
         "source": "[to be translated]:Source",
-        "tokens": "Токены",
-        "tps": "TPS",
-        "tpsValue": "{{value}} tok/s",
-        "ttft": "TTFT"
+        "tokens": "[to be translated]:Tokens",
+        "tps": "[to be translated]:TPS",
+        "tpsValue": "[to be translated]:{{value}} tok/s",
+        "ttft": "[to be translated]:TTFT"
       },
-      "title": "След использования",
+      "title": "[to be translated]:Usage Analytics",
       "tooltip": {
-        "cost": "Стоимость {{value}}",
-        "metric": "{{value}}",
-        "requests": "{{count}} запросов",
-        "tokens": "{{value}} токенов"
+        "cost": "[to be translated]:Cost {{value}}",
+        "metric": "[to be translated]:{{value}}",
+        "requests": "[to be translated]:{{count}} requests",
+        "tokens": "[to be translated]:{{value}} tokens"
       },
       "window": {
-        "30d": "Последние 30 дней",
-        "365d": "В прошлом году",
-        "90d": "Последние 90 дней",
-        "all": "Всё время"
+        "30d": "[to be translated]:Last 30 days",
+        "365d": "[to be translated]:Last year",
+        "90d": "[to be translated]:Last 90 days",
+        "all": "[to be translated]:All time"
       }
     },
     "use_system_title_bar": {
@@ -7221,18 +7228,18 @@
     "noTraceList": "Информация о трассировке не найдена",
     "operation": "Операция",
     "outputs": "Выходы",
-    "pollError": "Опрос не удался",
+    "pollError": "Опрос завершился неудачно",
     "reasoningTokens": "Рассуждение",
     "requestHeaders": "Заголовки запроса",
     "requestMethod": "Метод запроса",
-    "requestUrl": "URL запроса",
+    "requestUrl": "URL зап запроса",
     "responseHeaders": "Заголовки ответа",
     "responseStatus": "Статус ответа",
     "serverDescription": "Описание сервера",
     "serverName": "Имя сервера",
     "serverType": "Тип сервера",
     "spanDetail": "Детали пролёта",
-    "spendTime": "Провести время",
+    "spendTime": "Проводить время",
     "startTime": "Время начала",
     "status": "Статус",
     "tag": "Тег",

@@ -24,6 +24,8 @@ export function createClaudeCodeQueryOptions({
     // oxlint-disable-next-line no-unused-vars
     approvalEmitter: _approvalEmitter,
     // oxlint-disable-next-line no-unused-vars
+    steerHolder: _steerHolder,
+    // oxlint-disable-next-line no-unused-vars
     warmQueryKey: _warmQueryKey,
     // oxlint-disable-next-line no-unused-vars
     toolPolicySnapshot: _toolPolicySnapshot,

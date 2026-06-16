@@ -2157,7 +2157,8 @@
         "note": {
           "description": "Chọn các ghi chú hiện có làm nguồn cơ sở tri thức",
           "empty_description": "Các ghi chú có thể chọn sẽ xuất hiện ở đây sau khi danh sách ghi chú thực tế được kết nối. Hiện tại, hãy sử dụng tệp, thư mục, URL hoặc sơ đồ trang web.",
-          "empty_title": "Các ghi chú chưa được kết nối"
+          "empty_title": "Các ghi chú chưa được kết nối",
+          "loading": "[to be translated]:Loading notes…"
         },
         "placeholder": {
           "supported_formats": "Hỗ trợ PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2190,8 +2191,6 @@
         "reindex": "Lập chỉ mục lại",
         "selected_count": "{{count}} đã chọn"
       },
-      "chunk_delete_confirm_description": "Sau khi xóa, phần này sẽ không còn được sử dụng để truy xuất. Việc lập chỉ mục lại nguồn dữ liệu sẽ tạo ra nó một lần nữa.",
-      "chunk_delete_confirm_title": "Xóa đoạn?",
       "chunks_count": "{{count}} phần",
       "delete_confirm_description": "Nguồn dữ liệu này và dữ liệu chỉ mục của nó không thể được khôi phục sau khi xóa.",
       "delete_confirm_title": "Xóa Nguồn Dữ Liệu?",
@@ -2248,9 +2247,7 @@
         "search_placeholder": "Tìm kiếm nguồn dữ liệu"
       }
     },
-    "dimensions": "Kích thước nhúng",
     "dimensions_auto_set": "Tự động thiết lập kích thước embedding",
-    "dimensions_error_invalid": "Kích thước embedding không hợp lệ",
     "dimensions_size_placeholder": "Để trống để không truyền kích thước",
     "drag_file": "Kéo tệp vào đây",
     "embedding_model": "Mô hình Nhúng",
@@ -2302,7 +2299,6 @@
       "chunk_size_invalid": "Kích thước chunk phải lớn hơn 0",
       "chunking": "Phân đoạn",
       "default_separator": "Tự động (khuyên dùng)",
-      "dimensions": "Chiều của Véc-tơ",
       "document_count": "Số lượng tài liệu",
       "embedding_model": "Mô hình nhúng",
       "embedding_model_select": "Lựa chọn mô hình",
@@ -2311,7 +2307,6 @@
       "hints": {
         "chunk_overlap": "Số lượng token chồng lấp được giữ lại giữa các đoạn liền kề để giảm đứt gãy ngữ nghĩa.",
         "chunk_size": "Số lượng token mục tiêu cho mỗi đoạn tài liệu. Điều này ảnh hưởng đến độ chi tiết khi truy xuất và độ dài ngữ cảnh.",
-        "dimensions": "Kích thước chiều vectơ được đầu ra bởi mô hình nhúng hiện tại, dùng để tạo và khớp các chỉ mục vectơ.",
         "document_count": "Số lượng tối đa các đoạn tài liệu được trả về cho mỗi lần truy xuất. Giá trị cao hơn sẽ bao phủ nhiều nội dung hơn nhưng sử dụng nhiều ngữ cảnh hơn.",
         "embedding_model": "Dùng để chuyển nội dung cơ sở kiến thức thành các vector. Việc thay đổi mô hình thường đòi hỏi lập chỉ mục lại nội dung hiện có.",
         "hybrid_alpha": "Trọng số điểm vector trong truy xuất lai. Giá trị cao hơn ưu tiên khớp ngữ nghĩa.",
@@ -2322,9 +2317,7 @@
         "threshold_disabled": "Chế độ truy xuất này trả về kết quả có thứ tự và không sử dụng ngưỡng độ tương đồng."
       },
       "hybrid_alpha": "Hybrid Alpha",
-      "hybrid_alpha_hint": "Chỉ có thể cấu hình trong chế độ truy xuất Hybrid",
       "processor": "Nhà cung cấp xử lý",
-      "refresh_dimensions": "Làm mới kích thước vector",
       "rerank_disabled": "Vô hiệu hóa",
       "rerank_model": "Mô hình xếp hạng lại",
       "reset_action": "Khôi phục mặc định",
@@ -2334,9 +2327,9 @@
       "saved": "Đã lưu",
       "search_mode": {
         "bm25": "Tìm kiếm toàn văn",
-        "default": "Tìm kiếm Vector",
         "hybrid": "Tìm kiếm kết hợp (khuyên dùng)",
-        "title": "Chế độ tìm kiếm"
+        "title": "Chế độ tìm kiếm",
+        "vector": "[to be translated]:Vector Search"
       },
       "separator_rule": "Quy tắc phân cách",
       "threshold": "Ngưỡng Độ Tương Đồng",
@@ -5681,12 +5674,18 @@
           },
           "invalid": "Đầu vào không hợp lệ, vui lòng kiểm tra định dạng JSON",
           "json": "Nhập từ JSON",
+          "mcpb": "Nhập gói MCPB",
+          "mcpbFile": "Tệp Gói MCPB",
+          "mcpbHelp": "Chọn một tệp .mcpb chứa gói máy chủ MCP",
+          "mcpbProcessFailed": "Không thể xử lý tệp MCPB",
           "method": "Phương thức nhập",
           "nameExists": "Máy chủ đã tồn tại: {{name}}",
           "noDxtFile": "Vui lòng chọn một tệp DXT",
+          "noMcpbFile": "Vui lòng chọn một tệp MCPB",
           "oneServer": "Chỉ một cấu hình máy chủ MCP tại một thời điểm",
           "placeholder": "Dán cấu hình JSON máy chủ MCP",
           "selectDxtFile": "Chọn tệp DXT",
+          "selectMcpbFile": "Chọn tệp MCPB",
           "tooltip": "Vui lòng sao chép cấu hình JSON (ưu tiên cấu hình NPX hoặc UVX) từ trang giới thiệu MCP Servers và dán vào ô nhập."
         },
         "label": "Thêm Máy chủ"
@@ -5926,7 +5925,7 @@
       "system": "Hệ thống"
     },
     "messages": {
-      "cache_read_tokens": "Số lượng token đầu vào đã được đọc từ bộ nhớ cache",
+      "cache_read_tokens": "[to be translated]:Cached input tokens read",
       "divider": {
         "label": "Hiển thị đường phân cách giữa các tin nhắn",
         "tooltip": "Không áp dụng cho tin nhắn kiểu bong bóng"
@@ -5959,7 +5958,7 @@
         "none": ""
       },
       "prompt": "Mostrar indicación",
-      "reasoning_tokens": "token lý luận",
+      "reasoning_tokens": "[to be translated]:Reasoning tokens",
       "show_message_outline": "Hiển thị dàn bộ tin nhắn",
       "title": "Cài đặt tin nhắn",
       "use_serif_font": "Dùng phông chữ có chân"
@@ -6658,6 +6657,7 @@
         "project_id": "ID Dự án",
         "project_id_help": "ID dự án Google Cloud của bạn",
         "project_id_placeholder": "id-dự-án-google-cloud-của-bạn",
+        "select_location": "[to be translated]:Select location",
         "service_account": {
           "auth_success": "Tài khoản dịch vụ đã xác thực thành công",
           "client_email": "Email của khách hàng",
@@ -6673,7 +6673,10 @@
           "private_key": "Khóa riêng",
           "private_key_help": "Trường private_key từ tệp khóa JSON đã tải xuống từ Google Cloud Console",
           "private_key_placeholder": "Nhập khóa riêng của Tài khoản Dịch vụ",
-          "title": "Cấu hình Tài khoản Dịch vụ"
+          "title": "Cấu hình Tài khoản Dịch vụ",
+          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
+          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
+          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
         }
       }
     },
@@ -6743,6 +6746,7 @@
       },
       "clear_shortcut": "Phím tắt rõ ràng",
       "clear_topic": "Tin nhắn rõ ràng",
+      "close_tab": "[to be translated]:Close Tab",
       "conflict_with": "Đã được \"{{name}}\" sử dụng",
       "copy_last_message": "Sao tin nhắn cuối cùng",
       "edit_last_user_message": "Chỉnh sửa tin nhắn cuối cùng của người dùng",
@@ -6750,8 +6754,11 @@
       "enabled": "Kích hoạt",
       "exit_fullscreen": "Thoát toàn màn hình",
       "label": "Khóa",
+      "move_tab_to_first": "[to be translated]:Move Tab to First",
       "new_topic": "Chủ đề mới",
       "occupied_by_other_application": "Phím tắt này đã được hệ thống hoặc một ứng dụng khác sử dụng",
+      "open_tab_in_new_window": "[to be translated]:Open Tab in New Window",
+      "pin_tab": "[to be translated]:Toggle Pin Tab",
       "press_shortcut": "Nhấn Phím tắt",
       "quick_assistant": "Trợ lý nhanh",
       "rename_topic": "Đổi tên chủ đề",
@@ -7049,22 +7056,22 @@
     },
     "usage": {
       "cards": {
-        "activeDays": "Ngày hoạt động",
+        "activeDays": "[to be translated]:Active days",
         "cacheHitRate": "[to be translated]:Cache hit rate",
         "cacheObservedTokens": "[to be translated]:Observable input: {{tokens}}",
         "cacheStartsWithNewRequests": "[to be translated]:Starts with new requests",
-        "costHint": "Chi phí được nhóm theo loại tiền tệ.",
-        "dailyAverage": "Trung bình hằng ngày",
-        "lastPeriod": "so với kỳ trước",
-        "mixedCurrency": "Nhiều loại tiền tệ được hiển thị riêng biệt.",
-        "none": "N/A",
-        "peakDay": "Ngày cao điểm",
+        "costHint": "[to be translated]:Cost is grouped by currency.",
+        "dailyAverage": "[to be translated]:Daily average",
+        "lastPeriod": "[to be translated]:vs last period",
+        "mixedCurrency": "[to be translated]:Multiple currencies are shown separately.",
+        "none": "[to be translated]:N/A",
+        "peakDay": "[to be translated]:Peak day",
         "providerAuth": "[to be translated]:Provider auth",
-        "streak": "Chuỗi dài nhất: {{days}} ngày",
-        "topModel": "Người mẫu hàng đầu",
-        "totalCost": "Tổng chi phí",
-        "totalRequests": "Yêu cầu",
-        "totalTokens": "Tổng số token",
+        "streak": "[to be translated]:Longest streak: {{days}} days",
+        "topModel": "[to be translated]:Top model",
+        "totalCost": "[to be translated]:Total cost",
+        "totalRequests": "[to be translated]:Requests",
+        "totalTokens": "[to be translated]:Total tokens",
         "unattributedApiKey": "[to be translated]:Unattributed request",
         "unattributedSource": "[to be translated]:Unattributed source"
       },
@@ -7082,61 +7089,61 @@
         "success": "[to be translated]:Backfilled {{count}} historical cost records."
       },
       "empty": {
-        "description": "Việc sử dụng xuất hiện sau khi các yêu cầu AI tạo các mục sổ cái.",
-        "title": "Chưa có sử dụng nào"
+        "description": "[to be translated]:Usage appears after AI requests create ledger entries.",
+        "title": "[to be translated]:No usage yet"
       },
       "explore": {
         "activity": "[to be translated]:Activity",
-        "allProviders": "Tất cả các nhà cung cấp",
+        "allProviders": "[to be translated]:All providers",
         "analysis": "[to be translated]:Analysis",
-        "breakdown": "Phân rã",
+        "breakdown": "[to be translated]:Breakdown",
         "breakdownTab": "[to be translated]:Breakdown",
         "cacheUsage": "[to be translated]:Cache usage",
         "chart": "[to be translated]:Chart",
-        "clearDate": "Xóa bộ lọc ngày",
+        "clearDate": "[to be translated]:Clear date filter",
         "costDrivers": "[to be translated]:Cost drivers",
         "drilldownTitle": "[to be translated]:{{date}} drilldown",
-        "entries": "Mục",
+        "entries": "[to be translated]:Requests",
         "groupBy": "[to be translated]:Group by",
-        "loadMore": "Tải thêm",
-        "loading": "Đang tải...",
+        "loadMore": "[to be translated]:Load more",
+        "loading": "[to be translated]:Loading...",
         "metric": "[to be translated]:Metric",
-        "noBreakdown": "Không có dữ liệu chi tiết",
-        "noBreakdownDescription": "Hãy thử một cửa sổ rộng hơn hoặc một nhà cung cấp khác.",
-        "noEntries": "Không có mục nào",
-        "noEntriesDescription": "Hãy thử cửa sổ rộng hơn hoặc nhà cung cấp khác.",
-        "provider": "Nhà cung cấp",
+        "noBreakdown": "[to be translated]:No breakdown data",
+        "noBreakdownDescription": "[to be translated]:Try a broader window or a different provider.",
+        "noEntries": "[to be translated]:No entries",
+        "noEntriesDescription": "[to be translated]:Try a broader window or a different provider.",
+        "provider": "[to be translated]:Provider",
         "requestsTab": "[to be translated]:Requests",
-        "selectedDate": "Ngày đã chọn: {{date}}",
+        "selectedDate": "[to be translated]:Selected date: {{date}}",
         "share": "[to be translated]:Share {{value}}",
         "shareLabel": "[to be translated]:Share",
-        "title": "Khám phá",
+        "title": "[to be translated]:Explore",
         "topApiKeys": "[to be translated]:Top API keys",
         "topModels": "[to be translated]:Top models",
         "topProviders": "[to be translated]:Top providers",
         "topSources": "[to be translated]:Top assistants / agents",
-        "totalEntries": "{{count}} mục"
+        "totalEntries": "[to be translated]:{{count}} entries"
       },
       "groupBy": {
-        "apiKey": "Khóa API",
-        "model": "Mô hình",
-        "provider": "Nhà cung cấp",
+        "apiKey": "[to be translated]:API key",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
         "source": "[to be translated]:Assistant / Agent"
       },
       "heatmap": {
-        "ariaDate": "Sử dụng vào {{date}}",
-        "costDisabled": "Chế độ xem chi phí chỉ khả dụng khi cửa sổ này có một loại tiền tệ.",
-        "title": "Hoạt động hàng ngày"
+        "ariaDate": "[to be translated]:Usage on {{date}}",
+        "costDisabled": "[to be translated]:Cost view is available only when this window has one currency.",
+        "title": "[to be translated]:Daily activity"
       },
       "metric": {
-        "cost": "Chi phí",
+        "cost": "[to be translated]:Cost",
         "requests": "[to be translated]:Requests",
-        "tokens": "Mã thông báo"
+        "tokens": "[to be translated]:Tokens"
       },
       "modality": {
-        "embedding": "Nhúng",
-        "image": "Hình ảnh",
-        "language": "Ngôn ngữ"
+        "embedding": "[to be translated]:Embedding",
+        "image": "[to be translated]:Image",
+        "language": "[to be translated]:Language"
       },
       "overview": {
         "title": "[to be translated]:Overview"
@@ -7146,33 +7153,33 @@
         "assistant": "[to be translated]:Assistant",
         "unknown": "[to be translated]:Unattributed"
       },
-      "summary": "{{window}} / {{tokens}} token / {{requests}} yêu cầu / {{activeDays}} ngày hoạt động",
+      "summary": "[to be translated]:{{window}} / {{tokens}} tokens / {{requests}} requests",
       "table": {
-        "apiKey": "Khóa API",
-        "cost": "Chi phí",
-        "date": "Ngày",
-        "modality": "Kiểu",
-        "model": "Mô hình",
-        "provider": "Nhà cung cấp",
+        "apiKey": "[to be translated]:API key",
+        "cost": "[to be translated]:Cost",
+        "date": "[to be translated]:Date",
+        "modality": "[to be translated]:Type",
+        "model": "[to be translated]:Model",
+        "provider": "[to be translated]:Provider",
         "request": "[to be translated]:Request",
         "source": "[to be translated]:Source",
-        "tokens": "Mã thông báo",
-        "tps": "TPS",
-        "tpsValue": "{{value}} tok/s",
-        "ttft": "TTFT"
+        "tokens": "[to be translated]:Tokens",
+        "tps": "[to be translated]:TPS",
+        "tpsValue": "[to be translated]:{{value}} tok/s",
+        "ttft": "[to be translated]:TTFT"
       },
-      "title": "Dấu chân sử dụng",
+      "title": "[to be translated]:Usage Analytics",
       "tooltip": {
-        "cost": "Giá {{value}}",
-        "metric": "{{value}}",
-        "requests": "{{count}} yêu cầu",
-        "tokens": "{{value}} mã thông báo"
+        "cost": "[to be translated]:Cost {{value}}",
+        "metric": "[to be translated]:{{value}}",
+        "requests": "[to be translated]:{{count}} requests",
+        "tokens": "[to be translated]:{{value}} tokens"
       },
       "window": {
-        "30d": "30 ngày qua",
-        "365d": "Năm ngoái",
-        "90d": "90 ngày qua",
-        "all": "Mọi thời điểm"
+        "30d": "[to be translated]:Last 30 days",
+        "365d": "[to be translated]:Last year",
+        "90d": "[to be translated]:Last 90 days",
+        "all": "[to be translated]:All time"
       }
     },
     "use_system_title_bar": {
@@ -7212,16 +7219,16 @@
   "trace": {
     "agent": "Đại lý",
     "backList": "Quay lại danh sách",
-    "cachedTokens": "Đã lưu trong bộ nhớ cache",
+    "cachedTokens": "Đã lưu trong bộ nhớ đệm",
     "endTime": "Thời gian kết thúc",
     "inputs": "Đầu vào",
-    "label": "Chuỗi Gọi",
+    "label": "Chuỗi gọi",
     "model": "Mô hình",
     "name": "Tên nút",
     "noTraceList": "Không tìm thấy thông tin dấu vết",
     "operation": "Hoạt động",
     "outputs": "Đầu ra",
-    "pollError": "Kiểm tra thất bại",
+    "pollError": "Kiểm tra phiếu thất bại",
     "reasoningTokens": "Lập luận",
     "requestHeaders": "Tiêu đề yêu cầu",
     "requestMethod": "Phương thức yêu cầu",
@@ -7231,13 +7238,13 @@
     "serverDescription": "Mô tả Máy chủ",
     "serverName": "Tên Máy Chủ",
     "serverType": "Loại Máy Chủ",
-    "spanDetail": "Chi tiết khoảng",
-    "spendTime": "Dành Thời Gian",
-    "startTime": "Thời gian bắt đầu",
-    "status": "Trạng thái",
-    "tag": "Nhãn",
-    "tokenUsage": "Sử dụng Token",
-    "toolCalls": "Gọi Công cụ"
+    "spanDetail": "Chi tiết Span",
+    "spendTime": "[to be translated]:Spend Time",
+    "startTime": "[to be translated]:Start Time",
+    "status": "[to be translated]:Status",
+    "tag": "Thẻ",
+    "tokenUsage": "Mức sử dụng Token",
+    "toolCalls": "Cuộc gọi công cụ"
   },
   "translate": {
     "alter_language": "Ngôn ngữ thay thế",

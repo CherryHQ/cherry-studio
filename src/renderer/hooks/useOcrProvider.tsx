@@ -1,7 +1,6 @@
 import { Intel, Paddleocr, TesseractJs } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
-import { getBuiltinOcrProviderLabel } from '@renderer/i18n/label'
 import { useAppSelector } from '@renderer/store'
 import { addOcrProvider, removeOcrProvider, setImageOcrProviderId, updateOcrProviderConfig } from '@renderer/store/ocr'
 import type { ImageOcrProvider, OcrProvider, OcrProviderConfig } from '@renderer/types'
@@ -62,8 +61,18 @@ export const useOcrProviders = () => {
     [dispatch]
   )
 
-  const getOcrProviderName = (p: OcrProvider) => {
-    return isBuiltinOcrProvider(p) ? getBuiltinOcrProviderLabel(p.id) : p.name
+  const getOcrProviderName = (p: OcrProvider): string => {
+    if (!isBuiltinOcrProvider(p)) return p.name
+    switch (p.id) {
+      case 'tesseract':
+        return 'Tesseract'
+      case 'paddleocr':
+        return 'PaddleOCR'
+      case 'ovocr':
+        return 'Intel OV(NPU) OCR'
+      case 'system':
+        return t('ocr.builtin.system')
+    }
   }
 
   const OcrProviderLogo = ({ provider: p, size = 14 }: { provider: OcrProvider; size?: number }) => {

@@ -86,10 +86,12 @@ export const createFileItem = ({
 export const createUrlItem = ({
   id,
   source = `https://example.com/${id}`,
+  relativePath,
   status = 'completed'
 }: {
   id: string
   source?: string
+  relativePath?: string
   status?: KnowledgeItemOf<'url'>['status']
 }): KnowledgeItemOf<'url'> => ({
   ...baseFields,
@@ -98,7 +100,8 @@ export const createUrlItem = ({
   type: 'url',
   data: {
     source,
-    url: source
+    url: source,
+    ...(relativePath ? { relativePath } : {})
   }
 })
 

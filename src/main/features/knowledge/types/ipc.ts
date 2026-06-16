@@ -42,10 +42,3 @@ export const KnowledgeItemChunksPayloadSchema = z.strictObject({
   itemId: z.string().trim().min(1)
 })
 export type KnowledgeItemChunksPayload = z.infer<typeof KnowledgeItemChunksPayloadSchema>
-
-export const KnowledgeDeleteItemChunkPayloadSchema = z.strictObject({
-  baseId: z.string().trim().min(1),
-  itemId: z.string().trim().min(1),
-  chunkId: z.string().trim().min(1)
-})
-export type KnowledgeDeleteItemChunkPayload = z.infer<typeof KnowledgeDeleteItemChunkPayloadSchema>

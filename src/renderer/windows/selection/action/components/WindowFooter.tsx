@@ -1,6 +1,7 @@
 import { LoadingOutlined } from '@ant-design/icons'
 import { RefreshIcon } from '@renderer/components/Icons'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
 import { CircleX, Copy, Pause } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -97,7 +98,7 @@ const WindowFooter: FC<FooterProps> = ({
     if (loading && onPause) {
       onPause()
     } else {
-      void window.api.windowManager.close()
+      void ipcApi.request('window.close')
     }
   }
 

@@ -14,7 +14,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { getProviderDisplayName } from '../utils'
 
 vi.mock('@renderer/i18n/label', () => ({
-  getProviderLabel: (id: string) => `Label(${id})`
+  getProviderLabelKey: (id: string) => `Label(${id})`
 }))
 
 function makeProvider(overrides: Partial<Provider> = {}): Provider {

@@ -55,6 +55,17 @@ docs above reference them:
   port from renderer for Gemini/OpenAI File APIs.
 - [`tool-approval-defer-fix.md`](./tool-approval-defer-fix.md) — fix design
   for the defer-exposition approval-gate bypass (review #1).
+- [`tool-approval-state-consolidation.md`](./tool-approval-state-consolidation.md) —
+  diagnosis + target design + **phased refactor plan** for the approval split-brain
+  (stream / DB / renderer state can't be simultaneously consistent); single-authority
+  (DB parts) model, collapsing the main-side multi-write into one authoritative write
+  (Phase 1 = CR-002, done).
+- [`steer-state-machine-consolidation.md`](./steer-state-machine-consolidation.md) —
+  steer-queue state machine (#15935 fresh-eyes review): delete the `lastTerminalKind`
+  shadow, drive chaining / enqueue / approve-gate off the single authority
+  (`stream.status` on the in-grace stream). **Blockers 1–3 implemented** on
+  `codex/main-3` (+ S5 removed for free); blocker 4 (renderer `executionId` reuse)
+  handed off to the renderer slice.
 - [`channel-ingress-security.md`](./channel-ingress-security.md) — security
   model + gaps for externally-triggered (inbound IM) agent runs (review D1).
 - [`stream-ipc-validation.md`](./stream-ipc-validation.md) — scheme to validate

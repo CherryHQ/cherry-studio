@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { Readability } from '@mozilla/readability'
 import type { WebSearchResult } from '@shared/data/types/webSearch'
-import { isValidUrl } from '@shared/utils'
 import { net } from 'electron'
 import { JSDOM } from 'jsdom'
 import TurndownService from 'turndown'
@@ -27,11 +27,12 @@ function buildHeaders(headers?: HeadersInit) {
 
 export async function fetchWebSearchContent(url: string, httpOptions: RequestInit = {}): Promise<WebSearchResult> {
   try {
-    if (!isValidUrl(url)) {
-      throw new Error(`Invalid URL format: ${url}`)
-    }
+    // SSRF guard before fetching in the main process: rejects non-http(s) schemes, embedded
+    // credentials, and private/loopback/link-local/metadata-endpoint hosts. web_fetch is reachable
+    // from untrusted channel input and auto-allowed, so this can't be left to the caller.
+    const safeUrl = sanitizeRemoteUrl(url)
 
-    const response = await net.fetch(url, {
+    const response = await net.fetch(safeUrl, {
       ...httpOptions,
       headers: buildHeaders(httpOptions.headers),
       signal: httpOptions.signal
