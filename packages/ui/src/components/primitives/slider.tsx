@@ -10,7 +10,7 @@ type SliderMark = {
 
 const sliderTrackVariants = cva(
   cn(
-    'bg-control-accent/10 relative grow overflow-hidden rounded-full',
+    'bg-primary/10 relative grow overflow-hidden rounded-full',
     'data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full'
   ),
   {
@@ -29,8 +29,8 @@ const sliderTrackVariants = cva(
 
 const sliderThumbVariants = cva(
   cn(
-    'block shrink-0 rounded-full border border-control-accent/40 bg-background shadow-sm transition-[color,box-shadow]',
-    'ring-control-accent/30 hover:ring-2 focus-visible:ring-2 focus-visible:outline-hidden',
+    'block shrink-0 rounded-full border border-primary/40 bg-background shadow-sm transition-[color,box-shadow]',
+    'ring-primary/30 hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden',
     'disabled:pointer-events-none disabled:opacity-50'
   ),
   {
@@ -63,7 +63,7 @@ const sliderMarkLabelVariants = cva('absolute top-0 whitespace-nowrap text-muted
 const sliderValueLabelVariants = cva(
   cn(
     'absolute left-1/2 -translate-x-1/2 -translate-y-full pointer-events-none',
-    'rounded bg-control-accent px-1.5 py-0.5 text-control-accent-foreground',
+    'rounded bg-primary px-1.5 py-0.5 text-primary-foreground',
     'scale-0 opacity-0 transition-all group-hover:scale-100 group-hover:opacity-100'
   ),
   {
@@ -132,9 +132,7 @@ function Slider({
       <SliderPrimitive.Track data-slot="slider-track" className={sliderTrackVariants({ size })}>
         <SliderPrimitive.Range
           data-slot="slider-range"
-          className={cn(
-            'bg-control-accent absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full'
-          )}
+          className={cn('bg-primary absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full')}
         />
       </SliderPrimitive.Track>
       {localValues.map((val, index) => (

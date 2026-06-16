@@ -103,7 +103,7 @@ Defined in `tokens/colors/status.css`. Use these when a status surface needs mor
 Do not use a page-local chromatic brand color for new UI chrome. `var(--color-brand-*)` exists as a primitive compatibility scale, but new component styling should express action hierarchy through semantic aliases such as `var(--color-primary)` and status through the semantic status tokens.
 
 ### Links
-Links use `var(--color-link)` (Tailwind `text-link`) for color and add an underline on hover. `--color-link` follows the control accent (`--cs-theme-control-accent`), i.e. the user-customizable theme color. Do not style links with `var(--color-primary)` — primary is neutral, which would make links indistinguishable from body text.
+Links inherit `var(--color-primary)` for color and add an underline on hover. There is no separate `--color-link` token by design — primary is the link color.
 
 ### Floating Scrims
 No dedicated public `--color-glass`, `--color-glass-border`, `--color-glass-blur`, or `--color-overlay` aliases are exported today. Use the shared primitive defaults first:

@@ -1265,23 +1265,26 @@ function mapLogLevelClass(level: McpServerLogEntry['level']) {
   switch (level) {
     case 'error':
     case 'stderr':
-      return 'border-destructive/30 bg-destructive/10 text-destructive'
+      return 'border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400'
     case 'warn':
-      return 'border-warning/30 bg-warning/10 text-warning'
+      return 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'
     case 'info':
     case 'stdout':
-      return 'border-info/30 bg-info/10 text-info'
+      return 'border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400'
     default:
       return 'border-border/60 bg-muted text-muted-foreground'
   }
 }
 
 const VersionBadge = ({ count, className, ...props }: { count: string } & React.ComponentProps<'span'>) => (
-  <Badge
-    className={cn('h-4.5 min-w-4.5 bg-primary px-1.5 py-0 text-[11px] text-white leading-4.5 shadow-sm', className)}
+  <span
+    className={cn(
+      'inline-flex h-4.5 min-w-4.5 items-center justify-center rounded-[9px] bg-primary px-1.5 font-medium text-[11px] text-white leading-4.5 shadow-sm',
+      className
+    )}
     {...props}>
     {count}
-  </Badge>
+  </span>
 )
 
 const McpRuntimeStatusBadge = ({
@@ -1289,9 +1292,9 @@ const McpRuntimeStatusBadge = ({
   className,
   ...props
 }: { state: 'disabled' | 'connecting' | 'connected' | 'error' } & React.ComponentProps<'span'>) => (
-  <Badge
+  <span
     className={cn(
-      'h-4.5 px-1.5 py-0 text-[11px] leading-4.5',
+      'inline-flex h-4.5 items-center rounded-[9px] px-1.5 font-medium text-[11px] leading-4.5',
       state === 'connected' && 'bg-success/10 text-success',
       state === 'connecting' && 'bg-warning/10 text-warning',
       state === 'error' && 'bg-destructive/10 text-destructive',
@@ -1329,7 +1332,9 @@ const TagsInput = ({ value, onChange }: TagsInputProps) => {
   return (
     <div className="flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border border-input bg-transparent px-2 py-1 shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
       {value.map((tag, index) => (
-        <Badge key={`${tag}-${index}`} className="gap-1 bg-muted font-normal text-foreground">
+        <span
+          key={`${tag}-${index}`}
+          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-foreground text-xs">
           {tag}
           <button
             type="button"
@@ -1337,7 +1342,7 @@ const TagsInput = ({ value, onChange }: TagsInputProps) => {
             onClick={() => removeAt(index)}>
             <X size={12} className="lucide-custom" />
           </button>
-        </Badge>
+        </span>
       ))}
       <input
         className="min-w-30 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"

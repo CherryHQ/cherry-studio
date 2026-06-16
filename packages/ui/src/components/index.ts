@@ -23,23 +23,6 @@ export {
 } from './primitives/tooltip'
 
 // Composite Components
-export {
-  ColorPicker,
-  ColorPickerAlpha,
-  type ColorPickerAlphaProps,
-  ColorPickerEyeDropper,
-  type ColorPickerEyeDropperProps,
-  ColorPickerFormat,
-  type ColorPickerFormatProps,
-  ColorPickerHue,
-  type ColorPickerHueProps,
-  ColorPickerOutput,
-  type ColorPickerOutputProps,
-  type ColorPickerProps,
-  ColorPickerSelection,
-  type ColorPickerSelectionProps,
-  useColorPicker
-} from './composites/color-picker'
 export { ConfirmDialog, type ConfirmDialogProps } from './composites/confirm-dialog'
 export {
   type ColumnDef,

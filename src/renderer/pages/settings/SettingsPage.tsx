@@ -1,10 +1,8 @@
-import { MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
+import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
-import WindowControls from '@renderer/components/WindowControls'
-import { isDev, isMac } from '@renderer/config/constant'
+import { isDev } from '@renderer/config/constant'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import useWindowFocus from '@renderer/hooks/useWindowFocus'
 import { cn } from '@renderer/utils/style'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import {
@@ -42,36 +40,25 @@ const SettingsPage: FC = () => {
   const { pathname } = location
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
-  const isWindowFocused = useWindowFocus()
-  const isGlassActive = isMacTransparentWindow && isWindowFocused
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
   const go = (path: string) => navigate({ to: path })
 
-  const titleBar = (
+  return (
     <div
       className={cn(
-        'flex h-11 shrink-0 items-center [-webkit-app-region:drag]',
-        isMac ? 'pl-[max(env(titlebar-area-x),1.25rem)]' : 'pl-5',
-        isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
+        'flex min-h-0 flex-1 flex-col',
+        isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
       )}>
-      <h2 className="min-w-0 flex-1 select-none truncate font-medium text-foreground text-sm leading-4">
-        {t('settings.menuGroups.appSettings')}
-      </h2>
-      <WindowControls />
-    </div>
-  )
-
-  return (
-    <div className={cn('flex min-h-0 flex-1 flex-col', isGlassActive ? 'bg-sidebar-translucent' : 'bg-sidebar')}>
-      {/* mac: the title strip lives inside the nav column so the content card can reach the
-       * window top; win/linux keep the full-width strip because WindowControls sits at its right end. */}
-      {!isMac && titleBar}
       <div className="flex min-h-0 flex-1 flex-row">
-        <div className="flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col">
-          {isMac && titleBar}
+        <div
+          className={cn(
+            'flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col',
+            isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
+          )}>
+          <PageHeader title={t('settings.menuGroups.appSettings')} />
           <Scrollbar className="min-h-0 flex-1 select-none">
-            <MenuList className={cn(settingsSubmenuListClassName, 'pt-2')}>
+            <MenuList className={settingsSubmenuListClassName}>
               <MenuItem
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
@@ -221,12 +208,8 @@ const SettingsPage: FC = () => {
             </MenuList>
           </Scrollbar>
         </div>
-        <div className={cn('flex h-full min-h-0 min-w-0 flex-1 pr-1.5 pb-1.5', isMac && 'pt-1.5')}>
-          <div
-            className={cn(
-              'flex min-h-0 min-w-0 flex-1 overflow-hidden rounded-[16px] border-[0.5px] bg-background text-foreground',
-              isGlassActive ? 'border-frame-border-translucent' : 'border-frame-border'
-            )}>
+        <div className="flex h-full min-h-0 min-w-0 flex-1">
+          <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden border-border/40 border-l bg-white text-foreground dark:bg-background">
             <Outlet />
           </div>
         </div>

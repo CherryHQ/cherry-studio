@@ -7,7 +7,6 @@ import {
 } from '@cherrystudio/ui/components/primitives/input-group'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { Search, X } from 'lucide-react'
-import type { ReactNode } from 'react'
 
 type SearchInputClearProps =
   | {
@@ -25,33 +24,18 @@ type SearchInputClearProps =
       clearLabel?: never
     }
 
-export type SearchInputProps = Omit<InputProps, 'type'> &
-  SearchInputClearProps & {
-    /** Extra classes merged onto the `InputGroup` wrapper (sizing, border, background overrides). */
-    containerClassName?: string
-    /** Content rendered at the trailing edge of the field, after the optional clear button. */
-    trailing?: ReactNode
-  }
+export type SearchInputProps = Omit<InputProps, 'type'> & SearchInputClearProps
 
 /**
  * Search field built on `InputGroup`: a leading search icon, a text input, and
  * an optional trailing clear button. Controlled via `value` / `onChange`.
  */
-function SearchInput({
-  className,
-  containerClassName,
-  value,
-  disabled,
-  onClear,
-  clearLabel,
-  trailing,
-  ...props
-}: SearchInputProps) {
+function SearchInput({ className, value, disabled, onClear, clearLabel, ...props }: SearchInputProps) {
   const hasValue = value !== undefined && value !== null && String(value).length > 0
   const showClear = onClear !== undefined && clearLabel !== undefined && hasValue
 
   return (
-    <InputGroup data-disabled={disabled ? 'true' : undefined} className={containerClassName}>
+    <InputGroup data-disabled={disabled ? 'true' : undefined}>
       <InputGroupAddon>
         <Search />
       </InputGroupAddon>
@@ -69,7 +53,6 @@ function SearchInput({
           </InputGroupButton>
         </InputGroupAddon>
       )}
-      {trailing}
     </InputGroup>
   )
 }

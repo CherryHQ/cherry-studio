@@ -169,11 +169,13 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
           />
           <span className="mt-1 block text-gray-400 text-xs">{chatIdsConfig.hint}</span>
           {!chatIds.trim() && idsKey === 'allowed_chat_ids' && (
-            <span className="mt-1 block text-warning text-xs">
+            <span className="mt-1 block text-orange-400 text-xs">
               {t('agent.cherryClaw.channels.chatIdsAutoTrackHint')}
             </span>
           )}
-          {chatIdsConfig.extraHint && <span className="mt-1 block text-info text-xs">{chatIdsConfig.extraHint}</span>}
+          {chatIdsConfig.extraHint && (
+            <span className="mt-1 block text-blue-400 text-xs">{chatIdsConfig.extraHint}</span>
+          )}
         </div>
       </div>
       <ChannelPermissionMode channel={channel} onConfigChange={onConfigChange} />
@@ -260,23 +262,23 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
       {!hasCredentials && (
         <div className="flex items-center gap-2">
           {status === 'pending' && (
-            <span className="text-info text-xs">{t('agent.cherryClaw.channels.feishu.qrHint')}</span>
+            <span className="text-blue-400 text-xs">{t('agent.cherryClaw.channels.feishu.qrHint')}</span>
           )}
           {status === 'expired' && (
             <>
-              <span className="inline-block h-2 w-2 rounded-full bg-destructive" />
-              <span className="text-destructive text-xs">{t('agent.cherryClaw.channels.feishu.qrExpired')}</span>
+              <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
+              <span className="text-red-500 text-xs">{t('agent.cherryClaw.channels.feishu.qrExpired')}</span>
             </>
           )}
           {status === 'idle' && (
-            <span className="text-info text-xs">{t('agent.cherryClaw.channels.feishu.loginHint')}</span>
+            <span className="text-blue-400 text-xs">{t('agent.cherryClaw.channels.feishu.loginHint')}</span>
           )}
         </div>
       )}
       {hasCredentials && (
         <div className="flex items-center gap-2">
-          <span className="inline-block h-2 w-2 rounded-full bg-success" />
-          <span className="text-success text-xs">{t('agent.cherryClaw.channels.feishu.connected')}</span>
+          <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+          <span className="text-green-600 text-xs">{t('agent.cherryClaw.channels.feishu.connected')}</span>
         </div>
       )}
       <ChannelFieldsForm
@@ -438,18 +440,18 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
         <div className="flex items-center gap-2">
           {status === 'confirmed' && (
             <>
-              <span className="inline-block h-2 w-2 rounded-full bg-success" />
-              <span className="text-success text-xs">{t('agent.cherryClaw.channels.wechat.connected')}</span>
+              <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+              <span className="text-green-600 text-xs">{t('agent.cherryClaw.channels.wechat.connected')}</span>
             </>
           )}
           {status === 'disconnected' && (
             <>
-              <span className="inline-block h-2 w-2 rounded-full bg-destructive" />
-              <span className="text-destructive text-xs">{t('agent.cherryClaw.channels.wechat.disconnected')}</span>
+              <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
+              <span className="text-red-500 text-xs">{t('agent.cherryClaw.channels.wechat.disconnected')}</span>
             </>
           )}
           {(status === 'idle' || status === 'pending') && (
-            <span className="text-info text-xs">{t('agent.cherryClaw.channels.wechat.loginHint')}</span>
+            <span className="text-blue-400 text-xs">{t('agent.cherryClaw.channels.wechat.loginHint')}</span>
           )}
         </div>
         {loginUserId && status === 'confirmed' && (

@@ -147,6 +147,7 @@ describe('check-legacy-css-vars', () => {
   it('auto-fixes mapped legacy variables in code lines only', () => {
     const content = [
       'const className = "text-(--color-text-2) bg-(--color-background-soft)"',
+      'const linkStyle = { color: "var(--color-link)" }',
       '// var(--color-text-1)',
       ':root {',
       '  --color-text-1: var(--color-foreground);',
@@ -155,8 +156,9 @@ describe('check-legacy-css-vars', () => {
 
     const result = fixLegacyVarsInContent(content)
 
-    expect(result.replacements).toBe(2)
+    expect(result.replacements).toBe(3)
     expect(result.content).toContain('text-(--color-foreground-secondary) bg-(--color-muted)')
+    expect(result.content).toContain('var(--color-primary)')
     expect(result.content).toContain('// var(--color-text-1)')
     expect(result.content).toContain('--color-text-1: var(--color-foreground);')
   })

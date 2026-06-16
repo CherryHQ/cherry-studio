@@ -88,8 +88,8 @@ const OvmsSettings: FC = () => {
 
   const bannerClasses = cn(
     'w-full rounded-lg border px-3 py-3 text-sm',
-    ovmsStatus === 'running' && 'border-success/40 bg-success/10 text-foreground',
-    ovmsStatus === 'not-running' && 'border-warning/40 bg-warning/10 text-foreground',
+    ovmsStatus === 'running' && 'border-emerald-500/40 bg-emerald-500/10 text-foreground',
+    ovmsStatus === 'not-running' && 'border-amber-500/40 bg-amber-500/10 text-foreground',
     ovmsStatus === 'not-installed' && 'border-destructive/40 bg-destructive/10 text-foreground'
   )
 
@@ -117,8 +117,8 @@ const OvmsSettings: FC = () => {
               <StatusIcon
                 className={cn(
                   'mt-0.5 size-4 shrink-0',
-                  ovmsStatus === 'running' && 'text-success',
-                  ovmsStatus === 'not-running' && 'text-warning',
+                  ovmsStatus === 'running' && 'text-emerald-600 dark:text-emerald-400',
+                  ovmsStatus === 'not-running' && 'text-amber-600 dark:text-amber-400',
                   ovmsStatus === 'not-installed' && 'text-destructive'
                 )}
                 aria-hidden
@@ -164,7 +164,7 @@ const OvmsSettings: FC = () => {
                 p: <p />,
                 a: (
                   <a
-                    className="!text-info underline-offset-4 hover:underline"
+                    className="text-primary underline-offset-4 hover:underline"
                     href="https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md"
                     rel="noreferrer"
                     target="_blank"

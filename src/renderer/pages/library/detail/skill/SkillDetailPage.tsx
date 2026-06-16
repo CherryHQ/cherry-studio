@@ -226,8 +226,8 @@ const SkillDetailPage: FC<Props> = ({ skill, onBack, onUninstalled }) => {
             </div>
             <Badge
               variant="secondary"
-              className="shrink-0 gap-1.5 border-0 bg-success/10 px-2 py-0.5 text-success text-xs">
-              <span className="size-1.5 rounded-full bg-success" aria-hidden="true" />
+              className="shrink-0 gap-1.5 border-0 bg-emerald-500/10 px-2 py-0.5 text-emerald-600 text-xs">
+              <span className="size-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
               {t('library.skill_detail.installed')}
             </Badge>
           </div>

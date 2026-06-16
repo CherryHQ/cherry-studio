@@ -1,11 +1,13 @@
-import { Button, SelectDropdown } from '@cherrystudio/ui'
+import { Label, RadioGroup, RadioGroupItem } from '@cherrystudio/ui'
+import { Dmxapi } from '@cherrystudio/ui/icons'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import type { Provider } from '@shared/data/types/provider'
-import { ExternalLink } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { ProviderSettingsSubtitle } from '../primitives/ProviderSettingsPrimitives'
 
 interface DmxapiSettingsProps {
   providerId: string
@@ -77,31 +79,43 @@ const DmxapiSettings: FC<DmxapiSettingsProps> = ({ providerId }) => {
     [provider, t, updateProvider]
   )
 
-  const selectedOption = PlatformOptions.find((option) => option.value === selectedPlatform) ?? PlatformOptions[0]
-
   return (
-    <div className="flex w-full flex-col gap-2">
-      <span className="font-medium text-[length:var(--font-size-body-sm)] text-foreground leading-[var(--line-height-body-sm)]">
-        {t('settings.provider.dmxapi.select_platform')}
-      </span>
-      <div className="flex min-w-0 items-center gap-2">
-        <div className="min-w-0 flex-1">
-          <SelectDropdown
-            items={PlatformOptions.map((option) => ({ id: option.value, label: option.label }))}
-            selectedId={selectedPlatform}
-            onSelect={(value) => void handlePlatformChange(value)}
-            renderSelected={(item) => <span className="truncate">{item.label}</span>}
-            renderItem={(item) => <span className="truncate">{item.label}</span>}
-          />
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="shrink-0"
-          onClick={() => window.open(selectedOption.apiKeyWebsite, '_blank')}>
-          <ExternalLink size={14} />
-          {t('settings.provider.get_api_key')}
-        </Button>
+    <div className="mt-4 mb-7.5">
+      <div className="mb-7.5 flex flex-col items-center justify-center">
+        <Dmxapi height={70} width="auto" />
+      </div>
+
+      <div className="flex w-full flex-col gap-2">
+        <ProviderSettingsSubtitle className="mt-1.5">
+          {t('settings.provider.dmxapi.select_platform')}
+        </ProviderSettingsSubtitle>
+        <RadioGroup
+          className="flex w-full flex-col gap-2"
+          value={selectedPlatform}
+          onValueChange={(v) => {
+            void handlePlatformChange(v)
+          }}>
+          {PlatformOptions.map((option) => {
+            const id = `dmx-platform-${option.value}`
+            return (
+              <div key={option.value} className="flex items-start gap-2">
+                <RadioGroupItem value={option.value} id={id} className="mt-0.5" />
+                <Label htmlFor={id} className="max-w-full cursor-pointer font-normal leading-snug">
+                  <span>
+                    {option.label}{' '}
+                    <a
+                      href={option.apiKeyWebsite}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline-offset-4 hover:underline">
+                      ({t('settings.provider.get_api_key')})
+                    </a>
+                  </span>
+                </Label>
+              </div>
+            )
+          })}
+        </RadioGroup>
       </div>
     </div>
   )

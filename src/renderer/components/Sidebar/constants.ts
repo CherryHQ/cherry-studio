@@ -1,6 +1,6 @@
 import type { SidebarLayout } from './types'
 
-export const SIDEBAR_ICON_WIDTH = 44
+export const SIDEBAR_ICON_WIDTH = 50
 export const SIDEBAR_MAX_WIDTH = 280
 
 export const SIDEBAR_HIDDEN_THRESHOLD = 20

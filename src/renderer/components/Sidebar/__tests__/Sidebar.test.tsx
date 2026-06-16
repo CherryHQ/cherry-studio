@@ -200,7 +200,7 @@ describe('Sidebar resize handle', () => {
     expect(getByText('Chat')).toBeInTheDocument()
   })
 
-  it('uses the translucent glass treatment for the floating hidden-state panel', () => {
+  it('uses a solid sidebar background for the floating hidden-state panel', () => {
     const { container } = render(
       <Sidebar
         width={SIDEBAR_HIDDEN_THRESHOLD - 10}
@@ -214,9 +214,7 @@ describe('Sidebar resize handle', () => {
 
     const panel = container.querySelector('.slide-in-from-left-2')
 
-    // Tint without blur is the washed-out look #15596 removed — they must ship together.
-    expect(panel).toHaveClass('bg-sidebar-translucent')
-    expect(panel).toHaveClass('backdrop-blur-2xl')
-    expect(panel).not.toHaveClass('bg-sidebar')
+    expect(panel).toHaveClass('bg-sidebar')
+    expect(panel).not.toHaveClass('bg-sidebar/70')
   })
 })

@@ -9,7 +9,7 @@ export const PreviewError = ({ className, ref, ...props }: DivProps) =>
   React.createElement('div', {
     ref,
     className: cn(
-      'overflow-auto whitespace-pre-wrap break-words rounded-[4px] border border-destructive p-4 text-destructive',
+      'overflow-auto whitespace-pre-wrap break-words rounded-[4px] border border-[#ff4d4f] p-4 text-[#ff4d4f]',
       className
     ),
     ...props

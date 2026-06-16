@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { isLinux, isMac } from '@main/core/platform'
+import { isMac } from '@main/core/platform'
 import { type WindowOptions, WindowType } from '@main/core/window/types'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
@@ -94,7 +94,6 @@ export class SettingsWindowService extends BaseService {
   private getWindowOptions(): Partial<WindowOptions> {
     return {
       ...createSettingsWindowOptions(isMac, nativeTheme.shouldUseDarkColors),
-      ...(isLinux && { frame: application.get('PreferenceService').get('app.use_system_title_bar') }),
       ...this.getCenteredBoundsOptions()
     }
   }

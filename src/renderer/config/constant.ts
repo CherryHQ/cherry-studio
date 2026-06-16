@@ -23,11 +23,10 @@ export const LOAD_MORE_COUNT = 20
 export const DEFAULT_COLOR_PRIMARY = '#00b96b'
 export const THEME_COLOR_PRESETS = [
   DEFAULT_COLOR_PRIMARY,
-  '#E5484D', // Red
-  '#F76B15', // Orange
-  '#0091FF', // Blue
-  '#8E4EC6', // Purple
-  '#D6409F' // Pink
+  '#EF4444', // Red
+  '#F59E0B', // Amber
+  '#3B82F6', // Blue
+  '#8B5CF6' // Purple
 ]
 
 export const MAX_CONTEXT_COUNT = 100

@@ -18,7 +18,7 @@ const IndicatorLight: React.FC<IndicatorLightProps> = ({
   animation = true,
   className = ''
 }) => {
-  const actualColor = color === 'green' ? 'var(--color-success-base)' : color
+  const actualColor = color === 'green' ? '#22c55e' : color
 
   return (
     <div

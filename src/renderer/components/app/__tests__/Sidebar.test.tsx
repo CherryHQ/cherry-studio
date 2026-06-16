@@ -76,31 +76,31 @@ describe('App Sidebar', () => {
 
     const { rerender } = render(<Sidebar />)
 
-    expect(MockUseCacheUtils.getPersistCacheValue('ui.sidebar.width')).toBe(44)
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.sidebar.width')).toBe(50)
     expect(countSidebarWidthWrites()).toBe(1)
 
     rerender(<Sidebar />)
 
-    expect(MockUseCacheUtils.getPersistCacheValue('ui.sidebar.width')).toBe(44)
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.sidebar.width')).toBe(50)
     expect(countSidebarWidthWrites()).toBe(1)
   })
 
   it('uses the resize preview width for rendering and CSS variable without persisting it', () => {
     const { getByTestId } = render(<Sidebar />)
 
-    expect(getByTestId('ui-sidebar')).toHaveAttribute('data-width', '44')
-    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('44px')
+    expect(getByTestId('ui-sidebar')).toHaveAttribute('data-width', '50')
+    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('50px')
 
     fireEvent.click(getByTestId('preview-80'))
 
     expect(getByTestId('ui-sidebar')).toHaveAttribute('data-width', '80')
     expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('80px')
-    expect(MockUseCacheUtils.getPersistCacheValue('ui.sidebar.width')).toBe(44)
+    expect(MockUseCacheUtils.getPersistCacheValue('ui.sidebar.width')).toBe(50)
     expect(countSidebarWidthWrites()).toBe(0)
 
     fireEvent.click(getByTestId('preview-null'))
 
-    expect(getByTestId('ui-sidebar')).toHaveAttribute('data-width', '44')
-    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('44px')
+    expect(getByTestId('ui-sidebar')).toHaveAttribute('data-width', '50')
+    expect(document.documentElement.style.getPropertyValue('--sidebar-width')).toBe('50px')
   })
 })

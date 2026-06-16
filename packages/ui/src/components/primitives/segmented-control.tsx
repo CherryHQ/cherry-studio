@@ -65,9 +65,9 @@ function SegmentedControl<TValue extends string = string>({
             disabled={disabled || option.disabled}
             onClick={() => handleSelect(option)}
             className={cn(
-              'inline-flex min-w-0 items-center justify-center rounded-full font-normal text-foreground-muted outline-none transition-[background-color,color,box-shadow]',
+              'inline-flex min-w-0 items-center justify-center rounded-full font-medium text-foreground-muted outline-none transition-[background-color,color,box-shadow]',
               'hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50',
-              size === 'sm' ? 'h-5 gap-1 px-2 text-xs' : 'h-6 gap-1.5 px-2.5 text-xs',
+              size === 'sm' ? 'h-7 gap-1.5 px-2.5 text-xs' : 'h-8 gap-2 px-3 text-sm',
               selected && 'bg-background text-foreground shadow-xs'
             )}>
             {option.label}

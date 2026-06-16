@@ -50,7 +50,7 @@ export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-medium')
 /** Authentication section layout: slot stack only; fields provide their own surfaces. */
 export const authConnectionClasses = {
   shell: '',
-  body: 'flex flex-col gap-2 rounded-[length:var(--radius-xl)] border border-[color:var(--color-border-fg-hairline)] px-3 py-2.5'
+  body: 'flex flex-col gap-2'
 } as const
 
 /**
@@ -60,8 +60,8 @@ export const providerDetailColumnClasses = {
   headerPad: 'shrink-0 px-6 pt-2',
   scrollStrip: 'min-h-0 flex-1 overflow-x-hidden px-6 pt-6 pb-4',
   contentMaxWidth: 'mx-auto w-full max-w-3xl',
-  /** Header inner wrapper: same max-width as body content; no divider — sections below carry their own borders. */
-  headerContentMaxWidth: 'mx-auto w-full max-w-3xl',
+  /** Header inner wrapper: same max-width as body content + bottom divider aligned to content edges. */
+  headerContentMaxWidth: 'mx-auto w-full max-w-3xl border-b border-border pb-2',
   sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-5'
 } as const
 
@@ -112,7 +112,7 @@ export const providerListClasses = {
   itemDragHandleSpacer: 'flex w-2.5 shrink-0',
   itemAvatar:
     'shrink-0 rounded-md border border-border/30 [&_[data-slot=avatar-fallback]]:rounded-[inherit] [&_[data-slot=avatar-image]]:rounded-[inherit]',
-  itemLabel: 'truncate text-sm leading-[1.35] text-foreground font-medium',
+  itemLabel: 'truncate text-sm leading-[1.35] text-foreground font-[weight:500]',
   itemMenuContent: 'w-fit min-w-32 rounded-xl p-1.5',
   itemMenuEntry: 'h-8 rounded-lg px-2.5 text-sm',
   groupHeader: cn(providerListItemFrame, 'hover:bg-muted'),
@@ -125,7 +125,7 @@ export const providerListClasses = {
     'absolute right-1.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 data-[active=true]:opacity-100',
   /** Enabled-state dot — shown when `provider.isEnabled` is true; hidden on row hover or focus so the kebab takes the slot. */
   itemEnabledDot:
-    'pointer-events-none absolute right-[13px] top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-success transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
+    'pointer-events-none absolute right-[13px] top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
   groupAddRow:
     'flex w-full items-center gap-2 rounded-[10px] border border-dashed border-[color:var(--section-border)] bg-transparent px-2 py-[6px] text-[length:var(--font-size-body-xs)] leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/40 hover:text-foreground',
   disclosureToggle:
@@ -220,7 +220,7 @@ export const modelListClasses = {
   titleHelpRow: 'flex min-w-0 flex-wrap items-center gap-x-1 self-center text-foreground-muted',
   titleHelpText: 'shrink-0 opacity-60',
   titleHelpLink:
-    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] !text-info hover:underline',
+    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] text-primary hover:underline',
   titleHelpSeparator:
     'inline-flex shrink-0 items-center leading-[var(--line-height-section-label)] text-foreground-muted/50',
   countMeta:
@@ -275,11 +275,11 @@ export const modelListClasses = {
   listActionMenuIcon: 'size-3.5 text-muted-foreground/70',
   subsectionTooltipTrigger: 'inline-flex size-5 min-h-0 shrink-0 items-center justify-center leading-none',
   subsectionTitleEnabled:
-    'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground font-[weight:var(--font-weight-medium)]',
+    'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground font-[weight:var(--font-weight-semibold)]',
   subsectionCountEnabled:
     'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground-muted tabular-nums font-[weight:var(--font-weight-medium)]',
   subsectionTitleDisabled:
-    'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground font-[weight:var(--font-weight-medium)]',
+    'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground font-[weight:var(--font-weight-semibold)]',
   subsectionCountDisabled:
     'text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground-muted tabular-nums font-[weight:var(--font-weight-medium)]',
   emptyState:
@@ -315,7 +315,7 @@ export const modelListClasses = {
   manageDrawerBulkGhostDisableHover: 'hover:!text-destructive',
   /** Provider-grouped card: bordered shell with leading chevron; rows render inside the same card on expand. */
   groupCard:
-    'group/modelGroup min-w-0 w-full rounded-[length:var(--radius-xl)] border border-[color:var(--color-border-fg-hairline)] bg-transparent px-2 py-1',
+    'group/modelGroup min-w-0 w-full rounded-[length:var(--radius-md)] border border-[color:var(--color-border-fg-hairline)] bg-transparent px-2 py-1',
   groupHeader:
     'group/groupRow flex min-h-7 w-full items-center justify-between gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
   groupToggleButton:
@@ -325,7 +325,7 @@ export const modelListClasses = {
   groupTitle:
     'min-w-0 flex-1 truncate text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground font-[weight:var(--font-weight-medium)]',
   groupChevron:
-    'size-3 shrink-0 text-muted-foreground/30 transition-[transform,color] duration-150 group-hover/groupRow:text-foreground',
+    'size-4 shrink-0 text-muted-foreground/65 transition-[transform,color] duration-150 group-hover/groupRow:text-foreground',
   groupChevronOpen: 'rotate-90',
   groupBody: 'mt-0.5 flex flex-col gap-0.5',
   groupOverflowHint:
@@ -474,19 +474,18 @@ export const oauthCardClasses = {
   container: 'w-full min-w-0',
   /** Large bordered auth card, no shadow or filled background. */
   shell:
-    'w-full min-w-0 overflow-hidden rounded-[length:var(--radius-xl)] border border-[color:var(--color-border-fg-hairline)] px-4 py-3',
+    'w-full min-w-0 overflow-hidden rounded-[length:var(--radius-xl)] border border-[color:var(--color-border-fg-hairline)] px-3 py-2.5',
   loginFooterRow: 'mt-2.5 flex items-center justify-center gap-4',
   loginFooterLink:
     'h-auto min-h-0 p-0 text-[length:var(--font-size-body-xs)] text-muted-foreground/60 shadow-none hover:bg-transparent hover:text-foreground',
   loginFooterDivider: 'text-[length:var(--font-size-body-xs)] text-muted-foreground/50',
   /** CherryIN portal link — matches scoped caption + primary link treatment. */
   externalLink:
-    'mt-1 inline-block text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] !text-info hover:underline',
+    'mt-1 inline-block text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-primary hover:underline',
   /** Logged-in CherryIN: mock CherryIN account section — one row, no stat grid. */
   shellLoggedIn:
-    'w-full min-w-0 overflow-hidden rounded-[length:var(--radius-xl)] border border-[color:var(--color-border-fg-hairline)] px-4 py-3',
-  loggedInRow:
-    'flex w-full min-w-0 flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between',
+    'w-full min-w-0 overflow-hidden rounded-[length:var(--radius-xl)] border border-[color:var(--color-border-fg-hairline)] px-3 py-2.5',
+  loggedInRow: 'flex w-full min-w-0 flex-wrap items-center justify-between gap-3',
   profileMeta: 'flex min-w-0 flex-1 items-center gap-3',
   /** Avatar: 32px round avatar, primary fill, initials (/ CherryIN row). */
   avatarSm:
@@ -553,5 +552,5 @@ export const fieldClasses = {
     'flex size-5 shrink-0 items-center justify-center text-[var(--cherry-text-muted)] transition-colors hover:text-[var(--cherry-primary-hover)] disabled:pointer-events-none disabled:opacity-40',
   titleWithHelp: 'flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1',
   titleHelpLink:
-    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-body-sm)] !text-info hover:underline'
+    'mx-0 inline-flex shrink-0 items-center leading-[var(--line-height-body-sm)] text-primary hover:underline'
 } as const

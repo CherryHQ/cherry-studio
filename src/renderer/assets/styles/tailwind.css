@@ -4,15 +4,6 @@
 @import './legacy-vars.css';
 
 @source '../../../../packages/ui/src/**/*.{js,ts,jsx,tsx}';
-/* Exclude test files from candidate scanning: fixture strings like the
- * "[cite:N]" citation markers in citation.test.ts parse as arbitrary
- * properties and generate CSS that PostCSS rejects ("Missed semicolon"). */
-@source not '../../**/*.test.{ts,tsx}';
-@source not '../../**/__tests__/**';
-@source not '../../**/__mocks__/**';
-/* citation.ts builds the same "[cite:N]" markers in template literals; same
- * scanning trap as the test fixtures above. */
-@source not '../../utils/citation.ts';
 @custom-variant dark (&:is(.dark *));
 
 /*
@@ -32,9 +23,9 @@
 
 /* App shell tokens: light mode */
 :root {
-  --app-icon: var(--cs-neutral-500);
+  --app-icon: #00000099;
 
-  --app-sidebar: var(--cs-sidebar);
+  --app-sidebar: oklch(0.985 0 0);
   --app-sidebar-accent: oklch(0.97 0 0);
   --app-sidebar-foreground: oklch(0.145 0 0);
   --app-sidebar-active-bg: rgba(16, 185, 129, 0.08);
@@ -60,9 +51,9 @@
 
 /* App shell tokens: dark mode */
 .dark {
-  --app-icon: var(--cs-neutral-400);
+  --app-icon: #ffffff99;
 
-  --app-sidebar: var(--cs-sidebar);
+  --app-sidebar: oklch(0.205 0 0);
   --app-sidebar-accent: oklch(0.269 0 0);
   --app-sidebar-foreground: oklch(0.985 0 0);
   --app-sidebar-active-bg: rgba(114, 255, 121, 0.05);
