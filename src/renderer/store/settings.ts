@@ -143,7 +143,7 @@ export interface SettingsState {
   // 消息操作确认设置
   confirmDeleteMessage: boolean
   confirmRegenerateMessage: boolean
-  // Legacy sidebarIcons settings
+  // Sidebar icons
   sidebarIcons: {
     visible: SidebarIcon[]
     disabled: SidebarIcon[]
@@ -336,7 +336,7 @@ export const initialState: SettingsState = {
   customCss: '',
   topicNamingPrompt: '',
   sidebarIcons: {
-    visible: DefaultPreferences.default['ui.sidebar.favorites.visible'],
+    visible: DefaultPreferences.default['ui.sidebar.icons.visible'],
     disabled: []
   },
   narrowMode: false,
