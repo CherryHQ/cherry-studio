@@ -13,6 +13,8 @@ For each domain, in **one atomic PR** (the four actions must land together, or t
 
 Each PR is independently revertible.
 
+**Test the handler, not the schema.** `handlers/__tests__/<domain>.test.ts` covers the real behavior (senderId routing, null fallback, delegation). Per-domain schemas are thin contracts locked by compile-time checks plus the one framework type test (`src/shared/ipc/__tests__/schema.types.test.ts`) — do not copy a `schemas/__tests__` template. See [ipc-usage.md](./ipc-usage.md#testing).
+
 ## Schema Authoring: Mirroring an Existing Type
 
 When a request input reuses a TS type defined elsewhere (a preference type, a shared model), bind the validating zod schema to that type at the definition with `z.ZodType<X>`, so a drift is a compile error **there** — not in a far-away test:
