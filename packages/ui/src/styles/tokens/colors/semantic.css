@@ -37,7 +37,7 @@
   --cs-frame-border: oklch(0 0 0 / 0.12);
 
   /* Ring (Focus) */
-  --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
+  --cs-ring: oklch(0 0 0 / 0.22);
 
   /* UI Element Colors */
   --cs-secondary: oklch(0 0 0 / 0.05); /* Secondary Button Background */
@@ -107,8 +107,8 @@
   --cs-border-active: oklch(1 0 0 / 0.3);
   --cs-frame-border: oklch(1 0 0 / 0.14);
 
-  /* Ring (Focus) - 保持不变 */
-  --cs-ring: oklch(0.76 0.204 131 / 0.4);
+  /* Ring (Focus) */
+  --cs-ring: oklch(1 0 0 / 0.28);
 
   /* UI Element Colors - Dark Mode */
   --cs-secondary: oklch(1 0 0 / 0.1); /* Secondary Button Background */
