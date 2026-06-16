@@ -208,6 +208,189 @@ describe('buildClaudeCodeSessionSettings', () => {
 
     expect(mocks.reconcileAgentSkills).toHaveBeenCalledWith('agent-1', '/workspace/project')
     expect(settings.cwd).toBe('/workspace/project')
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
+  })
+
+  it('resolves the plan (sonnet) and small (haiku) model env keys from their own model ids', async () => {
+    // Each of the three model lookups must resolve independently from its own key/provider.
+    mocks.modelGetByKey.mockImplementation(async (providerId: string, modelId: string) => {
+      if (modelId === 'claude-sonnet') return { apiModelId: 'sonnet-api' }
+      if (modelId === 'claude-haiku') return { apiModelId: 'haiku-api' }
+      throw new Error(`model ${providerId}::${modelId} not in table`)
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    // agent.model = planModel = claude-sonnet, smallModel = claude-haiku (see the beforeEach agent).
+    expect(settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'sonnet-api',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'sonnet-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'sonnet-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'haiku-api'
+    })
+  })
+
+  it('falls back each model env key to its own raw id when that model is absent from the table', async () => {
+    // Only the small (haiku) model is missing — the others must NOT be forced to fall back, and the
+    // haiku key must fall back to its OWN raw id (not the main model's).
+    mocks.modelGetByKey.mockImplementation(async (_providerId: string, modelId: string) => {
+      if (modelId === 'claude-haiku') throw new Error('haiku not in table')
+      return { apiModelId: `${modelId}-api` }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'claude-sonnet-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-haiku'
+    })
+  })
+
+  it('denies a disabled tool via a PreToolUse hook so the gate fires in all permission modes', async () => {
+    mocks.createToolPolicySnapshot.mockResolvedValue({
+      resolve: vi.fn(),
+      isDisabled: vi.fn((tool: string) => tool === 'Bash'),
+      update: vi.fn(),
+      setPermissionMode: vi.fn()
+    })
+    const disabledSession = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const disabledSettings = await buildClaudeCodeSessionSettings(disabledSession as never, {} as never)
+
+    const hooks = disabledSettings.hooks?.PreToolUse?.[0]?.hooks ?? []
+    const runHooks = (toolName: string) =>
+      Promise.all(
+        hooks.map((hook) =>
+          hook(
+            { hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: {} } as never,
+            'tool-use-1',
+            {} as never
+          )
+        )
+      )
+
+    const disabled = await runHooks('Bash')
+    expect(disabled).toContainEqual(
+      expect.objectContaining({ hookSpecificOutput: expect.objectContaining({ permissionDecision: 'deny' }) })
+    )
+
+    const enabled = await runHooks('Read')
+    expect(
+      enabled.every(
+        (out) =>
+          (out as { hookSpecificOutput?: { permissionDecision?: string } })?.hookSpecificOutput?.permissionDecision !==
+          'deny'
+      )
+    ).toBe(true)
+  })
+
+  it('passes agent disabledTools through to SDK disallowedTools', async () => {
+    mocks.getAgent.mockResolvedValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: ['Bash', 'Read'],
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Read']))
+    expect(settings.allowedTools).toBeUndefined()
+  })
+
+  it('composes disallowedTools: globals + EnterWorktree (no .git cwd) + dedup, no AskUserQuestion for a plain agent', async () => {
+    mocks.getAgent.mockResolvedValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const disallowed = settings.disallowedTools ?? []
+
+    // GLOBALLY_DISALLOWED_TOOLS always blocked; EnterWorktree blocked because the cwd has no .git.
+    expect(disallowed).toEqual(expect.arrayContaining(['WebSearch', 'WebFetch', 'EnterWorktree']))
+    // A plain (non-assistant, non-soul) agent does not block AskUserQuestion.
+    expect(disallowed).not.toContain('AskUserQuestion')
+    // The `new Set` dedup holds — no entry appears twice even when registry + globals overlap.
+    expect(new Set(disallowed).size).toBe(disallowed.length)
+  })
+
+  it('soul mode adds SOUL_MODE_DISALLOWED_TOOLS to disallowedTools', async () => {
+    mocks.getAgent.mockResolvedValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { soul_enabled: true }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const disallowed = settings.disallowedTools ?? []
+
+    expect(disallowed).toEqual(
+      expect.arrayContaining(['CronCreate', 'EnterPlanMode', 'AskUserQuestion', 'NotebookEdit'])
+    )
+    expect(new Set(disallowed).size).toBe(disallowed.length)
+  })
+
+  it('assistant role adds AskUserQuestion to disallowedTools', async () => {
+    mocks.getAgent.mockResolvedValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { builtin_role: 'assistant' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    expect(settings.disallowedTools ?? []).toContain('AskUserQuestion')
   })
 
   it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {

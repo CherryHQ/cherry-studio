@@ -8,6 +8,7 @@ import type { BootConfigSchema } from '@shared/data/bootConfig/bootConfigSchemas
 import { app } from 'electron'
 
 const logger = loggerService.withContext('Preboot')
+const DEFAULT_DEV_USER_DATA_SUFFIX = 'Dev'
 
 /**
  * Terminology — read this before editing
@@ -110,7 +111,7 @@ export function resolveUserDataLocation(): void {
     // Dev mode: isolate dev data from production by appending 'Dev'.
     // Capture into a local before setPath so we log the value we wrote
     // (matches the local-variable pattern used by the portable branch).
-    const devPath = app.getPath('userData') + 'Dev'
+    const devPath = app.getPath('userData') + resolveDevUserDataSuffix()
     app.setPath('userData', devPath)
     logger.info('userData set with dev suffix', { devPath })
     return
@@ -152,6 +153,10 @@ export function resolveUserDataLocation(): void {
   }
 
   // Step 4: Electron default.
+}
+
+function resolveDevUserDataSuffix(): string {
+  return process.env.CS_DEV_USER_DATA_SUFFIX?.trim() || DEFAULT_DEV_USER_DATA_SUFFIX
 }
 
 /**

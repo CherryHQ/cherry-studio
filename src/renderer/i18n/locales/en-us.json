@@ -395,9 +395,6 @@
           "failed": "Failed to reorder sessions"
         }
       },
-      "tool": {
-        "disabled": "The {{toolName}} tool is disabled for this agent."
-      },
       "update": {
         "error": {
           "failed": "Failed to update the session"
@@ -6747,6 +6744,7 @@
       },
       "clear_shortcut": "Clear Shortcut",
       "clear_topic": "Clear Messages",
+      "close_tab": "Close Tab",
       "conflict_with": "Already used by \"{{name}}\"",
       "copy_last_message": "Copy Last Message",
       "edit_last_user_message": "Edit Last User Message",
@@ -6754,8 +6752,11 @@
       "enabled": "Enable",
       "exit_fullscreen": "Exit Fullscreen",
       "label": "Key",
+      "move_tab_to_first": "Move Tab to First",
       "new_topic": "New Topic",
       "occupied_by_other_application": "This shortcut is already used by the system or another application",
+      "open_tab_in_new_window": "Open Tab in New Window",
+      "pin_tab": "Toggle Pin Tab",
       "press_shortcut": "Press Shortcut",
       "quick_assistant": "Quick Assistant",
       "rename_topic": "Rename Topic",
