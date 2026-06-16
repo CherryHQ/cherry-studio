@@ -2192,8 +2192,6 @@
         "reindex": "Reindex",
         "selected_count": "{{count}} selected"
       },
-      "chunk_delete_confirm_description": "After deletion, this chunk will no longer be used for retrieval. Reindexing the data source will generate it again.",
-      "chunk_delete_confirm_title": "Delete Chunk?",
       "chunks_count": "{{count}} chunks",
       "delete_confirm_description": "This data source and its index data cannot be recovered after deletion.",
       "delete_confirm_title": "Delete Data Source?",
@@ -2250,9 +2248,7 @@
         "search_placeholder": "Search data sources"
       }
     },
-    "dimensions": "Embedding Dimensions",
     "dimensions_auto_set": "Auto-set embedding dimensions",
-    "dimensions_error_invalid": "Invalid embedding dimension",
     "dimensions_size_placeholder": "Leave empty to not pass dimensions",
     "drag_file": "Drag file here",
     "embedding_model": "Embedding Model",
@@ -2304,7 +2300,6 @@
       "chunk_size_invalid": "Chunk size must be greater than 0",
       "chunking": "Chunking",
       "default_separator": "Auto (recommended)",
-      "dimensions": "Vector Dimensions",
       "document_count": "Requested Chunks (Top K)",
       "embedding_model": "Embedding Model",
       "embedding_model_select": "Model Selection",
@@ -2313,7 +2308,6 @@
       "hints": {
         "chunk_overlap": "Number of overlapping tokens kept between adjacent chunks to reduce semantic breaks.",
         "chunk_size": "Target token count for each document chunk. This affects retrieval granularity and context length.",
-        "dimensions": "The vector dimension output by the current embedding model, used to create and match vector indexes.",
         "document_count": "Maximum number of document chunks returned for each retrieval. Higher values cover more content but use more context.",
         "embedding_model": "Used to convert knowledge base content into vectors. Changing the model usually requires reindexing existing content.",
         "hybrid_alpha": "Vector score weight in hybrid retrieval. Higher values favor semantic matching.",
@@ -2324,9 +2318,7 @@
         "threshold_disabled": "This retrieval mode returns ordered results and does not use a similarity threshold."
       },
       "hybrid_alpha": "Hybrid Alpha",
-      "hybrid_alpha_hint": "Only configurable in Hybrid retrieval mode",
       "processor": "Processing Provider",
-      "refresh_dimensions": "Refresh vector dimensions",
       "rerank_disabled": "Disabled",
       "rerank_model": "Rerank Model",
       "reset_action": "Restore Defaults",
@@ -2336,9 +2328,9 @@
       "saved": "Saved",
       "search_mode": {
         "bm25": "Full-text Search",
-        "default": "Vector Search",
         "hybrid": "Hybrid Search (recommended)",
-        "title": "Search Mode"
+        "title": "Search Mode",
+        "vector": "Vector Search"
       },
       "separator_rule": "Separator Rule",
       "threshold": "Similarity Threshold",

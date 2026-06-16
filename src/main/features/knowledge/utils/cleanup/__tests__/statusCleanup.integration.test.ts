@@ -63,8 +63,7 @@ describe('markUnscheduledKnowledgeItemsFailed integration', () => {
       chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
       threshold: null,
       documentCount: null,
-      searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE,
-      hybridAlpha: null
+      searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE
     })
     await dbh.db.insert(knowledgeItemTable).values([
       {

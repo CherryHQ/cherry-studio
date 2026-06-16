@@ -141,7 +141,6 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
         threshold: null,
         documentCount: null,
         searchMode: 'hybrid',
-        hybridAlpha: null,
         createdAt: 1775114958369,
         updatedAt: 1775114958369
       }
