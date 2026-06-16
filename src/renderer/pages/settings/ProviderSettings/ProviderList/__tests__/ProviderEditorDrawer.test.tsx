@@ -406,6 +406,52 @@ describe('ProviderEditorDrawer', () => {
     expect(screen.queryByText('settings.provider.base_url.required')).not.toBeInTheDocument()
   })
 
+  it('name input: label is bound via htmlFor and aria-describedby links to the error node when error is visible', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    const nameInput = screen.getByPlaceholderText('settings.provider.add.name.placeholder')
+
+    expect(nameInput).not.toHaveAttribute('aria-describedby')
+    expect(document.querySelector(`label[for="${nameInput.id}"]`)).toBeInTheDocument()
+
+    fireEvent.blur(nameInput)
+
+    const errorId = nameInput.getAttribute('aria-describedby')
+    expect(errorId).toBeTruthy()
+    expect(document.getElementById(errorId!)).toHaveTextContent('settings.provider.add.name.required')
+  })
+
+  it('base URL input: label is bound via htmlFor and aria-describedby links to the error node when error is visible', () => {
+    render(
+      <ProviderEditorDrawer
+        open
+        mode={{ kind: 'create-custom' }}
+        initialLogo={undefined}
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+      />
+    )
+
+    const baseUrlInput = screen.getByPlaceholderText('settings.provider.base_url.placeholder')
+
+    expect(baseUrlInput).not.toHaveAttribute('aria-describedby')
+    expect(document.querySelector(`label[for="${baseUrlInput.id}"]`)).toBeInTheDocument()
+
+    fireEvent.blur(baseUrlInput)
+
+    const errorId = baseUrlInput.getAttribute('aria-describedby')
+    expect(errorId).toBeTruthy()
+    expect(document.getElementById(errorId!)).toHaveTextContent('settings.provider.base_url.required')
+  })
+
   it('does not require the base URL in duplicate mode (optional, no error on blur)', () => {
     render(
       <ProviderEditorDrawer

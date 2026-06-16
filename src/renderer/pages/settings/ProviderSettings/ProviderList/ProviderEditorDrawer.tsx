@@ -10,7 +10,7 @@ import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { ApiKeyEntry, AuthConfig, AuthType, EndpointConfig, Provider } from '@shared/data/types/provider'
 import { isEmpty } from 'lodash'
 import { ChevronRight, Eye, EyeOff, ImagePlus, RotateCcw } from 'lucide-react'
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { type ChangeEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderSettingsDrawer from '../primitives/ProviderSettingsDrawer'
@@ -471,16 +471,21 @@ interface NameFieldProps {
 
 function NameField({ name, showError, onNameChange, onBlur, onEnter, disableEnter }: NameFieldProps) {
   const { t } = useTranslation()
+  const uid = useId()
+  const inputId = `${uid}-name-input`
+  const errorId = `${uid}-name-error`
   return (
     <Field className="gap-2">
-      <FieldLabel required className="text-[13px] text-foreground/85">
+      <FieldLabel required htmlFor={inputId} className="text-[13px] text-foreground/85">
         {t('settings.provider.add.name.label')}
       </FieldLabel>
       <Input
+        id={inputId}
         value={name}
         placeholder={t('settings.provider.add.name.placeholder')}
         maxLength={32}
         aria-invalid={showError}
+        aria-describedby={showError ? errorId : undefined}
         onChange={(event) => onNameChange(event.target.value)}
         onBlur={onBlur}
         onKeyDown={(event) => {
@@ -490,6 +495,7 @@ function NameField({ name, showError, onNameChange, onBlur, onEnter, disableEnte
         }}
       />
       <FieldError
+        id={errorId}
         className="text-xs"
         errors={showError ? [{ message: t('settings.provider.add.name.required') }] : undefined}
       />
@@ -546,19 +552,24 @@ interface BaseUrlFieldProps {
 }
 
 function BaseUrlField({ label, placeholder, value, onChange, required, error, onBlur }: BaseUrlFieldProps) {
+  const uid = useId()
+  const inputId = `${uid}-url-input`
+  const errorId = `${uid}-url-error`
   return (
     <Field className="gap-2">
-      <FieldLabel required={required} className="text-[13px] text-foreground">
+      <FieldLabel required={required} htmlFor={inputId} className="text-[13px] text-foreground">
         {label}
       </FieldLabel>
       <Input
+        id={inputId}
         value={value}
         placeholder={placeholder}
         aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
         onChange={(event) => onChange(event.target.value)}
         onBlur={onBlur}
       />
-      <FieldError className="text-xs" errors={error ? [{ message: error }] : undefined} />
+      <FieldError id={errorId} className="text-xs" errors={error ? [{ message: error }] : undefined} />
     </Field>
   )
 }
