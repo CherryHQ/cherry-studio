@@ -2,7 +2,6 @@ import type { RouteDef } from '../define'
 import { devtoolsRequestSchemas } from './devtools'
 import { type SelectionEventSchemas, selectionRequestSchemas } from './selection'
 import { systemRequestSchemas } from './system'
-import { terminalRequestSchemas } from './terminal'
 import { type WindowEventSchemas, windowRequestSchemas } from './window'
 
 /**
@@ -16,7 +15,6 @@ export const ipcRequestSchemas = {
   ...devtoolsRequestSchemas,
   ...selectionRequestSchemas,
   ...systemRequestSchemas,
-  ...terminalRequestSchemas,
   ...windowRequestSchemas
 } satisfies Record<string, RouteDef>
 

@@ -84,7 +84,7 @@ describe('IpcHandlersFor exhaustiveness', () => {
 
 describe('global registry reflects migrated domains', () => {
   // Extend these unions as each new domain is migrated onto IpcApi.
-  it('exposes the migrated devtools + selection + system + terminal + window request routes', () => {
+  it('exposes the migrated devtools + selection + system + window request routes', () => {
     expectTypeOf<IpcRoute>().toEqualTypeOf<
       | 'devtools.toggle'
       | 'selection.hide_toolbar'
@@ -95,14 +95,9 @@ describe('global registry reflects migrated domains', () => {
       | 'selection.get_linux_env_info'
       | 'system.get_device_type'
       | 'system.get_hostname'
-      | 'system.get_cpu_name'
       | 'system.get_fonts'
       | 'system.is_process_trusted'
       | 'system.request_process_trust'
-      | 'terminal.check_git_bash'
-      | 'terminal.get_git_bash_path'
-      | 'terminal.get_git_bash_path_info'
-      | 'terminal.set_git_bash_path'
       | 'window.close'
       | 'window.minimize'
       | 'window.maximize'

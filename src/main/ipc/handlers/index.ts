@@ -4,7 +4,6 @@ import type { IpcHandlersFor } from '@shared/ipc/types'
 import { devtoolsHandlers } from './devtools'
 import { selectionHandlers } from './selection'
 import { systemHandlers } from './system'
-import { terminalHandlers } from './terminal'
 import { windowHandlers } from './window'
 
 /**
@@ -20,6 +19,5 @@ export const ipcHandlers: IpcHandlersFor<IpcRequestSchemas> = {
   ...devtoolsHandlers,
   ...selectionHandlers,
   ...systemHandlers,
-  ...terminalHandlers,
   ...windowHandlers
 }

@@ -1,22 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  fontListGetFontsMock,
-  getCpuNameMock,
-  getDeviceTypeMock,
-  getHostnameMock,
-  loggerErrorMock,
-  platformState,
-  systemTrustMock
-} = vi.hoisted(() => ({
-  fontListGetFontsMock: vi.fn(),
-  getCpuNameMock: vi.fn(),
-  getDeviceTypeMock: vi.fn(),
-  getHostnameMock: vi.fn(),
-  loggerErrorMock: vi.fn(),
-  platformState: { isMac: false },
-  systemTrustMock: vi.fn()
-}))
+const { fontListGetFontsMock, getDeviceTypeMock, getHostnameMock, loggerErrorMock, platformState, systemTrustMock } =
+  vi.hoisted(() => ({
+    fontListGetFontsMock: vi.fn(),
+    getDeviceTypeMock: vi.fn(),
+    getHostnameMock: vi.fn(),
+    loggerErrorMock: vi.fn(),
+    platformState: { isMac: false },
+    systemTrustMock: vi.fn()
+  }))
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -29,7 +21,6 @@ vi.mock('@main/core/platform', () => ({
   }
 }))
 vi.mock('@main/utils/system', () => ({
-  getCpuName: getCpuNameMock,
   getDeviceType: getDeviceTypeMock,
   getHostname: getHostnameMock
 }))
@@ -53,7 +44,6 @@ beforeEach(() => {
   platformState.isMac = false
   getDeviceTypeMock.mockReturnValue('mac')
   getHostnameMock.mockReturnValue('host.local')
-  getCpuNameMock.mockReturnValue('Apple M4')
   fontListGetFontsMock.mockResolvedValue(['"Inter"', 'SF Pro'])
   systemTrustMock.mockReturnValue(true)
 })
@@ -62,7 +52,6 @@ describe('systemHandlers', () => {
   it('returns system utility values', async () => {
     expect(await systemHandlers['system.get_device_type'](undefined, ctx('w1'))).toBe('mac')
     expect(await systemHandlers['system.get_hostname'](undefined, ctx('w1'))).toBe('host.local')
-    expect(await systemHandlers['system.get_cpu_name'](undefined, ctx('w1'))).toBe('Apple M4')
   })
 
   it('normalizes quoted system font names', async () => {

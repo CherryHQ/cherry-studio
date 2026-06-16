@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { isMac } from '@main/core/platform'
-import { getCpuName, getDeviceType, getHostname } from '@main/utils/system'
+import { getDeviceType, getHostname } from '@main/utils/system'
 import type { systemRequestSchemas } from '@shared/ipc/schemas/system'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 import { systemPreferences } from 'electron'
@@ -11,7 +11,6 @@ const logger = loggerService.withContext('IPC:System')
 export const systemHandlers: IpcHandlersFor<typeof systemRequestSchemas> = {
   'system.get_device_type': async () => getDeviceType(),
   'system.get_hostname': async () => getHostname(),
-  'system.get_cpu_name': async () => getCpuName(),
   'system.get_fonts': async () => {
     try {
       const fonts = await fontList.getFonts()
