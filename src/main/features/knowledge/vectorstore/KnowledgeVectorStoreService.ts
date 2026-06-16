@@ -151,14 +151,16 @@ export class KnowledgeVectorStoreService extends BaseService {
   }
 
   /**
-   * Transitional loud-failure guard (until PR B). The v1 vector migrator — and
-   * the removed vendored store before it — wrote the legacy single-table layout
-   * into the same `index.sqlite` this store opens; the runtime layout mounts
-   * cleanly beside it but sees none of those vectors, so search would silently
-   * return empty forever. Detect that remnant, and the broader "base has
-   * completed items but the index holds nothing" state (deleted/blanked file),
-   * and log an error so the silent-empty symptom is diagnosable. PR B (migrator
-   * writes the final layout + legacy rewrite on open) replaces this detection.
+   * Loud-failure guard for an index that mounts cleanly but holds no readable
+   * vectors. The migrator now writes the final 7-table layout, so a freshly
+   * migrated base mounts populated; the legacy single-table layout only survives
+   * in `index.sqlite` files written by pre-PR-B code paths (the removed vendored
+   * store, or an install that ran a pre-PR-B experiment build whose one-shot
+   * migration never re-runs to fix it). The runtime layout mounts cleanly beside
+   * that remnant but sees none of its vectors, so search would silently return
+   * empty forever. Detect that remnant, and the broader "base has completed
+   * items but the index holds nothing" state (deleted/blanked file), and log an
+   * error so the silent-empty symptom is diagnosable.
    *
    * Probe failures propagate and fail the open on purpose: swallowing them here
    * would re-silence the deleted-base race this guard exists to expose (an open
@@ -169,7 +171,7 @@ export class KnowledgeVectorStoreService extends BaseService {
   private async reportInvisibleIndexContents(driver: SqliteDriver, baseId: string): Promise<void> {
     if (await hasLegacyVectorStoreTable(driver)) {
       logger.error(
-        'index.sqlite still holds the legacy single-table vector layout, which the runtime store cannot read — search will return empty results until the base is reindexed (legacy rewrite lands in PR B)',
+        'index.sqlite holds the legacy single-table vector layout (written by a pre-PR-B build), which the runtime store cannot read — search will return empty results until the base is reindexed',
         { baseId }
       )
       return

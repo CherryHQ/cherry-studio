@@ -2157,9 +2157,10 @@
           "selected_notes": "已选 {{count}} 个笔记"
         },
         "note": {
-          "description": "选择已有笔记作为知识库数据源",
-          "empty_description": "真實筆記清單接入後，將在這裡展示可多選的筆記。當前可先使用檔案、目錄或連結。",
-          "empty_title": "暂未接入笔记数据源"
+          "description": "選擇現有筆記作為知識庫資料來源",
+          "empty_description": "請先在「筆記」功能中建立筆記，再回到這裡選擇。",
+          "empty_title": "找不到筆記",
+          "loading": "正在載入筆記…"
         },
         "placeholder": {
           "supported_formats": "支持 PDF, DOCX, MD, XLSX, TXT, CSV",
