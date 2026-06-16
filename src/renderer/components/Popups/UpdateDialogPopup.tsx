@@ -18,7 +18,7 @@ interface ShowParams {
 }
 
 interface Props extends ShowParams {
-  resolve: (data: any) => void
+  resolve: () => void
 }
 
 const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
@@ -27,7 +27,7 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
   const [isInstalling, setIsInstalling] = useState(false)
   const { updateAppUpdateState } = useAppUpdateState()
   const closeTopView = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
-  const closePopup = () => closeTopView({})
+  const closePopup = () => closeTopView()
 
   useEffect(() => {
     if (releaseInfo) {
@@ -113,7 +113,7 @@ export default class UpdateDialogPopup {
     TopView.hide(TopViewKey)
   }
   static show(props: ShowParams) {
-    return new Promise<any>((resolve) => {
+    return new Promise<void>((resolve) => {
       TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }

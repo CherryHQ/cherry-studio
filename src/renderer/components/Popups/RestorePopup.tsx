@@ -17,7 +17,7 @@ import { TopView } from '../TopView'
 import { useTopViewClose } from './useTopViewClose'
 
 interface Props {
-  resolve: (data: any) => void
+  resolve: () => void
 }
 
 interface ProgressData {
@@ -44,11 +44,11 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const onOk = async () => {
     await restore()
-    close({})
+    close()
   }
 
   const onCancel = () => {
-    close({})
+    close()
   }
 
   const getProgressText = () => {
@@ -109,7 +109,7 @@ export default class RestorePopup {
     TopView.hide(TopViewKey)
   }
   static show() {
-    return new Promise<any>((resolve) => {
+    return new Promise<void>((resolve) => {
       TopView.show(<PopupContainer resolve={resolve} />, TopViewKey)
     })
   }

@@ -10,7 +10,7 @@ interface Props {
   text: string
   title: string
   extension?: string
-  resolve: (data: any) => void
+  resolve: () => void
 }
 
 const PopupContainer: React.FC<Props> = ({ text, title, extension, resolve }) => {
@@ -18,7 +18,7 @@ const PopupContainer: React.FC<Props> = ({ text, title, extension, resolve }) =>
   const [fontSize] = usePreference('chat.message.font_size')
   const { activeCmTheme } = useCodeStyle()
   const closeTopView = useTopViewClose({ resolve, setOpen, topViewKey: 'TextFilePreviewPopup' })
-  const closePopup = () => closeTopView({})
+  const closePopup = () => closeTopView()
 
   const onOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -65,7 +65,7 @@ export default class TextFilePreviewPopup {
     TopView.hide('TextFilePreviewPopup')
   }
   static show(text: string, title: string, extension?: string) {
-    return new Promise<any>((resolve) => {
+    return new Promise<void>((resolve) => {
       TopView.show(
         <PopupContainer text={text} title={title} extension={extension} resolve={resolve} />,
         'TextFilePreviewPopup'

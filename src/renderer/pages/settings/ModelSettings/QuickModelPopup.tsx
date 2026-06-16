@@ -26,7 +26,7 @@ import { useTranslation } from 'react-i18next'
 import { SettingSubtitle } from '..'
 
 interface Props {
-  resolve: (data: any) => void
+  resolve: () => void
 }
 
 export const TopicNamingSettings = () => {
@@ -98,7 +98,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const close = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
 
   const closePopup = () => {
-    close({})
+    close()
   }
 
   TopicNamingModalPopup.hide = closePopup
@@ -132,7 +132,7 @@ export default class TopicNamingModalPopup {
     TopView.hide(TopViewKey)
   }
   static show() {
-    return new Promise<any>((resolve) => {
+    return new Promise<void>((resolve) => {
       TopView.show(<PopupContainer resolve={resolve} />, TopViewKey)
     })
   }

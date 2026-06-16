@@ -29,7 +29,7 @@ import { TopView } from '../TopView'
 import { useTopViewClose } from './useTopViewClose'
 
 interface Props {
-  resolve: (data: any) => void
+  resolve: () => void
 }
 
 type AvatarPopoverView = 'menu' | 'emoji'
@@ -44,7 +44,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const { t } = useTranslation()
   const avatar = useAvatar()
   const closeTopView = useTopViewClose({ resolve, setOpen, topViewKey: 'UserPopup' })
-  const closeDialog = () => closeTopView({})
+  const closeDialog = () => closeTopView()
 
   const onOpenChange = (nextOpen: boolean) => {
     if (!nextOpen) {
@@ -180,7 +180,7 @@ export default class UserPopup {
     TopView.hide('UserPopup')
   }
   static show() {
-    return new Promise<any>((resolve) => {
+    return new Promise<void>((resolve) => {
       TopView.show(<PopupContainer resolve={resolve} />, 'UserPopup')
     })
   }

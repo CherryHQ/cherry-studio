@@ -21,7 +21,7 @@ import { useTopViewClose } from './useTopViewClose'
 const logger = loggerService.withContext('BackupPopup')
 
 interface Props {
-  resolve: (data: any) => void
+  resolve: () => void
   backupType?: 'direct' | 'lan-transfer'
 }
 
@@ -58,11 +58,11 @@ const PopupContainer: React.FC<Props> = ({ resolve, backupType = 'direct' }) => 
     } else {
       await backup(skipBackupFile)
     }
-    close({})
+    close()
   }
 
   const onCancel = () => {
-    close({})
+    close()
   }
 
   const getProgressText = () => {
@@ -128,7 +128,7 @@ export default class BackupPopup {
     TopView.hide(TopViewKey)
   }
   static show(backupType: 'direct' | 'lan-transfer' = 'direct') {
-    return new Promise<any>((resolve) => {
+    return new Promise<void>((resolve) => {
       TopView.show(<PopupContainer backupType={backupType} resolve={resolve} />, TopViewKey)
     })
   }
