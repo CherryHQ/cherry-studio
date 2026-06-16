@@ -13,9 +13,6 @@
  * intact. Only snapshot readers call `strip`; user-uploaded files never do.
  */
 
-/** `origin` value for snapshots reconstructed from migrated v1 chunks. */
-export const OKF_SNAPSHOT_ORIGIN_V1_MIGRATION = 'v1-migration'
-
 export interface OkfFrontmatter {
   /** OKF-required: the kind of concept (e.g. 'URL', 'Note'). */
   type: string
@@ -25,20 +22,14 @@ export interface OkfFrontmatter {
   resource?: string
   /** ISO 8601 datetime of the last meaningful change (the capture/write time). */
   timestamp?: string
-  /**
-   * Provenance of a snapshot reconstructed rather than captured live (e.g.
-   * 'v1-migration'); absent on live captures. An OKF extension key — readers
-   * must not treat a reconstructed snapshot's `timestamp` as a live-fetch time.
-   */
-  origin?: string
 }
 
 /**
  * Render the OKF frontmatter block, closing-delimiter newline included, so
  * `serialize(fields) + body` is the exact file text. Keys are emitted in OKF
- * priority order (type, title, resource, timestamp) followed by extensions.
- * Values are JSON-quoted (valid YAML double-quoted scalars), which keeps a value
- * containing `---` or `#` from ever forming a delimiter or comment line.
+ * priority order: type, title, resource, timestamp. Values are JSON-quoted (valid
+ * YAML double-quoted scalars), which keeps a value containing `---` or `#` from
+ * ever forming a delimiter or comment line.
  */
 export function serializeOkfFrontmatter(fields: OkfFrontmatter): string {
   const lines = ['---', `type: ${JSON.stringify(fields.type)}`]
@@ -50,9 +41,6 @@ export function serializeOkfFrontmatter(fields: OkfFrontmatter): string {
   }
   if (fields.timestamp !== undefined) {
     lines.push(`timestamp: ${JSON.stringify(fields.timestamp)}`)
-  }
-  if (fields.origin !== undefined) {
-    lines.push(`origin: ${JSON.stringify(fields.origin)}`)
   }
   lines.push('---', '')
   return lines.join('\n')

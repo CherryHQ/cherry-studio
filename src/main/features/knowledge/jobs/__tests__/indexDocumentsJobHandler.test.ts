@@ -19,9 +19,8 @@ import {
   getJobMock,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetByIdMock,
-  knowledgeItemUpdateNoteSnapshotRelativePathMock,
+  knowledgeItemUpdateSnapshotRelativePathMock,
   knowledgeItemUpdateStatusMock,
-  knowledgeItemUpdateUrlSnapshotRelativePathMock,
   knowledgeLockManager,
   listExistingEmbeddingHashesMock,
   loadKnowledgeItemDocumentsMock,
@@ -245,7 +244,7 @@ describe('index-documents job handler', () => {
       '# Example page\n\nbody text',
       expect.any(Set)
     )
-    expect(knowledgeItemUpdateUrlSnapshotRelativePathMock).toHaveBeenCalledWith('url-1', 'example-page.md')
+    expect(knowledgeItemUpdateSnapshotRelativePathMock).toHaveBeenCalledWith('url-1', 'url', 'example-page.md')
     // The reader receives the item carrying the freshly captured snapshot path.
     expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'url-1', data: expect.objectContaining({ relativePath: 'example-page.md' }) })
@@ -264,7 +263,7 @@ describe('index-documents job handler', () => {
 
     expect(fetchKnowledgeWebPageMock).not.toHaveBeenCalled()
     expect(captureUrlSnapshotFileMock).not.toHaveBeenCalled()
-    expect(knowledgeItemUpdateUrlSnapshotRelativePathMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateSnapshotRelativePathMock).not.toHaveBeenCalled()
     expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ relativePath: 'cached.md' }) })
     )
@@ -282,7 +281,7 @@ describe('index-documents job handler', () => {
     // Fetched before the lock, but the duplicate write/persist is skipped.
     expect(fetchKnowledgeWebPageMock).toHaveBeenCalledTimes(1)
     expect(captureUrlSnapshotFileMock).not.toHaveBeenCalled()
-    expect(knowledgeItemUpdateUrlSnapshotRelativePathMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateSnapshotRelativePathMock).not.toHaveBeenCalled()
     expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ relativePath: 'raced.md' }) })
     )
@@ -304,6 +303,19 @@ describe('index-documents job handler', () => {
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('url-1', 'completed')
   })
 
+  it('fails the index when a note has empty/whitespace content', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    const emptyNote = { ...createNoteItem(NOTE_ITEM_ID), data: { source: 'My note', content: '   ' } }
+    knowledgeItemGetByIdMock.mockResolvedValue(emptyNote)
+
+    await expect(
+      handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+    ).rejects.toThrow('empty content')
+
+    expect(captureNoteSnapshotFileMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
+  })
+
   it('captures a note snapshot on first index, persists its relativePath, and reads it offline', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     // A freshly added / migrated note has no snapshot yet (returned both at load
@@ -317,7 +329,7 @@ describe('index-documents job handler', () => {
     // No network fetch; the in-hand content is written and the relativePath persisted.
     expect(fetchKnowledgeWebPageMock).not.toHaveBeenCalled()
     expect(captureNoteSnapshotFileMock).toHaveBeenCalledWith('kb-1', 'My note', 'note body', expect.any(Set))
-    expect(knowledgeItemUpdateNoteSnapshotRelativePathMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'My note.md')
+    expect(knowledgeItemUpdateSnapshotRelativePathMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'note', 'My note.md')
     // The reader receives the item carrying the freshly captured snapshot path.
     expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(
       expect.objectContaining({ id: NOTE_ITEM_ID, data: expect.objectContaining({ relativePath: 'My note.md' }) })
@@ -334,7 +346,7 @@ describe('index-documents job handler', () => {
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
 
     expect(captureNoteSnapshotFileMock).not.toHaveBeenCalled()
-    expect(knowledgeItemUpdateNoteSnapshotRelativePathMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateSnapshotRelativePathMock).not.toHaveBeenCalled()
     expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ relativePath: 'cached-note.md' }) })
     )
@@ -351,7 +363,7 @@ describe('index-documents job handler', () => {
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
 
     expect(captureNoteSnapshotFileMock).not.toHaveBeenCalled()
-    expect(knowledgeItemUpdateNoteSnapshotRelativePathMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateSnapshotRelativePathMock).not.toHaveBeenCalled()
     expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ relativePath: 'raced-note.md' }) })
     )

@@ -38,7 +38,6 @@ type: URL # OKF-required: the kind of concept (URL / Note / …)
 title: Drop-in replacements for React Native UI # page / note title
 resource: https://docs.example.com/page # URI of the underlying asset (url only)
 timestamp: 2026-06-15T12:00:00.000Z # ISO 8601 capture / write time
-origin: v1-migration # extension key — only on snapshots the migrator reconstructs
 ---
 <canonical markdown body>
 ```

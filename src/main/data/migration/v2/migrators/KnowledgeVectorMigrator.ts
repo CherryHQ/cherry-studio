@@ -11,12 +11,10 @@ import {
   toMaterialRelativePath
 } from '@main/features/knowledge/utils/indexing/materialFields'
 import { deriveNoteSnapshotSlug } from '@main/features/knowledge/utils/sources/noteSnapshot'
-import {
-  OKF_SNAPSHOT_ORIGIN_V1_MIGRATION,
-  serializeOkfFrontmatter
-} from '@main/features/knowledge/utils/sources/okfFrontmatter'
+import { serializeOkfFrontmatter } from '@main/features/knowledge/utils/sources/okfFrontmatter'
 import { deriveUrlSnapshotSlug, deriveUrlSnapshotTitle } from '@main/features/knowledge/utils/sources/urlSnapshot'
 import {
+  assertSafeKnowledgeRelativePath,
   collectKnowledgeReservedRelativePaths,
   reserveImportedFileRelativePath
 } from '@main/features/knowledge/utils/storage/pathStorage'
@@ -106,9 +104,9 @@ interface PlannedMaterialSnapshot {
   itemId: string
   relativePath: string
   /**
-   * The snapshot file's exact bytes: for a url, cherry frontmatter
-   * (origin: v1-migration) + the material's content text; for a note, the
-   * content text verbatim (no frontmatter, so the reader round-trips it exactly).
+   * The snapshot file's exact bytes: OKF frontmatter + the material's content
+   * text, for both url and note. The snapshot reader strips the frontmatter back
+   * off to round-trip the body exactly (the hash stays stable, vectors reused).
    */
   fileText: string
   /** The item's data with `relativePath` pinned, written back to the migrated row. */
@@ -497,8 +495,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
                   type: 'URL',
                   title: deriveUrlSnapshotTitle(contentText, item.data.url),
                   resource: item.data.url,
-                  timestamp: capturedAt,
-                  origin: OKF_SNAPSHOT_ORIGIN_V1_MIGRATION
+                  timestamp: capturedAt
                 }) + contentText,
               data: { ...item.data, relativePath }
             })
@@ -515,8 +512,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
                 serializeOkfFrontmatter({
                   type: 'Note',
                   title: item.data.source,
-                  timestamp: capturedAt,
-                  origin: OKF_SNAPSHOT_ORIGIN_V1_MIGRATION
+                  timestamp: capturedAt
                 }) + contentText,
               data: { ...item.data, relativePath }
             })
@@ -637,6 +633,10 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           await fs.promises.mkdir(plan.materialDirPath, { recursive: true })
         }
         for (const snapshot of plan.materialSnapshots) {
+          // A reused item.data.relativePath could in principle carry a traversal;
+          // guard it before writing — the same invariant every other base write
+          // enforces (getKnowledgeBaseFilePath) but which this direct join bypasses.
+          assertSafeKnowledgeRelativePath(snapshot.relativePath)
           await fs.promises.writeFile(
             path.join(plan.materialDirPath, snapshot.relativePath),
             snapshot.fileText,

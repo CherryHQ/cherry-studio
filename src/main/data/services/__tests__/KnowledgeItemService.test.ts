@@ -1057,7 +1057,7 @@ describe('KnowledgeItemService', () => {
     })
   })
 
-  describe('updateUrlSnapshotRelativePath', () => {
+  describe('updateSnapshotRelativePath', () => {
     it('stores the captured snapshot path on url item data, preserving source/url', async () => {
       await seedItem({
         id: ITEM_1_ID,
@@ -1065,7 +1065,7 @@ describe('KnowledgeItemService', () => {
         data: { source: 'https://example.com', url: 'https://example.com' }
       })
 
-      const result = await service.updateUrlSnapshotRelativePath(ITEM_1_ID, 'example.md')
+      const result = await service.updateSnapshotRelativePath(ITEM_1_ID, 'url', 'example.md')
 
       expect(result).toMatchObject({
         id: ITEM_1_ID,
@@ -1078,26 +1078,6 @@ describe('KnowledgeItemService', () => {
       })
     })
 
-    it('rejects updating snapshot path for a missing knowledge item', async () => {
-      await expect(service.updateUrlSnapshotRelativePath(OTHER_ITEM_ID, 'example.md')).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND
-      })
-    })
-
-    it('rejects updating snapshot path for a non-url item', async () => {
-      await seedItem({
-        id: NOTE_A_ID,
-        type: 'note',
-        data: { source: 'note', content: 'note' }
-      })
-
-      await expect(service.updateUrlSnapshotRelativePath(NOTE_A_ID, 'example.md')).rejects.toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR
-      })
-    })
-  })
-
-  describe('updateNoteSnapshotRelativePath', () => {
     it('stores the captured snapshot path on note item data, preserving source/content', async () => {
       await seedItem({
         id: NOTE_A_ID,
@@ -1105,7 +1085,7 @@ describe('KnowledgeItemService', () => {
         data: { source: 'Meeting notes', content: '# Meeting\n\nbody' }
       })
 
-      const result = await service.updateNoteSnapshotRelativePath(NOTE_A_ID, 'Meeting notes.md')
+      const result = await service.updateSnapshotRelativePath(NOTE_A_ID, 'note', 'Meeting notes.md')
 
       expect(result).toMatchObject({
         id: NOTE_A_ID,
@@ -1119,19 +1099,31 @@ describe('KnowledgeItemService', () => {
     })
 
     it('rejects updating snapshot path for a missing knowledge item', async () => {
-      await expect(service.updateNoteSnapshotRelativePath(OTHER_ITEM_ID, 'note.md')).rejects.toMatchObject({
+      await expect(service.updateSnapshotRelativePath(OTHER_ITEM_ID, 'url', 'example.md')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
     })
 
-    it('rejects updating snapshot path for a non-note item', async () => {
+    it('rejects storing a url snapshot path on a note item', async () => {
+      await seedItem({
+        id: NOTE_A_ID,
+        type: 'note',
+        data: { source: 'note', content: 'note' }
+      })
+
+      await expect(service.updateSnapshotRelativePath(NOTE_A_ID, 'url', 'example.md')).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR
+      })
+    })
+
+    it('rejects storing a note snapshot path on a url item', async () => {
       await seedItem({
         id: ITEM_1_ID,
         type: 'url',
         data: { source: 'https://example.com', url: 'https://example.com' }
       })
 
-      await expect(service.updateNoteSnapshotRelativePath(ITEM_1_ID, 'note.md')).rejects.toMatchObject({
+      await expect(service.updateSnapshotRelativePath(ITEM_1_ID, 'note', 'note.md')).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR
       })
     })

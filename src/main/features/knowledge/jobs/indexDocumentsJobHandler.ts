@@ -184,7 +184,7 @@ async function ensureUrlSnapshot(
       await knowledgeItemService.getItemsByBaseId(ctx.input.baseId)
     )
     const relativePath = await captureUrlSnapshotFile(item.baseId, item.data.url, markdown, reservedPaths)
-    const updated = await knowledgeItemService.updateUrlSnapshotRelativePath(ctx.input.itemId, relativePath)
+    const updated = await knowledgeItemService.updateSnapshotRelativePath(ctx.input.itemId, 'url', relativePath)
     return isIndexableKnowledgeItem(updated) ? updated : item
   })
 }
@@ -209,6 +209,13 @@ async function ensureNoteSnapshot(
     return item
   }
 
+  // Mirrors ensureUrlSnapshot's empty-markdown guard (here also rejecting
+  // whitespace-only content): an empty note would otherwise write a
+  // frontmatter-only snapshot and complete with an empty index. Fail loudly.
+  if (item.data.content.trim() === '') {
+    throw new Error(`Knowledge note has empty content: ${item.data.source}`)
+  }
+
   return await knowledgeLockManager.withBaseMutationLock(ctx.input.baseId, async () => {
     const latest = await knowledgeItemService.getById(ctx.input.itemId)
     if (latest.type !== 'note' || latest.data.relativePath) {
@@ -219,7 +226,7 @@ async function ensureNoteSnapshot(
       await knowledgeItemService.getItemsByBaseId(ctx.input.baseId)
     )
     const relativePath = await captureNoteSnapshotFile(item.baseId, item.data.source, item.data.content, reservedPaths)
-    const updated = await knowledgeItemService.updateNoteSnapshotRelativePath(ctx.input.itemId, relativePath)
+    const updated = await knowledgeItemService.updateSnapshotRelativePath(ctx.input.itemId, 'note', relativePath)
     return isIndexableKnowledgeItem(updated) ? updated : item
   })
 }

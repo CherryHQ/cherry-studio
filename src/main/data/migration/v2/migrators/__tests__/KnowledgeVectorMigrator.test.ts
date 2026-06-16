@@ -1184,14 +1184,13 @@ describe('KnowledgeVectorMigrator', () => {
       expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
 
       // The snapshot lands in the base under a heading-derived name, stamped with
-      // provenance frontmatter that strips back off to exactly the stored content
-      // text — the hash round-trip that lets reindex reuse the migrated vectors.
+      // OKF frontmatter that strips back off to exactly the stored content text —
+      // the hash round-trip that lets reindex reuse the migrated vectors.
       const snapshotPath = runtimeMaterialPath(MIGRATED_KNOWLEDGE_BASE_ID, 'LLM Guide.md')
       expect(fs.existsSync(snapshotPath)).toBe(true)
       const fileText = fs.readFileSync(snapshotPath, 'utf-8')
       expect(fileText).toMatch(/^---\ntype: "URL"\ntitle: "LLM Guide"\nresource: "https:\/\/example\.com\/guide"\n/)
       expect(fileText).toMatch(/timestamp: "\d{4}-\d{2}-\d{2}T[^"]+"\n/)
-      expect(fileText).toContain('origin: "v1-migration"\n')
 
       const store = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
       expect(store.content[0].text).toBe('# LLM Guide\n\nsecond chunk')
@@ -1361,7 +1360,7 @@ describe('KnowledgeVectorMigrator', () => {
       })
     })
 
-    it('materializes a migrated note as a verbatim snapshot (no frontmatter) and pins the item row', async () => {
+    it('materializes a migrated note as an OKF-frontmatter snapshot and pins the item row', async () => {
       await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
         {
           id: 'legacy-note-0',
@@ -1411,7 +1410,6 @@ describe('KnowledgeVectorMigrator', () => {
       expect(fs.existsSync(snapshotPath)).toBe(true)
       const fileText = fs.readFileSync(snapshotPath, 'utf-8')
       expect(fileText).toMatch(/^---\ntype: "Note"\ntitle: "Meeting notes"\n/)
-      expect(fileText).toContain('origin: "v1-migration"\n')
 
       const store = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
       expect(store.content[0].text).toBe('# Meeting notes\n\nsecond chunk')
@@ -1436,6 +1434,50 @@ describe('KnowledgeVectorMigrator', () => {
       const validateResult = await migrator.validate(migrationCtx as any)
       expect(validateResult.success).toBe(true)
       expect(validateResult.errors).toStrictEqual([])
+    })
+
+    it('rejects a reused snapshot relativePath that escapes the material root', async () => {
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-note-0',
+          pageContent: '# Meeting notes',
+          uniqueLoaderId: 'loader-note-a',
+          source: 'note',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
+            type: 'note',
+            // A corrupt persisted relativePath from a prior run: the reused-path branch
+            // takes it verbatim, so the write must be guarded before it escapes `raw/`.
+            data: { source: 'Meeting notes', content: 'original note body', relativePath: '../escape.md' }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-sitemap', type: 'note', uniqueIds: ['loader-note-a'] }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(false)
+      expect(executeResult.error).toContain('Invalid knowledge relative path')
+      // The traversal target was never written outside the material root.
+      expect(fs.existsSync(path.join(knowledgeBaseDir, MIGRATED_KNOWLEDGE_BASE_ID, 'escape.md'))).toBe(false)
     })
   })
 })

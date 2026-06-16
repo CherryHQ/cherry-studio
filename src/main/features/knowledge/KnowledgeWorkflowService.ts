@@ -4,8 +4,6 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import { getFileExt } from '@main/utils/file'
-import { documentExts } from '@shared/config/constant'
 import { FileProcessorIdSchema } from '@shared/data/presets/file-processing'
 import type { CreateKnowledgeItemDto, KnowledgeAddItemInput, KnowledgeItem } from '@shared/data/types/knowledge'
 
@@ -29,11 +27,13 @@ import { isContainerKnowledgeItem } from './utils/items'
 import { planKnowledgeItemSource } from './utils/sources/sourcePlanning'
 import {
   assertKnowledgeFileTargetAvailable,
+  collectKnowledgeReservedRelativePaths,
   copyFileIntoKnowledgeBaseAt,
   deleteKnowledgeItemFilesBestEffort,
   getKnowledgeBaseFilePath,
   getKnowledgeSourceRelativePath,
   getProcessedMarkdownRelativePath,
+  needsProcessedArtifactReservation,
   reserveImportedFileRelativePath
 } from './utils/storage/pathStorage'
 
@@ -356,34 +356,8 @@ export class KnowledgeWorkflowService {
     baseId: string,
     fileProcessorId: string | null | undefined
   ): Promise<Set<string>> {
-    const reservedPaths = new Set<string>()
     const items = await knowledgeItemService.getItemsByBaseId(baseId)
-
-    for (const item of items) {
-      if (item.type === 'url' || item.type === 'note') {
-        // URL/note snapshots live as base files under `raw/` too; reserve any already-captured
-        // snapshot path so a colliding new copy auto-renames to `_N` instead of hard-failing
-        // the on-disk copy (mirrors collectKnowledgeReservedRelativePaths, the all-type reserved
-        // set ensure{Url,Note}Snapshot use on the index path).
-        if (item.data.relativePath) {
-          reservedPaths.add(item.data.relativePath)
-        }
-        continue
-      }
-
-      if (item.type !== 'file') {
-        continue
-      }
-
-      reservedPaths.add(item.data.relativePath)
-      if (item.data.indexedRelativePath) {
-        reservedPaths.add(item.data.indexedRelativePath)
-      } else if (needsProcessedArtifactReservation(fileProcessorId, item.data.relativePath)) {
-        reservedPaths.add(getProcessedMarkdownRelativePath(item.data.relativePath))
-      }
-    }
-
-    return reservedPaths
+    return collectKnowledgeReservedRelativePaths(items, { fileProcessorId })
   }
 
   private async assertKnowledgeRelativePathNotReserved(
@@ -393,30 +367,8 @@ export class KnowledgeWorkflowService {
     relativePath: string
   ): Promise<void> {
     const items = await knowledgeItemService.getItemsByBaseId(baseId)
-    const conflictingItem = items.find((item) => {
-      if (item.id === itemId) {
-        return false
-      }
-
-      // URL/note snapshots also occupy a `raw/` path; a processed-artifact name that
-      // lands on one would collide on disk, so treat them as reserved here too.
-      if (item.type === 'url' || item.type === 'note') {
-        return item.data.relativePath === relativePath
-      }
-
-      if (item.type !== 'file') {
-        return false
-      }
-
-      return (
-        item.data.relativePath === relativePath ||
-        item.data.indexedRelativePath === relativePath ||
-        (needsProcessedArtifactReservation(fileProcessorId, item.data.relativePath) &&
-          getProcessedMarkdownRelativePath(item.data.relativePath) === relativePath)
-      )
-    })
-
-    if (conflictingItem) {
+    const reserved = collectKnowledgeReservedRelativePaths(items, { fileProcessorId, excludeItemId: itemId })
+    if (reserved.has(relativePath)) {
       throw new Error(`Knowledge file already exists: ${relativePath}`)
     }
   }
@@ -439,12 +391,4 @@ export class KnowledgeWorkflowService {
       logContextKey: 'scheduleError'
     })
   }
-}
-
-function needsProcessedArtifactReservation(fileProcessorId: string | null | undefined, relativePath: string): boolean {
-  if (!fileProcessorId) {
-    return false
-  }
-
-  return documentExts.includes(getFileExt(relativePath).toLowerCase())
 }

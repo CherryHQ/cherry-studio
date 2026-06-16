@@ -21,8 +21,7 @@ const mocks = vi.hoisted(() => ({
   knowledgeItemUpdateStatusMock: vi.fn(),
   knowledgeItemUpdateIndexedRelativePathMock: vi.fn(),
   knowledgeItemGetItemsByBaseIdMock: vi.fn(),
-  knowledgeItemUpdateUrlSnapshotRelativePathMock: vi.fn(),
-  knowledgeItemUpdateNoteSnapshotRelativePathMock: vi.fn(),
+  knowledgeItemUpdateSnapshotRelativePathMock: vi.fn(),
   listMock: vi.fn(),
   loadKnowledgeItemDocumentsMock: vi.fn(),
   prepareKnowledgeItemMock: vi.fn(),
@@ -52,8 +51,7 @@ export const {
   knowledgeItemUpdateStatusMock,
   knowledgeItemUpdateIndexedRelativePathMock,
   knowledgeItemGetItemsByBaseIdMock,
-  knowledgeItemUpdateUrlSnapshotRelativePathMock,
-  knowledgeItemUpdateNoteSnapshotRelativePathMock,
+  knowledgeItemUpdateSnapshotRelativePathMock,
   listMock,
   loadKnowledgeItemDocumentsMock,
   prepareKnowledgeItemMock,
@@ -122,8 +120,7 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
     deleteItemsByIds: deleteItemsByIdsMock,
     setSubtreeStatus: knowledgeItemSetSubtreeStatusMock,
     updateIndexedRelativePath: knowledgeItemUpdateIndexedRelativePathMock,
-    updateUrlSnapshotRelativePath: knowledgeItemUpdateUrlSnapshotRelativePathMock,
-    updateNoteSnapshotRelativePath: knowledgeItemUpdateNoteSnapshotRelativePathMock,
+    updateSnapshotRelativePath: knowledgeItemUpdateSnapshotRelativePathMock,
     updateStatus: knowledgeItemUpdateStatusMock
   }
 }))
@@ -346,12 +343,10 @@ beforeEach(() => {
   knowledgeItemUpdateStatusMock.mockResolvedValue(createNoteItem())
   fetchKnowledgeWebPageMock.mockResolvedValue('# Example page\n\nbody text')
   captureUrlSnapshotFileMock.mockResolvedValue('example-page.md')
-  knowledgeItemUpdateUrlSnapshotRelativePathMock.mockImplementation(async (id: string, relativePath: string) =>
-    createUrlItem(id, relativePath)
-  )
   captureNoteSnapshotFileMock.mockResolvedValue('note-snapshot.md')
-  knowledgeItemUpdateNoteSnapshotRelativePathMock.mockImplementation(async (id: string, relativePath: string) =>
-    createNoteItem(id, null, 'processing', relativePath)
+  knowledgeItemUpdateSnapshotRelativePathMock.mockImplementation(
+    async (id: string, type: 'url' | 'note', relativePath: string) =>
+      type === 'url' ? createUrlItem(id, relativePath) : createNoteItem(id, null, 'processing', relativePath)
   )
   loadKnowledgeItemDocumentsMock.mockResolvedValue([
     {

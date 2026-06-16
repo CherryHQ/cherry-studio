@@ -530,7 +530,12 @@ export class KnowledgeItemService {
     return rowToKnowledgeItem(row)
   }
 
-  async updateUrlSnapshotRelativePath(id: string, relativePath: string): Promise<KnowledgeItem> {
+  /**
+   * Pin a captured url/note snapshot's base-relative path onto the item's `data`.
+   * url and note store the snapshot identically — the `type` guards the call site
+   * against writing the path onto the wrong item kind.
+   */
+  async updateSnapshotRelativePath(id: string, type: 'url' | 'note', relativePath: string): Promise<KnowledgeItem> {
     const dbService = application.get('DbService')
     const row = await dbService.withWriteTx(async (tx) => {
       const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
@@ -540,19 +545,16 @@ export class KnowledgeItemService {
       }
 
       const existingItem = rowToKnowledgeItem(existingRow)
-      if (existingItem.type !== 'url') {
+      if (existingItem.type !== type) {
         throw DataApiErrorFactory.validation({
-          type: [`Knowledge item must be a url to store a snapshot relative path: ${id}`]
+          type: [`Knowledge item must be a ${type} to store a snapshot relative path: ${id}`]
         })
       }
 
       const [updatedRow] = await tx
         .update(knowledgeItemTable)
         .set({
-          data: {
-            ...existingItem.data,
-            relativePath
-          }
+          data: { ...existingItem.data, relativePath } as KnowledgeItemData
         })
         .where(eq(knowledgeItemTable.id, id))
         .returning()
@@ -560,55 +562,14 @@ export class KnowledgeItemService {
       if (!updatedRow) {
         throw DataApiErrorFactory.dataInconsistent(
           'KnowledgeItem',
-          `Knowledge item url snapshot path update result missing for id '${id}'`
+          `Knowledge item ${type} snapshot path update result missing for id '${id}'`
         )
       }
 
       return updatedRow
     })
 
-    logger.info('Updated knowledge url snapshot relative path', { id, relativePath })
-    return rowToKnowledgeItem(row)
-  }
-
-  async updateNoteSnapshotRelativePath(id: string, relativePath: string): Promise<KnowledgeItem> {
-    const dbService = application.get('DbService')
-    const row = await dbService.withWriteTx(async (tx) => {
-      const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
-
-      if (!existingRow) {
-        throw DataApiErrorFactory.notFound('KnowledgeItem', id)
-      }
-
-      const existingItem = rowToKnowledgeItem(existingRow)
-      if (existingItem.type !== 'note') {
-        throw DataApiErrorFactory.validation({
-          type: [`Knowledge item must be a note to store a snapshot relative path: ${id}`]
-        })
-      }
-
-      const [updatedRow] = await tx
-        .update(knowledgeItemTable)
-        .set({
-          data: {
-            ...existingItem.data,
-            relativePath
-          }
-        })
-        .where(eq(knowledgeItemTable.id, id))
-        .returning()
-
-      if (!updatedRow) {
-        throw DataApiErrorFactory.dataInconsistent(
-          'KnowledgeItem',
-          `Knowledge item note snapshot path update result missing for id '${id}'`
-        )
-      }
-
-      return updatedRow
-    })
-
-    logger.info('Updated knowledge note snapshot relative path', { id, relativePath })
+    logger.info(`Updated knowledge ${type} snapshot relative path`, { id, relativePath })
     return rowToKnowledgeItem(row)
   }
 

@@ -232,6 +232,59 @@ describe('pathStorage relative-path safety', () => {
 
       expect(reserved.size).toBe(0)
     })
+
+    it('reserves the prospective processed-markdown slot for an unprocessed file when a processor is set', () => {
+      const reserved = collectKnowledgeReservedRelativePaths(
+        [{ id: 'i1', type: 'file', data: { relativePath: 'paper.pdf' } }],
+        {
+          fileProcessorId: 'some-processor'
+        }
+      )
+
+      expect(reserved).toEqual(new Set(['paper.pdf', 'paper.md']))
+    })
+
+    it('does not reserve a prospective slot without a processor', () => {
+      const noProcessor = collectKnowledgeReservedRelativePaths([
+        { id: 'i1', type: 'file', data: { relativePath: 'paper.pdf' } }
+      ])
+      expect(noProcessor).toEqual(new Set(['paper.pdf']))
+    })
+
+    it('does not reserve a prospective slot for a non-document source extension', () => {
+      const reserved = collectKnowledgeReservedRelativePaths(
+        [{ id: 'i1', type: 'file', data: { relativePath: 'notes.md' } }],
+        { fileProcessorId: 'some-processor' }
+      )
+
+      // `.md` is not a documentExt → no processed artifact is ever emitted, so no
+      // prospective `.md` slot is reserved (only the source itself).
+      expect(reserved).toEqual(new Set(['notes.md']))
+    })
+
+    it('reserves the pinned artifact, not the prospective slot, once the file is indexed', () => {
+      // The pinned artifact has a name that is NOT the prospective slot, so the set
+      // proves the prospective branch was suppressed (paper.md must be absent).
+      const reserved = collectKnowledgeReservedRelativePaths(
+        [{ id: 'i1', type: 'file', data: { relativePath: 'paper.pdf', indexedRelativePath: 'paper-out.md' } }],
+        { fileProcessorId: 'some-processor' }
+      )
+
+      expect(reserved).toEqual(new Set(['paper.pdf', 'paper-out.md']))
+      expect(reserved.has('paper.md')).toBe(false)
+    })
+
+    it('skips the excluded item so a candidate path can be tested against the rest', () => {
+      const reserved = collectKnowledgeReservedRelativePaths(
+        [
+          { id: 'self', type: 'url', data: { source: 'https://x', url: 'https://x', relativePath: 'x.md' } },
+          { id: 'other', type: 'file', data: { relativePath: 'a.pdf' } }
+        ],
+        { excludeItemId: 'self' }
+      )
+
+      expect(reserved).toEqual(new Set(['a.pdf']))
+    })
   })
 })
 
@@ -241,14 +294,18 @@ describe('deleteKnowledgeItemFiles', () => {
     removeMock.mockResolvedValue(undefined)
   })
 
-  it('removes only file-type items, skipping notes and directories', async () => {
+  it('removes file and captured url/note snapshot paths, skipping directories and uncaptured notes', async () => {
     await deleteKnowledgeItemFiles(BASE_ID, [
-      { type: 'note', data: { source: 'n', content: 'x' } },
+      { type: 'note', data: { source: 'n', content: 'x', relativePath: 'n.md' } },
+      { type: 'url', data: { source: 'https://x', url: 'https://x', relativePath: 'x.md' } },
+      { type: 'note', data: { source: 'uncaptured', content: 'y' } },
       { type: 'directory', data: { source: 'd', path: '/d' } },
       { type: 'file', data: { relativePath: 'a.pdf' } }
     ])
 
-    expect(removeMock).toHaveBeenCalledTimes(1)
+    expect(removeMock).toHaveBeenCalledTimes(3)
+    expect(removeMock).toHaveBeenCalledWith(path.join(MATERIAL_DIR, 'n.md'))
+    expect(removeMock).toHaveBeenCalledWith(path.join(MATERIAL_DIR, 'x.md'))
     expect(removeMock).toHaveBeenCalledWith(path.join(MATERIAL_DIR, 'a.pdf'))
   })
 

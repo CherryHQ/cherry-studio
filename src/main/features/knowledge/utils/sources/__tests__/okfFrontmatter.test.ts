@@ -24,24 +24,15 @@ describe('serializeOkfFrontmatter', () => {
     )
   })
 
-  it('omits absent optional fields and appends the origin extension key last', () => {
+  it('omits absent optional fields', () => {
     const block = serializeOkfFrontmatter({
       type: 'Note',
       title: 'Meeting notes',
-      timestamp: '2026-06-11T10:00:00.000Z',
-      origin: 'v1-migration'
+      timestamp: '2026-06-11T10:00:00.000Z'
     })
 
     expect(block).toBe(
-      [
-        '---',
-        'type: "Note"',
-        'title: "Meeting notes"',
-        'timestamp: "2026-06-11T10:00:00.000Z"',
-        'origin: "v1-migration"',
-        '---',
-        ''
-      ].join('\n')
+      ['---', 'type: "Note"', 'title: "Meeting notes"', 'timestamp: "2026-06-11T10:00:00.000Z"', '---', ''].join('\n')
     )
     expect(block).not.toContain('resource')
   })
@@ -68,6 +59,18 @@ describe('stripOkfFrontmatter', () => {
 
   it('round-trips a resource URL containing --- and # characters', () => {
     roundTrips('body\n', 'https://example.com/a---b#frag')
+  })
+
+  it('round-trips when title/resource carry quotes, newlines, --- and # (JSON.stringify keeps each on one line)', () => {
+    const body = '# Real heading\n\nactual body\n'
+    const file =
+      serializeOkfFrontmatter({
+        type: 'URL',
+        title: 'a "quoted" --- # title\nwith newline',
+        resource: 'https://example.com/p?q="x"#frag',
+        timestamp: '2026-06-11T00:00:00.000Z'
+      }) + body
+    expect(stripOkfFrontmatter(file)).toBe(body)
   })
 
   it('round-trips an empty body', () => {
