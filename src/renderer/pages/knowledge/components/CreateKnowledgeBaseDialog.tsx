@@ -43,21 +43,13 @@ interface CreateKnowledgeBaseDialogProps {
 type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'>
 type CreateKnowledgeBaseFormValues = Omit<CreateKnowledgeBaseInput, 'dimensions' | 'embeddingModelId'> & {
   embeddingModelId: string | null
-  dimensions: string
 }
 
 const createInitialInput = (groupId?: string): CreateKnowledgeBaseFormValues => ({
   name: '',
   groupId,
-  embeddingModelId: null,
-  dimensions: ''
+  embeddingModelId: null
 })
-
-const parseKnowledgeDimensions = (dimensions: string) => {
-  const parsedDimensions = Number(dimensions)
-
-  return Number.isSafeInteger(parsedDimensions) && parsedDimensions > 0 ? parsedDimensions : null
-}
 
 export const formatKnowledgeModelOptionLabel = (uniqueModelId: string) => {
   if (!isUniqueModelId(uniqueModelId)) {
@@ -129,8 +121,6 @@ const CreateKnowledgeBaseDialogRoot = ({
     createInitialInput(normalizedInitialGroupId)
   )
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false)
-  const [hasAttemptedManualDimensionsSubmit, setHasAttemptedManualDimensionsSubmit] = useState(false)
-  const [isManualDimensionsVisible, setIsManualDimensionsVisible] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const { fetchDimensions, isFetchingDimensions } = useEmbeddingDimensions()
 
@@ -138,8 +128,6 @@ const CreateKnowledgeBaseDialogRoot = ({
     if (!open) {
       setValues(createInitialInput(normalizedInitialGroupId))
       setHasAttemptedSubmit(false)
-      setHasAttemptedManualDimensionsSubmit(false)
-      setIsManualDimensionsVisible(false)
       setSubmitError(null)
     }
   }, [open, normalizedInitialGroupId])
@@ -158,17 +146,8 @@ const CreateKnowledgeBaseDialogRoot = ({
     value: model.id,
     label: formatKnowledgeModelOptionLabel(model.id)
   }))
-  const manualDimensions = parseKnowledgeDimensions(values.dimensions)
-  const isManualDimensionsInvalid = isManualDimensionsVisible && hasAttemptedManualDimensionsSubmit && !manualDimensions
-
   const handleEmbeddingModelChange = (embeddingModelId: string) => {
-    setValues((currentValues) => ({
-      ...currentValues,
-      embeddingModelId,
-      dimensions: ''
-    }))
-    setHasAttemptedManualDimensionsSubmit(false)
-    setIsManualDimensionsVisible(false)
+    setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
     setSubmitError(null)
   }
 
@@ -183,23 +162,11 @@ const CreateKnowledgeBaseDialogRoot = ({
 
     let dimensions: number
 
-    if (isManualDimensionsVisible) {
-      setHasAttemptedManualDimensionsSubmit(true)
-
-      if (!manualDimensions) {
-        return
-      }
-
-      dimensions = manualDimensions
-    } else {
-      try {
-        dimensions = await fetchDimensions(values.embeddingModelId)
-      } catch (error) {
-        setIsManualDimensionsVisible(true)
-        setHasAttemptedManualDimensionsSubmit(false)
-        setSubmitError(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
-        return
-      }
+    try {
+      dimensions = await fetchDimensions(values.embeddingModelId)
+    } catch (error) {
+      setSubmitError(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
+      return
     }
 
     const createInput: CreateKnowledgeBaseInput = {
@@ -296,25 +263,6 @@ const CreateKnowledgeBaseDialogRoot = ({
                 <FieldError>{t('knowledge.embedding_model_required')}</FieldError>
               ) : null}
             </KnowledgeDialogField>
-
-            {isManualDimensionsVisible ? (
-              <KnowledgeDialogField>
-                <Label htmlFor="knowledge-create-dimensions">{t('knowledge.dimensions')}</Label>
-                <Input
-                  id="knowledge-create-dimensions"
-                  value={values.dimensions}
-                  inputMode="numeric"
-                  aria-invalid={isManualDimensionsInvalid}
-                  onChange={(event) =>
-                    setValues((currentValues) => ({
-                      ...currentValues,
-                      dimensions: event.target.value.replace(/\D/g, '')
-                    }))
-                  }
-                />
-                {isManualDimensionsInvalid ? <FieldError>{t('knowledge.dimensions_error_invalid')}</FieldError> : null}
-              </KnowledgeDialogField>
-            ) : null}
 
             {submitError ? <FieldError>{submitError}</FieldError> : null}
           </KnowledgeDialogBody>

@@ -11,6 +11,12 @@ import type {
   SDKMessage,
   SDKPartialAssistantMessage,
   SDKResultMessage,
+  SDKStatusMessage,
+  SDKTaskNotificationMessage,
+  SDKTaskProgressMessage,
+  SDKTaskStartedMessage,
+  SDKTaskUpdatedMessage,
+  SDKThinkingTokensMessage,
   SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import type {
@@ -27,6 +33,7 @@ import type {
 import { loggerService } from '@logger'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryUIMessageChunk, CherryUIMessageMetadata } from '@shared/data/types/message'
+import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 
 import type { McpToolDisplayMetadata } from './types'
 
@@ -42,6 +49,12 @@ const MAX_DELTA_CALC_SIZE = 10_000
 
 type BetaUsage = SDKResultMessage['usage']
 type SDKParentToolUseId = SDKAssistantMessage['parent_tool_use_id']
+type SDKTaskSystemMessage =
+  | SDKTaskNotificationMessage
+  | SDKTaskProgressMessage
+  | SDKTaskStartedMessage
+  | SDKTaskUpdatedMessage
+type SDKTaskStatus = SDKTaskNotificationMessage['status'] | SDKTaskUpdatedMessage['patch']['status'] | undefined
 type ClaudeToolUseBlock = BetaToolUseBlock | BetaServerToolUseBlock | BetaMCPToolUseBlock
 type ClaudeToolResultBlock = Extract<BetaContentBlock | BetaContentBlockParam, { tool_use_id: string }>
 
@@ -174,6 +187,24 @@ function mapClaudeCodeFinishReason(subtype?: string, stopReason?: string | null)
       return { unified: 'stop', raw }
     default:
       return { unified: 'other', raw }
+  }
+}
+
+function mapTaskStatus(status: SDKTaskStatus): AgentTaskEventPartData['status'] | undefined {
+  switch (status) {
+    case 'pending':
+      return 'pending'
+    case 'running':
+    case 'paused':
+      return 'in_progress'
+    case 'completed':
+      return 'completed'
+    case 'failed':
+    case 'killed':
+    case 'stopped':
+      return 'error'
+    default:
+      return undefined
   }
 }
 
@@ -748,19 +779,154 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleSystemMessage(message: Extract<SDKMessage, { type: 'system' }>, ctx: StreamContext): void {
-    if (message.subtype === 'init') {
-      this.logMcpConnectionIssues(message.mcp_servers)
-      this.setSessionId(message.session_id)
-      logger.info(`Stream session initialized: ${message.session_id}`)
-      ctx.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: this.modelId } })
-      return
+    switch (message.subtype) {
+      case 'init':
+        this.handleInitSystemMessage(message, ctx)
+        return
+      case 'task_started':
+      case 'task_progress':
+      case 'task_updated':
+      case 'task_notification':
+        this.handleTaskSystemMessage(message, ctx)
+        return
+      case 'status':
+        this.handleStatusSystemMessage(message)
+        return
+      case 'compact_boundary':
+        this.handleCompactBoundarySystemMessage()
+        return
+      case 'thinking_tokens':
+        this.handleThinkingTokensSystemMessage(message, ctx)
+        return
+      case 'api_retry':
+      case 'hook_started':
+      case 'hook_progress':
+      case 'hook_response':
+      case 'session_state_changed':
+      case 'permission_denied':
+      case 'memory_recall':
+      case 'local_command_output':
+      case 'elicitation_complete':
+      case 'commands_changed':
+      case 'files_persisted':
+      case 'mirror_error':
+      case 'notification':
+      case 'plugin_install':
+        // TODO: Implement handling for these system message subtypes as needed. For now, they are acknowledged at debug level in the logger to avoid being silently ignored.
+        logger.debug(`Received system message subtype: ${message.subtype}`, { message })
+        return
+    }
+  }
+
+  private handleInitSystemMessage(message: Extract<SDKMessage, { subtype: 'init' }>, ctx: StreamContext): void {
+    this.logMcpConnectionIssues(message.mcp_servers)
+    this.setSessionId(message.session_id)
+    logger.info(`Stream session initialized: ${message.session_id}`)
+    ctx.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: this.modelId } })
+  }
+
+  private handleTaskSystemMessage(message: SDKTaskSystemMessage, ctx: StreamContext): void {
+    const eventData = this.toTaskEventPartData(message)
+
+    ctx.sink.enqueue({
+      type: 'data-agent-task-event',
+      id: `task-${eventData.taskId}-${eventData.event}-${message.uuid}`,
+      data: eventData
+    })
+  }
+
+  private handleStatusSystemMessage(message: SDKStatusMessage): void {
+    // Defensive fallback for future non-driver consumers. ClaudeCodeRuntimeDriver intercepts
+    // compaction status before this adapter and emits the runtime state itself.
+    if (message.status === 'compacting') return
+    if (message.compact_result === 'failed' || message.compact_error) {
+      logger.warn('Claude compaction failed', { sessionId: message.session_id, error: message.compact_error })
+    }
+  }
+
+  private handleCompactBoundarySystemMessage(): void {
+    // Defensive fallback for future non-driver consumers. The current driver path intercepts
+    // compact_boundary before this adapter, so no assistant stream chunk is emitted here.
+  }
+
+  private handleThinkingTokensSystemMessage(message: SDKThinkingTokensMessage, ctx: StreamContext): void {
+    ctx.sink.enqueue({
+      type: 'message-metadata',
+      messageMetadata: {
+        thoughtsTokens: message.estimated_tokens
+      }
+    })
+  }
+
+  private toTaskEventPartData(message: SDKTaskSystemMessage): AgentTaskEventPartData {
+    const base = {
+      taskId: message.task_id,
+      toolUseId: 'tool_use_id' in message ? message.tool_use_id : undefined
     }
 
-    // Every other system subtype (compact_boundary, status, api_retry, hook_*,
-    // task_*, notification, permission_denied, memory_recall, …) is a control
-    // signal with no consumer in Cherry yet. Acknowledged at debug so it is not
-    // silently swallowed; dedicated UI is planned in a follow-up PR.
-    logger.debug(`Unhandled claude system message subtype: ${message.subtype}`)
+    switch (message.subtype) {
+      case 'task_started':
+        return {
+          ...base,
+          event: 'started',
+          status: 'in_progress',
+          title: message.description,
+          activeText: message.description,
+          description: message.description,
+          subagentType: message.subagent_type,
+          taskType: message.task_type,
+          workflowName: message.workflow_name,
+          prompt: message.prompt,
+          skipTranscript: message.skip_transcript === true
+        }
+      case 'task_progress':
+        return {
+          ...base,
+          event: 'progress',
+          status: 'in_progress',
+          title: message.summary ?? message.description,
+          activeText: message.description,
+          description: message.description,
+          summary: message.summary,
+          subagentType: message.subagent_type,
+          lastToolName: message.last_tool_name,
+          usage: this.getTaskUsage(message.usage)
+        }
+      case 'task_updated': {
+        const status = mapTaskStatus(message.patch.status)
+        return {
+          ...base,
+          event: 'updated',
+          status,
+          title: message.patch.description,
+          activeText: status === 'in_progress' ? message.patch.description : undefined,
+          description: message.patch.description,
+          error: message.patch.error
+        }
+      }
+      case 'task_notification':
+        return {
+          ...base,
+          event: 'notification',
+          status: mapTaskStatus(message.status),
+          title: message.summary,
+          summary: message.summary,
+          outputFile: message.output_file,
+          skipTranscript: message.skip_transcript === true,
+          usage: this.getTaskUsage(message.usage)
+        }
+    }
+  }
+
+  private getTaskUsage(
+    value: SDKTaskNotificationMessage['usage'] | SDKTaskProgressMessage['usage'] | undefined
+  ): AgentTaskEventPartData['usage'] | undefined {
+    if (!value) return undefined
+    return {
+      totalTokens: value.total_tokens,
+      toolUses: value.tool_uses,
+      durationMs: value.duration_ms
+    }
   }
 
   private extractToolUses(content: BetaContentBlock[]): ClaudeToolUseBlock[] {

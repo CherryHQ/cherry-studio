@@ -1,6 +1,6 @@
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import CustomTag from '@renderer/components/Tags/CustomTag'
-import { getProviderLabel } from '@renderer/i18n/label'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import NavigationService from '@renderer/services/NavigationService'
 import { ArrowUpRight } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
@@ -43,7 +43,7 @@ export const FreeTrialModelTag: FC<Props> = ({ modelId, providerId, showLabel = 
           size={11}
           onClick={onNavigateProvider}
           style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          {getProviderLabel(linkedProviderId)}
+          {t(getProviderLabelKey(linkedProviderId))}
           <ArrowUpRight size={12} />
         </CustomTag>
       </div>
@@ -55,7 +55,7 @@ export const FreeTrialModelTag: FC<Props> = ({ modelId, providerId, showLabel = 
       <IndicatorLight size={6} color="var(--color-primary)" animation={false} shadow={false} />
       <span className="text-foreground-muted text-xs">{t('common.powered_by')}</span>
       <button type="button" className="text-primary text-xs hover:underline" onClick={onSelectProvider}>
-        {getProviderLabel(linkedProviderId)}
+        {t(getProviderLabelKey(linkedProviderId))}
       </button>
     </div>
   )

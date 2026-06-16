@@ -6663,6 +6663,7 @@
         "project_id": "Αναγνωριστικό έργου",
         "project_id_help": "Το αναγνωριστικό έργου Google Cloud",
         "project_id_placeholder": "your-google-cloud-project-id",
+        "select_location": "[to be translated]:Select location",
         "service_account": {
           "auth_success": "Η πιστοποίηση λογαριασμού υπηρεσίας ήταν επιτυχής",
           "client_email": "Email Πελάτη",
@@ -6678,7 +6679,10 @@
           "private_key": "Ιδιωτικό κλειδί",
           "private_key_help": "Το πεδίο private_key από το αρχείο κλειδιού JSON που κατεβάσατε από το Google Cloud Console",
           "private_key_placeholder": "Παρακαλώ εισάγετε το ιδιωτικό κλειδί του λογαριασμού υπηρεσίας",
-          "title": "Διαμόρφωση λογαριασμού υπηρεσίας"
+          "title": "Διαμόρφωση λογαριασμού υπηρεσίας",
+          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
+          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
+          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
         }
       }
     },

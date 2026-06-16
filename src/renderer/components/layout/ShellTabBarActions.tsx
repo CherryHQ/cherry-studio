@@ -3,7 +3,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isLinux, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { getThemeModeLabel } from '@renderer/i18n/label'
+import { getThemeModeLabelKey } from '@renderer/i18n/label'
 import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { Monitor, Moon, Settings, Sun } from 'lucide-react'
@@ -54,10 +54,10 @@ export function ShellTabBarActions({ isDetached = false }: { isDetached?: boolea
       {!isDetached && (
         <div className="mr-2 flex items-center [-webkit-app-region:no-drag]">
           <div className="flex items-center gap-1 rounded-[10px] px-1 py-1">
-            <Tooltip placement="bottom" content={getThemeModeLabel(settedTheme)} delay={800}>
+            <Tooltip placement="bottom" content={t(getThemeModeLabelKey(settedTheme))} delay={800}>
               <button
                 type="button"
-                aria-label={getThemeModeLabel(settedTheme)}
+                aria-label={t(getThemeModeLabelKey(settedTheme))}
                 onClick={toggleTheme}
                 className="flex h-8 w-8 items-center justify-center rounded-[8px] text-foreground/80 transition-colors hover:bg-[rgba(107,114,128,0.12)] hover:text-foreground">
                 <ThemeIcon size={16} strokeWidth={1.8} />

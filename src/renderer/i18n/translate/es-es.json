@@ -6663,6 +6663,7 @@
         "project_id": "ID del proyecto",
         "project_id_help": "Su ID de proyecto de Google Cloud",
         "project_id_placeholder": "su-id-de-proyecto-de-google-cloud",
+        "select_location": "[to be translated]:Select location",
         "service_account": {
           "auth_success": "Autenticación de Service Account exitosa",
           "client_email": "Correo electrónico del cliente",
@@ -6678,7 +6679,10 @@
           "private_key": "Clave privada",
           "private_key_help": "Campo private_key del archivo de clave JSON descargado desde Google Cloud Console",
           "private_key_placeholder": "Ingrese la clave privada de Service Account",
-          "title": "Configuración de Service Account"
+          "title": "Configuración de Service Account",
+          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
+          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
+          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
         }
       }
     },

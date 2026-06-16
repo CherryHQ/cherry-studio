@@ -149,4 +149,22 @@ describe('dispatchStreamRequest — steer', () => {
     await expect(dispatchStreamRequest(manager, makeSubscriber(), chatReq('agent-session:s1'))).rejects.toThrow('boom')
     expect(manager.send).not.toHaveBeenCalled()
   })
+
+  it('validates multi-model placeholders before sending', async () => {
+    mocks.persistentPrepare.mockResolvedValue({
+      topicId: 'topic-3',
+      models: [
+        { modelId: 'p::m1', request: { messageId: 'assistant-1' } },
+        { modelId: 'p::m2', request: {} }
+      ],
+      listeners: [] as StreamListener[],
+      isMultiModel: true
+    })
+    const manager = makeManager(false)
+
+    await expect(dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-3'))).rejects.toThrow(
+      'Multi-model dispatch produced 1 placeholderIds for 2 models'
+    )
+    expect(manager.send).not.toHaveBeenCalled()
+  })
 })
