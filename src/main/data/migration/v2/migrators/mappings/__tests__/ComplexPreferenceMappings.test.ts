@@ -240,7 +240,7 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': ['assistants', 'agents', 'store', 'translate', 'mini_app']
+        'ui.sidebar.favorites': ['assistants', 'agents', 'paintings', 'translate', 'store']
       })
     })
 
@@ -262,7 +262,7 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites': ['assistants', 'agents', 'store', 'translate', 'mini_app']
+        'ui.sidebar.favorites': ['assistants', 'agents', 'paintings', 'translate', 'store']
       })
     })
 

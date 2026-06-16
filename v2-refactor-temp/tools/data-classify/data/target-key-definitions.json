@@ -99,7 +99,7 @@
     {
       "targetKey": "ui.sidebar.favorites",
       "type": "PreferenceTypes.SidebarFavorite[]",
-      "defaultValue": ["assistants", "agents", "store", "translate", "mini_app"],
+      "defaultValue": ["assistants", "agents", "paintings", "translate", "store"],
       "status": "classified",
       "description": "Left sidebar favorite app ids, stored as an ordered subset of the sidebar app catalog"
     },
