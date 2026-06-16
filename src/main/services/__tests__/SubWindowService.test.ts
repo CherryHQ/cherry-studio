@@ -442,28 +442,16 @@ describe('SubWindowService', () => {
       expect(BrowserWindow.fromWebContents).not.toHaveBeenCalled()
     })
 
-    it('falls back to the sender BrowserWindow when untracked', () => {
+    it('ignores (returns false) when the sender is not a WindowManager-tracked window', () => {
       const handler = getIpcHandleHandler(svc, 'sub-window:set-always-on-top')
       windowManagerMock.getWindowIdByWebContents.mockReturnValue(undefined)
-      const win = createMockWindow()
-      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(win as any)
-
-      const result = handler({ sender: {} } as any, false)
-
-      expect(result).toBe(true)
-      expect(win.setAlwaysOnTop).toHaveBeenCalledWith(false)
-      expect(windowManagerMock.behavior.setAlwaysOnTop).not.toHaveBeenCalled()
-    })
-
-    it('returns false when the sender resolves to no window', () => {
-      const handler = getIpcHandleHandler(svc, 'sub-window:set-always-on-top')
-      windowManagerMock.getWindowIdByWebContents.mockReturnValue(undefined)
-      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(null as any)
 
       const result = handler({ sender: {} } as any, true)
 
       expect(result).toBe(false)
       expect(windowManagerMock.behavior.setAlwaysOnTop).not.toHaveBeenCalled()
+      // No fallback: an untracked sender is not a sub-window, so we never poke a raw BrowserWindow.
+      expect(BrowserWindow.fromWebContents).not.toHaveBeenCalled()
     })
   })
 

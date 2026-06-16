@@ -125,16 +125,11 @@ export class SubWindowService extends BaseService {
     this.ipcHandle(IpcChannel.SubWindow_SetAlwaysOnTop, (event, pinned: boolean) => {
       const wm = application.get('WindowManager')
       const senderId = wm.getWindowIdByWebContents(event.sender)
-      if (senderId) {
-        wm.behavior.setAlwaysOnTop(senderId, pinned)
-        return true
-      }
-      const win = BrowserWindow.fromWebContents(event.sender)
-      if (win && !win.isDestroyed()) {
-        win.setAlwaysOnTop(pinned)
-        return true
-      }
-      return false
+      // Only WindowManager-tracked windows can be sub-windows; an untracked sender is
+      // definitely not one, so ignore it rather than poking an arbitrary BrowserWindow.
+      if (!senderId) return false
+      wm.behavior.setAlwaysOnTop(senderId, pinned)
+      return true
     })
   }
 
