@@ -50,7 +50,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       />
     ),
     Tooltip: ({ children, classNames }: any) => (
-      <span className={classNames?.placeholder} data-testid="tooltip-trigger">
+      <span className={classNames?.placeholder} data-testid={classNames?.placeholder ? 'tooltip-trigger' : undefined}>
         {children}
       </span>
     )
@@ -58,7 +58,14 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('../ModelListItem', () => ({
-  default: ({ model }: any) => <div data-testid={`model-${model.id}`}>{model.name}</div>
+  default: ({ model, onDelete }: any) => (
+    <div data-testid={`model-${model.id}`}>
+      {model.name}
+      <button type="button" onClick={() => onDelete(model)}>
+        delete-{model.id}
+      </button>
+    </div>
+  )
 }))
 
 const models = [
@@ -99,6 +106,8 @@ describe('ModelListGroup', () => {
         bulkToggleEnabled={false}
         bulkToggleLabel="settings.models.group_disable"
         onEditModel={vi.fn()}
+        onDeleteModel={vi.fn()}
+        onDeleteModels={vi.fn()}
         onToggleModel={vi.fn()}
         onToggleModels={onToggleModels}
       />
@@ -126,6 +135,8 @@ describe('ModelListGroup', () => {
         bulkToggleEnabled={false}
         bulkToggleLabel="settings.models.group_disable"
         onEditModel={vi.fn()}
+        onDeleteModel={vi.fn()}
+        onDeleteModels={vi.fn()}
         onToggleModel={vi.fn()}
         onToggleModels={onToggleModels}
       />
@@ -154,6 +165,8 @@ describe('ModelListGroup', () => {
         bulkToggleEnabled={false}
         bulkToggleLabel="settings.models.group_disable"
         onEditModel={vi.fn()}
+        onDeleteModel={vi.fn()}
+        onDeleteModels={vi.fn()}
         onToggleModel={vi.fn()}
         onToggleModels={vi.fn()}
       />
@@ -164,7 +177,96 @@ describe('ModelListGroup', () => {
       'true'
     )
     expect(screen.getByRole('switch', { name: 'settings.models.group_disable' })).toHaveAttribute('data-size', 'xs')
-    expect(screen.getByTestId('tooltip-trigger')).toHaveClass('inline-flex', 'h-6', 'items-center')
+    expect(screen.getByRole('switch', { name: 'settings.models.group_disable' }).parentElement).toHaveClass(
+      'inline-flex',
+      'h-6',
+      'items-center'
+    )
+  })
+
+  it('passes delete actions to model rows', () => {
+    const onDeleteModel = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <ModelListGroup
+        groupName="chat"
+        items={models.map((model: any) => ({ model }))}
+        defaultOpen
+        disabled={false}
+        pendingModelIds={new Set()}
+        bulkToggleEnabled={false}
+        bulkToggleLabel="settings.models.group_disable"
+        onEditModel={vi.fn()}
+        onDeleteModel={onDeleteModel}
+        onDeleteModels={vi.fn()}
+        onToggleModel={vi.fn()}
+        onToggleModels={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'delete-openai::alpha' }))
+
+    expect(onDeleteModel).toHaveBeenCalledWith(models[0])
+  })
+
+  it('deletes all models in the group from the header action', () => {
+    const onDeleteModels = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <ModelListGroup
+        groupName="chat"
+        items={models.map((model: any) => ({ model }))}
+        defaultOpen
+        disabled={false}
+        pendingModelIds={new Set()}
+        bulkToggleEnabled={false}
+        bulkToggleLabel="settings.models.group_disable"
+        onEditModel={vi.fn()}
+        onDeleteModel={vi.fn()}
+        onDeleteModels={onDeleteModels}
+        onToggleModel={vi.fn()}
+        onToggleModels={vi.fn()}
+      />
+    )
+
+    const deleteButtons = screen.getAllByRole('button', { name: 'settings.models.manage.remove_model' })
+
+    expect(deleteButtons[0]).toHaveClass('opacity-0', 'group-hover/groupRow:opacity-100')
+    fireEvent.click(deleteButtons[0])
+
+    expect(onDeleteModels).toHaveBeenCalledWith(models)
+  })
+
+  it('logs and shows a toast when deleting a group fails', async () => {
+    const error = new Error('delete group failed')
+    const onDeleteModels = vi.fn().mockRejectedValue(error)
+
+    render(
+      <ModelListGroup
+        groupName="chat"
+        items={models.map((model: any) => ({ model }))}
+        defaultOpen
+        disabled={false}
+        pendingModelIds={new Set()}
+        bulkToggleEnabled={false}
+        bulkToggleLabel="settings.models.group_disable"
+        onEditModel={vi.fn()}
+        onDeleteModel={vi.fn()}
+        onDeleteModels={onDeleteModels}
+        onToggleModel={vi.fn()}
+        onToggleModels={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'settings.models.manage.remove_model' })[0])
+
+    await waitFor(() => {
+      expect(loggerErrorMock).toHaveBeenCalledWith('Failed to delete provider model group', {
+        groupName: 'chat',
+        error
+      })
+    })
+    expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
   })
 
   it('toggles the group body from the title row while keeping the action separate', () => {
@@ -178,6 +280,8 @@ describe('ModelListGroup', () => {
         bulkToggleEnabled
         bulkToggleLabel="settings.models.group_enable"
         onEditModel={vi.fn()}
+        onDeleteModel={vi.fn()}
+        onDeleteModels={vi.fn()}
         onToggleModel={vi.fn()}
         onToggleModels={vi.fn()}
       />
@@ -200,6 +304,8 @@ describe('ModelListGroup', () => {
         bulkToggleEnabled
         bulkToggleLabel="settings.models.group_enable"
         onEditModel={vi.fn()}
+        onDeleteModel={vi.fn()}
+        onDeleteModels={vi.fn()}
         onToggleModel={vi.fn()}
         onToggleModels={vi.fn()}
       />
@@ -218,6 +324,8 @@ describe('ModelListGroup', () => {
         bulkToggleLabel="settings.models.group_enable"
         expansionCommand={{ expanded: false, version: 1 }}
         onEditModel={vi.fn()}
+        onDeleteModel={vi.fn()}
+        onDeleteModels={vi.fn()}
         onToggleModel={vi.fn()}
         onToggleModels={vi.fn()}
       />
@@ -236,6 +344,8 @@ describe('ModelListGroup', () => {
         bulkToggleLabel="settings.models.group_enable"
         expansionCommand={{ expanded: true, version: 2 }}
         onEditModel={vi.fn()}
+        onDeleteModel={vi.fn()}
+        onDeleteModels={vi.fn()}
         onToggleModel={vi.fn()}
         onToggleModels={vi.fn()}
       />

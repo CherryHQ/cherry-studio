@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useProviderModelList } from '../useProviderModelList'
 
 const useModelsMock = vi.fn()
+const deleteModelMock = vi.fn()
 const updateModelMock = vi.fn()
 const updateModelsMock = vi.fn()
 
@@ -27,6 +28,7 @@ const models = [
 vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args),
   useModelMutations: () => ({
+    deleteModel: deleteModelMock,
     updateModel: updateModelMock,
     updateModels: updateModelsMock
   })
@@ -37,6 +39,7 @@ describe('useProviderModelList', () => {
     vi.clearAllMocks()
 
     useModelsMock.mockReturnValue({ models, isLoading: false })
+    deleteModelMock.mockResolvedValue(undefined)
     updateModelMock.mockResolvedValue(undefined)
     updateModelsMock.mockResolvedValue(undefined)
   })
@@ -185,6 +188,133 @@ describe('useProviderModelList', () => {
 
     expect(result.current.sections.displayEnabledModelCount).toBe(2)
     expect(result.current.sections.displayDisabledModelCount).toBe(0)
+  })
+
+  it('deletes a model and removes it from the list immediately', async () => {
+    useModelsMock.mockReturnValue({ models, isLoading: false })
+
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+
+    await act(async () => {
+      await result.current.sections.onDeleteModel(models[1])
+    })
+
+    expect(deleteModelMock).toHaveBeenCalledWith('openai', 'model-beta')
+    expect(result.current.header.modelCount).toBe(1)
+    expect(result.current.sections.displayEnabledModelCount).toBe(1)
+    expect(result.current.sections.displayDisabledModelCount).toBe(0)
+    expect(
+      result.current.sections.enabledSections.flatMap((section) => section.items).map((item) => item.model.id)
+    ).toEqual(['openai::reasoning-alpha'])
+    expect(
+      result.current.sections.disabledSections.flatMap((section) => section.items).map((item) => item.model.id)
+    ).not.toContain('openai::model-beta')
+  })
+
+  it('rolls a failed model delete back to its original section', async () => {
+    const error = new Error('delete failed')
+    useModelsMock.mockReturnValue({ models, isLoading: false })
+    deleteModelMock.mockRejectedValueOnce(error)
+
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+
+    await act(async () => {
+      await expect(result.current.sections.onDeleteModel(models[1])).rejects.toThrow('delete failed')
+    })
+
+    expect(deleteModelMock).toHaveBeenCalledWith('openai', 'model-beta')
+    expect(result.current.header.modelCount).toBe(2)
+    expect(result.current.sections.displayEnabledModelCount).toBe(1)
+    expect(result.current.sections.displayDisabledModelCount).toBe(1)
+    expect(
+      result.current.sections.disabledSections.flatMap((section) => section.items).map((item) => item.model.id)
+    ).toContain('openai::model-beta')
+  })
+
+  it('deletes all selected group models and removes them immediately', async () => {
+    const groupedModels = [
+      {
+        id: 'openai::chat-alpha',
+        name: 'Alpha',
+        group: 'chat',
+        capabilities: ['reasoning'],
+        isEnabled: true,
+        providerId: 'openai'
+      },
+      {
+        id: 'openai::chat-beta',
+        name: 'Beta',
+        group: 'chat',
+        capabilities: ['embedding'],
+        isEnabled: true,
+        providerId: 'openai'
+      },
+      {
+        id: 'openai::vision-gamma',
+        name: 'Gamma',
+        group: 'vision',
+        capabilities: ['reasoning'],
+        isEnabled: true,
+        providerId: 'openai'
+      }
+    ] as any
+
+    useModelsMock.mockReturnValue({ models: groupedModels, isLoading: false })
+
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+    const chatSection = result.current.sections.enabledSections.find((section) => section.groupName === 'chat')
+
+    await act(async () => {
+      await result.current.sections.onDeleteModels(chatSection?.items.map((item) => item.model) ?? [])
+    })
+
+    expect(deleteModelMock).toHaveBeenCalledTimes(2)
+    expect(deleteModelMock).toHaveBeenCalledWith('openai', 'chat-alpha')
+    expect(deleteModelMock).toHaveBeenCalledWith('openai', 'chat-beta')
+    expect(result.current.header.modelCount).toBe(1)
+    expect(result.current.sections.displayEnabledModelCount).toBe(1)
+    expect(
+      result.current.sections.enabledSections.flatMap((section) => section.items).map((item) => item.model.id)
+    ).toEqual(['openai::vision-gamma'])
+  })
+
+  it('rolls back only failed models when group delete partially fails', async () => {
+    const error = new Error('delete beta failed')
+    const groupedModels = [
+      {
+        id: 'openai::chat-alpha',
+        name: 'Alpha',
+        group: 'chat',
+        capabilities: ['reasoning'],
+        isEnabled: true,
+        providerId: 'openai'
+      },
+      {
+        id: 'openai::chat-beta',
+        name: 'Beta',
+        group: 'chat',
+        capabilities: ['embedding'],
+        isEnabled: true,
+        providerId: 'openai'
+      }
+    ] as any
+
+    deleteModelMock.mockImplementation((_providerId: string, modelId: string) =>
+      modelId === 'chat-beta' ? Promise.reject(error) : Promise.resolve()
+    )
+    useModelsMock.mockReturnValue({ models: groupedModels, isLoading: false })
+
+    const { result } = renderHook(() => useProviderModelList({ providerId: 'openai' }))
+
+    await act(async () => {
+      await expect(result.current.sections.onDeleteModels(groupedModels)).rejects.toThrow('delete beta failed')
+    })
+
+    expect(deleteModelMock).toHaveBeenCalledTimes(2)
+    expect(result.current.header.modelCount).toBe(1)
+    expect(
+      result.current.sections.enabledSections.flatMap((section) => section.items).map((item) => item.model.id)
+    ).toEqual(['openai::chat-beta'])
   })
 
   it('moves bulk-disabled visible models into the disabled section immediately', async () => {
