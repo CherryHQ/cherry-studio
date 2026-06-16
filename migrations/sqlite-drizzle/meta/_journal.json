@@ -71,6 +71,13 @@
       "when": 1781318632653,
       "tag": "0009_secret_firelord",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1781584510702,
+      "tag": "0010_misty_beyonder",
+      "breakpoints": true
     }
   ]
 }

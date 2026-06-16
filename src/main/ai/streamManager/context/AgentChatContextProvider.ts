@@ -15,7 +15,7 @@ import type { UIMessage } from 'ai'
 import { v7 as uuidv7 } from 'uuid'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../../agentSession/topic'
-import { applyTurnInputAttributes, startAiTurnTrace } from '../../observability'
+import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { runtimeDriverRegistry } from '../../runtime'
 import type { StreamListener } from '../types'
 import type { ChatContextProvider, PreparedDispatch } from './ChatContextProvider'
@@ -122,9 +122,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const assistantMessageId = uuidv7()
 
-    // Container trace for this live runtime entry. Continuation turns reuse this trace while the
-    // entry stays warm; no session-table migration is required for this PR.
-    const turnTrace = startAiTurnTrace(
+    // Container trace: one trace tree per session. The turn's `ai.turn` span is a
+    // child under it; Claude Code child spans join via the connection's TRACEPARENT.
+    const traceId = await agentSessionService.ensureTraceId(sessionId)
+    const turnTrace = startAiChildTurnSpan(
       'ai.turn',
       {
         attributes: {
@@ -136,9 +137,9 @@ export class AgentChatContextProvider implements ChatContextProvider {
           'cs.session_id': sessionId
         }
       },
-      { topicId: req.topicId, modelName: parseUniqueModelId(uniqueModelId).modelId }
+      { topicId: req.topicId, modelName: parseUniqueModelId(uniqueModelId).modelId },
+      traceId
     )
-    const traceId = turnTrace.traceId
 
     // Atomic user + pending-assistant write so `useAgentSessionParts` observes both at once.
     const savedMessages = await agentSessionMessageService.saveMessages({

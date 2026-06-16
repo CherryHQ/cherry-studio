@@ -389,6 +389,134 @@ describe('TopicService', () => {
     })
   })
 
+  describe('deleteByAssistantId', () => {
+    async function seedAssistant(id: string, orderKey: string, deletedAt: number | null = null) {
+      await dbh.db.insert(assistantTable).values({
+        id,
+        name: id,
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey,
+        deletedAt,
+        createdAt: 1,
+        updatedAt: 1
+      })
+    }
+
+    it('deletes only the assistant non-deleted topics and cascades messages/tags/pins', async () => {
+      await seedAssistant('asst-1', 'a0')
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-1', name: 'Topic 1', assistantId: 'asst-1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'topic-2', name: 'Topic 2', assistantId: 'asst-1', orderKey: 'a1', createdAt: 1, updatedAt: 1 }
+      ])
+      await dbh.db.insert(messageTable).values({
+        id: 'message-1',
+        topicId: 'topic-1',
+        role: 'user',
+        data: { parts: [] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await dbh.db.insert(tagTable).values({ id: 'tag-1', name: 'work', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(entityTagTable).values({
+        entityType: 'topic',
+        entityId: 'topic-1',
+        tagId: 'tag-1',
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await dbh.db
+        .insert(pinTable)
+        .values({ id: 'pin-1', entityType: 'topic', entityId: 'topic-2', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+
+      const result = await topicService.deleteByAssistantId('asst-1')
+
+      expect(result.deletedIds.sort()).toEqual(['topic-1', 'topic-2'])
+      expect(result.deletedCount).toBe(2)
+      expect(await dbh.db.select().from(topicTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(entityTagTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(pinTable)).toHaveLength(0)
+    })
+
+    it('only deletes topics scoped to the target assistant', async () => {
+      await seedAssistant('asst-1', 'a0')
+      await seedAssistant('asst-2', 'a1')
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-1', name: 'Topic 1', assistantId: 'asst-1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'topic-2', name: 'Topic 2', assistantId: 'asst-2', orderKey: 'a1', createdAt: 1, updatedAt: 1 }
+      ])
+
+      const result = await topicService.deleteByAssistantId('asst-1')
+
+      expect(result).toEqual({ deletedIds: ['topic-1'], deletedCount: 1 })
+      const remaining = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.id))
+      expect(remaining.map((topic) => topic.id)).toEqual(['topic-2'])
+    })
+
+    it('excludes soft-deleted topics from the count', async () => {
+      await seedAssistant('asst-1', 'a0')
+      await dbh.db.insert(topicTable).values([
+        { id: 'topic-live', name: 'Live', assistantId: 'asst-1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        {
+          id: 'topic-gone',
+          name: 'Gone',
+          assistantId: 'asst-1',
+          orderKey: 'a1',
+          deletedAt: 999,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+
+      const result = await topicService.deleteByAssistantId('asst-1')
+
+      expect(result).toEqual({ deletedIds: ['topic-live'], deletedCount: 1 })
+      // The soft-deleted row must remain untouched.
+      const remaining = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.id))
+      expect(remaining.map((topic) => topic.id)).toEqual(['topic-gone'])
+    })
+
+    it('returns deletedCount 0 without throwing when the assistant has no topics', async () => {
+      // Diverges from deleteByIds — there is no requireAll semantics here, so
+      // an assistant with zero (live) topics is a successful no-op delete.
+      await seedAssistant('asst-empty', 'a0')
+
+      await expect(topicService.deleteByAssistantId('asst-empty')).resolves.toEqual({
+        deletedIds: [],
+        deletedCount: 0
+      })
+    })
+
+    it('throws NOT_FOUND when the assistant does not exist', async () => {
+      await expect(topicService.deleteByAssistantId('missing-assistant')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+    })
+
+    it('throws NOT_FOUND when the assistant is soft-deleted', async () => {
+      // The isNull(assistantTable.deletedAt) guard treats a soft-deleted
+      // assistant as absent — its topics must not be silently purged.
+      await seedAssistant('asst-gone', 'a0', 999)
+      await dbh.db.insert(topicTable).values({
+        id: 'topic-1',
+        name: 'Topic 1',
+        assistantId: 'asst-gone',
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      await expect(topicService.deleteByAssistantId('asst-gone')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+      // The topic must survive the rejected call.
+      expect(await dbh.db.select().from(topicTable)).toHaveLength(1)
+    })
+  })
+
   describe('reorder', () => {
     /**
      * Seed three topics inside the same group with monotonically increasing

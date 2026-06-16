@@ -23,6 +23,11 @@ import WordExtractor from 'word-extractor'
 
 const logger = loggerService.withContext('FileStorage')
 
+function resolveHomeRelativeFilePath(filePath: string): string {
+  if (!filePath.startsWith('~/') && !filePath.startsWith('~\\')) return filePath
+  return path.join(application.getPath('sys.home'), filePath.slice(2))
+}
+
 class FileStorage {
   // TODO(v2): Lazy getter is a workaround, not a fix.
   //
@@ -726,7 +731,7 @@ class FileStorage {
   }
 
   public openPath = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
-    const resolved = await shell.openPath(path)
+    const resolved = await shell.openPath(resolveHomeRelativeFilePath(path))
     if (resolved !== '') {
       throw new Error(resolved)
     }
@@ -814,7 +819,7 @@ class FileStorage {
     fileName: string,
     content: string,
     options?: SaveDialogOptions
-  ): Promise<string> => {
+  ): Promise<string | null> => {
     try {
       const result: SaveDialogReturnValue = await dialog.showSaveDialog({
         title: t('dialog.save_file'),
@@ -822,13 +827,11 @@ class FileStorage {
         ...options
       })
 
-      if (result.canceled) {
-        return Promise.reject(new Error('User canceled the save dialog'))
+      if (result.canceled || !result.filePath) {
+        return null
       }
 
-      if (!result.canceled && result.filePath) {
-        writeFileSync(result.filePath, content, { encoding: 'utf-8' })
-      }
+      writeFileSync(result.filePath, content, { encoding: 'utf-8' })
 
       return result.filePath
     } catch (err: any) {
@@ -1043,13 +1046,14 @@ class FileStorage {
   }
 
   public showInFolder = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
-    if (!fs.existsSync(path)) {
-      const msg = `File or folder does not exist: ${path}`
+    const resolvedPath = resolveHomeRelativeFilePath(path)
+    if (!fs.existsSync(resolvedPath)) {
+      const msg = `File or folder does not exist: ${resolvedPath}`
       logger.error(msg)
       throw new Error(msg)
     }
     try {
-      shell.showItemInFolder(path)
+      shell.showItemInFolder(resolvedPath)
     } catch (error) {
       logger.error('Failed to show item in folder:', error as Error)
     }

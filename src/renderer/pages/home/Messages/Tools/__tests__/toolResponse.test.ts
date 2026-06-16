@@ -32,6 +32,55 @@ describe('toolResponse adapter', () => {
     expect(response.response).toBe('ok')
   })
 
+  it('maps cherry provider metadata to MCP tool fields', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-meta',
+      toolName: 'search_docs',
+      state: 'output-available',
+      input: { q: 'hello' },
+      output: 'ok',
+      providerMetadata: {
+        cherry: {
+          tool: {
+            serverName: 'Docs',
+            serverId: 'docs-server',
+            type: 'mcp'
+          }
+        }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part, 'fallback-meta')
+    expect(response).toBeTruthy()
+    if (!response) throw new Error('Expected tool response')
+    expect(response.tool.type).toBe('mcp')
+    expect((response.tool as any).serverId).toBe('docs-server')
+    expect((response.tool as any).serverName).toBe('Docs')
+  })
+
+  it('maps cherry provider metadata to provider tool responses', () => {
+    const part = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-provider',
+      toolName: 'WebSearch',
+      state: 'output-available',
+      input: { query: 'desktop clients' },
+      output: 'ok',
+      providerMetadata: {
+        cherry: {
+          tool: {
+            type: 'provider'
+          }
+        }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part, 'fallback-provider')
+    expect(response?.tool.type).toBe('provider')
+    expect(response?.tool.name).toBe('WebSearch')
+  })
+
   it('maps output-error to error status and error-shaped response', () => {
     const part = {
       type: 'dynamic-tool',
