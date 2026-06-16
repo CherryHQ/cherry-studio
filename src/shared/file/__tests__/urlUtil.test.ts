@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { FilePath } from '../types/common'
+import type { FilePath, FileURLString } from '../types/common'
 import { fileUrlToPath, isDangerExt, toFileUrl, toSafeFileUrl } from '../urlUtil'
 
 describe('isDangerExt', () => {
@@ -62,6 +62,14 @@ describe('fileUrlToPath', () => {
 
   it('preserves UNC hosts as network paths', () => {
     expect(fileUrlToPath('file://server/share/report%20final.pdf')).toBe('//server/share/report final.pdf')
+  })
+
+  it('throws for a non-file: URL', () => {
+    expect(() => fileUrlToPath(new URL('https://example.com/foo.pdf'))).toThrow(TypeError)
+  })
+
+  it('throws on malformed percent-encoding', () => {
+    expect(() => fileUrlToPath('file:///foo/%zz.pdf' as FileURLString)).toThrow(URIError)
   })
 })
 

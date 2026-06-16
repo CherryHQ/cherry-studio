@@ -53,9 +53,9 @@ export const ListKnowledgeBasesQuerySchema = z.strictObject({
   page: z.int().positive().default(KNOWLEDGE_BASES_DEFAULT_PAGE),
   limit: z.int().positive().max(KNOWLEDGE_BASES_MAX_LIMIT).default(KNOWLEDGE_BASES_DEFAULT_LIMIT),
   search: z.string().trim().min(1).optional(),
-  updatedAtFrom: z.coerce.number().int().optional(),
+  updatedAtFrom: z.iso.datetime().optional(),
   sortBy: z.enum(['createdAt', 'updatedAt', 'name']).optional(),
-  orderBy: z.enum(['asc', 'desc']).optional()
+  sortOrder: z.enum(['asc', 'desc']).optional()
 })
 
 export type ListKnowledgeBasesQueryParams = z.input<typeof ListKnowledgeBasesQuerySchema>

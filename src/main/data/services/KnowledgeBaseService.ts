@@ -117,18 +117,18 @@ export class KnowledgeBaseService {
     const search = buildSearchPredicate(query.search)
     if (search) conditions.push(search)
     if (query.updatedAtFrom !== undefined) {
-      conditions.push(gte(knowledgeBaseTable.updatedAt, query.updatedAtFrom))
+      conditions.push(gte(knowledgeBaseTable.updatedAt, Date.parse(query.updatedAtFrom)))
     }
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
     const sortBy = query.sortBy ?? 'createdAt'
-    const orderBy = query.orderBy ?? 'desc'
-    const orderFn = orderBy === 'asc' ? asc : desc
+    const sortOrder = query.sortOrder ?? 'desc'
+    const orderFn = sortOrder === 'asc' ? asc : desc
     const sortByToColumn = {
       createdAt: knowledgeBaseTable.createdAt,
       updatedAt: knowledgeBaseTable.updatedAt,
       name: knowledgeBaseTable.name
     } as const
-    const sortColumn = sortByToColumn[sortBy] ?? knowledgeBaseTable.createdAt
+    const sortColumn = sortByToColumn[sortBy]
     const [rows, [{ count }]] = await Promise.all([
       this.db
         .select({

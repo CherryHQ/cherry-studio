@@ -23,8 +23,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { isMac, isWin } from '@main/core/platform'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
-import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
-import getShellEnv from '@main/utils/shell-env'
+import { getBinaryName } from '@main/utils/process'
 import type { TerminalConfig, TerminalConfigWithCommand } from '@shared/config/constant'
 import {
   codeCLI,
@@ -147,7 +146,7 @@ export class CodeCliService extends BaseService {
       case codeCLI.githubCopilotCli:
         return '@github/copilot'
       case codeCLI.kimiCli:
-        return 'kimi-cli' // Python package
+        return '@moonshot-ai/kimi-code'
       case codeCLI.openCode:
         return 'opencode-ai'
       default:
@@ -1051,30 +1050,6 @@ export class CodeCliService extends BaseService {
       baseCommand = `"${bunPath}" "${executablePath}"`
     }
 
-    // Special handling for kimi-cli: use uvx instead of bun
-    if (cliTool === codeCLI.kimiCli) {
-      const shellEnv = await getShellEnv()
-      let uvPath = await findCommandInShellEnv('uv', shellEnv)
-
-      if (!uvPath) {
-        if (await isBinaryExists('uv')) {
-          uvPath = await getBinaryPath('uv')
-          logger.info('Using bundled uv as fallback (not found in PATH)', { command: uvPath })
-        } else {
-          throw new Error(
-            'uv not found in PATH and bundled version is not available.\n' +
-              'Please either:\n' +
-              '1. Install uv from https://github.com/astral-sh/uv\n' +
-              '2. Run the MCP dependencies installer from Settings\n' +
-              '3. Restart the application if you recently installed uv'
-          )
-        }
-      }
-
-      baseCommand = `${uvPath} tool run ${packageName}`
-    }
-
-    // Special handling for qwen-code: add --auth-type openai for version >= 0.12.3
     if (cliTool === codeCLI.qwenCode) {
       // Use semver for proper version comparison (handles v-prefix, prereleases, etc.)
       const coerced = semver.coerce(installedVersion)
@@ -1137,11 +1112,7 @@ export class CodeCliService extends BaseService {
 
     const bunInstallPath = path.join(os.homedir(), HOME_CHERRY_DIR)
 
-    // Special handling for kimi-cli: uvx handles installation automatically
-    if (cliTool === codeCLI.kimiCli) {
-      // uvx will automatically download and run kimi-cli, no need to install
-      // Just use the base command directly
-    } else if (isInstalled) {
+    if (isInstalled) {
       // If already installed, run executable directly (with optional update message)
       if (updateMessage) {
         // updateMessage already has escaped dynamic content, && connectors are intentional
