@@ -316,31 +316,52 @@ describe('SubWindowService', () => {
       expect((svc as any).windowState.has('tab-A')).toBe(false)
     })
 
-    it('auto-shows on ready-to-show only when no initial position was provided', () => {
+    it('shows immediately (no ready-to-show wait) when no initial position was provided', () => {
       const win = createMockWindow()
       windowManagerMock.getWindow.mockReturnValue(win)
 
       svc.createWindow({ id: 'tab-noxy', url: 'u' })
-      win.emit('ready-to-show')
-      expect(win.show).toHaveBeenCalledTimes(1)
 
-      win.show.mockClear()
-      const win2 = createMockWindow()
-      windowManagerMock.getWindow.mockReturnValue(win2)
-      svc.createWindow({ id: 'tab-xy', url: 'u', x: 10, y: 10 })
-      win2.emit('ready-to-show')
-      expect(win2.show).not.toHaveBeenCalled()
+      // Unconditional + immediate show (mirrors SelectionService.showActionWindow): the window is
+      // shown synchronously inside createWindow, not deferred to a ready-to-show listener.
+      expect(win.show).toHaveBeenCalledTimes(1)
     })
 
-    it('shows immediately when a reused pool window has already loaded (no ready-to-show wait)', () => {
+    it('does not show here when an initial position was provided (Tab_MoveWindow shows it)', () => {
+      const win = createMockWindow()
+      windowManagerMock.getWindow.mockReturnValue(win)
+
+      svc.createWindow({ id: 'tab-xy', url: 'u', x: 10, y: 10 })
+
+      expect(win.show).not.toHaveBeenCalled()
+    })
+
+    it('shows a reused (already-loaded) standby immediately — no dependence on isLoadingMainFrame', () => {
+      // Negative control for the old stuck-hidden bug: a reused standby's ready-to-show already
+      // fired during pre-warm and never fires again. isLoadingMainFrame() returns false here, yet
+      // the window must still be shown synchronously (the old conditional would have skipped or
+      // hung on a ready-to-show wait).
       const win = createMockWindow()
       win.webContents.isLoadingMainFrame.mockReturnValue(false)
       windowManagerMock.getWindow.mockReturnValue(win)
 
       svc.createWindow({ id: 'tab-reused', url: 'u' })
 
-      // Recycled standby already fired ready-to-show during pre-warm, so it must be shown now
-      // rather than waiting for an event that will never fire again.
+      expect(win.show).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not stay hidden when the load never completes (no ready-to-show fallback needed)', () => {
+      // Regression for the stuck-hidden failure mode: previously a still-loading window
+      // (isLoadingMainFrame === true) waited on ready-to-show, which on a failed load never fires,
+      // leaving the window hidden forever. Unconditional show removes that dependency entirely:
+      // even with a still-loading window and no ready-to-show emission, show() is called.
+      const win = createMockWindow()
+      win.webContents.isLoadingMainFrame.mockReturnValue(true)
+      windowManagerMock.getWindow.mockReturnValue(win)
+
+      svc.createWindow({ id: 'tab-stuck', url: 'u' })
+
+      // No ready-to-show emitted, yet the window is already shown.
       expect(win.show).toHaveBeenCalledTimes(1)
     })
   })
@@ -427,6 +448,44 @@ describe('SubWindowService', () => {
       handler({ sender: {} } as any, { tabId: 'tab-self', x: 5, y: 5 })
 
       expect(win.setOpacity).toHaveBeenCalledWith(0.85)
+    })
+  })
+
+  describe('Tab_TryAttach handler', () => {
+    it('broadcasts + closes sub window when drop is over Main tab bar', async () => {
+      const handler = getIpcHandleHandler(svc, 'tab:try-attach')
+      const mainWin = createMockWindow()
+      windowManagerMock.getWindowsByType.mockImplementation((type) => (type === 'main' ? [mainWin as any] : []))
+      ;(svc as any).tabIdToWindowId.set('tab-drop', 'wid-drop')
+
+      const result = await handler({} as any, {
+        tab: { id: 'tab-drop' },
+        screenX: 500,
+        screenY: 120 // within 100..900 x and 100..140 y (tab bar 40px)
+      })
+
+      expect(result).toBe(true)
+      expect(windowManagerMock.broadcastToType).toHaveBeenCalledWith('main', 'tab:attach', { id: 'tab-drop' })
+      expect(windowManagerMock.close).toHaveBeenCalledWith('wid-drop')
+    })
+
+    it('restores opacity to 1 when drop misses the tab bar', async () => {
+      const handler = getIpcHandleHandler(svc, 'tab:try-attach')
+      const mainWin = createMockWindow()
+      const subWin = createMockWindow()
+      windowManagerMock.getWindowsByType.mockImplementation((type) => (type === 'main' ? [mainWin as any] : []))
+      windowManagerMock.getWindow.mockImplementation((id) => (id === 'wid-drop' ? subWin : undefined))
+      ;(svc as any).tabIdToWindowId.set('tab-drop', 'wid-drop')
+
+      const result = await handler({} as any, {
+        tab: { id: 'tab-drop' },
+        screenX: 500,
+        screenY: 500 // well below tab bar
+      })
+
+      expect(result).toBe(false)
+      expect(windowManagerMock.close).not.toHaveBeenCalled()
+      expect(subWin.setOpacity).toHaveBeenCalledWith(1)
     })
   })
 
