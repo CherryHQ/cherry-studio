@@ -559,9 +559,6 @@
       "search": {
         "placeholder": "搜索任务"
       },
-      "tool": {
-        "disabled": "{{toolName}} 工具已被此智能体禁用。"
-      },
       "unpin": {
         "title": "取消置顶任务"
       },

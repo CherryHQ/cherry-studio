@@ -401,6 +401,8 @@ export class AiStreamManager extends BaseService {
 
     const stream: ActiveStream = {
       topicId: input.topicId,
+      // Surfaced into the topic status snapshot for per-window turn de-dup. Not yet read by any
+      // consumer on any branch — the renderer reader lands in the renderer split (keep it).
       turnId: `${Date.now()}:${++this.nextStreamTurnSequence}`,
       executions,
       listeners: new Map(input.listeners.map((l) => [l.id, l])),

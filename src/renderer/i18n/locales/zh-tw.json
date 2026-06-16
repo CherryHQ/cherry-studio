@@ -559,9 +559,6 @@
       "search": {
         "placeholder": "搜尋任務"
       },
-      "tool": {
-        "disabled": "{{toolName}} 工具已被此智慧體停用。"
-      },
       "unpin": {
         "title": "取消固定任務"
       },

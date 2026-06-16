@@ -559,9 +559,6 @@
       "search": {
         "placeholder": "Search tasks"
       },
-      "tool": {
-        "disabled": "The {{toolName}} tool is disabled for this agent."
-      },
       "unpin": {
         "title": "Unpin task"
       },

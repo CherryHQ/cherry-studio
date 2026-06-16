@@ -14,7 +14,7 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
-import type { AgentEntity, AgentPermissionMode, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentEntity, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
@@ -247,23 +247,55 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   async applyAgentPolicyUpdate(agentId: string, update: AgentRuntimePolicyUpdate): Promise<void> {
-    const updates: Array<Promise<boolean> | boolean> = []
+    const updates: Array<{
+      entry: AgentSessionRuntimeEntry
+      connection: AgentRuntimeConnection
+      promise: Promise<boolean> | boolean
+    }> = []
     for (const entry of this.entries.values()) {
-      if (entry.agentId !== agentId || !entry.connection?.applyPolicyUpdate) continue
-      updates.push(entry.connection.applyPolicyUpdate(update))
+      if (entry.agentId !== agentId) continue
+      const { connection } = entry
+      if (!connection?.applyPolicyUpdate) continue
+      updates.push({ entry, connection, promise: connection.applyPolicyUpdate(update) })
     }
-    await Promise.allSettled(updates)
+    const results = await Promise.allSettled(updates.map(({ promise }) => promise))
+    for (const [index, result] of results.entries()) {
+      const updateTarget = updates[index]
+      if (!updateTarget) continue
+      const { entry, connection } = updateTarget
+      const { sessionId } = entry
+
+      // Fail closed: a rejected policy update may have left the connection enforcing the OLD (looser)
+      // policy — the snapshot's `permissionMode` gates `canUseTool`, so a failed tighten must not keep
+      // running. Pause the live turn and tear the connection down rather than silently continuing.
+      if (result.status === 'rejected') {
+        logger.error('Failed to apply live agent policy update; closing runtime connection', {
+          agentId,
+          sessionId,
+          error: result.reason
+        })
+        this.closeFailedPolicyUpdateConnection(entry, connection)
+        continue
+      }
+
+      // `false` means the connection had no live query to apply the update to (already torn down) —
+      // detach it so a stale connection doesn't keep serving a policy it never received.
+      if (result.value === false) {
+        logger.warn('Live agent policy update had no live query; detaching runtime connection', { agentId, sessionId })
+        this.detachPolicyUpdateConnection(entry, connection)
+      }
+    }
   }
 
   private async handleAgentUpdated(agentId: string, updates: UpdateAgentDto, agent: AgentEntity): Promise<void> {
-    const configuration = updates.configuration as { permission_mode?: unknown } | undefined
-    const hasPermissionModeUpdate =
-      configuration !== undefined && Object.prototype.hasOwnProperty.call(configuration, 'permission_mode')
-
-    if (hasPermissionModeUpdate) {
+    // `configuration` is a wholesale column replace, so a partial update that omits `permission_mode`
+    // still changes the effective value (it clears it). Resync on ANY configuration change and derive
+    // the authoritative value from the post-update agent — never from the update DTO's key presence,
+    // which would leave the warm connection on a stale mode the DB no longer holds.
+    if (updates.configuration !== undefined) {
       await this.applyAgentPolicyUpdate(agentId, {
         type: 'permission-mode',
-        permissionMode: configuration.permission_mode as AgentPermissionMode | undefined
+        permissionMode: agent.configuration?.permission_mode
       })
     }
 
@@ -411,6 +443,8 @@ export class AgentSessionRuntimeService extends BaseService {
     if (!entry) return false
     // `rolling`: A1a just closed at a steer boundary and the continuation (A2) is coming — keep the
     // stream alive so A2 carries the renderer listeners.
+    // `compacting`: a compaction is mid-flight between turns; keep the stream alive so its
+    // compaction-anchor / completion chunks (and the resumed turn) still reach the renderer.
     return (
       entry.pendingTurns.length > 0 ||
       entry.startingNextTurn === true ||
@@ -588,11 +622,11 @@ export class AgentSessionRuntimeService extends BaseService {
     })
   }
 
-  private handleCompactionComplete(entry: AgentSessionRuntimeEntry, anchor: AgentSessionCompactionAnchorData): void {
+  private handleCompactionComplete(entry: AgentSessionRuntimeEntry, anchor?: AgentSessionCompactionAnchorData): void {
     entry.compacting = false
 
     const turn = entry.currentTurn
-    if (turn?.controller && !turn.terminalStatus) {
+    if (anchor && turn?.controller && !turn.terminalStatus) {
       this.enqueueTurnChunk(turn, {
         type: 'data-compaction-anchor',
         id: crypto.randomUUID(),
@@ -600,8 +634,10 @@ export class AgentSessionRuntimeService extends BaseService {
       } as UIMessageChunk)
     }
 
-    // Completed-run metrics ride the data-compaction-anchor chunk above (the UI's source); the cache
-    // state only tracks `status`.
+    // Completed-run metrics ride the `data-compaction-anchor` chunk above (the UI's source); the cache
+    // state only tracks `status`. A no-anchor success (which can follow the boundary, or arrive on its
+    // own when the SDK reports success without a boundary) therefore can't clobber any token stats — it
+    // just leaves the compacting state.
     application.get('CacheService').setShared(AGENT_SESSION_COMPACTION_CACHE_KEY(entry.sessionId), {
       status: 'idle'
     })
@@ -1009,6 +1045,25 @@ export class AgentSessionRuntimeService extends BaseService {
     entry.startingNextTurn = false
 
     void Promise.resolve(connection?.close()).catch((error) =>
+      logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
+    )
+  }
+
+  private closeFailedPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
+    if (entry.connection !== connection) return
+    const turn = entry.currentTurn
+    if (turn && !turn.terminalStatus) {
+      // Pause the live turn so the renderer learns it stopped (the abort path then tears the session
+      // down via `closeSession`); a failed tighten must not keep streaming under the old policy.
+      application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-policy-update-failed')
+    }
+    this.detachPolicyUpdateConnection(entry, connection)
+  }
+
+  private detachPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
+    if (entry.connection !== connection) return
+    this.closeConnection(entry)
+    void Promise.resolve(connection.close()).catch((error) =>
       logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
     )
   }

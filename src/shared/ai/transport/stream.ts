@@ -69,7 +69,11 @@ export interface ComposerQueuedMessagePayload {
  */
 export interface TopicStatusSnapshotEntry {
   status: TopicStreamStatus
-  /** Unique per stream lifecycle; lets per-window seen state distinguish repeated turns on the same topic. */
+  /**
+   * Unique per stream lifecycle; lets per-window seen state distinguish repeated turns on the same
+   * topic. Main writes it today; the renderer consumer is not yet wired — it lands in the renderer
+   * split (do not remove: the consumer is real, just unsplit).
+   */
   turnId?: string
   activeExecutions: ActiveExecution[]
   awaitingApprovalAnchors: ActiveExecution[]

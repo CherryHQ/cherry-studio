@@ -25,7 +25,6 @@ export interface ClaudeToolInvocation {
 
 export interface ClaudeToolPolicy {
   permissionMode?: AgentPermissionMode
-  disabledTools?: readonly string[]
 }
 
 const DEFAULT_SAFE_TOOLS = new Set(['Read', 'Glob', 'Grep', 'NotebookRead', 'Task', 'TodoWrite'])
@@ -66,24 +65,11 @@ export function matchesClaudeToolRule(rule: string, descriptor: ClaudeToolDescri
   return false
 }
 
-function hasRuleMatch(values: readonly string[] | undefined, descriptor: ClaudeToolDescriptor): boolean {
-  return values?.some((value) => matchesClaudeToolRule(value, descriptor)) ?? false
-}
-
 function sourceDecision(descriptor: ClaudeToolDescriptor): ClaudeToolDecision | undefined {
   if (descriptor.sourceApproval === 'prompt') {
     return { id: descriptor.id, approval: 'prompt' }
   }
   return undefined
-}
-
-/**
- * A tool the agent has explicitly disabled is denied outright — it overrides permission mode and
- * auto-approval resolution. Evaluated live per invocation (via the policy snapshot), so disabling a
- * tool takes effect on the current warm connection without a rebuild.
- */
-export function isClaudeToolDisabled(descriptor: ClaudeToolDescriptor, policy: ClaudeToolPolicy): boolean {
-  return hasRuleMatch(policy.disabledTools, descriptor)
 }
 
 export function resolveClaudeToolAccess(
