@@ -3,7 +3,10 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { copy, ensureDir, remove, removeDir } from '@main/utils/file/fs'
+import { getFileExt } from '@main/utils/file'
+import { copy, ensureDir, remove, removeDir, write } from '@main/utils/file/fs'
+import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
+import { documentExts } from '@shared/config/constant'
 import type { FilePath } from '@shared/file/types'
 
 const logger = loggerService.withContext('Knowledge:PathStorage')
@@ -11,8 +14,23 @@ const logger = loggerService.withContext('Knowledge:PathStorage')
 const CHERRY_META_DIR = '.cherry'
 const VECTOR_STORE_FILE = 'index.sqlite'
 
+/**
+ * The single material root inside a base dir. All material bytes live flat under
+ * `{baseDir}/raw/`, a sibling of the `.cherry/` control dir (which holds the
+ * derived index). A `relativePath` is always relative to this root; byte
+ * resolution is `{baseDir}/raw/{relativePath}` (knowledge-technical-design.md §2).
+ * Materials are not sub-partitioned by import-action type — the directory layout
+ * is internal and type/origin is read from `knowledge_item`, never the path.
+ */
+const MATERIAL_ROOT_DIR = 'raw'
+
 export function getKnowledgeBaseDir(baseId: string): FilePath {
   return path.join(application.getPath('feature.knowledgebase.data'), baseId) as FilePath
+}
+
+/** The material root (`{baseDir}/raw`) under which every `relativePath` resolves. */
+export function getKnowledgeMaterialDir(baseId: string): FilePath {
+  return path.join(getKnowledgeBaseDir(baseId), MATERIAL_ROOT_DIR) as FilePath
 }
 
 export function getKnowledgeBaseMetaDir(baseId: string): FilePath {
@@ -32,7 +50,7 @@ export function getKnowledgeVectorStoreFilePathSync(baseId: string): FilePath {
 
 export function getKnowledgeBaseFilePath(baseId: string, relativePath: string): FilePath {
   assertSafeKnowledgeRelativePath(relativePath)
-  return path.join(getKnowledgeBaseDir(baseId), relativePath) as FilePath
+  return path.join(getKnowledgeMaterialDir(baseId), relativePath) as FilePath
 }
 
 export function getKnowledgeSourceRelativePath(sourcePath: string): string {
@@ -42,11 +60,11 @@ export function getKnowledgeSourceRelativePath(sourcePath: string): string {
 }
 
 export function toKnowledgeRelativePath(baseId: string, absolutePath: string): string {
-  const baseDir = getKnowledgeBaseDir(baseId)
-  const relativePath = path.relative(baseDir, absolutePath)
+  const materialDir = getKnowledgeMaterialDir(baseId)
+  const relativePath = path.relative(materialDir, absolutePath)
   assertSafeKnowledgeRelativePath(relativePath)
-  if (!isPathInsideBase(baseDir, absolutePath)) {
-    throw new Error(`Path is outside knowledge base '${baseId}': ${absolutePath}`)
+  if (!isPathInsideBase(materialDir, absolutePath)) {
+    throw new Error(`Path is outside knowledge base material root '${baseId}': ${absolutePath}`)
   }
   return normalizeRelativePath(relativePath)
 }
@@ -57,8 +75,32 @@ export function getProcessedMarkdownRelativePath(relativePath: string): string {
   return normalizeRelativePath(path.join(parsed.dir, `${parsed.name}.md`))
 }
 
-export async function copyFileIntoKnowledgeBase(baseId: string, sourcePath: string): Promise<string> {
-  return copyFileIntoKnowledgeBaseAt(baseId, sourcePath, getKnowledgeSourceRelativePath(sourcePath))
+/**
+ * Reserve a free relative path for an imported material (auto-renaming on collision via
+ * a `_N` suffix) and return it. When `reserveProcessedArtifact`, the prospective
+ * processed-markdown sibling must also be free at the chosen suffix, and both are reserved
+ * together — so a processor later emitting `paper.md` can never disagree with the source.
+ * Mutates `reservedPaths`. The single dedup entry point: file imports (upload + the v1→v2
+ * migrator's copied files) and URL-snapshot capture/restore all reserve names through it
+ * (snapshots pass `false` — markdown has no processed artifact).
+ */
+export function reserveImportedFileRelativePath(
+  sourceRelativePath: string,
+  reserveProcessedArtifact: boolean,
+  reservedPaths: Set<string>
+): string {
+  const chosen = nextFreeKnowledgeRelativePath(sourceRelativePath, (candidate) => {
+    if (reservedPaths.has(candidate)) {
+      return false
+    }
+    return !reserveProcessedArtifact || !reservedPaths.has(getProcessedMarkdownRelativePath(candidate))
+  })
+
+  reservedPaths.add(chosen)
+  if (reserveProcessedArtifact) {
+    reservedPaths.add(getProcessedMarkdownRelativePath(chosen))
+  }
+  return chosen
 }
 
 export async function copyFileIntoKnowledgeBaseAt(
@@ -73,24 +115,88 @@ export async function copyFileIntoKnowledgeBaseAt(
   return relativePath
 }
 
+/** Write in-memory content (e.g. a captured URL snapshot) to a base-relative file. */
+export async function writeFileIntoKnowledgeBaseAt(
+  baseId: string,
+  relativePath: string,
+  content: string
+): Promise<string> {
+  const destPath = getKnowledgeBaseFilePath(baseId, relativePath)
+  await assertTargetAvailable(destPath)
+  await ensureDir(path.dirname(destPath) as FilePath)
+  await write(destPath, content)
+  return relativePath
+}
+
+/**
+ * Whether a source file, given the base's processor, will produce a processed
+ * markdown artifact whose `.md` sibling slot must be reserved alongside it.
+ */
+export function needsProcessedArtifactReservation(
+  fileProcessorId: string | null | undefined,
+  relativePath: string
+): boolean {
+  if (!fileProcessorId) {
+    return false
+  }
+  return documentExts.includes(getFileExt(relativePath).toLowerCase())
+}
+
+/**
+ * The single source of truth for "which base-relative paths are already occupied":
+ * every file's source + indexed-artifact path, and every captured URL/note snapshot
+ * path. The reserved set the snapshot capture, the add-time dedup, and the
+ * processed-artifact collision check all build from.
+ *
+ * - `fileProcessorId`: also reserve the *prospective* processed-markdown slot of a
+ *   file whose artifact isn't pinned yet (so a name chosen now can't collide with
+ *   the `.md` a later index will emit). Omit it when only on-disk paths matter.
+ * - `excludeItemId`: skip that item's own paths — used to test a candidate path
+ *   against every *other* item in the base.
+ */
+export function collectKnowledgeReservedRelativePaths(
+  items: Array<{ id?: string; type: string; data: unknown }>,
+  options: { fileProcessorId?: string | null; excludeItemId?: string } = {}
+): Set<string> {
+  const reserved = new Set<string>()
+  for (const item of items) {
+    if (options.excludeItemId !== undefined && item.id === options.excludeItemId) {
+      continue
+    }
+    if (typeof item.data !== 'object' || item.data === null) {
+      continue
+    }
+    const data = item.data as { relativePath?: unknown; indexedRelativePath?: unknown }
+    if (typeof data.relativePath === 'string') {
+      reserved.add(data.relativePath)
+      if (
+        item.type === 'file' &&
+        typeof data.indexedRelativePath !== 'string' &&
+        needsProcessedArtifactReservation(options.fileProcessorId, data.relativePath)
+      ) {
+        reserved.add(getProcessedMarkdownRelativePath(data.relativePath))
+      }
+    }
+    if (typeof data.indexedRelativePath === 'string') {
+      reserved.add(data.indexedRelativePath)
+    }
+  }
+  return reserved
+}
+
 export async function assertKnowledgeFileTargetAvailable(baseId: string, relativePath: string): Promise<void> {
   await assertTargetAvailable(getKnowledgeBaseFilePath(baseId, relativePath))
 }
 
 export async function deleteKnowledgeItemFiles(
   baseId: string,
-  items: Array<{ type: string; data: unknown }>
+  items: Array<{ id?: string; type: string; data: unknown }>
 ): Promise<void> {
-  const paths = new Set<string>()
-  for (const item of items) {
-    if (item.type !== 'file' || typeof item.data !== 'object' || item.data === null) {
-      continue
-    }
-    const data = item.data as { relativePath?: unknown; indexedRelativePath?: unknown }
-    if (typeof data.relativePath === 'string') paths.add(data.relativePath)
-    if (typeof data.indexedRelativePath === 'string') paths.add(data.indexedRelativePath)
-  }
-
+  // url/note snapshots persist a `raw/{relativePath}` file too, so remove every
+  // item's stored path (mirroring collectKnowledgeReservedRelativePaths). Skipping
+  // non-file items here would leak the snapshot on item delete and let a later
+  // same-titled re-add collide on the orphaned file.
+  const paths = collectKnowledgeReservedRelativePaths(items)
   await Promise.all([...paths].map((relativePath) => remove(getKnowledgeBaseFilePath(baseId, relativePath))))
 }
 
@@ -121,7 +227,7 @@ export async function deleteKnowledgeBaseDir(baseId: string): Promise<void> {
   await removeDir(getKnowledgeBaseDir(baseId))
 }
 
-function assertSafeKnowledgeRelativePath(relativePath: string): void {
+export function assertSafeKnowledgeRelativePath(relativePath: string): void {
   if (!relativePath || path.isAbsolute(relativePath) || relativePath.includes('\0')) {
     throw new Error(`Invalid knowledge relative path: ${relativePath}`)
   }

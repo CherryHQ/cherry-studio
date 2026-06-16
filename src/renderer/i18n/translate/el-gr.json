@@ -5682,12 +5682,18 @@
           },
           "invalid": "Μη έγκυρη εισαγωγή, ελέγξτε τη μορφή JSON",
           "json": "Εισαγωγή από JSON",
+          "mcpb": "Εισαγωγή Δέσμης MCPB",
+          "mcpbFile": "Αρχείο Δέσμης MCPB",
+          "mcpbHelp": "Επιλέξτε ένα αρχείο .mcpb που περιέχει ένα πακέτο διακομιστή MCP",
+          "mcpbProcessFailed": "Αποτυχία επεξεργασίας αρχείου MCPB",
           "method": "Μέθοδος Εισαγωγής",
           "nameExists": "Ο διακομιστής υπάρχει ήδη: {{name}}",
           "noDxtFile": "Παρακαλώ επιλέξτε ένα αρχείο DXT",
+          "noMcpbFile": "Παρακαλώ επιλέξτε ένα αρχείο MCPB",
           "oneServer": "Μπορεί να αποθηκευτεί μόνο μία διαμόρφωση διακομιστή MCP κάθε φορά",
           "placeholder": "Επικολλήστε τη διαμόρφωση JSON του διακομιστή MCP",
           "selectDxtFile": "Επιλέξτε Αρχείο DXT",
+          "selectMcpbFile": "Επιλέξτε αίχος MCPB",
           "tooltip": "Αντιγράψτε το JSON διαμόρφωσης από τη σελίδα εισαγωγής του MCP Servers (προτιμήστε\n διαμορφώσεις NPX ή UVX) και επικολλήστε το στο πεδίο εισαγωγής"
         },
         "label": "Προσθήκη διακομιστή"
@@ -6657,6 +6663,7 @@
         "project_id": "Αναγνωριστικό έργου",
         "project_id_help": "Το αναγνωριστικό έργου Google Cloud",
         "project_id_placeholder": "your-google-cloud-project-id",
+        "select_location": "[to be translated]:Select location",
         "service_account": {
           "auth_success": "Η πιστοποίηση λογαριασμού υπηρεσίας ήταν επιτυχής",
           "client_email": "Email Πελάτη",
@@ -6672,7 +6679,10 @@
           "private_key": "Ιδιωτικό κλειδί",
           "private_key_help": "Το πεδίο private_key από το αρχείο κλειδιού JSON που κατεβάσατε από το Google Cloud Console",
           "private_key_placeholder": "Παρακαλώ εισάγετε το ιδιωτικό κλειδί του λογαριασμού υπηρεσίας",
-          "title": "Διαμόρφωση λογαριασμού υπηρεσίας"
+          "title": "Διαμόρφωση λογαριασμού υπηρεσίας",
+          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
+          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
+          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
         }
       }
     },

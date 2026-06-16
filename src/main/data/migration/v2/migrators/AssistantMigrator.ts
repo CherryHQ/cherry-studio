@@ -238,8 +238,8 @@ export class AssistantMigrator extends BaseMigrator {
         return { ...row, modelId: null }
       })
 
-      // Replace transformAssistant's `''` orderKey placeholders with real
-      // fractional-indexing keys, ordered by transform/insert sequence.
+      // Stamp legacy rows with real fractional-indexing keys, ordered by
+      // transform/insert sequence.
       // Uses the migrator-side helper per data-ordering-guide.md §5.
       const orderedAssistantRows = assignOrderKeysInSequence(sanitizedAssistantRows)
 

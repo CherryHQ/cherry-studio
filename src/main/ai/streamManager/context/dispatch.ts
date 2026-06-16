@@ -122,6 +122,26 @@ export async function dispatchStreamRequest(
     )
   }
 
+  const reservedAssistantIds =
+    prepared.reservedMessages
+      ?.filter((message) => message.role === 'assistant')
+      .map((message) => message.id)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0) ?? []
+  const fallbackPlaceholderIds = prepared.models
+    .map((m) => m.request.messageId)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0)
+  const placeholderIds = reservedAssistantIds.length > 0 ? reservedAssistantIds : fallbackPlaceholderIds
+
+  // Multi-model topics are persistent-only with a placeholder per model, so the
+  // filtered list must stay aligned with `executionIds`. Fail fast if a future
+  // multi-model provider ever returns a model without a messageId — silently
+  // dropping it would desync the renderer's per-execution bubble join.
+  if (prepared.isMultiModel && placeholderIds.length !== prepared.models.length) {
+    throw new Error(
+      `Multi-model dispatch produced ${placeholderIds.length} placeholderIds for ${prepared.models.length} models (topicId=${prepared.topicId})`
+    )
+  }
+
   const result = manager.send({
     topicId: prepared.topicId,
     models: prepared.models,
@@ -135,8 +155,6 @@ export async function dispatchStreamRequest(
     executionIds: prepared.isMultiModel ? result.executionIds : undefined,
     userMessageId: prepared.userMessageId,
     reservedMessages: prepared.reservedMessages,
-    placeholderIds: prepared.reservedMessages
-      ?.filter((message) => message.role === 'assistant')
-      .map((message) => message.id)
+    placeholderIds: placeholderIds.length > 0 ? placeholderIds : undefined
   }
 }

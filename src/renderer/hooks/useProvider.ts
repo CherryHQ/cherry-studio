@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { getProviderLabel } from '@renderer/i18n/label'
+import i18n from '@renderer/i18n'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import { isSystemProviderId } from '@renderer/types/provider'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type {
@@ -243,7 +244,7 @@ export function useProviderApiKeys(providerId: string) {
  */
 export function getProviderDisplayName(provider: Provider | undefined): string {
   if (!provider) return ''
-  return isSystemProviderId(provider.id) ? getProviderLabel(provider.id) : provider.name
+  return isSystemProviderId(provider.id) ? i18n.t(getProviderLabelKey(provider.id)) : provider.name
 }
 
 /**

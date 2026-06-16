@@ -100,6 +100,17 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(withAbort).toBe(withoutAbort)
   })
 
+  it('uses the same signature with or without the session steer holder', () => {
+    const withHolder = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      resume: 'sdk-1',
+      steerHolder: { pending: [], dispose: vi.fn() }
+    } as any)
+    const withoutHolder = createClaudeCodeWarmQuerySignature({ model: 'sonnet', resume: 'sdk-1' } as any)
+
+    expect(withHolder).toBe(withoutHolder)
+  })
+
   it('closes unused warm queries after the idle ttl', async () => {
     const manager = new ClaudeCodeWarmQueryManager()
     const warm = warmQuery()

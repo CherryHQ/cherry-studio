@@ -57,6 +57,16 @@ const mockWindowManager = {
   onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() }))
 }
 
+/**
+ * Minimal IpcApiService mock — services push main→renderer events via
+ * `application.get('IpcApiService').send(windowId, event, payload)` (directed) or
+ * `.broadcast(event, payload)` (all windows). Tests can assert on these spies.
+ */
+const mockIpcApiService = {
+  send: vi.fn(),
+  broadcast: vi.fn()
+}
+
 /** Default service instances from existing mock files */
 export const defaultServiceInstances = {
   PreferenceService: MockMainPreferenceServiceExport.preferenceService,
@@ -64,7 +74,8 @@ export const defaultServiceInstances = {
   DataApiService: MockMainDataApiServiceExport.dataApiService,
   DbService: MockMainDbServiceExport.dbService,
   MainWindowService: mockMainWindowService,
-  WindowManager: mockWindowManager
+  WindowManager: mockWindowManager,
+  IpcApiService: mockIpcApiService
 } as const
 
 /** Type for per-service overrides */
