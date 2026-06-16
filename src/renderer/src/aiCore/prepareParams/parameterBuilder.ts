@@ -111,6 +111,7 @@ export async function buildStreamTextParams(
   capabilities: ProviderCapabilities
   webSearchPluginConfig?: WebSearchPluginConfig
   idleTimeout: IdleTimeoutHandle
+  customProviderParams: Record<string, unknown>
 }> {
   const { mcpTools, requestOptions = {} } = options
   // No caller currently provides a custom timeout; defaultTimeout (10 min) is the fallback.
@@ -164,7 +165,7 @@ export async function buildStreamTextParams(
     searchWithTime: store.getState().websearch.searchWithTime
   }
 
-  const { providerOptions, standardParams } = buildProviderOptions(assistant, model, provider, {
+  const { providerOptions, standardParams, customProviderParams } = buildProviderOptions(assistant, model, provider, {
     enableReasoning,
     enableWebSearch,
     enableGenerateImage
@@ -246,7 +247,8 @@ export async function buildStreamTextParams(
     modelId: model.id,
     capabilities: { enableReasoning, enableWebSearch, enableGenerateImage, enableUrlContext },
     webSearchPluginConfig,
-    idleTimeout
+    idleTimeout,
+    customProviderParams
   }
 }
 
