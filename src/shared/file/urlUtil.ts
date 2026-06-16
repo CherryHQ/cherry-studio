@@ -165,6 +165,9 @@ export function toFileUrl(absolutePath: FilePath): FileURLString {
  *
  * Main-process code should use Node's `fileURLToPath` when it is already in a
  * Node-only module. This helper exists for shared / renderer-safe code.
+ *
+ * Throws `TypeError` for a non-`file:` URL and `URIError` for malformed
+ * percent-encoding (via `decodeURIComponent`).
  */
 export function fileUrlToPath(fileUrl: FileURLString | URL): string {
   const url = typeof fileUrl === 'string' ? new URL(fileUrl) : fileUrl
