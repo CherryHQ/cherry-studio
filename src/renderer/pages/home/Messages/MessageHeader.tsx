@@ -6,8 +6,6 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import useAvatar from '@renderer/hooks/useAvatar'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
-import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useMessageStyle } from '@renderer/hooks/useSettings'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { type Assistant, type Model, type Topic, TopicType } from '@renderer/types'
@@ -37,8 +35,6 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const { agent } = useAgent(isAgentSessionAssistantMessage ? (topic.assistantId ?? null) : null)
   const { t } = useTranslation()
   const { isBubbleStyle } = useMessageStyle()
-  const { openMiniAppById } = useMiniAppPopup()
-  const { allApps } = useMiniApps()
 
   const { isMultiSelectMode, selectedMessageIds, handleSelectMessage } = useChatContext()
 
@@ -63,15 +59,6 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
 
   const avatarName = useMemo(() => firstLetter(assistant?.name ?? '').toUpperCase(), [assistant?.name])
   const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
-  const hasProviderMiniApp = useMemo(
-    () => !!model?.provider && allApps.some((app) => app.appId === model.provider),
-    [allApps, model?.provider]
-  )
-
-  const showMiniApp = useCallback(() => {
-    if (!model?.provider || !hasProviderMiniApp) return
-    openMiniAppById(model.provider)
-  }, [hasProviderMiniApp, model?.provider, openMiniAppById])
 
   const userNameJustifyContent = useMemo(() => {
     if (!isBubbleStyle) return 'flex-start'
@@ -83,19 +70,16 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
     <div className="message-header relative mb-2.5 flex items-center gap-2.5">
       {isAssistantMessage ? (
         ModelIcon ? (
-          <div
-            onClick={hasProviderMiniApp ? showMiniApp : undefined}
-            className={hasProviderMiniApp ? 'cursor-pointer' : 'cursor-default'}>
+          <div>
             <ModelIcon.Avatar size={35} className="rounded-[25%]" />
           </div>
         ) : (
           <Avatar
-            className={`h-[35px] w-[35px] rounded-[25%] ${hasProviderMiniApp ? 'cursor-pointer' : 'cursor-default'}`}
+            className="h-[35px] w-[35px] rounded-[25%]"
             style={{
               border: 'none',
               filter: theme === 'dark' ? 'invert(0.05)' : undefined
-            }}
-            onClick={hasProviderMiniApp ? showMiniApp : undefined}>
+            }}>
             <AvatarFallback className="rounded-[25%]">{avatarName}</AvatarFallback>
           </Avatar>
         )
