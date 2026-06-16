@@ -99,7 +99,7 @@ flowchart TB
   D[Drizzle schemas] --> CG[codegen 生成 refs]
   CG --> T[表 列 主键 JSON引用 清单]
   T --> BC[BackupContributor schema policy operations]
-  BC --> CM[ContributorManager finalize 24 不变量]
+  BC --> CM[ContributorManager finalize 25 不变量]
   CM --> BR[BackupRegistry]
   BR --> EX[ExportOrchestrator]
   BR --> IM[ImportOrchestrator]
@@ -159,7 +159,7 @@ flowchart TB
 
 ### 6. 实现侧类型契约
 
-`EntityGraphSchema`：`tables` / `references`（kind: optional|owning|junction）/ `primaryKeys`（kind: uuid-v4|uuid-v7|natural|composite|autoincrement(finalize 拒绝)，ambiguous 标注）/ **`aggregates`**（`AggregateBoundary { root, renamable, [identityKey?], [identityClass?], [conflictDefault?], [members?] }`——除 `root` 与 `renamable` 外其余字段全部从 `references + primaryKeys` 派生，contributor 显式声明仅用于偏离默认）/ `fileRefSourcePolicies` / `jsonSoftReferences` / `rowScopes?`（共享表行分区，如 job_schedule.type='agent.task' 归 AGENTS，F1）。派生规则：identityKey=root PK；identityClass=primaryKeys[root].kind → uuid-entity|natural-key（slot 须显式）；conflictDefault=identityClass 映射（uuid-entity→SKIP；natural-key/slot→FIELD_MERGE）；members=域内指向 root 的 owning include references 源表（junction 表与跨域 ref 不计入，#14 拒绝漂移）。
+`EntityGraphSchema`：`tables` / `references`（kind: optional|owning|junction）/ `primaryKeys`（kind: uuid-v4|uuid-v7|natural|composite|autoincrement(finalize 拒绝)，ambiguous 标注）/ **`aggregates`**（`AggregateBoundary { root, renamable, [identityKey?], [identityClass?], [conflictDefault?], [members?] }`——除 `root` 与 `renamable` 外其余字段全部从 `references + primaryKeys` 派生，contributor 显式声明仅用于偏离默认）/ `fileRefSourcePolicies` / `jsonSoftReferences` / `rowScopes?`（共享表行分区，如 job_schedule.type='agent.task' 归 AGENTS，F1）。派生规则：identityKey=root PK；identityClass=primaryKeys[root].kind：uuid-v4/v7→uuid-entity、natural/composite→natural-key（slot 须显式）；conflictDefault=identityClass 映射（uuid-entity→SKIP；natural-key/slot→FIELD_MERGE）；members=域内指向 root 的 owning include references 源表（junction 表与跨域 ref 不计入，#14 拒绝漂移）。
 
 `BackupContributorPolicy`：`omittedReferenceOverrides`（仅例外，须绑定事实+非冗余+reason）、`uniqueMergeRules`、`fieldMergePolicies`（FIELD_MERGE 列级合并）。**不含** restoreRemap / idStrategies（over-design，移除）。
 
@@ -175,7 +175,7 @@ flowchart TB
 | `root` | —（手写） | 必填 | — |
 | `renamable` | —（手写） | 必填 | — |
 | `identityKey` | `primaryKeys[root].columns`（root 的 PK 列） | PK 是复合且 alignment 键非全 PK | "natural-key 复合 PK 用单列" |
-| `identityClass` | `primaryKeys[root].kind` → `uuid-v4`/`uuid-v7` 映 `uuid-entity`,`natural` 映 `natural-key` | `slot`（预定义槽位） | "preset provider slot,非 codegen 可推断" |
+| `identityClass` | `primaryKeys[root].kind`：`uuid-v4`/`uuid-v7`→`uuid-entity`、`natural`/`composite`→`natural-key` | `slot`（预定义槽位） | "preset provider slot,非 codegen 可推断；composite→natural-key：聚合根的复合 PK 必为自然复合键（如 preference[scope,key]），junction 表不走此路径（非 root）" |
 | `conflictDefault` | `uuid-entity`→`SKIP`;`natural-key`/`slot`→`FIELD_MERGE` | 某域要偏离默认（如改 OVERWRITE）时显式声明 | "现网无域偏离（PROVIDERS 走 FIELD_MERGE）；如有须带 reason + finalize #21 校验" |
 | `members` | 域内指向 root 的 owning include references 源表（junction 表与跨域 ref 不计入） | 需排除默认成员（如"message.parentId 自引用不计入聚合"） | "self-ref 不参与聚合" |
 
@@ -232,7 +232,7 @@ flowchart TB
 ```mermaid
 flowchart TB
   C[各域 Contributor 静态导出] --> CM[ContributorManager 收集]
-  CM --> FN[finalize 启动期校验 24 不变量 不连 DB]
+  CM --> FN[finalize 启动期校验 25 不变量 不连 DB]
   FN --> BR[BackupRegistry 规则视图]
   FN --> X[失败则启动中断 报 domain table owner 不变量]
   BR --> EX[ExportOrchestrator 查询]
@@ -241,7 +241,7 @@ flowchart TB
   CT[coverage test CI] -.DB 表覆盖兜底.-> FN
 ```
 
-注册到消费链路：各域 Contributor 静态导出 → ContributorManager 收集 → finalize 启动期校验 24 不变量（不连 DB）→ 通过则产出 BackupRegistry 供 orchestrator 查询，失败则启动中断并报 domain/table/owner/不变量。BackupService（WhenReady）@DependsOn(ContributorManager) 保证 finalize 先完成；DB 实际表覆盖由 coverage test（CI）兜底，故 finalize 不连 DB。
+注册到消费链路：各域 Contributor 静态导出 → ContributorManager 收集 → finalize 启动期校验 25 不变量（不连 DB）→ 通过则产出 BackupRegistry 供 orchestrator 查询，失败则启动中断并报 domain/table/owner/不变量。BackupService（WhenReady）@DependsOn(ContributorManager) 保证 finalize 先完成；DB 实际表覆盖由 coverage test（CI）兜底，故 finalize 不连 DB。
 
 各 hook 调用时机与缺省：collectFileResources（导出前收集文件/缺省空集）、beforeArchive（剥离后仅改备份副本/no-op）、transformRow（导入前/原行，返回 null 跳过该行）、afterImport（域导入后 FTS 重建/no-op）、restoreResources（DB 导入前事务外/无）、cloneAggregate（仅 renamable 聚合 RENAME/缺则 finalize 拒）。**聚合根被 SKIP 时其成员 transformRow 不调用**。
 
@@ -260,9 +260,9 @@ flowchart TB
 | 恢复安全 | RestoreRecoveryPoint（in-scope） |
 | 恢复语义 | 合并语义，不差集删除 |
 
-### 8.5. finalize 24 不变量（完整清单）
+### 8.5. finalize 25 不变量（完整清单）
 
-`ContributorManager.finalize()` 启动期校验以下 24 条不变量（不连 DB，纯内存）。每条失败抛 `ContributorFinalizeError(invariantId, payload)`，payload 含 `domain/table/sourceType/owner/违反不变量` 字段。
+`ContributorManager.finalize()` 启动期校验以下 25 条不变量（不连 DB，纯内存）。每条失败抛 `ContributorFinalizeError(invariantId, payload)`，payload 含 `domain/table/sourceType/owner/违反不变量` 字段。
 
 | # | 不变量 | 失败定位 payload |
 |---|--------|------------------|
@@ -290,6 +290,7 @@ flowchart TB
 | 22 | 主键 kind 非 autoincrement | `{ table, kind: 'autoincrement' }` |
 | 23 | 共享表 row-scope 覆盖穷尽 | `{ table, uncoveredTypes }` |
 | 24 | 声明的 EntityReference 对应生成的 FK | `{ domain, reference }` |
+| 25 | 反向：每个 DB FK 须被 owner contributor 声明 | `{ table, columns, missingFromDomain }` |
 
 **实施依据**：
 - #19 / #24 须 codegen 生成 `DB_FOREIGN_KEYS`（`getTableConfig()` 读 FK 信息）作数据源
