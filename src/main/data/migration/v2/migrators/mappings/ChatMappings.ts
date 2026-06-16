@@ -61,7 +61,7 @@ import type {
   SerializedErrorData,
   TextUIPart
 } from '@shared/data/types/message'
-import type { CherryDataPartTypes } from '@shared/data/types/uiParts'
+import type { CherryDataPartTypes, ErrorPartData } from '@shared/data/types/uiParts'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 import type { Base64String, FilePath } from '@shared/file/types/common'
 import type { FileMetadata } from '@types'
@@ -681,7 +681,7 @@ export function mergeStats(usage?: OldUsage, metrics?: OldMetrics): MessageStats
  * | tool           | DynamicToolUIPart         | dynamic-tool with output-available state  |
  * | image          | FileUIPart         | fileId resolved to file:// URL            |
  * | file           | FileUIPart         | fileId resolved to file:// URL            |
- * | error          | DataUIPart<CherryDataPartTypes>         | data-error with name/message              |
+ * | error          | DataUIPart<CherryDataPartTypes>         | data-error with full serialized error     |
  * | translation    | DataUIPart<CherryDataPartTypes>         | data-translation                          |
  * | video          | DataUIPart<CherryDataPartTypes>         | data-video                                |
  * | compact        | DataUIPart<CherryDataPartTypes>         | data-compact                              |
@@ -734,7 +734,7 @@ export async function transformBlocksToParts(
  * Most blocks produce a single part, but citation blocks may produce multiple
  * (SourceUrlUIPart for web results + DataUIPart for knowledge/memory).
  */
-async function transformSingleBlockToPart(
+export async function transformSingleBlockToPart(
   oldBlock: OldBlock,
   deps?: ChatMappingDeps
 ): Promise<{
@@ -807,13 +807,20 @@ async function transformSingleBlockToPart(
     }
 
     case 'error': {
-      const part: DataUIPart<CherryDataPartTypes> = {
-        type: 'data-error',
-        data: {
-          name: oldBlock.error?.name ?? null,
-          message: oldBlock.error?.message ?? null
-        }
-      }
+      // Preserve the full v1 serialized error, not just name/message. v1's `serializeError`
+      // attaches many fields the v2 renderer relies on — `statusCode`/`status` and `providerId`
+      // for `classifyError`, `i18nKey` for translated display, and `finishReason`/`responseBody`/
+      // `data`/`url`/etc. for `ErrorDetailModal`. Dropping them made every migrated error
+      // classify as 'unknown' (triggering the AI-diagnosis fallback) and lose its detail.
+      // Mirrors the live v2 persist path (`PersistenceListener` writes `data: { ...error }`).
+      // `oldBlock.error`'s runtime shape carries more than the narrow `SerializedErrorData` type
+      // models, so the spread (not a field-by-field copy) is what keeps the extra fields. See #16083.
+      const data = {
+        ...oldBlock.error,
+        name: oldBlock.error?.name ?? null,
+        message: oldBlock.error?.message ?? null
+      } as ErrorPartData
+      const part: DataUIPart<CherryDataPartTypes> = { type: 'data-error', data }
       return { part, extraParts: null, citations: null, searchableText: null }
     }
 
