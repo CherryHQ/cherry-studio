@@ -227,6 +227,13 @@ export type AiStreamOpenResponse =
        * reconcile final content/status from a DB refresh.
        */
       reservedMessages?: CherryUIMessage[]
+      /**
+       * Assistant placeholder ids derived from `reservedMessages` (its assistant rows, or the
+       * per-model `request.messageId` fallback). The v2 home page reads this through
+       * `usePendingMessages` (via `V2ChatContent`) as the join key for reconciling its optimistic
+       * pending bubbles against the persisted rows.
+       */
+      placeholderIds?: string[]
     }
   | {
       mode: 'blocked'

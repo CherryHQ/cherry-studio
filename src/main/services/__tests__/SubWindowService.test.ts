@@ -476,6 +476,31 @@ describe('SubWindowService', () => {
     })
   })
 
+  describe('SubWindow_SetAlwaysOnTop handler', () => {
+    it('pins via WindowManager behavior when the sender window is tracked', () => {
+      const handler = getIpcHandleHandler(svc, 'sub-window:set-always-on-top')
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue('sub-9')
+
+      const result = handler({ sender: {} } as any, true)
+
+      expect(result).toBe(true)
+      expect(windowManagerMock.behavior.setAlwaysOnTop).toHaveBeenCalledWith('sub-9', true)
+      expect(BrowserWindow.fromWebContents).not.toHaveBeenCalled()
+    })
+
+    it('ignores (returns false) when the sender is not a WindowManager-tracked window', () => {
+      const handler = getIpcHandleHandler(svc, 'sub-window:set-always-on-top')
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue(undefined)
+
+      const result = handler({ sender: {} } as any, true)
+
+      expect(result).toBe(false)
+      expect(windowManagerMock.behavior.setAlwaysOnTop).not.toHaveBeenCalled()
+      // No fallback: an untracked sender is not a sub-window, so we never poke a raw BrowserWindow.
+      expect(BrowserWindow.fromWebContents).not.toHaveBeenCalled()
+    })
+  })
+
   describe('Tab_DragEnd handler', () => {
     it('restores opacity only when sender opacity is <1 (self-gating predicate)', () => {
       const translucentWin = createMockWindow({ getOpacity: vi.fn(() => 0.85) })
