@@ -89,13 +89,13 @@ export const knowledgeItemTable = sqliteTable(
     check('knowledge_item_type_check', sql`${t.type} IN ('file', 'url', 'note', 'directory')`),
     check(
       'knowledge_item_status_check',
-      sql`${t.status} IN ('idle', 'preparing', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting')`
+      sql`${t.status} IN ('idle', 'preparing', 'processing', 'reading', 'embedding', 'completed', 'failed', 'warning', 'deleting')`
     ),
     check(
       'knowledge_item_type_status_check',
       sql`
         (${t.type} IN ('file', 'url', 'note') AND ${t.status} IN ('idle', 'processing', 'reading', 'embedding', 'completed', 'failed', 'deleting'))
-        OR (${t.type} = 'directory' AND ${t.status} IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'deleting'))
+        OR (${t.type} = 'directory' AND ${t.status} IN ('idle', 'preparing', 'processing', 'completed', 'failed', 'warning', 'deleting'))
       `
     ),
     check(
@@ -106,7 +106,7 @@ export const knowledgeItemTable = sqliteTable(
           AND ${t.error} IS NULL
         )
         OR (
-          ${t.status} = 'failed'
+          ${t.status} IN ('failed', 'warning')
           AND ${t.error} IS NOT NULL
           AND length(trim(${t.error})) > 0
         )

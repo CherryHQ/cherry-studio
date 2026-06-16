@@ -1,0 +1,24 @@
+---
+title: Knowledge folders keep their search index through the v1 → v2 migration
+category: data-migration
+severity: notice
+introduced_in_pr: TBD
+date: 2026-06-11
+---
+
+## What changed
+
+Folders added to a v1 knowledge base now carry their search index through the v1 → v2 migration: the folder and its files stay searchable immediately, with no re-embedding. (Revised 2026-06-13 — this reverses the earlier behavior where every migrated folder showed a "Re-embed needed" badge.) A folder only falls back to the amber "Re-embed needed" badge when its v1 vectors cannot be read.
+
+## Why this matters to the user
+
+In v1, a folder's files were embedded under the folder entry itself with no per-file records. The migration now reconstructs that structure: the folder becomes a container with one entry per embedded file, and each file's v1 vectors are reused as-is (no embedding API calls re-spent). The migrated file entries are searchable but keep no copy of the original file inside the knowledge base — v1 never stored the folder inside the app, so there is nothing to copy; search uses the migrated vectors directly. Re-indexing a single such file is not yet supported and falls back to its original on-disk path; re-adding the whole folder always works.
+
+## What the user should do
+
+Nothing in the normal case — folders are searchable right after migration. Only folders that show the amber "Re-embed needed" badge (their v1 vectors could not be read) need action: re-index them, or re-add the folder if the original path moved or was deleted.
+
+## Notes for release manager
+
+- The legacy v1 vector database is intentionally left on disk per base (rollback safety), so every migrated base's vectors exist twice on disk until a future v1-leftover cleanup ships. That cleanup is a separate, undecided work item — see "v1 leftover cleanup (gap)" in `docs/references/knowledge/experiment/knowledge-technical-design.md` §7. Consider mentioning the disk overhead in the release note if the cleanup has not shipped.
+- The migrated per-file entries are `completed` but have no file under the base's `raw/` folder and point at the original external path; the future file-watcher PR must not treat their absence as a delete (see §7 watcher preconditions).

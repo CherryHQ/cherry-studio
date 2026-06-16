@@ -35,7 +35,11 @@ import { eq } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
-import { KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY, KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY } from './KnowledgeMigrator'
+import {
+  KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY,
+  KNOWLEDGE_DIRECTORY_CHILD_LOADER_REMAP_SHARED_DATA_KEY,
+  KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY
+} from './KnowledgeMigrator'
 
 const logger = loggerService.withContext('KnowledgeVectorMigrator')
 
@@ -340,6 +344,10 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       )
       const sharedItemRemap = ctx.sharedData.get(KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY)
       const legacyItemIdRemap = isStringMap(sharedItemRemap) ? sharedItemRemap : new Map<string, string>()
+      const sharedDirectoryChildLoaderRemap = ctx.sharedData.get(KNOWLEDGE_DIRECTORY_CHILD_LOADER_REMAP_SHARED_DATA_KEY)
+      const directoryChildLoaderRemap = isStringMap(sharedDirectoryChildLoaderRemap)
+        ? sharedDirectoryChildLoaderRemap
+        : new Map<string, string>()
 
       for (const base of migratedBases) {
         if (base.status === 'failed' || base.embeddingModelId === null) {
@@ -402,6 +410,21 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           migratedItemsByBaseId.get(base.id) ?? new Map<string, MigratedKnowledgeItemForVector>(),
           legacyItemIdRemap
         )
+
+        // A v1 folder's per-file vectors were booked under the directory item's loader ids;
+        // KnowledgeMigrator split that folder into per-file children and recorded each file's
+        // loader id → child item id. Point those loader ids at the child (not the directory
+        // container) so the vectors land on the child material instead of being dropped as a
+        // non-indexable container. Loader ids belonging to other bases resolve to no child here.
+        const baseMigratedItems = migratedItemsByBaseId.get(base.id)
+        if (baseMigratedItems) {
+          for (const [loaderId, childItemId] of directoryChildLoaderRemap) {
+            const child = baseMigratedItems.get(childItemId)
+            if (child) {
+              loaderTargetMap.set(loaderId, child)
+            }
+          }
+        }
 
         // Group the surviving chunks by migrated item, preserving legacy read order
         // both across items (first appearance) and within an item (chunk order).

@@ -66,7 +66,7 @@ const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 const KNOWLEDGE_SEARCH_OVERFETCH_FACTOR = 5
 /** Hard ceiling on fetched candidates, bounding the brute-force vector scan and rerank cost regardless of topK. */
 const KNOWLEDGE_SEARCH_CANDIDATE_CAP = 200
-const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
+const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed', 'warning'])
 const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
 
 @Injectable('KnowledgeService')

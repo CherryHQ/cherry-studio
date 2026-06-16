@@ -21,6 +21,8 @@ import { sql } from 'drizzle-orm'
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
 import {
+  expandLegacyDirectoryItem,
+  inferKnowledgeItemStatus,
   type LegacyKnowledgeBase,
   type LegacyKnowledgeBaseWithIdentity,
   type LegacyKnowledgeItem,
@@ -41,6 +43,7 @@ const LEGACY_VECTOR_TABLE_NAME = 'vectors'
 const SKIP_WARNING_SAMPLE_LIMIT = 3
 export const KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY = 'knowledgeBaseIdRemap'
 export const KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY = 'knowledgeItemIdRemap'
+export const KNOWLEDGE_DIRECTORY_CHILD_LOADER_REMAP_SHARED_DATA_KEY = 'knowledgeDirectoryChildLoaderRemap'
 export type KnowledgeBaseIdRemap = Map<string, string>
 export type KnowledgeItemIdRemap = Map<string, string>
 
@@ -52,6 +55,16 @@ type DimensionResolutionReason =
   | 'invalid_vector_dimensions'
   | 'vector_db_invalid_path'
   | 'vector_db_error'
+
+/**
+ * Outcome of reading a base's legacy `uniqueLoaderId → source` map. `kind` lets the caller tell
+ * a (recoverable) read failure from a genuinely empty/absent vector store — both leave `sources`
+ * empty, but only `read_error` warrants a retry-to-recover hint.
+ */
+type LoaderSourceMapResult = {
+  kind: 'ok' | 'empty' | 'read_error'
+  sources: Map<string, string>
+}
 
 const hasKnowledgeBaseIdentity = (base: LegacyKnowledgeBase): base is LegacyKnowledgeBaseWithIdentity =>
   typeof base.id === 'string' && base.id !== '' && typeof base.name === 'string' && base.name !== ''
@@ -132,6 +145,12 @@ export class KnowledgeMigrator extends BaseMigrator {
   private legacyItemIdRemap = new Map<string, string>()
   // New item id → v1 storage filename, so `execute` can copy the upload into the v2 KB dir.
   private fileStorageNameByItemId = new Map<string, string>()
+  // v1 directory child file's loader id → synthesized v2 child item id; handed to the vector
+  // migrator via sharedData so it re-attributes the folder's vectors to those children.
+  private directoryChildLoaderRemap = new Map<string, string>()
+  // Synthesized directory-child item ids: `file` items whose source stays at data.source on
+  // external disk (never copied into the base), so copyKnowledgeFilesForBase must skip them.
+  private migratedDirectoryChildItemIds = new Set<string>()
 
   override reset(): void {
     this.sourceCount = 0
@@ -146,6 +165,8 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.legacyBaseIdRemap = new Map<string, string>()
     this.legacyItemIdRemap = new Map<string, string>()
     this.fileStorageNameByItemId = new Map<string, string>()
+    this.directoryChildLoaderRemap = new Map<string, string>()
+    this.migratedDirectoryChildItemIds = new Set<string>()
   }
 
   private recordWarning(message: string): void {
@@ -289,6 +310,64 @@ export class KnowledgeMigrator extends BaseMigrator {
         }
       }
     }
+  }
+
+  /**
+   * Read the legacy vector DB's `uniqueLoaderId → source` map so a `directory` item can be
+   * expanded into per-file children (each file's loader id resolves to its source path).
+   * The discriminated `kind` distinguishes a (recoverable) read failure from a genuinely
+   * empty/absent vector store — a missing DB / directory / zero rows is `empty`, a thrown
+   * read is `read_error` — so the caller can warn precisely; both keep the directory
+   * tombstone. Best-effort: failures are caught, never thrown.
+   */
+  private async loadLoaderSourceMap(baseId: string, knowledgeBaseDir: string): Promise<LoaderSourceMapResult> {
+    const sources = new Map<string, string>()
+    const dbPath = this.getLegacyKnowledgeDbPath(baseId, knowledgeBaseDir)
+    if (!dbPath || !fs.existsSync(dbPath)) {
+      return { kind: 'empty', sources }
+    }
+
+    let client: ReturnType<typeof createClient> | null = null
+    try {
+      if (fs.statSync(dbPath).isDirectory()) {
+        return { kind: 'empty', sources }
+      }
+      client = createClient({ url: pathToFileURL(dbPath).toString() })
+      const result = await client.execute(
+        `SELECT DISTINCT uniqueLoaderId, source FROM ${LEGACY_VECTOR_TABLE_NAME} WHERE uniqueLoaderId IS NOT NULL AND source IS NOT NULL`
+      )
+      for (const row of result.rows) {
+        const loaderId = typeof row.uniqueLoaderId === 'string' ? row.uniqueLoaderId : null
+        const source = typeof row.source === 'string' ? row.source : null
+        if (loaderId && source && source.trim() !== '') {
+          sources.set(loaderId, source)
+        }
+      }
+    } catch (error) {
+      // Keep the exception detail in the log; the caller emits the user-facing, actionable
+      // migration warning based on the `read_error` kind (a transient DB lock is recoverable
+      // by re-running, unlike a genuinely empty store).
+      logger.warn(
+        `Failed to read legacy vector sources for knowledge base ${baseId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+      return { kind: 'read_error', sources }
+    } finally {
+      if (client) {
+        try {
+          client.close()
+        } catch (error) {
+          this.recordWarning(
+            `Failed to close legacy vector DB client for knowledge base ${baseId}: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          )
+        }
+      }
+    }
+
+    return { kind: sources.size > 0 ? 'ok' : 'empty', sources }
   }
 
   private formatItemWarning(baseId: string, item: { id?: string; type?: string }, reason: string): string {
@@ -522,8 +601,83 @@ export class KnowledgeMigrator extends BaseMigrator {
           this.recordWarning(invalidConfigWarning)
         }
 
+        // Re-attribute a directory's vectors only when this base's vectors will actually
+        // migrate (embedding model resolved); otherwise the children would claim `completed`
+        // with nothing behind them. An empty source map makes expandLegacyDirectoryItem return
+        // null, so the directory keeps its tombstone.
+        const directoryLoaderResult: LoaderSourceMapResult =
+          embeddingResolution.kind === 'resolved' && items.some((candidate) => candidate?.type === 'directory')
+            ? await this.loadLoaderSourceMap(validBase.id, ctx.paths.knowledgeBaseDir)
+            : { kind: 'empty', sources: new Map<string, string>() }
+
+        // A read failure (e.g. a transient DB lock) is recoverable, unlike a genuinely empty
+        // store: warn that this base's folders fell back to re-embed tombstones and a re-run
+        // may still recover them. Gate on an actually-expandable (`completed`) folder — an
+        // interrupted/idle folder never expands regardless of the read, so the "re-run can
+        // recover" message would be inaccurate for a base with no completed folder. An `empty`
+        // store is the expected no-op (the per-folder tombstone already explains itself), so it
+        // stays quiet.
+        // Mirror the expansion branch's preconditions (type + id + not-already-seen + completed)
+        // so the warning only fires when a folder would genuinely have entered expansion and kept
+        // a tombstone — an id-less or cross-base-duplicate folder never expands and must not
+        // trigger the "re-run can recover" promise.
+        const hasCompletedDirectory = items.some(
+          (candidate) =>
+            candidate?.type === 'directory' &&
+            !!candidate.id &&
+            !this.seenLegacyItemIds.has(candidate.id) &&
+            inferKnowledgeItemStatus(candidate) === 'completed'
+        )
+        if (directoryLoaderResult.kind === 'read_error' && hasCompletedDirectory) {
+          this.recordWarning(
+            `Knowledge base ${validBase.id}: legacy vector sources were unreadable, so its v1 folders were kept as re-embed tombstones; re-running migration once the legacy vector DB is readable can recover them without re-embedding`
+          )
+        }
+
+        const directoryLoaderSources = directoryLoaderResult.sources
+
         for (const item of items) {
           this.sourceCount += 1
+
+          // v1-indexed folder: re-attribute its dropped container vectors to synthesized
+          // per-file children when the legacy vectors are readable. Only a `completed` folder
+          // is expanded — an interrupted (failed/processing/pending) or never-indexed (idle)
+          // folder falls through to transformKnowledgeItem so its real status is preserved
+          // instead of being silently promoted to a fully `completed` container.
+          if (
+            item?.type === 'directory' &&
+            item.id &&
+            !this.seenLegacyItemIds.has(item.id) &&
+            inferKnowledgeItemStatus(item) === 'completed'
+          ) {
+            const expanded = expandLegacyDirectoryItem(preparedBase.id!, item, directoryLoaderSources)
+            if (expanded) {
+              // Partial re-attribution: some embedded files had no migratable vectors and were
+              // dropped. The resolved children are correct and stay `completed`; we surface the
+              // loss as a migration warning rather than a container `warning` status, because a
+              // container with all-`completed` children rolls back up to `completed`
+              // (reconcileContainers) and would not persist the warning.
+              const embeddedFileCount = (item.uniqueIds ?? []).filter(
+                (loaderId) => typeof loaderId === 'string' && loaderId.trim() !== ''
+              ).length
+              if (expanded.children.length < embeddedFileCount) {
+                this.recordWarning(
+                  `Knowledge directory item ${item.id} in base ${validBase.id}: re-attributed vectors for ${expanded.children.length} of ${embeddedFileCount} embedded files; the rest had no migratable vectors and were dropped — re-index the folder to recover them`
+                )
+              }
+
+              this.seenLegacyItemIds.add(item.id)
+              this.legacyItemIdRemap.set(item.id, expanded.container.id!)
+              this.preparedItems.push(expanded.container, ...expanded.children)
+              for (const child of expanded.children) {
+                this.migratedDirectoryChildItemIds.add(child.id!)
+              }
+              for (const [loaderId, childId] of expanded.childLoaderRemap) {
+                this.directoryChildLoaderRemap.set(loaderId, childId)
+              }
+              continue
+            }
+          }
 
           const itemResult = transformKnowledgeItem(
             preparedBase.id!,
@@ -685,6 +839,10 @@ export class KnowledgeMigrator extends BaseMigrator {
       this.flushSkippedWarnings()
       ctx.sharedData.set(KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY, new Map(this.legacyBaseIdRemap))
       ctx.sharedData.set(KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY, new Map(this.legacyItemIdRemap))
+      ctx.sharedData.set(
+        KNOWLEDGE_DIRECTORY_CHILD_LOADER_REMAP_SHARED_DATA_KEY,
+        new Map(this.directoryChildLoaderRemap)
+      )
 
       logger.info('KnowledgeMigrator.execute completed', {
         processed,
@@ -729,6 +887,12 @@ export class KnowledgeMigrator extends BaseMigrator {
 
     for (const item of items) {
       if (item.type !== 'file' || !item.id) {
+        continue
+      }
+
+      // Synthesized directory-child files live at their external data.source and are never
+      // copied into the base — skip dedup/copy (search uses the migrated vectors instead).
+      if (this.migratedDirectoryChildItemIds.has(item.id)) {
         continue
       }
 

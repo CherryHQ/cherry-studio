@@ -2229,6 +2229,7 @@
         "chunking": "分块中",
         "embedding": "嵌入中",
         "error": "错误",
+        "needs_reembed": "需重新嵌入",
         "pending": "等待中",
         "ready": "就绪"
       },
@@ -2256,6 +2257,7 @@
     "embedding_model_required": "知识库嵌入模型是必需的",
     "empty": "暂无知识库",
     "error": {
+      "directory_not_migrated": "该文件夹内容未自动迁移，重新索引后将从源文件夹重新扫描并嵌入。",
       "failed_base_unknown": "该知识库迁移失败，请重建知识库并选择新的嵌入模型。",
       "failed_to_create": "知识库创建失败",
       "failed_to_delete": "知识库删除失败",

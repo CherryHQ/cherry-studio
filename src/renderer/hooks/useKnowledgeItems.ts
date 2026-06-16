@@ -12,7 +12,7 @@ const KNOWLEDGE_V2_ITEMS_QUERY = {
 
 const EMPTY_KNOWLEDGE_ITEMS: KnowledgeItem[] = []
 const KNOWLEDGE_ITEMS_POLLING_INTERVAL = 2000
-const TERMINAL_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
+const TERMINAL_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed', 'warning'])
 
 const normalizeKnowledgeError = (error: unknown): Error => {
   if (error instanceof Error) {

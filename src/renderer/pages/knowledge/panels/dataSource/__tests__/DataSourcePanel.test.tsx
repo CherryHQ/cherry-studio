@@ -1,3 +1,4 @@
+import { KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -190,7 +191,9 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.status.error': '失败',
             'knowledge.data_source.status.embedding': '向量化中',
             'knowledge.data_source.status.chunking': '分块中',
+            'knowledge.data_source.status.needs_reembed': '需重新嵌入',
             'knowledge.data_source.status.pending': '等待中',
+            'knowledge.error.directory_not_migrated': '该文件夹内容未自动迁移，重新索引后将从源文件夹重新扫描并嵌入。',
             'knowledge.file_hint': `支持 ${options?.file_types} 格式`,
             'knowledge.status.processing': '处理中',
             'knowledge.rag.file_processing': '文件处理'
@@ -318,6 +321,32 @@ describe('DataSourcePanel', () => {
     expect(directoryTitle).toHaveAttribute('title', '/Users/eeee/本地资料夹')
     expect(screen.getByText('处理中')).toBeInTheDocument()
     expect(screen.queryByText('等待中')).not.toBeInTheDocument()
+  })
+
+  it('renders a migrated v1 directory as a re-embed warning instead of a red error', () => {
+    // The v2 migration drops a v1 folder's container-level vectors and marks the
+    // item `warning` with this code; the row must render it as an actionable
+    // re-embed warning (amber badge + localized tooltip), not a generic failure.
+    render(
+      <DataSourcePanel
+        items={[
+          createDirectoryItem({
+            id: 'directory-1',
+            source: '/Users/eeee/本地资料夹',
+            status: 'warning',
+            error: KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED
+          })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('需重新嵌入')).toBeInTheDocument()
+    expect(screen.queryByText('失败')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('该文件夹内容未自动迁移，重新索引后将从源文件夹重新扫描并嵌入。')).toBeInTheDocument()
   })
 
   it('does not open the add source dialog from the header button before a source is selected', () => {
