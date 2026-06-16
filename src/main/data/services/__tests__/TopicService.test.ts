@@ -1269,6 +1269,13 @@ describe('TopicService', () => {
       expect(row?.activeNodeId).toBe('m2')
     })
 
+    it('rejects the virtual root as the active node', async () => {
+      await seedTopicWithMessages()
+      await expect(topicService.setActiveNode('t1', 'vroot-t1')).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION
+      })
+    })
+
     it('rejects message belonging to a different topic (cross-topic planting guard)', async () => {
       await seedTopicWithMessages()
       await dbh.db.insert(topicTable).values({ id: 't2', name: 'T2', orderKey: 'a1', createdAt: 1, updatedAt: 1 })

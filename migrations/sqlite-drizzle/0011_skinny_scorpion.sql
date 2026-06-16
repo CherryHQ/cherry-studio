@@ -28,4 +28,4 @@ PRAGMA foreign_keys=ON;--> statement-breakpoint
 CREATE INDEX `message_parent_id_idx` ON `message` (`parent_id`);--> statement-breakpoint
 CREATE INDEX `message_topic_created_idx` ON `message` (`topic_id`,`created_at`);--> statement-breakpoint
 CREATE INDEX `message_status_idx` ON `message` (`status`);--> statement-breakpoint
-CREATE UNIQUE INDEX `message_topic_root_uniq` ON `message` (`topic_id`) WHERE "message"."parent_id" is null;
+CREATE UNIQUE INDEX `message_topic_root_uniq` ON `message` (`topic_id`) WHERE "message"."parent_id" is null and "message"."deleted_at" is null;

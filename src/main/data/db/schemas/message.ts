@@ -52,11 +52,13 @@ export const messageTable = sqliteTable(
     // Backs findPendingAssistantMessageIds (boot reconcile); without it that lookup full-SCANs.
     // Plain, not partial — Drizzle binds `status = ?`, which SQLite can't match to a partial index.
     index('message_status_idx').on(t.status),
-    // Single-root invariant: at most one virtual-root (parentId IS NULL) row per topic.
+    // Single-root invariant: at most one live virtual-root (parentId IS NULL) row per topic.
     // Guarantees one root and backs O(1) root lookup (WHERE topic_id=? AND parent_id IS NULL).
+    // Scoped to deleted_at IS NULL so a future soft-delete of a root can't collide with a
+    // freshly created one (getRootMessageIdTx filters deleted_at to match).
     uniqueIndex('message_topic_root_uniq')
       .on(t.topicId)
-      .where(sql`${t.parentId} is null`),
+      .where(sql`${t.parentId} is null and ${t.deletedAt} is null`),
     // Check constraints for enum fields
     check('message_role_check', sql`${t.role} IN ('user', 'assistant', 'system', 'root')`),
     check('message_status_check', sql`${t.status} IN ('pending', 'success', 'error', 'paused')`)

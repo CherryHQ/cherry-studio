@@ -1293,21 +1293,65 @@ describe('MessageService', () => {
       expect(topicRow.activeNodeId).toBeNull()
     })
 
-    it('reparent-deleting the active first-turn message clears activeNodeId', async () => {
+    it('rejects non-cascade delete of a first-turn message (children cannot be promoted past the root)', async () => {
       await seedMultiModelTree()
-      await dbh.db.update(topicTable).set({ activeNodeId: 'm-root' }).where(eq(topicTable.id, 'topic-1'))
 
-      const result = await messageService.delete('m-root', false)
-      expect(result.newActiveNodeId).toBeNull()
+      // m-root is a first-turn message (parent = virtual root). Reparenting its replies
+      // onto the root would make assistant messages bogus first turns, so cascade=false
+      // is rejected (the renderer retries with cascade=true).
+      await expect(messageService.delete('m-root', false)).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION
+      })
 
-      const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
-      expect(topicRow.activeNodeId).toBeNull()
-      // children reparented onto the virtual root (still a single root)
-      const roots = await dbh.db
-        .select()
-        .from(messageTable)
-        .where(and(eq(messageTable.topicId, 'topic-1'), isNull(messageTable.parentId)))
-      expect(roots.map((r) => r.id)).toEqual([virtualRootId])
+      // Nothing was deleted or reparented.
+      const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
+      expect(rows.some((r) => r.id === 'm-root')).toBe(true)
+      expect(rows.some((r) => r.id === 'm-a1')).toBe(true)
+    })
+
+    it('allows non-cascade delete of a non-first-turn message (reparents children to the real parent)', async () => {
+      await seedMultiModelTree()
+
+      // m-a2 is mid-conversation (parent = m-root); its child m-follow reparents to m-root.
+      const result = await messageService.delete('m-a2', false)
+      expect(result.deletedIds).toEqual(['m-a2'])
+      expect(result.reparentedIds).toEqual(['m-follow'])
+
+      const [follow] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, 'm-follow'))
+      expect(follow.parentId).toBe('m-root')
+    })
+  })
+
+  describe('sentinel-boundary guards', () => {
+    const virtualRootId = 'vroot-topic-1'
+
+    it('createSibling rejects the virtual root (no second null-parent row)', async () => {
+      await seedMultiModelTree()
+
+      await expect(messageService.createSibling(virtualRootId, mainText('x'))).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION
+      })
+    })
+
+    it('getTree rejects an explicit rootId that is the virtual root', async () => {
+      await seedMultiModelTree()
+
+      await expect(messageService.getTree('topic-1', { rootId: virtualRootId })).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION
+      })
+    })
+
+    it('a soft-deleted virtual root does not collide with a freshly created one (hardened index)', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-sd', activeNodeId: null, orderKey: 'a0' })
+      const firstRoot = await messageService.createRootMessageTx(dbh.db, 'topic-sd')
+      // Soft-delete the root, then create a new one — the partial unique index is scoped to
+      // deleted_at IS NULL, so this must not raise SQLITE_CONSTRAINT_UNIQUE.
+      await dbh.db.update(messageTable).set({ deletedAt: 999 }).where(eq(messageTable.id, firstRoot))
+      const secondRoot = await messageService.createRootMessageTx(dbh.db, 'topic-sd')
+
+      expect(secondRoot).not.toBe(firstRoot)
+      // getRootMessageIdTx resolves the live one, not the soft-deleted row.
+      expect(await messageService.getRootMessageIdTx(dbh.db, 'topic-sd')).toBe(secondRoot)
     })
   })
 
