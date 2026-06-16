@@ -22,6 +22,7 @@ import {
   TableOfContents
 } from '@tiptap/extension-table-of-contents'
 import Typography from '@tiptap/extension-typography'
+import { Markdown } from '@tiptap/markdown'
 import { useEditor, useEditorState } from '@tiptap/react'
 import { StarterKit } from '@tiptap/starter-kit'
 import { t } from 'i18next'
@@ -223,6 +224,13 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   // TipTap editor extensions
   const extensions = useMemo(
     () => [
+      // Native Markdown parsing/serialization via the official @tiptap/markdown AST
+      // (marked-based). Custom nodes contribute their own parse/render hooks.
+      Markdown.configure({
+        markedOptions: {
+          gfm: true
+        }
+      }),
       SourceLineAttribute,
       StarterKit.configure({
         heading: {
@@ -389,7 +397,8 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   const editor = useEditor({
     shouldRerenderOnTransaction: true,
     extensions,
-    content: html || '',
+    content: markdown || '',
+    contentType: 'markdown',
     editable: editable,
     editorProps: {
       handlePaste: (view, event) => {
@@ -418,21 +427,22 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           }
         }
 
-        // Default behavior for non-code blocks
+        // Default behavior for non-code blocks: insert clipboard text via the native markdown AST
         const text = event.clipboardData?.getData('text/plain') ?? ''
         if (text) {
-          const html = markdownToHtml(text)
           const { $from } = selection
           const atStartOfLine = $from.parentOffset === 0
           const inEmptyParagraph = $from.parent.type.name === 'paragraph' && $from.parent.textContent === ''
+          const hasMultipleLines = text.includes('\n')
 
-          if (!atStartOfLine && !inEmptyParagraph) {
-            const cleanHtml = html.replace(/^<p>(.*?)<\/p>/s, '$1')
-            editor.commands.insertContent(cleanHtml)
+          if (!atStartOfLine && !inEmptyParagraph && !hasMultipleLines) {
+            // Inline paste inside a non-empty block: keep it as plain text to avoid block wrapping
+            const tr = view.state.tr.insertText(text, selection.from, selection.to)
+            view.dispatch(tr)
           } else {
-            editor.commands.insertContent(html)
+            editor.commands.insertContent(text, { contentType: 'markdown' })
           }
-          onPaste?.(html)
+          onPaste?.(text)
           return true
         }
         return false
@@ -452,18 +462,18 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
       if (!editable || !transaction.docChanged || !editor.isFocused) return
 
       const content = editor.getText()
-      const htmlContent = editor.getHTML()
       try {
-        const convertedMarkdown = htmlToMarkdown(htmlContent)
+        // Serialize straight from the ProseMirror doc via the native markdown AST.
+        const convertedMarkdown = editor.getMarkdown()
         setMarkdownState(convertedMarkdown)
         onChange?.(convertedMarkdown)
 
         onContentChange?.(content)
         if (onHtmlChange) {
-          onHtmlChange(htmlContent)
+          onHtmlChange(editor.getHTML())
         }
       } catch (error) {
-        logger.error('Error converting HTML to markdown:', error as Error)
+        logger.error('Error serializing editor content to markdown:', error as Error)
       }
     },
     onBlur: () => {
@@ -763,16 +773,15 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         setMarkdownState(content)
         onChange?.(content)
 
-        const convertedHtml = markdownToHtml(content)
+        // Parse markdown straight into the ProseMirror doc via the native AST.
+        editor.commands.setContent(content, { contentType: 'markdown' })
 
-        editor.commands.setContent(convertedHtml)
-
-        onHtmlChange?.(convertedHtml)
+        onHtmlChange?.(editor.getHTML())
       } catch (error) {
         logger.error('Error setting markdown content:', error as Error)
       }
     },
-    [editor.commands, onChange, onHtmlChange]
+    [editor, onChange, onHtmlChange]
   )
 
   const setHtml = useCallback(

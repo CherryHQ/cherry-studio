@@ -1,4 +1,4 @@
-import { mergeAttributes, Node } from '@tiptap/core'
+import { type MarkdownToken, mergeAttributes, Node } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 
 import YamlFrontMatterNodeView from '../components/YamlFrontMatterNodeView'
@@ -16,6 +16,51 @@ export const YamlFrontMatter = Node.create({
   group: 'block',
   atom: true,
   draggable: false,
+
+  // Native markdown parse/serialize. YAML front matter (`---` … `---`) is not part of
+  // standard markdown, so it needs its own marked tokenizer to be picked up by @tiptap/markdown.
+  markdownTokenizer: {
+    name: 'yamlFrontMatter',
+    level: 'block',
+    start(src: string) {
+      return src.match(/^---\n/) ? 0 : -1
+    },
+    tokenize(src: string, tokens: MarkdownToken[] = []) {
+      // Front matter is only valid at the very top of the document.
+      const hasExistingContent = tokens.some((token) => token.type && token.type !== 'space')
+      if (hasExistingContent) {
+        return undefined
+      }
+
+      const match = /^---\n([\s\S]*?)\n---(?:\n|$)/.exec(src)
+      if (!match) {
+        return undefined
+      }
+
+      return {
+        type: 'yamlFrontMatter',
+        raw: match[0],
+        text: match[1] // YAML body without the `---` delimiters
+      }
+    }
+  },
+
+  parseMarkdown(token, helpers) {
+    return helpers.createNode('yamlFrontMatter', { content: token.text || '' })
+  },
+
+  renderMarkdown(node) {
+    const content = node.attrs?.content || ''
+    if (!content.trim()) {
+      return ''
+    }
+    // The stored content has no delimiters; add them back. Tolerate the legacy case
+    // where a trailing `---` was kept inside the content attribute.
+    if (content.endsWith('---')) {
+      return `---\n${content}\n\n`
+    }
+    return `---\n${content}\n---\n\n`
+  },
 
   addOptions() {
     return {
