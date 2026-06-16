@@ -343,37 +343,18 @@ class ModelService {
 
     const rows = await db
       .select({
-        id: userModelTable.id,
-        modelId: userModelTable.modelId,
-        presetModelId: userModelTable.presetModelId,
-        isDeprecated: userModelTable.isDeprecated
+        id: userModelTable.id
       })
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, toRemove)))
 
     const managedDefaultIds = new Set<string>()
-    const protectedIds = new Set<string>()
     for (const row of rows) {
       if (providerId === CHERRYAI_PROVIDER_ID && row.id === CHERRYAI_DEFAULT_UNIQUE_MODEL_ID) {
         managedDefaultIds.add(row.id)
-        continue
-      }
-
-      if (row.presetModelId == null || row.presetModelId === '' || row.isDeprecated) {
-        continue
-      }
-      if (await providerRegistryService.isActiveProviderRegistryModel(providerId, row.presetModelId)) {
-        protectedIds.add(row.id)
       }
     }
 
-    if (protectedIds.size > 0) {
-      logger.warn('Skipped active registry model removal during reconcile', {
-        providerId,
-        skippedCount: protectedIds.size,
-        skippedIds: [...protectedIds]
-      })
-    }
     if (managedDefaultIds.size > 0) {
       logger.warn('Skipped managed CherryAI default model removal during reconcile', {
         providerId,
@@ -382,7 +363,7 @@ class ModelService {
       })
     }
 
-    return toRemove.filter((id) => !managedDefaultIds.has(id) && !protectedIds.has(id))
+    return toRemove.filter((id) => !managedDefaultIds.has(id))
   }
 
   /**
