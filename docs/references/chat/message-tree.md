@@ -99,4 +99,3 @@ means every deleted node has no surviving children, so `SET NULL` never fires.
 ## Related
 
 - [Database Patterns](../data/database-patterns.md), [DataApi in Main](../data/data-api-in-main.md).
-- `v2-refactor-temp/docs/chat/message-tree-virtual-root.md` — the design record (decision log) behind the virtual root; this page is the permanent reference.
