@@ -37,11 +37,15 @@ vi.mock('@cherrystudio/ui', () => ({
       {required ? <span aria-hidden="true">*</span> : null}
     </label>
   ),
-  FieldError: ({ errors, ...props }: any) => (
-    <div role="alert" {...props}>
-      {errors?.[0]?.message}
-    </div>
-  ),
+  FieldError: ({ errors, children, ...props }: any) => {
+    const content = children ?? errors?.[0]?.message
+    if (!content) return null
+    return (
+      <div role="alert" {...props}>
+        {content}
+      </div>
+    )
+  },
   Popover: ({ children }: any) => <div>{children}</div>,
   PopoverContent: ({ children }: any) => <div>{children}</div>,
   PopoverTrigger: ({ children }: any) => <div>{children}</div>
@@ -420,13 +424,16 @@ describe('ProviderEditorDrawer', () => {
     const nameInput = screen.getByPlaceholderText('settings.provider.add.name.placeholder')
 
     expect(nameInput).not.toHaveAttribute('aria-describedby')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(document.querySelector(`label[for="${nameInput.id}"]`)).toBeInTheDocument()
 
     fireEvent.blur(nameInput)
 
     const errorId = nameInput.getAttribute('aria-describedby')
     expect(errorId).toBeTruthy()
-    expect(document.getElementById(errorId!)).toHaveTextContent('settings.provider.add.name.required')
+    const errorNode = document.getElementById(errorId!)
+    expect(errorNode).toHaveAttribute('role', 'alert')
+    expect(errorNode).toHaveTextContent('settings.provider.add.name.required')
   })
 
   it('base URL input: label is bound via htmlFor and aria-describedby links to the error node when error is visible', () => {
@@ -443,13 +450,16 @@ describe('ProviderEditorDrawer', () => {
     const baseUrlInput = screen.getByPlaceholderText('settings.provider.base_url.placeholder')
 
     expect(baseUrlInput).not.toHaveAttribute('aria-describedby')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(document.querySelector(`label[for="${baseUrlInput.id}"]`)).toBeInTheDocument()
 
     fireEvent.blur(baseUrlInput)
 
     const errorId = baseUrlInput.getAttribute('aria-describedby')
     expect(errorId).toBeTruthy()
-    expect(document.getElementById(errorId!)).toHaveTextContent('settings.provider.base_url.required')
+    const errorNode = document.getElementById(errorId!)
+    expect(errorNode).toHaveAttribute('role', 'alert')
+    expect(errorNode).toHaveTextContent('settings.provider.base_url.required')
   })
 
   it('does not require the base URL in duplicate mode (optional, no error on blur)', () => {
