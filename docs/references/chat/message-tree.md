@@ -74,13 +74,17 @@ papered over).
 | Content message, `cascade = true` | Delete the message and its whole subtree. |
 | "Clear all messages" | Delete the virtual root's **children** (cascade), not the root — the empty virtual root stays. |
 
-Cascade delete runs **leaf-first** (deepest depth → shallowest). The self-FK
-(`parentId → message.id`) is `ON DELETE SET NULL`: deleting a node with a *surviving*
-in-set child would null that child's `parentId` mid-delete, transiently creating a second
-`parentId = NULL` row that collides with `message_topic_root_uniq`. Removing leaves first
-means every deleted node has no surviving children, so `SET NULL` never fires.
-(`PRAGMA defer_foreign_keys` does **not** help — it defers FK *checking*, not the
-`SET NULL` action.)
+The self-FK (`parentId → message.id`) is **`ON DELETE CASCADE`**. Deleting a node
+removes its whole subtree in one statement — no leaf-first ordering, and no `SET NULL`
+to manufacture a colliding `parentId = NULL` row. This is why `cascade = true`,
+`purgeByTopicIdsTx` (topic delete), and the `topic` FK cascade are all single
+unordered deletes that stay correct. `cascade = false` reparents children **before**
+deleting the node, so the cascade fires on nothing.
+
+> `SET NULL` was actively wrong under `message_topic_root_uniq`: it nulls a surviving
+> in-set child's `parentId` mid-delete, transiently creating a second `parentId = NULL`
+> row that violates the index (a reachable crash when deleting any multi-model topic).
+> `PRAGMA defer_foreign_keys` does not help — it defers FK *checking*, not the action.
 
 ## Consumer contract
 

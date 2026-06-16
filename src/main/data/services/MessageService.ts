@@ -1234,32 +1234,11 @@ export class MessageService {
           newActiveNodeId = activeNodeStrategy === 'clear' ? null : message.parentId
         }
 
-        // Delete leaf-first (deepest depth → shallowest). The self-FK
-        // (parentId → message.id) is ON DELETE SET NULL: deleting a node with a
-        // *surviving* in-set child would null that child's parentId mid-delete,
-        // transiently creating a second parentId-NULL row that collides with
-        // message_topic_root_uniq. Removing leaves first means every deleted node
-        // has no surviving children, so SET NULL never fires. (defer_foreign_keys
-        // does not help — it defers FK *checking*, not the SET NULL action.)
-        const depthRows = await tx.all<{ id: string; depth: number }>(sql`
-          WITH RECURSIVE subtree AS (
-            SELECT id, 0 AS depth FROM message WHERE id = ${id}
-            UNION ALL
-            SELECT m.id, s.depth + 1 FROM message m
-            INNER JOIN subtree s ON m.parent_id = s.id
-            WHERE m.deleted_at IS NULL
-          )
-          SELECT id, depth FROM subtree
-        `)
-        const idsByDepth = new Map<number, string[]>()
-        for (const row of depthRows) {
-          const bucket = idsByDepth.get(row.depth)
-          if (bucket) bucket.push(row.id)
-          else idsByDepth.set(row.depth, [row.id])
-        }
-        for (const depth of [...idsByDepth.keys()].sort((a, b) => b - a)) {
-          await tx.delete(messageTable).where(inArray(messageTable.id, idsByDepth.get(depth)!))
-        }
+        // The self-FK is ON DELETE CASCADE, so deleting the target removes its whole
+        // subtree in one statement — no leaf-first ordering needed, and no SET NULL to
+        // manufacture a colliding parentId-NULL row. (deletedIds above is still derived
+        // from getDescendantIds for the response and the activeNodeId check.)
+        await tx.delete(messageTable).where(eq(messageTable.id, id))
 
         logger.info('Cascade deleted messages', { rootId: id, count: deletedIds.length })
       } else {

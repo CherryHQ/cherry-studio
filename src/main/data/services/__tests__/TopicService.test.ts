@@ -348,6 +348,56 @@ describe('TopicService', () => {
       expect(await dbh.db.select().from(entityTagTable)).toHaveLength(0)
     })
 
+    it('deletes a topic containing a multi-model sibling group without a unique-index crash', async () => {
+      // Regression: purgeByTopicIdsTx is one multi-row DELETE. Under the old self-FK
+      // ON DELETE SET NULL, removing u1 (parent of the a1/a2 multi-model group) nulled
+      // both surviving children mid-statement → a second parentId-NULL row colliding
+      // with message_topic_root_uniq. ON DELETE CASCADE removes the subtree instead.
+      await dbh.db.insert(topicTable).values({ id: 'topic-mm', name: 'MM', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-mm', [
+          {
+            id: 'u1',
+            parentId: null,
+            topicId: 'topic-mm',
+            role: 'user',
+            data: { parts: [] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 10,
+            updatedAt: 10
+          },
+          {
+            id: 'a1',
+            parentId: 'u1',
+            topicId: 'topic-mm',
+            role: 'assistant',
+            data: { parts: [] },
+            status: 'success',
+            siblingsGroupId: 1,
+            createdAt: 20,
+            updatedAt: 20
+          },
+          {
+            id: 'a2',
+            parentId: 'u1',
+            topicId: 'topic-mm',
+            role: 'assistant',
+            data: { parts: [] },
+            status: 'success',
+            siblingsGroupId: 1,
+            createdAt: 21,
+            updatedAt: 21
+          }
+        ])
+      )
+
+      await topicService.delete('topic-mm')
+
+      expect(await dbh.db.select().from(topicTable)).toHaveLength(0)
+      expect(await dbh.db.select().from(messageTable)).toHaveLength(0)
+    })
+
     it('purges the pin row when an underlying topic is deleted', async () => {
       // Without purgeForEntityTx in the delete tx, the pin row would survive
       // and a future POST /pins for the same id would hit the UNIQUE index.

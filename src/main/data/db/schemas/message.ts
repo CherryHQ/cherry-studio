@@ -45,7 +45,7 @@ export const messageTable = sqliteTable(
   },
   (t) => [
     // Foreign keys
-    foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }).onDelete('set null'),
+    foreignKey({ columns: [t.parentId], foreignColumns: [t.id] }).onDelete('cascade'),
     // Indexes
     index('message_parent_id_idx').on(t.parentId),
     index('message_topic_created_idx').on(t.topicId, t.createdAt),

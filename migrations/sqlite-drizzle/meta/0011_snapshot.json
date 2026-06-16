@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "ae13beb5-a817-4558-a034-7e7a3d17fbe1",
+  "id": "8dafe9ef-c9bc-4cb5-8acc-162d6025d6e7",
   "prevId": "f0f0edbf-6464-4f08-914c-43c662a6c066",
   "tables": {
     "agent": {
@@ -2442,7 +2442,7 @@
           "tableTo": "message",
           "columnsFrom": ["parent_id"],
           "columnsTo": ["id"],
-          "onDelete": "set null",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
