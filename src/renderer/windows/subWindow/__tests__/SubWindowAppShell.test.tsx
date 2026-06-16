@@ -34,7 +34,11 @@ async function renderSubWindowAppShell(isMac: boolean) {
     AppShellTabBar: () => <header data-testid="tab-bar" />
   }))
   vi.doMock('@renderer/components/layout/TabRouter', () => ({
-    TabRouter: () => <section data-testid="tab-router" />
+    TabRouter: ({ isActive }: { isActive: boolean }) => (
+      <section data-testid="tab-router">
+        {!isMac && isActive ? <div data-page-side-panel-root="true" data-testid="scoped-root" /> : null}
+      </section>
+    )
   }))
   vi.doMock('@renderer/components/MiniApp/MiniAppTabsPool', () => ({
     default: () => <div data-testid="mini-app-pool" />
@@ -51,12 +55,13 @@ afterEach(() => {
 })
 
 describe('SubWindowAppShell page side panel root', () => {
-  it('marks the detached content area as the page side panel root outside macOS', async () => {
+  it('scopes the page side panel root to the tab content area, excluding app chrome, outside macOS', async () => {
     await renderSubWindowAppShell(false)
 
     const root = document.querySelector('[data-page-side-panel-root="true"]')
     expect(root).toBeInTheDocument()
     expect(root).not.toContainElement(screen.getByTestId('tab-bar'))
+    expect(screen.getByTestId('tab-router')).toContainElement(root as HTMLElement)
   })
 
   it('does not mark a scoped page side panel root on macOS', async () => {

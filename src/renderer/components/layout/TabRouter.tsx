@@ -1,3 +1,4 @@
+import { isMac } from '@renderer/config/constant'
 import { routeTree } from '@renderer/routeTree.gen'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
@@ -44,7 +45,9 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
 
   return (
     <Activity mode={isActive ? 'visible' : 'hidden'}>
-      <div className="flex h-full min-h-0 w-full flex-1 flex-col">
+      <div
+        data-page-side-panel-root={!isMac && isActive ? 'true' : undefined}
+        className="relative flex h-full min-h-0 w-full flex-1 flex-col">
         <RouterProvider router={router} />
       </div>
     </Activity>
