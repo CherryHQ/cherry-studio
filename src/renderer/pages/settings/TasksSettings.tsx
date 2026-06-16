@@ -137,7 +137,7 @@ const TaskChannelSelector: FC<{
           renderOption={(option) => (
             <span className="flex min-w-0 items-center gap-2">
               <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${option.isActive ? 'bg-green-500' : 'bg-gray-400'}`}
+                className={`inline-block h-1.5 w-1.5 rounded-full ${option.isActive ? 'bg-green-500' : 'bg-muted-foreground'}`}
               />
               <span className="truncate">{option.label}</span>
             </span>
