@@ -154,7 +154,7 @@
   pointer-events: none;
   font-style: italic;
   inset-inline-start: 0;
-  right: 0;
+  inset-inline-end: 0;
 }
 
 /* Ensure drag handles and plus buttons remain interactive */

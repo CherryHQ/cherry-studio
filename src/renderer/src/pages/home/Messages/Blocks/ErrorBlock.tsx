@@ -153,7 +153,7 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
       {/* Close button */}
       <button
         type="button"
-        className="absolute top-2 end-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent opacity-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-error)_12%,transparent)] hover:text-(--color-error) group-hover:opacity-100"
+        className="absolute end-2 top-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent opacity-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-error)_12%,transparent)] hover:text-(--color-error) group-hover:opacity-100"
         onClick={onRemoveBlock}
         aria-label="close"
         title={t('common.close')}>
@@ -178,7 +178,7 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
       </div>
 
       {/* Footer */}
-      <div className="mt-2.5 ms-5.75 flex items-center gap-2">
+      <div className="ms-5.75 mt-2.5 flex items-center gap-2">
         {classification.navTarget && (
           <Button
             size="small"

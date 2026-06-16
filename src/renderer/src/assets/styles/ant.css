@@ -209,7 +209,7 @@
 }
 
 .ant-modal:not(.ant-modal-confirm) .ant-modal-content .ant-modal-confirm-btns {
-  margin-bottom: 8px;
+  margin-block-end: 8px;
 }
 
 .ant-modal.ant-modal-confirm.ant-modal-confirm-confirm .ant-modal-content {

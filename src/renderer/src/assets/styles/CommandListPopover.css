@@ -14,11 +14,11 @@
 }
 
 .command-list-popover[data-placement*='start'] {
-  transform-origin: left center;
+  transform-origin: inline-start center;
 }
 
 .command-list-popover[data-placement*='end'] {
-  transform-origin: right center;
+  transform-origin: inline-end center;
 }
 
 @keyframes slideDownAndFadeIn {

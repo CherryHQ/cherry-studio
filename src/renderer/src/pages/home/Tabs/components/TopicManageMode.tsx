@@ -345,7 +345,7 @@ export const TopicManagePanel: React.FC<TopicManagePanelProps> = ({
 
 // Tailwind components
 const ManagePanel: FC<PropsWithChildren> = ({ children }) => (
-  <div className="absolute bottom-[15px] start-[12px] z-[100] flex w-[calc(var(--assistants-width)-24px)] flex-row items-center rounded-xl bg-[var(--color-background)] px-3 py-2 shadow-[0_4px_12px_rgba(0,0,0,0.15),0_0_0_1px_var(--color-border)]">
+  <div className="absolute start-[12px] bottom-[15px] z-[100] flex w-[calc(var(--assistants-width)-24px)] flex-row items-center rounded-xl bg-[var(--color-background)] px-3 py-2 shadow-[0_4px_12px_rgba(0,0,0,0.15),0_0_0_1px_var(--color-border)]">
     {children}
   </div>
 )
