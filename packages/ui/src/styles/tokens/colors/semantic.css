@@ -9,8 +9,9 @@
    * (switch/slider/checkbox fills derive from it). */
   --cs-primary: var(--cs-neutral-900);
   --cs-primary-hover: var(--cs-neutral-800);
-  --cs-control-accent: var(--cs-brand-500);
-  --cs-control-accent-hover: var(--cs-brand-600);
+  /* control-accent base + hover derive from the runtime --cs-theme-control-accent in theme.css.
+   * Only the foreground is kept as a token because it doesn't derive from the
+   * theme color — it's a mode-aware contrast pair (white on light, neutral-900 on dark). */
   --cs-control-accent-foreground: var(--cs-white);
   --cs-destructive: var(--cs-red-500);
   --cs-destructive-hover: var(--cs-red-400);
@@ -103,8 +104,7 @@
   --cs-primary: var(--cs-neutral-100);
   --cs-primary-hover: var(--cs-neutral-200);
   --cs-primary-foreground: var(--cs-neutral-900);
-  --cs-control-accent: var(--cs-brand-400);
-  --cs-control-accent-hover: var(--cs-brand-300);
+  /* control-accent (dark) — see :root note; only foreground stays as a token. */
   --cs-control-accent-foreground: var(--cs-neutral-900);
   --cs-success: var(--cs-green-400);
   --cs-warning: var(--cs-amber-400);

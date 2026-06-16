@@ -14,6 +14,10 @@ describe('buildThemeContractCss', () => {
     expect(css).toContain('--cs-theme-primary: var(--cs-primary);')
     expect(css).toContain('--cs-theme-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);')
     expect(css).toContain('--cs-theme-control-accent: var(--cs-theme-primary);')
+    expect(css).toContain(
+      '--cs-theme-control-accent-hover: color-mix(in srgb, var(--cs-theme-control-accent) 88%, var(--cs-foreground));'
+    )
+    expect(css).toContain('--cs-theme-control-accent-foreground: var(--cs-control-accent-foreground);')
     expect(css).not.toContain('--cs-user-font-family:')
     expect(css).not.toContain('--cs-user-code-font-family:')
     expect(css).toContain('/* Compatibility Aliases */')
@@ -25,6 +29,8 @@ describe('buildThemeContractCss', () => {
     expect(css).toContain('--color-primary: var(--cs-primary);')
     expect(css).not.toContain('--color-primary: var(--cs-theme-primary);')
     expect(css).toContain('--color-control-accent: var(--cs-theme-control-accent);')
+    expect(css).toContain('--color-control-accent-hover: var(--cs-theme-control-accent-hover);')
+    expect(css).toContain('--color-control-accent-foreground: var(--cs-theme-control-accent-foreground);')
     expect(css).toContain('--color-link: var(--cs-theme-control-accent);')
     expect(css).toContain('--color-ring: var(--cs-theme-ring);')
     expect(css).not.toContain('--color-ring: var(--cs-ring);')

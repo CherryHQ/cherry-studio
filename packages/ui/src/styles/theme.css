@@ -277,6 +277,8 @@
    * inputs/selects/focus never follow the theme color. */
   --cs-theme-primary: var(--cs-primary);
   --cs-theme-control-accent: var(--cs-theme-primary);
+  --cs-theme-control-accent-hover: color-mix(in srgb, var(--cs-theme-control-accent) 88%, var(--cs-foreground));
+  --cs-theme-control-accent-foreground: var(--cs-control-accent-foreground);
   --cs-theme-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
 
   /* ==================== */
@@ -293,8 +295,8 @@
   --color-primary-soft: color-mix(in srgb, var(--color-primary) 60%, transparent);
   --color-primary-mute: color-mix(in srgb, var(--color-primary) 30%, transparent);
   --color-control-accent: var(--cs-theme-control-accent);
-  --color-control-accent-hover: var(--cs-control-accent-hover);
-  --color-control-accent-foreground: var(--cs-control-accent-foreground);
+  --color-control-accent-hover: var(--cs-theme-control-accent-hover);
+  --color-control-accent-foreground: var(--cs-theme-control-accent-foreground);
   --color-ring: var(--cs-theme-ring);
   --color-link: var(--cs-theme-control-accent);
   --color-destructive: var(--cs-destructive);
