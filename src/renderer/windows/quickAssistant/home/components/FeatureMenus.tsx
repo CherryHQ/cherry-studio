@@ -137,7 +137,8 @@ const FeatureItem = styled.div`
   }
 
   &.active {
-    background: var(--color-background-mute);
+    background: var(--color-selected);
+    box-shadow: inset 0 0 0 0.5px var(--color-selected-border);
   }
 `
 

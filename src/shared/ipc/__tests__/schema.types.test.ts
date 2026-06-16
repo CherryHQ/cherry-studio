@@ -109,6 +109,7 @@ describe('global registry reflects migrated domains', () => {
       | 'selection.toolbar_visibility_change'
       | 'window.maximized_changed'
       | 'window.fullscreen_changed'
+      | 'window.focus_changed'
       | 'window.reused'
     >()
   })
