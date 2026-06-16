@@ -382,8 +382,7 @@ export const transformKnowledgeItem = (
     type = 'note'
     data = {
       source,
-      content,
-      sourceUrl: note?.sourceUrl ?? item.sourceUrl
+      content
     }
   } else {
     return {

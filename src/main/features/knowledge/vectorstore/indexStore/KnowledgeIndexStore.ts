@@ -125,10 +125,16 @@ export class KnowledgeIndexStore {
         )
       }
 
-      // 6b. Coverage check: every unit's re-derived embedding hash must resolve to
-      // a vector. The caller hashes its chunk text while this store hashes the
-      // re-sliced body, so an offset/hash mismatch would otherwise surface as
-      // units silently absent from vector search — roll the rebuild back instead.
+      // 6b. Coverage check: every unit's re-derived embedding hash must resolve to a
+      //     vector, or roll the rebuild back. This catches two failure modes:
+      //     (a) the caller hashes its chunk text while this store hashes the re-sliced
+      //         body, so an offset/hash mismatch would leave a unit silently absent
+      //         from vector search; and
+      //     (b) the listExistingEmbeddingHashes race — the caller reads existing hashes
+      //         outside the base lock, so a concurrent GC (step 8 / deleteMaterial) can
+      //         drop a hash it reported present before this rebuild writes, and the job
+      //         then skips re-embedding it. Failing loud rolls back; the job's retry
+      //         re-reads (the hash is now absent), re-embeds it, and converges.
       await this.assertEmbeddingCoverage(tx, materialId, [...new Set(units.map((unit) => unit.embeddingTextHash))])
 
       // 7. Mark the material's current content (failure/lifecycle state is the
@@ -138,6 +144,10 @@ export class KnowledgeIndexStore {
         now,
         materialId
       ])
+
+      // 8. Sweep rows this rebuild orphaned (old units' embeddings, old content the
+      //    new revision no longer references). Safe under the base mutation lock.
+      await this.collectIndexGarbage(tx)
     })
   }
 
@@ -145,14 +155,37 @@ export class KnowledgeIndexStore {
    * Delete a material and everything derived from it. Removing the material row
    * cascades to its `search_unit`; the units' body `search_text` is deleted
    * explicitly first (no FK), which also clears the FTS index via the delete
-   * trigger. Orphaned `embedding` rows are left for a not-yet-implemented GC
-   * (deferred past PR A — see listExistingEmbeddingHashes for its lock contract).
+   * trigger. {@link collectIndexGarbage} then sweeps the `embedding` and `content`
+   * rows this delete orphaned, in the same transaction.
    */
   async deleteMaterial(materialId: string): Promise<void> {
     await this.driver.transaction(async (tx) => {
       await this.deleteMaterialSearchText(tx, materialId)
       await tx.execute(`DELETE FROM material WHERE material_id = ?`, [materialId])
+      await this.collectIndexGarbage(tx)
     })
+  }
+
+  /**
+   * Sweep rows orphaned by a material delete/rebuild, inside the same write
+   * transaction (so under the base mutation lock the callers already hold). Runs
+   * after the material change, so the just-written rows are visible and never
+   * collected:
+   *  - `embedding`: no `search_text` references its hash (no FK points at it).
+   *  - `content`: no `material.current_content_hash` (FK NO ACTION) and no
+   *    `search_unit.content_hash` (FK CASCADE) reference it — both referrers are
+   *    excluded, so the delete never violates either constraint.
+   */
+  private async collectIndexGarbage(tx: SqliteTransaction): Promise<void> {
+    await tx.execute(
+      `DELETE FROM embedding
+       WHERE NOT EXISTS (SELECT 1 FROM search_text st WHERE st.embedding_text_hash = embedding.embedding_text_hash)`
+    )
+    await tx.execute(
+      `DELETE FROM content
+       WHERE NOT EXISTS (SELECT 1 FROM material m WHERE m.current_content_hash = content.content_hash)
+         AND NOT EXISTS (SELECT 1 FROM search_unit su WHERE su.content_hash = content.content_hash)`
+    )
   }
 
   /**
@@ -162,11 +195,12 @@ export class KnowledgeIndexStore {
    * for any unit whose body hashes to it.
    *
    * The job reads this outside the base mutation lock, then writes the rebuild
-   * under it. That is safe only because nothing deletes `embedding` rows today
-   * (orphans are left for a not-yet-implemented GC). Whoever adds that GC
-   * MUST run it under the base mutation lock — otherwise it could drop a hash
-   * reported here as existing between this read and the rebuild write, leaving a
-   * unit with no vector (silently absent from vector search).
+   * under it. {@link collectIndexGarbage} (run under that lock by rebuild/delete)
+   * can drop a hash reported here as present, between this read and the rebuild
+   * write. rebuildMaterial closes that race: {@link assertEmbeddingCoverage} rolls
+   * the rebuild back if any new unit's hash lost its embedding, so the job retries,
+   * re-reads (the hash is now absent) and re-embeds it. A stale "present" therefore
+   * self-corrects rather than leaving a unit silently absent from vector search.
    */
   async listExistingEmbeddingHashes(hashes: string[]): Promise<Set<string>> {
     const existing = new Set<string>()
