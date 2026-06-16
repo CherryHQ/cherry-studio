@@ -156,7 +156,7 @@ export function resolveUserDataLocation(): void {
 }
 
 function resolveDevUserDataSuffix(): string {
-  return process.env.CHERRY_DEV_USER_DATA_SUFFIX?.trim() || DEFAULT_DEV_USER_DATA_SUFFIX
+  return process.env.CS_DEV_USER_DATA_SUFFIX?.trim() || DEFAULT_DEV_USER_DATA_SUFFIX
 }
 
 /**
