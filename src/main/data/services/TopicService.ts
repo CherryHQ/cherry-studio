@@ -30,6 +30,7 @@ import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
+import { messageService } from './MessageService'
 
 const logger = loggerService.withContext('DataApi:TopicService')
 
@@ -155,8 +156,8 @@ export class TopicService {
     const dbService = application.get('DbService')
     const groupId = dto.groupId ?? null
 
-    const row = (await dbService.withWriteTx((tx) => {
-      return insertWithOrderKey(
+    const row = await dbService.withWriteTx(async (tx) => {
+      const topicRow = (await insertWithOrderKey(
         tx,
         topicTable,
         {
@@ -169,8 +170,10 @@ export class TopicService {
           pkColumn: topicTable.id,
           scope: topicScopePredicate(groupId)
         }
-      )
-    })) as TopicRow
+      )) as TopicRow
+      await messageService.createRootMessageTx(tx, topicRow.id)
+      return topicRow
+    })
 
     logger.info('Created empty topic', { id: row.id })
 
@@ -179,8 +182,6 @@ export class TopicService {
 
   async duplicate(sourceTopicId: string, dto: DuplicateTopicDto): Promise<Topic> {
     const dbService = application.get('DbService')
-    // Lazy import avoids a singleton cycle: MessageService already depends on TopicService for active-node updates.
-    const { messageService } = await import('./MessageService')
 
     const copiedTopic = await dbService.withWriteTx(async (tx) => {
       const [sourceTopic] = await tx
@@ -191,9 +192,6 @@ export class TopicService {
       if (!sourceTopic) throw DataApiErrorFactory.notFound('Topic', sourceTopicId)
 
       const sourcePathRows = await messageService.getPathRowsToNodeTx(tx, dto.nodeId, { topicId: sourceTopicId })
-      if (sourcePathRows[0]?.parentId !== null) {
-        throw DataApiErrorFactory.invalidOperation('duplicate topic', 'Source path does not start at root message')
-      }
 
       const newTopicRow = (await insertWithOrderKey(
         tx,
@@ -212,6 +210,10 @@ export class TopicService {
           scope: topicScopePredicate(sourceTopic.groupId ?? null)
         }
       )) as TopicRow
+
+      // New topic is a creation path → create its virtual root before copying the path
+      // (copyPathRowsTx reparents the copied head onto it).
+      await messageService.createRootMessageTx(tx, newTopicRow.id)
 
       const { copiedMessageIds, copiedActiveNodeId } = await messageService.copyPathRowsTx(tx, sourcePathRows, {
         topicId: newTopicRow.id

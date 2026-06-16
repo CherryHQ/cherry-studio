@@ -260,21 +260,40 @@ export class MessageService {
       })
     }
 
+    // The virtual root (the single parentId-null row) is structural and never
+    // rendered. Drop it from the active path; its children — the first-turn
+    // messages — are the logical roots of the flow canvas.
+    const [rootRow] = await db
+      .select({ id: messageTable.id })
+      .from(messageTable)
+      .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId), isNull(messageTable.deletedAt)))
+      .limit(1)
+    const virtualRootId = rootRow?.id ?? null
+    if (virtualRootId) {
+      activePath.delete(virtualRootId)
+    }
+
     // Without an explicit root, the flow canvas is a topic-level view: every
-    // non-deleted root message in this topic starts its own tree.
+    // first-turn message (child of the virtual root) starts its own tree.
     const explicitRootId = options.rootId
     const rootIds = explicitRootId
       ? [explicitRootId]
-      : (
-          await db
-            .select({ id: messageTable.id, createdAt: messageTable.createdAt })
-            .from(messageTable)
-            .where(
-              and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId), isNull(messageTable.deletedAt))
-            )
-        )
-          .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
-          .map((row) => row.id)
+      : virtualRootId
+        ? (
+            await db
+              .select({ id: messageTable.id, createdAt: messageTable.createdAt })
+              .from(messageTable)
+              .where(
+                and(
+                  eq(messageTable.topicId, topicId),
+                  eq(messageTable.parentId, virtualRootId),
+                  isNull(messageTable.deletedAt)
+                )
+              )
+          )
+            .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
+            .map((row) => row.id)
+        : []
 
     if (rootIds.length === 0) {
       return { nodes: [], siblingsGroups: [], activeNodeId: null }
@@ -385,6 +404,12 @@ export class MessageService {
 
     for (const row of treeRows) {
       const message = rowToMessage(row)
+      // First-turn messages hang off the virtual root in the DB; present them as
+      // logical roots (parentId = null) so the canvas renders them as independent
+      // root trees and the structural virtual root stays invisible.
+      if (virtualRootId && message.parentId === virtualRootId) {
+        message.parentId = null
+      }
       messagesById.set(message.id, message)
       depthMap.set(message.id, row.treeDepth)
 
@@ -746,8 +771,8 @@ export class MessageService {
    *   the same `parentId`, and always becomes the topic's active node.
    * - Edited user siblings are already complete (`success`); assistant siblings
    *   stay `pending` until their response stream resolves.
-   * - Root messages (`parentId = null`) can create root siblings for editing
-   *   and resending the first user turn.
+   * - First-turn messages hang off the topic's virtual root, so editing / resending
+   *   the first user turn creates an ordinary sibling under that root — no special case.
    */
   async createSibling(sourceId: string, data: MessageData): Promise<Message> {
     return await application.get('DbService').withWriteTx(async (tx) => {
@@ -788,6 +813,39 @@ export class MessageService {
   }
 
   /**
+   * Insert the topic's virtual root — the single `parentId = null` row: content-less
+   * (`role = 'system'`, empty `data`), never rendered. Every real message hangs below
+   * it, so first-turn messages and their resends are ordinary siblings under a shared
+   * parent — no multi-root. Called exactly once per topic by every topic-creation path
+   * (create / duplicate / temp-chat persist / v1→v2 migrator); the
+   * `message_topic_root_uniq` index enforces single-root.
+   */
+  async createRootMessageTx(tx: DbOrTx, topicId: string): Promise<string> {
+    const [row] = await tx
+      .insert(messageTable)
+      .values({ topicId, parentId: null, role: 'system', data: { parts: [] }, status: 'success', siblingsGroupId: 0 })
+      .returning({ id: messageTable.id })
+    return row.id
+  }
+
+  /**
+   * Return the topic's virtual-root message id. Every topic has exactly one, created
+   * eagerly at topic creation, so message-creation paths just read it. Throws if absent
+   * — a missing root means a topic-creation path failed to call {@link createRootMessageTx}.
+   */
+  async getRootMessageIdTx(tx: DbOrTx, topicId: string): Promise<string> {
+    const [row] = await tx
+      .select({ id: messageTable.id })
+      .from(messageTable)
+      .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId)))
+      .limit(1)
+    if (!row) {
+      throw DataApiErrorFactory.invalidOperation('resolve root message', `Topic ${topicId} has no virtual root`)
+    }
+    return row.id
+  }
+
+  /**
    * Create a new message
    *
    * Uses transaction to ensure atomicity of:
@@ -813,44 +871,14 @@ export class MessageService {
       let resolvedParentId: string | null
 
       if (dto.parentId === undefined) {
-        // Auto-resolution: `activeNodeId` is the authoritative "where we are
-        // in this conversation" marker. When set, append there; otherwise
-        // the topic must be empty and we create the root.
-        if (topic.activeNodeId) {
-          resolvedParentId = topic.activeNodeId
-        } else {
-          // No active node → topic should be empty. If a root already exists
-          // in some ambiguous state, require the caller to be explicit.
-          const [existingRoot] = await tx
-            .select({ id: messageTable.id })
-            .from(messageTable)
-            .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId)))
-            .limit(1)
-          if (existingRoot) {
-            throw DataApiErrorFactory.invalidOperation(
-              'create message',
-              'Topic has messages but no activeNodeId. Please specify parentId explicitly.'
-            )
-          }
-          resolvedParentId = null
-        }
+        // Auto-resolve: `activeNodeId` is the authoritative "where we are" marker —
+        // append there. An empty topic (no active node) starts its first turn under
+        // the virtual root.
+        resolvedParentId = topic.activeNodeId ?? (await this.getRootMessageIdTx(tx, topicId))
       } else if (dto.parentId === null) {
-        // Explicit root creation: Caller wants to create a root message.
-        // Each topic can only have one root message (parentId = null).
-        // Check if a root already exists to enforce this constraint.
-
-        const [existingRoot] = await tx
-          .select({ id: messageTable.id })
-          .from(messageTable)
-          .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId)))
-          .limit(1)
-
-        if (existingRoot) {
-          // Root already exists: Cannot create another root message.
-          // This enforces the single-root tree structure constraint.
-          throw DataApiErrorFactory.invalidOperation('create root message', 'Topic already has a root message')
-        }
-        resolvedParentId = null
+        // First-turn message: hang it off the topic's virtual root (created if absent).
+        // First turns and their resends are ordinary siblings under this shared root.
+        resolvedParentId = await this.getRootMessageIdTx(tx, topicId)
       } else {
         // Explicit parent ID: verify existence and topic membership. Each
         // topic's message tree is self-contained — cross-topic parent refs
@@ -932,16 +960,8 @@ export class MessageService {
         let resolvedParentId: string | null
 
         if (dto.parentId === undefined || dto.parentId === null) {
-          // Explicit/default root: enforce single-root invariant
-          const [existingRoot] = await tx
-            .select({ id: messageTable.id })
-            .from(messageTable)
-            .where(and(eq(messageTable.topicId, input.topicId), isNull(messageTable.parentId)))
-            .limit(1)
-          if (existingRoot) {
-            throw DataApiErrorFactory.invalidOperation('create root message', 'Topic already has a root message')
-          }
-          resolvedParentId = null
+          // First-turn message: hang it off the topic's virtual root (created if absent).
+          resolvedParentId = await this.getRootMessageIdTx(tx, input.topicId)
         } else {
           const [parent] = await tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1)
           if (!parent) {
@@ -1334,7 +1354,11 @@ export class MessageService {
     const ancestorOrder = new Map(ancestorIds.map((id, i) => [id, i]))
     const ordered = ancestorRows.sort((a, b) => ancestorOrder.get(a.id)! - ancestorOrder.get(b.id)!)
 
-    return ordered.reverse()
+    // root → node order, with the structural virtual root (the only parentId-null
+    // row) dropped: content paths start at the first-turn message, not the
+    // content-less root.
+    const chain = ordered.reverse()
+    return chain[0]?.parentId === null ? chain.slice(1) : chain
   }
 
   /**
@@ -1355,17 +1379,21 @@ export class MessageService {
       throw DataApiErrorFactory.invalidOperation('copy message path', 'Source path is empty')
     }
 
+    // The destination topic's virtual root; the path head (first-turn message, whose
+    // source parent is the source's excluded virtual root) reparents onto it.
+    const destRootId = await this.getRootMessageIdTx(tx, options.topicId)
+
     const copiedMessageIds = new Map<string, string>()
     let copiedActiveNodeId = ''
 
     for (const sourceMessage of rows) {
-      let copiedParentId: string | null = null
-      if (sourceMessage.parentId) {
-        const copiedParent = copiedMessageIds.get(sourceMessage.parentId)
-        if (!copiedParent) {
-          throw DataApiErrorFactory.invalidOperation('copy message path', 'Parent message has not been copied')
-        }
-        copiedParentId = copiedParent
+      let copiedParentId: string
+      if (sourceMessage.parentId && copiedMessageIds.has(sourceMessage.parentId)) {
+        copiedParentId = copiedMessageIds.get(sourceMessage.parentId)!
+      } else {
+        // Head of the path: its source parent is the (excluded) source virtual root,
+        // so attach to the destination topic's virtual root.
+        copiedParentId = destRootId
       }
       const [copiedMessage] = await tx
         .insert(messageTable)

@@ -841,11 +841,12 @@ describe('ChatMigrator.insertStagedTopics file_ref backfill', () => {
   function newMessage(
     id: string,
     topicId: string,
-    blocks: Array<{ type: string; fileId?: string; content?: string }>
+    blocks: Array<{ type: string; fileId?: string; content?: string }>,
+    parentId: string | null = null
   ): NewMessage {
     return {
       id,
-      parentId: null,
+      parentId,
       topicId,
       role: 'user',
       data: {
@@ -973,10 +974,12 @@ describe('ChatMigrator.insertStagedTopics file_ref backfill', () => {
     await seedFileEntry('fe-valid')
 
     const migrator = new ChatMigrator()
+    // Chain into a single root so only m-txt has parentId === null
+    // (message_topic_root_uniq: one virtual root per topic).
     const messages = [
       newMessage('m-txt', 't-mix', [{ type: 'main_text', content: 'hello' }]),
-      newMessage('m-img', 't-mix', [{ type: 'image', fileId: 'fe-valid' }]),
-      newMessage('m-bad', 't-mix', [{ type: 'file', fileId: 'fe-gone' }])
+      newMessage('m-img', 't-mix', [{ type: 'image', fileId: 'fe-valid' }], 'm-txt'),
+      newMessage('m-bad', 't-mix', [{ type: 'file', fileId: 'fe-gone' }], 'm-img')
     ]
     stage(migrator, [{ topic: newTopic('t-mix', 100), messages, pinned: false }], ['fe-valid'])
 
@@ -1005,9 +1008,14 @@ describe('ChatMigrator.insertStagedTopics file_ref backfill', () => {
     m['migratedFileEntryIds'] = new Set(['fe-a', 'fe-b'])
 
     const collisionId = 'collision-id'
+    // A distinct text root keeps both colliding messages as non-root children
+    // (message_topic_root_uniq: one root per topic) without a self-referencing
+    // parentId — chaining the 2nd collision id onto the 1st would self-ref after
+    // dedup renames it.
     const messages = [
-      newMessage(collisionId, 't1', [{ type: 'image', fileId: 'fe-a' }]),
-      newMessage(collisionId, 't1', [{ type: 'file', fileId: 'fe-b' }])
+      newMessage('t1-root', 't1', [{ type: 'text', content: 'root' }]),
+      newMessage(collisionId, 't1', [{ type: 'image', fileId: 'fe-a' }], 't1-root'),
+      newMessage(collisionId, 't1', [{ type: 'file', fileId: 'fe-b' }], 't1-root')
     ]
 
     stage(migrator, [{ topic: newTopic('t1', 100), messages, pinned: false }], ['fe-a', 'fe-b'])
@@ -1061,9 +1069,10 @@ describe('ChatMigrator.insertStagedTopics file_ref backfill', () => {
     const m = migrator as unknown as Record<string, unknown>
     m['migratedFileEntryIds'] = new Set(['fe-shared'])
 
+    // Chain m2 onto m1 so only m1 is a root (message_topic_root_uniq).
     const messages = [
       newMessage('m1', 't1', [{ type: 'image', fileId: 'fe-shared' }]),
-      newMessage('m2', 't1', [{ type: 'file', fileId: 'fe-shared' }])
+      newMessage('m2', 't1', [{ type: 'file', fileId: 'fe-shared' }], 'm1')
     ]
 
     stage(migrator, [{ topic: newTopic('t1', 100), messages, pinned: false }], ['fe-shared'])
@@ -1156,9 +1165,10 @@ describe('ChatMigrator.insertStagedTopics file_ref backfill', () => {
     const m = migrator as unknown as Record<string, unknown>
     m['migratedFileEntryIds'] = new Set(['fe-diag-ok'])
 
+    // Chain m2 onto m1 so only m1 is a root (message_topic_root_uniq).
     const messages = [
       newMessage('m1', 't1', [{ type: 'image', fileId: 'fe-diag-ok' }]),
-      newMessage('m2', 't1', [{ type: 'file', fileId: 'fe-dangling' }])
+      newMessage('m2', 't1', [{ type: 'file', fileId: 'fe-dangling' }], 'm1')
     ]
 
     stage(migrator, [{ topic: newTopic('t1', 100), messages, pinned: false }], ['fe-diag-ok'])

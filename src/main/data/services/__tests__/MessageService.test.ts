@@ -7,9 +7,9 @@ import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { MessageData } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
-import { setupTestDatabase } from '@test-helpers/db'
+import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
-import { eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 function mainText(content: string): MessageData {
@@ -117,73 +117,75 @@ describe('MessageService', () => {
         updatedAt: 300
       }
     ]
-    await dbh.db.insert(messageTable).values(messages)
+    await dbh.db.insert(messageTable).values(withRoot('topic-1', messages))
   }
 
   describe('findPendingAssistantMessageIds', () => {
     it('returns only non-deleted assistant rows still in pending', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-p', activeNodeId: 'm-pending', orderKey: 'b0' })
-      await dbh.db.insert(messageTable).values([
-        {
-          id: 'm-u',
-          parentId: null,
-          topicId: 'topic-p',
-          role: 'user',
-          data: mainText('q'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 100,
-          updatedAt: 100
-        },
-        {
-          id: 'm-pending',
-          parentId: 'm-u',
-          topicId: 'topic-p',
-          role: 'assistant',
-          data: mainText(''),
-          status: 'pending',
-          siblingsGroupId: 1,
-          modelId: createUniqueModelId('provider-a', 'model-A'),
-          createdAt: 200,
-          updatedAt: 200
-        },
-        {
-          id: 'm-done',
-          parentId: 'm-u',
-          topicId: 'topic-p',
-          role: 'assistant',
-          data: mainText('done'),
-          status: 'success',
-          siblingsGroupId: 1,
-          modelId: createUniqueModelId('provider-b', 'model-B'),
-          createdAt: 210,
-          updatedAt: 210
-        },
-        {
-          id: 'm-pending-user',
-          parentId: 'm-u',
-          topicId: 'topic-p',
-          role: 'user',
-          data: mainText(''),
-          status: 'pending',
-          siblingsGroupId: 0,
-          createdAt: 220,
-          updatedAt: 220
-        },
-        {
-          id: 'm-pending-deleted',
-          parentId: 'm-u',
-          topicId: 'topic-p',
-          role: 'assistant',
-          data: mainText(''),
-          status: 'pending',
-          siblingsGroupId: 2,
-          modelId: createUniqueModelId('provider-a', 'model-A'),
-          createdAt: 230,
-          updatedAt: 230,
-          deletedAt: 999
-        }
-      ])
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-p', [
+          {
+            id: 'm-u',
+            parentId: null,
+            topicId: 'topic-p',
+            role: 'user',
+            data: mainText('q'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'm-pending',
+            parentId: 'm-u',
+            topicId: 'topic-p',
+            role: 'assistant',
+            data: mainText(''),
+            status: 'pending',
+            siblingsGroupId: 1,
+            modelId: createUniqueModelId('provider-a', 'model-A'),
+            createdAt: 200,
+            updatedAt: 200
+          },
+          {
+            id: 'm-done',
+            parentId: 'm-u',
+            topicId: 'topic-p',
+            role: 'assistant',
+            data: mainText('done'),
+            status: 'success',
+            siblingsGroupId: 1,
+            modelId: createUniqueModelId('provider-b', 'model-B'),
+            createdAt: 210,
+            updatedAt: 210
+          },
+          {
+            id: 'm-pending-user',
+            parentId: 'm-u',
+            topicId: 'topic-p',
+            role: 'user',
+            data: mainText(''),
+            status: 'pending',
+            siblingsGroupId: 0,
+            createdAt: 220,
+            updatedAt: 220
+          },
+          {
+            id: 'm-pending-deleted',
+            parentId: 'm-u',
+            topicId: 'topic-p',
+            role: 'assistant',
+            data: mainText(''),
+            status: 'pending',
+            siblingsGroupId: 2,
+            modelId: createUniqueModelId('provider-a', 'model-A'),
+            createdAt: 230,
+            updatedAt: 230,
+            deletedAt: 999
+          }
+        ])
+      )
 
       const pendingIds = await messageService.findPendingAssistantMessageIds()
       expect(pendingIds).toEqual(['m-pending'])
@@ -193,41 +195,43 @@ describe('MessageService', () => {
   describe('markMessagesError', () => {
     async function seedStatuses() {
       await dbh.db.insert(topicTable).values({ id: 'topic-e', activeNodeId: 'm-a', orderKey: 'c0' })
-      await dbh.db.insert(messageTable).values([
-        {
-          id: 'm-a',
-          parentId: null,
-          topicId: 'topic-e',
-          role: 'assistant',
-          data: mainText(''),
-          status: 'pending',
-          siblingsGroupId: 1,
-          createdAt: 100,
-          updatedAt: 100
-        },
-        {
-          id: 'm-b',
-          parentId: null,
-          topicId: 'topic-e',
-          role: 'assistant',
-          data: mainText(''),
-          status: 'pending',
-          siblingsGroupId: 2,
-          createdAt: 110,
-          updatedAt: 110
-        },
-        {
-          id: 'm-keep',
-          parentId: null,
-          topicId: 'topic-e',
-          role: 'assistant',
-          data: mainText('done'),
-          status: 'success',
-          siblingsGroupId: 3,
-          createdAt: 120,
-          updatedAt: 120
-        }
-      ])
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-e', [
+          {
+            id: 'm-a',
+            parentId: null,
+            topicId: 'topic-e',
+            role: 'assistant',
+            data: mainText(''),
+            status: 'pending',
+            siblingsGroupId: 1,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'm-b',
+            parentId: null,
+            topicId: 'topic-e',
+            role: 'assistant',
+            data: mainText(''),
+            status: 'pending',
+            siblingsGroupId: 2,
+            createdAt: 110,
+            updatedAt: 110
+          },
+          {
+            id: 'm-keep',
+            parentId: null,
+            topicId: 'topic-e',
+            role: 'assistant',
+            data: mainText('done'),
+            status: 'success',
+            siblingsGroupId: 3,
+            createdAt: 120,
+            updatedAt: 120
+          }
+        ])
+      )
     }
 
     const statusOf = async (id: string) => {
@@ -275,17 +279,15 @@ describe('MessageService', () => {
       expect(a2Item.siblingsGroup![0].parentId).toBe('m-root')
     })
 
-    it('returns rooted path with non-undefined parentId for every item', async () => {
+    it('returns rooted path with non-null parentId for every item', async () => {
       await seedMultiModelTree()
 
       const result = await messageService.getBranchMessages('topic-1', { includeSiblings: false })
 
+      // The virtual root is excluded from the path, so every returned item — including
+      // the first-turn head — has a non-null parentId.
       for (const item of result.items) {
-        if (item.message.id === 'm-root') {
-          expect(item.message.parentId).toBeNull()
-        } else {
-          expect(item.message.parentId).toEqual(expect.any(String))
-        }
+        expect(item.message.parentId).toEqual(expect.any(String))
       }
     })
 
@@ -573,30 +575,32 @@ describe('MessageService', () => {
       await dbh.db
         .insert(topicTable)
         .values({ id: 'topic-created-substring', activeNodeId: 'm-created-new', orderKey: 'cf0' })
-      await dbh.db.insert(messageTable).values([
-        {
-          id: 'm-created-old',
-          parentId: null,
-          topicId: 'topic-created-substring',
-          role: 'assistant',
-          data: partsText('needle in an older answer'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 100,
-          updatedAt: 500
-        },
-        {
-          id: 'm-created-new',
-          parentId: null,
-          topicId: 'topic-created-substring',
-          role: 'assistant',
-          data: partsText('needle in a newer answer'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 300,
-          updatedAt: 300
-        }
-      ])
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-created-substring', [
+          {
+            id: 'm-created-old',
+            parentId: null,
+            topicId: 'topic-created-substring',
+            role: 'assistant',
+            data: partsText('needle in an older answer'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 500
+          },
+          {
+            id: 'm-created-new',
+            parentId: null,
+            topicId: 'topic-created-substring',
+            role: 'assistant',
+            data: partsText('needle in a newer answer'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 300,
+            updatedAt: 300
+          }
+        ])
+      )
 
       const result = await messageService.search({
         q: 'needle',
@@ -608,30 +612,32 @@ describe('MessageService', () => {
 
     it('orders matches by newest message before applying limit', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-order', activeNodeId: 'm-order-new', orderKey: 's2' })
-      await dbh.db.insert(messageTable).values([
-        {
-          id: 'm-order-old',
-          parentId: null,
-          topicId: 'topic-order',
-          role: 'assistant',
-          data: partsText('needle in an older answer'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 100,
-          updatedAt: 100
-        },
-        {
-          id: 'm-order-new',
-          parentId: null,
-          topicId: 'topic-order',
-          role: 'assistant',
-          data: partsText('needle in a newer answer'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 300,
-          updatedAt: 300
-        }
-      ])
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-order', [
+          {
+            id: 'm-order-old',
+            parentId: null,
+            topicId: 'topic-order',
+            role: 'assistant',
+            data: partsText('needle in an older answer'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'm-order-new',
+            parentId: null,
+            topicId: 'topic-order',
+            role: 'assistant',
+            data: partsText('needle in a newer answer'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 300,
+            updatedAt: 300
+          }
+        ])
+      )
 
       const result = await messageService.search({ q: 'needle', limit: 1 })
 
@@ -797,17 +803,21 @@ describe('MessageService', () => {
 
     it('uses v2 parts text for tree node preview', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-preview', activeNodeId: 'm-preview', orderKey: 'preview' })
-      await dbh.db.insert(messageTable).values({
-        id: 'm-preview',
-        parentId: null,
-        topicId: 'topic-preview',
-        role: 'assistant',
-        data: partsText('The v2 parts payload should be visible in the tree preview.'),
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 100,
-        updatedAt: 100
-      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-preview', [
+          {
+            id: 'm-preview',
+            parentId: null,
+            topicId: 'topic-preview',
+            role: 'assistant',
+            data: partsText('The v2 parts payload should be visible in the tree preview.'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          }
+        ])
+      )
 
       const result = await messageService.getTree('topic-preview', { depth: -1 })
 
@@ -816,52 +826,54 @@ describe('MessageService', () => {
 
     it('returns every same-topic root tree even when roots are not in a sibling group', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-multi-root', activeNodeId: 'a-second', orderKey: 'roots' })
-      await dbh.db.insert(messageTable).values([
-        {
-          id: 'u-first',
-          parentId: null,
-          topicId: 'topic-multi-root',
-          role: 'user',
-          data: mainText('first root'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 100,
-          updatedAt: 100
-        },
-        {
-          id: 'a-first',
-          parentId: 'u-first',
-          topicId: 'topic-multi-root',
-          role: 'assistant',
-          data: mainText('first answer'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 200,
-          updatedAt: 200
-        },
-        {
-          id: 'u-second',
-          parentId: null,
-          topicId: 'topic-multi-root',
-          role: 'user',
-          data: mainText('second root'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 300,
-          updatedAt: 300
-        },
-        {
-          id: 'a-second',
-          parentId: 'u-second',
-          topicId: 'topic-multi-root',
-          role: 'assistant',
-          data: mainText('second answer'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 400,
-          updatedAt: 400
-        }
-      ])
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-multi-root', [
+          {
+            id: 'u-first',
+            parentId: null,
+            topicId: 'topic-multi-root',
+            role: 'user',
+            data: mainText('first root'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'a-first',
+            parentId: 'u-first',
+            topicId: 'topic-multi-root',
+            role: 'assistant',
+            data: mainText('first answer'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 200,
+            updatedAt: 200
+          },
+          {
+            id: 'u-second',
+            parentId: null,
+            topicId: 'topic-multi-root',
+            role: 'user',
+            data: mainText('second root'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 300,
+            updatedAt: 300
+          },
+          {
+            id: 'a-second',
+            parentId: 'u-second',
+            topicId: 'topic-multi-root',
+            role: 'assistant',
+            data: mainText('second answer'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 400,
+            updatedAt: 400
+          }
+        ])
+      )
 
       const result = await messageService.getTree('topic-multi-root', { depth: -1 })
 
@@ -877,30 +889,40 @@ describe('MessageService', () => {
   })
 
   describe('createSibling', () => {
-    it('creates root user siblings for first-turn edit and resend', async () => {
+    it('creates first-turn user siblings under the virtual root for edit and resend', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-root-sibling', activeNodeId: 'u-root', orderKey: 's0' })
-      await dbh.db.insert(messageTable).values({
-        id: 'u-root',
-        topicId: 'topic-root-sibling',
-        parentId: null,
-        role: 'user',
-        data: mainText('root prompt'),
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 100,
-        updatedAt: 100
-      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-root-sibling', [
+          {
+            id: 'u-root',
+            topicId: 'topic-root-sibling',
+            parentId: null,
+            role: 'user',
+            data: mainText('root prompt'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          }
+        ])
+      )
+      const virtualRootId = 'vroot-topic-root-sibling'
       const beforeWriteTx = MockMainDbServiceUtils.getMockCallCounts().withWriteTx
 
       const sibling = await messageService.createSibling('u-root', mainText('edited root prompt'))
 
-      const messages = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-root-sibling'))
-      expect(messages).toHaveLength(2)
+      // The source first-turn message hangs off the virtual root, so the new
+      // sibling is an ordinary sibling under that same parent — no special root case.
+      const contentRows = await dbh.db
+        .select()
+        .from(messageTable)
+        .where(and(eq(messageTable.topicId, 'topic-root-sibling'), eq(messageTable.parentId, virtualRootId)))
+      expect(contentRows).toHaveLength(2)
       expect(sibling.role).toBe('user')
-      expect(sibling.parentId).toBeNull()
+      expect(sibling.parentId).toBe(virtualRootId)
       expect(sibling.status).toBe('success')
       expect(sibling.siblingsGroupId).toBeGreaterThan(0)
-      expect(messages.every((message) => message.siblingsGroupId === sibling.siblingsGroupId)).toBe(true)
+      expect(contentRows.every((message) => message.siblingsGroupId === sibling.siblingsGroupId)).toBe(true)
 
       const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-root-sibling')).limit(1)
       expect(topic.activeNodeId).toBe(sibling.id)
@@ -911,40 +933,45 @@ describe('MessageService', () => {
       expect(branch.items[0].message.id).toBe(sibling.id)
       expect(branch.items[0].siblingsGroup?.map((message) => message.id)).toEqual(['u-root'])
 
+      // getTree re-nulls the first-turn group's parentId so the renderer contract is unchanged.
       const tree = await messageService.getTree('topic-root-sibling', { depth: -1 })
       expect(tree.siblingsGroups).toHaveLength(1)
       expect(tree.siblingsGroups[0].parentId).toBeNull()
       expect(tree.siblingsGroups[0].nodes.map((node) => node.id)).toEqual(['u-root', sibling.id])
     })
 
-    it('returns root sibling branches with each root subtree for the branch flow canvas', async () => {
+    it('returns first-turn sibling branches with each subtree for the branch flow canvas', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-root-flow', activeNodeId: 'a-original', orderKey: 's1' })
-      await dbh.db.insert(messageTable).values([
-        {
-          id: 'u-original',
-          topicId: 'topic-root-flow',
-          parentId: null,
-          role: 'user',
-          data: mainText('original root prompt'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 100,
-          updatedAt: 100
-        },
-        {
-          id: 'a-original',
-          topicId: 'topic-root-flow',
-          parentId: 'u-original',
-          role: 'assistant',
-          data: mainText('original answer'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 200,
-          updatedAt: 200
-        }
-      ])
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-root-flow', [
+          {
+            id: 'u-original',
+            topicId: 'topic-root-flow',
+            parentId: null,
+            role: 'user',
+            data: mainText('original root prompt'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'a-original',
+            topicId: 'topic-root-flow',
+            parentId: 'u-original',
+            role: 'assistant',
+            data: mainText('original answer'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 200,
+            updatedAt: 200
+          }
+        ])
+      )
 
       const editedRoot = await messageService.createSibling('u-original', mainText('edited root prompt'))
+      // The new first-turn sibling shares the virtual root as its parent.
+      expect(editedRoot.parentId).toBe('vroot-topic-root-flow')
       await dbh.db.insert(messageTable).values({
         id: 'a-edited',
         topicId: 'topic-root-flow',
@@ -962,6 +989,7 @@ describe('MessageService', () => {
 
       expect(tree.activeNodeId).toBe('a-edited')
       expect(tree.siblingsGroups).toHaveLength(1)
+      // First-turn group's parentId is re-nulled in the response.
       expect(tree.siblingsGroups[0].parentId).toBeNull()
       expect(tree.siblingsGroups[0].nodes.map((node) => [node.id, node.hasChildren])).toEqual([
         ['u-original', true],
@@ -975,41 +1003,43 @@ describe('MessageService', () => {
 
     it('marks edited non-root user siblings as success so branch flow does not show the user node as loading', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-sibling-status', activeNodeId: 'u-follow', orderKey: 's0' })
-      await dbh.db.insert(messageTable).values([
-        {
-          id: 'u-root',
-          topicId: 'topic-sibling-status',
-          parentId: null,
-          role: 'user',
-          data: mainText('original prompt'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 100,
-          updatedAt: 100
-        },
-        {
-          id: 'a-root',
-          topicId: 'topic-sibling-status',
-          parentId: 'u-root',
-          role: 'assistant',
-          data: mainText('original answer'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 200,
-          updatedAt: 200
-        },
-        {
-          id: 'u-follow',
-          topicId: 'topic-sibling-status',
-          parentId: 'a-root',
-          role: 'user',
-          data: mainText('follow up'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 300,
-          updatedAt: 300
-        }
-      ])
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-sibling-status', [
+          {
+            id: 'u-root',
+            topicId: 'topic-sibling-status',
+            parentId: null,
+            role: 'user',
+            data: mainText('original prompt'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'a-root',
+            topicId: 'topic-sibling-status',
+            parentId: 'u-root',
+            role: 'assistant',
+            data: mainText('original answer'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 200,
+            updatedAt: 200
+          },
+          {
+            id: 'u-follow',
+            topicId: 'topic-sibling-status',
+            parentId: 'a-root',
+            role: 'user',
+            data: mainText('follow up'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 300,
+            updatedAt: 300
+          }
+        ])
+      )
 
       const beforeWriteTx = MockMainDbServiceUtils.getMockCallCounts().withWriteTx
 
@@ -1031,8 +1061,10 @@ describe('MessageService', () => {
 
       const path = await messageService.getPathToNode('m-follow')
 
+      // The virtual root is excluded: the path head is the first-turn message, whose
+      // parentId is the virtual-root id (never null).
       expect(path.map((m) => m.id)).toEqual(['m-root', 'm-a2', 'm-follow'])
-      expect(path[0].parentId).toBeNull()
+      expect(path[0].parentId).toBe('vroot-topic-1')
       expect(path[1].parentId).toBe('m-root')
       expect(path[1].siblingsGroupId).toBe(1)
       expect(path[1].modelId).toBe(createUniqueModelId('provider-b', 'model-B'))
@@ -1041,48 +1073,218 @@ describe('MessageService', () => {
   })
 
   describe('copyPathRowsTx', () => {
-    it('rejects rows whose parent has not been copied', async () => {
+    it('reparents the path head onto the destination topic virtual root', async () => {
       await dbh.db.insert(topicTable).values([
         { id: 'source-topic', orderKey: 'a0' },
         { id: 'target-topic', orderKey: 'a1' }
       ])
-      await dbh.db.insert(messageTable).values([
-        {
-          id: 'source-root',
-          parentId: null,
-          topicId: 'source-topic',
-          role: 'user',
-          data: mainText('root'),
-          status: 'success',
-          siblingsGroupId: 0
-        },
-        {
-          id: 'source-child',
-          parentId: 'source-root',
-          topicId: 'source-topic',
-          role: 'assistant',
-          data: mainText('child'),
-          status: 'success',
-          siblingsGroupId: 0
-        }
-      ])
-      const childRows = await dbh.db.select().from(messageTable).where(eq(messageTable.id, 'source-child'))
-      expect(childRows).toHaveLength(1)
+      // Source: virtual root → first-turn message → child. Target only has its virtual root.
+      await dbh.db.insert(messageTable).values(
+        withRoot('source-topic', [
+          {
+            id: 'source-root',
+            parentId: null,
+            topicId: 'source-topic',
+            role: 'user',
+            data: mainText('root'),
+            status: 'success',
+            siblingsGroupId: 0
+          },
+          {
+            id: 'source-child',
+            parentId: 'source-root',
+            topicId: 'source-topic',
+            role: 'assistant',
+            data: mainText('child'),
+            status: 'success',
+            siblingsGroupId: 0
+          }
+        ])
+      )
+      const targetRootId = await messageService.createRootMessageTx(dbh.db, 'target-topic')
 
-      await expect(
-        dbh.db.transaction((tx) => messageService.copyPathRowsTx(tx, childRows, { topicId: 'target-topic' }))
-      ).rejects.toMatchObject({
+      // getPathRowsToNodeTx excludes the virtual root, so the chain starts at the first-turn head.
+      const pathRows = await messageService.getPathRowsToNodeTx(dbh.db, 'source-child', { topicId: 'source-topic' })
+      expect(pathRows.map((r) => r.id)).toEqual(['source-root', 'source-child'])
+
+      const { copiedActiveNodeId } = await dbh.db.transaction((tx) =>
+        messageService.copyPathRowsTx(tx, pathRows, { topicId: 'target-topic' })
+      )
+
+      // The destination keeps a single virtual root; the copied head hangs off it,
+      // and the rest of the path chains onto the head.
+      const targetContent = await dbh.db
+        .select()
+        .from(messageTable)
+        .where(and(eq(messageTable.topicId, 'target-topic'), eq(messageTable.parentId, targetRootId)))
+      expect(targetContent).toHaveLength(1)
+      expect(targetContent[0].data.parts?.[0]).toEqual({ type: 'text', text: 'root' })
+
+      const copiedLeaf = await dbh.db.select().from(messageTable).where(eq(messageTable.id, copiedActiveNodeId))
+      expect(copiedLeaf[0].parentId).toBe(targetContent[0].id)
+      expect(copiedLeaf[0].data.parts?.[0]).toEqual({ type: 'text', text: 'child' })
+    })
+  })
+
+  describe('virtual root — single-root invariant', () => {
+    it('getRootMessageIdTx throws for a topic with no virtual root', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-noroot', orderKey: 'a0' })
+
+      await expect(messageService.getRootMessageIdTx(dbh.db, 'topic-noroot')).rejects.toMatchObject({
         code: ErrorCode.INVALID_OPERATION
       })
+    })
 
-      const targetRows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'target-topic'))
-      expect(targetRows).toHaveLength(0)
+    it('a second createRootMessageTx on the same topic violates message_topic_root_uniq', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-dupe-root', orderKey: 'a0' })
+      const firstRootId = await messageService.createRootMessageTx(dbh.db, 'topic-dupe-root')
+
+      // The partial unique index (message_topic_root_uniq) rejects the second root insert.
+      await expect(messageService.createRootMessageTx(dbh.db, 'topic-dupe-root')).rejects.toMatchObject({
+        cause: { code: 'SQLITE_CONSTRAINT_UNIQUE' }
+      })
+
+      // getRootMessageIdTx still resolves the single surviving root.
+      expect(await messageService.getRootMessageIdTx(dbh.db, 'topic-dupe-root')).toBe(firstRootId)
+      const rootRows = await dbh.db
+        .select()
+        .from(messageTable)
+        .where(and(eq(messageTable.topicId, 'topic-dupe-root'), isNull(messageTable.parentId)))
+      expect(rootRows).toHaveLength(1)
+    })
+
+    it('createRootMessageTx inserts a content-less system root', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-root-shape', orderKey: 'a0' })
+      const rootId = await messageService.createRootMessageTx(dbh.db, 'topic-root-shape')
+
+      const [root] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, rootId))
+      expect(root.parentId).toBeNull()
+      expect(root.role).toBe('system')
+      expect(root.data).toEqual({ parts: [] })
+      expect(root.status).toBe('success')
+      expect(root.siblingsGroupId).toBe(0)
+    })
+  })
+
+  describe('create — first-turn resolution', () => {
+    it('two parentId:null creates become first-turn siblings under the SAME virtual root', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-first', activeNodeId: null, orderKey: 'a0' })
+      const rootId = await messageService.createRootMessageTx(dbh.db, 'topic-first')
+
+      // setAsActive:false so the second create still auto-resolves to the root (not the first message).
+      const first = await messageService.create('topic-first', {
+        role: 'user',
+        parentId: null,
+        data: mainText('first'),
+        status: 'success',
+        setAsActive: false
+      })
+      const second = await messageService.create('topic-first', {
+        role: 'user',
+        parentId: null,
+        data: mainText('resend'),
+        status: 'success',
+        setAsActive: false
+      })
+
+      expect(first.parentId).toBe(rootId)
+      expect(second.parentId).toBe(rootId)
+
+      // Exactly one physical root row; the two first-turn messages hang off it.
+      const rootRows = await dbh.db
+        .select()
+        .from(messageTable)
+        .where(and(eq(messageTable.topicId, 'topic-first'), isNull(messageTable.parentId)))
+      expect(rootRows.map((r) => r.id)).toEqual([rootId])
+      const children = await dbh.db
+        .select({ id: messageTable.id })
+        .from(messageTable)
+        .where(eq(messageTable.parentId, rootId))
+      expect(children.map((c) => c.id).sort()).toEqual([first.id, second.id].sort())
+    })
+
+    it('parentId:undefined on an empty topic resolves to the virtual root', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-auto', activeNodeId: null, orderKey: 'a0' })
+      const rootId = await messageService.createRootMessageTx(dbh.db, 'topic-auto')
+
+      const message = await messageService.create('topic-auto', {
+        role: 'user',
+        data: mainText('hi'),
+        status: 'success'
+      })
+
+      expect(message.parentId).toBe(rootId)
+    })
+  })
+
+  describe('getPathRowsToNodeTx — excludes virtual root', () => {
+    it('returns a path whose head is the first-turn message (parentId = virtual root, never null)', async () => {
+      await seedMultiModelTree()
+
+      const rows = await messageService.getPathRowsToNodeTx(dbh.db, 'm-follow', { topicId: 'topic-1' })
+
+      expect(rows.map((r) => r.id)).toEqual(['m-root', 'm-a2', 'm-follow'])
+      // The virtual root is excluded; the head retains its real (non-null) parentId.
+      expect(rows[0].parentId).toBe('vroot-topic-1')
+      expect(rows.some((r) => r.parentId === null)).toBe(false)
+    })
+  })
+
+  describe('getTree — re-nulls first-turn parentId', () => {
+    it('surfaces first-turn nodes with parentId:null even though they hang off the virtual root', async () => {
+      await seedMultiModelTree()
+
+      const result = await messageService.getTree('topic-1', { depth: -1 })
+
+      // m-root physically hangs off vroot-topic-1, but the response re-nulls it.
+      const rootNode = result.nodes.find((n) => n.id === 'm-root')
+      expect(rootNode?.parentId).toBeNull()
+      // The virtual root is never surfaced as a node.
+      expect(result.nodes.some((n) => n.id === 'vroot-topic-1')).toBe(false)
+    })
+
+    it('first-turn SiblingsGroup.parentId is null', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-first-group', activeNodeId: 'u-b', orderKey: 'fg0' })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-first-group', [
+          {
+            id: 'u-a',
+            parentId: null,
+            topicId: 'topic-first-group',
+            role: 'user',
+            data: mainText('v1'),
+            status: 'success',
+            siblingsGroupId: 9,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'u-b',
+            parentId: null,
+            topicId: 'topic-first-group',
+            role: 'user',
+            data: mainText('v2'),
+            status: 'success',
+            siblingsGroupId: 9,
+            createdAt: 200,
+            updatedAt: 200
+          }
+        ])
+      )
+
+      const result = await messageService.getTree('topic-first-group', { depth: -1 })
+
+      expect(result.siblingsGroups).toHaveLength(1)
+      expect(result.siblingsGroups[0].parentId).toBeNull()
+      expect(result.siblingsGroups[0].siblingsGroupId).toBe(9)
+      expect(result.siblingsGroups[0].nodes.map((n) => n.id)).toEqual(['u-a', 'u-b'])
     })
   })
 
   describe('createUserMessageWithPlaceholders — placeholder id override', () => {
     it('uses the caller-supplied id when provided, generates otherwise', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-res', activeNodeId: null, orderKey: 'a0' })
+      await messageService.createRootMessageTx(dbh.db, 'topic-res')
 
       const suppliedId = '11111111-1111-4111-8111-111111111111'
       const { userMessage, placeholders } = await messageService.createUserMessageWithPlaceholders({
@@ -1112,6 +1314,9 @@ describe('MessageService', () => {
   describe('createUserMessageWithPlaceholders', () => {
     async function seedTopic(id = 'topic-1') {
       await dbh.db.insert(topicTable).values({ id, orderKey: 'a0' })
+      // Every topic owns a virtual root from birth; first-turn user messages resolve to it.
+      // Use the deterministic `vroot-<id>` so seeded children can reference it directly.
+      await dbh.db.insert(messageTable).values(rootRow(id))
     }
 
     describe('fresh single-model turn', () => {
@@ -1127,7 +1332,8 @@ describe('MessageService', () => {
           placeholders: [{ role: 'assistant', data: mainText(''), status: 'pending' }]
         })
 
-        expect(userMessage.parentId).toBeNull()
+        // parentId:null on an empty topic resolves to the virtual root, not a physical root.
+        expect(userMessage.parentId).toBe('vroot-topic-1')
         expect(userMessage.role).toBe('user')
         expect(placeholders).toHaveLength(1)
         expect(placeholders[0].parentId).toBe(userMessage.id)
@@ -1174,7 +1380,7 @@ describe('MessageService', () => {
           {
             id: 'u1',
             topicId: 'topic-1',
-            parentId: null,
+            parentId: 'vroot-topic-1',
             role: 'user',
             data: mainText('q'),
             status: 'success',
@@ -1213,7 +1419,7 @@ describe('MessageService', () => {
           {
             id: 'u1',
             topicId: 'topic-1',
-            parentId: null,
+            parentId: 'vroot-topic-1',
             role: 'user',
             data: mainText('q'),
             status: 'success',
@@ -1249,7 +1455,7 @@ describe('MessageService', () => {
           {
             id: 'u1',
             topicId: 'topic-1',
-            parentId: null,
+            parentId: 'vroot-topic-1',
             role: 'user',
             data: mainText('q'),
             status: 'success',
@@ -1290,8 +1496,9 @@ describe('MessageService', () => {
           })
         ).rejects.toThrow()
 
+        // Only the seeded virtual root survives — no user/placeholder rows leaked.
         const allRows = await dbh.db.select().from(messageTable)
-        expect(allRows).toHaveLength(0)
+        expect(allRows.map((r) => r.id)).toEqual(['vroot-topic-1'])
       })
 
       it('throws when parent does not belong to the same topic', async () => {
@@ -1446,7 +1653,7 @@ describe('MessageService', () => {
           deletedAt: 360
         }
       ]
-      await dbh.db.insert(messageTable).values(rows)
+      await dbh.db.insert(messageTable).values(withRoot('topic-1', rows))
     }
 
     it('descends to the most recent leaf in the subtree', async () => {

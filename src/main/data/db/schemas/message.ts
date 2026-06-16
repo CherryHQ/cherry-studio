@@ -1,6 +1,6 @@
 import type { MessageData, MessageStats, ModelSnapshot } from '@shared/data/types/message'
 import { sql } from 'drizzle-orm'
-import { check, foreignKey, index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { check, foreignKey, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateDeleteTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { topicTable } from './topic'
@@ -52,6 +52,11 @@ export const messageTable = sqliteTable(
     // Backs findPendingAssistantMessageIds (boot reconcile); without it that lookup full-SCANs.
     // Plain, not partial — Drizzle binds `status = ?`, which SQLite can't match to a partial index.
     index('message_status_idx').on(t.status),
+    // Single-root invariant: at most one virtual-root (parentId IS NULL) row per topic.
+    // Guarantees one root and backs O(1) root lookup (WHERE topic_id=? AND parent_id IS NULL).
+    uniqueIndex('message_topic_root_uniq')
+      .on(t.topicId)
+      .where(sql`${t.parentId} is null`),
     // Check constraints for enum fields
     check('message_role_check', sql`${t.role} IN ('user', 'assistant', 'system')`),
     check('message_status_check', sql`${t.status} IN ('pending', 'success', 'error', 'paused')`)
