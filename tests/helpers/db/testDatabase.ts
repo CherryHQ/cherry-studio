@@ -92,6 +92,7 @@ export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDataba
     for (const stmt of CUSTOM_SQL_STATEMENTS) {
       await db.run(sql.raw(stmt))
     }
+
     if (options.seeders?.length) {
       await new SeedRunner(db).runAll(options.seeders)
     }
