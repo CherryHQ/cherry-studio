@@ -153,7 +153,7 @@ flowchart TB
 | 域类型 | 聚合边界注意点 |
 |---|---|
 | ASSISTANTS | RENAME 克隆时成员 assistantId 重映射到新根 PK |
-| AGENTS | agent_workspace/agent_channel 单表 renamable:false；agent_channel_task 是 junction（双 cascade FK）；**job_schedule.type='agent.task' row-scope 归 AGENTS**（Agent task 定义，否则设计性丢失用户 task） |
+| AGENTS | agent_workspace/agent_channel 单表 renamable:false；agent_channel_task 是 junction（双 cascade FK）；**job_schedule.type='agent.task' row-scope 归 AGENTS**（Agent task 定义，否则设计性丢失用户 task）；afterImport 须 re-arm job_schedule timer（DB 导入不调 registerJobSchedule，否则 agent.task 不 fire 直到重启） |
 | FILE_STORAGE | restoreResources() 先于 DB 行导入，返回 skippedFileEntryIds；renamable:false，RENAME 退化为 SKIP |
 | PROVIDERS | 聚合 user_provider + user_model(providerId)；natural-key，默认 FIELD_MERGE（apiKeys/authConfig 字段合并，防丢 API key）；renamable:false（user_model.id 派生键） |
 
@@ -164,6 +164,10 @@ flowchart TB
 **双轨职责**（不冲突）：`aggregates`（file_ref 作 file_entry member）管**恢复期 DB 行聚合边界**（SKIP/OVERWRITE 整组传播）；`fileRefSourcePolicies`（sourceType→ownerDomain，如 chat_message→TOPICS）管**导出期文件 blob 收集**。两者作用于不同生命周期阶段。
 
 **实施 caveat**：① 须兑现 post-restore 一致性检查（无悬空 file_ref / 无 file_entry 缺 blob，失败回滚）；② source 删除清理缺口（MessageService/KnowledgeItemService 未调 cleanupBySource，靠 OrphanRefScanner 兜底）；③ file_entry 软删除 vs file_ref 硬删除不对称（导出过滤须只取 deletedAt IS NULL）。
+
+#### 5.2 junction reference 在 SKIP/RENAME 的处理（不引入跨域 remap）
+
+junction reference（`agent_skill` / `agent_channel_task`，不计入 members 派生、不随根克隆）：root SKIP 时其行也不导入（cascade 依赖 root 存在）；root RENAME（renamable）时 junction 行随旧根 cascade-prune、不克隆到新根（"保留两边"时不继承 junction 绑定——与 `assistant_mcp_server` 这类 include member"克隆继承"区分）。**双端 cascade 由 DB FK + `defer_foreign_keys` 保证，不做跨域 id remap**（与已移除的 idStrategies 一致：保留源主键）。附件渲染靠 `message.data.fileEntryId` JSON 软引用（保持源 PK），不依赖 `file_ref.sourceId`（仅 orphan 检测用）——故 RENAME source 不需 remap file_ref。
 
 ### 6. 实现侧类型契约
 
@@ -203,7 +207,7 @@ flowchart LR
   F --> G[运行时 finalize 再校验 兜底]
 ```
 
-生成产物：`DB_TABLES`、`DB_COLUMNS_BY_TABLE`（camelCase property name；物理列由 `casing:'snake_case'` 转 snake_case）、`DbTableName`、`DbColumnName<TTable>`、`DB_PRIMARY_KEYS`（含 uuid-v4/v7 判定与 ambiguous 标注）。手写 as DbTableName 不算认证路径，须走 helper。
+生成产物：`DB_TABLES`、`DB_COLUMNS_BY_TABLE`（camelCase property name；物理列由 `casing:'snake_case'` 转 snake_case）、`DbTableName`、`DbColumnName<TTable>`、`DB_PRIMARY_KEYS`（含 uuid-v4/v7 判定与 ambiguous 标注）、`DB_FOREIGN_KEYS`（多列 FK + onDelete，供 finalize #19/#24/#25 校验）。手写 as DbTableName 不算认证路径，须走 helper。
 
 | 四层保护 | 失败时机 |
 |---|---|
