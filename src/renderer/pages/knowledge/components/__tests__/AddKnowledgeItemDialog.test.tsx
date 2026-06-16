@@ -298,6 +298,37 @@ describe('AddKnowledgeItemDialog', () => {
     expect(screen.getByText('已选 2 个文件')).toBeInTheDocument()
   })
 
+  it('appends newly dropped files instead of overwriting the existing selection', () => {
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    setMockAcceptedFiles([createMockFile('alpha.pdf', 1024)])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    expect(screen.getByText('已选 1 个文件')).toBeInTheDocument()
+
+    // A second drop of a different file must keep the previously selected file
+    // (regression: it used to overwrite the whole selection).
+    setMockAcceptedFiles([createMockFile('beta.md', 2048)])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    expect(screen.getByText('alpha.pdf')).toBeInTheDocument()
+    expect(screen.getByText('beta.md')).toBeInTheDocument()
+    expect(screen.getByText('已选 2 个文件')).toBeInTheDocument()
+  })
+
+  it('skips files already present in the selection when dropped again', () => {
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    const duplicate = createMockFile('alpha.pdf', 1024)
+    setMockAcceptedFiles([duplicate])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    setMockAcceptedFiles([duplicate, createMockFile('beta.md', 2048)])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    expect(screen.getByText('已选 2 个文件')).toBeInTheDocument()
+  })
+
   it('renders files passed from the external footer dropzone', () => {
     setPendingAddFiles([createMockFile('external.pdf', 1024), createMockFile('external.exe', 1024)])
 

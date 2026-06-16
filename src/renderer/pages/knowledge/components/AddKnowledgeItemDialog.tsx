@@ -51,6 +51,8 @@ const knowledgeSupportedFileExtSet = new Set<string>(knowledgeSupportedFileExts)
 const filterSupportedKnowledgeFiles = (files: File[]) =>
   files.filter((file) => knowledgeSupportedFileExtSet.has(getFileExtension(file.name)))
 
+const getSelectedFileKey = (file: File) => `${file.name}-${file.size}-${file.lastModified}`
+
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
   const { t } = useTranslation()
   const { selectedBaseId, pendingAddSource, pendingAddFiles } = useKnowledgePage()
@@ -73,7 +75,13 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
   const handleFileDrop = useCallback<DropzoneOnDrop>((acceptedFiles) => {
     setSubmitErrorMessage('')
-    setSelectedFiles(filterSupportedKnowledgeFiles(acceptedFiles))
+    setSelectedFiles((currentFiles) => {
+      const existingKeys = new Set(currentFiles.map(getSelectedFileKey))
+      const newFiles = filterSupportedKnowledgeFiles(acceptedFiles).filter(
+        (file) => !existingKeys.has(getSelectedFileKey(file))
+      )
+      return [...currentFiles, ...newFiles]
+    })
   }, [])
 
   const handleDirectorySelect = useCallback(async () => {
