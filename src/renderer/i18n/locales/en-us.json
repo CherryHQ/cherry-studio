@@ -2158,8 +2158,9 @@
         },
         "note": {
           "description": "Select existing notes as knowledge base sources",
-          "empty_description": "Selectable notes will appear here after the real notes list is connected. For now, use files, folders, or URLs.",
-          "empty_title": "Notes are not connected yet"
+          "empty_description": "Create notes in the Notes feature, then come back to select them here.",
+          "empty_title": "No notes found",
+          "loading": "Loading notes…"
         },
         "placeholder": {
           "supported_formats": "Supports PDF, DOCX, MD, XLSX, TXT, CSV",
