@@ -4738,6 +4738,7 @@
     "openai-codex": "OpenAI Codex",
     "opencode": "OpenCode Go",
     "openrouter": "OpenRouter",
+    "orcarouter": "OrcaRouter",
     "ovms": "Intel OVMS",
     "ovocr": "Intel OV(NPU) OCR",
     "paddleocr": "PaddleOCR",

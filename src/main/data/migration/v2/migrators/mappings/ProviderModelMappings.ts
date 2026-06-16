@@ -121,6 +121,7 @@ const SYSTEM_PROVIDER_IDS = new Set([
   'lanyun',
   'ph8',
   'openrouter',
+  'orcarouter',
   'ollama',
   'ovms',
   'new-api',

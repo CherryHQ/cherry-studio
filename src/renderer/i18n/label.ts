@@ -64,6 +64,7 @@ const providerKeyMap = {
   openai: 'provider.openai',
   'openai-codex': 'provider.openai-codex',
   openrouter: 'provider.openrouter',
+  orcarouter: 'provider.orcarouter',
   perplexity: 'provider.perplexity',
   ph8: 'provider.ph8',
   ppio: 'provider.ppio',

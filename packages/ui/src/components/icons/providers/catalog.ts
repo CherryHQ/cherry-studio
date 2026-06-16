@@ -119,6 +119,7 @@ import { OpenaiIcon } from './openai'
 import { OpenclawIcon } from './openclaw'
 import { OpenCodeGoIcon } from './opencode'
 import { OpenrouterIcon } from './openrouter'
+import { OrcarouterIcon } from './orcarouter'
 import { PaddleocrIcon } from './paddleocr'
 import { PerplexityIcon } from './perplexity'
 import { Ph8Icon } from './ph8'
@@ -281,6 +282,7 @@ export const PROVIDER_ICON_CATALOG = {
   openai: OpenaiIcon,
   openclaw: OpenclawIcon,
   openrouter: OpenrouterIcon,
+  orcarouter: OrcarouterIcon,
   paddleocr: PaddleocrIcon,
   perplexity: PerplexityIcon,
   ph8: Ph8Icon,
