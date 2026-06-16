@@ -3164,7 +3164,7 @@
         "generate_failed_title": "產生提示失敗",
         "insert_variable": "插入變數",
         "label": "系統提示",
-        "placeholder": "輸入系統提示。支援像 {{date}} 和 {{model_name}} 這樣的變數...",
+        "placeholder": "輸入對助手的要求，例如回答風格、角色設定或背景說明",
         "title": "提示",
         "tokens_label": "代幣：",
         "variables_title": "可用變數",

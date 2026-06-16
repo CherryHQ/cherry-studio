@@ -53,19 +53,8 @@ function resolveTabValue(tabs: EditDialogTab[], value: string) {
   return matched?.children?.[0]?.id ?? value
 }
 
-function getDefaultExpandedGroupIds(tabs: EditDialogTab[]) {
-  return new Set(tabs.filter((tab) => Boolean(tab.children?.length)).map((tab) => tab.id))
-}
-
-function getDefaultExpandedGroupKey(tabs: EditDialogTab[]) {
-  return tabs
-    .filter((tab) => Boolean(tab.children?.length))
-    .map((tab) => tab.id)
-    .join('|')
-}
-
-function getDefaultExpandedGroupIdsFromKey(key: string) {
-  return new Set(key ? key.split('|') : [])
+function getDefaultExpandedGroupIds() {
+  return new Set<string>()
 }
 
 const PROMPT_VARIABLES: { name: string; i18n: string }[] = [
@@ -85,8 +74,7 @@ const EDIT_DIALOG_TAB_TRIGGER_CLASS =
 const EDIT_DIALOG_GROUP_BUTTON_CLASS =
   'flex h-8 w-full items-center justify-start rounded-md bg-transparent px-0 text-left font-medium text-muted-foreground text-sm transition-colors hover:bg-accent/45 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring'
 
-const EDIT_DIALOG_CHILD_TAB_TRIGGER_CLASS =
-  'h-7 w-full flex-none justify-start rounded-md bg-transparent px-0 text-left font-medium text-muted-foreground text-xs shadow-none transition-colors hover:bg-accent/45 hover:text-foreground data-[state=active]:bg-accent/60 data-[state=active]:text-foreground data-[state=active]:shadow-none'
+const EDIT_DIALOG_CHILD_TAB_TRIGGER_CLASS = EDIT_DIALOG_TAB_TRIGGER_CLASS
 
 export const EDIT_DIALOG_PROMPT_MIN_HEIGHT = '200px'
 export const EDIT_DIALOG_PROMPT_MAX_HEIGHT = '42vh'
@@ -197,8 +185,7 @@ export function EditDialogShell<TValues extends FieldValues>({
 }) {
   const { t } = useTranslation()
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
-  const defaultExpandedGroupKey = getDefaultExpandedGroupKey(tabs)
-  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(() => getDefaultExpandedGroupIds(tabs))
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(() => getDefaultExpandedGroupIds())
 
   useEffect(() => {
     if (scrollContainerRef.current) {
@@ -207,8 +194,17 @@ export function EditDialogShell<TValues extends FieldValues>({
   }, [activeTab])
 
   useEffect(() => {
-    setExpandedGroupIds(open ? getDefaultExpandedGroupIdsFromKey(defaultExpandedGroupKey) : new Set())
-  }, [open, defaultExpandedGroupKey])
+    setExpandedGroupIds(open ? getDefaultExpandedGroupIds() : new Set())
+  }, [open, tabs])
+
+  useEffect(() => {
+    const activeGroup = tabs.find((tab) => tab.children?.some((child) => child.id === activeTab))
+    if (!activeGroup) return
+    setExpandedGroupIds((current) => {
+      if (current.has(activeGroup.id)) return current
+      return new Set(current).add(activeGroup.id)
+    })
+  }, [activeTab, tabs])
 
   const handleClose = (nextOpen: boolean) => {
     if (isSubmitting) return
@@ -279,7 +275,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                             </TabsTrigger>
                           )}
                           {hasChildren && groupExpanded ? (
-                            <div className="grid gap-0.5 pl-2">
+                            <div className="grid gap-1">
                               {tab.children?.map((child) => (
                                 <TabsTrigger
                                   key={child.id}
@@ -297,7 +293,7 @@ export function EditDialogShell<TValues extends FieldValues>({
                 </TabsList>
               </div>
 
-              <Scrollbar ref={scrollContainerRef} className="min-w-0 flex-1 px-5 py-4">
+              <Scrollbar ref={scrollContainerRef} className="min-w-0 flex-1 pl-5">
                 {children}
               </Scrollbar>
             </Tabs>

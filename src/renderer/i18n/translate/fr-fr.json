@@ -2673,7 +2673,7 @@
         "generate_failed_title": "Impossible de générer l'invite",
         "insert_variable": "Insérer une variable",
         "label": "Invite système",
-        "placeholder": "Entrez le prompt système. Des variables comme {{date}} et {{model_name}} sont prises en charge...",
+        "placeholder": "Saisissez les consignes pour l'assistant, comme le style de réponse, le rôle ou le contexte",
         "title": "Invite",
         "tokens_label": "Jetons :",
         "variables_title": "Variables disponibles",

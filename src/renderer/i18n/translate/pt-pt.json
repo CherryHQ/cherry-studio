@@ -2673,7 +2673,7 @@
         "generate_failed_title": "Falha ao gerar o prompt",
         "insert_variable": "Inserir variável",
         "label": "Prompt do sistema",
-        "placeholder": "Insira o prompt do sistema. Variáveis como {{date}} e {{model_name}} são suportadas...",
+        "placeholder": "Introduza instruções para o assistente, como estilo de resposta, função ou contexto",
         "title": "Prompt",
         "tokens_label": "Tokens:",
         "variables_title": "Variáveis disponíveis",

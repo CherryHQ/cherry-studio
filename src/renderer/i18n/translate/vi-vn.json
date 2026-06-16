@@ -2673,7 +2673,7 @@
         "generate_failed_title": "Không thể tạo lời nhắc",
         "insert_variable": "Chèn biến",
         "label": "Lời nhắc hệ thống",
-        "placeholder": "Nhập lời nhắc hệ thống. Các biến như {{date}} và {{model_name}} được hỗ trợ...",
+        "placeholder": "Nhập yêu cầu cho trợ lý, chẳng hạn phong cách trả lời, vai trò hoặc bối cảnh",
         "title": "Lời nhắc",
         "tokens_label": "Mã thông báo:",
         "variables_title": "Biến có sẵn",
