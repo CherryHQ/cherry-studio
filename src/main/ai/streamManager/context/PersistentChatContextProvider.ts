@@ -278,7 +278,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id),
         rootSpan
       }))
-      // Author the turn span's input here (where the request lives), not in the stream manager.
+      // Author the turn span's input attributes here, where the built request payload is available.
       for (const { modelId, request, rootSpan } of models_) {
         if (rootSpan) {
           applyTurnInputAttributes(rootSpan, {
