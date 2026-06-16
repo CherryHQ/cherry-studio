@@ -151,7 +151,9 @@
   --cs-ghost-hover: oklch(1 0 0 / 0.1); /* Ghost Button Hover */
   --cs-ghost-active: oklch(1 0 0 / 0.15); /* Ghost Button Active */
 
-  /* Sidebar */
-  --cs-sidebar: #090a05;
+  /* Sidebar — a neutral dark gray sitting one step lighter than the content
+   * surface (--cs-background #151514) so the menu rail reads as a distinct,
+   * elevated panel rather than a near-black void. */
+  --cs-sidebar: #1c1d1a;
   --cs-sidebar-accent: oklch(1 0 0 / 0.1);
 }
