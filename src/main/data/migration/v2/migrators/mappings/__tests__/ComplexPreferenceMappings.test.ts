@@ -120,8 +120,7 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('feature.openclaw.gateway_port')
       expect(keys).toContain('feature.openclaw.selected_model_id')
       expect(keys).toContain('shortcut.app.zoom.in')
-      expect(keys).toContain('ui.sidebar.favorites.visible')
-      expect(keys).toContain('ui.sidebar.favorites.invisible')
+      expect(keys).toContain('ui.sidebar.favorites')
       expect(keys).toContain('feature.translate.action.preferred_lang')
       expect(keys).toContain('feature.translate.action.alter_lang')
       expect(keys).toContain('feature.translate.mini_window.target_lang')
@@ -172,7 +171,7 @@ describe('ComplexPreferenceMappings', () => {
   })
 
   describe('sidebar_favorites_migrate', () => {
-    it("should rewrite 'minapp' to 'mini_app' in both visible and disabled arrays and add agents", () => {
+    it("should rewrite 'minapp' to 'mini_app' in visible favorites and add agents", () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')
       expect(mapping).toBeDefined()
 
@@ -182,8 +181,7 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites.visible': ['assistants', 'agents', 'mini_app', 'translate'],
-        'ui.sidebar.favorites.invisible': ['mini_app', 'files']
+        'ui.sidebar.favorites': ['assistants', 'agents', 'mini_app', 'translate']
       })
     })
 
@@ -195,8 +193,7 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites.visible': ['assistants', 'agents', 'translate', 'paintings'],
-        'ui.sidebar.favorites.invisible': ['files', 'knowledge']
+        'ui.sidebar.favorites': ['assistants', 'agents', 'translate', 'paintings']
       })
     })
 
@@ -219,8 +216,7 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites.visible': ['assistants', 'agents', 'store', 'translate', 'mini_app'],
-        'ui.sidebar.favorites.invisible': []
+        'ui.sidebar.favorites': ['assistants', 'agents', 'store', 'translate', 'mini_app']
       })
     })
 
@@ -232,8 +228,7 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.favorites.visible': ['assistants', 'translate'],
-        'ui.sidebar.favorites.invisible': ['agents', 'files']
+        'ui.sidebar.favorites': ['assistants', 'translate']
       })
     })
 
@@ -241,18 +236,15 @@ describe('ComplexPreferenceMappings', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')!
 
       expect(mapping.transform({ visible: undefined, disabled: undefined })).toEqual({
-        'ui.sidebar.favorites.visible': undefined,
-        'ui.sidebar.favorites.invisible': undefined
+        'ui.sidebar.favorites': undefined
       })
 
       expect(mapping.transform({ visible: null, disabled: null })).toEqual({
-        'ui.sidebar.favorites.visible': null,
-        'ui.sidebar.favorites.invisible': null
+        'ui.sidebar.favorites': null
       })
 
       expect(mapping.transform({})).toEqual({
-        'ui.sidebar.favorites.visible': undefined,
-        'ui.sidebar.favorites.invisible': undefined
+        'ui.sidebar.favorites': undefined
       })
     })
   })

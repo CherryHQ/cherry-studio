@@ -97,28 +97,11 @@
       "description": "Web search provider overrides (from complex migration)"
     },
     {
-      "targetKey": "ui.sidebar.favorites.visible",
+      "targetKey": "ui.sidebar.favorites",
       "type": "PreferenceTypes.SidebarFavorite[]",
-      "defaultValue": [
-        "assistants",
-        "store",
-        "paintings",
-        "translate",
-        "mini_app",
-        "knowledge",
-        "files",
-        "code_tools",
-        "notes"
-      ],
+      "defaultValue": ["assistants", "agents", "store", "translate", "mini_app"],
       "status": "classified",
-      "description": "Visible sidebar favorites (complex migration: rewrite legacy 'minapp' → 'mini_app')"
-    },
-    {
-      "targetKey": "ui.sidebar.favorites.invisible",
-      "type": "PreferenceTypes.SidebarFavorite[]",
-      "defaultValue": [],
-      "status": "classified",
-      "description": "Hidden sidebar favorites (complex migration: rewrite legacy 'minapp' → 'mini_app')"
+      "description": "Left sidebar favorite app ids, stored as an ordered subset of the sidebar app catalog"
     },
     {
       "targetKey": "chat.default_model_id",

@@ -38,8 +38,8 @@ import {
 
 const logger = loggerService.withContext('Migration:ComplexPreferenceMappings')
 
-const DEFAULT_VISIBLE_SIDEBAR_FAVORITES = ['assistants', 'agents', 'store', 'translate', 'mini_app'] as const
-const LEGACY_DEFAULT_VISIBLE_SIDEBAR_FAVORITES = [
+const DEFAULT_SIDEBAR_FAVORITES = ['assistants', 'agents', 'store', 'translate', 'mini_app'] as const
+const LEGACY_DEFAULT_SIDEBAR_FAVORITES = [
   ['assistants', 'agents', 'store', 'paintings', 'translate', 'mini_app', 'knowledge', 'files', 'code_tools', 'notes'],
   [
     'assistants',
@@ -66,7 +66,7 @@ function shouldUseDefaultSidebarFavorites(visible: unknown, invisible: unknown):
   if (!Array.isArray(visible)) return false
   if (Array.isArray(invisible) && invisible.length > 0) return false
 
-  return LEGACY_DEFAULT_VISIBLE_SIDEBAR_FAVORITES.some((defaultFavorites) => hasSameItems(visible, defaultFavorites))
+  return LEGACY_DEFAULT_SIDEBAR_FAVORITES.some((defaultFavorites) => hasSameItems(visible, defaultFavorites))
 }
 
 // ============================================================================
@@ -198,7 +198,7 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       visible: { source: 'redux', category: 'settings', key: 'sidebarIcons.visible' },
       disabled: { source: 'redux', category: 'settings', key: 'sidebarIcons.disabled' }
     },
-    targetKeys: ['ui.sidebar.favorites.visible', 'ui.sidebar.favorites.invisible'],
+    targetKeys: ['ui.sidebar.favorites'],
     transform: (sources) => {
       const rewrite = (arr: unknown): unknown =>
         Array.isArray(arr) ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)) : arr
@@ -219,10 +219,9 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       const invisible = rewrite(sources.disabled)
       const visibleWithAgents = addAgents(visible, invisible)
       return {
-        'ui.sidebar.favorites.visible': shouldUseDefaultSidebarFavorites(visibleWithAgents, invisible)
-          ? [...DEFAULT_VISIBLE_SIDEBAR_FAVORITES]
-          : visibleWithAgents,
-        'ui.sidebar.favorites.invisible': invisible
+        'ui.sidebar.favorites': shouldUseDefaultSidebarFavorites(visibleWithAgents, invisible)
+          ? [...DEFAULT_SIDEBAR_FAVORITES]
+          : visibleWithAgents
       }
     }
   },

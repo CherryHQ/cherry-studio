@@ -73,7 +73,7 @@ function resolveActiveItem(pathname: string): SidebarFavoriteType | '' {
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
-  const [visibleSidebarFavorites] = usePreference('ui.sidebar.favorites.visible')
+  const [sidebarFavorites] = usePreference('ui.sidebar.favorites')
   const { activeTab, updateTab, openTab } = useTabs()
 
   // Sidebar width — persisted across restarts. Dragging through the
@@ -122,7 +122,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const items = useMemo<SidebarMenuItem[]>(
     () =>
-      visibleSidebarFavorites.flatMap((favorite) => {
+      sidebarFavorites.flatMap((favorite) => {
         const path = getMenuPath(favorite)
         const Icon = iconMap[favorite]
         if (!path || !Icon) {
@@ -136,7 +136,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           }
         ]
       }),
-    [visibleSidebarFavorites, t]
+    [sidebarFavorites, t]
   )
 
   const activeItem = resolveActiveItem(pathname)

@@ -16,7 +16,7 @@ mini-tab list) and the preference that toggled it
 
 **Kept**: the mini-app entry itself (the launchpad-style icon in the sidebar
 nav). Routing to `/app/mini-app`, the icon mapping, the default
-`ui.sidebar.favorites.visible` membership, the sidebar favorite visibility toggle,
+`ui.sidebar.favorites` membership, the sidebar favorite visibility toggle,
 the i18n label, and the migration that rewrites the v1 sidebar literal
 `'minapp'` → `'mini_app'` are all unchanged.
 

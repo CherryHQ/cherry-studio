@@ -67,7 +67,7 @@ describe('App Sidebar', () => {
   beforeEach(() => {
     MockUseCacheUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites.visible', ['assistants'])
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', ['assistants'])
     document.documentElement.style.removeProperty('--sidebar-width')
   })
 

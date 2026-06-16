@@ -98,7 +98,7 @@ describe('Sidebar language refresh', () => {
     languageState.language = 'en-US'
     MockUsePreferenceUtils.resetMocks()
     MockUseCacheUtils.resetMocks()
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites.visible', ['assistants'])
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', ['assistants'])
     MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', 170)
   })
 
