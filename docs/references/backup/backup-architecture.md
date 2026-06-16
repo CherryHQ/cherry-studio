@@ -224,8 +224,8 @@ flowchart TB
 | `knowledge_item` | KNOWLEDGE |
 | `painting` | PAINTINGS |
 | `temp_session` | excluded（runtime） |
-| `message.data`（fileId） | TOPICS jsonSoftReferences |
-| `agent_session_message.data`（fileId） | AGENTS jsonSoftReferences |
+| `message.data`（file_entry id 在 `parts[].providerMetadata.cherry.fileEntryId`，非顶层 fileId） | TOPICS jsonSoftReferences |
+| `agent_session_message.data`（file_entry id 在 `parts[].providerMetadata.cherry.fileEntryId`） | AGENTS jsonSoftReferences |
 
 ### 7. 注册模型与启动校验
 
@@ -326,15 +326,15 @@ flowchart TB
 | UI 模式 | 只暴露「完整 / 精简」 |
 | 精简模式范围 | 配置/设置域 + 聊天记录 + Agent 历史/配置：PREFERENCES、PROVIDERS、PROMPTS、MCP_SERVERS、TAGS_GROUPS、ASSISTANTS、AGENTS、MINIAPPS、SKILLS、TOPICS |
 | 精简模式排除 | KNOWLEDGE、TRANSLATE_HISTORY、PAINTINGS、FILE_STORAGE；不导出/恢复 file_entry、file_ref、文件 blob、知识库源文件 |
-| API key | 自用完整/精简备份默认含模型服务 API key / auth config；结果页统一展示范围，不单独强调；不做分享/排障脱敏模式 |
+| API key | 自用完整/精简备份默认含模型服务 API key / auth config；结果页统一展示备份范围 **+ 明文凭证警告**（与 §3 威胁模型一致）；不做分享/排障脱敏模式 |
 | 恢复冲突默认（按 identityClass） | uuid-entity 默认 SKIP（幂等重导入）；natural-key/slot 默认 FIELD_MERGE（如 PROVIDERS 保留本地 API key + 合并远程，防丢数据） |
-| 用户显式覆盖（不依赖 identityClass） | RENAME 显式保留两边（仅 `renamable:true`，否则退化 SKIP + 统一告知）；OVERWRITE 显式以备份为准（行级整替换，保留本机独有成员，见 §6.1） |
+| 用户显式覆盖（不依赖 identityClass） | RENAME 显式保留两边（仅 `renamable:true`，否则退化 SKIP + 统一告知）；OVERWRITE 显式以备份为准（行级整替换：identityKey 撞的成员行整行覆盖，本机独有成员保留、不删） |
 | 恢复语义 | 合并语义：仅本地存在记录一律保留，不差集删除 |
 | 结果页 | SKIP 后不展示跳过/未导入明细；缺失文件点击 Toast「无法加载文件」 |
 
 ### 2. 精简模式设计要点
 
-命名采用「精简」（现网已有该口径）。tooltip 定稿：「精简模式：备份时跳过备份图片、知识库、文档、HTML 等数据文件，仅备份聊天记录、配置和 API key，减少空间占用，加快备份速度」。知识库先排除（知识库负责人确认仅需 `{baseId}` 文件夹 + 两表，见第五章）。
+命名采用「精简」（现网已有该口径）。tooltip 定稿：「精简模式：备份时跳过备份图片、知识库、文档、HTML 等数据文件，仅备份聊天记录、配置和 API key，减少空间占用，加快备份速度」。知识库先排除（知识库负责人确认仅需 `{baseId}` 文件夹 + 两表，见 §3.5 域总览）。
 
 ### 3. API key 默认随备份走（含威胁模型）
 
