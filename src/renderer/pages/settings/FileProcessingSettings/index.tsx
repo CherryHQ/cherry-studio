@@ -1,6 +1,7 @@
 import { Badge, InfoTooltip, MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
+import { cn } from '@renderer/utils'
 import type { FC } from 'react'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -23,8 +24,8 @@ import {
   type FileProcessingMenuEntry,
   flattenFeatureSections,
   getFeatureSections,
+  getFileProcessingFeatureScenarioTipKey,
   getFileProcessingFeatureTitleKey,
-  getFileProcessingFeatureTooltipKey,
   getProcessorNameKey
 } from './utils/fileProcessingMeta'
 
@@ -74,12 +75,12 @@ const FileProcessingSettings: FC = () => {
               {featureSections.map((section, index) => (
                 <Fragment key={section.feature}>
                   {index > 0 ? <MenuDivider className={settingsSubmenuDividerClassName} /> : null}
-                  <div className={`${settingsSubmenuSectionTitleClassName} flex items-center gap-1.5`}>
-                    <span>{t(getFileProcessingFeatureTitleKey(section.feature))}</span>
+                  <div className={cn(settingsSubmenuSectionTitleClassName, 'flex items-center gap-1')}>
+                    {t(getFileProcessingFeatureTitleKey(section.feature))}
                     <InfoTooltip
-                      content={t(getFileProcessingFeatureTooltipKey(section.feature))}
+                      content={t(getFileProcessingFeatureScenarioTipKey(section.feature))}
                       placement="right"
-                      iconProps={{ size: 13, color: 'currentColor', className: 'opacity-80' }}
+                      iconProps={{ size: 13, className: 'cursor-pointer' }}
                     />
                   </div>
                   {section.entries.map((entry) => (
@@ -99,7 +100,7 @@ const FileProcessingSettings: FC = () => {
                       labelClassName={settingsSubmenuItemLabelClassName}
                       suffix={
                         isDefaultEntry(entry) ? (
-                          <Badge className="rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 font-medium text-green-600 text-xs dark:text-green-400">
+                          <Badge className="rounded-full border border-success/30 bg-success/10 px-2 py-0.5 font-medium text-success text-xs">
                             {t('common.default')}
                           </Badge>
                         ) : undefined

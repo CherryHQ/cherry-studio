@@ -67,8 +67,8 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
                 <div className={oauthCardClasses.loggedInEmail}>{serviceDescription}</div>
               </div>
             </div>
-            {/* className="" clears OauthButton's hard-coded `rounded-full` so the emphasis variant's own radius/size matches the CherryIN login button */}
-            <OauthButton provider={{ id: provider.id }} onSuccess={setApiKey} variant="emphasis" className="" />
+            {/* className="" clears OauthButton's hard-coded `rounded-full` so the default variant's own radius/size matches the CherryIN login button */}
+            <OauthButton provider={{ id: provider.id }} onSuccess={setApiKey} variant="default" className="" />
           </div>
         </div>
       </div>

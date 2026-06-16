@@ -508,7 +508,7 @@ const CodeCliPage: FC = () => {
                 <DialogTitle>{activeMeta.label}</DialogTitle>
               </DialogHeader>
 
-              <div className="flex flex-col gap-4">
+              <div className="flex min-w-0 flex-col gap-4">
                 {selectedCliTool !== codeCLI.githubCopilotCli && (
                   <div>
                     <FieldLabel hint={t('code.model_hint')}>{t('code.model')}</FieldLabel>
@@ -643,7 +643,7 @@ const CodeCliPage: FC = () => {
                   </Button>
                 </DialogClose>
                 <Button
-                  variant="emphasis"
+                  variant="default"
                   onClick={handleLaunch}
                   loading={isLaunching}
                   disabled={!canLaunch || !isBunInstalled || isLaunching}>

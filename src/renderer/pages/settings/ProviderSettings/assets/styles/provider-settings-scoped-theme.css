@@ -24,8 +24,8 @@
   --card-foreground: var(--cs-foreground);
   --popover: var(--cs-popover);
   --popover-foreground: var(--cs-foreground);
-  --primary: #00b96b;
-  --primary-foreground: #ffffff;
+  --primary: var(--cs-primary);
+  --primary-foreground: var(--cs-primary-foreground);
   --secondary: oklch(0.95 0.0058 264.53);
   --secondary-foreground: #030213;
   --muted-foreground: #717182;

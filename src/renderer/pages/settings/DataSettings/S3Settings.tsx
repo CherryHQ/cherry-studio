@@ -1,9 +1,8 @@
 import { FolderOpenOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons'
-import { Button, InfoTooltip, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
+import { Button, Combobox, InfoTooltip, Input, RowFlex, Switch, WarnTooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
 import { S3BackupModal, useS3BackupModal } from '@renderer/components/S3Modals'
-import Selector from '@renderer/components/Selector'
 import { AppLogo } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
@@ -14,7 +13,7 @@ import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
+import { SettingCard, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
 
 const S3Settings: FC = () => {
   const [, setS3AutoSync] = usePreference('data.backup.s3.auto_sync')
@@ -115,175 +114,165 @@ const S3Settings: FC = () => {
         />
       </SettingTitle>
       <SettingHelpText>{t('settings.data.s3.title.help')}</SettingHelpText>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.s3.endpoint.label')}</SettingRowTitle>
-        <Input
-          placeholder={t('settings.data.s3.endpoint.placeholder')}
-          value={s3Endpoint}
-          onChange={(e) => setS3Endpoint(e.target.value)}
-          style={{ width: 250 }}
-          type="url"
-          onBlur={(e) => setS3Endpoint(e.target.value)}
-        />
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.s3.region.label')}</SettingRowTitle>
-        <Input
-          placeholder={t('settings.data.s3.region.placeholder')}
-          value={s3Region}
-          onChange={(e) => setS3Region(e.target.value)}
-          style={{ width: 250 }}
-          onBlur={(e) => setS3Region(e.target.value)}
-        />
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.s3.bucket.label')}</SettingRowTitle>
-        <Input
-          placeholder={t('settings.data.s3.bucket.placeholder')}
-          value={s3Bucket}
-          onChange={(e) => setS3Bucket(e.target.value)}
-          style={{ width: 250 }}
-          onBlur={(e) => setS3Bucket(e.target.value)}
-        />
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.s3.accessKeyId.label')}</SettingRowTitle>
-        <Input
-          placeholder={t('settings.data.s3.accessKeyId.placeholder')}
-          value={s3AccessKeyId}
-          onChange={(e) => setS3AccessKeyId(e.target.value)}
-          style={{ width: 250 }}
-          onBlur={(e) => setS3AccessKeyId(e.target.value)}
-        />
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.s3.secretAccessKey.label')}</SettingRowTitle>
-        <Input
-          type="password"
-          placeholder={t('settings.data.s3.secretAccessKey.placeholder')}
-          value={s3SecretAccessKey}
-          onChange={(e) => setS3SecretAccessKey(e.target.value)}
-          style={{ width: 250 }}
-          onBlur={(e) => setS3SecretAccessKey(e.target.value)}
-        />
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.s3.root.label')}</SettingRowTitle>
-        <Input
-          placeholder={t('settings.data.s3.root.placeholder')}
-          value={s3Root}
-          onChange={(e) => setS3Root(e.target.value)}
-          style={{ width: 250 }}
-          onBlur={(e) => setS3Root(e.target.value)}
-        />
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.s3.backup.operation')}</SettingRowTitle>
-        <RowFlex className="justify-between gap-1.25">
-          <Button
-            onClick={showBackupModal}
-            variant="outline"
-            disabled={backuping || !s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
-            <SaveOutlined />
-            {t('settings.data.s3.backup.button')}
-          </Button>
-          <Button
-            onClick={showBackupManager}
-            variant="outline"
-            disabled={!s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
-            <FolderOpenOutlined />
-            {t('settings.data.s3.backup.manager.button')}
-          </Button>
-        </RowFlex>
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.s3.autoSync.label')}</SettingRowTitle>
-        <Selector
-          size={14}
-          value={s3SyncInterval}
-          onChange={onSyncIntervalChange}
-          disabled={!s3Endpoint || !s3AccessKeyId || !s3SecretAccessKey}
-          options={[
-            { label: t('settings.data.s3.autoSync.off'), value: 0 },
-            { label: t('settings.data.s3.autoSync.minute', { count: 1 }), value: 1 },
-            { label: t('settings.data.s3.autoSync.minute', { count: 5 }), value: 5 },
-            { label: t('settings.data.s3.autoSync.minute', { count: 15 }), value: 15 },
-            { label: t('settings.data.s3.autoSync.minute', { count: 30 }), value: 30 },
-            { label: t('settings.data.s3.autoSync.hour', { count: 1 }), value: 60 },
-            { label: t('settings.data.s3.autoSync.hour', { count: 2 }), value: 120 },
-            { label: t('settings.data.s3.autoSync.hour', { count: 6 }), value: 360 },
-            { label: t('settings.data.s3.autoSync.hour', { count: 12 }), value: 720 },
-            { label: t('settings.data.s3.autoSync.hour', { count: 24 }), value: 1440 }
-          ]}
-        />
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.s3.maxBackups.label')}</SettingRowTitle>
-        <Selector
-          size={14}
-          value={s3MaxBackups}
-          onChange={onMaxBackupsChange}
-          disabled={!s3Endpoint || !s3AccessKeyId || !s3SecretAccessKey}
-          options={[
-            { label: t('settings.data.s3.maxBackups.unlimited'), value: 0 },
-            { label: '1', value: 1 },
-            { label: '3', value: 3 },
-            { label: '5', value: 5 },
-            { label: '10', value: 10 },
-            { label: '20', value: 20 },
-            { label: '50', value: 50 }
-          ]}
-        />
-      </SettingRow>
-      <SettingDivider />
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.s3.skipBackupFile.label')}</SettingRowTitle>
-        <Switch checked={s3SkipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
-      </SettingRow>
-      <SettingRow>
-        <SettingHelpText>{t('settings.data.s3.skipBackupFile.help')}</SettingHelpText>
-      </SettingRow>
-      {s3SyncInterval > 0 && (
+      <SettingCard>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.s3.endpoint.label')}</SettingRowTitle>
+          <Input
+            placeholder={t('settings.data.s3.endpoint.placeholder')}
+            value={s3Endpoint}
+            onChange={(e) => setS3Endpoint(e.target.value)}
+            style={{ width: 250 }}
+            type="url"
+            onBlur={(e) => setS3Endpoint(e.target.value)}
+          />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.s3.region.label')}</SettingRowTitle>
+          <Input
+            placeholder={t('settings.data.s3.region.placeholder')}
+            value={s3Region}
+            onChange={(e) => setS3Region(e.target.value)}
+            style={{ width: 250 }}
+            onBlur={(e) => setS3Region(e.target.value)}
+          />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.s3.bucket.label')}</SettingRowTitle>
+          <Input
+            placeholder={t('settings.data.s3.bucket.placeholder')}
+            value={s3Bucket}
+            onChange={(e) => setS3Bucket(e.target.value)}
+            style={{ width: 250 }}
+            onBlur={(e) => setS3Bucket(e.target.value)}
+          />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.s3.accessKeyId.label')}</SettingRowTitle>
+          <Input
+            placeholder={t('settings.data.s3.accessKeyId.placeholder')}
+            value={s3AccessKeyId}
+            onChange={(e) => setS3AccessKeyId(e.target.value)}
+            style={{ width: 250 }}
+            onBlur={(e) => setS3AccessKeyId(e.target.value)}
+          />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.s3.secretAccessKey.label')}</SettingRowTitle>
+          <Input
+            type="password"
+            placeholder={t('settings.data.s3.secretAccessKey.placeholder')}
+            value={s3SecretAccessKey}
+            onChange={(e) => setS3SecretAccessKey(e.target.value)}
+            style={{ width: 250 }}
+            onBlur={(e) => setS3SecretAccessKey(e.target.value)}
+          />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.s3.root.label')}</SettingRowTitle>
+          <Input
+            placeholder={t('settings.data.s3.root.placeholder')}
+            value={s3Root}
+            onChange={(e) => setS3Root(e.target.value)}
+            style={{ width: 250 }}
+            onBlur={(e) => setS3Root(e.target.value)}
+          />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.s3.backup.operation')}</SettingRowTitle>
+          <RowFlex className="justify-between gap-1.25">
+            <Button
+              onClick={showBackupModal}
+              variant="outline"
+              disabled={backuping || !s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
+              <SaveOutlined />
+              {t('settings.data.s3.backup.button')}
+            </Button>
+            <Button
+              onClick={showBackupManager}
+              variant="outline"
+              disabled={!s3Endpoint || !s3Region || !s3Bucket || !s3AccessKeyId || !s3SecretAccessKey}>
+              <FolderOpenOutlined />
+              {t('settings.data.s3.backup.manager.button')}
+            </Button>
+          </RowFlex>
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.s3.autoSync.label')}</SettingRowTitle>
+          <Combobox
+            searchable={false}
+            value={String(s3SyncInterval)}
+            onChange={(value) => onSyncIntervalChange(Number(value))}
+            disabled={!s3Endpoint || !s3AccessKeyId || !s3SecretAccessKey}
+            options={[
+              { label: t('settings.data.s3.autoSync.off'), value: '0' },
+              { label: t('settings.data.s3.autoSync.minute', { count: 1 }), value: '1' },
+              { label: t('settings.data.s3.autoSync.minute', { count: 5 }), value: '5' },
+              { label: t('settings.data.s3.autoSync.minute', { count: 15 }), value: '15' },
+              { label: t('settings.data.s3.autoSync.minute', { count: 30 }), value: '30' },
+              { label: t('settings.data.s3.autoSync.hour', { count: 1 }), value: '60' },
+              { label: t('settings.data.s3.autoSync.hour', { count: 2 }), value: '120' },
+              { label: t('settings.data.s3.autoSync.hour', { count: 6 }), value: '360' },
+              { label: t('settings.data.s3.autoSync.hour', { count: 12 }), value: '720' },
+              { label: t('settings.data.s3.autoSync.hour', { count: 24 }), value: '1440' }
+            ]}
+          />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.s3.maxBackups.label')}</SettingRowTitle>
+          <Combobox
+            searchable={false}
+            value={String(s3MaxBackups)}
+            onChange={(value) => onMaxBackupsChange(Number(value))}
+            disabled={!s3Endpoint || !s3AccessKeyId || !s3SecretAccessKey}
+            options={[
+              { label: t('settings.data.s3.maxBackups.unlimited'), value: '0' },
+              { label: '1', value: '1' },
+              { label: '3', value: '3' },
+              { label: '5', value: '5' },
+              { label: '10', value: '10' },
+              { label: '20', value: '20' },
+              { label: '50', value: '50' }
+            ]}
+          />
+        </SettingRow>
+        <SettingRow>
+          <SettingRowTitle tip={t('settings.data.s3.skipBackupFile.help')}>
+            {t('settings.data.s3.skipBackupFile.label')}
+          </SettingRowTitle>
+          <Switch checked={s3SkipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
+        </SettingRow>
+        {s3SyncInterval > 0 && (
+          <>
+            <SettingRow>
+              <SettingRowTitle>{t('settings.data.s3.syncStatus.label')}</SettingRowTitle>
+              {renderSyncStatus()}
+            </SettingRow>
+          </>
+        )}
         <>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitle>{t('settings.data.s3.syncStatus.label')}</SettingRowTitle>
-            {renderSyncStatus()}
-          </SettingRow>
-        </>
-      )}
-      <>
-        <S3BackupModal
-          isModalVisible={isModalVisible}
-          handleBackup={handleBackup}
-          handleCancel={handleCancel}
-          backuping={backuping}
-          customFileName={customFileName}
-          setCustomFileName={setCustomFileName}
-        />
+          <S3BackupModal
+            isModalVisible={isModalVisible}
+            handleBackup={handleBackup}
+            handleCancel={handleCancel}
+            backuping={backuping}
+            customFileName={customFileName}
+            setCustomFileName={setCustomFileName}
+          />
 
-        <S3BackupManager
-          visible={backupManagerVisible}
-          onClose={closeBackupManager}
-          s3Config={{
-            endpoint: s3Endpoint,
-            region: s3Region,
-            bucket: s3Bucket,
-            accessKeyId: s3AccessKeyId,
-            secretAccessKey: s3SecretAccessKey,
-            root: s3Root
-          }}
-        />
-      </>
+          <S3BackupManager
+            visible={backupManagerVisible}
+            onClose={closeBackupManager}
+            s3Config={{
+              endpoint: s3Endpoint,
+              region: s3Region,
+              bucket: s3Bucket,
+              accessKeyId: s3AccessKeyId,
+              secretAccessKey: s3SecretAccessKey,
+              root: s3Root
+            }}
+          />
+        </>
+      </SettingCard>
     </SettingGroup>
   )
 }

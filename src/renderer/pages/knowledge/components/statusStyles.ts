@@ -1,6 +1,6 @@
 export const statusDotClassNames = {
-  completed: 'bg-primary/60',
-  processing: 'bg-amber-500',
+  completed: 'bg-success/60',
+  processing: 'bg-warning',
   failed: 'bg-destructive'
 } as const
 

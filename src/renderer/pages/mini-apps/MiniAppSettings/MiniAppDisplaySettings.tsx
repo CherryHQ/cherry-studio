@@ -1,6 +1,5 @@
-import { Button, PageSidePanelItem, PageSidePanelSection, Slider, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Combobox, PageSidePanelItem, PageSidePanelSection, Slider, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
-import Selector from '@renderer/components/Selector'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
 import { Undo2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -59,10 +58,10 @@ const MiniAppDisplaySettings: FC = () => {
           title={t('settings.miniApps.region.title')}
           description={t('settings.miniApps.region.description')}
           action={
-            <Selector
-              size={14}
+            <Combobox
+              searchable={false}
               value={region}
-              onChange={(v: MiniAppRegionFilter) => setRegion(v)}
+              onChange={(value) => setRegion(value as MiniAppRegionFilter)}
               options={regionOptions}
             />
           }

@@ -4494,6 +4494,7 @@
         "r_regenerate": "R 重新生成"
       }
     },
+    "description": "选中文本后弹出的快捷操作工具栏",
     "name": "划词助手",
     "settings": {
       "actions": {
@@ -4725,6 +4726,7 @@
         "title": "意见反馈"
       },
       "label": "关于我们",
+      "page_description": "版本信息、更新日志与反馈",
       "releases": {
         "button": "查看",
         "title": "更新日志"
@@ -6248,7 +6250,8 @@
         "sync_will_deprecate": "将标记为弃用"
       },
       "more_actions": "更多模型列表操作",
-      "not_enabled_models": "已禁用",
+      "not_enabled_models": "未启用",
+      "page_description": "为助手对话、快速操作和翻译设置默认使用的模型",
       "provider_id": "服务商 ID",
       "provider_key_add_confirm": "是否要为 {{provider}} 添加 API 密钥？",
       "provider_key_add_failed_by_empty_data": "添加服务商 API 密钥失败，数据为空",
@@ -6506,6 +6509,7 @@
           "international": "国际域名"
         }
       },
+      "connection_title": "服务接入",
       "copilot": {
         "add_request_header": "添加请求头",
         "auth_failed": "Github Copilot 认证失败",
@@ -6691,6 +6695,7 @@
     },
     "quickAssistant": {
       "click_tray_to_show": "点击托盘图标启动",
+      "description": "通过快捷键随时唤起的悬浮助手窗口",
       "enable_quick_assistant": "启用快捷助手",
       "read_clipboard_at_startup": "启动时读取剪贴板",
       "title": "快捷助手",
@@ -6847,12 +6852,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "文档处理",
-            "tooltip": "用于知识库解析文档"
+            "scenario_tip": "将文档解析为 Markdown，常用于知识库等场景",
+            "title": "文档处理"
           },
           "image_to_text": {
-            "title": "OCR",
-            "tooltip": "用于识别图片内文字内容"
+            "scenario_tip": "提取图片中的文字，常用于翻译等场景",
+            "title": "OCR"
           }
         },
         "fields": {

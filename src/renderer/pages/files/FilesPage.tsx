@@ -1,6 +1,14 @@
-import { ExclamationCircleOutlined } from '@ant-design/icons'
-import { Flex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import {
+  Button,
+  Checkbox,
+  ConfirmDialog,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  EmptyState,
+  Flex
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
@@ -13,12 +21,12 @@ import store from '@renderer/store'
 import type { FileMetadata, FileType } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
 import { formatFileSize } from '@renderer/utils'
-import { Checkbox, Dropdown, Empty, Popconfirm } from 'antd'
 import dayjs from 'dayjs'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   ArrowDownNarrowWide,
   ArrowUpWideNarrow,
+  ChevronDown,
   File as FileIcon,
   FileImage,
   FileText,
@@ -42,6 +50,7 @@ const FilesPage: FC = () => {
   const [sortField, setSortField] = useState<SortField>('created_at')
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([])
+  const [pendingDelete, setPendingDelete] = useState<{ type: 'single'; id: string } | { type: 'batch' } | null>(null)
 
   useEffect(() => {
     setSelectedFileIds([])
@@ -118,23 +127,14 @@ const FilesPage: FC = () => {
           <Button variant="ghost" onClick={() => handleRename(file.id)}>
             <EditIcon size={14} />
           </Button>
-          <Popconfirm
-            title={t('files.delete.title')}
-            description={t('files.delete.content')}
-            okText={t('common.confirm')}
-            cancelText={t('common.cancel')}
-            onConfirm={() => handleDelete(file.id, t)}
-            placement="left"
-            icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-            <Button variant="ghost">
-              <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
-            </Button>
-          </Popconfirm>
+          <Button variant="ghost" onClick={() => setPendingDelete({ type: 'single', id: file.id })}>
+            <DeleteIcon size={14} className="lucide-custom text-destructive" />
+          </Button>
           {fileType !== 'image' && (
             <Checkbox
               checked={selectedFileIds.includes(file.id)}
-              onChange={(e) => handleSelectFile(file.id, e.target.checked)}
-              style={{ margin: '0 8px' }}
+              onCheckedChange={(checked) => handleSelectFile(file.id, checked === true)}
+              className="mx-2"
             />
           )}
         </Flex>
@@ -170,9 +170,10 @@ const FilesPage: FC = () => {
           <SortContainer>
             <Flex className="items-center gap-2">
               {(['created_at', 'size', 'name'] as const).map((field) => (
-                <SortButton
+                <Button
                   key={field}
-                  active={sortField === field}
+                  variant={sortField === field ? 'default' : 'ghost'}
+                  size="sm"
                   onClick={() => {
                     if (sortField === field) {
                       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
@@ -184,50 +185,68 @@ const FilesPage: FC = () => {
                   {t(getFileFieldLabelKey(field))}
                   {sortField === field &&
                     (sortOrder === 'desc' ? <ArrowUpWideNarrow size={12} /> : <ArrowDownNarrowWide size={12} />)}
-                </SortButton>
+                </Button>
               ))}
             </Flex>
             {fileType !== 'image' && (
-              <Dropdown.Button
-                style={{ width: 'auto' }}
-                menu={{
-                  items: [
-                    {
-                      key: 'delete',
-                      disabled: selectedFileIds.length === 0,
-                      danger: true,
-                      label: (
-                        <Popconfirm
-                          disabled={selectedFileIds.length === 0}
-                          title={t('files.delete.title')}
-                          description={t('files.delete.content')}
-                          okText={t('common.confirm')}
-                          cancelText={t('common.cancel')}
-                          onConfirm={handleBatchDelete}
-                          icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-                          {t('files.batch_delete')} ({selectedFileIds.length})
-                        </Popconfirm>
-                      )
+              <Flex className="items-center gap-1">
+                <Flex className="items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={
+                      sortedFiles.length > 0 && selectedFileIds.length === sortedFiles.length
+                        ? true
+                        : selectedFileIds.length > 0
+                          ? 'indeterminate'
+                          : false
                     }
-                  ]
-                }}
-                trigger={['click']}>
-                <Checkbox
-                  indeterminate={selectedFileIds.length > 0 && selectedFileIds.length < sortedFiles.length}
-                  checked={selectedFileIds.length === sortedFiles.length && sortedFiles.length > 0}
-                  onChange={(e) => handleSelectAll(e.target.checked)}>
-                  {t('files.batch_operation')}
-                </Checkbox>
-              </Dropdown.Button>
+                    onCheckedChange={(checked) => handleSelectAll(checked === true)}
+                  />
+                  <span>{t('files.batch_operation')}</span>
+                </Flex>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" aria-label={t('files.batch_operation')}>
+                      <ChevronDown size={14} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      disabled={selectedFileIds.length === 0}
+                      className="text-destructive focus:text-destructive"
+                      onSelect={() => setPendingDelete({ type: 'batch' })}>
+                      {t('files.batch_delete')} ({selectedFileIds.length})
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </Flex>
             )}
           </SortContainer>
           {dataSource && dataSource?.length > 0 ? (
             <FileList id={fileType} list={dataSource} files={sortedFiles} />
           ) : (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            <EmptyState preset="no-file" />
           )}
         </MainContent>
       </ContentContainer>
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingDelete(null)
+        }}
+        title={t('files.delete.title')}
+        description={t('files.delete.content')}
+        confirmText={t('common.confirm')}
+        cancelText={t('common.cancel')}
+        destructive
+        onConfirm={async () => {
+          if (pendingDelete?.type === 'single') {
+            await handleDelete(pendingDelete.id, t)
+          } else if (pendingDelete?.type === 'batch') {
+            await handleBatchDelete()
+          }
+          setPendingDelete(null)
+        }}
+      />
     </Container>
   )
 }
@@ -292,27 +311,6 @@ const SideNav = styled.div`
       color: var(--color-primary);
       border: 0.5px solid var(--color-border);
     }
-  }
-`
-
-const SortButton = styled(Button)<{ active?: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 12px;
-  height: 30px;
-  border-radius: var(--list-item-border-radius);
-  border: 0.5px solid ${(props) => (props.active ? 'var(--color-border)' : 'transparent')};
-  background-color: ${(props) => (props.active ? 'var(--color-background-soft)' : 'transparent')};
-  color: ${(props) => (props.active ? 'var(--color-text)' : 'var(--color-text-secondary)')};
-
-  &:hover {
-    background-color: var(--color-background-soft);
-    color: var(--color-text);
-  }
-
-  .anticon {
-    font-size: 12px;
   }
 `
 

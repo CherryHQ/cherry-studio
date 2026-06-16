@@ -27,13 +27,13 @@ describe('ProviderListItem', () => {
       <ProviderListItem provider={provider} selected={false} dragging={false} onClick={vi.fn()} />
     )
 
-    expect(screen.getByText('硅基流动')).toHaveClass('font-[weight:500]')
+    expect(screen.getByText('硅基流动')).toHaveClass('font-medium')
     expect(screen.getByText('硅基流动')).not.toHaveClass('font-normal')
 
     rerender(<ProviderListItem provider={provider} selected dragging={false} onClick={vi.fn()} />)
 
-    expect(screen.getByText('硅基流动')).toHaveClass('font-[weight:500]')
-    expect(screen.getByText('硅基流动')).not.toHaveClass('font-medium')
+    expect(screen.getByText('硅基流动')).toHaveClass('font-medium')
+    expect(screen.getByText('硅基流动')).not.toHaveClass('font-normal')
   })
 
   it('renders provider logos at 26px in the list', () => {
@@ -58,7 +58,7 @@ describe('ProviderListItem', () => {
       />
     )
 
-    expect(container.querySelector('span[aria-hidden].bg-green-500')).toBeInTheDocument()
+    expect(container.querySelector('span[aria-hidden].bg-success')).toBeInTheDocument()
   })
 
   it('omits the enabled-state dot when provider.isEnabled is false', () => {
@@ -71,6 +71,6 @@ describe('ProviderListItem', () => {
       />
     )
 
-    expect(container.querySelector('span[aria-hidden].bg-green-500')).not.toBeInTheDocument()
+    expect(container.querySelector('span[aria-hidden].bg-success')).not.toBeInTheDocument()
   })
 })
