@@ -16,6 +16,7 @@ interface ModelSyncPreviewPanelProps {
   preview: ModelSyncPreviewResponse
   selections: ModelSyncPreviewSelections
   isApplying: boolean
+  searchActive?: boolean
 }
 
 interface ModelSyncPreviewFooterProps {
@@ -33,29 +34,38 @@ function modelIdLine(uniqueModelId: UniqueModelId, apiModelId?: string) {
 function ModelGlyph({ model }: { model: Model }) {
   const Icon = getModelLogo(model)
   if (Icon) {
-    return <Icon.Avatar size={20} />
+    return <Icon.Avatar size={24} />
   }
   const letter = (model.name || model.apiModelId || '?').slice(0, 1).toUpperCase()
   return <div className={modelSyncClasses.fetchAvatar}>{letter}</div>
 }
 
-export default function ModelSyncPreviewPanel({ preview, selections, isApplying }: ModelSyncPreviewPanelProps) {
+export default function ModelSyncPreviewPanel({
+  preview,
+  selections,
+  isApplying,
+  searchActive = false
+}: ModelSyncPreviewPanelProps) {
   const { t } = useTranslation()
   const {
     selectedAddedIds,
     selectedMissingIds,
     toggleAddedSelection,
     toggleMissingSelection,
-    toggleAllAdded,
-    toggleAllMissing,
-    allAddedSelected,
-    allMissingSelected
+    setAddedSelectionFor,
+    setMissingSelectionFor
   } = selections
 
   const hasNew = preview.added.length > 0
   const hasMissing = preview.missing.length > 0
+  const allVisibleAddedSelected = hasNew && preview.added.every((model) => selectedAddedIds.has(model.id))
+  const allVisibleMissingSelected = hasMissing && preview.missing.every((item) => selectedMissingIds.has(item.model.id))
 
   if (!hasNew && !hasMissing) {
+    if (searchActive) {
+      return <div className={modelSyncClasses.fetchEmpty}>{t('common.no_results')}</div>
+    }
+
     return (
       <div className={modelSyncClasses.fetchEmpty}>
         <div className={modelSyncClasses.fetchEmptyIconWrap}>
@@ -84,8 +94,13 @@ export default function ModelSyncPreviewPanel({ preview, selections, isApplying 
               variant="ghost"
               disabled={isApplying}
               className={modelSyncClasses.fetchGhostAll}
-              onClick={toggleAllAdded}>
-              {allAddedSelected
+              onClick={() =>
+                setAddedSelectionFor(
+                  preview.added.map((model) => model.id),
+                  !allVisibleAddedSelected
+                )
+              }>
+              {allVisibleAddedSelected
                 ? t('settings.models.manage.fetch_deselect_all_add')
                 : t('settings.models.manage.fetch_select_all_add')}
             </Button>
@@ -123,9 +138,6 @@ export default function ModelSyncPreviewPanel({ preview, selections, isApplying 
                     <p className={modelSyncClasses.fetchRowTitle}>{model.name}</p>
                     <p className={modelSyncClasses.fetchRowId}>{modelIdLine(model.id, model.apiModelId)}</p>
                   </div>
-                  {model.contextWindow != null && model.contextWindow > 0 ? (
-                    <span className={modelSyncClasses.fetchContextValue}>{model.contextWindow}</span>
-                  ) : null}
                   <div className={modelSyncClasses.fetchCapabilityStrip}>
                     <ModelTagsWithLabel model={model as ModelTagsWithLabelModel} size={8} />
                   </div>
@@ -151,8 +163,13 @@ export default function ModelSyncPreviewPanel({ preview, selections, isApplying 
               variant="ghost"
               disabled={isApplying}
               className={modelSyncClasses.fetchGhostAllRemoved}
-              onClick={toggleAllMissing}>
-              {allMissingSelected
+              onClick={() =>
+                setMissingSelectionFor(
+                  preview.missing.map((item) => item.model.id),
+                  !allVisibleMissingSelected
+                )
+              }>
+              {allVisibleMissingSelected
                 ? t('settings.models.manage.fetch_deselect_all_remove')
                 : t('settings.models.manage.fetch_select_all_remove')}
             </Button>
@@ -198,9 +215,6 @@ export default function ModelSyncPreviewPanel({ preview, selections, isApplying 
                       {modelIdLine(item.model.id, item.model.apiModelId)}
                     </p>
                   </div>
-                  {item.model.contextWindow != null && item.model.contextWindow > 0 ? (
-                    <span className={modelSyncClasses.fetchContextValue}>{item.model.contextWindow}</span>
-                  ) : null}
                   <div className={modelSyncClasses.fetchCapabilityStrip}>
                     <ModelTagsWithLabel model={item.model as ModelTagsWithLabelModel} size={8} />
                   </div>

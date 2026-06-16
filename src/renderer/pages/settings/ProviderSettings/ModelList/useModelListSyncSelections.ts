@@ -74,6 +74,34 @@ export function useModelListSyncSelections(preview: ModelSyncPreviewResponse | n
     })
   }, [preview])
 
+  const setAddedSelectionFor = useCallback((uniqueModelIds: UniqueModelId[], selected: boolean) => {
+    setSelectedAddedIds((current) => {
+      const next = new Set(current)
+      uniqueModelIds.forEach((uniqueModelId) => {
+        if (selected) {
+          next.add(uniqueModelId)
+        } else {
+          next.delete(uniqueModelId)
+        }
+      })
+      return next
+    })
+  }, [])
+
+  const setMissingSelectionFor = useCallback((uniqueModelIds: UniqueModelId[], selected: boolean) => {
+    setSelectedMissingIds((current) => {
+      const next = new Set(current)
+      uniqueModelIds.forEach((uniqueModelId) => {
+        if (selected) {
+          next.add(uniqueModelId)
+        } else {
+          next.delete(uniqueModelId)
+        }
+      })
+      return next
+    })
+  }, [])
+
   const totalSelected = selectedAddedIds.size + selectedMissingIds.size
 
   const allAddedSelected = !!preview && preview.added.length > 0 && selectedAddedIds.size === preview.added.length
@@ -98,6 +126,8 @@ export function useModelListSyncSelections(preview: ModelSyncPreviewResponse | n
     toggleMissingSelection,
     toggleAllAdded,
     toggleAllMissing,
+    setAddedSelectionFor,
+    setMissingSelectionFor,
     totalSelected,
     allAddedSelected,
     allMissingSelected,
