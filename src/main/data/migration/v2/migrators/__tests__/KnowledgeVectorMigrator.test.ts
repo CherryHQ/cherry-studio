@@ -4,15 +4,11 @@ import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import { createClient } from '@libsql/client'
-import { ensureIndexMeta, hasLegacyVectorStoreTable } from '@main/features/knowledge/vectorstore/indexStore/indexMeta'
+import { stripOkfFrontmatter } from '@main/features/knowledge/utils/sources/okfFrontmatter'
+import { hashEmbeddingText } from '@main/features/knowledge/vectorstore/indexStore/hashing'
 import { KnowledgeIndexStore } from '@main/features/knowledge/vectorstore/indexStore/KnowledgeIndexStore'
-import { openLibsqlIndexDriver } from '@main/features/knowledge/vectorstore/indexStore/LibsqlDriver'
-import { libsqlVectorIndex } from '@main/features/knowledge/vectorstore/indexStore/LibsqlVectorIndex'
-import { createKnowledgeIndexSchema } from '@main/features/knowledge/vectorstore/indexStore/schema'
-import {
-  KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
-  KnowledgeChunkMetadataSchema
-} from '@shared/data/types/knowledge'
+import { encodeVectorBlob } from '@main/features/knowledge/vectorstore/indexStore/vectorBlob'
+import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { KnowledgeVectorSourceReader } from '../../utils/KnowledgeVectorSourceReader'
@@ -46,7 +42,11 @@ vi.mock('node:os', async (importOriginal) => {
 })
 
 vi.mock('@main/utils/file', () => ({
-  sanitizeFilename: (value: string) => value
+  sanitizeFilename: (value: string) => value,
+  getFileExt: (filePath: string) => {
+    const index = filePath.lastIndexOf('.')
+    return index >= 0 ? filePath.slice(index) : ''
+  }
 }))
 
 const { KnowledgeVectorMigrator } = await import('../KnowledgeVectorMigrator')
@@ -77,18 +77,28 @@ function runtimeVectorStorePath(baseId: string): string {
   return path.join(currentKnowledgeBaseRoot, baseId, '.cherry', 'index.sqlite')
 }
 
+// Mirrors the runtime material-byte layout in pathStorage.ts (MATERIAL_ROOT_DIR='raw'):
+// {root}/{baseId}/raw/{relativePath}. Snapshot assertions resolve through this so a migrator that
+// writes outside `raw/` (where getKnowledgeBaseFilePath would never read it) fails the test.
+function runtimeMaterialPath(baseId: string, relativePath: string): string {
+  return path.join(currentKnowledgeBaseRoot, baseId, 'raw', relativePath)
+}
+
 interface MigratedKnowledgeBaseRow {
   id: string
   dimensions: number
   embeddingModelId: string | null
   status: 'completed' | 'failed'
+  chunkSize: number
+  chunkOverlap: number
+  fileProcessorId?: string | null
 }
 
 interface MigratedKnowledgeItemRow {
   id: string
   baseId: string
   type: 'file' | 'url' | 'note' | 'directory'
-  data: { source?: string }
+  data: Record<string, unknown>
 }
 
 async function createLegacyVectorDb(
@@ -127,6 +137,34 @@ async function createLegacyVectorDb(
   client.close()
 }
 
+/** Read every table the migrator writes from a rebuilt store, ordered for assertions. */
+async function readStore(baseId: string) {
+  const client = createClient({ url: pathToFileURL(runtimeVectorStorePath(baseId)).toString() })
+  try {
+    const meta = (await client.execute('SELECT base_id FROM meta')).rows
+    const material = (
+      await client.execute(
+        'SELECT material_id, relative_path, current_content_hash FROM material ORDER BY relative_path'
+      )
+    ).rows
+    const content = (await client.execute('SELECT content_hash, text FROM content')).rows
+    const searchUnit = (
+      await client.execute(
+        'SELECT unit_id, material_id, unit_type, unit_index, char_start, char_end FROM search_unit ORDER BY material_id, unit_index'
+      )
+    ).rows
+    const searchText = (
+      await client.execute('SELECT target_type, kind, text, embedding_text_hash FROM search_text ORDER BY text')
+    ).rows
+    const embedding = (
+      await client.execute('SELECT embedding_text_hash, vector_blob, length(vector_blob) AS bytes FROM embedding')
+    ).rows
+    return { meta, material, content, searchUnit, searchText, embedding }
+  } finally {
+    client.close()
+  }
+}
+
 function createDbMock({
   migratedBases = [],
   migratedItems = []
@@ -143,7 +181,17 @@ function createDbMock({
       from: vi.fn().mockResolvedValue(migratedItems)
     })
 
-  return { select }
+  // Captures the url-snapshot row write-backs: one entry per updated item.
+  const updateCalls: Array<{ values: Record<string, unknown> }> = []
+  const update = vi.fn(() => ({
+    set: vi.fn((values: Record<string, unknown>) => ({
+      where: vi.fn(async () => {
+        updateCalls.push({ values })
+      })
+    }))
+  }))
+
+  return { select, update, updateCalls }
 }
 
 function createMigrationCtx({
@@ -206,7 +254,7 @@ function createMigratedItem(
     id,
     baseId: MIGRATED_KNOWLEDGE_BASE_ID,
     type: 'file',
-    data: { source: `/tmp/${id}.md` },
+    data: { source: `/tmp/${id}.md`, relativePath: `${id}.md` },
     ...overrides
   }
 }
@@ -217,8 +265,15 @@ function createMigratedBase(overrides: Partial<MigratedKnowledgeBaseRow> = {}): 
     dimensions: 2,
     embeddingModelId: 'ollama::nomic-embed-text',
     status: 'completed',
+    chunkSize: 1000,
+    chunkOverlap: 200,
     ...overrides
   }
+}
+
+/** A migrated item id mapped to its prepared materials (test-only reach into private state). */
+function materialItemIds(migrator: any): string[] {
+  return migrator.preparedBasePlans[0].materials.map((material: { itemId: string }) => material.itemId)
 }
 
 describe('KnowledgeVectorMigrator', () => {
@@ -227,6 +282,7 @@ describe('KnowledgeVectorMigrator', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.restoreAllMocks()
     tempRoot = createTempRoot()
     knowledgeBaseDir = path.join(tempRoot, 'KnowledgeBase')
     fs.mkdirSync(knowledgeBaseDir, { recursive: true })
@@ -237,1028 +293,1292 @@ describe('KnowledgeVectorMigrator', () => {
     fs.rmSync(tempRoot, { recursive: true, force: true })
   })
 
-  it('prepare uses uniqueIds first, skips container vectors, and records warnings for skipped vectors', async () => {
-    await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
-      {
-        id: 'legacy-file-0',
-        pageContent: 'file chunk',
-        uniqueLoaderId: 'loader-file',
-        source: '/tmp/file-1.md',
-        vector: [1, 2]
-      },
-      {
-        id: 'legacy-dir-0',
-        pageContent: 'dir chunk',
-        uniqueLoaderId: 'loader-dir-a',
-        source: '/tmp/dir/a.md',
-        vector: [3, 4]
-      },
-      {
-        id: 'legacy-missing-0',
-        pageContent: 'missing chunk',
-        uniqueLoaderId: 'loader-missing',
-        source: '/tmp/missing.md',
-        vector: [5, 6]
-      }
-    ])
-
-    const migrationCtx = createMigrationCtx({
-      migratedBases: [createMigratedBase()],
-      migratedItems: [
-        createMigratedItem(MIGRATED_FILE_ITEM_ID),
-        createMigratedItem(MIGRATED_DIRECTORY_ITEM_ID, {
-          type: 'directory',
-          data: { source: '/tmp/dir' }
-        })
-      ],
-      reduxData: {
-        knowledge: {
-          bases: [
-            {
-              id: LEGACY_KNOWLEDGE_BASE_ID,
-              name: 'Base 1',
-              items: [
-                {
-                  id: 'item-file',
-                  type: 'file',
-                  uniqueId: 'loader-file'
-                },
-                {
-                  id: 'item-directory',
-                  type: 'directory',
-                  uniqueId: 'DirectoryLoader_ignore',
-                  uniqueIds: ['loader-dir-a']
-                }
-              ]
-            }
-          ]
+  describe('prepare', () => {
+    it('uses uniqueIds first, skips container vectors, and records warnings for skipped vectors', async () => {
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-file-0',
+          pageContent: 'file chunk',
+          uniqueLoaderId: 'loader-file',
+          source: '/tmp/file-1.md',
+          vector: [1, 2]
+        },
+        {
+          id: 'legacy-dir-0',
+          pageContent: 'dir chunk',
+          uniqueLoaderId: 'loader-dir-a',
+          source: '/tmp/dir/a.md',
+          vector: [3, 4]
+        },
+        {
+          id: 'legacy-missing-0',
+          pageContent: 'missing chunk',
+          uniqueLoaderId: 'loader-missing',
+          source: '/tmp/missing.md',
+          vector: [5, 6]
         }
-      }
-    })
+      ])
 
-    const migrator = new KnowledgeVectorMigrator() as any
-    const result = await migrator.prepare(migrationCtx as any)
-
-    expect(result.success).toBe(true)
-    expect(result.itemCount).toBe(3)
-    expect(migrator.preparedBasePlans).toHaveLength(1)
-    expect(migrator.preparedBasePlans[0].rows).toHaveLength(1)
-    expect(migrator.preparedBasePlans[0].rows.map((row: any) => row.externalId)).toEqual([MIGRATED_FILE_ITEM_ID])
-    expect(migrator.skippedCount).toBe(2)
-    expect(
-      result.warnings?.some(
-        (warning) =>
-          warning.includes('Skipped knowledge vector records (unmapped_loader): count=1') &&
-          warning.includes('loader-missing')
-      )
-    ).toBe(true)
-    expect(
-      result.warnings?.some(
-        (warning) =>
-          warning.includes('Skipped knowledge vector records (non_indexable_container): count=1') &&
-          warning.includes(`container item '${MIGRATED_DIRECTORY_ITEM_ID}'`) &&
-          warning.includes("type 'directory' is not indexable")
-      )
-    ).toBe(true)
-  })
-
-  it('prepare skips legacy loaders that were not remapped to migrated item ids', async () => {
-    await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
-      {
-        id: 'legacy-file-0',
-        pageContent: 'file chunk',
-        uniqueLoaderId: 'loader-file',
-        source: '/tmp/file-1.md',
-        vector: [1, 2]
-      }
-    ])
-
-    const migrationCtx = createEmptyRemapMigrationCtx({
-      migratedBases: [createMigratedBase()],
-      migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-      reduxData: {
-        knowledge: {
-          bases: [
-            {
-              id: LEGACY_KNOWLEDGE_BASE_ID,
-              name: 'Base 1',
-              items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
-            }
-          ]
-        }
-      }
-    })
-
-    const migrator = new KnowledgeVectorMigrator() as any
-    const result = await migrator.prepare(migrationCtx as any)
-
-    expect(result.success).toBe(true)
-    expect(migrator.preparedBasePlans).toHaveLength(1)
-    expect(migrator.preparedBasePlans[0].rows).toEqual([])
-    expect(migrator.skippedCount).toBe(1)
-    expect(
-      result.warnings?.some(
-        (warning) =>
-          warning.includes('Skipped knowledge vector records (unmapped_loader): count=1') &&
-          warning.includes('loader-file')
-      )
-    ).toBe(true)
-  })
-
-  it('prepare skips only the missing loaders when the item id remap is partial', async () => {
-    const migratedSecondItemId = '0198f3f2-7d1d-7abc-8def-123456789abc'
-
-    await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
-      {
-        id: 'legacy-file-0',
-        pageContent: 'first file chunk',
-        uniqueLoaderId: 'loader-file-a',
-        source: '/tmp/file-a.md',
-        vector: [1, 2]
-      },
-      {
-        id: 'legacy-file-1',
-        pageContent: 'second file chunk',
-        uniqueLoaderId: 'loader-file-b',
-        source: '/tmp/file-b.md',
-        vector: [3, 4]
-      },
-      {
-        id: 'legacy-file-2',
-        pageContent: 'skipped file chunk',
-        uniqueLoaderId: 'loader-file-c',
-        source: '/tmp/file-c.md',
-        vector: [5, 6]
-      }
-    ])
-
-    const migrationCtx = createMigrationCtx({
-      migratedBases: [createMigratedBase()],
-      migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID), createMigratedItem(migratedSecondItemId)],
-      knowledgeItemIdRemap: new Map([
-        ['item-file-a', MIGRATED_FILE_ITEM_ID],
-        ['item-file-b', migratedSecondItemId]
-      ]),
-      reduxData: {
-        knowledge: {
-          bases: [
-            {
-              id: LEGACY_KNOWLEDGE_BASE_ID,
-              name: 'Base 1',
-              items: [
-                {
-                  id: 'item-file-a',
-                  type: 'file',
-                  uniqueId: 'loader-file-a'
-                },
-                {
-                  id: 'item-file-b',
-                  type: 'file',
-                  uniqueId: 'loader-file-b'
-                },
-                {
-                  id: 'item-file-c',
-                  type: 'file',
-                  uniqueId: 'loader-file-c'
-                }
-              ]
-            }
-          ]
-        }
-      }
-    })
-
-    const migrator = new KnowledgeVectorMigrator() as any
-    const result = await migrator.prepare(migrationCtx as any)
-
-    expect(result.success).toBe(true)
-    expect(migrator.preparedBasePlans).toHaveLength(1)
-    expect(migrator.preparedBasePlans[0].rows.map((row: any) => row.externalId)).toEqual([
-      MIGRATED_FILE_ITEM_ID,
-      migratedSecondItemId
-    ])
-    expect(migrator.skippedCount).toBe(1)
-    expect(
-      result.warnings?.some(
-        (warning) =>
-          warning.includes('Skipped knowledge vector records (unmapped_loader): count=1') &&
-          warning.includes('loader-file-c')
-      )
-    ).toBe(true)
-  })
-
-  it('prepare skips migrated bases that cannot be mapped back to legacy base ids', async () => {
-    const loadBase = vi.fn()
-    const migrationCtx = createMissingBaseRemapMigrationCtx({
-      migratedBases: [createMigratedBase()],
-      migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-      knowledgeVectorSource: { loadBase } as any,
-      reduxData: {
-        knowledge: {
-          bases: [
-            {
-              id: LEGACY_KNOWLEDGE_BASE_ID,
-              name: 'Base 1',
-              items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
-            }
-          ]
-        }
-      }
-    })
-
-    const migrator = new KnowledgeVectorMigrator() as any
-    const result = await migrator.prepare(migrationCtx as any)
-
-    expect(result.success).toBe(true)
-    expect(loadBase).not.toHaveBeenCalled()
-    expect(migrator.preparedBasePlans).toEqual([])
-    expect(
-      result.warnings?.some(
-        (warning) =>
-          warning.includes('Skipped knowledge vector records (unmapped_base): count=1') &&
-          warning.includes(MIGRATED_KNOWLEDGE_BASE_ID)
-      )
-    ).toBe(true)
-  })
-
-  it('prepare migrates legacy sitemap vectors when their item migrated as url', async () => {
-    await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
-      {
-        id: 'legacy-sitemap-0',
-        pageContent: 'sitemap page chunk',
-        uniqueLoaderId: 'loader-sitemap',
-        source: 'https://example.com/page',
-        vector: [1, 2]
-      }
-    ])
-
-    const migrationCtx = createMigrationCtx({
-      migratedBases: [createMigratedBase()],
-      migratedItems: [
-        createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
-          type: 'url',
-          data: { source: 'https://example.com/sitemap.xml' }
-        })
-      ],
-      reduxData: {
-        knowledge: {
-          bases: [
-            {
-              id: LEGACY_KNOWLEDGE_BASE_ID,
-              name: 'Base 1',
-              items: [
-                {
-                  id: 'item-sitemap',
-                  type: 'sitemap',
-                  uniqueId: 'loader-sitemap'
-                }
-              ]
-            }
-          ]
-        }
-      }
-    })
-
-    const migrator = new KnowledgeVectorMigrator() as any
-    const result = await migrator.prepare(migrationCtx as any)
-
-    expect(result.success).toBe(true)
-    expect(migrator.preparedBasePlans).toHaveLength(1)
-    expect(migrator.preparedBasePlans[0].rows).toMatchObject([
-      {
-        document: 'sitemap page chunk',
-        externalId: MIGRATED_SITEMAP_URL_ITEM_ID,
-        itemType: 'url',
-        source: 'https://example.com/page',
-        chunkIndex: 0,
-        tokenCount: expect.any(Number),
-        embedding: [1, 2]
-      }
-    ])
-    expect(migrator.skippedCount).toBe(0)
-    expect(result.warnings ?? []).not.toEqual(
-      expect.arrayContaining([expect.stringContaining('non_indexable_container')])
-    )
-  })
-
-  it('prepare records unsupported vector encodings in a distinct warning bucket', async () => {
-    const migrationCtx = createMigrationCtx({
-      migratedBases: [createMigratedBase()],
-      migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-      knowledgeVectorSource: {
-        loadBase: vi.fn().mockResolvedValue({
-          status: 'ok',
-          dbPath: path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID),
-          rows: [
-            {
-              pageContent: 'file chunk',
-              uniqueLoaderId: 'loader-file',
-              source: '/tmp/file-1.md',
-              vector: { status: 'unsupported_encoding', encoding: 'string' }
-            }
-          ]
-        })
-      } as unknown as KnowledgeVectorSourceReader,
-      reduxData: {
-        knowledge: {
-          bases: [
-            {
-              id: LEGACY_KNOWLEDGE_BASE_ID,
-              name: 'Base 1',
-              items: [
-                {
-                  id: 'item-file',
-                  type: 'file',
-                  uniqueId: 'loader-file'
-                }
-              ]
-            }
-          ]
-        }
-      }
-    })
-
-    const migrator = new KnowledgeVectorMigrator() as any
-    const result = await migrator.prepare(migrationCtx as any)
-
-    expect(result.success).toBe(true)
-    expect(migrator.preparedBasePlans).toHaveLength(1)
-    expect(migrator.preparedBasePlans[0].rows).toEqual([])
-    expect(migrator.skippedCount).toBe(1)
-    expect(
-      result.warnings?.some(
-        (warning) =>
-          warning.includes('Skipped knowledge vector records (unsupported_vector_encoding): count=1') &&
-          warning.includes("unsupported vector encoding 'string'") &&
-          warning.includes("uniqueLoaderId 'loader-file'")
-      )
-    ).toBe(true)
-    expect(result.warnings?.some((warning) => warning.includes('missing_vector_payload'))).toBe(false)
-  })
-
-  it('prepare keeps missing vector payloads in the existing warning bucket', async () => {
-    const migrationCtx = createMigrationCtx({
-      migratedBases: [createMigratedBase()],
-      migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-      knowledgeVectorSource: {
-        loadBase: vi.fn().mockResolvedValue({
-          status: 'ok',
-          dbPath: path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID),
-          rows: [
-            {
-              pageContent: 'file chunk',
-              uniqueLoaderId: 'loader-file',
-              source: '/tmp/file-1.md',
-              vector: { status: 'missing' }
-            }
-          ]
-        })
-      } as unknown as KnowledgeVectorSourceReader,
-      reduxData: {
-        knowledge: {
-          bases: [
-            {
-              id: LEGACY_KNOWLEDGE_BASE_ID,
-              name: 'Base 1',
-              items: [
-                {
-                  id: 'item-file',
-                  type: 'file',
-                  uniqueId: 'loader-file'
-                }
-              ]
-            }
-          ]
-        }
-      }
-    })
-
-    const migrator = new KnowledgeVectorMigrator() as any
-    const result = await migrator.prepare(migrationCtx as any)
-
-    expect(result.success).toBe(true)
-    expect(migrator.preparedBasePlans).toHaveLength(1)
-    expect(migrator.preparedBasePlans[0].rows).toEqual([])
-    expect(migrator.skippedCount).toBe(1)
-    expect(
-      result.warnings?.some(
-        (warning) =>
-          warning.includes('Skipped knowledge vector records (missing_vector_payload): count=1') &&
-          warning.includes("vector payload missing for uniqueLoaderId 'loader-file'")
-      )
-    ).toBe(true)
-    expect(result.warnings?.some((warning) => warning.includes('unsupported_vector_encoding'))).toBe(false)
-  })
-
-  it('does not create a vector index during schema bootstrap', async () => {
-    const migrator = new KnowledgeVectorMigrator()
-    const client = {
-      execute: vi.fn(async () => undefined)
-    }
-
-    await expect((migrator as any).ensureVectorStoreSchema(client, 2)).resolves.toBeUndefined()
-
-    expect(client.execute).not.toHaveBeenCalledWith(
-      expect.objectContaining({
-        sql: expect.stringContaining('libsql_vector_idx')
-      })
-    )
-  })
-
-  it('hard fails when FTS schema creation fails', async () => {
-    const migrator = new KnowledgeVectorMigrator()
-    const client = {
-      execute: vi.fn(async ({ sql: statement }: { sql: string }) => {
-        if (statement.includes('CREATE VIRTUAL TABLE IF NOT EXISTS libsql_vectorstores_embedding_fts')) {
-          throw new Error('fts creation failed')
-        }
-      })
-    }
-
-    await expect((migrator as any).ensureVectorStoreSchema(client, 2)).rejects.toThrow('fts creation failed')
-  })
-
-  it('execute rebuilds vector rows with runtime-compatible metadata', async () => {
-    const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
-    await createLegacyVectorDb(dbPath, [
-      {
-        id: 'legacy-file-0',
-        pageContent: 'file chunk',
-        uniqueLoaderId: 'loader-file',
-        source: '/tmp/file-1.md',
-        vector: [1, 2]
-      }
-    ])
-
-    const migrationCtx = createMigrationCtx({
-      migratedBases: [createMigratedBase()],
-      migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-      reduxData: {
-        knowledge: {
-          bases: [
-            {
-              id: LEGACY_KNOWLEDGE_BASE_ID,
-              name: 'Base 1',
-              items: [
-                {
-                  id: 'item-file',
-                  type: 'file',
-                  uniqueId: 'loader-file'
-                }
-              ]
-            }
-          ]
-        }
-      }
-    })
-
-    const migrator = new KnowledgeVectorMigrator() as any
-    const prepareResult = await migrator.prepare(migrationCtx as any)
-    expect(prepareResult.success).toBe(true)
-
-    const executeResult = await migrator.execute(migrationCtx as any)
-    expect(executeResult.success).toBe(true)
-    expect(executeResult.processedCount).toBe(1)
-
-    const targetPath = runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID)
-    const targetClient = createClient({ url: pathToFileURL(targetPath).toString() })
-    const rows = await targetClient.execute(
-      'SELECT id, external_id, collection, document, metadata, length(embeddings) AS bytes FROM libsql_vectorstores_embedding'
-    )
-    targetClient.close()
-
-    expect(rows.rows).toHaveLength(1)
-    const row = rows.rows[0] as Record<string, unknown>
-    expect(String(row.id)).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)
-    expect(String(row.id)).not.toBe('legacy-file-0')
-    expect(row.external_id).toBe(MIGRATED_FILE_ITEM_ID)
-    expect(row.collection).toBe(MIGRATED_KNOWLEDGE_BASE_ID)
-    expect(row.document).toBe('file chunk')
-    const metadata = KnowledgeChunkMetadataSchema.parse(JSON.parse(String(row.metadata)))
-    expect(metadata).toEqual({
-      itemId: MIGRATED_FILE_ITEM_ID,
-      itemType: 'file',
-      source: '/tmp/file-1.md',
-      chunkIndex: 0,
-      tokenCount: expect.any(Number)
-    })
-    expect(metadata.tokenCount).toBeGreaterThan(0)
-    expect(Number(row.bytes)).toBeGreaterThan(0)
-
-    const validateResult = await migrator.validate(migrationCtx as any)
-    expect(validateResult.success).toBe(true)
-    expect(validateResult.errors).toStrictEqual([])
-    expect(validateResult.stats).toMatchObject({
-      sourceCount: 1,
-      targetCount: 1,
-      skippedCount: 0
-    })
-
-    expect(fs.existsSync(`${targetPath}.vectorstore.tmp`)).toBe(false)
-    // The rebuilt store lives at the runtime path under the migrated (new) base id, while the legacy
-    // embedjs DB is left untouched in place so a user who rolls back to v1 after a failed or
-    // abandoned migration keeps a working knowledge base. The new uuid dir never collides with the
-    // legacy flat path, so no .bak relocation happens.
-    expect(fs.existsSync(targetPath)).toBe(true)
-    expect(fs.existsSync(dbPath)).toBe(true)
-    expect(fs.existsSync(`${dbPath}.embedjs.bak`)).toBe(false)
-
-    const retrySource = await migrationCtx.sources.knowledgeVectorSource.loadBase(LEGACY_KNOWLEDGE_BASE_ID)
-    expect(retrySource.status).toBe('ok')
-    if (retrySource.status === 'ok') {
-      expect(retrySource.rows).toHaveLength(1)
-      expect(retrySource.dbPath).toBe(dbPath)
-    }
-  })
-
-  // ⚠️ PR-A transitional contract — REWRITE THIS TEST WHEN PR B LANDS.
-  // The migrator still writes the LEGACY single-table layout into the SAME
-  // index.sqlite the runtime KnowledgeIndexStore opens, and the runtime never
-  // reads that table: the store mounts cleanly (creating its own empty tables
-  // beside the legacy one) and search returns empty even though the migrated
-  // vectors sit in the file. This test pins that known intermediate state so a
-  // change on either side fires loudly; the mount-time diagnostic in
-  // KnowledgeVectorStoreService relies on hasLegacyVectorStoreTable() to report
-  // it. PR B (migrator writes the final layout / legacy rewrite on open) must
-  // replace these expectations with "migrated vectors are searchable".
-  it('PR-A transitional contract: migrator output mounts as an empty runtime store', async () => {
-    const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
-    await createLegacyVectorDb(dbPath, [
-      {
-        id: 'legacy-file-0',
-        pageContent: 'file chunk',
-        uniqueLoaderId: 'loader-file',
-        source: '/tmp/file-1.md',
-        vector: [1, 2]
-      }
-    ])
-
-    const migrationCtx = createMigrationCtx({
-      migratedBases: [createMigratedBase()],
-      migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-      reduxData: {
-        knowledge: {
-          bases: [
-            {
-              id: LEGACY_KNOWLEDGE_BASE_ID,
-              name: 'Base 1',
-              items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
-            }
-          ]
-        }
-      }
-    })
-
-    const migrator = new KnowledgeVectorMigrator() as any
-    await migrator.prepare(migrationCtx as any)
-    const executeResult = await migrator.execute(migrationCtx as any)
-    expect(executeResult.success).toBe(true)
-
-    // Open the migrated file exactly the way KnowledgeVectorStoreService.openIndexStore does.
-    const driver = await openLibsqlIndexDriver(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))
-    try {
-      await createKnowledgeIndexSchema(driver)
-      await expect(ensureIndexMeta(driver, { baseId: MIGRATED_KNOWLEDGE_BASE_ID })).resolves.toBeUndefined()
-
-      // The legacy remnant is detectable — the mount-time error log keys off this.
-      await expect(hasLegacyVectorStoreTable(driver)).resolves.toBe(true)
-
-      // The migrated vectors are invisible to the runtime store in both lanes.
-      const store = new KnowledgeIndexStore(driver, libsqlVectorIndex)
-      await expect(store.search({ queryText: 'file chunk', mode: 'bm25', topK: 10 })).resolves.toEqual([])
-      await expect(
-        store.search({ queryText: 'file chunk', queryEmbedding: [1, 2], mode: 'vector', topK: 10 })
-      ).resolves.toEqual([])
-    } finally {
-      await driver.close()
-    }
-  })
-
-  it('reports knowledge vector migration progress for each inserted batch', async () => {
-    const migrator = new KnowledgeVectorMigrator() as any
-    const dbPath = path.join(knowledgeBaseDir, 'kb-progress')
-    const reportedProgress: number[] = []
-
-    migrator.preparedBasePlans = [
-      {
-        baseId: 'kb-progress',
-        targetDbPath: dbPath,
-        dimensions: 2,
-        rows: Array.from({ length: 250 }, (_, index) => ({
-          document: `doc-${index}`,
-          externalId: `item-${index}`,
-          itemType: 'file',
-          source: `/tmp/doc-${index}.md`,
-          chunkIndex: index,
-          tokenCount: 2,
-          embedding: [index, index + 1]
-        })),
-        sourceRowCount: 250
-      }
-    ]
-
-    migrator.setProgressCallback((progress: number) => {
-      reportedProgress.push(progress)
-    })
-
-    await expect(migrator.execute()).resolves.toMatchObject({
-      success: true,
-      processedCount: 250
-    })
-
-    expect(reportedProgress).toEqual([40, 80, 100])
-    expect(fs.existsSync(dbPath)).toBe(true)
-    expect(fs.existsSync(`${dbPath}.vectorstore.tmp`)).toBe(false)
-  })
-
-  it('removes the target store with EBUSY-survivable retry options before renaming', async () => {
-    const migrator = new KnowledgeVectorMigrator() as any
-    const dbPath = path.join(knowledgeBaseDir, 'kb-ebusy')
-
-    migrator.preparedBasePlans = [
-      {
-        baseId: 'kb-ebusy',
-        targetDbPath: dbPath,
-        dimensions: 2,
-        rows: [
-          {
-            document: 'doc',
-            externalId: 'item-0',
-            itemType: 'file',
-            source: '/tmp/doc.md',
-            chunkIndex: 0,
-            tokenCount: 2,
-            embedding: [1, 2]
-          }
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_FILE_ITEM_ID),
+          createMigratedItem(MIGRATED_DIRECTORY_ITEM_ID, {
+            type: 'directory',
+            data: { source: '/tmp/dir', path: '/tmp/dir' }
+          })
         ],
-        sourceRowCount: 1
-      }
-    ]
-
-    const rmSpy = vi.spyOn(fs.promises, 'rm')
-
-    await expect(migrator.execute()).resolves.toMatchObject({ success: true })
-
-    // The target unlink must carry the EBUSY retry options (recursive is required for fs.rm to honor
-    // maxRetries/retryDelay) so a transient Windows file lock cannot abort the migration.
-    const targetRmCall = rmSpy.mock.calls.find(([target]) => target === dbPath)
-    expect(targetRmCall).toBeDefined()
-    expect(targetRmCall?.[1]).toMatchObject({
-      recursive: true,
-      force: true,
-      maxRetries: expect.any(Number),
-      retryDelay: expect.any(Number)
-    })
-
-    rmSpy.mockRestore()
-  })
-
-  it('falls back to migrated item source when legacy source is missing', async () => {
-    const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
-    await createLegacyVectorDb(dbPath, [
-      {
-        id: 'legacy-file-0',
-        pageContent: 'file chunk',
-        uniqueLoaderId: 'loader-file',
-        source: '',
-        vector: [1, 2]
-      }
-    ])
-
-    const migrationCtx = createMigrationCtx({
-      migratedBases: [createMigratedBase()],
-      migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID, { data: { source: '/tmp/file-from-item.md' } })],
-      reduxData: {
-        knowledge: {
-          bases: [
-            {
-              id: LEGACY_KNOWLEDGE_BASE_ID,
-              name: 'Base 1',
-              items: [
-                {
-                  id: 'item-file',
-                  type: 'file',
-                  uniqueId: 'loader-file'
-                }
-              ]
-            }
-          ]
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [
+                  { id: 'item-file', type: 'file', uniqueId: 'loader-file' },
+                  {
+                    id: 'item-directory',
+                    type: 'directory',
+                    uniqueId: 'DirectoryLoader_ignore',
+                    uniqueIds: ['loader-dir-a']
+                  }
+                ]
+              }
+            ]
+          }
         }
-      }
-    })
-
-    const migrator = new KnowledgeVectorMigrator() as any
-    expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
-    expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
-
-    const targetClient = createClient({
-      url: pathToFileURL(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID)).toString()
-    })
-    const rows = await targetClient.execute('SELECT metadata FROM libsql_vectorstores_embedding')
-    targetClient.close()
-
-    expect(rows.rows).toHaveLength(1)
-    expect(
-      KnowledgeChunkMetadataSchema.parse(JSON.parse(String((rows.rows[0] as Record<string, unknown>).metadata)))
-    ).toEqual({
-      itemId: MIGRATED_FILE_ITEM_ID,
-      itemType: 'file',
-      source: '/tmp/file-from-item.md',
-      chunkIndex: 0,
-      tokenCount: expect.any(Number)
-    })
-
-    const validateResult = await migrator.validate(migrationCtx as any)
-    expect(validateResult.success).toBe(true)
-    expect(validateResult.errors).toStrictEqual([])
-  })
-
-  it('skips vector rows when source cannot be resolved', async () => {
-    const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
-    await createLegacyVectorDb(dbPath, [
-      {
-        id: 'legacy-file-0',
-        pageContent: 'file chunk',
-        uniqueLoaderId: 'loader-file',
-        source: '',
-        vector: [1, 2]
-      }
-    ])
-
-    const migrationCtx = createMigrationCtx({
-      migratedBases: [createMigratedBase()],
-      migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID, { data: {} })],
-      reduxData: {
-        knowledge: {
-          bases: [
-            {
-              id: LEGACY_KNOWLEDGE_BASE_ID,
-              name: 'Base 1',
-              items: [
-                {
-                  id: 'item-file',
-                  type: 'file',
-                  uniqueId: 'loader-file'
-                }
-              ]
-            }
-          ]
-        }
-      }
-    })
-
-    const migrator = new KnowledgeVectorMigrator() as any
-    const result = await migrator.prepare(migrationCtx as any)
-
-    expect(result.success).toBe(true)
-    expect(migrator.preparedBasePlans[0].rows).toEqual([])
-    expect(migrator.skippedCount).toBe(1)
-    expect(
-      result.warnings?.some(
-        (warning) =>
-          warning.includes('Skipped knowledge vector records (missing_source): count=1') &&
-          warning.includes(`source missing for item '${MIGRATED_FILE_ITEM_ID}'`)
-      )
-    ).toBe(true)
-  })
-
-  it('skips failed bases without reading or rebuilding legacy vectors', async () => {
-    const loadBase = vi.fn()
-    const migrationCtx = createMigrationCtx({
-      migratedBases: [createMigratedBase({ embeddingModelId: null, status: 'failed' })],
-      migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-      knowledgeVectorSource: { loadBase } as any,
-      reduxData: {
-        knowledge: {
-          bases: [
-            {
-              id: LEGACY_KNOWLEDGE_BASE_ID,
-              name: 'Base 1',
-              items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
-            }
-          ]
-        }
-      }
-    })
-
-    const migrator = new KnowledgeVectorMigrator() as any
-    const result = await migrator.prepare(migrationCtx as any)
-
-    expect(result.success).toBe(true)
-    expect(loadBase).not.toHaveBeenCalled()
-    expect(migrator.preparedBasePlans).toEqual([])
-    expect(
-      result.warnings?.some((warning) =>
-        warning.includes(`Skipped knowledge vector records (${KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL}): count=1`)
-      )
-    ).toBe(true)
-  })
-
-  it('flushes skipped warning buckets when prepare fails after partial progress', async () => {
-    const loadBase = vi.fn().mockRejectedValueOnce(new Error('loadBase failed'))
-    const migrationCtx = createMigrationCtx({
-      migratedBases: [
-        createMigratedBase({ id: '22222222-2222-4222-8222-222222222222', embeddingModelId: null, status: 'failed' }),
-        createMigratedBase({ id: '33333333-3333-4333-8333-333333333333' })
-      ],
-      migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID, { baseId: '33333333-3333-4333-8333-333333333333' })],
-      knowledgeBaseIdRemap: new Map([
-        ['kb-missing-model', '22222222-2222-4222-8222-222222222222'],
-        ['kb-load-fails', '33333333-3333-4333-8333-333333333333']
-      ]),
-      knowledgeVectorSource: { loadBase } as any,
-      reduxData: {
-        knowledge: {
-          bases: [
-            {
-              id: 'kb-missing-model',
-              name: 'Missing Model Base',
-              items: []
-            },
-            {
-              id: 'kb-load-fails',
-              name: 'Load Fails Base',
-              items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
-            }
-          ]
-        }
-      }
-    })
-
-    const migrator = new KnowledgeVectorMigrator()
-    const result = await migrator.prepare(migrationCtx as any)
-
-    expect(result.success).toBe(false)
-    expect(loadBase).toHaveBeenCalledWith('kb-load-fails')
-    expect(
-      result.warnings?.some((warning) =>
-        warning.includes(`Skipped knowledge vector records (${KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL}): count=1`)
-      )
-    ).toBe(true)
-    expect(result.warnings).toContain('loadBase failed')
-  })
-
-  it('assigns chunkIndex per migrated item in read order', async () => {
-    const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
-    await createLegacyVectorDb(dbPath, [
-      {
-        id: 'legacy-file-0',
-        pageContent: 'first chunk',
-        uniqueLoaderId: 'loader-file-a',
-        source: '/tmp/file-1.md',
-        vector: [1, 2]
-      },
-      {
-        id: 'legacy-file-1',
-        pageContent: 'second chunk',
-        uniqueLoaderId: 'loader-file-b',
-        source: '/tmp/file-1.md',
-        vector: [3, 4]
-      }
-    ])
-
-    const migrationCtx = createMigrationCtx({
-      migratedBases: [createMigratedBase()],
-      migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-      reduxData: {
-        knowledge: {
-          bases: [
-            {
-              id: LEGACY_KNOWLEDGE_BASE_ID,
-              name: 'Base 1',
-              items: [
-                {
-                  id: 'item-file',
-                  type: 'file',
-                  uniqueIds: ['loader-file-a', 'loader-file-b']
-                }
-              ]
-            }
-          ]
-        }
-      }
-    })
-
-    const migrator = new KnowledgeVectorMigrator() as any
-    expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
-    expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
-
-    const targetClient = createClient({
-      url: pathToFileURL(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID)).toString()
-    })
-    const rows = await targetClient.execute(
-      "SELECT metadata FROM libsql_vectorstores_embedding ORDER BY CAST(json_extract(metadata, '$.chunkIndex') AS INTEGER)"
-    )
-    targetClient.close()
-
-    expect(
-      rows.rows.map((row) => KnowledgeChunkMetadataSchema.parse(JSON.parse(String(row.metadata))).chunkIndex)
-    ).toEqual([0, 1])
-  })
-
-  it('execute fails when rebuilding a base fails and does not count it as skipped', async () => {
-    const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
-    await createLegacyVectorDb(dbPath, [
-      {
-        id: 'legacy-file-0',
-        pageContent: 'file chunk',
-        uniqueLoaderId: 'loader-file',
-        source: '/tmp/file-1.md',
-        vector: [1, 2]
-      }
-    ])
-
-    const migrationCtx = createMigrationCtx({
-      migratedBases: [createMigratedBase()],
-      migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-      reduxData: {
-        knowledge: {
-          bases: [
-            {
-              id: LEGACY_KNOWLEDGE_BASE_ID,
-              name: 'Base 1',
-              items: [
-                {
-                  id: 'item-file',
-                  type: 'file',
-                  uniqueId: 'loader-file'
-                }
-              ]
-            }
-          ]
-        }
-      }
-    })
-
-    const migrator = new KnowledgeVectorMigrator() as any
-    const prepareResult = await migrator.prepare(migrationCtx as any)
-    expect(prepareResult.success).toBe(true)
-
-    vi.spyOn(migrator, 'insertVectorRows').mockRejectedValueOnce(new Error('insert failed'))
-
-    const executeResult = await migrator.execute(migrationCtx as any)
-    expect(executeResult.success).toBe(false)
-    expect(executeResult.processedCount).toBe(0)
-    expect(executeResult.error).toContain(MIGRATED_KNOWLEDGE_BASE_ID)
-    expect(executeResult.error).toContain('insert failed')
-    expect(migrator.skippedCount).toBe(0)
-    expect(fs.existsSync(dbPath)).toBe(true)
-    expect(fs.existsSync(`${dbPath}.embedjs.bak`)).toBe(false)
-  })
-
-  it('validate fails when migrated metadata does not satisfy the runtime contract', async () => {
-    const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
-    await createLegacyVectorDb(dbPath, [
-      {
-        id: 'legacy-file-0',
-        pageContent: 'file chunk',
-        uniqueLoaderId: 'loader-file',
-        source: '/tmp/file-1.md',
-        vector: [1, 2]
-      }
-    ])
-
-    const migrationCtx = createMigrationCtx({
-      migratedBases: [createMigratedBase()],
-      migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
-      reduxData: {
-        knowledge: {
-          bases: [
-            {
-              id: LEGACY_KNOWLEDGE_BASE_ID,
-              name: 'Base 1',
-              items: [
-                {
-                  id: 'item-file',
-                  type: 'file',
-                  uniqueId: 'loader-file'
-                }
-              ]
-            }
-          ]
-        }
-      }
-    })
-
-    const migrator = new KnowledgeVectorMigrator() as any
-    await expect(migrator.prepare(migrationCtx as any)).resolves.toMatchObject({ success: true })
-    await expect(migrator.execute(migrationCtx as any)).resolves.toMatchObject({ success: true, processedCount: 1 })
-
-    const targetClient = createClient({
-      url: pathToFileURL(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID)).toString()
-    })
-    await targetClient.execute({
-      sql: `UPDATE libsql_vectorstores_embedding SET metadata = ? WHERE external_id = ?`,
-      args: [JSON.stringify({ source: '/tmp/file-1.md' }), MIGRATED_FILE_ITEM_ID]
-    })
-    targetClient.close()
-
-    const validateResult = await migrator.validate(migrationCtx as any)
-    expect(validateResult.success).toBe(false)
-    expect(validateResult.errors).toContainEqual(
-      expect.objectContaining({
-        key: `knowledge_vector_invalid_metadata_${MIGRATED_KNOWLEDGE_BASE_ID}`
       })
-    )
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      expect(result.itemCount).toBe(3)
+      expect(migrator.preparedBasePlans).toHaveLength(1)
+      expect(materialItemIds(migrator)).toEqual([MIGRATED_FILE_ITEM_ID])
+      expect(migrator.skippedCount).toBe(2)
+      expect(
+        result.warnings?.some(
+          (warning) =>
+            warning.includes('Skipped knowledge vector records (unmapped_loader): count=1') &&
+            warning.includes('loader-missing')
+        )
+      ).toBe(true)
+      expect(
+        result.warnings?.some(
+          (warning) =>
+            warning.includes('Skipped knowledge vector records (non_indexable_container): count=1') &&
+            warning.includes(`container item '${MIGRATED_DIRECTORY_ITEM_ID}'`) &&
+            warning.includes("type 'directory' is not indexable")
+        )
+      ).toBe(true)
+    })
+
+    it('skips legacy loaders that were not remapped to migrated item ids', async () => {
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-file-0',
+          pageContent: 'file chunk',
+          uniqueLoaderId: 'loader-file',
+          source: '/tmp/file-1.md',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createEmptyRemapMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      expect(migrator.preparedBasePlans).toHaveLength(1)
+      expect(migrator.preparedBasePlans[0].materials).toEqual([])
+      expect(migrator.skippedCount).toBe(1)
+      expect(
+        result.warnings?.some(
+          (warning) =>
+            warning.includes('Skipped knowledge vector records (unmapped_loader): count=1') &&
+            warning.includes('loader-file')
+        )
+      ).toBe(true)
+    })
+
+    it('keeps only the mapped loaders when the item id remap is partial', async () => {
+      const migratedSecondItemId = '0198f3f2-7d1d-7abc-8def-123456789abc'
+
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-file-0',
+          pageContent: 'first file chunk',
+          uniqueLoaderId: 'loader-file-a',
+          source: '/tmp/file-a.md',
+          vector: [1, 2]
+        },
+        {
+          id: 'legacy-file-1',
+          pageContent: 'second file chunk',
+          uniqueLoaderId: 'loader-file-b',
+          source: '/tmp/file-b.md',
+          vector: [3, 4]
+        },
+        {
+          id: 'legacy-file-2',
+          pageContent: 'skipped file chunk',
+          uniqueLoaderId: 'loader-file-c',
+          source: '/tmp/file-c.md',
+          vector: [5, 6]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID), createMigratedItem(migratedSecondItemId)],
+        knowledgeItemIdRemap: new Map([
+          ['item-file-a', MIGRATED_FILE_ITEM_ID],
+          ['item-file-b', migratedSecondItemId]
+        ]),
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [
+                  { id: 'item-file-a', type: 'file', uniqueId: 'loader-file-a' },
+                  { id: 'item-file-b', type: 'file', uniqueId: 'loader-file-b' },
+                  { id: 'item-file-c', type: 'file', uniqueId: 'loader-file-c' }
+                ]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      expect(migrator.preparedBasePlans).toHaveLength(1)
+      expect(materialItemIds(migrator)).toEqual([MIGRATED_FILE_ITEM_ID, migratedSecondItemId])
+      expect(migrator.skippedCount).toBe(1)
+      expect(
+        result.warnings?.some(
+          (warning) =>
+            warning.includes('Skipped knowledge vector records (unmapped_loader): count=1') &&
+            warning.includes('loader-file-c')
+        )
+      ).toBe(true)
+    })
+
+    it('skips migrated bases that cannot be mapped back to legacy base ids', async () => {
+      const loadBase = vi.fn()
+      const migrationCtx = createMissingBaseRemapMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        knowledgeVectorSource: { loadBase } as any,
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      expect(loadBase).not.toHaveBeenCalled()
+      expect(migrator.preparedBasePlans).toEqual([])
+      expect(
+        result.warnings?.some(
+          (warning) =>
+            warning.includes('Skipped knowledge vector records (unmapped_base): count=1') &&
+            warning.includes(MIGRATED_KNOWLEDGE_BASE_ID)
+        )
+      ).toBe(true)
+    })
+
+    it('migrates legacy sitemap vectors when their item migrated as url', async () => {
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-sitemap-0',
+          pageContent: 'sitemap page chunk',
+          uniqueLoaderId: 'loader-sitemap',
+          source: 'https://example.com/page',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
+            type: 'url',
+            data: { source: 'https://example.com/sitemap.xml', url: 'https://example.com/sitemap.xml' }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-sitemap', type: 'sitemap', uniqueId: 'loader-sitemap' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      expect(migrator.preparedBasePlans).toHaveLength(1)
+      expect(materialItemIds(migrator)).toEqual([MIGRATED_SITEMAP_URL_ITEM_ID])
+      // A url material is planned onto its materialized snapshot path (derived
+      // from the content's first line), replacing the old virtual item-id path.
+      const material = migrator.preparedBasePlans[0].materials[0].input.material
+      expect(material).toMatchObject({
+        relativePath: 'sitemap page chunk.md'
+      })
+      expect(migrator.preparedBasePlans[0].materialSnapshots).toHaveLength(1)
+      expect(migrator.skippedCount).toBe(0)
+      expect(result.warnings ?? []).not.toEqual(
+        expect.arrayContaining([expect.stringContaining('non_indexable_container')])
+      )
+    })
+
+    it('records unsupported vector encodings in a distinct warning bucket', async () => {
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        knowledgeVectorSource: {
+          loadBase: vi.fn().mockResolvedValue({
+            status: 'ok',
+            dbPath: path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID),
+            rows: [
+              {
+                pageContent: 'file chunk',
+                uniqueLoaderId: 'loader-file',
+                source: '/tmp/file-1.md',
+                vector: { status: 'unsupported_encoding', encoding: 'string' }
+              }
+            ]
+          })
+        } as unknown as KnowledgeVectorSourceReader,
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      expect(migrator.preparedBasePlans[0].materials).toEqual([])
+      expect(migrator.skippedCount).toBe(1)
+      expect(
+        result.warnings?.some(
+          (warning) =>
+            warning.includes('Skipped knowledge vector records (unsupported_vector_encoding): count=1') &&
+            warning.includes("unsupported vector encoding 'string'") &&
+            warning.includes("uniqueLoaderId 'loader-file'")
+        )
+      ).toBe(true)
+      expect(result.warnings?.some((warning) => warning.includes('missing_vector_payload'))).toBe(false)
+    })
+
+    it('keeps missing vector payloads in the existing warning bucket', async () => {
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        knowledgeVectorSource: {
+          loadBase: vi.fn().mockResolvedValue({
+            status: 'ok',
+            dbPath: path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID),
+            rows: [
+              {
+                pageContent: 'file chunk',
+                uniqueLoaderId: 'loader-file',
+                source: '/tmp/file-1.md',
+                vector: { status: 'missing' }
+              }
+            ]
+          })
+        } as unknown as KnowledgeVectorSourceReader,
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      expect(migrator.preparedBasePlans[0].materials).toEqual([])
+      expect(migrator.skippedCount).toBe(1)
+      expect(
+        result.warnings?.some(
+          (warning) =>
+            warning.includes('Skipped knowledge vector records (missing_vector_payload): count=1') &&
+            warning.includes("vector payload missing for uniqueLoaderId 'loader-file'")
+        )
+      ).toBe(true)
+      expect(result.warnings?.some((warning) => warning.includes('unsupported_vector_encoding'))).toBe(false)
+    })
+
+    it('skips vectors whose length disagrees with the base dimensions', async () => {
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase({ dimensions: 2 })],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        knowledgeVectorSource: {
+          loadBase: vi.fn().mockResolvedValue({
+            status: 'ok',
+            dbPath: path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID),
+            rows: [
+              {
+                pageContent: 'file chunk',
+                uniqueLoaderId: 'loader-file',
+                source: '/tmp/file-1.md',
+                vector: { status: 'decoded', value: [1, 2, 3] }
+              }
+            ]
+          })
+        } as unknown as KnowledgeVectorSourceReader,
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      expect(migrator.preparedBasePlans[0].materials).toEqual([])
+      expect(migrator.skippedCount).toBe(1)
+      expect(
+        result.warnings?.some(
+          (warning) =>
+            warning.includes('Skipped knowledge vector records (dimension_mismatch): count=1') &&
+            warning.includes('vector length 3 != base dimensions 2')
+        )
+      ).toBe(true)
+    })
+
+    it('skips failed bases without reading or rebuilding legacy vectors', async () => {
+      const loadBase = vi.fn()
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase({ embeddingModelId: null, status: 'failed' })],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        knowledgeVectorSource: { loadBase } as any,
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(true)
+      expect(loadBase).not.toHaveBeenCalled()
+      expect(migrator.preparedBasePlans).toEqual([])
+      expect(
+        result.warnings?.some((warning) =>
+          warning.includes(
+            `Skipped knowledge vector records (${KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL}): count=1`
+          )
+        )
+      ).toBe(true)
+    })
+
+    it('flushes skipped warning buckets when prepare fails after partial progress', async () => {
+      const loadBase = vi.fn().mockRejectedValueOnce(new Error('loadBase failed'))
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [
+          createMigratedBase({ id: '22222222-2222-4222-8222-222222222222', embeddingModelId: null, status: 'failed' }),
+          createMigratedBase({ id: '33333333-3333-4333-8333-333333333333' })
+        ],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID, { baseId: '33333333-3333-4333-8333-333333333333' })],
+        knowledgeBaseIdRemap: new Map([
+          ['kb-missing-model', '22222222-2222-4222-8222-222222222222'],
+          ['kb-load-fails', '33333333-3333-4333-8333-333333333333']
+        ]),
+        knowledgeVectorSource: { loadBase } as any,
+        reduxData: {
+          knowledge: {
+            bases: [
+              { id: 'kb-missing-model', name: 'Missing Model Base', items: [] },
+              {
+                id: 'kb-load-fails',
+                name: 'Load Fails Base',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator()
+      const result = await migrator.prepare(migrationCtx as any)
+
+      expect(result.success).toBe(false)
+      expect(loadBase).toHaveBeenCalledWith('kb-load-fails')
+      expect(
+        result.warnings?.some((warning) =>
+          warning.includes(
+            `Skipped knowledge vector records (${KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL}): count=1`
+          )
+        )
+      ).toBe(true)
+      expect(result.warnings).toContain('loadBase failed')
+    })
+  })
+
+  describe('execute + validate', () => {
+    it('rebuilds a file material into the 9-table store with byte-identical reused vectors', async () => {
+      const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
+      await createLegacyVectorDb(dbPath, [
+        {
+          id: 'legacy-file-0',
+          pageContent: 'file chunk',
+          uniqueLoaderId: 'loader-file',
+          source: '/tmp/file-1.md',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult).toMatchObject({ success: true, processedCount: 1 })
+
+      const store = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
+
+      // meta identity is stamped for the migrated base.
+      expect(store.meta).toHaveLength(1)
+      expect(store.meta[0]).toMatchObject({
+        base_id: MIGRATED_KNOWLEDGE_BASE_ID
+      })
+
+      // material: stable identity + provenance from the migrated item data.
+      expect(store.material).toHaveLength(1)
+      expect(store.material[0]).toMatchObject({
+        material_id: MIGRATED_FILE_ITEM_ID,
+        relative_path: `${MIGRATED_FILE_ITEM_ID}.md`
+      })
+
+      // content: the unit offsets slice back to the body.
+      expect(store.content).toHaveLength(1)
+      expect(store.content[0]).toMatchObject({ text: 'file chunk' })
+      const unit = store.searchUnit[0]
+      expect(unit).toMatchObject({ unit_index: 0, char_start: 0, char_end: 'file chunk'.length })
+      expect(String(store.content[0].text).slice(Number(unit.char_start), Number(unit.char_end))).toBe('file chunk')
+
+      // search_text body references the embedding by hash.
+      const expectedHash = hashEmbeddingText('file chunk')
+      expect(store.searchText).toHaveLength(1)
+      expect(store.searchText[0]).toMatchObject({
+        target_type: 'search_unit',
+        kind: 'body',
+        text: 'file chunk',
+        embedding_text_hash: expectedHash
+      })
+
+      // embedding: vector reused verbatim — byte-identical to encodeVectorBlob (no re-embed).
+      expect(store.embedding).toHaveLength(1)
+      expect(store.embedding[0].embedding_text_hash).toBe(expectedHash)
+      expect(Number(store.embedding[0].bytes)).toBe(2 * 4)
+      expect(Buffer.from(store.embedding[0].vector_blob as unknown as Uint8Array)).toEqual(
+        Buffer.from(encodeVectorBlob([1, 2]))
+      )
+
+      const validateResult = await migrator.validate(migrationCtx as any)
+      expect(validateResult.success).toBe(true)
+      expect(validateResult.errors).toStrictEqual([])
+      expect(validateResult.stats).toMatchObject({ sourceCount: 1, targetCount: 1, skippedCount: 0 })
+
+      // The legacy embedjs DB is left in place; only the new uuid-pathed store is written.
+      expect(fs.existsSync(`${runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID)}.vectorstore.tmp`)).toBe(false)
+      expect(fs.existsSync(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID))).toBe(true)
+      expect(fs.existsSync(dbPath)).toBe(true)
+      expect(fs.existsSync(`${dbPath}.embedjs.bak`)).toBe(false)
+    })
+
+    it('concatenates an item’s chunks in order with separator-aware offsets', async () => {
+      const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
+      await createLegacyVectorDb(dbPath, [
+        {
+          id: 'legacy-file-0',
+          pageContent: 'first chunk',
+          uniqueLoaderId: 'loader-file-a',
+          source: '/tmp/file-1.md',
+          vector: [1, 2]
+        },
+        {
+          id: 'legacy-file-1',
+          pageContent: 'second chunk',
+          uniqueLoaderId: 'loader-file-b',
+          source: '/tmp/file-1.md',
+          vector: [3, 4]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueIds: ['loader-file-a', 'loader-file-b'] }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+
+      const store = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
+      const text = String(store.content[0].text)
+      expect(text).toBe('first chunk\n\nsecond chunk')
+      expect(store.searchUnit.map((u) => Number(u.unit_index))).toEqual([0, 1])
+      for (const unit of store.searchUnit) {
+        const body = text.slice(Number(unit.char_start), Number(unit.char_end))
+        expect(['first chunk', 'second chunk']).toContain(body)
+      }
+      expect(store.embedding).toHaveLength(2)
+    })
+
+    it('writes an empty but valid store when a base has no migratable materials', async () => {
+      const migrationCtx = createEmptyRemapMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        knowledgeVectorSource: {
+          loadBase: vi.fn().mockResolvedValue({
+            status: 'ok',
+            dbPath: path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID),
+            rows: []
+          })
+        } as unknown as KnowledgeVectorSourceReader,
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+
+      const store = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
+      expect(store.material).toEqual([])
+      expect(store.searchUnit).toEqual([])
+      expect(store.embedding).toEqual([])
+      // The identity row is still stamped so the runtime opens it without re-bootstrapping.
+      expect(store.meta).toHaveLength(1)
+
+      const validateResult = await migrator.validate(migrationCtx as any)
+      expect(validateResult.success).toBe(true)
+    })
+
+    it('reports rebuild progress once per migrated material', async () => {
+      const migrator = new KnowledgeVectorMigrator() as any
+      const dbPath = path.join(knowledgeBaseDir, 'progress', '.cherry', 'index.sqlite')
+      const reportedProgress: number[] = []
+
+      const material = (itemId: string, text: string, vector: number[]) => ({
+        itemId,
+        input: {
+          material: { relativePath: itemId },
+          content: { text },
+          units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: text.length }],
+          embeddings: [{ embeddingTextHash: hashEmbeddingText(text), vector }]
+        }
+      })
+
+      migrator.preparedBasePlans = [
+        {
+          baseId: 'progress',
+          materialDirPath: path.join(knowledgeBaseDir, 'progress', 'raw'),
+          targetDbPath: dbPath,
+          dimensions: 2,
+          embeddingModelId: 'ollama::nomic-embed-text',
+          chunkerConfigHash: 'hash',
+          materials: [
+            material('item-0', 'chunk zero', [0, 1]),
+            material('item-1', 'chunk one', [1, 2]),
+            material('item-2', 'chunk two', [2, 3]),
+            material('item-3', 'chunk three', [3, 4])
+          ],
+          materialSnapshots: [],
+          expectedUnitCount: 4,
+          expectedEmbeddingCount: 4,
+          sourceRowCount: 4
+        }
+      ]
+
+      migrator.setProgressCallback((progress: number) => {
+        reportedProgress.push(progress)
+      })
+
+      await expect(migrator.execute()).resolves.toMatchObject({ success: true, processedCount: 4 })
+      expect(reportedProgress).toEqual([25, 50, 75, 100])
+      expect(fs.existsSync(dbPath)).toBe(true)
+      expect(fs.existsSync(`${dbPath}.vectorstore.tmp`)).toBe(false)
+    })
+
+    it('removes the target store with EBUSY-survivable retry options before renaming', async () => {
+      const migrator = new KnowledgeVectorMigrator() as any
+      const dbPath = path.join(knowledgeBaseDir, 'ebusy', '.cherry', 'index.sqlite')
+
+      migrator.preparedBasePlans = [
+        {
+          baseId: 'ebusy',
+          materialDirPath: path.join(knowledgeBaseDir, 'ebusy', 'raw'),
+          targetDbPath: dbPath,
+          dimensions: 2,
+          embeddingModelId: 'ollama::nomic-embed-text',
+          chunkerConfigHash: 'hash',
+          materials: [
+            {
+              itemId: 'item-0',
+              input: {
+                material: { relativePath: 'item-0' },
+                content: { text: 'doc' },
+                units: [{ unitType: 'chunk', unitIndex: 0, charStart: 0, charEnd: 3 }],
+                embeddings: [{ embeddingTextHash: hashEmbeddingText('doc'), vector: [1, 2] }]
+              }
+            }
+          ],
+          materialSnapshots: [],
+          expectedUnitCount: 1,
+          expectedEmbeddingCount: 1,
+          sourceRowCount: 1
+        }
+      ]
+
+      const rmSpy = vi.spyOn(fs.promises, 'rm')
+      await expect(migrator.execute()).resolves.toMatchObject({ success: true })
+
+      const targetRmCall = rmSpy.mock.calls.find(([target]) => target === dbPath)
+      expect(targetRmCall).toBeDefined()
+      expect(targetRmCall?.[1]).toMatchObject({
+        recursive: true,
+        force: true,
+        maxRetries: expect.any(Number),
+        retryDelay: expect.any(Number)
+      })
+    })
+
+    it('fails the migration when a material rebuild fails, without counting it', async () => {
+      const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
+      await createLegacyVectorDb(dbPath, [
+        {
+          id: 'legacy-file-0',
+          pageContent: 'file chunk',
+          uniqueLoaderId: 'loader-file',
+          source: '/tmp/file-1.md',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
+
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(false)
+      expect(executeResult.processedCount).toBe(0)
+      expect(executeResult.error).toContain(MIGRATED_KNOWLEDGE_BASE_ID)
+      expect(executeResult.error).toContain('rebuild failed')
+      expect(migrator.skippedCount).toBe(0)
+      expect(fs.existsSync(`${runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID)}.vectorstore.tmp`)).toBe(false)
+      expect(fs.existsSync(dbPath)).toBe(true)
+    })
+
+    it('surfaces the real execution error when temp-store cleanup itself throws', async () => {
+      const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
+      await createLegacyVectorDb(dbPath, [
+        {
+          id: 'legacy-file-0',
+          pageContent: 'file chunk',
+          uniqueLoaderId: 'loader-file',
+          source: '/tmp/file-1.md',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+
+      // The rebuild fails (the real error), sending execute into its catch block...
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
+      // ...where the temp-store cleanup itself also throws (e.g. a Windows-locked index.sqlite).
+      // The first call (pre-rebuild temp clear) must still succeed so the rebuild is reached.
+      migrator.removeIndexStoreFiles = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValue(new Error('EPERM: index store locked'))
+
+      // The cleanup rejection must not escape past the structured return (the W2 fix): execute
+      // resolves to a failure carrying the *real* rebuild error, not the masking cleanup error.
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(false)
+      expect(executeResult.error).toContain('rebuild failed')
+      expect(executeResult.error).not.toContain('EPERM')
+    })
+
+    it('validate fails when a stored unit has no backing embedding', async () => {
+      const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
+      await createLegacyVectorDb(dbPath, [
+        {
+          id: 'legacy-file-0',
+          pageContent: 'file chunk',
+          uniqueLoaderId: 'loader-file',
+          source: '/tmp/file-1.md',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+
+      // Corrupt the store: drop the embedding the unit depends on.
+      const client = createClient({ url: pathToFileURL(runtimeVectorStorePath(MIGRATED_KNOWLEDGE_BASE_ID)).toString() })
+      await client.execute('DELETE FROM embedding')
+      client.close()
+
+      const validateResult = await migrator.validate(migrationCtx as any)
+      expect(validateResult.success).toBe(false)
+      expect(validateResult.errors).toContainEqual(
+        expect.objectContaining({ key: `knowledge_vector_uncovered_units_${MIGRATED_KNOWLEDGE_BASE_ID}` })
+      )
+      expect(validateResult.errors).toContainEqual(
+        expect.objectContaining({ key: `knowledge_vector_embedding_count_mismatch_${MIGRATED_KNOWLEDGE_BASE_ID}` })
+      )
+    })
+
+    it('materializes a migrated url as a frontmatter-stamped snapshot and pins the item row', async () => {
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-url-0',
+          pageContent: '# LLM Guide',
+          uniqueLoaderId: 'loader-url-a',
+          source: 'https://example.com/guide',
+          vector: [1, 2]
+        },
+        {
+          id: 'legacy-url-1',
+          pageContent: 'second chunk',
+          uniqueLoaderId: 'loader-url-b',
+          source: 'https://example.com/guide',
+          vector: [3, 4]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
+            type: 'url',
+            data: { source: 'https://example.com/guide', url: 'https://example.com/guide' }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-sitemap', type: 'sitemap', uniqueIds: ['loader-url-a', 'loader-url-b'] }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+
+      // The snapshot lands in the base under a heading-derived name, stamped with
+      // OKF frontmatter that strips back off to exactly the stored content text —
+      // the hash round-trip that lets reindex reuse the migrated vectors.
+      const snapshotPath = runtimeMaterialPath(MIGRATED_KNOWLEDGE_BASE_ID, 'LLM Guide.md')
+      expect(fs.existsSync(snapshotPath)).toBe(true)
+      const fileText = fs.readFileSync(snapshotPath, 'utf-8')
+      expect(fileText).toMatch(/^---\ntype: "URL"\ntitle: "LLM Guide"\nresource: "https:\/\/example\.com\/guide"\n/)
+      expect(fileText).toMatch(/timestamp: "\d{4}-\d{2}-\d{2}T[^"]+"\n/)
+
+      const store = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
+      expect(store.content[0].text).toBe('# LLM Guide\n\nsecond chunk')
+      expect(stripOkfFrontmatter(fileText)).toBe(store.content[0].text)
+
+      // The material row uses the real snapshot path, not the virtual item id.
+      expect(store.material[0]).toMatchObject({
+        material_id: MIGRATED_SITEMAP_URL_ITEM_ID,
+        relative_path: 'LLM Guide.md'
+      })
+
+      // The item row is pinned so the first reindex reads the snapshot offline.
+      expect(migrationCtx.db.updateCalls).toHaveLength(1)
+      expect(migrationCtx.db.updateCalls[0].values).toEqual({
+        data: {
+          source: 'https://example.com/guide',
+          url: 'https://example.com/guide',
+          relativePath: 'LLM Guide.md'
+        }
+      })
+
+      const validateResult = await migrator.validate(migrationCtx as any)
+      expect(validateResult.success).toBe(true)
+      expect(validateResult.errors).toStrictEqual([])
+    })
+
+    it('validate fails when a materialized url snapshot file is missing from the material root', async () => {
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-url-0',
+          pageContent: '# LLM Guide',
+          uniqueLoaderId: 'loader-url-a',
+          source: 'https://example.com/guide',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
+            type: 'url',
+            data: { source: 'https://example.com/guide', url: 'https://example.com/guide' }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-sitemap', type: 'sitemap', uniqueIds: ['loader-url-a'] }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+
+      // Remove the snapshot from the real runtime material root. validate must read the
+      // same `raw/` path the runtime does, so it should surface this as a missing snapshot —
+      // if it checked any other path the deletion would go unnoticed.
+      const snapshotPath = runtimeMaterialPath(MIGRATED_KNOWLEDGE_BASE_ID, 'LLM Guide.md')
+      expect(fs.existsSync(snapshotPath)).toBe(true)
+      fs.rmSync(snapshotPath)
+
+      const validateResult = await migrator.validate(migrationCtx as any)
+      expect(validateResult.success).toBe(false)
+      expect(validateResult.errors).toContainEqual(
+        expect.objectContaining({ key: `knowledge_vector_material_snapshots_${MIGRATED_KNOWLEDGE_BASE_ID}` })
+      )
+    })
+
+    it('dedupes the snapshot name around paths other items already occupy', async () => {
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-url-0',
+          pageContent: '# LLM Guide',
+          uniqueLoaderId: 'loader-url-a',
+          source: 'https://example.com/guide',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_FILE_ITEM_ID, {
+            data: { source: '/tmp/LLM Guide.md', relativePath: 'LLM Guide.md' }
+          }),
+          createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
+            type: 'url',
+            data: { source: 'https://example.com/guide', url: 'https://example.com/guide' }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-sitemap', type: 'sitemap', uniqueIds: ['loader-url-a'] }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+
+      expect(fs.existsSync(runtimeMaterialPath(MIGRATED_KNOWLEDGE_BASE_ID, 'LLM Guide_1.md'))).toBe(true)
+      const store = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
+      expect(store.material[0]).toMatchObject({ relative_path: 'LLM Guide_1.md' })
+    })
+
+    it('dedupes a snapshot around an unprocessed file’s prospective markdown artifact', async () => {
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-url-0',
+          pageContent: '# guide',
+          uniqueLoaderId: 'loader-url-a',
+          source: 'https://example.com/guide',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        // A processor is configured, so a document file will later emit a `.md` artifact.
+        migratedBases: [createMigratedBase({ fileProcessorId: 'doc2x' })],
+        migratedItems: [
+          // An unprocessed file (relativePath set, no indexedRelativePath): its eventual
+          // reindex will produce `guide.md`, so that slot must be reserved now.
+          createMigratedItem(MIGRATED_FILE_ITEM_ID, {
+            data: { source: '/tmp/guide.pdf', relativePath: 'guide.pdf' }
+          }),
+          createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
+            type: 'url',
+            data: { source: 'https://example.com/guide', url: 'https://example.com/guide' }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-sitemap', type: 'sitemap', uniqueIds: ['loader-url-a'] }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+
+      // The url snapshot would naturally be `guide.md`, but that is the file's prospective
+      // processed artifact, so it dedupes to `guide_1.md` (N1: the migrator passes
+      // fileProcessorId, reserving the same prospective slot the runtime add path does — so a
+      // later reindex `.md` and this snapshot can never overwrite each other).
+      expect(fs.existsSync(runtimeMaterialPath(MIGRATED_KNOWLEDGE_BASE_ID, 'guide_1.md'))).toBe(true)
+      expect(fs.existsSync(runtimeMaterialPath(MIGRATED_KNOWLEDGE_BASE_ID, 'guide.md'))).toBe(false)
+      const store = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
+      expect(store.material[0]).toMatchObject({ relative_path: 'guide_1.md' })
+    })
+
+    it('reuses an already-pinned relativePath on re-run instead of renaming', async () => {
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-url-0',
+          pageContent: '# LLM Guide',
+          uniqueLoaderId: 'loader-url-a',
+          source: 'https://example.com/guide',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
+            type: 'url',
+            data: { source: 'https://example.com/guide', url: 'https://example.com/guide', relativePath: 'Pinned.md' }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-sitemap', type: 'sitemap', uniqueIds: ['loader-url-a'] }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+
+      expect(fs.existsSync(runtimeMaterialPath(MIGRATED_KNOWLEDGE_BASE_ID, 'Pinned.md'))).toBe(true)
+      expect(fs.existsSync(runtimeMaterialPath(MIGRATED_KNOWLEDGE_BASE_ID, 'Pinned_1.md'))).toBe(false)
+      const store = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
+      expect(store.material[0]).toMatchObject({ relative_path: 'Pinned.md' })
+      expect(migrationCtx.db.updateCalls[0].values).toEqual({
+        data: {
+          source: 'https://example.com/guide',
+          url: 'https://example.com/guide',
+          relativePath: 'Pinned.md'
+        }
+      })
+    })
+
+    it('materializes a migrated note as an OKF-frontmatter snapshot and pins the item row', async () => {
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-note-0',
+          pageContent: '# Meeting notes',
+          uniqueLoaderId: 'loader-note-a',
+          source: 'note',
+          vector: [1, 2]
+        },
+        {
+          id: 'legacy-note-1',
+          pageContent: 'second chunk',
+          uniqueLoaderId: 'loader-note-b',
+          source: 'note',
+          vector: [3, 4]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
+            type: 'note',
+            data: { source: 'Meeting notes', content: 'original note body' }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-sitemap', type: 'note', uniqueIds: ['loader-note-a', 'loader-note-b'] }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+
+      // The snapshot lands under a source-title-derived name, stamped with OKF
+      // frontmatter that strips back off to exactly the stored content text — the
+      // hash round-trip that lets reindex reuse the migrated vectors.
+      const snapshotPath = runtimeMaterialPath(MIGRATED_KNOWLEDGE_BASE_ID, 'Meeting notes.md')
+      expect(fs.existsSync(snapshotPath)).toBe(true)
+      const fileText = fs.readFileSync(snapshotPath, 'utf-8')
+      expect(fileText).toMatch(/^---\ntype: "Note"\ntitle: "Meeting notes"\n/)
+
+      const store = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
+      expect(store.content[0].text).toBe('# Meeting notes\n\nsecond chunk')
+      expect(stripOkfFrontmatter(fileText)).toBe(store.content[0].text)
+
+      // The material row uses the real snapshot path, not the virtual item id.
+      expect(store.material[0]).toMatchObject({
+        material_id: MIGRATED_SITEMAP_URL_ITEM_ID,
+        relative_path: 'Meeting notes.md'
+      })
+
+      // The item row is pinned so the first reindex reads the snapshot offline.
+      expect(migrationCtx.db.updateCalls).toHaveLength(1)
+      expect(migrationCtx.db.updateCalls[0].values).toEqual({
+        data: {
+          source: 'Meeting notes',
+          content: 'original note body',
+          relativePath: 'Meeting notes.md'
+        }
+      })
+
+      const validateResult = await migrator.validate(migrationCtx as any)
+      expect(validateResult.success).toBe(true)
+      expect(validateResult.errors).toStrictEqual([])
+    })
+
+    it('rejects a reused snapshot relativePath that escapes the material root', async () => {
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-note-0',
+          pageContent: '# Meeting notes',
+          uniqueLoaderId: 'loader-note-a',
+          source: 'note',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [
+          createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
+            type: 'note',
+            // A corrupt persisted relativePath from a prior run: the reused-path branch
+            // takes it verbatim, so the write must be guarded before it escapes `raw/`.
+            data: { source: 'Meeting notes', content: 'original note body', relativePath: '../escape.md' }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-sitemap', type: 'note', uniqueIds: ['loader-note-a'] }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(false)
+      expect(executeResult.error).toContain('Invalid knowledge relative path')
+      // The traversal target was never written outside the material root.
+      expect(fs.existsSync(path.join(knowledgeBaseDir, MIGRATED_KNOWLEDGE_BASE_ID, 'escape.md'))).toBe(false)
+    })
   })
 })
