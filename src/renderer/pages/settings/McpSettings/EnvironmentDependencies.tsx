@@ -9,6 +9,8 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { SettingsPageHeader } from '..'
+
 interface EnvironmentDependenciesProps {
   mini?: boolean
 }
@@ -195,13 +197,15 @@ const EnvironmentDependencies: FC<EnvironmentDependenciesProps> = ({ mini = fals
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="min-w-0">
-        <div className="flex min-w-0 items-center gap-2">
-          <h1 className="font-semibold text-[15px] text-foreground leading-6">{t('settings.plugins.title')}</h1>
-          <span className="text-muted-foreground/50 text-xs">{dependenciesCount}</span>
-        </div>
-        <p className="mt-1 text-muted-foreground text-xs leading-5">{t('settings.plugins.description')}</p>
-      </div>
+      <SettingsPageHeader
+        icon={<PackageCheck />}
+        title={
+          <>
+            {t('settings.plugins.title')} <span className="text-muted-foreground/50 text-xs">{dependenciesCount}</span>
+          </>
+        }
+        description={t('settings.plugins.description')}
+      />
 
       <div className="flex flex-col gap-2">
         <EnvironmentDependencyItem

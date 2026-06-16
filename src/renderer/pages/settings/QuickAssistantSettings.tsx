@@ -1,19 +1,4 @@
-import {
-  Button,
-  ButtonGroup,
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  InfoTooltip,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  RowFlex,
-  Switch
-} from '@cherrystudio/ui'
+import { Combobox, InfoTooltip, RowFlex, SegmentedControl, Switch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -24,13 +9,13 @@ import { cn } from '@renderer/utils/style'
 import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
 import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
-import { Check, ChevronDown, Info } from 'lucide-react'
+import { Info, PictureInPicture2 } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '.'
+import { SettingCard, SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingsPageHeader } from '.'
 
 const QuickAssistantSettings: FC = () => {
   const [enableQuickAssistant, setEnableQuickAssistant] = usePreference('feature.quick_assistant.enabled')
@@ -96,37 +81,36 @@ const QuickAssistantSettings: FC = () => {
   return (
     <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
-        <SettingTitle>{t('settings.quickAssistant.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span>{t('settings.quickAssistant.enable_quick_assistant')}</span>
-            <InfoTooltip
-              content={t('settings.quickAssistant.use_shortcut_to_show')}
-              placement="right"
-              iconProps={{ className: 'cursor-pointer' }}
-            />
-          </SettingRowTitle>
-          <Switch checked={enableQuickAssistant} onCheckedChange={handleEnableQuickAssistant} />
-        </SettingRow>
-        {enableQuickAssistant && (
-          <>
-            <SettingDivider />
+        <SettingsPageHeader
+          icon={<PictureInPicture2 />}
+          title={t('settings.quickAssistant.title')}
+          description={t('settings.quickAssistant.description')}
+        />
+        <SettingCard>
+          <SettingRow>
+            <SettingRowTitle style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span>{t('settings.quickAssistant.enable_quick_assistant')}</span>
+              <InfoTooltip
+                content={t('settings.quickAssistant.use_shortcut_to_show')}
+                placement="right"
+                iconProps={{ className: 'cursor-pointer' }}
+              />
+            </SettingRowTitle>
+            <Switch checked={enableQuickAssistant} onCheckedChange={handleEnableQuickAssistant} />
+          </SettingRow>
+          {enableQuickAssistant && (
             <SettingRow>
               <SettingRowTitle>{t('settings.quickAssistant.click_tray_to_show')}</SettingRowTitle>
               <Switch checked={clickTrayToShowQuickAssistant} onCheckedChange={handleClickTrayToShowQuickAssistant} />
             </SettingRow>
-          </>
-        )}
-        {enableQuickAssistant && (
-          <>
-            <SettingDivider />
+          )}
+          {enableQuickAssistant && (
             <SettingRow>
               <SettingRowTitle>{t('settings.quickAssistant.read_clipboard_at_startup')}</SettingRowTitle>
               <Switch checked={readClipboardAtStartup} onCheckedChange={handleClickReadClipboardAtStartup} />
             </SettingRow>
-          </>
-        )}
+          )}
+        </SettingCard>
       </SettingGroup>
       {enableQuickAssistant && (
         <SettingGroup theme={theme}>
@@ -143,79 +127,68 @@ const QuickAssistantSettings: FC = () => {
             <RowFlex className="items-center gap-2.5">
               {!quickAssistantId ? null : (
                 <RowFlex className="items-center">
-                  <Popover open={assistantSelectOpen} onOpenChange={setAssistantSelectOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="h-8.5 w-75 justify-between px-2 shadow-none"
-                        aria-expanded={assistantSelectOpen}>
+                  <Combobox<{ assistant: Assistant }>
+                    open={assistantSelectOpen}
+                    onOpenChange={setAssistantSelectOpen}
+                    width={300}
+                    className="h-8.5"
+                    value={selectedAssistantId}
+                    onChange={(value) => handleAssistantSelect(value as string)}
+                    options={assistantOptions.map((assistant) => ({
+                      value: assistant.id,
+                      label: assistant.name,
+                      assistant
+                    }))}
+                    searchPlaceholder={t('settings.models.quick_assistant_selection')}
+                    emptyText={t('common.no_results')}
+                    filterOption={(option, search) =>
+                      `${option.label} ${option.value}`.toLowerCase().includes(search.trim().toLowerCase())
+                    }
+                    renderValue={(value, options) => {
+                      const assistant = options.find((option) => option.value === value)?.assistant ?? selectedAssistant
+                      return (
                         <AssistantOption
-                          assistant={selectedAssistant}
+                          assistant={assistant}
                           defaultAssistantId={defaultAssistant.id}
                           defaultModel={defaultModel}
                         />
-                        <ChevronDown size={16} className="shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="w-75 p-0"
-                      align="end"
-                      onFocusOutside={(event) => {
-                        // The embedded quick assistant preview auto-focuses its input on render.
-                        event.preventDefault()
-                      }}>
-                      <Command>
-                        <CommandInput placeholder={t('settings.models.quick_assistant_selection')} />
-                        <CommandList>
-                          <CommandEmpty>{t('common.no_results')}</CommandEmpty>
-                          <CommandGroup>
-                            {assistantOptions.map((assistant) => (
-                              <CommandItem
-                                key={assistant.id}
-                                value={`${assistant.name} ${assistant.id}`}
-                                keywords={[assistant.name, assistant.id]}
-                                onSelect={() => {
-                                  handleAssistantSelect(assistant.id)
-                                }}>
-                                <AssistantOption
-                                  assistant={assistant}
-                                  defaultAssistantId={defaultAssistant.id}
-                                  defaultModel={defaultModel}
-                                />
-                                {assistant.id === selectedAssistantId && (
-                                  <Check size={14} className="ml-auto text-primary" />
-                                )}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                      )
+                    }}
+                    renderOption={(option) => (
+                      <AssistantOption
+                        assistant={option.assistant}
+                        defaultAssistantId={defaultAssistant.id}
+                        defaultModel={defaultModel}
+                      />
+                    )}
+                    onFocusOutside={(event) => {
+                      // The embedded quick assistant preview auto-focuses its input on render;
+                      // without this the dropdown closes immediately when it steals focus.
+                      event.preventDefault()
+                    }}
+                  />
                 </RowFlex>
               )}
-              <ButtonGroup>
-                <Button
-                  className="min-w-20"
-                  variant={quickAssistantId ? 'default' : 'outline'}
-                  onClick={() => {
+              <SegmentedControl
+                value={quickAssistantId ? 'assistant' : 'model'}
+                onValueChange={(next) => {
+                  if (next === 'assistant') {
                     void setQuickAssistantId(defaultAssistant.id)
-                  }}>
-                  {t('settings.models.use_assistant')}
-                </Button>
-                <Button
-                  className="min-w-20"
-                  variant={!quickAssistantId ? 'default' : 'outline'}
-                  onClick={() => void setQuickAssistantId('')}>
-                  {t('settings.models.use_model')}
-                </Button>
-              </ButtonGroup>
+                  } else {
+                    void setQuickAssistantId('')
+                  }
+                }}
+                options={[
+                  { value: 'assistant', label: t('settings.models.use_assistant') },
+                  { value: 'model', label: t('settings.models.use_model') }
+                ]}
+              />
             </RowFlex>
           </RowFlex>
         </SettingGroup>
       )}
       {enableQuickAssistant && (
-        <div className="mx-auto mt-5 h-115 w-full overflow-hidden rounded-[10px] border-[0.5px] border-border bg-background">
+        <div className="mx-auto mt-5 h-115 w-full overflow-hidden rounded-lg border-[0.5px] border-border bg-background">
           <HomeWindow draggable={false} />
         </div>
       )}

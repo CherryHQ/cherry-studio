@@ -268,7 +268,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
             key={server.id}
             disabled={isLoading}
             size="xs"
-            className="shadow-none data-[state=checked]:bg-success/85"
+            className="shadow-none"
             onCheckedChange={handleToggleActive}
             data-no-dnd
           />
@@ -281,7 +281,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
 const CardContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 border-border/60 border-b px-0 py-1.5 text-sm transition-colors',
+      'flex min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 px-0 py-1.5 text-sm transition-colors',
       className
     )}
     {...props}
@@ -293,7 +293,7 @@ const ServerNameCell = ({ className, ...props }: React.ComponentPropsWithoutRef<
 )
 
 const ServerNameText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('min-w-0 truncate font-bold text-[14px] leading-5', className)} {...props} />
+  <span className={cn('min-w-0 truncate font-medium text-[13px] leading-5', className)} {...props} />
 )
 
 const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img'>) => (
@@ -302,7 +302,7 @@ const ServerLogo = ({ className, ...props }: React.ComponentPropsWithoutRef<'img
 
 const MutedCell = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={cn('hidden w-14 shrink-0 truncate text-muted-foreground text-sm min-[1180px]:block', className)}
+    className={cn('hidden w-14 shrink-0 truncate text-muted-foreground text-xs min-[1180px]:block', className)}
     {...props}
   />
 )

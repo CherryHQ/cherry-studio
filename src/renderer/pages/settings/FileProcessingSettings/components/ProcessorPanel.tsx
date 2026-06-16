@@ -166,7 +166,7 @@ export function ProcessorPanel({
   )
 
   return (
-    <div className="flex w-full flex-col gap-2">
+    <div className="flex w-full flex-col gap-3">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-2">
           <ProcessorAvatar processorId={processor.id} />
@@ -185,97 +185,99 @@ export function ProcessorPanel({
         )}
       </div>
 
-      {supportsApiSettings(processor) ? (
-        <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
-          <SettingRow className="items-start gap-4 py-0">
-            <SettingRowTitle className="w-24 shrink-0 pt-2">
-              {t('settings.tool.file_processing.fields.api_key')}
-            </SettingRowTitle>
-            <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-2">
-                <Input
-                  type="password"
-                  value={apiKeysInput}
-                  onChange={(event) => setApiKeysInput(event.target.value)}
-                  onBlur={() => void handleApiKeysBlur()}
-                  placeholder={t('settings.tool.file_processing.fields.api_keys_placeholder')}
-                  spellCheck={false}
-                />
-                <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="shrink-0"
-                    aria-label={t('settings.provider.api.key.list.open')}
-                    onClick={() => void openApiKeyList()}>
-                    <List size={13} />
-                  </Button>
-                </Tooltip>
-              </div>
-              {apiKeyWebsite ? (
-                <SettingHelpTextRow className="justify-start gap-4">
-                  <SettingHelpLink target="_blank" href={apiKeyWebsite}>
-                    {t('settings.provider.get_api_key')}
-                  </SettingHelpLink>
-                  <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
-                </SettingHelpTextRow>
-              ) : null}
-            </div>
-          </SettingRow>
-          {entry.capability.apiHost !== undefined ? (
-            <div className="border-border-muted border-t pt-3">
-              <SettingRow className="items-center gap-4 py-0">
-                <SettingRowTitle className="w-24 shrink-0">
-                  {t('settings.tool.file_processing.fields.api_base_url')}
-                </SettingRowTitle>
-                <div className="min-w-0 flex-1">
-                  <Input
-                    value={apiHostInput}
-                    onChange={(event) => setApiHostInput(event.target.value)}
-                    onBlur={() => void handleApiHostBlur()}
-                    placeholder={t('settings.provider.api_host')}
-                  />
-                </div>
-              </SettingRow>
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {processor.id === 'paddleocr' && entry.capability.modelId !== undefined ? (
-        <PaddleOcrModelSettings
-          feature={entry.capability.feature}
-          value={modelIdInput}
-          onChange={(value) => void setModelIdInputAndPersist(value)}
-        />
-      ) : null}
-
-      {processor.id === 'paddleocr' ? <PaddleOcrDeploymentInfo /> : null}
-
-      {processor.id === 'system' ? (
-        <div className="flex flex-col gap-3 border-border-muted border-t pt-4">
-          <SettingRow className="items-start justify-start gap-2 py-1">
-            <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-success" />
-            <div>
-              <SettingRowTitle className="font-medium text-success text-xs">
-                {t('settings.tool.file_processing.processors.system.status.available')}
+      <div className="flex w-full flex-col gap-3 rounded-xl border border-border/60 p-4">
+        {supportsApiSettings(processor) ? (
+          <div className="flex flex-col gap-3">
+            <SettingRow className="items-start gap-4 py-0">
+              <SettingRowTitle className="w-24 shrink-0 pt-2">
+                {t('settings.tool.file_processing.fields.api_key')}
               </SettingRowTitle>
-              <SettingHelpText className="mt-1 text-xs">
-                {t('settings.tool.file_processing.processors.system.status.no_configuration')}
-              </SettingHelpText>
-            </div>
-          </SettingRow>
-        </div>
-      ) : null}
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Input
+                    type="password"
+                    value={apiKeysInput}
+                    onChange={(event) => setApiKeysInput(event.target.value)}
+                    onBlur={() => void handleApiKeysBlur()}
+                    placeholder={t('settings.tool.file_processing.fields.api_keys_placeholder')}
+                    spellCheck={false}
+                  />
+                  <Tooltip content={t('settings.provider.api.key.list.open')} delay={500}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="shrink-0"
+                      aria-label={t('settings.provider.api.key.list.open')}
+                      onClick={() => void openApiKeyList()}>
+                      <List size={13} />
+                    </Button>
+                  </Tooltip>
+                </div>
+                {apiKeyWebsite ? (
+                  <SettingHelpTextRow className="justify-start gap-4">
+                    <SettingHelpLink target="_blank" href={apiKeyWebsite}>
+                      {t('settings.provider.get_api_key')}
+                    </SettingHelpLink>
+                    <SettingHelpText>{t('settings.provider.api_key.tip')}</SettingHelpText>
+                  </SettingHelpTextRow>
+                ) : null}
+              </div>
+            </SettingRow>
+            {entry.capability.apiHost !== undefined ? (
+              <div>
+                <SettingRow className="items-center gap-4 py-0">
+                  <SettingRowTitle className="w-24 shrink-0">
+                    {t('settings.tool.file_processing.fields.api_base_url')}
+                  </SettingRowTitle>
+                  <div className="min-w-0 flex-1">
+                    <Input
+                      value={apiHostInput}
+                      onChange={(event) => setApiHostInput(event.target.value)}
+                      onBlur={() => void handleApiHostBlur()}
+                      placeholder={t('settings.provider.api_host')}
+                    />
+                  </div>
+                </SettingRow>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
-      {shouldShowLanguageOptions(processor.id) ? (
-        <TesseractLanguagePacks
-          options={languageOptions}
-          selectedLanguages={selectedLanguages}
-          onChange={(value) => void handleLanguagesChange(value)}
-        />
-      ) : null}
+        {processor.id === 'paddleocr' && entry.capability.modelId !== undefined ? (
+          <PaddleOcrModelSettings
+            feature={entry.capability.feature}
+            value={modelIdInput}
+            onChange={(value) => void setModelIdInputAndPersist(value)}
+          />
+        ) : null}
+
+        {processor.id === 'paddleocr' ? <PaddleOcrDeploymentInfo /> : null}
+
+        {processor.id === 'system' ? (
+          <div className="flex flex-col gap-3">
+            <SettingRow className="items-start justify-start gap-2 py-1">
+              <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-success" />
+              <div>
+                <SettingRowTitle className="font-medium text-success text-xs">
+                  {t('settings.tool.file_processing.processors.system.status.available')}
+                </SettingRowTitle>
+                <SettingHelpText className="mt-1 text-xs">
+                  {t('settings.tool.file_processing.processors.system.status.no_configuration')}
+                </SettingHelpText>
+              </div>
+            </SettingRow>
+          </div>
+        ) : null}
+
+        {shouldShowLanguageOptions(processor.id) ? (
+          <TesseractLanguagePacks
+            options={languageOptions}
+            selectedLanguages={selectedLanguages}
+            onChange={(value) => void handleLanguagesChange(value)}
+          />
+        ) : null}
+      </div>
     </div>
   )
 }

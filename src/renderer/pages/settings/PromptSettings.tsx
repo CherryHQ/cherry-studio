@@ -14,7 +14,7 @@ import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingRow, SettingsContentColumn, SettingTitle } from '.'
+import { SettingCard, SettingGroup, SettingRow, SettingsContentColumn, SettingTitle } from '.'
 
 const logger = loggerService.withContext('PromptSettings')
 
@@ -139,61 +139,62 @@ const PromptSettings: FC = () => {
             <PlusIcon size={18} />
           </Button>
         </SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <div className="flex h-[calc(100vh-162px)] w-full flex-col gap-2 overflow-y-auto">
-            {isPromptsLoading && reversedPrompts.length === 0 ? (
-              <div className="flex flex-1 items-center justify-center">
-                <Spinner text={t('common.loading')} />
-              </div>
-            ) : promptsError && reversedPrompts.length === 0 ? (
-              <div className="flex flex-1 items-center justify-center text-foreground-muted text-sm">
-                {promptErrorText}
-              </div>
-            ) : (
-              <div className={dragging ? 'pb-[34px]' : 'pb-0'}>
-                <DraggableList
-                  list={reversedPrompts}
-                  onUpdate={handleDraggableUpdate}
-                  onDragStart={() => setDragging(true)}
-                  onDragEnd={() => setDragging(false)}>
-                  {(prompt) => (
-                    <FileItem
-                      key={prompt.id}
-                      fileInfo={{
-                        name: prompt.title,
-                        ext: '.txt',
-                        extra: (
-                          <div className="flex items-center gap-2 text-foreground-muted text-xs">
-                            <span>
-                              {prompt.content.slice(0, 80)}
-                              {prompt.content.length > 80 ? '...' : ''}
-                            </span>
-                          </div>
-                        ),
-                        actions: (
-                          <Flex className="gap-1 opacity-60">
-                            <Button key="edit" variant="ghost" onClick={() => handleEdit(prompt)} size="icon">
-                              <EditIcon size={14} />
-                            </Button>
-                            <Button
-                              key="delete"
-                              variant="ghost"
-                              onClick={() => handleDelete(prompt.id)}
-                              size="icon"
-                              loading={isDeletingPrompt && deletePromptId === prompt.id}>
-                              <DeleteIcon size={14} className="lucide-custom" />
-                            </Button>
-                          </Flex>
-                        )
-                      }}
-                    />
-                  )}
-                </DraggableList>
-              </div>
-            )}
-          </div>
-        </SettingRow>
+        <SettingCard>
+          <SettingRow>
+            <div className="flex h-[calc(100vh-162px)] w-full flex-col gap-2 overflow-y-auto">
+              {isPromptsLoading && reversedPrompts.length === 0 ? (
+                <div className="flex flex-1 items-center justify-center">
+                  <Spinner text={t('common.loading')} />
+                </div>
+              ) : promptsError && reversedPrompts.length === 0 ? (
+                <div className="flex flex-1 items-center justify-center text-foreground-muted text-sm">
+                  {promptErrorText}
+                </div>
+              ) : (
+                <div className={dragging ? 'pb-[34px]' : 'pb-0'}>
+                  <DraggableList
+                    list={reversedPrompts}
+                    onUpdate={handleDraggableUpdate}
+                    onDragStart={() => setDragging(true)}
+                    onDragEnd={() => setDragging(false)}>
+                    {(prompt) => (
+                      <FileItem
+                        key={prompt.id}
+                        fileInfo={{
+                          name: prompt.title,
+                          ext: '.txt',
+                          extra: (
+                            <div className="flex items-center gap-2 text-foreground-muted text-xs">
+                              <span>
+                                {prompt.content.slice(0, 80)}
+                                {prompt.content.length > 80 ? '...' : ''}
+                              </span>
+                            </div>
+                          ),
+                          actions: (
+                            <Flex className="gap-1 opacity-60">
+                              <Button key="edit" variant="ghost" onClick={() => handleEdit(prompt)} size="icon">
+                                <EditIcon size={14} />
+                              </Button>
+                              <Button
+                                key="delete"
+                                variant="ghost"
+                                onClick={() => handleDelete(prompt.id)}
+                                size="icon"
+                                loading={isDeletingPrompt && deletePromptId === prompt.id}>
+                                <DeleteIcon size={14} className="lucide-custom" />
+                              </Button>
+                            </Flex>
+                          )
+                        }}
+                      />
+                    )}
+                  </DraggableList>
+                </div>
+              )}
+            </div>
+          </SettingRow>
+        </SettingCard>
       </SettingGroup>
 
       <PromptEditModal

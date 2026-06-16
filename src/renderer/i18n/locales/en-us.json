@@ -395,6 +395,9 @@
           "failed": "Failed to reorder sessions"
         }
       },
+      "tool": {
+        "disabled": "The {{toolName}} tool is disabled for this agent."
+      },
       "update": {
         "error": {
           "failed": "Failed to update the session"
@@ -4494,6 +4497,7 @@
         "r_regenerate": "R: Regenerate"
       }
     },
+    "description": "A quick-action toolbar that pops up when you select text",
     "name": "Selection Assistant",
     "settings": {
       "actions": {
@@ -4725,6 +4729,7 @@
         "title": "Feedback"
       },
       "label": "About & Feedback",
+      "page_description": "Version info, release notes, and feedback",
       "releases": {
         "button": "Releases",
         "title": "Release Notes"
@@ -6247,6 +6252,7 @@
       },
       "more_actions": "More model list actions",
       "not_enabled_models": "Disabled",
+      "page_description": "Set the default models used for assistants, quick actions, and translation",
       "provider_id": "Provider ID",
       "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",
@@ -6504,6 +6510,7 @@
           "international": "International domain"
         }
       },
+      "connection_title": "Service connection",
       "copilot": {
         "add_request_header": "Add header",
         "auth_failed": "Github Copilot authentication failed.",
@@ -6689,6 +6696,7 @@
     },
     "quickAssistant": {
       "click_tray_to_show": "Click the tray icon to start",
+      "description": "A floating assistant window you can summon anytime with a shortcut",
       "enable_quick_assistant": "Enable Quick Assistant",
       "read_clipboard_at_startup": "Read clipboard at startup",
       "title": "Quick Assistant",
@@ -6742,7 +6750,6 @@
       },
       "clear_shortcut": "Clear Shortcut",
       "clear_topic": "Clear Messages",
-      "close_tab": "Close Tab",
       "conflict_with": "Already used by \"{{name}}\"",
       "copy_last_message": "Copy Last Message",
       "edit_last_user_message": "Edit Last User Message",
@@ -6750,11 +6757,8 @@
       "enabled": "Enable",
       "exit_fullscreen": "Exit Fullscreen",
       "label": "Key",
-      "move_tab_to_first": "Move Tab to First",
       "new_topic": "New Topic",
       "occupied_by_other_application": "This shortcut is already used by the system or another application",
-      "open_tab_in_new_window": "Open Tab in New Window",
-      "pin_tab": "Toggle Pin Tab",
       "press_shortcut": "Press Shortcut",
       "quick_assistant": "Quick Assistant",
       "rename_topic": "Rename Topic",
@@ -6845,9 +6849,11 @@
         },
         "features": {
           "document_to_markdown": {
+            "scenario_tip": "Parses documents into Markdown — commonly used for knowledge base and similar scenarios",
             "title": "Document Processing"
           },
           "image_to_text": {
+            "scenario_tip": "Extracts text from images — commonly used for translation and similar scenarios",
             "title": "OCR"
           }
         },

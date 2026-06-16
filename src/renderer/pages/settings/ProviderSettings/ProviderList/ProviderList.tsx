@@ -1,4 +1,4 @@
-import { PageHeader } from '@cherrystudio/ui'
+import { Button, PageHeader } from '@cherrystudio/ui'
 import { useReorder } from '@data/hooks/useReorder'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
@@ -267,7 +267,16 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       <PageHeader
         title={t('settings.provider.title')}
         action={
-          <ProviderListHeaderFilterMenu filterMode={filterMode} disabled={dragging} onFilterChange={setFilterMode} />
+          <Button
+            variant="outline"
+            size="sm"
+            aria-label={t('settings.provider.add.title')}
+            disabled={dragging}
+            onClick={startAdd}
+            className="hover:bg-[var(--color-surface-hover-soft)]">
+            <Plus size={14} strokeWidth={1.6} />
+            {t('common.add')}
+          </Button>
         }
       />
       <ProviderListSearchField
@@ -275,14 +284,12 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         disabled={dragging}
         onValueChange={setSearchText}
         trailing={
-          <button
-            type="button"
-            aria-label={t('settings.provider.add.title')}
+          <ProviderListHeaderFilterMenu
+            filterMode={filterMode}
             disabled={dragging}
-            onClick={startAdd}
-            className={providerListClasses.searchInlineAddButton}>
-            <Plus size={14} />
-          </button>
+            onFilterChange={setFilterMode}
+            className={providerListClasses.searchInlineAddButton}
+          />
         }
       />
       <ProviderListContent

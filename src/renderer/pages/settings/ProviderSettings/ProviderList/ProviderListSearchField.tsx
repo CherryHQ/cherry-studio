@@ -1,5 +1,5 @@
+import { SearchInput } from '@cherrystudio/ui'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { Search } from 'lucide-react'
 import type { ChangeEvent, KeyboardEvent, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -21,23 +21,21 @@ export default function ProviderListSearchField({
 
   return (
     <div className={providerListClasses.searchRow}>
-      <div className={`${providerListClasses.searchWrap} min-w-0 flex-1`}>
-        <Search className={providerListClasses.searchIcon} />
-        <input
-          value={value}
-          placeholder={t('settings.provider.search')}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => onValueChange(event.target.value)}
-          onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
-            if (event.key === 'Escape') {
-              event.stopPropagation()
-              onValueChange('')
-            }
-          }}
-          disabled={disabled}
-          className={providerListClasses.searchInput}
-        />
-        {trailing}
-      </div>
+      <SearchInput
+        containerClassName={`${providerListClasses.searchWrap} min-w-0 flex-1`}
+        className={providerListClasses.searchInput}
+        value={value}
+        placeholder={t('settings.provider.search')}
+        disabled={disabled}
+        onChange={(event: ChangeEvent<HTMLInputElement>) => onValueChange(event.target.value)}
+        onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
+          if (event.key === 'Escape') {
+            event.stopPropagation()
+            onValueChange('')
+          }
+        }}
+        trailing={trailing}
+      />
     </div>
   )
 }

@@ -164,7 +164,7 @@ const OvmsSettings: FC = () => {
                 p: <p />,
                 a: (
                   <a
-                    className="text-link underline-offset-4 hover:underline"
+                    className="!text-info underline-offset-4 hover:underline"
                     href="https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md"
                     rel="noreferrer"
                     target="_blank"

@@ -53,13 +53,13 @@ const BuiltinMcpServerList: FC = () => {
       <div className="mb-3 flex w-full min-w-0 flex-wrap items-center justify-between gap-3">
         <Tabs value={filter} onValueChange={(value) => setFilter(value as typeof filter)} className="min-w-0">
           <TabsList className="h-8 rounded-full bg-muted/70 p-0.5">
-            <TabsTrigger value="all" className="h-7 rounded-[14px] px-2.5 text-xs">
+            <TabsTrigger value="all" className="h-7 rounded-xl px-2.5 text-xs">
               {t('models.all')}
             </TabsTrigger>
-            <TabsTrigger value="installed" className="h-7 rounded-[14px] px-2.5 text-xs">
+            <TabsTrigger value="installed" className="h-7 rounded-xl px-2.5 text-xs">
               {t('settings.skills.installed')}
             </TabsTrigger>
-            <TabsTrigger value="available" className="h-7 rounded-[14px] px-2.5 text-xs">
+            <TabsTrigger value="available" className="h-7 rounded-xl px-2.5 text-xs">
               {t('settings.skills.install')}
             </TabsTrigger>
           </TabsList>
@@ -83,12 +83,11 @@ const BuiltinMcpServerList: FC = () => {
             <div
               key={server.id}
               className={cn(
-                'group flex min-h-16 items-center gap-3 rounded-lg border border-border/60 px-3.5 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35',
-                isInstalled && 'bg-muted/25'
+                'group flex min-h-16 items-center gap-3 rounded-xl border border-border/60 px-3.5 py-2 transition-colors duration-200 ease-in-out hover:border-border hover:bg-muted/35'
               )}>
               <div className="min-w-0 flex-1">
                 <div className="mb-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 overflow-hidden">
-                  <span className="truncate font-semibold text-[14px] leading-5">{server.name}</span>
+                  <span className="truncate font-medium text-[13px] leading-5">{server.name}</span>
                   {server?.shouldConfig && (
                     <a
                       href="https://docs.cherry-ai.com/advanced-basic/mcp/buildin"
@@ -115,7 +114,7 @@ const BuiltinMcpServerList: FC = () => {
                       {server.reference && (
                         <a
                           href={server.reference}
-                          className="wrap-break-word mt-2 inline-block text-link hover:underline">
+                          className="wrap-break-word !text-info mt-2 inline-block hover:underline">
                           {server.reference}
                         </a>
                       )}

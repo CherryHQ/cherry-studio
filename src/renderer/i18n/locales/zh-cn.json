@@ -395,6 +395,9 @@
           "failed": "会话排序失败"
         }
       },
+      "tool": {
+        "disabled": "{{toolName}} 工具已被此智能体禁用。"
+      },
       "update": {
         "error": {
           "failed": "更新会话失败"
@@ -4494,6 +4497,7 @@
         "r_regenerate": "R 重新生成"
       }
     },
+    "description": "选中文本后弹出的快捷操作工具栏",
     "name": "划词助手",
     "settings": {
       "actions": {
@@ -4725,6 +4729,7 @@
         "title": "意见反馈"
       },
       "label": "关于我们",
+      "page_description": "版本信息、更新日志与反馈",
       "releases": {
         "button": "查看",
         "title": "更新日志"
@@ -6246,7 +6251,8 @@
         "sync_will_deprecate": "将标记为弃用"
       },
       "more_actions": "更多模型列表操作",
-      "not_enabled_models": "已禁用",
+      "not_enabled_models": "未启用",
+      "page_description": "为助手对话、快速操作和翻译设置默认使用的模型",
       "provider_id": "服务商 ID",
       "provider_key_add_confirm": "是否要为 {{provider}} 添加 API 密钥？",
       "provider_key_add_failed_by_empty_data": "添加服务商 API 密钥失败，数据为空",
@@ -6504,6 +6510,7 @@
           "international": "国际域名"
         }
       },
+      "connection_title": "服务接入",
       "copilot": {
         "add_request_header": "添加请求头",
         "auth_failed": "Github Copilot 认证失败",
@@ -6689,6 +6696,7 @@
     },
     "quickAssistant": {
       "click_tray_to_show": "点击托盘图标启动",
+      "description": "通过快捷键随时唤起的悬浮助手窗口",
       "enable_quick_assistant": "启用快捷助手",
       "read_clipboard_at_startup": "启动时读取剪贴板",
       "title": "快捷助手",
@@ -6742,7 +6750,6 @@
       },
       "clear_shortcut": "清除快捷键",
       "clear_topic": "清空消息",
-      "close_tab": "关闭标签页",
       "conflict_with": "已被「{{name}}」使用",
       "copy_last_message": "复制上一条消息",
       "edit_last_user_message": "编辑最后一条用户消息",
@@ -6750,11 +6757,8 @@
       "enabled": "启用",
       "exit_fullscreen": "退出全屏",
       "label": "按键",
-      "move_tab_to_first": "将标签页移到最左",
       "new_topic": "新建话题",
       "occupied_by_other_application": "该快捷键已被系统或其他应用占用",
-      "open_tab_in_new_window": "在新窗口中打开标签页",
-      "pin_tab": "切换置顶标签页",
       "press_shortcut": "按下快捷键",
       "quick_assistant": "快捷助手",
       "rename_topic": "重命名话题",
@@ -6845,9 +6849,11 @@
         },
         "features": {
           "document_to_markdown": {
+            "scenario_tip": "将文档解析为 Markdown，常用于知识库等场景",
             "title": "文档处理"
           },
           "image_to_text": {
+            "scenario_tip": "提取图片中的文字，常用于翻译等场景",
             "title": "OCR"
           }
         },

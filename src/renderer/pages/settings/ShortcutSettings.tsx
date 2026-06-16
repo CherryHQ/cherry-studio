@@ -31,6 +31,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  SettingRowTitle,
   SettingsContentBody,
   settingsContentHeaderClassName,
   settingsContentHeaderTitleClassName,
@@ -456,7 +457,7 @@ const ShortcutSettings: FC = () => {
     )
   }
 
-  const renderShortcutRow = (record: (typeof shortcuts)[number], isLast: boolean) => {
+  const renderShortcutRow = (record: (typeof shortcuts)[number]) => {
     const switchNode = (
       <Switch
         size="sm"
@@ -487,12 +488,11 @@ const ShortcutSettings: FC = () => {
       <div
         key={record.key}
         className={cn(
-          'grid grid-cols-[minmax(0,1fr)_14rem_2.5rem] items-center gap-3 py-2.5',
-          !record.preference.enabled && 'opacity-60',
-          !isLast && 'border-border/50 border-b'
+          'grid grid-cols-[minmax(0,1fr)_14rem_2.5rem] items-center gap-3 py-1.5',
+          !record.preference.enabled && 'opacity-60'
         )}>
         <div className="min-w-0 pr-2">
-          <div className="truncate font-medium text-[14px] text-foreground">{record.label}</div>
+          <SettingRowTitle className="block truncate">{record.label}</SettingRowTitle>
         </div>
         <div className="flex min-h-9 items-center justify-end">{renderShortcutCell(record)}</div>
         <div className="flex justify-end">
@@ -583,10 +583,8 @@ const ShortcutSettings: FC = () => {
             </div>
 
             {visibleShortcuts.length > 0 ? (
-              <div>
-                {visibleShortcuts.map((record, index) =>
-                  renderShortcutRow(record, index === visibleShortcuts.length - 1)
-                )}
+              <div className="rounded-xl border border-border/60 px-4 py-1">
+                {visibleShortcuts.map((record) => renderShortcutRow(record))}
               </div>
             ) : (
               <div className="py-10 text-center text-muted-foreground text-sm">{t('settings.shortcuts.empty')}</div>

@@ -18,12 +18,14 @@ interface ProviderListHeaderFilterMenuProps {
   filterMode: ProviderFilterMode
   disabled: boolean
   onFilterChange: (mode: ProviderFilterMode) => void
+  className?: string
 }
 
 export default function ProviderListHeaderFilterMenu({
   filterMode,
   disabled,
-  onFilterChange
+  onFilterChange,
+  className
 }: ProviderListHeaderFilterMenuProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
@@ -35,7 +37,7 @@ export default function ProviderListHeaderFilterMenu({
           type="button"
           aria-label={t('settings.provider.filter.label')}
           disabled={disabled}
-          className={providerListClasses.headerIconButton}>
+          className={className ?? providerListClasses.headerIconButton}>
           <Filter size={14} />
         </button>
       </PopoverTrigger>

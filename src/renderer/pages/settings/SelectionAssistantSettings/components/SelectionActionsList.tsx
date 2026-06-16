@@ -5,7 +5,7 @@ import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 
-import { SettingDivider, SettingGroup } from '../..'
+import { SettingGroup } from '../..'
 import { useActionItems } from '../hooks/useSettingsActionsList'
 import ActionsList from './ActionsList'
 import ActionsListDivider from './ActionsListDivider'
@@ -59,37 +59,37 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
         onAdd={handleAddNewAction}
       />
 
-      <SettingDivider />
-
-      <div className="my-6 flex items-center justify-center">
-        <SelectionToolbar demo />
-      </div>
-
-      <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex flex-col gap-4">
-          <div className="w-full">
-            <ActionsList
-              droppableId="enabled"
-              items={enabledItems}
-              isLastEnabledItem={enabledItems.length === 1}
-              onEdit={handleEditActionItem}
-              onDelete={handleDeleteActionItem}
-              getSearchEngineInfo={getSearchEngineInfo}
-            />
-
-            <ActionsListDivider enabledCount={enabledItems.length} maxEnabled={MAX_ENABLED_ITEMS} />
-
-            <ActionsList
-              droppableId="disabled"
-              items={disabledItems}
-              isLastEnabledItem={false}
-              onEdit={handleEditActionItem}
-              onDelete={handleDeleteActionItem}
-              getSearchEngineInfo={getSearchEngineInfo}
-            />
-          </div>
+      <div className="mt-3 rounded-xl border border-border/60 p-4">
+        <div className="my-2 flex items-center justify-center">
+          <SelectionToolbar demo />
         </div>
-      </DragDropContext>
+
+        <DragDropContext onDragEnd={onDragEnd}>
+          <div className="flex flex-col gap-4">
+            <div className="w-full">
+              <ActionsList
+                droppableId="enabled"
+                items={enabledItems}
+                isLastEnabledItem={enabledItems.length === 1}
+                onEdit={handleEditActionItem}
+                onDelete={handleDeleteActionItem}
+                getSearchEngineInfo={getSearchEngineInfo}
+              />
+
+              <ActionsListDivider enabledCount={enabledItems.length} maxEnabled={MAX_ENABLED_ITEMS} />
+
+              <ActionsList
+                droppableId="disabled"
+                items={disabledItems}
+                isLastEnabledItem={false}
+                onEdit={handleEditActionItem}
+                onDelete={handleDeleteActionItem}
+                getSearchEngineInfo={getSearchEngineInfo}
+              />
+            </div>
+          </div>
+        </DragDropContext>
+      </div>
 
       <SelectionActionUserModal
         isModalOpen={isUserModalOpen}
