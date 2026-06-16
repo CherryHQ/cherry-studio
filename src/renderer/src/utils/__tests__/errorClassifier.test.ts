@@ -160,4 +160,38 @@ describe('classifyError', () => {
     const result = classifyError(makeError({ status: '401' }))
     expect(result.category).toBe('auth')
   })
+
+  // Abnormal finish reasons (#16072)
+  it('classifies content-filter finishReason as content', () => {
+    const result = classifyError(makeError({ finishReason: 'content-filter' }))
+    expect(result.category).toBe('content')
+    expect(result.i18nKey).toBe('error.diagnosis.content')
+  })
+
+  it('classifies length finishReason as truncated output', () => {
+    const result = classifyError(makeError({ finishReason: 'length' }))
+    expect(result.category).toBe('context_length')
+    expect(result.i18nKey).toBe('error.diagnosis.output_truncated')
+  })
+
+  it('classifies error finishReason as abnormal finish', () => {
+    const result = classifyError(makeError({ finishReason: 'error' }))
+    expect(result.category).toBe('server')
+    expect(result.i18nKey).toBe('error.diagnosis.abnormal_finish')
+  })
+
+  it('classifies other finishReason as abnormal finish', () => {
+    const result = classifyError(makeError({ finishReason: 'other' }))
+    expect(result.i18nKey).toBe('error.diagnosis.abnormal_finish')
+  })
+
+  it('does not specially classify a normal stop finishReason', () => {
+    const result = classifyError(makeError({ finishReason: 'stop', message: 'test error' }))
+    expect(result.category).toBe('unknown')
+  })
+
+  it('prioritizes finishReason over status code', () => {
+    const result = classifyError(makeError({ finishReason: 'content-filter', statusCode: 500 }))
+    expect(result.category).toBe('content')
+  })
 })
