@@ -228,7 +228,7 @@ export const AGENTS_TABLE_MIGRATION_SPECS: readonly AgentsTableMigrationSpec[] =
       'session_id',
       {
         name: 'workspace',
-        expr: 'workspace',
+        expr: 'COALESCE(workspace, \'{"type":"system"}\')',
         sourceColumn: 'workspace',
         fallbackExpr: '\'{"type":"system"}\''
       },

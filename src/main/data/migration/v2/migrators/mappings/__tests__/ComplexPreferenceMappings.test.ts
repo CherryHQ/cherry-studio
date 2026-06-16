@@ -197,6 +197,30 @@ describe('ComplexPreferenceMappings', () => {
       })
     })
 
+    it('should append agents when assistants is absent', () => {
+      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
+      const result = mapping.transform({
+        visible: ['store', 'translate'],
+        disabled: []
+      })
+
+      expect(result).toEqual({
+        'ui.sidebar.favorites': ['store', 'translate', 'agents']
+      })
+    })
+
+    it('should keep agents in place when it is already visible', () => {
+      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
+      const result = mapping.transform({
+        visible: ['assistants', 'agents', 'translate'],
+        disabled: []
+      })
+
+      expect(result).toEqual({
+        'ui.sidebar.favorites': ['assistants', 'agents', 'translate']
+      })
+    })
+
     it('should collapse the old default visible sidebar favorites to the new default set', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')!
       const result = mapping.transform({
@@ -220,6 +244,61 @@ describe('ComplexPreferenceMappings', () => {
       })
     })
 
+    it('should collapse the old default visible sidebar favorites without openclaw to the new default set', () => {
+      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
+      const result = mapping.transform({
+        visible: [
+          'assistants',
+          'store',
+          'paintings',
+          'translate',
+          'mini_app',
+          'knowledge',
+          'files',
+          'code_tools',
+          'notes'
+        ],
+        disabled: []
+      })
+
+      expect(result).toEqual({
+        'ui.sidebar.favorites': ['assistants', 'agents', 'store', 'translate', 'mini_app']
+      })
+    })
+
+    it('should not collapse the old default visible sidebar favorites when invisible is non-empty', () => {
+      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
+      const result = mapping.transform({
+        visible: [
+          'assistants',
+          'store',
+          'paintings',
+          'translate',
+          'mini_app',
+          'knowledge',
+          'files',
+          'code_tools',
+          'notes'
+        ],
+        disabled: ['files']
+      })
+
+      expect(result).toEqual({
+        'ui.sidebar.favorites': [
+          'assistants',
+          'agents',
+          'store',
+          'paintings',
+          'translate',
+          'mini_app',
+          'knowledge',
+          'files',
+          'code_tools',
+          'notes'
+        ]
+      })
+    })
+
     it('should not force agents visible when it was explicitly hidden', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')!
       const result = mapping.transform({
@@ -232,7 +311,19 @@ describe('ComplexPreferenceMappings', () => {
       })
     })
 
-    it('should return non-array inputs as-is without crashing', () => {
+    it('should deduplicate migrated favorites', () => {
+      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
+      const result = mapping.transform({
+        visible: ['assistants', 'minapp', 'mini_app', 'translate', 'translate'],
+        disabled: []
+      })
+
+      expect(result).toEqual({
+        'ui.sidebar.favorites': ['assistants', 'agents', 'mini_app', 'translate']
+      })
+    })
+
+    it('should return undefined for non-array inputs without crashing', () => {
       const mapping = getComplexMappingById('sidebar_favorites_migrate')!
 
       expect(mapping.transform({ visible: undefined, disabled: undefined })).toEqual({
@@ -240,7 +331,7 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(mapping.transform({ visible: null, disabled: null })).toEqual({
-        'ui.sidebar.favorites': null
+        'ui.sidebar.favorites': undefined
       })
 
       expect(mapping.transform({})).toEqual({

@@ -61,7 +61,7 @@ import type {
   SerializedErrorData,
   TextUIPart
 } from '@shared/data/types/message'
-import type { CherryDataPartTypes } from '@shared/data/types/uiParts'
+import type { CherryDataPartTypes, CherryToolMeta } from '@shared/data/types/uiParts'
 import { withCherryMeta } from '@shared/data/types/uiParts'
 import type { Base64String, FilePath } from '@shared/file/types/common'
 import type { FileMetadata } from '@types'
@@ -781,17 +781,11 @@ async function transformSingleBlockToPart(
       const rawToolType = raw?.tool?.type
       const toolType =
         rawToolType === 'mcp' || rawToolType === 'builtin' || rawToolType === 'provider' ? rawToolType : undefined
-      const callProviderMetadata = raw?.tool
+      const toolMetadata: CherryToolMeta['tool'] | undefined = raw?.tool
         ? {
-            cherry: {
-              tool: {
-                ...(toolType ? { type: toolType } : {}),
-                ...(raw.tool.name ? { name: raw.tool.name } : {}),
-                ...(raw.tool.description ? { description: raw.tool.description } : {}),
-                ...(raw.tool.serverId ? { serverId: raw.tool.serverId } : {}),
-                ...(raw.tool.serverName ? { serverName: raw.tool.serverName } : {})
-              }
-            }
+            ...(toolType ? { type: toolType } : {}),
+            ...(raw.tool.serverId ? { serverId: raw.tool.serverId } : {}),
+            ...(raw.tool.serverName ? { serverName: raw.tool.serverName } : {})
           }
         : undefined
 
@@ -799,13 +793,16 @@ async function transformSingleBlockToPart(
         type: 'dynamic-tool' as const,
         toolName,
         toolCallId,
-        input,
-        ...(callProviderMetadata ? { callProviderMetadata } : {})
+        input
       }
 
-      const part: DynamicToolUIPart = isError
+      const partWithoutMeta: DynamicToolUIPart = isError
         ? { ...base, state: 'output-error', errorText: typeof output === 'string' ? output : JSON.stringify(output) }
         : { ...base, state: 'output-available', output }
+      const part =
+        toolMetadata && Object.keys(toolMetadata).length > 0
+          ? withCherryMeta(partWithoutMeta, { tool: toolMetadata })
+          : partWithoutMeta
 
       return { part, extraParts: null, citations: null, searchableText: null }
     }

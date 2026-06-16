@@ -19,6 +19,7 @@
  */
 
 import { loggerService } from '@logger'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 
 import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/ModelTransformers'
 import {
@@ -38,7 +39,7 @@ import {
 
 const logger = loggerService.withContext('Migration:ComplexPreferenceMappings')
 
-const DEFAULT_SIDEBAR_FAVORITES = ['assistants', 'agents', 'store', 'translate', 'mini_app'] as const
+const DEFAULT_SIDEBAR_FAVORITES = DefaultPreferences.default['ui.sidebar.favorites']
 const LEGACY_DEFAULT_SIDEBAR_FAVORITES = [
   ['assistants', 'agents', 'store', 'paintings', 'translate', 'mini_app', 'knowledge', 'files', 'code_tools', 'notes'],
   [
@@ -189,24 +190,25 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: transformShortcuts
   },
 
-  // Sidebar favorites: migrate legacy v1 sidebarIcons arrays, rewrite 'minapp' → 'mini_app', and restore the v2 agents favorite.
+  // Sidebar favorites: migrate legacy v1 sidebarIcons arrays, rewrite 'minapp' → 'mini_app',
+  // restore the v2 agents favorite unless explicitly hidden, and collapse legacy defaults to the v2 default.
   {
     id: 'sidebar_favorites_migrate',
     description:
-      "Migrate legacy v1 sidebarIcons arrays to v2 favorites, rewrite 'minapp' to 'mini_app', and add agents if visible",
+      "Migrate legacy v1 sidebarIcons arrays to v2 favorites, rewrite 'minapp' to 'mini_app', restore agents, and collapse legacy defaults",
     sources: {
       visible: { source: 'redux', category: 'settings', key: 'sidebarIcons.visible' },
       disabled: { source: 'redux', category: 'settings', key: 'sidebarIcons.disabled' }
     },
     targetKeys: ['ui.sidebar.favorites'],
     transform: (sources) => {
-      const rewrite = (arr: unknown): unknown =>
-        Array.isArray(arr) ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)) : arr
-      const addAgents = (visible: unknown, invisible: unknown): unknown => {
-        if (!Array.isArray(visible) || visible.includes('agents')) {
+      const rewrite = (arr: unknown): unknown[] | undefined =>
+        Array.isArray(arr) ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)) : undefined
+      const addAgents = (visible: unknown[] | undefined, invisible: unknown[] | undefined): unknown[] | undefined => {
+        if (!visible || visible.includes('agents')) {
           return visible
         }
-        if (Array.isArray(invisible) && invisible.includes('agents')) {
+        if (invisible?.includes('agents')) {
           return visible
         }
 
@@ -215,9 +217,10 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
         nextVisible.splice(assistantsIndex === -1 ? nextVisible.length : assistantsIndex + 1, 0, 'agents')
         return nextVisible
       }
+      const dedup = (arr: unknown[] | undefined): unknown[] | undefined => (arr ? [...new Set(arr)] : undefined)
       const visible = rewrite(sources.visible)
       const invisible = rewrite(sources.disabled)
-      const visibleWithAgents = addAgents(visible, invisible)
+      const visibleWithAgents = dedup(addAgents(visible, invisible))
       return {
         'ui.sidebar.favorites': shouldUseDefaultSidebarFavorites(visibleWithAgents, invisible)
           ? [...DEFAULT_SIDEBAR_FAVORITES]
