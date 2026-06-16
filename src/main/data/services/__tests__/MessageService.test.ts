@@ -1280,6 +1280,35 @@ describe('MessageService', () => {
       expect(remaining[0].role).toBe('root')
       expect(remaining[0].parentId).toBeNull()
     })
+
+    it('cascade-deleting the active first-turn subtree clears activeNodeId (never points it at the root)', async () => {
+      await seedMultiModelTree() // topic.activeNodeId = 'm-follow', inside m-root's subtree
+
+      // m-root's parent is the virtual root, so the 'parent' fallback must resolve to
+      // null — not the root id, which is never a valid active node.
+      const result = await messageService.delete('m-root', true)
+      expect(result.newActiveNodeId).toBeNull()
+
+      const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
+      expect(topicRow.activeNodeId).toBeNull()
+    })
+
+    it('reparent-deleting the active first-turn message clears activeNodeId', async () => {
+      await seedMultiModelTree()
+      await dbh.db.update(topicTable).set({ activeNodeId: 'm-root' }).where(eq(topicTable.id, 'topic-1'))
+
+      const result = await messageService.delete('m-root', false)
+      expect(result.newActiveNodeId).toBeNull()
+
+      const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
+      expect(topicRow.activeNodeId).toBeNull()
+      // children reparented onto the virtual root (still a single root)
+      const roots = await dbh.db
+        .select()
+        .from(messageTable)
+        .where(and(eq(messageTable.topicId, 'topic-1'), isNull(messageTable.parentId)))
+      expect(roots.map((r) => r.id)).toEqual([virtualRootId])
+    })
   })
 
   describe('getPathRowsToNodeTx — excludes virtual root', () => {

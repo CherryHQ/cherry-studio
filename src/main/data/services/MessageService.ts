@@ -1226,12 +1226,26 @@ export class MessageService {
       let reparentedIds: string[] | undefined
       let newActiveNodeId: string | null | undefined
 
+      // The 'parent' fallback for activeNodeId is the deleted message's parent — but the
+      // virtual root is never a valid active node. Deleting a first-turn message (whose
+      // parent is the root) must clear activeNodeId, not point it at the root. The parent
+      // is always an ancestor (never in deletedIds), so it survives the delete below.
+      let parentFallback: string | null = message.parentId
+      if (parentFallback) {
+        const [parent] = await tx
+          .select({ role: messageTable.role })
+          .from(messageTable)
+          .where(eq(messageTable.id, parentFallback))
+          .limit(1)
+        if (!parent || parent.role === 'root') parentFallback = null
+      }
+
       if (cascade) {
         deletedIds = [id, ...descendantIds]
 
         // Check if activeNodeId is affected
         if (topic.activeNodeId && deletedIds.includes(topic.activeNodeId)) {
-          newActiveNodeId = activeNodeStrategy === 'clear' ? null : message.parentId
+          newActiveNodeId = activeNodeStrategy === 'clear' ? null : parentFallback
         }
 
         // The self-FK is ON DELETE CASCADE, so deleting the target removes its whole
@@ -1261,7 +1275,7 @@ export class MessageService {
 
         // Check if activeNodeId is affected
         if (topic.activeNodeId === id) {
-          newActiveNodeId = activeNodeStrategy === 'clear' ? null : message.parentId
+          newActiveNodeId = activeNodeStrategy === 'clear' ? null : parentFallback
         }
 
         // Hard delete this message
