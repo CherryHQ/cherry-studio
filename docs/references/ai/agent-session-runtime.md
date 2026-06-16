@@ -3,7 +3,7 @@
 ## Purpose
 
 Agent-session streams need a stable host for UI turns, persistence, live
-follow-ups, interrupt, and recovery. The host must not know whether the
+follow-ups (steers), and recovery. The host must not know whether the
 underlying agent uses a long-lived process, a websocket, one HTTP request
 per turn, or Claude Code's SDK `query`.
 
@@ -21,7 +21,7 @@ queue, and `resume` handling are driver internals.
 |---|---|
 | `AgentChatContextProvider` | Validates the agent session, persists the user row (plus a pending assistant row on a fresh turn), and either starts a turn or enqueues a follow-up through the runtime. |
 | `AgentSessionRuntimeService` | Owns one runtime entry per session: current UI turn, pending UI queue, runtime connection, latest resume token, terminal listeners, persistence, and idle timer. |
-| `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, optional `interrupt`, `close`, and an event stream. |
+| `AgentSessionRuntimeDriver` | Connects to one concrete agent implementation and exposes `send`, optional `redirect` (mid-turn steer) and `applyPolicyUpdate`, `close`, and an event stream. |
 | `AiStreamManager` | Keeps the normal topic stream contract: start a turn, attach a follow-up subscriber to a live turn, pause the current runtime turn, and start the next runtime turn. |
 | `AiService.streamText()` | Routes `request.runtime.kind === 'agent-session'` to `AgentSessionRuntimeService.openTurnStream()` and rejects agent-session topics that do not carry runtime metadata. |
 | `ClaudeCodeRuntimeDriver` | Converts Claude SDK messages into generic runtime events and maps opaque resume tokens to Claude SDK `resume`. |
@@ -66,24 +66,37 @@ takes the **inject** path — which for agent sessions only upserts the new
 subscriber onto the running stream (no message is injected into the
 execution; chat's abort-and-restart does not apply here).
 
-`enqueueUserMessage()` appends the message to the session entry's
-`pendingTurns`, then acts on the current turn:
+A live follow-up is a **steer**. Steering is queue-based, never an
+interrupt: the current turn is **never aborted** to apply a steer (a user
+Stop is now the only abort source). `enqueueUserMessage()`:
 
-1. if the turn is already terminal (or absent) — schedules the next turn;
-2. if the turn is mid-tool-call (`activeToolIds` non-empty) — leaves it
-   alone; the next turn is scheduled when the turn settles;
-3. otherwise — requests an interrupt when safe (`connection.interrupt()`
-   if the driver supports it), which terminalizes the current UI turn.
+1. **Live turn + a driver that can steer** — calls
+   `connection.redirect({ message, systemReminder: true })`. The driver
+   stashes the steer and injects it into the running turn (Claude Code
+   does this via a `PreToolUse` hook, as `additionalContext` before the
+   next tool runs). The message is folded into the current turn — no new
+   turn, no queue entry. If the turn ends before the steer is injected
+   (it called no tool after the steer arrived), the connection emits
+   `steer-undelivered` and the host queues it as the next turn.
+2. **No live turn, or the driver cannot steer** — appends the message to
+   the session entry's `pendingTurns` (recording its id in
+   `steerMessageIds` so the next turn wraps it in a steer system-reminder)
+   and schedules the next turn.
 
-Once the current turn is paused or terminal, `startNextTurn()` drains the
-next message off `pendingTurns` and starts a fresh runtime turn (below).
-This keeps the renderer protocol unchanged while each driver decides how
-to interrupt its own runtime.
+When a steer **is** injected mid-turn, the driver emits a
+`steer-boundary` just before the model's post-steer assistant message.
+The host then **rolls** the assistant row: it finalises the pre-steer
+parts as one row (A1a), opens a fresh continuation row (A2), and replays
+the buffered post-steer chunks into A2 — so the steer user message sorts
+between the two assistant rows instead of dangling after the whole turn.
+`willContinueTopic()` keeps the topic stream alive across the roll (and
+across a mid-flight compaction) so the continuation carries the renderer
+listeners.
 
 ## Starting the next runtime turn
 
-When a paused, aborted, or completed runtime turn still has queued
-follow-ups, `AgentSessionRuntimeService.startNextTurn()`:
+When a completed runtime turn still has queued follow-ups (or a
+`steer-undelivered` requeue), `AgentSessionRuntimeService.startNextTurn()`:
 
 1. shifts the next user message off the session entry's `pendingTurns`;
 2. saves a new pending assistant row;
@@ -144,8 +157,23 @@ The driver converts Claude SDK messages into runtime events:
 
 - `stream_event` / assistant/user messages -> `chunk`;
 - `system/init` -> `resume-token`;
-- `result` -> `resume-token` and `turn-complete`;
-- thrown errors -> `error`.
+- `result` -> `resume-token`, a usage `chunk`, `context-usage`, and `turn-complete`;
+- a `PreToolUse` steer injection (armed by `redirect()`) -> `steer-boundary`
+  before the post-steer assistant message; a steer the turn never injected
+  -> `steer-undelivered`;
+- `system/status status: 'compacting'` -> `compaction-start`;
+  `system/compact_boundary` -> `compaction-complete` (with anchor);
+  `system/status compact_result: 'success'` with no boundary ->
+  `compaction-complete` (no anchor, idempotent settle);
+  `compact_result: 'failed'` / `compact_error` -> `compaction-error`;
+- thrown errors -> `error` (or a salvaged `turn-complete` for a truncated stream).
+
+`applyPolicyUpdate` carries live agent edits onto the warm connection: a
+`permission-mode` change awaits the SDK `setPermissionMode` before mutating
+the snapshot (short-circuiting an unchanged mode), and a `tool-policy`
+change refreshes the snapshot's disabled set in place. A rejected update is
+failed closed by the host (the connection is torn down) rather than left
+running under the old policy.
 
 ## Idle and shutdown
 
