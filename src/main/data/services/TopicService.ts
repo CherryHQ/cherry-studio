@@ -26,11 +26,11 @@ import type { SQL } from 'drizzle-orm'
 import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 
 import { fileRefService } from './FileRefService'
+import { messageService } from './MessageService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
-import { messageService } from './MessageService'
 
 const logger = loggerService.withContext('DataApi:TopicService')
 
