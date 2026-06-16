@@ -345,7 +345,7 @@ vi.mock('../GlobalSearchMessagePreviewPanel', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getSidebarIconLabel: (key: SidebarIcon) =>
+  getSidebarIconLabelKey: (key: SidebarIcon) =>
     ({
       assistants: 'Chat',
       agents: 'Agent',
