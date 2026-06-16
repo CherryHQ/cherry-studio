@@ -4,11 +4,10 @@ import {
   type ResourceListRevealSource
 } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { OpenInNewWindowIcon } from '@renderer/components/Icons'
-import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { isMac } from '@renderer/config/constant'
-import { CommandContextMenu, type CommandContextMenuExtraItem, CommandTooltip } from '@renderer/features/command'
+import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/features/command'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import type { Tab } from '@renderer/hooks/useTabs'
+import type { OpenTabOptions, Tab } from '@renderer/hooks/useTabs'
 import { cn } from '@renderer/utils'
 import { ChevronsLeft, Pin, PinOff, Plus, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -34,6 +33,7 @@ type AppShellTabBarProps = {
   pinTab: (id: string) => void
   unpinTab: (id: string) => void
   detachTab?: (id: string) => void
+  openTab: (url: string, options?: OpenTabOptions) => string
 }
 
 // ─── Drag item props (grouped to reduce sub-component prop count) ─────────────
@@ -369,7 +369,8 @@ export const AppShellTabBar = ({
   reorderTabs,
   pinTab,
   unpinTab,
-  detachTab
+  detachTab,
+  openTab
 }: AppShellTabBarProps) => {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
@@ -472,8 +473,8 @@ export const AppShellTabBar = ({
 
   // ─── Action handlers ────────────────────────────────────────────────────────
 
-  const handleOpenGlobalSearch = () => {
-    void SearchPopup.show()
+  const handleOpenLaunchpad = () => {
+    openTab('/app/launchpad', { title: t('title.launchpad') })
   }
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -574,19 +575,19 @@ export const AppShellTabBar = ({
             )
           })}
 
-          {/* Global search button — sticky so it hugs the last tab but never scrolls away */}
-          <CommandTooltip command="app.search" label={t('globalSearch.open')} placement="bottom" delay={800}>
+          {/* Launchpad button — sticky so it hugs the last tab but never scrolls away */}
+          <Tooltip placement="bottom" content={t('title.launchpad')} delay={800}>
             <button
               type="button"
-              aria-label={t('globalSearch.open')}
-              onClick={handleOpenGlobalSearch}
+              aria-label={t('title.launchpad')}
+              onClick={handleOpenLaunchpad}
               className={cn(
                 'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 appearance-none items-center justify-center rounded-[10px] border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-sidebar-foreground',
                 isMacTransparentWindow ? 'hover:bg-white/50 dark:hover:bg-white/8' : 'hover:bg-sidebar-accent'
               )}>
               <Plus size={14} />
             </button>
-          </CommandTooltip>
+          </Tooltip>
         </div>
 
         <ShellTabBarActions />

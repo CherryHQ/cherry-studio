@@ -76,7 +76,7 @@ vi.mock('../ShellTabBarActions', async () => {
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => (key === 'globalSearch.open' ? 'Open global search' : key)
+    t: (key: string) => (key === 'title.launchpad' ? 'Launchpad' : key)
   })
 }))
 
@@ -112,9 +112,9 @@ afterEach(() => {
 })
 
 describe('AppShellTabBar', () => {
-  it('opens global search from the plus button instead of adding a launchpad tab', async () => {
+  it('opens launchpad from the plus button', async () => {
     const user = userEvent.setup()
-    const addTab = vi.fn()
+    const openTab = vi.fn()
     const tabs: Tab[] = [
       {
         id: 'home',
@@ -130,17 +130,16 @@ describe('AppShellTabBar', () => {
         activeTabId="home"
         setActiveTab={vi.fn()}
         closeTab={vi.fn()}
-        addTab={addTab}
         reorderTabs={vi.fn()}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
+        openTab={openTab}
       />
     )
 
-    await user.click(screen.getByRole('button', { name: 'Open global search' }))
+    await user.click(screen.getByRole('button', { name: 'Launchpad' }))
 
-    expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
-    expect(addTab).not.toHaveBeenCalled()
+    expect(openTab).toHaveBeenCalledWith('/app/launchpad', { title: 'Launchpad' })
   })
 
   it('moves a normal tab to the first movable slot after the fixed home tab', async () => {
@@ -161,6 +160,7 @@ describe('AppShellTabBar', () => {
         reorderTabs={reorderTabs}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
+        openTab={vi.fn()}
       />
     )
 
@@ -189,6 +189,7 @@ describe('AppShellTabBar', () => {
         reorderTabs={reorderTabs}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
+        openTab={vi.fn()}
       />
     )
 
@@ -221,6 +222,7 @@ describe('AppShellTabBar', () => {
         reorderTabs={vi.fn()}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
+        openTab={vi.fn()}
       />
     )
 
@@ -253,6 +255,7 @@ describe('AppShellTabBar', () => {
         reorderTabs={vi.fn()}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
+        openTab={vi.fn()}
       />
     )
 
@@ -277,6 +280,7 @@ describe('AppShellTabBar', () => {
         reorderTabs={vi.fn()}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
+        openTab={vi.fn()}
       />
     )
 
@@ -301,6 +305,7 @@ describe('AppShellTabBar', () => {
         reorderTabs={vi.fn()}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
+        openTab={vi.fn()}
       />
     )
 
@@ -326,6 +331,7 @@ describe('AppShellTabBar', () => {
         reorderTabs={vi.fn()}
         pinTab={vi.fn()}
         unpinTab={vi.fn()}
+        openTab={vi.fn()}
       />
     )
 

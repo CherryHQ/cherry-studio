@@ -11,6 +11,7 @@ const routeTitleKeys: Record<string, string> = {
   '/app/agents': 'agent.sidebar_title',
   '/app/paintings': 'title.paintings',
   '/app/translate': 'title.translate',
+  '/app/launchpad': 'title.launchpad',
   '/app/mini-app': 'title.apps',
   '/app/knowledge': 'title.knowledge',
   '/app/library': 'library.title',

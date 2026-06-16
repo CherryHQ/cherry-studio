@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     openSettingsWindow: vi.fn(),
+    showSearchPopup: vi.fn(),
     toastError: vi.fn()
   }
 }))
@@ -36,6 +37,16 @@ vi.mock('@renderer/context/ThemeProvider', () => ({
   useTheme: () => ({ settedTheme: 'light', toggleTheme: vi.fn() })
 }))
 
+vi.mock('@renderer/components/Popups/SearchPopup', () => ({
+  default: {
+    show: mocks.showSearchPopup
+  }
+}))
+
+vi.mock('@renderer/features/command', () => ({
+  CommandTooltip: ({ children }: { children: React.ReactNode }) => children
+}))
+
 vi.mock('@renderer/i18n/label', () => ({
   getThemeModeLabelKey: () => 'Light'
 }))
@@ -49,7 +60,13 @@ vi.mock('@renderer/utils/error', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => (key === 'settings.title' ? 'Settings' : key) })
+  useTranslation: () => ({
+    t: (key: string) =>
+      ({
+        'globalSearch.open': 'Open global search',
+        'settings.title': 'Settings'
+      })[key] ?? key
+  })
 }))
 
 vi.mock('../../WindowControls', () => ({
@@ -69,6 +86,16 @@ describe('ShellTabBarActions', () => {
       configurable: true,
       value: { error: mocks.toastError }
     })
+  })
+
+  it('opens global search from the action area', async () => {
+    const user = userEvent.setup()
+
+    render(<ShellTabBarActions />)
+
+    await user.click(screen.getByRole('button', { name: 'Open global search' }))
+
+    expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
   })
 
   it('opens the standalone settings window', async () => {

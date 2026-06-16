@@ -27,7 +27,7 @@ const mocks = vi.hoisted(() => ({
   } as FakeTab | null,
   setSidebarWidth: vi.fn(),
   tabs: [] as FakeTab[],
-  visibleSidebarIcons: ['assistants'] as string[]
+  sidebarFavorites: ['assistants'] as string[]
 }))
 
 vi.mock('@data/hooks/useCache', () => ({
@@ -37,7 +37,7 @@ vi.mock('@data/hooks/useCache', () => ({
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (key: string) => {
     if (key === 'app.user.name') return ['JD']
-    if (key === 'ui.sidebar.icons.visible') return [mocks.visibleSidebarIcons]
+    if (key === 'ui.sidebar.favorites') return [mocks.sidebarFavorites]
     return [undefined]
   }
 }))
@@ -165,7 +165,7 @@ import Sidebar from '../Sidebar'
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
-  mocks.visibleSidebarIcons = ['assistants']
+  mocks.sidebarFavorites = ['assistants']
   mocks.activeTab = {
     id: 'chat',
     type: 'route',
@@ -202,7 +202,7 @@ describe('app Sidebar', () => {
   })
 
   it('renders sidebar menu items in visible preference order', () => {
-    mocks.visibleSidebarIcons = ['translate', 'assistants', 'agents']
+    mocks.sidebarFavorites = ['translate', 'assistants', 'agents']
 
     render(<Sidebar />)
 
@@ -213,7 +213,7 @@ describe('app Sidebar', () => {
   })
 
   it('does nothing when the active tab is already on the target route', () => {
-    mocks.visibleSidebarIcons = ['agents']
+    mocks.sidebarFavorites = ['agents']
     mocks.activeTab = {
       id: 'agents',
       type: 'route',
@@ -230,7 +230,7 @@ describe('app Sidebar', () => {
   })
 
   it('focuses an existing sidebar app tab instead of reusing the active tab', () => {
-    mocks.visibleSidebarIcons = ['agents']
+    mocks.sidebarFavorites = ['agents']
     mocks.activeTab = {
       id: 'chat',
       type: 'route',
@@ -249,7 +249,7 @@ describe('app Sidebar', () => {
   })
 
   it('clears stale instance metadata when reusing the active tab', () => {
-    mocks.visibleSidebarIcons = ['translate']
+    mocks.sidebarFavorites = ['translate']
     mocks.activeTab = {
       id: 'chat',
       type: 'route',
@@ -273,7 +273,7 @@ describe('app Sidebar', () => {
   })
 
   it('reuses the active tab for single-policy routes too', () => {
-    mocks.visibleSidebarIcons = ['translate']
+    mocks.sidebarFavorites = ['translate']
     mocks.activeTab = {
       id: 'chat',
       type: 'route',
@@ -294,7 +294,7 @@ describe('app Sidebar', () => {
   })
 
   it('opens a forced tab when the active tab is pinned', () => {
-    mocks.visibleSidebarIcons = ['agents']
+    mocks.sidebarFavorites = ['agents']
     mocks.activeTab = {
       id: 'chat',
       type: 'route',
@@ -314,7 +314,7 @@ describe('app Sidebar', () => {
   })
 
   it('opens a forced tab when there is no active tab', () => {
-    mocks.visibleSidebarIcons = ['files']
+    mocks.sidebarFavorites = ['files']
     mocks.activeTab = null
     mocks.openTab.mockReturnValue('files-new')
 

@@ -15,7 +15,6 @@ import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { GroupedVirtualList } from '@renderer/components/VirtualList'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
 import { ResourceEditDialogHost, type ResourceEditDialogTarget } from '@renderer/pages/library/dialogs'
@@ -35,7 +34,6 @@ import {
   type GlobalSearchPanelGroup,
   type GlobalSearchPanelGroupFooter
 } from './globalSearchGroups'
-import { GlobalSearchLaunchpad } from './GlobalSearchLaunchpad'
 import {
   GlobalSearchMessagePreviewPanel,
   type GlobalSearchMessagePreviewTarget
@@ -180,7 +178,6 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const { openTab } = useTabs()
   const chatNav = useConversationNavigation('assistants')
   const agentNav = useConversationNavigation('agents')
-  const { defaultPaintingProvider } = useSettings()
   const invalidateCache = useInvalidateCache()
   const inputRef = useRef<HTMLInputElement>(null)
   const [query, setQuery] = useState('')
@@ -223,10 +220,9 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
     recentItems,
     timeFilter
   })
-  const showLaunchpad = !hasQuery && panelMode === 'search'
   const { activeItemId, keyboardItems, messageSelectableItems, moveActiveItem, selectableItems, setActiveItemId } =
     useGlobalSearchKeyboard({
-      groups: showLaunchpad ? [] : groups,
+      groups,
       isMessageSearchMode,
       messageGroups,
       panelMode
@@ -545,6 +541,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
   const showEmptyState = !isLoading && !error && selectableItems.length === 0
   const showMessageEmptyState =
     !isMessageLoading && !messageError && (hasQuery ? messageSelectableItems.length === 0 : true)
+  const showSearchControls = hasQuery || isMessageSearchMode
 
   const messageResultsContent =
     isMessageLoading && hasQuery ? (
@@ -633,7 +630,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           )}
         </div>
 
-        {!showLaunchpad && (
+        {showSearchControls && (
           <div className="mt-3 flex h-7 items-center gap-2">
             <SegmentedControl<GlobalSearchScope>
               size="sm"
@@ -741,7 +738,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         )}
       </div>
 
-      <div className={cn('min-h-0 flex-1', !showLaunchpad && 'border-border-subtle border-t')}>
+      <div className={cn('min-h-0 flex-1', showSearchControls && 'border-border-subtle border-t')}>
         {isMessageSearchMode ? (
           messagePreviewTarget ? (
             <GlobalSearchMessagePreviewPanel
@@ -754,8 +751,6 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
           ) : (
             messageResultsContent
           )
-        ) : showLaunchpad ? (
-          <GlobalSearchLaunchpad defaultPaintingProvider={defaultPaintingProvider} onClose={onClose} />
         ) : isLoading && hasQuery ? (
           <GlobalSearchState label={t('common.loading')} />
         ) : error ? (
@@ -824,7 +819,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         )}
       </div>
 
-      {!showLaunchpad && (
+      {showSearchControls && (
         <div className="flex h-10 shrink-0 items-center gap-4 border-border-subtle border-t bg-background/95 px-5 text-muted-foreground text-xs">
           <KbdGroup>
             <Kbd className="bg-muted text-muted-foreground shadow-none">↑↓</Kbd>

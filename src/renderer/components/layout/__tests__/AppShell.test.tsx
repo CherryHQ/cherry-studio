@@ -36,6 +36,7 @@ vi.mock('../../../hooks/useTabs', () => ({
   useTabs: () => ({
     activeTabId: 'home',
     closeTab: vi.fn(),
+    openTab: vi.fn(),
     pinTab: vi.fn(),
     reorderTabs: vi.fn(),
     setActiveTab: vi.fn(),

@@ -2,19 +2,18 @@ import { Library } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
 import {
-  buildSidebarIconManagerItems,
-  getDefaultSidebarIconPreferences,
+  getDefaultSidebarFavorites,
   getOrderedVisibleSidebarIcons,
   getRequiredSidebarIconsVisible,
-  getSidebarIconPreferencesFromVisibleIcons,
   getSidebarMenuPath,
   resolveSidebarActiveItem,
-  SIDEBAR_ICON_COMPONENTS
+  SIDEBAR_ICON_COMPONENTS,
+  SIDEBAR_ICON_ORDER
 } from '../sidebar'
 
 describe('sidebar config helpers', () => {
-  it('builds manager items in the fixed sidebar order', () => {
-    expect(buildSidebarIconManagerItems().slice(0, 6)).toEqual([
+  it('keeps the fixed sidebar app order available', () => {
+    expect(SIDEBAR_ICON_ORDER.slice(0, 6)).toEqual([
       'assistants',
       'agents',
       'paintings',
@@ -22,38 +21,6 @@ describe('sidebar config helpers', () => {
       'store',
       'mini_app'
     ])
-  })
-
-  it('splits visible icons back into visible and hidden preferences in fixed order', () => {
-    expect(
-      getSidebarIconPreferencesFromVisibleIcons({
-        visibleIcons: new Set(['assistants', 'files'])
-      })
-    ).toEqual({
-      visible: ['assistants', 'files'],
-      invisible: [
-        'agents',
-        'paintings',
-        'translate',
-        'store',
-        'mini_app',
-        'knowledge',
-        'code_tools',
-        'notes',
-        'openclaw'
-      ]
-    })
-  })
-
-  it('keeps the required assistant icon visible when saving preferences', () => {
-    expect(
-      getSidebarIconPreferencesFromVisibleIcons({
-        visibleIcons: new Set(['translate'])
-      })
-    ).toEqual({
-      visible: ['assistants', 'translate'],
-      invisible: ['agents', 'paintings', 'store', 'mini_app', 'knowledge', 'files', 'code_tools', 'notes', 'openclaw']
-    })
   })
 
   it('adds required sidebar icons back in fixed order when reading visible preferences', () => {
@@ -76,11 +43,10 @@ describe('sidebar config helpers', () => {
     ])
   })
 
-  it('resets to default visible sidebar icons without forcing non-default icons visible', () => {
-    const reset = getDefaultSidebarIconPreferences()
+  it('resets to default sidebar favorites without forcing non-default icons visible', () => {
+    const reset = getDefaultSidebarFavorites()
 
-    expect(reset.visible).toEqual(['assistants', 'agents', 'paintings', 'translate', 'store'])
-    expect(reset.invisible).toEqual([])
+    expect(reset).toEqual(['assistants', 'agents', 'store', 'translate', 'mini_app'])
   })
 
   it('resolves menu paths and active items with the paintings provider route', () => {

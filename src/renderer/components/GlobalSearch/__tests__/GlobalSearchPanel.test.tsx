@@ -7,7 +7,6 @@ import type {
   TopicMessageContentSearchItem
 } from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry, Tab } from '@shared/data/cache/cacheValueTypes'
-import type { SidebarIcon } from '@shared/data/preference/preferenceTypes'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import * as React from 'react'
@@ -30,8 +29,7 @@ const mocks = vi.hoisted(() => ({
   tabs: [] as Tab[],
   preferenceValues: {
     'app.user.name': 'JD',
-    'ui.sidebar.icons.visible': ['assistants', 'agents', 'translate'] as SidebarIcon[],
-    'ui.sidebar.icons.invisible': ['knowledge'] as SidebarIcon[]
+    'ui.sidebar.favorites': ['assistants', 'agents', 'translate']
   } as Record<string, unknown>,
   persistCacheValues: {
     'ui.chat.last_used_topic_id': undefined,
@@ -345,7 +343,7 @@ vi.mock('../GlobalSearchMessagePreviewPanel', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getSidebarIconLabelKey: (key: SidebarIcon) =>
+  getSidebarIconLabelKey: (key: string) =>
     ({
       assistants: 'Chat',
       agents: 'Agent',
@@ -473,8 +471,7 @@ describe('GlobalSearchPanel', () => {
     mocks.sessionMessageQueryResult = undefined
     mocks.preferenceValues = {
       'app.user.name': 'JD',
-      'ui.sidebar.icons.visible': ['assistants', 'agents', 'translate'],
-      'ui.sidebar.icons.invisible': ['knowledge']
+      'ui.sidebar.favorites': ['assistants', 'agents', 'translate']
     }
     mocks.persistCacheValues = {
       'ui.chat.last_used_topic_id': undefined,
@@ -546,7 +543,7 @@ describe('GlobalSearchPanel', () => {
     expect(screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...')).not.toHaveFocus()
   })
 
-  it('renders launchpad before search and hides it after typing', async () => {
+  it('renders recent results before search and search results after typing', async () => {
     const user = userEvent.setup()
     const updatedAt = new Date(Date.now() - 2 * 60 * 1000).toISOString()
     mocks.queryResult = {
@@ -570,26 +567,10 @@ describe('GlobalSearchPanel', () => {
 
     render(<GlobalSearchPanel onClose={mocks.onClose} />)
 
-    expect(screen.getByRole('heading', { name: 'Apps' })).toBeInTheDocument()
-    for (const label of [
-      'Chat',
-      'Agent',
-      'Library',
-      'Paintings',
-      'Translate',
-      'Mini Apps',
-      'Knowledge',
-      'Files',
-      'Code',
-      'Notes',
-      'OpenClaw'
-    ]) {
-      expect(screen.getByText(label)).toBeInTheDocument()
-    }
-    expect(screen.getByRole('button', { name: 'Manage' })).toBeInTheDocument()
-    expect(screen.queryByText('Topic recent')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Apps' })).not.toBeInTheDocument()
+    expect(screen.getByText('Topic recent')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Search type: Conversation' })).not.toBeInTheDocument()
-    expect(screen.queryByText('Select')).not.toBeInTheDocument()
 
     await user.type(
       screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...'),
@@ -598,7 +579,6 @@ describe('GlobalSearchPanel', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('heading', { name: 'Apps' })).not.toBeInTheDocument()
-      expect(screen.queryByText('Topic recent')).not.toBeInTheDocument()
       expect(screen.getByRole('option', { name: /Writing Assistant/ })).toBeInTheDocument()
       expect(screen.getByText('2 minutes ago')).toBeInTheDocument()
       expect(screen.getAllByText('🧪')).not.toHaveLength(0)
@@ -627,81 +607,6 @@ describe('GlobalSearchPanel', () => {
     expect(screen.queryByRole('button', { name: 'Agent' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Search type: Conversation' })).toBeInTheDocument()
-  })
-
-  it('lets users manage quick app visibility before searching', async () => {
-    const user = userEvent.setup()
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    expect(screen.getByText('Chat')).toBeInTheDocument()
-    expect(screen.getByText('Agent')).toBeInTheDocument()
-    expect(screen.getByText('Translate')).toBeInTheDocument()
-    expect(screen.getByText('Knowledge')).toBeInTheDocument()
-    expect(screen.queryByRole('radio', { name: 'Messages' })).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Manage' }))
-
-    expect(screen.getByText('Manage quick apps')).toBeInTheDocument()
-    expect(screen.getByText('Drag to reorder, click the eye to hide or show')).toBeInTheDocument()
-    expect(screen.getByTestId('quick-app-manager-list')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Back' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Mini Apps' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Hide Chat' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Hide Agent' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show Knowledge' })).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Hide Agent' }))
-
-    await waitFor(() => {
-      expect(mocks.setPreferences).toHaveBeenLastCalledWith({
-        visible: ['assistants', 'translate'],
-        invisible: ['agents', 'knowledge', 'paintings', 'store', 'mini_app', 'files', 'code_tools', 'notes', 'openclaw']
-      })
-    })
-
-    await user.click(screen.getByRole('button', { name: 'Show Knowledge' }))
-
-    await waitFor(() => {
-      expect(mocks.setPreferences).toHaveBeenLastCalledWith({
-        visible: ['assistants', 'agents', 'translate', 'knowledge'],
-        invisible: ['paintings', 'store', 'mini_app', 'files', 'code_tools', 'notes', 'openclaw']
-      })
-    })
-
-    await user.click(screen.getByRole('button', { name: 'Reset' }))
-
-    await waitFor(() => {
-      expect(mocks.setPreferences).toHaveBeenLastCalledWith({
-        visible: ['assistants', 'agents', 'paintings', 'translate', 'store'],
-        invisible: []
-      })
-    })
-
-    mocks.sortableOnSortEnd?.({ oldIndex: 2, newIndex: 0 })
-
-    await waitFor(() => {
-      expect(mocks.setPreferences).toHaveBeenLastCalledWith({
-        visible: ['translate', 'assistants', 'agents'],
-        invisible: expect.arrayContaining(['knowledge'])
-      })
-    })
-
-    await user.click(screen.getByRole('button', { name: 'Back' }))
-
-    expect(screen.getByRole('heading', { name: 'Apps' })).toBeInTheDocument()
-    expect(screen.queryByText('Manage quick apps')).not.toBeInTheDocument()
-
-    await user.type(screen.getByLabelText('Search conversations, tasks, assistants, agents, and knowledge...'), 'query')
-
-    expect(screen.queryByText('Chat')).not.toBeInTheDocument()
-    expect(screen.queryByText('Translate')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Manage' })).not.toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Messages' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Search type: All' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Search type: Conversation' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Search type: Task' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Updated time' })).toBeInTheDocument()
   })
 
   it('updates query types when the topic filter is selected', async () => {
@@ -1716,153 +1621,6 @@ describe('GlobalSearchPanel', () => {
     expect(mocks.openTab).toHaveBeenCalledWith('/app/knowledge')
     await waitFor(() => {
       expect(mocks.eventEmit).toHaveBeenCalledWith('GLOBAL_SEARCH_SELECT_KNOWLEDGE_BASE', 'knowledge-1')
-    })
-    expect(mocks.onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('opens an app route from the default panel without forcing a duplicate tab', async () => {
-    const user = userEvent.setup()
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await user.click(screen.getByText('Knowledge'))
-
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/knowledge', {
-      title: 'Knowledge'
-    })
-    expect(mocks.onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('focuses an existing singleton app tab from the default panel', async () => {
-    const user = userEvent.setup()
-    mocks.tabs = [{ id: 'knowledge-tab', type: 'route', url: '/app/knowledge', title: 'Knowledge' } as Tab]
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await user.click(screen.getByText('Knowledge'))
-
-    expect(mocks.setActiveTab).toHaveBeenCalledWith('knowledge-tab')
-    expect(mocks.openTab).not.toHaveBeenCalled()
-    expect(mocks.onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('opens another singleton app route without forcing a duplicate tab', async () => {
-    const user = userEvent.setup()
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await user.click(screen.getByText('Translate'))
-
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/translate', {
-      title: 'Translate'
-    })
-    expect(mocks.onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('opens a new assistant chat tab from the default panel', async () => {
-    const user = userEvent.setup()
-    mocks.persistCacheValues['ui.chat.last_used_topic_id'] = 'topic-1'
-    mocks.tabs = [
-      {
-        id: 'chat-topic',
-        type: 'route',
-        url: '/app/chat?topicId=topic-1',
-        title: 'Existing chat',
-        metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1' }
-      } as Tab
-    ]
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await user.click(screen.getByText('Chat'))
-
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/chat', {
-      forceNew: true,
-      metadata: { instanceAppId: 'assistants', instanceKey: 'topic-1' },
-      title: 'Chat'
-    })
-    expect(mocks.setActiveTab).not.toHaveBeenCalled()
-    expect(mocks.onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('opens a new agent chat tab from the default panel', async () => {
-    const user = userEvent.setup()
-    mocks.persistCacheValues['ui.agent.last_used_session_id'] = 'session-1'
-    mocks.tabs = [
-      {
-        id: 'agent-session',
-        type: 'route',
-        url: '/app/agents?sessionId=session-1',
-        title: 'Existing agent',
-        metadata: { instanceAppId: 'agents', instanceKey: 'session-1' }
-      } as Tab
-    ]
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await user.click(screen.getByText('Agent'))
-
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/agents', {
-      forceNew: true,
-      metadata: { instanceAppId: 'agents', instanceKey: 'session-1' },
-      title: 'Agent'
-    })
-    expect(mocks.setActiveTab).not.toHaveBeenCalled()
-    expect(mocks.onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('opens the mini app launchpad even when a concrete mini app tab exists', async () => {
-    const user = userEvent.setup()
-    mocks.tabs = [{ id: 'mini-detail', type: 'route', url: '/app/mini-app/calculator', title: 'Calculator' } as Tab]
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await user.click(screen.getByText('Mini Apps'))
-
-    expect(mocks.setActiveTab).not.toHaveBeenCalled()
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/mini-app', {
-      title: 'Mini Apps'
-    })
-    expect(mocks.onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('focuses the exact mini app launchpad tab when it already exists', async () => {
-    const user = userEvent.setup()
-    mocks.tabs = [
-      { id: 'mini-detail', type: 'route', url: '/app/mini-app/calculator', title: 'Calculator' } as Tab,
-      { id: 'mini-launchpad', type: 'route', url: '/app/mini-app', title: 'Mini Apps' } as Tab
-    ]
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await user.click(screen.getByText('Mini Apps'))
-
-    expect(mocks.setActiveTab).toHaveBeenCalledWith('mini-launchpad')
-    expect(mocks.openTab).not.toHaveBeenCalled()
-    expect(mocks.onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps concrete mini app cards on their app-id route', async () => {
-    const user = userEvent.setup()
-    mocks.pinnedMiniApps = [
-      {
-        appId: 'calculator',
-        name: 'Calculator',
-        logo: 'calc-logo',
-        url: 'https://example.com',
-        presetMiniAppId: 'calculator',
-        status: 'pinned',
-        orderKey: ''
-      }
-    ]
-
-    render(<GlobalSearchPanel onClose={mocks.onClose} />)
-
-    await user.click(screen.getByText('Calculator'))
-
-    expect(mocks.openTab).toHaveBeenCalledWith('/app/mini-app/calculator', {
-      title: 'Calculator',
-      icon: 'calc-logo'
     })
     expect(mocks.onClose).toHaveBeenCalledTimes(1)
   })

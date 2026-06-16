@@ -40,7 +40,7 @@ function getResourceListRevealSource(menuItemId: SidebarIconType): ResourceListR
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
-  const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
+  const [sidebarFavorites] = usePreference('ui.sidebar.favorites')
   const { activeTab, tabs, updateTab, openTab, setActiveTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
 
@@ -90,7 +90,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const items = useMemo<SidebarMenuItem[]>(
     () =>
-      getOrderedVisibleSidebarIcons(visibleSidebarIcons).flatMap((icon) => {
+      getOrderedVisibleSidebarIcons(sidebarFavorites).flatMap((icon) => {
         const path = getSidebarMenuPath(icon, defaultPaintingProvider)
         const Icon = SIDEBAR_ICON_COMPONENTS[icon]
         if (!path || !Icon) {
@@ -104,7 +104,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           }
         ]
       }),
-    [defaultPaintingProvider, visibleSidebarIcons, t]
+    [defaultPaintingProvider, sidebarFavorites, t]
   )
 
   const activeItem = resolveSidebarActiveItem(pathname)

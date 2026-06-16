@@ -14,6 +14,7 @@ import { useTranslation } from 'react-i18next'
 interface Props {
   app: MiniApp
   onClick?: () => void
+  onOpen?: (app: MiniApp, displayName: string) => void
   size?: number
   isLast?: boolean
   variant?: 'default' | 'launchpad'
@@ -21,7 +22,7 @@ interface Props {
 
 const logger = loggerService.withContext('App')
 
-const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast, variant = 'default' }) => {
+const MiniApp: FC<Props> = ({ app, onClick, onOpen, size = 60, isLast, variant = 'default' }) => {
   const { t } = useTranslation()
   const {
     miniApps,
@@ -45,7 +46,11 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast, variant = 'defaul
   const displayName = isLast ? t('settings.miniApps.custom.title') : app.nameKey ? t(app.nameKey) : app.name
 
   const handleClick = () => {
-    openTab(`/app/mini-app/${app.appId}`, { title: displayName, icon: app.logo })
+    if (onOpen) {
+      onOpen(app, displayName)
+    } else {
+      openTab(`/app/mini-app/${app.appId}`, { title: displayName, icon: app.logo })
+    }
     onClick?.()
   }
 

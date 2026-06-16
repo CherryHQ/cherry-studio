@@ -255,11 +255,6 @@ export const SIDEBAR_ICON_COMPONENTS: Record<SidebarIcon, SidebarMenuItem['icon'
   {} as Record<SidebarIcon, SidebarMenuItem['icon']>
 )
 
-type SidebarIconPreferences = {
-  visible: SidebarIcon[]
-  invisible: SidebarIcon[]
-}
-
 export function getSidebarMenuPath(icon: SidebarIcon, defaultPaintingProvider: string): string {
   const app = getSidebarApp(icon)
   if (!app) return ''
@@ -308,28 +303,6 @@ export function getOrderedVisibleSidebarIcons(icons: readonly SidebarIcon[] | un
   return visible
 }
 
-export function buildSidebarIconManagerItems(): SidebarIcon[] {
-  return [...SIDEBAR_ICON_ORDER]
-}
-
-export function getSidebarIconPreferencesFromVisibleIcons({
-  visibleIcons
-}: {
-  visibleIcons: ReadonlySet<SidebarIcon>
-}): SidebarIconPreferences {
-  const requiredIcons = new Set(REQUIRED_SIDEBAR_ICONS)
-  const nextVisible = SIDEBAR_ICON_ORDER.filter((icon) => visibleIcons.has(icon) || requiredIcons.has(icon))
-  const nextInvisible = SIDEBAR_ICON_ORDER.filter((icon) => !visibleIcons.has(icon) && !requiredIcons.has(icon))
-
-  return {
-    visible: nextVisible,
-    invisible: nextInvisible
-  }
-}
-
-export function getDefaultSidebarIconPreferences(): SidebarIconPreferences {
-  return {
-    visible: getRequiredSidebarIconsVisible(getDefaultValue('ui.sidebar.icons.visible')),
-    invisible: sanitizeSidebarIcons(getDefaultValue('ui.sidebar.icons.invisible'))
-  }
+export function getDefaultSidebarFavorites(): SidebarIcon[] {
+  return getOrderedVisibleSidebarIcons(getDefaultValue('ui.sidebar.favorites'))
 }
