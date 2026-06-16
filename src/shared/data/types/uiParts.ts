@@ -21,7 +21,7 @@
  */
 
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
-import type { FileType } from '@shared/file/types'
+import { type FileType, FileTypeSchema } from '@shared/file/types'
 import * as z from 'zod'
 
 import type { SerializedError } from '../../types/error'
@@ -119,7 +119,7 @@ export type CherryDataPartTypes = {
 export interface CherryTextMeta {
   /** Content references (citations, mentions). */
   references?: unknown[]
-  /** Composer inline token display snapshot — on user TextUIPart only. */
+  /** Composer inline token display snapshot — on user TextUIPart by convention. */
   composer?: ComposerMessageSnapshot
 }
 
@@ -183,9 +183,35 @@ export type CherryProviderMetadata = CherryTextMeta & CherryReasoningMeta & Cher
 // Zod schemas — runtime validation at the read boundary
 // ============================================================================
 
+const ComposerMessageFileTokenPayloadSchema: z.ZodType<ComposerMessageFileTokenPayload> = z.object({
+  type: FileTypeSchema.optional(),
+  ext: z.string().optional(),
+  name: z.string().optional(),
+  // Serialized key — mirrors the `origin_name` file-part payload key. Do not rename.
+  origin_name: z.string().optional(),
+  size: z.number().optional()
+})
+
+const ComposerMessageTokenSchema: z.ZodType<ComposerMessageToken> = z.object({
+  id: z.string(),
+  kind: z.enum(['skill', 'file', 'command', 'knowledge', 'reference', 'quote']),
+  label: z.string(),
+  icon: z.string().optional(),
+  description: z.string().optional(),
+  index: z.number(),
+  textOffset: z.number(),
+  promptText: z.string().optional(),
+  payload: ComposerMessageFileTokenPayloadSchema.optional()
+})
+
+const ComposerMessageSnapshotSchema: z.ZodType<ComposerMessageSnapshot> = z.object({
+  version: z.literal(1),
+  tokens: z.array(ComposerMessageTokenSchema)
+})
+
 export const CherryTextMetaSchema: z.ZodType<CherryTextMeta> = z.object({
   references: z.array(z.unknown()).optional(),
-  composer: z.custom<ComposerMessageSnapshot>().optional()
+  composer: ComposerMessageSnapshotSchema.optional()
 })
 
 export const CherryReasoningMetaSchema: z.ZodType<CherryReasoningMeta> = z.object({
@@ -235,6 +261,7 @@ export interface ComposerMessageFileTokenPayload {
   type?: FileType
   ext?: string
   name?: string
+  /** Serialized key — mirrors the `origin_name` file-part payload key. */
   origin_name?: string
   size?: number
 }
@@ -293,34 +320,4 @@ export function withCherryMeta<P extends CherryMessagePart>(
       cherry: { ...existingCherry, ...(patch as Record<string, unknown>) }
     }
   } as P
-}
-
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-export function withoutCherryMeta<P extends CherryMessagePart>(
-  part: P,
-  key: keyof CherryMetaForPartType<P['type']>
-): P {
-  const existingMeta = (part as { providerMetadata?: Record<string, unknown> }).providerMetadata
-  if (!existingMeta) return part
-
-  const existingCherry = existingMeta.cherry
-  if (!isPlainRecord(existingCherry)) return part
-
-  const nextCherry = { ...existingCherry }
-  delete nextCherry[key as string]
-
-  const nextProviderMetadata: Record<string, unknown> = { ...existingMeta }
-  delete nextProviderMetadata.cherry
-  if (Object.keys(nextCherry).length > 0) {
-    nextProviderMetadata.cherry = nextCherry
-  }
-
-  const nextPart = { ...part } as P & { providerMetadata?: Record<string, unknown> }
-  delete nextPart.providerMetadata
-
-  if (Object.keys(nextProviderMetadata).length === 0) return nextPart
-  return { ...nextPart, providerMetadata: nextProviderMetadata } as P
 }
