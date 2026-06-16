@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { CUSTOM_SQL_ONCE_STATEMENTS, CUSTOM_SQL_STATEMENTS } from '@data/db/customSqls'
+import { CUSTOM_SQL_STATEMENTS } from '@data/db/customSqls'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { DbType, ISeeder } from '@data/db/types'
 import type { Client } from '@libsql/client'
@@ -92,14 +92,6 @@ export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDataba
     for (const stmt of CUSTOM_SQL_STATEMENTS) {
       await db.run(sql.raw(stmt))
     }
-    // Fresh per-test DB: run the one-shot backfills/rebuilds unconditionally (no
-    // marker needed) so the FTS index matches production after setup.
-    for (const { statements } of CUSTOM_SQL_ONCE_STATEMENTS) {
-      for (const stmt of statements) {
-        await db.run(sql.raw(stmt))
-      }
-    }
-
     if (options.seeders?.length) {
       await new SeedRunner(db).runAll(options.seeders)
     }
