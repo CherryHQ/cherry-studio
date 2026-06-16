@@ -544,6 +544,13 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('div', { ...props, 'data-testid': 'avatar-fallback' }, children),
     EmojiAvatar: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'emoji-avatar' }, children),
+    EmojiIcon: ({ emoji, className }) =>
+      React.createElement(
+        'div',
+        { className, 'data-testid': 'emoji-icon' },
+        React.createElement('span', { 'aria-hidden': 'true', 'data-testid': 'emoji-icon-background' }, emoji || '⭐️'),
+        emoji
+      ),
     Switch: ({ isSelected, onValueChange, ...props }) =>
       React.createElement('input', {
         ...props,
