@@ -1255,17 +1255,6 @@ export class MessageService {
         if (!parent || parentIsRoot) parentFallback = null
       }
 
-      // Non-cascade delete of a first-turn message (parent = virtual root) would reparent
-      // its children onto the root, promoting replies to bogus first turns (e.g. an
-      // assistant with no user prompt). The children can't live above the first turn, so
-      // require cascade. INVALID_OPERATION lets the renderer retry with cascade=true.
-      if (!cascade && parentIsRoot) {
-        throw DataApiErrorFactory.invalidOperation(
-          'reparent-delete first-turn message',
-          'deleting a first-turn message requires cascade=true'
-        )
-      }
-
       if (cascade) {
         deletedIds = [id, ...descendantIds]
 
@@ -1282,19 +1271,43 @@ export class MessageService {
 
         logger.info('Cascade deleted messages', { rootId: id, count: deletedIds.length })
       } else {
-        // Reparent children to this message's parent
+        // Splice this node out: reparent its children onto its parent (their grandparent).
+        // siblingsGroupId is relative to the parent, so a moved child's group id could
+        // collide with an unrelated group already under the destination parent and be
+        // mis-rendered as the same multi-response set. Rebase each distinct non-zero moved
+        // group to a fresh id above any group already present at the destination; group 0
+        // (no group) carries over unchanged.
         const children = await tx
-          .select({ id: messageTable.id })
+          .select({ id: messageTable.id, siblingsGroupId: messageTable.siblingsGroupId })
           .from(messageTable)
-          .where(eq(messageTable.parentId, id))
+          .where(and(eq(messageTable.parentId, id), isNull(messageTable.deletedAt)))
 
         reparentedIds = children.map((c) => c.id)
 
         if (reparentedIds.length > 0) {
-          await tx
-            .update(messageTable)
-            .set({ parentId: message.parentId })
-            .where(inArray(messageTable.id, reparentedIds))
+          const newParentId = message.parentId
+          const destRows = newParentId
+            ? await tx
+                .select({ g: messageTable.siblingsGroupId })
+                .from(messageTable)
+                .where(and(eq(messageTable.parentId, newParentId), isNull(messageTable.deletedAt)))
+            : []
+          let nextGroupId = Math.max(0, ...destRows.map((r) => r.g), ...children.map((c) => c.siblingsGroupId)) + 1
+          const remap = new Map<number, number>()
+          for (const c of children) {
+            if (c.siblingsGroupId !== 0 && !remap.has(c.siblingsGroupId)) {
+              remap.set(c.siblingsGroupId, nextGroupId++)
+            }
+          }
+          for (const c of children) {
+            await tx
+              .update(messageTable)
+              .set({
+                parentId: newParentId,
+                siblingsGroupId: c.siblingsGroupId === 0 ? 0 : remap.get(c.siblingsGroupId)!
+              })
+              .where(eq(messageTable.id, c.id))
+          }
         }
 
         deletedIds = [id]

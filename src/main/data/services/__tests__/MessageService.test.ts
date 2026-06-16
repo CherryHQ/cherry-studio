@@ -1293,23 +1293,25 @@ describe('MessageService', () => {
       expect(topicRow.activeNodeId).toBeNull()
     })
 
-    it('rejects non-cascade delete of a first-turn message (children cannot be promoted past the root)', async () => {
+    it('non-cascade delete of a first-turn message splices its children onto the virtual root', async () => {
       await seedMultiModelTree()
 
-      // m-root is a first-turn message (parent = virtual root). Reparenting its replies
-      // onto the root would make assistant messages bogus first turns, so cascade=false
-      // is rejected (the renderer retries with cascade=true).
-      await expect(messageService.delete('m-root', false)).rejects.toMatchObject({
-        code: ErrorCode.INVALID_OPERATION
-      })
+      // m-root is a first-turn message (parent = virtual root). Splicing it out reparents
+      // its replies onto the root — structurally valid (they become first-turn nodes).
+      const result = await messageService.delete('m-root', false)
+      expect(result.deletedIds).toEqual(['m-root'])
+      expect(result.reparentedIds?.slice().sort()).toEqual(['m-a1', 'm-a2'])
 
-      // Nothing was deleted or reparented.
       const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
-      expect(rows.some((r) => r.id === 'm-root')).toBe(true)
-      expect(rows.some((r) => r.id === 'm-a1')).toBe(true)
+      const byId = new Map(rows.map((r) => [r.id, r]))
+      expect(byId.has('m-root')).toBe(false)
+      expect(byId.get('m-a1')?.parentId).toBe('vroot-topic-1')
+      expect(byId.get('m-a2')?.parentId).toBe('vroot-topic-1')
+      // Exactly one null-parent row (the virtual root) remains.
+      expect(rows.filter((r) => r.parentId === null).map((r) => r.id)).toEqual(['vroot-topic-1'])
     })
 
-    it('allows non-cascade delete of a non-first-turn message (reparents children to the real parent)', async () => {
+    it('non-cascade delete reparents children to the real parent (linear splice)', async () => {
       await seedMultiModelTree()
 
       // m-a2 is mid-conversation (parent = m-root); its child m-follow reparents to m-root.
@@ -1319,6 +1321,83 @@ describe('MessageService', () => {
 
       const [follow] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, 'm-follow'))
       expect(follow.parentId).toBe('m-root')
+    })
+
+    it('reparent rebases a moved group id so it cannot merge with an unrelated group at the destination', async () => {
+      // u1 → { x(g=0), y(g=5) };  x → { c1(g=5), c2(g=5) }
+      // Deleting x moves c1/c2 to u1, where group 5 already belongs to the unrelated y.
+      await dbh.db.insert(topicTable).values({ id: 'topic-rebase', activeNodeId: 'c1', orderKey: 'a0' })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-rebase', [
+          {
+            id: 'u1',
+            parentId: null,
+            topicId: 'topic-rebase',
+            role: 'user',
+            data: mainText('q'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 10,
+            updatedAt: 10
+          },
+          {
+            id: 'x',
+            parentId: 'u1',
+            topicId: 'topic-rebase',
+            role: 'assistant',
+            data: mainText('x'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 20,
+            updatedAt: 20
+          },
+          {
+            id: 'y',
+            parentId: 'u1',
+            topicId: 'topic-rebase',
+            role: 'assistant',
+            data: mainText('y'),
+            status: 'success',
+            siblingsGroupId: 5,
+            createdAt: 21,
+            updatedAt: 21
+          },
+          {
+            id: 'c1',
+            parentId: 'x',
+            topicId: 'topic-rebase',
+            role: 'user',
+            data: mainText('c1'),
+            status: 'success',
+            siblingsGroupId: 5,
+            createdAt: 30,
+            updatedAt: 30
+          },
+          {
+            id: 'c2',
+            parentId: 'x',
+            topicId: 'topic-rebase',
+            role: 'user',
+            data: mainText('c2'),
+            status: 'success',
+            siblingsGroupId: 5,
+            createdAt: 31,
+            updatedAt: 31
+          }
+        ])
+      )
+
+      await messageService.delete('x', false)
+
+      const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-rebase'))
+      const byId = new Map(rows.map((r) => [r.id, r]))
+      // c1/c2 moved to u1 and stay grouped together…
+      expect(byId.get('c1')?.parentId).toBe('u1')
+      expect(byId.get('c2')?.parentId).toBe('u1')
+      expect(byId.get('c1')?.siblingsGroupId).toBe(byId.get('c2')?.siblingsGroupId)
+      // …but their group was rebased off 5, so it no longer collides with y's group 5.
+      expect(byId.get('c1')?.siblingsGroupId).not.toBe(5)
+      expect(byId.get('y')?.siblingsGroupId).toBe(5)
     })
   })
 
