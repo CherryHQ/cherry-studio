@@ -24,7 +24,10 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
   const { t } = useTranslation()
 
   const Icon = toggleAction === 'hide' ? ArrowRightToLine : ArrowLeftToLine
-  const toggleLabel = toggleAction === 'hide' ? t('miniApp.sidebar.hide.title') : t('settings.miniApps.visible')
+  const getToggleLabel = (displayName: string) =>
+    toggleAction === 'hide'
+      ? t('settings.miniApps.hide_app', { name: displayName })
+      : t('settings.miniApps.show_app', { name: displayName })
 
   return (
     <div className="flex min-h-0 min-w-0 flex-col gap-1">
@@ -64,7 +67,7 @@ const MiniAppListColumn: FC<Props> = ({ title, count, apps, onToggle, onReorder,
                       e.stopPropagation()
                       onToggle(app)
                     }}
-                    aria-label={toggleLabel}>
+                    aria-label={getToggleLabel(displayName)}>
                     {/*
                      * app.logo is the preset's CompoundIcon ID (e.g. "Moonshot") for
                      * preset rows and a URL/path for custom rows. Resolve the ID to a

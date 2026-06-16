@@ -6058,6 +6058,7 @@
       "disabled": "隐藏的小程序",
       "display_title": "小程序显示设置",
       "empty": "在左侧列表点击隐藏图标，小程序会移到这里",
+      "hide_app": "隐藏 {{name}}",
       "open_link_external": {
         "title": "在浏览器中打开新窗口链接"
       },
@@ -6069,6 +6070,7 @@
         "title": "小程序区域筛选"
       },
       "reset_tooltip": "重置为默认值",
+      "show_app": "显示 {{name}}",
       "sidebar_description": "设置侧边栏是否显示活跃的小程序",
       "sidebar_title": "侧边栏活跃小程序显示设置",
       "title": "小程序设置",

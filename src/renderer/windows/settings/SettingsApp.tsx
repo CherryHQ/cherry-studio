@@ -20,8 +20,6 @@ import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/rea
 import { type CSSProperties, useEffect, useMemo } from 'react'
 import { Provider } from 'react-redux'
 
-import { settingsWindowFormControlTextClassName } from './classNames'
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -68,6 +66,12 @@ function SettingsWindowRouter({ initialPath }: { initialPath: string }) {
 
   return <RouterProvider router={router} />
 }
+
+const settingsWindowFormControlTextClassName = [
+  '[&_[data-slot=input].text-base]:text-sm',
+  '[&_[data-slot=input-group-control].text-base]:text-sm',
+  '[&_[data-slot=textarea-input].text-lg]:text-sm'
+].join(' ')
 
 function SettingsApp({ initialPath }: { initialPath: string }): React.ReactElement {
   const shellStyle = { '--navbar-height': '0px', '--settings-width': '200px' } as CSSProperties

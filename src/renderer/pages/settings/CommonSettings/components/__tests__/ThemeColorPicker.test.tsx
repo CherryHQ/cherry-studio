@@ -66,4 +66,20 @@ describe('ThemeColorPicker', () => {
     expect(onChange).toHaveBeenCalledTimes(1)
     expect(onChange).toHaveBeenCalledWith('#BBDDEE')
   })
+
+  it('does not commit when the normalized draft matches the current value', () => {
+    const onChange = vi.fn()
+
+    render(<ThemeColorPicker value="#112233" presets={[]} onChange={onChange} ariaLabel="Theme color" />)
+
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: '112233' } })
+
+    expect(input).toHaveValue('112233')
+
+    fireEvent.blur(input)
+
+    expect(input).toHaveValue('#112233')
+    expect(onChange).not.toHaveBeenCalled()
+  })
 })
