@@ -3868,9 +3868,6 @@
       },
       "hide": {
         "title": "隱藏"
-      },
-      "remove_custom": {
-        "title": "刪除自訂小工具"
       }
     },
     "title": "小工具"
@@ -3938,9 +3935,6 @@
       },
       "hide": {
         "title": "隱藏"
-      },
-      "remove_custom": {
-        "title": "刪除自訂小工具"
       }
     },
     "title": "小工具",
@@ -6497,34 +6491,20 @@
       "cache_settings": "快取設定",
       "cache_title": "小程式快取數量",
       "custom": {
-        "conflicting_ids": "與預設應用 ID 衝突：{{ids}}",
-        "duplicate_ids": "發現重複的 ID: {{ids}}",
-        "edit_description": "編輯自訂小程式設定",
+        "create_title": "建立自訂小程式",
         "edit_title": "編輯自訂小程式",
-        "id": "ID",
-        "id_error": "ID 是必填項",
-        "id_placeholder": "請輸入 ID",
-        "logo": "Logo",
         "logo_file": "上傳 Logo 檔案",
-        "logo_upload_button": "上傳",
         "logo_upload_error": "Logo 上傳失敗",
         "logo_upload_label": "上傳 Logo",
-        "logo_upload_success": "Logo 上傳成功",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "請輸入 Logo URL",
         "name": "名稱",
-        "name_error": "名稱為必填欄位",
         "name_placeholder": "請輸入名稱",
-        "placeholder": "請輸入自訂小程式設定（JSON 格式）",
         "remove_error": "自訂小程式刪除失敗",
         "remove_success": "自訂小程式刪除成功",
-        "save": "儲存",
         "save_error": "自訂小程式儲存失敗",
         "save_success": "自訂小程式儲存成功",
         "title": "自訂",
         "url": "URL",
-        "url_error": "URL 是必填項",
+        "url_invalid": "請輸入有效的 http、https 或 file URL",
         "url_placeholder": "請輸入 URL"
       },
       "disabled": "隱藏的小程式",
@@ -6555,34 +6535,20 @@
       "cache_settings": "快取設定",
       "cache_title": "小程式快取數量",
       "custom": {
-        "conflicting_ids": "與預設應用 ID 衝突：{{ids}}",
-        "duplicate_ids": "發現重複的 ID: {{ids}}",
-        "edit_description": "編輯自訂小程式設定",
+        "create_title": "建立自訂小程式",
         "edit_title": "編輯自訂小程式",
-        "id": "ID",
-        "id_error": "ID 是必填項",
-        "id_placeholder": "請輸入 ID",
-        "logo": "Logo",
         "logo_file": "上傳 Logo 檔案",
-        "logo_upload_button": "上傳",
         "logo_upload_error": "Logo 上傳失敗",
         "logo_upload_label": "上傳 Logo",
-        "logo_upload_success": "Logo 上傳成功",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "請輸入 Logo URL",
         "name": "名稱",
-        "name_error": "名稱為必填欄位",
         "name_placeholder": "請輸入名稱",
-        "placeholder": "請輸入自訂小程式設定（JSON 格式）",
         "remove_error": "自訂小程式刪除失敗",
         "remove_success": "自訂小程式刪除成功",
-        "save": "儲存",
         "save_error": "自訂小程式儲存失敗",
         "save_success": "自訂小程式儲存成功",
         "title": "自訂",
         "url": "URL",
-        "url_error": "URL 是必填項",
+        "url_invalid": "請輸入有效的 http、https 或 file URL",
         "url_placeholder": "請輸入 URL"
       },
       "disabled": "隱藏的小程式",

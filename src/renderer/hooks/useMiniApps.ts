@@ -285,6 +285,18 @@ export const useMiniApps = () => {
     [postMiniApp]
   )
 
+  const updateCustomMiniApp = useCallback(
+    async (appId: string, dto: UpdateMiniAppDto) => {
+      try {
+        return await patchAppTrigger({ params: { appId }, body: dto })
+      } catch (error) {
+        logger.error('Failed to update custom mini app', { appId, error: toDataApiError(error) })
+        throw toDataApiError(error)
+      }
+    },
+    [patchAppTrigger]
+  )
+
   const removeCustomMiniApp = useCallback(
     async (appId: string) => {
       try {
@@ -360,6 +372,7 @@ export const useMiniApps = () => {
     updateAppStatus,
     setAppStatusBulk,
     createCustomMiniApp,
+    updateCustomMiniApp,
     removeCustomMiniApp,
     reorderMiniApps,
     reorderMiniAppsByStatus

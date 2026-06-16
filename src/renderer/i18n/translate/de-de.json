@@ -3863,9 +3863,6 @@
       },
       "hide": {
         "title": "Verstecken"
-      },
-      "remove_custom": {
-        "title": "Benutzerdefinierte App löschen"
       }
     },
     "title": "MinApp"
@@ -3933,9 +3930,6 @@
       },
       "hide": {
         "title": "Ausblenden"
-      },
-      "remove_custom": {
-        "title": "Benutzerdefinierte App entfernen"
       }
     },
     "title": "Mini-Apps",
@@ -6492,34 +6486,20 @@
       "cache_settings": "Cache-Einstellungen",
       "cache_title": "Anzahl gecachter Mini-Apps",
       "custom": {
-        "conflicting_ids": "Konflikt mit Standard-App-ID: {{ids}}",
-        "duplicate_ids": "Duplizierte ID gefunden: {{ids}}",
-        "edit_description": "Hier die Konfiguration der benutzerdefinierten Mini-App bearbeiten. Jede App muss id, name, url und logo-Felder enthalten",
+        "create_title": "Benutzerdefinierte Mini-App erstellen",
         "edit_title": "Benutzerdefinierte Mini-App bearbeiten",
-        "id": "ID",
-        "id_error": "ID ist Pflichtfeld",
-        "id_placeholder": "Bitte ID eingeben",
-        "logo": "Logo",
         "logo_file": "Logo-Datei hochladen",
-        "logo_upload_button": "Hochladen",
         "logo_upload_error": "Logo-Upload fehlgeschlagen",
         "logo_upload_label": "Logo hochladen",
-        "logo_upload_success": "Logo erfolgreich hochgeladen",
-        "logo_url": "Logo-URL",
-        "logo_url_label": "Logo-URL",
-        "logo_url_placeholder": "Bitte Logo-URL eingeben",
         "name": "Name",
-        "name_error": "Name ist Pflichtfeld",
         "name_placeholder": "Bitte Namen eingeben",
-        "placeholder": "Bitte benutzerdefinierte Mini-App-Konfiguration eingeben (JSON-Format)",
         "remove_error": "Löschen der benutzerdefinierten Mini-App fehlgeschlagen",
         "remove_success": "Benutzerdefinierte Mini-App erfolgreich gelöscht",
-        "save": "Speichern",
         "save_error": "Benutzerdefinierte Mini-App-Speicherung fehlgeschlagen",
         "save_success": "Benutzerdefinierte Mini-App erfolgreich gespeichert",
         "title": "Benutzerdefiniert",
         "url": "URL",
-        "url_error": "URL ist Pflichtfeld",
+        "url_invalid": "Geben Sie eine gültige http-, https- oder file-URL ein.",
         "url_placeholder": "Bitte URL eingeben"
       },
       "disabled": "Ausgeblendete Mini-Apps",
@@ -6550,34 +6530,20 @@
       "cache_settings": "Cache-Einstellungen",
       "cache_title": "Mini-App-Cache-Limit",
       "custom": {
-        "conflicting_ids": "Konfliktierende IDs mit Standard-Apps: {{ids}}",
-        "duplicate_ids": "Doppelte IDs gefunden: {{ids}}",
-        "edit_description": "Bearbeiten Sie hier die benutzerdefinierte Mini-App-Konfiguration. Jede App sollte die Felder id, name, url und logo enthalten.",
+        "create_title": "Benutzerdefinierte Mini-App erstellen",
         "edit_title": "Benutzerdefinierte Mini-App bearbeiten",
-        "id": "ID",
-        "id_error": "ID ist erforderlich.",
-        "id_placeholder": "ID eingeben",
-        "logo": "Logo",
         "logo_file": "Logo-Datei hochladen",
-        "logo_upload_button": "Hochladen",
         "logo_upload_error": "Logo-Upload fehlgeschlagen.",
         "logo_upload_label": "Logo hochladen",
-        "logo_upload_success": "Logo erfolgreich hochgeladen.",
-        "logo_url": "Logo-URL",
-        "logo_url_label": "Logo-URL",
-        "logo_url_placeholder": "Logo-URL eingeben",
         "name": "Name",
-        "name_error": "Name ist erforderlich.",
         "name_placeholder": "Name eingeben",
-        "placeholder": "Benutzerdefinierte Mini-App-Konfiguration eingeben (JSON-Format)",
         "remove_error": "Fehler beim Entfernen der benutzerdefinierten Mini-App.",
         "remove_success": "Benutzerdefinierte Mini-App erfolgreich entfernt.",
-        "save": "Speichern",
         "save_error": "Fehler beim Speichern der benutzerdefinierten Mini-App.",
         "save_success": "Benutzerdefinierte Mini-App erfolgreich gespeichert.",
         "title": "Benutzerdefiniert",
         "url": "URL",
-        "url_error": "URL ist erforderlich.",
+        "url_invalid": "Geben Sie eine gültige http-, https- oder file-URL ein.",
         "url_placeholder": "URL eingeben"
       },
       "disabled": "Versteckte Mini-Apps",

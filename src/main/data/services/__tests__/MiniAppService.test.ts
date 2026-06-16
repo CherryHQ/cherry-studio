@@ -55,11 +55,14 @@ describe('MiniAppService', () => {
 
   describe('getByAppId', () => {
     it('should return a custom miniapp', async () => {
-      await seedCustom()
+      await seedCustom({ background: '#ffffff', supportedRegions: ['CN'] })
       const result = await miniAppService.getByAppId('custom-app')
       expect(result.appId).toBe('custom-app')
       expect(result.name).toBe('Custom App')
       expect(result.presetMiniAppId).toBeNull()
+      expect(result.bordered).toBeUndefined()
+      expect(result.background).toBeUndefined()
+      expect(result.supportedRegions).toBeUndefined()
     })
 
     it('should return a preset-derived miniapp with presetMiniAppId set', async () => {
@@ -67,6 +70,8 @@ describe('MiniAppService', () => {
       const result = await miniAppService.getByAppId('openai')
       expect(result.appId).toBe('openai')
       expect(result.presetMiniAppId).toBe('openai')
+      expect(result.bordered).toBe(true)
+      expect(result.supportedRegions).toEqual(['CN', 'Global'])
     })
 
     it('should throw NOT_FOUND for nonexistent appId', async () => {
@@ -103,15 +108,17 @@ describe('MiniAppService', () => {
         appId: 'new-app',
         name: 'New App',
         url: 'https://new.app',
-        logo: 'custom-logo',
-        bordered: false,
-        supportedRegions: ['CN', 'Global']
+        logo: 'custom-logo'
       }
 
       const result = await miniAppService.create(dto)
 
       expect(result.appId).toBe('new-app')
       expect(result.presetMiniAppId).toBeNull()
+      expect(result.bordered).toBeUndefined()
+      expect(result.background).toBeUndefined()
+      expect(result.supportedRegions).toBeUndefined()
+      expect(result.configuration).toBeUndefined()
 
       const [row] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'new-app'))
       expect(row.presetMiniAppId).toBeNull()
@@ -124,9 +131,7 @@ describe('MiniAppService', () => {
           appId: 'openai',
           name: 'fake',
           url: 'https://fake.app',
-          logo: 'fake',
-          bordered: false,
-          supportedRegions: ['CN']
+          logo: 'fake'
         })
       ).rejects.toMatchObject({ code: ErrorCode.CONFLICT, status: 409 })
     })
@@ -138,9 +143,7 @@ describe('MiniAppService', () => {
           appId: 'custom-app',
           name: 'dup',
           url: 'https://dup.app',
-          logo: 'dup',
-          bordered: false,
-          supportedRegions: ['CN']
+          logo: 'dup'
         })
       ).rejects.toMatchObject({ code: ErrorCode.CONFLICT })
     })
@@ -156,12 +159,38 @@ describe('MiniAppService', () => {
       expect(result.status).toBe('disabled')
     })
 
+    it('should update user-facing fields on a custom miniapp', async () => {
+      await seedCustom({ background: '#ffffff', supportedRegions: ['CN'] })
+
+      const result = await miniAppService.update('custom-app', {
+        name: 'Renamed App',
+        url: 'https://renamed.app',
+        logo: 'data:image/png;base64,avatar'
+      })
+
+      expect(result).toMatchObject({
+        name: 'Renamed App',
+        url: 'https://renamed.app',
+        logo: 'data:image/png;base64,avatar'
+      })
+      expect(result.background).toBeUndefined()
+      expect(result.supportedRegions).toBeUndefined()
+    })
+
     it('should update status on a preset miniapp', async () => {
       await seedPreset('openai')
 
       const result = await miniAppService.update('openai', { status: 'pinned' })
 
       expect(result.status).toBe('pinned')
+    })
+
+    it('should reject display field updates on a preset miniapp', async () => {
+      await seedPreset('openai')
+
+      await expect(miniAppService.update('openai', { name: 'Renamed Preset' })).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION
+      })
     })
 
     it('should reject empty update', async () => {
@@ -177,17 +206,37 @@ describe('MiniAppService', () => {
       })
     })
 
-    it('should place the row at the tail of the target partition on status change (#3198809973)', async () => {
-      // Seed two enabled rows, plus the row we'll move from pinned → enabled.
-      await seedCustom({ appId: 'enabled-A', status: 'enabled', orderKey: 'a0' })
-      await seedCustom({ appId: 'enabled-B', status: 'enabled', orderKey: 'a1' })
-      await seedCustom({ appId: 'mover', status: 'pinned', orderKey: 'a0' })
+    it('should place the row at the tail when moving into the disabled partition (#3198809973)', async () => {
+      await seedCustom({ appId: 'disabled-A', status: 'disabled', orderKey: 'a0' })
+      await seedCustom({ appId: 'disabled-B', status: 'disabled', orderKey: 'a1' })
+      await seedCustom({ appId: 'mover', status: 'enabled', orderKey: 'a0' })
 
-      const result = await miniAppService.update('mover', { status: 'enabled' })
+      const result = await miniAppService.update('mover', { status: 'disabled' })
 
-      expect(result.status).toBe('enabled')
-      // Tail of the enabled partition: greater than the previous largest key.
+      expect(result.status).toBe('disabled')
       expect(result.orderKey > 'a1').toBe(true)
+    })
+
+    it('should preserve visible list placement when adding an enabled app to launchpad', async () => {
+      await seedCustom({ appId: 'pinned-before', status: 'pinned', orderKey: 'a0' })
+      await seedCustom({ appId: 'mover', status: 'enabled', orderKey: 'a1' })
+      await seedCustom({ appId: 'pinned-after', status: 'pinned', orderKey: 'a2' })
+
+      const result = await miniAppService.update('mover', { status: 'pinned' })
+
+      expect(result.status).toBe('pinned')
+      expect(result.orderKey > 'a0').toBe(true)
+      expect(result.orderKey < 'a2').toBe(true)
+    })
+
+    it('should avoid same-key collisions when adding an enabled app to launchpad', async () => {
+      await seedCustom({ appId: 'mover', status: 'enabled', orderKey: 'a0' })
+      await seedCustom({ appId: 'already-pinned', status: 'pinned', orderKey: 'a0' })
+
+      const result = await miniAppService.update('mover', { status: 'pinned' })
+
+      expect(result.status).toBe('pinned')
+      expect(result.orderKey < 'a0').toBe(true)
     })
 
     it('should keep the existing orderKey when status is unchanged', async () => {

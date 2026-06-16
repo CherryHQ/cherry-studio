@@ -3863,9 +3863,6 @@
       },
       "hide": {
         "title": "Ascunde"
-      },
-      "remove_custom": {
-        "title": "Șterge aplicația personalizată"
       }
     },
     "title": "MinApp"
@@ -3933,9 +3930,6 @@
       },
       "hide": {
         "title": "Ascunde"
-      },
-      "remove_custom": {
-        "title": "Șterge aplicația personalizată"
       }
     },
     "title": "MiniApp",
@@ -6492,34 +6486,20 @@
       "cache_settings": "Setări cache",
       "cache_title": "Limită cache mini-aplicații",
       "custom": {
-        "conflicting_ids": "ID-uri conflictuale cu aplicațiile implicite: {{ids}}",
-        "duplicate_ids": "ID-uri duplicate găsite: {{ids}}",
-        "edit_description": "Editează configurația mini-aplicației personalizate aici. Fiecare aplicație ar trebui să includă câmpurile id, name, url și logo.",
+        "create_title": "Creează miniaplicație personalizată",
         "edit_title": "Editează mini-aplicație personalizată",
-        "id": "ID",
-        "id_error": "ID-ul este obligatoriu.",
-        "id_placeholder": "Introdu ID",
-        "logo": "Logo",
         "logo_file": "Încarcă fișier logo",
-        "logo_upload_button": "Încarcă",
         "logo_upload_error": "Încărcarea logo-ului a eșuat.",
         "logo_upload_label": "Încarcă logo",
-        "logo_upload_success": "Logo încărcat cu succes.",
-        "logo_url": "URL logo",
-        "logo_url_label": "URL logo",
-        "logo_url_placeholder": "Introdu URL logo",
         "name": "Nume",
-        "name_error": "Numele este obligatoriu.",
         "name_placeholder": "Introdu nume",
-        "placeholder": "Introdu configurația mini-aplicației personalizate (format JSON)",
         "remove_error": "Eliminarea mini-aplicației personalizate a eșuat.",
         "remove_success": "Mini-aplicația personalizată a fost eliminată cu succes.",
-        "save": "Salvează",
         "save_error": "Salvarea mini-aplicației personalizate a eșuat.",
         "save_success": "Mini-aplicația personalizată a fost salvată cu succes.",
         "title": "Personalizat",
         "url": "URL",
-        "url_error": "URL-ul este obligatoriu.",
+        "url_invalid": "Introduceți un URL http, https sau file valid.",
         "url_placeholder": "Introdu URL"
       },
       "disabled": "Mini-aplicații ascunse",
@@ -6550,34 +6530,20 @@
       "cache_settings": "Setări Cache",
       "cache_title": "Limita Cache Mini App",
       "custom": {
-        "conflicting_ids": "ID-uri în conflict cu aplicațiile implicite: {{ids}}",
-        "duplicate_ids": "ID-uri duplicate găsite: {{ids}}",
-        "edit_description": "Editează aici configurația miniaplicației personalizate. Fiecare aplicație ar trebui să includă câmpurile id, name, url și logo.",
+        "create_title": "Creează miniaplicație personalizată",
         "edit_title": "Editează Mini App personalizat",
-        "id": "ID",
-        "id_error": "ID este obligatoriu.",
-        "id_placeholder": "Introduceți ID",
-        "logo": "Siglă",
         "logo_file": "Încarcă fișierul logo",
-        "logo_upload_button": "Încărcare",
         "logo_upload_error": "Încărcarea logo-ului a eșuat.",
         "logo_upload_label": "Încarcă sigla",
-        "logo_upload_success": "Logo încărcat cu succes.",
-        "logo_url": "URL logo",
-        "logo_url_label": "URL logo",
-        "logo_url_placeholder": "Introduceți URL-ul logo-ului",
         "name": "Nume",
-        "name_error": "Numele este obligatoriu.",
         "name_placeholder": "Introduceți numele",
-        "placeholder": "Introduceți configurația personalizată pentru mini-aplicație (format JSON)",
         "remove_error": "Nu s-a reușit eliminarea miniaplicației personalizate.",
         "remove_success": "Mini-aplicația personalizată a fost eliminată cu succes.",
-        "save": "Salvează",
         "save_error": "Nu s-a reușit salvarea mini-aplicației personalizate.",
         "save_success": "Mini-aplicația personalizată a fost salvată cu succes.",
         "title": "Personalizat",
         "url": "URL",
-        "url_error": "Este necesar un URL.",
+        "url_invalid": "Introduceți un URL http, https sau file valid.",
         "url_placeholder": "Introduceți URL"
       },
       "disabled": "Mini Aplicații Ascunse",

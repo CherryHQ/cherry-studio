@@ -15,6 +15,7 @@ interface Props {
   app: MiniApp
   onClick?: () => void
   onOpen?: (app: MiniApp, displayName: string) => void
+  onEditCustom?: (app: MiniApp) => void
   size?: number
   isLast?: boolean
   variant?: 'default' | 'launchpad'
@@ -22,7 +23,7 @@ interface Props {
 
 const logger = loggerService.withContext('App')
 
-const MiniApp: FC<Props> = ({ app, onClick, onOpen, size = 60, isLast, variant = 'default' }) => {
+const MiniApp: FC<Props> = ({ app, onClick, onOpen, onEditCustom, size = 60, isLast, variant = 'default' }) => {
   const { t } = useTranslation()
   const {
     miniApps,
@@ -126,10 +127,20 @@ const MiniApp: FC<Props> = ({ app, onClick, onOpen, size = 60, isLast, variant =
       : []),
     ...(app.presetMiniAppId == null
       ? ([
+          ...(onEditCustom
+            ? ([
+                {
+                  type: 'item',
+                  id: 'mini-app.edit-custom',
+                  label: t('common.edit'),
+                  onSelect: () => onEditCustom(app)
+                }
+              ] satisfies CommandContextMenuExtraItem[])
+            : []),
           {
             type: 'item',
             id: 'mini-app.remove-custom',
-            label: t('miniApp.sidebar.remove_custom.title'),
+            label: t('common.delete'),
             destructive: true,
             onSelect: handleRemoveCustom
           }

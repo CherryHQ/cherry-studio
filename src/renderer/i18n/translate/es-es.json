@@ -3863,9 +3863,6 @@
       },
       "hide": {
         "title": "Ocultar"
-      },
-      "remove_custom": {
-        "title": "Eliminar aplicación personalizada"
       }
     },
     "title": "MinApp"
@@ -3933,9 +3930,6 @@
       },
       "hide": {
         "title": "Ocultar"
-      },
-      "remove_custom": {
-        "title": "Eliminar aplicación personalizada"
       }
     },
     "title": "Mini programa",
@@ -6492,34 +6486,20 @@
       "cache_settings": "Configuración de caché",
       "cache_title": "Cantidad de miniaplicaciones en caché",
       "custom": {
-        "conflicting_ids": "Conflictos con IDs de aplicaciones predeterminadas: {{ids}}",
-        "duplicate_ids": "Se encontraron IDs duplicados: {{ids}}",
-        "edit_description": "Edite aquí la configuración de su aplicación pequeña personalizada. Cada aplicación debe incluir los campos id, name, url y logo.",
+        "create_title": "Crear mini aplicación personalizada",
         "edit_title": "Editar Aplicación Pequeña Personalizada",
-        "id": "ID",
-        "id_error": "El campo ID es obligatorio.",
-        "id_placeholder": "Por favor, introduzca el ID",
-        "logo": "Logo",
         "logo_file": "Cargar Archivo del Logo",
-        "logo_upload_button": "Cargar",
         "logo_upload_error": "No se pudo cargar el logo.",
         "logo_upload_label": "Cargar Logo",
-        "logo_upload_success": "El logo se cargó correctamente.",
-        "logo_url": "URL del Logo",
-        "logo_url_label": "URL del Logo",
-        "logo_url_placeholder": "Por favor, introduzca la URL del logo",
         "name": "Nombre",
-        "name_error": "El campo Nombre es obligatorio.",
         "name_placeholder": "Por favor, introduzca el nombre",
-        "placeholder": "Introduzca la configuración de la aplicación pequeña personalizada (en formato JSON)",
         "remove_error": "No se pudo eliminar la aplicación pequeña personalizada.",
         "remove_success": "La aplicación pequeña personalizada se eliminó correctamente.",
-        "save": "Guardar",
         "save_error": "No se pudo guardar la aplicación pequeña personalizada.",
         "save_success": "La aplicación pequeña personalizada se ha guardado correctamente.",
         "title": "Aplicación Pequeña Personalizada",
         "url": "URL",
-        "url_error": "El campo URL es obligatorio.",
+        "url_invalid": "Introduce una URL http, https o file válida.",
         "url_placeholder": "Por favor, introduzca la URL"
       },
       "disabled": "Miniaplicaciones ocultas",
@@ -6550,34 +6530,20 @@
       "cache_settings": "Configuración de caché",
       "cache_title": "Límite de caché de Mini App",
       "custom": {
-        "conflicting_ids": "IDs conflictivos con aplicaciones predeterminadas: {{ids}}",
-        "duplicate_ids": "IDs duplicados encontrados: {{ids}}",
-        "edit_description": "Edita la configuración de la miniaplicación personalizada aquí. Cada aplicación debe incluir los campos id, name, url y logo.",
+        "create_title": "Crear mini aplicación personalizada",
         "edit_title": "Editar Mini App Personalizada",
-        "id": "ID",
-        "id_error": "Se requiere ID.",
-        "id_placeholder": "Ingresar ID",
-        "logo": "Logotipo",
         "logo_file": "Cargar archivo de logotipo",
-        "logo_upload_button": "Cargar",
         "logo_upload_error": "Error al cargar el logotipo.",
         "logo_upload_label": "Cargar Logo",
-        "logo_upload_success": "Logo subido correctamente.",
-        "logo_url": "URL del logotipo",
-        "logo_url_label": "URL del logotipo",
-        "logo_url_placeholder": "Introduce la URL del logo",
         "name": "Nombre",
-        "name_error": "El nombre es obligatorio.",
         "name_placeholder": "Introduce nombre",
-        "placeholder": "Ingresar configuración personalizada de mini app (formato JSON)",
         "remove_error": "Error al eliminar la mini aplicación personalizada.",
         "remove_success": "Mini aplicación personalizada eliminada correctamente.",
-        "save": "Guardar",
         "save_error": "Error al guardar la mini aplicación personalizada.",
         "save_success": "Mini aplicación personalizada guardada correctamente.",
         "title": "Personalizado",
         "url": "URL",
-        "url_error": "Se requiere la URL.",
+        "url_invalid": "Introduce una URL http, https o file válida.",
         "url_placeholder": "Introducir URL"
       },
       "disabled": "Miniaplicaciones Ocultas",

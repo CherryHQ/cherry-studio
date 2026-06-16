@@ -3863,9 +3863,6 @@
       },
       "hide": {
         "title": "Ocultar"
-      },
-      "remove_custom": {
-        "title": "Excluir Aplicativo Personalizado"
       }
     },
     "title": "MinApp"
@@ -3933,9 +3930,6 @@
       },
       "hide": {
         "title": "Ocultar"
-      },
-      "remove_custom": {
-        "title": "Excluir aplicativo personalizado"
       }
     },
     "title": "Pequeno aplicativo",
@@ -6492,34 +6486,20 @@
       "cache_settings": "Configurações de Cache",
       "cache_title": "Quantidade de Mini Aplicativos no Cache",
       "custom": {
-        "conflicting_ids": "Conflito com IDs padrão: {{ids}}",
-        "duplicate_ids": "IDs duplicadas encontradas: {{ids}}",
-        "edit_description": "Edite aqui as configurações do aplicativo personalizado. Cada aplicativo deve conter os campos id, name, url e logo.",
+        "create_title": "Criar mini app personalizada",
         "edit_title": "Editar Aplicativo Personalizado",
-        "id": "ID",
-        "id_error": "A ID é obrigatória.",
-        "id_placeholder": "Digite a ID",
-        "logo": "Logo",
         "logo_file": "Enviar Arquivo da Logo",
-        "logo_upload_button": "Enviar",
         "logo_upload_error": "Falha no envio da Logo.",
         "logo_upload_label": "Enviar Logo",
-        "logo_upload_success": "Logo enviada com sucesso.",
-        "logo_url": "URL da Logo",
-        "logo_url_label": "URL da Logo",
-        "logo_url_placeholder": "Digite a URL da Logo",
         "name": "Nome",
-        "name_error": "O nome é obrigatório.",
         "name_placeholder": "Digite o nome",
-        "placeholder": "Digite a configuração do aplicativo personalizado (formato JSON)",
         "remove_error": "Falha ao excluir o aplicativo personalizado.",
         "remove_success": "Aplicativo personalizado excluído com sucesso.",
-        "save": "Salvar",
         "save_error": "Falha ao salvar o aplicativo personalizado.",
         "save_success": "Aplicativo personalizado salvo com sucesso.",
         "title": "Aplicativo Personalizado",
         "url": "URL",
-        "url_error": "A URL é obrigatória.",
+        "url_invalid": "Introduza um URL http, https ou file válido.",
         "url_placeholder": "Digite a URL"
       },
       "disabled": "Mini Aplicativos Ocultos",
@@ -6550,34 +6530,20 @@
       "cache_settings": "Configurações de Cache",
       "cache_title": "Limite de Cache do Mini App",
       "custom": {
-        "conflicting_ids": "IDs conflitantes com aplicativos padrão: {{ids}}",
-        "duplicate_ids": "IDs duplicados encontrados: {{ids}}",
-        "edit_description": "Edite a configuração do mini app personalizado aqui. Cada app deve incluir os campos id, name, url e logo.",
+        "create_title": "Criar mini app personalizada",
         "edit_title": "Editar Mini App Personalizado",
-        "id": "ID",
-        "id_error": "ID é obrigatório.",
-        "id_placeholder": "Insira o ID",
-        "logo": "Logo",
         "logo_file": "Carregar Arquivo de Logotipo",
-        "logo_upload_button": "Carregar",
         "logo_upload_error": "Falha ao fazer upload do logotipo.",
         "logo_upload_label": "Carregar Logotipo",
-        "logo_upload_success": "Logotipo carregado com sucesso.",
-        "logo_url": "URL do Logotipo",
-        "logo_url_label": "URL do logO",
-        "logo_url_placeholder": "Insira o URL do logotipo",
         "name": "Nome",
-        "name_error": "Nome é obrigatório.",
         "name_placeholder": "Insira o nome",
-        "placeholder": "Insira a configuração personalizada do mini app (formato JSON)",
         "remove_error": "Falha ao remover o miniaplicativo personalizado.",
         "remove_success": "Mini app personalizado removido com sucesso.",
-        "save": "Salvar",
         "save_error": "Falha ao salvar o miniaplicativo personalizado.",
         "save_success": "Mini app personalizado salvo com sucesso.",
         "title": "Personalizado",
         "url": "URL",
-        "url_error": "URL é obrigatória.",
+        "url_invalid": "Introduza um URL http, https ou file válido.",
         "url_placeholder": "Insira o URL"
       },
       "disabled": "Mini Apps Ocultos",

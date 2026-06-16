@@ -117,7 +117,8 @@ vi.mock('../MiniAppSettings/MiniAppDisplaySettings', () => ({
 }))
 
 vi.mock('../NewMiniAppPanel', () => ({
-  default: ({ open }: { open: boolean }) => (open ? <div data-testid="new-mini-app-panel" /> : null)
+  default: ({ open, app }: { open: boolean; app?: MiniApp | null }) =>
+    open ? <div data-testid="new-mini-app-panel" data-app-id={app?.appId ?? ''} /> : null
 }))
 
 vi.mock('react-i18next', () => ({
@@ -187,7 +188,10 @@ describe('MiniAppsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'miniApp.sidebar.hide.title' }))
     await waitFor(() => expect(mocks.updateAppStatus).toHaveBeenCalledWith('custom', 'disabled'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'miniApp.sidebar.remove_custom.title' }))
+    fireEvent.click(screen.getByRole('button', { name: 'common.edit' }))
+    expect(screen.getByTestId('new-mini-app-panel')).toHaveAttribute('data-app-id', 'custom')
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
     await waitFor(() => expect(mocks.removeCustomMiniApp).toHaveBeenCalledWith('custom'))
   })
 })

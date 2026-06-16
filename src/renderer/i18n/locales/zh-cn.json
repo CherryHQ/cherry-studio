@@ -3868,9 +3868,6 @@
       },
       "hide": {
         "title": "隐藏"
-      },
-      "remove_custom": {
-        "title": "删除自定义应用"
       }
     },
     "title": "小程序"
@@ -3938,9 +3935,6 @@
       },
       "hide": {
         "title": "隐藏"
-      },
-      "remove_custom": {
-        "title": "删除自定义应用"
       }
     },
     "title": "小程序",
@@ -6497,34 +6491,20 @@
       "cache_settings": "缓存设置",
       "cache_title": "小程序缓存数量",
       "custom": {
-        "conflicting_ids": "与默认应用 ID 冲突: {{ids}}",
-        "duplicate_ids": "发现重复的 ID: {{ids}}",
-        "edit_description": "在这里编辑自定义小应用的配置。每个应用需要包含 id、name、url 和 logo 字段",
+        "create_title": "创建自定义小程序",
         "edit_title": "编辑自定义小程序",
-        "id": "ID",
-        "id_error": "ID 是必填项",
-        "id_placeholder": "请输入 ID",
-        "logo": "Logo",
         "logo_file": "上传 Logo 文件",
-        "logo_upload_button": "上传",
         "logo_upload_error": "Logo 上传失败",
         "logo_upload_label": "上传 Logo",
-        "logo_upload_success": "Logo 上传成功",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "请输入 Logo URL",
         "name": "名称",
-        "name_error": "名称是必填项",
         "name_placeholder": "请输入名称",
-        "placeholder": "请输入自定义小程序配置（JSON 格式）",
         "remove_error": "自定义小程序删除失败",
         "remove_success": "自定义小程序删除成功",
-        "save": "保存",
         "save_error": "自定义小程序保存失败",
         "save_success": "自定义小程序保存成功",
         "title": "自定义",
         "url": "URL",
-        "url_error": "URL 是必填项",
+        "url_invalid": "请输入有效的 http、https 或 file URL",
         "url_placeholder": "请输入 URL"
       },
       "disabled": "隐藏的小程序",
@@ -6555,34 +6535,20 @@
       "cache_settings": "缓存设置",
       "cache_title": "小程序缓存数量",
       "custom": {
-        "conflicting_ids": "与默认应用 ID 冲突: {{ids}}",
-        "duplicate_ids": "发现重复的 ID: {{ids}}",
-        "edit_description": "在这里编辑自定义小应用的配置。每个应用需要包含 id、name、url 和 logo 字段",
+        "create_title": "创建自定义小程序",
         "edit_title": "编辑自定义小程序",
-        "id": "ID",
-        "id_error": "ID 是必填项",
-        "id_placeholder": "请输入 ID",
-        "logo": "Logo",
         "logo_file": "上传 Logo 文件",
-        "logo_upload_button": "上传",
         "logo_upload_error": "Logo 上传失败",
         "logo_upload_label": "上传 Logo",
-        "logo_upload_success": "Logo 上传成功",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "请输入 Logo URL",
         "name": "名称",
-        "name_error": "名称是必填项",
         "name_placeholder": "请输入名称",
-        "placeholder": "请输入自定义小程序配置（JSON 格式）",
         "remove_error": "自定义小程序删除失败",
         "remove_success": "自定义小程序删除成功",
-        "save": "保存",
         "save_error": "自定义小程序保存失败",
         "save_success": "自定义小程序保存成功",
         "title": "自定义",
         "url": "URL",
-        "url_error": "URL 是必填项",
+        "url_invalid": "请输入有效的 http、https 或 file URL",
         "url_placeholder": "请输入 URL"
       },
       "disabled": "隐藏的小程序",

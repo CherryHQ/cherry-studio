@@ -3863,9 +3863,6 @@
       },
       "hide": {
         "title": "Cacher"
-      },
-      "remove_custom": {
-        "title": "Supprimer l'application personnalisée"
       }
     },
     "title": "MinApp"
@@ -3933,9 +3930,6 @@
       },
       "hide": {
         "title": "Cacher"
-      },
-      "remove_custom": {
-        "title": "Supprimer l'application personnalisée"
       }
     },
     "title": "Mini-programme",
@@ -6492,34 +6486,20 @@
       "cache_settings": "Paramètres du cache",
       "cache_title": "Nombre de caches d'applications",
       "custom": {
-        "conflicting_ids": "Конфликтующие ID с ID по умолчанию: {{ids}}",
-        "duplicate_ids": "Обнаружены повторяющиеся ID: {{ids}}",
-        "edit_description": "Здесь вы можете отредактировать конфигурацию пользовательского приложения. Каждое приложение должно содержать поля id, name, url и logo.",
+        "create_title": "Créer une mini-application personnalisée",
         "edit_title": "Редактировать пользовательское приложение",
-        "id": "ID",
-        "id_error": "Поле ID обязательно для заполнения.",
-        "id_placeholder": "Введите ID",
-        "logo": "Логотип",
         "logo_file": "Загрузить файл логотипа",
-        "logo_upload_button": "Загрузить",
         "logo_upload_error": "Не удалось загрузить логотип.",
         "logo_upload_label": "Загрузить логотип",
-        "logo_upload_success": "Логотип успешно загружен.",
-        "logo_url": "URL логотипа",
-        "logo_url_label": "URL логотипа",
-        "logo_url_placeholder": "Введите URL логотипа",
         "name": "Имя",
-        "name_error": "Поле Имя обязательно для заполнения.",
         "name_placeholder": "Введите имя",
-        "placeholder": "Введите конфигурацию пользовательского приложения (в формате JSON)",
         "remove_error": "Не удалось удалить пользовательское приложение.",
         "remove_success": "Пользовательское приложение успешно удалено.",
-        "save": "Сохранить",
         "save_error": "Не удалось сохранить пользовательское приложение.",
         "save_success": "Пользовательское приложение успешно сохранено.",
         "title": "Пользовательское приложение",
         "url": "URL",
-        "url_error": "Поле URL обязательно для заполнения.",
+        "url_invalid": "Saisissez une URL http, https ou file valide.",
         "url_placeholder": "Введите URL"
       },
       "disabled": "Applications masquées",
@@ -6550,34 +6530,20 @@
       "cache_settings": "Paramètres du cache",
       "cache_title": "Limite du cache de la mini-application",
       "custom": {
-        "conflicting_ids": "IDs en conflit avec les applications par défaut : {{ids}}",
-        "duplicate_ids": "IDs en double trouvés : {{ids}}",
-        "edit_description": "Modifiez ici la configuration de la mini-application personnalisée. Chaque application doit inclure les champs id, name, url et logo.",
+        "create_title": "Créer une mini-application personnalisée",
         "edit_title": "Modifier la mini-application personnalisée",
-        "id": "ID",
-        "id_error": "L'ID est requis.",
-        "id_placeholder": "Entrez l'ID",
-        "logo": "Logo",
         "logo_file": "Télécharger le fichier du logo",
-        "logo_upload_button": "Télécharger",
         "logo_upload_error": "Échec du téléchargement du logo.",
         "logo_upload_label": "Télécharger le logo",
-        "logo_upload_success": "Logo téléchargé avec succès.",
-        "logo_url": "URL du logo",
-        "logo_url_label": "URL du logo",
-        "logo_url_placeholder": "Entrer l'URL du logo",
         "name": "Nom",
-        "name_error": "Le nom est requis.",
         "name_placeholder": "Entrez le nom",
-        "placeholder": "Entrez la configuration personnalisée de la mini-application (format JSON)",
         "remove_error": "Échec de la suppression de la mini-application personnalisée.",
         "remove_success": "Mini application personnalisée supprimée avec succès.",
-        "save": "Enregistrer",
         "save_error": "Échec de l'enregistrement de la mini-application personnalisée.",
         "save_success": "Mini-app personnalisée enregistrée avec succès.",
         "title": "Personnalisé",
         "url": "URL",
-        "url_error": "L'URL est requise.",
+        "url_invalid": "Saisissez une URL http, https ou file valide.",
         "url_placeholder": "Entrez l'URL"
       },
       "disabled": "Mini-applications cachées",

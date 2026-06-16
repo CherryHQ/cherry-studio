@@ -3863,9 +3863,6 @@
       },
       "hide": {
         "title": "隠す"
-      },
-      "remove_custom": {
-        "title": "カスタムアプリを削除"
       }
     },
     "title": "MinApp"
@@ -3933,9 +3930,6 @@
       },
       "hide": {
         "title": "非表示"
-      },
-      "remove_custom": {
-        "title": "カスタムアプリを削除"
       }
     },
     "title": "ミニアプリ",
@@ -6492,34 +6486,20 @@
       "cache_settings": "キャッシュ設定",
       "cache_title": "ミニアプリのキャッシュ数",
       "custom": {
-        "conflicting_ids": "デフォルトアプリとIDが競合しています: {{ids}}",
-        "duplicate_ids": "重複するIDが見つかりました: {{ids}}",
-        "edit_description": "ここでカスタムミニアプリの設定を編集します。各アプリにはid、name、url、logoフィールドが必要です。",
+        "create_title": "カスタムミニアプリを作成",
         "edit_title": "カスタムミニアプリの編集",
-        "id": "ID",
-        "id_error": "IDは必須項目です。",
-        "id_placeholder": "IDを入力してください",
-        "logo": "ロゴ",
         "logo_file": "ロゴファイルをアップロード",
-        "logo_upload_button": "アップロード",
         "logo_upload_error": "ロゴのアップロードに失敗しました。",
         "logo_upload_label": "ロゴをアップロード",
-        "logo_upload_success": "ロゴのアップロードに成功しました。",
-        "logo_url": "ロゴURL",
-        "logo_url_label": "ロゴURL",
-        "logo_url_placeholder": "ロゴURLを入力してください",
         "name": "名前",
-        "name_error": "名前は必須項目です。",
         "name_placeholder": "名前を入力してください",
-        "placeholder": "カスタムミニアプリの設定を入力してください（JSON形式）",
         "remove_error": "カスタムミニアプリの削除に失敗しました。",
         "remove_success": "カスタムミニアプリの削除に成功しました。",
-        "save": "保存",
         "save_error": "カスタムミニアプリの保存に失敗しました。",
         "save_success": "カスタムミニアプリの保存に成功しました。",
         "title": "カスタムミニアプリ",
         "url": "URL",
-        "url_error": "URLは必須項目です。",
+        "url_invalid": "有効な http、https、または file URL を入力してください。",
         "url_placeholder": "URLを入力してください"
       },
       "disabled": "非表示のミニアプリ",
@@ -6550,34 +6530,20 @@
       "cache_settings": "キャッシュ設定",
       "cache_title": "ミニアプリキャッシュ制限",
       "custom": {
-        "conflicting_ids": "デフォルトアプリとのID競合: {{ids}}",
-        "duplicate_ids": "重複したIDが見つかりました: {{ids}}",
-        "edit_description": "ここでカスタムミニアプリの設定を編集します。各アプリには id、name、url、および logo フィールドを含める必要があります。",
+        "create_title": "カスタムミニアプリを作成",
         "edit_title": "カスタムミニアプリを編集",
-        "id": "ID",
-        "id_error": "IDが必要です。",
-        "id_placeholder": "IDを入力してください",
-        "logo": "ロゴ",
         "logo_file": "ロゴファイルをアップロード",
-        "logo_upload_button": "アップロード",
         "logo_upload_error": "ロゴのアップロードに失敗しました。",
         "logo_upload_label": "ロゴをアップロード",
-        "logo_upload_success": "ロゴが正常にアップロードされました。",
-        "logo_url": "ロゴURL",
-        "logo_url_label": "ロゴURL",
-        "logo_url_placeholder": "ロゴのURLを入力してください",
         "name": "名前",
-        "name_error": "名前は必須です。",
         "name_placeholder": "名前を入力してください",
-        "placeholder": "カスタムミニアプリ設定を入力（JSON形式）",
         "remove_error": "カスタムミニアプリの削除に失敗しました。",
         "remove_success": "カスタムミニアプリが正常に削除されました。",
-        "save": "保存",
         "save_error": "カスタムミニアプリの保存に失敗しました。",
         "save_success": "カスタムミニアプリが正常に保存されました。",
         "title": "カスタム",
         "url": "URL",
-        "url_error": "URLが必要です。",
+        "url_invalid": "有効な http、https、または file URL を入力してください。",
         "url_placeholder": "URLを入力してください"
       },
       "disabled": "隠しミニアプリ",

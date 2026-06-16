@@ -3868,9 +3868,6 @@
       },
       "hide": {
         "title": "Hide"
-      },
-      "remove_custom": {
-        "title": "Delete Custom App"
       }
     },
     "title": "MinApp"
@@ -3938,9 +3935,6 @@
       },
       "hide": {
         "title": "Hide"
-      },
-      "remove_custom": {
-        "title": "Delete Custom App"
       }
     },
     "title": "MiniApp",
@@ -6497,34 +6491,20 @@
       "cache_settings": "Cache Settings",
       "cache_title": "Mini App Cache Limit",
       "custom": {
-        "conflicting_ids": "Conflicting IDs with default apps: {{ids}}",
-        "duplicate_ids": "Duplicate IDs found: {{ids}}",
-        "edit_description": "Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
+        "create_title": "Create Custom Mini App",
         "edit_title": "Edit Custom Mini App",
-        "id": "ID",
-        "id_error": "ID is required.",
-        "id_placeholder": "Enter ID",
-        "logo": "Logo",
         "logo_file": "Upload Logo File",
-        "logo_upload_button": "Upload",
         "logo_upload_error": "Failed to upload logo.",
         "logo_upload_label": "Upload Logo",
-        "logo_upload_success": "Logo uploaded successfully.",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "Enter logo URL",
         "name": "Name",
-        "name_error": "Name is required.",
         "name_placeholder": "Enter name",
-        "placeholder": "Enter custom mini app configuration (JSON format)",
         "remove_error": "Failed to remove custom mini app.",
         "remove_success": "Custom mini app removed successfully.",
-        "save": "Save",
         "save_error": "Failed to save custom mini app.",
         "save_success": "Custom mini app saved successfully.",
         "title": "Custom",
         "url": "URL",
-        "url_error": "URL is required.",
+        "url_invalid": "Enter a valid http, https, or file URL.",
         "url_placeholder": "Enter URL"
       },
       "disabled": "Hidden Mini Apps",
@@ -6555,34 +6535,20 @@
       "cache_settings": "Cache Settings",
       "cache_title": "Mini App Cache Limit",
       "custom": {
-        "conflicting_ids": "Conflicting IDs with default apps: {{ids}}",
-        "duplicate_ids": "Duplicate IDs found: {{ids}}",
-        "edit_description": "Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
+        "create_title": "Create Custom Mini App",
         "edit_title": "Edit Custom Mini App",
-        "id": "ID",
-        "id_error": "ID is required.",
-        "id_placeholder": "Enter ID",
-        "logo": "Logo",
         "logo_file": "Upload Logo File",
-        "logo_upload_button": "Upload",
         "logo_upload_error": "Failed to upload logo.",
         "logo_upload_label": "Upload Logo",
-        "logo_upload_success": "Logo uploaded successfully.",
-        "logo_url": "Logo URL",
-        "logo_url_label": "Logo URL",
-        "logo_url_placeholder": "Enter logo URL",
         "name": "Name",
-        "name_error": "Name is required.",
         "name_placeholder": "Enter name",
-        "placeholder": "Enter custom mini app configuration (JSON format)",
         "remove_error": "Failed to remove custom mini app.",
         "remove_success": "Custom mini app removed successfully.",
-        "save": "Save",
         "save_error": "Failed to save custom mini app.",
         "save_success": "Custom mini app saved successfully.",
         "title": "Custom",
         "url": "URL",
-        "url_error": "URL is required.",
+        "url_invalid": "Enter a valid http, https, or file URL.",
         "url_placeholder": "Enter URL"
       },
       "disabled": "Hidden Mini Apps",

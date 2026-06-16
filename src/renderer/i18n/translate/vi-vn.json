@@ -3863,9 +3863,6 @@
       },
       "hide": {
         "title": "Ẩn"
-      },
-      "remove_custom": {
-        "title": "Xóa Ứng dụng Tùy chỉnh"
       }
     },
     "title": "MinApp"
@@ -3933,9 +3930,6 @@
       },
       "hide": {
         "title": "Ẩn"
-      },
-      "remove_custom": {
-        "title": "Xóa ứng dụng tùy chỉnh"
       }
     },
     "title": "MiniApp",
@@ -6492,34 +6486,20 @@
       "cache_settings": "Cài đặt bộ nhớ đệm",
       "cache_title": "Giới hạn bộ nhớ cache của Mini App",
       "custom": {
-        "conflicting_ids": "IDs conflictivos con aplicaciones predeterminadas: {{ids}}",
-        "duplicate_ids": "ID duplicados encontrados: {{ids}}",
-        "edit_description": "Chỉnh sửa cấu hình mini app tùy chỉnh tại đây. Mỗi app cần bao gồm các trường id, name, url và logo.",
+        "create_title": "Tạo mini app tùy chỉnh",
         "edit_title": "Chỉnh sửa Ứng dụng Nhỏ Tùy chỉnh",
-        "id": "ID",
-        "id_error": "ID diperlukan.",
-        "id_placeholder": "Nhập ID",
-        "logo": "Biểu tượng",
         "logo_file": "Subir archivo de logotipo",
-        "logo_upload_button": "Subir",
         "logo_upload_error": "Không thể tải lên logo.",
         "logo_upload_label": "Tải lên Logo",
-        "logo_upload_success": "Logo cargado correctamente.",
-        "logo_url": "URL biểu tượng",
-        "logo_url_label": "URL biểu tượng",
-        "logo_url_placeholder": "Nhập URL logo",
         "name": "Tên",
-        "name_error": "Name ist erforderlich.",
         "name_placeholder": "Nhập tên",
-        "placeholder": "Nhập cấu hình mini app tùy chỉnh (định dạng JSON)",
         "remove_error": "Không thể xóa ứng dụng nhỏ tùy chỉnh.",
         "remove_success": "Ứng dụng mini tùy chỉnh đã được gỡ bỏ thành công.",
-        "save": "Lưu",
         "save_error": "Không lưu được ứng dụng nhỏ tùy chỉnh.",
         "save_success": "Ứng dụng tùy chỉnh đã được lưu thành công.",
         "title": "Tùy chỉnh",
         "url": "URL",
-        "url_error": "URL là bắt buộc.",
+        "url_invalid": "Nhập URL http, https hoặc file hợp lệ.",
         "url_placeholder": "Nhập URL"
       },
       "disabled": "Ứng dụng nhỏ ẩn",
@@ -6550,34 +6530,20 @@
       "cache_settings": "Cài đặt bộ nhớ đệm",
       "cache_title": "Giới hạn bộ nhớ đệm Mini App",
       "custom": {
-        "conflicting_ids": "ID xung đột với ứng dụng mặc định: {{ids}}",
-        "duplicate_ids": "Phát hiện ID trùng lặp: {{ids}}",
-        "edit_description": "Chỉnh sửa cấu hình mini app tùy chỉnh tại đây. Mỗi app nên bao gồm các trường id, name, url và logo.",
+        "create_title": "Tạo mini app tùy chỉnh",
         "edit_title": "Chỉnh sửa Mini App Tùy chỉnh",
-        "id": "ID",
-        "id_error": "ID là bắt buộc.",
-        "id_placeholder": "Nhập ID",
-        "logo": "Logo",
         "logo_file": "Tải lên Tệp Logo",
-        "logo_upload_button": "Tải lên",
         "logo_upload_error": "Không thể tải lên logo.",
         "logo_upload_label": "Tải lên Logo",
-        "logo_upload_success": "Logo đã được tải lên thành công.",
-        "logo_url": "URL Logo",
-        "logo_url_label": "URL Logo",
-        "logo_url_placeholder": "Nhập URL logo",
         "name": "Tên",
-        "name_error": "Tên là bắt buộc.",
         "name_placeholder": "Nhập tên",
-        "placeholder": "Nhập cấu hình ứng dụng nhỏ tùy chỉnh (định dạng JSON)",
         "remove_error": "Không thể gỡ ứng dụng nhỏ tùy chỉnh.",
         "remove_success": "Ứng dụng tùy chỉnh đã được gỡ bỏ thành công.",
-        "save": "Lưu",
         "save_error": "Không thể lưu mini app tùy chỉnh.",
         "save_success": "Ứng dụng mini tùy chỉnh đã được lưu thành công.",
         "title": "Tùy chỉnh",
         "url": "URL",
-        "url_error": "URL là bắt buộc.",
+        "url_invalid": "Nhập URL http, https hoặc file hợp lệ.",
         "url_placeholder": "Nhập URL"
       },
       "disabled": "Ứng dụng mini ẩn",
