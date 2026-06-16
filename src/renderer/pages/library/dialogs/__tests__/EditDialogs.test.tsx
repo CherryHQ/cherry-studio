@@ -523,6 +523,13 @@ function selectTab(name: string) {
   fireEvent.keyDown(tab, { key: 'Enter', code: 'Enter' })
 }
 
+function expandToolsMenu() {
+  const toolsButton = screen.getByRole('button', { name: 'Tools' })
+  if (toolsButton.getAttribute('aria-expanded') !== 'true') {
+    fireEvent.click(toolsButton)
+  }
+}
+
 function expectHelpTrigger(label: string, description: string) {
   expect(screen.getByRole('button', { name: `${label} Help` })).toBeInTheDocument()
   expect(screen.queryByText(description)).not.toBeInTheDocument()
@@ -645,7 +652,8 @@ describe('edit dialogs', () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     expect(screen.queryByRole('tab', { name: 'Tools' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Tools' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Tools' })).toHaveAttribute('aria-expanded', 'false')
+    expandToolsMenu()
     expect(screen.getByRole('tab', { name: 'MCP' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Knowledge' })).toBeInTheDocument()
 
@@ -803,7 +811,8 @@ describe('edit dialogs', () => {
 
     expect(screen.queryByRole('tab', { name: 'Tools' })).not.toBeInTheDocument()
 
-    expect(screen.getByRole('button', { name: 'Tools' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Tools' })).toHaveAttribute('aria-expanded', 'false')
+    expandToolsMenu()
     expect(screen.getByRole('tab', { name: 'Built-in tools' })).toHaveAttribute('aria-selected', 'false')
     expect(screen.queryByText('No built-in tools enabled')).not.toBeInTheDocument()
 
@@ -826,6 +835,7 @@ describe('edit dialogs', () => {
   it('uses the same MCP server list presentation in assistant and agent editing', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
+    expandToolsMenu()
     selectTab('MCP')
     fireEvent.click(screen.getByRole('combobox', { name: 'MCP Mode' }))
     fireEvent.click(await screen.findByRole('option', { name: 'Manual' }))
@@ -841,6 +851,7 @@ describe('edit dialogs', () => {
 
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
+    expandToolsMenu()
     selectTab('MCP')
 
     expect(screen.getByText('MCP services')).toBeInTheDocument()
