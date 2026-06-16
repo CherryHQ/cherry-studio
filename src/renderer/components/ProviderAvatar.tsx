@@ -40,17 +40,15 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
       : undefined
   const effectiveLogo = builtinIcon ?? resolvedLogo
 
-  // If logo is a CompoundIcon, render one concrete theme variant to avoid duplicate light/dark SVGs.
+  // CompoundIcon handles light/dark variants internally; size the icon to the avatar container.
   if (effectiveLogo && typeof effectiveLogo !== 'string') {
     const Icon = effectiveLogo
-    const styleSize = typeof style?.width === 'number' ? style.width : undefined
-    const resolvedSize = size ?? styleSize ?? 32
-    const iconSize = resolvedSize * 0.7
+    const resolvedSize = size ?? 32
 
     return (
       <Avatar className={className} style={{ width: resolvedSize, height: resolvedSize, ...style }}>
         <AvatarFallback className="bg-background text-foreground">
-          <Icon style={{ width: iconSize, height: iconSize }} />
+          <Icon style={{ width: '70%', height: '70%' }} />
         </AvatarFallback>
       </Avatar>
     )

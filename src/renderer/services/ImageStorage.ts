@@ -11,7 +11,7 @@ export default class ImageStorage {
     const id = IMAGE_PREFIX + key
     try {
       if (typeof value === 'string') {
-        // string（emoji）
+        // Pre-encoded string value, such as an emoji or data URL.
         if (await db.settings.get(id)) {
           await db.settings.update(id, { value })
           return

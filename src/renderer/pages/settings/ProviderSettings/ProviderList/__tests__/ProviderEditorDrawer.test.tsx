@@ -70,6 +70,7 @@ vi.mock('@renderer/utils', () => ({
   fileToAvatarDataUrl: (...args: any[]) => mocks.fileToAvatarDataUrl(...args),
   generateColorFromChar: vi.fn(),
   getForegroundColor: vi.fn(),
+  uuid: () => 'api-key-id',
   cn: (...args: any[]) => args.filter(Boolean).join(' ')
 }))
 
