@@ -6843,10 +6843,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "Document Processing"
+            "title": "Document Processing",
+            "tooltip": "Used to parse documents for knowledge bases"
           },
           "image_to_text": {
-            "title": "OCR"
+            "title": "OCR",
+            "tooltip": "Used by translation to recognize text in images"
           }
         },
         "fields": {

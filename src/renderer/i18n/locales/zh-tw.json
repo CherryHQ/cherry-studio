@@ -6843,10 +6843,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "文件處理"
+            "title": "文件處理",
+            "tooltip": "用於知識庫解析文件"
           },
           "image_to_text": {
-            "title": "OCR"
+            "title": "OCR",
+            "tooltip": "用於翻譯功能識別圖片內文字內容"
           }
         },
         "fields": {

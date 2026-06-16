@@ -143,6 +143,19 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     ),
     DialogHeader: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
     DialogTitle: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
+    InfoTooltip: ({
+      content,
+      iconProps,
+      placement
+    }: {
+      content: React.ReactNode
+      iconProps?: { size?: number }
+      placement?: string
+    }) => (
+      <span data-testid="info-tooltip" data-icon-size={iconProps?.size} data-placement={placement}>
+        {content}
+      </span>
+    ),
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
     MenuDivider: (props: React.HTMLAttributes<HTMLDivElement>) => <div {...props} />,
     MenuItem: ({
@@ -279,6 +292,8 @@ describe('FileProcessingSettings', () => {
 
     expect(await screen.findByText('settings.tool.file_processing.features.image_to_text.title')).toBeInTheDocument()
     expect(screen.getByText('settings.tool.file_processing.features.document_to_markdown.title')).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.features.image_to_text.tooltip')).toBeInTheDocument()
+    expect(screen.getByText('settings.tool.file_processing.features.document_to_markdown.tooltip')).toBeInTheDocument()
     expect(
       screen.getAllByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     ).toHaveLength(2)

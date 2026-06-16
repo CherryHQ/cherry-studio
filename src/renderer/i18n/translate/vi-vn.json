@@ -6851,10 +6851,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "Xử lý tài liệu"
+            "title": "Xử lý tài liệu",
+            "tooltip": "Dùng để phân tích tài liệu trong cơ sở tri thức"
           },
           "image_to_text": {
-            "title": "OCR"
+            "title": "OCR",
+            "tooltip": "Dùng để nhận dạng chữ trong hình ảnh cho tính năng dịch"
           }
         },
         "fields": {

@@ -6843,10 +6843,12 @@
         },
         "features": {
           "document_to_markdown": {
-            "title": "文档处理"
+            "title": "文档处理",
+            "tooltip": "用于知识库解析文档"
           },
           "image_to_text": {
-            "title": "OCR"
+            "title": "OCR",
+            "tooltip": "用于翻译功能识别图片内文字内容"
           }
         },
         "fields": {
