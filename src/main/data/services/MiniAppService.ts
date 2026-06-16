@@ -20,7 +20,7 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
-import { and, asc, desc, eq, gt, lt, ne } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, lt, ne } from 'drizzle-orm'
 
 import { applyScopedMoves, generateOrderKeyBetween, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
@@ -30,7 +30,8 @@ const logger = loggerService.withContext('DataApi:MiniAppService')
 /** Preset id set, used for write-time collision rejection. */
 const presetMiniAppIdSet: ReadonlySet<string> = new Set(PRESETS_MINI_APPS.map((p) => p.id))
 const customMutableFields = ['name', 'url', 'logo'] as const
-const visibleStatuses: ReadonlySet<MiniAppStatus> = new Set(['enabled', 'pinned'])
+const visibleStatusValues = ['enabled', 'pinned'] satisfies MiniAppStatus[]
+const visibleStatuses: ReadonlySet<MiniAppStatus> = new Set(visibleStatusValues)
 
 function brandId(raw: string): MiniAppId {
   return raw as MiniAppId
@@ -42,6 +43,10 @@ function hasOwnDefined<T extends object>(object: T, key: keyof T): boolean {
 
 function isVisibleStatus(status: MiniAppStatus): boolean {
   return visibleStatuses.has(status)
+}
+
+function orderScopeForStatus(status: MiniAppStatus) {
+  return isVisibleStatus(status) ? inArray(miniAppTable.status, visibleStatusValues) : eq(miniAppTable.status, status)
 }
 
 /** Convert a DB row to the public MiniApp DTO. */
@@ -103,7 +108,7 @@ export class MiniAppService {
 
   /**
    * Create a custom miniapp. Rejects collisions with preset ids.
-   * Auto-assigns orderKey at the end of the status='enabled' partition.
+   * Auto-assigns orderKey at the end of the visible miniapp list.
    */
   async create(dto: CreateMiniAppDto): Promise<MiniApp> {
     if (presetMiniAppIdSet.has(dto.appId)) {
@@ -128,7 +133,7 @@ export class MiniAppService {
             {
               pkColumn: miniAppTable.appId,
               position: 'last',
-              scope: eq(miniAppTable.status, status)
+              scope: orderScopeForStatus(status)
             }
           )
           return inserted as MiniAppRow | undefined
@@ -147,10 +152,11 @@ export class MiniAppService {
    * their display fields are refreshed by {@link MiniAppSeeder}. Custom rows can
    * also edit the user-facing fields exposed by the custom miniapp form.
    *
-   * On status transitions the row receives a target-partition `orderKey`.
-   * Moving between `enabled` and `pinned` keeps the app near its current key
-   * because both statuses share the visible MiniApp list. Moving into or out of
-   * `disabled` lands at the tail of the target partition.
+   * On status transitions the row receives an `orderKey` in the target list.
+   * `enabled` and `pinned` share the visible MiniApp list, so transitions
+   * between them preserve the existing key unless another visible row already
+   * owns it. Moving into visible status lands at the visible tail; moving into
+   * `disabled` lands at the disabled tail.
    */
   async update(appId: string, dto: UpdateMiniAppDto): Promise<MiniApp> {
     const hasStatusUpdate = dto.status !== undefined
@@ -195,22 +201,22 @@ export class MiniAppService {
             updates.status = targetStatus
             if (existing.status !== targetStatus) {
               if (isVisibleStatus(existing.status) && isVisibleStatus(targetStatus)) {
-                const targetScope = and(eq(miniAppTable.status, targetStatus), ne(miniAppTable.appId, appId))
+                const visibleScope = and(orderScopeForStatus(targetStatus), ne(miniAppTable.appId, appId))
                 const [before] = await tx
                   .select({ orderKey: miniAppTable.orderKey })
                   .from(miniAppTable)
-                  .where(and(targetScope, lt(miniAppTable.orderKey, existing.orderKey)))
+                  .where(and(visibleScope, lt(miniAppTable.orderKey, existing.orderKey)))
                   .orderBy(desc(miniAppTable.orderKey))
                   .limit(1)
                 const [same] = await tx
                   .select({ orderKey: miniAppTable.orderKey })
                   .from(miniAppTable)
-                  .where(and(targetScope, eq(miniAppTable.orderKey, existing.orderKey)))
+                  .where(and(visibleScope, eq(miniAppTable.orderKey, existing.orderKey)))
                   .limit(1)
                 const [after] = await tx
                   .select({ orderKey: miniAppTable.orderKey })
                   .from(miniAppTable)
-                  .where(and(targetScope, gt(miniAppTable.orderKey, existing.orderKey)))
+                  .where(and(visibleScope, gt(miniAppTable.orderKey, existing.orderKey)))
                   .orderBy(asc(miniAppTable.orderKey))
                   .limit(1)
 
@@ -228,7 +234,7 @@ export class MiniAppService {
                 const [tail] = await tx
                   .select({ orderKey: miniAppTable.orderKey })
                   .from(miniAppTable)
-                  .where(and(eq(miniAppTable.status, targetStatus), ne(miniAppTable.appId, appId)))
+                  .where(and(orderScopeForStatus(targetStatus), ne(miniAppTable.appId, appId)))
                   .orderBy(desc(miniAppTable.orderKey))
                   .limit(1)
                 updates.orderKey = generateOrderKeyBetween(tail?.orderKey ?? null, null)

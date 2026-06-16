@@ -125,6 +125,21 @@ describe('MiniAppService', () => {
       expect(row.name).toBe('New App')
     })
 
+    it('should place a new custom miniapp at the tail of the visible list', async () => {
+      await seedCustom({ appId: 'enabled-tail', status: 'enabled', orderKey: 'a1' })
+      await seedCustom({ appId: 'pinned-tail', status: 'pinned', orderKey: 'a5' })
+
+      const result = await miniAppService.create({
+        appId: 'new-app',
+        name: 'New App',
+        url: 'https://new.app',
+        logo: 'custom-logo'
+      })
+
+      expect(result.status).toBe('enabled')
+      expect(result.orderKey > 'a5').toBe(true)
+    })
+
     it('should reject creation if appId is a preset id', async () => {
       await expect(
         miniAppService.create({
@@ -229,6 +244,19 @@ describe('MiniAppService', () => {
       expect(result.orderKey < 'a2').toBe(true)
     })
 
+    it('should preserve visible list placement when visible neighbors are in another status', async () => {
+      await seedCustom({ appId: 'pinned-start', status: 'pinned', orderKey: 'a0' })
+      await seedCustom({ appId: 'enabled-before', status: 'enabled', orderKey: 'a2' })
+      await seedCustom({ appId: 'mover', status: 'enabled', orderKey: 'a5' })
+      await seedCustom({ appId: 'enabled-after', status: 'enabled', orderKey: 'a6' })
+
+      const result = await miniAppService.update('mover', { status: 'pinned' })
+
+      expect(result.status).toBe('pinned')
+      expect(result.orderKey > 'a2').toBe(true)
+      expect(result.orderKey < 'a6').toBe(true)
+    })
+
     it('should avoid same-key collisions when adding an enabled app to launchpad', async () => {
       await seedCustom({ appId: 'mover', status: 'enabled', orderKey: 'a0' })
       await seedCustom({ appId: 'already-pinned', status: 'pinned', orderKey: 'a0' })
@@ -237,6 +265,17 @@ describe('MiniAppService', () => {
 
       expect(result.status).toBe('pinned')
       expect(result.orderKey < 'a0').toBe(true)
+    })
+
+    it('should place a disabled app at the visible tail when re-enabled', async () => {
+      await seedCustom({ appId: 'enabled-tail', status: 'enabled', orderKey: 'a1' })
+      await seedCustom({ appId: 'pinned-tail', status: 'pinned', orderKey: 'a5' })
+      await seedCustom({ appId: 'mover', status: 'disabled', orderKey: 'a0' })
+
+      const result = await miniAppService.update('mover', { status: 'enabled' })
+
+      expect(result.status).toBe('enabled')
+      expect(result.orderKey > 'a5').toBe(true)
     })
 
     it('should keep the existing orderKey when status is unchanged', async () => {
