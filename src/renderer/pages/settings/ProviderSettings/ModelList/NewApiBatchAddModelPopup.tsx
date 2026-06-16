@@ -35,7 +35,7 @@ interface ShowParams {
 }
 
 interface Props extends ShowParams {
-  resolve: (data: any) => void
+  resolve: () => void
 }
 
 type FieldType = {
@@ -48,17 +48,14 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
   const [open, setOpen] = useState(true)
   const [endpointType, setEndpointType] = useState<EndpointType>(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
   const [submitting, setSubmitting] = useState(false)
+  const [closing, setClosing] = useState(false)
   const { createModels } = useModelMutations()
   const { models: existingModels } = useModels({ providerId: provider.id })
   const { t } = useTranslation()
-  const close = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
-
-  const closeWithResult = (data: any) => {
-    close(data)
-  }
+  const close = useTopViewClose({ onClosingChange: setClosing, resolve, setOpen, topViewKey: TopViewKey })
 
   const onCancel = () => {
-    closeWithResult({})
+    close()
   }
 
   const onAddModel = async (values: FieldType) => {
@@ -91,7 +88,7 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
     try {
       setSubmitting(true)
       if (await onAddModel({ provider: provider.id, endpointType })) {
-        closeWithResult({})
+        close()
       }
     } catch (error) {
       logger.error('Failed to batch add models', { providerId: provider.id, error })
@@ -136,10 +133,10 @@ const PopupContainer: React.FC<Props> = ({ title, provider, resolve, batchModels
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel} disabled={submitting}>
+          <Button variant="outline" onClick={onCancel} disabled={submitting || closing}>
             {t('common.cancel')}
           </Button>
-          <Button disabled={submitting} onClick={() => void onSubmit()}>
+          <Button disabled={submitting || closing} onClick={() => void onSubmit()}>
             {t('settings.models.add.add_model')}
           </Button>
         </DialogFooter>
@@ -156,7 +153,7 @@ export default class NewApiBatchAddModelPopup {
     TopView.hide(TopViewKey)
   }
   static show(props: ShowParams) {
-    return new Promise<any>((resolve) => {
+    return new Promise<void>((resolve) => {
       TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }

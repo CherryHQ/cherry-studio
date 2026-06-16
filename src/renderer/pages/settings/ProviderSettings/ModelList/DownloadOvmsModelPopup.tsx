@@ -19,7 +19,7 @@ interface ShowParams {
 }
 
 interface Props extends ShowParams {
-  resolve: (data: any) => unknown
+  resolve: () => void
 }
 
 type OvmsDownloadTask = 'embeddings' | 'image_generation' | 'rerank' | 'text_generation'
@@ -102,9 +102,10 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
     task: 'text_generation'
   })
   const [error, setError] = useState<string | null>(null)
+  const [closing, setClosing] = useState(false)
   const { t } = useTranslation()
   const { setIntervalTimer, clearIntervalTimer, setTimeoutTimer } = useTimer()
-  const close = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
+  const close = useTopViewClose({ onClosingChange: setClosing, resolve, setOpen, topViewKey: TopViewKey })
 
   const getPresetTooltipLabel = (model: PresetModel) =>
     `${model.modelName} (${t(OVMS_DOWNLOAD_TASK_LABEL_KEYS[model.task])})`
@@ -185,7 +186,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       }
       return
     }
-    close({})
+    close()
   }
 
   const onFinish = async () => {
@@ -217,7 +218,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
       if (result.success) {
         stopFakeProgress(true) // Complete the progress bar
         window.toast.success(t('ovms.download.success_desc', { modelName: modelName, modelId: modelId }))
-        close({})
+        close()
       } else {
         stopFakeProgress(false) // Reset progress on error
         logger.error(`Download failed, is it cancelled? ${cancelled}`)
@@ -240,10 +241,14 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
   const footer = (
     <div className={drawerClasses.footer}>
-      <Button variant={loading ? 'default' : 'outline'} type="button" onClick={() => void onCancel()}>
+      <Button
+        variant={loading ? 'default' : 'outline'}
+        type="button"
+        disabled={closing}
+        onClick={() => void onCancel()}>
         {loading ? t('common.cancel') : t('common.cancel')}
       </Button>
-      <Button disabled={loading} onClick={() => void onFinish()}>
+      <Button disabled={loading || closing} onClick={() => void onFinish()}>
         {t('ovms.download.button')}
       </Button>
     </div>
@@ -353,7 +358,7 @@ export default class DownloadOvmsModelPopup {
     TopView.hide(TopViewKey)
   }
   static show(props: ShowParams) {
-    return new Promise<any>((resolve) => {
+    return new Promise<void>((resolve) => {
       TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }

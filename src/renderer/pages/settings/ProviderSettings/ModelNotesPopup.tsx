@@ -15,7 +15,7 @@ interface ShowParams {
 }
 
 interface Props extends ShowParams {
-  resolve: (data: any) => void
+  resolve: () => void
 }
 
 const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
@@ -25,7 +25,8 @@ const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
   const [notes, setNotes] = useState<string>(provider?.settings?.notes || '')
   const [edited, setEdited] = useState(false)
   const [saving, setSaving] = useState(false)
-  const close = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
+  const [closing, setClosing] = useState(false)
+  const close = useTopViewClose({ onClosingChange: setClosing, resolve, setOpen, topViewKey: TopViewKey })
 
   useEffect(() => {
     if (edited) {
@@ -39,7 +40,7 @@ const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
     setSaving(true)
     try {
       await updateProvider({ providerSettings: { ...provider?.settings, notes } })
-      close({})
+      close()
     } catch {
       window.toast.error(t('blocks.edit.save.failed.label'))
     } finally {
@@ -48,15 +49,15 @@ const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
   }
 
   const onCancel = () => {
-    close({})
+    close()
   }
 
   const footer = (
     <div className={drawerClasses.footer}>
-      <Button variant="outline" onClick={onCancel}>
+      <Button variant="outline" onClick={onCancel} disabled={closing}>
         {t('common.cancel')}
       </Button>
-      <Button loading={saving} disabled={saving} onClick={() => void handleSave()}>
+      <Button loading={saving} disabled={saving || closing} onClick={() => void handleSave()}>
         {t('common.save')}
       </Button>
     </div>
@@ -91,7 +92,7 @@ export default class ModelNotesPopup {
     TopView.hide(TopViewKey)
   }
   static show(props: ShowParams) {
-    return new Promise<any>((resolve) => {
+    return new Promise<void>((resolve) => {
       TopView.show(<PopupContainer {...props} resolve={resolve} />, TopViewKey)
     })
   }
