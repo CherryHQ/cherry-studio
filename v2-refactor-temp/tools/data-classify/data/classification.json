@@ -1574,13 +1574,13 @@
         {
           "originalKey": "sidebarIcons",
           "type": "unknown",
-          "defaultValue": "{ visible: DefaultPreferences.default['ui.sidebar.icons.visible'], disabled: [] }",
+          "defaultValue": "{ visible: ['assistants', 'store', 'paintings', 'translate', 'mini_app', 'knowledge', 'files', 'code_tools', 'notes'], disabled: [] }",
           "status": "pending",
           "category": null,
           "targetKey": null,
           "children": [
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": [
                 "assistants",
                 "agents",
@@ -1595,15 +1595,15 @@
               ],
               "originalKey": "visible",
               "status": "pending",
-              "targetKey": "ui.sidebar.icons.visible",
+              "targetKey": null,
               "type": "PreferenceTypes.SidebarIcon[]"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": [],
               "originalKey": "disabled",
               "status": "pending",
-              "targetKey": "ui.sidebar.icons.invisible",
+              "targetKey": null,
               "type": "PreferenceTypes.SidebarIcon[]"
             }
           ]
@@ -1624,16 +1624,16 @@
             "notes"
           ],
           "status": "pending",
-          "category": "preferences",
-          "targetKey": "ui.sidebar.icons.visible"
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "disabled",
           "type": "PreferenceTypes.SidebarIcon[]",
           "defaultValue": [],
           "status": "pending",
-          "category": "preferences",
-          "targetKey": "ui.sidebar.icons.invisible"
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "narrowMode",
