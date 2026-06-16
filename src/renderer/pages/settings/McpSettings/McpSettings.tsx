@@ -1278,7 +1278,10 @@ function mapLogLevelClass(level: McpServerLogEntry['level']) {
 
 const VersionBadge = ({ count, className, ...props }: { count: string } & React.ComponentProps<'span'>) => (
   <Badge
-    className={cn('h-4.5 min-w-4.5 bg-primary px-1.5 py-0 text-[11px] text-white leading-4.5 shadow-sm', className)}
+    className={cn(
+      'h-4.5 min-w-4.5 bg-primary px-1.5 py-0 text-[11px] text-primary-foreground leading-4.5 shadow-sm',
+      className
+    )}
     {...props}>
     {count}
   </Badge>

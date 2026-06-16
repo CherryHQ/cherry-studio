@@ -116,7 +116,7 @@ const ApiGatewaySettings: FC = () => {
           <StatusCard $running={apiGatewayRunning}>
             <StatusSection>
               <IndicatorLight
-                color={apiGatewayRunning ? 'green' : 'var(--color-error-base)'}
+                color={apiGatewayRunning ? 'var(--color-success-base)' : 'var(--color-error-base)'}
                 size={10}
                 animation={apiGatewayRunning}
                 shadow={apiGatewayRunning}
