@@ -43,6 +43,10 @@ export const windowRequestSchemas = {
 export type WindowEventSchemas = {
   'window.maximized_changed': boolean
   'window.fullscreen_changed': boolean
+  // True window key state — DOM focus/blur in the renderer cannot distinguish
+  // a <webview> taking page focus from window deactivation, so this is relayed
+  // from the BrowserWindow 'focus'/'blur' events.
+  'window.focus_changed': boolean
   // Payload = the initData passed to open()/pushInitData(); opaque, consumer casts.
   'window.reused': unknown
 }
