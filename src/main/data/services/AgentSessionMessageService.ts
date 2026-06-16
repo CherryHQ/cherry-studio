@@ -126,17 +126,6 @@ export class AgentSessionMessageService {
     })
   }
 
-  async sessionMessageExists(id: string): Promise<boolean> {
-    const database = application.get('DbService').getDb()
-    const result = await database
-      .select({ id: sessionMessagesTable.id })
-      .from(sessionMessagesTable)
-      .where(eq(sessionMessagesTable.id, id))
-      .limit(1)
-
-    return result.length > 0
-  }
-
   /**
    * Cursor-paginated message read. Walks newest-first; an absent cursor
    * returns the most recent page, each `nextCursor` walks one page older.
