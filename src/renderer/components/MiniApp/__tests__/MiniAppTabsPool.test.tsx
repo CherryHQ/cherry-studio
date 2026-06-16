@@ -6,7 +6,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // instantiate. Stub it with a div carrying the same `data-mini-app-id` so DOM
 // order assertions still work.
 vi.mock('@renderer/components/MiniApp/WebviewContainer', () => ({
-  default: ({ appid }: { appid: string }) => <div data-mini-app-id={appid} data-testid={`webview-${appid}`} />
+  default: ({ appid, url }: { appid: string; url: string }) => (
+    <div data-mini-app-id={appid} data-testid={`webview-${appid}`} data-url={url} />
+  )
 }))
 
 const stubApp = (id: string): MiniApp => ({
@@ -48,6 +50,9 @@ import MiniAppTabsPool from '../MiniAppTabsPool'
 
 const renderedAppIds = (container: HTMLElement): string[] =>
   Array.from(container.querySelectorAll<HTMLElement>('[data-mini-app-id]')).map((el) => el.dataset.miniAppId as string)
+
+const renderedAppUrls = (container: HTMLElement): string[] =>
+  Array.from(container.querySelectorAll<HTMLElement>('[data-mini-app-id]')).map((el) => el.dataset.url as string)
 
 describe('MiniAppTabsPool', () => {
   beforeEach(() => {
@@ -96,5 +101,22 @@ describe('MiniAppTabsPool', () => {
     mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('charlie'), stubApp('bravo')]
     rerender(<MiniAppTabsPool />)
     expect(renderedAppIds(container)).toEqual(['alpha', 'bravo', 'charlie'])
+  })
+
+  it('updates WebviewContainer props when an opened app changes without changing appId', () => {
+    mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('bravo')]
+    mocks.currentMiniAppId = 'alpha'
+    const { container, rerender } = render(<MiniAppTabsPool />)
+    expect(renderedAppIds(container)).toEqual(['alpha', 'bravo'])
+    expect(renderedAppUrls(container)).toEqual(['https://alpha.example.com', 'https://bravo.example.com'])
+
+    mocks.openedKeepAliveMiniApps = [
+      { ...stubApp('bravo'), url: 'https://bravo.example.com' },
+      { ...stubApp('alpha'), url: 'https://renamed-alpha.example.com' }
+    ]
+    rerender(<MiniAppTabsPool />)
+
+    expect(renderedAppIds(container)).toEqual(['alpha', 'bravo'])
+    expect(renderedAppUrls(container)).toEqual(['https://renamed-alpha.example.com', 'https://bravo.example.com'])
   })
 })

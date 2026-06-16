@@ -257,22 +257,25 @@ export class MiniAppService {
    * Mirrors {@link ProviderService.delete}'s preset guard.
    */
   async delete(appId: string): Promise<void> {
-    const [existing] = await this.db
-      .select({ presetMiniAppId: miniAppTable.presetMiniAppId })
-      .from(miniAppTable)
-      .where(eq(miniAppTable.appId, appId))
-      .limit(1)
-    if (!existing) throw DataApiErrorFactory.notFound('MiniApp', appId)
-
-    if (existing.presetMiniAppId !== null) {
-      throw DataApiErrorFactory.invalidOperation(
-        `delete miniapp ${appId}`,
-        'preset-derived miniapp cannot be deleted; use PATCH with status="disabled" to hide'
-      )
-    }
-
     await withSqliteErrors(
-      () => this.db.delete(miniAppTable).where(eq(miniAppTable.appId, appId)),
+      async () =>
+        application.get('DbService').withWriteTx(async (tx) => {
+          const [existing] = await tx
+            .select({ presetMiniAppId: miniAppTable.presetMiniAppId })
+            .from(miniAppTable)
+            .where(eq(miniAppTable.appId, appId))
+            .limit(1)
+          if (!existing) throw DataApiErrorFactory.notFound('MiniApp', appId)
+
+          if (existing.presetMiniAppId !== null) {
+            throw DataApiErrorFactory.invalidOperation(
+              `delete miniapp ${appId}`,
+              'preset-derived miniapp cannot be deleted; use PATCH with status="disabled" to hide'
+            )
+          }
+
+          await tx.delete(miniAppTable).where(eq(miniAppTable.appId, appId))
+        }),
       defaultHandlersFor('MiniApp', appId)
     )
     logger.info('Deleted miniapp', { appId })

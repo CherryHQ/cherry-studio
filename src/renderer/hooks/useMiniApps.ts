@@ -4,7 +4,9 @@ import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataAp
 import { usePreference } from '@data/hooks/usePreference'
 import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
+import { useOptionalTabsContext } from '@renderer/context/TabsContext'
 import i18n from '@renderer/i18n'
+import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api'
 import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp, MiniAppRegion, MiniAppStatus } from '@shared/data/types/miniApp'
@@ -93,6 +95,14 @@ const detectUserRegion = async (): Promise<MiniAppRegion> => {
  */
 // Module-level logger to avoid recreating on every render (rerender-defer-reads)
 const logger = loggerService.withContext('useMiniApps')
+const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
+
+/** Extract the appId from a `/app/mini-app/<id>` URL, or null otherwise. */
+function miniAppIdFromTabUrl(url: string): string | null {
+  if (!url.startsWith(MINI_APP_ROUTE_PREFIX)) return null
+  const id = url.slice(MINI_APP_ROUTE_PREFIX.length).split('/')[0]
+  return id ? id : null
+}
 
 /**
  * Process Promise.allSettled results: throw on partial failures so callers
@@ -195,6 +205,7 @@ export const useMiniApps = () => {
   const [currentMiniAppId, setCurrentMiniAppId] = useCache('mini_app.current_id')
   const [miniAppShow, setMiniAppShow] = useCache('mini_app.show')
   const [openedOneOffMiniApp, setOpenedOneOffMiniApp] = useCache('mini_app.opened_oneoff')
+  const tabsContext = useOptionalTabsContext()
 
   // === Mutations (DataApi) ===
   const invalidate = useInvalidateCache()
@@ -285,28 +296,97 @@ export const useMiniApps = () => {
     [postMiniApp]
   )
 
+  const syncOpenedCustomMiniApp = useCallback(
+    (updated: MiniApp) => {
+      const openedKeepAliveApp = openedKeepAliveMiniApps.find((app) => app.appId === updated.appId)
+      const openedOneOffApp = openedOneOffMiniApp?.appId === updated.appId ? openedOneOffMiniApp : null
+      const urlChanged =
+        (openedKeepAliveApp !== undefined && openedKeepAliveApp.url !== updated.url) ||
+        (openedOneOffApp !== null && openedOneOffApp.url !== updated.url)
+
+      if (openedKeepAliveApp) {
+        setOpenedKeepAliveMiniApps(openedKeepAliveMiniApps.map((app) => (app.appId === updated.appId ? updated : app)))
+      }
+
+      if (openedOneOffApp) {
+        setOpenedOneOffMiniApp(updated)
+      }
+
+      if (urlChanged) {
+        setWebviewLoaded(updated.appId, false)
+      }
+
+      const title = updated.nameKey ? i18n.t(updated.nameKey) : updated.name
+      for (const tab of tabsContext?.tabs ?? []) {
+        if (miniAppIdFromTabUrl(tab.url) === updated.appId) {
+          tabsContext?.updateTab(tab.id, { title, icon: updated.logo })
+        }
+      }
+    },
+    [openedKeepAliveMiniApps, openedOneOffMiniApp, setOpenedKeepAliveMiniApps, setOpenedOneOffMiniApp, tabsContext]
+  )
+
+  const cleanupOpenedCustomMiniApp = useCallback(
+    (appId: string) => {
+      if (openedKeepAliveMiniApps.some((app) => app.appId === appId)) {
+        setOpenedKeepAliveMiniApps(openedKeepAliveMiniApps.filter((app) => app.appId !== appId))
+      }
+
+      if (openedOneOffMiniApp?.appId === appId) {
+        setOpenedOneOffMiniApp(null)
+      }
+
+      if (currentMiniAppId === appId) {
+        setCurrentMiniAppId('')
+        setMiniAppShow(false)
+      }
+
+      clearWebviewState(appId)
+
+      for (const tab of tabsContext?.tabs ?? []) {
+        if (miniAppIdFromTabUrl(tab.url) === appId) {
+          tabsContext?.closeTab(tab.id)
+        }
+      }
+    },
+    [
+      currentMiniAppId,
+      openedKeepAliveMiniApps,
+      openedOneOffMiniApp,
+      setCurrentMiniAppId,
+      setMiniAppShow,
+      setOpenedKeepAliveMiniApps,
+      setOpenedOneOffMiniApp,
+      tabsContext
+    ]
+  )
+
   const updateCustomMiniApp = useCallback(
     async (appId: string, dto: UpdateMiniAppDto) => {
       try {
-        return await patchAppTrigger({ params: { appId }, body: dto })
+        const updated = await patchAppTrigger({ params: { appId }, body: dto })
+        syncOpenedCustomMiniApp(updated)
+        return updated
       } catch (error) {
         logger.error('Failed to update custom mini app', { appId, error: toDataApiError(error) })
         throw toDataApiError(error)
       }
     },
-    [patchAppTrigger]
+    [patchAppTrigger, syncOpenedCustomMiniApp]
   )
 
   const removeCustomMiniApp = useCallback(
     async (appId: string) => {
       try {
-        return await deleteAppTrigger({ params: { appId } })
+        const result = await deleteAppTrigger({ params: { appId } })
+        cleanupOpenedCustomMiniApp(appId)
+        return result
       } catch (error) {
         logger.error('Failed to remove custom mini app', { appId, error: toDataApiError(error) })
         throw toDataApiError(error)
       }
     },
-    [deleteAppTrigger]
+    [cleanupOpenedCustomMiniApp, deleteAppTrigger]
   )
 
   /**

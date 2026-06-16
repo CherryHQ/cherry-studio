@@ -1,4 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
+import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
@@ -7,11 +8,36 @@ import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const mockTabs = vi.hoisted(() => ({
+  tabs: [] as Array<{ id: string; url: string }>,
+  hasContext: true,
+  closeTab: vi.fn(),
+  updateTab: vi.fn()
+}))
+
+vi.mock('@renderer/context/TabsContext', () => ({
+  useOptionalTabsContext: () =>
+    mockTabs.hasContext
+      ? {
+          tabs: mockTabs.tabs,
+          closeTab: mockTabs.closeTab,
+          updateTab: mockTabs.updateTab
+        }
+      : null
+}))
+
+vi.mock('@renderer/utils/webviewStateManager', () => ({
+  clearWebviewState: vi.fn(),
+  setWebviewLoaded: vi.fn()
+}))
+
 import { __resetRegionDetectionForTesting, useMiniApps } from '../useMiniApps'
 import { appFixtures, createCnOnlyApp, createGlobalApp, createMiniApp } from './fixtures/miniApp'
 
 /** Helper: return the array directly since list() now returns a bare MiniApp[] */
 const paginated = (items: MiniApp[]) => items
+const mockClearWebviewState = vi.mocked(clearWebviewState)
+const mockSetWebviewLoaded = vi.mocked(setWebviewLoaded)
 
 describe('useMiniApps', () => {
   beforeEach(() => {
@@ -22,6 +48,12 @@ describe('useMiniApps', () => {
 
     // Reset module-level regionDetectionPromise to ensure fresh detection in each test
     __resetRegionDetectionForTesting()
+    mockTabs.tabs = []
+    mockTabs.hasContext = true
+    mockTabs.closeTab.mockClear()
+    mockTabs.updateTab.mockClear()
+    mockClearWebviewState.mockClear()
+    mockSetWebviewLoaded.mockClear()
   })
 
   // === Data Loading ===
@@ -228,6 +260,84 @@ describe('useMiniApps', () => {
       expect(typeof result.current.createCustomMiniApp).toBe('function')
       expect(typeof result.current.removeCustomMiniApp).toBe('function')
       expect(typeof result.current.reorderMiniApps).toBe('function')
+    })
+
+    it('should sync opened cache, tab metadata, and webview state after updating a custom miniapp', async () => {
+      const existing = createMiniApp('custom-app', {
+        name: 'Old App',
+        url: 'https://old.example.com',
+        logo: 'old-logo',
+        presetMiniAppId: null
+      })
+      const other = createMiniApp('other-app')
+      const updated = {
+        ...existing,
+        name: 'New App',
+        url: 'https://new.example.com',
+        logo: 'new-logo'
+      }
+      const trigger = vi.fn().mockResolvedValue(updated)
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/mini-apps/:appId', trigger)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [other, existing])
+      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', existing)
+      mockTabs.tabs = [
+        { id: 'tab-1', url: '/app/mini-app/custom-app' },
+        { id: 'tab-2', url: '/app/mini-app/custom-app-extra' }
+      ]
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.updateCustomMiniApp('custom-app', {
+          name: 'New App',
+          url: 'https://new.example.com',
+          logo: 'new-logo'
+        })
+      })
+
+      expect(trigger).toHaveBeenCalledWith({
+        params: { appId: 'custom-app' },
+        body: {
+          name: 'New App',
+          url: 'https://new.example.com',
+          logo: 'new-logo'
+        }
+      })
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([other, updated])
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toEqual(updated)
+      expect(mockSetWebviewLoaded).toHaveBeenCalledWith('custom-app', false)
+      expect(mockTabs.updateTab).toHaveBeenCalledWith('tab-1', { title: 'New App', icon: 'new-logo' })
+      expect(mockTabs.updateTab).not.toHaveBeenCalledWith('tab-2', expect.anything())
+    })
+
+    it('should clean opened cache, tabs, and webview state after removing a custom miniapp', async () => {
+      const existing = createMiniApp('custom-app', { presetMiniAppId: null })
+      const other = createMiniApp('other-app')
+      const trigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/mini-apps/:appId', trigger)
+      MockUseCacheUtils.setCacheValue('mini_app.opened_keep_alive', [existing, other])
+      MockUseCacheUtils.setCacheValue('mini_app.opened_oneoff', existing)
+      MockUseCacheUtils.setCacheValue('mini_app.current_id', 'custom-app')
+      MockUseCacheUtils.setCacheValue('mini_app.show', true)
+      mockTabs.tabs = [
+        { id: 'tab-1', url: '/app/mini-app/custom-app' },
+        { id: 'tab-2', url: '/app/mini-app/custom-app-extra' }
+      ]
+
+      const { result } = renderHook(() => useMiniApps())
+
+      await act(async () => {
+        await result.current.removeCustomMiniApp('custom-app')
+      })
+
+      expect(trigger).toHaveBeenCalledWith({ params: { appId: 'custom-app' } })
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_keep_alive')).toEqual([other])
+      expect(MockUseCacheUtils.getCacheValue('mini_app.opened_oneoff')).toBeNull()
+      expect(MockUseCacheUtils.getCacheValue('mini_app.current_id')).toBe('')
+      expect(MockUseCacheUtils.getCacheValue('mini_app.show')).toBe(false)
+      expect(mockClearWebviewState).toHaveBeenCalledWith('custom-app')
+      expect(mockTabs.closeTab).toHaveBeenCalledWith('tab-1')
+      expect(mockTabs.closeTab).not.toHaveBeenCalledWith('tab-2')
     })
   })
 

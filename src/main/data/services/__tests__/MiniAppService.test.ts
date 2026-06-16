@@ -1,3 +1,4 @@
+import { application } from '@application'
 import { miniAppTable } from '@data/db/schemas/miniApp'
 import { miniAppService } from '@data/services/MiniAppService'
 import { ErrorCode } from '@shared/data/api'
@@ -5,7 +6,7 @@ import type { CreateMiniAppDto, UpdateMiniAppDto } from '@shared/data/api/schema
 import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock } from 'vitest'
 
 describe('MiniAppService', () => {
   const dbh = setupTestDatabase()
@@ -290,7 +291,12 @@ describe('MiniAppService', () => {
   describe('delete', () => {
     it('should delete a custom miniapp', async () => {
       await seedCustom()
+      const withWriteTx = application.get('DbService').withWriteTx as Mock
+      withWriteTx.mockClear()
+
       await miniAppService.delete('custom-app')
+
+      expect(withWriteTx).toHaveBeenCalledTimes(1)
       const rows = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'custom-app'))
       expect(rows).toHaveLength(0)
     })
