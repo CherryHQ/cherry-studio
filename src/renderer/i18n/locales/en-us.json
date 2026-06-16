@@ -6114,7 +6114,7 @@
         "refetch_list": "Pull models again",
         "reload_catalog": "Refresh list",
         "remove_listed": "Remove models from the list",
-        "remove_model": "Remove model",
+        "remove_model": "Delete model",
         "remove_whole_group": "Delete group",
         "search_models_placeholder": "Search models…",
         "select_none": "Select none",
