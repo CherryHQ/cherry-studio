@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   createMock,
-  deleteByAssistantIdMock,
   deleteByIdsMock,
   deleteMock,
   duplicateMock,
@@ -14,7 +13,6 @@ const {
   updateMock
 } = vi.hoisted(() => ({
   createMock: vi.fn(),
-  deleteByAssistantIdMock: vi.fn(),
   deleteByIdsMock: vi.fn(),
   deleteMock: vi.fn(),
   duplicateMock: vi.fn(),
@@ -30,7 +28,6 @@ vi.mock('@data/services/TopicService', () => ({
   topicService: {
     create: createMock,
     delete: deleteMock,
-    deleteByAssistantId: deleteByAssistantIdMock,
     deleteByIds: deleteByIdsMock,
     duplicate: duplicateMock,
     getById: getByIdMock,
@@ -47,22 +44,6 @@ import { topicHandlers } from '../topics'
 describe('topicHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-  })
-
-  describe('/assistants/:assistantId/topics', () => {
-    it('delegates assistant-scoped topic delete to TopicService', async () => {
-      const result = { deletedIds: ['topic-a', 'topic-b'], deletedCount: 2 }
-      deleteByAssistantIdMock.mockResolvedValueOnce(result)
-
-      await expect(
-        topicHandlers['/assistants/:assistantId/topics'].DELETE({
-          params: { assistantId: 'assistant-1' }
-        } as never)
-      ).resolves.toEqual(result)
-
-      expect(deleteByAssistantIdMock).toHaveBeenCalledWith('assistant-1')
-      expect(deleteMock).not.toHaveBeenCalled()
-    })
   })
 
   describe('/topics', () => {

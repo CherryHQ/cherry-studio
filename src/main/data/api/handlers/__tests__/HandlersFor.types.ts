@@ -166,8 +166,8 @@ const _n4_old: OldTopicHandlers = {
 
 // ============================================================================
 // N5 — NEGATIVE: extra method on an otherwise-valid path (method not declared
-// in schema). TopicSchemas['/topics'] declares only GET + POST + DELETE; PUT
-// must be rejected even though it is a valid HTTP method elsewhere.
+// in schema). TopicSchemas['/topics'] declares GET + POST + DELETE; PUT must be
+// rejected even though it is a valid HTTP method elsewhere.
 // ============================================================================
 
 const _n5_new: HandlersFor<TopicSchemas> = {

@@ -70,6 +70,20 @@
       "when": 1781492686220,
       "tag": "0009_last_forge",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1781318632653,
+      "tag": "0009_secret_firelord",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1781581651909,
+      "tag": "0010_shocking_ikaris",
+      "breakpoints": true
     }
   ],
   "version": "7"

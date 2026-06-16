@@ -38,7 +38,7 @@ const RetrievalSection = ({
 }: RetrievalSectionProps) => {
   const { t } = useTranslation()
   const isHybridMode = searchMode === 'hybrid'
-  const usesRelevanceThreshold = searchMode === 'default' || rerankModelId !== null
+  const usesRelevanceThreshold = searchMode === 'vector' || rerankModelId !== null
 
   return (
     <div className="flex flex-col gap-4">

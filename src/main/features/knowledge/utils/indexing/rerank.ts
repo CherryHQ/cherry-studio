@@ -68,15 +68,15 @@ async function rerankWithAiService(
     const context = {
       baseId: base.id,
       rerankModelId: base.rerankModelId,
-      error: normalizedError.message,
       topN
     }
     // Persistent misconfiguration (401/403/404) degrades every search forever, so escalate
-    // to error; transient failures (network/timeout/429/5xx) stay at warn.
+    // to error; transient failures (network/timeout/429/5xx) stay at warn. Pass the Error
+    // instance itself so the stack and cause survive into the log.
     if (isPersistentRerankMisconfig(error)) {
-      logger.error('Knowledge rerank failed, returning vector search results', context)
+      logger.error('Knowledge rerank failed, returning vector search results', normalizedError, context)
     } else {
-      logger.warn('Knowledge rerank failed, returning vector search results', context)
+      logger.warn('Knowledge rerank failed, returning vector search results', normalizedError, context)
     }
     return searchResults
   }

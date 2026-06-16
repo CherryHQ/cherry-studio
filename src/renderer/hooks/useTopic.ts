@@ -285,10 +285,10 @@ export function useTopicMutations() {
     // would trigger a fetch that 404s and caches an error in SWR.
     refresh: ['/topics']
   })
-  const { trigger: deleteByAssistantTrigger } = useMutation('DELETE', '/assistants/:assistantId/topics', {
+  const { trigger: deleteManyTrigger, isLoading: isDeletingMany } = useMutation('DELETE', '/topics', {
     refresh: ['/topics', '/pins']
   })
-  const { trigger: deleteManyTrigger } = useMutation('DELETE', '/topics', {
+  const { trigger: deleteByAssistantTrigger } = useMutation('DELETE', '/assistants/:assistantId/topics', {
     refresh: ['/topics', '/pins']
   })
 
@@ -320,15 +320,6 @@ export function useTopicMutations() {
     [deleteTrigger]
   )
 
-  const deleteTopicsByAssistantId = useCallback(
-    async (assistantId: string): Promise<DeleteTopicsResult> => {
-      const result = await deleteByAssistantTrigger({ params: { assistantId } })
-      logger.info('Deleted assistant topics', { assistantId, count: result.deletedCount })
-      return result
-    },
-    [deleteByAssistantTrigger]
-  )
-
   const deleteTopics = useCallback(
     async (ids: string[]): Promise<DeleteTopicsResult> => {
       const result = await deleteManyTrigger({ query: { ids: ids.join(',') } })
@@ -336,6 +327,15 @@ export function useTopicMutations() {
       return result
     },
     [deleteManyTrigger]
+  )
+
+  const deleteTopicsByAssistantId = useCallback(
+    async (assistantId: string): Promise<DeleteTopicsResult> => {
+      const result = await deleteByAssistantTrigger({ params: { assistantId } })
+      logger.info('Deleted assistant topics', { assistantId, count: result.deletedCount })
+      return result
+    },
+    [deleteByAssistantTrigger]
   )
 
   const batchUpdateTopics = useCallback(
@@ -356,7 +356,7 @@ export function useTopicMutations() {
     refreshTopics,
     isCreating,
     isUpdating,
-    isDeleting
+    isDeleting: isDeleting || isDeletingMany
   }
 }
 
