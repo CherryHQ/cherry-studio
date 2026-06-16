@@ -15,7 +15,12 @@
 
 import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import type { CherryUIMessage } from '@shared/data/types/message'
-import type { BranchMessage, BranchMessagesResponse, Message as SharedMessage } from '@shared/data/types/message'
+import {
+  type BranchMessage,
+  type BranchMessagesResponse,
+  type Message as SharedMessage,
+  toContentRole
+} from '@shared/data/types/message'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
@@ -26,7 +31,7 @@ const PAGE_SIZE = 50
 function toUIMessage(shared: SharedMessage): CherryUIMessage {
   return {
     id: shared.id,
-    role: shared.role,
+    role: toContentRole(shared.role),
     parts: (shared.data?.parts ?? []) as CherryUIMessage['parts'],
     metadata: {
       parentId: shared.parentId,
