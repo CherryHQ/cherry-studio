@@ -250,7 +250,7 @@ export class LifecycleManager extends EventEmitter {
           duration
         })
       }
-      logger.info(`Service '${serviceName}' initialized (${duration.toFixed(3)}ms)`)
+      logger.debug(`Service '${serviceName}' initialized (${duration.toFixed(3)}ms)`)
 
       this.emitLifecycleEvent(LifecycleEvents.SERVICE_READY, serviceName, LifecycleState.Ready)
     } catch (error) {

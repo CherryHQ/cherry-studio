@@ -244,7 +244,11 @@ export function ProcessorPanel({
       ) : null}
 
       {processor.id === 'paddleocr' && entry.capability.modelId !== undefined ? (
-        <PaddleOcrModelSettings value={modelIdInput} onChange={(value) => void setModelIdInputAndPersist(value)} />
+        <PaddleOcrModelSettings
+          feature={entry.capability.feature}
+          value={modelIdInput}
+          onChange={(value) => void setModelIdInputAndPersist(value)}
+        />
       ) : null}
 
       {processor.id === 'paddleocr' ? <PaddleOcrDeploymentInfo /> : null}

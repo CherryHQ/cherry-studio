@@ -395,6 +395,9 @@
           "failed": "Error al reordenar las sesiones"
         }
       },
+      "tool": {
+        "disabled": "La herramienta {{toolName}} está deshabilitada para este agente."
+      },
       "update": {
         "error": {
           "failed": "Error al actualizar la sesión"
@@ -5679,12 +5682,18 @@
           },
           "invalid": "Entrada no válida, verifica el formato JSON",
           "json": "Importar desde JSON",
+          "mcpb": "Importar paquete MCPB",
+          "mcpbFile": "Archivo de paquete MCPB",
+          "mcpbHelp": "Selecciona un archivo .mcpb que contenga un paquete de servidor MCP",
+          "mcpbProcessFailed": "Error al procesar el archivo MCPB",
           "method": "Método de importación",
           "nameExists": "El servidor ya existe: {{name}}",
           "noDxtFile": "Por favor, selecciona un archivo DXT",
+          "noMcpbFile": "Por favor, seleccione un archivo MCPB",
           "oneServer": "Solo se puede guardar una configuración de servidor MCP a la vez",
           "placeholder": "Pega la configuración JSON del servidor MCP",
           "selectDxtFile": "Seleccionar archivo DXT",
+          "selectMcpbFile": "Seleccionar archivo MCPB",
           "tooltip": "Copia el JSON de configuración desde la página de descripción de MCP Servers (prioriza configuraciones NPX o UVX) y pégalo en el campo de entrada"
         },
         "label": "Agregar servidor"
@@ -6654,6 +6663,7 @@
         "project_id": "ID del proyecto",
         "project_id_help": "Su ID de proyecto de Google Cloud",
         "project_id_placeholder": "su-id-de-proyecto-de-google-cloud",
+        "select_location": "[to be translated]:Select location",
         "service_account": {
           "auth_success": "Autenticación de Service Account exitosa",
           "client_email": "Correo electrónico del cliente",
@@ -6669,7 +6679,10 @@
           "private_key": "Clave privada",
           "private_key_help": "Campo private_key del archivo de clave JSON descargado desde Google Cloud Console",
           "private_key_placeholder": "Ingrese la clave privada de Service Account",
-          "title": "Configuración de Service Account"
+          "title": "Configuración de Service Account",
+          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
+          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
+          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
         }
       }
     },
@@ -7076,6 +7089,36 @@
     "settings": "Configuración",
     "store": "Biblioteca de asistentes",
     "translate": "Traducir"
+  },
+  "trace": {
+    "agent": "Agente",
+    "backList": "Volver a la lista",
+    "cachedTokens": "En caché",
+    "endTime": "Hora de finalización",
+    "inputs": "Entradas",
+    "label": "Cadena de llamadas",
+    "model": "Modelo",
+    "name": "Nombre del Nodo",
+    "noTraceList": "No se encontró información de rastreo",
+    "operation": "Operación",
+    "outputs": "Salidas",
+    "pollError": "Error en la votación",
+    "reasoningTokens": "Razonamiento",
+    "requestHeaders": "Encabezados de Solicitud",
+    "requestMethod": "Método de solicitud",
+    "requestUrl": "URL de solicitud",
+    "responseHeaders": "Encabezados de Respuesta",
+    "responseStatus": "Estado de la respuesta",
+    "serverDescription": "Descripción del servidor",
+    "serverName": "Nombre del servidor",
+    "serverType": "Tipo de servidor",
+    "spanDetail": "Detalles de Span",
+    "spendTime": "Pasar Tiempo",
+    "startTime": "Hora de inicio",
+    "status": "Estado",
+    "tag": "Etiqueta",
+    "tokenUsage": "Uso de Tokens",
+    "toolCalls": "Llamadas a herramientas"
   },
   "translate": {
     "alter_language": "Idioma alternativo",

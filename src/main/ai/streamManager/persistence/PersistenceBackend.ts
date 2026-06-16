@@ -10,6 +10,7 @@
 
 import type { CherryMessagePart, CherryUIMessage, MessageStats } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { type CherryReasoningMeta, readCherryMeta, withCherryMeta } from '@shared/data/types/uiParts'
 
 import type { SemanticTimings, TransportTimings } from '../types'
 
@@ -27,6 +28,32 @@ export function finalizeInterruptedParts(
   if (status === 'success') return parts
   const reason = status === 'paused' ? 'Interrupted by user' : 'Stream errored before tool completed'
   return parts.map((part) => {
+    if (part.type === 'reasoning') {
+      if (part.state === 'streaming') {
+        const cherry = readCherryMeta(part)
+        const startedAt = cherry?.startedAt
+        const thinkingMs = cherry?.thinkingMs
+
+        let patch: Partial<CherryReasoningMeta> = {}
+        if (typeof startedAt === 'number' && Number.isFinite(startedAt) && !Number.isFinite(thinkingMs)) {
+          patch = {
+            thinkingMs: Math.max(0, Date.now() - startedAt)
+          }
+        }
+
+        // TODO(stream-manager-redesign): AI SDK's ReasoningUIPart currently only supports 'streaming' | 'done'.
+        // Investigate expanding the state machine with an 'error' terminal state.
+        return withCherryMeta(
+          {
+            ...part,
+            state: 'done'
+          },
+          patch
+        )
+      }
+      return part
+    }
+
     if (!isToolPart(part)) return part
     const toolPart = part as CherryMessagePart & { state?: string; errorText?: string }
     if (toolPart.state && TERMINAL_TOOL_STATES.has(toolPart.state)) return part

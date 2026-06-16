@@ -42,6 +42,15 @@ export interface ActiveExecution {
   anchorMessageId?: string
 }
 
+export interface ComposerQueuedMessagePayload {
+  text: string
+  userMessageParts: CherryMessagePart[]
+  files?: Array<Record<string, unknown>>
+  /** Models selected by the composer model selector for this queued draft. */
+  mentionedModels?: UniqueModelId[]
+  knowledgeBaseIds?: string[]
+}
+
 /**
  * Per-topic stream state entry — stored under the shared
  * `topic.stream.statuses.${topicId}` template cache key.
@@ -50,8 +59,8 @@ export interface ActiveExecution {
  * (`exec.status === 'streaming'` — set at launch, cleared only by `done` /
  * `error` / `aborted`). Empty when every execution has hit a terminal state.
  *
- * `awaitingApprovalAnchors` names every execution currently paused on a
- * `tool-approval-request` (`exec.awaitingApproval === true`), even after
+ * `awaitingApprovalAnchors` names every execution with a still-pending
+ * `tool-approval-request` (`exec.pendingApprovalToolCallIds` non-empty), even after
  * the execution itself has terminated (MCP `needsApproval` ends the stream
  * cleanly via `done`). The renderer's per-message "is this the active turn
  * target?" predicate reads this — Main is the single authority for the
@@ -60,6 +69,12 @@ export interface ActiveExecution {
  */
 export interface TopicStatusSnapshotEntry {
   status: TopicStreamStatus
+  /**
+   * Unique per stream lifecycle; lets per-window seen state distinguish repeated turns on the same
+   * topic. Main writes it today; the renderer consumer is not yet wired — it lands in the renderer
+   * split (do not remove: the consumer is real, just unsplit).
+   */
+  turnId?: string
   activeExecutions: ActiveExecution[]
   awaitingApprovalAnchors: ActiveExecution[]
   lastCompletedAt?: number
@@ -95,7 +110,7 @@ export interface StreamErrorPayload {
  */
 export type AiStreamOpenRequest = {
   topicId: string
-  /** UniqueModelIds of @-mentioned models — Main dispatches one execution per model. */
+  /** UniqueModelIds selected by the composer model selector — Main dispatches one execution per model. */
   mentionedModelIds?: UniqueModelId[]
 } & (
   | {
@@ -129,6 +144,16 @@ export interface ApprovalDecision {
   approvalId: string
   approved: boolean
   reason?: string
+  updatedInput?: Record<string, unknown>
+}
+
+export interface AiToolApprovalRespondRequest extends ApprovalDecision {
+  topicId?: string
+  anchorId?: string
+}
+
+export interface AiToolApprovalRespondResponse {
+  ok: boolean
 }
 
 /** Subscribe to a topic's stream state. */
@@ -180,9 +205,11 @@ export type AiStreamOpenResponse =
   | {
       /**
        * `'started'`  — a brand new stream was created on this topic.
-       * `'injected'` — a stream was already live on this topic (agent
-       *                 session follow-up); the new subscriber was attached
-       *                 to the running stream rather than starting a turn.
+       * `'injected'` — a stream was already live, or an enqueue-only turn
+       *                 intentionally launched no models. The subscriber was
+       *                 attached to the running stream instead of starting a
+       *                 turn; chat steers may still include `userMessageId` /
+       *                 `reservedMessages` for the queued user row.
        */
       mode: 'started' | 'injected'
       /** Multi-model: execution IDs for frontend to create per-model streams. */
@@ -195,10 +222,16 @@ export type AiStreamOpenResponse =
        */
       userMessageId?: string
       /**
-       * Authoritative DB ids of the assistant placeholder row(s) reserved for
-       * this turn, one per execution (model order matches `executionIds`).
-       * Created atomically with the user message, so the presence of any of
-       * these in `uiMessages` also implies the user row landed.
+       * Authoritative persisted message skeletons reserved before the stream starts. Contract
+       * intent: a consumer may seed these into its view immediately for an optimistic render, then
+       * reconcile final content/status from a DB refresh.
+       */
+      reservedMessages?: CherryUIMessage[]
+      /**
+       * Assistant placeholder ids derived from `reservedMessages` (its assistant rows, or the
+       * per-model `request.messageId` fallback). The v2 home page reads this through
+       * `usePendingMessages` (via `V2ChatContent`) as the join key for reconciling its optimistic
+       * pending bubbles against the persisted rows.
        */
       placeholderIds?: string[]
     }

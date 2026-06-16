@@ -77,7 +77,6 @@ const KnowledgePageDialogSection = () => {
           open
           base={restoringBase}
           initialEmbeddingModelId={restoreBaseInitialValues?.embeddingModelId}
-          initialDimensions={restoreBaseInitialValues?.dimensions}
           isRestoring={isRestoringBase}
           restoreBase={restoreBase}
           onOpenChange={handleRestoreBaseDialogOpenChange}

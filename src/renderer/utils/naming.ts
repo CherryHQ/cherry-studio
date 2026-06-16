@@ -1,4 +1,5 @@
-import { getProviderLabel } from '@renderer/i18n/label'
+import i18n from '@renderer/i18n'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import type { Provider } from '@renderer/types'
 import { isSystemProvider } from '@renderer/types'
 
@@ -104,7 +105,7 @@ export const getLowerBaseModelName = (id: string, delimiter: string = '/'): stri
  * @returns 描述性的名字
  */
 export const getFancyProviderName = (provider: Provider) => {
-  return isSystemProvider(provider) ? getProviderLabel(provider.id) : provider.name
+  return isSystemProvider(provider) ? i18n.t(getProviderLabelKey(provider.id)) : provider.name
 }
 
 /**

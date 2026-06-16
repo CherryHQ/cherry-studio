@@ -4,17 +4,19 @@ import DirectorySourceContent from './sources/DirectorySourceContent'
 import FileSourceContent from './sources/FileSourceContent'
 import NoteSourceContent from './sources/NoteSourceContent'
 import UrlSourceContent from './sources/UrlSourceContent'
-import type { DirectoryItem, DropzoneOnDrop } from './types'
+import type { DirectoryItem, DropzoneOnDrop, NoteItem } from './types'
 
 interface AddKnowledgeItemDialogSourceTabsProps {
   activeSource: KnowledgeItemType
   selectedDirectories: DirectoryItem[]
   selectedFiles: File[]
+  selectedNotes: NoteItem[]
   urlValue: string
   onDirectoryRemove: (directoryPath: string) => void
   onDirectorySelect: () => void | Promise<void>
   onFileDrop: DropzoneOnDrop
   onFileRemove: (fileIndex: number) => void
+  onNoteToggle: (note: NoteItem) => void
   onUrlValueChange: (value: string) => void
 }
 
@@ -22,11 +24,13 @@ const AddKnowledgeItemDialogSourceTabs = ({
   activeSource,
   selectedDirectories,
   selectedFiles,
+  selectedNotes,
   urlValue,
   onDirectoryRemove,
   onDirectorySelect,
   onFileDrop,
   onFileRemove,
+  onNoteToggle,
   onUrlValueChange
 }: AddKnowledgeItemDialogSourceTabsProps) => {
   const renderSourceContent = (source: KnowledgeItemType) => {
@@ -34,7 +38,7 @@ const AddKnowledgeItemDialogSourceTabs = ({
       case 'file':
         return <FileSourceContent files={selectedFiles} onDrop={onFileDrop} onRemove={onFileRemove} />
       case 'note':
-        return <NoteSourceContent />
+        return <NoteSourceContent selectedNotes={selectedNotes} onToggle={onNoteToggle} />
       case 'directory':
         return (
           <DirectorySourceContent

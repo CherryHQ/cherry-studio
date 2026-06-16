@@ -24,7 +24,7 @@ vi.mock('@renderer/i18n', () => ({
   }
 }))
 
-import { getDefaultRouteTitle, getRouteTitleKey } from '../routeTitle'
+import { getDefaultRouteTitle, getRouteTitleKey, isTopLevelRoute, shouldAutoLocalizeRouteTitle } from '../routeTitle'
 
 describe('routeTitle', () => {
   beforeEach(() => {
@@ -134,6 +134,45 @@ describe('routeTitle', () => {
         expect(getRouteTitleKey('/unknown')).toBeUndefined()
         expect(getRouteTitleKey('/foo/bar')).toBeUndefined()
       })
+    })
+  })
+
+  describe('isTopLevelRoute', () => {
+    it.each([
+      ['/', true],
+      ['/home', true],
+      ['/app/chat', true],
+      ['/settings', true]
+    ])('should be true for the exact top-level route %s', (url, expected) => {
+      expect(isTopLevelRoute(url)).toBe(expected)
+    })
+
+    it.each([
+      ['/app/chat/123', false],
+      ['/settings/provider', false],
+      ['/unknown', false]
+    ])('should be false for non-top-level route %s', (url, expected) => {
+      expect(isTopLevelRoute(url)).toBe(expected)
+    })
+  })
+
+  describe('shouldAutoLocalizeRouteTitle', () => {
+    it.each([
+      // Top-level routes always re-localize.
+      ['/app/chat', true],
+      ['/settings', true],
+      ['/app/paintings', true],
+      // Paintings sub-routes inherit the section title (splat route, no per-entity title).
+      ['/app/paintings/zhipu', true],
+      // Any /settings sub-route re-localizes.
+      ['/settings/provider/openai', true],
+      // mini-app and chat sub-routes preserve caller-supplied per-entity titles.
+      ['/app/mini-app/weather', false],
+      ['/app/chat/123', false],
+      // Unknown routes are not auto-localized.
+      ['/unknown', false]
+    ])('should return %s -> %s', (url, expected) => {
+      expect(shouldAutoLocalizeRouteTitle(url)).toBe(expected)
     })
   })
 })

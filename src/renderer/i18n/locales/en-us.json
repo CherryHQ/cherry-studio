@@ -2155,8 +2155,9 @@
         },
         "note": {
           "description": "Select existing notes as knowledge base sources",
-          "empty_description": "Selectable notes will appear here after the real notes list is connected. For now, use files, folders, or URLs.",
-          "empty_title": "Notes are not connected yet"
+          "empty_description": "Create notes in the Notes feature, then come back to select them here.",
+          "empty_title": "No notes found",
+          "loading": "Loading notes…"
         },
         "placeholder": {
           "supported_formats": "Supports PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -2189,8 +2190,6 @@
         "reindex": "Reindex",
         "selected_count": "{{count}} selected"
       },
-      "chunk_delete_confirm_description": "After deletion, this chunk will no longer be used for retrieval. Reindexing the data source will generate it again.",
-      "chunk_delete_confirm_title": "Delete Chunk?",
       "chunks_count": "{{count}} chunks",
       "delete_confirm_description": "This data source and its index data cannot be recovered after deletion.",
       "delete_confirm_title": "Delete Data Source?",
@@ -2247,9 +2246,7 @@
         "search_placeholder": "Search data sources"
       }
     },
-    "dimensions": "Embedding Dimensions",
     "dimensions_auto_set": "Auto-set embedding dimensions",
-    "dimensions_error_invalid": "Invalid embedding dimension",
     "dimensions_size_placeholder": "Leave empty to not pass dimensions",
     "drag_file": "Drag file here",
     "embedding_model": "Embedding Model",
@@ -2301,7 +2298,6 @@
       "chunk_size_invalid": "Chunk size must be greater than 0",
       "chunking": "Chunking",
       "default_separator": "Auto (recommended)",
-      "dimensions": "Vector Dimensions",
       "document_count": "Requested Chunks (Top K)",
       "embedding_model": "Embedding Model",
       "embedding_model_select": "Model Selection",
@@ -2310,7 +2306,6 @@
       "hints": {
         "chunk_overlap": "Number of overlapping tokens kept between adjacent chunks to reduce semantic breaks.",
         "chunk_size": "Target token count for each document chunk. This affects retrieval granularity and context length.",
-        "dimensions": "The vector dimension output by the current embedding model, used to create and match vector indexes.",
         "document_count": "Maximum number of document chunks returned for each retrieval. Higher values cover more content but use more context.",
         "embedding_model": "Used to convert knowledge base content into vectors. Changing the model usually requires reindexing existing content.",
         "hybrid_alpha": "Vector score weight in hybrid retrieval. Higher values favor semantic matching.",
@@ -2321,9 +2316,7 @@
         "threshold_disabled": "This retrieval mode returns ordered results and does not use a similarity threshold."
       },
       "hybrid_alpha": "Hybrid Alpha",
-      "hybrid_alpha_hint": "Only configurable in Hybrid retrieval mode",
       "processor": "Processing Provider",
-      "refresh_dimensions": "Refresh vector dimensions",
       "rerank_disabled": "Disabled",
       "rerank_model": "Rerank Model",
       "reset_action": "Restore Defaults",
@@ -2333,9 +2326,9 @@
       "saved": "Saved",
       "search_mode": {
         "bm25": "Full-text Search",
-        "default": "Vector Search",
         "hybrid": "Hybrid Search (recommended)",
-        "title": "Search Mode"
+        "title": "Search Mode",
+        "vector": "Vector Search"
       },
       "separator_rule": "Separator Rule",
       "threshold": "Similarity Threshold",
@@ -5679,12 +5672,18 @@
           },
           "invalid": "Invalid input, please check JSON format",
           "json": "Import from JSON",
+          "mcpb": "Import MCPB Bundle",
+          "mcpbFile": "MCPB Bundle File",
+          "mcpbHelp": "Select a .mcpb file containing an MCP server bundle",
+          "mcpbProcessFailed": "Failed to process MCPB file",
           "method": "Import Method",
           "nameExists": "Server already exists: {{name}}",
           "noDxtFile": "Please select a DXT file",
+          "noMcpbFile": "Please select an MCPB file",
           "oneServer": "Only one MCP server configuration at a time",
           "placeholder": "Paste MCP server JSON config",
           "selectDxtFile": "Select DXT File",
+          "selectMcpbFile": "Select MCPB File",
           "tooltip": "Please copy the configuration JSON (prioritizing\n NPX or UVX configurations) from the MCP Servers introduction page and paste it into the input box."
         },
         "label": "Add Server"
@@ -6654,6 +6653,7 @@
         "project_id": "Project ID",
         "project_id_help": "Your Google Cloud project ID",
         "project_id_placeholder": "your-google-cloud-project-id",
+        "select_location": "Select location",
         "service_account": {
           "auth_success": "Service Account authenticated successfully",
           "client_email": "Client Email",
@@ -6669,7 +6669,10 @@
           "private_key": "Private Key",
           "private_key_help": "The private_key field from the JSON key file downloaded from Google Cloud Console",
           "private_key_placeholder": "Enter Service Account private key",
-          "title": "Service Account Configuration"
+          "title": "Service Account Configuration",
+          "toggle_client_email_visibility": "Toggle client email visibility",
+          "toggle_private_key_visibility": "Toggle private key visibility",
+          "toggle_project_id_visibility": "Toggle project ID visibility"
         }
       }
     },
@@ -6739,6 +6742,7 @@
       },
       "clear_shortcut": "Clear Shortcut",
       "clear_topic": "Clear Messages",
+      "close_tab": "Close Tab",
       "conflict_with": "Already used by \"{{name}}\"",
       "copy_last_message": "Copy Last Message",
       "edit_last_user_message": "Edit Last User Message",
@@ -6746,8 +6750,11 @@
       "enabled": "Enable",
       "exit_fullscreen": "Exit Fullscreen",
       "label": "Key",
+      "move_tab_to_first": "Move Tab to First",
       "new_topic": "New Topic",
       "occupied_by_other_application": "This shortcut is already used by the system or another application",
+      "open_tab_in_new_window": "Open Tab in New Window",
+      "pin_tab": "Toggle Pin Tab",
       "press_shortcut": "Press Shortcut",
       "quick_assistant": "Quick Assistant",
       "rename_topic": "Rename Topic",
@@ -7076,6 +7083,36 @@
     "settings": "Settings",
     "store": "Assistant Library",
     "translate": "Translate"
+  },
+  "trace": {
+    "agent": "Agent",
+    "backList": "Back To List",
+    "cachedTokens": "Cached",
+    "endTime": "End Time",
+    "inputs": "Inputs",
+    "label": "Call Chain",
+    "model": "Model",
+    "name": "Node Name",
+    "noTraceList": "No trace information found",
+    "operation": "Operation",
+    "outputs": "Outputs",
+    "pollError": "Polling failed",
+    "reasoningTokens": "Reasoning",
+    "requestHeaders": "Request Headers",
+    "requestMethod": "Request Method",
+    "requestUrl": "Request URL",
+    "responseHeaders": "Response Headers",
+    "responseStatus": "Response Status",
+    "serverDescription": "Server Description",
+    "serverName": "Server Name",
+    "serverType": "Server Type",
+    "spanDetail": "Span Details",
+    "spendTime": "Spend Time",
+    "startTime": "Start Time",
+    "status": "Status",
+    "tag": "Tag",
+    "tokenUsage": "Token Usage",
+    "toolCalls": "Tool Calls"
   },
   "translate": {
     "alter_language": "Alternative Language",

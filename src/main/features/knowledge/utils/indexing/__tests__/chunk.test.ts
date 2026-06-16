@@ -1,15 +1,12 @@
-import { type KnowledgeBase, KnowledgeChunkMetadataSchema } from '@shared/data/types/knowledge'
-import { MetadataMode } from '@vectorstores/core'
+import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { Document } from '@vectorstores/core'
 import { describe, expect, it } from 'vitest'
 
-import { chunkDocuments, mapChunkDocument } from '../chunk'
+import { chunkKnowledgeDocuments } from '../chunk'
 
 const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
-const KNOWLEDGE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
-const CHUNK_ITEM_ID = '0198f3f2-7d1b-7abc-8def-123456789abc'
 
-function createBase(): KnowledgeBase {
+function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   return {
     id: KNOWLEDGE_BASE_ID,
     name: 'KB',
@@ -22,111 +19,43 @@ function createBase(): KnowledgeBase {
     chunkOverlap: 0,
     searchMode: 'hybrid',
     createdAt: '2026-04-08T00:00:00.000Z',
-    updatedAt: '2026-04-08T00:00:00.000Z'
+    updatedAt: '2026-04-08T00:00:00.000Z',
+    ...overrides
   }
 }
 
-function createItem() {
-  return {
-    id: KNOWLEDGE_ITEM_ID,
-    baseId: KNOWLEDGE_BASE_ID,
-    groupId: null,
-    type: 'note' as const,
-    data: { source: 'item-1', content: 'hello' },
-    status: 'idle' as const,
-    error: null,
-    createdAt: '2026-04-08T00:00:00.000Z',
-    updatedAt: '2026-04-08T00:00:00.000Z'
-  }
-}
-
-describe('chunkDocuments', () => {
-  it('returns an empty list when there are no source documents', () => {
-    expect(chunkDocuments(createBase(), createItem(), [])).toEqual([])
+describe('chunkKnowledgeDocuments', () => {
+  it('returns empty content and no chunks when there are no source documents', () => {
+    expect(chunkKnowledgeDocuments(createBase(), [])).toEqual({ contentText: '', chunks: [] })
   })
 
-  it('preserves source metadata and annotates chunks with item metadata', () => {
+  it('joins documents with a blank line and assigns sequential unit indexes', () => {
     const documents = [
-      new Document({
-        text: 'hello world',
-        metadata: { source: 'https://example.com/1', page: 1 }
-      }),
-      new Document({
-        text: 'goodbye world',
-        metadata: { source: 'https://example.com/2' }
-      })
+      new Document({ text: 'alpha', metadata: { source: 'a' } }),
+      new Document({ text: 'beta', metadata: { source: 'b' } })
     ]
 
-    const chunks = chunkDocuments(createBase(), createItem(), documents)
-    const metadata = chunks.map((chunk) => KnowledgeChunkMetadataSchema.parse(chunk.metadata))
+    const { contentText, chunks } = chunkKnowledgeDocuments(createBase(), documents)
 
-    expect(chunks).toHaveLength(2)
-    expect(metadata[0]).toMatchObject({
-      source: 'https://example.com/1',
-      itemId: KNOWLEDGE_ITEM_ID,
-      itemType: 'note',
-      chunkIndex: 0,
-      tokenCount: expect.any(Number)
-    })
-    expect(metadata[0]).not.toHaveProperty('page')
-    expect(metadata[1]).toMatchObject({
-      source: 'https://example.com/2',
-      itemId: KNOWLEDGE_ITEM_ID,
-      itemType: 'note',
-      chunkIndex: 1,
-      tokenCount: expect.any(Number)
-    })
-    expect(metadata[0]?.tokenCount).toBeGreaterThan(0)
+    expect(contentText).toBe('alpha\n\nbeta')
+    expect(chunks.map((chunk) => chunk.text)).toEqual(['alpha', 'beta'])
+    expect(chunks.map((chunk) => chunk.unitIndex)).toEqual([0, 1])
+    // The second document's offsets are shifted past the separator.
+    expect(contentText.slice(chunks[1].charStart, chunks[1].charEnd)).toBe('beta')
   })
 
-  it('throws before returning chunks when source metadata is missing', () => {
-    expect(() =>
-      chunkDocuments(createBase(), createItem(), [
-        new Document({
-          text: 'hello world',
-          metadata: {}
-        })
-      ])
-    ).toThrow()
-  })
+  it('keeps every chunk a verbatim slice of the joined content text', () => {
+    const documents = [
+      new Document({ text: 'Hello world. This is the very first document body.', metadata: { source: 'a' } }),
+      new Document({ text: 'Second document here. It also has several sentences inside.', metadata: { source: 'b' } })
+    ]
 
-  it('throws before returning chunks when source metadata is blank', () => {
-    expect(() =>
-      chunkDocuments(createBase(), createItem(), [
-        new Document({
-          text: 'hello world',
-          metadata: { source: '   ' }
-        })
-      ])
-    ).toThrow()
-  })
-})
+    const { contentText, chunks } = chunkKnowledgeDocuments(createBase({ chunkSize: 6, chunkOverlap: 1 }), documents)
 
-describe('mapChunkDocument', () => {
-  it('maps vector-store chunk documents to knowledge item chunks', () => {
-    const chunk = {
-      id_: 'chunk-1',
-      metadata: {
-        source: 'note-1',
-        itemId: CHUNK_ITEM_ID,
-        itemType: 'note',
-        chunkIndex: 0,
-        tokenCount: 3
-      },
-      getContent: (mode?: MetadataMode) => (mode === MetadataMode.NONE ? 'chunk text' : 'chunk text with metadata')
+    expect(chunks.length).toBeGreaterThan(1)
+    expect(chunks.map((chunk) => chunk.unitIndex)).toEqual(chunks.map((_, index) => index))
+    for (const chunk of chunks) {
+      expect(contentText.slice(chunk.charStart, chunk.charEnd)).toBe(chunk.text)
     }
-
-    expect(mapChunkDocument(chunk)).toEqual({
-      id: 'chunk-1',
-      itemId: CHUNK_ITEM_ID,
-      content: 'chunk text',
-      metadata: {
-        source: 'note-1',
-        itemId: CHUNK_ITEM_ID,
-        itemType: 'note',
-        chunkIndex: 0,
-        tokenCount: 3
-      }
-    })
   })
 })

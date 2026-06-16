@@ -42,7 +42,7 @@ export const knowledgeBaseTable = sqliteTable(
     ...createUpdateTimestamps
   },
   (t) => [
-    check('knowledge_base_search_mode_check', sql`${t.searchMode} IN ('default', 'bm25', 'hybrid')`),
+    check('knowledge_base_search_mode_check', sql`${t.searchMode} IN ('vector', 'bm25', 'hybrid')`),
     check('knowledge_base_status_check', sql`${t.status} IN ('completed', 'failed')`),
     check(
       'knowledge_base_status_error_check',

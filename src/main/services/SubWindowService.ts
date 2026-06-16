@@ -6,6 +6,7 @@ import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { SubWindowInitData } from '@shared/types/subWindow'
+import { normalizeTabInstanceMetadata } from '@shared/types/tabInstanceMetadata'
 import { BrowserWindow, nativeImage, nativeTheme } from 'electron'
 
 import iconPath from '../../../build/icon.png?asset'
@@ -115,6 +116,11 @@ export class SubWindowService extends BaseService {
       }
     })
 
+    // Retained until the renderer-side `useTabDrag` migration (renderer split): on `origin/main`
+    // the renderer (`useTabDrag.ts`) still invokes `Tab_TryAttach`, so removing this handler now
+    // would make that invoke reject after merge and break drag-to-reattach. The handler and its
+    // `useTabDrag` caller will be removed together in the renderer split (feat/chat-page already
+    // rewrote `useTabDrag` to not use this channel, so it intentionally has no handler).
     this.ipcHandle(
       IpcChannel.Tab_TryAttach,
       (_, payload: { tab: { id: string }; screenX: number; screenY: number }) => {
@@ -165,6 +171,16 @@ export class SubWindowService extends BaseService {
       if (senderWindow && !senderWindow.isDestroyed() && senderWindow.getOpacity() < 1) {
         senderWindow.setOpacity(1)
       }
+    })
+
+    this.ipcHandle(IpcChannel.SubWindow_SetAlwaysOnTop, (event, pinned: boolean) => {
+      const wm = application.get('WindowManager')
+      const senderId = wm.getWindowIdByWebContents(event.sender)
+      // Only WindowManager-tracked windows can be sub-windows; an untracked sender is
+      // definitely not one, so ignore it rather than poking an arbitrary BrowserWindow.
+      if (!senderId) return false
+      wm.behavior.setAlwaysOnTop(senderId, pinned)
+      return true
     })
   }
 
@@ -219,22 +235,27 @@ export class SubWindowService extends BaseService {
     id: string
     url: string
     title?: string
+    icon?: string
     type?: string
     isPinned?: boolean
+    metadata?: Record<string, unknown>
     x?: number
     y?: number
   }): string {
     const wm = application.get('WindowManager')
-    const { id: tabId, url, title, type, isPinned, x, y } = payload
+    const { id: tabId, url, title, icon, type, isPinned, metadata, x, y } = payload
     const hasPosition = x !== undefined && y !== undefined
     const dark = nativeTheme.shouldUseDarkColors
+    const tabInstanceMetadata = normalizeTabInstanceMetadata(metadata)
 
     const initData: SubWindowInitData = {
       tabId,
       url,
       title,
+      ...(icon && { icon }),
       type: type === 'route' || type === 'webview' ? type : 'route',
-      isPinned
+      isPinned,
+      ...(tabInstanceMetadata && { metadata: tabInstanceMetadata })
     }
 
     // Dynamic options injected per-call (registry carries platform-static defaults only).
@@ -258,12 +279,18 @@ export class SubWindowService extends BaseService {
     this.tabIdToWindowId.set(tabId, windowId)
 
     // showMode: 'manual' — WM does not auto-show. Callers that supply an initial position
-    // will receive Tab_MoveWindow which shows the window after repositioning; otherwise
-    // auto-show once Electron signals ready.
-    if (!hasPosition) {
-      win.once('ready-to-show', () => {
-        if (!win.isDestroyed()) win.show()
-      })
+    // will receive Tab_MoveWindow which shows the window after repositioning; otherwise we show
+    // it here, unconditionally and immediately, mirroring SelectionService.showActionWindow.
+    // This works for both fresh and reused windows because the SubWindow registry keeps
+    // paintWhenInitiallyHidden (Electron's default true): the hidden window — whether a freshly
+    // created one or a pre-warmed pooled standby — paints its renderer while hidden, so show()
+    // reveals already-rendered content. We deliberately do NOT gate on isLoadingMainFrame() /
+    // wait for ready-to-show: a standby's ready-to-show already fired during pre-warm and won't
+    // fire again (so a conditional wait would either flash the empty pre-warm shell or, on a
+    // failed load, leave the window stuck hidden forever). resetPooledWindowGeometry has already
+    // centered it.
+    if (!hasPosition && !win.isDestroyed()) {
+      win.show()
     }
 
     if (USE_CONTENT_BOUNDS_MOVE) {

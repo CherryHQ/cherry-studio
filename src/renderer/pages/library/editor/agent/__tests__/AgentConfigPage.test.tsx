@@ -106,8 +106,8 @@ vi.mock('../sections/PromptSection', () => ({
 }))
 
 vi.mock('../sections/ToolsSection', () => ({
-  default: ({ onChange }: { onChange: (patch: Partial<{ allowedTools: string[]; mcps: string[] }>) => void }) => (
-    <button type="button" onClick={() => onChange({ allowedTools: ['Read'], mcps: ['mcp-1'] })}>
+  default: ({ onChange }: { onChange: (patch: Partial<{ disabledTools: string[]; mcps: string[] }>) => void }) => (
+    <button type="button" onClick={() => onChange({ disabledTools: ['Read'], mcps: ['mcp-1'] })}>
       set tools
     </button>
   )
@@ -123,13 +123,14 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
     modelName: null,
     instructions: '',
     mcps: [],
-    allowedTools: [],
+    disabledTools: [],
     configuration: {
       avatar: 'old-avatar',
       plugin_state: 'keep-me'
     },
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
+    orderKey: 'k',
     ...overrides
   }
 }
@@ -189,7 +190,7 @@ describe('AgentConfigPage', () => {
     })
   })
 
-  it('creates an agent with the configured tool and MCP bindings', async () => {
+  it('creates an agent with the disabled tool and MCP bindings', async () => {
     const user = userEvent.setup()
     createAgentMock.mockResolvedValueOnce(createAgent({ id: 'created-1', name: 'Created Agent' }))
 
@@ -205,7 +206,7 @@ describe('AgentConfigPage', () => {
       expect.objectContaining({
         name: 'Created Agent',
         model: 'anthropic::claude-sonnet-4-5',
-        allowedTools: ['Read'],
+        disabledTools: ['Read'],
         mcps: ['mcp-1']
       })
     )

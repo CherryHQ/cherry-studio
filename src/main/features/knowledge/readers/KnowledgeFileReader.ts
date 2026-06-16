@@ -36,14 +36,20 @@ export function createSupportedFileReader(filePath: FilePath): VectorStoreFileRe
   }
 }
 
-export async function loadFileDocuments(item: KnowledgeItemOf<'file'>): Promise<Document[]> {
-  const filePath = getKnowledgeBaseFilePath(item.baseId, item.data.indexedRelativePath ?? item.data.relativePath)
+/**
+ * Read a base-relative file with the extension's reader and tag every document
+ * with `source`.
+ */
+export async function loadDocumentsFromKnowledgeBaseFile(
+  baseId: string,
+  relativePath: string,
+  source: string
+): Promise<Document[]> {
+  const filePath = getKnowledgeBaseFilePath(baseId, relativePath)
 
   const reader = createSupportedFileReader(filePath)
   const documents = await reader.loadData(filePath)
-  const sourceMetadata: KnowledgeSourceMetadata = {
-    source: item.data.source
-  }
+  const sourceMetadata: KnowledgeSourceMetadata = { source }
 
   return documents.map(
     (document) =>
@@ -51,5 +57,13 @@ export async function loadFileDocuments(item: KnowledgeItemOf<'file'>): Promise<
         text: document.text,
         metadata: { ...sourceMetadata }
       })
+  )
+}
+
+export async function loadFileDocuments(item: KnowledgeItemOf<'file'>): Promise<Document[]> {
+  return loadDocumentsFromKnowledgeBaseFile(
+    item.baseId,
+    item.data.indexedRelativePath ?? item.data.relativePath,
+    item.data.source
   )
 }

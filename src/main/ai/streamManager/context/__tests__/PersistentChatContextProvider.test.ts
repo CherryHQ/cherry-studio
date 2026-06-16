@@ -3,15 +3,17 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
+import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { startAiTurnTrace } from '../../../observability'
+import { startAiChildTurnSpan } from '../../../observability'
 import { PersistenceListener } from '../../listeners/PersistenceListener'
 import type { StreamListener } from '../../types'
+import type { MainSteerContinuationRequest } from '../dispatch'
 import { resolveModels, resolvePersistentSiblingsGroupId } from '../modelResolution'
 
 // Stub model resolution + tracing so the test drives the REAL DB history path
@@ -25,7 +27,9 @@ vi.mock('../modelResolution', () => ({
 }))
 
 vi.mock('../../../observability', () => ({
-  startAiTurnTrace: vi.fn(() => ({ rootSpan: { end: vi.fn() }, traceId: 'trace-1' }))
+  startAiChildTurnSpan: vi.fn(() => ({ rootSpan: { end: vi.fn() }, traceId: 'trace-1' })),
+  deriveRootSpanId: vi.fn(() => '1'.repeat(16)),
+  applyTurnInputAttributes: vi.fn()
 }))
 
 const { PersistentChatContextProvider } = await import('../PersistentChatContextProvider')
@@ -45,12 +49,12 @@ function flatten(messages: { role: string; parts: Array<{ type: string; text?: s
   }))
 }
 
-describe('PersistentChatContextProvider — steer-restart history (#B4)', () => {
+describe('PersistentChatContextProvider — steer continuation history', () => {
   const dbh = setupTestDatabase()
   const provider = new PersistentChatContextProvider()
 
-  // The text the model was mid-producing when the user steered; persisted on the
-  // assistant row as `paused` by `abortAndAwait` before the prompt is rebuilt.
+  // The text a prior turn produced before it yielded to the steer; the steer continuation's
+  // history must include it (it was persisted on the assistant row by the normal terminal path).
   const PARTIAL = 'partial answer so far'
 
   beforeEach(async () => {
@@ -98,12 +102,16 @@ describe('PersistentChatContextProvider — steer-restart history (#B4)', () => 
   it('rebuilds a prompt that carries the paused partial when the new turn anchors on the paused row', async () => {
     // Steering: renderer's `activeNodeId` (the streaming/paused assistant row) is sent as
     // `parentAnchorId`, so the new user message is parented on the paused row.
-    const prepared = await provider.prepareDispatch(makeSubscriber(), {
-      trigger: 'submit-message',
-      topicId: 'topic-1',
-      parentAnchorId: 'a1',
-      userMessageParts: [{ type: 'text', text: 'actually, change direction' }]
-    } as AiStreamOpenRequest)
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        userMessageParts: [{ type: 'text', text: 'actually, change direction' }]
+      } as AiStreamOpenRequest,
+      { hasLiveStream: false }
+    )
 
     const history = prepared.models[0].request.messages
     expect(history).toBeDefined()
@@ -115,15 +123,61 @@ describe('PersistentChatContextProvider — steer-restart history (#B4)', () => 
     ])
   })
 
+  it('steer-continuation: opens an assistant turn under the steer user row with a reminder-wrapped prompt', async () => {
+    // u1 → a1 → u2, where u2 is the steer the user sent mid-turn (child of the assistant row).
+    await dbh.db.insert(messageTable).values({
+      id: 'u2',
+      parentId: 'a1',
+      topicId: 'topic-1',
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'actually do X instead' }] },
+      status: 'success',
+      siblingsGroupId: 0,
+      modelId: MODEL_ID,
+      createdAt: 300,
+      updatedAt: 300
+    })
+
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      { trigger: 'steer-continuation', topicId: 'topic-1', userMessageId: 'u2' } as MainSteerContinuationRequest,
+      { hasLiveStream: false }
+    )
+
+    // A fresh assistant placeholder is created under u2 — no new user row.
+    const children = await messageService.getChildrenByParentId('u2')
+    expect(children).toHaveLength(1)
+    expect(children[0]).toMatchObject({ role: 'assistant', status: 'pending' })
+
+    // The persisted steer row is untouched (only the model-facing copy is wrapped).
+    const u2 = await messageService.getById('u2')
+    expect(flatten([{ role: 'user', parts: u2.data.parts ?? [] }])[0].text).toBe('actually do X instead')
+
+    // History is the full path; only the trailing steer message is system-reminder wrapped.
+    const history = prepared.models[0].request.messages!
+    expect(history).toHaveLength(3)
+    expect(flatten([history[0]])[0]).toEqual({ role: 'user', text: 'first question' })
+    expect(flatten([history[1]])[0]).toEqual({ role: 'assistant', text: PARTIAL })
+    const lastText = flatten([history[2]])[0].text
+    expect(history[2].role).toBe('user')
+    expect(lastText).toContain('<system-reminder>')
+    expect(lastText).toContain('actually do X instead')
+    expect(lastText).toContain('Please address this message and continue with your tasks.')
+  })
+
   it('drops the paused partial when the new turn does not anchor on it (precondition is necessary)', async () => {
     // Counter-case: anchoring on the prior user message (not the paused assistant row) rebuilds
     // a prompt WITHOUT the partial — proving the efficacy hinges on `parentAnchorId` = paused row.
-    const prepared = await provider.prepareDispatch(makeSubscriber(), {
-      trigger: 'submit-message',
-      topicId: 'topic-1',
-      parentAnchorId: 'u1',
-      userMessageParts: [{ type: 'text', text: 'retry from before' }]
-    } as AiStreamOpenRequest)
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'u1',
+        userMessageParts: [{ type: 'text', text: 'retry from before' }]
+      } as AiStreamOpenRequest,
+      { hasLiveStream: false }
+    )
 
     expect(flatten(prepared.models[0].request.messages!)).toEqual([
       { role: 'user', text: 'first question' },
@@ -133,8 +187,8 @@ describe('PersistentChatContextProvider — steer-restart history (#B4)', () => 
 
   it('fans out @-mentioned siblings: shared siblingsGroupId, one placeholder per model, aligned placeholders[i]/turnRootSpans[i]', async () => {
     // Two @-mentioned models → two assistant placeholders sharing one siblings group.
-    // Each placeholder row persists ITS span's traceId; assert the per-model row, span,
-    // and traceId all line up by index so a fan-out never crosses streams.
+    // All placeholders share the container traceId now; assert the per-model row and span
+    // line up by index (keyed on modelId) so a fan-out never crosses streams.
     const MODEL_A = createUniqueModelId('openai', 'gpt-4o') // already seeded in beforeEach
     const MODEL_B = createUniqueModelId('anthropic', 'claude-sonnet-4-5')
     // Placeholder rows FK to user_model(id) — seed the second @-mentioned model.
@@ -157,20 +211,24 @@ describe('PersistentChatContextProvider — steer-restart history (#B4)', () => 
       { id: MODEL_B, name: 'Claude Sonnet 4.5', providerId: 'anthropic', apiModelId: 'claude-sonnet-4-5' }
     ] as Awaited<ReturnType<typeof resolveModels>>)
     vi.mocked(resolvePersistentSiblingsGroupId).mockResolvedValueOnce(42)
-    // Distinct span + traceId per call so index alignment is observable.
+    // Distinct span per call so index alignment is observable.
     const spanA = { end: vi.fn() }
     const spanB = { end: vi.fn() }
-    vi.mocked(startAiTurnTrace)
-      .mockReturnValueOnce({ rootSpan: spanA, traceId: 'trace-a' } as unknown as ReturnType<typeof startAiTurnTrace>)
-      .mockReturnValueOnce({ rootSpan: spanB, traceId: 'trace-b' } as unknown as ReturnType<typeof startAiTurnTrace>)
+    vi.mocked(startAiChildTurnSpan)
+      .mockReturnValueOnce({ rootSpan: spanA } as unknown as ReturnType<typeof startAiChildTurnSpan>)
+      .mockReturnValueOnce({ rootSpan: spanB } as unknown as ReturnType<typeof startAiChildTurnSpan>)
 
-    const prepared = await provider.prepareDispatch(makeSubscriber(), {
-      trigger: 'submit-message',
-      topicId: 'topic-1',
-      parentAnchorId: 'u1',
-      mentionedModelIds: [MODEL_A, MODEL_B],
-      userMessageParts: [{ type: 'text', text: 'ask both models' }]
-    } as AiStreamOpenRequest)
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'u1',
+        mentionedModelIds: [MODEL_A, MODEL_B],
+        userMessageParts: [{ type: 'text', text: 'ask both models' }]
+      } as AiStreamOpenRequest,
+      { hasLiveStream: false }
+    )
 
     // Shared sibling group + multi-model flag.
     expect(prepared.siblingsGroupId).toBe(42)
@@ -182,12 +240,12 @@ describe('PersistentChatContextProvider — steer-restart history (#B4)', () => 
     expect(prepared.models[1].rootSpan).toBe(spanB)
 
     // One persisted placeholder per model, both in the shared group, each routed to its
-    // own request — placeholders[i]/turnRootSpans[i] alignment proven via per-row traceId.
+    // own request — placeholders[i]/turnRootSpans[i] alignment proven via per-row modelId.
     const placeholders = await messageService.getChildrenByParentId(prepared.userMessageId!)
     expect(placeholders).toHaveLength(2)
-    const byTrace = new Map(placeholders.map((p) => [p.traceId, p]))
-    const phA = byTrace.get('trace-a')
-    const phB = byTrace.get('trace-b')
+    const byModel = new Map(placeholders.map((p) => [p.modelId, p]))
+    const phA = byModel.get(MODEL_A)
+    const phB = byModel.get(MODEL_B)
     expect(phA?.modelId).toBe(MODEL_A)
     expect(phB?.modelId).toBe(MODEL_B)
     expect(phA?.siblingsGroupId).toBe(42)
@@ -205,6 +263,13 @@ describe('PersistentChatContextProvider — steer-restart history (#B4)', () => 
       `persistence:sqlite:topic-1:${MODEL_A}`,
       `persistence:sqlite:topic-1:${MODEL_B}`
     ])
+
+    // One trace tree per topic: both models' `ai.turn` spans are parented under the
+    // same container trace, and that id is the topic's persisted ensureTraceId.
+    const containerTraceId = await topicService.ensureTraceId('topic-1')
+    const [callA, callB] = vi.mocked(startAiChildTurnSpan).mock.calls.slice(-2)
+    expect(callA[3]).toBe(containerTraceId)
+    expect(callB[3]).toBe(containerTraceId)
   })
 })
 
@@ -292,33 +357,45 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
 
   it('rejects when the anchor is not an assistant message (anchor guard)', async () => {
     await expect(
-      provider.prepareDispatch(makeSubscriber(), {
-        trigger: 'continue-conversation',
-        topicId: 'topic-1',
-        parentAnchorId: 'u1', // a user message — invalid continue anchor
-        approvalDecisions: []
-      })
+      provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: 'continue-conversation',
+          topicId: 'topic-1',
+          parentAnchorId: 'u1', // a user message — invalid continue anchor
+          approvalDecisions: []
+        },
+        { hasLiveStream: false }
+      )
     ).rejects.toThrow(/anchor must be an assistant message/)
   })
 
   it('rejects when the anchor belongs to a different topic (anchor guard)', async () => {
     await expect(
-      provider.prepareDispatch(makeSubscriber(), {
-        trigger: 'continue-conversation',
-        topicId: 'topic-2', // anchor a1 lives on topic-1
-        parentAnchorId: 'a1',
-        approvalDecisions: []
-      })
+      provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: 'continue-conversation',
+          topicId: 'topic-2', // anchor a1 lives on topic-1
+          parentAnchorId: 'a1',
+          approvalDecisions: []
+        },
+        { hasLiveStream: false }
+      )
     ).rejects.toThrow(/anchor does not belong to topic topic-2/)
   })
 
   it('flips the anchor status to pending and applies the approval decision to its parts', async () => {
-    await provider.prepareDispatch(makeSubscriber(), {
-      trigger: 'continue-conversation',
-      topicId: 'topic-1',
-      parentAnchorId: 'a1',
-      approvalDecisions: [{ approvalId: APPROVAL_ID, approved: true }]
-    })
+    await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'continue-conversation',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        approvalDecisions: [{ approvalId: APPROVAL_ID, approved: true }]
+      },
+      { hasLiveStream: false }
+    )
 
     const anchor = await messageService.getById('a1')
     expect(anchor.status).toBe('pending')
@@ -332,12 +409,16 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
   it("reuses the anchor's model and re-anchors history on the assistant row (no new placeholder)", async () => {
     const beforeCount = (await messageService.getPathToNode('a1')).length
 
-    const prepared = await provider.prepareDispatch(makeSubscriber(), {
-      trigger: 'continue-conversation',
-      topicId: 'topic-1',
-      parentAnchorId: 'a1',
-      approvalDecisions: [{ approvalId: APPROVAL_ID, approved: true }]
-    })
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'continue-conversation',
+        topicId: 'topic-1',
+        parentAnchorId: 'a1',
+        approvalDecisions: [{ approvalId: APPROVAL_ID, approved: true }]
+      },
+      { hasLiveStream: false }
+    )
 
     // Model reuse: the anchor's persisted modelId is what gets resolved, not the topic default.
     expect(vi.mocked(resolveModels)).toHaveBeenCalledWith([ANCHOR_MODEL_ID], MODEL_ID)
