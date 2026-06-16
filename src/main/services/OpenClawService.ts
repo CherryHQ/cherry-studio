@@ -5,6 +5,8 @@ import { Socket } from 'node:net'
 import path from 'node:path'
 
 import { application } from '@application'
+import { modelService } from '@data/services/ModelService'
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
@@ -12,6 +14,8 @@ import { WindowType } from '@main/core/window/types'
 import type { Model, Provider, ProviderType, VertexProvider } from '@main/data/migration/v2/legacyTypes'
 import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath } from '@main/utils/process'
 import getShellEnv, { refreshShellEnv } from '@main/utils/shell-env'
+import type { EndpointType, Model as DataModel } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, parseUniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { OperationResult } from '@shared/types/codeTools'
 import { formatApiHost, hasAPIVersion, withoutTrailingSlash } from '@shared/utils/api'
@@ -187,9 +191,7 @@ export class OpenClawService extends BaseService {
     this.ipcHandle(IpcChannel.OpenClaw_GetStatus, () => this.getStatus())
     this.ipcHandle(IpcChannel.OpenClaw_CheckHealth, () => this.checkHealth())
     this.ipcHandle(IpcChannel.OpenClaw_GetDashboardUrl, () => this.getDashboardUrl())
-    this.ipcHandle(IpcChannel.OpenClaw_SyncConfig, (_e, provider, primaryModel) =>
-      this.syncProviderConfig(provider, primaryModel)
-    )
+    this.ipcHandle(IpcChannel.OpenClaw_SyncConfig, (_e, uniqueModelId) => this.syncConfig(uniqueModelId))
     this.ipcHandle(IpcChannel.OpenClaw_GetChannels, () => this.getChannelStatus())
     this.ipcHandle(IpcChannel.OpenClaw_CheckUpdate, () => this.checkUpdate())
     this.ipcHandle(IpcChannel.OpenClaw_PerformUpdate, () => this.performUpdate())
@@ -762,6 +764,96 @@ export class OpenClawService extends BaseService {
   /**
    * Sync Cherry Studio Provider configuration to OpenClaw
    */
+  public async syncConfig(uniqueModelId: unknown): Promise<OperationResult> {
+    try {
+      const { provider, primaryModel } = await this.resolveSyncConfig(uniqueModelId)
+      return await this.syncProviderConfig(provider, primaryModel)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      logger.error('Failed to resolve OpenClaw sync config:', error as Error)
+      return { success: false, message: errorMessage }
+    }
+  }
+
+  private async resolveSyncConfig(uniqueModelId: unknown): Promise<{ provider: Provider; primaryModel: Model }> {
+    const parsed = UniqueModelIdSchema.safeParse(uniqueModelId)
+    if (!parsed.success) {
+      throw new Error('Invalid OpenClaw model selection')
+    }
+
+    const { providerId, modelId } = parseUniqueModelId(parsed.data)
+    const [provider, primaryModel, models, apiKeys] = await Promise.all([
+      providerService.getByProviderId(providerId),
+      modelService.getByKey(providerId, modelId),
+      modelService.list({ providerId }),
+      providerService.getApiKeys(providerId, { enabled: true })
+    ])
+
+    const endpointType =
+      primaryModel.endpointTypes?.[0] ?? provider.defaultChatEndpoint ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    const apiHost =
+      provider.endpointConfigs?.[endpointType]?.baseUrl ??
+      provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.baseUrl ??
+      provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.baseUrl ??
+      provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl ??
+      provider.endpointConfigs?.[ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]?.baseUrl
+
+    if (!apiHost) {
+      throw new Error(`Provider ${provider.id} has no API host configured`)
+    }
+
+    return {
+      provider: {
+        id: provider.id,
+        type: this.toOpenClawProviderType(provider.presetProviderId ?? provider.id, endpointType),
+        name: provider.name,
+        apiKey: apiKeys.map((entry) => entry.key).join(','),
+        apiHost,
+        anthropicApiHost: provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl,
+        models: models.map((model) => this.toOpenClawModel(model)),
+        presetProviderId: provider.presetProviderId
+      } as Provider,
+      primaryModel: this.toOpenClawModel(primaryModel)
+    }
+  }
+
+  private toOpenClawProviderType(providerType: string, endpointType: EndpointType): Provider['type'] {
+    if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
+      return 'openai-response'
+    }
+    if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
+      return 'anthropic'
+    }
+    if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
+      return 'gemini'
+    }
+    return providerType as Provider['type']
+  }
+
+  private toOpenClawModel(model: DataModel): Model {
+    const { modelId } = parseUniqueModelId(model.id)
+    return {
+      id: model.apiModelId ?? modelId,
+      provider: model.providerId,
+      name: model.name,
+      group: model.group ?? '',
+      endpoint_type: this.toOpenClawEndpointType(model.endpointTypes?.[0])
+    }
+  }
+
+  private toOpenClawEndpointType(endpointType?: EndpointType): Model['endpoint_type'] {
+    if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
+      return 'anthropic'
+    }
+    if (endpointType === ENDPOINT_TYPE.OPENAI_RESPONSES) {
+      return 'openai-response'
+    }
+    if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
+      return 'gemini'
+    }
+    return 'openai'
+  }
+
   public async syncProviderConfig(provider: Provider, primaryModel: Model): Promise<OperationResult> {
     try {
       // Ensure config directory exists
@@ -1017,6 +1109,9 @@ export class OpenClawService extends BaseService {
     // 2. Check model's endpoint_type (used by new-api and other mixed providers)
     if (isAnthropicEndpointType(model)) {
       return OPENCLAW_API_TYPES.ANTHROPIC
+    }
+    if (model.endpoint_type === 'openai-response') {
+      return OPENCLAW_API_TYPES.OPENAI_RESPOSNE
     }
 
     // 3. Check if provider has anthropicApiHost configured

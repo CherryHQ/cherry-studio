@@ -1,3 +1,4 @@
+import { ENDPOINT_TYPE, type Model as DataModel } from '@shared/data/types/model'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { parseCurrentVersion, parseUpdateStatus } from '../OpenClawService'
@@ -44,6 +45,20 @@ vi.mock('@main/utils/process', () => ({
   findExecutableInEnv: vi.fn(),
   getBinaryPath: vi.fn(() => Promise.resolve('/mock/bin/openclaw')),
   runInstallScript: vi.fn()
+}))
+
+vi.mock('@data/services/ModelService', () => ({
+  modelService: {
+    getByKey: vi.fn(),
+    list: vi.fn()
+  }
+}))
+
+vi.mock('@data/services/ProviderService', () => ({
+  providerService: {
+    getApiKeys: vi.fn(),
+    getByProviderId: vi.fn()
+  }
 }))
 
 vi.mock('@main/utils/shell-env', () => ({
@@ -379,6 +394,62 @@ describe('OpenClawService gateway status state machine', () => {
 
       await expect(Promise.all([firstInstall, secondInstall])).resolves.toEqual([{ success: true }, { success: true }])
       expect(linkBinarySpy).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  // ─── syncConfig ─────────────────────────────────────────────
+
+  describe('syncConfig', () => {
+    it('resolves a unique model id before syncing OpenClaw config', async () => {
+      const { modelService } = await import('@data/services/ModelService')
+      const { providerService } = await import('@data/services/ProviderService')
+      vi.mocked(providerService.getByProviderId).mockResolvedValue({
+        id: 'openai',
+        name: 'OpenAI',
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com' }
+        },
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        apiKeys: [{ id: 'key-1', label: 'Primary', isEnabled: true }],
+        authType: 'api-key',
+        apiFeatures: {
+          arrayContent: true,
+          streamOptions: true,
+          developerRole: false,
+          serviceTier: false,
+          verbosity: false
+        },
+        settings: {},
+        isEnabled: true
+      })
+      const model: DataModel = {
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        apiModelId: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: [],
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+      vi.mocked(modelService.getByKey).mockResolvedValue(model)
+      vi.mocked(modelService.list).mockResolvedValue([model])
+      vi.mocked(providerService.getApiKeys).mockResolvedValue([{ id: 'key-1', key: 'sk-test', isEnabled: true }])
+      const syncProviderConfigSpy = vi.spyOn(service, 'syncProviderConfig').mockResolvedValue({ success: true })
+
+      const result = await service.syncConfig('openai::gpt-4o')
+
+      expect(result).toEqual({ success: true })
+      expect(syncProviderConfigSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'openai',
+          apiKey: 'sk-test',
+          apiHost: 'https://api.openai.com',
+          models: [expect.objectContaining({ id: 'gpt-4o', endpoint_type: 'openai' })]
+        }),
+        expect.objectContaining({ id: 'gpt-4o', endpoint_type: 'openai' })
+      )
     })
   })
 
