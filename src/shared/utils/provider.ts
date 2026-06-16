@@ -1,3 +1,4 @@
+import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
@@ -72,7 +73,7 @@ export function isPerplexityProvider(provider: Provider): boolean {
 }
 
 export function isCherryAIProvider(provider: Provider): boolean {
-  return provider.id === 'cherryai' || provider.presetProviderId === 'cherryai'
+  return provider.id === CHERRYAI_PROVIDER_ID || provider.presetProviderId === CHERRYAI_PROVIDER_ID
 }
 
 export function isNewApiProvider(provider: Provider): boolean {
