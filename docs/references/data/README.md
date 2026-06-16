@@ -29,7 +29,6 @@ This is the main entry point for Cherry Studio's data management documentation. 
 - [Ordering Guide](./data-ordering-guide.md) - Unified RESTful spec for sortable resources (fractional indexing)
 - [V2 Migration Guide](./v2-migration-guide.md) - Migration system
 - [Database Seeding Guide](./database-seeding-guide.md) - Seeding architecture, version strategies, adding new seeders
-- [Message Tree](../chat/message-tree.md) - Chat message-tree model: adjacency list, per-topic virtual root, sibling groups, invariants, delete semantics, and the getTree / flow-canvas consumer contract
 
 ### Testing
 - [Test Mocks](../../../tests/__mocks__/README.md) - Unified mocks for Cache, Preference, and DataApi
