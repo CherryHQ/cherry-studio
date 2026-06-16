@@ -2236,6 +2236,7 @@
     "detail": "Error Details",
     "details": "Details",
     "diagnosis": {
+      "abnormal_finish": "Response ended abnormally, please retry or switch model",
       "ai_button": "AI Diagnosis",
       "ai_done": "Diagnosed",
       "ai_loading": "Diagnosing",
@@ -2251,6 +2252,7 @@
       "model_conflict": "Diagnosis model is the same as the failing model",
       "network": "Cannot connect to server, check network or proxy settings",
       "ocr": "OCR engine not initialized, check OCR settings",
+      "output_truncated": "Response reached the maximum length and was truncated",
       "parse": "AI returned an invalid response, please retry or switch model",
       "payload": "Request content too large, please reduce file or text size",
       "proxy": "Proxy or SSL certificate error, check proxy and network settings",

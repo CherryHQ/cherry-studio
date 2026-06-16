@@ -17,7 +17,7 @@
  */
 
 import { type CherryUIMessage } from '@shared/data/types/message'
-import { readUIMessageStream, type UIMessageChunk } from 'ai'
+import { type FinishReason, readUIMessageStream, type UIMessageChunk } from 'ai'
 
 export interface PipeStreamLoopOptions {
   onChunk: (chunk: UIMessageChunk) => void
@@ -31,6 +31,8 @@ export interface PipeStreamLoopResult {
   finalMessage?: CherryUIMessage
   /** First in-stream error chunk's `errorText`. */
   streamErrorText?: string
+  /** `finishReason` from the terminal `finish` chunk; callers decide if it's abnormal (#16072). */
+  finishReason?: FinishReason
   /** Thrown error from broadcast loop or pre-stream setup. */
   threw?: unknown
   /** Captured before accumulator drain. */
@@ -60,6 +62,7 @@ export async function pipeStreamLoop(
   else signal.addEventListener('abort', onAbort, { once: true })
 
   let streamErrorText: string | undefined
+  let finishReason: FinishReason | undefined
   let threw: unknown
   let broadcastCompletedAt: number
 
@@ -68,6 +71,9 @@ export async function pipeStreamLoop(
       const { done, value } = await broadcastReader.read()
       if (done) break
       if (value.type === 'error') streamErrorText ??= value.errorText
+      // The terminal `finish` chunk carries the overall finishReason; capture it so the
+      // caller can surface abnormal reasons (content filter, length, error, ...) as errors.
+      if (value.type === 'finish') finishReason = value.finishReason
       options.onChunk(value)
     }
     broadcastCompletedAt = performance.now()
@@ -81,7 +87,7 @@ export async function pipeStreamLoop(
 
   await accumulator
 
-  return { finalMessage, streamErrorText, threw, broadcastCompletedAt }
+  return { finalMessage, streamErrorText, finishReason, threw, broadcastCompletedAt }
 }
 
 async function runAccumulator(

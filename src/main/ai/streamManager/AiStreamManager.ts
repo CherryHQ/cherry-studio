@@ -18,7 +18,8 @@ import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { type SerializedError, serializeError } from '@shared/types/error'
-import { type UIMessageChunk } from 'ai'
+import { FinishReasonError } from '@shared/types/FinishReasonError'
+import { type FinishReason, type UIMessageChunk } from 'ai'
 import * as z from 'zod'
 
 import { isAgentSessionTopic } from '../agentSession/topic'
@@ -161,6 +162,17 @@ function isLiveStatus(status: ActiveStream['status']): boolean {
 
 function errorFromStreamChunk(errorText: string): SerializedError {
   return { name: 'StreamError', message: errorText, stack: null }
+}
+
+/**
+ * Finish reasons that represent a clean completion: the model finished on its own
+ * ('stop') or stopped to call tools ('tool-calls'). Any other reason means the
+ * response was cut short and is surfaced as an error. See #16072.
+ */
+const NORMAL_FINISH_REASONS: ReadonlySet<FinishReason> = new Set<FinishReason>(['stop', 'tool-calls'])
+
+function isAbnormalFinishReason(finishReason: FinishReason | undefined): finishReason is FinishReason {
+  return finishReason !== undefined && !NORMAL_FINISH_REASONS.has(finishReason)
 }
 
 function ensureTerminalFinalMessage(exec: StreamExecution): CherryUIMessage {
@@ -1105,6 +1117,11 @@ export class AiStreamManager extends BaseService {
       await this.onExecutionPaused(topicId, modelId)
     } else if (result.streamErrorText !== undefined) {
       await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText))
+    } else if (isAbnormalFinishReason(result.finishReason)) {
+      // The stream drained cleanly but ended on a non-completion reason (content moderation,
+      // provider error, length truncation, ...). Surface it as an error so the user sees why the
+      // response stopped instead of a silent success. See #16072.
+      await this.onExecutionError(topicId, modelId, serializeError(new FinishReasonError(result.finishReason)))
     } else {
       await this.onExecutionDone(topicId, modelId)
     }

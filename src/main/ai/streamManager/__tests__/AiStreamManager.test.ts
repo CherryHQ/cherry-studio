@@ -1426,6 +1426,57 @@ describe('AiStreamManager', () => {
     })
   })
 
+  // ── abnormal finish reason (#16072) ─────────────────────────────
+  // A stream can drain cleanly yet end on a non-completion finishReason
+  // (content moderation, length truncation, provider error, ...). pipeStreamLoop
+  // captures the finish chunk's finishReason; runExecutionLoop routes abnormal
+  // reasons through onExecutionError with a serialized FinishReasonError instead
+  // of reporting a silent success. 'stop' / 'tool-calls' stay on the done path.
+
+  describe('abnormal finish reason', () => {
+    async function runFinish(finishReason: string): Promise<FakeListener> {
+      // readUIMessageStream's accumulator needs real microtask / timer scheduling.
+      vi.useRealTimers()
+      const controlled = controlledStream()
+      mockStreamText.mockImplementationOnce(async () => controlled.stream)
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
+
+      controlled.enqueue({ type: 'start' } as UIMessageChunk)
+      controlled.enqueue({ type: 'finish', finishReason } as unknown as UIMessageChunk)
+      controlled.close()
+
+      await new Promise((resolve) => setTimeout(resolve, 50))
+      return listener
+    }
+
+    it('surfaces a content-filter finish as an error carrying the finishReason', async () => {
+      const listener = await runFinish('content-filter')
+      expect(listener.errorResults).toHaveLength(1)
+      expect(listener.errorResults[0].status).toBe('error')
+      expect(listener.errorResults[0].error).toMatchObject({
+        name: 'AI_FinishReasonError',
+        finishReason: 'content-filter'
+      })
+      expect(listener.doneResults).toHaveLength(0)
+      expect(mgr.inspect('a')!.status).toBe('error')
+    })
+
+    it.each(['length', 'error', 'other'])('surfaces a %s finish as an error', async (reason) => {
+      const listener = await runFinish(reason)
+      expect(listener.errorResults).toHaveLength(1)
+      expect(listener.errorResults[0].error).toMatchObject({ finishReason: reason })
+    })
+
+    it.each(['stop', 'tool-calls'])('completes normally for the %s finish reason', async (reason) => {
+      const listener = await runFinish(reason)
+      expect(listener.errorResults).toHaveLength(0)
+      expect(listener.doneResults).toHaveLength(1)
+      expect(mgr.inspect('a')!.status).toBe('done')
+    })
+  })
+
   // ── continue-conversation accumulator seed ──────────────────────
   // When the last incoming message is an assistant turn (the tool-approval
   // continue / continue-conversation resume), `runExecutionLoop` seeds

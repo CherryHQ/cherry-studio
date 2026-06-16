@@ -2236,6 +2236,7 @@
     "detail": "錯誤詳細資訊",
     "details": "詳細資訊",
     "diagnosis": {
+      "abnormal_finish": "回覆異常結束，請重試或更換模型",
       "ai_button": "AI 診斷",
       "ai_done": "已診斷",
       "ai_loading": "正在診斷",
@@ -2251,6 +2252,7 @@
       "model_conflict": "診斷模型與出錯模型相同，無法進行診斷",
       "network": "無法連線到伺服器，請檢查網路或代理設定",
       "ocr": "OCR 識別引擎未初始化，請檢查 OCR 設定",
+      "output_truncated": "回覆達到最大長度後被截斷",
       "parse": "AI 回傳了無效的回應，請重試或切換模型",
       "payload": "請求內容過大，請減少檔案或文字大小",
       "proxy": "代理或 SSL 憑證錯誤，請檢查代理和網路設定",
