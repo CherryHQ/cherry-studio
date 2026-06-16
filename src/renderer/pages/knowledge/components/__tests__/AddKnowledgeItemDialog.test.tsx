@@ -10,6 +10,19 @@ const mockUseKnowledgePage = vi.fn()
 const mockUseAddKnowledgeItems = vi.fn()
 const mockSelectFolder = vi.fn()
 const mockGetPathForFile = vi.fn()
+const mockReadExternal = vi.fn()
+const mockUseDirectoryTree = vi.fn()
+const mockProjectNotesTree = vi.fn()
+
+const createNoteNode = (name: string, externalPath: string) => ({
+  id: externalPath,
+  name,
+  type: 'file' as const,
+  treePath: `/${name}`,
+  externalPath,
+  createdAt: '',
+  updatedAt: ''
+})
 
 const setMockAcceptedFiles = (files: File[]) => {
   mockAcceptedFiles = files
@@ -24,6 +37,22 @@ vi.mock('../../KnowledgePageProvider', () => ({
 
 vi.mock('@renderer/hooks/useKnowledgeItems', () => ({
   useAddKnowledgeItems: (...args: unknown[]) => mockUseAddKnowledgeItems(...args)
+}))
+
+// The note picker's real data layer (useNotesSettings → NotesService → @renderer/utils)
+// pulls in the i18n bootstrap at module load, which throws under the react-i18next mock.
+// Stub the three note modules so the dialog graph stays bootstrap-free and the note list
+// is fully controllable from each test.
+vi.mock('@renderer/hooks/useNotesSettings', () => ({
+  useNotesSettings: () => ({ notesPath: '/notes' })
+}))
+
+vi.mock('@renderer/hooks/useDirectoryTree', () => ({
+  useDirectoryTree: () => mockUseDirectoryTree()
+}))
+
+vi.mock('@renderer/services/NotesService', () => ({
+  projectNotesTree: () => mockProjectNotesTree()
 }))
 
 vi.mock('@cherrystudio/ui', async () => {
@@ -69,6 +98,22 @@ vi.mock('@cherrystudio/ui', async () => {
       <div {...props}>{children}</div>
     ),
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    Checkbox: ({
+      checked,
+      onCheckedChange,
+      ...props
+    }: {
+      checked?: boolean
+      onCheckedChange?: (checked: boolean) => void
+      [key: string]: unknown
+    }) => (
+      <input
+        type="checkbox"
+        checked={Boolean(checked)}
+        onChange={(event) => onCheckedChange?.(event.target.checked)}
+        {...props}
+      />
+    ),
     Dialog: ({
       children,
       open,
@@ -151,10 +196,12 @@ vi.mock('react-i18next', () => ({
         'knowledge.data_source.add_dialog.directory.title': '点击选择文件夹',
         'knowledge.data_source.add_dialog.footer.selected_directories': `已选 ${options?.count ?? 0} 个目录`,
         'knowledge.data_source.add_dialog.footer.selected_files': `已选 ${options?.count ?? 0} 个文件`,
+        'knowledge.data_source.add_dialog.footer.selected_notes': `已选 ${options?.count ?? 0} 个笔记`,
         'knowledge.data_source.add_dialog.note.description': '选择已有笔记作为知识库数据源',
-        'knowledge.data_source.add_dialog.note.empty_description':
-          '真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录或链接。',
-        'knowledge.data_source.add_dialog.note.empty_title': '暂未接入笔记数据源',
+        'knowledge.data_source.add_dialog.note.empty_description': '请先在「笔记」功能中创建笔记，再回到这里选择。',
+        'knowledge.data_source.add_dialog.note.empty_title': '未找到笔记',
+        'knowledge.data_source.add_dialog.note.loading': '正在加载笔记…',
+        'notes.tree_load_failed': '加载笔记目录失败',
         'knowledge.data_source.add_dialog.placeholder.supported_formats': '支持 PDF, DOCX, MD, XLSX, TXT, CSV',
         'knowledge.data_source.add_dialog.placeholder.title': '点击选择文件或拖拽到此处',
         'knowledge.data_source.add_dialog.sources.directory': '目录',
@@ -186,10 +233,13 @@ describe('AddKnowledgeItemDialog', () => {
       error: undefined
     })
     mockGetPathForFile.mockImplementation((file: File) => `/external/${file.name}`)
+    mockUseDirectoryTree.mockReturnValue({ root: {}, isLoading: false, error: null })
+    mockProjectNotesTree.mockReturnValue([])
     ;(window as any).api = {
       file: {
         getPathForFile: mockGetPathForFile,
-        selectFolder: mockSelectFolder
+        selectFolder: mockSelectFolder,
+        readExternal: mockReadExternal
       }
     }
     ;(window as any).toast = { success: vi.fn(), error: vi.fn() }
@@ -271,12 +321,87 @@ describe('AddKnowledgeItemDialog', () => {
     expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
   })
 
-  it('keeps note disabled', () => {
+  it('renders the note picker and reflects selection in the footer', () => {
     setPendingAddSource('note')
+    mockProjectNotesTree.mockReturnValue([
+      createNoteNode('Meeting notes', '/notes/Meeting notes.md'),
+      createNoteNode('Ideas', '/notes/Ideas.md')
+    ])
     render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-    expect(screen.getByText('暂未接入笔记数据源')).toBeInTheDocument()
+    expect(screen.getByText('Meeting notes')).toBeInTheDocument()
+    expect(screen.getByText('Ideas')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+
+    expect(screen.getByText('已选 1 个笔记')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
+  })
+
+  it('submits note source body through generic hook', async () => {
+    setPendingAddSource('note')
+    mockProjectNotesTree.mockReturnValue([createNoteNode('Meeting notes', '/notes/Meeting notes.md')])
+    mockReadExternal.mockResolvedValueOnce('# Meeting\n\nbody')
+    mockSubmitKnowledgeItems.mockResolvedValue(undefined)
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+
+    await waitFor(() => {
+      expect(mockSubmitKnowledgeItems).toHaveBeenLastCalledWith([
+        {
+          type: 'note',
+          data: {
+            source: 'Meeting notes',
+            content: '# Meeting\n\nbody'
+          }
+        }
+      ])
+    })
+    expect(mockReadExternal).toHaveBeenCalledWith('/notes/Meeting notes.md')
+  })
+
+  it('surfaces a note tree load error instead of the empty state', () => {
+    setPendingAddSource('note')
+    mockUseDirectoryTree.mockReturnValue({ root: null, isLoading: false, error: new Error('read failed') })
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    expect(screen.getByText('加载笔记目录失败')).toBeInTheDocument()
+    expect(screen.queryByText('未找到笔记')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+  })
+
+  it('toggles multiple notes and deselects keyed by note path', () => {
+    setPendingAddSource('note')
+    mockProjectNotesTree.mockReturnValue([
+      createNoteNode('Meeting notes', '/notes/Meeting notes.md'),
+      createNoteNode('Ideas', '/notes/Ideas.md')
+    ])
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    fireEvent.click(screen.getAllByRole('checkbox')[1])
+    expect(screen.getByText('已选 2 个笔记')).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole('checkbox')[0])
+    expect(screen.getByText('已选 1 个笔记')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
+  })
+
+  it('shows an inline error naming the note when its content cannot be read', async () => {
+    setPendingAddSource('note')
+    mockProjectNotesTree.mockReturnValue([createNoteNode('Meeting notes', '/notes/Meeting notes.md')])
+    mockReadExternal.mockRejectedValueOnce(new Error('ENOENT'))
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('checkbox'))
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('添加数据源失败: Meeting notes: ENOENT')
+    expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
   })
 
   it('selects directories through folder picker, deduplicates paths, and removes selections', async () => {
