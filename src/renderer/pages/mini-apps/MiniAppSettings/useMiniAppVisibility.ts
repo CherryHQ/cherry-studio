@@ -119,8 +119,7 @@ export function useMiniAppVisibility() {
       const [moved] = next.splice(oldIndex, 1)
       next.splice(newIndex, 0, moved)
       setVisible(next)
-      const partition = next.filter((a) => a.status === moved.status)
-      reorderMiniAppsByStatus(moved.status, partition).catch(reportFailure(t, 'miniApp.reorder_failed'))
+      reorderMiniAppsByStatus('visible', next).catch(reportFailure(t, 'miniApp.reorder_failed'))
     },
     [visible, reorderMiniAppsByStatus, t]
   )

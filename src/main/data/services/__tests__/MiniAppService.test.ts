@@ -327,6 +327,18 @@ describe('MiniAppService', () => {
       expect(row2.orderKey < row1.orderKey).toBe(true)
     })
 
+    it('should reorder across enabled and pinned rows in the visible scope', async () => {
+      await seedCustom({ appId: 'pinned-1', status: 'pinned', orderKey: 'a0' })
+      await seedCustom({ appId: 'enabled-1', status: 'enabled', orderKey: 'a1' })
+      await seedCustom({ appId: 'pinned-2', status: 'pinned', orderKey: 'a2' })
+
+      await miniAppService.reorder([{ id: 'enabled-1', anchor: { after: 'pinned-2' } }])
+
+      const [moved] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'enabled-1'))
+      const [anchor] = await dbh.db.select().from(miniAppTable).where(eq(miniAppTable.appId, 'pinned-2'))
+      expect(moved.orderKey > anchor.orderKey).toBe(true)
+    })
+
     it('should throw NOT_FOUND for non-existent app IDs', async () => {
       await expect(
         miniAppService.reorder([{ id: 'nonexistent', anchor: { position: 'first' } }])
@@ -344,10 +356,7 @@ describe('MiniAppService', () => {
       expect(row.orderKey).toBe('a0')
     })
 
-    it('should reject cross-status batches with VALIDATION_ERROR (#3198896254)', async () => {
-      // mini_app.status is the reorder scope: a single batch must stay inside
-      // one status partition. Mixing enabled + disabled in a single batch
-      // violates the DataApi scoped-reorder contract.
+    it('should reject visible/hidden batches with VALIDATION_ERROR (#3198896254)', async () => {
       await seedCustom({ appId: 'enabled-1', status: 'enabled', orderKey: 'a0' })
       await seedCustom({ appId: 'disabled-1', status: 'disabled', orderKey: 'a0' })
 

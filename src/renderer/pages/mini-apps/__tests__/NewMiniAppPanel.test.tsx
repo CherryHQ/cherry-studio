@@ -151,7 +151,7 @@ describe('NewMiniAppPanel', () => {
     await waitFor(() => {
       expect(mocks.createCustomMiniApp).toHaveBeenCalledTimes(1)
       expect(mocks.createCustomMiniApp).toHaveBeenCalledWith({
-        appId: 'custom-generated-id',
+        appId: 'generated-id',
         name: 'My App',
         url: 'https://my.app',
         logo: 'application'
@@ -327,7 +327,7 @@ describe('NewMiniAppPanel', () => {
 
     await waitFor(() => {
       expect(mocks.createCustomMiniApp).toHaveBeenCalledWith({
-        appId: 'custom-generated-id',
+        appId: 'generated-id',
         name: 'My App',
         url: 'https://my.app',
         logo: 'data:image/png;base64,late'

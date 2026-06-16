@@ -22,7 +22,7 @@ import { PRESETS_MINI_APPS } from '@shared/data/presets/miniApps'
 import type { MiniApp, MiniAppId } from '@shared/data/types/miniApp'
 import { and, asc, desc, eq, gt, inArray, lt, ne } from 'drizzle-orm'
 
-import { applyScopedMoves, generateOrderKeyBetween, insertWithOrderKey } from './utils/orderKey'
+import { applyMoves, generateOrderKeyBetween, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MiniAppService')
@@ -68,7 +68,7 @@ function rowToMiniApp(row: MiniAppRow): MiniApp {
   if (presetMiniAppId !== null) {
     app.bordered = clean.bordered
     app.background = clean.background
-    app.supportedRegions = clean.supportedRegions as ('CN' | 'Global')[] | undefined
+    app.supportedRegions = clean.supportedRegions
     app.configuration = clean.configuration
     app.nameKey = clean.nameKey
   }
@@ -282,23 +282,39 @@ export class MiniAppService {
   }
 
   /**
-   * Reorder miniApps via fractional-indexing. The `mini_app.status` column is
-   * the reorder scope: a single batch must stay inside one status partition
-   * (`enabled` | `disabled` | `pinned`). Cross-partition batches are rejected
-   * with `VALIDATION_ERROR` per the DataApi scoped-reorder contract — moving
-   * a row between partitions goes through PATCH, not POST /order:batch.
+   * Reorder miniApps via fractional-indexing. Visible rows (`enabled` +
+   * `pinned`) share one list; hidden rows (`disabled`) remain separate.
+   * Cross visible/hidden batches are rejected — moving a row between visible
+   * and hidden still goes through PATCH, not POST /order:batch.
    */
   async reorder(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
 
     await withSqliteErrors(
       () =>
-        this.db.transaction(async (tx) =>
-          applyScopedMoves(tx, miniAppTable, moves, {
+        application.get('DbService').withWriteTx(async (tx) => {
+          const ids = moves.map((move) => move.id)
+          const rows = await tx
+            .select({ appId: miniAppTable.appId, status: miniAppTable.status })
+            .from(miniAppTable)
+            .where(inArray(miniAppTable.appId, ids))
+
+          if (rows.length === 0) {
+            throw DataApiErrorFactory.notFound('MiniApp', ids[0])
+          }
+
+          const hasVisible = rows.some((row) => isVisibleStatus(row.status))
+          const hasHidden = rows.some((row) => !isVisibleStatus(row.status))
+          if (hasVisible && hasHidden) {
+            const message = 'MiniApp reorder batch cannot span visible and hidden lists'
+            throw DataApiErrorFactory.validation({ _root: [message] }, message)
+          }
+
+          await applyMoves(tx, miniAppTable, moves, {
             pkColumn: miniAppTable.appId,
-            scopeColumn: miniAppTable.status
+            scope: hasVisible ? orderScopeForStatus('enabled') : eq(miniAppTable.status, 'disabled')
           })
-        ),
+        }),
       defaultHandlersFor('MiniApp', 'multiple')
     )
     logger.info('Reordered miniApps', { count: moves.length })

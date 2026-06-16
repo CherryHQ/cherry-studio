@@ -5,6 +5,7 @@ import { usePreference } from '@data/hooks/usePreference'
 import { useReorder } from '@data/hooks/useReorder'
 import { loggerService } from '@logger'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
+import { computeMinimalMoves } from '@renderer/data/utils/reorder'
 import i18n from '@renderer/i18n'
 import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api'
@@ -46,6 +47,14 @@ const isVisibleForRegion = (app: MiniApp, region: MiniAppRegion): boolean => {
     return app.presetMiniAppId === null
   }
   return app.supportedRegions.includes('Global')
+}
+
+function isVisibleStatus(status: MiniAppStatus): boolean {
+  return status === 'enabled' || status === 'pinned'
+}
+
+function compareOrderKey(a: MiniApp, b: MiniApp): number {
+  return a.orderKey < b.orderKey ? -1 : a.orderKey > b.orderKey ? 1 : 0
 }
 
 // Filter apps by region
@@ -239,6 +248,12 @@ export const useMiniApps = () => {
   const { trigger: patchAppTrigger } = useMutation('PATCH', '/mini-apps/:appId', {
     refresh: ['/mini-apps']
   })
+  const { trigger: patchMiniAppOrderTrigger } = useMutation('PATCH', '/mini-apps/:id/order', {
+    refresh: ['/mini-apps']
+  })
+  const { trigger: patchMiniAppOrderBatchTrigger } = useMutation('PATCH', '/mini-apps/order:batch', {
+    refresh: ['/mini-apps']
+  })
   const { trigger: deleteAppTrigger } = useMutation('DELETE', '/mini-apps/:appId', {
     refresh: ['/mini-apps']
   })
@@ -407,30 +422,34 @@ export const useMiniApps = () => {
   )
 
   /**
-   * Reorder miniApps inside a single status partition.
+   * Reorder miniApps inside a status-backed list.
    *
-   * `useReorder('/mini-apps')` diffs the new list against the full `/mini-apps`
-   * cache and `computeMinimalMoves` requires a permutation of the cache rows.
-   * Settings UI hands us only one column (e.g. enabled rows). We splice the
-   * subset back into the cache shape so the diff is well-formed and the
-   * resulting moves all stay within one partition — the server enforces single
-   * scope (see MiniAppService.reorder + applyScopedMoves).
+   * Settings UI only passes the affected list, so compute moves against that
+   * list's own order-key baseline. The service validates the same scopes:
+   * `enabled` + `pinned` share the visible list; `disabled` stays hidden.
    */
   const reorderMiniAppsByStatus = useCallback(
-    async (status: MiniAppStatus, orderedPartition: MiniApp[]) => {
-      let cursor = 0
-      const merged = allApps.map((a) => {
-        if (a.status !== status) return a
-        return orderedPartition[cursor++] ?? a
-      })
+    async (status: MiniAppStatus | 'visible', orderedPartition: MiniApp[]) => {
+      const inScope = (app: MiniApp) => (status === 'visible' ? isVisibleStatus(app.status) : app.status === status)
+      const orderedIds = new Set(orderedPartition.map((app) => app.appId))
+      const currentPartition = allApps.filter((app) => orderedIds.has(app.appId) && inScope(app)).sort(compareOrderKey)
+      const moves = computeMinimalMoves(currentPartition, orderedPartition, 'appId')
+      if (moves.length === 0) return
+
       try {
-        await applyMiniAppOrder(merged)
+        if (moves.length === 1) {
+          const [move] = moves
+          await patchMiniAppOrderTrigger({ params: { id: move.id }, body: move.anchor })
+        } else {
+          await patchMiniAppOrderBatchTrigger({ body: { moves } })
+        }
       } catch (error) {
+        await invalidate('/mini-apps')
         logger.error('Failed to reorder mini apps within status', { status, error: toDataApiError(error) })
         throw toDataApiError(error)
       }
     },
-    [allApps, applyMiniAppOrder]
+    [allApps, invalidate, patchMiniAppOrderBatchTrigger, patchMiniAppOrderTrigger]
   )
 
   return {

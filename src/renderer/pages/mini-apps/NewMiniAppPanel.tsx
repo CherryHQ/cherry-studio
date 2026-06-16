@@ -145,7 +145,7 @@ const NewMiniAppPanel: FC<Props> = ({ open, app, onClose }) => {
         )
       } else {
         await createCustomMiniApp({
-          appId: `custom-${uuid()}`,
+          appId: uuid(),
           ...basePayload,
           logo: logo.trim() || 'application'
         })

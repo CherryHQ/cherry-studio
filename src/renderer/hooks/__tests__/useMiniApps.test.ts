@@ -3,7 +3,7 @@ import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStat
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApi, MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -439,6 +439,38 @@ describe('useMiniApps', () => {
       // The actual ordering logic is tested in useReorder; here we just verify wiring.
       expect(typeof result.current.reorderMiniApps).toBe('function')
       expect(typeof result.current.reorderMiniAppsByStatus).toBe('function')
+    })
+
+    it('should reorder visible apps against the displayed subset orderKey baseline', async () => {
+      const patchOrderTrigger = vi.fn().mockResolvedValue(undefined)
+      const patchBatchTrigger = vi.fn().mockResolvedValue(undefined)
+      MockUseDataApi.useMutation.mockImplementation((method, path) => {
+        if (method === 'PATCH' && path === '/mini-apps/:id/order') {
+          return { trigger: patchOrderTrigger, isLoading: false, error: undefined }
+        }
+        if (method === 'PATCH' && path === '/mini-apps/order:batch') {
+          return { trigger: patchBatchTrigger, isLoading: false, error: undefined }
+        }
+        return { trigger: vi.fn().mockResolvedValue({ success: true }), isLoading: false, error: undefined }
+      })
+
+      const enabled = createGlobalApp('enabled', { status: 'enabled', orderKey: 'a0' })
+      const regionHidden = createCnOnlyApp('region-hidden', { status: 'enabled', orderKey: 'a1' })
+      const pinned = createGlobalApp('pinned', { status: 'pinned', orderKey: 'b0' })
+      const hidden = createMiniApp('hidden', { status: 'disabled', orderKey: 'a0' })
+      MockUseDataApiUtils.mockQueryData('/mini-apps', paginated([pinned, enabled, regionHidden, hidden]))
+      MockUsePreferenceUtils.setPreferenceValue('feature.mini_app.region', 'Global')
+
+      const { result } = renderHook(() => useMiniApps())
+
+      expect(result.current.miniApps.map((app) => app.appId)).toEqual(['enabled', 'pinned'])
+
+      await act(async () => {
+        await result.current.reorderMiniAppsByStatus('visible', [pinned, enabled])
+      })
+
+      expect(patchOrderTrigger).toHaveBeenCalledWith({ params: { id: 'pinned' }, body: { position: 'first' } })
+      expect(patchBatchTrigger).not.toHaveBeenCalled()
     })
   })
 
