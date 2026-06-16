@@ -22,10 +22,10 @@ const buttonVariants = cva(
         // Pressed / focus-visible flip the gradient (concave / inset look).
         default: cn(
           'rounded-[10px] font-semibold tracking-tight',
-          'bg-gradient-to-b from-[var(--cs-button-elevated-from)] to-[var(--cs-button-elevated-to)] text-[color:var(--cs-button-elevated-foreground)]',
-          'shadow-[0_2px_4px_-1px_var(--cs-button-elevated-shadow),0_0_0_1px_var(--cs-button-elevated-rim),inset_0_0.5px_1px_var(--cs-button-elevated-highlight),inset_0_-1px_1.2px_0.35px_var(--cs-button-elevated-inner-shadow)]',
-          'active:from-[var(--cs-button-elevated-to)] active:to-[var(--cs-button-elevated-from)]',
-          'focus-visible:from-[var(--cs-button-elevated-to)] focus-visible:to-[var(--cs-button-elevated-from)]',
+          'bg-gradient-to-b from-[var(--color-button-elevated-from)] to-[var(--color-button-elevated-to)] text-[color:var(--color-button-elevated-foreground)]',
+          'shadow-[0_2px_4px_-1px_var(--color-button-elevated-shadow),0_0_0_1px_var(--color-button-elevated-rim),inset_0_0.5px_1px_var(--color-button-elevated-highlight),inset_0_-1px_1.2px_0.35px_var(--color-button-elevated-inner-shadow)]',
+          'active:from-[var(--color-button-elevated-to)] active:to-[var(--color-button-elevated-from)]',
+          'focus-visible:from-[var(--color-button-elevated-to)] focus-visible:to-[var(--color-button-elevated-from)]',
           'disabled:opacity-30 data-[loading=true]:opacity-30'
         ),
         destructive: 'bg-destructive text-white hover:bg-destructive-hover focus-visible:ring-destructive/20',

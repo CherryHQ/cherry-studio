@@ -58,14 +58,32 @@ export type ColorPickerProps = Omit<HTMLAttributes<HTMLDivElement>, 'onChange'> 
   onChange?: (value: [number, number, number, number]) => void
 }
 
-export const ColorPicker = ({ value, defaultValue = '#000000', onChange, className, ...props }: ColorPickerProps) => {
-  const selectedColor = Color(value)
-  const defaultColor = Color(defaultValue)
+// Parse a color input, falling back instead of throwing on undefined or an
+// invalid string — a user-typed color (e.g. a partial hex) must not crash this
+// shared component during render.
+const safeColor = (
+  input: Parameters<typeof Color>[0],
+  fallback: ReturnType<typeof Color>
+): ReturnType<typeof Color> => {
+  if (input === undefined) return fallback
+  try {
+    return Color(input)
+  } catch {
+    return fallback
+  }
+}
 
-  const [hue, setHue] = useState(selectedColor.hue() || defaultColor.hue() || 0)
-  const [saturation, setSaturation] = useState(selectedColor.saturationl() || defaultColor.saturationl() || 100)
-  const [lightness, setLightness] = useState(selectedColor.lightness() || defaultColor.lightness() || 50)
-  const [alpha, setAlpha] = useState(selectedColor.alpha() * 100 || defaultColor.alpha() * 100)
+export const ColorPicker = ({ value, defaultValue = '#000000', onChange, className, ...props }: ColorPickerProps) => {
+  const defaultColor = safeColor(defaultValue, Color('#000000'))
+  // Seed from the controlled value when present, otherwise the default. Read each
+  // channel directly (no `||` fallback): a legitimate zero channel — a grayscale
+  // saturation of 0, a black lightness of 0, a transparent alpha of 0 — must survive.
+  const seedColor = safeColor(value, defaultColor)
+
+  const [hue, setHue] = useState(seedColor.hue())
+  const [saturation, setSaturation] = useState(seedColor.saturationl())
+  const [lightness, setLightness] = useState(seedColor.lightness())
+  const [alpha, setAlpha] = useState(seedColor.alpha() * 100)
   const [mode, setMode] = useState('hex')
 
   // True when the next state commit originated from a user interaction (the
@@ -76,15 +94,20 @@ export const ColorPicker = ({ value, defaultValue = '#000000', onChange, classNa
 
   // Update color when controlled value changes
   useEffect(() => {
-    if (value) {
-      shouldNotify.current = false
-      const [h, s, l] = Color(value).hsl().array()
-
-      setHue(h)
-      setSaturation(s)
-      setLightness(l)
-      setAlpha(Color(value).alpha() * 100)
+    if (value === undefined) return
+    let next: ReturnType<typeof Color>
+    try {
+      next = Color(value)
+    } catch {
+      return
     }
+    shouldNotify.current = false
+    const [h, s, l] = next.hsl().array()
+
+    setHue(h)
+    setSaturation(s)
+    setLightness(l)
+    setAlpha(next.alpha() * 100)
   }, [value])
 
   // Notify parent only when the change originated from a setter wrapper. React
