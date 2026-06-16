@@ -114,14 +114,14 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
             <span className={modelListClasses.groupTitle}>{groupLabel}</span>
           </button>
           <Tooltip
-            content={t('settings.models.manage.remove_model')}
+            content={t('settings.models.manage.remove_whole_group')}
             placement="top"
             classNames={{ placeholder: modelListClasses.groupHeaderIconTooltipTrigger }}>
             <Button
               type="button"
               variant="ghost"
               size="icon-sm"
-              aria-label={t('settings.models.manage.remove_model')}
+              aria-label={t('settings.models.manage.remove_whole_group')}
               disabled={disabled || bulkActionDisabled || hasPendingModel || groupModels.length === 0}
               className="inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/45 opacity-0 shadow-none transition-opacity hover:bg-accent/50 hover:text-destructive focus-visible:opacity-100 group-focus-within/groupRow:opacity-100 group-hover/groupRow:opacity-100"
               onClick={handleDeleteGroupModels}>

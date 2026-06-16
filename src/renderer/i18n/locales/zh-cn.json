@@ -6115,7 +6115,7 @@
         "reload_catalog": "刷新列表",
         "remove_listed": "移除列表中的模型",
         "remove_model": "移除模型",
-        "remove_whole_group": "移除整个分组",
+        "remove_whole_group": "删除分组",
         "search_models_placeholder": "搜索模型…",
         "select_none": "取消全选",
         "status_all": "全部",

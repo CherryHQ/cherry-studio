@@ -229,7 +229,7 @@ describe('ModelListGroup', () => {
       />
     )
 
-    const deleteButtons = screen.getAllByRole('button', { name: 'settings.models.manage.remove_model' })
+    const deleteButtons = screen.getAllByRole('button', { name: 'settings.models.manage.remove_whole_group' })
 
     expect(deleteButtons[0]).toHaveClass('opacity-0', 'group-hover/groupRow:opacity-100')
     fireEvent.click(deleteButtons[0])
@@ -258,7 +258,7 @@ describe('ModelListGroup', () => {
       />
     )
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'settings.models.manage.remove_model' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: 'settings.models.manage.remove_whole_group' })[0])
 
     await waitFor(() => {
       expect(loggerErrorMock).toHaveBeenCalledWith('Failed to delete provider model group', {
