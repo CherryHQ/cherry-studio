@@ -131,14 +131,14 @@ flowchart TB
 | PROVIDERS | `user_provider` + `user_model` | natural-key | false | FIELD_MERGE | ✓ |
 | PROMPTS | `prompt` | uuid-entity | false | SKIP | ✓ |
 | MCP_SERVERS | `mcp_server` | uuid-entity | false | SKIP | ✓ |
-| TAGS_GROUPS | `tag` / `group` / `pin`（均单表） | uuid-entity | false | SKIP | ✓ |
+| TAGS_GROUPS | `tag` / `group` / `pin`（单表）+ `entity_tag`（多态 junction，tagId→tag cascade） | uuid-entity | false | SKIP | ✓ |
 | ASSISTANTS | `assistant` + `assistant_mcp_server`/`assistant_knowledge_base` | uuid-entity | true | SKIP | ✓ |
 | AGENTS | `agent_session`(+`agent_session_message`) / `agent_workspace` / `agent_channel` / `agent` + `job_schedule`(type='agent.task') row-scope | uuid-entity | session:true，其余 false | SKIP | ✓ |
 | MINIAPPS | `mini_app`(app_id) | natural-key | false | FIELD_MERGE | ✓ |
 | SKILLS | `agent_global_skill` | uuid-entity | false | SKIP | ✓ |
 | TOPICS | `topic` + `message` | uuid-entity | true | SKIP | ✓ |
 | KNOWLEDGE | `knowledge_base` + `knowledge_item` | uuid-entity | true | SKIP | ✗ |
-| TRANSLATE_HISTORY | `translate_language` + `translate_history` | natural-key(langCode) | false | FIELD_MERGE | ✗ |
+| TRANSLATE_HISTORY | `translate_language`（natural-key langCode 单表）+ `translate_history`（uuid-entity 独立聚合，sourceLanguage/targetLanguage→translate_language optional ref） | natural-key / uuid-entity | false | FIELD_MERGE / SKIP | ✗ |
 | PAINTINGS | `painting`（单表） | uuid-entity | false | SKIP | ✗ |
 | FILE_STORAGE | `file_entry` + `file_ref` | uuid-entity | false | SKIP | ✗ |
 
@@ -164,7 +164,7 @@ flowchart TB
 `BackupContributorPolicy`：`omittedReferenceOverrides`（仅例外，须绑定事实+非冗余+reason）、`uniqueMergeRules`、`fieldMergePolicies`（FIELD_MERGE 列级合并）。**不含** restoreRemap / idStrategies（over-design，移除）。
 
 > [!WARNING]
-> **类型入口**：`DbTableName` / `DbColumnName` 必须来自 Drizzle codegen，不能靠手写 as 认证。列名是 camelCase 实际 DB 列名（`topicId` / `providerId` / `fileEntryId`）。
+> **类型入口**：`DbTableName` / `DbColumnName` 必须来自 Drizzle codegen，不能靠手写 as 认证。`DbColumnName` 是 Drizzle **property name（camelCase，如 topicId / providerId / fileEntryId）**；物理 SQLite 列由 DbService `casing:'snake_case'` 自动转 snake_case（topic_id）。backup 全程走 drizzle builder（`BackupScopedDb` 不暴露 run/raw/Client），drizzle 自动处理 casing 转换，故无裸 SQL 列名风险。
 
 #### 6.2. `AggregateBoundary` 派生公式（fact-derived, 反对手写冗余）
 
@@ -195,7 +195,7 @@ flowchart LR
   F --> G[运行时 finalize 再校验 兜底]
 ```
 
-生成产物：`DB_TABLES`、`DB_COLUMNS_BY_TABLE`（camelCase 实际列名）、`DbTableName`、`DbColumnName<TTable>`、`DB_PRIMARY_KEYS`（含 uuid-v4/v7 判定与 ambiguous 标注）。手写 as DbTableName 不算认证路径，须走 helper。
+生成产物：`DB_TABLES`、`DB_COLUMNS_BY_TABLE`（camelCase property name；物理列由 `casing:'snake_case'` 转 snake_case）、`DbTableName`、`DbColumnName<TTable>`、`DB_PRIMARY_KEYS`（含 uuid-v4/v7 判定与 ambiguous 标注）。手写 as DbTableName 不算认证路径，须走 helper。
 
 | 四层保护 | 失败时机 |
 |---|---|
