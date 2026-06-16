@@ -368,7 +368,7 @@ const ActionWrapper = styled.div`
   border-radius: var(--selection-toolbar-buttons-border-radius);
 `
 const ActionButton = styled.div`
-  height: 100%;
+  align-self: stretch;
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -384,7 +384,6 @@ const ActionButton = styled.div`
   transition: all 0.1s ease-in-out;
   will-change: color, background-color;
   &:last-child {
-    border-radius: 0 var(--selection-toolbar-border-radius) var(--selection-toolbar-border-radius) 0;
     padding: var(--selection-toolbar-button-last-padding);
   }
 
@@ -404,10 +403,10 @@ const ActionButton = styled.div`
   }
   &:hover {
     .btn-icon {
-      color: var(--color-primary);
+      color: var(--selection-toolbar-button-text-color-hover);
     }
     .btn-title {
-      color: var(--color-primary);
+      color: var(--selection-toolbar-button-text-color-hover);
     }
     background-color: var(--selection-toolbar-button-bgcolor-hover);
   }
