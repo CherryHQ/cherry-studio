@@ -329,6 +329,12 @@
   --color-sidebar-accent-foreground: var(--cs-sidebar-accent-foreground);
   --color-sidebar-border: var(--cs-sidebar-border);
   --color-sidebar-ring: var(--cs-sidebar-ring);
+  --color-highlight: var(--cs-highlight);
+  --color-highlight-surface: var(--cs-highlight-surface);
+  --color-highlight-foreground: var(--cs-highlight-foreground);
+  --color-button-elevated-from: var(--cs-button-elevated-from);
+  --color-button-elevated-to: var(--cs-button-elevated-to);
+  --color-button-elevated-foreground: var(--cs-button-elevated-foreground);
 
   /* ==================== */
   /* Status Colors */

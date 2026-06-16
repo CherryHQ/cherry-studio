@@ -77,6 +77,20 @@
   --cs-sidebar-accent-foreground: var(--cs-foreground);
   --cs-sidebar-border: var(--cs-border);
   --cs-sidebar-ring: var(--cs-ring);
+
+  /* Feature-highlight pill (Badge "highlight" variant — New / PRO / Beta tags).
+   * A bright mint accent, deliberately distinct from the success status family. */
+  --cs-highlight: #8fd944;
+  --cs-highlight-surface: #c2ec80;
+  --cs-highlight-foreground: #2e4d18;
+
+  /* Elevated "metallic" CTA (Button default variant) — vertical gradient that
+   * flips light-on-dark per mode. (The rim-light box-shadow lives inline in
+   * button.tsx; a box-shadow can't be a --color-* token without breaking the
+   * Tailwind @theme color namespace.) */
+  --cs-button-elevated-from: #323232;
+  --cs-button-elevated-to: #222222;
+  --cs-button-elevated-foreground: #fcfcfc;
 }
 
 /* Dark Mode */
@@ -122,4 +136,14 @@
   /* Sidebar */
   --cs-sidebar: var(--cs-black);
   --cs-sidebar-accent: oklch(1 0 0 / 0.1);
+
+  /* Feature-highlight pill (dark) — deep forest invert of the light mint. */
+  --cs-highlight: #a0d958;
+  --cs-highlight-surface: #2a4514;
+  --cs-highlight-foreground: #c0ec7c;
+
+  /* Elevated CTA (dark) — inverted light gradient with dark text. */
+  --cs-button-elevated-from: #f5f5f5;
+  --cs-button-elevated-to: #e8e8e8;
+  --cs-button-elevated-foreground: #1a1c1f;
 }
