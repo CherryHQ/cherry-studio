@@ -35,6 +35,11 @@
   --cs-border-hover: oklch(0 0 0 / 0.2);
   --cs-border-active: oklch(0 0 0 / 0.3);
   --cs-frame-border: oklch(0 0 0 / 0.12);
+  /* Frame border on translucent (macOS vibrancy) windows — when the window is
+   * key, the edge must stay clearly legible against the blurred wallpaper, so
+   * this is a solid step darker than the opaque --cs-frame-border (which would
+   * read too faint over glass). */
+  --cs-frame-border-translucent: #dadcd6;
 
   /* Ring (Focus) */
   --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
@@ -52,12 +57,11 @@
   --cs-sidebar: var(--cs-white);
   --cs-sidebar-accent: oklch(0 0 0 / 0.05);
 
-  /* Sidebar glass tint — the opaque sidebar color at partial alpha. The gaussian
-   * blur underneath comes from native vibrancy (transparent windows, while
-   * focused) or CSS backdrop-blur (floating hover sidebar). Alpha balances two
-   * failure modes: too high hides the blur entirely (~60%+ reads opaque), too
-   * low lets the tone drift fully to the raw material. */
-  --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 35%, transparent);
+  /* Sidebar glass tint — the opaque sidebar color at partial alpha over native
+   * vibrancy. Kept fairly opaque (70%, matching dark): at a lower alpha the
+   * wallpaper gradient bled through and the sidebar read uneven/disjointed
+   * against the flat content surface. */
+  --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 70%, transparent);
 
   /* Surface-paired foregrounds — all neutral surfaces share the app foreground.
    * These tokens exist so Tailwind utilities like `text-card-foreground`,
@@ -113,6 +117,10 @@
   --cs-border-hover: oklch(1 0 0 / 0.2);
   --cs-border-active: oklch(1 0 0 / 0.3);
   --cs-frame-border: oklch(1 0 0 / 0.14);
+  /* Translucent-window frame border (dark) — key windows need a clearly legible
+   * edge over the blurred wallpaper, so this sits a step lighter than the opaque
+   * --cs-frame-border. */
+  --cs-frame-border-translucent: #3c3d35;
 
   /* Ring (Focus) - 保持不变 */
   --cs-ring: oklch(0.76 0.204 131 / 0.4);
@@ -130,6 +138,8 @@
   --cs-sidebar: var(--cs-black);
   --cs-sidebar-accent: oklch(1 0 0 / 0.1);
 
-  /* Sidebar glass tint (dark) — see :root note. */
-  --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 50%, transparent);
+  /* Sidebar glass tint (dark) — intentionally more opaque than light (70 vs 35%):
+   * over a dark wallpaper the blurred bleed-through crushes sidebar legibility,
+   * so we keep only a hint of glass. See :root note for the alpha tradeoffs. */
+  --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 70%, transparent);
 }

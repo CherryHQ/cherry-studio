@@ -307,6 +307,7 @@
   --color-border-hover: var(--cs-border-hover);
   --color-border-active: var(--cs-border-active);
   --color-frame-border: var(--cs-frame-border);
+  --color-frame-border-translucent: var(--cs-frame-border-translucent);
   --color-secondary: var(--cs-secondary);
   --color-secondary-hover: var(--cs-secondary-hover);
   --color-secondary-active: var(--cs-secondary-active);
