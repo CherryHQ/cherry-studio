@@ -102,10 +102,6 @@ const DataSourcePanel = ({
     [items]
   )
 
-  const handleCancelBulk = useCallback(() => {
-    setSelectedIds(new Set())
-  }, [])
-
   const handleBulkReindex = useCallback(async () => {
     const targets = items.filter((item) => selectedIds.has(item.id))
     try {
@@ -158,7 +154,6 @@ const DataSourcePanel = ({
             updatedAt={updatedAt}
             onBulkReindex={handleBulkReindex}
             onBulkDelete={() => setIsBulkDeleteOpen(true)}
-            onCancelBulk={handleCancelBulk}
             onAdd={handleAddSource}
           />
         </div>

@@ -2186,7 +2186,6 @@
         }
       },
       "bulk": {
-        "cancel": "取消",
         "delete": "删除",
         "delete_confirm_description": "确认删除选中的 {{count}} 个数据源？删除后无法恢复。",
         "delete_confirm_title": "确认批量删除",

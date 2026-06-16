@@ -2186,7 +2186,6 @@
         }
       },
       "bulk": {
-        "cancel": "Cancel",
         "delete": "Delete",
         "delete_confirm_description": "Delete {{count}} selected data sources? This cannot be undone.",
         "delete_confirm_title": "Delete Selected Data Sources?",

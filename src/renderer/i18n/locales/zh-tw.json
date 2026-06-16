@@ -2186,7 +2186,6 @@
         }
       },
       "bulk": {
-        "cancel": "取消",
         "delete": "刪除",
         "delete_confirm_description": "確認刪除選中的 {{count}} 個資料來源？刪除後無法復原。",
         "delete_confirm_title": "確認批次刪除",

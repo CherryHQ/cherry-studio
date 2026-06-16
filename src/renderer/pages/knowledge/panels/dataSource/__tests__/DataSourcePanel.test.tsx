@@ -155,7 +155,6 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.empty.shortcuts.file.title': '文件',
             'knowledge.data_source.empty.shortcuts.url.title': '链接',
             'knowledge.data_source.empty.shortcuts.directory.title': '目录导入',
-            'knowledge.data_source.bulk.cancel': '取消',
             'knowledge.data_source.bulk.delete': '删除',
             'knowledge.data_source.bulk.reindex': '重新索引',
             'knowledge.data_source.bulk.delete_confirm_title': '确认批量删除',
@@ -734,10 +733,6 @@ describe('DataSourcePanel', () => {
     expect(selectedRowCheckboxes).toHaveLength(2)
     expect(selectedRowCheckboxes[0]).toBeChecked()
     expect(selectedRowCheckboxes[1]).toBeChecked()
-
-    fireEvent.click(screen.getByRole('button', { name: '取消' }))
-    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
-    expect(screen.getByText('已选 2 项')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
 

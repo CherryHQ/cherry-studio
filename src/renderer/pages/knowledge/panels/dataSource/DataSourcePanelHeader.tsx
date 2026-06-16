@@ -14,7 +14,6 @@ interface DataSourcePanelHeaderProps {
   updatedAt: string
   onBulkReindex: () => void
   onBulkDelete: () => void
-  onCancelBulk: () => void
   onAdd: (source: KnowledgeItemType) => void
 }
 
@@ -25,7 +24,6 @@ const DataSourcePanelHeader = ({
   updatedAt,
   onBulkReindex,
   onBulkDelete,
-  onCancelBulk,
   onAdd
 }: DataSourcePanelHeaderProps) => {
   const { t, i18n } = useTranslation()
@@ -41,15 +39,10 @@ const DataSourcePanelHeader = ({
 
   if (selectedCount > 0) {
     return (
-      <div className="flex min-w-0 items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="text-foreground text-sm">
-            {t('knowledge.data_source.bulk.selected_count', { count: selectedCount })}
-          </span>
-          <Button type="button" variant="ghost" size="sm" onClick={onCancelBulk}>
-            {t('knowledge.data_source.bulk.cancel')}
-          </Button>
-        </div>
+      <div className="flex min-h-8 min-w-0 items-center justify-between gap-3">
+        <span className="min-w-0 truncate text-foreground text-sm">
+          {t('knowledge.data_source.bulk.selected_count', { count: selectedCount })}
+        </span>
         <div className="flex shrink-0 items-center gap-2">
           <Button type="button" variant="outline" size="sm" onClick={onBulkReindex}>
             <RefreshCw className="size-3.5" />
@@ -65,7 +58,7 @@ const DataSourcePanelHeader = ({
   }
 
   return (
-    <div className="flex min-w-0 items-center justify-between gap-2">
+    <div className="flex min-h-8 min-w-0 items-center justify-between gap-2">
       <span className="min-w-0 truncate text-foreground-muted text-xs leading-4">
         {t('knowledge.meta.updated_at', { time: formatRelativeTime(updatedAt, i18n.language) })}
       </span>
