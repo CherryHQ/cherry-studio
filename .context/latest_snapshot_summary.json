@@ -1,101 +1,198 @@
 {
-  "generated_at": "2026-06-15T00:00:00Z",
-  "issues": {
-    "total_open": 927,
-    "delta_from_yesterday": -15,
-    "closed_30d_note": "closed count not available via MCP; merged PRs last 30d = 164",
-    "age_distribution": {
-      "active_0_7d": 421,
-      "aging_8_30d": 30,
-      "stale_31_90d": 38,
-      "zombie_90d_plus": 438
-    },
-    "p1_count": 3,
-    "uncategorized_pct": 9.0,
-    "top_labels": {
-      "BUG": 104,
-      "inactive": 39,
-      "UI/UX": 32,
-      "Models": 21,
-      "Assistant": 13,
-      "internal_team": 12,
-      "MCP": 12,
-      "Connectivity": 7,
-      "Data": 6,
-      "RAG": 5,
-      "needs-repro": 5,
-      "help wanted": 4,
-      "discussion": 4,
-      "feature": 2,
-      "Blocked: v2": 1
-    },
-    "sample_size": 220,
-    "sample_note": "BUG count from full label search (104 confirmed). Label distribution from newest 100 issues. Uncategorized 9% from newest-100 sample. Health estimates scaled from yesterday's 220-issue sample."
+  "generated_at": "2026-06-16T17:50:06.598364+00:00",
+  "open_issues": {
+    "count": 927,
+    "total_in_repo": null
   },
-  "prs": {
-    "total_open": 100,
-    "draft": 9,
-    "non_draft": 91,
-    "health": {
-      "Active_lt_7d": 81,
-      "Aging_gt_14d": 19
-    },
-    "merged_30d": 164,
-    "v2_open": 0,
-    "v2_merged_30d": 0,
-    "by_base_branch": {
-      "main": 88,
-      "v1": 11,
-      "other": 1
-    },
-    "oldest_open_prs": [
-      {"number": 15354, "title": "Hotfix/fix bocha web search schema", "author": "Iuriak", "created_at": "2026-05-27"},
-      {"number": 15369, "title": "fix: recover claude-code install when native binary is missing", "author": "kovsu", "created_at": "2026-05-28"},
-      {"number": 15388, "title": "fix: validate MCP OAuth callback state", "author": "3em0", "created_at": "2026-05-28"},
-      {"number": 15399, "title": "feat: add voice input support to inputbar", "author": "bobbyhuang666", "created_at": "2026-05-28"},
-      {"number": 15406, "title": "refactor(file-types): unify FilePath as Zod-branded canonical path", "author": "EurFelux", "created_at": "2026-05-28"}
-    ]
+  "open_prs": {
+    "count": 257,
+    "by_base": {
+      "SiinXu/ui-shell": 1,
+      "SiinXu/ui-design-system": 1,
+      "main": 236,
+      "v1": 19
+    }
   },
-  "p1_urgent_issues": [
+  "closed_issues_30d": 405,
+  "closed_prs_30d": 541,
+  "label_distribution": [
+    {
+      "label": "UI/UX",
+      "count": 301
+    },
+    {
+      "label": "Models",
+      "count": 198
+    },
+    {
+      "label": "Assistant",
+      "count": 149
+    },
+    {
+      "label": "feature",
+      "count": 131
+    },
+    {
+      "label": "inactive",
+      "count": 110
+    },
+    {
+      "label": "BUG",
+      "count": 104
+    },
+    {
+      "label": "MCP",
+      "count": 75
+    },
+    {
+      "label": "internal_team",
+      "count": 70
+    },
+    {
+      "label": "Data",
+      "count": 52
+    },
+    {
+      "label": "needs-repro",
+      "count": 48
+    },
+    {
+      "label": "Blocked: v2",
+      "count": 47
+    },
+    {
+      "label": "discussion",
+      "count": 44
+    },
+    {
+      "label": "help wanted",
+      "count": 42
+    },
+    {
+      "label": "RAG",
+      "count": 34
+    },
+    {
+      "label": "Connectivity",
+      "count": 31
+    },
+    {
+      "label": "P3",
+      "count": 23
+    },
+    {
+      "label": "v2",
+      "count": 18
+    },
+    {
+      "label": "Planned",
+      "count": 16
+    },
+    {
+      "label": "Dev Team",
+      "count": 15
+    },
+    {
+      "label": "needs-more-info",
+      "count": 15
+    }
+  ],
+  "unlabeled_pct": 9.6,
+  "p1_issues": [
     {
       "number": 14899,
       "title": "[Feature]: Unified Notification Center",
-      "labels": ["Planned", "P1", "feature", "UI/UX"],
-      "milestone": "v2.4.0",
-      "createdAt": "2026-05-07T05:01:00Z",
-      "updatedAt": "2026-05-07T05:52:49Z",
-      "days_since_update": 39,
-      "status": "planned",
+      "labels": [
+        "Planned",
+        "P1",
+        "feature",
+        "UI/UX"
+      ],
       "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
     },
     {
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": ["P1", "Models"],
-      "createdAt": "2026-03-18T14:34:38Z",
-      "updatedAt": "2026-03-19T14:22:09Z",
-      "days_since_update": 88,
-      "status": "stale",
+      "labels": [
+        "P1",
+        "Models"
+      ],
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
     },
     {
       "number": 13193,
-      "title": "[Bug]: Azure OpenAI defaults to responses API — Resource not found",
-      "labels": ["P1", "Models"],
-      "createdAt": "2026-03-04T05:07:40Z",
-      "updatedAt": "2026-03-05T08:47:59Z",
-      "days_since_update": 102,
-      "status": "zombie",
+      "title": "[Bug]: [AI_APICallError: Resource not found, default use responses API] Could not call Azure openai in the latest macos app",
+      "labels": [
+        "P1",
+        "Models"
+      ],
       "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
     }
   ],
-  "newly_filed_bugs_7d": [
+  "v2_prs": {
+    "open": 0,
+    "merged_30d": 148
+  },
+  "top_issues_by_comments": [
     {
-      "number": 16016,
-      "title": "[Bug]: Agent fails with ECONNREFUSED when a stale system proxy is set",
-      "labels": ["BUG", "Connectivity", "internal_team"],
-      "createdAt": "2026-06-12",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/16016"
+      "number": 6505,
+      "title": "[FAQ&反馈]: 划词助手 / Selection Assistant",
+      "comments": 360,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/6505"
+    },
+    {
+      "number": 5640,
+      "title": "【需求汇总】Cherry Studio as a Service (CSaaS) / Cherry Studio作为服务对外提供API接口",
+      "comments": 26,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/5640"
+    },
+    {
+      "number": 6972,
+      "title": "[功能]: 允许缓存对话中 markdown 引用的图片到本地",
+      "comments": 17,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/6972"
+    },
+    {
+      "number": 14362,
+      "title": "[Bug]: The model list displays grouped garbled text.",
+      "comments": 15,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14362"
+    },
+    {
+      "number": 9943,
+      "title": "[错误]: MCPB（原DXT）文件导入MCP服务器的相关问题",
+      "comments": 15,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/9943"
+    },
+    {
+      "number": 12618,
+      "title": "[Bug]: Unable to properly configure and use the Anthropic (Claude) API provided by Azure",
+      "comments": 14,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/12618"
+    },
+    {
+      "number": 3922,
+      "title": "[功能]: 助手作为对话参与者而非话题容器",
+      "comments": 13,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/3922"
+    },
+    {
+      "number": 12612,
+      "title": "[Bug]: Azure OpenAI gpt-5.2 models fail with \"Unsupported parameter: 'messages'\" error",
+      "comments": 13,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/12612"
+    },
+    {
+      "number": 13209,
+      "title": "[Feature]: Properly handle MCP image content instead of embedding raw base64 in messages",
+      "comments": 12,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13209"
+    },
+    {
+      "number": 11101,
+      "title": "[Feature]: Keep Tool Calling Context",
+      "comments": 11,
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/11101"
     }
   ]
 }
