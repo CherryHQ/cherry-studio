@@ -1,14 +1,15 @@
-import type {
-  BranchMessage,
-  CherryMessagePart,
-  CherryUIMessage,
-  Message as SharedMessage
+import {
+  type BranchMessage,
+  type CherryMessagePart,
+  type CherryUIMessage,
+  type Message as SharedMessage,
+  toContentRole
 } from '@shared/data/types/message'
 
 export function sharedMessageToUIMessage(shared: SharedMessage): CherryUIMessage {
   return {
     id: shared.id,
-    role: shared.role,
+    role: toContentRole(shared.role),
     parts: (shared.data?.parts ?? []) as CherryUIMessage['parts'],
     metadata: {
       parentId: shared.parentId,

@@ -8,7 +8,9 @@ const createdAt = '2026-05-22T00:00:00.000Z'
 function treeNode({ id, ...overrides }: Partial<TreeNode> & Pick<TreeNode, 'id'>): TreeNode {
   return {
     id,
-    parentId: null,
+    // Roots hang off the unrendered virtual root; use a non-node sentinel id so the
+    // edge guard skips the edge and the node still renders as a graph root.
+    parentId: 'vroot',
     role: 'user',
     preview: id,
     modelId: null,
@@ -75,7 +77,7 @@ describe('buildTopicMessageFlowGraph', () => {
     const graph = buildTopicMessageFlowGraph(tree)
 
     expect(graph.nodes.map((node) => [node.id, node.parentId, node.data.siblingsGroupId])).toEqual([
-      ['root', null, undefined],
+      ['root', 'vroot', undefined],
       ['assistant-a', 'root', 7],
       ['assistant-b', 'root', 7]
     ])
@@ -92,7 +94,7 @@ describe('buildTopicMessageFlowGraph', () => {
       ],
       siblingsGroups: [
         {
-          parentId: null,
+          parentId: 'vroot',
           siblingsGroupId: 9,
           nodes: [siblingNode({ id: 'root-original' }), siblingNode({ id: 'root-edited' })]
         }
@@ -105,8 +107,8 @@ describe('buildTopicMessageFlowGraph', () => {
     expect(graph.nodes.map((node) => [node.id, node.parentId, node.data.siblingsGroupId])).toEqual([
       ['assistant-original', 'root-original', undefined],
       ['assistant-edited', 'root-edited', undefined],
-      ['root-original', null, undefined],
-      ['root-edited', null, undefined]
+      ['root-original', 'vroot', undefined],
+      ['root-edited', 'vroot', undefined]
     ])
     expect(graph.edges.map((edge) => [edge.source, edge.target])).toEqual([
       ['root-original', 'assistant-original'],
@@ -132,9 +134,9 @@ describe('buildTopicMessageFlowGraph', () => {
     const graph = buildTopicMessageFlowGraph(tree)
 
     expect(graph.nodes.map((node) => [node.id, node.parentId])).toEqual([
-      ['root-a', null],
+      ['root-a', 'vroot'],
       ['answer-a', 'root-a'],
-      ['root-b', null],
+      ['root-b', 'vroot'],
       ['answer-b', 'root-b']
     ])
     expect(graph.edges.map((edge) => [edge.source, edge.target])).toEqual([

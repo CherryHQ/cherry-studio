@@ -123,7 +123,7 @@ export function useChatWriteActions(params: Params): Result {
   )
 
   const handleClearTopicMessages = useCallback(async () => {
-    const rootMsg = uiMessages.find((m) => m.metadata?.parentId == null) ?? uiMessages[0]
+    const rootMsg = uiMessages[0]
     if (!rootMsg) return
     await clearBranchCache()
     try {

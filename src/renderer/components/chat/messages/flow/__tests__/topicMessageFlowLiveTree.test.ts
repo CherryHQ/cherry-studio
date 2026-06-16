@@ -8,7 +8,8 @@ const createdAt = '2026-05-22T00:00:00.000Z'
 function treeNode({ id, ...overrides }: Partial<TreeNode> & Pick<TreeNode, 'id'>): TreeNode {
   return {
     id,
-    parentId: null,
+    // Roots hang off the unrendered virtual root; use a non-node sentinel id.
+    parentId: 'vroot',
     role: 'user',
     preview: id,
     modelId: null,
@@ -71,7 +72,7 @@ describe('topicMessageFlowLiveTree', () => {
 
     expect(merged.activeNodeId).toBe('assistant-1')
     expect(merged.nodes.map((node) => [node.id, node.parentId, node.preview, node.status])).toEqual([
-      ['root', null, 'root', 'success'],
+      ['root', 'vroot', 'root', 'success'],
       ['user-1', 'root', 'new question', 'success'],
       ['assistant-1', 'user-1', 'streaming answer', 'pending']
     ])
@@ -137,7 +138,8 @@ describe('topicMessageFlowLiveTree', () => {
         uiMessage({
           id: 'root-edited',
           role: 'user',
-          parentId: null,
+          // First-turn live message hangs off the topic's virtual root (never null).
+          parentId: 'vroot',
           siblingsGroupId: 11,
           parts: [textPart('edited root')]
         }),
@@ -158,12 +160,12 @@ describe('topicMessageFlowLiveTree', () => {
     const merged = mergeTopicMessageFlowLiveTree(tree, liveState)
 
     expect(merged.nodes.map((node) => [node.id, node.parentId])).toEqual([
-      ['root-original', null],
+      ['root-original', 'vroot'],
       ['assistant-edited', 'root-edited']
     ])
     expect(merged.siblingsGroups).toHaveLength(1)
     expect(merged.siblingsGroups[0]).toMatchObject({
-      parentId: null,
+      parentId: 'vroot',
       siblingsGroupId: 11
     })
     expect(merged.siblingsGroups[0].nodes.map((node) => [node.id, node.preview, node.hasChildren])).toEqual([

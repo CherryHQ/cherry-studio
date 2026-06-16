@@ -25,7 +25,10 @@ const bodySmTypographyClassName = 'text-[length:var(--font-size-body-sm)] leadin
 const roleClassNames: Record<MessageRole, string> = {
   user: 'border-success/35 bg-success/8',
   assistant: 'border-info/35 bg-info/8',
-  system: 'border-border bg-muted/45'
+  system: 'border-border bg-muted/45',
+  // The virtual root is never rendered as a flow node; entry exists only to satisfy the
+  // exhaustive Record<MessageRole> type.
+  root: 'border-border bg-muted/45'
 }
 
 const statusDotClassNames: Record<MessageStatus, string> = {

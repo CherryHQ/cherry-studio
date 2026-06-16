@@ -10,7 +10,7 @@ const LIVE_PREVIEW_LENGTH = 160
 
 export interface TopicMessageFlowLiveNode {
   id: string
-  parentId: string | null
+  parentId: string
   role: TreeNode['role']
   preview: string
   modelId?: string | null
@@ -80,23 +80,31 @@ export function buildTopicMessageFlowLiveState({
   activeNodeId,
   streamingMessageIds
 }: BuildTopicMessageFlowLiveStateParams): TopicMessageFlowLiveState | null {
-  const nodes = messages.map((message): TopicMessageFlowLiveNode => {
+  const nodes = messages.flatMap((message): TopicMessageFlowLiveNode[] => {
     const metadata = message.metadata ?? {}
+    // Every content / draft node has a parent (the virtual root is excluded from the
+    // message list); skip a parentless row defensively. The guard narrows `parentId`
+    // to a non-null `string`; it never drops a real node.
+    const parentId = metadata.parentId
+    if (parentId == null) return []
+
     const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
     const createdAt = metadata.createdAt ?? new Date().toISOString()
     const isStreamingMessage = streamingMessageIds?.has(message.id) ?? false
     const fallbackStatus = message.role === 'assistant' && parts.length === 0 ? 'pending' : 'success'
 
-    return {
-      id: message.id,
-      parentId: metadata.parentId ?? null,
-      role: message.role === 'system' ? 'assistant' : message.role,
-      preview: extractTopicMessageFlowLivePreview(parts),
-      modelId: metadata.modelId ?? null,
-      status: isStreamingMessage ? 'pending' : (metadata.status ?? fallbackStatus),
-      createdAt,
-      ...(metadata.siblingsGroupId ? { siblingsGroupId: metadata.siblingsGroupId } : {})
-    }
+    return [
+      {
+        id: message.id,
+        parentId,
+        role: message.role === 'system' ? 'assistant' : message.role,
+        preview: extractTopicMessageFlowLivePreview(parts),
+        modelId: metadata.modelId ?? null,
+        status: isStreamingMessage ? 'pending' : (metadata.status ?? fallbackStatus),
+        createdAt,
+        ...(metadata.siblingsGroupId ? { siblingsGroupId: metadata.siblingsGroupId } : {})
+      }
+    ]
   })
 
   if (nodes.length === 0) return null

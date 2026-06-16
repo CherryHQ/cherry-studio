@@ -386,10 +386,31 @@ export type ModelSnapshot = z.infer<typeof ModelSnapshotSchema>
 // ============================================================================
 
 /**
- * Message role - user, assistant, or system
+ * Message role.
+ *
+ * - `user` / `assistant` / `system` — content messages.
+ * - `root` — the per-topic content-less virtual root sentinel (one per topic,
+ *   `parentId IS NULL`). Self-identifying so role-filtered content queries
+ *   (`WHERE role = 'system'`) exclude it for free; never rendered or sent to a
+ *   model. See `docs/references/chat/message-tree.md`.
  */
-export const MessageRoleSchema = z.enum(['user', 'assistant', 'system'])
+export const MessageRoleSchema = z.enum(['user', 'assistant', 'system', 'root'])
 export type MessageRole = z.infer<typeof MessageRoleSchema>
+
+/** Roles that carry content — everything except the virtual-root sentinel. */
+export type ContentMessageRole = Exclude<MessageRole, 'root'>
+
+/**
+ * Narrow a message role to a content role for model serialization. The virtual root
+ * (`role = 'root'`) is structural and never serialized — it is excluded from every
+ * history/path query — so reaching here with `'root'` is a bug, not a state to map.
+ */
+export function toContentRole(role: MessageRole): ContentMessageRole {
+  if (role === 'root') {
+    throw new Error('virtual root (role=root) must not be serialized into model history')
+  }
+  return role
+}
 
 export const TOPIC_MESSAGE_SEARCH_ROLES = ['user', 'assistant'] as const satisfies readonly MessageRole[]
 export type TopicMessageSearchRole = (typeof TOPIC_MESSAGE_SEARCH_ROLES)[number]
@@ -466,8 +487,8 @@ export type Message = z.infer<typeof MessageSchema>
 export interface TreeNode {
   /** Message ID */
   id: string
-  /** Parent message ID (null for root, omitted in SiblingsGroup.nodes) */
-  parentId?: string | null
+  /** Parent message ID — the topic's virtual root for first turns, else a content message; omitted in SiblingsGroup.nodes */
+  parentId: string
   /** Message role */
   role: MessageRole
   /** Content preview (first 50 characters) */
@@ -487,8 +508,8 @@ export interface TreeNode {
  * Used for multi-model responses in tree view
  */
 export interface SiblingsGroup {
-  /** Parent message ID (null for root sibling groups) */
-  parentId: string | null
+  /** Parent message ID — the virtual root for first-turn groups, else a content message */
+  parentId: string
   /** Siblings group ID (non-zero) */
   siblingsGroupId: number
   /** Nodes in this group (parentId omitted to avoid redundancy) */
