@@ -120,8 +120,8 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('feature.openclaw.gateway_port')
       expect(keys).toContain('feature.openclaw.selected_model_id')
       expect(keys).toContain('shortcut.app.zoom.in')
-      expect(keys).toContain('ui.sidebar.icons.visible')
-      expect(keys).toContain('ui.sidebar.icons.invisible')
+      expect(keys).toContain('ui.sidebar.entries.visible')
+      expect(keys).toContain('ui.sidebar.entries.invisible')
       expect(keys).toContain('feature.translate.action.preferred_lang')
       expect(keys).toContain('feature.translate.action.alter_lang')
       expect(keys).toContain('feature.translate.mini_window.target_lang')
@@ -171,9 +171,9 @@ describe('ComplexPreferenceMappings', () => {
     })
   })
 
-  describe('sidebar_icons_rename', () => {
+  describe('sidebar_entries_migrate', () => {
     it("should rewrite 'minapp' to 'mini_app' in both visible and disabled arrays and add agents", () => {
-      const mapping = getComplexMappingById('sidebar_icons_rename')
+      const mapping = getComplexMappingById('sidebar_entries_migrate')
       expect(mapping).toBeDefined()
 
       const result = mapping!.transform({
@@ -182,26 +182,26 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.icons.visible': ['assistants', 'agents', 'mini_app', 'translate'],
-        'ui.sidebar.icons.invisible': ['mini_app', 'files']
+        'ui.sidebar.entries.visible': ['assistants', 'agents', 'mini_app', 'translate'],
+        'ui.sidebar.entries.invisible': ['mini_app', 'files']
       })
     })
 
     it('should pass through other literals unchanged', () => {
-      const mapping = getComplexMappingById('sidebar_icons_rename')!
+      const mapping = getComplexMappingById('sidebar_entries_migrate')!
       const result = mapping.transform({
         visible: ['assistants', 'translate', 'paintings'],
         disabled: ['files', 'knowledge']
       })
 
       expect(result).toEqual({
-        'ui.sidebar.icons.visible': ['assistants', 'agents', 'translate', 'paintings'],
-        'ui.sidebar.icons.invisible': ['files', 'knowledge']
+        'ui.sidebar.entries.visible': ['assistants', 'agents', 'translate', 'paintings'],
+        'ui.sidebar.entries.invisible': ['files', 'knowledge']
       })
     })
 
-    it('should collapse the old default visible sidebar icons to the new default set', () => {
-      const mapping = getComplexMappingById('sidebar_icons_rename')!
+    it('should collapse the old default visible sidebar entries to the new default set', () => {
+      const mapping = getComplexMappingById('sidebar_entries_migrate')!
       const result = mapping.transform({
         visible: [
           'assistants',
@@ -219,40 +219,40 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.icons.visible': ['assistants', 'agents', 'store', 'translate', 'mini_app'],
-        'ui.sidebar.icons.invisible': []
+        'ui.sidebar.entries.visible': ['assistants', 'agents', 'store', 'translate', 'mini_app'],
+        'ui.sidebar.entries.invisible': []
       })
     })
 
     it('should not force agents visible when it was explicitly hidden', () => {
-      const mapping = getComplexMappingById('sidebar_icons_rename')!
+      const mapping = getComplexMappingById('sidebar_entries_migrate')!
       const result = mapping.transform({
         visible: ['assistants', 'translate'],
         disabled: ['agents', 'files']
       })
 
       expect(result).toEqual({
-        'ui.sidebar.icons.visible': ['assistants', 'translate'],
-        'ui.sidebar.icons.invisible': ['agents', 'files']
+        'ui.sidebar.entries.visible': ['assistants', 'translate'],
+        'ui.sidebar.entries.invisible': ['agents', 'files']
       })
     })
 
     it('should return non-array inputs as-is without crashing', () => {
-      const mapping = getComplexMappingById('sidebar_icons_rename')!
+      const mapping = getComplexMappingById('sidebar_entries_migrate')!
 
       expect(mapping.transform({ visible: undefined, disabled: undefined })).toEqual({
-        'ui.sidebar.icons.visible': undefined,
-        'ui.sidebar.icons.invisible': undefined
+        'ui.sidebar.entries.visible': undefined,
+        'ui.sidebar.entries.invisible': undefined
       })
 
       expect(mapping.transform({ visible: null, disabled: null })).toEqual({
-        'ui.sidebar.icons.visible': null,
-        'ui.sidebar.icons.invisible': null
+        'ui.sidebar.entries.visible': null,
+        'ui.sidebar.entries.invisible': null
       })
 
       expect(mapping.transform({})).toEqual({
-        'ui.sidebar.icons.visible': undefined,
-        'ui.sidebar.icons.invisible': undefined
+        'ui.sidebar.entries.visible': undefined,
+        'ui.sidebar.entries.invisible': undefined
       })
     })
   })

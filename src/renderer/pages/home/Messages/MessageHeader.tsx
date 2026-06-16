@@ -8,7 +8,6 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMessageStyle } from '@renderer/hooks/useSettings'
-import { useSidebarIconShow } from '@renderer/hooks/useSidebarIcon'
 import { getMessageModelId } from '@renderer/services/MessagesService'
 import { type Assistant, type Model, type Topic, TopicType } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -33,7 +32,8 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const avatar = useAvatar()
   const { theme } = useTheme()
   const [userName] = usePreference('app.user.name')
-  const showMiniAppIcon = useSidebarIconShow('mini_app')
+  const [visibleSidebarEntries] = usePreference('ui.sidebar.entries.visible')
+  const showMiniAppEntry = visibleSidebarEntries.includes('mini_app')
   const isAgentSessionAssistantMessage = topic.type === TopicType.Session && message.role === 'assistant'
   const { agent } = useAgent(isAgentSessionAssistantMessage ? (topic.assistantId ?? null) : null)
   const { t } = useTranslation()
@@ -65,10 +65,10 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
 
   const showMiniApp = useCallback(() => {
-    showMiniAppIcon && model?.provider && openMiniAppById(model.provider)
+    showMiniAppEntry && model?.provider && openMiniAppById(model.provider)
     // because don't need openMiniAppById to be a dependency
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model?.provider, showMiniAppIcon])
+  }, [model?.provider, showMiniAppEntry])
 
   const userNameJustifyContent = useMemo(() => {
     if (!isBubbleStyle) return 'flex-start'
@@ -87,7 +87,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
           <Avatar
             className="h-[35px] w-[35px] cursor-pointer rounded-[25%]"
             style={{
-              cursor: showMiniAppIcon ? 'pointer' : 'default',
+              cursor: showMiniAppEntry ? 'pointer' : 'default',
               border: 'none',
               filter: theme === 'dark' ? 'invert(0.05)' : undefined
             }}

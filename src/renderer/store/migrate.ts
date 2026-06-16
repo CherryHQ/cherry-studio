@@ -896,7 +896,7 @@ const migrateConfig = {
         })
       }
       state.settings.sidebarIcons = {
-        visible: DefaultPreferences.default['ui.sidebar.icons.visible'],
+        visible: DefaultPreferences.default['ui.sidebar.entries.visible'],
         disabled: []
       }
       return state
@@ -908,7 +908,7 @@ const migrateConfig = {
     try {
       if (!state.settings.sidebarIcons) {
         state.settings.sidebarIcons = {
-          visible: DefaultPreferences.default['ui.sidebar.icons.visible'],
+          visible: DefaultPreferences.default['ui.sidebar.entries.visible'],
           disabled: []
         }
       }
@@ -2293,10 +2293,10 @@ const migrateConfig = {
   '136': (state: RootState) => {
     try {
       state.settings.sidebarIcons.visible = [...new Set(state.settings.sidebarIcons.visible)].filter((icon) =>
-        DefaultPreferences.default['ui.sidebar.icons.visible'].includes(icon)
+        DefaultPreferences.default['ui.sidebar.entries.visible'].includes(icon)
       )
       state.settings.sidebarIcons.disabled = [...new Set(state.settings.sidebarIcons.disabled)].filter((icon) =>
-        DefaultPreferences.default['ui.sidebar.icons.visible'].includes(icon)
+        DefaultPreferences.default['ui.sidebar.entries.visible'].includes(icon)
       )
       return state
     } catch (error) {
@@ -2786,7 +2786,7 @@ const migrateConfig = {
         }
       })
 
-      // Migrate sidebar icons
+      // Migrate legacy sidebarIcons literals
       if (state.settings.sidebarIcons) {
         state.settings.sidebarIcons.visible = state.settings.sidebarIcons.visible.map((icon) => {
           // @ts-ignore

@@ -38,8 +38,8 @@ import {
 
 const logger = loggerService.withContext('Migration:ComplexPreferenceMappings')
 
-const DEFAULT_VISIBLE_SIDEBAR_ICONS = ['assistants', 'agents', 'store', 'translate', 'mini_app'] as const
-const LEGACY_DEFAULT_VISIBLE_SIDEBAR_ICONS = [
+const DEFAULT_VISIBLE_SIDEBAR_ENTRIES = ['assistants', 'agents', 'store', 'translate', 'mini_app'] as const
+const LEGACY_DEFAULT_VISIBLE_SIDEBAR_ENTRIES = [
   ['assistants', 'agents', 'store', 'paintings', 'translate', 'mini_app', 'knowledge', 'files', 'code_tools', 'notes'],
   [
     'assistants',
@@ -62,11 +62,11 @@ function hasSameItems(value: unknown[], expected: readonly string[]): boolean {
   return expected.every((item) => actual.has(item))
 }
 
-function shouldUseDefaultSidebarIcons(visible: unknown, invisible: unknown): visible is unknown[] {
+function shouldUseDefaultSidebarEntries(visible: unknown, invisible: unknown): visible is unknown[] {
   if (!Array.isArray(visible)) return false
   if (Array.isArray(invisible) && invisible.length > 0) return false
 
-  return LEGACY_DEFAULT_VISIBLE_SIDEBAR_ICONS.some((defaultIcons) => hasSameItems(visible, defaultIcons))
+  return LEGACY_DEFAULT_VISIBLE_SIDEBAR_ENTRIES.some((defaultEntries) => hasSameItems(visible, defaultEntries))
 }
 
 // ============================================================================
@@ -189,15 +189,16 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: transformShortcuts
   },
 
-  // Sidebar icons: rewrite 'minapp' → 'mini_app' (v1→v2 rename) and restore the v2 agents entry.
+  // Sidebar entries: migrate legacy v1 sidebarIcons arrays, rewrite 'minapp' → 'mini_app', and restore the v2 agents entry.
   {
-    id: 'sidebar_icons_rename',
-    description: "Rewrite legacy 'minapp' icon key to 'mini_app' in sidebar icon arrays and add agents if visible",
+    id: 'sidebar_entries_migrate',
+    description:
+      "Migrate legacy v1 sidebarIcons arrays to v2 entries, rewrite 'minapp' to 'mini_app', and add agents if visible",
     sources: {
       visible: { source: 'redux', category: 'settings', key: 'sidebarIcons.visible' },
       disabled: { source: 'redux', category: 'settings', key: 'sidebarIcons.disabled' }
     },
-    targetKeys: ['ui.sidebar.icons.visible', 'ui.sidebar.icons.invisible'],
+    targetKeys: ['ui.sidebar.entries.visible', 'ui.sidebar.entries.invisible'],
     transform: (sources) => {
       const rewrite = (arr: unknown): unknown =>
         Array.isArray(arr) ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)) : arr
@@ -218,10 +219,10 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       const invisible = rewrite(sources.disabled)
       const visibleWithAgents = addAgents(visible, invisible)
       return {
-        'ui.sidebar.icons.visible': shouldUseDefaultSidebarIcons(visibleWithAgents, invisible)
-          ? [...DEFAULT_VISIBLE_SIDEBAR_ICONS]
+        'ui.sidebar.entries.visible': shouldUseDefaultSidebarEntries(visibleWithAgents, invisible)
+          ? [...DEFAULT_VISIBLE_SIDEBAR_ENTRIES]
           : visibleWithAgents,
-        'ui.sidebar.icons.invisible': invisible
+        'ui.sidebar.entries.invisible': invisible
       }
     }
   },

@@ -97,8 +97,8 @@
       "description": "Web search provider overrides (from complex migration)"
     },
     {
-      "targetKey": "ui.sidebar.icons.visible",
-      "type": "PreferenceTypes.SidebarIcon[]",
+      "targetKey": "ui.sidebar.entries.visible",
+      "type": "PreferenceTypes.SidebarEntry[]",
       "defaultValue": [
         "assistants",
         "store",
@@ -111,14 +111,14 @@
         "notes"
       ],
       "status": "classified",
-      "description": "Visible sidebar icons (complex migration: rewrite 'minapp' → 'mini_app')"
+      "description": "Visible sidebar entries (complex migration: rewrite legacy 'minapp' → 'mini_app')"
     },
     {
-      "targetKey": "ui.sidebar.icons.invisible",
-      "type": "PreferenceTypes.SidebarIcon[]",
+      "targetKey": "ui.sidebar.entries.invisible",
+      "type": "PreferenceTypes.SidebarEntry[]",
       "defaultValue": [],
       "status": "classified",
-      "description": "Hidden sidebar icons (complex migration: rewrite 'minapp' → 'mini_app')"
+      "description": "Hidden sidebar entries (complex migration: rewrite legacy 'minapp' → 'mini_app')"
     },
     {
       "targetKey": "chat.default_model_id",

@@ -1574,7 +1574,7 @@
         {
           "originalKey": "sidebarIcons",
           "type": "unknown",
-          "defaultValue": "{ visible: DefaultPreferences.default['ui.sidebar.icons.visible'], disabled: [] }",
+          "defaultValue": "{ visible: DefaultPreferences.default['ui.sidebar.entries.visible'], disabled: [] }",
           "status": "pending",
           "category": null,
           "targetKey": null,
@@ -1595,22 +1595,22 @@
               ],
               "originalKey": "visible",
               "status": "pending",
-              "targetKey": "ui.sidebar.icons.visible",
-              "type": "PreferenceTypes.SidebarIcon[]"
+              "targetKey": "ui.sidebar.entries.visible",
+              "type": "PreferenceTypes.SidebarEntry[]"
             },
             {
               "category": "preferences",
               "defaultValue": [],
               "originalKey": "disabled",
               "status": "pending",
-              "targetKey": "ui.sidebar.icons.invisible",
-              "type": "PreferenceTypes.SidebarIcon[]"
+              "targetKey": "ui.sidebar.entries.invisible",
+              "type": "PreferenceTypes.SidebarEntry[]"
             }
           ]
         },
         {
           "originalKey": "visible",
-          "type": "PreferenceTypes.SidebarIcon[]",
+          "type": "PreferenceTypes.SidebarEntry[]",
           "defaultValue": [
             "assistants",
             "agents",
@@ -1625,15 +1625,15 @@
           ],
           "status": "pending",
           "category": "preferences",
-          "targetKey": "ui.sidebar.icons.visible"
+          "targetKey": "ui.sidebar.entries.visible"
         },
         {
           "originalKey": "disabled",
-          "type": "PreferenceTypes.SidebarIcon[]",
+          "type": "PreferenceTypes.SidebarEntry[]",
           "defaultValue": [],
           "status": "pending",
           "category": "preferences",
-          "targetKey": "ui.sidebar.icons.invisible"
+          "targetKey": "ui.sidebar.entries.invisible"
         },
         {
           "originalKey": "narrowMode",
