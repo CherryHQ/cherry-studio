@@ -20,6 +20,7 @@ vi.mock('@renderer/i18n/label', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
   useTranslation: () => ({
     t: (key: string) => {
       const labels: Record<string, string> = {
