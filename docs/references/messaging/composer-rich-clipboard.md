@@ -119,10 +119,9 @@ markers.
 
 ## Focused Verification
 
-Use focused checks for this feature instead of full-suite runs during local
-iteration:
+No focused Vitest file currently covers this document end to end. For doc-only
+changes, run the repository documentation link check:
 
 ```bash
-pnpm vitest run src/renderer/components/chat/composer/__tests__/ComposerSurface.test.tsx src/renderer/utils/messageUtils/__tests__/composerClipboard.test.ts
-pnpm vitest run src/renderer/components/chat/messages/frame/__tests__/messageMenuBarActions.test.tsx src/renderer/components/chat/messages/utils/__tests__/messageSelection.test.ts src/renderer/pages/shared/messages/hooks/__tests__/useMessagePlatformActions.test.tsx src/renderer/pages/shared/messages/hooks/__tests__/useMessageSelectionController.test.tsx
+pnpm docs:check-links
 ```

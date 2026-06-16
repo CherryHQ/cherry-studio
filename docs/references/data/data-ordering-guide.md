@@ -352,7 +352,8 @@ Complete in one PR:
    - `pin`: `eq(pinTable.entityType, entityType)` — live (`PinService.reorder` / `reorderBatch` via `applyScopedMoves`).
    - `user_model`: `eq(userModelTable.providerId, providerId)`.
    - `miniapp`: `eq(miniappTable.status, status)`.
-   - `topic` / `user_provider` / `mcp_server`: whole-table (`scope: undefined`), except topic service may narrow to non-deleted rows.
+   - `topic`: `topic.groupId` partition (`TopicService.reorder` / `reorderBatch` via `topicScopePredicate(groupId)`); deleted topics are excluded from lookups.
+   - `user_provider` / `mcp_server`: whole-table (`scope: undefined`).
 
    New scoped consumers should prefer `applyScopedMoves` (which handles scope lookup and rejects cross-scope batches) over composing `applyMoves` with a manually assembled `eq(...)` scope.
 4. **Migrator**: replace legacy `sortOrder = index` with `assignOrderKeysByScope` (or `assignOrderKeysInSequence` for whole-table). Drop `index` / `sortOrder` parameters from `transform*` functions.
