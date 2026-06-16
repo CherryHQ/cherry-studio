@@ -18,6 +18,7 @@ import {
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import CodeViewer from '@renderer/components/CodeViewer'
 import { CopyIcon, FilePngIcon } from '@renderer/components/Icons'
 import { isMac } from '@renderer/config/constant'
@@ -30,6 +31,8 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import HtmlPreviewFrame from './HtmlPreviewFrame'
+
+const logger = loggerService.withContext('HtmlArtifactsPopup')
 
 interface CodePanelProps {
   codeEditorRef: React.RefObject<CodeEditorHandles | null>
@@ -138,25 +141,30 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({
 
   const handleCapture = useCallback(
     async (to: 'file' | 'clipboard') => {
-      const title = extractHtmlTitle(html)
-      const fileName = getFileNameFromHtmlTitle(title) || 'html-artifact'
+      try {
+        const title = extractHtmlTitle(html)
+        const fileName = getFileNameFromHtmlTitle(title) || 'html-artifact'
 
-      if (to === 'file') {
-        const dataUrl = await captureScrollableIframeAsDataURL(previewFrameRef)
-        if (dataUrl) {
-          void window.api.file.saveImage(fileName, dataUrl)
-        }
-      }
-      if (to === 'clipboard') {
-        await captureScrollableIframeAsBlob(previewFrameRef, async (blob) => {
-          if (blob) {
-            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-            window.toast.success(t('message.copy.success'))
+        if (to === 'file') {
+          const dataUrl = await captureScrollableIframeAsDataURL(previewFrameRef)
+          if (dataUrl) {
+            await window.api.file.saveImage(fileName, dataUrl)
           }
-        })
-      }
+        }
 
-      setCaptureOpen(false)
+        if (to === 'clipboard') {
+          await captureScrollableIframeAsBlob(previewFrameRef, async (blob) => {
+            if (blob) {
+              await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+              window.toast.success(t('message.copy.success'))
+            }
+          })
+        }
+      } catch (error) {
+        logger.error('Failed to capture HTML artifact preview', error as Error)
+      } finally {
+        setCaptureOpen(false)
+      }
     },
     [html, t]
   )

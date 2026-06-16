@@ -283,7 +283,10 @@ function DynamicVirtualList<T>(props: DynamicVirtualListProps<T>) {
   const virtualItems = virtualizer.getVirtualItems()
   const totalSize = virtualizer.getTotalSize()
   const { horizontal } = restOptions
-  const measureItemElement = itemContainerStyle?.height === undefined ? virtualizer.measureElement : undefined
+  const hasFixedItemSize = horizontal
+    ? itemContainerStyle?.width !== undefined
+    : itemContainerStyle?.height !== undefined
+  const measureItemElement = hasFixedItemSize ? undefined : virtualizer.measureElement
 
   return (
     <div

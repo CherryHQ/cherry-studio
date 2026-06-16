@@ -1,29 +1,10 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CodeBlockView } from '../view'
 
 const mocks = vi.hoisted(() => ({
-  preferenceValues: {
-    'chat.code.execution.enabled': false,
-    'chat.code.execution.timeout_minutes': 1,
-    'chat.code.collapsible': false,
-    'chat.code.wrappable': true,
-    'chat.code.image_tools': false,
-    'chat.message.font_size': 14,
-    'chat.code.show_line_numbers': false
-  } as Record<string, unknown>,
-  codeEditorPrefs: {
-    enabled: true,
-    autocompletion: true,
-    foldGutter: false,
-    highlightActiveLine: false,
-    keymap: false,
-    themeLight: 'auto',
-    themeDark: 'auto'
-  },
-  usePreference: vi.fn(),
-  useMultiplePreferences: vi.fn(),
   useCopyTool: vi.fn(),
   useDownloadTool: vi.fn(),
   useViewSourceTool: vi.fn(),
@@ -35,11 +16,6 @@ const mocks = vi.hoisted(() => ({
   CodeToolbar: vi.fn(() => <div data-testid="code-toolbar" />),
   CodeEditor: vi.fn(({ value }) => <div data-testid="code-editor">{value}</div>),
   CodeViewer: vi.fn(({ value }) => <div data-testid="code-viewer">{value}</div>)
-}))
-
-vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: mocks.usePreference,
-  useMultiplePreferences: mocks.useMultiplePreferences
 }))
 
 vi.mock('@renderer/context/CodeStyleProvider', () => ({
@@ -75,9 +51,23 @@ vi.mock('@renderer/services/PyodideService', () => ({
 describe('CodeBlockView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.codeEditorPrefs.enabled = true
-    mocks.usePreference.mockImplementation((key: string) => [mocks.preferenceValues[key]])
-    mocks.useMultiplePreferences.mockReturnValue([mocks.codeEditorPrefs])
+    MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setMultiplePreferenceValues({
+      'chat.code.execution.enabled': false,
+      'chat.code.execution.timeout_minutes': 1,
+      'chat.code.collapsible': false,
+      'chat.code.wrappable': true,
+      'chat.code.image_tools': false,
+      'chat.message.font_size': 14,
+      'chat.code.show_line_numbers': false,
+      'chat.code.editor.enabled': true,
+      'chat.code.editor.autocompletion': true,
+      'chat.code.editor.fold_gutter': false,
+      'chat.code.editor.highlight_active_line': false,
+      'chat.code.editor.keymap': false,
+      'chat.code.editor.theme_light': 'auto',
+      'chat.code.editor.theme_dark': 'auto'
+    })
   })
 
   it('renders a read-only viewer when editable is false even if the code editor setting is enabled', () => {

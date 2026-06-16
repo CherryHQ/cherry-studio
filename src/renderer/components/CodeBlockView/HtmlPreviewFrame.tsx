@@ -1,7 +1,7 @@
 import { memo, type Ref } from 'react'
 
 export const HTML_PREVIEW_DEFAULT_BASE_URL = 'about:srcdoc'
-export const HTML_PREVIEW_IFRAME_SANDBOX = 'allow-scripts allow-same-origin allow-forms'
+export const HTML_PREVIEW_IFRAME_SANDBOX = 'allow-scripts allow-forms'
 
 interface HtmlPreviewFrameProps {
   html: string
@@ -39,9 +39,6 @@ export function injectHtmlPreviewBase(html: string, baseUrl = HTML_PREVIEW_DEFAU
   return `<head>${base}</head>${html}`
 }
 
-// Html artifact previews need scripts/forms for interaction, and same-origin
-// keeps local preview behavior aligned across popup and ArtifactPane surfaces.
-/* eslint-disable @eslint-react/dom/no-unsafe-iframe-sandbox */
 export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
   ({ html, title, baseUrl = HTML_PREVIEW_DEFAULT_BASE_URL, emptyText, iframeRef }) => {
     return (
@@ -63,6 +60,5 @@ export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
     )
   }
 )
-/* eslint-enable @eslint-react/dom/no-unsafe-iframe-sandbox */
 
 export default HtmlPreviewFrame

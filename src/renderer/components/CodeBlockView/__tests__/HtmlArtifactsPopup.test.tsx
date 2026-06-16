@@ -1,3 +1,4 @@
+import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -5,8 +6,7 @@ import HtmlArtifactsPopup from '../HtmlArtifactsPopup'
 
 const mocks = vi.hoisted(() => ({
   CodeEditor: vi.fn(({ value }) => <div data-testid="code-editor">{value}</div>),
-  CodeViewer: vi.fn(({ value }) => <div data-testid="code-viewer">{value}</div>),
-  usePreference: vi.fn(() => [14])
+  CodeViewer: vi.fn(({ value }) => <div data-testid="code-viewer">{value}</div>)
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -43,10 +43,6 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
 
-vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: mocks.usePreference
-}))
-
 vi.mock('@renderer/components/CodeViewer', () => ({
   default: mocks.CodeViewer
 }))
@@ -67,6 +63,8 @@ vi.mock('@renderer/utils/image', () => ({
 describe('HtmlArtifactsPopup', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setPreferenceValue('chat.message.font_size', 14)
   })
 
   it('renders read-only source when editable is false', () => {
