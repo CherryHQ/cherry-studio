@@ -395,9 +395,6 @@
           "failed": "会话排序失败"
         }
       },
-      "tool": {
-        "disabled": "{{toolName}} 工具已被此智能体禁用。"
-      },
       "update": {
         "error": {
           "failed": "更新会话失败"
