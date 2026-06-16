@@ -35,9 +35,12 @@ export type CreateTopicDto = z.infer<typeof CreateTopicSchema>
 export const UpdateTopicSchema = TopicSchema.pick({
   name: true,
   isNameManuallyEdited: true,
-  assistantId: true,
   groupId: true
-}).partial()
+})
+  .partial()
+  .extend({
+    assistantId: z.string().nullable().optional()
+  })
 export type UpdateTopicDto = z.infer<typeof UpdateTopicSchema>
 
 /**
@@ -127,8 +130,8 @@ export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
  * Topic API Schema definitions.
  *
  * Reorder endpoints (`/topics/:id/order`, `/topics/order:batch`) are injected
- * via `& OrderEndpoints<'/topics'>`. The reorder is scoped by `groupId`
- * server-side; callers do not include the scope in the request body.
+ * via `& OrderEndpoints<'/topics'>`. Topic reorder is global; `groupId` is not
+ * used as an ordering scope.
  */
 export type TopicSchemas = {
   /**
@@ -222,6 +225,19 @@ export type TopicSchemas = {
       params: { id: string }
       body: DuplicateTopicDto
       response: Topic
+    }
+  }
+
+  /**
+   * Delete all topics currently linked to an assistant.
+   *
+   * This is an explicit scoped collection delete. It does not change
+   * `DELETE /assistants/:id`, which only deletes the assistant itself.
+   */
+  '/assistants/:assistantId/topics': {
+    DELETE: {
+      params: { assistantId: string }
+      response: DeleteTopicsResult
     }
   }
 } & OrderEndpoints<'/topics'>

@@ -546,6 +546,52 @@ export class TopicService {
       })
     })
   }
+
+  async deleteByAssistantId(assistantId: string): Promise<DeleteTopicsResult> {
+    const dbService = application.get('DbService')
+    const deletedIds = await dbService.withWriteTx(async (tx) => {
+      const [assistant] = await tx
+        .select({ id: assistantTable.id })
+        .from(assistantTable)
+        .where(and(eq(assistantTable.id, assistantId), isNull(assistantTable.deletedAt)))
+        .limit(1)
+      if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
+
+      const rows = await tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt)))
+
+      return await this.deleteManyByIdsTx(
+        tx,
+        rows.map((row) => row.id)
+      )
+    })
+
+    logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
+
+    return { deletedIds, deletedCount: deletedIds.length }
+  }
+
+  async listRecentSearchMatches(query: { q: string; limit: number; updatedAtFrom?: number }): Promise<Topic[]> {
+    const db = application.get('DbService').getDb()
+    const limit = Math.min(query.limit, MAX_LIMIT)
+    const filters: SQL[] = [isNull(topicTable.deletedAt)]
+    const search = buildSearchPredicate(query.q)
+    if (search) filters.push(search)
+    if (query.updatedAtFrom !== undefined) {
+      filters.push(gte(topicTable.updatedAt, query.updatedAtFrom))
+    }
+
+    const rows = await db
+      .select()
+      .from(topicTable)
+      .where(and(...filters))
+      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .limit(limit)
+
+    return rows.map(rowToTopic)
+  }
 }
 
 export const topicService = new TopicService()
