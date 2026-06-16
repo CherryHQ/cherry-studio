@@ -27,13 +27,6 @@ const {
   DATA_DIR
 } = require('./lib/classificationUtils')
 
-const SOURCE_PRIORITY = {
-  redux: 4,
-  dexieSettings: 3,
-  localStorage: 2,
-  electronStore: 1
-}
-
 class DataValidator {
   constructor() {
     this.dataDir = DATA_DIR
@@ -129,7 +122,7 @@ class DataValidator {
    */
   checkMissingClassifications(inventory, classification) {
     const issues = []
-    const inventoryKeys = this.getAllInventoryKeys(inventory).filter((key) => !key.startsWith('dexieSettings.'))
+    const inventoryKeys = this.getAllInventoryKeys(inventory)
     const classificationKeys = new Set(this.getAllClassificationKeys(classification))
 
     for (const key of inventoryKeys) {
@@ -154,8 +147,6 @@ class DataValidator {
     const inventoryKeys = new Set(this.getAllInventoryKeys(inventory))
 
     traverseClassifications(classification.classifications, (item, source, category, fullKey) => {
-      if (source === 'dexieSettings') return
-
       // Skip deleted items
       if (item.status === 'classified-deleted') return
 
@@ -167,7 +158,7 @@ class DataValidator {
         fullKeyPath = `${source}.${fullKey}`
       }
 
-      if (!this.hasInventoryKeyOrAncestor(inventoryKeys, fullKeyPath, source)) {
+      if (!inventoryKeys.has(fullKeyPath)) {
         issues.push({
           type: 'orphaned_classification',
           severity: 'warning',
@@ -178,25 +169,6 @@ class DataValidator {
     })
 
     return issues
-  }
-
-  /**
-   * Nested classification children are valid when their top-level inventory
-   * parent still exists, e.g. redux.settings.codeExecution.enabled is backed
-   * by inventory key redux.settings.codeExecution.
-   */
-  hasInventoryKeyOrAncestor(inventoryKeys, fullKeyPath, source) {
-    if (inventoryKeys.has(fullKeyPath)) return true
-
-    const parts = fullKeyPath.split('.')
-    const minParts = source === 'redux' ? 3 : 2
-
-    while (parts.length > minParts) {
-      parts.pop()
-      if (inventoryKeys.has(parts.join('.'))) return true
-    }
-
-    return false
   }
 
   /**
@@ -237,47 +209,16 @@ class DataValidator {
       if (!targetKey) return
 
       const sourceKey = source === 'redux' ? `${source}.${category}.${fullKey}` : `${source}.${fullKey}`
-      const entry = {
-        source,
-        sourceKey,
-        category: item.category,
-        priority: SOURCE_PRIORITY[source] || 0,
-        isGeneratedTarget: Boolean(item.targetKey && ['preferences', 'bootConfig'].includes(item.category))
-      }
 
       if (targetKeyMap[targetKey]) {
-        const existing = targetKeyMap[targetKey]
-        const isSourcePriorityDuplicate =
-          entry.isGeneratedTarget &&
-          existing.isGeneratedTarget &&
-          entry.category === existing.category &&
-          entry.priority !== existing.priority &&
-          entry.priority > 0 &&
-          existing.priority > 0
-
-        if (isSourcePriorityDuplicate) {
-          const winner = entry.priority > existing.priority ? entry : existing
-          issues.push({
-            type: 'duplicate_target',
-            severity: 'warning',
-            key: sourceKey,
-            message: `Target key "${targetKey}" is also used by "${existing.sourceKey}" and "${sourceKey}"; generation will prefer "${winner.sourceKey}" by source priority`
-          })
-
-          if (entry.priority > existing.priority) {
-            targetKeyMap[targetKey] = entry
-          }
-          return
-        }
-
         issues.push({
           type: 'duplicate_target',
           severity: 'error',
           key: sourceKey,
-          message: `Target key "${targetKey}" is used by both "${sourceKey}" and "${existing.sourceKey}"`
+          message: `Target key "${targetKey}" is used by both "${sourceKey}" and "${targetKeyMap[targetKey]}"`
         })
       } else {
-        targetKeyMap[targetKey] = entry
+        targetKeyMap[targetKey] = sourceKey
       }
     })
 

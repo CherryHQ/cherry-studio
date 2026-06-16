@@ -1,10 +1,10 @@
 {
   "metadata": {
     "version": "2.0.0",
-    "lastUpdated": "2026-06-16T11:45:20.368Z",
-    "totalItems": 380,
-    "classified": 258,
-    "pending": 92,
+    "lastUpdated": "2026-04-16T11:08:56.000Z",
+    "totalItems": 408,
+    "classified": 299,
+    "pending": 100,
     "deleted": 0
   },
   "classifications": {
@@ -473,14 +473,6 @@
           "status": "pending",
           "category": null,
           "targetKey": null
-        },
-        {
-          "originalKey": "pinned",
-          "type": "array",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
         }
       ],
       "newMessage": [],
@@ -839,7 +831,6 @@
           "type": "boolean",
           "defaultValue": true,
           "status": "deleted",
-          "category": null,
           "targetKey": null
         },
         {
@@ -1159,6 +1150,22 @@
           ]
         },
         {
+          "originalKey": "enabled",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.execution.enabled"
+        },
+        {
+          "originalKey": "timeoutMinutes",
+          "type": "number",
+          "defaultValue": 1,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.execution.timeout_minutes"
+        },
+        {
           "originalKey": "codeEditor",
           "type": "unknown",
           "defaultValue": "{ enabled: false, themeLight: 'auto', themeDark: 'auto', highlightActiveLine: false, foldGutter: false, autocompletion: true, keymap: false }",
@@ -1223,6 +1230,54 @@
               "type": "boolean"
             }
           ]
+        },
+        {
+          "originalKey": "themeLight",
+          "type": "string",
+          "defaultValue": "auto",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.editor.theme_light"
+        },
+        {
+          "originalKey": "themeDark",
+          "type": "string",
+          "defaultValue": "auto",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.editor.theme_dark"
+        },
+        {
+          "originalKey": "highlightActiveLine",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.editor.highlight_active_line"
+        },
+        {
+          "originalKey": "foldGutter",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.editor.fold_gutter"
+        },
+        {
+          "originalKey": "autocompletion",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.editor.autocompletion"
+        },
+        {
+          "originalKey": "keymap",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "chat.code.editor.keymap"
         },
         {
           "originalKey": "codePreview",
@@ -1552,6 +1607,33 @@
               "type": "PreferenceTypes.SidebarIcon[]"
             }
           ]
+        },
+        {
+          "originalKey": "visible",
+          "type": "PreferenceTypes.SidebarIcon[]",
+          "defaultValue": [
+            "assistants",
+            "agents",
+            "store",
+            "paintings",
+            "translate",
+            "mini_app",
+            "knowledge",
+            "files",
+            "code_tools",
+            "notes"
+          ],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "disabled",
+          "type": "PreferenceTypes.SidebarIcon[]",
+          "defaultValue": [],
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "narrowMode",
@@ -1972,6 +2054,94 @@
           ]
         },
         {
+          "originalKey": "image",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.image"
+        },
+        {
+          "originalKey": "markdown",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.markdown"
+        },
+        {
+          "originalKey": "markdown_reason",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.markdown_reason"
+        },
+        {
+          "originalKey": "notion",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.notion"
+        },
+        {
+          "originalKey": "yuque",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.yuque"
+        },
+        {
+          "originalKey": "joplin",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.joplin"
+        },
+        {
+          "originalKey": "obsidian",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.obsidian"
+        },
+        {
+          "originalKey": "siyuan",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.siyuan"
+        },
+        {
+          "originalKey": "docx",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.docx"
+        },
+        {
+          "originalKey": "plain_text",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.plain_text"
+        },
+        {
+          "originalKey": "notes",
+          "type": "boolean",
+          "defaultValue": true,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "data.export.menus.notes"
+        },
+        {
           "originalKey": "openAI",
           "type": "unknown",
           "defaultValue": "{ summaryText: 'auto', serviceTier: 'auto', verbosity: undefined }",
@@ -2006,6 +2176,46 @@
           ]
         },
         {
+          "originalKey": "summaryText",
+          "type": "string",
+          "defaultValue": "off",
+          "status": "pending",
+          "category": "preferences",
+          "targetKey": null
+        },
+        {
+          "originalKey": "serviceTier",
+          "type": "string",
+          "defaultValue": "auto",
+          "status": "pending",
+          "category": "preferences",
+          "targetKey": null
+        },
+        {
+          "originalKey": "verbosity",
+          "type": "string",
+          "defaultValue": "medium",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "streamOptions",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
+          "originalKey": "includeUsage",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
+        },
+        {
           "originalKey": "notification",
           "type": "unknown",
           "defaultValue": "{ assistant: false, backup: false, knowledge: false }",
@@ -2038,6 +2248,30 @@
               "type": "boolean"
             }
           ]
+        },
+        {
+          "originalKey": "assistant",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.notification.assistant.enabled"
+        },
+        {
+          "originalKey": "backup",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.notification.backup.enabled"
+        },
+        {
+          "originalKey": "knowledge",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.notification.knowledge.enabled"
         },
         {
           "originalKey": "localBackupDir",
@@ -2600,6 +2834,14 @@
               "targetKey": "feature.translate.page.auto_copy"
             }
           ]
+        },
+        {
+          "originalKey": "autoCopy",
+          "type": "boolean",
+          "defaultValue": false,
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.page.auto_copy"
         }
       ],
       "websearch": [
@@ -2997,16 +3239,6 @@
           "targetKey": "app.zoom_factor"
         }
       ],
-      "Shortcuts": [
-        {
-          "originalKey": "Shortcuts",
-          "type": "unknown",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
-        }
-      ],
       "ClickTrayToShowQuickAssistant": [
         {
           "originalKey": "ClickTrayToShowQuickAssistant",
@@ -3233,12 +3465,12 @@
     "dexieSettings": {
       "settings": [
         {
-          "originalKey": "image://avatar",
-          "type": "unknown",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "originalKey": "translate:detect:method",
+          "type": "PreferenceTypes.AutoDetectionMethod",
+          "defaultValue": "auto",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.translate.auto_detection_method"
         },
         {
           "originalKey": "pinned:models",
@@ -3249,12 +3481,12 @@
           "targetKey": null
         },
         {
-          "originalKey": "translate:detect:method",
-          "type": "PreferenceTypes.AutoDetectionMethod",
-          "defaultValue": "auto",
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "feature.translate.auto_detection_method"
+          "originalKey": "image://avatar",
+          "type": "unknown",
+          "defaultValue": null,
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "translate:markdown:enabled",
