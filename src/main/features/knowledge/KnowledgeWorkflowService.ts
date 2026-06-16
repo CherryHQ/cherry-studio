@@ -4,8 +4,6 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import { getFileExt } from '@main/utils/file'
-import { documentExts } from '@shared/config/constant'
 import { FileProcessorIdSchema } from '@shared/data/presets/file-processing'
 import type { CreateKnowledgeItemDto, KnowledgeAddItemInput, KnowledgeItem } from '@shared/data/types/knowledge'
 
@@ -29,11 +27,13 @@ import { isContainerKnowledgeItem } from './utils/items'
 import { planKnowledgeItemSource } from './utils/sources/sourcePlanning'
 import {
   assertKnowledgeFileTargetAvailable,
+  collectKnowledgeReservedRelativePaths,
   copyFileIntoKnowledgeBaseAt,
   deleteKnowledgeItemFilesBestEffort,
   getKnowledgeBaseFilePath,
   getKnowledgeSourceRelativePath,
   getProcessedMarkdownRelativePath,
+  needsProcessedArtifactReservation,
   reserveImportedFileRelativePath
 } from './utils/storage/pathStorage'
 
@@ -55,23 +55,18 @@ export class KnowledgeWorkflowService {
 
     await this.knowledgeLockManager.withBaseMutationLock(base.id, async () => {
       try {
+        // Reserve every existing on-disk path up front, then let each new file
+        // claim a collision-free name (auto-renaming with a numeric suffix)
+        // against the same growing set, so a same-named batch add no longer
+        // throws — earlier inputs are visible when deduping later ones.
         const reservedPaths = await this.loadReservedKnowledgeFilePaths(base.id, base.fileProcessorId)
-        const resolvedFileRelativePaths = new Map<KnowledgeAddItemInput, string>()
         for (const input of inputs) {
-          if (input.type === 'file') {
-            resolvedFileRelativePaths.set(
-              input,
-              this.resolveRuntimeFileRelativePath(base.fileProcessorId, input, reservedPaths)
-            )
-          }
-        }
-        for (const input of inputs) {
-          const createInput = await this.prepareRuntimeAddItemInput(
-            base.id,
-            input,
-            resolvedFileRelativePaths.get(input)
-          )
-          if (createInput.type === 'file') {
+          const createInput = await this.prepareRuntimeAddItemInput(base.id, base.fileProcessorId, input, reservedPaths)
+          // A url restore copies its snapshot to raw/{relativePath} under type 'url',
+          // so track it for rollback too — otherwise a mid-batch failure orphans the
+          // snapshot and a same-titled re-restore later hard-fails on the leftover file
+          // (the add-side twin of the delete-side leak fixed in deleteKnowledgeItemFiles).
+          if (createInput.type === 'file' || (createInput.type === 'url' && createInput.data.relativePath)) {
             copiedFileItems.push(createInput)
           }
           const createdItem = await knowledgeItemService.create(base.id, createInput)
@@ -306,18 +301,51 @@ export class KnowledgeWorkflowService {
 
   private async prepareRuntimeAddItemInput(
     baseId: string,
+    fileProcessorId: string | null | undefined,
     input: KnowledgeAddItemInput,
-    resolvedRelativePath: string | undefined
+    reservedPaths: Set<string>
   ): Promise<CreateKnowledgeItemDto> {
+    if (input.type === 'url') {
+      if (!input.data.snapshotPath) {
+        return input
+      }
+      // Restore: copy the captured snapshot markdown into this base under a
+      // collision-free name and pin the item to it, so the first index reads the
+      // snapshot offline (see ensureUrlSnapshot) instead of re-fetching the page.
+      const snapshotName = getKnowledgeSourceRelativePath(input.data.snapshotPath)
+      const relativePath = reserveImportedFileRelativePath(snapshotName, false, reservedPaths)
+      await copyFileIntoKnowledgeBaseAt(baseId, input.data.snapshotPath, relativePath)
+      return {
+        groupId: input.groupId,
+        type: 'url',
+        data: { source: input.data.source, url: input.data.url, relativePath }
+      }
+    }
+
     if (input.type !== 'file') {
       return input
     }
 
-    if (resolvedRelativePath === undefined) {
-      throw new Error('File knowledge item is missing a resolved relative path')
+    const fileName = getKnowledgeSourceRelativePath(input.data.path)
+    // A restore that carries a processed artifact reserves the artifact slot too, even if
+    // the destination base has no processor configured, so the copied `.md` cannot collide.
+    const reserveArtifact =
+      needsProcessedArtifactReservation(fileProcessorId, fileName) || Boolean(input.data.indexedPath)
+    const relativePath = reserveImportedFileRelativePath(fileName, reserveArtifact, reservedPaths)
+    await copyFileIntoKnowledgeBaseAt(baseId, input.data.path, relativePath)
+
+    if (input.data.indexedPath) {
+      // Copy the already-processed artifact next to the source under the reserved name
+      // and pin the item to it, so indexing skips the file processor (see needsFileProcessing).
+      const indexedRelativePath = getProcessedMarkdownRelativePath(relativePath)
+      await copyFileIntoKnowledgeBaseAt(baseId, input.data.indexedPath, indexedRelativePath)
+      return {
+        groupId: input.groupId,
+        type: 'file',
+        data: { source: input.data.source, relativePath, indexedRelativePath }
+      }
     }
 
-    const relativePath = await copyFileIntoKnowledgeBaseAt(baseId, input.data.path, resolvedRelativePath)
     return {
       groupId: input.groupId,
       type: 'file',
@@ -328,37 +356,12 @@ export class KnowledgeWorkflowService {
     }
   }
 
-  private resolveRuntimeFileRelativePath(
-    fileProcessorId: string | null | undefined,
-    input: Extract<KnowledgeAddItemInput, { type: 'file' }>,
-    reservedPaths: Set<string>
-  ): string {
-    const sourceRelativePath = getKnowledgeSourceRelativePath(input.data.path)
-    const reserveProcessedArtifact = needsProcessedArtifactReservation(fileProcessorId, sourceRelativePath)
-    return reserveImportedFileRelativePath(sourceRelativePath, reserveProcessedArtifact, reservedPaths)
-  }
-
   private async loadReservedKnowledgeFilePaths(
     baseId: string,
     fileProcessorId: string | null | undefined
   ): Promise<Set<string>> {
-    const reservedPaths = new Set<string>()
     const items = await knowledgeItemService.getItemsByBaseId(baseId)
-
-    for (const item of items) {
-      if (item.type !== 'file') {
-        continue
-      }
-
-      reservedPaths.add(item.data.relativePath)
-      if (item.data.indexedRelativePath) {
-        reservedPaths.add(item.data.indexedRelativePath)
-      } else if (needsProcessedArtifactReservation(fileProcessorId, item.data.relativePath)) {
-        reservedPaths.add(getProcessedMarkdownRelativePath(item.data.relativePath))
-      }
-    }
-
-    return reservedPaths
+    return collectKnowledgeReservedRelativePaths(items, { fileProcessorId })
   }
 
   private async assertKnowledgeRelativePathNotReserved(
@@ -368,20 +371,8 @@ export class KnowledgeWorkflowService {
     relativePath: string
   ): Promise<void> {
     const items = await knowledgeItemService.getItemsByBaseId(baseId)
-    const conflictingItem = items.find((item) => {
-      if (item.id === itemId || item.type !== 'file') {
-        return false
-      }
-
-      return (
-        item.data.relativePath === relativePath ||
-        item.data.indexedRelativePath === relativePath ||
-        (needsProcessedArtifactReservation(fileProcessorId, item.data.relativePath) &&
-          getProcessedMarkdownRelativePath(item.data.relativePath) === relativePath)
-      )
-    })
-
-    if (conflictingItem) {
+    const reserved = collectKnowledgeReservedRelativePaths(items, { fileProcessorId, excludeItemId: itemId })
+    if (reserved.has(relativePath)) {
       throw new Error(`Knowledge file already exists: ${relativePath}`)
     }
   }
@@ -404,12 +395,4 @@ export class KnowledgeWorkflowService {
       logContextKey: 'scheduleError'
     })
   }
-}
-
-function needsProcessedArtifactReservation(fileProcessorId: string | null | undefined, relativePath: string): boolean {
-  if (!fileProcessorId) {
-    return false
-  }
-
-  return documentExts.includes(getFileExt(relativePath).toLowerCase())
 }

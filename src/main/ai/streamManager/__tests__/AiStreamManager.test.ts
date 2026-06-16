@@ -1124,6 +1124,113 @@ describe('AiStreamManager', () => {
     })
   })
 
+  // ── steer chaining ──────────────────────────────────────────────
+  // Chat mirrors the agent runtime: a busy submit is persisted and enqueued here; the running turn
+  // yields (`hasPendingSteer` → stop condition) and `onExecutionDone` chains a `steer-continuation`
+  // dispatch that answers it. No second loop, no idle flicker, FIFO drain.
+
+  describe('steer chaining', () => {
+    // Flush the queueMicrotask-deferred continuation (and its awaited dispatch) under fake timers.
+    const flush = async () => {
+      for (let i = 0; i < 6; i++) await Promise.resolve()
+    }
+    const steerReq = (topicId: string, userMessageId: string) => ({
+      trigger: 'steer-continuation',
+      topicId,
+      userMessageId
+    })
+
+    it('tracks the queue and starts a continuation immediately when the topic is idle', async () => {
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+
+      expect(mgr.hasPendingSteer('a')).toBe(false)
+      mgr.enqueuePendingSteer('a', 'u1')
+      expect(mgr.hasPendingSteer('a')).toBe(true)
+
+      await flush()
+      expect(dispatchSpy).toHaveBeenCalledTimes(1)
+      expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u1'))
+      expect(mgr.hasPendingSteer('a')).toBe(false)
+    })
+
+    it('a finished turn with a queued steer chains a continuation instead of finishing (no idle flicker)', async () => {
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
+
+      // Steer arrives while the turn is live → queued, not started.
+      mgr.enqueuePendingSteer('a', 'u2')
+      expect(dispatchSpy).not.toHaveBeenCalled()
+
+      await mgr.onExecutionDone('a', 'provider-a::model-a')
+
+      // The assistant bubble finalises but the topic stays busy (isTopicDone=false), and no
+      // terminal `done` is broadcast to the status cache.
+      expect(listener.doneResults).toHaveLength(1)
+      expect(listener.doneResults[0].isTopicDone).toBe(false)
+      expect((sharedCacheStore.get('topic.stream.statuses.a') as any)?.status).not.toBe('done')
+
+      await flush()
+      expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u2'))
+    })
+
+    it('drains multiple steers FIFO — only the head starts until the next turn finishes', async () => {
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      mgr.enqueuePendingSteer('a', 'u1')
+      mgr.enqueuePendingSteer('a', 'u2')
+
+      await flush()
+      expect(dispatchSpy).toHaveBeenCalledTimes(1)
+      expect(dispatchSpy).toHaveBeenCalledWith(expect.anything(), steerReq('a', 'u1'))
+      expect(mgr.hasPendingSteer('a')).toBe(true)
+    })
+
+    it('drops a queued steer when the turn is aborted instead of chaining onto it', async () => {
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
+      mgr.enqueuePendingSteer('a', 'u2')
+
+      mgr.abort('a', 'user-requested')
+      await mgr.onExecutionPaused('a', 'provider-a::model-a')
+
+      await flush()
+      expect(dispatchSpy).not.toHaveBeenCalled()
+      expect(mgr.hasPendingSteer('a')).toBe(false)
+    })
+
+    // Agent sessions drive their own continuation (terminal listener → markTurnTerminal → startNextTurn),
+    // so AiStreamManager doesn't dispatch here — it only KEEPS the stream alive (isTopicDone=false, no
+    // terminal lifecycle) when `willContinueTopic` is true, so the runtime's next turn can carry the
+    // renderer listeners. Without this the stream is evicted and the follow-up reaches no renderer.
+    it('keeps an agent-session stream alive when the runtime will continue (no terminal lifecycle)', async () => {
+      mockWillContinueTopic.mockReturnValue(true)
+      const topicId = 'agent-session:s1'
+      const listener = new FakeListener(`l:${topicId}`)
+      startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [listener] })
+
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+
+      // The bubble finalises but the topic stays busy and the terminal lifecycle is skipped (no idle
+      // flicker), so the stream object survives for the runtime's follow-up turn to carry listeners.
+      expect(listener.doneResults).toHaveLength(1)
+      expect(listener.doneResults[0].isTopicDone).toBe(false)
+      expect((sharedCacheStore.get(`topic.stream.statuses.${topicId}`) as any)?.status).not.toBe('done')
+    })
+
+    it('tears down an agent-session stream when the runtime will not continue', async () => {
+      mockWillContinueTopic.mockReturnValue(false)
+      const topicId = 'agent-session:s2'
+      const listener = new FakeListener(`l:${topicId}`)
+      startSingle(mgr, { topicId, modelId: 'provider-a::model-a', request: req(topicId), listeners: [listener] })
+
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+
+      expect(listener.doneResults[0].isTopicDone).toBe(true)
+      expect(mgr.hasLiveStream(topicId)).toBe(false)
+    })
+  })
+
   // ── idle timeout terminal classification ────────────────────────
   // The idle-chunk timer (withIdleTimeout) aborts `exec.abortController`
   // directly, never going through `mgr.abort`, so on the clean stream exit
@@ -1406,6 +1513,7 @@ describe('AiStreamManager', () => {
           ([, value]) =>
             value as {
               status: string
+              turnId?: string
               activeExecutions: Array<{ executionId: string; anchorMessageId?: string }>
               lastCompletedAt?: number
             } | null
@@ -1443,6 +1551,8 @@ describe('AiStreamManager', () => {
 
       await mgr.onExecutionDone('t', 'p::m')
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
+      expect(new Set(statusWritesFor('t').map((entry) => entry?.turnId)).size).toBe(1)
+      expect(statusWritesFor('t')[0]?.turnId).toMatch(/^\d+:\d+$/)
 
       // Grace-period cleanup does not write again — the `done` value
       // lingers in SharedCache so renderers can observe the terminal

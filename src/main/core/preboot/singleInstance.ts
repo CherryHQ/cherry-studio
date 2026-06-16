@@ -16,14 +16,23 @@ const logger = loggerService.withContext('SingleInstance')
  * that we are the live process.
  *
  * Timing contract:
- *   - Must run as the very first preboot step, before
- *     `resolveUserDataLocation()`. That ordering prevents a second
- *     instance from entering `executePendingRelocation()` and issuing
- *     an expensive `fs.cpSync` against the userData directory tree,
- *     and removes the race window where two processes could both try
- *     to execute a pending `temp.user_data_relocation` at the same time.
+ *   - Must run after `resolveUserDataLocation()`. Electron scopes the
+ *     single-instance lock to the resolved userData path, so dev runs
+ *     using different userData suffixes can coexist while same-suffix
+ *     runs still exclude each other.
  *   - Must run before `application.initPathRegistry()` so second
  *     instances exit before wasting work on a frozen path snapshot.
+ *   - Packaged runs also resolve userData before this lock. That keeps
+ *     the lock aligned with the final BootConfig/portable userData path,
+ *     so a second packaged instance using the same data directory exits
+ *     before migration gate or bootstrap work begins. Trade-off vs. the
+ *     previous single-instance-first ordering: the doomed second instance
+ *     still runs the full `resolveUserDataLocation()` first, including Step
+ *     1's `executePendingRelocation()` `fs.cpSync` over the userData tree.
+ *     Two processes could therefore both execute a pending
+ *     `temp.user_data_relocation`. Harmless today because nothing writes a
+ *     `pending` state yet; gate pending relocation behind this lock when the
+ *     pending-writer lands.
  *   - Does not depend on any lifecycle-managed service: `application.quit()`
  *     is the container's own top-level method, identical in spirit to
  *     how v2MigrationGate uses it on its fatal branches.

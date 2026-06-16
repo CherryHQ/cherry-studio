@@ -394,7 +394,7 @@ describe('KnowledgeVectorStoreService', () => {
 
     const store = await service.getIndexStore(base)
 
-    // The base must still mount (transitional contract until PR B) — but loudly.
+    // The base must still mount (a pre-PR-B remnant is tolerated) — but loudly.
     expect(store).toBe(lastStore())
     expect(loggerErrorMock).toHaveBeenCalledWith(
       expect.stringContaining('legacy single-table vector layout'),

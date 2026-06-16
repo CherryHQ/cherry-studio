@@ -224,4 +224,17 @@ export type TopicSchemas = {
       response: Topic
     }
   }
+
+  /**
+   * Delete all topics currently linked to an assistant.
+   *
+   * This is an explicit scoped collection delete. It does not change
+   * `DELETE /assistants/:id`, which only deletes the assistant itself.
+   */
+  '/assistants/:assistantId/topics': {
+    DELETE: {
+      params: { assistantId: string }
+      response: DeleteTopicsResult
+    }
+  }
 } & OrderEndpoints<'/topics'>
