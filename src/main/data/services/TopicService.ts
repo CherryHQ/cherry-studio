@@ -547,15 +547,6 @@ export class TopicService {
     })
   }
 
-  async deleteByIds(ids: string[]): Promise<DeleteTopicsResult> {
-    const dbService = application.get('DbService')
-    const deletedIds = await dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
-
-    logger.info('Deleted topics', { count: deletedIds.length })
-
-    return { deletedIds, deletedCount: deletedIds.length }
-  }
-
   async deleteByAssistantId(assistantId: string): Promise<DeleteTopicsResult> {
     const dbService = application.get('DbService')
     const deletedIds = await dbService.withWriteTx(async (tx) => {
@@ -580,35 +571,6 @@ export class TopicService {
     logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
 
     return { deletedIds, deletedCount: deletedIds.length }
-  }
-
-  private async deleteManyByIdsTx(
-    tx: DbOrTx,
-    ids: string[],
-    options: { requireAll?: boolean } = {}
-  ): Promise<string[]> {
-    const uniqueIds = Array.from(new Set(ids))
-    if (uniqueIds.length === 0) return []
-
-    const rows = await tx
-      .select({ id: topicTable.id })
-      .from(topicTable)
-      .where(and(inArray(topicTable.id, uniqueIds), isNull(topicTable.deletedAt)))
-    const deletedIds = rows.map((row) => row.id)
-
-    if (options.requireAll && deletedIds.length !== uniqueIds.length) {
-      const foundIds = new Set(deletedIds)
-      const missingId = uniqueIds.find((candidate) => !foundIds.has(candidate)) ?? uniqueIds[0]
-      throw DataApiErrorFactory.notFound('Topic', missingId)
-    }
-    if (deletedIds.length === 0) return []
-
-    await tx.delete(messageTable).where(inArray(messageTable.topicId, deletedIds))
-    await tagService.purgeForEntitiesTx(tx, 'topic', deletedIds)
-    await pinService.purgeForEntitiesTx(tx, 'topic', deletedIds)
-    await tx.delete(topicTable).where(inArray(topicTable.id, deletedIds))
-
-    return deletedIds
   }
 
   async listRecentSearchMatches(query: { q: string; limit: number; updatedAtFrom?: number }): Promise<Topic[]> {
