@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c49389b7-dc80-4370-9edf-455f0676cada",
+  "id": "fdcd8304-ff9b-4d05-8211-842c9779dd6b",
   "prevId": "1b218189-3da2-4eb3-9e15-76310cd7c94b",
   "tables": {
     "agent": {
@@ -828,8 +828,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'user'"
+          "autoincrement": false
         },
         "order_key": {
           "name": "order_key",
@@ -1892,7 +1891,7 @@
       "checkConstraints": {
         "knowledge_base_search_mode_check": {
           "name": "knowledge_base_search_mode_check",
-          "value": "\"knowledge_base\".\"search_mode\" IN ('default', 'bm25', 'hybrid')"
+          "value": "\"knowledge_base\".\"search_mode\" IN ('vector', 'bm25', 'hybrid')"
         },
         "knowledge_base_status_check": {
           "name": "knowledge_base_status_check",
@@ -3099,9 +3098,9 @@
           "columns": ["updated_at"],
           "isUnique": false
         },
-        "topic_order_key_idx": {
-          "name": "topic_order_key_idx",
-          "columns": ["order_key"],
+        "topic_group_id_order_key_idx": {
+          "name": "topic_group_id_order_key_idx",
+          "columns": ["group_id", "order_key"],
           "isUnique": false
         },
         "topic_assistant_id_idx": {
