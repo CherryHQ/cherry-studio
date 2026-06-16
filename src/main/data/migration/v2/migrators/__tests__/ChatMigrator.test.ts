@@ -11,6 +11,7 @@ vi.mock('@logger', () => ({
 }))
 
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
@@ -912,6 +913,31 @@ describe('ChatMigrator.insertStagedTopics file_ref backfill', () => {
     expect(refs.every((r) => r.sourceId === 'm1')).toBe(true)
     const fileEntryIds = refs.map((r) => r.fileEntryId).sort()
     expect(fileEntryIds).toEqual(['fe-file-1', 'fe-img-1'])
+  })
+
+  it('injects one role=root virtual root per topic and reparents former physical roots onto it', async () => {
+    const migrator = new ChatMigrator()
+    // m1 is a former physical root (parentId null); m2 chains onto it.
+    const messages = [
+      newMessage('m1', 't-vroot', [{ type: 'main_text', content: 'first' }]),
+      newMessage('m2', 't-vroot', [{ type: 'main_text', content: 'reply' }], 'm1')
+    ]
+    stage(migrator, [{ topic: newTopic('t-vroot', 100), messages, pinned: false }], [])
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
+      ctx: MigrationContext
+    ) => Promise<{ messagesInserted: number }>
+    await fn.call(migrator, ctxOf())
+
+    const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 't-vroot'))
+    const roots = rows.filter((r) => r.parentId === null)
+    expect(roots).toHaveLength(1)
+    expect(roots[0].role).toBe('root')
+    expect(roots[0].data).toEqual({ parts: [] })
+    // The former physical root m1 now hangs off the virtual root; no content row is parentless.
+    const m1 = rows.find((r) => r.id === 'm1')
+    expect(m1?.parentId).toBe(roots[0].id)
+    expect(rows.filter((r) => r.role !== 'root').some((r) => r.parentId === null)).toBe(false)
   })
 
   it('skips file_ref for dangling fileId and records warning', async () => {

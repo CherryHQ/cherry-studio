@@ -59,12 +59,17 @@ instead of application discipline.
 
 ### Decisions
 
-1. **No marker column / no new role.** The virtual root is identified
-   purely by `parentId IS NULL` — now exactly one such row per topic.
-   It reuses an existing role (`role = 'system'`, `data = { parts: [] }`,
-   `status = 'success'`, `siblingsGroupId = 0`). Any role-filtered
-   *content* query must add `parentId IS NOT NULL` to exclude it (part of
-   the blast-radius audit below).
+1. **Dedicated `role = 'root'`, no marker column.** The virtual root is a
+   self-identifying `role = 'root'` row (`data = { parts: [] }`,
+   `status = 'success'`, `siblingsGroupId = 0`), exactly one per topic.
+   `role = 'root'` and `parentId IS NULL` are equivalent — `parentId IS NULL`
+   stays the root *lookup* key (what `message_topic_root_uniq` covers) and
+   `createRootMessageTx` / the migrator are the sole writers of both. Because
+   the role is dedicated, role-filtered *content* queries (`WHERE role = 'system'`
+   etc.) exclude the root for free — no `parentId IS NOT NULL` caveat. (A
+   separate discriminator column was rejected: it would have to be threaded
+   through every query/type; extending the role enum is lighter and
+   self-describing.)
 2. **Eager creation.** The virtual root is inserted in the **same
    transaction that creates the topic**, so every topic has its root from
    birth. No lazy "ensure-on-first-message" branch.
@@ -126,7 +131,9 @@ regenerated migration, not a patch.
 - Every topic-creation path inserts the virtual root via
   `MessageService.createRootMessageTx(tx, topicId)` (pure insert):
   `TopicService.create`, `TopicService.duplicate`, and `TemporaryChatService`
-  persist.
+  persist. The v1→v2 `ChatMigrator` builds the same row inline per topic
+  (batch insert) and reparents former physical roots onto it, so migrated
+  topics match freshly created ones.
 - Message-creation paths resolve the parent via `getRootMessageIdTx(tx, topicId)`
   (read + throw-if-missing): `MessageService.create` (`parentId: undefined` on an
   empty topic / explicit `null`), `createUserMessageWithPlaceholders`, and
@@ -173,8 +180,9 @@ the only consistent option.
   index is the backstop against a buggy double-create.
 - **Multi-model first turn:** unchanged — N assistant placeholders are
   children of the (now non-root) first user message.
-- **Role-filtered content queries** (`WHERE role = 'system'` etc.) must
-  add `parentId IS NOT NULL` so the virtual root is not miscounted.
+- **Role-filtered content queries** (`WHERE role = 'system'` etc.) need no
+  special handling — the virtual root is `role = 'root'`, so it is excluded
+  by construction.
 
 ## Alternatives considered
 

@@ -658,7 +658,7 @@ describe('TopicService', () => {
         .from(messageTable)
         .where(and(eq(messageTable.topicId, result.id), isNull(messageTable.parentId)))
       expect(rootRows).toHaveLength(1)
-      expect(rootRows[0].role).toBe('system')
+      expect(rootRows[0].role).toBe('root')
       expect(rootRows[0].data).toEqual({ parts: [] })
       expect(rootRows[0].status).toBe('success')
 
@@ -800,7 +800,7 @@ describe('TopicService', () => {
 
       // The new topic's own virtual root (content-less); never a copied content row.
       const copiedVirtualRoot = copiedRows.find((row) => row.parentId === null)
-      expect(copiedVirtualRoot?.role).toBe('system')
+      expect(copiedVirtualRoot?.role).toBe('root')
       expect(copiedVirtualRoot?.data.parts).toEqual([])
 
       // The copied first-turn head hangs off the new virtual root.
@@ -1065,7 +1065,7 @@ describe('TopicService', () => {
         .from(messageTable)
         .where(and(eq(messageTable.topicId, result.id), isNull(messageTable.parentId)))
       expect(copiedVirtualRoot).toHaveLength(1)
-      expect(copiedVirtualRoot[0].role).toBe('system')
+      expect(copiedVirtualRoot[0].role).toBe('root')
 
       const copiedContent = await dbh.db
         .select()

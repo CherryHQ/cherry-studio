@@ -171,7 +171,7 @@ describe('TemporaryChatService', () => {
       const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, topic.id))
       const byId = new Map(rows.map((r) => [r.id, r]))
       const virtualRoot = rows.find((r) => r.parentId === null)
-      expect(virtualRoot?.role).toBe('system')
+      expect(virtualRoot?.role).toBe('root')
       expect(byId.get(m1.id)?.parentId).toBe(virtualRoot?.id)
       expect(byId.get(m2.id)?.parentId).toBe(m1.id)
       expect(byId.get(m3.id)?.parentId).toBe(m2.id)

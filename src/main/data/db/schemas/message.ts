@@ -58,7 +58,7 @@ export const messageTable = sqliteTable(
       .on(t.topicId)
       .where(sql`${t.parentId} is null`),
     // Check constraints for enum fields
-    check('message_role_check', sql`${t.role} IN ('user', 'assistant', 'system')`),
+    check('message_role_check', sql`${t.role} IN ('user', 'assistant', 'system', 'root')`),
     check('message_status_check', sql`${t.status} IN ('pending', 'success', 'error', 'paused')`)
   ]
 )

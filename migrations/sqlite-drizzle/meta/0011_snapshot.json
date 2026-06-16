@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "775f85ed-a115-4ca0-bd12-f31b1b887556",
+  "id": "ae13beb5-a817-4558-a034-7e7a3d17fbe1",
   "prevId": "f0f0edbf-6464-4f08-914c-43c662a6c066",
   "tables": {
     "agent": {
@@ -2451,7 +2451,7 @@
       "checkConstraints": {
         "message_role_check": {
           "name": "message_role_check",
-          "value": "\"message\".\"role\" IN ('user', 'assistant', 'system')"
+          "value": "\"message\".\"role\" IN ('user', 'assistant', 'system', 'root')"
         },
         "message_status_check": {
           "name": "message_status_check",

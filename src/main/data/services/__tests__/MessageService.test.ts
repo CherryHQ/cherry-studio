@@ -1153,16 +1153,37 @@ describe('MessageService', () => {
       expect(rootRows).toHaveLength(1)
     })
 
-    it('createRootMessageTx inserts a content-less system root', async () => {
+    it('createRootMessageTx inserts a content-less role=root virtual root', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-root-shape', orderKey: 'a0' })
       const rootId = await messageService.createRootMessageTx(dbh.db, 'topic-root-shape')
 
       const [root] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, rootId))
       expect(root.parentId).toBeNull()
-      expect(root.role).toBe('system')
+      expect(root.role).toBe('root')
       expect(root.data).toEqual({ parts: [] })
       expect(root.status).toBe('success')
       expect(root.siblingsGroupId).toBe(0)
+    })
+
+    it('a role-filtered content query (role = system) excludes the virtual root', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-role-query', orderKey: 'a0' })
+      const rootId = await messageService.createRootMessageTx(dbh.db, 'topic-role-query')
+      // A real system-prompt content message hanging off the virtual root.
+      const systemMsg = await messageService.create('topic-role-query', {
+        role: 'system',
+        parentId: null,
+        data: mainText('you are a helpful assistant'),
+        status: 'success'
+      })
+
+      // The dedicated role = 'root' means a plain `WHERE role = 'system'` lookup
+      // returns content rows only — no `parentId IS NOT NULL` caveat needed.
+      const systemRows = await dbh.db
+        .select()
+        .from(messageTable)
+        .where(and(eq(messageTable.topicId, 'topic-role-query'), eq(messageTable.role, 'system')))
+      expect(systemRows.map((r) => r.id)).toEqual([systemMsg.id])
+      expect(systemRows.some((r) => r.id === rootId)).toBe(false)
     })
   })
 
@@ -1214,6 +1235,50 @@ describe('MessageService', () => {
       })
 
       expect(message.parentId).toBe(rootId)
+    })
+  })
+
+  describe('delete — virtual root guard', () => {
+    const virtualRootId = 'vroot-topic-1'
+
+    it('rejects deleting the virtual root with cascade=false', async () => {
+      await seedMultiModelTree()
+
+      await expect(messageService.delete(virtualRootId, false)).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION
+      })
+
+      const roots = await dbh.db
+        .select()
+        .from(messageTable)
+        .where(and(eq(messageTable.topicId, 'topic-1'), isNull(messageTable.parentId)))
+      expect(roots.map((r) => r.id)).toEqual([virtualRootId])
+    })
+
+    it('rejects deleting the virtual root even with cascade=true (would leave a rootless topic)', async () => {
+      await seedMultiModelTree()
+
+      await expect(messageService.delete(virtualRootId, true)).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION
+      })
+
+      // The whole subtree survives — nothing was cascade-deleted.
+      const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
+      expect(rows.some((r) => r.id === virtualRootId)).toBe(true)
+      expect(rows.some((r) => r.id === 'm-root')).toBe(true)
+    })
+
+    it('clear-topic (cascade delete of the root’s child) leaves the virtual root intact', async () => {
+      await seedMultiModelTree()
+
+      // "Clear all messages" = delete the virtual root's children, not the root itself.
+      const result = await messageService.delete('m-root', true)
+      expect(result.deletedIds).toEqual(expect.arrayContaining(['m-root', 'm-a1', 'm-a2', 'm-follow']))
+
+      const remaining = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
+      expect(remaining.map((r) => r.id)).toEqual([virtualRootId])
+      expect(remaining[0].role).toBe('root')
+      expect(remaining[0].parentId).toBeNull()
     })
   })
 

@@ -4,7 +4,7 @@ type InsertMessageRow = typeof messageTable.$inferInsert
 
 /**
  * Virtual-root sentinel for a topic: the single `parentId = null` row. Content-less
- * (`role = 'system'`, empty `data`), never rendered or included in history; every
+ * (`role = 'root'`, empty `data`), never rendered or included in history; every
  * content message hangs below it. Mirrors `MessageService.createRootMessageTx`.
  * Uses a deterministic `vroot-<topicId>` id so tests can assert on it.
  */
@@ -13,7 +13,7 @@ export function rootRow(topicId: string): InsertMessageRow {
     id: `vroot-${topicId}`,
     parentId: null,
     topicId,
-    role: 'system',
+    role: 'root',
     data: { parts: [] },
     status: 'success',
     siblingsGroupId: 0,

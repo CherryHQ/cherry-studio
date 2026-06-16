@@ -822,16 +822,19 @@ export class MessageService {
 
   /**
    * Insert the topic's virtual root — the single `parentId = null` row: content-less
-   * (`role = 'system'`, empty `data`), never rendered. Every real message hangs below
-   * it, so first-turn messages and their resends are ordinary siblings under a shared
-   * parent — no multi-root. Called exactly once per topic by every topic-creation path
-   * (create / duplicate / temp-chat persist / v1→v2 migrator); the
-   * `message_topic_root_uniq` index enforces single-root.
+   * (`role = 'root'`, empty `data`), never rendered. The dedicated `role = 'root'`
+   * makes the row self-identifying, so role-filtered content queries (`role = 'system'`
+   * etc.) exclude it for free. Every real message hangs below it, so first-turn messages
+   * and their resends are ordinary siblings under a shared parent — no multi-root. Called
+   * exactly once per topic by every topic-creation path (create / duplicate / temp-chat
+   * persist / v1→v2 migrator); the `message_topic_root_uniq` index enforces single-root.
+   * `role = 'root'` and `parentId IS NULL` are equivalent, with this method (and the
+   * migrator) as the sole writers of both.
    */
   async createRootMessageTx(tx: DbOrTx, topicId: string): Promise<string> {
     const [row] = await tx
       .insert(messageTable)
-      .values({ topicId, parentId: null, role: 'system', data: { parts: [] }, status: 'success', siblingsGroupId: 0 })
+      .values({ topicId, parentId: null, role: 'root', data: { parts: [] }, status: 'success', siblingsGroupId: 0 })
       .returning({ id: messageTable.id })
     return row.id
   }
@@ -1182,7 +1185,8 @@ export class MessageService {
    * @param activeNodeStrategy - Strategy for updating activeNodeId if affected (default: 'parent')
    * @returns Deletion result including deletedIds, reparentedIds, and newActiveNodeId
    * @throws NOT_FOUND if message doesn't exist
-   * @throws INVALID_OPERATION if deleting root without cascade=true
+   * @throws INVALID_OPERATION if the target is the topic's virtual root (removable only
+   *   via topic deletion; clear-all deletes the root's children instead)
    */
   async delete(
     id: string,
@@ -1201,11 +1205,13 @@ export class MessageService {
       throw DataApiErrorFactory.notFound('Topic', message.topicId)
     }
 
-    // Check if it's a root message
-    const isRoot = message.parentId === null
-
-    if (isRoot && !cascade) {
-      throw DataApiErrorFactory.invalidOperation('delete root message', 'cascade=true required')
+    // The virtual root is structural — deleting it would orphan first-turn children
+    // (unique-index violation) or leave a rootless topic (getRootMessageIdTx then throws
+    // on the next create). It is removable only via topic deletion (FK cascade). "Clear
+    // all messages" must delete the root's *children*, not the root. Reject it regardless
+    // of cascade. (role = 'root' and parentId IS NULL are equivalent; either identifies it.)
+    if (message.role === 'root' || message.parentId === null) {
+      throw DataApiErrorFactory.invalidOperation('delete root message', 'the virtual root cannot be deleted')
     }
 
     // Get all descendant IDs before transaction (for cascade delete)
@@ -1228,8 +1234,32 @@ export class MessageService {
           newActiveNodeId = activeNodeStrategy === 'clear' ? null : message.parentId
         }
 
-        // Hard delete all
-        await tx.delete(messageTable).where(inArray(messageTable.id, deletedIds))
+        // Delete leaf-first (deepest depth → shallowest). The self-FK
+        // (parentId → message.id) is ON DELETE SET NULL: deleting a node with a
+        // *surviving* in-set child would null that child's parentId mid-delete,
+        // transiently creating a second parentId-NULL row that collides with
+        // message_topic_root_uniq. Removing leaves first means every deleted node
+        // has no surviving children, so SET NULL never fires. (defer_foreign_keys
+        // does not help — it defers FK *checking*, not the SET NULL action.)
+        const depthRows = await tx.all<{ id: string; depth: number }>(sql`
+          WITH RECURSIVE subtree AS (
+            SELECT id, 0 AS depth FROM message WHERE id = ${id}
+            UNION ALL
+            SELECT m.id, s.depth + 1 FROM message m
+            INNER JOIN subtree s ON m.parent_id = s.id
+            WHERE m.deleted_at IS NULL
+          )
+          SELECT id, depth FROM subtree
+        `)
+        const idsByDepth = new Map<number, string[]>()
+        for (const row of depthRows) {
+          const bucket = idsByDepth.get(row.depth)
+          if (bucket) bucket.push(row.id)
+          else idsByDepth.set(row.depth, [row.id])
+        }
+        for (const depth of [...idsByDepth.keys()].sort((a, b) => b - a)) {
+          await tx.delete(messageTable).where(inArray(messageTable.id, idsByDepth.get(depth)!))
+        }
 
         logger.info('Cascade deleted messages', { rootId: id, count: deletedIds.length })
       } else {
