@@ -21,9 +21,11 @@
   /* Background & Foreground */
   --cs-background: #ffffff;
   --cs-background-subtle: oklch(0 0 0 / 0.02);
-  --cs-foreground: oklch(0 0 0 / 0.9);
-  --cs-foreground-secondary: oklch(0 0 0 / 0.6);
-  --cs-foreground-muted: oklch(0 0 0 / 0.4);
+  /* Foreground ladder — base hue aligned to the Codex settings reference (#1A1C1F),
+   * a cool near-black; secondary/muted derive via alpha so the hue stays consistent. */
+  --cs-foreground: #1a1c1f;
+  --cs-foreground-secondary: color-mix(in srgb, var(--cs-foreground) 60%, transparent);
+  --cs-foreground-muted: color-mix(in srgb, var(--cs-foreground) 40%, transparent);
 
   /* Menu item hover/focus background — distinct from --cs-background-subtle
    * because menu rows need a bit more contrast than generic subtle surfaces. */
@@ -45,6 +47,12 @@
    * 12% foreground mix gives a slightly stronger outline than --cs-border (10%)
    * while still reading as quiet against neutral surfaces. */
   --cs-border-fg-muted: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
+
+  /* Solid muted icon color — for line icons whose strokes can cross themselves
+   * (RotateCcw, RefreshCw, Search, etc.). Foreground-muted uses alpha which
+   * compounds at stroke overlaps and renders darker than intended; a solid
+   * neutral keeps the silhouette uniform. */
+  --cs-icon-muted: var(--cs-neutral-400);
 
   /* Ring (Focus) — neutral, derived from primary so focus matches selection/expanded states */
   --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
@@ -105,9 +113,10 @@
   /* Background & Foreground */
   --cs-background: #1515148c; /* #151514 @ 0.55 alpha — alpha lets macOS transparent windows blur the wallpaper through */
   --cs-background-subtle: oklch(1 0 0 / 0.02);
-  --cs-foreground: oklch(1 0 0 / 0.9);
-  --cs-foreground-secondary: oklch(1 0 0 / 0.6);
-  --cs-foreground-muted: oklch(1 0 0 / 0.4);
+  /* Foreground ladder (dark) — cool near-white mirroring the light-mode #1A1C1F hue. */
+  --cs-foreground: #e8e9eb;
+  --cs-foreground-secondary: color-mix(in srgb, var(--cs-foreground) 60%, transparent);
+  --cs-foreground-muted: color-mix(in srgb, var(--cs-foreground) 40%, transparent);
 
   /* Menu item hover/focus background (dark) — see comment in :root. */
   --cs-menu-item-hover: oklch(1 0 0 / 0.06);
@@ -122,10 +131,13 @@
   --cs-border-subtle: oklch(1 0 0 / 0.05);
   --cs-border-hover: oklch(1 0 0 / 0.2);
   --cs-border-active: oklch(1 0 0 / 0.3);
-  --cs-frame-border: #1f201d;
+  --cs-frame-border: #32332c;
 
   /* Foreground-derived soft border (dark) — see :root note. */
   --cs-border-fg-muted: color-mix(in srgb, var(--cs-foreground) 12%, transparent);
+
+  /* Solid muted icon color (dark) — see :root note. */
+  --cs-icon-muted: var(--cs-neutral-500);
 
   /* Ring (Focus) — neutral, derived from primary (was hardcoded lime) */
   --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);

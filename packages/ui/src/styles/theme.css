@@ -317,6 +317,7 @@
   --color-border-active: var(--cs-border-active);
   --color-frame-border: var(--cs-frame-border);
   --color-border-fg-muted: var(--cs-border-fg-muted);
+  --color-icon-muted: var(--cs-icon-muted);
   --color-secondary: var(--cs-secondary);
   --color-secondary-hover: var(--cs-secondary-hover);
   --color-secondary-active: var(--cs-secondary-active);

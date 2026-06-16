@@ -34,7 +34,7 @@ function Tabs({
 const tabsListVariants = cva('inline-flex items-center justify-center', {
   variants: {
     variant: {
-      default: 'bg-muted text-muted-foreground h-9 w-fit rounded-lg p-[3px]',
+      default: 'bg-muted text-muted-foreground h-7 w-fit rounded-lg p-[2px]',
       line: 'bg-transparent gap-4 justify-start border-b-0 p-0',
       underline: 'bg-transparent gap-0 justify-start border-b-0 p-0',
       workflow: 'bg-transparent gap-3 justify-start border-b-0 p-0'
@@ -75,7 +75,7 @@ function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimi
 
 const tabsTriggerVariants = cva(
   [
-    'inline-flex items-center justify-center whitespace-nowrap text-sm font-medium',
+    'inline-flex items-center justify-center whitespace-nowrap text-xs font-normal',
     'disabled:pointer-events-none disabled:opacity-50',
     'transition-all',
     '[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*="size-"])]:size-4'
@@ -84,7 +84,7 @@ const tabsTriggerVariants = cva(
     variants: {
       variant: {
         default: [
-          'h-[calc(100%-1px)] flex-1 gap-1.5 px-2 py-1 rounded-md',
+          'h-[calc(100%-1px)] flex-1 gap-1 px-2 py-0.5 rounded-md',
           'text-foreground border border-transparent',
           'dark:text-muted-foreground',
           'focus-visible:ring-[3px] focus-visible:outline-1 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring',
