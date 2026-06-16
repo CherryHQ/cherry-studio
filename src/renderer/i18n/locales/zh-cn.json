@@ -3842,61 +3842,6 @@
       "partial_failure": "{{count}} 个搜索结果，部分搜索失败"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "添加到启动台",
-    "add_to_sidebar": "添加到侧边栏",
-    "popup": {
-      "close": "关闭小程序",
-      "devtools": "开发者工具",
-      "goBack": "后退",
-      "goForward": "前进",
-      "minimize": "最小化小程序",
-      "openExternal": "在浏览器中打开",
-      "open_link_external_off": "当前：使用默认窗口打开链接",
-      "open_link_external_on": "当前：在浏览器中打开链接",
-      "refresh": "刷新",
-      "rightclick_copyurl": "右键复制 URL"
-    },
-    "remove_from_launchpad": "从启动台移除",
-    "remove_from_sidebar": "从侧边栏移除",
-    "sidebar": {
-      "close": {
-        "title": "关闭"
-      },
-      "closeall": {
-        "title": "关闭所有"
-      },
-      "hide": {
-        "title": "隐藏"
-      }
-    },
-    "title": "小程序"
-  },
-  "minapps": {
-    "ant-ling": "蚂蚁百灵",
-    "baichuan": "百小应",
-    "baidu-ai-search": "百度AI搜索",
-    "chatglm": "智谱清言",
-    "dangbei": "当贝AI",
-    "doubao": "豆包",
-    "hailuo": "海螺",
-    "ima": "ima",
-    "metaso": "秘塔AI搜索",
-    "minimax-agent": "MiniMax Agent",
-    "minimax-global": "MiniMax Agent 海外版",
-    "nami-ai": "纳米AI",
-    "nami-ai-search": "纳米AI搜索",
-    "qwen": "通义千问",
-    "sensechat": "商量",
-    "stepfun": "阶跃AI",
-    "tencent-yuanbao": "腾讯元宝",
-    "tiangong-ai": "天工AI",
-    "wanzhi": "万知",
-    "wenxin": "文心一言",
-    "wps-copilot": "WPS灵犀",
-    "xiaoyi": "小艺",
-    "zhihu": "知乎直答"
-  },
   "miniApp": {
     "add_to_launchpad": "添加到启动台",
     "add_to_sidebar": "添加到侧边栏",
@@ -3907,15 +3852,13 @@
     "hide_failed": "隐藏小程序失败",
     "pin_failed": "固定小程序失败",
     "popup": {
-      "close": "关闭小程序",
       "devtools": "开发者工具",
       "goBack": "后退",
       "goForward": "前进",
       "openExternal": "在浏览器中打开",
       "open_link_external_off": "当前：使用默认窗口打开链接",
       "open_link_external_on": "当前：在浏览器中打开链接",
-      "refresh": "刷新",
-      "rightclick_copyurl": "右键复制 URL"
+      "refresh": "刷新"
     },
     "remove_from_launchpad": "从启动台移除",
     "remove_from_sidebar": "从侧边栏移除",
@@ -3927,12 +3870,6 @@
     },
     "show_failed": "显示小程序失败",
     "sidebar": {
-      "close": {
-        "title": "关闭"
-      },
-      "closeall": {
-        "title": "关闭所有"
-      },
       "hide": {
         "title": "隐藏"
       }
@@ -3954,7 +3891,6 @@
     "minimax-agent": "MiniMax Agent",
     "minimax-global": "MiniMax Agent 海外版",
     "nami-ai": "纳米AI",
-    "nami-ai-search": "纳米AI搜索",
     "qwen": "通义千问",
     "sensechat": "商量",
     "stepfun": "阶跃AI",
@@ -6488,7 +6424,6 @@
     "miniApps": {
       "cache_change_notice": "更改将在打开的小程序增减至设定值后生效",
       "cache_description": "设置同时保持活跃状态的小程序最大数量",
-      "cache_settings": "缓存设置",
       "cache_title": "小程序缓存数量",
       "custom": {
         "create_title": "创建自定义小程序",
@@ -6526,49 +6461,6 @@
         "title": "小程序区域筛选"
       },
       "reset_tooltip": "重置为默认值",
-      "title": "小程序设置",
-      "visible": "显示的小程序"
-    },
-    "miniapps": {
-      "cache_change_notice": "更改将在打开的小程序增减至设定值后生效",
-      "cache_description": "设置同时保持活跃状态的小程序最大数量",
-      "cache_settings": "缓存设置",
-      "cache_title": "小程序缓存数量",
-      "custom": {
-        "create_title": "创建自定义小程序",
-        "edit_title": "编辑自定义小程序",
-        "logo_file": "上传 Logo 文件",
-        "logo_upload_error": "Logo 上传失败",
-        "logo_upload_label": "上传 Logo",
-        "name": "名称",
-        "name_placeholder": "请输入名称",
-        "remove_error": "自定义小程序删除失败",
-        "remove_success": "自定义小程序删除成功",
-        "save_error": "自定义小程序保存失败",
-        "save_success": "自定义小程序保存成功",
-        "title": "自定义",
-        "url": "URL",
-        "url_invalid": "请输入有效的 http、https 或 file URL",
-        "url_placeholder": "请输入 URL"
-      },
-      "disabled": "隐藏的小程序",
-      "display_title": "小程序显示设置",
-      "empty": "在左侧列表点击隐藏图标，小程序会移到这里",
-      "hide_app": "隐藏 {{name}}",
-      "open_link_external": {
-        "title": "在浏览器中打开新窗口链接"
-      },
-      "region": {
-        "auto": "自动检测",
-        "cn": "中国",
-        "description": "根据所在地区过滤不支持的小程序",
-        "global": "全球",
-        "title": "小程序区域筛选"
-      },
-      "reset_tooltip": "重置为默认值",
-      "show_app": "显示 {{name}}",
-      "sidebar_description": "设置侧边栏是否显示活跃的小程序",
-      "sidebar_title": "侧边栏活跃小程序显示设置",
       "title": "小程序设置",
       "visible": "显示的小程序"
     },

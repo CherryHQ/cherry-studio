@@ -3837,61 +3837,6 @@
       "partial_failure": "{{count}} resultados da pesquisa, algumas pesquisas falharam"
     }
   },
-  "minapp": {
-    "add_to_launchpad": "Adicionar ao Launchpad",
-    "add_to_sidebar": "Adicionar à Barra Lateral",
-    "popup": {
-      "close": "Fechar MinApp",
-      "devtools": "Ferramentas de Desenvolvedor",
-      "goBack": "Voltar",
-      "goForward": "Avançar",
-      "minimize": "Minimizar MinApp",
-      "openExternal": "Abrir no Navegador",
-      "open_link_external_off": "Atual: Abrir links na janela padrão",
-      "open_link_external_on": "Atual: Abrir links no navegador",
-      "refresh": "Atualizar",
-      "rightclick_copyurl": "Clique com o botão direito para copiar o URL"
-    },
-    "remove_from_launchpad": "Remover do Launchpad",
-    "remove_from_sidebar": "Remover da Barra Lateral",
-    "sidebar": {
-      "close": {
-        "title": "Fechar"
-      },
-      "closeall": {
-        "title": "Fechar Todos"
-      },
-      "hide": {
-        "title": "Ocultar"
-      }
-    },
-    "title": "MinApp"
-  },
-  "minapps": {
-    "ant-ling": "Ant Ling",
-    "baichuan": "Baichuan",
-    "baidu-ai-search": "Pesquisa de IA da Baidu",
-    "chatglm": "ChatGLM",
-    "dangbei": "Dangbei",
-    "doubao": "Doubao",
-    "hailuo": "Hailuo",
-    "ima": "ima",
-    "metaso": "Metaso",
-    "minimax-agent": "Agente Minimax CN",
-    "minimax-global": "Agente Minimax",
-    "nami-ai": "Nami IA",
-    "nami-ai-search": "Nami AI Search",
-    "qwen": "Qwen",
-    "sensechat": "SenseChat",
-    "stepfun": "Stepfun",
-    "tencent-yuanbao": "Yuanbao",
-    "tiangong-ai": "Skywork",
-    "wanzhi": "Wanzhi",
-    "wenxin": "ERNIE",
-    "wps-copilot": "WPS Copilot",
-    "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu"
-  },
   "miniApp": {
     "add_to_launchpad": "Adicionar ao Painel de Inicialização",
     "add_to_sidebar": "Adicionar à Barra Lateral",
@@ -3902,15 +3847,13 @@
     "hide_failed": "Failed to hide mini-app",
     "pin_failed": "Falha ao fixar o miniaplicativo",
     "popup": {
-      "close": "Fechar aplicativo",
       "devtools": "Ferramentas de Desenvolvedor",
       "goBack": "Voltar",
       "goForward": "Avançar",
       "openExternal": "Abrir no navegador",
       "open_link_external_off": "Atual: Abrir links em janela padrão",
       "open_link_external_on": "Atual: Abrir links no navegador",
-      "refresh": "Atualizar",
-      "rightclick_copyurl": "Copiar URL com botão direito"
+      "refresh": "Atualizar"
     },
     "remove_from_launchpad": "Remover do Painel de Inicialização",
     "remove_from_sidebar": "Remover da Barra Lateral",
@@ -3922,12 +3865,6 @@
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
-      "close": {
-        "title": "Fechar"
-      },
-      "closeall": {
-        "title": "Fechar Tudo"
-      },
       "hide": {
         "title": "Ocultar"
       }
@@ -3949,7 +3886,6 @@
     "minimax-agent": "MiniMax Agent CN",
     "minimax-global": "MiniMax Agent",
     "nami-ai": "Nami AI",
-    "nami-ai-search": "Nami AI Search",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
     "stepfun": "Stepfun",
@@ -6483,7 +6419,6 @@
     "miniApps": {
       "cache_change_notice": "As alterações entrarão em vigor após a abertura ou remoção dos mini aplicativos até atingir o número definido",
       "cache_description": "Defina o número máximo de mini aplicativos que permanecerão ativos simultaneamente",
-      "cache_settings": "Configurações de Cache",
       "cache_title": "Quantidade de Mini Aplicativos no Cache",
       "custom": {
         "create_title": "Criar mini app personalizada",
@@ -6521,51 +6456,7 @@
         "title": "Filtro de área do mini programa"
       },
       "reset_tooltip": "Redefinir para os valores padrão",
-      "title": "Configurações do Mini Aplicativo",
       "visible": "Mini Aplicativos Visíveis"
-    },
-    "miniapps": {
-      "cache_change_notice": "As alterações entrarão em vigor quando o número de miniaplicativos abertos atingir o valor definido.",
-      "cache_description": "Defina o número máximo de mini aplicativos ativos a manter na memória",
-      "cache_settings": "Configurações de Cache",
-      "cache_title": "Limite de Cache do Mini App",
-      "custom": {
-        "create_title": "Criar mini app personalizada",
-        "edit_title": "Editar Mini App Personalizado",
-        "logo_file": "Carregar Arquivo de Logotipo",
-        "logo_upload_error": "Falha ao fazer upload do logotipo.",
-        "logo_upload_label": "Carregar Logotipo",
-        "name": "Nome",
-        "name_placeholder": "Insira o nome",
-        "remove_error": "Falha ao remover o miniaplicativo personalizado.",
-        "remove_success": "Mini app personalizado removido com sucesso.",
-        "save_error": "Falha ao salvar o miniaplicativo personalizado.",
-        "save_success": "Mini app personalizado salvo com sucesso.",
-        "title": "Personalizado",
-        "url": "URL",
-        "url_invalid": "Introduza um URL http, https ou file válido.",
-        "url_placeholder": "Insira o URL"
-      },
-      "disabled": "Mini Apps Ocultos",
-      "display_title": "Configurações de Exibição do Mini App",
-      "empty": "Clique no ícone de ocultar em um aplicativo à esquerda e ele será movido para cá.",
-      "hide_app": "Ocultar {{name}}",
-      "open_link_external": {
-        "title": "Abrir links de nova janela no navegador"
-      },
-      "region": {
-        "auto": "Detecção automática",
-        "cn": "China",
-        "description": "Filtragem de mini-programas não suportados com base na região",
-        "global": "Global",
-        "title": "Filtro de Mini Programa"
-      },
-      "reset_tooltip": "Restaurar para o padrão",
-      "show_app": "Mostrar {{name}}",
-      "sidebar_description": "Mostrar mini apps ativos na barra lateral",
-      "sidebar_title": "Exibição de Mini Apps Ativos na Barra Lateral",
-      "title": "Configurações de Mini Apps",
-      "visible": "Mini Apps Visíveis"
     },
     "model": "Modelo padrão",
     "models": {
