@@ -311,7 +311,7 @@ flowchart TB
 > [!IMPORTANT]
 > 恢复写事务内 PRAGMA defer_foreign_keys=ON（非 foreign_keys=OFF——后者在事务内是 SQLite 文档明确的 no-op，且 DbService 每次 reconnect 重放 foreign_keys=ON），FK 延迟到 COMMIT，COMMIT 前 PRAGMA foreign_key_check 验证整图一致。cascade/SET_NULL/DELETE_ROW 仍由 importer 按 contributor policy 显式执行（不依赖 SQLite ON DELETE）；ReferenceKind 须忠实复刻 schema onDelete（cascade/restrict 转 owning/junction、set null/no action 转 optional、set default 拒绝），由 finalize #19 校验。DB 写走 DbService.withWriteTx（fn 内仅 DB ops，文件恢复已在事务外）。
 >
-> **恢复安全三件套（针对 PR #12659 review B1/B2/B3）**：① RESTORE BARRIER（应用级写屏障，区别于逐事务 writeMutex）静默 WhenReady DB writers + 阻塞 renderer mutation，跨 snapshot-文件-DB-promote 全程；② 安全文件提升 rollback 序列防 WAL sidecar replay 覆盖快照；③ journal 持久状态机（6 态）+ on-boot crash recovery + completed 门。详见 `openspec/changes/modular-backup-contributors-refined/specs/backup-restore-safety/`（6 文件：restore-barrier / restore-recovery-point / import-orchestrator / export-orchestrator / backup-service-lifecycle / spec；change 合入后并入 `openspec/specs/backup-restore/`）。
+> **恢复安全三件套（针对 PR #12659 review B1/B2/B3）**：① RESTORE BARRIER（应用级写屏障，区别于逐事务 writeMutex）静默 WhenReady DB writers + 阻塞 renderer mutation，跨 snapshot-文件-DB-promote 全程；② 安全文件提升 rollback 序列防 WAL sidecar replay 覆盖快照；③ journal 持久状态机（6 态）+ on-boot crash recovery + completed 门。
 >
 > **Upstream prerequisites（gating）**：依赖 DbService 新增 withExclusiveAccess/closeAllConnections/checkpointAndClose/reconnect + PreferenceService.reloadFromDb，须先合 upstream API PR 再合 backup 实现。
 
