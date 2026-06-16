@@ -4,7 +4,7 @@ import type { Document as VectorStoreDocument } from '@vectorstores/core'
 import { splitTextWithOffsets } from './splitter'
 
 /** Inserted between source documents when concatenating them into one canonical content text. */
-const DOCUMENT_SEPARATOR = '\n\n'
+export const DOCUMENT_SEPARATOR = '\n\n'
 
 /** One retrieval chunk with its offsets into the material's canonical `contentText`. */
 export interface KnowledgeContentChunk {

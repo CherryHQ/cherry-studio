@@ -10,9 +10,10 @@ import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { loggerService } from '@renderer/services/LoggerService'
-import type { Model as SharedModel } from '@shared/data/types/model'
+import { type Model as SharedModel } from '@shared/data/types/model'
 import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
+import { isNonChatModel } from '@shared/utils/model'
 import { ChevronDown, Download, ExternalLink, Loader2, Play, Square, X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -103,6 +104,7 @@ const OpenClawPage: FC = () => {
    */
   const modelFilter = useCallback(
     (model: SharedModel) => {
+      if (isNonChatModel(model)) return false
       const provider = providers.find((p) => p.id === model.providerId)
       if (!provider) return false
       if (NO_API_KEY_PROVIDERS.has(provider.id)) return true
