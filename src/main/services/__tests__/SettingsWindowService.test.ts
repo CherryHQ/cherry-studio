@@ -11,13 +11,17 @@ const { applicationMock, windowManagerMock } = vi.hoisted(() => {
     onWindowCreatedByType: vi.fn(() => ({ dispose: vi.fn() })),
     onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() }))
   }
+  const preferenceServiceMock = {
+    get: vi.fn<(key: string) => unknown>(() => false)
+  }
   const applicationMock = {
     get: vi.fn((name: string) => {
       if (name === 'WindowManager') return windowManagerMock
+      if (name === 'PreferenceService') return preferenceServiceMock
       throw new Error(`unexpected service: ${name}`)
     })
   }
-  return { applicationMock, windowManagerMock }
+  return { applicationMock, windowManagerMock, preferenceServiceMock }
 })
 
 vi.mock('@application', () => ({ application: applicationMock }))
