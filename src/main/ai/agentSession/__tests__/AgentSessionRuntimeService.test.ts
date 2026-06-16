@@ -345,6 +345,50 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('applies tool-policy updates when disabled tools change', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      applyPolicyUpdate: vi.fn()
+    }
+    entry.connection = connection
+    const agent = { id: 'agent-1' }
+
+    await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, agent)
+
+    expect(connection.applyPolicyUpdate).toHaveBeenCalledWith({ type: 'tool-policy', agent })
+    expect(connection.close).not.toHaveBeenCalled()
+  })
+
+  it('applies permission-mode updates when the configuration carries a permission_mode key', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      applyPolicyUpdate: vi.fn()
+    }
+    entry.connection = connection
+
+    await (service as any).handleAgentUpdated(
+      'agent-1',
+      { configuration: { permission_mode: 'plan' } },
+      { id: 'agent-1', configuration: { permission_mode: 'plan' } }
+    )
+
+    expect(connection.applyPolicyUpdate).toHaveBeenCalledWith({
+      type: 'permission-mode',
+      permissionMode: 'plan'
+    })
+    expect(connection.close).not.toHaveBeenCalled()
+  })
+
   it('ignores per-execution terminal events until the topic is done', () => {
     const service = new AgentSessionRuntimeService()
     const handle = service.beginTurn(baseTurnInput)
@@ -529,6 +573,93 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
+  it('a no-anchor compaction success following the boundary leaves status idle without clobbering (B2)', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    service.markTurnTerminal('session-1', 'success')
+
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-start' })
+    // The boundary carries the token anchor (its metrics ride the data-compaction-anchor chunk).
+    ;(service as any).handleRuntimeEvent(getEntry(service), {
+      type: 'compaction-complete',
+      anchor: {
+        trigger: 'auto',
+        completedAt: '2026-06-09T12:00:00.000Z',
+        preTokens: 52_000,
+        postTokens: 14_000,
+        durationMs: 1234
+      }
+    })
+    mocks.cacheSetShared.mockClear()
+
+    // A no-anchor `status: success` can arrive right after the boundary. It must only flip status to
+    // idle — never write empty token fields or reset a timestamp (the old bug clobbered both).
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-complete' })
+
+    expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.compaction.session-1', {
+      status: 'idle'
+    })
+  })
+
+  it('settles compaction when the runtime connection errors', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    service.markTurnTerminal('session-1', 'success')
+
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-start' })
+    expect(service.isSessionBusy('session-1')).toBe(true)
+
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'error', error: new Error('runtime closed') })
+
+    expect(service.isSessionBusy('session-1')).toBe(false)
+    expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.compaction.session-1', {
+      status: 'idle'
+    })
+  })
+
+  it('swallows a getContextUsage rejection during refresh and logs a warning (S5)', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const usageError = new Error('usage boom')
+    entry.connection = {
+      getContextUsage: vi.fn().mockRejectedValue(usageError),
+      send: vi.fn(),
+      close: vi.fn(),
+      events: []
+    } as any
+
+    expect(() => (service as any).refreshContextUsage(entry)).not.toThrow()
+
+    await vi.waitFor(() =>
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Failed to refresh agent session context usage',
+        expect.objectContaining({ sessionId: 'session-1', error: usageError })
+      )
+    )
+  })
+
+  it('warns for an abort but errors for a real failure when the runtime ends with no active turn (S5)', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    service.markTurnTerminal('session-1', 'success') // no live (non-terminal) turn remains
+    const entry = getEntry(service)
+
+    const abort = Object.assign(new Error('aborted'), { name: 'AbortError' })
+    ;(service as any).handleRuntimeError(entry, abort)
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Agent runtime connection ended without an active turn',
+      expect.objectContaining({ sessionId: 'session-1', error: abort })
+    )
+
+    const boom = new Error('real failure')
+    ;(service as any).handleRuntimeError(entry, boom)
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+      'Agent runtime connection ended without an active turn',
+      expect.objectContaining({ sessionId: 'session-1', error: boom })
+    )
+  })
+
   it('persists context usage events from the runtime', () => {
     const usage = {
       categories: [],
@@ -550,6 +681,38 @@ describe('AgentSessionRuntimeService', () => {
     ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'context-usage', usage })
 
     expect(mocks.cacheSetShared).toHaveBeenCalledWith('agent.session.context_usage.session-1', usage)
+  })
+
+  it('clears session-scoped shared cache entries when closing a session', () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+
+    ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-start' })
+    ;(service as any).handleRuntimeEvent(getEntry(service), {
+      type: 'context-usage',
+      usage: {
+        categories: [],
+        totalTokens: 1,
+        maxTokens: 100,
+        rawMaxTokens: 100,
+        percentage: 1,
+        gridRows: [],
+        model: 'claude-sonnet-4-5',
+        memoryFiles: [],
+        mcpTools: [],
+        agents: [],
+        apiUsage: null
+      }
+    })
+
+    service.closeSession('session-1')
+
+    // The context-usage entry is deleted outright; an in-flight compaction is settled to idle
+    // (not deleted) so a re-open doesn't briefly observe a stale compacting status.
+    expect(mocks.cacheDeleteShared).toHaveBeenCalledWith('agent.session.context_usage.session-1')
+    expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.compaction.session-1', {
+      status: 'idle'
+    })
   })
 
   it('enqueues a compaction anchor into the current turn and refreshes context usage on completion', async () => {
@@ -1238,6 +1401,35 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(entry.pendingTurns).toEqual([])
     expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+    expect(mocks.broadcastTopicError).toHaveBeenCalledWith(
+      entry.topicId,
+      entry.modelId,
+      expect.objectContaining({ message: expect.stringContaining('db down') })
+    )
+    expect(entry.status).toBe('idle')
+    expect(entry.lastTerminalStatus).toBe('error')
+  })
+
+  it('abandons the roll and surfaces the error when the continuation placeholder save rejects (S5)', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    // Drive the entry into a roll mid-turn: A1a closed at a steer boundary, post-steer chunks buffered,
+    // and the continuation (A2) is about to open. This is the state `startContinuationTurn` runs against.
+    entry.rolling = true
+    entry.rollBuffer = [{ type: 'text-delta', id: 'p2', delta: 'post' } as any]
+    entry.rollSteerInputs = [{ message: userMessage('user-2'), systemReminder: true }] as any
+
+    const saveError = new Error('db down')
+    mocks.saveMessage.mockRejectedValueOnce(saveError)
+
+    // The A2 placeholder save failed: abandon the roll (drop the buffered post-steer chunks), surface
+    // the failure to the live renderer, and settle the turn to `error` instead of idling on a doomed roll.
+    await expect((service as any).startContinuationTurn(entry)).resolves.toBeUndefined()
+
+    expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
+    expect(entry.rolling).toBe(false)
+    expect(entry.rollBuffer).toBeUndefined()
     expect(mocks.broadcastTopicError).toHaveBeenCalledWith(
       entry.topicId,
       entry.modelId,

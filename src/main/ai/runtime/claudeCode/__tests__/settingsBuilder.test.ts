@@ -253,6 +253,100 @@ describe('buildClaudeCodeSessionSettings', () => {
     ).toBe(true)
   })
 
+  it('passes agent disabledTools through to SDK disallowedTools', async () => {
+    mocks.getAgent.mockResolvedValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: ['Bash', 'Read'],
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.disallowedTools).toEqual(expect.arrayContaining(['Bash', 'Read']))
+    expect(settings.allowedTools).toBeUndefined()
+  })
+
+  it('composes disallowedTools: globals + EnterWorktree (no .git cwd) + dedup, no AskUserQuestion for a plain agent', async () => {
+    mocks.getAgent.mockResolvedValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: {}
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const disallowed = settings.disallowedTools ?? []
+
+    // GLOBALLY_DISALLOWED_TOOLS always blocked; EnterWorktree blocked because the cwd has no .git.
+    expect(disallowed).toEqual(expect.arrayContaining(['WebSearch', 'WebFetch', 'EnterWorktree']))
+    // A plain (non-assistant, non-soul) agent does not block AskUserQuestion.
+    expect(disallowed).not.toContain('AskUserQuestion')
+    // The `new Set` dedup holds — no entry appears twice even when registry + globals overlap.
+    expect(new Set(disallowed).size).toBe(disallowed.length)
+  })
+
+  it('soul mode adds SOUL_MODE_DISALLOWED_TOOLS to disallowedTools', async () => {
+    mocks.getAgent.mockResolvedValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { soul_enabled: true }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    const disallowed = settings.disallowedTools ?? []
+
+    expect(disallowed).toEqual(
+      expect.arrayContaining(['CronCreate', 'EnterPlanMode', 'AskUserQuestion', 'NotebookEdit'])
+    )
+    expect(new Set(disallowed).size).toBe(disallowed.length)
+  })
+
+  it('assistant role adds AskUserQuestion to disallowedTools', async () => {
+    mocks.getAgent.mockResolvedValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { builtin_role: 'assistant' }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+    expect(settings.disallowedTools ?? []).toContain('AskUserQuestion')
+  })
+
   it('wires a PreToolUse steer hook that drains the holder and injects it as additionalContext', async () => {
     const session = {
       id: 'session-1',
