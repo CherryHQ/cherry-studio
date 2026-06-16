@@ -91,6 +91,7 @@ interface MigratedKnowledgeBaseRow {
   status: 'completed' | 'failed'
   chunkSize: number
   chunkOverlap: number
+  fileProcessorId?: string | null
 }
 
 interface MigratedKnowledgeItemRow {
@@ -1093,6 +1094,54 @@ describe('KnowledgeVectorMigrator', () => {
       expect(fs.existsSync(dbPath)).toBe(true)
     })
 
+    it('surfaces the real execution error when temp-store cleanup itself throws', async () => {
+      const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
+      await createLegacyVectorDb(dbPath, [
+        {
+          id: 'legacy-file-0',
+          pageContent: 'file chunk',
+          uniqueLoaderId: 'loader-file',
+          source: '/tmp/file-1.md',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        migratedBases: [createMigratedBase()],
+        migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID)],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-file', type: 'file', uniqueId: 'loader-file' }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+
+      // The rebuild fails (the real error), sending execute into its catch block...
+      vi.spyOn(KnowledgeIndexStore.prototype, 'rebuildMaterial').mockRejectedValueOnce(new Error('rebuild failed'))
+      // ...where the temp-store cleanup itself also throws (e.g. a Windows-locked index.sqlite).
+      // The first call (pre-rebuild temp clear) must still succeed so the rebuild is reached.
+      migrator.removeIndexStoreFiles = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValue(new Error('EPERM: index store locked'))
+
+      // The cleanup rejection must not escape past the structured return (the W2 fix): execute
+      // resolves to a failure carrying the *real* rebuild error, not the masking cleanup error.
+      const executeResult = await migrator.execute(migrationCtx as any)
+      expect(executeResult.success).toBe(false)
+      expect(executeResult.error).toContain('rebuild failed')
+      expect(executeResult.error).not.toContain('EPERM')
+    })
+
     it('validate fails when a stored unit has no backing embedding', async () => {
       const dbPath = path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID)
       await createLegacyVectorDb(dbPath, [
@@ -1309,6 +1358,58 @@ describe('KnowledgeVectorMigrator', () => {
       expect(fs.existsSync(runtimeMaterialPath(MIGRATED_KNOWLEDGE_BASE_ID, 'LLM Guide_1.md'))).toBe(true)
       const store = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
       expect(store.material[0]).toMatchObject({ relative_path: 'LLM Guide_1.md' })
+    })
+
+    it('dedupes a snapshot around an unprocessed file’s prospective markdown artifact', async () => {
+      await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+        {
+          id: 'legacy-url-0',
+          pageContent: '# guide',
+          uniqueLoaderId: 'loader-url-a',
+          source: 'https://example.com/guide',
+          vector: [1, 2]
+        }
+      ])
+
+      const migrationCtx = createMigrationCtx({
+        // A processor is configured, so a document file will later emit a `.md` artifact.
+        migratedBases: [createMigratedBase({ fileProcessorId: 'doc2x' })],
+        migratedItems: [
+          // An unprocessed file (relativePath set, no indexedRelativePath): its eventual
+          // reindex will produce `guide.md`, so that slot must be reserved now.
+          createMigratedItem(MIGRATED_FILE_ITEM_ID, {
+            data: { source: '/tmp/guide.pdf', relativePath: 'guide.pdf' }
+          }),
+          createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
+            type: 'url',
+            data: { source: 'https://example.com/guide', url: 'https://example.com/guide' }
+          })
+        ],
+        reduxData: {
+          knowledge: {
+            bases: [
+              {
+                id: LEGACY_KNOWLEDGE_BASE_ID,
+                name: 'Base 1',
+                items: [{ id: 'item-sitemap', type: 'sitemap', uniqueIds: ['loader-url-a'] }]
+              }
+            ]
+          }
+        }
+      })
+
+      const migrator = new KnowledgeVectorMigrator() as any
+      expect((await migrator.prepare(migrationCtx as any)).success).toBe(true)
+      expect((await migrator.execute(migrationCtx as any)).success).toBe(true)
+
+      // The url snapshot would naturally be `guide.md`, but that is the file's prospective
+      // processed artifact, so it dedupes to `guide_1.md` (N1: the migrator passes
+      // fileProcessorId, reserving the same prospective slot the runtime add path does — so a
+      // later reindex `.md` and this snapshot can never overwrite each other).
+      expect(fs.existsSync(runtimeMaterialPath(MIGRATED_KNOWLEDGE_BASE_ID, 'guide_1.md'))).toBe(true)
+      expect(fs.existsSync(runtimeMaterialPath(MIGRATED_KNOWLEDGE_BASE_ID, 'guide.md'))).toBe(false)
+      const store = await readStore(MIGRATED_KNOWLEDGE_BASE_ID)
+      expect(store.material[0]).toMatchObject({ relative_path: 'guide_1.md' })
     })
 
     it('reuses an already-pinned relativePath on re-run instead of renaming', async () => {

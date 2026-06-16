@@ -463,10 +463,16 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         }
 
         // Snapshot names must dodge every path the base already occupies (copied
-        // files, their processed artifacts, other snapshots planned this run).
-        const reservedPaths = collectKnowledgeReservedRelativePaths([
-          ...(migratedItemsByBaseId.get(base.id)?.values() ?? [])
-        ])
+        // files, their processed artifacts, other snapshots planned this run). Pass
+        // fileProcessorId so an unprocessed file's prospective `.md` artifact slot is
+        // reserved too — same invariant the runtime add path uses, so a snapshot can't
+        // later be overwritten by a reindex-produced artifact (or vice versa).
+        const reservedPaths = collectKnowledgeReservedRelativePaths(
+          [...(migratedItemsByBaseId.get(base.id)?.values() ?? [])],
+          {
+            fileProcessorId: base.fileProcessorId
+          }
+        )
 
         const materials: PreparedMaterial[] = []
         const materialSnapshots: PlannedMaterialSnapshot[] = []
@@ -662,7 +668,17 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         logger.error(errorMessage, error instanceof Error ? error : new Error(String(error)))
         this.executionErrors.push(errorMessage)
 
-        await this.removeIndexStoreFiles(tempPath)
+        // Cleanup must not throw past the structured return: on Windows a locked
+        // index.sqlite can make rm reject even after retries, which would mask the
+        // real errorMessage and let execute escape with an exception.
+        try {
+          await this.removeIndexStoreFiles(tempPath)
+        } catch (cleanupError) {
+          logger.warn('Temp index store cleanup failed after base execution error', {
+            baseId: plan.baseId,
+            cleanupError: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
+          })
+        }
 
         return {
           success: false,

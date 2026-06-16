@@ -62,7 +62,11 @@ export class KnowledgeWorkflowService {
         const reservedPaths = await this.loadReservedKnowledgeFilePaths(base.id, base.fileProcessorId)
         for (const input of inputs) {
           const createInput = await this.prepareRuntimeAddItemInput(base.id, base.fileProcessorId, input, reservedPaths)
-          if (createInput.type === 'file') {
+          // A url restore copies its snapshot to raw/{relativePath} under type 'url',
+          // so track it for rollback too — otherwise a mid-batch failure orphans the
+          // snapshot and a same-titled re-restore later hard-fails on the leftover file
+          // (the add-side twin of the delete-side leak fixed in deleteKnowledgeItemFiles).
+          if (createInput.type === 'file' || (createInput.type === 'url' && createInput.data.relativePath)) {
             copiedFileItems.push(createInput)
           }
           const createdItem = await knowledgeItemService.create(base.id, createInput)

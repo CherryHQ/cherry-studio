@@ -936,6 +936,36 @@ describe('KnowledgeService', () => {
     )
   })
 
+  it('cleans up a restored url snapshot when a mid-batch create fails, so the url stays re-restorable', async () => {
+    const service = new KnowledgeService()
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: null }))
+    knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([])
+    // The url restore copies its snapshot to raw/ before the row is created; that create fails.
+    knowledgeItemCreateMock.mockRejectedValueOnce(new Error('db down'))
+
+    await expect(
+      service.addItems('kb-1', [
+        {
+          type: 'url',
+          data: {
+            source: 'https://example.com/p',
+            url: 'https://example.com/p',
+            snapshotPath: '/captured/example-page.md'
+          }
+        }
+      ])
+    ).rejects.toThrow('db down')
+
+    // The copied url snapshot must be in the rollback cleanup list (the W1 fix); before it,
+    // only file-type copies were tracked, so the snapshot leaked and a same-titled re-restore
+    // later hard-failed on the orphan.
+    expect(deleteKnowledgeItemFilesBestEffortMock).toHaveBeenCalledWith(
+      'kb-1',
+      [expect.objectContaining({ type: 'url', data: expect.objectContaining({ relativePath: 'example-page.md' }) })],
+      expect.anything()
+    )
+  })
+
   it('auto-renames a file whose name collides with an existing note snapshot', async () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: null }))
