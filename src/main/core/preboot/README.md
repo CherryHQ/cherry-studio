@@ -140,17 +140,17 @@ Instead, `userDataLocation.ts` appends a suffix to Electron's default
 `userData` directory before the path registry and single-instance lock are
 initialized. The default suffix is `Dev`.
 
-Set `MAIN_VITE_USER_DATA_DEV_SUFFIX` to run multiple development instances with
+Set `CHERRY_DEV_USER_DATA_SUFFIX` to run multiple development instances with
 isolated app data and locks. Use `.env` for a persistent local default:
 
 ```bash
-MAIN_VITE_USER_DATA_DEV_SUFFIX=DevQuito
+CHERRY_DEV_USER_DATA_SUFFIX=DevQuito
 ```
 
 Or pass it inline for a single dev process:
 
 ```bash
-MAIN_VITE_USER_DATA_DEV_SUFFIX=DevQuito pnpm dev
+CHERRY_DEV_USER_DATA_SUFFIX=DevQuito pnpm dev
 ```
 
 The trimmed suffix is appended to the default path. Empty or whitespace-only
