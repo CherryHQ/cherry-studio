@@ -164,6 +164,7 @@ export class OpenClawService extends BaseService {
   private gatewayStatus: GatewayStatus = 'stopped'
   private gatewayPort: number = DEFAULT_GATEWAY_PORT
   private gatewayAuthToken: string = ''
+  private installPromise: Promise<OperationResult> | null = null
 
   public get gatewayUrl(): string {
     return `ws://127.0.0.1:${this.gatewayPort}/ws`
@@ -305,6 +306,19 @@ export class OpenClawService extends BaseService {
    * Install OpenClaw via BinaryManager (mise npm:openclaw backend).
    */
   public async install(): Promise<OperationResult> {
+    if (this.installPromise) {
+      return this.installPromise
+    }
+
+    this.installPromise = this.installInternal()
+    try {
+      return await this.installPromise
+    } finally {
+      this.installPromise = null
+    }
+  }
+
+  private async installInternal(): Promise<OperationResult> {
     try {
       this.sendInstallProgress('Installing OpenClaw...')
       await application.get('BinaryManager').installTool({ name: 'openclaw', tool: 'npm:openclaw' })

@@ -355,6 +355,33 @@ describe('OpenClawService gateway status state machine', () => {
     })
   })
 
+  // ─── install ────────────────────────────────────────────────
+
+  describe('install', () => {
+    it('reuses the pending install operation for concurrent calls', async () => {
+      const { runInstallScript } = await import('@main/utils/process')
+      const runInstallScriptMock = vi.mocked(runInstallScript)
+      let finishInstall: (() => void) | undefined
+      runInstallScriptMock.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            finishInstall = resolve
+          })
+      )
+      const linkBinarySpy = vi.spyOn(service as any, 'linkBinary').mockResolvedValue(undefined)
+
+      const firstInstall = service.install()
+      const secondInstall = service.install()
+      await Promise.resolve()
+
+      expect(runInstallScriptMock).toHaveBeenCalledTimes(1)
+      finishInstall?.()
+
+      await expect(Promise.all([firstInstall, secondInstall])).resolves.toEqual([{ success: true }, { success: true }])
+      expect(linkBinarySpy).toHaveBeenCalledTimes(1)
+    })
+  })
+
   // ─── Full state transition scenarios ─────────────────────────
 
   describe('full lifecycle transitions', () => {
