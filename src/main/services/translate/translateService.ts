@@ -63,7 +63,7 @@ export interface TranslateOpenRequest {
    * When present, attach a `PersistenceListener` + `TranslationBackend` to
    * the stream so the final accumulated translation is written onto this
    * message's `data.parts` as a `data-translation` part. Used by the
-   * MessageMenuBar "translate this reply" flow. Omit for orphan callers
+   * MessageMenubar "translate this reply" flow. Omit for orphan callers
    * (ActionTranslate, TranslatePage) — they keep the chunks-only contract.
    */
   messageId?: string
