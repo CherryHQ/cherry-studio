@@ -73,13 +73,17 @@ instead of application discipline.
    `getRootMessageIdTx` (read, throws if absent). No create-if-missing in message
    paths — a missing root is a loud bug (a creation path forgot it), not silently
    papered over.
-4. **getTree keeps the renderer/API contract (Option Y).** The virtual root stays
-   a DB-only concept: `getTree` treats its children as the logical roots and
-   re-nulls their `parentId` in the response, so `TreeResponse` / `SiblingsGroup`
-   and the flow canvas are unchanged. The DB-level single-root guarantee (the
-   actual requirement) is delivered without touching the renderer. (An earlier
-   draft exposed the virtual root and hid it in the renderer — dropped as more
-   code for a cosmetic benefit.)
+4. **getTree exposes the real parent; tree `parentId` is non-null.** A first turn
+   keeps its real parent — the topic's virtual root — in the `getTree` response
+   (no re-null), so `SiblingsGroup.parentId` and `TreeNode.parentId` are non-null
+   `string`, eliminating the `null for root sibling groups` shape that prompted the
+   review. The virtual root is never returned as a tree node; the flow-graph edge
+   builder skips edges whose parent isn't a rendered node, so first turns still
+   render as graph roots. Non-null is established by control-flow narrowing (a guard
+   in `messageToTreeNode`, a skip in the live builder), not assertions. (An earlier
+   draft re-nulled at the boundary to avoid touching the renderer — dropped because
+   it kept the `null` shape and the live-tree merge fed virtual-root parentIds into
+   the canvas anyway, so the edge guard was needed regardless.)
 
 > `topic.rootMessageId` was considered and **rejected**: the partial
 > unique index below already (a) guarantees a single root and (b) gives
@@ -139,23 +143,25 @@ regenerated migration, not a patch.
 - `getBranchMessages`: first-turn siblings now have `parentId = <virtual root>`,
   so they match the normal `eq(parentId, …)` sibling path (the `isNull` branch is
   simply never hit, since the path excludes the virtual root).
-- `getTree` (**Option Y**): fetch the virtual root, drop it from the active path,
-  and treat its children as the logical roots; **re-null their `parentId` in the
-  response** so `TreeResponse` / `SiblingsGroup` and the flow canvas keep the exact
-  prior contract (top-level `parentId: null`, first-turn `SiblingsGroup.parentId:
-  null`). The virtual root is never surfaced as a node. `SiblingsGroup.parentId`
-  **stays nullable** — a presentation re-null, not the old multi-root data shape.
+- `getTree`: fetch the virtual root, drop it from the active path, and treat its
+  children as the logical roots. First-turn nodes keep their **real** parent (the
+  virtual root id) — no re-null — and the virtual root is never returned as a node.
+  So `SiblingsGroup.parentId` and `TreeNode.parentId` are non-null `string`
+  (`message.ts` drops `| null` on both); `messageToTreeNode` guards the (impossible)
+  null parent to narrow without an assertion.
 
 ### Renderer
 
-**Unchanged (Option Y).** Because `getTree` re-nulls first-turn `parentId` and
-never surfaces the virtual root, the flow canvas
-(`flow/topicMessageFlowGraph.ts` / `topicMessageFlowLiveTree.ts`) and the linear
-chat view see the same `TreeResponse` / branch shape as before — first turns are
-still top-level "root" nodes, root sibling groups still render as independent root
-trees. The "multiple root trees" handling stays valid (first turns *are* the
-visual roots); it is now a pure presentation concern, with the DB holding a single
-physical root underneath. No renderer files change.
+The flow canvas needs **one** change: the edge builder
+(`flow/topicMessageFlowGraph.ts`) skips edges whose parent isn't a rendered node —
+the virtual root, which first turns hang off but which is never a node — so first
+turns still render as graph roots. `GraphInputNode` keeps a nullable internal
+`parentId` (null = "no rendered parent"). The live builder
+(`topicMessageFlowLiveTree.ts`) skips a parentless row (never occurs) so its node
+`parentId` is non-null too. This edge guard was needed regardless: the live-tree
+merge feeds the real (virtual-root) parentId into the canvas, so re-nulling in
+`getTree` alone never sufficed — which is why Option X (above) is both cleaner and
+the only consistent option.
 
 ## Edge cases
 
@@ -188,12 +194,13 @@ physical root underneath. No renderer files change.
    `createUserMessageWithPlaceholders` / `getPathRowsToNodeTx` / `getBranchMessages`
    / `getTree` / `copyPathRowsTx` / `duplicate` / temp-chat; delete root-sibling
    special cases. Tests updated + invariant coverage added.
-3. **Renderer** ✅ — **no change** (Option Y keeps the `getTree` / branch contract).
-   Only tidy-up: dropped a vestigial `parentId == null` find in
-   `handleClearTopicMessages` (it now always fell back to `uiMessages[0]`).
-4. **Cleanup** — the `SiblingsGroup.parentId` stays nullable by design (Option Y
-   re-null), so the `null for root sibling groups` shape is intentionally kept as a
-   presentation detail, not removed.
+3. **Renderer** ✅ — flow-graph edge guard (skip edges to the unrendered virtual
+   root) + live-builder skip of parentless rows; `GraphInputNode` keeps a nullable
+   internal parentId. Tidy-up: dropped a vestigial `parentId == null` find in
+   `handleClearTopicMessages` (it always fell back to `uiMessages[0]`).
+4. **Types** ✅ — `SiblingsGroup.parentId` and `TreeNode.parentId` are now non-null
+   `string`; the `null for root sibling groups` shape is **removed** (the reviewer's
+   original concern), since first-turn groups carry the virtual root as their parent.
 
 Done as a follow-up to `#15951`, separate from it.
 
@@ -203,15 +210,15 @@ Done as a follow-up to `#15951`, separate from it.
   siblings; invariant coverage added: topic-create inserts exactly one root, a
   second `createRootMessageTx` hits `message_topic_root_uniq`, two `parentId:null`
   creates become siblings under one root (not two physical roots), `getPath`
-  excludes the root, `getTree` re-nulls first-turn `parentId`.
+  excludes the root, `getTree` keeps first-turn `parentId` = the virtual root id.
 - `TopicService` / `TemporaryChatService` / `PersistentChatContextProvider` /
   `ChatMigrator` / orphan-checker suites — seed fixtures moved to the single-root
   model (one virtual root per topic) via the shared `rootRow`/`withRoot` helper in
   `@test-helpers/db`.
-- Flow-canvas suites (`topicMessageFlowGraph` / `LiveTree`) and
-  `ChatContent.test.tsx` are **unchanged** (Option Y keeps the `getTree`/branch
-  contract); the first-message edit+resend test still passes (sibling under the
-  virtual root via backend `createSibling`).
+- Flow-canvas suites (`topicMessageFlowGraph` / `LiveTree`) — fixtures updated for
+  non-null `parentId` (roots use the virtual-root sentinel); `ChatContent.test.tsx`
+  is unchanged, and the first-message edit+resend test still passes (sibling under
+  the virtual root via backend `createSibling`).
 - Full data-layer sweep green (2216 tests); node + web typecheck 0.
 
 ## Related
