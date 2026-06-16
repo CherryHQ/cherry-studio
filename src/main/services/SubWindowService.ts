@@ -113,54 +113,6 @@ export class SubWindowService extends BaseService {
       }
     })
 
-    // Retained until the renderer-side `useTabDrag` migration (renderer split): on `origin/main`
-    // the renderer (`useTabDrag.ts`) still invokes `Tab_TryAttach`, so removing this handler now
-    // would make that invoke reject after merge and break drag-to-reattach. The handler and its
-    // `useTabDrag` caller will be removed together in the renderer split (feat/chat-page already
-    // rewrote `useTabDrag` to not use this channel, so it intentionally has no handler).
-    this.ipcHandle(
-      IpcChannel.Tab_TryAttach,
-      (_, payload: { tab: { id: string }; screenX: number; screenY: number }) => {
-        const wm = application.get('WindowManager')
-        const mainWindow = wm.getWindowsByType(WindowType.Main)[0]
-        if (!mainWindow) {
-          logger.warn('Tab_TryAttach failed: main window not available')
-          return false
-        }
-
-        const bounds = mainWindow.getBounds()
-        const isOverTabBar =
-          payload.screenX >= bounds.x &&
-          payload.screenX <= bounds.x + bounds.width &&
-          payload.screenY >= bounds.y &&
-          payload.screenY <= bounds.y + TAB_BAR_HEIGHT
-
-        if (isOverTabBar) {
-          try {
-            wm.broadcastToType(WindowType.Main, IpcChannel.Tab_Attach, payload.tab)
-          } catch (err) {
-            logger.error('Tab_TryAttach failed: could not send to main window', err as Error)
-            return false
-          }
-
-          const subWindowId = this.tabIdToWindowId.get(payload.tab.id)
-          if (subWindowId) {
-            wm.close(subWindowId)
-          }
-          return true
-        }
-
-        // Not over tab bar — restore opacity
-        const subWindowId = this.tabIdToWindowId.get(payload.tab.id)
-        const subWin = subWindowId ? wm.getWindow(subWindowId) : undefined
-        if (subWin && !subWin.isDestroyed()) {
-          subWin.setOpacity(1)
-        }
-
-        return false
-      }
-    )
-
     this.ipcOn(IpcChannel.Tab_DragEnd, (event) => {
       // Restore opacity for the sender window after drag ends. Main window never sets
       // opacity <1, so the opacity predicate self-gates — no additional SubWindow filter needed.
