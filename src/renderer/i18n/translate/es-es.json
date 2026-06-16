@@ -2673,7 +2673,7 @@
         "generate_failed_title": "No se pudo generar la indicación",
         "insert_variable": "Insertar variable",
         "label": "Indicación del sistema",
-        "placeholder": "Introduce el prompt del sistema. Se admiten variables como {{date}} y {{model_name}}...",
+        "placeholder": "Introduce instrucciones para el asistente, como estilo de respuesta, rol o contexto",
         "title": "Indicación",
         "tokens_label": "Tokens:",
         "variables_title": "Variables disponibles",

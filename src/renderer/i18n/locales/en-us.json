@@ -3164,7 +3164,7 @@
         "generate_failed_title": "Failed to generate prompt",
         "insert_variable": "Insert variable",
         "label": "System prompt",
-        "placeholder": "Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
+        "placeholder": "Enter instructions for the assistant, such as response style, role, or background context",
         "title": "Prompt",
         "tokens_label": "Tokens: ",
         "variables_title": "Available variables",
