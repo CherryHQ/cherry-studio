@@ -336,7 +336,7 @@ export const initialState: SettingsState = {
   customCss: '',
   topicNamingPrompt: '',
   sidebarIcons: {
-    visible: DefaultPreferences.default['ui.sidebar.entries.visible'],
+    visible: DefaultPreferences.default['ui.sidebar.favorites.visible'],
     disabled: []
   },
   narrowMode: false,

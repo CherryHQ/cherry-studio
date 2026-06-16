@@ -1574,7 +1574,7 @@
         {
           "originalKey": "sidebarIcons",
           "type": "unknown",
-          "defaultValue": "{ visible: DefaultPreferences.default['ui.sidebar.entries.visible'], disabled: [] }",
+          "defaultValue": "{ visible: DefaultPreferences.default['ui.sidebar.favorites.visible'], disabled: [] }",
           "status": "pending",
           "category": null,
           "targetKey": null,
@@ -1595,22 +1595,22 @@
               ],
               "originalKey": "visible",
               "status": "pending",
-              "targetKey": "ui.sidebar.entries.visible",
-              "type": "PreferenceTypes.SidebarEntry[]"
+              "targetKey": "ui.sidebar.favorites.visible",
+              "type": "PreferenceTypes.SidebarFavorite[]"
             },
             {
               "category": "preferences",
               "defaultValue": [],
               "originalKey": "disabled",
               "status": "pending",
-              "targetKey": "ui.sidebar.entries.invisible",
-              "type": "PreferenceTypes.SidebarEntry[]"
+              "targetKey": "ui.sidebar.favorites.invisible",
+              "type": "PreferenceTypes.SidebarFavorite[]"
             }
           ]
         },
         {
           "originalKey": "visible",
-          "type": "PreferenceTypes.SidebarEntry[]",
+          "type": "PreferenceTypes.SidebarFavorite[]",
           "defaultValue": [
             "assistants",
             "agents",
@@ -1625,15 +1625,15 @@
           ],
           "status": "pending",
           "category": "preferences",
-          "targetKey": "ui.sidebar.entries.visible"
+          "targetKey": "ui.sidebar.favorites.visible"
         },
         {
           "originalKey": "disabled",
-          "type": "PreferenceTypes.SidebarEntry[]",
+          "type": "PreferenceTypes.SidebarFavorite[]",
           "defaultValue": [],
           "status": "pending",
           "category": "preferences",
-          "targetKey": "ui.sidebar.entries.invisible"
+          "targetKey": "ui.sidebar.favorites.invisible"
         },
         {
           "originalKey": "narrowMode",

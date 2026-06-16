@@ -23,7 +23,7 @@ vi.mock('@renderer/hooks/useTabs', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getSidebarEntryLabelKey: (key: string) => key
+  getSidebarFavoriteLabelKey: (key: string) => key
 }))
 
 vi.mock('@renderer/utils/routeTitle', () => ({
@@ -67,7 +67,7 @@ describe('App Sidebar', () => {
   beforeEach(() => {
     MockUseCacheUtils.resetMocks()
     MockUsePreferenceUtils.resetMocks()
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.entries.visible', ['assistants'])
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites.visible', ['assistants'])
     document.documentElement.style.removeProperty('--sidebar-width')
   })
 

@@ -40,7 +40,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getSidebarEntryLabelKey: (key: string) => key
+  getSidebarFavoriteLabelKey: (key: string) => key
 }))
 
 vi.mock('@renderer/i18n', () => ({
@@ -98,7 +98,7 @@ describe('Sidebar language refresh', () => {
     languageState.language = 'en-US'
     MockUsePreferenceUtils.resetMocks()
     MockUseCacheUtils.resetMocks()
-    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.entries.visible', ['assistants'])
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites.visible', ['assistants'])
     MockUseCacheUtils.setPersistCacheValue('ui.sidebar.width', 170)
   })
 

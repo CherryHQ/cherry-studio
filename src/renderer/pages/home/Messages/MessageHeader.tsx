@@ -32,8 +32,8 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const avatar = useAvatar()
   const { theme } = useTheme()
   const [userName] = usePreference('app.user.name')
-  const [visibleSidebarEntries] = usePreference('ui.sidebar.entries.visible')
-  const showMiniAppEntry = visibleSidebarEntries.includes('mini_app')
+  const [visibleSidebarFavorites] = usePreference('ui.sidebar.favorites.visible')
+  const showMiniAppFavorite = visibleSidebarFavorites.includes('mini_app')
   const isAgentSessionAssistantMessage = topic.type === TopicType.Session && message.role === 'assistant'
   const { agent } = useAgent(isAgentSessionAssistantMessage ? (topic.assistantId ?? null) : null)
   const { t } = useTranslation()
@@ -65,10 +65,10 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   const username = useMemo(() => removeLeadingEmoji(getUserName()), [getUserName])
 
   const showMiniApp = useCallback(() => {
-    showMiniAppEntry && model?.provider && openMiniAppById(model.provider)
+    showMiniAppFavorite && model?.provider && openMiniAppById(model.provider)
     // because don't need openMiniAppById to be a dependency
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model?.provider, showMiniAppEntry])
+  }, [model?.provider, showMiniAppFavorite])
 
   const userNameJustifyContent = useMemo(() => {
     if (!isBubbleStyle) return 'flex-start'
@@ -87,7 +87,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
           <Avatar
             className="h-[35px] w-[35px] cursor-pointer rounded-[25%]"
             style={{
-              cursor: showMiniAppEntry ? 'pointer' : 'default',
+              cursor: showMiniAppFavorite ? 'pointer' : 'default',
               border: 'none',
               filter: theme === 'dark' ? 'invert(0.05)' : undefined
             }}

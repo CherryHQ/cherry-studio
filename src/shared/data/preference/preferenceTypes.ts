@@ -82,7 +82,7 @@ export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Comm
 
 export type AssistantTabSortType = 'tags' | 'list'
 
-export type SidebarEntry =
+export type SidebarFavorite =
   | 'assistants'
   | 'agents'
   | 'store'
@@ -95,8 +95,8 @@ export type SidebarEntry =
   | 'notes'
   | 'openclaw'
 
-/** @deprecated Legacy v1 Redux naming. Use SidebarEntry for v2 sidebar preferences. */
-export type SidebarIcon = SidebarEntry
+/** @deprecated Legacy v1 Redux naming. Use SidebarFavorite for v2 sidebar preferences. */
+export type SidebarIcon = SidebarFavorite
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 

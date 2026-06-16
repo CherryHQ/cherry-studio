@@ -120,8 +120,8 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('feature.openclaw.gateway_port')
       expect(keys).toContain('feature.openclaw.selected_model_id')
       expect(keys).toContain('shortcut.app.zoom.in')
-      expect(keys).toContain('ui.sidebar.entries.visible')
-      expect(keys).toContain('ui.sidebar.entries.invisible')
+      expect(keys).toContain('ui.sidebar.favorites.visible')
+      expect(keys).toContain('ui.sidebar.favorites.invisible')
       expect(keys).toContain('feature.translate.action.preferred_lang')
       expect(keys).toContain('feature.translate.action.alter_lang')
       expect(keys).toContain('feature.translate.mini_window.target_lang')
@@ -171,9 +171,9 @@ describe('ComplexPreferenceMappings', () => {
     })
   })
 
-  describe('sidebar_entries_migrate', () => {
+  describe('sidebar_favorites_migrate', () => {
     it("should rewrite 'minapp' to 'mini_app' in both visible and disabled arrays and add agents", () => {
-      const mapping = getComplexMappingById('sidebar_entries_migrate')
+      const mapping = getComplexMappingById('sidebar_favorites_migrate')
       expect(mapping).toBeDefined()
 
       const result = mapping!.transform({
@@ -182,26 +182,26 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.entries.visible': ['assistants', 'agents', 'mini_app', 'translate'],
-        'ui.sidebar.entries.invisible': ['mini_app', 'files']
+        'ui.sidebar.favorites.visible': ['assistants', 'agents', 'mini_app', 'translate'],
+        'ui.sidebar.favorites.invisible': ['mini_app', 'files']
       })
     })
 
     it('should pass through other literals unchanged', () => {
-      const mapping = getComplexMappingById('sidebar_entries_migrate')!
+      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
       const result = mapping.transform({
         visible: ['assistants', 'translate', 'paintings'],
         disabled: ['files', 'knowledge']
       })
 
       expect(result).toEqual({
-        'ui.sidebar.entries.visible': ['assistants', 'agents', 'translate', 'paintings'],
-        'ui.sidebar.entries.invisible': ['files', 'knowledge']
+        'ui.sidebar.favorites.visible': ['assistants', 'agents', 'translate', 'paintings'],
+        'ui.sidebar.favorites.invisible': ['files', 'knowledge']
       })
     })
 
-    it('should collapse the old default visible sidebar entries to the new default set', () => {
-      const mapping = getComplexMappingById('sidebar_entries_migrate')!
+    it('should collapse the old default visible sidebar favorites to the new default set', () => {
+      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
       const result = mapping.transform({
         visible: [
           'assistants',
@@ -219,40 +219,40 @@ describe('ComplexPreferenceMappings', () => {
       })
 
       expect(result).toEqual({
-        'ui.sidebar.entries.visible': ['assistants', 'agents', 'store', 'translate', 'mini_app'],
-        'ui.sidebar.entries.invisible': []
+        'ui.sidebar.favorites.visible': ['assistants', 'agents', 'store', 'translate', 'mini_app'],
+        'ui.sidebar.favorites.invisible': []
       })
     })
 
     it('should not force agents visible when it was explicitly hidden', () => {
-      const mapping = getComplexMappingById('sidebar_entries_migrate')!
+      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
       const result = mapping.transform({
         visible: ['assistants', 'translate'],
         disabled: ['agents', 'files']
       })
 
       expect(result).toEqual({
-        'ui.sidebar.entries.visible': ['assistants', 'translate'],
-        'ui.sidebar.entries.invisible': ['agents', 'files']
+        'ui.sidebar.favorites.visible': ['assistants', 'translate'],
+        'ui.sidebar.favorites.invisible': ['agents', 'files']
       })
     })
 
     it('should return non-array inputs as-is without crashing', () => {
-      const mapping = getComplexMappingById('sidebar_entries_migrate')!
+      const mapping = getComplexMappingById('sidebar_favorites_migrate')!
 
       expect(mapping.transform({ visible: undefined, disabled: undefined })).toEqual({
-        'ui.sidebar.entries.visible': undefined,
-        'ui.sidebar.entries.invisible': undefined
+        'ui.sidebar.favorites.visible': undefined,
+        'ui.sidebar.favorites.invisible': undefined
       })
 
       expect(mapping.transform({ visible: null, disabled: null })).toEqual({
-        'ui.sidebar.entries.visible': null,
-        'ui.sidebar.entries.invisible': null
+        'ui.sidebar.favorites.visible': null,
+        'ui.sidebar.favorites.invisible': null
       })
 
       expect(mapping.transform({})).toEqual({
-        'ui.sidebar.entries.visible': undefined,
-        'ui.sidebar.entries.invisible': undefined
+        'ui.sidebar.favorites.visible': undefined,
+        'ui.sidebar.favorites.invisible': undefined
       })
     })
   })

@@ -38,8 +38,8 @@ import {
 
 const logger = loggerService.withContext('Migration:ComplexPreferenceMappings')
 
-const DEFAULT_VISIBLE_SIDEBAR_ENTRIES = ['assistants', 'agents', 'store', 'translate', 'mini_app'] as const
-const LEGACY_DEFAULT_VISIBLE_SIDEBAR_ENTRIES = [
+const DEFAULT_VISIBLE_SIDEBAR_FAVORITES = ['assistants', 'agents', 'store', 'translate', 'mini_app'] as const
+const LEGACY_DEFAULT_VISIBLE_SIDEBAR_FAVORITES = [
   ['assistants', 'agents', 'store', 'paintings', 'translate', 'mini_app', 'knowledge', 'files', 'code_tools', 'notes'],
   [
     'assistants',
@@ -62,11 +62,11 @@ function hasSameItems(value: unknown[], expected: readonly string[]): boolean {
   return expected.every((item) => actual.has(item))
 }
 
-function shouldUseDefaultSidebarEntries(visible: unknown, invisible: unknown): visible is unknown[] {
+function shouldUseDefaultSidebarFavorites(visible: unknown, invisible: unknown): visible is unknown[] {
   if (!Array.isArray(visible)) return false
   if (Array.isArray(invisible) && invisible.length > 0) return false
 
-  return LEGACY_DEFAULT_VISIBLE_SIDEBAR_ENTRIES.some((defaultEntries) => hasSameItems(visible, defaultEntries))
+  return LEGACY_DEFAULT_VISIBLE_SIDEBAR_FAVORITES.some((defaultFavorites) => hasSameItems(visible, defaultFavorites))
 }
 
 // ============================================================================
@@ -189,16 +189,16 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: transformShortcuts
   },
 
-  // Sidebar entries: migrate legacy v1 sidebarIcons arrays, rewrite 'minapp' → 'mini_app', and restore the v2 agents entry.
+  // Sidebar favorites: migrate legacy v1 sidebarIcons arrays, rewrite 'minapp' → 'mini_app', and restore the v2 agents favorite.
   {
-    id: 'sidebar_entries_migrate',
+    id: 'sidebar_favorites_migrate',
     description:
-      "Migrate legacy v1 sidebarIcons arrays to v2 entries, rewrite 'minapp' to 'mini_app', and add agents if visible",
+      "Migrate legacy v1 sidebarIcons arrays to v2 favorites, rewrite 'minapp' to 'mini_app', and add agents if visible",
     sources: {
       visible: { source: 'redux', category: 'settings', key: 'sidebarIcons.visible' },
       disabled: { source: 'redux', category: 'settings', key: 'sidebarIcons.disabled' }
     },
-    targetKeys: ['ui.sidebar.entries.visible', 'ui.sidebar.entries.invisible'],
+    targetKeys: ['ui.sidebar.favorites.visible', 'ui.sidebar.favorites.invisible'],
     transform: (sources) => {
       const rewrite = (arr: unknown): unknown =>
         Array.isArray(arr) ? arr.map((v) => (v === 'minapp' ? 'mini_app' : v)) : arr
@@ -219,10 +219,10 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       const invisible = rewrite(sources.disabled)
       const visibleWithAgents = addAgents(visible, invisible)
       return {
-        'ui.sidebar.entries.visible': shouldUseDefaultSidebarEntries(visibleWithAgents, invisible)
-          ? [...DEFAULT_VISIBLE_SIDEBAR_ENTRIES]
+        'ui.sidebar.favorites.visible': shouldUseDefaultSidebarFavorites(visibleWithAgents, invisible)
+          ? [...DEFAULT_VISIBLE_SIDEBAR_FAVORITES]
           : visibleWithAgents,
-        'ui.sidebar.entries.invisible': invisible
+        'ui.sidebar.favorites.invisible': invisible
       }
     }
   },

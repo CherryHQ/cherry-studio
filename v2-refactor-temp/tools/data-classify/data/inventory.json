@@ -815,7 +815,7 @@
       "sidebarIcons": {
         "file": "src/renderer/store/settings.ts",
         "type": "unknown",
-        "defaultValue": "{ visible: DefaultPreferences.default['ui.sidebar.entries.visible'], disabled: [] }"
+        "defaultValue": "{ visible: DefaultPreferences.default['ui.sidebar.favorites.visible'], disabled: [] }"
       },
       "visible": {
         "file": "src/renderer/store/settings.ts",
