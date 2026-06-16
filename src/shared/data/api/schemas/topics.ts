@@ -99,6 +99,26 @@ export interface ActiveNodeResponse {
   activeNodeId: string
 }
 
+export interface DeleteTopicsResult {
+  deletedIds: string[]
+  deletedCount: number
+}
+
+const DeleteTopicsIdsQueryValueSchema = z
+  .string()
+  .transform((value) =>
+    value
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean)
+  )
+  .pipe(z.array(z.string().min(1)).min(1))
+
+export const DeleteTopicsQuerySchema = z.strictObject({
+  ids: DeleteTopicsIdsQueryValueSchema
+})
+export type DeleteTopicsQuery = z.input<typeof DeleteTopicsQuerySchema>
+
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -116,6 +136,7 @@ export type TopicSchemas = {
    * @example GET /topics?limit=50
    * @example GET /topics?cursor=...&q=search
    * @example POST /topics { "name": "New Topic", "assistantId": "asst_123" }
+   * @example DELETE /topics?ids=topic_1,topic_2
    */
   '/topics': {
     /**
@@ -135,6 +156,17 @@ export type TopicSchemas = {
     POST: {
       body: CreateTopicDto
       response: Topic
+    }
+    /**
+     * Delete an explicit set of topics.
+     *
+     * Used by multi-select table flows where the selection can span assistants.
+     * This operation is all-or-nothing: if any supplied ID does not resolve to
+     * a non-deleted topic, the request fails and no selected topics are deleted.
+     */
+    DELETE: {
+      query: DeleteTopicsQuery
+      response: DeleteTopicsResult
     }
   }
 
