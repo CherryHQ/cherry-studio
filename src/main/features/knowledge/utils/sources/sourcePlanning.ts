@@ -34,6 +34,12 @@ function needsFileProcessing(base: KnowledgeBase, item: KnowledgeItem): boolean 
     return false
   }
 
+  // A file that already carries its processed artifact — restored from another base,
+  // or already processed once — indexes straight from it; do not reprocess.
+  if (item.data.indexedRelativePath) {
+    return false
+  }
+
   const ext = getFileExt(item.data.relativePath).toLowerCase()
   return KNOWLEDGE_FILE_PROCESSING_EXT_SET.has(ext)
 }

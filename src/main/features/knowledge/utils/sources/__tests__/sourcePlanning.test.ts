@@ -53,4 +53,10 @@ describe('planKnowledgeItemSource', () => {
       kind: 'index-documents'
     })
   })
+
+  it('indexes a file that already carries a processed artifact directly, skipping the processor', () => {
+    const item = createFileItem('/docs/source.pdf')
+    item.data.indexedRelativePath = 'source.md'
+    expect(planKnowledgeItemSource(createBase(), item)).toEqual({ kind: 'index-documents' })
+  })
 })

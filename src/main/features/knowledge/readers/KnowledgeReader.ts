@@ -7,15 +7,12 @@ import { loadUrlDocuments } from './KnowledgeUrlReader'
 
 export type ReadableKnowledgeItem = KnowledgeItemOf<'file'> | KnowledgeItemOf<'url'> | KnowledgeItemOf<'note'>
 
-export async function loadKnowledgeItemDocuments(
-  item: ReadableKnowledgeItem,
-  signal?: AbortSignal
-): Promise<Document[]> {
+export async function loadKnowledgeItemDocuments(item: ReadableKnowledgeItem): Promise<Document[]> {
   switch (item.type) {
     case 'file':
       return await loadFileDocuments(item)
     case 'url':
-      return await loadUrlDocuments(item, signal)
+      return await loadUrlDocuments(item)
     case 'note':
       return await loadNoteDocuments(item)
     default:
