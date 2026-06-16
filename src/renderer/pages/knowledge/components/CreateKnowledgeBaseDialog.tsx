@@ -94,7 +94,7 @@ const CreateKnowledgeBaseDialogActions = ({
       <Button type="button" variant="outline" onClick={onCancel}>
         {cancelLabel}
       </Button>
-      <Button type="submit" variant="emphasis" loading={isCreating}>
+      <Button type="submit" variant="default" loading={isCreating}>
         {submitLabel}
       </Button>
     </KnowledgeDialogFooter>

@@ -22,63 +22,63 @@ type TagMeta = {
 
 const TAG_META = {
   'image-recognition': {
-    color: '#00b96b',
+    color: 'var(--color-green-500)',
     labelKey: 'models.type.vision',
     supportsTooltip: true,
     respectsShowLabel: true,
     renderIcon: (_label, size) => <Eye size={size} color="currentColor" className="text-current" />
   },
   'audio-recognition': {
-    color: '#d946ef',
+    color: 'var(--color-fuchsia-500)',
     labelKey: 'models.type.audio',
     supportsTooltip: true,
     respectsShowLabel: true,
     renderIcon: (_label, size) => <AudioLines size={size} color="currentColor" className="text-current" />
   },
   'video-recognition': {
-    color: '#ec4899',
+    color: 'var(--color-pink-500)',
     labelKey: 'models.type.video',
     supportsTooltip: true,
     respectsShowLabel: true,
     renderIcon: (_label, size) => <Video size={size} color="currentColor" className="text-current" />
   },
   reasoning: {
-    color: '#6372bd',
+    color: 'var(--color-indigo-500)',
     labelKey: 'models.type.reasoning',
     supportsTooltip: true,
     respectsShowLabel: true,
     renderIcon: (_label, size) => <Brain size={size} color="currentColor" className="text-current" />
   },
   'function-call': {
-    color: '#f18737',
+    color: 'var(--color-orange-500)',
     labelKey: 'models.type.function_calling',
     supportsTooltip: true,
     respectsShowLabel: true,
     renderIcon: (_label, size) => <Wrench size={size} color="currentColor" className="text-current" />
   },
   'web-search': {
-    color: '#1677ff',
+    color: 'var(--color-blue-500)',
     labelKey: 'models.type.websearch',
     supportsTooltip: true,
     respectsShowLabel: true,
     renderIcon: (_label, size) => <Globe size={size} color="currentColor" className="text-current" />
   },
   embedding: {
-    color: '#FFA500',
+    color: 'var(--color-amber-500)',
     labelKey: 'models.type.embedding',
     supportsTooltip: false,
     respectsShowLabel: false,
     renderIcon: (label) => label
   },
   rerank: {
-    color: '#6495ED',
+    color: 'var(--color-sky-500)',
     labelKey: 'models.type.rerank',
     supportsTooltip: false,
     respectsShowLabel: false,
     renderIcon: (label) => label
   },
   free: {
-    color: '#7cb305',
+    color: 'var(--color-lime-500)',
     labelKey: 'models.type.free',
     supportsTooltip: true,
     respectsShowLabel: false,

@@ -18,55 +18,55 @@ const LaunchpadPage: FC = () => {
       icon: <LayoutGrid size={32} className="icon" />,
       text: t('title.apps'),
       path: '/app/mini-app',
-      bgColor: 'linear-gradient(135deg, #8B5CF6, #A855F7)' // 小程序：紫色，代表多功能和灵活性
+      bgColor: 'linear-gradient(135deg, var(--color-violet-500), var(--color-purple-500))' // 小程序：紫色，代表多功能和灵活性
     },
     {
       icon: <FileSearch size={32} className="icon" />,
       text: t('title.knowledge'),
       path: '/app/knowledge',
-      bgColor: 'linear-gradient(135deg, #10B981, #34D399)' // 知识库：翠绿色，代表生长和知识
+      bgColor: 'linear-gradient(135deg, var(--color-emerald-500), var(--color-emerald-400))' // 知识库：翠绿色，代表生长和知识
     },
     {
       icon: <Palette size={32} className="icon" />,
       text: t('title.paintings'),
       path: '/app/paintings',
-      bgColor: 'linear-gradient(135deg, #EC4899, #F472B6)' // 绘画：活力粉色，代表创造力和艺术
+      bgColor: 'linear-gradient(135deg, var(--color-pink-500), var(--color-pink-400))' // 绘画：活力粉色，代表创造力和艺术
     },
     {
       icon: <Languages size={32} className="icon" />,
       text: t('title.translate'),
       path: '/app/translate',
-      bgColor: 'linear-gradient(135deg, #06B6D4, #0EA5E9)' // 翻译：明亮的青蓝色，代表沟通和流畅
+      bgColor: 'linear-gradient(135deg, var(--color-cyan-500), var(--color-sky-500))' // 翻译：明亮的青蓝色，代表沟通和流畅
     },
     {
       icon: <Folder size={32} className="icon" />,
       text: t('title.files'),
       path: '/app/files',
-      bgColor: 'linear-gradient(135deg, #F59E0B, #FBBF24)' // 文件：金色，代表资源和重要性
+      bgColor: 'linear-gradient(135deg, var(--color-amber-500), var(--color-amber-400))' // 文件：金色，代表资源和重要性
     },
     {
       icon: <Code size={32} className="icon" />,
       text: t('title.code'),
       path: '/app/code',
-      bgColor: 'linear-gradient(135deg, #1F2937, #374151)' // Code CLI：高级暗黑色，代表专业和技术
+      bgColor: 'linear-gradient(135deg, var(--color-neutral-800), var(--color-neutral-700))' // Code CLI：高级暗黑色，代表专业和技术
     },
     {
       icon: <OpenClawIcon className="icon" />,
       text: t('title.openclaw'),
       path: '/app/openclaw',
-      bgColor: 'linear-gradient(135deg, #EF4444, #B91C1C)' // OpenClaw：红色渐变，代表龙虾的颜色
+      bgColor: 'linear-gradient(135deg, var(--color-red-500), var(--color-red-700))' // OpenClaw：红色渐变，代表龙虾的颜色
     },
     {
       icon: <NotepadText size={32} className="icon" />,
       text: t('title.notes'),
       path: '/app/notes',
-      bgColor: 'linear-gradient(135deg, #F97316, #FB923C)' // 笔记：橙色，代表活力和清晰思路
+      bgColor: 'linear-gradient(135deg, var(--color-orange-500), var(--color-orange-400))' // 笔记：橙色，代表活力和清晰思路
     },
     {
       icon: <Library size={32} className="icon" />,
       text: t('library.title'),
       path: '/app/library',
-      bgColor: 'linear-gradient(135deg, #0EA5E9, #6366F1)' // 资源库：临时入口
+      bgColor: 'linear-gradient(135deg, var(--color-sky-500), var(--color-indigo-500))' // 资源库：临时入口
     }
   ]
 

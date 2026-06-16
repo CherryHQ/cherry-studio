@@ -125,10 +125,10 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast, variant = 'defaul
       <ContextMenuTrigger asChild>
         <div
           className={cn(
-            'flex cursor-pointer flex-col items-center justify-center overflow-hidden outline-none',
+            'flex cursor-pointer flex-col items-center overflow-hidden outline-none',
             isLaunchpad
-              ? 'min-h-[104px] w-[92px] bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:bg-ghost-hover focus-visible:[&_.mini-app-icon-frame]:border-border-active focus-visible:[&_.mini-app-icon-frame]:shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-ring)_30%,transparent)]'
-              : 'min-h-[85px]'
+              ? 'w-[92px] bg-transparent pt-1 hover:[&_.mini-app-icon-frame]:bg-ghost-hover focus-visible:[&_.mini-app-icon-frame]:border-border-active focus-visible:[&_.mini-app-icon-frame]:shadow-[0_0_0_1px_color-mix(in_srgb,var(--color-ring)_30%,transparent)]'
+              : 'min-h-[85px] justify-center'
           )}
           onClick={handleClick}
           {...activationProps}>
@@ -155,7 +155,7 @@ const MiniApp: FC<Props> = ({ app, onClick, size = 60, isLast, variant = 'defaul
             className={cn(
               'w-full select-none text-center text-foreground-secondary',
               isLaunchpad
-                ? 'mt-2 min-h-9 max-w-[92px] overflow-hidden whitespace-normal text-[13px] leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]'
+                ? 'mt-2 max-w-[92px] overflow-hidden whitespace-normal text-[13px] leading-[18px] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] [display:-webkit-box] [overflow-wrap:anywhere]'
                 : 'mt-[5px] max-w-20 text-xs leading-normal'
             )}>
             {isLaunchpad ? displayName : <MarqueeText>{displayName}</MarqueeText>}

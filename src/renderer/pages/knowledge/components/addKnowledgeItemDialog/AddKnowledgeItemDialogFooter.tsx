@@ -66,7 +66,7 @@ const AddKnowledgeItemDialogFooter = ({
           </DialogClose>
           <Button
             type="button"
-            variant="emphasis"
+            variant="default"
             disabled={!canSubmit || isSubmitting}
             loading={isSubmitting}
             onClick={() => void onSubmit()}>
