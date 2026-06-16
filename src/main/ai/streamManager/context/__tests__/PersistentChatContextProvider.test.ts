@@ -3,6 +3,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
+import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -262,6 +263,13 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       `persistence:sqlite:topic-1:${MODEL_A}`,
       `persistence:sqlite:topic-1:${MODEL_B}`
     ])
+
+    // One trace tree per topic: both models' `ai.turn` spans are parented under the
+    // same container trace, and that id is the topic's persisted ensureTraceId.
+    const containerTraceId = await topicService.ensureTraceId('topic-1')
+    const [callA, callB] = vi.mocked(startAiChildTurnSpan).mock.calls.slice(-2)
+    expect(callA[3]).toBe(containerTraceId)
+    expect(callB[3]).toBe(containerTraceId)
   })
 })
 
