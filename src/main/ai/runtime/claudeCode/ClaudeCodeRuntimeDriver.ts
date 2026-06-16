@@ -226,8 +226,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       await this.toolPolicySnapshot?.update(update.agent)
       return true
     }
-    this.toolPolicySnapshot?.setPermissionMode(update.permissionMode)
+    // Unchanged mode → no SDK round-trip, no snapshot churn.
+    if (this.toolPolicySnapshot?.getPermissionMode() === update.permissionMode) return true
+    // Await the SDK call FIRST, mutate the snapshot only on success. The snapshot's `permissionMode`
+    // gates `canUseTool`; mutating it before the SDK confirms would leave `canUseTool` enforcing a
+    // mode the running query never adopted (and on a rejection, a tightened mode silently abandoned).
     await this.query.setPermissionMode(update.permissionMode ?? 'default')
+    this.toolPolicySnapshot?.setPermissionMode(update.permissionMode)
     return true
   }
 
@@ -407,6 +412,14 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
       if (message.compact_result === 'failed' || message.compact_error) {
         this.eventQueue.push({ type: 'compaction-error', error: message.compact_error ?? 'Compaction failed' })
+        return true
+      }
+      if (message.compact_result === 'success') {
+        // A successful compaction may report `success` here WITHOUT a following `compact_boundary`
+        // (the SDK does not guarantee a boundary). Settle the compacting state idempotently with a
+        // no-anchor `compaction-complete` so the session doesn't stay stuck `compacting` until the
+        // idle TTL. A real `compact_boundary` (below) still wins by delivering the anchor.
+        this.eventQueue.push({ type: 'compaction-complete' })
         return true
       }
       return true

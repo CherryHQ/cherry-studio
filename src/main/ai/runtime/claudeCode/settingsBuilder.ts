@@ -468,19 +468,20 @@ async function buildEnvironment(
   const { providerId, modelId: rawModelId } = parseUniqueModelId(agent.model)
   const { providerId: sonnetProviderId, modelId: sonnetModelId } = parseUniqueModelId(agent?.planModel ?? agent.model)
   const { providerId: haikuProviderId, modelId: haikuModelId } = parseUniqueModelId(agent?.smallModel ?? agent.model)
-  let apiModelId = rawModelId
-  let sonnetApiModelId = sonnetModelId
-  let haikuApiModelId = haikuModelId
-  try {
-    const model = await modelService.getByKey(providerId, rawModelId)
-    const sonnetModel = await modelService.getByKey(sonnetProviderId, sonnetModelId)
-    const haikuModel = await modelService.getByKey(haikuProviderId, haikuApiModelId)
-    apiModelId = model.apiModelId ?? rawModelId
-    sonnetApiModelId = sonnetModel.apiModelId ?? rawModelId
-    haikuApiModelId = haikuModel.apiModelId ?? rawModelId
-  } catch {
-    // Model not in model table — use raw ID (common for agent-specific models)
+  // Resolve each model id independently: one model missing from the table must not force the others
+  // to fall back, and each falls back to its OWN raw id (not the main model's). Common for
+  // agent-specific models that aren't in the model table.
+  const resolveApiModelId = async (providerKey: string, modelKey: string): Promise<string> => {
+    try {
+      const model = await modelService.getByKey(providerKey, modelKey)
+      return model.apiModelId ?? modelKey
+    } catch {
+      return modelKey
+    }
   }
+  const apiModelId = await resolveApiModelId(providerId, rawModelId)
+  const sonnetApiModelId = await resolveApiModelId(sonnetProviderId, sonnetModelId)
+  const haikuApiModelId = await resolveApiModelId(haikuProviderId, haikuModelId)
 
   const env: Record<string, string | undefined> = {
     ...loginShellEnv,
@@ -663,8 +664,9 @@ async function buildToolPermissions(
   // disabledTools enforcement runs as a PreToolUse hook, not in `canUseTool`: the SDK skips
   // `canUseTool` for auto-approved paths (bypassPermissions / acceptEdits / default safe-tools), but
   // PreToolUse hooks fire on every tool call regardless of permission mode. The snapshot's disabled
-  // set is refreshed on every agent update, so a mid-session disable is denied on the warm
-  // connection in all modes with no reconnect.
+  // set is refreshed in place on every successful agent update, so a mid-session disable is denied on
+  // the warm connection in all modes without a reconnect. (A policy update that the SDK rejects is a
+  // separate path — AgentSessionRuntimeService fails closed by tearing the connection down.)
   const disabledToolHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || input.hook_event_name !== 'PreToolUse') return {}
     const toolName = String((input as Record<string, unknown>).tool_name ?? '')

@@ -211,6 +211,52 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
   })
 
+  it('resolves the plan (sonnet) and small (haiku) model env keys from their own model ids', async () => {
+    // Each of the three model lookups must resolve independently from its own key/provider.
+    mocks.modelGetByKey.mockImplementation(async (providerId: string, modelId: string) => {
+      if (modelId === 'claude-sonnet') return { apiModelId: 'sonnet-api' }
+      if (modelId === 'claude-haiku') return { apiModelId: 'haiku-api' }
+      throw new Error(`model ${providerId}::${modelId} not in table`)
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    // agent.model = planModel = claude-sonnet, smallModel = claude-haiku (see the beforeEach agent).
+    expect(settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'sonnet-api',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'sonnet-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'sonnet-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'haiku-api'
+    })
+  })
+
+  it('falls back each model env key to its own raw id when that model is absent from the table', async () => {
+    // Only the small (haiku) model is missing — the others must NOT be forced to fall back, and the
+    // haiku key must fall back to its OWN raw id (not the main model's).
+    mocks.modelGetByKey.mockImplementation(async (_providerId: string, modelId: string) => {
+      if (modelId === 'claude-haiku') throw new Error('haiku not in table')
+      return { apiModelId: `${modelId}-api` }
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    expect(settings.env).toMatchObject({
+      ANTHROPIC_MODEL: 'claude-sonnet-api',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'claude-sonnet-api',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'claude-haiku'
+    })
+  })
+
   it('denies a disabled tool via a PreToolUse hook so the gate fires in all permission modes', async () => {
     mocks.createToolPolicySnapshot.mockResolvedValue({
       resolve: vi.fn(),

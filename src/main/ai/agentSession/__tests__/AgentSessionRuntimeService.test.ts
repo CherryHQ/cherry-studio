@@ -364,7 +364,7 @@ describe('AgentSessionRuntimeService', () => {
     expect(connection.close).not.toHaveBeenCalled()
   })
 
-  it('applies permission-mode updates when the configuration carries a permission_mode key', async () => {
+  it('derives the permission-mode from the post-update agent on any configuration change', async () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     const entry = getEntry(service)
@@ -387,6 +387,169 @@ describe('AgentSessionRuntimeService', () => {
       permissionMode: 'plan'
     })
     expect(connection.close).not.toHaveBeenCalled()
+  })
+
+  it('resyncs the permission-mode to undefined when a wholesale config replace omits permission_mode', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      applyPolicyUpdate: vi.fn()
+    }
+    entry.connection = connection
+
+    // The DTO's configuration omits `permission_mode` (a wholesale replace clears it). The sync must
+    // still fire and carry the authoritative cleared value from the post-update agent — keying off the
+    // DTO key presence would leave the warm connection stuck on the old mode.
+    await (service as any).handleAgentUpdated(
+      'agent-1',
+      { configuration: { model: 'sonnet' } },
+      { id: 'agent-1', configuration: { model: 'sonnet' } }
+    )
+
+    expect(connection.applyPolicyUpdate).toHaveBeenCalledWith({
+      type: 'permission-mode',
+      permissionMode: undefined
+    })
+    expect(connection.close).not.toHaveBeenCalled()
+  })
+
+  it('detaches and logs when a live policy update rejects without an open stream', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const failure = new Error('policy update failed')
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      applyPolicyUpdate: vi.fn().mockRejectedValue(failure)
+    }
+    entry.connection = connection
+
+    await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
+
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith(
+      'Failed to apply live agent policy update; closing runtime connection',
+      {
+        agentId: 'agent-1',
+        sessionId: 'session-1',
+        error: failure
+      }
+    )
+    expect(connection.close).toHaveBeenCalledOnce()
+    expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1', status: 'active' })
+    expect(getEntry(service).connection).toBeUndefined()
+  })
+
+  it('pauses the active stream and preserves queued turns when a live policy update rejects', async () => {
+    const events = createAsyncQueue<any>()
+    const failure = new Error('policy update failed')
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      applyPolicyUpdate: vi.fn().mockRejectedValue(failure)
+    }
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect: vi.fn().mockResolvedValue(connection),
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: new AbortController().signal
+    })
+    const reader = stream.getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
+    await vi.waitFor(() =>
+      expect(connection.send).toHaveBeenCalledWith(
+        expect.objectContaining({ message: userMessage('user-1'), systemReminder: false })
+      )
+    )
+    getEntry(service).pendingTurns.push(userMessage('user-2'))
+
+    await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
+
+    expect(mocks.pauseRuntimeTurn).toHaveBeenCalledWith('agent-session:session-1', 'agent-policy-update-failed')
+    expect(connection.close).toHaveBeenCalledOnce()
+    expect(service.inspect('session-1')).toMatchObject({
+      sessionId: 'session-1',
+      status: 'active',
+      pendingMessageCount: 1
+    })
+    expect(getEntry(service).connection).toBeUndefined()
+
+    await reader.cancel().catch(() => undefined)
+  })
+
+  it('does not close a replacement runtime when an old policy update rejects late', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const deferred = createDeferred<boolean>()
+    const oldEntry = getEntry(service)
+    const oldConnection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      applyPolicyUpdate: vi.fn(() => deferred.promise)
+    }
+    oldEntry.connection = oldConnection
+
+    const updatePromise = (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
+    expect(oldConnection.applyPolicyUpdate).toHaveBeenCalledOnce()
+
+    service.closeSession('session-1')
+    service.beginTurn(baseTurnInput)
+    const newConnection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      applyPolicyUpdate: vi.fn()
+    }
+    getEntry(service).connection = newConnection
+
+    deferred.reject(new Error('late policy update failure'))
+    await updatePromise
+
+    expect(oldConnection.close).toHaveBeenCalledOnce()
+    expect(newConnection.close).not.toHaveBeenCalled()
+    expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1', status: 'active' })
+  })
+
+  it('detaches without tearing down the session when a live policy update returns false', async () => {
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn(baseTurnInput)
+    const entry = getEntry(service)
+    const connection = {
+      close: vi.fn(),
+      send: vi.fn(),
+      events: [],
+      applyPolicyUpdate: vi.fn().mockResolvedValue(false)
+    }
+    entry.connection = connection
+
+    await (service as any).handleAgentUpdated('agent-1', { disabledTools: ['Bash'] }, { id: 'agent-1' })
+
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Live agent policy update had no live query; detaching runtime connection',
+      {
+        agentId: 'agent-1',
+        sessionId: 'session-1'
+      }
+    )
+    expect(connection.close).toHaveBeenCalledOnce()
+    expect(service.inspect('session-1')).toMatchObject({ sessionId: 'session-1', status: 'active' })
+    expect(getEntry(service).connection).toBeUndefined()
   })
 
   it('ignores per-execution terminal events until the topic is done', () => {
@@ -573,32 +736,25 @@ describe('AgentSessionRuntimeService', () => {
     })
   })
 
-  it('a no-anchor compaction success following the boundary leaves status idle without clobbering (B2)', () => {
+  it('a no-anchor compaction success (no boundary) settles status to idle and is no longer busy (B2)', () => {
     const service = new AgentSessionRuntimeService()
     service.beginTurn(baseTurnInput)
     service.markTurnTerminal('session-1', 'success')
 
     ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-start' })
-    // The boundary carries the token anchor (its metrics ride the data-compaction-anchor chunk).
-    ;(service as any).handleRuntimeEvent(getEntry(service), {
-      type: 'compaction-complete',
-      anchor: {
-        trigger: 'auto',
-        completedAt: '2026-06-09T12:00:00.000Z',
-        preTokens: 52_000,
-        postTokens: 14_000,
-        durationMs: 1234
-      }
-    })
+    expect(service.isSessionBusy('session-1')).toBe(true)
     mocks.cacheSetShared.mockClear()
 
-    // A no-anchor `status: success` can arrive right after the boundary. It must only flip status to
-    // idle — never write empty token fields or reset a timestamp (the old bug clobbered both).
+    // The driver maps a `compact_result: 'success'` status with NO `compact_boundary` to a no-anchor
+    // `compaction-complete` (the SDK does not guarantee a boundary). It must flip status to idle —
+    // never write empty token fields or reset a timestamp — and clear the compacting state so the
+    // session is no longer stuck busy until the idle TTL.
     ;(service as any).handleRuntimeEvent(getEntry(service), { type: 'compaction-complete' })
 
     expect(mocks.cacheSetShared).toHaveBeenLastCalledWith('agent.session.compaction.session-1', {
       status: 'idle'
     })
+    expect(service.isSessionBusy('session-1')).toBe(false)
   })
 
   it('settles compaction when the runtime connection errors', () => {

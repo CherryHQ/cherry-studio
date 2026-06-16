@@ -395,9 +395,6 @@
           "failed": "無法重新排序工作階段"
         }
       },
-      "tool": {
-        "disabled": "{{toolName}} 工具已被此智慧體停用。"
-      },
       "update": {
         "error": {
           "failed": "無法更新工作階段"
