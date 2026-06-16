@@ -1,6 +1,14 @@
 # KnowledgeVectorMigrator
 
-`KnowledgeVectorMigrator` migrates legacy per-base `embedjs` vector databases into the new libsql-backed `vectorstores` layout.
+`KnowledgeVectorMigrator` migrates legacy per-base `embedjs` vector databases into the legacy single-table `libsql_vectorstores_embedding` layout.
+
+> **⚠️ Transitional state (PR A → PR B).** The runtime `KnowledgeIndexStore` no longer
+> reads this single-table layout — it uses the 7-table material model in the same
+> `index.sqlite` file. Until this migrator is rewritten to emit that final layout
+> (PR B), its output mounts as an **empty** index: the store-open path detects the
+> legacy remnant and logs an error, and an integration test in
+> `__tests__/KnowledgeVectorMigrator.test.ts` pins the contract. PR B is a hard
+> blocker for enabling this migration for real users.
 
 ## Data Sources
 
@@ -17,7 +25,8 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 
 - Per-base libsql vector store at the migrated base's runtime path:
   `{knowledgeBaseDir}/{migratedBaseId}/.cherry/index.sqlite`
-- Table: `libsql_vectorstores_embedding`
+- Table: `libsql_vectorstores_embedding` — the legacy single-table layout, which
+  the runtime store does not read (see the transitional note above)
 
 ## Key Transformations
 
@@ -54,8 +63,8 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
    - Every migrated vector row gets a new UUID v4 `id`.
 
 6. Schema bootstrap
-   - Creates `external_id`, `collection`, and FTS schema needed by `@vectorstores/libsql`.
-   - Migrated rows use `collection = base.id` so runtime reads and deletes match the same per-base store contract.
+   - Creates the legacy single-table layout (`external_id`, `collection`, FTS shadow tables). The runtime store does **not** read this layout; it is rewritten to the 7-table final state in PR B.
+   - Migrated rows use `collection = base.id`, matching what the removed vendored store wrote.
 
 ## File-Safety Contract
 
@@ -85,6 +94,10 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
   abandoning v1.
 
 ## Validation
+
+Validation checks the migrated rows inside the legacy table only — it does not
+(and currently cannot) prove the runtime store can read them; see the
+transitional note at the top.
 
 - Per-base row count must equal the prepared row count.
 - `external_id` must be non-empty for every migrated row.

@@ -15,9 +15,12 @@
  * - data-translation (translation blocks)
  * - data-video (video blocks)
  * - data-compact (compact/summary blocks)
+ * - data-compaction-anchor (timeline anchor for completed runtime compaction)
+ * - data-agent-task-event (Claude Agent SDK task lifecycle event)
  * - data-code (code blocks)
  */
 
+import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
 import * as z from 'zod'
 
 import type { SerializedError } from '../../types/error'
@@ -55,6 +58,34 @@ export interface CompactPartData {
   compactedContent: string
 }
 
+/** Compaction anchor data — marks where a runtime context compaction completed. */
+export type CompactionAnchorPartData = AgentSessionCompactionAnchorData
+
+/** Claude Agent SDK task lifecycle event data. Hidden inline state consumed by agent status panels. */
+export interface AgentTaskEventPartData {
+  event: 'started' | 'progress' | 'updated' | 'notification'
+  taskId: string
+  toolUseId?: string
+  status?: 'pending' | 'in_progress' | 'completed' | 'error'
+  title?: string
+  activeText?: string
+  description?: string
+  summary?: string
+  subagentType?: string
+  taskType?: string
+  workflowName?: string
+  prompt?: string
+  lastToolName?: string
+  outputFile?: string
+  error?: string
+  skipTranscript?: boolean
+  usage?: {
+    totalTokens?: number
+    toolUses?: number
+    durationMs?: number
+  }
+}
+
 /** Code data — replaces CodeBlock */
 export interface CodePartData {
   content: string
@@ -74,6 +105,8 @@ export type CherryDataPartTypes = {
   translation: TranslationPartData
   video: VideoPartData
   compact: CompactPartData
+  'compaction-anchor': CompactionAnchorPartData
+  'agent-task-event': AgentTaskEventPartData
   code: CodePartData
 }
 
@@ -91,6 +124,8 @@ export interface CherryTextMeta {
 export interface CherryReasoningMeta {
   /** Thinking duration in ms. */
   thinkingMs?: number
+  /** Thinking start timestamp in epoch ms. */
+  startedAt?: number
 }
 
 /** Cherry metadata on a ToolUIPart / DynamicToolUIPart. */
@@ -148,7 +183,8 @@ export const CherryTextMetaSchema: z.ZodType<CherryTextMeta> = z.object({
 })
 
 export const CherryReasoningMetaSchema: z.ZodType<CherryReasoningMeta> = z.object({
-  thinkingMs: z.number().optional()
+  thinkingMs: z.number().optional(),
+  startedAt: z.number().optional()
 })
 
 export const CherryToolMetaSchema: z.ZodType<CherryToolMeta> = z.object({

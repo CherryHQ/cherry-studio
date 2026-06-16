@@ -14,8 +14,8 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { createStoreMock, deleteStoreMock, enqueueMock, listMock, registerHandlerMock } = vi.hoisted(() => ({
-  createStoreMock: vi.fn(),
+const { getIndexStoreMock, deleteStoreMock, enqueueMock, listMock, registerHandlerMock } = vi.hoisted(() => ({
+  getIndexStoreMock: vi.fn(),
   deleteStoreMock: vi.fn(),
   enqueueMock: vi.fn(),
   listMock: vi.fn(),
@@ -33,9 +33,9 @@ vi.mock('@application', async () => {
       registerHandler: registerHandlerMock
     },
     KnowledgeVectorStoreService: {
-      createStore: createStoreMock,
+      getIndexStore: getIndexStoreMock,
       deleteStore: deleteStoreMock,
-      getStoreIfExists: vi.fn()
+      getIndexStoreIfExists: vi.fn()
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -63,7 +63,7 @@ describe('KnowledgeService integration', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
-    createStoreMock.mockResolvedValue({})
+    getIndexStoreMock.mockResolvedValue({})
     deleteStoreMock.mockResolvedValue(undefined)
     enqueueMock.mockResolvedValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
     listMock.mockResolvedValue([])
@@ -104,8 +104,7 @@ describe('KnowledgeService integration', () => {
       chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
       threshold: null,
       documentCount: null,
-      searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE,
-      hybridAlpha: null
+      searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE
     })
     await dbh.db.insert(knowledgeItemTable).values([
       {
@@ -148,7 +147,7 @@ describe('KnowledgeService integration', () => {
       error: null
     })
     expect(restoredBase.id).not.toBe(SOURCE_BASE_ID)
-    expect(createStoreMock).toHaveBeenCalledWith(expect.objectContaining({ id: restoredBase.id }))
+    expect(getIndexStoreMock).toHaveBeenCalledWith(expect.objectContaining({ id: restoredBase.id }))
 
     const [sourceBase] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, SOURCE_BASE_ID))
     expect(sourceBase).toMatchObject({

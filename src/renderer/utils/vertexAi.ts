@@ -1,24 +1,24 @@
-export interface VertexAiServiceAccountJson {
+export interface VertexAIServiceAccountJson {
   projectId?: string
   privateKey: string
   clientEmail: string
 }
 
-export type VertexAiConfigField = 'projectId' | 'location' | 'clientEmail' | 'privateKey'
+export type VertexAIConfigField = 'projectId' | 'location' | 'clientEmail' | 'privateKey'
 
-export const VERTEX_AI_CONFIG_FIELD_LABEL_KEYS: Record<VertexAiConfigField, string> = {
+export const VERTEX_AI_CONFIG_FIELD_LABEL_KEYS: Record<VertexAIConfigField, string> = {
   projectId: 'settings.provider.vertex_ai.project_id',
   location: 'settings.provider.vertex_ai.location',
   clientEmail: 'settings.provider.vertex_ai.service_account.client_email',
   privateKey: 'settings.provider.vertex_ai.service_account.private_key'
 }
 
-export interface VertexAiLocationOption {
+export interface VertexAILocationOption {
   value: string
   label: string
 }
 
-export const DEFAULT_VERTEX_AI_LOCATIONS: VertexAiLocationOption[] = [
+export const DEFAULT_VERTEX_AI_LOCATIONS: VertexAILocationOption[] = [
   { value: 'global', label: 'global' },
   { value: 'us-central1', label: 'us-central1' },
   { value: 'us-east1', label: 'us-east1' },
@@ -43,15 +43,15 @@ const getStringField = (value: Record<string, unknown>, field: string): string |
 
 const hasValue = (value?: string): boolean => !!value?.trim()
 
-export function getMissingVertexAiConfigFields(config: {
+export function getMissingVertexAIConfigFields(config: {
   projectId?: string
   location?: string
   serviceAccount?: {
     privateKey?: string
     clientEmail?: string
   }
-}): VertexAiConfigField[] {
-  const missingFields: VertexAiConfigField[] = []
+}): VertexAIConfigField[] {
+  const missingFields: VertexAIConfigField[] = []
 
   if (!hasValue(config.projectId)) {
     missingFields.push('projectId')
@@ -72,7 +72,7 @@ export function getMissingVertexAiConfigFields(config: {
   return missingFields
 }
 
-export function parseVertexAiServiceAccountJson(value: string): VertexAiServiceAccountJson | undefined {
+export function parseVertexAIServiceAccountJson(value: string): VertexAIServiceAccountJson | undefined {
   const trimmed = value.trim().replace(/^\uFEFF/, '')
 
   if (!trimmed.startsWith('{')) {
@@ -104,10 +104,10 @@ export function parseVertexAiServiceAccountJson(value: string): VertexAiServiceA
   }
 }
 
-export function mergeVertexAiLocationOptions(
-  fetchedLocations: VertexAiLocationOption[],
+export function mergeVertexAILocationOptions(
+  fetchedLocations: VertexAILocationOption[],
   currentLocation?: string
-): VertexAiLocationOption[] {
+): VertexAILocationOption[] {
   const options = [...DEFAULT_VERTEX_AI_LOCATIONS, ...fetchedLocations]
   const current = currentLocation?.trim()
 

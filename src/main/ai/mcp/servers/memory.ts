@@ -7,7 +7,7 @@ import { Mutex } from 'async-mutex' // 引入 Mutex
 import { promises as fs } from 'fs'
 import path from 'path'
 
-const logger = loggerService.withContext('MCPServer:Memory')
+const logger = loggerService.withContext('McpServer:Memory')
 
 // Define memory file path
 const getDefaultMemoryPath = () => application.getPath('feature.mcp.memory_file')

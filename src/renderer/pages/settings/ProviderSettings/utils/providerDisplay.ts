@@ -1,4 +1,5 @@
-import { getProviderLabel } from '@renderer/i18n/label'
+import i18n from '@renderer/i18n'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import { type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig, Provider } from '@shared/data/types/provider'
 import { isCherryAIProvider } from '@shared/utils/provider'
@@ -15,7 +16,7 @@ export function getFancyProviderName(provider: Provider): string {
   if (isCanonicalPresetProvider(provider)) {
     const presetProviderId = provider.presetProviderId
     if (presetProviderId) {
-      return getProviderLabel(presetProviderId)
+      return i18n.t(getProviderLabelKey(presetProviderId))
     }
   }
 
@@ -26,7 +27,7 @@ export function getProviderSearchString(provider: Provider): string {
   if (isCanonicalPresetProvider(provider)) {
     const presetProviderId = provider.presetProviderId
     if (presetProviderId) {
-      return `${getProviderLabel(presetProviderId)} ${provider.id}`
+      return `${i18n.t(getProviderLabelKey(presetProviderId))} ${provider.id}`
     }
   }
 

@@ -1,7 +1,7 @@
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
-import { claudeCodeBuiltinToolDescriptors } from '@shared/ai/claudecode/builtinTools'
+import { claudeRegistrySdkDescriptors } from '@shared/ai/claudecode/toolRegistry'
 import {
   buildClaudeMcpToolName,
   type ClaudeToolDecision,
@@ -89,7 +89,7 @@ export async function listClaudeAgentToolDescriptors(agent: Pick<AgentEntity, 'm
 }> {
   const mcpCatalog = await listMcpDescriptors(agent.mcps ?? [])
   return {
-    descriptors: [...claudeCodeBuiltinToolDescriptors(), ...mcpCatalog.descriptors],
+    descriptors: [...claudeRegistrySdkDescriptors(), ...mcpCatalog.descriptors],
     failedMcpIds: mcpCatalog.failedMcpIds
   }
 }

@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { listMock, createMock, getByIdMock, updateMock, deleteMock } = vi.hoisted(() => ({
+const { listMock, createMock, getByIdMock, updateMock, deleteMock, reorderMock, reorderBatchMock } = vi.hoisted(() => ({
   listMock: vi.fn(),
   createMock: vi.fn(),
   getByIdMock: vi.fn(),
   updateMock: vi.fn(),
-  deleteMock: vi.fn()
+  deleteMock: vi.fn(),
+  reorderMock: vi.fn(),
+  reorderBatchMock: vi.fn()
 }))
 
 vi.mock('@data/services/AssistantService', () => ({
@@ -14,13 +16,16 @@ vi.mock('@data/services/AssistantService', () => ({
     create: createMock,
     getById: getByIdMock,
     update: updateMock,
-    delete: deleteMock
+    delete: deleteMock,
+    reorder: reorderMock,
+    reorderBatch: reorderBatchMock
   }
 }))
 
 import { assistantHandlers } from '../assistants'
 
 const ASSISTANT_ID = '11111111-1111-4111-8111-111111111111'
+const OTHER_ASSISTANT_ID = '33333333-3333-4333-8333-333333333333'
 const TAG_ID = '22222222-2222-4222-8222-222222222222'
 
 describe('assistantHandlers', () => {
@@ -29,6 +34,44 @@ describe('assistantHandlers', () => {
   })
 
   describe('/assistants', () => {
+    it('should forward parsed list query params', async () => {
+      listMock.mockResolvedValueOnce({ items: [], total: 0, page: 1 })
+
+      await assistantHandlers['/assistants'].GET({
+        query: {
+          updatedAtFrom: '2026-05-01T00:00:00.000Z',
+          sortBy: 'updatedAt',
+          sortOrder: 'desc'
+        }
+      } as never)
+
+      expect(listMock).toHaveBeenCalledWith({
+        updatedAtFrom: '2026-05-01T00:00:00.000Z',
+        sortBy: 'updatedAt',
+        sortOrder: 'desc',
+        page: 1,
+        limit: 100
+      })
+    })
+
+    it('should reject legacy numeric updatedAtFrom and orderBy list params', async () => {
+      await expect(
+        assistantHandlers['/assistants'].GET({
+          query: { updatedAtFrom: 1, orderBy: 'desc' }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(listMock).not.toHaveBeenCalled()
+
+      await expect(
+        assistantHandlers['/assistants'].GET({
+          query: { updatedAtFrom: '2026-05-01T00:00:00.000Z', orderBy: 'desc' }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(listMock).not.toHaveBeenCalled()
+    })
+
     it('should forward create bodies without injecting defaults', async () => {
       createMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'New Assistant' })
 
@@ -50,6 +93,16 @@ describe('assistantHandlers', () => {
             name: 'New Assistant',
             settings: { maxTokens: 8192 }
           }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(createMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject direct orderKey writes on create', async () => {
+      await expect(
+        assistantHandlers['/assistants'].POST({
+          body: { name: 'New Assistant', orderKey: 'a0' }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
 
@@ -100,7 +153,7 @@ describe('assistantHandlers', () => {
       expect(updateMock).toHaveBeenCalledWith(ASSISTANT_ID, {})
     })
 
-    it('should accept partial settings updates and forward them to the service', async () => {
+    it('should forward partial settings updates without injecting unrelated defaults', async () => {
       updateMock.mockResolvedValueOnce({ id: ASSISTANT_ID, name: 'Existing Assistant' })
 
       await expect(
@@ -122,6 +175,73 @@ describe('assistantHandlers', () => {
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(updateMock).not.toHaveBeenCalled()
+    })
+
+    it('should reject direct orderKey writes on update', async () => {
+      await expect(
+        assistantHandlers['/assistants/:id'].PATCH({
+          params: { id: ASSISTANT_ID },
+          body: { orderKey: 'a0' }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(updateMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/assistants/:id/order', () => {
+    it('should forward a parsed single reorder anchor', async () => {
+      reorderMock.mockResolvedValueOnce(undefined)
+
+      await expect(
+        assistantHandlers['/assistants/:id/order'].PATCH({
+          params: { id: ASSISTANT_ID },
+          body: { before: OTHER_ASSISTANT_ID }
+        } as never)
+      ).resolves.toBeUndefined()
+
+      expect(reorderMock).toHaveBeenCalledWith(ASSISTANT_ID, { before: OTHER_ASSISTANT_ID })
+    })
+
+    it('should reject malformed anchors before calling the service', async () => {
+      await expect(
+        assistantHandlers['/assistants/:id/order'].PATCH({
+          params: { id: ASSISTANT_ID },
+          body: { before: OTHER_ASSISTANT_ID, after: OTHER_ASSISTANT_ID }
+        } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(reorderMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/assistants/order:batch', () => {
+    it('should forward parsed batch reorder moves', async () => {
+      reorderBatchMock.mockResolvedValueOnce(undefined)
+
+      await expect(
+        assistantHandlers['/assistants/order:batch'].PATCH({
+          body: {
+            moves: [
+              { id: ASSISTANT_ID, anchor: { position: 'first' } },
+              { id: OTHER_ASSISTANT_ID, anchor: { after: ASSISTANT_ID } }
+            ]
+          }
+        } as never)
+      ).resolves.toBeUndefined()
+
+      expect(reorderBatchMock).toHaveBeenCalledWith([
+        { id: ASSISTANT_ID, anchor: { position: 'first' } },
+        { id: OTHER_ASSISTANT_ID, anchor: { after: ASSISTANT_ID } }
+      ])
+    })
+
+    it('should reject an empty move list before calling the service', async () => {
+      await expect(
+        assistantHandlers['/assistants/order:batch'].PATCH({ body: { moves: [] } } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
+
+      expect(reorderBatchMock).not.toHaveBeenCalled()
     })
   })
 })

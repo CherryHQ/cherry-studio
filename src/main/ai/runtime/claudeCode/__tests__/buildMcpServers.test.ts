@@ -71,6 +71,10 @@ vi.mock('@data/services/ModelService', () => ({
   modelService: { getByKey: settingsMocks.mockGetModelByKey }
 }))
 
+vi.mock('@main/ai/mcp/servers/cherryBuiltinTools', () => ({
+  default: vi.fn(() => ({ mcpServer: { id: 'cherry-tools' } }))
+}))
+
 vi.mock('@data/services/AgentChannelService', () => ({
   agentChannelService: {
     listChannels: vi.fn().mockResolvedValue([]),
@@ -105,6 +109,7 @@ const {
   buildInjectedMcpAllowedTools,
   assertClaudeCodeWorkspaceDirectory,
   buildMcpServers,
+  disposeToolPolicySnapshot,
   formatNetworkProbeLine,
   prepareClaudeCodeWorkspaceDirectory
 } = await import('../settingsBuilder')
@@ -143,14 +148,16 @@ function makeSession(path: string, type: 'user' | 'system' = 'user'): AgentSessi
 }
 
 describe('buildInjectedMcpAllowedTools', () => {
-  it('adds the claw + agent-memory wildcards in Soul Mode', () => {
+  it('adds the cherry-tools + claw + agent-memory wildcards in Soul Mode', () => {
     expect(buildInjectedMcpAllowedTools(true, false)).toEqual(
-      expect.arrayContaining(['mcp__claw__*', 'mcp__agent-memory__*'])
+      expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__claw__*', 'mcp__agent-memory__*'])
     )
   })
 
-  it('adds the assistant wildcard for the Cherry Assistant', () => {
-    expect(buildInjectedMcpAllowedTools(false, true)).toContain('mcp__assistant__*')
+  it('adds the cherry-tools + assistant wildcards for the Cherry Assistant', () => {
+    expect(buildInjectedMcpAllowedTools(false, true)).toEqual(
+      expect.arrayContaining(['mcp__cherry-tools__*', 'mcp__assistant__*'])
+    )
   })
 
   it('returns undefined when neither Soul nor Assistant injects tools', () => {
@@ -168,10 +175,19 @@ describe('buildMcpServers', () => {
     const result = await buildMcpServers(session, agent, false, false)
     expect(result?.['agent-memory']).toBeUndefined()
   })
+
+  it('injects cherry-tools for every session and no longer injects exa', async () => {
+    const result = await buildMcpServers(session, agent, false, false)
+    expect(result?.['cherry-tools']).toBeDefined()
+    expect(result?.exa).toBeUndefined()
+  })
 })
 
 describe('buildClaudeCodeSessionSettings tool permissions', () => {
   beforeEach(() => {
+    // The per-session snapshot registry is module-level state; reset the session these tests reuse
+    // so each build creates a fresh snapshot instead of refreshing a prior test's instance.
+    disposeToolPolicySnapshot('sess-1')
     mockGetPathStatus.mockReset()
     mockGetPathStatus.mockResolvedValue({ ok: true, kind: 'directory' })
     settingsMocks.mockGetAgent.mockReset()
@@ -243,6 +259,54 @@ describe('buildClaudeCodeSessionSettings tool permissions', () => {
           'deny'
       )
     ).toBe(true)
+  })
+
+  it('composes disallowedTools: globals + EnterWorktree (no .git cwd) + dedup, no AskUserQuestion for a plain agent', async () => {
+    settingsMocks.mockGetAgent.mockResolvedValue({
+      ...agent,
+      model: 'anthropic::claude-sonnet-4-5',
+      disabledTools: [],
+      configuration: {}
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(session, {} as never)
+    const disallowed = settings.disallowedTools ?? []
+
+    // GLOBALLY_DISALLOWED_TOOLS always blocked; EnterWorktree blocked because /tmp/workspace has no .git.
+    expect(disallowed).toEqual(expect.arrayContaining(['WebSearch', 'WebFetch', 'EnterWorktree']))
+    // A plain (non-assistant, non-soul) agent does not block AskUserQuestion.
+    expect(disallowed).not.toContain('AskUserQuestion')
+    // The `new Set` dedup holds — no entry appears twice even when registry + globals overlap.
+    expect(new Set(disallowed).size).toBe(disallowed.length)
+  })
+
+  it('soul mode adds SOUL_MODE_DISALLOWED_TOOLS to disallowedTools', async () => {
+    settingsMocks.mockGetAgent.mockResolvedValue({
+      ...agent,
+      model: 'anthropic::claude-sonnet-4-5',
+      disabledTools: [],
+      configuration: { soul_enabled: true }
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(session, {} as never)
+    const disallowed = settings.disallowedTools ?? []
+
+    expect(disallowed).toEqual(
+      expect.arrayContaining(['CronCreate', 'EnterPlanMode', 'AskUserQuestion', 'NotebookEdit'])
+    )
+    expect(new Set(disallowed).size).toBe(disallowed.length)
+  })
+
+  it('assistant role adds AskUserQuestion to disallowedTools', async () => {
+    settingsMocks.mockGetAgent.mockResolvedValue({
+      ...agent,
+      model: 'anthropic::claude-sonnet-4-5',
+      disabledTools: [],
+      configuration: { builtin_role: 'assistant' }
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(session, {} as never)
+    expect(settings.disallowedTools ?? []).toContain('AskUserQuestion')
   })
 })
 

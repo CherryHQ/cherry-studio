@@ -11,7 +11,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getProviderLabel: (id: string) => id
+  getProviderLabelKey: (id: string) => id
 }))
 
 vi.mock('@cherrystudio/ui', () => ({

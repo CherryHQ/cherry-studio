@@ -30,13 +30,15 @@ import AddMcpServerModal from './AddMcpServerModal'
 import EnvironmentDependencies from './EnvironmentDependencies'
 import McpServerCard from './McpServerCard'
 
+type ImportMethod = 'json' | 'dxt' | 'mcpb'
+
 const McpServersList: FC = () => {
   const { mcpServers, addMcpServer, reorderMcpServers } = useMcpServers()
   const { t } = useTranslation()
   const navigate = useNavigate()
   const [isAddModalVisible, setIsAddModalVisible] = useState(false)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false)
-  const [modalType, setModalType] = useState<'json' | 'dxt'>('json')
+  const [modalType, setModalType] = useState<ImportMethod>('json')
   const [isEditing, setIsEditing] = useState(false)
   const [filter, setFilter] = useState<'all' | 'enabled' | 'disabled' | 'stdio' | 'sse' | 'builtin'>('all')
 
@@ -125,15 +127,9 @@ const McpServersList: FC = () => {
     void onAddMcpServer()
   }, [onAddMcpServer])
 
-  const handleImportJson = useCallback(() => {
+  const handleImport = useCallback((importMethod: ImportMethod) => {
     setIsAddMenuOpen(false)
-    setModalType('json')
-    setIsAddModalVisible(true)
-  }, [])
-
-  const handleImportDxt = useCallback(() => {
-    setIsAddMenuOpen(false)
-    setModalType('dxt')
+    setModalType(importMethod)
     setIsAddModalVisible(true)
   }, [])
 
@@ -177,8 +173,9 @@ const McpServersList: FC = () => {
               <PopoverContent align="end" side="bottom" className="w-auto p-1">
                 <MenuList className="gap-1">
                   <MenuItem label={t('settings.mcp.addServer.create')} onClick={handleManualAdd} />
-                  <MenuItem label={t('settings.mcp.addServer.importFrom.json')} onClick={handleImportJson} />
-                  <MenuItem label={t('settings.mcp.addServer.importFrom.dxt')} onClick={handleImportDxt} />
+                  <MenuItem label={t('settings.mcp.addServer.importFrom.json')} onClick={() => handleImport('json')} />
+                  <MenuItem label={t('settings.mcp.addServer.importFrom.dxt')} onClick={() => handleImport('dxt')} />
+                  <MenuItem label={t('settings.mcp.addServer.importFrom.mcpb')} onClick={() => handleImport('mcpb')} />
                 </MenuList>
               </PopoverContent>
             </Popover>

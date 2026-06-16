@@ -855,7 +855,7 @@ describe('getProviderDisplayName', () => {
   })
 
   it('returns a non-empty string for system provider ids', () => {
-    // System ids resolve via i18n getProviderLabel(id). In test env the label
+    // System ids resolve via i18n getProviderLabelKey(id). In test env the label
     // falls back to a stable value derived from the id, so we just assert the
     // result is a non-empty string (not the runtime user-set name).
     const result = getProviderDisplayName({ id: 'openai', name: 'Openai User Override' } as any)

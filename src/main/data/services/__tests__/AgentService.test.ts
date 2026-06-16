@@ -213,12 +213,12 @@ describe('AgentService', () => {
       expect(ids1.some((id) => ids2.includes(id))).toBe(false)
     })
 
-    it('sorts by name ascending when sortBy=name and orderBy=asc', async () => {
+    it('sorts by name ascending when sortBy=name and sortOrder=asc', async () => {
       await insertAgent({ name: 'Zebra' })
       await insertAgent({ name: 'Alpha' })
       await insertAgent({ name: 'Mango' })
 
-      const { agents } = await agentService.listAgents({ sortBy: 'name', orderBy: 'asc' })
+      const { agents } = await agentService.listAgents({ sortBy: 'name', sortOrder: 'asc' })
 
       const names = agents.map((a) => a.name)
       expect(names).toEqual([...names].sort())
@@ -250,7 +250,7 @@ describe('AgentService', () => {
       await insertAgent({ id: 'agent_aaa', name: 'A', updatedAt: 5000, createdAt: 5000 })
       await insertAgent({ id: 'agent_zzz', name: 'Z', updatedAt: 5000, createdAt: 5000 })
 
-      const { agents } = await agentService.listAgents({ sortBy: 'updatedAt', orderBy: 'desc' })
+      const { agents } = await agentService.listAgents({ sortBy: 'updatedAt', sortOrder: 'desc' })
 
       const ids = agents.map((a) => a.id)
       expect(ids.indexOf('agent_zzz')).toBeLessThan(ids.indexOf('agent_aaa'))
@@ -261,7 +261,7 @@ describe('AgentService', () => {
       await insertAgent({ id: 'agent_updated_new', name: 'New', updatedAt: 200, createdAt: 200 })
       await pinService.pin({ entityType: 'agent', entityId: 'agent_updated_old' })
 
-      const { agents } = await agentService.listAgents({ sortBy: 'updatedAt', orderBy: 'desc' })
+      const { agents } = await agentService.listAgents({ sortBy: 'updatedAt', sortOrder: 'desc' })
 
       expect(agents.map((agent) => agent.id).slice(0, 2)).toEqual(['agent_updated_new', 'agent_updated_old'])
     })

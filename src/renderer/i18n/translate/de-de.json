@@ -5682,12 +5682,18 @@
           },
           "invalid": "Ungültige Eingabe, bitte JSON-Format überprüfen",
           "json": "Von JSON importieren",
+          "mcpb": "MCPB-Bundle importieren",
+          "mcpbFile": "MCPB-Bündeldatei",
+          "mcpbHelp": "Wählen Sie eine .mcpb-Datei mit einem MCP-Server-Bundle aus",
+          "mcpbProcessFailed": "Fehler beim Verarbeiten der MCPB-Datei",
           "method": "Importmethode",
           "nameExists": "Server existiert bereits: {{name}}",
           "noDxtFile": "Eine DXT-Datei auswählen",
+          "noMcpbFile": "Bitte wählen Sie eine MCPB-Datei",
           "oneServer": "Nur eine MCP-Server-Konfiguration kann gespeichert werden",
           "placeholder": "MCP-Server-JSON-Konfiguration einfügen",
           "selectDxtFile": "DXT-Datei auswählen",
+          "selectMcpbFile": "MCPB-Datei auswählen",
           "tooltip": "Konfigurations-JSON von MCP-Servers kopieren (Vorzugsweise NPX oder UVX-Konfigurationen verwenden) und in das Eingabefeld einfügen"
         },
         "label": "Server hinzufügen"
@@ -6657,6 +6663,7 @@
         "project_id": "Projekt-ID",
         "project_id_help": "Ihre Google Cloud Projekt-ID",
         "project_id_placeholder": "your-google-cloud-project-id",
+        "select_location": "[to be translated]:Select location",
         "service_account": {
           "auth_success": "Service Account-Authentifizierung erfolgreich",
           "client_email": "Client-E-Mail",
@@ -6672,7 +6679,10 @@
           "private_key": "Privater Schlüssel",
           "private_key_help": "private_key-Feld aus der JSON-Schlüsseldatei aus Google Cloud Console",
           "private_key_placeholder": "Service Account-Privat-Schlüssel eingeben",
-          "title": "Service Account-Konfiguration"
+          "title": "Service Account-Konfiguration",
+          "toggle_client_email_visibility": "[to be translated]:Toggle client email visibility",
+          "toggle_private_key_visibility": "[to be translated]:Toggle private key visibility",
+          "toggle_project_id_visibility": "[to be translated]:Toggle project ID visibility"
         }
       }
     },
@@ -7079,6 +7089,36 @@
     "settings": "Einstellungen",
     "store": "Assistenten-Bibliothek",
     "translate": "Übersetzen"
+  },
+  "trace": {
+    "agent": "Agent",
+    "backList": "Zurück zur Liste",
+    "cachedTokens": "Zwischengespeichert",
+    "endTime": "Endzeit",
+    "inputs": "Eingaben",
+    "label": "Aufrufkette",
+    "model": "Modell",
+    "name": "Knotenname",
+    "noTraceList": "Keine Spurinformationen gefunden",
+    "operation": "Operation",
+    "outputs": "Ausgaben",
+    "pollError": "Abfrage fehlgeschlagen",
+    "reasoningTokens": "Schlussfolgerung",
+    "requestHeaders": "Anfrage-Header",
+    "requestMethod": "Anfragemethode",
+    "requestUrl": "Anfrage-URL",
+    "responseHeaders": "Antwort-Header",
+    "responseStatus": "Antwortstatus",
+    "serverDescription": "Serverbeschreibung",
+    "serverName": "Servername",
+    "serverType": "Servertyp",
+    "spanDetail": "Spandetails",
+    "spendTime": "Zeit verbringen",
+    "startTime": "Startzeit",
+    "status": "Status",
+    "tag": "Tag",
+    "tokenUsage": "Token-Nutzung",
+    "toolCalls": "Toolaufrufe"
   },
   "translate": {
     "alter_language": "Alternative Sprache",

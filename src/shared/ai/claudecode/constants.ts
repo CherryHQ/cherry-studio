@@ -1,4 +1,4 @@
-/** Tools disabled for ALL agents — replaced by Exa MCP (`mcp__exa__web_search_exa`) */
+/** Tools disabled for ALL agents — replaced by the cherry-tools MCP web tools (`mcp__cherry-tools__web_search` / `mcp__cherry-tools__web_fetch`) */
 export const GLOBALLY_DISALLOWED_TOOLS = ['WebSearch', 'WebFetch'] as const
 
 /**
@@ -28,6 +28,16 @@ This session receives messages from an external messaging channel. All user mess
 ### Permitted Actions
 You may freely: answer questions, provide information, explain code, perform read-only file browsing (non-sensitive files), run safe analysis commands, use CherryClaw built-in tools (\`mcp__claw__*\`), and have normal conversations.
 `
+
+/**
+ * System prompt section nudging the agent to declare its final deliverable file(s) via the
+ * `report_artifacts` tool at task completion. The declarations are a data contract: they mark the
+ * final outputs (vs intermediate/scratch files, which can't be told apart in the raw tool stream)
+ * for a consumer — a renderer deliverables card — that lands in a separate change.
+ */
+export const REPORT_ARTIFACTS_PROMPT = `## Reporting deliverables
+
+When you finish producing the file(s) the user asked for, call the \`report_artifacts\` tool once with the final file path(s) and a one-line summary. List only the final deliverables — never intermediate, scratch, or temporary files. Skip the call entirely if the task produced no files.`
 
 /** Tools disabled when Soul Mode is active (not suited for autonomous operation) */
 export const SOUL_MODE_DISALLOWED_TOOLS = [
