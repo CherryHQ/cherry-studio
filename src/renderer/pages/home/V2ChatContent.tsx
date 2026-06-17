@@ -77,6 +77,7 @@ const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, onPersistTemporaryTop
     isLoading: isHistoryLoading,
     refresh,
     activeNodeId,
+    rootId,
     loadOlder,
     hasOlder,
     mutate: messagesCacheMutate
@@ -104,6 +105,7 @@ const V2ChatContent: FC<Props> = ({ topic, setActiveTopic, onPersistTemporaryTop
       siblingsMap={siblingsMap}
       refresh={refresh}
       activeNodeId={activeNodeId}
+      rootId={rootId}
       loadOlder={loadOlder}
       hasOlder={hasOlder}
       messagesCacheMutate={messagesCacheMutate}
@@ -125,6 +127,7 @@ interface InnerProps extends Props {
   siblingsMap: ReturnType<typeof useTopicMessagesV2>['siblingsMap']
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
+  rootId: string | null
   loadOlder: () => void
   hasOlder: boolean
   messagesCacheMutate: ReturnType<typeof useTopicMessagesV2>['mutate']
@@ -141,6 +144,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
   siblingsMap,
   refresh,
   activeNodeId,
+  rootId,
   loadOlder,
   hasOlder,
   messagesCacheMutate
@@ -231,7 +235,7 @@ const V2ChatContentInner: FC<InnerProps> = ({
   const { overrides: v2ChatOverrides, capabilityBody } = useV2ChatOverrides({
     topic,
     uiMessages: messages,
-    projectedMessages,
+    rootId,
     regenerate,
     setMessages,
     stop,

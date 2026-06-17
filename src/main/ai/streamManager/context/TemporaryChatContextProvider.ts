@@ -7,6 +7,7 @@
 import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
+import { toContentRole } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 
 import type { AiStreamRequest } from '../../types/requests'
@@ -87,7 +88,7 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     const prior = await temporaryChatService.listMessages(req.topicId)
     const history: CherryUIMessage[] = prior.map((m) => ({
       id: m.id,
-      role: m.role,
+      role: toContentRole(m.role),
       parts: m.data.parts ?? []
     }))
 

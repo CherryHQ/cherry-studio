@@ -7,6 +7,7 @@ import type { MessageData } from '@shared/data/types/message'
 import { eq } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 
+import { withRoot } from '../messageTree'
 import { truncateAll } from '../internal/truncate'
 import { setupTestDatabase } from '../testDatabase'
 
@@ -93,17 +94,21 @@ describe('setupTestDatabase — FTS5 triggers and truncate cascade', () => {
 
   it('INSERT INTO message populates message_fts via AFTER INSERT trigger', async () => {
     await seedTopic('topic-fts-1')
-    await dbh.db.insert(messageTable).values({
-      id: 'msg-fts-1',
-      parentId: null,
-      topicId: 'topic-fts-1',
-      role: 'user',
-      data: mainText('hello world'),
-      status: 'success',
-      siblingsGroupId: 0,
-      createdAt: 1,
-      updatedAt: 1
-    })
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-fts-1', [
+        {
+          id: 'msg-fts-1',
+          parentId: null,
+          topicId: 'topic-fts-1',
+          role: 'user',
+          data: mainText('hello world'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+    )
 
     const result = await dbh.client.execute({
       sql: 'SELECT rowid FROM message_fts WHERE message_fts MATCH ?',
@@ -114,17 +119,21 @@ describe('setupTestDatabase — FTS5 triggers and truncate cascade', () => {
 
   it('truncateAll clears message_fts via the AFTER DELETE trigger cascade', async () => {
     await seedTopic('topic-fts-2')
-    await dbh.db.insert(messageTable).values({
-      id: 'msg-fts-2',
-      parentId: null,
-      topicId: 'topic-fts-2',
-      role: 'user',
-      data: mainText('goodbye'),
-      status: 'success',
-      siblingsGroupId: 0,
-      createdAt: 1,
-      updatedAt: 1
-    })
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-fts-2', [
+        {
+          id: 'msg-fts-2',
+          parentId: null,
+          topicId: 'topic-fts-2',
+          role: 'user',
+          data: mainText('goodbye'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+    )
     await truncateAll(dbh.db, dbh.client)
     const count = await dbh.client.execute('SELECT COUNT(*) FROM message_fts')
     expect(Number(count.rows[0]?.[0])).toBe(0)
@@ -133,17 +142,21 @@ describe('setupTestDatabase — FTS5 triggers and truncate cascade', () => {
   it('truncateAll does not throw when message has no extractable text', async () => {
     await seedTopic('topic-null-fts')
     // No extractable text — the FTS trigger COALESCEs the missing concat to ''.
-    await dbh.db.insert(messageTable).values({
-      id: 'msg-null-fts',
-      parentId: null,
-      topicId: 'topic-null-fts',
-      role: 'user',
-      data: { parts: [] },
-      status: 'success',
-      siblingsGroupId: 0,
-      createdAt: 1,
-      updatedAt: 1
-    })
+    await dbh.db.insert(messageTable).values(
+      withRoot('topic-null-fts', [
+        {
+          id: 'msg-null-fts',
+          parentId: null,
+          topicId: 'topic-null-fts',
+          role: 'user',
+          data: { parts: [] },
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 1,
+          updatedAt: 1
+        }
+      ])
+    )
     await expect(truncateAll(dbh.db, dbh.client)).resolves.toBeUndefined()
   })
 })
