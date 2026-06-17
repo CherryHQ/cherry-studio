@@ -685,7 +685,9 @@ export function ModelSelector(props: ModelSelectorProps) {
 
         {showTagFilter && availableTags.length > 0 && (
           <div className="flex flex-wrap items-center gap-1.5 border-border/60 border-b px-3 py-2">
-            <span className="mr-1 text-[10px] text-muted-foreground">{t('models.filter.by_tag')}</span>
+            <span className="mr-1 text-(length:--font-size-body-2xs) text-muted-foreground">
+              {t('models.filter.by_tag')}
+            </span>
             {availableTags.map((tag) => (
               <ModelTagChip
                 key={`filter-${tag}`}
@@ -704,7 +706,9 @@ export function ModelSelector(props: ModelSelectorProps) {
           <div
             className="flex items-center justify-between gap-3 border-border/60 border-b px-3 py-2"
             data-testid="model-selector-multi-select-row">
-            <span className="min-w-0 truncate text-[10px] text-muted-foreground">{t('models.multi_select.label')}</span>
+            <span className="min-w-0 truncate text-(length:--font-size-body-2xs) text-muted-foreground">
+              {t('models.multi_select.label')}
+            </span>
             <Switch
               checked={multiSelectMode}
               size="sm"

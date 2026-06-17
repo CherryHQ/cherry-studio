@@ -502,7 +502,7 @@ export const oauthCardClasses = {
     'truncate text-[length:var(--font-size-body-xs)] font-[weight:var(--font-weight-medium)] leading-tight text-foreground',
   loggedInEmail: 'mt-0.5 truncate text-[length:var(--font-size-body-xs)] leading-[1.35] text-muted-foreground/40',
   badge:
-    'inline-flex items-center rounded bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1 py-[0.5px] text-[10px] font-[weight:var(--font-weight-medium)] leading-tight text-[color:var(--warning)]',
+    'inline-flex items-center rounded bg-[color:color-mix(in_srgb,var(--warning)_10%,transparent)] px-1 py-[0.5px] text-(length:--font-size-body-2xs) font-[weight:var(--font-weight-medium)] leading-tight text-[color:var(--warning)]',
   loggedInActions: 'flex shrink-0 flex-wrap items-center justify-end gap-2',
   inlineBalanceBlock: 'text-right',
   inlineBalanceLabel: 'text-[length:var(--font-size-body-xs)] text-muted-foreground/40',
