@@ -54,9 +54,11 @@ export const YamlFrontMatter = Node.create({
     if (!content.trim()) {
       return ''
     }
-    // The stored content has no delimiters; add them back. Tolerate the legacy case
-    // where a trailing `---` was kept inside the content attribute.
-    if (content.endsWith('---')) {
+    // The stored content has no delimiters; add them back. Tolerate the legacy case where a
+    // standalone closing `---` line was kept inside the content attribute — but only when it is a
+    // delimiter on its own line, so a YAML value that merely ends in `---` (e.g. `title: foo---`)
+    // still gets its own closing fence.
+    if (/\n---\s*$/.test(content)) {
       return `---\n${content}\n\n`
     }
     return `---\n${content}\n---\n\n`

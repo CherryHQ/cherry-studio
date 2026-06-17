@@ -96,6 +96,32 @@ Body **bold** text.`
     expect(result).toContain('**bold**')
   })
 
+  it('keeps a standalone closing fence when a YAML value ends with ---', () => {
+    const markdown = `---
+title: foo---
+---
+
+body`
+
+    const result = roundTrip(markdown)
+    // The closing delimiter must survive as its own line, not be swallowed by the trailing value.
+    expect(result.startsWith('---\ntitle: foo---\n---')).toBe(true)
+    expect(result).toContain('body')
+  })
+
+  it('tolerates legacy content that already carries a trailing --- delimiter line', () => {
+    const doc: JSONContent = {
+      type: 'doc',
+      content: [
+        { type: 'yamlFrontMatter', attrs: { content: 'title: Hi\n---' } },
+        { type: 'paragraph', content: [{ type: 'text', text: 'body' }] }
+      ]
+    }
+    const result = manager.serialize(doc).trim()
+    expect(result.startsWith('---\ntitle: Hi\n---')).toBe(true)
+    expect(result).toContain('body')
+  })
+
   it('drops empty front matter on serialization', () => {
     const doc: JSONContent = {
       type: 'doc',
