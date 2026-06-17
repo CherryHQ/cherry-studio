@@ -1,3 +1,4 @@
+import '@cherrystudio/ui/styles/theme.css'
 import '@ant-design/v5-patch-for-react-19'
 
 import { preferenceService } from '@data/PreferenceService'

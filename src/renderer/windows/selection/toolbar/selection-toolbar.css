@@ -50,8 +50,10 @@ html {
   --selection-toolbar-button-border: none; /* default: none */
   --selection-toolbar-button-box-shadow: none; /* default: none */
 
-  --selection-toolbar-button-text-color: rgba(232, 233, 235, 0.8);
-  --selection-toolbar-button-text-color-hover: #e8e9eb;
+  /* Foreground sourced from `@cherrystudio/ui` (mode-aware via .dark) so the
+   * toolbar tracks the design system instead of duplicating literal hex. */
+  --selection-toolbar-button-text-color: color-mix(in srgb, var(--color-foreground) 80%, transparent);
+  --selection-toolbar-button-text-color-hover: var(--color-foreground);
   --selection-toolbar-button-icon-color: var(--selection-toolbar-button-text-color);
   --selection-toolbar-button-bgcolor: transparent; /* default: transparent */
   --selection-toolbar-button-bgcolor-hover: #333333;
@@ -67,8 +69,7 @@ html.light {
 
   --selection-toolbar-logo-border-color: rgba(0, 0, 0, 0.08);
 
-  --selection-toolbar-button-text-color: rgba(26, 28, 31, 0.8);
-  --selection-toolbar-button-text-color-hover: #1a1c1f;
-  --selection-toolbar-button-icon-color: var(--selection-toolbar-button-text-color);
+  /* text-color overrides intentionally omitted — :root already routes through
+   * `var(--color-foreground)` which flips light/dark via the cherry tokens. */
   --selection-toolbar-button-bgcolor-hover: rgba(0, 0, 0, 0.04);
 }
