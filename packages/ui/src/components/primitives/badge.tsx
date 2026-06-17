@@ -16,7 +16,7 @@ const badgeVariants = cva(
         // Mint-green "feature highlight" pill — for "New" / "PRO" / "Beta" tags next to titles.
         // Surface/border/text flip light↔dark via the --cs-highlight token family.
         highlight:
-          'rounded-[5px] gap-0.5 px-1 py-px text-[10px] font-bold tracking-[0.02em] [&>svg]:size-2.5 border-highlight bg-highlight-surface text-highlight-foreground'
+          'rounded-[5px] gap-0.5 px-1 py-px text-(length:--font-size-body-2xs) font-bold tracking-[0.02em] [&>svg]:size-2.5 border-highlight bg-highlight-surface text-highlight-foreground'
       }
     },
     defaultVariants: {

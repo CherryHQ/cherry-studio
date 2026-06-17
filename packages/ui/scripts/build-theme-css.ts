@@ -15,15 +15,15 @@ const RUNTIME_THEME_INPUT_LINES = [
   ' * inputs/selects/focus never follow the theme color. */',
   '--cs-theme-primary: var(--cs-primary);',
   '--cs-theme-control-accent: var(--cs-theme-primary);',
-  /* hover derives from the theme color by mixing with --cs-foreground:
-   * --cs-foreground is dark in light mode (mix → darker hover) and light in dark mode
-   * (mix → lighter hover), so the hover state tracks the user theme in both modes
-   * with one expression. */
+  '/* hover derives from the theme color by mixing with --cs-foreground:',
+  ' * --cs-foreground is dark in light mode (mix → darker hover) and light in dark mode',
+  ' * (mix → lighter hover), so the hover state tracks the user theme in both modes',
+  ' * with one expression. */',
   '--cs-theme-control-accent-hover: color-mix(in srgb, var(--cs-theme-control-accent) 88%, var(--cs-foreground));',
-  /* foreground is the contrasting text/icon color on a control-accent surface
-   * (e.g. checkbox tick, slider thumb fill). White-on-tinted is the convention
-   * for accent-tinted controls; the existing --cs-control-accent-foreground
-   * already provides mode-aware white (light) / neutral-900 (dark). */
+  '/* foreground is the contrasting text/icon color on a control-accent surface',
+  ' * (e.g. checkbox tick, slider thumb fill). White-on-tinted is the convention',
+  ' * for accent-tinted controls; the existing --cs-control-accent-foreground',
+  ' * already provides mode-aware white (light) / neutral-900 (dark). */',
   '--cs-theme-control-accent-foreground: var(--cs-control-accent-foreground);',
   '--cs-theme-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);'
 ]
