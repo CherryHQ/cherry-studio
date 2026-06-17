@@ -1342,8 +1342,18 @@ describe('ResourceList', () => {
     )
 
     const sessionButton = screen.getByRole('button', { name: 'session' })
+    const sessionLabel = sessionButton.querySelector('span')
     const sessionChevron = sessionButton.querySelector<SVGSVGElement>('svg')
+    expect(sessionLabel).not.toBeNull()
     expect(sessionChevron).not.toBeNull()
+    expect(sessionChevron!.previousElementSibling).toBe(sessionLabel)
+    expect(sessionLabel!).not.toHaveClass('flex-1')
+    expect(sessionChevron!).toHaveClass(
+      'hidden',
+      'group-hover/resource-list-group:block',
+      'group-focus-within/resource-list-group:block',
+      'group-has-data-[state=open]/resource-list-group:block'
+    )
     expect(sessionChevron!.style.transform).toBe('rotate(90deg)')
 
     fireEvent.click(sessionButton)
@@ -1546,7 +1556,7 @@ describe('ResourceList', () => {
       'hidden',
       'group-hover/resource-list-group:flex',
       'group-focus-within/resource-list-group:flex',
-      'has-[[data-state=open]]:flex'
+      'has-data-[state=open]:flex'
     )
   })
 
