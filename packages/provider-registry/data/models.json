@@ -444,7 +444,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "reasoning", "file-input"],
       "contextWindow": 256000,
       "description": "Step 3.5 Flash is StepFun's most capable open-source foundation model. Built on a sparse Mixture of Experts (MoE) architecture, it selectively activates only 11B of its 196B parameters per token. It is a reasoning model that is incredibly speed efficient even at long contexts.",
       "family": "step",
@@ -1516,7 +1516,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition"],
+      "capabilities": ["function-call", "reasoning"],
       "contextWindow": 128000,
       "description": "DeepSeek-V3.2 is a large language model designed to harmonize high computational efficiency with strong reasoning and agentic tool-use performance. It introduces DeepSeek Sparse Attention (DSA), a fine-grained sparse attention mechanism that reduces training and inference cost while preserving quality in long-context scenarios. A scalable reinforcement learning post-training framework further improves reasoning, with reported performance in the GPT-5 class, and the model has demonstrated gold-medal results on the 2025 IMO and IOI. V3.2 also uses a large-scale agentic task synthesis pipeline to better integrate reasoning into tool-use settings, boosting compliance and generalization in interactive environments.\n\nUsers can control the reasoning behaviour with the `reasoning` `enabled` boolean. [Learn more in our docs](https://openrouter.ai/docs/use-cases/reasoning-tokens#enable-reasoning-with-default-config)",
       "family": "deepseek",
@@ -7104,14 +7104,7 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "structured-output",
-        "reasoning",
-        "image-recognition",
-        "file-input",
-        "web-search"
-      ],
+      "capabilities": ["function-call", "structured-output", "reasoning", "file-input", "web-search"],
       "contextWindow": 200000,
       "description": "OpenAI o3-mini is a cost-efficient language model optimized for STEM reasoning tasks, particularly excelling in science, mathematics, and coding.\n\nThis model supports the `reasoning_effort` parameter, which can be set to \"high\", \"medium\", or \"low\" to control the thinking time of the model. The default is \"medium\". OpenRouter also offers the model slug `openai/o3-mini-high` to default the parameter to \"high\".\n\nThe model features three adjustable reasoning effort levels and supports key developer capabilities including function calling, structured outputs, and streaming, though it does not include vision processing capabilities.\n\nThe model demonstrates significant improvements over its predecessor, with expert testers preferring its responses 56% of the time and noting a 39% reduction in major errors on complex questions. With medium reasoning effort settings, o3-mini matches the performance of the larger o1 model on challenging reasoning evaluations like AIME and GPQA, while maintaining lower latency and cost.",
       "family": "o",
@@ -10620,7 +10613,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input", "web-search"],
+      "capabilities": ["function-call", "reasoning", "file-input", "web-search"],
       "contextWindow": 127000,
       "family": "sonar-reasoning",
       "id": "sonar-reasoning",
@@ -44524,7 +44517,7 @@
       "openWeights": true,
       "inputModalities": ["text"],
       "outputModalities": ["text"],
-      "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "structured-output", "reasoning", "file-input"],
       "reasoning": {
         "supportedEfforts": ["none", "auto"]
       },
@@ -45207,7 +45200,7 @@
       "openWeights": true,
       "inputModalities": ["text"],
       "outputModalities": ["text"],
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
+      "capabilities": ["function-call", "reasoning", "file-input"],
       "reasoning": {
         "supportedEfforts": ["none", "auto"]
       },
@@ -45629,7 +45622,7 @@
       "openWeights": true,
       "inputModalities": ["text"],
       "outputModalities": ["text"],
-      "capabilities": ["function-call", "structured-output", "reasoning", "image-recognition"],
+      "capabilities": ["function-call", "structured-output", "reasoning"],
       "reasoning": {
         "supportedEfforts": ["none", "auto"]
       },
