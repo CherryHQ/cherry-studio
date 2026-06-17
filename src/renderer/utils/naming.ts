@@ -118,14 +118,23 @@ export function firstLetter(str: string): string {
   return match ? match[0] : ''
 }
 
+// \uFE0F = VS16 (emoji-presentation selector); \u20E3 = combining enclosing keycap (1️⃣);
+// \u200D = ZWJ joining multi-part sequences (🧛‍♂️). Composed into the emoji regexes below.
+const EMOJI_PART_PATTERN = String.raw`(?:\p{Emoji}\uFE0F|\p{Emoji_Presentation})`
+const KEYCAP_EMOJI_PATTERN = String.raw`(?:[0-9#*]\uFE0F?\u20E3)`
+const EMOJI_SEQUENCE_PATTERN = String.raw`(?:${EMOJI_PART_PATTERN}(?:\u200D${EMOJI_PART_PATTERN})*)`
+// Anchored at both ends for whole-string checks (isEmoji); anchored at the start only
+// for leading-run extraction/removal (getLeadingEmoji / removeLeadingEmoji).
+const EMOJI_REGEX = new RegExp(`^(?:${KEYCAP_EMOJI_PATTERN}|${EMOJI_SEQUENCE_PATTERN})+$`, 'u')
+const EMOJI_LEADING_REGEX = new RegExp(`^(?:${KEYCAP_EMOJI_PATTERN}|${EMOJI_SEQUENCE_PATTERN})+`, 'u')
+
 /**
  * 移除字符串开头的表情符号。
  * @param {string} str 输入字符串
  * @returns {string} 移除开头表情符号后的字符串
  */
 export function removeLeadingEmoji(str: string): string {
-  const emojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)+/u
-  return str.replace(emojiRegex, '').trim()
+  return str.replace(EMOJI_LEADING_REGEX, '').trim()
 }
 
 /**
@@ -134,15 +143,9 @@ export function removeLeadingEmoji(str: string): string {
  * @returns {string} 开头的表情符号，如果没有则返回空字符串
  */
 export function getLeadingEmoji(str: string): string {
-  const emojiRegex = /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)+/u
-  const match = str.match(emojiRegex)
+  const match = str.match(EMOJI_LEADING_REGEX)
   return match ? match[0] : ''
 }
-
-const EMOJI_PART_PATTERN = String.raw`(?:\p{Emoji}\uFE0F|\p{Emoji_Presentation})`
-const KEYCAP_EMOJI_PATTERN = String.raw`(?:[0-9#*]\uFE0F?\u20E3)`
-const EMOJI_SEQUENCE_PATTERN = String.raw`(?:${EMOJI_PART_PATTERN}(?:\u200D${EMOJI_PART_PATTERN})*)`
-const EMOJI_REGEX = new RegExp(`^(?:${KEYCAP_EMOJI_PATTERN}|${EMOJI_SEQUENCE_PATTERN})+$`, 'u')
 
 /**
  * 检查字符串是否为纯表情符号。
