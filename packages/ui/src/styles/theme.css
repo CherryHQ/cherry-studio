@@ -340,6 +340,11 @@
   --color-sidebar: var(--cs-sidebar);
   --color-sidebar-accent: var(--cs-sidebar-accent);
   --color-sidebar-translucent: var(--cs-sidebar-translucent);
+  --color-sidebar-glass-shadow: var(--cs-sidebar-glass-shadow);
+  --color-tabbar-glass-surface: var(--cs-tabbar-glass-surface);
+  --color-tabbar-glass-border: var(--cs-tabbar-glass-border);
+  --color-tabbar-glass-hover: var(--cs-tabbar-glass-hover);
+  --color-tabbar-glass-shadow: var(--cs-tabbar-glass-shadow);
   --color-selected: var(--cs-selected);
   --color-selected-border: var(--cs-selected-border);
   --color-card-foreground: var(--cs-card-foreground);

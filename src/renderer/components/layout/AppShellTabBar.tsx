@@ -335,9 +335,9 @@ export const AppShellTabBar = ({
       isMacTransparentWindow
         ? {
             activeClass:
-              'border border-[var(--cs-tabbar-glass-border)] bg-[var(--cs-tabbar-glass-surface)] text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_var(--cs-tabbar-glass-shadow)]',
+              'border border-[var(--color-tabbar-glass-border)] bg-[var(--color-tabbar-glass-surface)] text-sidebar-foreground backdrop-blur-sm dark:border-0 dark:text-sidebar-foreground dark:shadow-[inset_0_0_0_1px_var(--color-tabbar-glass-shadow)]',
             hoverClass:
-              'text-muted-foreground hover:bg-[var(--cs-tabbar-glass-hover)] hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_var(--cs-tabbar-glass-shadow)] dark:hover:text-sidebar-foreground'
+              'text-muted-foreground hover:bg-[var(--color-tabbar-glass-hover)] hover:text-sidebar-foreground hover:shadow-[inset_0_0_0_1px_var(--color-tabbar-glass-shadow)] dark:hover:text-sidebar-foreground'
           }
         : {
             activeClass:

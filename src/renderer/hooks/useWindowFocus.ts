@@ -8,7 +8,11 @@ import { useState } from 'react'
 function useWindowFocus() {
   const [isFocused, setIsFocused] = useState(() => document.hasFocus())
 
-  useIpcOn('window.focus_changed', setIsFocused)
+  // Boolean coerce — consumers fan out into `cn(isFocused && '...')` and
+  // `... ? 'a' : 'b'` patterns where a stray non-boolean would silently flip
+  // the branch. The IPC schema types this as `boolean`, but the runtime
+  // payload is preload-trusted; one extra coerce keeps the contract.
+  useIpcOn('window.focus_changed', (focused) => setIsFocused(Boolean(focused)))
 
   return isFocused
 }
