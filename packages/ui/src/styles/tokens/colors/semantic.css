@@ -13,6 +13,11 @@
    * Only the foreground is kept as a token because it doesn't derive from the
    * theme color — it's a mode-aware contrast pair (white on light, neutral-900 on dark). */
   --cs-control-accent-foreground: var(--cs-white);
+  /* Thumb fill for accent-toggled controls (switch / future segmented toggle):
+   * a white circle sitting on either the neutral track (unchecked) or the
+   * control-accent track (checked). Kept the same in dark mode so the thumb
+   * stays clearly visible against either track. */
+  --cs-control-thumb: var(--cs-white);
   --cs-destructive: var(--cs-red-500);
   --cs-destructive-hover: var(--cs-red-400);
   --cs-success: var(--cs-green-500);

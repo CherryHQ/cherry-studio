@@ -307,6 +307,7 @@
   --color-control-accent-foreground: var(--cs-theme-control-accent-foreground);
   --color-ring: var(--cs-theme-ring);
   --color-link: var(--cs-theme-control-accent);
+  --color-control-thumb: var(--cs-control-thumb);
   --color-destructive: var(--cs-destructive);
   --color-destructive-hover: var(--cs-destructive-hover);
   --color-success: var(--cs-success);

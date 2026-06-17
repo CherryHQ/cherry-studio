@@ -107,7 +107,11 @@ function Switch({ loading = false, size = 'md', className, classNames, ...props 
       {...props}>
       <SwitchPrimitive.Thumb
         data-slot="switch-thumb"
-        className={cn('bg-white', switchThumbVariants({ size, loading }), classNames?.thumb)}>
+        className={cn(
+          'bg-control-thumb text-control-thumb',
+          switchThumbVariants({ size, loading }),
+          classNames?.thumb
+        )}>
         {loading && (
           <svg
             width="inherit"
@@ -118,7 +122,7 @@ function Switch({ loading = false, size = 'md', className, classNames, ...props 
             className={cn(switchThumbSvgVariants({ loading }), classNames?.thumbSvg)}>
             <path
               d="M9.5 0C14.7467 0 19 4.25329 19 9.5C19 14.7467 14.7467 19 9.5 19C4.25329 19 0 14.7467 0 9.5C0 4.25329 4.25329 0 9.5 0ZM9.5 6.33301C8.91711 6.33301 8.44445 6.8058 8.44434 7.38867V11.6113C8.44445 12.1942 8.91711 12.667 9.5 12.667C10.0829 12.667 10.5555 12.1942 10.5557 11.6113V7.38867C10.5555 6.8058 10.0829 6.33301 9.5 6.33301Z"
-              fill="white"
+              fill="currentColor"
             />
           </svg>
         )}
