@@ -263,7 +263,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   const handleAddAnother = useCallback((template: Provider) => startAddFrom(template), [startAddFrom])
 
   return (
-    <aside className={`provider-settings-default-scope ${providerListClasses.shell}`}>
+    <aside className={`${providerListClasses.shell}`}>
       <PageHeader
         title={t('settings.provider.title')}
         action={
