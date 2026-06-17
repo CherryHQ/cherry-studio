@@ -40,14 +40,6 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import type { FileEntry } from '@shared/data/types/file'
 import type { FileProcessingOutputTarget, ListAvailableFileProcessorsResult } from '@shared/data/types/fileProcessing'
-import type {
-  CreateKnowledgeBaseDto,
-  KnowledgeAddItemInput,
-  KnowledgeBase,
-  KnowledgeItemChunk,
-  KnowledgeSearchResult as KnowledgeVectorSearchResult,
-  RestoreKnowledgeBaseDto
-} from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import type {
@@ -338,23 +330,6 @@ const api = {
     getFiles: (vaultName: string) => ipcRenderer.invoke(IpcChannel.Obsidian_GetFiles, vaultName)
   },
   openPath: (path: string) => ipcRenderer.invoke(IpcChannel.Open_Path, path),
-  knowledge: {
-    createBase: (base: CreateKnowledgeBaseDto): Promise<KnowledgeBase> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_CreateBase, { base }),
-    restoreBase: (dto: RestoreKnowledgeBaseDto): Promise<KnowledgeBase> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_RestoreBase, dto),
-    deleteBase: (baseId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Knowledge_DeleteBase, { baseId }),
-    addItems: (baseId: string, items: KnowledgeAddItemInput[]): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_AddItems, { baseId, items }),
-    deleteItems: (baseId: string, itemIds: string[]): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_DeleteItems, { baseId, itemIds }),
-    reindexItems: (baseId: string, itemIds: string[]): Promise<void> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_ReindexItems, { baseId, itemIds }),
-    search: (baseId: string, query: string): Promise<KnowledgeVectorSearchResult[]> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_Search, { baseId, query }),
-    listItemChunks: (baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> =>
-      ipcRenderer.invoke(IpcChannel.Knowledge_ListItemChunks, { baseId, itemId })
-  },
   window: {
     setMinimumSize: (width: number, height: number) =>
       ipcRenderer.invoke(IpcChannel.MainWindow_SetMinimumSize, width, height),
