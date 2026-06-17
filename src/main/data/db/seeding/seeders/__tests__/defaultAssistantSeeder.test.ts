@@ -14,7 +14,7 @@ import {
   DEFAULT_ASSISTANT_PROMPT
 } from '@shared/data/presets/default-assistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
-import { setupTestDatabase } from '@test-helpers/db'
+import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { and, eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
@@ -98,13 +98,18 @@ describe('DefaultAssistantSeeder', () => {
       id: '33333333-3333-4333-8333-333333333333',
       orderKey: generateOrderKeyBetween(null, null)
     })
-    await dbh.db.insert(messageTable).values({
-      id: '44444444-4444-4444-8444-444444444444',
-      topicId: '33333333-3333-4333-8333-333333333333',
-      role: 'user',
-      data: { parts: [] },
-      status: 'success'
-    })
+    await dbh.db.insert(messageTable).values(
+      withRoot('33333333-3333-4333-8333-333333333333', [
+        {
+          id: '44444444-4444-4444-8444-444444444444',
+          parentId: null,
+          topicId: '33333333-3333-4333-8333-333333333333',
+          role: 'user',
+          data: { parts: [] },
+          status: 'success'
+        }
+      ])
+    )
 
     await new DefaultAssistantSeeder().run(dbh.db)
 

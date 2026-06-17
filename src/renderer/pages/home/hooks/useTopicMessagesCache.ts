@@ -171,6 +171,9 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
   const { trigger: setActiveNodeTrigger } = useMutation('PUT', '/topics/:id/active-node', {
     refresh: branchCachePaths
   })
+  const { trigger: clearTopicMessagesTrigger } = useMutation('DELETE', '/topics/:topicId/messages', {
+    refresh: [messagesCachePath]
+  })
 
   return {
     branchWithoutIds,
@@ -182,6 +185,7 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
     deleteMessageTrigger,
     patchMessageTrigger,
     createSiblingTrigger,
-    setActiveNodeTrigger
+    setActiveNodeTrigger,
+    clearTopicMessagesTrigger
   }
 }

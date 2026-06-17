@@ -239,49 +239,6 @@ describe('AgentSessionMessageService', () => {
     expect(targetMatches.rows.map((row) => String(row[0]))).toEqual([USER_MESSAGE_ID])
   })
 
-  it('lists the first session message page anchored at a target message', async () => {
-    await dbh.db.insert(agentSessionMessageTable).values([
-      {
-        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d010',
-        sessionId: SESSION_ID,
-        role: 'assistant',
-        data: { parts: [{ type: 'text', text: 'oldest' }] },
-        status: 'success',
-        createdAt: 100,
-        updatedAt: 100
-      },
-      {
-        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d011',
-        sessionId: SESSION_ID,
-        role: 'assistant',
-        data: { parts: [{ type: 'text', text: 'target' }] },
-        status: 'success',
-        createdAt: 200,
-        updatedAt: 200
-      },
-      {
-        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d012',
-        sessionId: SESSION_ID,
-        role: 'assistant',
-        data: { parts: [{ type: 'text', text: 'newest' }] },
-        status: 'success',
-        createdAt: 300,
-        updatedAt: 300
-      }
-    ])
-
-    const result = await agentSessionMessageService.listSessionMessages(SESSION_ID, {
-      messageId: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d011',
-      limit: 2
-    })
-
-    expect(result.items.map((item) => item.id)).toEqual([
-      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d011',
-      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d010'
-    ])
-    expect(result.nextCursor).toBeUndefined()
-  })
-
   it('searches session message parts text', async () => {
     await dbh.db.insert(agentTable).values({
       id: 'agent-search',

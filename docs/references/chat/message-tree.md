@@ -70,7 +70,7 @@ papered over).
 | Target | Behavior |
 |---|---|
 | Virtual root | **Rejected** (`INVALID_OPERATION`), regardless of `cascade`. Deleting it would orphan first-turn children (unique-index violation) or leave a rootless topic. |
-| Content message, `cascade = false` | Reparent children onto the message's parent, then delete the message. |
+| Content message, `cascade = false` | Splice the node out: reparent its children onto its parent (their grandparent), then delete it. A child carries its `siblingsGroupId` (relative to its old parent), so each distinct non-zero moved group is **rebased** to a fresh id above any group already at the destination — it can't merge into an unrelated group there. |
 | Content message, `cascade = true` | Delete the message and its whole subtree. |
 | "Clear all messages" | Delete the virtual root's **children** (cascade), not the root — the empty virtual root stays. |
 
@@ -79,7 +79,9 @@ removes its whole subtree in one statement — no leaf-first ordering, and no `S
 to manufacture a colliding `parentId = NULL` row. This is why `cascade = true`,
 `purgeByTopicIdsTx` (topic delete), and the `topic` FK cascade are all single
 unordered deletes that stay correct. `cascade = false` reparents children **before**
-deleting the node, so the cascade fires on nothing.
+deleting the node, so the cascade fires on nothing. (A `cascade = false` delete of a
+first-turn message reparents its children onto the virtual root — structurally valid;
+they become first-turn nodes.)
 
 > `SET NULL` was actively wrong under `message_topic_root_uniq`: it nulls a surviving
 > in-set child's `parentId` mid-delete, transiently creating a second `parentId = NULL`
@@ -94,9 +96,10 @@ deleting the node, so the cascade fires on nothing.
   path, and treats its children as the logical roots. First-turn nodes keep their **real**
   parent (the virtual root id) in the response; the virtual root is **never** returned as a
   node. Hence `TreeNode.parentId` and `SiblingsGroup.parentId` are non-null `string`.
-- **Flow canvas** (`flow/topicMessageFlowGraph.ts`): the edge builder skips edges whose
-  parent isn't a rendered node — the virtual root, which first turns hang off but which is
-  never a node — so first turns still render as graph roots.
+- **Flow canvas** *(forward reference — the renderer flow-canvas work lands on the
+  `feat/message-tree-virtual-root` follow-up, not this branch)*: the edge builder will skip
+  edges whose parent isn't a rendered node — the virtual root, which first turns hang off
+  but which is never a node — so first turns still render as graph roots.
 - **Role-based content queries** need no special root handling: the root is `role = 'root'`,
   so it is excluded by construction.
 

@@ -76,38 +76,60 @@ export function useChatWriteActions(params: Params): Result {
     deleteMessageTrigger,
     patchMessageTrigger,
     createSiblingTrigger,
-    setActiveNodeTrigger
+    setActiveNodeTrigger,
+    clearTopicMessagesTrigger
   } = cache
+
+  // A message is a "first turn" when its parent is the topic's content-less virtual root,
+  // which is never in the displayed list — so its parent id resolves to no visible message.
+  const isFirstTurnId = useCallback(
+    (parentId?: string | null) => !parentId || !uiMessages.some((m) => m.id === parentId),
+    [uiMessages]
+  )
+
+  const handleClearTopicMessages = useCallback(async () => {
+    await clearBranchCache()
+    try {
+      const result = await clearTopicMessagesTrigger({ params: { topicId: topic.id } })
+      logger.info('Cleared all messages', { topicId: topic.id, count: result.deletedIds.length })
+    } catch (err) {
+      await rollbackBranch()
+      throw err
+    }
+  }, [clearBranchCache, clearTopicMessagesTrigger, rollbackBranch, topic.id])
 
   const handleDeleteMessage = useCallback<ChatWriteActions['deleteMessage']>(
     async (id) => {
+      // Deleting a first-turn message cascades (remove the turn): a non-cascade splice would
+      // reparent its replies onto the virtual root, stranding them as parent-less assistants.
+      const target = uiMessages.find((m) => m.id === id)
       const optimisticIds = new Set([id])
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, optimisticIds))
 
       try {
-        await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
-      } catch (err: unknown) {
-        if (err instanceof DataApiError && err.code === ErrorCode.INVALID_OPERATION) {
-          try {
-            const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
-            const deletedSet = new Set(result.deletedIds)
-            await seedOptimisticBranch((prev) => branchWithoutIds(prev, deletedSet))
-          } catch (cascadeErr) {
-            await rollbackBranch()
-            throw cascadeErr
-          }
+        if (target && isFirstTurnId(target.metadata?.parentId)) {
+          const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
+          await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set(result.deletedIds)))
         } else {
-          await rollbackBranch()
-          throw err
+          await deleteMessageTrigger({ params: { id }, query: { cascade: false } })
         }
+      } catch (err: unknown) {
+        await rollbackBranch()
+        throw err
       }
       logger.info('Deleted message', { id })
     },
-    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch]
+    [branchWithoutIds, deleteMessageTrigger, isFirstTurnId, uiMessages, rollbackBranch, seedOptimisticBranch]
   )
 
   const handleDeleteMessageGroup = useCallback<ChatWriteActions['deleteMessageGroup']>(
     async (id: string) => {
+      // `id` is the group's askId (shared parent). For a first-turn group it is the virtual
+      // root, which cannot be deleted — deleting that group means clearing the topic.
+      if (isFirstTurnId(id)) {
+        await handleClearTopicMessages()
+        return
+      }
       await seedOptimisticBranch((prev) => branchWithoutIds(prev, new Set([id])))
       try {
         const result = await deleteMessageTrigger({ params: { id }, query: { cascade: true } })
@@ -119,21 +141,15 @@ export function useChatWriteActions(params: Params): Result {
         throw err
       }
     },
-    [branchWithoutIds, deleteMessageTrigger, rollbackBranch, seedOptimisticBranch]
+    [
+      branchWithoutIds,
+      deleteMessageTrigger,
+      handleClearTopicMessages,
+      isFirstTurnId,
+      rollbackBranch,
+      seedOptimisticBranch
+    ]
   )
-
-  const handleClearTopicMessages = useCallback(async () => {
-    const rootMsg = uiMessages[0]
-    if (!rootMsg) return
-    await clearBranchCache()
-    try {
-      await deleteMessageTrigger({ params: { id: rootMsg.id }, query: { cascade: true } })
-      logger.info('Cleared all messages via root cascade delete', { topicId: topic.id, rootId: rootMsg.id })
-    } catch (err) {
-      await rollbackBranch()
-      throw err
-    }
-  }, [uiMessages, clearBranchCache, deleteMessageTrigger, rollbackBranch, topic.id])
 
   const handleEditMessage = useCallback<ChatWriteActions['editMessage']>(
     async (messageId, editedParts) => {

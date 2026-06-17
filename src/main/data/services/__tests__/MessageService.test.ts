@@ -8,7 +8,8 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { DataApiError, ErrorCode } from '@shared/data/api'
-import type { MessageData } from '@shared/data/types/message'
+import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
+import { type MessageData, type MessageRole, toContentRole } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -299,15 +300,19 @@ describe('MessageService', () => {
         { id: 'topic-1', activeNodeId: null, orderKey: 'a0' },
         { id: 'topic-2', activeNodeId: 'other-node', orderKey: 'a1' }
       ])
-      await dbh.db.insert(messageTable).values({
-        id: 'other-node',
-        parentId: null,
-        topicId: 'topic-2',
-        role: 'user',
-        data: mainText('other'),
-        status: 'success',
-        siblingsGroupId: 0
-      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-2', [
+          {
+            id: 'other-node',
+            parentId: null,
+            topicId: 'topic-2',
+            role: 'user',
+            data: mainText('other'),
+            status: 'success',
+            siblingsGroupId: 0
+          }
+        ])
+      )
 
       await expect(messageService.getBranchMessages('topic-1', { nodeId: 'other-node' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
@@ -318,30 +323,32 @@ describe('MessageService', () => {
   describe('search', () => {
     it('searches v2 parts text and returns message snippets', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-search', activeNodeId: 'm-search-1', orderKey: 's0' })
-      await dbh.db.insert(messageTable).values([
-        {
-          id: 'm-search-1',
-          parentId: null,
-          topicId: 'topic-search',
-          role: 'assistant',
-          data: partsText('The v2 parts payload contains a unique needle.'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 100,
-          updatedAt: 100
-        },
-        {
-          id: 'm-search-2',
-          parentId: 'm-search-1',
-          topicId: 'topic-search',
-          role: 'assistant',
-          data: partsText('No matching term here.'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 200,
-          updatedAt: 200
-        }
-      ])
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-search', [
+          {
+            id: 'm-search-1',
+            parentId: null,
+            topicId: 'topic-search',
+            role: 'assistant',
+            data: partsText('The v2 parts payload contains a unique needle.'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'm-search-2',
+            parentId: 'm-search-1',
+            topicId: 'topic-search',
+            role: 'assistant',
+            data: partsText('No matching term here.'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 200,
+            updatedAt: 200
+          }
+        ])
+      )
 
       const result = await messageService.search({ q: 'needle' })
 
@@ -368,30 +375,32 @@ describe('MessageService', () => {
 
     it('uses substring matching for terms that FTS would treat as whole tokens', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-substring', activeNodeId: 'm-substring-2', orderKey: 's5' })
-      await dbh.db.insert(messageTable).values([
-        {
-          id: 'm-substring-1',
-          parentId: null,
-          topicId: 'topic-substring',
-          role: 'assistant',
-          data: partsText('abcneedledef is embedded in a larger token.'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 100,
-          updatedAt: 100
-        },
-        {
-          id: 'm-substring-2',
-          parentId: 'm-substring-1',
-          topicId: 'topic-substring',
-          role: 'assistant',
-          data: partsText('needle appears as a separate token too.'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 200,
-          updatedAt: 200
-        }
-      ])
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-substring', [
+          {
+            id: 'm-substring-1',
+            parentId: null,
+            topicId: 'topic-substring',
+            role: 'assistant',
+            data: partsText('abcneedledef is embedded in a larger token.'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'm-substring-2',
+            parentId: 'm-substring-1',
+            topicId: 'topic-substring',
+            role: 'assistant',
+            data: partsText('needle appears as a separate token too.'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 200,
+            updatedAt: 200
+          }
+        ])
+      )
 
       const result = await messageService.search({ q: 'needle' })
 
@@ -402,30 +411,32 @@ describe('MessageService', () => {
       await dbh.db
         .insert(topicTable)
         .values({ id: 'topic-search-and', activeNodeId: 'm-search-and-2', orderKey: 'sa0' })
-      await dbh.db.insert(messageTable).values([
-        {
-          id: 'm-search-and-1',
-          parentId: null,
-          topicId: 'topic-search-and',
-          role: 'assistant',
-          data: partsText('alpha needle appear together.'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 100,
-          updatedAt: 100
-        },
-        {
-          id: 'm-search-and-2',
-          parentId: 'm-search-and-1',
-          topicId: 'topic-search-and',
-          role: 'assistant',
-          data: partsText('needle appears without the other term.'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 200,
-          updatedAt: 200
-        }
-      ])
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-search-and', [
+          {
+            id: 'm-search-and-1',
+            parentId: null,
+            topicId: 'topic-search-and',
+            role: 'assistant',
+            data: partsText('alpha needle appear together.'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'm-search-and-2',
+            parentId: 'm-search-and-1',
+            topicId: 'topic-search-and',
+            role: 'assistant',
+            data: partsText('needle appears without the other term.'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 200,
+            updatedAt: 200
+          }
+        ])
+      )
 
       const result = await messageService.search({ q: 'alpha needle' })
 
@@ -436,41 +447,43 @@ describe('MessageService', () => {
       await dbh.db
         .insert(topicTable)
         .values({ id: 'topic-search-literal', activeNodeId: 'm-search-literal-2', orderKey: 'sl0' })
-      await dbh.db.insert(messageTable).values([
-        {
-          id: 'm-search-literal-1',
-          parentId: null,
-          topicId: 'topic-search-literal',
-          role: 'assistant',
-          data: partsText('Save 50% off today.'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 100,
-          updatedAt: 100
-        },
-        {
-          id: 'm-search-literal-2',
-          parentId: 'm-search-literal-1',
-          topicId: 'topic-search-literal',
-          role: 'assistant',
-          data: partsText('Save 50X off today.'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 200,
-          updatedAt: 200
-        },
-        {
-          id: 'm-search-literal-3',
-          parentId: 'm-search-literal-2',
-          topicId: 'topic-search-literal',
-          role: 'assistant',
-          data: partsText('Save 50_ off today.'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 300,
-          updatedAt: 300
-        }
-      ])
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-search-literal', [
+          {
+            id: 'm-search-literal-1',
+            parentId: null,
+            topicId: 'topic-search-literal',
+            role: 'assistant',
+            data: partsText('Save 50% off today.'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'm-search-literal-2',
+            parentId: 'm-search-literal-1',
+            topicId: 'topic-search-literal',
+            role: 'assistant',
+            data: partsText('Save 50X off today.'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 200,
+            updatedAt: 200
+          },
+          {
+            id: 'm-search-literal-3',
+            parentId: 'm-search-literal-2',
+            topicId: 'topic-search-literal',
+            role: 'assistant',
+            data: partsText('Save 50_ off today.'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 300,
+            updatedAt: 300
+          }
+        ])
+      )
 
       const percentResult = await messageService.search({ q: '50%' })
       const underscoreResult = await messageService.search({ q: '50_' })
@@ -483,17 +496,21 @@ describe('MessageService', () => {
       await dbh.db
         .insert(topicTable)
         .values({ id: 'topic-fts-candidate', activeNodeId: 'm-fts-candidate', orderKey: 'sf0' })
-      await dbh.db.insert(messageTable).values({
-        id: 'm-fts-candidate',
-        parentId: null,
-        topicId: 'topic-fts-candidate',
-        role: 'assistant',
-        data: partsText('needle exists in the base message text.'),
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 100,
-        updatedAt: 100
-      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-fts-candidate', [
+          {
+            id: 'm-fts-candidate',
+            parentId: null,
+            topicId: 'topic-fts-candidate',
+            role: 'assistant',
+            data: partsText('needle exists in the base message text.'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          }
+        ])
+      )
 
       const ftsRow = await dbh.client.execute({
         sql: 'SELECT rowid, searchable_text FROM message WHERE id = ?',
@@ -519,17 +536,21 @@ describe('MessageService', () => {
       await dbh.db
         .insert(topicTable)
         .values({ id: 'topic-substring-default', activeNodeId: 'm-substring-default', orderKey: 'sd0' })
-      await dbh.db.insert(messageTable).values({
-        id: 'm-substring-default',
-        parentId: null,
-        topicId: 'topic-substring-default',
-        role: 'assistant',
-        data: partsText('abcneedledef is embedded in a larger token.'),
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 100,
-        updatedAt: 100
-      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-substring-default', [
+          {
+            id: 'm-substring-default',
+            parentId: null,
+            topicId: 'topic-substring-default',
+            role: 'assistant',
+            data: partsText('abcneedledef is embedded in a larger token.'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          }
+        ])
+      )
 
       const result = await messageService.search({ q: 'needle' })
 
@@ -542,28 +563,32 @@ describe('MessageService', () => {
         { id: 'topic-substring-other', activeNodeId: 'm-substring-filter-other', orderKey: 'sf1' }
       ])
       await dbh.db.insert(messageTable).values([
-        {
-          id: 'm-substring-filter-target',
-          parentId: null,
-          topicId: 'topic-substring-filter',
-          role: 'assistant',
-          data: partsText('needle appears in the target topic.'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 200,
-          updatedAt: 200
-        },
-        {
-          id: 'm-substring-filter-other',
-          parentId: null,
-          topicId: 'topic-substring-other',
-          role: 'assistant',
-          data: partsText('needle appears in another topic too.'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 300,
-          updatedAt: 300
-        }
+        ...withRoot('topic-substring-filter', [
+          {
+            id: 'm-substring-filter-target',
+            parentId: null,
+            topicId: 'topic-substring-filter',
+            role: 'assistant',
+            data: partsText('needle appears in the target topic.'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 200,
+            updatedAt: 200
+          }
+        ]),
+        ...withRoot('topic-substring-other', [
+          {
+            id: 'm-substring-filter-other',
+            parentId: null,
+            topicId: 'topic-substring-other',
+            role: 'assistant',
+            data: partsText('needle appears in another topic too.'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 300,
+            updatedAt: 300
+          }
+        ])
       ])
 
       const result = await messageService.search({
@@ -649,17 +674,21 @@ describe('MessageService', () => {
 
     it('searches visible code parts', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-code', activeNodeId: 'm-code-1', orderKey: 's4' })
-      await dbh.db.insert(messageTable).values({
-        id: 'm-code-1',
-        parentId: null,
-        topicId: 'topic-code',
-        role: 'assistant',
-        data: partsCode('const searchableCodeNeedle = true'),
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 100,
-        updatedAt: 100
-      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-code', [
+          {
+            id: 'm-code-1',
+            parentId: null,
+            topicId: 'topic-code',
+            role: 'assistant',
+            data: partsCode('const searchableCodeNeedle = true'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          }
+        ])
+      )
 
       const result = await messageService.search({ q: 'searchableCodeNeedle' })
 
@@ -669,41 +698,43 @@ describe('MessageService', () => {
 
     it('uses message id as the cursor tiebreaker when createdAt values match', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-page-tie', activeNodeId: 'm-page-tie-3', orderKey: 'st0' })
-      await dbh.db.insert(messageTable).values([
-        {
-          id: 'm-page-tie-1',
-          parentId: null,
-          topicId: 'topic-page-tie',
-          role: 'assistant',
-          data: partsText('needle tie one'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 100,
-          updatedAt: 100
-        },
-        {
-          id: 'm-page-tie-2',
-          parentId: 'm-page-tie-1',
-          topicId: 'topic-page-tie',
-          role: 'assistant',
-          data: partsText('needle tie two'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 100,
-          updatedAt: 100
-        },
-        {
-          id: 'm-page-tie-3',
-          parentId: 'm-page-tie-2',
-          topicId: 'topic-page-tie',
-          role: 'assistant',
-          data: partsText('needle tie three'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 100,
-          updatedAt: 100
-        }
-      ])
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-page-tie', [
+          {
+            id: 'm-page-tie-1',
+            parentId: null,
+            topicId: 'topic-page-tie',
+            role: 'assistant',
+            data: partsText('needle tie one'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'm-page-tie-2',
+            parentId: 'm-page-tie-1',
+            topicId: 'topic-page-tie',
+            role: 'assistant',
+            data: partsText('needle tie two'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'm-page-tie-3',
+            parentId: 'm-page-tie-2',
+            topicId: 'topic-page-tie',
+            role: 'assistant',
+            data: partsText('needle tie three'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          }
+        ])
+      )
 
       const firstPage = await messageService.search({ q: 'needle', limit: 2 })
       const secondPage = await messageService.search({
@@ -720,41 +751,43 @@ describe('MessageService', () => {
 
     it('returns a cursor for the next search result page', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-page', activeNodeId: 'm-page-3', orderKey: 's6' })
-      await dbh.db.insert(messageTable).values([
-        {
-          id: 'm-page-1',
-          parentId: null,
-          topicId: 'topic-page',
-          role: 'assistant',
-          data: partsText('needle page one'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 100,
-          updatedAt: 100
-        },
-        {
-          id: 'm-page-2',
-          parentId: 'm-page-1',
-          topicId: 'topic-page',
-          role: 'assistant',
-          data: partsText('needle page two'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 200,
-          updatedAt: 200
-        },
-        {
-          id: 'm-page-3',
-          parentId: 'm-page-2',
-          topicId: 'topic-page',
-          role: 'assistant',
-          data: partsText('needle page three'),
-          status: 'success',
-          siblingsGroupId: 0,
-          createdAt: 300,
-          updatedAt: 300
-        }
-      ])
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-page', [
+          {
+            id: 'm-page-1',
+            parentId: null,
+            topicId: 'topic-page',
+            role: 'assistant',
+            data: partsText('needle page one'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'm-page-2',
+            parentId: 'm-page-1',
+            topicId: 'topic-page',
+            role: 'assistant',
+            data: partsText('needle page two'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 200,
+            updatedAt: 200
+          },
+          {
+            id: 'm-page-3',
+            parentId: 'm-page-2',
+            topicId: 'topic-page',
+            role: 'assistant',
+            data: partsText('needle page three'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 300,
+            updatedAt: 300
+          }
+        ])
+      )
 
       const firstPage = await messageService.search({ q: 'needle', limit: 2 })
       await dbh.db.update(messageTable).set({ deletedAt: 400 }).where(eq(messageTable.id, 'm-page-2'))
@@ -1284,6 +1317,29 @@ describe('MessageService', () => {
       expect(remaining[0].parentId).toBeNull()
     })
 
+    it('clearTopicMessages removes every content message, keeps the virtual root, and clears activeNodeId', async () => {
+      await seedMultiModelTree() // root + m-root/m-a1/m-a2/m-follow, activeNodeId='m-follow'
+
+      const result = await messageService.clearTopicMessages('topic-1')
+      expect(result.deletedIds.slice().sort()).toEqual(['m-a1', 'm-a2', 'm-follow', 'm-root'])
+
+      const remaining = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
+      expect(remaining.map((r) => r.id)).toEqual([virtualRootId])
+      const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
+      expect(topicRow.activeNodeId).toBeNull()
+    })
+
+    it('clearTopicMessages on an empty topic is a no-op that keeps the root', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-empty', activeNodeId: null, orderKey: 'a0' })
+      await messageService.createRootMessageTx(dbh.db, 'topic-empty')
+
+      const result = await messageService.clearTopicMessages('topic-empty')
+      expect(result.deletedIds).toEqual([])
+      const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-empty'))
+      expect(rows).toHaveLength(1)
+      expect(rows[0].role).toBe('root')
+    })
+
     it('cascade-deleting the active first-turn subtree clears activeNodeId (never points it at the root)', async () => {
       await seedMultiModelTree() // topic.activeNodeId = 'm-follow', inside m-root's subtree
 
@@ -1409,7 +1465,6 @@ describe('MessageService', () => {
 
     it('createSibling rejects the virtual root (no second null-parent row)', async () => {
       await seedMultiModelTree()
-
       await expect(messageService.createSibling(virtualRootId, mainText('x'))).rejects.toMatchObject({
         code: ErrorCode.INVALID_OPERATION
       })
@@ -1417,10 +1472,43 @@ describe('MessageService', () => {
 
     it('getTree rejects an explicit rootId that is the virtual root', async () => {
       await seedMultiModelTree()
-
       await expect(messageService.getTree('topic-1', { rootId: virtualRootId })).rejects.toMatchObject({
         code: ErrorCode.INVALID_OPERATION
       })
+    })
+
+    it('update rejects reparenting a content message to the virtual-root slot (parentId=null)', async () => {
+      await seedMultiModelTree()
+      await expect(messageService.update('m-a2', { parentId: null })).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION
+      })
+    })
+
+    it('update rejects reparenting the virtual root', async () => {
+      await seedMultiModelTree()
+      await expect(messageService.update(virtualRootId, { parentId: 'm-root' })).rejects.toMatchObject({
+        code: ErrorCode.INVALID_OPERATION
+      })
+    })
+
+    it('CreateMessageSchema rejects role="root" at validation', () => {
+      const result = CreateMessageSchema.safeParse({ role: 'root', data: { parts: [] }, status: 'success' })
+      expect(result.success).toBe(false)
+    })
+
+    it('toContentRole passes content roles through and throws on the root sentinel', () => {
+      expect(toContentRole('user')).toBe('user')
+      expect(toContentRole('assistant')).toBe('assistant')
+      expect(toContentRole('system')).toBe('system')
+      expect(() => toContentRole('root')).toThrow()
+    })
+
+    it('getPathRowsToNodeTx excludes the root, so a built history never carries role=root (toContentRole safe)', async () => {
+      await seedMultiModelTree()
+      const rows = await messageService.getPathRowsToNodeTx(dbh.db, 'm-follow', { topicId: 'topic-1' })
+      // Path excludes the virtual root → no role='root' reaches serialization.
+      expect(rows.every((r) => r.role !== 'root')).toBe(true)
+      expect(() => rows.map((r) => toContentRole(r.role as MessageRole))).not.toThrow()
     })
 
     it('a soft-deleted virtual root does not collide with a freshly created one (hardened index)', async () => {
@@ -1726,15 +1814,19 @@ describe('MessageService', () => {
           { id: 'topic-1', orderKey: 'a0' },
           { id: 'topic-2', orderKey: 'a1' }
         ])
-        await dbh.db.insert(messageTable).values({
-          id: 'u-in-t2',
-          topicId: 'topic-2',
-          parentId: null,
-          role: 'user',
-          data: mainText('other'),
-          status: 'success',
-          siblingsGroupId: 0
-        })
+        await dbh.db.insert(messageTable).values(
+          withRoot('topic-2', [
+            {
+              id: 'u-in-t2',
+              topicId: 'topic-2',
+              parentId: null,
+              role: 'user',
+              data: mainText('other'),
+              status: 'success',
+              siblingsGroupId: 0
+            }
+          ])
+        )
 
         await expect(
           messageService.createUserMessageWithPlaceholders({
@@ -1930,17 +2022,21 @@ describe('MessageService', () => {
 
     async function seedAnchorWithTwoApprovals() {
       await dbh.db.insert(topicTable).values({ id: 'topic-ap', activeNodeId: 'anchor', orderKey: 'a0' })
-      await dbh.db.insert(messageTable).values({
-        id: 'anchor',
-        parentId: null,
-        topicId: 'topic-ap',
-        role: 'assistant',
-        data: { parts: [toolPart('c-a', 'ap-a'), toolPart('c-b', 'ap-b')] as MessageData['parts'] },
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 100,
-        updatedAt: 100
-      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-ap', [
+          {
+            id: 'anchor',
+            parentId: null,
+            topicId: 'topic-ap',
+            role: 'assistant',
+            data: { parts: [toolPart('c-a', 'ap-a'), toolPart('c-b', 'ap-b')] as MessageData['parts'] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          }
+        ])
+      )
     }
 
     // The fix's core property: each call re-reads the anchor's CURRENT parts inside the transaction

@@ -326,15 +326,20 @@ describe('TopicService', () => {
       await dbh.db
         .insert(topicTable)
         .values({ id: 'topic-1', name: 'Topic', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
-      await dbh.db.insert(messageTable).values({
-        topicId: 'topic-1',
-        role: 'user',
-        data: { parts: [] },
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 1,
-        updatedAt: 1
-      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-1', [
+          {
+            parentId: null,
+            topicId: 'topic-1',
+            role: 'user',
+            data: { parts: [] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        ])
+      )
       await dbh.db.insert(tagTable).values({ id: 'tag-1', name: 'work', createdAt: 1, updatedAt: 1 })
       await dbh.db.insert(entityTagTable).values({
         entityType: 'topic',
@@ -421,16 +426,21 @@ describe('TopicService', () => {
         { id: 'topic-1', name: 'Topic 1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
         { id: 'topic-2', name: 'Topic 2', orderKey: 'a1', createdAt: 1, updatedAt: 1 }
       ])
-      await dbh.db.insert(messageTable).values({
-        id: 'message-1',
-        topicId: 'topic-1',
-        role: 'user',
-        data: { parts: [] },
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 1,
-        updatedAt: 1
-      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-1', [
+          {
+            id: 'message-1',
+            parentId: null,
+            topicId: 'topic-1',
+            role: 'user',
+            data: { parts: [] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        ])
+      )
 
       await expect(topicService.deleteByIds(['topic-1', 'missing-topic'])).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
@@ -438,7 +448,8 @@ describe('TopicService', () => {
 
       const topics = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.id))
       expect(topics.map((topic) => topic.id)).toEqual(['topic-1', 'topic-2'])
-      expect(await dbh.db.select().from(messageTable)).toHaveLength(1)
+      // virtual root + message-1 both survive the rejected delete
+      expect(await dbh.db.select().from(messageTable)).toHaveLength(2)
     })
   })
 
@@ -462,16 +473,21 @@ describe('TopicService', () => {
         { id: 'topic-1', name: 'Topic 1', assistantId: 'asst-1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
         { id: 'topic-2', name: 'Topic 2', assistantId: 'asst-1', orderKey: 'a1', createdAt: 1, updatedAt: 1 }
       ])
-      await dbh.db.insert(messageTable).values({
-        id: 'message-1',
-        topicId: 'topic-1',
-        role: 'user',
-        data: { parts: [] },
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 1,
-        updatedAt: 1
-      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-1', [
+          {
+            id: 'message-1',
+            parentId: null,
+            topicId: 'topic-1',
+            role: 'user',
+            data: { parts: [] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        ])
+      )
       await dbh.db.insert(tagTable).values({ id: 'tag-1', name: 'work', createdAt: 1, updatedAt: 1 })
       await dbh.db.insert(entityTagTable).values({
         entityType: 'topic',
@@ -705,7 +721,7 @@ describe('TopicService', () => {
       const [topicRow] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, result.id))
       expect(topicRow.activeNodeId).toBeNull()
 
-      // Exactly one parentId-null row: the virtual root (role 'system', empty data).
+      // Exactly one parentId-null row: the virtual root (role 'root', empty data).
       const rootRows = await dbh.db
         .select()
         .from(messageTable)
@@ -1037,17 +1053,21 @@ describe('TopicService', () => {
       await dbh.db
         .insert(topicTable)
         .values({ id: 'src-t', name: 'Source', orderKey: 'a0', deletedAt: 999, createdAt: 1, updatedAt: 1 })
-      await dbh.db.insert(messageTable).values({
-        id: 'selected',
-        topicId: 'src-t',
-        parentId: null,
-        role: 'user',
-        data: { parts: [] },
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 1,
-        updatedAt: 1
-      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('src-t', [
+          {
+            id: 'selected',
+            topicId: 'src-t',
+            parentId: null,
+            role: 'user',
+            data: { parts: [] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        ])
+      )
 
       await expect(topicService.duplicate('src-t', { nodeId: 'selected' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
@@ -1059,16 +1079,21 @@ describe('TopicService', () => {
         { id: 'src-t', name: 'Source', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
         { id: 'other-t', name: 'Other', orderKey: 'a1', createdAt: 1, updatedAt: 1 }
       ])
-      await dbh.db.insert(messageTable).values({
-        id: 'other-node',
-        topicId: 'other-t',
-        role: 'user',
-        data: { parts: [] },
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 1,
-        updatedAt: 1
-      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('other-t', [
+          {
+            id: 'other-node',
+            parentId: null,
+            topicId: 'other-t',
+            role: 'user',
+            data: { parts: [] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        ])
+      )
 
       await expect(topicService.duplicate('src-t', { nodeId: 'other-node' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
@@ -1134,18 +1159,22 @@ describe('TopicService', () => {
       await dbh.db
         .insert(topicTable)
         .values({ id: 'src-t', name: 'Source', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
-      await dbh.db.insert(messageTable).values({
-        id: 'selected',
-        topicId: 'src-t',
-        parentId: null,
-        role: 'user',
-        data: { parts: [] },
-        status: 'success',
-        siblingsGroupId: 0,
-        deletedAt: 999,
-        createdAt: 1,
-        updatedAt: 1
-      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('src-t', [
+          {
+            id: 'selected',
+            topicId: 'src-t',
+            parentId: null,
+            role: 'user',
+            data: { parts: [] },
+            status: 'success',
+            siblingsGroupId: 0,
+            deletedAt: 999,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        ])
+      )
 
       await expect(topicService.duplicate('src-t', { nodeId: 'selected' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
@@ -1282,16 +1311,21 @@ describe('TopicService', () => {
     it('rejects message belonging to a different topic (cross-topic planting guard)', async () => {
       await seedTopicWithMessages()
       await dbh.db.insert(topicTable).values({ id: 't2', name: 'T2', orderKey: 'a1', createdAt: 1, updatedAt: 1 })
-      await dbh.db.insert(messageTable).values({
-        id: 'other',
-        topicId: 't2',
-        role: 'user',
-        data: { parts: [] },
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 1,
-        updatedAt: 1
-      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('t2', [
+          {
+            id: 'other',
+            parentId: null,
+            topicId: 't2',
+            role: 'user',
+            data: { parts: [] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        ])
+      )
       await expect(topicService.setActiveNode('t1', 'other')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
@@ -1312,17 +1346,22 @@ describe('TopicService', () => {
 
     it('rejects soft-deleted message', async () => {
       await dbh.db.insert(topicTable).values({ id: 't1', name: 'T', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
-      await dbh.db.insert(messageTable).values({
-        id: 'm-gone',
-        topicId: 't1',
-        role: 'user',
-        data: { parts: [] },
-        status: 'success',
-        siblingsGroupId: 0,
-        deletedAt: 999,
-        createdAt: 1,
-        updatedAt: 1
-      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('t1', [
+          {
+            id: 'm-gone',
+            parentId: null,
+            topicId: 't1',
+            role: 'user',
+            data: { parts: [] },
+            status: 'success',
+            siblingsGroupId: 0,
+            deletedAt: 999,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        ])
+      )
       await expect(topicService.setActiveNode('t1', 'm-gone')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
@@ -1337,16 +1376,21 @@ describe('TopicService', () => {
         createdAt: 1,
         updatedAt: 1
       })
-      await dbh.db.insert(messageTable).values({
-        id: 'm1',
-        topicId: 't-gone',
-        role: 'user',
-        data: { parts: [] },
-        status: 'success',
-        siblingsGroupId: 0,
-        createdAt: 1,
-        updatedAt: 1
-      })
+      await dbh.db.insert(messageTable).values(
+        withRoot('t-gone', [
+          {
+            id: 'm1',
+            parentId: null,
+            topicId: 't-gone',
+            role: 'user',
+            data: { parts: [] },
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        ])
+      )
       await expect(topicService.setActiveNode('t-gone', 'm1')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })

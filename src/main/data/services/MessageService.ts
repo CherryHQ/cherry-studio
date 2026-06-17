@@ -30,6 +30,7 @@ import {
   type Message,
   type MessageData,
   type SiblingsGroup,
+  toContentRole,
   TOPIC_MESSAGE_SEARCH_ROLES,
   type TreeNode,
   type TreeResponse
@@ -37,7 +38,7 @@ import {
 import type { UniqueModelId } from '@shared/data/types/model'
 import { buildSearchSnippet } from '@shared/utils/searchSnippet'
 import { isToolUIPart } from 'ai'
-import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
@@ -187,7 +188,9 @@ function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
   return {
     id: message.id,
     parentId: message.parentId,
-    role: message.role === 'system' ? 'assistant' : message.role,
+    // Tree nodes carry content roles only; toContentRole narrows (the root never reaches
+    // here — guarded above) and 'system' is surfaced as 'assistant' for display.
+    role: message.role === 'system' ? 'assistant' : toContentRole(message.role),
     preview: extractPreview(message),
     modelId: message.modelId,
     status: message.status,
@@ -376,6 +379,7 @@ export class MessageService {
         .where(
           and(
             inArray(messageTable.parentId, activePathArray),
+            isNull(messageTable.deletedAt),
             sql`${messageTable.id} NOT IN (${sql.join(
               [...treeNodeIds].map((id) => sql`${id}`),
               sql`, `
@@ -492,8 +496,8 @@ export class MessageService {
       }
     }
 
-    // Start from root nodes. Root siblings are independent trees that share
-    // parentId=null, so the flow canvas needs to collect each subtree.
+    // Start from the logical roots — the virtual root's children (first-turn messages).
+    // Each is an independent subtree the flow canvas collects.
     for (const startRootId of rootIds) {
       collectNodes(startRootId, 0, activePath.has(startRootId))
     }
@@ -794,7 +798,8 @@ export class MessageService {
         throw DataApiErrorFactory.notFound('Message', sourceId)
       }
       // The virtual root has no siblings — copying its null parentId would insert a second
-      // null-parent row and hit message_topic_root_uniq.
+      // null-parent row and trip message_topic_root_uniq. Reject cleanly (the CHECK +
+      // unique index are the structural backstop; this is the friendly API error).
       if (source.role === 'root' || source.parentId === null) {
         throw DataApiErrorFactory.invalidOperation(
           'create sibling of the virtual root',
@@ -1100,6 +1105,24 @@ export class MessageService {
 
       const existing = rowToMessage(existingRow)
 
+      // Single-root guards (mirror createSibling/delete; the CHECK + unique index are the
+      // structural backstop, these give clean errors):
+      // - the virtual root cannot be reparented (it would lose its null parent → topic
+      //   left rootless);
+      // - a content message cannot be moved to parentId=null (it would become a second
+      //   null-parent row → unique-index violation).
+      if (dto.parentId !== undefined) {
+        if (existing.role === 'root') {
+          throw DataApiErrorFactory.invalidOperation('move message', 'the virtual root cannot be reparented')
+        }
+        if (dto.parentId === null) {
+          throw DataApiErrorFactory.invalidOperation(
+            'move message',
+            'a message cannot be reparented to the virtual root slot'
+          )
+        }
+      }
+
       // Verify new parent exists if changing parent
       if (dto.parentId !== undefined && dto.parentId !== existing.parentId && dto.parentId !== null) {
         const [parent] = await tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1)
@@ -1347,6 +1370,36 @@ export class MessageService {
         reparentedIds: reparentedIds?.length ? reparentedIds : undefined,
         newActiveNodeId
       }
+    })
+  }
+
+  /**
+   * Clear all of a topic's content messages, keeping the content-less virtual root.
+   *
+   * The structural replacement for the old "delete the root row to clear the topic":
+   * with the virtual root, first turns (and their resends) are independent children of
+   * the root and `delete(root)` is rejected, so there is no single message whose cascade
+   * clears the topic. This deletes every non-root row of the topic in one transaction —
+   * the self-FK `ON DELETE CASCADE` removes whole subtrees, the root (excluded) survives,
+   * so the single-root invariant holds — and clears `activeNodeId`.
+   */
+  async clearTopicMessages(topicId: string): Promise<{ deletedIds: string[] }> {
+    return await application.get('DbService').withWriteTx(async (tx) => {
+      const rootId = await this.getRootMessageIdTx(tx, topicId)
+
+      const rows = await tx
+        .select({ id: messageTable.id })
+        .from(messageTable)
+        .where(and(eq(messageTable.topicId, topicId), ne(messageTable.id, rootId), isNull(messageTable.deletedAt)))
+      const deletedIds = rows.map((r) => r.id)
+
+      if (deletedIds.length === 0) return { deletedIds }
+
+      await tx.delete(messageTable).where(and(eq(messageTable.topicId, topicId), ne(messageTable.id, rootId)))
+      await getDataService('TopicService').clearActiveNodeTx(tx, topicId)
+
+      logger.info('Cleared topic messages', { topicId, count: deletedIds.length })
+      return { deletedIds }
     })
   }
 
