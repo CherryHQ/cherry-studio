@@ -51,7 +51,12 @@ const knowledgeSupportedFileExtSet = new Set<string>(knowledgeSupportedFileExts)
 const filterSupportedKnowledgeFiles = (files: File[]) =>
   files.filter((file) => knowledgeSupportedFileExtSet.has(getFileExtension(file.name)))
 
-const getSelectedFileKey = (file: File) => `${file.name}-${file.size}-${file.lastModified}`
+// Dedupe the in-dialog selection by each file's on-disk path. Two files that share a name
+// but live in different folders are distinct sources and must both be addable (the backend
+// auto-renames same-named files on disk via reserveImportedFileRelativePath); only the exact
+// same file dropped twice collapses to one. Keying by name+size+lastModified instead wrongly
+// dropped a copy of the same file living in another folder.
+const getSelectedFileKey = (file: File) => window.api.file.getPathForFile(file)
 
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
   const { t } = useTranslation()

@@ -420,6 +420,25 @@ describe('AddKnowledgeItemDialog', () => {
     expect(window.toast.warning).not.toHaveBeenCalled()
   })
 
+  it('keeps two same-named files from different folders, deduping by path rather than name', () => {
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    // Identical name and size — only the on-disk path differs. Keying dedup off
+    // name+size+lastModified used to silently drop the second file; path keying keeps both,
+    // matching the backend, which auto-renames same-named files on disk.
+    const fromFolderA = createMockFile('report.pdf', 1024)
+    const fromFolderB = createMockFile('report.pdf', 1024)
+    mockGetPathForFile.mockImplementation((file: File) =>
+      file === fromFolderA ? '/folderA/report.pdf' : '/folderB/report.pdf'
+    )
+    setMockAcceptedFiles([fromFolderA, fromFolderB])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    expect(screen.getAllByText('report.pdf')).toHaveLength(2)
+    expect(screen.getByText('已选 2 个文件')).toBeInTheDocument()
+    expect(window.toast.warning).not.toHaveBeenCalled()
+  })
+
   it('renders files passed from the external footer dropzone and warns about skipped ones', () => {
     setPendingAddFiles([createMockFile('external.pdf', 1024), createMockFile('external.exe', 1024)])
 
@@ -679,6 +698,9 @@ describe('AddKnowledgeItemDialog', () => {
 
     setMockAcceptedFiles([createMockFile('alpha.pdf', 1024)])
     fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+    // Drop-time dedup now resolves each file's path too; reset so the count below
+    // measures only submit-time path resolution (proving the second click is debounced).
+    mockGetPathForFile.mockClear()
 
     const addButton = screen.getByRole('button', { name: '添加' })
     fireEvent.click(addButton)
