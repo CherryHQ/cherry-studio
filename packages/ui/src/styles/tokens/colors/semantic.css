@@ -87,6 +87,16 @@
    * against the flat content surface. */
   --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 70%, transparent);
 
+  /* Window-chrome glass tuning — color literals for the macOS-vibrancy
+   * (translucent-window) sidebar drop shadow and floating tab-bar tab surfaces.
+   * These are window-chrome-specific glass values; geometry (offset/blur/spread)
+   * stays inline in the components, only the color slots live here. */
+  --cs-sidebar-glass-shadow: rgba(0, 0, 0, 0.25);
+  --cs-tabbar-glass-surface: rgba(255, 255, 255, 0.6);
+  --cs-tabbar-glass-border: rgba(0, 0, 0, 0.08);
+  --cs-tabbar-glass-hover: rgba(0, 0, 0, 0.06);
+  --cs-tabbar-glass-shadow: rgba(255, 255, 255, 0.28);
+
   /* Selected state — tab bar active tab, sidebar active menu item.
    * Paired 0.5px inside-border (--cs-selected-border) for a quiet outline. */
   --cs-selected: #f0f0ef;
@@ -204,6 +214,16 @@
    * over a dark wallpaper the blurred bleed-through crushes sidebar legibility,
    * so we keep only a hint of glass. See :root note for the alpha tradeoffs. */
   --cs-sidebar-translucent: color-mix(in srgb, var(--cs-sidebar) 70%, transparent);
+
+  /* Window-chrome glass tuning (dark) — see :root note. The sidebar drop-shadow
+   * color is mode-invariant; the tab surfaces sit far lighter over the darker
+   * vibrancy (a near-invisible white wash) and the active border is dropped
+   * entirely (the component keeps `dark:border-0`, so this is transparent). */
+  --cs-sidebar-glass-shadow: rgba(0, 0, 0, 0.25);
+  --cs-tabbar-glass-surface: rgba(255, 255, 255, 0.06);
+  --cs-tabbar-glass-border: transparent;
+  --cs-tabbar-glass-hover: rgba(255, 255, 255, 0.06);
+  --cs-tabbar-glass-shadow: rgba(255, 255, 255, 0.04);
 
   /* Selected state (dark) — see :root note. */
   --cs-selected: #1f201d;
