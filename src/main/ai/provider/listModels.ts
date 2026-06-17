@@ -20,7 +20,13 @@ import type { Provider } from '@shared/data/types/provider'
 import { defaultAppHeaders } from '@shared/utils'
 import { formatApiHost } from '@shared/utils/api'
 import { withoutTrailingSlash } from '@shared/utils/api/utils'
-import { isAIGatewayProvider, isGeminiProvider, isOllamaProvider, isVertexProvider } from '@shared/utils/provider'
+import {
+  isAIGatewayProvider,
+  isGeminiProvider,
+  isOllamaProvider,
+  isVertexProvider,
+  matchesPreset
+} from '@shared/utils/provider'
 import { SystemProviderIds } from '@types'
 import * as z from 'zod'
 
@@ -320,7 +326,7 @@ const githubFetcher: ModelFetcher = {
 }
 
 const copilotFetcher: ModelFetcher = {
-  match: (p) => p.id === SystemProviderIds.copilot,
+  match: (p) => matchesPreset(p, SystemProviderIds.copilot),
   fetch: async (provider, signal) => {
     const headers = {
       ...COPILOT_DEFAULT_HEADERS,
@@ -523,7 +529,7 @@ function isSupportedOpenAIModel(modelId: string): boolean {
 }
 
 const openAIFetcher: ModelFetcher = {
-  match: (p) => p.id === SystemProviderIds.openai,
+  match: (p) => matchesPreset(p, SystemProviderIds.openai),
   fetch: async (provider, signal) => {
     const baseUrl = formatApiHost(getBaseUrl(provider))
     const response = await getFromApi({
