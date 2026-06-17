@@ -6,16 +6,19 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Field,
-  FieldContent,
-  FieldError,
-  FieldLabel,
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
   Input,
   Textarea
 } from '@cherrystudio/ui'
 import { ModelSelector } from '@renderer/components/Selector/model'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { type FormEvent, useCallback, useEffect, useId, useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './components/DialogFormFields'
@@ -38,10 +41,24 @@ type ResourceCreateDialogProps = {
   isSubmitting?: boolean
 }
 
-type SubmitState = { kind: 'idle' } | { kind: 'submitted' } | { kind: 'error'; message: string }
+type ResourceCreateFormValues = {
+  avatar: string
+  name: string
+  selectedModel?: Model
+  description: string
+}
 
-function getDefaults(kind: ResourceCreateDialogKind) {
-  return kind === 'assistant' ? { avatar: '💬' } : { avatar: '🤖' }
+function getDefaultAvatar(kind: ResourceCreateDialogKind) {
+  return kind === 'assistant' ? '💬' : '🤖'
+}
+
+function getDefaultValues(kind: ResourceCreateDialogKind): ResourceCreateFormValues {
+  return {
+    avatar: getDefaultAvatar(kind),
+    name: '',
+    selectedModel: undefined,
+    description: ''
+  }
 }
 
 export function ResourceCreateDialog({
@@ -53,67 +70,48 @@ export function ResourceCreateDialog({
   isSubmitting = false
 }: ResourceCreateDialogProps) {
   const { t } = useTranslation()
-  const nameId = useId()
-  const modelId = useId()
-  const descriptionId = useId()
-  const defaults = getDefaults(kind)
-  const [avatar, setAvatar] = useState(defaults.avatar)
-  const [name, setName] = useState('')
-  const [selectedModel, setSelectedModel] = useState<Model | undefined>(undefined)
-  const [description, setDescription] = useState('')
+  const form = useForm<ResourceCreateFormValues>({ defaultValues: getDefaultValues(kind) })
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
-  const [submitState, setSubmitState] = useState<SubmitState>({ kind: 'idle' })
+  const submitting = isSubmitting || form.formState.isSubmitting
+  const rootError = form.formState.errors.root?.message
+  const defaultAvatar = getDefaultAvatar(kind)
 
   useEffect(() => {
     if (!open) return
 
-    setAvatar(defaults.avatar)
-    setName('')
-    setSelectedModel(undefined)
-    setDescription('')
+    form.reset(getDefaultValues(kind))
+    form.clearErrors()
     setEmojiPickerOpen(false)
-    setSubmitState({ kind: 'idle' })
-  }, [defaults.avatar, open])
+  }, [form, kind, open])
 
-  const trimmedName = name.trim()
-  const submitted = submitState.kind !== 'idle'
-  const submitError = submitState.kind === 'error' ? submitState.message : undefined
-  const nameError = submitted && trimmedName.length === 0 ? t('library.config.dialogs.create.name_required') : undefined
-  const modelError = submitted && !selectedModel ? t('library.config.dialogs.create.model_required') : undefined
   const title = t(
     kind === 'assistant' ? 'library.config.dialogs.create.assistant_title' : 'library.config.dialogs.create.agent_title'
   )
 
-  const handleSubmit = useCallback(
-    async (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault()
-      setSubmitState({ kind: 'submitted' })
-
-      if (!trimmedName || !selectedModel?.id) {
-        return
-      }
-
+  const handleSubmit = form.handleSubmit(
+    async (values) => {
+      form.clearErrors('root')
       try {
         await onSubmit({
-          avatar,
-          name: trimmedName,
-          modelId: selectedModel.id,
-          description: description.trim()
+          avatar: values.avatar,
+          name: values.name.trim(),
+          modelId: values.selectedModel!.id,
+          description: values.description.trim()
         })
       } catch {
-        setSubmitState({ kind: 'error', message: t('library.config.dialogs.create.submit_failed') })
+        form.setError('root', { message: t('library.config.dialogs.create.submit_failed') })
       }
     },
-    [avatar, description, onSubmit, selectedModel?.id, t, trimmedName]
+    () => form.clearErrors('root')
   )
 
   return (
-    <Dialog open={open} onOpenChange={(nextOpen) => !isSubmitting && onOpenChange(nextOpen)}>
+    <Dialog open={open} onOpenChange={(nextOpen) => !submitting && onOpenChange(nextOpen)}>
       <DialogContent
         ref={setDialogContentElement}
         className="sm:max-w-[460px]"
-        onPointerDownOutside={(event) => isSubmitting && event.preventDefault()}>
+        onPointerDownOutside={(event) => submitting && event.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription className="sr-only">
@@ -121,91 +119,126 @@ export function ResourceCreateDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-          <div className="grid grid-cols-[auto_1fr] items-start gap-3">
-            <Field className="gap-1.5">
-              <FieldLabel>{t('common.avatar')}</FieldLabel>
-              <FieldContent>
-                <EmojiAvatarPicker
-                  value={avatar}
-                  fallback={defaults.avatar}
-                  open={emojiPickerOpen}
-                  onOpenChange={setEmojiPickerOpen}
-                  onChange={setAvatar}
-                  ariaLabel={t('library.config.dialogs.create.avatar_aria')}
-                  disabled={isSubmitting}
-                  portalContainer={dialogContentElement}
-                  size="sm"
-                />
-              </FieldContent>
-            </Field>
-
-            <Field data-invalid={Boolean(nameError) || undefined} className="min-w-0 gap-1.5">
-              <FieldLabel htmlFor={nameId}>{t('common.name')}</FieldLabel>
-              <FieldContent>
-                <Input
-                  id={nameId}
-                  value={name}
-                  disabled={isSubmitting}
-                  placeholder={t('library.config.dialogs.create.name_placeholder')}
-                  aria-invalid={Boolean(nameError) || undefined}
-                  onChange={(event) => setName(event.target.value)}
-                />
-                <FieldError className="text-xs" errors={nameError ? [{ message: nameError }] : undefined} />
-              </FieldContent>
-            </Field>
-          </div>
-
-          <Field data-invalid={Boolean(modelError) || undefined} className="gap-1.5">
-            <FieldLabel id={modelId}>{t('common.model')}</FieldLabel>
-            <FieldContent>
-              <DialogModelFrame invalid={Boolean(modelError)}>
-                <ModelSelector
-                  multiple={false}
-                  selectionType="model"
-                  value={selectedModel}
-                  filter={modelFilter}
-                  portalContainer={dialogContentElement}
-                  onSelect={setSelectedModel}
-                  trigger={
-                    <DialogModelTrigger
-                      disabled={isSubmitting}
-                      ariaLabelledBy={modelId}
-                      model={selectedModel}
-                      displayLabel={selectedModel?.name ?? t('library.config.dialogs.create.model_placeholder')}
+        <Form {...form}>
+          <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+            <div className="grid grid-cols-[auto_1fr] items-start gap-3">
+              <FormField
+                control={form.control}
+                name="avatar"
+                render={({ field }) => (
+                  <FormItem className="gap-1.5">
+                    <FormLabel>{t('common.avatar')}</FormLabel>
+                    <EmojiAvatarPicker
+                      value={field.value}
+                      fallback={defaultAvatar}
+                      open={emojiPickerOpen}
+                      onOpenChange={setEmojiPickerOpen}
+                      onChange={field.onChange}
+                      ariaLabel={t('library.config.dialogs.create.avatar_aria')}
+                      disabled={submitting}
+                      portalContainer={dialogContentElement}
+                      size="sm"
                     />
-                  }
-                />
-              </DialogModelFrame>
-              <FieldError className="text-xs" errors={modelError ? [{ message: modelError }] : undefined} />
-            </FieldContent>
-          </Field>
-
-          <Field className="gap-1.5">
-            <FieldLabel htmlFor={descriptionId}>{t('common.description')}</FieldLabel>
-            <FieldContent>
-              <Textarea.Input
-                id={descriptionId}
-                value={description}
-                disabled={isSubmitting}
-                rows={3}
-                placeholder={t('library.config.dialogs.create.description_placeholder')}
-                onValueChange={setDescription}
+                    <FormMessage className="text-xs" />
+                  </FormItem>
+                )}
               />
-            </FieldContent>
-          </Field>
 
-          {submitError ? <p className="text-destructive text-xs">{submitError}</p> : null}
+              <FormField
+                control={form.control}
+                name="name"
+                rules={{
+                  validate: (value) => value.trim().length > 0 || t('library.config.dialogs.create.name_required')
+                }}
+                render={({ field }) => (
+                  <FormItem className="min-w-0 gap-1.5">
+                    <FormLabel>{t('common.name')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        disabled={submitting}
+                        placeholder={t('library.config.dialogs.create.name_placeholder')}
+                      />
+                    </FormControl>
+                    <FormMessage className="text-xs" />
+                  </FormItem>
+                )}
+              />
+            </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={isSubmitting} onClick={() => onOpenChange(false)}>
-              {t('common.cancel')}
-            </Button>
-            <Button type="submit" loading={isSubmitting}>
-              {t('library.config.dialogs.create.submit')}
-            </Button>
-          </DialogFooter>
-        </form>
+            <FormField
+              control={form.control}
+              name="selectedModel"
+              rules={{
+                validate: (value) => Boolean(value?.id) || t('library.config.dialogs.create.model_required')
+              }}
+              render={({ field, fieldState }) => (
+                <FormItem className="gap-1.5">
+                  <FormLabel>{t('common.model')}</FormLabel>
+                  <FormControl>
+                    <DialogModelFrame invalid={fieldState.invalid}>
+                      <div className="w-full min-w-0">
+                        <ModelSelector
+                          multiple={false}
+                          selectionType="model"
+                          value={field.value}
+                          filter={modelFilter}
+                          portalContainer={dialogContentElement}
+                          onSelect={field.onChange}
+                          trigger={
+                            <DialogModelTrigger
+                              disabled={submitting}
+                              ariaLabel={t('common.model')}
+                              model={field.value}
+                              displayLabel={field.value?.name ?? t('library.config.dialogs.create.model_placeholder')}
+                              className={
+                                field.value
+                                  ? 'w-full hover:bg-background hover:text-foreground'
+                                  : 'w-full hover:bg-background hover:text-muted-foreground'
+                              }
+                            />
+                          }
+                        />
+                      </div>
+                    </DialogModelFrame>
+                  </FormControl>
+                  <FormMessage className="text-xs" />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem className="gap-1.5">
+                  <FormLabel>{t('common.description')}</FormLabel>
+                  <FormControl>
+                    <Textarea.Input
+                      value={field.value}
+                      disabled={submitting}
+                      rows={3}
+                      placeholder={t('library.config.dialogs.create.description_placeholder')}
+                      onValueChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage className="text-xs" />
+                </FormItem>
+              )}
+            />
+
+            {rootError ? <p className="text-destructive text-xs">{rootError}</p> : null}
+
+            <DialogFooter>
+              <Button type="button" variant="outline" disabled={submitting} onClick={() => onOpenChange(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button type="submit" loading={submitting}>
+                {t('library.config.dialogs.create.submit')}
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   )
