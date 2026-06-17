@@ -515,6 +515,29 @@ const gatewayFetcher: ModelFetcher = {
   }
 }
 
+const EXCLUDED_OPENAI_MODEL_KEYWORDS = ['tts', 'whisper', 'transcribe', 'speech', 'audio', 'realtime', 'sora'] as const
+
+function isSupportedOpenAIModel(modelId: string): boolean {
+  const id = modelId.toLowerCase()
+  return !EXCLUDED_OPENAI_MODEL_KEYWORDS.some((keyword) => id.includes(keyword))
+}
+
+const openAIFetcher: ModelFetcher = {
+  match: (p) => p.id === SystemProviderIds.openai,
+  fetch: async (provider, signal) => {
+    const baseUrl = formatApiHost(getBaseUrl(provider))
+    const response = await getFromApi({
+      url: `${baseUrl}/models`,
+      headers: await defaultHeaders(provider),
+      responseSchema: OpenAIModelsResponseSchema,
+      abortSignal: signal
+    })
+    return dedup(response.data, (m) => m.id)
+      .filter((m) => isSupportedOpenAIModel(m.id))
+      .map((m) => toModel(m.id, provider, { ownedBy: m.owned_by }))
+  }
+}
+
 const openAICompatibleFetcher: ModelFetcher = {
   match: () => true,
   fetch: async (provider, signal) => {
@@ -544,6 +567,7 @@ const fetchers: ModelFetcher[] = [
   openRouterFetcher,
   ppioFetcher,
   gatewayFetcher,
+  openAIFetcher,
   openAICompatibleFetcher // always-match fallback, must be last
 ]
 

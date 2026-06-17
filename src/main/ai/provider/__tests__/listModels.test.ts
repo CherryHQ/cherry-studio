@@ -165,6 +165,51 @@ describe('listModels — geminiFetcher API key transport', () => {
   })
 })
 
+describe('listModels — openAIFetcher (official OpenAI provider, audio/video filtering)', () => {
+  function makeOpenAIProvider() {
+    return makeProvider({
+      id: 'openai',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com/v1' }
+      }
+    })
+  }
+
+  it('drops audio/video models (tts/whisper/transcribe/audio/realtime/sora), keeping chat, image, embedding, and moderation', async () => {
+    aiSdkGetFromApiMock.mockResolvedValue({
+      value: {
+        data: [
+          { id: 'gpt-4o' },
+          { id: 'o3' },
+          { id: 'gpt-image-1' },
+          { id: 'dall-e-3' },
+          { id: 'text-embedding-3-large' },
+          { id: 'omni-moderation-latest' },
+          { id: 'tts-1' },
+          { id: 'gpt-4o-mini-tts' },
+          { id: 'whisper-1' },
+          { id: 'gpt-4o-transcribe' },
+          { id: 'gpt-4o-realtime-preview' },
+          { id: 'gpt-4o-audio-preview' },
+          { id: 'sora-2' }
+        ]
+      }
+    })
+
+    const models = await listModels(makeOpenAIProvider())
+
+    expect(models.map((m) => m.apiModelId)).toEqual([
+      'gpt-4o',
+      'o3',
+      'gpt-image-1',
+      'dall-e-3',
+      'text-embedding-3-large',
+      'omni-moderation-latest'
+    ])
+  })
+})
+
 describe('listModels — gatewayFetcher (Vercel AI Gateway /v3/ai/config)', () => {
   function makeGatewayProvider() {
     return makeProvider({
