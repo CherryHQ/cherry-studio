@@ -18,7 +18,6 @@ import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
-import type { UpdateTemporaryTopicDto } from '@shared/data/api/schemas/temporaryChats'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Message, MessageRole, MessageStatus } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
@@ -96,19 +95,6 @@ export class TemporaryChatService {
     this.topics.delete(id)
     this.messages.delete(id)
     logger.info('Deleted temporary topic', { id })
-  }
-
-  async updateTopic(id: string, dto: UpdateTemporaryTopicDto): Promise<Topic> {
-    const row = this.topics.get(id)
-    if (!row) {
-      throw DataApiErrorFactory.notFound('TemporaryTopic', id)
-    }
-
-    if ('assistantId' in dto) {
-      row.assistantId = dto.assistantId ?? undefined
-    }
-    row.updatedAt = Date.now()
-    return rowToTopic(row)
   }
 
   async appendMessage(topicId: string, dto: CreateMessageDto): Promise<Message> {
@@ -193,11 +179,11 @@ export class TemporaryChatService {
         // because the TS-side ISO strings don't match the DB's integer column.
         //
         // `orderKey` is computed via `insertWithOrderKey` so the new persisted
-        // topic lands at the head of the global non-deleted topic order,
-        // matching what `topicService.create` does for normal topics. The
-        // `?? undefined` pattern used for the other fields converts `null` to
-        // `undefined` so Drizzle omits the column entirely, letting the DB
-        // default apply.
+        // topic lands at the tail of its `groupId` partition, matching what
+        // `topicService.create` does for normal topics. The `?? undefined`
+        // pattern used for the other fields converts `null` to `undefined`
+        // so Drizzle omits the column entirely, letting the DB default apply.
+        const groupIdForScope = topic.groupId ?? null
         const assistantId = topic.assistantId ?? undefined
         await insertWithOrderKey(
           tx,
@@ -210,8 +196,7 @@ export class TemporaryChatService {
           },
           {
             pkColumn: topicTable.id,
-            position: 'first',
-            scope: isNull(topicTable.deletedAt)
+            scope: groupIdForScope === null ? isNull(topicTable.groupId) : eq(topicTable.groupId, groupIdForScope)
           }
         )
 

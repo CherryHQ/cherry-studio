@@ -38,38 +38,6 @@ import {
 
 const logger = loggerService.withContext('Migration:ComplexPreferenceMappings')
 
-const DEFAULT_SIDEBAR_FAVORITES = ['assistants', 'agents', 'store', 'translate', 'mini_app'] as const
-const LEGACY_DEFAULT_SIDEBAR_FAVORITES = [
-  ['assistants', 'agents', 'paintings', 'translate', 'store'],
-  ['assistants', 'agents', 'store', 'paintings', 'translate', 'mini_app', 'knowledge', 'files', 'code_tools', 'notes'],
-  [
-    'assistants',
-    'agents',
-    'store',
-    'paintings',
-    'translate',
-    'mini_app',
-    'knowledge',
-    'files',
-    'code_tools',
-    'notes',
-    'openclaw'
-  ]
-] as const
-
-function hasSameItems(value: unknown[], expected: readonly string[]): boolean {
-  if (value.length !== expected.length) return false
-  const actual = new Set(value)
-  return expected.every((item) => actual.has(item))
-}
-
-function shouldUseDefaultSidebarFavorites(visible: unknown, invisible: unknown): visible is unknown[] {
-  if (!Array.isArray(visible)) return false
-  if (Array.isArray(invisible) && invisible.length > 0) return false
-
-  return LEGACY_DEFAULT_SIDEBAR_FAVORITES.some((defaultFavorites) => hasSameItems(visible, defaultFavorites))
-}
-
 // ============================================================================
 // Type Definitions
 // ============================================================================
@@ -190,11 +158,12 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
     transform: transformShortcuts
   },
 
-  // Sidebar favorites: migrate legacy v1 sidebarIcons arrays, rewrite 'minapp' → 'mini_app', and restore the v2 agents favorite.
+  // Sidebar favorites: migrate legacy v1 sidebarIcons.visible, rewrite 'minapp' → 'mini_app',
+  // preserve the user's visible order, and restore the v2 agents favorite unless explicitly hidden.
   {
     id: 'sidebar_favorites_migrate',
     description:
-      "Migrate legacy v1 sidebarIcons arrays to v2 favorites, rewrite 'minapp' to 'mini_app', and add agents if visible",
+      "Migrate legacy v1 sidebarIcons.visible to v2 favorites, rewrite 'minapp' to 'mini_app', preserve visible items, and restore agents",
     sources: {
       visible: { source: 'redux', category: 'settings', key: 'sidebarIcons.visible' },
       disabled: { source: 'redux', category: 'settings', key: 'sidebarIcons.disabled' }
@@ -221,9 +190,7 @@ export const COMPLEX_PREFERENCE_MAPPINGS: ComplexMapping[] = [
       const invisible = rewrite(sources.disabled)
       const visibleWithAgents = dedup(addAgents(visible, invisible))
       return {
-        'ui.sidebar.favorites': shouldUseDefaultSidebarFavorites(visibleWithAgents, invisible)
-          ? [...DEFAULT_SIDEBAR_FAVORITES]
-          : visibleWithAgents
+        'ui.sidebar.favorites': visibleWithAgents
       }
     }
   },

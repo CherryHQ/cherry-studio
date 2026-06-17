@@ -74,12 +74,6 @@ export type TemporaryChatSchemas = {
    * @example DELETE /temporary/topics/abc123
    */
   '/temporary/topics/:id': {
-    /** Update the send context for an existing temporary topic without changing its id. */
-    PATCH: {
-      params: { id: string }
-      body: UpdateTemporaryTopicDto
-      response: Topic
-    }
     /** Destroy a temporary topic and all its messages. Returns 404 when id is unknown. */
     DELETE: {
       params: { id: string }

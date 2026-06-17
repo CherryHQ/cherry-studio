@@ -154,6 +154,7 @@ export async function dispatchStreamRequest(
     mode: result.mode,
     executionIds: prepared.isMultiModel ? result.executionIds : undefined,
     userMessageId: prepared.userMessageId,
-    reservedMessages: prepared.reservedMessages
+    reservedMessages: prepared.reservedMessages,
+    placeholderIds: placeholderIds.length > 0 ? placeholderIds : undefined
   }
 }

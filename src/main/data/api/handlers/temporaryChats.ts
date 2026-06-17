@@ -3,7 +3,6 @@
  *
  * Implements the endpoints backing in-memory temporary chat sessions:
  * - POST   /temporary/topics
- * - PATCH  /temporary/topics/:id
  * - DELETE /temporary/topics/:id
  * - POST   /temporary/topics/:topicId/messages
  * - GET    /temporary/topics/:topicId/messages
@@ -24,9 +23,6 @@ export const temporaryChatHandlers: HandlersFor<TemporaryChatSchemas> = {
   },
 
   '/temporary/topics/:id': {
-    PATCH: async ({ params, body }) => {
-      return await temporaryChatService.updateTopic(params.id, body)
-    },
     DELETE: async ({ params }) => {
       await temporaryChatService.deleteTopic(params.id)
       return undefined
