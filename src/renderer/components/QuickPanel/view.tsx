@@ -851,7 +851,7 @@ export const QuickPanelView: React.FC<Props> = ({ inputAdapter }) => {
       ref={panelRef}
       style={{ maxHeight: panelMaxHeight }}
       className={classNames(
-        '-top-1 -translate-y-full absolute right-2 left-2 origin-bottom transition-[max-height] duration-200 ease-in-out',
+        '-top-1 -translate-y-full absolute right-2 left-2 flex origin-bottom flex-col justify-end transition-[max-height] duration-200 ease-in-out',
         ctx.isVisible ? 'overflow-visible' : 'overflow-hidden',
         ctx.isVisible && 'visible',
         ctx.isVisible ? 'pointer-events-auto' : 'pointer-events-none'
