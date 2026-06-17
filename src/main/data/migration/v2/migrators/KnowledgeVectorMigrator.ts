@@ -134,6 +134,11 @@ function isStringMap(value: unknown): value is Map<string, string> {
   return value instanceof Map
 }
 
+/** Narrow the per-base directory-child loader remap: migrated base id → (loaderId → childId). */
+function isNestedStringMap(value: unknown): value is Map<string, Map<string, string>> {
+  return value instanceof Map && [...value.values()].every((inner) => inner instanceof Map)
+}
+
 /** Narrow a migrated row to the indexable subset the material-field helpers expect. */
 function toMaterialFieldSource(item: MigratedKnowledgeItemForVector): MaterialFieldSource | null {
   if (item.type !== 'file' && item.type !== 'url' && item.type !== 'note') {
@@ -345,9 +350,9 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       const sharedItemRemap = ctx.sharedData.get(KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY)
       const legacyItemIdRemap = isStringMap(sharedItemRemap) ? sharedItemRemap : new Map<string, string>()
       const sharedDirectoryChildLoaderRemap = ctx.sharedData.get(KNOWLEDGE_DIRECTORY_CHILD_LOADER_REMAP_SHARED_DATA_KEY)
-      const directoryChildLoaderRemap = isStringMap(sharedDirectoryChildLoaderRemap)
+      const directoryChildLoaderRemapByBase = isNestedStringMap(sharedDirectoryChildLoaderRemap)
         ? sharedDirectoryChildLoaderRemap
-        : new Map<string, string>()
+        : new Map<string, Map<string, string>>()
 
       for (const base of migratedBases) {
         if (base.status === 'failed' || base.embeddingModelId === null) {
@@ -413,12 +418,14 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
         // A v1 folder's per-file vectors were booked under the directory item's loader ids;
         // KnowledgeMigrator split that folder into per-file children and recorded each file's
-        // loader id → child item id. Point those loader ids at the child (not the directory
-        // container) so the vectors land on the child material instead of being dropped as a
-        // non-indexable container. Loader ids belonging to other bases resolve to no child here.
+        // loader id → child item id, scoped to this migrated base. Point those loader ids at the
+        // child (not the directory container) so the vectors land on the child material instead
+        // of being dropped as a non-indexable container. The per-base scope keeps a loader id
+        // shared across bases (v1 ids are path/content hashes) pointing at the right base's child.
         const baseMigratedItems = migratedItemsByBaseId.get(base.id)
-        if (baseMigratedItems) {
-          for (const [loaderId, childItemId] of directoryChildLoaderRemap) {
+        const baseDirectoryChildLoaderRemap = directoryChildLoaderRemapByBase.get(base.id)
+        if (baseMigratedItems && baseDirectoryChildLoaderRemap) {
+          for (const [loaderId, childItemId] of baseDirectoryChildLoaderRemap) {
             const child = baseMigratedItems.get(childItemId)
             if (child) {
               loaderTargetMap.set(loaderId, child)

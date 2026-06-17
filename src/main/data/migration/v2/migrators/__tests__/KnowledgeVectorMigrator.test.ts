@@ -935,13 +935,18 @@ describe('KnowledgeVectorMigrator', () => {
         }
       })
 
-      // KnowledgeMigrator publishes this after expanding the directory into children.
-      // Key kept in sync with KNOWLEDGE_DIRECTORY_CHILD_LOADER_REMAP_SHARED_DATA_KEY.
+      // KnowledgeMigrator publishes this after expanding the directory into children, scoped
+      // by migrated base id. Key kept in sync with KNOWLEDGE_DIRECTORY_CHILD_LOADER_REMAP_SHARED_DATA_KEY.
       migrationCtx.sharedData.set(
         'knowledgeDirectoryChildLoaderRemap',
         new Map([
-          ['loader-dir-a', MIGRATED_DIR_CHILD_A_ID],
-          ['loader-dir-b', MIGRATED_DIR_CHILD_B_ID]
+          [
+            MIGRATED_KNOWLEDGE_BASE_ID,
+            new Map([
+              ['loader-dir-a', MIGRATED_DIR_CHILD_A_ID],
+              ['loader-dir-b', MIGRATED_DIR_CHILD_B_ID]
+            ])
+          ]
         ])
       )
 

@@ -19,6 +19,7 @@ import type { FilePath } from '@shared/file/types'
 import { sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
+import type { KnowledgeVectorSourceReader } from '../utils/KnowledgeVectorSourceReader'
 import { BaseMigrator } from './BaseMigrator'
 import {
   expandLegacyDirectoryItem,
@@ -145,9 +146,12 @@ export class KnowledgeMigrator extends BaseMigrator {
   private legacyItemIdRemap = new Map<string, string>()
   // New item id → v1 storage filename, so `execute` can copy the upload into the v2 KB dir.
   private fileStorageNameByItemId = new Map<string, string>()
-  // v1 directory child file's loader id → synthesized v2 child item id; handed to the vector
-  // migrator via sharedData so it re-attributes the folder's vectors to those children.
-  private directoryChildLoaderRemap = new Map<string, string>()
+  // migrated base id → (v1 directory child file's loader id → synthesized v2 child item id);
+  // handed to the vector migrator via sharedData so it re-attributes the folder's vectors to
+  // those children. Scoped per base because v1 loader ids are path/content hashes
+  // (`md5(path)` / `md5(text)`) with no base component, so two bases sharing a file path would
+  // otherwise clobber each other's mapping and drop the earlier base's vectors.
+  private directoryChildLoaderRemap = new Map<string, Map<string, string>>()
   // Synthesized directory-child item ids: `file` items whose source stays at data.source on
   // external disk (never copied into the base), so copyKnowledgeFilesForBase must skip them.
   private migratedDirectoryChildItemIds = new Set<string>()
@@ -165,7 +169,7 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.legacyBaseIdRemap = new Map<string, string>()
     this.legacyItemIdRemap = new Map<string, string>()
     this.fileStorageNameByItemId = new Map<string, string>()
-    this.directoryChildLoaderRemap = new Map<string, string>()
+    this.directoryChildLoaderRemap = new Map<string, Map<string, string>>()
     this.migratedDirectoryChildItemIds = new Set<string>()
   }
 
@@ -313,34 +317,28 @@ export class KnowledgeMigrator extends BaseMigrator {
   }
 
   /**
-   * Read the legacy vector DB's `uniqueLoaderId → source` map so a `directory` item can be
-   * expanded into per-file children (each file's loader id resolves to its source path).
-   * The discriminated `kind` distinguishes a (recoverable) read failure from a genuinely
-   * empty/absent vector store — a missing DB / directory / zero rows is `empty`, a thrown
-   * read is `read_error` — so the caller can warn precisely; both keep the directory
-   * tombstone. Best-effort: failures are caught, never thrown.
+   * Read the legacy vector DB's `uniqueLoaderId → source` map (via the shared
+   * {@link KnowledgeVectorSourceReader}, so directory expansion and vector migration consume
+   * the exact same load + path resolution) so a `directory` item can be expanded into per-file
+   * children (each file's loader id resolves to its source path). The discriminated `kind`
+   * distinguishes a (recoverable) read failure from a genuinely empty/absent vector store — a
+   * missing DB / directory / non-embedjs / zero rows is `empty`, a thrown read is `read_error`
+   * — so the caller can warn precisely; both keep the directory tombstone. Best-effort:
+   * failures are caught, never thrown.
    */
-  private async loadLoaderSourceMap(baseId: string, knowledgeBaseDir: string): Promise<LoaderSourceMapResult> {
+  private async loadLoaderSourceMap(
+    baseId: string,
+    vectorSource: KnowledgeVectorSourceReader
+  ): Promise<LoaderSourceMapResult> {
     const sources = new Map<string, string>()
-    const dbPath = this.getLegacyKnowledgeDbPath(baseId, knowledgeBaseDir)
-    if (!dbPath || !fs.existsSync(dbPath)) {
-      return { kind: 'empty', sources }
-    }
-
-    let client: ReturnType<typeof createClient> | null = null
     try {
-      if (fs.statSync(dbPath).isDirectory()) {
+      const result = await vectorSource.loadBase(baseId)
+      if (result.status !== 'ok') {
         return { kind: 'empty', sources }
       }
-      client = createClient({ url: pathToFileURL(dbPath).toString() })
-      const result = await client.execute(
-        `SELECT DISTINCT uniqueLoaderId, source FROM ${LEGACY_VECTOR_TABLE_NAME} WHERE uniqueLoaderId IS NOT NULL AND source IS NOT NULL`
-      )
       for (const row of result.rows) {
-        const loaderId = typeof row.uniqueLoaderId === 'string' ? row.uniqueLoaderId : null
-        const source = typeof row.source === 'string' ? row.source : null
-        if (loaderId && source && source.trim() !== '') {
-          sources.set(loaderId, source)
+        if (row.uniqueLoaderId && row.source && row.source.trim() !== '') {
+          sources.set(row.uniqueLoaderId, row.source)
         }
       }
     } catch (error) {
@@ -353,18 +351,6 @@ export class KnowledgeMigrator extends BaseMigrator {
         }`
       )
       return { kind: 'read_error', sources }
-    } finally {
-      if (client) {
-        try {
-          client.close()
-        } catch (error) {
-          this.recordWarning(
-            `Failed to close legacy vector DB client for knowledge base ${baseId}: ${
-              error instanceof Error ? error.message : String(error)
-            }`
-          )
-        }
-      }
     }
 
     return { kind: sources.size > 0 ? 'ok' : 'empty', sources }
@@ -607,7 +593,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         // null, so the directory keeps its tombstone.
         const directoryLoaderResult: LoaderSourceMapResult =
           embeddingResolution.kind === 'resolved' && items.some((candidate) => candidate?.type === 'directory')
-            ? await this.loadLoaderSourceMap(validBase.id, ctx.paths.knowledgeBaseDir)
+            ? await this.loadLoaderSourceMap(validBase.id, ctx.sources.knowledgeVectorSource)
             : { kind: 'empty', sources: new Map<string, string>() }
 
         // A read failure (e.g. a transient DB lock) is recoverable, unlike a genuinely empty
@@ -672,8 +658,13 @@ export class KnowledgeMigrator extends BaseMigrator {
               for (const child of expanded.children) {
                 this.migratedDirectoryChildItemIds.add(child.id!)
               }
+              let baseChildLoaderRemap = this.directoryChildLoaderRemap.get(preparedBase.id!)
+              if (!baseChildLoaderRemap) {
+                baseChildLoaderRemap = new Map<string, string>()
+                this.directoryChildLoaderRemap.set(preparedBase.id!, baseChildLoaderRemap)
+              }
               for (const [loaderId, childId] of expanded.childLoaderRemap) {
-                this.directoryChildLoaderRemap.set(loaderId, childId)
+                baseChildLoaderRemap.set(loaderId, childId)
               }
               continue
             }
@@ -841,7 +832,7 @@ export class KnowledgeMigrator extends BaseMigrator {
       ctx.sharedData.set(KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY, new Map(this.legacyItemIdRemap))
       ctx.sharedData.set(
         KNOWLEDGE_DIRECTORY_CHILD_LOADER_REMAP_SHARED_DATA_KEY,
-        new Map(this.directoryChildLoaderRemap)
+        new Map([...this.directoryChildLoaderRemap].map(([baseId, remap]) => [baseId, new Map(remap)]))
       )
 
       logger.info('KnowledgeMigrator.execute completed', {

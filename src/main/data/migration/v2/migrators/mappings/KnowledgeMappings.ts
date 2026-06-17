@@ -447,10 +447,11 @@ export interface ExpandedDirectoryItem {
  * (the legacy vector DB's `source` column).
  *
  * Children carry the external `source` path and a **virtual** `relativePath` (their
- * own id): the file is never copied into the base (v1 never stored the folder inside
- * Cherry, so there is nothing to copy), so search uses the migrated vectors directly;
- * reading the original / re-indexing a child falls back to `source` (a known v2.0
- * limitation — single-child re-index is deferred).
+ * own id): the file is never copied into the base (v1 never stored the folder inside Cherry, so
+ * there is nothing to copy) and the v1 `source` path is untrustworthy, so search uses the migrated
+ * vectors directly and the child is never read from disk. Re-indexing such a child is rejected
+ * because its source file no longer exists on disk (it would otherwise destroy the only copy of its
+ * vectors); rebuilding the folder means deleting it and re-adding it.
  *
  * Returns `null` when the directory's `content` (folder path) is blank, or when no child
  * file can be resolved (vector DB unreadable/empty, or the directory carries no loader ids)
@@ -485,9 +486,9 @@ export const expandLegacyDirectoryItem = (
       baseId,
       groupId: containerId,
       type: 'file',
-      // Virtual relativePath (the child's own id): the source file is not copied
-      // into the base, so this never resolves to a raw/ file; search reads the
-      // migrated vectors, not the file.
+      // Virtual relativePath (the child's own id): the source file is not copied into the base, so
+      // this never resolves to a raw/ file. Search reads the migrated vectors, not the file; reindex
+      // is rejected because that raw/ file does not exist on disk (see assertSubtreesCanReindex).
       data: { source, relativePath: childId },
       status: 'completed',
       error: null,

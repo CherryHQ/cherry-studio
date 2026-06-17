@@ -4,7 +4,7 @@ import path from 'node:path'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { getFileExt } from '@main/utils/file'
-import { copy, ensureDir, remove, removeDir, write } from '@main/utils/file/fs'
+import { copy, ensureDir, exists, remove, removeDir, write } from '@main/utils/file/fs'
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import { documentExts } from '@shared/config/constant'
 import type { FilePath } from '@shared/file/types'
@@ -51,6 +51,20 @@ export function getKnowledgeVectorStoreFilePathSync(baseId: string): FilePath {
 export function getKnowledgeBaseFilePath(baseId: string, relativePath: string): FilePath {
   assertSafeKnowledgeRelativePath(relativePath)
   return path.join(getKnowledgeMaterialDir(baseId), relativePath) as FilePath
+}
+
+/** Whether a base-relative material file currently exists on disk (`{baseDir}/raw/{relativePath}`). */
+export async function knowledgeFileExists(baseId: string, relativePath: string): Promise<boolean> {
+  return exists(getKnowledgeBaseFilePath(baseId, relativePath))
+}
+
+/**
+ * Whether an absolute on-disk path (e.g. a directory item's original folder, stored in `data.path`)
+ * currently exists and is readable. Reindex rescans a directory from this path, so if it is gone
+ * there is nothing to rebuild from.
+ */
+export async function knowledgeSourcePathExists(absolutePath: string): Promise<boolean> {
+  return exists(path.resolve(absolutePath) as FilePath)
 }
 
 export function getKnowledgeSourceRelativePath(sourcePath: string): string {

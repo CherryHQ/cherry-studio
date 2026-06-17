@@ -42,7 +42,9 @@ const {
   fsLstatMock,
   fsStatMock,
   listMaterialUnitsMock,
-  storeSearchMock
+  storeSearchMock,
+  knowledgeFileExistsMock,
+  knowledgeSourcePathExistsMock
 } = vi.hoisted(() => ({
   cancelManyMock: vi.fn(),
   cancelMock: vi.fn(),
@@ -73,7 +75,9 @@ const {
   fsLstatMock: vi.fn(),
   fsStatMock: vi.fn(),
   listMaterialUnitsMock: vi.fn(),
-  storeSearchMock: vi.fn()
+  storeSearchMock: vi.fn(),
+  knowledgeFileExistsMock: vi.fn(),
+  knowledgeSourcePathExistsMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
@@ -166,7 +170,9 @@ vi.mock('../utils/storage/pathStorage', async () => {
   return {
     ...actual,
     copyFileIntoKnowledgeBaseAt: copyFileIntoKnowledgeBaseAtMock,
-    deleteKnowledgeItemFilesBestEffort: deleteKnowledgeItemFilesBestEffortMock
+    deleteKnowledgeItemFilesBestEffort: deleteKnowledgeItemFilesBestEffortMock,
+    knowledgeFileExists: knowledgeFileExistsMock,
+    knowledgeSourcePathExists: knowledgeSourcePathExistsMock
   }
 })
 
@@ -303,6 +309,10 @@ describe('KnowledgeService', () => {
       birthtime: new Date('2026-04-08T00:00:00.000Z')
     })
     fsLstatMock.mockRejectedValue(Object.assign(new Error('missing'), { code: 'ENOENT' }))
+    // Reindex source-existence gate: default every source present so existing reindex tests are
+    // unaffected; the missing-source tests override these per case.
+    knowledgeFileExistsMock.mockResolvedValue(true)
+    knowledgeSourcePathExistsMock.mockResolvedValue(true)
     copyFileIntoKnowledgeBaseAtMock.mockImplementation(
       async (_baseId: string, _sourcePath: string, relativePath: string) => relativePath
     )
@@ -1373,6 +1383,54 @@ describe('KnowledgeService', () => {
 
     expect(enqueueMock).not.toHaveBeenCalled()
     expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects reindex of a directory whose source folder no longer exists, without deleting its vectors', async () => {
+    const service = new KnowledgeService()
+    // A v1-migrated folder: completed, but its original folder path is gone (untrustworthy v1 path)
+    // and its child carries a virtual relativePath with no raw/ file behind it.
+    const root = createDirectoryItem('dir-1', null, 'completed')
+    const migratedChild: KnowledgeItemOf<'file'> = {
+      ...createFileItem('file-1', 'kb-1', '/legacy/abs/x.md', 'completed'),
+      groupId: 'dir-1',
+      data: { source: '/legacy/abs/x.md', relativePath: 'file-1' }
+    }
+    knowledgeSourcePathExistsMock.mockResolvedValue(false)
+    knowledgeItemGetByIdMock.mockResolvedValue(root)
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      async (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean } = {}) =>
+        options.includeRoots ? [root, migratedChild] : [migratedChild]
+    )
+
+    await expect(service.reindexItems('kb-1', ['dir-1'])).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+      message:
+        'Cannot reindex a knowledge item whose source file or folder no longer exists; delete it and add it again to rebuild'
+    })
+
+    // The reindex-subtree job — which deletes vectors before re-reading — is never enqueued,
+    // so the migrated vectors survive.
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects reindex of a file whose source file no longer exists on disk', async () => {
+    const service = new KnowledgeService()
+    const root = createFileItem('file-1', 'kb-1', '/docs/gone.pdf', 'completed')
+    knowledgeFileExistsMock.mockResolvedValue(false)
+    knowledgeItemGetByIdMock.mockResolvedValue(root)
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      async (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean } = {}) =>
+        options.includeRoots ? [root] : []
+    )
+
+    await expect(service.reindexItems('kb-1', ['file-1'])).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+      message:
+        'Cannot reindex a knowledge item whose source file or folder no longer exists; delete it and add it again to rebuild'
+    })
+
+    expect(enqueueMock).not.toHaveBeenCalled()
   })
 
   it('rejects a whole reindex batch when one root subtree is still active', async () => {

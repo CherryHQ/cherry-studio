@@ -50,7 +50,7 @@ import {
 import { embedKnowledgeQuery } from './utils/indexing/embed'
 import { rerankKnowledgeSearchResults } from './utils/indexing/rerank'
 import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './utils/search'
-import { getKnowledgeBaseFilePath } from './utils/storage/pathStorage'
+import { getKnowledgeBaseFilePath, knowledgeFileExists, knowledgeSourcePathExists } from './utils/storage/pathStorage'
 import type { KnowledgeIndexStore } from './vectorstore/indexStore/KnowledgeIndexStore'
 import type { KnowledgeIndexSearchMatch } from './vectorstore/indexStore/model'
 
@@ -558,9 +558,22 @@ export class KnowledgeService extends BaseService {
 
   private async assertSubtreesCanReindex(baseId: string, rootItemIds: string[]): Promise<void> {
     const blockingStatusCounts = new Map<KnowledgeItemStatus, number>()
+    const missingSourceItemIds: string[] = []
 
     for (const rootItemId of rootItemIds) {
       const subtreeItems = await knowledgeItemService.getSubtreeItems(baseId, [rootItemId], { includeRoots: true })
+
+      // Reindex deletes the subtree's vectors before re-reading the source (reindexSubtreeJobHandler),
+      // so a root whose source is gone would lose its vectors with nothing to rebuild from — reject up
+      // front. Only the root's own source matters: a directory is rescanned from data.path and its
+      // children recreated (never read from their raw/ files), a file leaf reads its own raw/ file, and
+      // note/url always rebuild from the DB / network. A v1-migrated folder child reindexed on its own
+      // is a file root whose raw/ file never existed, so this rejects it too.
+      const root = subtreeItems.find((item) => item.id === rootItemId)
+      if (root && !(await this.canReindexRebuildSource(baseId, root))) {
+        missingSourceItemIds.push(rootItemId)
+      }
+
       for (const item of subtreeItems) {
         if (REINDEX_ALLOWED_STATUSES.has(item.status)) {
           continue
@@ -568,6 +581,15 @@ export class KnowledgeService extends BaseService {
 
         blockingStatusCounts.set(item.status, (blockingStatusCounts.get(item.status) ?? 0) + 1)
       }
+    }
+
+    if (missingSourceItemIds.length > 0) {
+      throw DataApiErrorFactory.validation(
+        {
+          item: [`Knowledge item source no longer exists on disk for ${missingSourceItemIds.length} item(s)`]
+        },
+        'Cannot reindex a knowledge item whose source file or folder no longer exists; delete it and add it again to rebuild'
+      )
     }
 
     if (blockingStatusCounts.size === 0) {
@@ -585,6 +607,21 @@ export class KnowledgeService extends BaseService {
       },
       'Cannot reindex knowledge item until the entire subtree is completed or failed'
     )
+  }
+
+  /**
+   * Whether a reindex root can rebuild its content from a still-existing source. A directory is
+   * rescanned from its original folder (`data.path`); a file leaf reads its own material file
+   * (`indexedRelativePath ?? relativePath`); note/url always rebuild from the DB / network.
+   */
+  private async canReindexRebuildSource(baseId: string, root: KnowledgeItem): Promise<boolean> {
+    if (root.type === 'directory') {
+      return knowledgeSourcePathExists(root.data.path)
+    }
+    if (root.type === 'file') {
+      return knowledgeFileExists(baseId, root.data.indexedRelativePath ?? root.data.relativePath)
+    }
+    return true
   }
 
   private toRestoreRuntimeInput(sourceBaseId: string, item: KnowledgeItem): KnowledgeAddItemInput {

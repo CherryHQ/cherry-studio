@@ -93,10 +93,7 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
   empty store there) is removed; that unlink retries on `EBUSY` so a transient
   Windows file lock does not abort the migration.
 - Retry is naturally idempotent: the legacy source is still in place, so a retry
-  re-reads the original legacy DB directly. `.embedjs.bak` is no longer written by
-  this flow; `KnowledgeVectorSourceReader` keeps a read-only `.embedjs.bak`
-  fallback solely for installs that already ran the previous migration (which
-  renamed the original aside).
+  re-reads the original legacy DB directly via `KnowledgeVectorSourceReader`.
 
 ## IMPORTANT: Current Limitations
 
