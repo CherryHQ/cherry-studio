@@ -14,6 +14,7 @@
   --cs-font-weight-bold: 700;
 
   /* Font Sizes - Body */
+  --cs-font-size-body-2xs: 0.625rem; /* 10px */
   --cs-font-size-body-xs: 0.75rem; /* 12px */
   --cs-font-size-body-sm: 0.875rem; /* 14px */
   --cs-font-size-body-md: 1rem; /* 16px */

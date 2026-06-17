@@ -427,6 +427,7 @@
   --font-weight-regular: var(--cs-font-weight-regular);
   --font-weight-medium: var(--cs-font-weight-medium);
   --font-weight-bold: var(--cs-font-weight-bold);
+  --font-size-body-2xs: var(--cs-font-size-body-2xs);
   --font-size-body-xs: var(--cs-font-size-body-xs);
   --font-size-body-sm: var(--cs-font-size-body-sm);
   --font-size-body-md: var(--cs-font-size-body-md);
