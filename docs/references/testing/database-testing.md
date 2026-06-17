@@ -220,10 +220,11 @@ on Windows (`file:C:\path\to\db`). The harness uses
 ### FTS5 and NULL content
 
 `searchable_text` is populated by the `AFTER INSERT` trigger from the
-message's `data.blocks`; messages without any `main_text` block end up
-with NULL `searchable_text`. The FTS5 `AFTER DELETE` trigger then deletes
-using the NULL value. This is safe — truncate passes — but your FTS
-assertions must account for the possibility.
+message's `data.parts` (text-bearing parts); messages with no text part end
+up with empty `searchable_text` (the trigger wraps `group_concat` in
+`COALESCE(…, '')`). The FTS5 `AFTER DELETE` trigger then deletes using that
+value. This is safe — truncate passes — but your FTS assertions must account
+for the possibility.
 
 ### Truncate vs drop
 

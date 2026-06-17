@@ -148,6 +148,12 @@ export const KNOWLEDGE_INDEX_SCHEMA_STATEMENTS: readonly string[] = [
 
   // search_text_fts — external-content FTS5 over search_text.text, trigram tokenizer.
   // Uses search_text's implicit rowid (content_rowid='rowid'); join on rowid to recover columns.
+  // NOTE (latent hazard, deferred): keying on the implicit rowid would silently desync if
+  // search_text were ever VACUUMed or rebuilt via INSERT...SELECT — the same class of bug the chat
+  // message_fts tables fixed by switching to a stable `fts_rowid` column (see schemas/message.ts).
+  // Safe today only because this derived per-base index.sqlite is never VACUUMed and has no
+  // table-rebuild/RENAME path (DDL replays via IF NOT EXISTS; rebuildMaterial is row-level). If
+  // that ever changes, migrate this table to a stable integer key too.
   `CREATE VIRTUAL TABLE IF NOT EXISTS search_text_fts USING fts5(
     text,
     content='search_text',
