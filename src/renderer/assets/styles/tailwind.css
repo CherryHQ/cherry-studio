@@ -38,7 +38,6 @@
   --app-sidebar-border: oklch(0.922 0 0);
   --app-sidebar-ring: oklch(0.708 0 0);
 
-  --app-primary-foreground: oklch(0.985 0 0);
   --app-card-foreground: oklch(0.145 0 0);
   --app-popover-foreground: oklch(0.145 0 0);
   --app-secondary-foreground: oklch(0.205 0 0);
@@ -66,7 +65,6 @@
   --app-sidebar-border: oklch(0.269 0 0);
   --app-sidebar-ring: oklch(0.439 0 0);
 
-  --app-primary-foreground: oklch(0.205 0 0);
   --app-card-foreground: oklch(0.985 0 0);
   --app-popover-foreground: oklch(0.985 0 0);
   --app-secondary-foreground: oklch(0.985 0 0);
@@ -86,7 +84,6 @@
 @theme inline {
   --color-icon: var(--app-icon);
 
-  --color-primary-foreground: var(--app-primary-foreground);
   --color-card-foreground: var(--app-card-foreground);
   --color-popover-foreground: var(--app-popover-foreground);
   --color-secondary-foreground: var(--app-secondary-foreground);

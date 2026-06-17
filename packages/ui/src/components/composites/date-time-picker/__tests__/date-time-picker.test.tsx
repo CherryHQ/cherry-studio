@@ -30,7 +30,41 @@ describe('DateTimePicker', () => {
       />
     )
 
-    expect(screen.getByRole('button')).toHaveTextContent('2026-04-29 14:05:09')
+    expect(screen.getByRole('button', { name: '2026-04-29 14:05:09' })).toBeInTheDocument()
+  })
+
+  it('uses the shared input surface for trigger and popover controls', () => {
+    render(
+      <DateTimePicker defaultValue={new Date(2026, 5, 17, 9, 0, 0)} granularity="second" open onOpenChange={() => {}} />
+    )
+
+    const trigger = screen.getByRole('button', { name: '2026-06-17 09:00:00' })
+
+    expect(trigger).toHaveClass('border-input', 'bg-background', 'focus-visible:border-input')
+    expect(screen.getAllByRole('combobox')[0]).toHaveClass(
+      'border-input',
+      'bg-background',
+      'aria-expanded:border-input'
+    )
+    expect(screen.getByLabelText('Hour')).toHaveClass('border-input', 'bg-background', 'focus-visible:border-input')
+  })
+
+  it('keeps selected and today day styling on the day buttons', () => {
+    render(
+      <DateTimePicker
+        defaultValue={new Date(2026, 5, 18)}
+        granularity="day"
+        calendarProps={{ today: new Date(2026, 5, 17) }}
+        open
+        onOpenChange={() => {}}
+      />
+    )
+
+    const selectedDayButton = document.querySelector('[data-selected="true"] button')
+    const todayButton = document.querySelector('[data-today="true"] button')
+
+    expect(selectedDayButton).toHaveClass('bg-primary', 'text-white', 'rounded-md')
+    expect(todayButton).toHaveClass('bg-accent', 'text-accent-foreground', 'rounded-md')
   })
 
   it('updates hour, minute and second when granularity is second', () => {

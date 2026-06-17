@@ -3,6 +3,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react'
 import * as React from 'react'
 import {
   type ChevronProps,
+  type DayButtonProps,
   DayPicker,
   type DropdownNavProps,
   type DropdownProps,
@@ -23,6 +24,8 @@ function Calendar({
   ...props
 }: CalendarProps) {
   const defaultClassNames = getDefaultClassNames()
+  const dropdownClassName =
+    'border-input bg-background h-8 rounded-md border px-2 text-sm outline-none transition-colors focus:border-input focus:ring-3 focus:ring-ring/50 aria-expanded:border-input aria-expanded:ring-3 aria-expanded:ring-ring/50 dark:bg-background'
 
   return (
     <DayPicker
@@ -38,10 +41,9 @@ function Calendar({
         caption_label: cn(defaultClassNames.caption_label, 'font-medium text-sm'),
         dropdowns: cn(defaultClassNames.dropdowns, 'flex w-full items-center justify-center gap-2'),
         dropdown_root: cn(defaultClassNames.dropdown_root, 'relative'),
-        dropdown: cn(
-          defaultClassNames.dropdown,
-          'h-8 rounded-md border border-border bg-background px-2 text-sm outline-none transition-colors focus:border-ring focus:ring-3 focus:ring-ring/50'
-        ),
+        dropdown: cn(defaultClassNames.dropdown, dropdownClassName),
+        months_dropdown: cn(defaultClassNames.months_dropdown, dropdownClassName),
+        years_dropdown: cn(defaultClassNames.years_dropdown, dropdownClassName),
         nav: cn(defaultClassNames.nav, 'absolute inset-x-0 top-3 flex items-center justify-between px-3'),
         button_previous: cn(
           defaultClassNames.button_previous,
@@ -58,18 +60,15 @@ function Calendar({
         day: cn(defaultClassNames.day, 'size-8 p-0 text-center text-sm'),
         day_button: cn(
           defaultClassNames.day_button,
-          'inline-flex size-8 items-center justify-center rounded-md font-normal text-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40'
+          'inline-flex size-8 items-center justify-center rounded-md font-normal text-sm transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-40'
         ),
-        selected: cn(
-          defaultClassNames.selected,
-          'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground'
-        ),
-        today: cn(defaultClassNames.today, 'bg-accent text-accent-foreground'),
+        selected: cn(defaultClassNames.selected),
+        today: cn(defaultClassNames.today),
         outside: cn(defaultClassNames.outside, 'text-muted-foreground opacity-50'),
         disabled: cn(defaultClassNames.disabled, 'text-muted-foreground opacity-40'),
-        range_middle: cn(defaultClassNames.range_middle, 'rounded-none bg-accent text-accent-foreground'),
-        range_start: cn(defaultClassNames.range_start, 'rounded-l-md bg-primary text-primary-foreground'),
-        range_end: cn(defaultClassNames.range_end, 'rounded-r-md bg-primary text-primary-foreground'),
+        range_middle: cn(defaultClassNames.range_middle),
+        range_start: cn(defaultClassNames.range_start),
+        range_end: cn(defaultClassNames.range_end),
         hidden: cn(defaultClassNames.hidden, 'invisible'),
         ...classNames
       }}
@@ -78,6 +77,7 @@ function Calendar({
         DropdownNav: CalendarDropdownNav,
         Dropdown: CalendarDropdown,
         Chevron: CalendarChevron,
+        DayButton: CalendarDayButton,
         ...components
       }}
       {...props}
@@ -91,6 +91,32 @@ function CalendarMonthCaption({ children }: MonthCaptionProps) {
 
 function CalendarDropdownNav({ className, ...props }: DropdownNavProps) {
   return <div className={cn('flex w-full items-center gap-2', className)} {...props} />
+}
+
+function CalendarDayButton({ className, day, modifiers, ...props }: DayButtonProps) {
+  const isSelected = modifiers.selected || modifiers.range_start || modifiers.range_end
+  const isRangeEndpoint = modifiers.range_start || modifiers.range_end
+
+  return (
+    <button
+      type="button"
+      data-day={day.isoDate}
+      className={cn(
+        className,
+        modifiers.today &&
+          !isSelected &&
+          'bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground',
+        modifiers.range_middle &&
+          'rounded-none bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground',
+        isSelected &&
+          'bg-primary text-white hover:bg-primary hover:text-white focus-visible:bg-primary focus-visible:text-white',
+        isRangeEndpoint && 'rounded-none',
+        modifiers.range_start && 'rounded-l-md',
+        modifiers.range_end && 'rounded-r-md'
+      )}
+      {...props}
+    />
+  )
 }
 
 function CalendarDropdown({
