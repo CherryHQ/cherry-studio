@@ -60,6 +60,7 @@ vi.mock('react-i18next', () => ({
       if (key === 'message.tools.groupHeader') {
         return `${params?.count} tool calls`
       }
+      if (key === 'message.tools.runningHeader') return 'Working…'
       if (key === 'message.tools.thinkingHeader') return 'Thinking...'
       if (key === 'common.preview') return 'Preview'
       if (key === 'chat.input.tools.open_file') return 'Open File'
@@ -189,8 +190,8 @@ vi.mock('../ToolBlockGroup', () => ({
       ))}
     </div>
   ),
-  ToolBlockGroupHeaderContent: ({ activityLabel, summary, items }: any) => (
-    <span>{activityLabel ?? summary ?? `${items?.length ?? 0} tool calls`}</span>
+  ToolBlockGroupHeaderContent: ({ activityLabel, summary, items, isLiveProgress }: any) => (
+    <span data-live={String(!!isLiveProgress)}>{activityLabel ?? summary ?? `${items?.length ?? 0} tool calls`}</span>
   ),
   default: ({ items }: any) => <div data-testid="mock-tool-group" data-count={items?.length ?? 0} />
 }))
@@ -301,7 +302,7 @@ describe('MessagePartsRenderer', () => {
   it('shows the tool placeholder before existing content while a tool call is the latest activity', () => {
     mockIsActiveTurnTarget.mockReturnValue(true)
 
-    const { container } = renderParts([
+    renderParts([
       {
         type: 'dynamic-tool',
         toolCallId: 'a',
@@ -313,11 +314,10 @@ describe('MessagePartsRenderer', () => {
     ] as unknown as CherryMessagePart[])
 
     expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'usingTools')
-    expect(
-      Array.from(container.querySelectorAll('button, [data-testid="mock-placeholder"]')).map(
-        (node) => node.getAttribute('data-testid') ?? node.tagName.toLowerCase()
-      )
-    ).toEqual(['mock-placeholder', 'button'])
+    // The tool history collapses behind the outer fold (live header); the tool
+    // detail stays hidden until the user expands it.
+    expect(screen.getByRole('button')).toBeInTheDocument()
+    expect(screen.queryByTestId('mock-message-tools')).toBeNull()
   })
 
   it('shows the generating placeholder before answer text starts streaming', () => {
@@ -457,13 +457,23 @@ describe('MessagePartsRenderer', () => {
     expect(screen.queryByText('child text')).toBeNull()
   })
 
-  // -- tool group --
-  it('renders multiple tool parts as ToolBlockGroup', () => {
+  // -- tool group (bare runs at the top level, no surrounding answer) --
+  it('renders a bare multi-tool run as a collapsible tool group', () => {
     renderParts([
       { type: 'dynamic-tool', toolCallId: 'a', toolName: 't1', state: 'output-available', output: {} },
       { type: 'dynamic-tool', toolCallId: 'b', toolName: 't2', state: 'output-available', output: {} }
     ] as unknown as CherryMessagePart[])
+
     expect(screen.getByTestId('mock-tool-group').getAttribute('data-count')).toBe('2')
+  })
+
+  it('renders a lone tool call inline without a fold', () => {
+    renderParts([
+      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'only-tool', state: 'output-available', output: {} }
+    ] as unknown as CherryMessagePart[])
+
+    expect(screen.queryByRole('button')).toBeNull()
+    expect(screen.getByTestId('mock-message-tools').getAttribute('data-tool-name')).toBe('only-tool')
   })
 
   it('renders grouped tool parts inline when tool history collapse is disabled', () => {
@@ -486,15 +496,16 @@ describe('MessagePartsRenderer', () => {
     ])
   })
 
-  it('renders grouped dynamic-tool parts without persisted toolCallId using fallback ids', () => {
+  it('renders a bare multi-tool run without persisted toolCallId as a tool group', () => {
     renderParts([
       { type: 'dynamic-tool', toolName: 'TodoWrite', state: 'output-available', output: {} },
       { type: 'dynamic-tool', toolName: 'WebSearch', state: 'output-available', output: {} }
     ] as unknown as CherryMessagePart[])
+
     expect(screen.getByTestId('mock-tool-group').getAttribute('data-count')).toBe('2')
   })
 
-  it('filters hidden tool responses inside ToolBlockGroup', () => {
+  it('counts only renderable tools in a bare tool group (hidden tools excluded)', () => {
     renderParts([
       { type: 'dynamic-tool', toolCallId: 'a', toolName: 'visible-tool', state: 'output-available', output: {} },
       {
@@ -549,7 +560,141 @@ describe('MessagePartsRenderer', () => {
     expect(openPath).toHaveBeenCalledWith('dist/report.md')
   })
 
-  it('collapses completed tool history before final result', () => {
+  it('wraps a multi-step process behind one outer fold (labelled with the total count) once the final answer exists', () => {
+    renderParts([
+      { type: 'text', text: 'checking project files' },
+      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+      { type: 'dynamic-tool', toolCallId: 'b', toolName: 'read', state: 'output-available', output: {} },
+      { type: 'text', text: 'rewriting renderer' },
+      { type: 'dynamic-tool', toolCallId: 'c', toolName: 'edit', state: 'output-available', output: {} },
+      { type: 'dynamic-tool', toolCallId: 'd', toolName: 'bash', state: 'output-available', output: {} },
+      { type: 'text', text: 'final answer' }
+    ] as unknown as CherryMessagePart[])
+
+    // Only the outer fold (total tool count) + the final answer show at the top level.
+    const outerButton = screen.getByRole('button', { name: '4 tool calls' })
+    expect(outerButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByTestId('mock-markdown').textContent).toBe('final answer')
+    expect(screen.queryByText('checking project files')).toBeNull()
+    expect(screen.queryByText('rewriting renderer')).toBeNull()
+    expect(screen.queryByRole('button', { name: '2 tool calls' })).toBeNull()
+
+    fireEvent.click(outerButton)
+
+    // Expanding reveals the narration text and the per-run inner folds, in order.
+    expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual([
+      'checking project files',
+      'rewriting renderer',
+      'final answer'
+    ])
+    expect(screen.getAllByRole('button', { name: '2 tool calls' })).toHaveLength(2)
+  })
+
+  it('drills into an inner per-run fold to reveal the tool cards', () => {
+    renderParts([
+      { type: 'text', text: 'checking project files' },
+      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+      { type: 'dynamic-tool', toolCallId: 'b', toolName: 'read', state: 'output-available', output: {} },
+      { type: 'text', text: 'rewriting renderer' },
+      { type: 'dynamic-tool', toolCallId: 'c', toolName: 'edit', state: 'output-available', output: {} },
+      { type: 'dynamic-tool', toolCallId: 'd', toolName: 'bash', state: 'output-available', output: {} },
+      { type: 'text', text: 'final answer' }
+    ] as unknown as CherryMessagePart[])
+
+    fireEvent.click(screen.getByRole('button', { name: '4 tool calls' }))
+    const innerButtons = screen.getAllByRole('button', { name: '2 tool calls' })
+    expect(innerButtons).toHaveLength(2)
+    expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+
+    fireEvent.click(innerButtons[0])
+
+    expect(screen.getByTestId('mock-tool-group-content').getAttribute('data-count')).toBe('2')
+    expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
+      'list',
+      'read'
+    ])
+  })
+
+  it('collapses the process behind the outer fold and shows trailing answer text below while streaming', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+    renderParts(
+      [
+        { type: 'text', text: 'checking project files' },
+        { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+        { type: 'dynamic-tool', toolCallId: 'b', toolName: 'read', state: 'output-available', output: {} },
+        { type: 'text', text: 'rewriting renderer' }
+      ] as unknown as CherryMessagePart[],
+      msg({ status: 'pending' })
+    )
+
+    // The intro + tools fold behind the single outer fold (present throughout —
+    // never flips in/out); the trailing answer text renders below it.
+    expect(screen.getByRole('button', { name: '2 tool calls' })).toBeInTheDocument()
+    expect(screen.queryByText('checking project files')).toBeNull()
+    expect(screen.getByTestId('mock-markdown').textContent).toBe('rewriting renderer')
+  })
+
+  it('renders bare tool runs as collapsible groups when there is no final answer', () => {
+    renderParts([
+      { type: 'text', text: 'first narration' },
+      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+      { type: 'dynamic-tool', toolCallId: 'b', toolName: 'read', state: 'output-available', output: {} },
+      { type: 'text', text: 'second narration' },
+      { type: 'dynamic-tool', toolCallId: 'c', toolName: 'edit', state: 'output-available', output: {} },
+      { type: 'dynamic-tool', toolCallId: 'd', toolName: 'bash', state: 'output-available', output: {} }
+    ] as unknown as CherryMessagePart[])
+
+    // No final answer → no outer history fold; each run is its own tool group,
+    // narration shows directly between them.
+    expect(screen.getAllByTestId('mock-tool-group').map((node) => node.getAttribute('data-count'))).toEqual(['2', '2'])
+    expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual([
+      'first narration',
+      'second narration'
+    ])
+  })
+
+  it('folds a single tool run + answer behind the fold; expanding shows the tools directly', () => {
+    renderParts([
+      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+      { type: 'dynamic-tool', toolCallId: 'b', toolName: 'read', state: 'output-available', output: {} },
+      { type: 'text', text: 'final answer' }
+    ] as unknown as CherryMessagePart[])
+
+    const foldButton = screen.getByRole('button', { name: '2 tool calls' })
+    expect(screen.getByTestId('mock-markdown').textContent).toBe('final answer')
+
+    fireEvent.click(foldButton)
+
+    // A single run shows its tools flat — not wrapped in another identical fold.
+    expect(screen.getAllByRole('button', { name: '2 tool calls' })).toHaveLength(1)
+    expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
+      'list',
+      'read'
+    ])
+  })
+
+  it('folds reasoning together with the tools inside a multi-tool run', () => {
+    renderParts([
+      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+      { type: 'reasoning', text: 'deep thought between tools', state: 'done' },
+      { type: 'dynamic-tool', toolCallId: 'b', toolName: 'read', state: 'output-available', output: {} },
+      { type: 'text', text: 'final answer' }
+    ] as unknown as CherryMessagePart[])
+
+    const foldButton = screen.getByRole('button', { name: '2 tool calls' })
+    expect(screen.getByTestId('mock-markdown').textContent).toContain('final answer')
+    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+
+    fireEvent.click(foldButton)
+
+    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('deep thought between tools')
+    expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
+      'list',
+      'read'
+    ])
+  })
+
+  it('folds single-tool steps and narration into the outer fold once an answer exists', () => {
     renderParts([
       { type: 'text', text: 'checking project files' },
       { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
@@ -558,125 +703,53 @@ describe('MessagePartsRenderer', () => {
       { type: 'text', text: 'final answer' }
     ] as unknown as CherryMessagePart[])
 
-    const historyButton = screen.getByRole('button', { name: '2 tool calls' })
-    expect(screen.getByTestId('mock-markdown').textContent).toContain('final answer')
-    expect(screen.queryByText(/checking project files/)).toBeNull()
-    expect(screen.queryByText(/reading package metadata/)).toBeNull()
+    const foldButton = screen.getByRole('button', { name: '2 tool calls' })
+    expect(screen.getByTestId('mock-markdown').textContent).toBe('final answer')
+    expect(screen.queryByText('checking project files')).toBeNull()
 
-    fireEvent.click(historyButton)
+    fireEvent.click(foldButton)
 
-    expect(document.getElementById(historyButton.getAttribute('aria-controls') ?? '')).toHaveClass(
-      'mt-1.5 flex w-full flex-col gap-2 [&_.message-thought-container]:mb-0! [&_.message-thought-container]:mt-0! [&>.block-wrapper:empty]:hidden'
-    )
-    expect(screen.getAllByTestId('mock-message-tools')).toHaveLength(2)
+    // Each single-tool step shows its narration + tool inline (no inner per-run fold).
     expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual([
       'checking project files',
       'reading package metadata',
       'final answer'
     ])
-  })
-
-  it('expands completed history tool runs without nesting another ToolBlockGroup', () => {
-    renderParts([
-      { type: 'text', text: 'checking project files' },
-      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
-      { type: 'dynamic-tool', toolCallId: 'b', toolName: 'read', state: 'output-available', output: {} },
-      { type: 'text', text: 'final answer' }
-    ] as unknown as CherryMessagePart[])
-
-    const historyButton = screen.getByRole('button', { name: '2 tool calls' })
-    expect(screen.getByTestId('mock-markdown')).toHaveTextContent('final answer')
-    expect(screen.queryByTestId('mock-tool-group')).toBeNull()
-
-    fireEvent.click(historyButton)
-
-    expect(screen.queryByTestId('mock-tool-group')).toBeNull()
-    expect(screen.getByTestId('mock-tool-group-content').getAttribute('data-count')).toBe('2')
     expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
       'list',
       'read'
     ])
   })
 
-  it('collapses reasoning after the final tool before final result', () => {
-    renderParts([
-      { type: 'text', text: 'checking project files' },
-      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
-      { type: 'reasoning', text: 'deep thought after tool', state: 'done' },
-      { type: 'text', text: 'final answer' }
-    ] as unknown as CherryMessagePart[])
-
-    const historyButton = screen.getByRole('button', { name: '1 tool calls' })
-    expect(screen.getByTestId('mock-markdown').textContent).toContain('final answer')
-    expect(screen.queryByText(/checking project files/)).toBeNull()
-    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
-
-    fireEvent.click(historyButton)
-
-    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('deep thought after tool')
-    expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual([
-      'checking project files',
-      'final answer'
-    ])
-  })
-
-  it('collapses reasoning after a hidden agent task event before final result', () => {
-    renderParts([
-      { type: 'text', text: 'checking project files' },
-      { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
-      {
-        type: 'data-agent-task-event',
-        data: { event: 'completed', taskId: 'task-1', title: 'Inspect task state' }
-      },
-      { type: 'reasoning', text: 'deep thought after hidden event', state: 'done' },
-      { type: 'text', text: 'final answer' }
-    ] as unknown as CherryMessagePart[])
-
-    const historyButton = screen.getByRole('button', { name: '1 tool calls' })
-    expect(screen.getByTestId('mock-markdown').textContent).toContain('final answer')
-    expect(screen.queryByText(/checking project files/)).toBeNull()
-    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
-
-    fireEvent.click(historyButton)
-
-    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('deep thought after hidden event')
-    expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual([
-      'checking project files',
-      'final answer'
-    ])
-  })
-
-  it('collapses trailing reasoning after the final tool without a final result', () => {
+  it('folds a lone tool with trailing reasoning behind the fold', () => {
     renderParts([
       { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
       { type: 'reasoning', text: 'final deep thought after tool', state: 'done' }
     ] as unknown as CherryMessagePart[])
 
-    const historyButton = screen.getByRole('button', { name: '1 tool calls' })
-    expect(historyButton).toHaveAttribute('aria-expanded', 'false')
+    const foldButton = screen.getByRole('button', { name: '1 tool calls' })
     expect(screen.queryByTestId('mock-message-tools')).toBeNull()
     expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
 
-    fireEvent.click(historyButton)
+    fireEvent.click(foldButton)
 
-    expect(historyButton).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByTestId('mock-message-tools').getAttribute('data-tool-name')).toBe('list')
     expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('final deep thought after tool')
   })
 
-  it('collapses trailing reasoning even when the history includes an agent tool', () => {
+  it('folds an agent + read run with trailing reasoning into one block', () => {
     renderParts([
       { type: 'dynamic-tool', toolCallId: 'agent-a', toolName: 'Agent', state: 'output-available', output: {} },
       { type: 'dynamic-tool', toolCallId: 'read-a', toolName: 'Read', state: 'output-available', output: {} },
       { type: 'reasoning', text: 'agent flow final thought', state: 'done' }
     ] as unknown as CherryMessagePart[])
 
-    const historyButton = screen.getByRole('button', { name: '2 tool calls' })
-    expect(historyButton).toHaveAttribute('aria-expanded', 'false')
+    const foldButton = screen.getByRole('button', { name: '2 tool calls' })
+    expect(foldButton).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByTestId('mock-message-tools')).toBeNull()
     expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
 
-    fireEvent.click(historyButton)
+    fireEvent.click(foldButton)
 
     expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
       'Agent',
@@ -780,7 +853,53 @@ describe('MessagePartsRenderer', () => {
     expect(container.querySelectorAll('.block-wrapper')).toHaveLength(2)
   })
 
-  it('collapses tool history while message is pending and keeps the final answer visible', () => {
+  it('shows a live header on the collapsed outer fold while the turn is streaming', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+
+    renderParts(
+      [
+        { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'input-available', input: {} },
+        { type: 'dynamic-tool', toolCallId: 'b', toolName: 'read', state: 'output-available', output: {} }
+      ] as unknown as CherryMessagePart[],
+      msg({ status: 'pending' })
+    )
+
+    const foldButton = screen.getByRole('button')
+    expect(foldButton).toHaveAttribute('aria-expanded', 'false')
+    // Header is in live mode (it tracks the current tool, not a static count).
+    expect(foldButton.querySelector('[data-live="true"]')).toBeInTheDocument()
+    expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'usingTools')
+    expect(screen.queryByTestId('mock-message-tools')).toBeNull()
+
+    fireEvent.click(foldButton)
+
+    expect(screen.getAllByTestId('mock-message-tools').map((node) => node.getAttribute('data-tool-name'))).toEqual([
+      'list',
+      'read'
+    ])
+  })
+
+  it('marks the active run with a running label inside the expanded fold while streaming', () => {
+    mockIsActiveTurnTarget.mockReturnValue(true)
+
+    renderParts(
+      [
+        { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
+        { type: 'dynamic-tool', toolCallId: 'b', toolName: 'read', state: 'output-available', output: {} },
+        { type: 'text', text: 'now editing' },
+        { type: 'dynamic-tool', toolCallId: 'c', toolName: 'edit', state: 'output-available', output: {} },
+        { type: 'dynamic-tool', toolCallId: 'd', toolName: 'bash', state: 'input-available', input: {} }
+      ] as unknown as CherryMessagePart[],
+      msg({ status: 'pending' })
+    )
+
+    fireEvent.click(screen.getByRole('button')) // expand the outer fold
+    // Completed first run shows a static count; the active last run shows "running".
+    expect(screen.getByRole('button', { name: '2 tool calls' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Working…' })).toBeInTheDocument()
+  })
+
+  it('folds the tool history and shows the final answer below while the message is pending', () => {
     renderParts(
       [
         { type: 'text', text: 'checking project files' },
@@ -790,45 +909,15 @@ describe('MessagePartsRenderer', () => {
       msg({ status: 'pending' })
     )
 
-    const historyButton = screen.getByRole('button', { name: '1 tool calls' })
-    expect(historyButton).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByTestId('mock-markdown')).toHaveTextContent('final answer')
-    expect(screen.queryByText(/checking project files/)).toBeNull()
-
-    fireEvent.click(historyButton)
-
-    expect(historyButton).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getAllByTestId('mock-markdown').map((node) => node.textContent)).toEqual([
-      'checking project files',
-      'final answer'
-    ])
+    expect(screen.getByRole('button', { name: '1 tool calls' })).toBeInTheDocument()
+    expect(screen.getByTestId('mock-markdown').textContent).toBe('final answer')
+    expect(screen.queryByText('checking project files')).toBeNull()
   })
 
-  it('collapses thinking content with active tool history before the final result exists', () => {
-    renderParts(
-      [
-        { type: 'reasoning', text: 'thinking before tool', state: 'streaming' },
-        { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'input-available', input: {} }
-      ] as unknown as CherryMessagePart[],
-      msg({ status: 'pending' })
-    )
-
-    const historyButton = screen.getByRole('button', { name: '1 tool calls' })
-    expect(historyButton).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByText('thinking before tool')).toBeNull()
-    expect(screen.queryByTestId('mock-message-tools')).toBeNull()
-
-    fireEvent.click(historyButton)
-
-    expect(historyButton).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('thinking before tool')
-    expect(screen.getByTestId('mock-message-tools').getAttribute('data-tool-name')).toBe('list')
-  })
-
-  it('shows thinking as the top-level history title while reasoning is streaming after a tool', () => {
+  it('shows a thinking hint in the live fold header while reasoning streams after a tool', () => {
     mockIsActiveTurnTarget.mockReturnValue(true)
 
-    const { container } = renderParts(
+    renderParts(
       [
         { type: 'dynamic-tool', toolCallId: 'a', toolName: 'list', state: 'output-available', output: {} },
         { type: 'reasoning', text: 'thinking after tool', state: 'streaming' }
@@ -836,21 +925,14 @@ describe('MessagePartsRenderer', () => {
       msg({ status: 'pending' })
     )
 
-    const historyButton = screen.getByRole('button', { name: 'Thinking...' })
-    expect(historyButton).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
+    const foldButton = screen.getByRole('button', { name: 'Thinking...' })
     expect(screen.getByTestId('mock-placeholder')).toHaveAttribute('data-status', 'thinking')
-    expect(
-      Array.from(container.querySelectorAll('[data-testid="mock-placeholder"], button')).map(
-        (node) => node.getAttribute('data-testid') ?? node.tagName.toLowerCase()
-      )
-    ).toEqual(['mock-placeholder', 'button'])
+    expect(screen.queryByTestId('mock-thinking-block')).toBeNull()
 
-    fireEvent.click(historyButton)
+    fireEvent.click(foldButton)
 
-    expect(historyButton).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('thinking after tool')
     expect(screen.getByTestId('mock-message-tools').getAttribute('data-tool-name')).toBe('list')
+    expect(screen.getByTestId('mock-thinking-block')).toHaveTextContent('thinking after tool')
   })
 
   // -- data-video --

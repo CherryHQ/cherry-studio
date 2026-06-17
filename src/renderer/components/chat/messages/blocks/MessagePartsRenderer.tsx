@@ -4,9 +4,16 @@
  * Routes CherryMessagePart[] directly to leaf components. No intermediate
  * block conversion — each part type is rendered from its raw data.
  *
- * Grouping logic:
+ * Layout (when `collapseCompletedToolHistory` is on): the agentic process (tool
+ * calls + reasoning) collapses behind one outer fold (`OuterProcessFold`) whose
+ * header shows the live tool while streaming and a tool count once settled; the
+ * answer renders below it. Expanding reveals the process split at value/process
+ * boundaries — runs of consecutive tools become per-run `ProcessFoldBlock`s with
+ * text between them. See `getToolHistoryGroup` / `buildSegments`.
+ *
+ * Within a segment, grouping logic:
  * - Consecutive file parts with image mediaType → image block row
- * - Consecutive tool-* / dynamic-tool parts → ToolBlockGroup
+ * - Consecutive tool-* / dynamic-tool parts → ToolBlockGroupContent row
  * - data-video parts with same filePath → video block row
  */
 
@@ -216,33 +223,27 @@ function isReasoningMessagePart(part: CherryMessagePart): boolean {
   return (part.type as string) === 'reasoning' && !!(part as ReasoningUIPart).text?.trim()
 }
 
-function isStreamingReasoningMessagePart(part: CherryMessagePart): boolean {
-  return isReasoningMessagePart(part) && (part as ReasoningUIPart).state === 'streaming'
-}
-
 function isResultPart(part: CherryMessagePart): boolean {
   const partType = part.type as string
   return isSummaryMessagePart(part) || partType === 'data-error' || partType === 'file' || partType === 'data-video'
 }
 
-function shouldCollapseAfterLastTool(part: CherryMessagePart): boolean {
+/**
+ * "Process" parts are the low-value steps of an agentic turn — tool calls,
+ * reasoning, and hidden markers — that get tucked into a collapsed fold so the
+ * model's actual prose reads as a clean conversation. Everything else (text,
+ * code, errors, images, files, video) is "value" content shown directly.
+ */
+function isProcessPart(part: CherryMessagePart): boolean {
   const partType = part.type as string
   return (
-    isReasoningMessagePart(part) ||
+    isToolUIPart(part) ||
+    partType === 'reasoning' ||
     partType === 'step-start' ||
     partType === 'source-url' ||
     partType === 'data-citation' ||
     partType === 'data-agent-task-event'
   )
-}
-
-function getLatestToolHistoryActivity(entries: readonly PartEntry[]): 'thinking' | undefined {
-  for (let index = entries.length - 1; index >= 0; index--) {
-    const { part } = entries[index]
-    if (isStreamingReasoningMessagePart(part)) return 'thinking'
-    if (isToolUIPart(part)) return undefined
-  }
-  return undefined
 }
 
 function getProcessingPlaceholderStatus(entries: readonly PartEntry[]): PlaceholderStatus {
@@ -469,12 +470,7 @@ function renderToolPart(part: CherryMessagePart, partId: string): React.ReactNod
   return <ToolPartView key={partId} part={part} partId={partId} />
 }
 
-interface ToolGroupEntryShape {
-  part: CherryMessagePart
-  index: number
-}
-
-function buildToolRenderItems(entries: readonly ToolGroupEntryShape[], messageId: string): ToolRenderItem[] {
+function buildToolRenderItems(entries: readonly PartEntry[], messageId: string): ToolRenderItem[] {
   return entries.flatMap((e): ToolRenderItem[] => {
     const id = `${messageId}-part-${e.index}`
     const toolResponse = buildToolResponseFromPart(e.part, id)
@@ -482,15 +478,11 @@ function buildToolRenderItems(entries: readonly ToolGroupEntryShape[], messageId
   })
 }
 
-function getReportArtifactToolResponses(entries: readonly PartEntry[], messageId: string) {
-  return entries.flatMap((entry) => {
-    const toolResponse = buildToolResponseFromPart(entry.part, `${messageId}-part-${entry.index}`)
-    return toolResponse && isReportArtifactsToolResponse(toolResponse) ? [toolResponse] : []
-  })
-}
-
+/** A standalone, collapsible group for a bare run of consecutive tools (no
+ * surrounding answer) — a single tool renders directly, several collapse into a
+ * `ToolBlockGroup`. Used by the top-level grouped path, not inside the history fold. */
 const ToolGroupView = React.memo(
-  function ToolGroupView({ entries, messageId }: { entries: readonly ToolGroupEntryShape[]; messageId: string }) {
+  function ToolGroupView({ entries, messageId }: { entries: readonly PartEntry[]; messageId: string }) {
     const toolItems = buildToolRenderItems(entries, messageId)
     if (toolItems.length === 0) return null
     if (toolItems.length === 1) return <MessageTools toolResponse={toolItems[0].toolResponse} />
@@ -507,66 +499,113 @@ const ToolGroupView = React.memo(
   }
 )
 
-const ToolHistoryGroup = React.memo(function ToolHistoryGroup({
+function getReportArtifactToolResponses(entries: readonly PartEntry[], messageId: string) {
+  return entries.flatMap((entry) => {
+    const toolResponse = buildToolResponseFromPart(entry.part, `${messageId}-part-${entry.index}`)
+    return toolResponse && isReportArtifactsToolResponse(toolResponse) ? [toolResponse] : []
+  })
+}
+
+/** A run of consecutive process parts folds only once it has this many
+ * renderable tools — a lone tool reads better inline than hidden behind a
+ * "1 tool" disclosure, and "连续的工具调用" (consecutive tool calls) is plural. */
+const MIN_TOOLS_TO_FOLD = 2
+
+/**
+ * A contiguous slice of one message:
+ * - `fold`   — a run of process parts with ≥`MIN_TOOLS_TO_FOLD` renderable
+ *   tools, shown as a collapsed `ProcessFoldBlock`.
+ * - `direct` — value parts (text/code/error/media), lone tools, and tool-less
+ *   reasoning runs, rendered inline so prose, single tools, and standalone
+ *   thinking stay visible.
+ */
+type Segment = { kind: 'fold' | 'direct'; entries: PartEntry[] }
+
+/**
+ * Split a message's parts into ordered segments at value/process boundaries.
+ * A run of consecutive process parts becomes its own fold once it holds enough
+ * renderable tools, so consecutive tool calls collapse together while the text
+ * between them keeps rendering directly. A run that does not clear the fold
+ * threshold (a lone tool, pure reasoning, hidden tools, step markers) folds
+ * back into the surrounding direct content and renders inline.
+ */
+function buildSegments(entries: readonly PartEntry[], messageId: string): Segment[] {
+  const segments: Segment[] = []
+  let directRun: PartEntry[] = []
+  let processRun: PartEntry[] = []
+
+  const flushDirect = () => {
+    if (directRun.length === 0) return
+    segments.push({ kind: 'direct', entries: directRun })
+    directRun = []
+  }
+  const flushProcess = () => {
+    if (processRun.length === 0) return
+    if (buildToolRenderItems(processRun, messageId).length >= MIN_TOOLS_TO_FOLD) {
+      flushDirect()
+      segments.push({ kind: 'fold', entries: processRun })
+    } else {
+      directRun.push(...processRun)
+    }
+    processRun = []
+  }
+
+  for (const entry of entries) {
+    if (isProcessPart(entry.part)) {
+      processRun.push(entry)
+    } else {
+      flushProcess()
+      directRun.push(entry)
+    }
+  }
+  flushProcess()
+  flushDirect()
+  return segments
+}
+
+/**
+ * Collapsed per-run fold shown inside the expanded process history: chevron + a
+ * static "N tool calls" count (a "running" label while the run is live). The
+ * tools and the reasoning interleaved with them live behind the disclosure.
+ */
+const ProcessFoldBlock = React.memo(function ProcessFoldBlock({
   entries,
   message,
-  toolCount,
-  hasResult,
-  isProcessing
+  isRunning
 }: {
   entries: readonly PartEntry[]
   message: MessageListItem
-  toolCount: number
-  hasResult: boolean
-  isProcessing: boolean
+  isRunning: boolean
 }) {
   const { t } = useTranslation()
   const [isExpanded, setIsExpanded] = React.useState(false)
   const contentId = React.useId()
-
   const groupedEntries = useMemo(() => groupPartEntries(entries), [entries])
-  const toolItems = useMemo(() => buildToolRenderItems(entries, message.id), [entries, message.id])
-  const summary = t('message.tools.groupHeader', { count: toolCount })
-  const showLiveProgress = (isProcessing || message.status !== 'success') && !hasResult
-  const activityLabel =
-    showLiveProgress && getLatestToolHistoryActivity(entries) === 'thinking'
-      ? t('message.tools.thinkingHeader')
-      : undefined
-  const headerContent = (
-    <ToolBlockGroupHeaderContent
-      items={toolItems}
-      activityLabel={activityLabel}
-      summary={summary}
-      isLiveProgress={showLiveProgress}
-      showLatestWhenComplete={showLiveProgress}
-    />
-  )
+  const toolCount = useMemo(() => buildToolRenderItems(entries, message.id).length, [entries, message.id])
+  const label = isRunning ? t('message.tools.runningHeader') : t('message.tools.groupHeader', { count: toolCount })
 
   return (
-    <div className={`group/completed-tool-history max-w-full ${isExpanded ? 'w-full' : 'w-fit'}`}>
-      {showLiveProgress ? (
-        <button
-          type="button"
-          aria-expanded={isExpanded}
-          aria-controls={contentId}
-          className="flex min-h-7 w-full items-center justify-start gap-1 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
-          onClick={() => setIsExpanded((expanded) => !expanded)}>
-          {headerContent}
-        </button>
-      ) : (
-        <button
-          type="button"
-          aria-expanded={isExpanded}
-          aria-controls={contentId}
-          className={`-ml-0.5 flex min-h-7 ${isExpanded ? 'w-full' : 'w-fit'} items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2`}
-          onClick={() => setIsExpanded((expanded) => !expanded)}>
-          <ChevronDown
-            size={16}
-            className={`shrink-0 text-foreground-muted transition-transform duration-150 ${isExpanded ? 'rotate-180' : '-rotate-90'}`}
-          />
-          {headerContent}
-        </button>
-      )}
+    <div className={`group/process-fold max-w-full ${isExpanded ? 'w-full' : 'w-fit'}`}>
+      <button
+        type="button"
+        aria-expanded={isExpanded}
+        aria-controls={contentId}
+        className={`-ml-0.5 flex min-h-7 ${isExpanded ? 'w-full' : 'w-fit'} items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2`}
+        onClick={() => setIsExpanded((expanded) => !expanded)}>
+        <ChevronDown
+          size={16}
+          className={`shrink-0 text-foreground-muted transition-transform duration-150 ${isExpanded ? 'rotate-180' : '-rotate-90'}`}
+        />
+        <span
+          className={[
+            'truncate font-normal text-[13px] text-foreground-secondary transition-colors duration-150 group-hover/process-fold:text-foreground',
+            isRunning && 'animate-pulse'
+          ]
+            .filter(Boolean)
+            .join(' ')}>
+          {label}
+        </span>
+      </button>
       {isExpanded && (
         <div
           id={contentId}
@@ -579,46 +618,6 @@ const ToolHistoryGroup = React.memo(function ToolHistoryGroup({
     </div>
   )
 })
-
-function getToolHistoryGroup(
-  entries: readonly PartEntry[],
-  message: MessageListItem,
-  isProcessing: boolean
-): { collapsedEntries: PartEntry[]; resultEntries: PartEntry[]; toolCount: number; hasResult: boolean } | null {
-  if (message.role !== 'assistant') return null
-
-  let lastToolIndex = -1
-  for (let index = entries.length - 1; index >= 0; index--) {
-    if (isToolUIPart(entries[index].part)) {
-      lastToolIndex = index
-      break
-    }
-  }
-
-  if (lastToolIndex < 0) return null
-
-  let collapsedEndIndex = lastToolIndex
-  for (let index = lastToolIndex + 1; index < entries.length; index++) {
-    if (!shouldCollapseAfterLastTool(entries[index].part)) break
-    collapsedEndIndex = index
-  }
-
-  const collapsedEntries = entries.slice(0, collapsedEndIndex + 1)
-  const resultEntries = entries.slice(collapsedEndIndex + 1)
-  const hasResult = resultEntries.some((entry) => isResultPart(entry.part))
-  const hasCollapsedTail = collapsedEndIndex > lastToolIndex
-  if (message.status === 'success' && !isProcessing && !hasResult && !hasCollapsedTail) return null
-
-  const toolCount = buildToolRenderItems(collapsedEntries, message.id).length
-  if (toolCount === 0) return null
-
-  return {
-    collapsedEntries,
-    resultEntries,
-    toolCount,
-    hasResult
-  }
-}
 
 function renderGroupedEntry(
   entry: GroupedEntry,
@@ -658,17 +657,15 @@ function renderGroupedEntry(
       if (toolItems.length === 0) return null
 
       const stableGroupKey = `tool-group-${message.id}-part-${entry[0].index}`
-      if (options?.renderToolGroupsInline) {
-        return (
-          <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={isStreaming} animation="fade">
-            <ToolBlockGroupContent items={toolItems} />
-          </AnimatedBlockWrapper>
-        )
-      }
-
+      // Inline = flat tool cards (used inside an already-collapsed fold); otherwise
+      // a standalone collapsible group for bare tool runs at the top level.
       return (
         <AnimatedBlockWrapper key={stableGroupKey} enableAnimation={isStreaming} animation="fade">
-          <ToolGroupView entries={entry} messageId={message.id} />
+          {options?.renderToolGroupsInline ? (
+            <ToolBlockGroupContent items={toolItems} />
+          ) : (
+            <ToolGroupView entries={entry} messageId={message.id} />
+          )}
         </AnimatedBlockWrapper>
       )
     }
@@ -700,6 +697,162 @@ function renderGroupedEntry(
   )
 }
 
+/**
+ * Locate the agentic "process" (tool calls + reasoning) preceding the
+ * assistant's answer. `collapsedEntries` is the process — everything up to and
+ * including the trailing non-tool process tail; `resultEntries` is the answer
+ * content (if any) that follows. Returns null when there is no tool history
+ * worth folding: no tools, or a settled message that simply ends on a tool with
+ * no answer/tail (rendered inline instead).
+ */
+function getToolHistoryGroup(
+  entries: readonly PartEntry[],
+  message: MessageListItem,
+  isProcessing: boolean
+): { collapsedEntries: PartEntry[]; resultEntries: PartEntry[]; toolCount: number; hasResult: boolean } | null {
+  if (message.role !== 'assistant') return null
+
+  let lastToolIndex = -1
+  for (let index = entries.length - 1; index >= 0; index--) {
+    if (isToolUIPart(entries[index].part)) {
+      lastToolIndex = index
+      break
+    }
+  }
+  if (lastToolIndex < 0) return null
+
+  let collapsedEnd = lastToolIndex
+  for (let index = lastToolIndex + 1; index < entries.length; index++) {
+    if (!isProcessPart(entries[index].part)) break
+    collapsedEnd = index
+  }
+
+  const collapsedEntries = entries.slice(0, collapsedEnd + 1)
+  const resultEntries = entries.slice(collapsedEnd + 1)
+  const hasResult = resultEntries.some((entry) => isResultPart(entry.part))
+  const hasCollapsedTail = collapsedEnd > lastToolIndex
+  if (message.status === 'success' && !isProcessing && !hasResult && !hasCollapsedTail) return null
+
+  const toolCount = buildToolRenderItems(collapsedEntries, message.id).length
+  if (toolCount === 0) return null
+
+  return { collapsedEntries, resultEntries, toolCount, hasResult }
+}
+
+/** Whether trailing reasoning after the last tool is still streaming — drives
+ * the "thinking" hint in the live fold header. */
+function hasStreamingReasoningAfterLastTool(entries: readonly PartEntry[]): boolean {
+  for (let index = entries.length - 1; index >= 0; index--) {
+    const { part } = entries[index]
+    if (isToolUIPart(part)) return false
+    if ((part.type as string) === 'reasoning' && (part as ReasoningUIPart).state === 'streaming') return true
+  }
+  return false
+}
+
+/**
+ * Render an ordered list of segments — fold runs as `ProcessFoldBlock`, direct
+ * runs inline. `allowRunning` lets the trailing fold show its live label (only
+ * while the turn is streaming and not yet wrapped behind the outer fold).
+ */
+function renderSegments(
+  segments: readonly Segment[],
+  message: MessageListItem,
+  isStreaming: boolean,
+  isTranslationOverlayActive: boolean,
+  allowRunning: boolean
+): React.ReactNode {
+  // flatMap so direct segments contribute their grouped entries as flat,
+  // individually-keyed siblings rather than a nested array.
+  return segments.flatMap((segment, segmentIndex): React.ReactNode[] => {
+    if (segment.kind === 'fold') {
+      const isRunning = allowRunning && segmentIndex === segments.length - 1
+      return [
+        <AnimatedBlockWrapper
+          key={`process-fold-${message.id}-part-${segment.entries[0].index}`}
+          enableAnimation={false}>
+          <ProcessFoldBlock entries={segment.entries} message={message} isRunning={isRunning} />
+        </AnimatedBlockWrapper>
+      ]
+    }
+    // Direct segments live inside the already-collapsed history fold, so their
+    // tools render flat rather than as another nested collapsible group.
+    return groupPartEntries(segment.entries).map((entry) =>
+      renderGroupedEntry(entry, message, isStreaming, isTranslationOverlayActive, { renderToolGroupsInline: true })
+    )
+  })
+}
+
+/**
+ * The big outer fold for the whole agentic process. Collapsed by default; while
+ * the turn is live its header shows the current tool being called (the live
+ * "tool change" display), settling to a "N tool calls" count once done. Only on
+ * manual expand does it reveal the merged per-run folds + narration text (or, for
+ * a single run, the tool cards directly). The final answer renders outside,
+ * below this fold.
+ */
+const OuterProcessFold = React.memo(function OuterProcessFold({
+  entries,
+  message,
+  toolCount,
+  hasResult,
+  isProcessing
+}: {
+  entries: readonly PartEntry[]
+  message: MessageListItem
+  toolCount: number
+  hasResult: boolean
+  isProcessing: boolean
+}) {
+  const { t } = useTranslation()
+  const [isExpanded, setIsExpanded] = React.useState(false)
+  const contentId = React.useId()
+
+  const toolItems = useMemo(() => buildToolRenderItems(entries, message.id), [entries, message.id])
+  const segments = useMemo(() => buildSegments(entries, message.id), [entries, message.id])
+  const groupedEntries = useMemo(() => groupPartEntries(entries), [entries])
+  const showLiveProgress = (isProcessing || message.status !== 'success') && !hasResult
+  const activityLabel =
+    showLiveProgress && hasStreamingReasoningAfterLastTool(entries) ? t('message.tools.thinkingHeader') : undefined
+  // A single tool run would nest an inner fold identical to this one — render its
+  // tools flat. Multi-run / interleaved processes show the merged per-run folds.
+  const isSingleRun = segments.length === 1 && segments[0].kind === 'fold'
+
+  return (
+    <div className={`group/process-history max-w-full ${isExpanded ? 'w-full' : 'w-fit'}`}>
+      <button
+        type="button"
+        aria-expanded={isExpanded}
+        aria-controls={contentId}
+        className={`-ml-0.5 flex min-h-7 ${isExpanded ? 'w-full' : 'w-fit'} items-center justify-start gap-1.5 rounded border-0 bg-transparent px-0 py-0.5 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2`}
+        onClick={() => setIsExpanded((expanded) => !expanded)}>
+        <ChevronDown
+          size={16}
+          className={`shrink-0 text-foreground-muted transition-transform duration-150 ${isExpanded ? 'rotate-180' : '-rotate-90'}`}
+        />
+        <ToolBlockGroupHeaderContent
+          items={toolItems}
+          activityLabel={activityLabel}
+          summary={t('message.tools.groupHeader', { count: toolCount })}
+          isLiveProgress={showLiveProgress}
+          showLatestWhenComplete={showLiveProgress}
+        />
+      </button>
+      {isExpanded && (
+        <div
+          id={contentId}
+          className="mt-1.5 flex w-full flex-col gap-2 [&>.block-wrapper+.block-wrapper]:mt-0! [&>.block-wrapper:empty]:hidden [&>.block-wrapper]:mt-0! [&_.message-thought-container]:mt-0! [&_.message-thought-container]:mb-0!">
+          {isSingleRun
+            ? groupedEntries.map((entry) =>
+                renderGroupedEntry(entry, message, false, false, { renderToolGroupsInline: true })
+              )
+            : renderSegments(segments, message, false, false, showLiveProgress)}
+        </div>
+      )}
+    </div>
+  )
+})
+
 // ============================================================================
 // Main component
 // ============================================================================
@@ -721,20 +874,23 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
     [messageParts]
   )
   const placeholderStatus = useMemo(() => getProcessingPlaceholderStatus(partEntries), [partEntries])
+  const collapseEnabled = renderConfig.collapseCompletedToolHistory
+  // The whole agentic process (tools + reasoning) collapses behind one outer
+  // fold; the answer that follows renders below it. Present throughout the turn
+  // (collapsed, live header while streaming) so it never flips in/out.
   const toolHistoryGroup = useMemo(
-    () => (renderConfig.collapseCompletedToolHistory ? getToolHistoryGroup(partEntries, message, isProcessing) : null),
-    [partEntries, message, isProcessing, renderConfig.collapseCompletedToolHistory]
+    () => (collapseEnabled ? getToolHistoryGroup(partEntries, message, isProcessing) : null),
+    [collapseEnabled, partEntries, message, isProcessing]
   )
   const reportArtifactToolResponses = useMemo(
     () => getReportArtifactToolResponses(partEntries, message.id),
     [partEntries, message.id]
   )
+  // Everything not folded into the history group renders flat: the answer after
+  // the fold, or all parts when there's no fold (no tools / collapse disabled).
+  // Bare tool runs here collapse via `ToolGroupView` unless collapse is off.
   const visibleEntries = toolHistoryGroup?.resultEntries ?? partEntries
-
-  const grouped = useMemo(() => {
-    if (visibleEntries.length === 0) return []
-    return groupPartEntries(visibleEntries)
-  }, [visibleEntries])
+  const grouped = useMemo(() => (visibleEntries.length === 0 ? [] : groupPartEntries(visibleEntries)), [visibleEntries])
 
   // No parts to render — normal for user messages (content is in message text, not parts)
   // But if the message is processing (pending/streaming), show the loading placeholder
@@ -760,7 +916,7 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
       )}
       {toolHistoryGroup && (
         <AnimatedBlockWrapper key={`tool-history-${message.id}`} enableAnimation={false}>
-          <ToolHistoryGroup
+          <OuterProcessFold
             entries={toolHistoryGroup.collapsedEntries}
             message={message}
             toolCount={toolHistoryGroup.toolCount}
@@ -769,11 +925,11 @@ const MessagePartsRenderer: React.FC<Props> = ({ message }) => {
           />
         </AnimatedBlockWrapper>
       )}
-      {grouped.map((entry) => {
-        return renderGroupedEntry(entry, message, isStreaming, isTranslationOverlayActive, {
-          renderToolGroupsInline: !renderConfig.collapseCompletedToolHistory
+      {grouped.map((entry) =>
+        renderGroupedEntry(entry, message, isStreaming, isTranslationOverlayActive, {
+          renderToolGroupsInline: !collapseEnabled
         })
-      })}
+      )}
       {reportArtifactToolResponses.length > 0 && (
         <AnimatedBlockWrapper key={`report-artifacts-${message.id}`} enableAnimation={isStreaming} animation="fade">
           <MessageReportArtifacts toolResponses={reportArtifactToolResponses} />

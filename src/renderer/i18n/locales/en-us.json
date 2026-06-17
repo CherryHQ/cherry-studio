@@ -3755,6 +3755,7 @@
       "preview": "Preview",
       "raw": "Raw",
       "runningCount": "{{count}} tools running",
+      "runningHeader": "Working…",
       "sections": {
         "args": "Arguments",
         "command": "Command",

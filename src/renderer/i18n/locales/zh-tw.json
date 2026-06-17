@@ -3755,6 +3755,7 @@
       "preview": "預覽",
       "raw": "原始碼",
       "runningCount": "{{count}} 個工具正在運行",
+      "runningHeader": "執行中…",
       "sections": {
         "args": "參數",
         "command": "命令",
